@@ -85,6 +85,32 @@ atomic CAS/final graph/witness/receipt persistence is the transaction owner's
 obligation. New source-presence admission remains held pending that reviewed
 composition; frozen record/audit schemas remain unchanged.
 
+`AtlasReads<R,C>` now implements the query owner for all ten Atlas record-get
+forms over the existing real `ReadPort<P>`/`NativeStorage`. It retains the original
+principal and canonical payload, validates frozen and exact stock shapes, checks
+scope/target correlation and omits private asset `storageKey`. Output remains
+subject to stock authority disclosure/revalidation. Only an actually empty,
+unfiltered first-page audit sequence can map to stock history; nonempty history
+requires durable original stock command/digest linkage and real opaque paging.
+Lists and byte downloads remain owner work. No concrete current stock authority
+composition or production endpoint is enabled by this mapper.
+
+`plan_atlas_commands` builds immutable, lossless native plans for 31 direct Atlas
+write forms and ordered batches. Root and child envelopes/digests, child order,
+separate root guards and distinct root idempotency key/batch target ID remain
+coupled. Actual native contract validation checks every mapped shape. Reasons
+over the frozen command's 1024-code-point limit, non-Atlas guard arms and semantic
+binding/remap/media/geometry transformations remain held. Planning executes no
+native mutation. AT07 must atomically retain the full stock envelopes, key
+reservations, stable operation IDs and audit linkage with native records and
+receipts; a frozen receipt or post-commit sidecar does not supply that guarantee.
+
+The current composed compiler harness includes real published storage/access/
+contract source snapshots and the current AT36 modules. Root manifests/locks
+and shared stock schema implementation remain peer-owned. Compiler/static
+review evidence for these new owner modules is separate from the earlier
+synthetic examples and does not establish production execution qualification.
+
 `examples/healthy.rs` is an isolated synthetic consumer using an external
 offline Python draft2020-12 validator against the exact stock/Atlas schemas.
 Graph/authority/query/command peers are explicitly synthetic. Its actual

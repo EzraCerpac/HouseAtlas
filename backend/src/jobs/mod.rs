@@ -4,6 +4,7 @@
 //! access are injected. This component creates no service or network transport.
 
 mod model;
+pub mod native_homebox;
 mod orchestrator;
 mod ports;
 mod stock;

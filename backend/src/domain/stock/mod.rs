@@ -2,6 +2,8 @@
 //! All transports share this synchronous domain boundary. Storage, schema,
 //! authority and provider queue owners are injected; this module opens no IO.
 
+mod atlas_commands;
+mod atlas_reads;
 mod catalog;
 mod digest;
 mod ports;
@@ -9,6 +11,8 @@ mod request;
 mod result;
 mod service;
 
+pub use atlas_commands::*;
+pub use atlas_reads::*;
 pub use catalog::*;
 pub use digest::*;
 pub use ports::*;
@@ -18,6 +22,9 @@ pub use service::*;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StockError {
+    /// Preserve the real native store's authorized error category. No revision
+    /// is invented by a stock adapter or recovered through a detached read.
+    Domain(super::DomainError),
     InvalidContract,
     UnsupportedCapability,
     CapabilityHeld,

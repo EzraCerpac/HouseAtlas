@@ -83,6 +83,26 @@ Incomplete accounting has `reservedBytes=None`. No inferred zero, age, missing
 row, filename or hash gives cleanup authority. Pending upload reservation and
 aggregate unresolved liabilities are separate admission inputs.
 
+Claim and finish reports cannot replace prior attempts' retained liability.
+The synthetic SQLite adapter now keeps append-only liability evidence by the
+original fence, including every orphan reference. It computes checked sums of
+per-attempt known/reserved bytes and unresolved counts; within an attempt it
+retains conservative maxima and never upgrades incomplete accounting. This
+can overreserve and provides no cleanup authority. Reconciliation and remote
+end proof leave this ledger unchanged. This correction is compiler-only;
+retry/replay and failure controls remain held.
+
+`native_homebox.rs` provides `NativeHomeBoxWriter<Owner,Transport>` over mandatory
+typed peers. The owner loads the original durable intent and journals the exact
+qualified native dispatch before returning a single-use invocation. A separate
+required final `authorize_dispatch` runs immediately before the transport consumes
+that invocation. Exact original job/lease/payload/journal binding is checked;
+response acknowledgement, verified effects, remote termination and liability
+stay independent. This is executable adapter logic over injected transport,
+not a concrete route/body qualification, production journal implementation or
+live provider capability. Unknown acknowledgement cannot become Applied and
+an Applied result requires the matching definite response digest.
+
 ## Profiles and qualification
 
 `AdmissionProfile::stock_engineering_fixture()` explicitly selects the offline
