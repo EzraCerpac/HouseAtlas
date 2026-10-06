@@ -501,3 +501,32 @@ async fn literal_http_reference_representation_is_preserved() {
         );
     }
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn original_valid_uri_syntax_and_escaped_spelling_are_preserved() {
+    let reg = registration();
+    let urls = [
+        "https://manual.example.invalid/Synthetic%20Manual.pdf?q=part%2fA#section%202",
+        "https://MANUAL.example.invalid/Caf%C3%A9.pdf?literal=%25&name=synthetic",
+        "http://[2001:db8::1]:8080/manual%20reference?part=synthetic#intro",
+        "https://manual.example.invalid/a;b=synthetic?note=a%2Bb&path=one/two",
+    ];
+    for (i, url) in urls.iter().enumerate() {
+        let mut entities = metadata();
+        entities[1]["attachments"][1]["url"] = json!(url);
+        let (mut r, _) = reader(entities, reg.clone(), Limits::default(), None);
+        let g = r.fetch_generation(None, generation_id()).await.unwrap();
+        let item = g
+            .entities()
+            .iter()
+            .find(|p| p.entity.id.as_str() == ITEM)
+            .unwrap();
+        assert!(
+            matches!(&item.attachments[1], Attachment::ExternalLink { url: actual, .. } if actual == url)
+        );
+        emit(
+            &format!("original-uri-{i}.snapshot.json"),
+            snapshot(&g, &reg),
+        );
+    }
+}

@@ -16,6 +16,7 @@ serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.145"
 chrono = { version = "=0.4.42", default-features = false, features = ["std"] }
 url = "=2.5.7"
+fluent-uri = { version = "=0.4.1", default-features = false }
 tokio = { version = "=1.48.0", features = ["time", "rt", "macros"] }
 ```
 
@@ -23,6 +24,8 @@ The external harness retains its own Cargo.lock. Tokio supplies timers and a
 current-thread runtime for examples, without networking features. Chrono validates
 RFC3339 strings without replacing their original precision or offset. These pins
 are a narrow dependency proposal; shared application selection remains with AT51.
+The feature-disabled `fluent-uri` parser validates a borrowed original RFC3986 URI
+before WHATWG URL parsing; no normalization, resolution or retrieval is performed.
 
 `HomeBoxReader::new(registration, transport, clock, limits, navigation)` freezes
 the server-provided registration and navigation. `Transport::get(GetRequest)`
@@ -107,7 +110,9 @@ nonfinite numbers, unpaired escaped surrogates and nesting beyond 64. Typed deco
 validates required metadata arrays, lengths, UUIDs, dates, attachment shapes and
 maintenance. External references must preserve the literal lowercase `http://` or
 `https://` prefix required by the published schema; normalized URL-parser scheme
-checks alone are insufficient. Page counters and nullable attachment byte sizes
+checks alone are insufficient. The original ASCII URI grammar and percent-encoded
+octets are validated before URL parsing can repair their representation. The exact
+valid reference spelling is retained. Page counters and nullable attachment byte sizes
 accept integral JSON float/exponent spellings, with finite/nonnegative/integral
 and exclusive 2^64 range checks before converting floating values to u64.
 Identical repeated entity rows collapse; conflicts, observed count
@@ -161,10 +166,11 @@ cargo clippy --manifest-path "$AT08_HARNESS/Cargo.toml" --locked --all-targets -
 AT08_EVIDENCE_DIR="$AT08_HARNESS/evidence" cargo test --manifest-path "$AT08_HARNESS/Cargo.toml" --locked homebox_read::healthy:: -- --test-threads=1
 ```
 
-The ten explicitly named success-only examples exercise published synthetic
+The eleven explicitly named success-only examples exercise published synthetic
 metadata, scoped GETs/pagination, filtered views, empty generations, pinned minimal
 pages, provenance/UUID spelling, allowlists, pure freshness and synthetic native
-navigation/publication handoff, integral numeric spellings and literal URL references.
+navigation/publication handoff, integral numeric spellings, literal URL references
+and valid escaped URI spelling (path/query/fragment, host case and IPv6 authority).
 Emitted snapshots are checked against the published
 shape and semantic validator; view projections are checked separately. The harness
 does not open listeners or call a provider. Legacy broad test aggregates and stopped

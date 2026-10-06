@@ -171,6 +171,10 @@ fn reference_url(value: &str) -> Result<Url, ReadError> {
     if !value.starts_with("http://") && !value.starts_with("https://") {
         return Err(invalid());
     }
+    // Validate the original RFC 3986 URI, including character classes and
+    // percent-encoded octets, before WHATWG parsing can repair its spelling.
+    // Borrowed Uri parsing neither normalizes the reference nor retrieves it.
+    fluent_uri::Uri::parse(value).map_err(|_| invalid())?;
     Url::parse(value).map_err(|_| invalid())
 }
 pub(super) fn validate_attachment(a: &Attachment) -> Result<(), ReadError> {
