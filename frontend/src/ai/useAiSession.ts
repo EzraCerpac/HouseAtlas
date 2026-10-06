@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { canInfer } from './model.js';
 import type {
-  AiClient, AiSessionState, CancellationState, ConnectionAction, ConnectionActionState, RequestState, RunOutcome,
+  AiClient, AiSessionState, CancellationState, ConnectionAction, ConnectionActionState, RequestState, RunOutcome, UnresolvedConnectionAction,
 } from './types.js';
 
 interface Scope {
@@ -18,11 +18,8 @@ interface PendingRun {
   resultLost: boolean;
 }
 
-interface PendingConnectionAction {
+interface PendingConnectionAction extends UnresolvedConnectionAction {
   readonly scope: Scope;
-  readonly actionId: string;
-  readonly action: ConnectionAction['action'];
-  readonly status: 'pending' | 'unconfirmed';
 }
 
 interface ScopedState {
@@ -338,7 +335,8 @@ export function useAiSession(client: AiClient, scopeKey: string) {
     }
   }, [scope, acceptOutcome, update]);
 
-  const pendingConnectionKinds: readonly ConnectionAction['action'][] = [...pendingConnectionActions.current.values()]
-    .filter(action => action.scope === scope).map(action => action.action);
-  return { state, refresh, submit, cancel, connectionAction, review, recover, pendingConnectionKinds };
+  const unresolvedConnectionActions: readonly UnresolvedConnectionAction[] = [...pendingConnectionActions.current.values()]
+    .filter(action => action.scope === scope).map(({ actionId, action, status }) => ({ actionId, action, status }));
+  const pendingConnectionKinds = unresolvedConnectionActions.map(action => action.action);
+  return { state, refresh, submit, cancel, connectionAction, review, recover, pendingConnectionKinds, unresolvedConnectionActions };
 }

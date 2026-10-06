@@ -8,5 +8,5 @@ export type {
   ActionState, AiClient, AiErrorCode, AiSessionState, CancellationState, CancelReceipt,
   ConnectionAction, ConnectionActionRequest, ConnectionActionResult, ConnectionActionState, ConnectionSnapshot, ConnectionState, HumanReviewResult,
   DomainHeld, JsonValue, RequestState, RequestStatus, ReviewChallenge, ReviewInput, ReviewRequired,
-  RunOutcome, RuntimeRoute, ToolCall, Usage,
+  RunOutcome, RuntimeRoute, ToolCall, UnresolvedConnectionAction, Usage,
 } from './types.js';

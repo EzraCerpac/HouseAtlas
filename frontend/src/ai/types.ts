@@ -149,6 +149,13 @@ export type ConnectionActionState = ActionState & {
   readonly actionId: string | null;
 };
 
+/** Browser progress only; the host owns each scoped action's completion. */
+export interface UnresolvedConnectionAction {
+  readonly actionId: string;
+  readonly action: ConnectionAction['action'];
+  readonly status: 'pending' | 'unconfirmed';
+}
+
 export type RequestState =
   | { readonly status: 'idle' }
   | { readonly status: 'running' | 'unconfirmed'; readonly requestId: string; readonly cancellation: CancellationState }

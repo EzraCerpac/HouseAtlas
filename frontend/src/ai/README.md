@@ -21,7 +21,10 @@ queries the separate `connectionActionStatus` port for every retained original
 ID; only a matching completed workflow clears its pending status. Auxiliary
 Manage usage and Disconnect preserve other unresolved IDs. New Connect/consent
 is disabled until existing actions reconcile. Lookup uncertainty stays visible;
-connected snapshot facts cannot resolve an action. The three runtime candidates
+the panel renders every unresolved action's own status, including an earlier
+Disconnect warning while a later Manage usage action is pending or opening.
+Only matching completion clears that action. Connected snapshot facts cannot
+resolve an action. The three runtime candidates
 remain explicit: a local
 sign-in helper, an issued website client and a local inference companion.
 Selecting a candidate does not qualify or adopt it. A local companion's computer

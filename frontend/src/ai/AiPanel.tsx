@@ -2,7 +2,7 @@ import { useId, useState } from 'react';
 import type { FormEvent } from 'react';
 import { cancellationMessage, canInfer, failureMessages, readinessMessage, tokenCount } from './model.js';
 import type {
-  AiClient, AiSessionState, ConnectionAction, ConnectionSnapshot, DomainHeld, RunOutcome, RuntimeRoute, Usage,
+  AiClient, AiSessionState, ConnectionAction, ConnectionSnapshot, DomainHeld, RunOutcome, RuntimeRoute, UnresolvedConnectionAction, Usage,
 } from './types.js';
 import { useAiSession } from './useAiSession.js';
 
@@ -32,7 +32,7 @@ function AiPanelSession({ client, scopeLabel, scopeKey }: AiPanelProps) {
     onConnectionAction={input => { void session.connectionAction(input); }}
     onReview={() => { void session.review(); }}
     onRecover={() => { void session.recover(); }}
-    pendingConnectionKinds={session.pendingConnectionKinds}
+    unresolvedConnectionActions={session.unresolvedConnectionActions}
   />;
 }
 
@@ -47,7 +47,7 @@ export interface AiPanelViewProps {
   readonly onConnectionAction: (input: ConnectionAction) => void;
   readonly onReview: () => void;
   readonly onRecover: () => void;
-  readonly pendingConnectionKinds?: readonly ConnectionAction['action'][];
+  readonly unresolvedConnectionActions?: readonly UnresolvedConnectionAction[];
 }
 
 const methodLabels: Record<ConnectionSnapshot['method'], string> = {
@@ -72,6 +72,9 @@ const routeLabels: Record<RuntimeRoute, string> = {
 const paidUseLabels: Record<ConnectionSnapshot['paidUseAdmission'], string> = {
   held: 'Held', 'verified-zero-paid-use': 'Zero paid use verified', 'explicit-spend-approval': 'Specific credit spending approved',
 };
+const actionLabels: Record<ConnectionAction['action'], string> = {
+  connect: 'Connect', consent: 'Inference consent', disconnect: 'Disconnect', 'manage-usage': 'Manage usage',
+};
 const heldMessages: Record<DomainHeld['state'], string> = {
   prepared: 'Domain intent is prepared. No write has been dispatched.',
   queued: 'Domain operation is queued. No completed write is reported.',
@@ -82,17 +85,23 @@ const heldMessages: Record<DomainHeld['state'], string> = {
 };
 
 export function AiPanelView({
-  state, scopeLabel, prompt, onPromptChange, onSubmit, onCancel, onRefresh, onConnectionAction, onReview, onRecover, pendingConnectionKinds,
+  state, scopeLabel, prompt, onPromptChange, onSubmit, onCancel, onRefresh, onConnectionAction, onReview, onRecover, unresolvedConnectionActions,
 }: AiPanelViewProps) {
   const id = useId();
   const [selectedRoute, setSelectedRoute] = useState<RuntimeRoute>('unset');
   const activeRequest = 'cancellation' in state.request ? state.request : null;
   const busy = activeRequest !== null;
   const connectionBusy = state.connectionAction.status === 'working';
-  const pendingKinds = pendingConnectionKinds ?? (
+  const unresolvedActions = unresolvedConnectionActions ?? (
     (state.connectionAction.status === 'pending' || state.connectionAction.status === 'unconfirmed')
-      && state.connectionAction.action !== null ? [state.connectionAction.action] : []
+      && state.connectionAction.action !== null ? [{
+        actionId: state.connectionAction.actionId, action: state.connectionAction.action, status: state.connectionAction.status,
+      }] : []
   );
+  const pendingKinds = unresolvedActions.map(action => action.action);
+  // The submitted action is retained before its opening call settles. Show its
+  // working progress separately, while preserving every older unresolved row.
+  const visibleActions = unresolvedActions.filter(action => !(connectionBusy && action.actionId === state.connectionAction.actionId));
   const ready = state.connection.status === 'available' && canInfer(state.connection.snapshot);
   const cancellation = activeRequest === null ? null : cancellationMessage(activeRequest.cancellation);
   const cancelDisabled = activeRequest !== null && (activeRequest.cancellation.status === 'sending'
@@ -133,9 +142,13 @@ export function AiPanelView({
           onClick={() => onConnectionAction({ action: 'manage-usage' })}>Manage usage</button>
       </div>
       {state.connectionAction.status === 'working' && <p role="status">Opening connection action.</p>}
-      {state.connectionAction.status === 'pending' && <p role="status">Connection action is pending. Refresh status after the host action finishes.</p>}
-      {state.connectionAction.status === 'unconfirmed' && <p role="status">{state.connectionAction.action === 'disconnect'
-        ? 'Disconnect or remote revocation is unconfirmed.' : 'Connection action is unconfirmed.'}</p>}
+      {visibleActions.length > 0 && <ul aria-label="Unresolved connection actions">
+        {visibleActions.map(action => <li key={action.actionId ?? action.action}><p role="status">
+          {action.status === 'pending'
+            ? `${actionLabels[action.action]} is pending. Refresh status after the host action finishes.`
+            : action.action === 'disconnect' ? 'Disconnect or remote revocation is unconfirmed.' : `${actionLabels[action.action]} is unconfirmed.`}
+        </p></li>)}
+      </ul>}
       {state.connectionAction.status === 'unavailable' && <p role="status">Connection action is unavailable.</p>}
     </fieldset>
     <form onSubmit={submit}>
