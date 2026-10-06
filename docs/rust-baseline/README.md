@@ -43,15 +43,20 @@ Typed DTOs alone do not establish graph, authorization, current source authority
 transaction ordering, mutation receipts or other behavioral invariants. Their
 feature owners must implement those checks at integration boundaries.
 
-Rust integer fields use `JsonInteger`, preserving integral values in serde_json's
-i64/u64/finite-f64 number model. Construct ordinary revisions with
+Rust integer fields use `JsonInteger` and the locked schema library's integer
+classification. Construct ordinary revisions with
 `JsonInteger::from(1_i64)` and inspect them with `as_number().as_i64()` or
 `as_number().as_u64()`. Canonical schema bounds remain enforced by the boundary
-helpers. This is not an arbitrary-precision numeric contract. `ConstInt<1>` and
+helpers. The precision feature proposal and its remaining limitations are in
+[numeric-semantics.md](numeric-semantics.md). `ConstInt<1>` and
 `ConstBool<true>` represent literal schema markers; required nullable fields use
 `Option<T>`, and optional wire fields use `Optional<T>` to preserve omission
 separately from present null. Open HomeBox wire shapes retain extra fields in
 their `additional_properties` maps; canonical closed DTOs deny unknown fields.
+Generated serializers reject extras whose keys match any modeled property,
+including optional properties. Each nested open HomeBox object applies its own
+check. Direct Serde serialization and `validate`/`encode` propagate that error;
+extra fields cannot replace the typed modeled fields during serialization.
 General numeric fields use `JsonNumber` with a private serde_json number,
 `From<i64/u64>` and checked `from_f64(value) -> Option<JsonNumber>`. Non-finite
 values cannot be constructed through that API and converted silently into null.
@@ -82,10 +87,10 @@ node tools/rust-baseline/generate-contracts.mjs --check
 node tools/rust-baseline/check-contracts.mjs
 node packages/contracts/history/check-history.mjs
 cargo fmt --all --check
-cargo check --locked -p houseatlas-backend --lib --examples
-cargo clippy --locked -p houseatlas-backend --lib --examples -- -D warnings
-cargo run --locked -p houseatlas-backend --example healthy-contracts
-cargo run --locked -p houseatlas-backend --example healthy-dependencies
+cargo check --locked -p houseatlas-backend --lib --examples --features serde_json/arbitrary_precision,jsonschema/arbitrary-precision
+cargo clippy --locked -p houseatlas-backend --lib --examples --features serde_json/arbitrary_precision,jsonschema/arbitrary-precision -- -D warnings
+cargo run --locked -p houseatlas-backend --example healthy-contracts --features serde_json/arbitrary_precision,jsonschema/arbitrary-precision
+cargo run --locked -p houseatlas-backend --example healthy-dependencies --features serde_json/arbitrary_precision,jsonschema/arbitrary-precision
 npm --prefix frontend run typecheck
 npm --prefix frontend run build
 ```
@@ -110,7 +115,7 @@ fixed valid-history checks, including the published core-schema/OpenAPI digests.
 
 AT51 does not declare unavailable peer modules or supply peer stubs. Their
 `pub mod` declarations and any new direct dependencies require reconciliation
-in this owner lane after the source modules are accepted. Future module tests
+by the shared integration owner after the source modules are accepted. Future module tests
 also require explicitly named authorized Cargo targets; automatic test/example
 discovery is disabled in the initial backend manifest.
 

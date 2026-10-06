@@ -21,15 +21,18 @@ assert.equal(npmVersion.stdout.trim(), '11.19.1', 'Use the pinned npm runtime');
 // may replace this temporary directory with CARGO_TARGET_DIR in a shared build cache.
 const target = process.env.CARGO_TARGET_DIR ?? mkdtempSync(join(tmpdir(), 'houseatlas-at51-'));
 const compilerEnv = { ...process.env, CARGO_TARGET_DIR: target };
+// The integrator owns the manifests. Select the proposed paired precision
+// features explicitly here until they are also selected in those manifests.
+const precisionFeatures = ['--features', 'serde_json/arbitrary_precision,jsonschema/arbitrary-precision'];
 try {
   run(process.execPath, ['tools/rust-baseline/generate-contracts.mjs', '--check']);
   run(process.execPath, ['tools/rust-baseline/check-contracts.mjs']);
   run(process.execPath, ['packages/contracts/history/check-history.mjs']);
   run('cargo', ['fmt', '--all', '--check'], compilerEnv);
-  run('cargo', ['check', '--locked', '-p', 'houseatlas-backend', '--lib', '--examples'], compilerEnv);
-  run('cargo', ['clippy', '--locked', '-p', 'houseatlas-backend', '--lib', '--examples', '--', '-D', 'warnings'], compilerEnv);
-  run('cargo', ['run', '--locked', '-p', 'houseatlas-backend', '--example', 'healthy-contracts'], compilerEnv);
-  run('cargo', ['run', '--locked', '-p', 'houseatlas-backend', '--example', 'healthy-dependencies'], compilerEnv);
+  run('cargo', ['check', '--locked', '-p', 'houseatlas-backend', '--lib', '--examples', ...precisionFeatures], compilerEnv);
+  run('cargo', ['clippy', '--locked', '-p', 'houseatlas-backend', '--lib', '--examples', ...precisionFeatures, '--', '-D', 'warnings'], compilerEnv);
+  run('cargo', ['run', '--locked', '-p', 'houseatlas-backend', '--example', 'healthy-contracts', ...precisionFeatures], compilerEnv);
+  run('cargo', ['run', '--locked', '-p', 'houseatlas-backend', '--example', 'healthy-dependencies', ...precisionFeatures], compilerEnv);
   run('npm', ['--prefix', 'frontend', 'run', 'typecheck']);
   run('npm', ['--prefix', 'frontend', 'run', 'build']);
   console.log('PASS AT51 source compilers and named healthy synthetic baseline examples');
