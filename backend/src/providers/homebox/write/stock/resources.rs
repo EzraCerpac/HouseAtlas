@@ -12,6 +12,13 @@
 //! v1_ctrl_entities_attachments_external.go (SHA256
 //! 52bcd0588f1eefb94a455602ba01dc1f8e9778350e67de6ff4f23daf95c3dc27)
 //! checks HTTP/HTTPS before creation. These are public upstream references.
+//! The same repository forces non-photo primary=false and auto-promotes the
+//! first uploaded photo. Ent accepts photo/manual/warranty/attachment/receipt/
+//! thumbnail; external creation accepts only the first five. Unsupported
+//! requested values are rejected instead of silently normalized.
+//! The pinned upload handler strips `..` and path separators from filenames;
+//! the external handler trims titles and derives a title when empty. Plans
+//! accept only unchanged spellings, preserving the exact requested value.
 
 use super::types::{
     GeneratedIdentity, NativeBody, NativeMethod, NativePlan, Preparation, ReadbackSelector,
@@ -438,7 +445,50 @@ fn attachment_kind(command: &StockCommand, current: &Value) -> Result<(), StockM
 fn body_attachment_update(payload: &Value, current: &Value) -> BodyResult<Value> {
     let mut body = preserved(current, &["title", "type", "primary"])?;
     copy_present(object(payload)?, &mut body, &["title", "type", "primary"]);
+    let attachment_type = required(&body, "type")?
+        .as_str()
+        .ok_or("native-attachment-type-required")?;
+    native_attachment_type(attachment_type, false)?;
+    let primary = required(&body, "primary")?
+        .as_bool()
+        .ok_or("native-attachment-primary-required")?;
+    if attachment_type != "photo" && primary {
+        return Err("native-non-photo-primary-cannot-be-preserved");
+    }
     Ok(Value::Object(body))
+}
+
+fn native_attachment_type(attachment_type: &str, external: bool) -> BodyResult<()> {
+    match attachment_type {
+        "photo" | "manual" | "warranty" | "attachment" | "receipt" => Ok(()),
+        "thumbnail" if !external => Ok(()),
+        _ => Err("native-attachment-type-unavailable"),
+    }
+}
+
+fn upload_primary(owner: &Value, attachment_type: &str, primary: bool) -> BodyResult<()> {
+    if attachment_type != "photo" {
+        return if primary {
+            Err("native-non-photo-primary-cannot-be-preserved")
+        } else {
+            Ok(())
+        };
+    }
+    if primary {
+        return Ok(());
+    }
+    let attachments = required(object(owner)?, "attachments")?
+        .as_array()
+        .ok_or("native-attachment-state-incomplete")?;
+    for attachment in attachments {
+        let current_type = required(object(attachment)?, "type")?
+            .as_str()
+            .ok_or("native-attachment-state-incomplete")?;
+        if current_type == "photo" {
+            return Ok(());
+        }
+    }
+    Err("native-first-photo-primary-false-unavailable")
 }
 
 fn no_native_null(payload: &Value, fields: &[&str]) -> Result<(), StockMappingError> {
@@ -618,7 +668,7 @@ pub(super) fn map(
             resource_delete(command, path.clone(), path, ReadbackSelector::Whole)
         }
         "homebox.file.upload" => {
-            let (_, before_ids) = attachment_snapshot(command, preparation)?;
+            let (owner_snapshot, before_ids) = attachment_snapshot(command, preparation)?;
             let stage = preparation
                 .staged_upload
                 .clone()
@@ -627,6 +677,9 @@ pub(super) fn map(
                 serde_json::to_value(&stage).map_err(|_| StockMappingError::InvalidNativeInput)?;
             if command.payload.get("staged") != Some(&staged) {
                 return Err(StockMappingError::StageMismatch);
+            }
+            if stage.filename.contains("..") || stage.filename.contains(['/', '\\']) {
+                return Err(limitation("native-upload-filename-would-be-normalized"));
             }
             let payload = object(&command.payload).map_err(limitation)?;
             let attachment_type = required(payload, "type")
@@ -637,6 +690,8 @@ pub(super) fn map(
                 .map_err(limitation)?
                 .as_bool()
                 .ok_or(StockMappingError::InvalidNativeInput)?;
+            native_attachment_type(attachment_type, false).map_err(limitation)?;
+            upload_primary(owner_snapshot, attachment_type, primary).map_err(limitation)?;
             let owner = command.target.owner()?;
             let expected = serde_json::json!({"title":stage.filename.clone(),"type":attachment_type,"primary":primary});
             let fields = vec![
@@ -718,8 +773,21 @@ pub(super) fn map(
             let (_, before_ids) = attachment_snapshot(command, preparation)?;
             let payload = object(&command.payload).map_err(limitation)?;
             let title = required(payload, "title").map_err(limitation)?;
+            let title_text = title
+                .as_str()
+                .ok_or(StockMappingError::InvalidNativeInput)?;
+            if title_text.is_empty() || title_text.trim() != title_text {
+                return Err(limitation("native-link-title-would-be-normalized"));
+            }
             let url = required(payload, "url").map_err(limitation)?;
             let attachment_type = required(payload, "attachmentType").map_err(limitation)?;
+            native_attachment_type(
+                attachment_type
+                    .as_str()
+                    .ok_or(StockMappingError::InvalidNativeInput)?,
+                true,
+            )
+            .map_err(limitation)?;
             let body = NativeBody::Json(serde_json::json!({"title":title,"source_type":"link",
                 "external_id":url,"attachment_type":attachment_type}));
             let owner = command.target.owner()?;
@@ -982,6 +1050,11 @@ pub(super) fn map(
     };
     if command.command_id == "homebox.entity-type.update"
         || command.payload.get("primary").is_some()
+        || (matches!(
+            command.command_id.as_str(),
+            "homebox.file.update" | "homebox.document-link.update"
+        ) && matches!(&mapped.request.body, NativeBody::Json(body)
+            if body.get("primary").and_then(Value::as_bool) == Some(true)))
         || command
             .payload
             .get("fieldChanges")

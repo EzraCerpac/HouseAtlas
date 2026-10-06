@@ -441,9 +441,30 @@ fn cases() -> Vec<Case> {
             format!("{entity_path}/attachments"),
         ),
         (
+            "homebox.file.upload",
+            None,
+            json!({"staged":stage(false),"type":"thumbnail","primary":false}),
+            NativeMethod::Post,
+            format!("{entity_path}/attachments"),
+        ),
+        (
+            "homebox.file.upload",
+            None,
+            json!({"staged":stage(false),"type":"photo","primary":false}),
+            NativeMethod::Post,
+            format!("{entity_path}/attachments"),
+        ),
+        (
             "homebox.file.update",
             Some(fixture_id(0x900)),
             json!({"title":"Healthy revised file","type":"photo","primary":true}),
+            NativeMethod::Put,
+            attachment_path(fixture_id(0x900)),
+        ),
+        (
+            "homebox.file.update",
+            Some(fixture_id(0x900)),
+            json!({"title":"Healthy manual file","type":"manual","primary":false}),
             NativeMethod::Put,
             attachment_path(fixture_id(0x900)),
         ),
@@ -732,12 +753,30 @@ fn assert_family_values(command: &StockCommand, preparation: &Preparation, plan:
                 panic!("healthy upload is multipart")
             };
             assert_eq!(file_field, "file");
+            if command.payload["type"] == "photo" && command.payload["primary"] == false {
+                let owner = preparation
+                    .snapshot(&command.target.owner_target().unwrap())
+                    .unwrap();
+                assert!(
+                    owner.value["attachments"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|attachment| attachment["type"] == "photo")
+                );
+            }
             assert_eq!(
                 fields,
                 &vec![
                     ("name".into(), stage.filename.clone()),
-                    ("type".into(), "photo".into()),
-                    ("primary".into(), "true".into())
+                    (
+                        "type".into(),
+                        command.payload["type"].as_str().unwrap().into()
+                    ),
+                    (
+                        "primary".into(),
+                        command.payload["primary"].as_bool().unwrap().to_string()
+                    )
                 ]
             );
             assert_eq!(
@@ -746,6 +785,14 @@ fn assert_family_values(command: &StockCommand, preparation: &Preparation, plan:
                     field: "attachments".into()
                 }
             );
+        }
+        "homebox.file.update" => {
+            let NativeBody::Json(body) = &plan.request.body else {
+                panic!("healthy attachment update uses JSON")
+            };
+            assert_eq!(body["title"], command.payload["title"]);
+            assert_eq!(body["type"], command.payload["type"]);
+            assert_eq!(body["primary"], command.payload["primary"]);
         }
         "homebox.document-link.create" => {
             let NativeBody::Json(body) = &plan.request.body else {
@@ -874,6 +921,6 @@ fn healthy_synthetic_stock_operation_mappings() {
     assert_eq!(command_ids.len(), 49);
     assert_eq!(bulk_actions.len(), 6);
     assert_eq!(print_subjects.len(), 3);
-    assert_eq!(cases.len(), 63);
+    assert_eq!(cases.len(), 66);
     assert_eq!(healthy_cases().len(), cases.len());
 }

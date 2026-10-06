@@ -49,6 +49,18 @@ Label rendering belongs to the read/artifact component and must use print=false.
 Known native variant limits remain explicit before dispatch: changed entity time
 fields, changed non-text template field values, template nullable default clears,
 and template notes/defaultWarrantyDetails beyond the native 1000-code-point limit.
+Attachment upload/update accepts the six native types (photo, manual, warranty,
+attachment, receipt, thumbnail); external-link create accepts the five public
+types without thumbnail. Other strings return an explicit limitation. Non-photo
+primary=true cannot be preserved. A first-photo upload with primary=false also
+returns a limitation because native creation promotes it; a complete owner
+attachment observation establishes whether an earlier photo exists. No primary
+value or external-link type is silently normalized. Preserved primary=true
+metadata updates require complete affected-primary impact evidence.
+Upload filenames that native sanitization would change (`..` or path separators)
+and link-create titles that native trimming/fallback would change also return
+explicit limitations. Existing link/file metadata title updates preserve the
+exact string; no unestablished native byte-length bound is invented.
 No truncation or fabricated zero/empty value is used. Unrelated template updates
 may preserve existing non-text fields only with genuine preservation evidence.
 Nullable entity price/date and maintenance date/reopen forms, nullable type defaults
@@ -118,11 +130,11 @@ The unqualified engineering profile numbers are not production settings.
 
 The external harness imports the actual module with Rust 1.99.0/edition 2024 and
 pins serde=1.0.228, serde_json=1.0.145 and uuid=1.18.1. AT51 owns final manifests.
-Run only the two stock healthy groups by exact name: 63 positive mapping cases
+Run only the two stock healthy groups by exact name: 66 positive mapping cases
 across all 48 required IDs/native variants, and one fresh acknowledged synthetic
 dispatch/readback. Shared contracts/access/preparation/ledger/transport remain
 stand-ins in these groups. They open no socket and use no real credentials/data.
-Their emitted 64 wire requests, one wire outcome and 63 native plans were
+Their emitted 67 wire requests, one wire outcome and 66 native plans were
 validated offline against the exact supplied request/outcome schemas and pinned
 Swagger routes/body/form/query/response-status definitions. Swagger x-nullable
 was interpreted for shape validation; it was not treated as native clear proof.
