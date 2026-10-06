@@ -111,6 +111,10 @@ storage/domain fixed integer carriers, scientific exponent arithmetic and
 ECMAScript canonicalization still have the disclosed limits in
 ../rust-baseline/numeric-semantics.md. Full unbounded-number fidelity is
 unqualified. No large-number or negative-consumer probe is run here.
+The consumed storage checkpoint also rejects some schema-valid integer JSON
+spellings such as schemaVersion 1.0, revision 1e0 and byteSize 16.0; its owner's
+correction is pending. This finite fixture uses ordinary integer spellings and
+does not qualify that wider DTO/storage/Network compatibility.
 
 The portable stock.2 wire3/catalog/provider-policy and source-presence
 witness/qualification inputs were inspected with all supplied file hashes

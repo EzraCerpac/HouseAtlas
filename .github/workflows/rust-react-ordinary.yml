@@ -13,7 +13,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     env:
-      CARGO_TARGET_DIR: ${{ runner.temp }}/houseatlas-target
       SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - name: Checkout exact candidate
@@ -34,6 +33,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
           test "$(node --version)" = "v26.10.0"
           test "$(npm --version)" = "11.19.1"
+          printf 'CARGO_TARGET_DIR=%s/houseatlas-target\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
           test "$(rustc --version | cut -d ' ' -f 2)" = "1.99.0"
       - name: Install exact npm locks without scripts

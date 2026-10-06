@@ -20,7 +20,7 @@
     "web"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "7b80621869aa9b88a5de97909465eabf029c83a3857dd63d1f0f6e3cff39b02a",
+  "sourceDigestSha256": "12bedf8ad93347a7ac29ee9082f78816cafcdfe95f9269da386f038d420e00a4",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -32,8 +32,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 2713,
-      "sha256": "371a83bf9ad48b4d5cbbd4ebde321543bd5cfce4507ddd6ba60252ad2a72141d",
+      "bytes": 2743,
+      "sha256": "698b5497f1f79eb4cacbcbf2a8632980312fd43c22065ff6f97b810c37c2627a",
       "owner": "core-integration"
     },
     {
@@ -753,8 +753,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 7647,
-      "sha256": "50cea542a9cdcad81e6ad86aa03971a184e651a146f5f261bc642e6e29b0707d",
+      "bytes": 7946,
+      "sha256": "89480377c82186d1a557e01fd2f6f383eaef99d8b3e1c808512382639a01ab4d",
       "owner": "core-integration"
     },
     {
