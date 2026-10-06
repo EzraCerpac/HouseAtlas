@@ -1,10 +1,10 @@
-# Numeric semantics proposal
+# Checked numeric semantics
 
 The frozen core schema permits unbounded integers in several source/wire fields.
-Those fields must not be given an undocumented i64/u64 or JavaScript safe-integer
-maximum. JSON wire numbers remain numbers; this proposal neither clamps them nor
-changes them into strings. The published schemas and generated TypeScript are
-unchanged.
+JSON wire numbers remain numbers; this implementation neither clamps them nor
+changes them into strings. Canonical per-field bounds, published schemas and
+generated TypeScript are unchanged. The backend explicitly reports unsupported
+numeric processing outside the bounded representation described below.
 
 ## Feature selection for the integrator
 
@@ -16,26 +16,56 @@ jsonschema = { version = "=0.58.6", default-features = false, features = ["arbit
 ```
 
 AT51 correction ownership excludes shared manifests and locks, so they are not
-edited in this commit. The scoped compiler runner selects this proposed pair
+edited in this commit. The scoped compiler runner selects this required pair
 with Cargo `--features` arguments. The existing lock supports that selection.
 Ordinary compiler/fixture success is evidence for that feature configuration;
 it is not evidence that the integrator has selected the features in its build.
 
-Without this pair, serde_json may convert a numeric token beyond i64/u64 through
-f64 before validation, losing its original integer value. That previous default
-representation remains a known limitation of builds that omit the proposal.
-Enabling only the parser feature is insufficient: validation must select the
-matching arbitrary-precision numeric operations as well.
+The checked parser calls the feature-gated `serde_json::Number::as_str`, so the
+source requires the parser feature rather than silently compiling with rounded
+tokens. The compiler runner explicitly selects both features. The integrator
+must also select the matching schema arithmetic feature in its manifest;
+enabling only the parser feature is insufficient for schema numeric comparisons.
 
-## Intended backend and JavaScript behavior
+## Backend processing envelope
 
-With the pair selected, `JsonInteger` and `JsonNumber` retain serde_json Number
-tokens without an implicit f64 conversion. The library may normalize the `+`
-sign of a positive exponent; byte-for-byte lexeme preservation is not promised.
-`JsonInteger` classification and `ConstInt<N>` comparison delegate to the locked
-schema library's numeric operations. These use BigInt/BigFraction before f64 for
-large ordinary integer/decimal forms. Explicit `as_i64`/`as_u64`/`as_f64` callers
-remain responsible for their chosen conversion; a missing result is not zero.
+Every numeric token must have valid JSON number grammar and meet all three
+processing limits:
+
+- At most 4,096 token bytes.
+- Explicit decimal exponent magnitude at most 4,096; an absent exponent is zero.
+- Magnitude of `exponent - fraction_digit_count` at most 4,096.
+
+The lexical parser uses checked exponent multiplication/addition/sign, fraction
+length conversion, subtraction and absolute value. It performs no floating-point
+conversion or power expansion. Numeric instances are checked before schema
+validation, including unknown properties and every nested extra property. Frozen
+schema numbers are checked before schema compilation. This keeps dependency
+exponent subtraction and normalization inside its exact-parser arithmetic limits.
+The limits constrain representation work, not the canonical numeric value bound:
+an unsupported spelling returns an explicit processing error, never a coerced
+value or an invented schema maximum.
+
+`decode` and numeric validation of JSON values return
+`ContractError::UnsupportedNumber(&'static str)` outside this envelope. Direct
+Serde deserialization of `JsonNumber`/`JsonInteger` and serialization of open-wire
+extras report Serde errors for unsupported numeric tokens; `validate`/`encode`
+propagate those serialization errors as `ContractError::Json`. Private numeric
+wrapper fields prevent bypass through public construction. Their i64/u64
+constructors fit the envelope, and `from_f64` checks both finite conversion and
+the lexical envelope.
+
+Within the envelope, `JsonInteger` classifies the coefficient digits and decimal
+shift exactly. Zero is integral; a negative shift requires enough trailing zero
+digits. `ConstInt<N>` compares normalized decimal digits and sign against `N`
+without dependency equality or f64 fallback. Schema comparisons still use the
+locked schema library with its paired precision feature. `JsonInteger` and
+`JsonNumber` retain serde_json Number tokens; serde_json may normalize the `+`
+sign of a positive exponent, so byte-for-byte lexeme preservation is not promised.
+Explicit `as_i64`/`as_u64`/`as_f64` callers remain responsible for their chosen
+conversion; a missing result is not zero.
+
+## JavaScript consumers and digests
 
 The published JavaScript and generated TypeScript use IEEE-754 `number`. A
 regular JSON.parse consumer does not gain exact large-integer handling from a
@@ -49,17 +79,17 @@ JavaScript JSON.stringify-based canonical representation needs reconciliation
 with storage/history owners before new large values are used in compatible
 audit digests. Current healthy fixtures use the accepted existing representation.
 
-## Remaining precision qualification
+## Source review and qualification
 
-The paired feature names do not establish unlimited arithmetic. Static review
-of locked jsonschema-value 0.58.6 found that scientific exponents parse as i64,
-and some BigInt/BigFraction exponent adjustments are capped at 1,000,000. Failed
-exact parsing can fall back to f64, including underflow. Full mathematical JSON
-Schema semantics for every scientific-notation form are therefore not claimed.
-No extra numeric bound is added to the frozen schema, and unsupported arithmetic
-must not be presented as a new schema restriction or silently accepted as an
-exact value. The integrator must resolve supported-domain/error handling and
-client/canonicalization semantics before claiming full unbounded-number fidelity.
+Static review of locked jsonschema-value 0.58.6 found that scientific exponents
+parse as i64, exponent-minus-fraction subtraction is unchecked, and some
+BigInt/BigFraction exponent adjustments are capped at 1,000,000. Failed exact
+parsing can fall back to f64, including underflow. The checked envelope precedes
+all dependency numeric processing and exact DTO integer/literal checks no longer
+use that fallback. Full mathematical JSON Schema semantics for every possible
+numeric spelling are not claimed. Client/canonicalization decisions remain with
+the integration and storage owners; this backend processing correction supplies
+no lossless browser consumer or replacement digest algorithm.
 
 These statements come from source inspection of serde_json 1.0.151
 `src/number.rs` (token representation), jsonschema 0.58.6 `src/lib.rs` (public
