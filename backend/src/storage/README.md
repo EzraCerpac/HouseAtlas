@@ -1,4 +1,4 @@
-# Rust record persistence (AT07)
+# Rust transactional persistence (AT07)
 
 Based only on published `EzraCerpac/HouseAtlas` commit
 `9f7561d99e09a680ec5282ca0c8aed4e10c6cbc9`. This lane owns
@@ -18,6 +18,10 @@ guard, final-command and result validators, plus RFC 8785 canonical JSON. These
 methods have no permissive defaults. Payload hashing is SHA-256 of that canonical
 JSON, including ECMAScript numbers and UTF-16 key order. `Prior` distinguishes
 an unspecified retained-result preimage, explicit absence, and a supplied record.
+`timestamp_millis` supplies published source-event ordering at millisecond
+precision; `None` means schema-accepted text has no orderable timestamp. Native
+parsing compatibility belongs to the contract owner. Storage preserves the
+original timestamp strings and adds no date-parser dependency.
 The local carriers in `types.rs` preserve published wire names and schema 1;
 they are a narrow storage port pending reconciliation with AT51's generated
 types, not a replacement schema generation pipeline. Payloads and source/cache
@@ -59,6 +63,54 @@ ordered batch receipts. Precommit rechecks the identical actor before commit.
 Exact receipt replay is coded with historical-result self-validation and scoped
 correlation, then replay and replay-precommit authorization; its controls remain
 unrun in this lane. No receipt expiry/deletion API exists.
+
+## Source and cache publication continuation
+
+The first record checkpoint remains commit
+`d4a94d230da3f098eefaa846bf73f389f9d9965e` in draft PR #7. The source/cache
+continuation is a separate local patch against that checkpoint. It changes no
+root manifest, generated contract or migration schema.
+
+Additional operations are `register_source`, `register_source_json`,
+`read_cache_for_publication`, `prepare_cache_publication`,
+`publish_prepared_generation`, `replace_cache_generation`,
+`replace_cache_generation_json`, and `record_cache_failure`. Source registration
+is immutable and scope-checked, validates the complete candidate graph, and creates
+the partition epoch atomically. Configuration uses `ConfigureSource`; publication
+state and writes use `PublishCache`, with trusted source selectors and identical
+verified actor checks before commit. These capabilities require native access
+adapter integration; they do not grant authority themselves.
+
+`prepare_cache_publication` reads the actual cache generation, integer cache
+epoch and retained projection rows in one transaction before provider GETs. It
+selects a server-generated candidate UUID and returns `PreparedCachePublication`
+with an opaque, non-cloneable `CachePublicationFence`. Its immutable getters are
+`partition`, `baseline_generation_id`, `baseline_cache_epoch` and
+`reserved_generation_id`. The fence is bound to its issuing open store instance
+and is consumed by `publish_prepared_generation`. Closing or reopening the store
+requires a new prepare before fetching. The candidate ID becomes permanently
+reserved only on successful publication; prepare does not write a durable
+reservation or a presence witness.
+
+The provider/service owner must first establish completeness using its opaque
+complete-generation boundary. The storage wrapper accepts already-proved cache
+and row values; their raw slice types do not prove that all provider pages were
+fetched. Publication compares the fence's exact baseline generation and SQLite
+epoch, binds the selected candidate UUID, validates owner/partition/timestamps and
+the complete final graph, and atomically replaces only that partition's
+projections, stores status, reserves its generation ID and advances its epoch.
+`CacheEpoch` is a storage-constructed newtype, distinct from the access boundary's
+opaque authority epoch/handle. The raw trusted publication envelope retains the
+published integer epoch representation. No adapter may reread a newer epoch or
+rebase a completed fetch.
+
+`record_cache_failure` records sanitized metadata and advances the partition
+epoch while retaining its successful generation and projection rows. Revoked
+status is sticky until a complete fresh publication succeeds. Cache writes do
+not create Atlas record audits or mutation receipts. Empty complete generations
+clear only projection rows and retain records and binding reservations. All
+these writes use the same connection and fixed internal SQL as bootstrap; no
+second service framework or raw database handle is exposed.
 
 ## Database and dependencies
 
@@ -120,7 +172,17 @@ name = "healthy"
 path = "/workspace/HouseAtlas/backend/src/storage/checks/healthy.rs"
 ```
 
-After inspecting those two check files, run only this scoped new lane:
+`checks/support.rs` shares only the synthetic check peers between the two
+executables and is excluded from application modules. Add this second harness
+binary for the local continuation:
+
+```toml
+[[bin]]
+name = "cache-healthy"
+path = "/workspace/HouseAtlas/backend/src/storage/checks/cache-healthy.rs"
+```
+
+After inspecting the check files, run only this scoped new lane:
 
 ```sh
 source /workspace/.houseatlas-setup/rust-react-sqlite/activate.sh
@@ -129,6 +191,7 @@ cargo check --locked --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml
 cargo clippy --locked --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml --all-targets -- -D warnings
 node --check backend/src/storage/checks/oracle.mjs
 HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml --bin healthy -- /tmp/houseatlas-at07-checkpoint-1
+HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml --bin cache-healthy -- /tmp/houseatlas-at07-cache-checkpoint-1
 ```
 
 The output directory must be fresh. The successful run records 9 committed
@@ -138,15 +201,24 @@ and 9 calls each to transition/guard/final-command validation. Read-only SQL
 checks inspect the committed rows, and the evidence JSON contains synthetic
 results/history/snapshot, exact callback counts, lineage and SQLite version.
 
+The cache executable successfully publishes four complete synthetic generations,
+including an empty HomeBox generation, a newly registered empty source and a
+Network relation-only generation. One successful synthetic timeout-status write
+retains prior rows; it involves no transport or injected fault. It verifies
+fractional/offset timestamp ordering with unchanged source dates, partition epochs
+3/1/1, five permanently retained generation IDs, fourteen retained records,
+three retained binding reservations, zero Atlas audits/receipts and healthy
+reopen. It uses no actual HomeBox/Network peer, authorization grant or source
+access. Successful examples do not qualify rejection or concurrent publication.
+
 ## Remaining integration and qualification
 
 Native Rust Contract and branded Authorization/Runtime peers are required before
 application integration. AT51 must reconcile carriers/dependencies and connect
 the crate module; this lane does not change its manifests or generated types.
-Source registration and cache generation/failure publication methods are outside
-this record checkpoint: their tables and fixture query state are retained, but
-there is no public raw-write substitute. The owner must integrate any required
-trusted publication API separately. Durable Network sidecars and sanitized
+The HomeBox service owner must reconcile its expanded publication fence and
+opaque complete generation with the store's consuming fence; a native compiled
+cross-owner adapter has not been exercised. Durable Network sidecars and sanitized
 wire3/generation/epoch witness schemas are absent from the published inputs.
 No storage context, projection or caller source-state claim grants new provider
 presence admission.

@@ -1,11 +1,13 @@
 use super::{migrations, repository as repo, *};
+#[path = "cache.rs"]
+mod cache;
 #[path = "commands.rs"]
 mod commands;
 
 use rusqlite::{Connection, TransactionBehavior};
 use serde::Serialize;
 use serde_json::{Value, json};
-use std::{collections::BTreeSet, path::Path, time::Duration};
+use std::{collections::BTreeSet, path::Path, sync::Arc, time::Duration};
 
 #[derive(Debug, Clone)]
 pub struct StoreOptions {
@@ -25,6 +27,7 @@ impl Default for StoreOptions {
 /// No public connection, arbitrary SQL, receipt deletion or migration API.
 pub struct AtlasStore<C, A, R> {
     db: Connection,
+    instance: Arc<()>,
     contract: C,
     authorization: A,
     runtime: R,
@@ -48,6 +51,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         db.pragma_update(None, "journal_mode", "WAL")?;
         Ok(Self {
             db,
+            instance: Arc::new(()),
             contract,
             authorization,
             runtime,
