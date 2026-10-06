@@ -11,21 +11,28 @@ numeric processing outside the bounded representation described below.
 The shared manifest owner should select the existing exact versions as follows:
 
 ```toml
-serde_json = { version = "=1.0.151", features = ["arbitrary_precision"] }
+serde_json = { version = "=1.0.151", features = ["arbitrary_precision", "raw_value"] }
 jsonschema = { version = "=0.58.6", default-features = false, features = ["arbitrary-precision"] }
 ```
 
 AT51 correction ownership excludes shared manifests and locks, so they are not
-edited in this commit. The scoped compiler runner selects this required pair
-with Cargo `--features` arguments. The existing lock supports that selection.
+edited in this handoff. The accepted object-preservation compiler harness selected
+all three features explicitly. The unchanged scoped runner selects the precision
+pair with Cargo flags and inherits `raw_value` when the shared manifest selects
+it. The existing lock supports that selection.
 Ordinary compiler/fixture success is evidence for that feature configuration;
 it is not evidence that the integrator has selected the features in its build.
 
 The checked parser calls the feature-gated `serde_json::Number::as_str`, so the
 source requires the parser feature rather than silently compiling with rounded
-tokens. The compiler runner explicitly selects both features. The integrator
+tokens. The compiler runner explicitly selects both precision features. The integrator
 must also select the matching schema arithmetic feature in its manifest;
 enabling only the parser feature is insufficient for schema numeric comparisons.
+`raw_value` supports the object-preserving parser and open HomeBox DTO conversion.
+Those DTOs require serde_json's raw capture protocol; generic Serde deserializers
+and buffered `flatten`/`untagged` wrappers around them are unsupported. None is
+used for those types by the supplied schemas. See the [handoff](README.md) for
+the supported JSON and already-preserved Value paths.
 
 ## Backend processing envelope
 
