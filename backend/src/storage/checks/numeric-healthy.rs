@@ -106,7 +106,7 @@ fn main() -> CheckResult<()> {
     );
     let mut store = AtlasStore::open(
         &path,
-        oracle.clone(),
+        oracle.storage_contract(),
         authorization.clone(),
         runtime.clone(),
         StoreOptions {
@@ -227,7 +227,15 @@ fn main() -> CheckResult<()> {
     };
     let mut generation_wire = serde_json::to_value(&generation)?;
     decimal_carriers(&mut generation_wire);
-    generation_wire["expectedCacheEpoch"] = serde_json::from_str("0e0")?;
+    for literal in ["0e0", "-0.0", "-0e0", "-0"] {
+        generation_wire["expectedCacheEpoch"] = serde_json::from_str(literal)?;
+        let decoded: CacheGeneration = serde_json::from_value(generation_wire.clone())?;
+        assert_eq!(decoded.expected_cache_epoch, 0);
+        assert_eq!(
+            oracle.canonical_json(&generation_wire)?,
+            oracle.canonical(&generation)?
+        );
+    }
     store.replace_cache_generation_json(&principal, &scope, &generation_wire)?;
     let state = store.read_cache_for_publication(&principal, &scope, &partition)?;
     let mut state_wire = serde_json::to_value(&state)?;
@@ -248,7 +256,7 @@ fn main() -> CheckResult<()> {
     store.close()?;
     let mut reopened = AtlasStore::open(
         &path,
-        oracle.clone(),
+        oracle.storage_contract(),
         authorization,
         runtime,
         StoreOptions::default(),
@@ -290,7 +298,8 @@ fn main() -> CheckResult<()> {
             "singleReceiptHashMatchesRawNumericInput":true,"batchReceiptHashMatchesRawNumericInput":true,
             "stagedSyntheticByteCount":STAGED_SYNTHETIC_BYTES.len(),"stagedSyntheticSha256":staged_digest,"actualByteProofCalls":verifications.get(),
             "contextsCompared":contexts.borrow().len(),"contractCalls":*oracle.counts.borrow(),"healthyReopen":true,
-            "peerScope":"offline published contract oracle; synthetic authority/time/IDs; actual immutable in-memory synthetic bytes",
+            "acceptedZeroEpochSpellings":["0e0","-0.0","-0e0","-0"],
+            "peerScope":"AT51 native shapes/numeric types; offline published semantic/JCS oracle; synthetic authority/time/IDs; actual immutable in-memory synthetic bytes",
             "deferred":"all held negative/replay/denial/fault/crash/concurrency controls; native Contract/JCS/timestamp/access/runtime/provider integration"
         }))?,
     )?;

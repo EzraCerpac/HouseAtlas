@@ -28,15 +28,33 @@ revisions remain required. The same conversion compares asset `byteSize` with
 trusted byte proofs, including typed commands whose JSON payload contains
 `16.0`. These conversions do not rewrite payloads or change JCS/digest semantics;
 revision minima and schema-version constants remain mandatory Contract checks.
-AT51 must enable serde_json's `float_roundtrip` feature for correctly rounded
-decimal/exponent parsing before constructing these carriers or a `Value`.
-Default parsing rounds the accepted `9007199254740991.0` boundary down by one;
-storage cannot recover precision already lost by an ingress parser. This feature
-does not supply RFC 8785 serialization; that remains the Contract peer's job.
+Accepted signed-zero spellings retain zero meaning for nonnegative epochs.
+Native composition reuses AT51's `JsonInteger` checked lexical envelope and
+exact integral classification before the bounded conversion. This also covers
+storage-only epoch envelopes. The selected native build requires paired
+serde_json `arbitrary_precision` and jsonschema `arbitrary-precision` features.
+The shared native ingress parser additionally requires serde_json `raw_value`.
+`float_roundtrip` is retained for correctly rounded floating parsing when used;
+an already rounded ingress `Value` cannot recover its original precision.
+Neither feature supplies RFC 8785 serialization; that remains the Contract
+peer's job. No historically lossy parse/digest is reinterpreted by this patch.
 The local carriers in `types.rs` preserve published wire names and schema 1;
 they are a narrow storage port pending reconciliation with AT51's generated
 types, not a replacement schema generation pipeline. Payloads and source/cache
 projection rows remain exact JSON data, validated by the contract peer.
+
+`NativeContract<C>` composes `crate::contracts` at published AT51 checkpoint
+`6b3029cbbcf1462ecdeecc62a56c24f66e034057` with a required semantic peer `C`.
+It dispatches all nine storage shape names to the generated native DTOs via
+`contracts::decode<T>`, and validates snapshot/result shapes before delegation.
+Shared numeric processing errors retain AT51's static explanation under the
+existing `invalid-contract` storage error code; no input tokens are exposed.
+It implements no graph, transition, guard, final-command, result-correlation,
+JCS or timestamp fallback. AT52 must supply these remaining methods through
+the unchanged storage `Contract` trait. Root manifests/generated types remain
+owned by their maintainers. This native composition follows PR7's separately
+reviewed numeric correction `816ba441ba1076eae426f69ac8b7c5177745ab53`;
+its changes remain within the storage namespace.
 
 `Authorization` supplies a server-owned principal type and synchronously returns
 verified scope/actor claims. There is no default allow adapter. Mutation requests
@@ -141,8 +159,9 @@ Proposed pinned direct dependencies for AT51:
 
 ```toml
 rusqlite = { version = "=0.40.2", features = ["bundled"] }
-serde = { version = "=1.0.228", features = ["derive"] }
-serde_json = { version = "=1.0.149", features = ["float_roundtrip"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = { version = "=1.0.151", features = ["arbitrary_precision", "float_roundtrip", "raw_value"] }
+jsonschema = { version = "=0.58.6", default-features = false, features = ["arbitrary-precision"] }
 sha2 = "=0.10.9"
 ```
 
@@ -153,8 +172,10 @@ to the checkout; the resulting bundled SQLite is 3.53.2 through
 ## Healthy checkpoint
 
 `checks/healthy.rs` compiles and executes the actual Rust storage source using a
-fresh disposable file database. `checks/oracle.mjs` supplies the exact published
-pure contract functions over child-process stdin/stdout; it opens no listener
+fresh disposable file database. All three executables now compose actual AT51
+native shapes/numeric classification with the check-only semantic peer.
+`checks/oracle.mjs` supplies the exact published graph/transition/JCS functions
+over child-process stdin/stdout; it opens no listener
 and invokes no tests or providers. The checkpoint compares every Rust mutation
 context with the published extractor. Authorization/time/IDs are explicit
 synthetic peers, and no available asset is staged. This oracle is a temporary
@@ -174,6 +195,8 @@ An external Cargo harness named `houseatlas-at07-checkpoint` has these dependenc
 checked-in checkpoint source:
 
 ```rust
+#[path = "/tmp/houseatlas-at07-native-composition/peer/backend/src/contracts/mod.rs"]
+pub mod contracts;
 #[path = "/workspace/HouseAtlas/backend/src/storage/mod.rs"]
 pub mod storage;
 ```
@@ -201,13 +224,13 @@ After inspecting the check files, run only this scoped new lane:
 
 ```sh
 source /workspace/.houseatlas-setup/rust-react-sqlite/activate.sh
-cargo fmt --check --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml
-cargo check --locked --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml
-cargo clippy --locked --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml --all-targets -- -D warnings
+cargo fmt --check --manifest-path /tmp/houseatlas-at07-native-composition/Cargo.toml
+cargo check --locked --manifest-path /tmp/houseatlas-at07-native-composition/Cargo.toml
+cargo clippy --locked --manifest-path /tmp/houseatlas-at07-native-composition/Cargo.toml --all-targets -- -D warnings
 node --check backend/src/storage/checks/oracle.mjs
-HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml --bin healthy -- /tmp/houseatlas-at07-checkpoint-1
-HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml --bin cache-healthy -- /tmp/houseatlas-at07-cache-checkpoint-1
-HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml --bin numeric-healthy -- /tmp/houseatlas-at07-numeric-checkpoint-1
+HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-native-composition/Cargo.toml --bin healthy -- /tmp/houseatlas-at07-native-record-1
+HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-native-composition/Cargo.toml --bin cache-healthy -- /tmp/houseatlas-at07-native-cache-1
+HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-native-composition/Cargo.toml --bin numeric-healthy -- /tmp/houseatlas-at07-native-numeric-1
 ```
 
 The output directory must be fresh. The successful run records 9 committed
@@ -240,9 +263,9 @@ qualify real staged-media/filesystem integration.
 
 ## Remaining integration and qualification
 
-Native Rust Contract and branded Authorization/Runtime peers are required before
-application integration. AT51 must reconcile carriers/dependencies and connect
-the crate module; this lane does not change its manifests or generated types.
+The full native semantic Contract and branded Authorization/Runtime peers remain
+required before application integration. AT51 must reconcile carriers/dependencies
+and connect the crate module; this lane does not change its manifests or generated types.
 The HomeBox service owner must reconcile its expanded publication fence and
 opaque complete generation with the store's consuming fence; a native compiled
 cross-owner adapter has not been exercised. Durable Network sidecars and sanitized

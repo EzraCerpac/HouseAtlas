@@ -43,7 +43,7 @@ fn main() -> CheckResult<()> {
     };
     let mut store = AtlasStore::open(
         &path,
-        oracle.clone(),
+        oracle.storage_contract(),
         authorization.clone(),
         runtime.clone(),
         options,
@@ -169,7 +169,7 @@ fn main() -> CheckResult<()> {
     store.close()?;
     let mut reopened = AtlasStore::open(
         &path,
-        oracle.clone(),
+        oracle.storage_contract(),
         authorization,
         runtime,
         StoreOptions::default(),
@@ -284,7 +284,7 @@ fn main() -> CheckResult<()> {
         "receiptRows":count("receipts")?,"batchReceiptRows":count("batch_receipts")?,"bindingReservations":count("binding_reservations")?,
         "contextsCompared":captured.len(),"contractCalls":*oracle.counts.borrow(),"circuit":circuit,"roomItemBatch":created,
         "restoredItem":restored,"itemHistory":history,"remap":remapped,"snapshot":final_snapshot,
-        "peerScope":"published pure contract oracle and synthetic authorization/runtime only","deferred":"replay/rejection/fault/crash/concurrency and native peer integration"});
+        "peerScope":"AT51 native shapes/numeric types; offline published semantic/JCS oracle; synthetic authorization/runtime","deferred":"replay/rejection/fault/crash/concurrency and full native semantic/access/runtime peer integration"});
     fs::write(
         directory.join("evidence.json"),
         serde_json::to_vec_pretty(&evidence)?,
