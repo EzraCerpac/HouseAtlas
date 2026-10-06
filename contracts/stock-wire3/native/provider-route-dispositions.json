@@ -1,0 +1,583 @@
+{
+  "format": "houseatlas-stock-route-dispositions/1",
+  "contractVersion": "0.3.0-at34.stock.2",
+  "routeCount": 96,
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/api/v1/actions/create-missing-thumbnails",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-bounded-bulk-form-with-observed-impact-approval-and-partial-outcomes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/actions/ensure-asset-ids",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-bounded-bulk-form-with-observed-impact-approval-and-partial-outcomes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/actions/ensure-import-refs",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-bounded-bulk-form-with-observed-impact-approval-and-partial-outcomes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/actions/set-primary-photos",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-bounded-bulk-form-with-observed-impact-approval-and-partial-outcomes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/actions/wipe-inventory",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-bounded-bulk-form-with-observed-impact-approval-and-partial-outcomes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/actions/zero-item-time-fields",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-bounded-bulk-form-with-observed-impact-approval-and-partial-outcomes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/assets/{id}",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-bounded-read-query-report-export-or-lookup"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/currency",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-bounded-read-query-report-export-or-lookup"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/entities",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/entities",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/entities/export",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-bounded-read-query-report-export-or-lookup"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/entities/fields",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/entities/fields/values",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/entities/import",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-bounded-bulk-form-with-observed-impact-approval-and-partial-outcomes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/entities/tree",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/entities/{id}",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/entities/{id}",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/entities/{id}",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/entities/{id}",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/entities/{id}/attachments",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/entities/{id}/attachments/external",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/entities/{id}/attachments/{attachment_id}",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/entities/{id}/attachments/{attachment_id}",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/entities/{id}/attachments/{attachment_id}",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/entities/{id}/duplicate",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/entities/{id}/maintenance",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/entities/{id}/maintenance",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/entities/{id}/path",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/entity-types",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/entity-types",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/entity-types/{id}",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/entity-types/{id}",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/group/exports",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/group/exports",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/group/exports/{id}",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/group/exports/{id}",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/group/exports/{id}/download",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/group/import",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/groups",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/groups",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/groups",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/groups",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/groups/all",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/groups/invitations",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/groups/invitations",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/groups/invitations/{id}",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/groups/invitations/{id}",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/groups/members",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/groups/members/{user_id}",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/groups/statistics",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-authorized-collection-statistics-read"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/groups/statistics/locations",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-authorized-collection-statistics-read"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/groups/statistics/purchase-price",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-authorized-collection-statistics-read"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/groups/statistics/tags",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-authorized-collection-statistics-read"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/labelmaker/asset/{id}",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-bounded-read-query-report-export-or-lookup"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/labelmaker/item/{id}",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-bounded-read-query-report-export-or-lookup"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/labelmaker/location/{id}",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-bounded-read-query-report-export-or-lookup"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/maintenance",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-bounded-read-query-report-export-or-lookup"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/maintenance/{id}",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/maintenance/{id}",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/notifiers",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/notifiers",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/notifiers/test",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/notifiers/{id}",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/notifiers/{id}",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/products/search-from-barcode",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-bounded-read-query-report-export-or-lookup"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/qrcode",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-bounded-read-query-report-export-or-lookup"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reporting/bill-of-materials",
+      "classification": "existing-stock-domain-feature-grouping-needed",
+      "requiredCoverageDisposition": "typed-bounded-read-query-report-export-or-lookup"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/status",
+      "classification": "stock-support-diagnostic",
+      "requiredCoverageDisposition": "sanitized-qualified-health-status"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tags",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tags",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tags/{id}",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/tags/{id}",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/tags/{id}",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/templates",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/templates",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/templates/{id}",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/templates/{id}",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/templates/{id}",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/templates/{id}/create-item",
+      "classification": "mapped-stock-domain-feature",
+      "requiredCoverageDisposition": "qualify-existing-typed-command-forms"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/users/change-password",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users/forgot-password",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users/login",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/login/oidc",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/login/oidc/callback",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users/logout",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/refresh",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users/register",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users/reset-password",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/self",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/users/self",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/users/self",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/self/api-keys",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users/self/api-keys",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/users/self/api-keys/{id}",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/self/settings",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/users/self/settings",
+      "classification": "separate-security-or-operational-administration",
+      "requiredCoverageDisposition": "existing-separate-authority-or-operator-procedure"
+    }
+  ]
+}

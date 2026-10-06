@@ -1,0 +1,41 @@
+{
+  "format": "houseatlas-upstream-reference-pins/1",
+  "upstreamRepository": "https://github.com/sysadminsmedia/homebox",
+  "sourceCommit": "e01dd737238a3fa7e1a6454b37de6c6fc88c86e4",
+  "installedVersion": "unestablished",
+  "providerQualified": false,
+  "files": [
+    {
+      "path": "backend/app/api/static/docs/swagger.json",
+      "sha256": "5da7752182cb6172db0550cbd799ee340836d3dba8ceaff7c6ed12976f9e3493",
+      "bytes": 216647
+    },
+    {
+      "path": "backend/app/api/handlers/v1/v1_ctrl_actions.go",
+      "sha256": "02aa2ed0b806de345f47489f5147e5409e6f54eabfb2e7cb6ca285db567b8e3a",
+      "bytes": 5510
+    },
+    {
+      "path": "backend/app/api/handlers/v1/v1_ctrl_labelmaker.go",
+      "sha256": "f734d8bb51755972f3a98fa6ea14a56f8b484831f9bb978ff96ca42890ef98d9",
+      "bytes": 4348
+    },
+    {
+      "path": "backend/app/api/handlers/v1/v1_ctrl_product_search.go",
+      "sha256": "5d6a99e6c006a898ae0e8cdfaaf33ae9524d88efaf24c70383118e79e7eff3f6",
+      "bytes": 14960
+    },
+    {
+      "path": "backend/internal/data/repo/repo_entities.go",
+      "sha256": "56758719661cf36f2799879656519589a7a89b5dcc66341f1abcb7a43cf353d8",
+      "bytes": 87660
+    },
+    {
+      "path": "backend/app/api/handlers/v1/v1_ctrl_entities.go",
+      "sha256": "4e8064b6dd63fdbdd65e466a470aaef44838d7e23fb10ba3fe0764a2a65d29d4",
+      "bytes": 19776
+    }
+  ],
+  "swaggerArtifact": "native/homebox.swagger.json",
+  "meaning": "Immutable source/schema research references, not proof of deployed routes or runtime compatibility"
+}

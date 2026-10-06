@@ -1,0 +1,173 @@
+[
+  {
+    "commandId": "homebox.bulk.execute",
+    "variant": "create-missing-thumbnails",
+    "method": "POST",
+    "path": "/api/v1/actions/create-missing-thumbnails",
+    "scope": "collection",
+    "sideEffect": true
+  },
+  {
+    "commandId": "homebox.bulk.execute",
+    "variant": "ensure-asset-ids",
+    "method": "POST",
+    "path": "/api/v1/actions/ensure-asset-ids",
+    "scope": "collection",
+    "sideEffect": true
+  },
+  {
+    "commandId": "homebox.bulk.execute",
+    "variant": "ensure-import-refs",
+    "method": "POST",
+    "path": "/api/v1/actions/ensure-import-refs",
+    "scope": "collection",
+    "sideEffect": true
+  },
+  {
+    "commandId": "homebox.bulk.execute",
+    "variant": "set-primary-photos",
+    "method": "POST",
+    "path": "/api/v1/actions/set-primary-photos",
+    "scope": "collection",
+    "sideEffect": true
+  },
+  {
+    "commandId": "homebox.bulk.execute",
+    "variant": "wipe-inventory",
+    "method": "POST",
+    "path": "/api/v1/actions/wipe-inventory",
+    "scope": "collection",
+    "sideEffect": true
+  },
+  {
+    "commandId": "homebox.bulk.execute",
+    "variant": "zero-item-time-fields",
+    "method": "POST",
+    "path": "/api/v1/actions/zero-item-time-fields",
+    "scope": "collection",
+    "sideEffect": true
+  },
+  {
+    "commandId": "homebox.import.csv",
+    "variant": "csv",
+    "method": "POST",
+    "path": "/api/v1/entities/import",
+    "scope": "collection",
+    "sideEffect": true
+  },
+  {
+    "commandId": "homebox.export.create",
+    "variant": "inventory-csv",
+    "method": "GET",
+    "path": "/api/v1/entities/export",
+    "scope": "collection",
+    "sideEffect": false
+  },
+  {
+    "commandId": "homebox.export.create",
+    "variant": "bill-of-materials-csv",
+    "method": "GET",
+    "path": "/api/v1/reporting/bill-of-materials",
+    "scope": "collection",
+    "sideEffect": false
+  },
+  {
+    "commandId": "homebox.query.read",
+    "variant": "asset-lookup",
+    "method": "GET",
+    "path": "/api/v1/assets/{id}",
+    "scope": "resource-set",
+    "sideEffect": false
+  },
+  {
+    "commandId": "homebox.query.read",
+    "variant": "currency",
+    "method": "GET",
+    "path": "/api/v1/currency",
+    "scope": "source",
+    "sideEffect": false
+  },
+  {
+    "commandId": "homebox.query.read",
+    "variant": "statistics",
+    "method": "GET",
+    "path": "/api/v1/groups/statistics",
+    "scope": "collection",
+    "sideEffect": false
+  },
+  {
+    "commandId": "homebox.query.read",
+    "variant": "statistics-locations",
+    "method": "GET",
+    "path": "/api/v1/groups/statistics/locations",
+    "scope": "collection",
+    "sideEffect": false
+  },
+  {
+    "commandId": "homebox.query.read",
+    "variant": "statistics-purchase-price",
+    "method": "GET",
+    "path": "/api/v1/groups/statistics/purchase-price",
+    "scope": "collection",
+    "sideEffect": false
+  },
+  {
+    "commandId": "homebox.query.read",
+    "variant": "statistics-tags",
+    "method": "GET",
+    "path": "/api/v1/groups/statistics/tags",
+    "scope": "collection",
+    "sideEffect": false
+  },
+  {
+    "commandId": "homebox.query.read",
+    "variant": "maintenance",
+    "method": "GET",
+    "path": "/api/v1/maintenance",
+    "scope": "collection",
+    "sideEffect": false
+  },
+  {
+    "commandId": "homebox.query.read",
+    "variant": "barcode-product",
+    "method": "GET",
+    "path": "/api/v1/products/search-from-barcode",
+    "scope": "external-lookup",
+    "sideEffect": false
+  },
+  {
+    "commandId": "homebox.label.output",
+    "variant": "asset",
+    "method": "GET",
+    "path": "/api/v1/labelmaker/asset/{id}",
+    "scope": "resolved-resource-set",
+    "sideEffect": "print-variant-only",
+    "printRequiresSeparateQualification": true
+  },
+  {
+    "commandId": "homebox.label.output",
+    "variant": "item",
+    "method": "GET",
+    "path": "/api/v1/labelmaker/item/{id}",
+    "scope": "resolved-resource-set",
+    "sideEffect": "print-variant-only",
+    "printRequiresSeparateQualification": true
+  },
+  {
+    "commandId": "homebox.label.output",
+    "variant": "location",
+    "method": "GET",
+    "path": "/api/v1/labelmaker/location/{id}",
+    "scope": "resolved-resource-set",
+    "sideEffect": "print-variant-only",
+    "printRequiresSeparateQualification": true
+  },
+  {
+    "commandId": "homebox.qrcode.render",
+    "variant": "bounded-content",
+    "method": "GET",
+    "path": "/api/v1/qrcode",
+    "scope": "bounded-content",
+    "sideEffect": false
+  }
+]

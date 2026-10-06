@@ -20,7 +20,7 @@
     "web"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "a9f17b71aa6a95d1e65413e17b995e0af35447be5f96e6e0803952a6088f5c07",
+  "sourceDigestSha256": "bc0c7a6a2427b58d171dfd2c3fd9556e1c8e10b5e1f57a45a73458fc911b4e79",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -646,6 +646,125 @@
       "owner": "core-integration"
     },
     {
+      "path": "contracts/stock-wire3/PROVIDER-AND-AI-POLICY.md",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 18126,
+      "sha256": "f0f5ee9b081a57fe186dc35f9b7b6b7de0f06321283db35cd21c5a34e53fbdd2"
+    },
+    {
+      "path": "contracts/stock-wire3/README.md",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 2762,
+      "sha256": "0c769bb54c36176b7a8b5c5260870629376deefd57326d466c40244d27b5b1b8"
+    },
+    {
+      "path": "contracts/stock-wire3/SEMANTICS.md",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 13036,
+      "sha256": "e6da333b5d7c28dc66317aa2d7165590d307ca3a22c3a066e8f8fe6309bd8f2d"
+    },
+    {
+      "path": "contracts/stock-wire3/adoption-manifest.json",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 5564,
+      "sha256": "821d9216dc0c184933351192c6f251f30c5553e8fdd42cf249a206aa1aea65bb"
+    },
+    {
+      "path": "contracts/stock-wire3/agent/agent.schema.json",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 940503,
+      "sha256": "314ee5f5effca941b3be92cb5cc37150aa17a3ab5dd8646255cebc74767b602d"
+    },
+    {
+      "path": "contracts/stock-wire3/agent/capabilities.json",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 37379,
+      "sha256": "911b6fc1621c66c6d3d22fb183202a8d140e22eaefea6c858a06912267f95c26"
+    },
+    {
+      "path": "contracts/stock-wire3/agent/engineering-profile.json",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 403,
+      "sha256": "fa5fb6803fededeebe0c37888039d5dc494c4e073609437e1f0b956e4531105f"
+    },
+    {
+      "path": "contracts/stock-wire3/agent/feature-routes.json",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 4424,
+      "sha256": "17f192d5e5cc23e24852b6722bc5648151001d6a10e9be2667804bb898f2637e"
+    },
+    {
+      "path": "contracts/stock-wire3/agent/operation-catalog.json",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 309045,
+      "sha256": "767cbaa866edbe4448f30bffcf778617234d6e4eae32eb620b8210bdeee9ebcc"
+    },
+    {
+      "path": "contracts/stock-wire3/agent/tool-families.json",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 10757,
+      "sha256": "6aceccd2e90a3e506bbfb2c2f8843f96e82bb2bea8faf26a6dc3e65649079cb7"
+    },
+    {
+      "path": "contracts/stock-wire3/native/homebox.swagger.json",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 216647,
+      "sha256": "5da7752182cb6172db0550cbd799ee340836d3dba8ceaff7c6ed12976f9e3493"
+    },
+    {
+      "path": "contracts/stock-wire3/native/provider-route-dispositions.json",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 22458,
+      "sha256": "044b4ded817eb116a702c695e947a71770c1332a85336358ac4da0e2f754bea2"
+    },
+    {
+      "path": "contracts/stock-wire3/native/source-reference.json",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 1532,
+      "sha256": "d92c3c1f4b5464e145f74e796f8c28b5cb22f64c3a43bda1dbb34d0e1440b252"
+    },
+    {
+      "path": "contracts/stock-wire3/presence/policy.v1.1.0.json",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 4895,
+      "sha256": "e893838c0ef684a24fa92ac99da5773e1972d7c2d05d4623d531fd2a67f30d5b"
+    },
+    {
+      "path": "contracts/stock-wire3/presence/qualification.v1.schema.json",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 1180,
+      "sha256": "b79a1905937e5ccda46bbe2a325374ba3f0348a82329c6031136d2765dc25ac1"
+    },
+    {
+      "path": "contracts/stock-wire3/presence/witness.v1.schema.json",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 10298,
+      "sha256": "5784677d596eade2dbbe9eb349fb346682e3fd611f8bbe146f9c635e59ab9ab1"
+    },
+    {
+      "path": "contracts/stock-wire3/resource-map.json",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 1707,
+      "sha256": "29857eafbc38c9c7b9b528463de3f56c5065f8e9b7475386727c99c410da08ea"
+    },
+    {
       "path": "docs/contracts/adoption-and-open-decisions.md",
       "mode": "100644",
       "bytes": 1665,
@@ -788,8 +907,8 @@
     {
       "path": "docs/rust-baseline/README.md",
       "mode": "100644",
-      "bytes": 8033,
-      "sha256": "f728b880ed48f78a6c3fd68b0dc8d041f2d2bc4c6bd59fab7cbd338d85ab5b26",
+      "bytes": 9443,
+      "sha256": "561fe07406d7e3e0a3ddb8039c78c2afb32b41797fbd275fbb72df23cf6eeacd",
       "owner": "contracts"
     },
     {
@@ -809,8 +928,8 @@
     {
       "path": "docs/rust-baseline/numeric-semantics.md",
       "mode": "100644",
-      "bytes": 5757,
-      "sha256": "e726ca7f62960324de9f1d023a65b951b2597108f43fd3e97f1b026c25c9e5c6",
+      "bytes": 6294,
+      "sha256": "a599b527a5aa628d5a86cbb765482d73270ab091e0105be955b816bdb35e98da",
       "owner": "contracts"
     },
     {
@@ -823,8 +942,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 9140,
-      "sha256": "6d16521b9380c89ec2767ff85d1cb36ed31af268154bf30fac329de93e7be0f9",
+      "bytes": 9670,
+      "sha256": "8b2f5bfae5ab70b3f3df42ba9614228c99a420cc46d872c0e73c276fe639ec46",
       "owner": "core-integration"
     },
     {

@@ -1,0 +1,133 @@
+{
+  "format": "houseatlas-source-presence-policy/1",
+  "semanticAmendmentVersion": "1.1.0",
+  "frozenPackageVersion": "1.0.0",
+  "recordSchemaVersion": 1,
+  "auditSchemaVersion": 1,
+  "witnessSchemaVersion": 1,
+  "scope": [
+    "homebox-entity",
+    "network-device",
+    "network-group"
+  ],
+  "meaning": "Observed in the specified successful local generation at its saved timestamp; not provider live existence at admission time",
+  "newObservationTriggers": [
+    "create-present",
+    "nonpresent-to-present",
+    "restore-active-present",
+    "present-evidence-ids-replaced"
+  ],
+  "evidenceIdsComparison": {
+    "status": "specified",
+    "rule": "membership-set-equality-for-trigger-only",
+    "addedRemovedReplacedIdTriggers": true,
+    "reorderingSameIdsTriggers": false,
+    "preserveSubmittedRepresentation": true,
+    "requestReceiptDigestSemanticsUnchanged": true,
+    "orderedBatchSemanticsUnchanged": true,
+    "reason": "Unique references have no defined ordering meaning; replacement conservatively reasserts presence because schema1 lacks evidence roles"
+  },
+  "retainedObservation": {
+    "sourceKeyUnchanged": true,
+    "sourceState": "present",
+    "evidenceIdsUnchanged": true,
+    "reviewStatusOnlyRevision": true,
+    "refreshesWitness": false
+  },
+  "mappingAcceptanceImpliesPresence": false,
+  "mappingAcceptanceRequirements": [
+    "Current complete source authority",
+    "Exact same-key/location active accepted binding",
+    "Guarded binding revision",
+    "Active identity and final atomic graph preconditions"
+  ],
+  "newAdmission": {
+    "generation": "latest-visible-complete-successfully-published-local",
+    "cacheStatus": "fresh",
+    "freshnessPolicy": "already-configured-cache-age-policy",
+    "additionalTtl": null,
+    "staleAction": "explicit-refresh-before-admission",
+    "providerFetchUnderLock": false,
+    "qualifiedEntityMemberRequired": true,
+    "filteredViewEstablishesMembership": false,
+    "relationEndpointEstablishesMembership": false,
+    "disallowedCurrentStates": [
+      "quarantined",
+      "access-revoked",
+      "incomplete",
+      "known-failed",
+      "unavailable"
+    ]
+  },
+  "homebox": {
+    "member": "exact-saved-projection",
+    "archived": false,
+    "identityType": "compatible-explicit-type; unknown stays unknown",
+    "consistency": "non-transactional-offset-pages"
+  },
+  "network": {
+    "member": "exact-corresponding-inventory-device-or-group",
+    "generationDigest": "verified-immutable-full-state-row",
+    "partitionReviewRequired": true
+  },
+  "transactionChecks": [
+    "Exact original/candidate/touched/guarded/referenced source authority",
+    "Exact member and captured generation pointer/cache epoch",
+    "Captured grants and authority facts immediately precommit; no replacement grants or generation rebase"
+  ],
+  "observationTime": "cache.lastSuccessfulFetchAt",
+  "admissionTime": "generated-audit.at",
+  "witness": {
+    "owner": "AtlasStore active transaction",
+    "appendOnly": true,
+    "atomicWith": [
+      "binding",
+      "audit",
+      "receipt"
+    ],
+    "links": [
+      "binding-id/revision",
+      "audit-id",
+      "mutation-id",
+      "actor-id",
+      "qualified-source",
+      "source-generation",
+      "cache-epoch",
+      "real-authority-context-version",
+      "observedAt",
+      "admittedAt"
+    ],
+    "legacyFabricationAllowed": false,
+    "sourceRevisionOverloadAllowed": false,
+    "freeTextSubstituteAllowed": false,
+    "serviceSidecarSubstituteAllowed": false,
+    "recoveryInclusionRequired": true,
+    "representationStatus": "typed-field-and-producer-boundary; implementation-review-pending",
+    "qualifier": "qualifySourcePresence(principal,{phase:candidate|precommit,mutation,assertions})",
+    "memberDigestConvention": "SHA256 of accepted canonicalJson(entire exact saved HomeBox projection or full normalized corresponding Network inventory member)",
+    "offlineSchemaReferences": "Frozen schema canonical ID plus local file alias; new schemas registered by local file URL, no fetch"
+  },
+  "authorityFacts": {
+    "contextFormat": "atlas-mutation-authorization-context/1",
+    "contextIdRole": "correlation-only",
+    "accessEpochType": "opaque-persisted-text",
+    "registrationVersion": "actual-enabled-source-row-integer",
+    "registrationDigest": "SHA256-canonical-exact-registration",
+    "hiddenPrincipalVersionAllowed": false,
+    "serializedGrantAllowed": false
+  },
+  "versionIdentities": {
+    "storagePackage": "0.1.4",
+    "coreSqliteSchema": 4,
+    "separateFrom": "storage0.2/admission-profile4"
+  },
+  "historicalDisclosure": {
+    "currentAuthorityRequired": true,
+    "freshExistenceRequired": false,
+    "reclassifiedAsNewPresent": false,
+    "legacyWitnessFabrication": false
+  },
+  "runtimeCapability": "held-until-reviewed-typed-witness-and-metadata-seams",
+  "productionSecurityAcceptance": false,
+  "downstreamRelease": false
+}

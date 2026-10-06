@@ -1,0 +1,13 @@
+{
+  "profileVersion": "single-dispatch-engineering-1",
+  "deployment": "single-household-atlas",
+  "qualification": "offline-engineering-fixture",
+  "productionQualified": false,
+  "measuredCapacity": false,
+  "userSelectedNumbers": false,
+  "maxActiveMutations": 1,
+  "maxWaitingIntents": 4,
+  "maxAdmissionWaitMs": 10000,
+  "maxUnresolvedStorageAttempts": 4,
+  "maxUnresolvedStorageBytes": 67108864
+}

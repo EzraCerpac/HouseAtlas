@@ -10,7 +10,7 @@ Pinned module inputs:
 
 | Module | Exact head |
 | --- | --- |
-| Baseline numeric/object-preserving correction | 6b3029cbbcf1462ecdeecc62a56c24f66e034057 |
+| Baseline accepted code and protocol handoff | 07576e6be463dd481b49071071c66dec144b1e0c |
 | Access | 3f83d8f35f2cc1948b5d361badfc77948745676d |
 | Domain and jobs correction | 25813f1222c60379850da37b7bf7e97e0e2750db |
 | Storage continuation and numeric correction | 816ba441ba1076eae426f69ac8b7c5177745ab53 |
@@ -132,11 +132,19 @@ finite fixture uses ordinary integer spellings and does not qualify wider
 DTO/domain/Network compatibility. Canonical JSON retains original input
 values; the typed validation adapter does not replace them with decoded DTOs.
 
-The portable stock.2 wire3/catalog/provider-policy and source-presence
-witness/qualification inputs were inspected with all supplied file hashes
-verified; their Atlas schema is byte-identical to this repository. Wider
-specifications are now available. Shared generation and feature adoption
-remain with their owners; private transfer metadata is outside Git.
+The baseline handoff adds only two documentation files above accepted source
+6b3029cbbcf1462ecdeecc62a56c24f66e034057; it changes no application code.
+
+Sanitized stock.2 wire3/catalog/provider-policy and source-presence
+witness/qualification inputs are durably adopted under
+[contracts/stock-wire3](../../contracts/stock-wire3/README.md). All supplied
+application-content digests were verified, and the frozen Atlas schema remains
+byte-identical. The adoption records repository file digests and an offline
+resource map, without private transfer ledgers, task allocation or original
+repository ancestry. Contract identities, all 164 command/result arms and
+normative authority/qualification rules remain intact. Wider specifications
+are available; shared generation and feature implementation remain with their
+owners. Static adoption executes no new runtime capability or behavioral check.
 
 Missing product implementation includes native mutation/guard/result validation,
 atomic presence witness admission and recovery, trusted cache publication,
