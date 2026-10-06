@@ -2,6 +2,7 @@
 //! Use decode/validate/encode at a JSON boundary: serde alone does not check
 //! formats, numeric bounds, uniqueItems, oneOf exclusivity, or if/then rules.
 mod generated;
+mod json_value;
 mod numeric;
 pub use generated::*;
 
@@ -244,11 +245,11 @@ fn ensure_numbers_supported(value: &Value) -> Result<(), &'static str> {
 }
 
 fn compile_validators() -> Result<Validators, String> {
-    let atlas: Value = serde_json::from_str(include_str!(
+    let atlas = json_value::parse(include_bytes!(
         "../../../packages/contracts/schemas/atlas.schema.json"
     ))
     .map_err(|error| error.to_string())?;
-    let mut history: Value = serde_json::from_str(include_str!(
+    let mut history = json_value::parse(include_bytes!(
         "../../../packages/contracts/history/http-history.v1.1.0.schema.json"
     ))
     .map_err(|error| error.to_string())?;
@@ -303,7 +304,7 @@ fn validate_value<T: Contract>(value: &Value) -> Result<(), ContractError> {
 
 /// Validate JSON against its canonical shape, then decode the narrow DTO.
 pub fn decode<T: Contract>(bytes: &[u8]) -> Result<T, ContractError> {
-    let value: Value = serde_json::from_slice(bytes)?;
+    let value = json_value::parse(bytes)?;
     validate_value::<T>(&value)?;
     Ok(serde_json::from_value(value)?)
 }
