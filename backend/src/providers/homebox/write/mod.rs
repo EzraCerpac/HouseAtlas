@@ -3,6 +3,7 @@
 
 mod mapping;
 mod ports;
+pub mod stock;
 mod workflow;
 
 pub use mapping::*;

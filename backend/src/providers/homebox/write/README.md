@@ -1,16 +1,18 @@
 # AT37 HomeBox write component
 
-This component maps catalog-approved entity name and archived-field changes,
-reserves provider activity, dispatches once through an injected port, and records
-scoped readback observations. It contains no HTTP client, listener, credentials,
+The `stock` component maps the supported stock.2/wire3 HomeBox write families,
+uses durable injected admission, dispatches once, and records scoped native
+readback evidence. See [stock/README.md](stock/README.md) for coverage and exact
+peer prerequisites. It contains no HTTP client, listener, credentials,
 source grant store, router, database implementation or provider calls. The four
 injected peers are application ports within the Rust modular monolith.
 
 The published base is `9f7561d99e09a680ec5282ca0c8aed4e10c6cbc9`. Its HomeBox
 adapter and contracts describe GET-only projections and verified native links.
-The exact write wire3 catalog is absent. No stock operation is enabled by
-default, and the example write routes are explicitly synthetic. Successful
-examples do not qualify those routes against HomeBox v0.26.2 or any deployment.
+The portable stock.2 catalog and pinned native Swagger are now available and
+used by `stock`. The original two-field mapper below remains an isolated
+synthetic reference API; its routes are not native stock routes. Successful
+examples do not qualify any registered HomeBox build or deployment.
 
 ## Mapping and execution
 
@@ -127,9 +129,7 @@ concurrency, rejection and negative-consumer controls remain unrun. This include
 uncertain-outcome simulations and duplicate/revocation controls; those paths are
 coded and source-reviewed, not behavior-qualified by the healthy example.
 
-Before extending beyond this narrow mapper, obtain the exact wire3 catalog's
-operation set; method/path/query/body schemas; accepted response/error schema;
-success and proven no-write classification; create-result identities;
-per-operation readback; and actual provider precondition/idempotency support.
-The component also awaits concrete shared contract types and AT07/AT11/transport
-adapters. Their absence does not block this scoped source compilation.
+The original two-field API is not the stock implementation. Use `stock::StockWriter`
+and its documented typed peer adapters for the exact stock operation set. Shared
+generated wire DTOs and concrete access/storage/transport adapters remain owned
+by their maintainers; standalone source compilation uses injected synthetic peers.
