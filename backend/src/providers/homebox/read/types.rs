@@ -4,6 +4,46 @@ use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Deserializer, Serialize, de::Error};
 use std::collections::BTreeSet;
 
+/// JSON Schema integer describes a value, not a particular numeric spelling.
+/// Accept integral floats without Rust's saturating out-of-range float casts.
+pub(super) fn deserialize_integral_u64<'de, D: Deserializer<'de>>(d: D) -> Result<u64, D::Error> {
+    struct Integral;
+    impl<'de> serde::de::Visitor<'de> for Integral {
+        type Value = u64;
+        fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str("a nonnegative integral JSON number within the u64 range")
+        }
+        fn visit_u64<E: Error>(self, v: u64) -> Result<u64, E> {
+            Ok(v)
+        }
+        fn visit_i64<E: Error>(self, v: i64) -> Result<u64, E> {
+            u64::try_from(v).map_err(E::custom)
+        }
+        fn visit_f64<E: Error>(self, v: f64) -> Result<u64, E> {
+            // u64::MAX rounds UP to 2^64 as f64; that bound must be exclusive.
+            const EXCLUSIVE_LIMIT: f64 = 18_446_744_073_709_551_616.0;
+            if v.is_finite() && (0.0..EXCLUSIVE_LIMIT).contains(&v) && v.fract() == 0.0 {
+                Ok(v as u64)
+            } else {
+                Err(E::custom("integral number outside the u64 range"))
+            }
+        }
+    }
+    d.deserialize_any(Integral)
+}
+
+fn deserialize_optional_integral_u64<'de, D: Deserializer<'de>>(
+    d: D,
+) -> Result<Option<u64>, D::Error> {
+    struct Integral(u64);
+    impl<'de> Deserialize<'de> for Integral {
+        fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+            deserialize_integral_u64(d).map(Self)
+        }
+    }
+    Option::<Integral>::deserialize(d).map(|n| n.map(|v| v.0))
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(transparent)]
 pub struct Uuid(String);
@@ -152,6 +192,7 @@ pub enum Attachment {
         attachment_id: Uuid,
         title: String,
         content_type: Option<String>,
+        #[serde(deserialize_with = "deserialize_optional_integral_u64")]
         byte_size: Option<u64>,
         proxy_ref: Option<String>,
     },

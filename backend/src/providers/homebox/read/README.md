@@ -56,6 +56,28 @@ commit must leave the previous generation intact. Only complete generations can
 enter this port; there is no filtered-view publication operation. The synthetic
 publisher example checks the handoff only, not these storage guarantees.
 
+The compiled fence is provisional and currently carries only scope/source epoch.
+That is insufficient to prevent an older read from replacing a newer committed
+generation. Proposed AT07 reconciliation, with exact epoch types to be agreed:
+
+```rust
+struct PublicationFence {
+    scope: SourceScope,
+    source_epoch: u64,
+    baseline_generation_id: Option<Uuid>, // durable generation before any GET
+    baseline_cache_epoch: u64,            // AT07 cacheEpoch captured with it
+    reserved_generation_id: Uuid,        // reserved by storage before any GET
+}
+```
+
+AT07 should return this capture together with the matching `PreviousGeneration`.
+The coordinator passes `reserved_generation_id` into `fetch_generation`; the
+publication transaction must compare current source authority, baseline generation
+and cacheEpoch with the capture, verify the reserved ID equals the staged cache ID,
+and consume the reservation exactly once. Epoch comparison/increment, reservation
+lifecycle and atomic rejection are AT07 responsibilities. This proposal does not
+add fabricated storage enforcement; the port must be reconciled before integration.
+
 `PreviousGeneration::new(cache, entities, quarantine)` accepts typed storage
 state and the reader rechecks schema/graph/scope invariants before issuing GETs.
 `cache_freshness` returns an aged copy and never persists timestamps or authorizes
@@ -83,7 +105,12 @@ reads on one reader; service/store serialization remains a separate obligation.
 JSON validation rejects invalid UTF-8, duplicate keys (including extension objects),
 nonfinite numbers, unpaired escaped surrogates and nesting beyond 64. Typed decoding
 validates required metadata arrays, lengths, UUIDs, dates, attachment shapes and
-maintenance. Identical repeated entity rows collapse; conflicts, observed count
+maintenance. External references must preserve the literal lowercase `http://` or
+`https://` prefix required by the published schema; normalized URL-parser scheme
+checks alone are insufficient. Page counters and nullable attachment byte sizes
+accept integral JSON float/exponent spellings, with finite/nonnegative/integral
+and exclusive 2^64 range checks before converting floating values to u64.
+Identical repeated entity rows collapse; conflicts, observed count
 drift, list/detail changes and parent cycles abort publication. These coded guards
 have not been exercised by rejection, fault, adversarial or concurrency controls.
 Offset-page reads remain non-transactional and convey no CAS or history evidence.
@@ -134,10 +161,11 @@ cargo clippy --manifest-path "$AT08_HARNESS/Cargo.toml" --locked --all-targets -
 AT08_EVIDENCE_DIR="$AT08_HARNESS/evidence" cargo test --manifest-path "$AT08_HARNESS/Cargo.toml" --locked homebox_read::healthy:: -- --test-threads=1
 ```
 
-The eight explicitly named success-only examples exercise published synthetic
+The ten explicitly named success-only examples exercise published synthetic
 metadata, scoped GETs/pagination, filtered views, empty generations, pinned minimal
 pages, provenance/UUID spelling, allowlists, pure freshness and synthetic native
-navigation/publication handoff. Emitted snapshots are checked against the published
+navigation/publication handoff, integral numeric spellings and literal URL references.
+Emitted snapshots are checked against the published
 shape and semantic validator; view projections are checked separately. The harness
 does not open listeners or call a provider. Legacy broad test aggregates and stopped
 rejection, guard-reversal, mutation/omission, adversarial, fault/crash, concurrency and

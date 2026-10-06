@@ -104,8 +104,11 @@ impl WireEntity {
 #[serde(rename_all = "camelCase")]
 pub(super) struct WirePage {
     pub items: Vec<Value>,
+    #[serde(deserialize_with = "super::types::deserialize_integral_u64")]
     pub page: u64,
+    #[serde(deserialize_with = "super::types::deserialize_integral_u64")]
     pub page_size: u64,
+    #[serde(deserialize_with = "super::types::deserialize_integral_u64")]
     pub total: u64,
 }
 pub(super) fn page(value: Value) -> Result<WirePage, ReadError> {
@@ -162,6 +165,14 @@ fn optional_number(n: Option<f64>) -> Result<(), ReadError> {
     }
     Ok(())
 }
+fn reference_url(value: &str) -> Result<Url, ReadError> {
+    // URL parsing normalizes scheme case; the published ^https?:// pattern
+    // applies to the original serialized reference, which is preserved here.
+    if !value.starts_with("http://") && !value.starts_with("https://") {
+        return Err(invalid());
+    }
+    Url::parse(value).map_err(|_| invalid())
+}
 pub(super) fn validate_attachment(a: &Attachment) -> Result<(), ReadError> {
     match a {
         Attachment::StoredFile {
@@ -185,7 +196,7 @@ pub(super) fn validate_attachment(a: &Attachment) -> Result<(), ReadError> {
             ..
         } => {
             text(title, 0, 16384)?;
-            let u = Url::parse(url).map_err(|_| invalid())?;
+            let u = reference_url(url)?;
             if *archived
                 || !matches!(u.scheme(), "http" | "https")
                 || !u.username().is_empty()
@@ -364,7 +375,7 @@ pub(super) fn validate_projection(p: &Projection, scope: &SourceScope) -> Result
         {
             return Err(invalid());
         }
-        let url = Url::parse(&link.href).map_err(|_| invalid())?;
+        let url = reference_url(&link.href)?;
         if !matches!(url.scheme(), "http" | "https")
             || !url.username().is_empty()
             || url.password().is_some()

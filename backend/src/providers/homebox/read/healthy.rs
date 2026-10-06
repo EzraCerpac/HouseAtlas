@@ -33,6 +33,7 @@ struct SyntheticTransport {
     entities: Vec<Value>,
     maintenance: Value,
     calls: Arc<Mutex<Vec<GetRequest>>>,
+    integral_page_numbers: bool,
 }
 impl Transport for SyntheticTransport {
     type Body = Chunks;
@@ -84,7 +85,13 @@ impl Transport for SyntheticTransport {
                     Value::Object(row)
                 })
                 .collect();
-            json!({ "items": rows.iter().skip((page - 1) * size).take(size).collect::<Vec<_>>(), "page": page, "pageSize": size, "total": rows.len() })
+            let mut value = json!({ "items": rows.iter().skip((page - 1) * size).take(size).collect::<Vec<_>>(), "page": page, "pageSize": size, "total": rows.len() });
+            if self.integral_page_numbers {
+                for key in ["page", "pageSize", "total"] {
+                    value[key] = json!(value[key].as_u64().unwrap() as f64);
+                }
+            }
+            value
         } else if request.path().ends_with("/maintenance") {
             self.maintenance.clone()
         } else {
@@ -124,6 +131,7 @@ fn reader(
         entities,
         maintenance: fixture()["maintenance"].clone(),
         calls: calls.clone(),
+        integral_page_numbers: false,
     };
     (
         HomeBoxReader::new(reg, transport, FixedClock, limits, navigation).unwrap(),
@@ -408,4 +416,88 @@ async fn pure_freshness_calculation_keeps_success_time() {
         saved.last_successful_fetch_at
     );
     assert_eq!(g.cache(), &saved);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn integral_json_float_spellings_publish_contract_valid_metadata() {
+    let reg = registration();
+    let mut entities = metadata();
+    entities[1]["attachments"][0]["byteSize"] = json!(12.0);
+    let transport = SyntheticTransport {
+        scope: reg.scope(),
+        entities,
+        maintenance: fixture()["maintenance"].clone(),
+        calls: Arc::new(Mutex::new(Vec::new())),
+        integral_page_numbers: true,
+    };
+    let mut r =
+        HomeBoxReader::new(reg.clone(), transport, FixedClock, Limits::default(), None).unwrap();
+    let g = r.fetch_generation(None, generation_id()).await.unwrap();
+    let item = g
+        .entities()
+        .iter()
+        .find(|p| p.entity.id.as_str() == ITEM)
+        .unwrap();
+    assert!(matches!(
+        item.attachments[0],
+        Attachment::StoredFile {
+            byte_size: Some(12),
+            ..
+        }
+    ));
+    assert_eq!(g.stats().pages, 2);
+    emit("integral-floats.snapshot.json", snapshot(&g, &reg));
+
+    // These are valid integral spellings in the same JSON Schema dialect.
+    for spelling in ["12", "12.0", "12e0", "1.2e1"] {
+        let raw = format!(r#"{{"items":[],"page":1.0,"pageSize":100e0,"total":{spelling}}}"#);
+        let page = super::decode::page(super::decode::parse(raw.as_bytes()).unwrap()).unwrap();
+        assert_eq!((page.page, page.page_size, page.total), (1, 100, 12));
+        let raw = format!(
+            r#"{{"kind":"stored-file","attachmentId":"00000000-0000-4000-8000-000000000801","title":"Synthetic","contentType":null,"byteSize":{spelling},"proxyRef":null}}"#
+        );
+        let a: Attachment = serde_json::from_str(&raw).unwrap();
+        assert!(matches!(
+            a,
+            Attachment::StoredFile {
+                byte_size: Some(12),
+                ..
+            }
+        ));
+    }
+    let a: Attachment = serde_json::from_str(r#"{"kind":"stored-file","attachmentId":"00000000-0000-4000-8000-000000000801","title":"Synthetic unknown size","contentType":null,"byteSize":null,"proxyRef":null}"#).unwrap();
+    assert!(matches!(
+        a,
+        Attachment::StoredFile {
+            byte_size: None,
+            ..
+        }
+    ));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn literal_http_reference_representation_is_preserved() {
+    let reg = registration();
+    let urls = [
+        "http://manual.example.invalid/file?q=synthetic",
+        "https://manual.example.invalid/file?q=synthetic",
+    ];
+    for (i, url) in urls.iter().enumerate() {
+        let mut entities = metadata();
+        entities[1]["attachments"][1]["url"] = json!(url);
+        let (mut r, _) = reader(entities, reg.clone(), Limits::default(), None);
+        let g = r.fetch_generation(None, generation_id()).await.unwrap();
+        let item = g
+            .entities()
+            .iter()
+            .find(|p| p.entity.id.as_str() == ITEM)
+            .unwrap();
+        assert!(
+            matches!(&item.attachments[1], Attachment::ExternalLink { url: actual, .. } if actual == url)
+        );
+        emit(
+            &format!("literal-url-{i}.snapshot.json"),
+            snapshot(&g, &reg),
+        );
+    }
 }

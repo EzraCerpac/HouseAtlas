@@ -3,6 +3,9 @@ use std::{fmt, future::Future};
 
 /// Captured by the shared authorized service before reads. Not an access grant.
 /// The store MUST compare this epoch with current source authority in its transaction.
+/// Provisional: this port also needs AT07's pre-read baseline generation/cache
+/// epoch and reserved generation ID. See the README reconciliation proposal.
+/// Scope/source_epoch alone are insufficient for production publication fencing.
 #[derive(Clone, Debug)]
 pub struct PublicationFence {
     pub scope: SourceScope,
