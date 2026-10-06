@@ -3,15 +3,10 @@
 //! fixture-specific validator is used by the application.
 use crate::storage::*;
 use serde_json::{Value, json};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::OnceLock,
-};
+use std::collections::{BTreeMap, BTreeSet};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 pub struct ReadContracts;
-type Validators = BTreeMap<String, jsonschema::Validator>;
-static VALIDATORS: OnceLock<std::result::Result<Validators, String>> = OnceLock::new();
 
 fn invalid(message: &'static str) -> Error {
     Error::new("invalid-contract", message)
@@ -97,21 +92,31 @@ fn source<'a>(sources: &'a BTreeMap<String, &'a Value>, v: &Value, key: &Value) 
 
 impl ReadContracts {
     pub fn shape(&self, name: &str, value: &Value) -> Result<()> {
-        let validators = VALIDATORS.get_or_init(|| {
-            let atlas: Value = serde_json::from_str(include_str!("../../../packages/contracts/schemas/atlas.schema.json")).map_err(|e| e.to_string())?;
-            let definitions = atlas["$defs"].as_object().ok_or("Missing definitions")?;
-            definitions.keys().map(|name| {
-                let schema = json!({"$schema": atlas["$schema"], "$defs": atlas["$defs"], "$ref": format!("#/$defs/{name}")});
-                jsonschema::options().with_draft(jsonschema::Draft::Draft202012)
-                    .should_validate_formats(true).should_ignore_unknown_formats(false)
-                    .build(&schema).map(|v| (name.clone(), v)).map_err(|e| e.to_string())
-            }).collect()
-        }).as_ref().map_err(|_| invalid("Schema setup unavailable"))?;
-        validators
-            .get(name)
-            .ok_or(invalid("Unknown contract shape"))?
-            .validate(value)
-            .map_err(|_| invalid("Schema validation failed"))
+        // The real generated peer performs checked numeric preprocessing before
+        // frozen schema validation and typed decoding. Do not bypass its boundary.
+        fn typed<T: crate::contracts::Contract>(value: &Value) -> Result<()> {
+            crate::contracts::decode::<T>(&serde_json::to_vec(value)?)
+                .map(|_| ())
+                .map_err(|error| match error {
+                    crate::contracts::ContractError::UnsupportedNumber(_)
+                    | crate::contracts::ContractError::Setup(_) => {
+                        Error::new("unavailable", "Native contract processing unavailable")
+                    }
+                    _ => invalid("Typed contract validation failed"),
+                })
+        }
+        use crate::contracts as dto;
+        match name {
+            "scope" => typed::<dto::Scope>(value),
+            "snapshot" => typed::<dto::Snapshot>(value),
+            "record" => typed::<dto::Record>(value),
+            "recordRef" => typed::<dto::RecordRef>(value),
+            "audit" => typed::<dto::Audit>(value),
+            "sourceRegistration" => typed::<dto::SourceRegistration>(value),
+            "homeboxProjection" => typed::<dto::HomeboxProjection>(value),
+            "cacheStatus" => typed::<dto::CacheStatus>(value),
+            _ => unavailable(),
+        }
     }
 
     fn graph(&self, v: &Value) -> Result<()> {

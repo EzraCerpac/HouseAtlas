@@ -19,7 +19,8 @@ The checked-in runner names its source and coverage explicitly.
 | Lifecycle | Graceful ordinary shutdown returned 0; disposable state removed |
 
 The healthy first run exposed a blocking socket registration error, then an
-HTTP/2 authority adaptation error. Both were corrected in the host. The final
+HTTP/2 authority adaptation error. Both were corrected in the host. A typed-peer
+rerun also exposed an omitted scope adapter case, which was restored. The final
 runner passed; these debugging outcomes are not deliberate failure/crash or
 rejection controls. Favicon requests return an explicit empty 204 response.
 

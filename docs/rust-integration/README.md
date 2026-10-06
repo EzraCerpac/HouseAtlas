@@ -10,7 +10,7 @@ Pinned module inputs:
 
 | Module | Exact head |
 | --- | --- |
-| Baseline contracts correction | dac410e22f63a231118f513a0a565093e0836213 |
+| Baseline numeric correction (development; independent review pending) | 358ec380a82d6c9e9aac4ca039c0ab8a381cf011 |
 | Access | 3f83d8f35f2cc1948b5d361badfc77948745676d |
 | Domain and jobs correction | 25813f1222c60379850da37b7bf7e97e0e2750db |
 | Storage | d4a94d230da3f098eefaa846bf73f389f9d9965e |
@@ -56,7 +56,8 @@ Native contract validation supports the restricted HomeBox identity/evidence/
 binding/location-semantics graph, including scoped references, permanent IDs,
 source partition disjointness, evidence supersession, accepted classifications,
 binding reservations, explicit entity kinds, qualified parentage, cache generation
-dates and native route scope. Frozen JSON Schema validation precedes decoding.
+dates and native route scope. The generated DTO peer performs checked numeric
+preprocessing and frozen JSON Schema validation before typed decoding.
 Unsupported graph families and every command/asset peer return unavailable;
 no mutation or media route is mounted. RFC 8785 serialization uses pinned
 serde_jcs 0.2.0.
@@ -106,11 +107,14 @@ target NAS macOS build/runtime and operational qualification.
 
 Paired serde_json arbitrary_precision and jsonschema arbitrary-precision
 features are selected, plus float_roundtrip required by the Network proposal.
-Generated numeric tokens preserve backend input better; JavaScript numbers,
-storage/domain fixed integer carriers, scientific exponent arithmetic and
-ECMAScript canonicalization still have the disclosed limits in
+Generated numeric tokens use the baseline's bounded checked preprocessing;
+independent acceptance of its latest numeric correction remains pending.
+JavaScript numbers, storage/domain fixed integer carriers and ECMAScript
+canonicalization still have the disclosed limits in
 ../rust-baseline/numeric-semantics.md. Full unbounded-number fidelity is
 unqualified. No large-number or negative-consumer probe is run here.
+Preserving every arbitrary open-object extra is also unqualified: the baseline's
+reserved-sentinel object-shape collision remains pending owner correction.
 The consumed storage checkpoint also rejects some schema-valid integer JSON
 spellings such as schemaVersion 1.0, revision 1e0 and byteSize 16.0; its owner's
 correction is pending. This finite fixture uses ordinary integer spellings and
