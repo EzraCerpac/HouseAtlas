@@ -87,6 +87,7 @@ locks these exact packages:
 | typescript                      | 7.0.2   | Compiler                             |
 | esbuild                         | 0.28.2  | External browser/example compilation |
 | jsdom                           | 30.1.2  | External healthy DOM examples        |
+| playwright-core                 | 1.63.0  | External loopback browser QA only    |
 | prettier                        | 3.9.9   | Source formatting only               |
 
 Proposed compiler settings: `strict`, `noUncheckedIndexedAccess`,
@@ -106,6 +107,7 @@ owned frontend files into `source/`, with Node 26.10.0 and npm 11.19.1:
 ./node_modules/.bin/esbuild source/src/main.tsx --bundle --format=esm --platform=browser --target=es2022 --outdir=dist --metafile=build-meta.json
 ./node_modules/.bin/esbuild source/src/app/healthy.examples.tsx --bundle --format=esm --platform=node --packages=external --target=node26 --outfile=healthy-examples.mjs
 node run-healthy.mjs
+node run-published.mjs
 ```
 
 `run-healthy.mjs` creates a jsdom document with an example.invalid origin;
@@ -119,6 +121,14 @@ maintenance/downloads; document search/focus; archive visibility; Settings
 house switch/title; returning home/passive reload; verified native links;
 and typed bootstrap/scoped GET decoding with a fake transport.
 
+`runPublishedVariantExamples(container, suppliedViews)` adds five healthy
+groups using schema-validated published synthetic snapshots: `site`/`other`
+semantics with generic Place presentation and native `view` links; `archived`
+source state; unresolved/confirmed-deleted tree qualifiers; and GIF/AVIF photo
+references alongside an issued PNG preview. `PublishedVariantViews` contains
+the prepared `site`, `other`, `retained` and `photos` view inputs. The ordinary
+archive example also verifies destination focus and the empty `#notice` hook.
+
 Compilation validates actual lane source copies, not declarations alone.
 The external evidence manifest compares every copied source digest with the
 checkout. Application-wide AT51 build, real Rust DTO interoperability and
@@ -127,6 +137,11 @@ guard-reversal, mutation/omission, adversarial, failure, crash, concurrency and
 negative-consumer controls, plus legacy broad aggregates, remain unrun.
 These healthy examples do not establish security or deployment qualification.
 
-An optional headless Chromium screenshot attempt timed out in this execution
-environment. No browser screenshot validation is claimed; the retained design
-evidence is exact published CSS parity and healthy React DOM examples.
+Healthy loopback browser QA succeeded with Chromium
+151.0.7922.173 and Playwright Core 1.63.0. It verifies actual Space toggling of
+the archive checkbox in both directions while retaining focus, the published
+desktop empty-notice float layout, and desktop Home/item/Settings plus 390px
+mobile captures. The temporary synthetic fixture server binds only loopback;
+the recorded page requests are its HTML and issued synthetic PNG capability.
+No page errors or provider calls were observed. Browser transport setup and
+screenshots remain external harness evidence, not application server scaffolding.

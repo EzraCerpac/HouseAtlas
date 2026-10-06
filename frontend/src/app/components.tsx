@@ -81,7 +81,9 @@ export function BrandMark() {
 export function Glyph({ entry }: { entry: Entry }) {
   const kind =
     entry.kind === "place"
-      ? entry.semanticKind === "unclassified"
+      ? entry.semanticKind === "unclassified" ||
+        entry.semanticKind === "site" ||
+        entry.semanticKind === "other"
         ? "place"
         : entry.semanticKind
       : entry.kind;
@@ -160,23 +162,32 @@ export function placement(view: ReadyView, entry: Entry): string {
           : "missingPlace",
   );
 }
-export function RecordStatus({ entry }: { entry: Entry }) {
+export function RecordStatus({
+  entry,
+  compact = false,
+}: {
+  entry: Entry;
+  compact?: boolean;
+}) {
+  const warning =
+    entry.sourceState === "unresolved"
+      ? "unresolved"
+      : entry.sourceState === "confirmed-deleted"
+        ? "deleted"
+        : entry.sourceState === "unreviewed"
+          ? "review"
+          : null;
   return (
     <>
-      {entry.entity.archived && (
-        <span className="badge">{text("archived")}</span>
+      {(entry.entity.archived || entry.sourceState === "archived") && (
+        <span className={compact ? "flag" : "badge"}>{text("archived")}</span>
       )}
-      {entry.sourceState !== "present" && (
-        <p className="warning">
-          {text(
-            entry.sourceState === "unresolved"
-              ? "unresolved"
-              : entry.sourceState === "confirmed-deleted"
-                ? "deleted"
-                : "review",
-          )}
-        </p>
-      )}
+      {warning &&
+        (compact ? (
+          <span className="flag flag-review">{text(warning)}</span>
+        ) : (
+          <p className="warning">{text(warning)}</p>
+        ))}
     </>
   );
 }
@@ -322,12 +333,7 @@ export function PlaceTree({
             <AtlasLink page={pageOf(child)} entryKey={child.key}>
               {child.entity.name}
             </AtlasLink>
-            {child.entity.archived && (
-              <span className="flag">{text("archived")}</span>
-            )}
-            {child.sourceState !== "present" && (
-              <span className="flag flag-review">{text("review")}</span>
-            )}
+            <RecordStatus entry={child} compact />
           </span>
           {full && depth < 8 && (
             <PlaceTree
@@ -522,7 +528,11 @@ function Photo({
   entry: Entry;
 }) {
   const [failed, setFailed] = useState(false);
-  const preview = safeMediaUrl(attachment.previewHref);
+  const preview = ["image/png", "image/jpeg", "image/webp"].includes(
+    attachment.contentType?.toLowerCase() ?? "",
+  )
+    ? safeMediaUrl(attachment.previewHref)
+    : null;
   return (
     <figure>
       {preview && !failed ? (
@@ -555,7 +565,7 @@ export function Resources({ entry }: { entry: Entry }) {
   const photos = entry.attachments.filter(
     (a): a is Extract<Attachment, { kind: "stored-file" }> =>
       a.kind === "stored-file" &&
-      ["image/png", "image/jpeg", "image/webp"].includes(a.contentType ?? ""),
+      (a.contentType ?? "").toLowerCase().startsWith("image/"),
   );
   const place = entry.kind === "place";
   return (

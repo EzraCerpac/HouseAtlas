@@ -64,7 +64,7 @@ export interface Maintenance {
 }
 export interface NativeLink {
   kind: "homebox-native";
-  intent: "edit" | "maintenance";
+  intent: "view" | "edit" | "maintenance";
   entity: Scope & { key: SourceKey };
   href: string;
   verifiedRoute: boolean;
@@ -87,8 +87,16 @@ export interface Entry extends Scope {
   source: SourceKey;
   entity: Entity;
   kind: "place" | "item" | "unknown";
-  semanticKind: "room" | "floor" | "building" | "container" | "unclassified";
-  sourceState: "present" | "unresolved" | "confirmed-deleted" | "unreviewed";
+  semanticKind:
+    | "room"
+    | "floor"
+    | "building"
+    | "container"
+    | "unclassified"
+    | "site"
+    | "other";
+  sourceState:
+    "present" | "archived" | "unresolved" | "confirmed-deleted" | "unreviewed";
   cacheStatus: CacheStatus;
   sourceUpdatedAt: string | null;
   retrievedAt: string;

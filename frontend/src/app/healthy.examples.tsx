@@ -7,6 +7,7 @@ import { App } from "./App";
 import { createAtlasClient } from "../api/client";
 import { decodeAtlasView } from "./decode";
 import { ancestry, routeHref, sameScope } from "./model";
+import { text } from "./copy";
 import type { AtlasClient, ReadyView, Scope } from "./types";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -46,6 +47,7 @@ export async function runHealthyExamples(
   };
   const root = createRoot(container);
   const heading = () => container.querySelector("h1")?.textContent;
+  const focusedId = () => document.activeElement?.id;
   const route = async (hash: string) => {
     await act(async () => {
       window.history.replaceState(null, "", hash);
@@ -63,16 +65,18 @@ export async function runHealthyExamples(
       "Healthy bootstrap and room plates",
     );
     checks.push("authorized bootstrap and enamel room plates");
+    assert(
+      container.querySelector("#notice:empty")?.getAttribute("role") ===
+        "status",
+      "Published empty-notice layout hook",
+    );
     await route(routeHref("place", room.key));
     assert(
       heading() === room.entity.name &&
         container.textContent?.includes("Display cabinet"),
       "Room descendants",
     );
-    assert(
-      document.activeElement?.id === "page-heading",
-      "Room navigation focuses heading",
-    );
+    assert(focusedId() === "page-heading", "Room navigation focuses heading");
     checks.push("room descendants and heading focus");
     await route(routeHref("item", radio.key));
     assert(
@@ -125,12 +129,10 @@ export async function runHealthyExamples(
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 15));
     });
-    assert(
-      document.activeElement?.id.startsWith("doc-heading-"),
-      "Document target focus",
-    );
+    assert(focusedId()?.startsWith("doc-heading-"), "Document target focus");
     checks.push("model/document search and document target focus");
     await route("#places");
+    container.querySelector<HTMLElement>("#atlas-archives")?.focus();
     await click(container.querySelector("#atlas-archives"));
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 15));
@@ -143,7 +145,11 @@ export async function runHealthyExamples(
       container.querySelector<HTMLInputElement>("#atlas-archives")?.checked,
       "Archive control state",
     );
-    checks.push("archived source records and control state");
+    assert(
+      focusedId() === "atlas-archives",
+      "Archive control destination focus",
+    );
+    checks.push("archived source records, control state and destination focus");
     await route("#settings");
     const select = container.querySelector("select");
     assert(select, "Settings home selector");
@@ -221,6 +227,116 @@ export async function runHealthyExamples(
       "Passive HTTP request shape",
     );
     checks.push("healthy bootstrap/scoped GET transport and typed decode");
+    return checks;
+  } finally {
+    await act(async () => root.unmount());
+  }
+}
+
+export interface PublishedVariantViews {
+  site: unknown;
+  other: unknown;
+  retained: unknown;
+  photos: unknown;
+}
+/** The harness prepares each healthy variant from schema-validated published
+ * synthetic snapshots. These are valid values, not rejection controls. */
+export async function runPublishedVariantExamples(
+  container: HTMLElement,
+  supplied: PublishedVariantViews,
+): Promise<string[]> {
+  const root = createRoot(container),
+    checks: string[] = [];
+  let mountNumber = 0;
+  const mount = async (view: ReadyView, hash: string) => {
+    window.history.replaceState(null, "", hash);
+    const client: AtlasClient = {
+      load: async () => view,
+      loadHome: async () => view,
+    };
+    await act(async () =>
+      root.render(
+        <App key={++mountNumber} initialView={view} client={client} />,
+      ),
+    );
+  };
+  const ready = (value: unknown): ReadyView => {
+    const view = decodeAtlasView(value);
+    assert(view.status === "ready", "Healthy published variant decoded");
+    return view;
+  };
+  try {
+    for (const semantic of ["site", "other"] as const) {
+      const view = ready(supplied[semantic]);
+      const place = view.entries.find((p) => p.semanticKind === semantic);
+      assert(place, "Published semantic value retained");
+      assert(
+        view.entries.some((p) =>
+          p.nativeLinks.some((link) => link.intent === "view"),
+        ),
+        "Published native view intent retained",
+      );
+      await mount(view, routeHref("place", place.key));
+      assert(
+        container
+          .querySelector(".record-head .plate-kind")
+          ?.textContent?.startsWith("Place"),
+        "Generic place presentation",
+      );
+      checks.push(
+        `published ${semantic} semantics, native view intent and generic Place presentation`,
+      );
+      const archived = view.entries.find((p) => p.sourceState === "archived");
+      assert(archived, "Published archived source value retained");
+      await mount(view, routeHref("item", archived.key, { archived: true }));
+      assert(
+        container.querySelector(".badge")?.textContent === text("archived"),
+        "Archived source qualifier",
+      );
+    }
+    checks.push("published archived source state and archive qualifier");
+    const retained = ready(supplied.retained);
+    await mount(retained, "#places");
+    for (const sourceState of ["unresolved", "confirmed-deleted"] as const) {
+      const entry = retained.entries.find((p) => p.sourceState === sourceState);
+      assert(entry, "Healthy retained source record");
+      const label = [...container.querySelectorAll(".tree-label")].find(
+        (el) => el.querySelector("a")?.textContent === entry.entity.name,
+      );
+      assert(
+        label?.textContent?.includes(
+          text(sourceState === "unresolved" ? "unresolved" : "deleted"),
+        ),
+        "Specific retained-record tree qualifier",
+      );
+    }
+    checks.push(
+      "unresolved and confirmed-deleted retained-record tree qualifiers",
+    );
+    const photos = ready(supplied.photos);
+    const item = photos.entries.find((p) => p.entity.name === "Portable radio");
+    assert(item, "Healthy photo owner");
+    await mount(photos, routeHref("item", item.key));
+    const figures = [...container.querySelectorAll(".photos-section figure")];
+    for (const title of [
+      "Synthetic GIF reference",
+      "Synthetic AVIF reference",
+    ]) {
+      assert(
+        figures.some(
+          (figure) =>
+            figure.querySelector(".photo-placeholder .photo-title")
+              ?.textContent === title,
+        ),
+        "Other image format reference retained as placeholder",
+      );
+    }
+    assert(
+      container.querySelector(".photos-section img")?.getAttribute("src") ===
+        "/api/atlas/media/example-photo",
+      "Issued supported preview retained",
+    );
+    checks.push("GIF/AVIF photo references and restricted issued PNG preview");
     return checks;
   } finally {
     await act(async () => root.unmount());

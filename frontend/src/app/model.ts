@@ -156,7 +156,9 @@ export const pageOf = (p: Entry): "place" | "item" =>
   p.kind === "place" ? "place" : "item";
 export const kindOf = (p: Entry) =>
   p.kind === "place"
-    ? p.semanticKind === "unclassified"
+    ? p.semanticKind === "unclassified" ||
+      p.semanticKind === "site" ||
+      p.semanticKind === "other"
       ? "place"
       : p.semanticKind
     : p.kind === "unknown"

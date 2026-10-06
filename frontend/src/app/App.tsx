@@ -178,10 +178,11 @@ export function App({
             : active.id),
       );
   };
-  const navigate = (href: string) => {
+  const navigate = (href: string, destinationFocus?: string) => {
     remember();
+    if (destinationFocus) remembered.current.set(href, destinationFocus);
     if (window.location.hash === href) {
-      focus.current = "page-heading";
+      focus.current = destinationFocus ?? "page-heading";
       setRoute(parseRoute(href));
     } else window.location.hash = href;
   };
@@ -288,7 +289,7 @@ export function App({
                       ? "Reloading saved information…"
                       : "Reload saved information"}
                   </button>
-                  <p role="status" aria-live="polite">
+                  <p id="notice" role="status" aria-live="polite">
                     {notice}
                   </p>
                 </div>
@@ -321,7 +322,7 @@ function Shell({
 }: {
   view: ReadyView;
   route: Route;
-  navigate: (href: string) => void;
+  navigate: (href: string, destinationFocus?: string) => void;
 }) {
   const [query, setQuery] = useState(route.query);
   useEffect(() => setQuery(route.query), [route.query]);
@@ -377,6 +378,7 @@ function Shell({
                       ...route,
                       archived: event.target.checked,
                     }),
+                    "atlas-archives",
                   )
                 }
               />

@@ -129,7 +129,7 @@ function native(value: unknown): NativeLink {
     ref = object(o.entity);
   return {
     kind: choice(o.kind, ["homebox-native"]),
-    intent: choice(o.intent, ["edit", "maintenance"]),
+    intent: choice(o.intent, ["view", "edit", "maintenance"]),
     entity: { ...scope(ref), key: source(ref.key) },
     href: string(o.href),
     verifiedRoute: boolean(o.verifiedRoute),
@@ -173,9 +173,12 @@ function entry(value: unknown): Entry {
       "building",
       "container",
       "unclassified",
+      "site",
+      "other",
     ]),
     sourceState: choice(o.sourceState, [
       "present",
+      "archived",
       "unresolved",
       "confirmed-deleted",
       "unreviewed",
