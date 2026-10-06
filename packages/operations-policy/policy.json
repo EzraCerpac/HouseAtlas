@@ -1,0 +1,159 @@
+{
+  "policyVersion": "1.0.0",
+  "status": "generic-proposed-policy-unconfigured",
+  "contract": {
+    "version": "1.0.0",
+    "recordSchemaVersion": 1,
+    "homeboxReferenceVersion": "v0.26.2"
+  },
+  "target": {
+    "intendedHost": null,
+    "readiness": "unknown-unqualified",
+    "atlasRuntime": "unselected",
+    "homeboxChoice": "unselected",
+    "implicitPlatformInstallAllowed": false,
+    "implicitHostMoveAllowed": false,
+    "defaultAudienceReach": "LAN-only-authenticated-HTTPS",
+    "backendBind": "loopback",
+    "candidateAtlasPort": null,
+    "candidateNewHomeboxPort": null,
+    "portsVerifiedFree": false,
+    "startupObjective": "unattended-after-reboot-without-household-login",
+    "protectNetwork": true,
+    "homeAssistant": false,
+    "floorplanRequired": false,
+    "optionalGeometryProducer": "magicplan"
+  },
+  "access": {
+    "proposedViewerAudience": null,
+    "proposedEditorOperator": null,
+    "roles": {
+      "viewer": [
+        "read-authorized-home",
+        "read-authorized-history",
+        "read-authorized-media"
+      ],
+      "editor": [
+        "read-authorized-home",
+        "read-authorized-history",
+        "read-authorized-media",
+        "mutate-atlas-owned-records"
+      ],
+      "operator": [
+        "scoped-release-recovery-configuration"
+      ]
+    },
+    "homeboxRightsIndependent": true,
+    "separateNamedAccounts": true,
+    "sessionIdleSeconds": 28800,
+    "sessionAbsoluteSeconds": 604800,
+    "denyRevokedCacheAndMedia": true,
+    "upstreamDeniedPartition": "quarantine-pending-scope-revalidation",
+    "sourcePartition": "server-controlled-exact-instance-and-collection",
+    "secretValuesInPackageAllowed": false,
+    "secretRecovery": "separate-private-approved-procedure"
+  },
+  "integration": {
+    "homeboxMethods": [
+      "GET"
+    ],
+    "homeboxEditing": "verified-native-links-only",
+    "explicitTenantRequired": true,
+    "networkMethods": [
+      "GET"
+    ],
+    "networkCapabilities": [
+      "inventory",
+      "snapshot",
+      "history"
+    ],
+    "networkForbidden": [
+      "demand-leases",
+      "collectors",
+      "diagnostics",
+      "imports",
+      "inventory-writes"
+    ],
+    "atomicCompleteCacheGeneration": true,
+    "missingMeansDeleted": false,
+    "refreshSeconds": 300,
+    "staleAfterSeconds": 900,
+    "noQueuedRemoteWrites": true
+  },
+  "media": {
+    "newHomeboxBackendDefault": "explicit-local-storage",
+    "existingHomeboxBackend": "preserve-until-qualified",
+    "atlasBackendDefault": "dedicated-local-immutable-owned-blobs",
+    "homeboxByteMirroring": false,
+    "maxBytes": 10485760,
+    "maxDecodedImagePixels": 25000000,
+    "maxRedirects": 0,
+    "rasterPreview": "validated-and-bounded-safe-derivative-after-AT-12-tests",
+    "svgPreview": "blocked",
+    "pdfPreview": "download-only-until-reviewed-renderer",
+    "externalLinksServerFetched": false,
+    "browserPersistedPrivateCache": false,
+    "httpCacheControl": "private, no-store",
+    "hardPurgeAllowed": false
+  },
+  "offline": {
+    "lanWithoutInternet": "local-services-and-media-available-after-cold-load-test",
+    "upstreamOutage": "persistent-permitted-metadata-read-only-with-original-times",
+    "sourceMediaOutage": "references-only-no-byte-guarantee",
+    "nasOutage": "no-cold-start-or-private-document-guarantee",
+    "disconnectedEditing": false,
+    "emergencyExport": "optional-separate-content-device-privacy-review"
+  },
+  "recovery": {
+    "objectivesStatus": "proposed-unmeasured",
+    "rpoSeconds": 86400,
+    "rtoSeconds": 14400,
+    "dailyPoints": 30,
+    "weeklyPoints": 12,
+    "prechangeMinimumHoldDaysAfterAcceptance": 7,
+    "proposedOwner": null,
+    "offHostDestination": null,
+    "offHostEncryptedCopyRequired": true,
+    "captureMethodDefault": "quiesced-sqlite-backup-and-immutable-blobs",
+    "captureWindowBudgetSeconds": 300,
+    "allWritersDrainedRequired": true,
+    "blobDeletionFenceRequired": true,
+    "manifestAtomicFinalizationRequired": true,
+    "compatiblePriorReleaseRequired": true,
+    "sessionInvalidationAfterRestore": true,
+    "reconcileCurrentRevocationsAfterRestore": true,
+    "quarterlyRestoreDrillProposed": true,
+    "targetDrillPassed": false
+  },
+  "qualification": {
+    "trialMinutes": 90,
+    "syntheticDataBytes": 1073741824,
+    "stagingAndRestoreBytes": 2147483648,
+    "loopbackOnly": true,
+    "productionDataAllowed": false,
+    "autostartChangeInForegroundTrialAllowed": false,
+    "stopOnUnsupportedRuntime": true
+  },
+  "futureAgentAccess": {
+    "status": "research-candidates-outside-current-critical-path",
+    "candidates": [
+      "NAS-remote-MCP-and-tunnel",
+      "browser-WebMCP",
+      "Login-with-ChatGPT"
+    ],
+    "enabled": false,
+    "requiresNewAiServiceForMvp": false,
+    "sharedApplicationAuthorizationAndValidationRequired": true,
+    "actorAndHomeFromVerifiedPrincipal": true,
+    "sourceOwnershipAndGateBoundariesUnchanged": true
+  },
+  "gates": {
+    "G0": "isolated-synthetic-code-scope",
+    "G1": "specific-target-service-trial-and-route-scope",
+    "G2": "specific-credential-account-grant-and-source-scope",
+    "G3": "exact-reconciled-seed-write-set-after-recovery",
+    "G4": "exact-limited-pilot-after-tests-target-auth-and-recovery",
+    "G5": "promotion-after-real-family-acceptance-and-operations-evidence",
+    "releasedByThisPackage": []
+  }
+}

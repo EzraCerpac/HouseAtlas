@@ -1,0 +1,54 @@
+{
+  "formatVersion": 1,
+  "state": "incomplete",
+  "bundleId": null,
+  "createdAt": null,
+  "scope": {
+    "workspaceId": null,
+    "homeId": null,
+    "sourceInstanceId": null,
+    "collectionId": null
+  },
+  "capture": {
+    "method": "quiesced-sqlite-backup-and-immutable-blobs",
+    "coordinationId": null,
+    "windowStartedAt": null,
+    "windowEndedAt": null,
+    "allWritersBlocked": false,
+    "inFlightWritesDrained": false,
+    "blobDeletionHeld": false,
+    "mutationEpochBefore": null,
+    "mutationEpochAfter": null
+  },
+  "compatibility": {
+    "contractVersion": "1.0.0",
+    "recordSchemaVersion": 1,
+    "atlasRelease": null,
+    "atlasDbSchemaVersion": null,
+    "atlasMinReadableDbSchema": null,
+    "atlasMaxReadableDbSchema": null,
+    "homeboxVersion": null,
+    "runtimeIdentity": null,
+    "configVersion": null,
+    "mediaPolicyVersion": null
+  },
+  "components": [],
+  "assets": [],
+  "identityInventory": {
+    "atlasIds": [],
+    "bindingKeys": [],
+    "reconciliationJournalIds": []
+  },
+  "accessRecovery": {
+    "membershipIncluded": false,
+    "currentRevocationsReconciled": false,
+    "invalidatePriorSessions": true
+  },
+  "privateRecoveryReferences": [],
+  "checks": {
+    "databaseIntegrity": false,
+    "allReferencedBlobsVerified": false,
+    "scopeAndIdentityVerified": false,
+    "emptyDirectoryRestoreEvidence": null
+  }
+}

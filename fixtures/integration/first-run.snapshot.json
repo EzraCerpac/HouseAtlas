@@ -1,0 +1,51 @@
+{
+  "contractVersion": "1.0.0",
+  "synthetic": true,
+  "sources": [
+    {
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+      "collectionId": "synthetic-collection-a",
+      "owner": "homebox",
+      "partitionMode": "exclusive-home",
+      "allowedExternalIds": []
+    },
+    {
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000003",
+      "sourceInstanceId": "00000000-0000-4000-8000-000000000011",
+      "collectionId": "synthetic-collection-b",
+      "owner": "homebox",
+      "partitionMode": "exclusive-home",
+      "allowedExternalIds": []
+    },
+    {
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "sourceInstanceId": "00000000-0000-4000-8000-000000000012",
+      "collectionId": "inventory",
+      "owner": "network",
+      "partitionMode": "exclusive-home",
+      "allowedExternalIds": []
+    }
+  ],
+  "records": [],
+  "homeboxEntities": [],
+  "caches": [
+    {
+      "schemaVersion": 1,
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+      "collectionId": "synthetic-collection-a",
+      "status": "empty",
+      "lastSuccessfulFetchAt": null,
+      "lastAttemptAt": null,
+      "generationId": null,
+      "consistency": "non-transactional-offset-pages",
+      "error": null
+    }
+  ],
+  "networkRelations": []
+}

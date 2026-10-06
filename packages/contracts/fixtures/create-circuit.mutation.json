@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "mutationId": "00000000-0000-4000-8000-000000001000",
+  "operation": "create",
+  "expectedRevision": null,
+  "reason": "Synthetic circuit record, label still unknown",
+  "guards": [
+    {
+      "record": {
+        "recordType": "evidence",
+        "recordId": "00000000-0000-4000-8000-000000000100"
+      },
+      "expectedRevision": 1
+    }
+  ],
+  "value": {
+    "recordType": "circuit",
+    "payload": {
+      "label": null,
+      "panel": null,
+      "evidenceIds": [
+        "00000000-0000-4000-8000-000000000100"
+      ]
+    }
+  }
+}

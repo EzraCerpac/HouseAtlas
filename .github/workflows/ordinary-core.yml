@@ -1,0 +1,53 @@
+name: Ordinary synthetic core
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  ordinary-core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact event SHA
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Set exact Node runtime
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '26.10.0'
+          check-latest: false
+          package-manager-cache: false
+      - name: Verify runtime and revision
+        run: |
+          test "$(node --version)" = "v26.10.0"
+          test "$(npm --version)" = "11.19.1"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Install exact locks without scripts or audit
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ci --prefix packages/contracts --ignore-scripts --no-audit --no-fund
+      - name: Verify publication file set and template
+        run: npm run verify:publication
+      - name: Build six ordinary modules
+        run: npm run build:ordinary
+      - name: Check additive HTTP history schema and valid examples
+        run: |
+          node --check packages/contracts/history/check-history.mjs
+          npm run check:http:ordinary
+      - name: Run one healthy synthetic Request group
+        run: npm run test:ordinary
+      - name: Record coverage boundary
+        if: always()
+        run: |
+          printf '%s\n' 'Scope: integrity, syntax, six module builds, 14 history checks and one healthy synthetic mutation/read/history/DTO Request group.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'Command outcomes are reported in the steps above; this summary alone is not a pass claim.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'New explicit source-presence admission is blocked and unexercised.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'Guard reversal, mutation/omission controls, adversarial, denial, failure injection, concurrency and private-intake checks remain stopped and excluded.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'No provider, target, secret recovery, HTTPS, pilot, deployment, full security or production qualification.' >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,12 @@
+{
+  "fixtureVersion": "at08-synthetic/1",
+  "contractVersion": "1.0.0",
+  "baselineFixtureVersion": "at06-synthetic/1",
+  "homeboxReferenceVersion": "v0.26.2",
+  "synthetic": true,
+  "metadataDialect": "atlas-normalized-synthetic-v1",
+  "liveProviderQualified": false,
+  "detail": "Frozen minimal list entity fields plus required attachments array in frozen attachment shape",
+  "maintenance": "Array of frozen maintenance shapes; explicit empty array proves successful empty metadata read",
+  "transport": "status + full registration scope receipt + UTF-8 bytes or stream; scope receipt comes from trusted source-bound transport, not assumed HomeBox headers"
+}

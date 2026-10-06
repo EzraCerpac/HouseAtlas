@@ -1,0 +1,27 @@
+{
+  "items": [
+    {
+      "id": "00000000-0000-4000-8000-000000000500",
+      "name": "Synthetic cabinet",
+      "archived": false,
+      "updatedAt": "2025-12-01T00:00:00Z",
+      "entityType": {
+        "id": "00000000-0000-4000-8000-000000000700",
+        "name": "Cabinet",
+        "isLocation": true
+      },
+      "parent": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000503",
+      "name": "Synthetic type unavailable",
+      "archived": false,
+      "updatedAt": "2025-12-01T00:00:00Z",
+      "entityType": null,
+      "parent": null
+    }
+  ],
+  "page": 1,
+  "pageSize": 100,
+  "total": 2
+}

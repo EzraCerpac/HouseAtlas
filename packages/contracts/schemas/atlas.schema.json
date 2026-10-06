@@ -1,0 +1,3278 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json",
+  "title": "HouseAtlas AT-02 contracts 1.0.0",
+  "description": "Canonical normalized Atlas records and boundary shapes. Wire HomeBox schema is a tested minimum, not its full API specification.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/record"
+    },
+    {
+      "$ref": "#/$defs/snapshot"
+    },
+    {
+      "$ref": "#/$defs/mutation"
+    },
+    {
+      "$ref": "#/$defs/mutationResult"
+    },
+    {
+      "$ref": "#/$defs/apiError"
+    }
+  ],
+  "$defs": {
+    "scope": {
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "homeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "homeId"
+      ],
+      "additionalProperties": false
+    },
+    "sourceKey": {
+      "type": "object",
+      "properties": {
+        "sourceInstanceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "collectionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "sourceKind": {
+          "type": "string",
+          "enum": [
+            "homebox-entity",
+            "network-device",
+            "network-group",
+            "network-interface",
+            "network-segment",
+            "magicplan-room"
+          ]
+        },
+        "externalId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "sourceInstanceId",
+        "collectionId",
+        "sourceKind",
+        "externalId"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "sourceKind": {
+                "const": "homebox-entity"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "externalId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "sourceRef": {
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "homeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "key": {
+          "$ref": "#/$defs/sourceKey"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "homeId",
+        "key"
+      ],
+      "additionalProperties": false
+    },
+    "recordRef": {
+      "type": "object",
+      "properties": {
+        "recordType": {
+          "type": "string",
+          "enum": [
+            "identity",
+            "binding",
+            "evidence",
+            "location-semantics",
+            "circuit",
+            "valve",
+            "relation",
+            "geometry",
+            "asset",
+            "reconciliation"
+          ]
+        },
+        "recordId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "recordType",
+        "recordId"
+      ],
+      "additionalProperties": false
+    },
+    "uncertainty": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "supported",
+            "inferred",
+            "unknown",
+            "disputed",
+            "withdrawn",
+            "superseded"
+          ]
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 16384
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "explanation"
+      ],
+      "additionalProperties": false
+    },
+    "endpoint": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "atlas-record"
+            },
+            "ref": {
+              "$ref": "#/$defs/recordRef"
+            }
+          },
+          "required": [
+            "kind",
+            "ref"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "unresolved"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          },
+          "required": [
+            "kind",
+            "description"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sourceRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceRevision": {
+          "anyOf": [
+            {
+              "type": [
+                "string",
+                "integer"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceConfidence": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidenceBasis": {
+          "type": "string",
+          "enum": [
+            "owner-report",
+            "source-report",
+            "physical-survey",
+            "document",
+            "inference",
+            "unknown"
+          ]
+        },
+        "factAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "retrievedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "vantage": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "uncertainty": {
+          "$ref": "#/$defs/uncertainty"
+        }
+      },
+      "required": [
+        "source",
+        "sourceRevision",
+        "sourceConfidence",
+        "evidenceBasis",
+        "factAt",
+        "retrievedAt",
+        "vantage",
+        "uncertainty"
+      ],
+      "additionalProperties": false
+    },
+    "evidencePayload": {
+      "type": "object",
+      "properties": {
+        "statement": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "supersedesEvidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "uniqueItems": true
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "atlas-asset"
+                  },
+                  "assetId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "assetId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "homebox-attachment"
+                  },
+                  "entity": {
+                    "$ref": "#/$defs/sourceRef"
+                  },
+                  "attachmentId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "entity",
+                  "attachmentId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "external-link"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "pattern": "^https?://"
+                  },
+                  "archived": {
+                    "const": false
+                  }
+                },
+                "required": [
+                  "kind",
+                  "url",
+                  "archived"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "statement",
+        "provenance",
+        "supersedesEvidenceIds",
+        "references"
+      ],
+      "additionalProperties": false
+    },
+    "identityPayload": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "location",
+            "item"
+          ]
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "kind",
+        "evidenceIds"
+      ],
+      "additionalProperties": false
+    },
+    "bindingPayload": {
+      "type": "object",
+      "properties": {
+        "atlasId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "source": {
+          "$ref": "#/$defs/sourceKey"
+        },
+        "reviewStatus": {
+          "type": "string",
+          "enum": [
+            "proposed",
+            "accepted",
+            "rejected",
+            "retired"
+          ]
+        },
+        "sourceState": {
+          "type": "string",
+          "enum": [
+            "present",
+            "archived",
+            "unresolved",
+            "confirmed-deleted",
+            "access-revoked"
+          ]
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "atlasId",
+        "source",
+        "reviewStatus",
+        "sourceState",
+        "evidenceIds"
+      ],
+      "additionalProperties": false
+    },
+    "locationSemanticsPayload": {
+      "type": "object",
+      "properties": {
+        "atlasId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "semanticKind": {
+          "type": "string",
+          "enum": [
+            "unclassified",
+            "site",
+            "building",
+            "floor",
+            "room",
+            "other"
+          ]
+        },
+        "reviewStatus": {
+          "type": "string",
+          "enum": [
+            "proposed",
+            "accepted"
+          ]
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "atlasId",
+        "semanticKind",
+        "reviewStatus",
+        "evidenceIds"
+      ],
+      "additionalProperties": false
+    },
+    "circuitPayload": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "panel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/endpoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "label",
+        "panel",
+        "evidenceIds"
+      ],
+      "additionalProperties": false
+    },
+    "valvePayload": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "medium": {
+          "type": "string",
+          "enum": [
+            "water",
+            "gas",
+            "heating",
+            "other",
+            "unknown"
+          ]
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "label",
+        "medium",
+        "evidenceIds"
+      ],
+      "additionalProperties": false
+    },
+    "relationPayload": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "circuit-supplies",
+            "valve-controls",
+            "documented-connection"
+          ]
+        },
+        "from": {
+          "$ref": "#/$defs/endpoint"
+        },
+        "to": {
+          "$ref": "#/$defs/endpoint"
+        },
+        "medium": {
+          "type": "string",
+          "enum": [
+            "electricity",
+            "water",
+            "gas",
+            "heating",
+            "ethernet",
+            "wifi",
+            "other",
+            "unknown"
+          ]
+        },
+        "uncertainty": {
+          "$ref": "#/$defs/uncertainty"
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "kind",
+        "from",
+        "to",
+        "medium",
+        "uncertainty",
+        "evidenceIds"
+      ],
+      "additionalProperties": false
+    },
+    "license": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "unknown",
+            "permitted",
+            "restricted"
+          ]
+        },
+        "reference": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "reference"
+      ],
+      "additionalProperties": false
+    },
+    "assetPayload": {
+      "type": "object",
+      "properties": {
+        "owner": {
+          "const": "atlas"
+        },
+        "purpose": {
+          "type": "string",
+          "enum": [
+            "geometry-original",
+            "evidence-original",
+            "derived-preview"
+          ]
+        },
+        "storageKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "byteSize": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "contentType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "sourceLicense": {
+          "$ref": "#/$defs/license"
+        },
+        "availability": {
+          "type": "string",
+          "enum": [
+            "available",
+            "missing"
+          ]
+        },
+        "previewPolicy": {
+          "type": "string",
+          "enum": [
+            "unreviewed",
+            "blocked",
+            "safe-rendered",
+            "download-only"
+          ]
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "owner",
+        "purpose",
+        "storageKey",
+        "sha256",
+        "byteSize",
+        "contentType",
+        "sourceLicense",
+        "availability",
+        "previewPolicy",
+        "evidenceIds"
+      ],
+      "additionalProperties": false
+    },
+    "geometryPayload": {
+      "type": "object",
+      "properties": {
+        "producer": {
+          "const": "magicplan"
+        },
+        "producerVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "exportFormat": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "originalAssetId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "importedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "coordinateUnits": {
+          "type": "string",
+          "enum": [
+            "mm",
+            "cm",
+            "m",
+            "in",
+            "ft",
+            "unknown"
+          ]
+        },
+        "scale": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transform": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 6,
+              "maxItems": 6
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "geometryVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "previousGeometryId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mappings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "producerRoomId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "atlasId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "homeboxEntity": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/sourceRef"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reviewStatus": {
+                "type": "string",
+                "enum": [
+                  "proposed",
+                  "accepted"
+                ]
+              },
+              "evidenceIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "producerRoomId",
+              "atlasId",
+              "homeboxEntity",
+              "reviewStatus",
+              "evidenceIds"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "producer",
+        "producerVersion",
+        "exportFormat",
+        "originalAssetId",
+        "importedAt",
+        "coordinateUnits",
+        "scale",
+        "transform",
+        "geometryVersion",
+        "previousGeometryId",
+        "mappings",
+        "evidenceIds"
+      ],
+      "additionalProperties": false
+    },
+    "reconciliationPayload": {
+      "type": "object",
+      "properties": {
+        "atlasId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "fromBindingId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "toBindingId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "import-id-remap",
+            "source-restore",
+            "reviewed-correction"
+          ]
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "atlasId",
+        "fromBindingId",
+        "toBindingId",
+        "reason",
+        "evidenceIds"
+      ],
+      "additionalProperties": false
+    },
+    "identityRecord": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "recordType": {
+          "const": "identity"
+        },
+        "recordId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "homeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lifecycle": {
+          "type": "string",
+          "enum": [
+            "active",
+            "tombstoned"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastAuditId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "payload": {
+          "$ref": "#/$defs/identityPayload"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "recordType",
+        "recordId",
+        "workspaceId",
+        "homeId",
+        "revision",
+        "lifecycle",
+        "createdAt",
+        "updatedAt",
+        "lastAuditId",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    "bindingRecord": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "recordType": {
+          "const": "binding"
+        },
+        "recordId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "homeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lifecycle": {
+          "type": "string",
+          "enum": [
+            "active",
+            "tombstoned"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastAuditId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "payload": {
+          "$ref": "#/$defs/bindingPayload"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "recordType",
+        "recordId",
+        "workspaceId",
+        "homeId",
+        "revision",
+        "lifecycle",
+        "createdAt",
+        "updatedAt",
+        "lastAuditId",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    "evidenceRecord": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "recordType": {
+          "const": "evidence"
+        },
+        "recordId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "homeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lifecycle": {
+          "type": "string",
+          "enum": [
+            "active",
+            "tombstoned"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastAuditId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "payload": {
+          "$ref": "#/$defs/evidencePayload"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "recordType",
+        "recordId",
+        "workspaceId",
+        "homeId",
+        "revision",
+        "lifecycle",
+        "createdAt",
+        "updatedAt",
+        "lastAuditId",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    "location-semanticsRecord": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "recordType": {
+          "const": "location-semantics"
+        },
+        "recordId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "homeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lifecycle": {
+          "type": "string",
+          "enum": [
+            "active",
+            "tombstoned"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastAuditId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "payload": {
+          "$ref": "#/$defs/locationSemanticsPayload"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "recordType",
+        "recordId",
+        "workspaceId",
+        "homeId",
+        "revision",
+        "lifecycle",
+        "createdAt",
+        "updatedAt",
+        "lastAuditId",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    "circuitRecord": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "recordType": {
+          "const": "circuit"
+        },
+        "recordId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "homeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lifecycle": {
+          "type": "string",
+          "enum": [
+            "active",
+            "tombstoned"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastAuditId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "payload": {
+          "$ref": "#/$defs/circuitPayload"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "recordType",
+        "recordId",
+        "workspaceId",
+        "homeId",
+        "revision",
+        "lifecycle",
+        "createdAt",
+        "updatedAt",
+        "lastAuditId",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    "valveRecord": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "recordType": {
+          "const": "valve"
+        },
+        "recordId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "homeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lifecycle": {
+          "type": "string",
+          "enum": [
+            "active",
+            "tombstoned"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastAuditId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "payload": {
+          "$ref": "#/$defs/valvePayload"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "recordType",
+        "recordId",
+        "workspaceId",
+        "homeId",
+        "revision",
+        "lifecycle",
+        "createdAt",
+        "updatedAt",
+        "lastAuditId",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    "relationRecord": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "recordType": {
+          "const": "relation"
+        },
+        "recordId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "homeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lifecycle": {
+          "type": "string",
+          "enum": [
+            "active",
+            "tombstoned"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastAuditId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "payload": {
+          "$ref": "#/$defs/relationPayload"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "recordType",
+        "recordId",
+        "workspaceId",
+        "homeId",
+        "revision",
+        "lifecycle",
+        "createdAt",
+        "updatedAt",
+        "lastAuditId",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    "geometryRecord": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "recordType": {
+          "const": "geometry"
+        },
+        "recordId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "homeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lifecycle": {
+          "type": "string",
+          "enum": [
+            "active",
+            "tombstoned"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastAuditId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "payload": {
+          "$ref": "#/$defs/geometryPayload"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "recordType",
+        "recordId",
+        "workspaceId",
+        "homeId",
+        "revision",
+        "lifecycle",
+        "createdAt",
+        "updatedAt",
+        "lastAuditId",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    "assetRecord": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "recordType": {
+          "const": "asset"
+        },
+        "recordId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "homeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lifecycle": {
+          "type": "string",
+          "enum": [
+            "active",
+            "tombstoned"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastAuditId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "payload": {
+          "$ref": "#/$defs/assetPayload"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "recordType",
+        "recordId",
+        "workspaceId",
+        "homeId",
+        "revision",
+        "lifecycle",
+        "createdAt",
+        "updatedAt",
+        "lastAuditId",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    "reconciliationRecord": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "recordType": {
+          "const": "reconciliation"
+        },
+        "recordId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "homeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lifecycle": {
+          "type": "string",
+          "enum": [
+            "active",
+            "tombstoned"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastAuditId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "payload": {
+          "$ref": "#/$defs/reconciliationPayload"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "recordType",
+        "recordId",
+        "workspaceId",
+        "homeId",
+        "revision",
+        "lifecycle",
+        "createdAt",
+        "updatedAt",
+        "lastAuditId",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    "record": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/identityRecord"
+        },
+        {
+          "$ref": "#/$defs/bindingRecord"
+        },
+        {
+          "$ref": "#/$defs/evidenceRecord"
+        },
+        {
+          "$ref": "#/$defs/location-semanticsRecord"
+        },
+        {
+          "$ref": "#/$defs/circuitRecord"
+        },
+        {
+          "$ref": "#/$defs/valveRecord"
+        },
+        {
+          "$ref": "#/$defs/relationRecord"
+        },
+        {
+          "$ref": "#/$defs/geometryRecord"
+        },
+        {
+          "$ref": "#/$defs/assetRecord"
+        },
+        {
+          "$ref": "#/$defs/reconciliationRecord"
+        }
+      ]
+    },
+    "audit": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "auditId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "homeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "record": {
+          "$ref": "#/$defs/recordRef"
+        },
+        "operation": {
+          "type": "string",
+          "enum": [
+            "create",
+            "replace",
+            "tombstone",
+            "restore"
+          ]
+        },
+        "previousRevision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resultRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "actorId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "mutationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "beforeDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "afterDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "auditId",
+        "workspaceId",
+        "homeId",
+        "record",
+        "operation",
+        "previousRevision",
+        "resultRevision",
+        "actorId",
+        "at",
+        "reason",
+        "mutationId",
+        "beforeDigest",
+        "afterDigest"
+      ],
+      "additionalProperties": false
+    },
+    "guard": {
+      "type": "object",
+      "properties": {
+        "record": {
+          "$ref": "#/$defs/recordRef"
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "record",
+        "expectedRevision"
+      ],
+      "additionalProperties": false
+    },
+    "mutation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": 1
+            },
+            "mutationId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            },
+            "guards": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/guard"
+              },
+              "uniqueItems": true
+            },
+            "operation": {
+              "const": "create"
+            },
+            "expectedRevision": {
+              "type": "null"
+            },
+            "value": {
+              "$ref": "#/$defs/recordValue"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "mutationId",
+            "reason",
+            "guards",
+            "operation",
+            "expectedRevision",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": 1
+            },
+            "mutationId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            },
+            "guards": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/guard"
+              },
+              "uniqueItems": true
+            },
+            "operation": {
+              "const": "replace"
+            },
+            "expectedRevision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "value": {
+              "$ref": "#/$defs/recordValue"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "mutationId",
+            "reason",
+            "guards",
+            "operation",
+            "expectedRevision",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": 1
+            },
+            "mutationId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            },
+            "guards": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/guard"
+              },
+              "uniqueItems": true
+            },
+            "operation": {
+              "const": "tombstone"
+            },
+            "expectedRevision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "mutationId",
+            "reason",
+            "guards",
+            "operation",
+            "expectedRevision"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": 1
+            },
+            "mutationId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            },
+            "guards": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/guard"
+              },
+              "uniqueItems": true
+            },
+            "operation": {
+              "const": "restore"
+            },
+            "expectedRevision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "mutationId",
+            "reason",
+            "guards",
+            "operation",
+            "expectedRevision"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "recordValue": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "recordType": {
+              "const": "identity"
+            },
+            "payload": {
+              "$ref": "#/$defs/identityPayload"
+            }
+          },
+          "required": [
+            "recordType",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "recordType": {
+              "const": "binding"
+            },
+            "payload": {
+              "$ref": "#/$defs/bindingPayload"
+            }
+          },
+          "required": [
+            "recordType",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "recordType": {
+              "const": "evidence"
+            },
+            "payload": {
+              "$ref": "#/$defs/evidencePayload"
+            }
+          },
+          "required": [
+            "recordType",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "recordType": {
+              "const": "location-semantics"
+            },
+            "payload": {
+              "$ref": "#/$defs/locationSemanticsPayload"
+            }
+          },
+          "required": [
+            "recordType",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "recordType": {
+              "const": "circuit"
+            },
+            "payload": {
+              "$ref": "#/$defs/circuitPayload"
+            }
+          },
+          "required": [
+            "recordType",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "recordType": {
+              "const": "valve"
+            },
+            "payload": {
+              "$ref": "#/$defs/valvePayload"
+            }
+          },
+          "required": [
+            "recordType",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "recordType": {
+              "const": "relation"
+            },
+            "payload": {
+              "$ref": "#/$defs/relationPayload"
+            }
+          },
+          "required": [
+            "recordType",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "recordType": {
+              "const": "geometry"
+            },
+            "payload": {
+              "$ref": "#/$defs/geometryPayload"
+            }
+          },
+          "required": [
+            "recordType",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "recordType": {
+              "const": "asset"
+            },
+            "payload": {
+              "$ref": "#/$defs/assetPayload"
+            }
+          },
+          "required": [
+            "recordType",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "recordType": {
+              "const": "reconciliation"
+            },
+            "payload": {
+              "$ref": "#/$defs/reconciliationPayload"
+            }
+          },
+          "required": [
+            "recordType",
+            "payload"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "mutationResult": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "record": {
+          "$ref": "#/$defs/record"
+        },
+        "audit": {
+          "$ref": "#/$defs/audit"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "record",
+        "audit",
+        "replayed"
+      ],
+      "additionalProperties": false
+    },
+    "apiError": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "unauthenticated",
+            "forbidden",
+            "not-found",
+            "invalid-contract",
+            "revision-required",
+            "revision-conflict",
+            "guard-conflict",
+            "identity-conflict",
+            "idempotency-conflict",
+            "invalid-transition",
+            "upstream-unavailable",
+            "upstream-incomplete"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "currentRevision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "code",
+        "message",
+        "requestId",
+        "currentRevision"
+      ],
+      "additionalProperties": false
+    },
+    "link": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "homebox-native"
+        },
+        "intent": {
+          "type": "string",
+          "enum": [
+            "view",
+            "edit",
+            "maintenance"
+          ]
+        },
+        "entity": {
+          "$ref": "#/$defs/sourceRef"
+        },
+        "href": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://"
+        },
+        "verifiedRoute": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "intent",
+        "entity",
+        "href",
+        "verifiedRoute"
+      ],
+      "additionalProperties": false
+    },
+    "homeboxEntityType": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "isLocation": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "isLocation"
+      ],
+      "additionalProperties": false
+    },
+    "attachment": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "attachmentId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "kind": {
+              "const": "stored-file"
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 16384
+            },
+            "contentType": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "byteSize": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "proxyRef": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "attachmentId",
+            "kind",
+            "title",
+            "contentType",
+            "byteSize",
+            "proxyRef"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "attachmentId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "kind": {
+              "const": "external-link"
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 16384
+            },
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https?://"
+            },
+            "archived": {
+              "const": false
+            }
+          },
+          "required": [
+            "attachmentId",
+            "kind",
+            "title",
+            "url",
+            "archived"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "maintenance": {
+      "type": "object",
+      "properties": {
+        "entryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 16384
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 16384
+        },
+        "scheduledDate": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "completedDate": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cost": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "entryId",
+        "name",
+        "description",
+        "scheduledDate",
+        "completedDate",
+        "cost"
+      ],
+      "additionalProperties": false
+    },
+    "homeboxProjection": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "homeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "source": {
+          "$ref": "#/$defs/sourceKey"
+        },
+        "sourceUpdatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "retrievedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "entity": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 16384
+            },
+            "entityType": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/homeboxEntityType"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "archived": {
+              "type": "boolean"
+            },
+            "quantity": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "manufacturer": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 16384
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "modelNumber": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 16384
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "serialNumber": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 16384
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "notes": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 16384
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "description",
+            "entityType",
+            "parent",
+            "archived",
+            "quantity",
+            "manufacturer",
+            "modelNumber",
+            "serialNumber",
+            "notes"
+          ],
+          "additionalProperties": false
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/attachment"
+          }
+        },
+        "maintenance": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/maintenance"
+          }
+        },
+        "nativeLinks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/link"
+          }
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "workspaceId",
+        "homeId",
+        "source",
+        "sourceUpdatedAt",
+        "retrievedAt",
+        "entity",
+        "attachments",
+        "maintenance",
+        "nativeLinks"
+      ],
+      "additionalProperties": false
+    },
+    "cacheStatus": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "homeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "sourceInstanceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "collectionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "empty",
+            "fresh",
+            "stale",
+            "error",
+            "access-revoked"
+          ]
+        },
+        "lastSuccessfulFetchAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lastAttemptAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "generationId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "consistency": {
+          "const": "non-transactional-offset-pages"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "timeout",
+                    "auth",
+                    "wrong-scope",
+                    "invalid-schema",
+                    "pagination",
+                    "size-limit",
+                    "transport",
+                    "upstream"
+                  ]
+                },
+                "at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "message": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                }
+              },
+              "required": [
+                "code",
+                "at",
+                "message"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "workspaceId",
+        "homeId",
+        "sourceInstanceId",
+        "collectionId",
+        "status",
+        "lastSuccessfulFetchAt",
+        "lastAttemptAt",
+        "generationId",
+        "consistency",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "sourceRegistration": {
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "homeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "sourceInstanceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "collectionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "owner": {
+          "type": "string",
+          "enum": [
+            "homebox",
+            "network",
+            "magicplan"
+          ]
+        },
+        "partitionMode": {
+          "type": "string",
+          "enum": [
+            "exclusive-home",
+            "reviewed-entity-allowlist"
+          ]
+        },
+        "allowedExternalIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "workspaceId",
+        "homeId",
+        "sourceInstanceId",
+        "collectionId",
+        "owner",
+        "partitionMode",
+        "allowedExternalIds"
+      ],
+      "additionalProperties": false
+    },
+    "networkEndpoint": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "device",
+            "interface",
+            "segment",
+            "unresolved"
+          ]
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 16384
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "networkRelation": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "homeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "sourceInstanceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "collectionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "externalId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "network-connection",
+            "network-segment-membership",
+            "network-association"
+          ]
+        },
+        "from": {
+          "$ref": "#/$defs/networkEndpoint"
+        },
+        "to": {
+          "$ref": "#/$defs/networkEndpoint"
+        },
+        "medium": {
+          "type": "string",
+          "enum": [
+            "ethernet",
+            "wifi",
+            "powerline",
+            "wan",
+            "other",
+            "unknown"
+          ]
+        },
+        "sourceRevision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceSnapshotAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "retrievedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "vantage": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceConfidence": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "evidenceBasis": {
+          "type": "string",
+          "enum": [
+            "owner-report",
+            "source-report",
+            "physical-survey",
+            "inference",
+            "unknown"
+          ]
+        },
+        "temporalStatus": {
+          "type": "string",
+          "enum": [
+            "current-claim",
+            "historical",
+            "withdrawn",
+            "disputed"
+          ]
+        },
+        "factAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 16384
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "workspaceId",
+        "homeId",
+        "sourceInstanceId",
+        "collectionId",
+        "externalId",
+        "kind",
+        "from",
+        "to",
+        "medium",
+        "sourceRevision",
+        "sourceSnapshotAt",
+        "retrievedAt",
+        "vantage",
+        "sourceConfidence",
+        "evidenceBasis",
+        "temporalStatus",
+        "factAt",
+        "notes"
+      ],
+      "additionalProperties": false
+    },
+    "snapshot": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "1.0.0"
+        },
+        "synthetic": {
+          "const": true
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sourceRegistration"
+          }
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/record"
+          }
+        },
+        "homeboxEntities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/homeboxProjection"
+          }
+        },
+        "caches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/cacheStatus"
+          }
+        },
+        "networkRelations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/networkRelation"
+          }
+        }
+      },
+      "required": [
+        "contractVersion",
+        "synthetic",
+        "sources",
+        "records",
+        "homeboxEntities",
+        "caches",
+        "networkRelations"
+      ],
+      "additionalProperties": false
+    },
+    "homeboxPageWire": {
+      "type": "object",
+      "required": [
+        "items",
+        "page",
+        "pageSize",
+        "total"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "name",
+              "archived",
+              "updatedAt"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 16384
+              },
+              "archived": {
+                "type": "boolean"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "entityType": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "name",
+                      "isLocation"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      "name": {
+                        "type": "string",
+                        "maxLength": 16384
+                      },
+                      "isLocation": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": true
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "parent": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "id"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    },
+                    "additionalProperties": true
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "pageSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": true
+    },
+    "batchMutation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "batchId",
+        "reason",
+        "commands"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "batchId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "commands": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "target",
+              "command"
+            ],
+            "properties": {
+              "target": {
+                "$ref": "#/$defs/recordRef"
+              },
+              "command": {
+                "$ref": "#/$defs/mutation"
+              }
+            }
+          }
+        }
+      }
+    },
+    "batchResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "batchId",
+        "results",
+        "replayed"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "batchId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/mutationResult"
+          }
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

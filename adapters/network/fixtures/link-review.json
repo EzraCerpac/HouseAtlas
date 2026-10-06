@@ -1,0 +1,9 @@
+{
+  "revision": 42,
+  "links": {
+    "member-a": { "kind": "network-segment-membership", "evidenceBasis": "owner-report", "temporalStatus": "current-claim", "factAt": "2025-12-01T00:00:00Z", "vantage": null },
+    "association-a": { "kind": "network-association", "evidenceBasis": "owner-report", "temporalStatus": "disputed", "factAt": null, "vantage": "synthetic-laptop" },
+    "connection-a": { "kind": "network-connection", "evidenceBasis": "source-report", "temporalStatus": "current-claim", "factAt": null, "vantage": "synthetic-router" },
+    "gap-a": { "kind": "network-connection", "evidenceBasis": "unknown", "temporalStatus": "current-claim", "factAt": null, "vantage": null, "unresolvedTo": "Unknown peer" }
+  }
+}

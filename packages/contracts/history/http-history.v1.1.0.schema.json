@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HouseAtlas HTTP 1.1.0 recorded audit history response",
+  "description": "Bare recorded Atlas audit array, in ascending durable audit sequence. Empty recorded history is valid for an existing authorized typed record. Item schema remains the frozen record/audit schema 1; scope and ordering are supplied by the authorized storage read.",
+  "type": "array",
+  "items": {
+    "$ref": "../schemas/atlas.schema.json#/$defs/audit"
+  }
+}

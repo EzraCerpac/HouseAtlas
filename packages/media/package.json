@@ -1,0 +1,12 @@
+{
+  "name": "@houseatlas/media",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "engines": { "node": "26.10.0", "npm": "11.19.1" },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build": "node tools/check-package.mjs",
+    "test:controls": "node tools/failure-controls.mjs"
+  }
+}

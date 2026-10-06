@@ -1,0 +1,11 @@
+import { execFileSync } from 'node:child_process';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import assert from 'node:assert/strict';
+const root=new URL('../../',import.meta.url).pathname;
+for(const folder of ['server/src','server/browser','tools/core-integration']) for(const file of readdirSync(join(root,folder)).filter(f=>f.endsWith('.mjs')))execFileSync(process.execPath,['--check',join(root,folder,file)]);
+for(const folder of ['packages/storage','adapters/homebox','adapters/network','web','packages/access','packages/media'])execFileSync('npm',['--prefix',folder,'run','build'],{cwd:root,stdio:'inherit'});
+execFileSync(process.execPath,['tools/publication/verify-source.mjs'],{cwd:root,stdio:'inherit'});
+const source=readFileSync(join(root,'server/src/service.mjs'),'utf8')+readFileSync(join(root,'server/src/router.mjs'),'utf8');
+assert.doesNotMatch(source,/createServer|\.listen\(|fetch\(/);
+console.log('Ordinary core syntax, six module builds and current publication integrity pass; no listener or upstream fetch implementation');

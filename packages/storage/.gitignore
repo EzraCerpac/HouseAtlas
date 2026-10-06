@@ -1,0 +1,6 @@
+node_modules/
+coverage/
+.state/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

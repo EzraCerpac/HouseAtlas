@@ -1,0 +1,894 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HouseAtlas AT-02 API contract",
+    "version": "1.1.0",
+    "description": "Synthetic contract; no deployed origin. Viewer can read authorized homes, editor can mutate Atlas-owned records. HomeBox editing uses native links. HTTP sidecar 1.1.0 adds scoped record history; the six 1.0.0 path objects and record/audit schema 1 remain unchanged."
+  },
+  "security": [
+    {
+      "atlasSession": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "atlasSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "atlas_session",
+        "description": "Placeholder wire name; actual secure session lifecycle is AT-11. Mutation CSRF/Origin validation is mandatory."
+      }
+    }
+  },
+  "paths": {
+    "/api/atlas/v1/workspaces/{workspaceId}/homes/{homeId}/records/{recordType}/{recordId}": {
+      "get": {
+        "operationId": "getAtlasRecord",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "homeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "recordType",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "identity",
+                "binding",
+                "evidence",
+                "location-semantics",
+                "circuit",
+                "valve",
+                "relation",
+                "geometry",
+                "asset",
+                "reconciliation"
+              ]
+            }
+          },
+          {
+            "name": "recordId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scoped versioned record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/record"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No authorized session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Viewer/editor or source policy denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found in authorized home; no foreign-home detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/atlas/v1/workspaces/{workspaceId}/homes/{homeId}/records/{recordType}/{recordId}/mutations": {
+      "post": {
+        "operationId": "mutateAtlasRecord",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "homeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "recordType",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "identity",
+                "binding",
+                "evidence",
+                "location-semantics",
+                "circuit",
+                "valve",
+                "relation",
+                "geometry",
+                "asset",
+                "reconciliation"
+              ]
+            }
+          },
+          {
+            "name": "recordId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/mutation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Record, audit and receipt committed atomically or original receipt replayed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/mutationResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No authorized session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Viewer/editor or source policy denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found in authorized home; no foreign-home detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Identity, idempotency or lifecycle conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Record or guarded reference revision conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid shape or semantic contract",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Required record revision or reference guards missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Upstream unavailable; retained cache indicated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/atlas/v1/workspaces/{workspaceId}/homes/{homeId}/mutations": {
+      "post": {
+        "operationId": "mutateAtlasBatch",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "homeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/batchMutation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "All commands, audits and receipts atomically commit or none do",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/batchResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No authorized session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Viewer/editor or source policy denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found in authorized home; no foreign-home detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Identity, idempotency or lifecycle conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Record or guarded reference revision conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid shape or semantic contract",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Required record revision or reference guards missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Upstream unavailable; retained cache indicated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/atlas/v1/workspaces/{workspaceId}/homes/{homeId}/records": {
+      "get": {
+        "operationId": "listRecords",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "homeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized scoped read page; adapter statuses always accompany projections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "contractVersion",
+                    "items",
+                    "nextCursor",
+                    "sourceStatuses"
+                  ],
+                  "properties": {
+                    "contractVersion": {
+                      "const": "1.0.0"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/record"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "sourceStatuses": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/cacheStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No authorized session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Viewer/editor or source policy denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found in authorized home; no foreign-home detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Upstream unavailable; retained cache indicated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/atlas/v1/workspaces/{workspaceId}/homes/{homeId}/homebox/entities": {
+      "get": {
+        "operationId": "listHomebox_Entities",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "homeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized scoped read page; adapter statuses always accompany projections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "contractVersion",
+                    "items",
+                    "nextCursor",
+                    "sourceStatuses"
+                  ],
+                  "properties": {
+                    "contractVersion": {
+                      "const": "1.0.0"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/homeboxProjection"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "sourceStatuses": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/cacheStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No authorized session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Viewer/editor or source policy denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found in authorized home; no foreign-home detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Upstream unavailable; retained cache indicated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/atlas/v1/workspaces/{workspaceId}/homes/{homeId}/network/relations": {
+      "get": {
+        "operationId": "listNetwork_Relations",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "homeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized scoped read page; adapter statuses always accompany projections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "contractVersion",
+                    "items",
+                    "nextCursor",
+                    "sourceStatuses"
+                  ],
+                  "properties": {
+                    "contractVersion": {
+                      "const": "1.0.0"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/networkRelation"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "sourceStatuses": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/cacheStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No authorized session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Viewer/editor or source policy denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found in authorized home; no foreign-home detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Upstream unavailable; retained cache indicated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/atlas/v1/workspaces/{workspaceId}/homes/{homeId}/records/{recordType}/{recordId}/history": {
+      "get": {
+        "operationId": "getAtlasRecordHistory",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "homeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          {
+            "name": "recordType",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "identity",
+                "binding",
+                "evidence",
+                "location-semantics",
+                "circuit",
+                "valve",
+                "relation",
+                "geometry",
+                "asset",
+                "reconciliation"
+              ]
+            }
+          },
+          {
+            "name": "recordId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recorded Atlas audit array in ascending durable commit order; may be empty for an existing record.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/history/http-history.v1.1.0.schema.json"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No authorized session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Viewer/editor or source policy denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found in authorized home; no foreign-home detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../../packages/contracts/schemas/atlas.schema.json#/$defs/apiError"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Read recorded Atlas audit history",
+        "description": "Authorize read-history for the requested workspace, home and typed existing record. Active records and retained tombstones are eligible. Return all recorded Atlas audit entries as a bare array in ascending durable audit sequence, which is commit order; do not sort by timestamps. An existing record with no recorded audit entries returns []. This read performs no upstream calls or writes and does not supply complete HomeBox actor history. No pagination, cursor, limit or response envelope is defined."
+      }
+    }
+  }
+}

@@ -1,0 +1,129 @@
+{
+  "contractVersion": "1.0.0",
+  "schemaVersion": 1,
+  "ownership": {
+    "homebox": [
+      "inventory-metadata",
+      "location-name",
+      "location-parentage",
+      "attachments",
+      "item-maintenance"
+    ],
+    "atlas": [
+      "physical-identity",
+      "qualified-bindings",
+      "reviewed-location-semantics",
+      "circuits",
+      "valves",
+      "typed-evidence-relations",
+      "optional-magicplan-geometry",
+      "owned-assets",
+      "audit"
+    ],
+    "network": [
+      "network-inventory",
+      "observations",
+      "network-confidence",
+      "network-history"
+    ]
+  },
+  "homebox": {
+    "testedVersion": "v0.26.2",
+    "methods": [
+      "GET"
+    ],
+    "headers": [
+      "Authorization",
+      "X-Tenant"
+    ],
+    "routes": [
+      "/api/v1/entities",
+      "/api/v1/entities/{entityId}",
+      "/api/v1/entities/{entityId}/maintenance",
+      "/api/v1/entities/{entityId}/attachments/{attachmentId}"
+    ],
+    "listQueries": [
+      "isLocation",
+      "includeArchived",
+      "page",
+      "pageSize",
+      "parentIds"
+    ],
+    "explicitLocationQueries": [
+      true,
+      false
+    ],
+    "includeArchived": true,
+    "parentIdsEncoding": "repeated",
+    "consistency": "non-transactional-offset-pages",
+    "replaceCacheAfter": "complete-authorized-validated-generation",
+    "missingRecordAction": "retain-unresolved-binding-pending-targeted-authorized-check",
+    "writeMode": "homebox-native-links-only"
+  },
+  "network": {
+    "methods": [
+      "GET"
+    ],
+    "allowedCapabilities": [
+      "inventory",
+      "snapshot",
+      "history"
+    ],
+    "routesRequireAdapterOwnerPin": true,
+    "forbiddenCapabilities": [
+      "demand-leases",
+      "collectors",
+      "diagnostics",
+      "imports",
+      "inventory-writes"
+    ]
+  },
+  "media": {
+    "maxRedirects": 0,
+    "externalLinksServerFetched": false,
+    "browserSecretAllowed": false,
+    "activeSvgAllowed": false,
+    "contentPolicyDecisionRequiredBeforeRender": true
+  },
+  "defaults": {
+    "maxPageSize": 100,
+    "maxPages": 1000,
+    "maxResponseBytes": 10485760,
+    "maxGenerationBytes": 104857600,
+    "requestTimeoutMs": 10000,
+    "generationTimeoutMs": 120000,
+    "limitsAdjustableByReviewedDeploymentConfig": true
+  },
+  "geometry": {
+    "optional": true,
+    "producer": "magicplan",
+    "importerRequiredForFirstRelease": false
+  },
+  "mutations": {
+    "authority": "atlas-only",
+    "schemaVersion": 1,
+    "initialRevision": 1,
+    "incrementPerChangedRecord": 1,
+    "expectedRevisionRequired": true,
+    "actorFrom": "authorized-server-session",
+    "atomic": [
+      "record",
+      "audit",
+      "idempotency-receipt",
+      "asset-manifest-commit"
+    ],
+    "bodyHash": "RFC8785-canonical-JSON-SHA256",
+    "idempotencyScope": [
+      "workspaceId",
+      "homeId",
+      "actorId",
+      "mutationId"
+    ],
+    "upstreamCASClaim": false
+  },
+  "sourceUrls": {
+    "swagger": "https://raw.githubusercontent.com/sysadminsmedia/homebox/v0.26.2/backend/app/api/static/docs/swagger.json",
+    "controller": "https://raw.githubusercontent.com/sysadminsmedia/homebox/v0.26.2/backend/app/api/handlers/v1/v1_ctrl_entities.go",
+    "repository": "https://raw.githubusercontent.com/sysadminsmedia/homebox/v0.26.2/backend/internal/data/repo/repo_entities.go"
+  }
+}

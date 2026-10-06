@@ -1,0 +1,10 @@
+{
+  "name": "@houseatlas/operations-policy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AT-05 design policy and disposable scenario validation, not a production service",
+  "scripts": {
+    "test": "python3 -B -m unittest discover -s test -p 'test_*.py' -v",
+    "build": "python3 -B src/check_package.py"
+  }
+}

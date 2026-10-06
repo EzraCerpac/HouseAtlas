@@ -1,0 +1,71 @@
+{
+  "synthetic": true,
+  "description": "Validation metadata only; not an HTTP response envelope. These fixed examples do not execute mutations or authorization checks.",
+  "workspaceId": "00000000-0000-4000-8000-000000000001",
+  "homeId": "00000000-0000-4000-8000-000000000002",
+  "record": {
+    "recordType": "circuit",
+    "recordId": "00000000-0000-4000-8000-000000000406"
+  },
+  "cases": [
+    {
+      "file": "empty.audit-array.json",
+      "recordLifecycle": "active",
+      "expectedOperations": [],
+      "meaning": "An existing imported or seeded record with no recorded Atlas audit; do not fabricate prehistory."
+    },
+    {
+      "file": "recorded.audit-array.json",
+      "recordLifecycle": "active",
+      "expectedOperations": [
+        "create"
+      ],
+      "committedRecord": {
+        "schemaVersion": 1,
+        "recordType": "circuit",
+        "recordId": "00000000-0000-4000-8000-000000000406",
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002",
+        "revision": 1,
+        "lifecycle": "active",
+        "createdAt": "2026-01-02T12:00:00Z",
+        "updatedAt": "2026-01-02T12:00:00Z",
+        "lastAuditId": "00000000-0000-4000-8000-000000010406",
+        "payload": {
+          "label": null,
+          "panel": null,
+          "evidenceIds": [
+            "00000000-0000-4000-8000-000000000100"
+          ]
+        }
+      }
+    },
+    {
+      "file": "tombstone.audit-array.json",
+      "recordLifecycle": "tombstoned",
+      "expectedOperations": [
+        "create",
+        "tombstone"
+      ],
+      "committedRecord": {
+        "schemaVersion": 1,
+        "recordType": "circuit",
+        "recordId": "00000000-0000-4000-8000-000000000406",
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002",
+        "revision": 2,
+        "lifecycle": "tombstoned",
+        "createdAt": "2026-01-02T12:00:00Z",
+        "updatedAt": "2026-01-03T12:00:00Z",
+        "lastAuditId": "00000000-0000-4000-8000-000000010407",
+        "payload": {
+          "label": null,
+          "panel": null,
+          "evidenceIds": [
+            "00000000-0000-4000-8000-000000000100"
+          ]
+        }
+      }
+    }
+  ]
+}

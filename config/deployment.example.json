@@ -1,0 +1,33 @@
+{
+  "configurationVersion": 1,
+  "status": "unconfigured-template",
+  "liveReady": false,
+  "host": null,
+  "runtimeIdentity": null,
+  "origins": [],
+  "paths": {
+    "application": null,
+    "database": null,
+    "vault": null,
+    "networkSidecar": null,
+    "accessDatabase": null,
+    "privateConfiguration": null,
+    "recovery": null
+  },
+  "ports": {
+    "atlas": null,
+    "homebox": null
+  },
+  "membership": {
+    "viewerAccountIds": [],
+    "editorAccountIds": [],
+    "operatorAccountId": null
+  },
+  "recovery": {
+    "ownerAccountId": null,
+    "offHostDestination": null
+  },
+  "credentialsConfigured": false,
+  "persistentGrantsConfigured": false,
+  "releasedGates": []
+}

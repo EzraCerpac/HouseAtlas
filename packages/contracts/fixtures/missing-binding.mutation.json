@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "mutationId": "00000000-0000-4000-8000-000000001001",
+  "operation": "replace",
+  "expectedRevision": 1,
+  "reason": "Synthetic source missing after full refresh; await targeted check",
+  "guards": [
+    {
+      "record": {
+        "recordType": "evidence",
+        "recordId": "00000000-0000-4000-8000-000000000100"
+      },
+      "expectedRevision": 1
+    },
+    {
+      "record": {
+        "recordType": "identity",
+        "recordId": "00000000-0000-4000-8000-000000000201"
+      },
+      "expectedRevision": 1
+    }
+  ],
+  "value": {
+    "recordType": "binding",
+    "payload": {
+      "atlasId": "00000000-0000-4000-8000-000000000201",
+      "source": {
+        "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+        "collectionId": "synthetic-collection-a",
+        "sourceKind": "homebox-entity",
+        "externalId": "00000000-0000-4000-8000-000000000501"
+      },
+      "reviewStatus": "accepted",
+      "sourceState": "unresolved",
+      "evidenceIds": [
+        "00000000-0000-4000-8000-000000000100"
+      ]
+    }
+  }
+}

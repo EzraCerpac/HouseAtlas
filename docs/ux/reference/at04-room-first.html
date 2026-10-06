@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HouseAtlas · AT-04 reference</title>
+  <style>
+    :root { color-scheme: light; --ink:#162f43; --blue:#184f78; --pale:#eef4f8; --line:#b9cbd7; --amber:#70420a; --amber-paper:#fff3dd; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:white; font:17px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    button,input,select { font:inherit; }
+    button,select { min-height:44px; }
+    button { cursor:pointer; }
+    a { color:var(--blue); text-underline-offset:3px; }
+    button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible { outline:3px solid #1376b9; outline-offset:3px; }
+    [hidden] { display:none !important; }
+    .skip { position:fixed; top:-100px; left:12px; padding:12px; background:white; z-index:9; }
+    .skip:focus { top:12px; }
+    .disclosure { padding:9px 24px; background:var(--pale); border-bottom:1px solid var(--line); font-size:14px; }
+    .header { padding:20px 28px; display:flex; flex-wrap:wrap; gap:16px 24px; align-items:center; border-bottom:1px solid var(--line); }
+    .brand { font-size:23px; font-weight:700; margin-right:auto; }
+    label { display:block; font-weight:600; }
+    .header label,.review label { font-size:14px; }
+    select { max-width:100%; padding:7px 30px 7px 10px; color:var(--ink); background:white; border:1px solid var(--line); border-radius:4px; }
+    .search { flex-basis:100%; display:flex; gap:10px; max-width:840px; }
+    .search label { flex:1; }
+    .search input { width:100%; display:block; min-height:48px; border:1px solid var(--line); border-radius:4px; padding:10px 14px; margin-top:4px; background:white; color:var(--ink); }
+    .search button { align-self:end; }
+    button,.button { border:1px solid var(--blue); border-radius:4px; padding:9px 15px; background:var(--blue); color:white; text-decoration:none; display:inline-block; }
+    .quiet { color:var(--blue); background:white; }
+    .inline-button { color:var(--blue); border:0; background:transparent; padding:0; text-align:left; text-decoration:underline; text-underline-offset:3px; }
+    .layout { display:grid; grid-template-columns:235px minmax(0,1fr); min-height:560px; }
+    nav { background:var(--pale); padding:24px 16px; border-right:1px solid var(--line); }
+    nav a { display:block; padding:12px; margin-bottom:6px; border-radius:4px; font-weight:600; text-decoration:none; }
+    nav a[aria-current=page] { background:var(--blue); color:white; }
+    main { padding:28px 40px 44px; max-width:1050px; width:100%; }
+    h1 { font:normal clamp(30px,3vw,42px)/1.2 Georgia,serif; margin:12px 0 16px; }
+    h1:focus { outline:none; }
+    h2 { font-size:22px; margin:28px 0 12px; }
+    h3 { font-size:18px; margin:0 0 4px; }
+    p { max-width:72ch; margin:8px 0 16px; }
+    .muted { color:#456176; font-size:15px; }
+    .status { padding:14px 18px; border-left:4px solid var(--amber); background:var(--amber-paper); color:var(--amber); margin:0 0 24px; }
+    .status p { margin:0 0 8px; }
+    .status p:last-child { margin:0; }
+    .trail { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; font-size:15px; }
+    .list { list-style:none; margin:0; padding:0; border-top:1px solid var(--line); }
+    .row { padding:18px 4px; border-bottom:1px solid var(--line); display:flex; gap:16px; align-items:start; }
+    .row a { font-weight:650; font-size:19px; }
+    .row p { margin:3px 0; }
+    .row .tag { margin-left:auto; }
+    .tag { display:inline-block; padding:3px 8px; border-radius:4px; background:var(--pale); font-size:14px; white-space:normal; }
+    .tag.warn { background:var(--amber-paper); color:var(--amber); }
+    .empty { padding:20px; background:#f6f8fa; border-left:3px solid var(--line); }
+    .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; }
+    .columns { display:grid; grid-template-columns:1fr 1fr; gap:28px; }
+    .facts { display:grid; grid-template-columns:minmax(90px,150px) 1fr; gap:8px 18px; margin:20px 0; }
+    .facts dt { font-weight:600; }
+    .facts dd { margin:0; overflow-wrap:anywhere; }
+    .photo { width:100%; padding:28px 14px; border:1px dashed var(--line); color:#456176; background:#f6f8fa; text-align:center; }
+    details { margin:18px 0; }
+    summary { cursor:pointer; padding:8px 0; }
+    .review { background:#f6f8fa; border-top:2px solid var(--line); padding:20px 28px; }
+    .review summary { font-weight:700; }
+    .review-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; max-width:1150px; }
+    .review-grid select { width:100%; margin-top:4px; }
+    .review p { font-size:14px; }
+    .checkbox { display:flex; align-items:center; gap:10px; margin:16px 0; font-weight:400; }
+    .checkbox input { width:20px; height:20px; }
+    dialog { border:1px solid var(--line); border-radius:6px; color:var(--ink); padding:28px; width:min(620px,calc(100% - 32px)); max-height:85vh; overflow:auto; }
+    dialog::backdrop { background:rgba(22,47,67,.45); }
+    dialog h2 { margin-top:0; }
+    .sr-only { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+    @media(max-width:720px) {
+      .header { padding:16px; gap:12px; }
+      .brand { flex-basis:100%; }
+      .header label { flex:1; min-width:125px; }
+      .header select { width:100%; }
+      .search { gap:8px; }
+      .layout { display:block; min-height:440px; }
+      nav { border-right:0; border-bottom:1px solid var(--line); padding:8px; display:flex; flex-wrap:wrap; gap:4px; }
+      nav a { font-size:15px; padding:10px; margin:0; flex:1 1 auto; text-align:center; }
+      main { padding:20px 18px 32px; }
+      .row { flex-wrap:wrap; gap:8px; }
+      .row .tag { margin-left:0; }
+      .columns { grid-template-columns:1fr; gap:0; }
+      .review { padding:16px; }
+      .disclosure { padding:9px 16px; }
+      .facts { grid-template-columns:110px minmax(0,1fr); }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main" id="skip">Skip to content</a>
+  <div class="disclosure" id="disclosure"></div>
+  <header class="header">
+    <div class="brand">HouseAtlas</div>
+    <label id="home-label"><span id="home-caption"></span><select id="home"><option value="sample"></option></select></label>
+    <label><span id="language-caption">Language / Taal</span><select id="language"><option value="en">English</option><option value="nl">Nederlands</option></select></label>
+    <form class="search" id="search-form" role="search">
+      <label for="search"><span id="search-caption"></span><input type="search" id="search" autocomplete="off"></label>
+      <button type="submit" id="search-button"></button>
+    </form>
+  </header>
+  <div class="layout">
+    <nav id="nav" aria-label="Main"></nav>
+    <main id="main" tabindex="-1"></main>
+  </div>
+  <div class="sr-only" id="announcement" aria-live="polite" aria-atomic="true"></div>
+  <aside class="review" aria-label="Prototype review controls">
+    <details open>
+      <summary id="review-caption"></summary>
+      <p id="review-note"></p>
+      <div class="review-grid">
+        <label>HomeBox<select id="source-state"><option value="fresh">Saved data available</option><option value="cached-outage">Unavailable, with cache</option><option value="no-cache">Unavailable, no cache</option><option value="empty-home">No places or items recorded</option><option value="empty-place">No direct items in sitting room</option><option value="unresolved">Receiver missing in latest check</option><option value="expired">Sign-in expired</option><option value="denied">Access denied</option></select></label>
+        <label>Network<select id="network-state"><option value="fresh">Captured evidence available</option><option value="outage">Unavailable</option></select></label>
+        <label>Documents<select id="media-state"><option value="available">Sample file available</option><option value="unavailable">File unavailable</option></select></label>
+        <label>Role / Rol<select id="role"><option value="reader">Reader / Lezer</option><option value="editor">Editor / Bewerker</option></select></label>
+      </div>
+      <p id="review-boundary"></p>
+    </details>
+  </aside>
+  <dialog id="dialog" aria-labelledby="dialog-title"><h2 id="dialog-title"></h2><div id="dialog-body"></div><button id="close-dialog"></button></dialog>
+  <script>
+    'use strict';
+    // UX-only fixtures. Every ID is synthetic; no source adapter or authority.
+    const fixtures = {
+      home:'sample',
+      places:[
+        {id:'sitting',name:'Sample sitting room',type:'Room',parent:null},
+        {id:'cabinet',name:'Sample cabinet',type:'Cabinet',parent:'sitting'},
+        {id:'workshop',name:'Sample work area',type:'Place',parent:null},
+        {id:'store',name:'Sample store cupboard',type:'Cupboard',parent:null}
+      ],
+      items:[
+        {id:'receiver',name:'Sample receiver',model:'EXAMPLE R-1',place:'sitting',mobility:'fixed',description:'Synthetic household item for manual lookup.',docs:[{id:'manual',title:'Sample receiver manual',kind:'file',type:'Sample text',synthetic:true},{id:'support',title:'Sample manufacturer support',kind:'external',host:'example.invalid',synthetic:true}],network:true},
+        {id:'speaker',name:'Sample speaker',model:'EXAMPLE S-2',place:'sitting',mobility:'fixed',description:'Synthetic item with no documents.',docs:[]},
+        {id:'cable',name:'Sample spare cable',model:null,place:'cabinet',mobility:'fixed',description:'Synthetic item inside a child container.',docs:[]},
+        {id:'tablet',name:'Sample tablet',model:'EXAMPLE T-3',place:null,mobility:'mobile',description:'Synthetic mobile item; no permanent room.',docs:[]},
+        {id:'adapter',name:'Sample adapter',model:null,place:null,mobility:'fixed',description:'Synthetic fixed item with an unrecorded place.',docs:[]},
+        {id:'old-radio',name:'Sample old radio',model:'EXAMPLE A-0',place:'sitting',mobility:'fixed',archived:true,description:'Synthetic archived record.',docs:[]}
+      ],
+      maintenance:[{id:'check',item:'receiver',name:'Sample scheduled check',date:'2026-11-01',completed:false},{id:'clean',item:'receiver',name:'Sample completed cleaning',date:'2026-09-01',completed:true}],
+      lastSuccessfulFetchAt:'2026-10-06T12:30:00Z',
+      sourceUpdatedAt:'2026-10-05T15:00:00Z',
+      retrievedAt:'2026-10-06T12:30:00Z'
+    };
+    const copy = {
+      en:{disclosure:'AT-04 UX reference. All displayed home records, files and maintenance entries are synthetic.',home:'Home',homeName:'Example home',search:'Find a room, place, item or manual',searchAction:'Search',searchPlaceholder:'Try “receiver”, “cabinet” or “manual”',places:'Rooms & places',docs:'Documents & links',maintenance:'Maintenance',unplaced:'No fixed place',homeIntro:'Find things by place, or search for a name or manual. No drawing is needed.',placesIntro:'Open a place to see items here and any child places.',saved:'Saved from HomeBox',exactTime:'6 Oct 2026, 12:30 UTC',sourceTime:'Source record updated: 5 Oct 2026, 15:00 UTC',source:'Source details',cache:'HomeBox is unavailable. Showing saved information from 6 Oct 2026, 12:30 UTC.',retry:'Try again',retrySame:'HomeBox is still unavailable in this example. The saved date has not changed.',noCache:'HomeBox is unavailable and no saved information is available.',emptyHome:'No places or items recorded yet.',emptyPlace:'No items recorded here.',here:'Items here',children:'Child places',childItems:'Items in child places',count:'items here',one:'item here',unknown:'Place not recorded',mobile:'Moves around; no fixed place',items:'Items',model:'Model',place:'Place',description:'Description',photos:'Photos',noPhoto:'No photo recorded for this item.',noDocs:'No documents or links recorded for this item.',noMaintenance:'No maintenance entries recorded for this item.',edit:'Edit in HomeBox',editPlace:'Open place editor in HomeBox',ask:'Ask a household editor to add information in HomeBox.',file:'Saved file',external:'External link',open:'Open sample file',visit:'Open website',network:'Network details',networkOutage:'Network details are unavailable. Rooms and documents are still available.',networkEvidence:'Sample connection: Wi-Fi. Evidence from an owner report; cable route and socket not recorded.',networkMeta:'Synthetic evidence, revision 1. Retrieved 6 Oct 2026, 12:31 UTC. Report dated 27 Sep 2026. Observation time and vantage not supplied.',raw:'Source confidence: confirmed. Evidence basis: owner report. This is not a fresh cable survey.',networkStale:'These are saved details. They do not show whether the device is switched on now.',networkOpen:'Open Network',scheduled:'Scheduled',completed:'Completed',nativeMaintenance:'Open maintenance in HomeBox',archive:'Include archived items',archived:'Archived in HomeBox',results:'Search results',noResult:'No matches in this home for',clear:'Clear search',resultIntro:'Results in Example home. Archived items are hidden unless included.',manualGroup:'Documents',back:'Back',unplacedIntro:'These are item groups, not rooms. Mobile items and missing placements are shown separately.',movingGroup:'Moves around',unknownGroup:'Place not recorded',expired:'Sign in again to view this home.',signIn:'Sign in',denied:'You do not have access to this home.',deniedHelp:'Choose an authorized home after signing in with the appropriate account.',mediaFail:'This file is unavailable. The item details are still available.',dialogClose:'Close',demoTitle:'Sample manual',demoManual:'Synthetic manual for EXAMPLE R-1. This document exists only to test lookup. It provides no real appliance instructions.',demoLink:'Full HomeBox editor link',demoLinkBody:'In the integrated app, this action opens the tested full HomeBox editor for this record. No HomeBox instance, collection, UUID or route is connected here. No changes were made.',demoExternal:'External website link',demoExternalBody:'The real app shows the destination before opening another website. This synthetic example has no live link: example.invalid. It is not a saved document.',demoNetwork:'Existing Network app',demoNetworkBody:'A tested native link opens the existing Network UI for authorized editing or diagnostics. Atlas has no diagnostic or write action here.',demoSignIn:'Sign-in example',demoSignInBody:'Production sign-in and permission enforcement belong to AT-11. This prototype creates no account, key or grant.',unresolved:'This record could not be found in the latest check. Its previous details are saved.',unresolvedHelp:'The match needs review. This does not prove the item was deleted.',review:'Prototype review controls',reviewNote:'Change availability or role to inspect empty, error and outage flows. These controls are for review only.',reviewBoundary:'No API calls, credentials, writes, browser storage or live editor links. Source outages preserve timestamps. Only the sample file is available locally.',skip:'Skip to content',nav:'Main navigation',itemInfo:'Item details',noMatchesHelp:'Try an item name or model, clear the search, or include archived items.',resultCount:'results',placeType:'Source type',breadcrumb:'You are here',nested:'in child places',reader:'Reader',editor:'Editor'},
+      nl:{disclosure:'AT-04 UX-voorbeeld. Alle getoonde huisgegevens, bestanden en onderhoudsregels zijn verzonnen testgegevens.',home:'Thuis',homeName:'Voorbeeldhuis',search:'Zoek een kamer, plek, item of handleiding',searchAction:'Zoeken',searchPlaceholder:'Probeer “receiver”, “cabinet” of “manual”',places:'Kamers & plekken',docs:'Documenten & links',maintenance:'Onderhoud',unplaced:'Geen vaste plek',homeIntro:'Vind spullen per plek of zoek een naam of handleiding. Een plattegrond is niet nodig.',placesIntro:'Open een plek voor de spullen die hier staan en de onderliggende plekken.',saved:'Opgeslagen uit HomeBox',exactTime:'6 okt 2026, 12:30 UTC',sourceTime:'Bronrecord gewijzigd: 5 okt 2026, 15:00 UTC',source:'Brongegevens',cache:'HomeBox is niet bereikbaar. Je ziet opgeslagen gegevens van 6 okt 2026, 12:30 UTC.',retry:'Opnieuw proberen',retrySame:'HomeBox is in dit voorbeeld nog niet bereikbaar. De datum van de opgeslagen gegevens is gelijk gebleven.',noCache:'HomeBox is niet bereikbaar en er zijn geen opgeslagen gegevens.',emptyHome:'Nog geen plekken of spullen vastgelegd.',emptyPlace:'Hier zijn nog geen spullen vastgelegd.',here:'Spullen op deze plek',children:'Onderliggende plekken',childItems:'Spullen op onderliggende plekken',count:'spullen hier',one:'item hier',unknown:'Plek niet vastgelegd',mobile:'Wordt verplaatst; geen vaste plek',items:'Spullen',model:'Model',place:'Plek',description:'Beschrijving',photos:'Foto’s',noPhoto:'Voor dit item is geen foto vastgelegd.',noDocs:'Voor dit item zijn nog geen documenten of links vastgelegd.',noMaintenance:'Voor dit item zijn geen onderhoudsregels vastgelegd.',edit:'Bewerken in HomeBox',editPlace:'Plek bewerken in HomeBox',ask:'Vraag een huisgenoot die mag bewerken om gegevens in HomeBox toe te voegen.',file:'Opgeslagen bestand',external:'Externe link',open:'Voorbeeldbestand openen',visit:'Website openen',network:'Netwerkgegevens',networkOutage:'Netwerkgegevens zijn niet beschikbaar. Kamers en documenten zijn nog beschikbaar.',networkEvidence:'Voorbeeldverbinding: wifi. Gemeld door een eigenaar; kabelroute en aansluiting zijn niet vastgelegd.',networkMeta:'Testgegevens, revisie 1. Opgehaald op 6 okt 2026, 12:31 UTC. Meldingsdatum 27 sep 2026. Meetmoment en meetlocatie niet aangeleverd.',raw:'Betrouwbaarheid volgens de bron: confirmed. Bewijs: melding van een eigenaar. Er is geen nieuwe kabelinspectie gedaan.',networkStale:'Dit zijn opgeslagen gegevens. Ze tonen niet of het apparaat nu aanstaat.',networkOpen:'Netwerk openen',scheduled:'Gepland',completed:'Afgerond',nativeMaintenance:'Onderhoud openen in HomeBox',archive:'Gearchiveerde spullen tonen',archived:'Gearchiveerd in HomeBox',results:'Zoekresultaten',noResult:'Geen resultaten in dit huis voor',clear:'Zoekopdracht wissen',resultIntro:'Resultaten in Voorbeeldhuis. Gearchiveerde spullen zijn verborgen tenzij je ze opneemt.',manualGroup:'Documenten',back:'Terug',unplacedIntro:'Dit zijn groepen spullen, geen kamers. Verplaatsbare spullen en onbekende plekken staan apart.',movingGroup:'Wordt verplaatst',unknownGroup:'Plek niet vastgelegd',expired:'Meld je opnieuw aan om dit huis te bekijken.',signIn:'Aanmelden',denied:'Je hebt geen toegang tot dit huis.',deniedHelp:'Kies na het aanmelden met het juiste account een huis waarvoor je toegang hebt.',mediaFail:'Dit bestand is niet beschikbaar. De itemgegevens zijn nog beschikbaar.',dialogClose:'Sluiten',demoTitle:'Voorbeeldhandleiding',demoManual:'Verzonnen handleiding voor EXAMPLE R-1. Dit document dient alleen om het zoeken te testen. Het bevat geen echte gebruiksaanwijzing.',demoLink:'Link naar de volledige HomeBox-editor',demoLinkBody:'In de geïntegreerde app opent deze actie de geteste volledige HomeBox-editor voor dit record. Hier zijn geen HomeBox-instantie, collectie, UUID of route verbonden. Er is niets gewijzigd.',demoExternal:'Link naar externe website',demoExternalBody:'De echte app toont de bestemming voordat een andere website opent. Dit voorbeeld heeft geen werkende link: example.invalid. Dit is geen opgeslagen document.',demoNetwork:'Bestaande netwerkapp',demoNetworkBody:'Een geteste link opent de bestaande netwerkapp voor toegestaan bewerken of onderzoek. Atlas voert hier geen tests of schrijfacties uit.',demoSignIn:'Voorbeeld van aanmelden',demoSignInBody:'Aanmelden en toegangscontrole worden in AT-11 gebouwd. Dit voorbeeld maakt geen account, sleutel of toegangsrechten aan.',unresolved:'Dit record is bij de laatste controle niet gevonden. Eerdere gegevens zijn bewaard.',unresolvedHelp:'De koppeling moet worden nagekeken. Dit bewijst niet dat het item is verwijderd.',review:'Bediening voor beoordeling van het voorbeeld',reviewNote:'Verander de beschikbaarheid of rol om lege schermen, fouten en uitval te bekijken. Deze bediening dient alleen voor beoordeling.',reviewBoundary:'Geen API-aanroepen, sleutels, schrijfacties, browseropslag of werkende editorlinks. Bij uitval blijven de tijdstempels gelijk. Alleen het voorbeeldbestand is lokaal beschikbaar.',skip:'Naar de inhoud',nav:'Hoofdnavigatie',itemInfo:'Itemgegevens',noMatchesHelp:'Probeer een naam of model, wis de zoekopdracht of toon gearchiveerde spullen.',resultCount:'resultaten',placeType:'Brontype',breadcrumb:'Je bent hier',nested:'op onderliggende plekken',reader:'Lezer',editor:'Bewerker'}
+    };
+    const state={lang:'en',source:'fresh',network:'fresh',media:'available',role:'reader',archives:false,query:''};
+    let dialogTrigger=null;
+    let lastHash='';
+    const $=id=>document.getElementById(id);
+    const t=key=>copy[state.lang][key];
+    const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+    const go=(route)=>{location.hash=route;};
+    const permitted=()=>!['expired','denied'].includes(state.source);
+    const hasCache=()=>!['no-cache','empty-home'].includes(state.source);
+    const activeItems=()=>hasCache()?fixtures.items.filter(item=>state.archives||!item.archived).filter(item=>!(state.source==='empty-place'&&item.place==='sitting')):[];
+    const place=id=>fixtures.places.find(p=>p.id===id);
+    const item=id=>activeItems().find(i=>i.id===id);
+    const path=p=>p?(p.parent?`${path(place(p.parent))} / `:'')+p.name:t('unknown');
+    const placeText=i=>i.place?path(place(i.place)):t(i.mobility==='mobile'?'mobile':'unknown');
+    const editorAction=key=>state.role==='editor'?`<button data-action="editor" class="quiet">${t(key||'edit')}</button>`:`<p class="muted">${t('ask')}</p>`;
+    const archiveControl=()=>`<label class="checkbox"><input id="include-archives" type="checkbox" ${state.archives?'checked':''}>${t('archive')}</label>`;
+    function sourceStatus(){
+      if(state.source==='cached-outage') return `<section class="status" aria-label="HomeBox"><p>${t('cache')}</p><button class="quiet" data-action="retry">${t('retry')}</button><p id="retry-result" role="status"></p></section>`;
+      return `<p class="muted">${t('saved')}: <time datetime="${fixtures.lastSuccessfulFetchAt}">${t('exactTime')}</time>.</p>`;
+    }
+    function itemRows(items){
+      return items.length?`<ul class="list">${items.map(i=>`<li class="row"><div><a href="#item/${i.id}">${esc(i.name)}</a><p class="muted">${esc(i.model||'')} ${esc(placeText(i))}</p></div>${i.archived?`<span class="tag">${t('archived')}</span>`:''}${state.source==='unresolved'&&i.id==='receiver'?`<span class="tag warn">${t('unresolvedHelp')}</span>`:''}</li>`).join('')}</ul>`:`<div class="empty">${t('emptyPlace')}</div>`;
+    }
+    function placeRows(places){
+      return `<ul class="list">${places.map(p=>{const direct=activeItems().filter(i=>i.place===p.id).length;const child=fixtures.places.filter(c=>c.parent===p.id).reduce((n,c)=>n+activeItems().filter(i=>i.place===c.id).length,0);return `<li class="row"><div><a href="#place/${p.id}">${esc(p.name)}</a><p class="muted">${esc(path(p))}</p><p>${direct} ${t(direct===1?'one':'count')}${child?`; ${child} ${t('nested')}`:''}</p></div><span class="tag">${esc(p.type)}</span></li>`;}).join('')}</ul>`;
+    }
+    function docRows(docs){
+      return docs.length?`<ul class="list">${docs.map(({doc,owner})=>`<li class="row"><div><h3>${esc(doc.title)}</h3><p class="muted"><a href="#item/${owner.id}">${esc(owner.name)}</a> / ${esc(placeText(owner))}</p><p><span class="tag">${t(doc.kind==='file'?'file':'external')}</span> ${esc(doc.kind==='file'?doc.type:doc.host)}</p><button class="inline-button" data-action="${doc.kind==='file'?'file':'external'}">${t(doc.kind==='file'?'open':'visit')}</button></div></li>`).join('')}</ul>`:`<div class="empty">${t('noDocs')}</div>`;
+    }
+    function maintenanceRows(entries){
+      return entries.length?`<ul class="list">${entries.map(e=>`<li class="row"><div><h3>${esc(e.name)}</h3><p>${t(e.completed?'completed':'scheduled')}: <time datetime="${e.date}">${esc(e.date)}</time></p><a href="#item/${e.item}">${esc(item(e.item)?.name||'')}</a></div></li>`).join('')}</ul>`:`<div class="empty">${t('noMaintenance')}</div>`;
+    }
+    function crumbs(p){return `<div class="trail" aria-label="${t('breadcrumb')}"><a href="#home">${t('home')}</a><span>/</span><a href="#places">${t('places')}</a>${p?.parent?`<span>/</span><a href="#place/${p.parent}">${esc(place(p.parent).name)}</a>`:''}</div>`;}
+    function setShell(){
+      document.documentElement.lang=state.lang;
+      $('disclosure').textContent=t('disclosure');$('home-caption').textContent=t('home');$('home').options[0].textContent=t('homeName');
+      $('home-label').hidden=!permitted();$('search-form').hidden=!permitted();$('nav').hidden=!permitted();
+      $('search-caption').textContent=t('search');$('search-button').textContent=t('searchAction');$('search').placeholder=t('searchPlaceholder');
+      $('review-caption').textContent=t('review');$('review-note').textContent=t('reviewNote');$('review-boundary').textContent=t('reviewBoundary');$('skip').textContent=t('skip');
+      $('nav').setAttribute('aria-label',t('nav'));$('close-dialog').textContent=t('dialogClose');
+      const root=(location.hash.slice(1)||'home').split('/')[0];
+      $('nav').innerHTML=['home','places','unplaced','docs','maintenance'].map(key=>`<a href="#${key}" ${root===key||(key==='places'&&root==='place')?'aria-current="page"':''}>${t(key)}</a>`).join('');
+    }
+    function render(moveFocus=false){
+      setShell();
+      const [route,rawId]=(location.hash.slice(1)||'home').split('/');
+      let id;
+      try { id=decodeURIComponent(rawId||''); } catch { id=rawId||''; }
+      let content='';
+      if(!permitted()) content=`<h1 tabindex="-1">${t(state.source)}</h1>${state.source==='expired'?`<button data-action="signin">${t('signIn')}</button>`:`<p>${t('deniedHelp')}</p>`}`;
+      else if(state.source==='no-cache') content=`<h1 tabindex="-1">${t('homeName')}</h1><div class="status"><p>${t('noCache')}</p><button class="quiet" data-action="retry">${t('retry')}</button><p id="retry-result" role="status"></p></div>`;
+      else if(state.source==='empty-home') content=`<h1 tabindex="-1">${t('homeName')}</h1>${sourceStatus()}<div class="empty"><p>${t('emptyHome')}</p>${editorAction()}</div>`;
+      else if(route==='home') content=`<h1 tabindex="-1">${t('homeName')}</h1><p>${t('homeIntro')}</p>${sourceStatus()}<h2>${t('places')}</h2>${placeRows(fixtures.places.filter(p=>!p.parent))}<div class="actions"><a class="button quiet" href="#unplaced">${t('unplaced')}</a><a class="button quiet" href="#docs">${t('docs')}</a></div>`;
+      else if(route==='places') content=`<h1 tabindex="-1">${t('places')}</h1><p>${t('placesIntro')}</p>${sourceStatus()}${placeRows(fixtures.places.filter(p=>!p.parent))}`;
+      else if(route==='place'&&place(id)){
+        const p=place(id),children=fixtures.places.filter(c=>c.parent===id),direct=activeItems().filter(i=>i.place===id);
+        content=`${crumbs(p)}<h1 tabindex="-1">${esc(p.name)}</h1><p class="muted">${t('placeType')}: ${esc(p.type)}. ${esc(path(p))}</p>${sourceStatus()}${children.length?`<h2>${t('children')}</h2>${placeRows(children)}`:''}<h2>${t('here')}</h2>${itemRows(direct)}${archiveControl()}${editorAction('editPlace')}`;
+      }else if(route==='item'&&item(id)){
+        const i=item(id),p=place(i.place),unresolved=state.source==='unresolved'&&id==='receiver';
+        content=`${p?crumbs(p):`<div class="trail"><a href="#home">${t('home')}</a><span>/</span><a href="#unplaced">${t('unplaced')}</a></div>`}<h1 tabindex="-1">${esc(i.name)}</h1>${i.archived?`<p class="tag">${t('archived')}</p>`:''}${sourceStatus()}${unresolved?`<div class="status"><p>${t('unresolved')}</p><p>${t('unresolvedHelp')}</p></div>`:''}<dl class="facts"><dt>${t('model')}</dt><dd>${esc(i.model||'—')}</dd><dt>${t('place')}</dt><dd>${p?`<a href="#place/${p.id}">${esc(path(p))}</a>`:esc(placeText(i))}</dd></dl><div class="columns"><section><h2>${t('description')}</h2><p>${esc(i.description)}</p></section><section><h2>${t('photos')}</h2><div class="photo">${t('noPhoto')}</div></section></div><h2>${t('docs')}</h2>${docRows(i.docs.map(doc=>({doc,owner:i})))}<h2>${t('maintenance')}</h2>${maintenanceRows(fixtures.maintenance.filter(e=>e.item===id))}${state.role==='editor'&&!unresolved?`<div class="actions"><button class="quiet" data-action="editor">${t('edit')}</button><button class="quiet" data-action="editor">${t('nativeMaintenance')}</button></div>`:''}${i.network?`<h2>${t('network')}</h2>${state.network==='outage'?`<div class="status"><p>${t('networkOutage')}</p></div>`:''}<p>${t('networkEvidence')}</p><p class="muted">${t('networkMeta')}</p><details><summary>${t('source')}</summary><p>${t('raw')}</p><p>${t('networkStale')}</p></details><button class="quiet" data-action="network">${t('networkOpen')}</button>`:''}<details><summary>${t('source')}</summary><p>${t('sourceTime')}</p><p>${t('saved')}: ${t('exactTime')}. ${t('itemInfo')}: HomeBox, synthetic example.</p></details>`;
+      }else if(route==='docs') content=`<h1 tabindex="-1">${t('docs')}</h1>${sourceStatus()}${docRows(activeItems().flatMap(owner=>owner.docs.map(doc=>({doc,owner}))))}`;
+      else if(route==='maintenance') content=`<h1 tabindex="-1">${t('maintenance')}</h1>${sourceStatus()}<h2>${t('scheduled')}</h2>${maintenanceRows(fixtures.maintenance.filter(e=>!e.completed))}<h2>${t('completed')}</h2>${maintenanceRows(fixtures.maintenance.filter(e=>e.completed))}${state.role==='editor'?`<div class="actions"><button class="quiet" data-action="editor">${t('nativeMaintenance')}</button></div>`:''}`;
+      else if(route==='unplaced') content=`<h1 tabindex="-1">${t('unplaced')}</h1><p>${t('unplacedIntro')}</p>${sourceStatus()}<h2>${t('movingGroup')}</h2>${itemRows(activeItems().filter(i=>!i.place&&i.mobility==='mobile'))}<h2>${t('unknownGroup')}</h2>${itemRows(activeItems().filter(i=>!i.place&&i.mobility==='fixed'))}`;
+      else if(route==='search'){
+        state.query=id;$('search').value=id;
+        const q=id.toLocaleLowerCase(state.lang).trim(),items=activeItems().filter(i=>`${i.name} ${i.model||''}`.toLocaleLowerCase(state.lang).includes(q)),places=fixtures.places.filter(p=>p.name.toLocaleLowerCase(state.lang).includes(q)),docs=activeItems().flatMap(owner=>owner.docs.filter(doc=>`${doc.title} ${owner.name} ${owner.model||''}`.toLocaleLowerCase(state.lang).includes(q)).map(doc=>({doc,owner})));
+        const total=items.length+places.length+docs.length;
+        content=`<h1 tabindex="-1">${t('results')}</h1><p>${t('resultIntro')}</p>${sourceStatus()}<p role="status">${total} ${t('resultCount')}</p>${total?`${places.length?`<h2>${t('places')}</h2>${placeRows(places)}`:''}${items.length?`<h2>${t('items')}</h2>${itemRows(items)}`:''}${docs.length?`<h2>${t('manualGroup')}</h2>${docRows(docs)}`:''}`:`<div class="empty"><h2>${t('noResult')} “${esc(id)}”</h2><p>${t('noMatchesHelp')}</p></div>`}${archiveControl()}<button class="quiet" data-action="clear">${t('clear')}</button>`;
+      }else content=`<h1 tabindex="-1">${t('noResult')}</h1><a href="#home">${t('home')}</a>`;
+      $('main').innerHTML=content;
+      $('announcement').textContent=$('main').querySelector('h1')?.textContent||'';
+      if(moveFocus)$('main').querySelector('h1')?.focus();
+    }
+    function showDialog(title,body){
+      dialogTrigger=document.activeElement;
+      $('dialog-title').textContent=title;$('dialog-body').innerHTML=body;
+      $('dialog').showModal();$('close-dialog').focus();
+    }
+    $('main').addEventListener('click',event=>{
+      const button=event.target.closest('[data-action]');if(!button)return;
+      if(!permitted()&&button.dataset.action!=='signin')return;
+      const action=button.dataset.action;
+      if(action==='retry'){$('retry-result').textContent=t(state.source==='no-cache'?'noCache':'retrySame');$('announcement').textContent=$('retry-result').textContent;}
+      if(action==='clear'){$('search').value='';state.query='';go('home');}
+      if(action==='file')showDialog(t(state.media==='available'?'demoTitle':'docs'),`<p>${t(state.media==='available'?'demoManual':'mediaFail')}</p>`);
+      if(action==='external')showDialog(t('demoExternal'),`<p>${t('demoExternalBody')}</p>`);
+      if(action==='editor'&&state.role==='editor')showDialog(t('demoLink'),`<p>${t('demoLinkBody')}</p>`);
+      if(action==='network')showDialog(t('demoNetwork'),`<p>${t('demoNetworkBody')}</p>`);
+      if(action==='signin')showDialog(t('demoSignIn'),`<p>${t('demoSignInBody')}</p>`);
+    });
+    $('main').addEventListener('change',event=>{if(event.target.id==='include-archives'){state.archives=event.target.checked;render();$('include-archives')?.focus();}});
+    $('search-form').addEventListener('submit',event=>{event.preventDefault();if(permitted()){state.query=$('search').value.trim();go(`search/${encodeURIComponent(state.query)}`);}});
+    for(const [id,key] of [['language','lang'],['source-state','source'],['network-state','network'],['media-state','media'],['role','role']]){
+      $(id).addEventListener('change',()=>{state[key]=$(id).value;if(!permitted()){$('search').value='';state.query='';if($('dialog').open)$('dialog').close();}render();$('announcement').textContent=$('main').textContent.slice(0,250);});
+    }
+    $('close-dialog').addEventListener('click',()=>$('dialog').close());
+    $('dialog').addEventListener('close',()=>{if(dialogTrigger?.isConnected)dialogTrigger.focus();});
+    window.addEventListener('hashchange',()=>{const next=location.hash;render(next!==lastHash);lastHash=next;});
+    render();
+  </script>
+</body>
+</html>

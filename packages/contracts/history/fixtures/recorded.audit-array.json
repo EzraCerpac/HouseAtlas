@@ -1,0 +1,21 @@
+[
+  {
+    "schemaVersion": 1,
+    "auditId": "00000000-0000-4000-8000-000000010406",
+    "workspaceId": "00000000-0000-4000-8000-000000000001",
+    "homeId": "00000000-0000-4000-8000-000000000002",
+    "record": {
+      "recordType": "circuit",
+      "recordId": "00000000-0000-4000-8000-000000000406"
+    },
+    "operation": "create",
+    "previousRevision": null,
+    "resultRevision": 1,
+    "actorId": "00000000-0000-4000-8000-000000000050",
+    "at": "2026-01-02T12:00:00Z",
+    "reason": "Synthetic circuit record, label still unknown",
+    "mutationId": "00000000-0000-4000-8000-000000001000",
+    "beforeDigest": null,
+    "afterDigest": "59f4de3fc73c8b2dbade7a0b14951fdf6fabf3d214838d658e6a4de903bd7962"
+  }
+]

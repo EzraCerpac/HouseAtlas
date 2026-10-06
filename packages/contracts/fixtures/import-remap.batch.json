@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "batchId": "00000000-0000-4000-8000-000000001090",
+  "reason": "Reviewed synthetic import ID remap",
+  "commands": [
+    {
+      "target": {
+        "recordType": "binding",
+        "recordId": "00000000-0000-4000-8000-000000000301"
+      },
+      "command": {
+        "schemaVersion": 1,
+        "mutationId": "00000000-0000-4000-8000-000000001100",
+        "operation": "replace",
+        "expectedRevision": 1,
+        "reason": "Reviewed synthetic import ID remap",
+        "guards": [
+          {
+            "record": {
+              "recordType": "identity",
+              "recordId": "00000000-0000-4000-8000-000000000201"
+            },
+            "expectedRevision": 1
+          },
+          {
+            "record": {
+              "recordType": "evidence",
+              "recordId": "00000000-0000-4000-8000-000000000100"
+            },
+            "expectedRevision": 1
+          }
+        ],
+        "value": {
+          "recordType": "binding",
+          "payload": {
+            "atlasId": "00000000-0000-4000-8000-000000000201",
+            "source": {
+              "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+              "collectionId": "synthetic-collection-a",
+              "sourceKind": "homebox-entity",
+              "externalId": "00000000-0000-4000-8000-000000000501"
+            },
+            "reviewStatus": "retired",
+            "sourceState": "unresolved",
+            "evidenceIds": [
+              "00000000-0000-4000-8000-000000000100"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "target": {
+        "recordType": "binding",
+        "recordId": "00000000-0000-4000-8000-000000000304"
+      },
+      "command": {
+        "schemaVersion": 1,
+        "mutationId": "00000000-0000-4000-8000-000000001101",
+        "operation": "create",
+        "expectedRevision": null,
+        "reason": "Reviewed synthetic import ID remap",
+        "guards": [
+          {
+            "record": {
+              "recordType": "identity",
+              "recordId": "00000000-0000-4000-8000-000000000201"
+            },
+            "expectedRevision": 1
+          },
+          {
+            "record": {
+              "recordType": "evidence",
+              "recordId": "00000000-0000-4000-8000-000000000100"
+            },
+            "expectedRevision": 1
+          }
+        ],
+        "value": {
+          "recordType": "binding",
+          "payload": {
+            "atlasId": "00000000-0000-4000-8000-000000000201",
+            "source": {
+              "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+              "collectionId": "synthetic-collection-a",
+              "sourceKind": "homebox-entity",
+              "externalId": "00000000-0000-4000-8000-000000000504"
+            },
+            "reviewStatus": "accepted",
+            "sourceState": "present",
+            "evidenceIds": [
+              "00000000-0000-4000-8000-000000000100"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "target": {
+        "recordType": "reconciliation",
+        "recordId": "00000000-0000-4000-8000-000000000405"
+      },
+      "command": {
+        "schemaVersion": 1,
+        "mutationId": "00000000-0000-4000-8000-000000001102",
+        "operation": "create",
+        "expectedRevision": null,
+        "reason": "Reviewed synthetic import ID remap",
+        "guards": [
+          {
+            "record": {
+              "recordType": "identity",
+              "recordId": "00000000-0000-4000-8000-000000000201"
+            },
+            "expectedRevision": 1
+          },
+          {
+            "record": {
+              "recordType": "evidence",
+              "recordId": "00000000-0000-4000-8000-000000000100"
+            },
+            "expectedRevision": 1
+          },
+          {
+            "record": {
+              "recordType": "binding",
+              "recordId": "00000000-0000-4000-8000-000000000301"
+            },
+            "expectedRevision": 1
+          }
+        ],
+        "value": {
+          "recordType": "reconciliation",
+          "payload": {
+            "atlasId": "00000000-0000-4000-8000-000000000201",
+            "fromBindingId": "00000000-0000-4000-8000-000000000301",
+            "toBindingId": "00000000-0000-4000-8000-000000000304",
+            "reason": "import-id-remap",
+            "evidenceIds": [
+              "00000000-0000-4000-8000-000000000100"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

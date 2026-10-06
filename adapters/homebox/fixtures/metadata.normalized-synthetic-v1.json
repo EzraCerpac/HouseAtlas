@@ -1,0 +1,80 @@
+{
+  "fixtureVersion": "at08-synthetic/1",
+  "metadataDialect": "atlas-normalized-synthetic-v1",
+  "synthetic": true,
+  "liveProviderQualified": false,
+  "sourceRegistration": {
+    "workspaceId": "00000000-0000-4000-8000-000000000001",
+    "homeId": "00000000-0000-4000-8000-000000000002",
+    "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+    "collectionId": "synthetic-collection-a",
+    "owner": "homebox",
+    "partitionMode": "exclusive-home",
+    "allowedExternalIds": []
+  },
+  "entities": [
+    {
+      "id": "00000000-0000-4000-8000-000000000500",
+      "name": "Synthetic arbitrary cupboard",
+      "archived": false,
+      "updatedAt": "2026-01-01T00:00:00Z",
+      "entityType": {
+        "id": "00000000-0000-4000-8000-000000000700",
+        "name": "Custom cupboard",
+        "isLocation": true
+      },
+      "parent": null,
+      "attachments": []
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000501",
+      "name": "Synthetic unplaced item",
+      "archived": false,
+      "updatedAt": "2026-01-01T00:00:00Z",
+      "entityType": {
+        "id": "00000000-0000-4000-8000-000000000701",
+        "name": "Custom object",
+        "isLocation": false
+      },
+      "parent": {
+        "id": "00000000-0000-4000-8000-000000000500"
+      },
+      "attachments": [
+        {
+          "attachmentId": "00000000-0000-4000-8000-000000000801",
+          "kind": "stored-file",
+          "title": "Synthetic manual",
+          "contentType": "application/pdf",
+          "byteSize": 12,
+          "proxyRef": null
+        },
+        {
+          "attachmentId": "00000000-0000-4000-8000-000000000802",
+          "kind": "external-link",
+          "title": "Synthetic URL manual",
+          "url": "https://manual.example.invalid/file?q=synthetic",
+          "archived": false
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000503",
+      "name": "Synthetic unknown type",
+      "archived": false,
+      "updatedAt": "2026-01-01T00:00:00Z",
+      "entityType": null,
+      "parent": null,
+      "attachments": []
+    }
+  ],
+  "maintenance": [
+    {
+      "entryId": "00000000-0000-4000-8000-000000000901",
+      "name": "Synthetic filter reference",
+      "description": "Provider-owned scheduled metadata",
+      "scheduledDate": "2026-11-01T00:00:00Z",
+      "completedDate": null,
+      "cost": null
+    }
+  ]
+}

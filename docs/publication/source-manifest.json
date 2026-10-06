@@ -1,0 +1,1326 @@
+{
+  "format": "houseatlas-publication-source/1",
+  "status": "reviewed-ordinary-corrected-development-artifact; new-source-presence-blocked; final-new-history-audit-required",
+  "self": {
+    "path": "docs/publication/source-manifest.json",
+    "mode": "100644",
+    "digest": "anchored-by-reviewed-tree"
+  },
+  "owners": [
+    "access",
+    "contracts",
+    "core-integration",
+    "homebox",
+    "media",
+    "network",
+    "operations-policy",
+    "storage",
+    "web"
+  ],
+  "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
+  "sourceDigestSha256": "e505893999e95608eeb90000c653d4febb153ab1428e77e3561abefe7c56e0a3",
+  "files": [
+    {
+      "path": ".github/workflows/ordinary-core.yml",
+      "mode": "100644",
+      "bytes": 2448,
+      "sha256": "d76d082cac129fd056afef1e8c3fd3b8a205dd6f891fde2a1ec86f5355a4ba41",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".gitignore",
+      "mode": "100644",
+      "bytes": 336,
+      "sha256": "b2f1c11723b7286b383e186eec465bbfc03549da92e3a9ae80f7cee3daf96ecc",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".node-version",
+      "mode": "100644",
+      "bytes": 8,
+      "sha256": "10e4e07fe7b63d3da1d899ea0f9a7a3d78c116051fae44b9f245a53d6f665a41",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".npmrc",
+      "mode": "100644",
+      "bytes": 43,
+      "sha256": "8c3206afff0ca4259186f7a47b8a30485b45ade5070deddf3aaead412d936e3a",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".python-version",
+      "mode": "100644",
+      "bytes": 7,
+      "sha256": "5abd4dc1efa09469b88916c8e4e027a8c266a9b6d06f43ac9da3e30cd00b4ab5",
+      "owner": "core-integration"
+    },
+    {
+      "path": "AGENTS.md",
+      "mode": "100644",
+      "bytes": 2287,
+      "sha256": "e1f83c7c5c667af697f5305a439e4363a35275a5ff6874a023ec26241701429d",
+      "owner": "core-integration"
+    },
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "bytes": 3036,
+      "sha256": "f1aa47306b7e09c72856d2b911174651cd02611b2a427cd77fca1efcfde1fcad",
+      "owner": "core-integration"
+    },
+    {
+      "path": "adapters/homebox/README.md",
+      "mode": "100644",
+      "bytes": 9193,
+      "sha256": "7f94ba263e8252267b2bfe343707b4d7f9b0ae51a251d70714957c830cad5c47",
+      "owner": "homebox"
+    },
+    {
+      "path": "adapters/homebox/fixtures/catalog.json",
+      "mode": "100644",
+      "bytes": 662,
+      "sha256": "0802a2b1cb7b6ab9110399d990c6ce3cdf0004d3e8bcef46393f6123ecd24568",
+      "owner": "homebox"
+    },
+    {
+      "path": "adapters/homebox/fixtures/metadata.normalized-synthetic-v1.json",
+      "mode": "100644",
+      "bytes": 2372,
+      "sha256": "b78752662da0527ddc32416242be4dea295a9369c7acb8272b51767801a47b00",
+      "owner": "homebox"
+    },
+    {
+      "path": "adapters/homebox/package.json",
+      "mode": "100644",
+      "bytes": 350,
+      "sha256": "f1a9cc9a97a48f84e1e4d2788707df6e127f09d2c646eea6adb9528893faed68",
+      "owner": "homebox"
+    },
+    {
+      "path": "adapters/homebox/src/index.mjs",
+      "mode": "100644",
+      "bytes": 23175,
+      "sha256": "e130ba0a7ba1c1e9bea722cfcdd44cf74d45347cb8e4a17069a30a84232b2a38",
+      "owner": "homebox"
+    },
+    {
+      "path": "adapters/homebox/test/failures.test.mjs",
+      "mode": "100644",
+      "bytes": 13967,
+      "sha256": "a7a08a6d2f2df91da479d8e1469332ff1985bc24a96f5473fa733b3281d2fd47",
+      "owner": "homebox"
+    },
+    {
+      "path": "adapters/homebox/test/generation.test.mjs",
+      "mode": "100644",
+      "bytes": 7997,
+      "sha256": "2d3abf8c6656e4eb8ebf61810f3e25a7582546b238b70a38e4eea3b50382e17f",
+      "owner": "homebox"
+    },
+    {
+      "path": "adapters/homebox/test/scope.test.mjs",
+      "mode": "100644",
+      "bytes": 6588,
+      "sha256": "8cf8de6781668b9d7c7fb182ac2f534c5d2f058cda9f5fa470772ee136cae87c",
+      "owner": "homebox"
+    },
+    {
+      "path": "adapters/homebox/test/support.mjs",
+      "mode": "100644",
+      "bytes": 3709,
+      "sha256": "7647ced1ac4371e2d34bbf7f14039192ad795604ec132b2d1eaab90308f31ab2",
+      "owner": "homebox"
+    },
+    {
+      "path": "adapters/homebox/test/transport-bounds.test.mjs",
+      "mode": "100644",
+      "bytes": 4591,
+      "sha256": "f37e8e17ac44a5a522e7fc6582cd6113b17807106feb35085b511f6e8bc674be",
+      "owner": "homebox"
+    },
+    {
+      "path": "adapters/homebox/tools/check-package.mjs",
+      "mode": "100644",
+      "bytes": 1392,
+      "sha256": "f7330c2d1b6ed921790bcc2ca81496c6dd1ef22f65501f355f6ae0dc55fdc7ac",
+      "owner": "homebox"
+    },
+    {
+      "path": "adapters/homebox/tools/failure-controls.mjs",
+      "mode": "100644",
+      "bytes": 4640,
+      "sha256": "ed3b3211caafb786b79be6ea30d9856a2b262380afa26c469715751d03877b53",
+      "owner": "homebox"
+    },
+    {
+      "path": "adapters/network/README.md",
+      "mode": "100644",
+      "bytes": 8826,
+      "sha256": "f5380a1d82fbbc9df44a502e5287d7efba65bd4895ee95d6beefe924f59d13ce",
+      "owner": "network"
+    },
+    {
+      "path": "adapters/network/fixtures/inventory.wire.json",
+      "mode": "100644",
+      "bytes": 1512,
+      "sha256": "0f147bfe59f29bffbfc0d685552f5027041345c9983fee2190198ae622f6a397",
+      "owner": "network"
+    },
+    {
+      "path": "adapters/network/fixtures/link-review.json",
+      "mode": "100644",
+      "bytes": 726,
+      "sha256": "eb50edec348e7fcf2d957a8ad604a37bdb0b4e0b990490829be7010b12c23625",
+      "owner": "network"
+    },
+    {
+      "path": "adapters/network/package-lock.json",
+      "mode": "100644",
+      "bytes": 307,
+      "sha256": "a45108cf1b97935b0f4e848da43ed158a049ec03525d918fea47966bd4c2ab32",
+      "owner": "network"
+    },
+    {
+      "path": "adapters/network/package.json",
+      "mode": "100644",
+      "bytes": 305,
+      "sha256": "338b068ab64819bb3f12697df433bd419bb90939a06f9d004628e895e80601d5",
+      "owner": "network"
+    },
+    {
+      "path": "adapters/network/scripts/check-package.mjs",
+      "mode": "100644",
+      "bytes": 1331,
+      "sha256": "1e403fc1e88012c03c792201fbb50389b4ca8dc6c1070eb906e58f57bae95bce",
+      "owner": "network"
+    },
+    {
+      "path": "adapters/network/scripts/failure-controls.mjs",
+      "mode": "100644",
+      "bytes": 3019,
+      "sha256": "90c127ba77634b3dffb6290b0527e272d358f2140a6924c560351cab627d28d9",
+      "owner": "network"
+    },
+    {
+      "path": "adapters/network/src/index.mjs",
+      "mode": "100644",
+      "bytes": 25935,
+      "sha256": "1b640ade1852938b30a0f4dd7442b41ccdf12c3059ea93f39a811ee5cc645919",
+      "owner": "network"
+    },
+    {
+      "path": "adapters/network/test/network.test.mjs",
+      "mode": "100644",
+      "bytes": 24902,
+      "sha256": "ed49393d26a0340b3dfd44d7cc023a0fb1f5b471ace8ceb3bb67a18db1052f42",
+      "owner": "network"
+    },
+    {
+      "path": "config/deployment.example.json",
+      "mode": "100644",
+      "bytes": 688,
+      "sha256": "2e7efc276a9e5bcefaeaa5a04a88a853e5c5d718c8f7621d3d5b8058dedb3c4e",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/contracts/adoption-and-open-decisions.md",
+      "mode": "100644",
+      "bytes": 1665,
+      "sha256": "843245ba3af13dc0930ee81fb41af8f24011d5c82f6e273a5a2bcda0d0655bb0",
+      "owner": "contracts"
+    },
+    {
+      "path": "docs/contracts/atlas.openapi.json",
+      "mode": "100644",
+      "bytes": 24792,
+      "sha256": "4c161a9f2fad81cfbd7fa38b0d7476816163b390b5ee898fe3b80a37e7195351",
+      "owner": "contracts"
+    },
+    {
+      "path": "docs/contracts/atlas.openapi.v1.1.0.json",
+      "mode": "100644",
+      "bytes": 28556,
+      "sha256": "fb8c40ded776c6c3c6b6fdc6da120549e7699209423075ceb9ed133ff5381311",
+      "owner": "contracts"
+    },
+    {
+      "path": "docs/contracts/history/http-history.v1.1.0.md",
+      "mode": "100644",
+      "bytes": 4634,
+      "sha256": "2cd707a7673524727b898f5432aba98baafcb8f63e5d37e1a5a87a6703cfc902",
+      "owner": "contracts"
+    },
+    {
+      "path": "docs/contracts/mutations-and-api.md",
+      "mode": "100644",
+      "bytes": 9337,
+      "sha256": "ab38a517fbcc19aa5347a234b5ed539d80dd7043c5fa5cfaa0593bccef0aa6cf",
+      "owner": "contracts"
+    },
+    {
+      "path": "docs/contracts/ownership-and-identity.md",
+      "mode": "100644",
+      "bytes": 12160,
+      "sha256": "344ccc87e5b0ec5d08a7a509315d95e0efd12ce159e1fbc1f40d97a158ee27a7",
+      "owner": "contracts"
+    },
+    {
+      "path": "docs/coordination/agent-write-amendment-proposal.md",
+      "mode": "100644",
+      "bytes": 1424,
+      "sha256": "d21a8afb94ea2c1f3cfc9957e91f965259ab0b39823df49284efa259a2923d89",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/coordination/baseline-scope.md",
+      "mode": "100644",
+      "bytes": 996,
+      "sha256": "6fa10a5b99188f34cdf733887d2bfad1ffb25da16235312225b1a4e1861c6001",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/coordination/runtime-and-module-contracts.md",
+      "mode": "100644",
+      "bytes": 2013,
+      "sha256": "e498229ba35e55bfb660978c72a54fd6cfb60d07e16bd41fa4c5b3cd61bf1ae7",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/coordination/worker-handoff.md",
+      "mode": "100644",
+      "bytes": 1420,
+      "sha256": "9b20e13d5052166ff6ece65d86bbae8bbf23b54ed47c9aaf4394e83f89c57d21",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/coordination/workspace-policy.md",
+      "mode": "100644",
+      "bytes": 1435,
+      "sha256": "2580b78aabcc027f81214a5853131f60939d8bb1b23575f4c0f213e63c76f579",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/core-integration/README.md",
+      "mode": "100644",
+      "bytes": 2969,
+      "sha256": "5de8d92fb49f846fca4319ec425641b5597b1ed45a078a89c082c882fd9cec8a",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/core-integration/correction-3.md",
+      "mode": "100644",
+      "bytes": 5878,
+      "sha256": "25e64f1b9723e4542df90db54f980e5ca8907f0a85a405249d8018ed78c0ea48",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/operations/adoption-and-decisions.md",
+      "mode": "100644",
+      "bytes": 1244,
+      "sha256": "f6987a22ab2376e61e464c2bd9862fccac5f6ce2517d26ec66f1c965ac9218a1",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "docs/operations/media-and-offline.md",
+      "mode": "100644",
+      "bytes": 6782,
+      "sha256": "73fea56688c511b65dfc36bd7c5c9c318be684478610bb193648619ebe44bf6f",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "docs/operations/qualification-and-rollout.md",
+      "mode": "100644",
+      "bytes": 1067,
+      "sha256": "942799b8ab8bcf5816b98ee63228d6e582836f017391d800a7e073e091e2ccb3",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "docs/operations/recovery-and-rollback.md",
+      "mode": "100644",
+      "bytes": 1510,
+      "sha256": "29d7701df4fbcccd38abe9838ed77605cfcb3bde302c05f8379e0b25b65891d7",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "docs/operations/scenario-validation.md",
+      "mode": "100644",
+      "bytes": 1382,
+      "sha256": "fcd93c8961f1872d4979c4a8faa4b755c5940518619a3d01c57820c47de0e73b",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "docs/operations/target-and-access.md",
+      "mode": "100644",
+      "bytes": 1694,
+      "sha256": "4d14aeaec726de3e319d866aba05c0fcda96f363648ea0bcd1c1d257122b6307",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "docs/publication/provenance.md",
+      "mode": "100644",
+      "bytes": 3039,
+      "sha256": "c657c256a7102d86905aa4f4663e8c43207fabfd11f30a6802b43f9b95a356df",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/ux/reference/at04-room-first.html",
+      "mode": "100644",
+      "bytes": 33858,
+      "sha256": "4f51c4c2614dc8dde81af41da8a3222f24a22e25e2ed6f3a32f9be1f89b6cdfd",
+      "owner": "core-integration"
+    },
+    {
+      "path": "fixtures/integration/access-revoked.snapshot.json",
+      "mode": "100644",
+      "bytes": 24578,
+      "sha256": "e62a2b3528314dbbb4ffd4c863276da6cf48d9111877f5bcf67f6585c1adbfe4",
+      "owner": "core-integration"
+    },
+    {
+      "path": "fixtures/integration/catalog.json",
+      "mode": "100644",
+      "bytes": 2813,
+      "sha256": "02282812dbb28cd747e73597c06df361356e6982e4f33c1e083f15af138f8be2",
+      "owner": "core-integration"
+    },
+    {
+      "path": "fixtures/integration/empty-collection.snapshot.json",
+      "mode": "100644",
+      "bytes": 1706,
+      "sha256": "e588b47e44e39f4820a59ae2aa1c3a7e999d1c743afea1823a12cec469b16f8c",
+      "owner": "core-integration"
+    },
+    {
+      "path": "fixtures/integration/first-run.snapshot.json",
+      "mode": "100644",
+      "bytes": 1636,
+      "sha256": "b7debbdd3914c0d20d13d0dc00032560b3f622ce51578dd1f3461d6417bc6eac",
+      "owner": "core-integration"
+    },
+    {
+      "path": "fixtures/integration/homebox-outage.snapshot.json",
+      "mode": "100644",
+      "bytes": 24572,
+      "sha256": "e536faf82582633dcf0ed878810dbdd186028995f786b12cd597dd94f4d17eea",
+      "owner": "core-integration"
+    },
+    {
+      "path": "fixtures/integration/multi-home-unplaced.snapshot.json",
+      "mode": "100644",
+      "bytes": 29372,
+      "sha256": "05a5ecfef938d9a99586fb1930d78c9e81d22b50d8b7a523db7d4a3941e42601",
+      "owner": "core-integration"
+    },
+    {
+      "path": "fixtures/integration/network-outage.snapshot.json",
+      "mode": "100644",
+      "bytes": 25070,
+      "sha256": "f59b1d9dc834e8e4842373359b513690d63d1ebeedebc122cb43d07cbc7f4230",
+      "owner": "core-integration"
+    },
+    {
+      "path": "fixtures/integration/no-cache-outage.snapshot.json",
+      "mode": "100644",
+      "bytes": 1774,
+      "sha256": "d153701552abf6425893cb83b3f1d039b3dc4e41b7b6952dcf4b477fead8d2e8",
+      "owner": "core-integration"
+    },
+    {
+      "path": "package-lock.json",
+      "mode": "100644",
+      "bytes": 281,
+      "sha256": "903317ecea927fba25264abd9bd1ee4dd470674bddccbeb6361e193f001c9c5f",
+      "owner": "core-integration"
+    },
+    {
+      "path": "package.json",
+      "mode": "100644",
+      "bytes": 523,
+      "sha256": "d9c224f1e4565b6b24ea13554484324ae90e085ceca1cbac078876652485828d",
+      "owner": "core-integration"
+    },
+    {
+      "path": "packages/access/.npmrc",
+      "mode": "100644",
+      "bytes": 43,
+      "sha256": "3d0639512c47be107665f8996b315e7a92bcd779e02439f0ed481168dca5ac45",
+      "owner": "access"
+    },
+    {
+      "path": "packages/access/README.md",
+      "mode": "100644",
+      "bytes": 17068,
+      "sha256": "700c88d5f27fd1f6211c8a4015ceffcd7450acff526b8b93df2da8fa6828d2dd",
+      "owner": "access"
+    },
+    {
+      "path": "packages/access/package-lock.json",
+      "mode": "100644",
+      "bytes": 279,
+      "sha256": "99a892b4357a48bbd7f75097a0546481bddfd8fe2387909b221710a5d9ddb908",
+      "owner": "access"
+    },
+    {
+      "path": "packages/access/package.json",
+      "mode": "100644",
+      "bytes": 296,
+      "sha256": "5247957477d1a188ccfe575f74f88601ee37511b02206344b02b71248b5894b9",
+      "owner": "access"
+    },
+    {
+      "path": "packages/access/src/check-package.mjs",
+      "mode": "100644",
+      "bytes": 1048,
+      "sha256": "1ccb9eb665c7f4297e83c980bae3893964e7bde6715bc1fcf9b78fe50678c7c4",
+      "owner": "access"
+    },
+    {
+      "path": "packages/access/src/credentials.mjs",
+      "mode": "100644",
+      "bytes": 1525,
+      "sha256": "02baa58aa951878e3b8660e0bab4aa6db98a84753660e7244353ce94791b7cb5",
+      "owner": "access"
+    },
+    {
+      "path": "packages/access/src/index.mjs",
+      "mode": "100644",
+      "bytes": 19439,
+      "sha256": "62da3f93390c384ab553cebccd87a6a9f91306e467bc1476538153501f21272f",
+      "owner": "access"
+    },
+    {
+      "path": "packages/access/src/store.mjs",
+      "mode": "100644",
+      "bytes": 10165,
+      "sha256": "7cd33d70dfe37e064120d1d1e5c49b32f1ebc49fe74a68bcddb2fa4c3c017263",
+      "owner": "access"
+    },
+    {
+      "path": "packages/access/test/access.test.mjs",
+      "mode": "100644",
+      "bytes": 33501,
+      "sha256": "a4e4c894c79d4ebd187b55b2cca7e04f74969d725436230371856ba33d2ea6fc",
+      "owner": "access"
+    },
+    {
+      "path": "packages/access/test/fixtures.mjs",
+      "mode": "100644",
+      "bytes": 3334,
+      "sha256": "77be171a2398d473713f9ee6f9e5aed7c009e15671e48878e83360220ace2895",
+      "owner": "access"
+    },
+    {
+      "path": "packages/contracts/README.md",
+      "mode": "100644",
+      "bytes": 1333,
+      "sha256": "ea79d3a1614454c364c16dccb043d56674b83a4c3c8ca063a8e08aecb16a32cc",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/fixtures/create-circuit.mutation.json",
+      "mode": "100644",
+      "bytes": 564,
+      "sha256": "6668e9bfffb3bc50e1f44bf9f321d5019dc152c14e5000190c1929bcb8cf435a",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/fixtures/create-circuit.result.json",
+      "mode": "100644",
+      "bytes": 1342,
+      "sha256": "8e80919a525db09c8b96e48dd606993228e40badf6f219cafaddd6abc701c329",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/fixtures/homebox-page.wire.json",
+      "mode": "100644",
+      "bytes": 618,
+      "sha256": "1e32b8f750131c8329b7c1cc040ca27acc2d9dff64ab77c69d368e2470695617",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/fixtures/import-remap.batch.json",
+      "mode": "100644",
+      "bytes": 4453,
+      "sha256": "3bc056aeed93943c11cb1b06e4713602e73f53ad584c54ea67b7e6e6853fc868",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/fixtures/import-remap.snapshot.json",
+      "mode": "100644",
+      "bytes": 25377,
+      "sha256": "6b6cb6a811fbbbfafe3617a62c3e303f093c94a0947504216c3964f39a616142",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/fixtures/missing-binding.mutation.json",
+      "mode": "100644",
+      "bytes": 1073,
+      "sha256": "0134be9527054b573819b31c694f548cf107f05e0d75bee1fc567fa911d36a7e",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/fixtures/optional-geometry.snapshot.json",
+      "mode": "100644",
+      "bytes": 27477,
+      "sha256": "40a758eeac49cadb31f8b29eb0dc0d7f61fe67261d7589b8162eed1c4044fc94",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/fixtures/outage.snapshot.json",
+      "mode": "100644",
+      "bytes": 24547,
+      "sha256": "e67dd195b517fa60330021259ed47baca810a9af8c1dcad07eb2db167aca1a65",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/fixtures/plan-free.snapshot.json",
+      "mode": "100644",
+      "bytes": 24426,
+      "sha256": "92681d680488b7393c8e8596e6fd934cc28b4ff00e465cfab52c339480b86350",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/history/check-history.mjs",
+      "mode": "100644",
+      "bytes": 6409,
+      "sha256": "3d2d65b5a4dfef246f2851a0b729b1f0dac7140a4279599a402c5dc851a32adb",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/history/fixtures/contexts.json",
+      "mode": "100644",
+      "bytes": 2271,
+      "sha256": "fd68468c83c220f9e261e59ed094c37cc0ff28bbf498101569924a191096a1ed",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/history/fixtures/empty.audit-array.json",
+      "mode": "100644",
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/history/fixtures/recorded.audit-array.json",
+      "mode": "100644",
+      "bytes": 719,
+      "sha256": "3386f1bc42771756e420f86d6a1b79c81c784d1e1c1347dcbc192f3933d73aa8",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/history/fixtures/tombstone.audit-array.json",
+      "mode": "100644",
+      "bytes": 1489,
+      "sha256": "96bea5750e2bca06e7f83d825b6a28f398282f4075f8bef32525848bd5b43cea",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/history/http-history.v1.1.0.schema.json",
+      "mode": "100644",
+      "bytes": 506,
+      "sha256": "bf9dd4d7894d668a271234f2db2879f302e26f32c62746d8c37784958952248a",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/package-lock.json",
+      "mode": "100644",
+      "bytes": 2941,
+      "sha256": "904e96bfd7e2418de36227de7663257eba624444d9b6bd4f2611668171cbbb21",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/package.json",
+      "mode": "100644",
+      "bytes": 389,
+      "sha256": "406e706dd4cfff1f1cd449e177f5fc6b888858e7dea2ac6bc7bd7259c487a9a0",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/policy/boundaries.json",
+      "mode": "100644",
+      "bytes": 3304,
+      "sha256": "c6e725464b8f94c2a214b0e623f603de0bb5b67a2236c24ba7eca541fb5e0c1c",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/schemas/atlas.schema.json",
+      "mode": "100644",
+      "bytes": 80076,
+      "sha256": "ef00707b251051da4157598833d4c91d15d01b73eebfa049daf8c52a2ff23806",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/src/check-package.mjs",
+      "mode": "100644",
+      "bytes": 1175,
+      "sha256": "86b603df43aa02c311a672ad788d4d83a98cd03dd45adddeea71b43630573b07",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/src/index.mjs",
+      "mode": "100644",
+      "bytes": 26118,
+      "sha256": "adf3f7dc5eb886503c2e45c121a7cd8cc3e1030cb9ad49728a58f0b218b73f97",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/test/contracts.test.mjs",
+      "mode": "100644",
+      "bytes": 17180,
+      "sha256": "776c5a7c15eeffaa5166acf48bbd7a1efcd4a7e9268c8b2caa1229a8d5743dc0",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/test/oracle.mjs",
+      "mode": "100644",
+      "bytes": 5231,
+      "sha256": "4f3ecb0fb5b63b5ab96109310d75a40328cb58be85edf39ea5faa337d1f31d64",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/test/remap-lifecycle.test.mjs",
+      "mode": "100644",
+      "bytes": 3646,
+      "sha256": "e0b35cd0fad79b52c45d69551e07501511dfaf75aa4f34b94a412b0ad679e0fd",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/test/repaired-invariants.test.mjs",
+      "mode": "100644",
+      "bytes": 8515,
+      "sha256": "5044d7de8b135822a0a876592ba7c17045aa1cd753135a064424813be5bb8720",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/test/review-regressions.test.mjs",
+      "mode": "100644",
+      "bytes": 5249,
+      "sha256": "7df72961f7efd56d2b46e444938af797dd704d46448cf1ff6c825f62b62b4ae6",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/media/.gitignore",
+      "mode": "100644",
+      "bytes": 19,
+      "sha256": "1f3ecbf5a8275907d7b211803015e39c354b319e2d22fa8b22b9a10917b40ae6",
+      "owner": "media"
+    },
+    {
+      "path": "packages/media/README.md",
+      "mode": "100644",
+      "bytes": 15240,
+      "sha256": "8e4e2541f5a43ceb4415f6c2da95f21402f798882491049b99d71b50a3bf8331",
+      "owner": "media"
+    },
+    {
+      "path": "packages/media/package-lock.json",
+      "mode": "100644",
+      "bytes": 255,
+      "sha256": "86ad505749a7e580beb15f9ffc62706de15fa1efa14d19eebcc6629c29356913",
+      "owner": "media"
+    },
+    {
+      "path": "packages/media/package.json",
+      "mode": "100644",
+      "bytes": 312,
+      "sha256": "535e3aa2c4c9805eb34d3af3b84de6b914caeeec54c06bf0ec444c97a7d1e882",
+      "owner": "media"
+    },
+    {
+      "path": "packages/media/src/bytes.mjs",
+      "mode": "100644",
+      "bytes": 3073,
+      "sha256": "f068c6e52649f97d8bc35ad7652b0cecbdc02739391175f68cc7feb0d8449697",
+      "owner": "media"
+    },
+    {
+      "path": "packages/media/src/content.mjs",
+      "mode": "100644",
+      "bytes": 4755,
+      "sha256": "a799da383dcfc476ef2c2eb25845aecf88d65790933d65c095ab1c0977e89ee1",
+      "owner": "media"
+    },
+    {
+      "path": "packages/media/src/index.mjs",
+      "mode": "100644",
+      "bytes": 10198,
+      "sha256": "4f13efc3cfc503f89dc388c231e067277a637e4418f9cd46a07232da16c067f3",
+      "owner": "media"
+    },
+    {
+      "path": "packages/media/src/recovery.mjs",
+      "mode": "100644",
+      "bytes": 10042,
+      "sha256": "1914d07d71a8bc2c0f65e3f93fe7b25b9417719645072e4085073796eeb0cc0c",
+      "owner": "media"
+    },
+    {
+      "path": "packages/media/src/vault.mjs",
+      "mode": "100644",
+      "bytes": 8003,
+      "sha256": "1ead9913a9b912f6db186321e1750817e5f27a3cf589e194ef44d69779369bb1",
+      "owner": "media"
+    },
+    {
+      "path": "packages/media/test/media.test.mjs",
+      "mode": "100644",
+      "bytes": 11897,
+      "sha256": "6ed6b024ca65f8dbddfc1cbd508f851b078cfac0ca7d44fb96e322cce7ef6868",
+      "owner": "media"
+    },
+    {
+      "path": "packages/media/test/process-worker.mjs",
+      "mode": "100644",
+      "bytes": 1191,
+      "sha256": "065757898bde38644d54eb84c0cb02dd0dc915f4236dbe8e58b23cd1c4ecc748",
+      "owner": "media"
+    },
+    {
+      "path": "packages/media/test/recovery.test.mjs",
+      "mode": "100644",
+      "bytes": 6869,
+      "sha256": "73025117c81cb4a829897d907059099751f873a3f498e728aec8d9aeea5d7a38",
+      "owner": "media"
+    },
+    {
+      "path": "packages/media/test/review-regressions.test.mjs",
+      "mode": "100644",
+      "bytes": 8774,
+      "sha256": "1f2debb13491f1336e790f8756b7cd0953421bc50c0e9bfa6e766b8101d1e139",
+      "owner": "media"
+    },
+    {
+      "path": "packages/media/test/support.mjs",
+      "mode": "100644",
+      "bytes": 8065,
+      "sha256": "465966a131cff33a51ae9315e5baef90c9175a0e4cae396eb93801294ea9146f",
+      "owner": "media"
+    },
+    {
+      "path": "packages/media/test/vault.test.mjs",
+      "mode": "100644",
+      "bytes": 6115,
+      "sha256": "f4739d8010bc024d34ea8bab9dca606befff36f0744d40d2d7e2808b41c30133",
+      "owner": "media"
+    },
+    {
+      "path": "packages/media/tools/check-package.mjs",
+      "mode": "100644",
+      "bytes": 1314,
+      "sha256": "fea1eda555b4de4a0b16dba07d360638ec84cc69fe4c4f1c2284c52540a0ef73",
+      "owner": "media"
+    },
+    {
+      "path": "packages/media/tools/failure-controls.mjs",
+      "mode": "100644",
+      "bytes": 5822,
+      "sha256": "d4f37e50dc4f7b8a7a3de6a111693efd61e842f7a73e3c8bcfe9e9be838d6125",
+      "owner": "media"
+    },
+    {
+      "path": "packages/media/tools/recovery-evidence.mjs",
+      "mode": "100644",
+      "bytes": 2466,
+      "sha256": "994b0e87f43f57b9edeaa8255d7d1b1a3cce5d8bfaf430ddfdd735972d6ca22e",
+      "owner": "media"
+    },
+    {
+      "path": "packages/operations-policy/README.md",
+      "mode": "100644",
+      "bytes": 951,
+      "sha256": "214446c5c92d669ea05433d04ae6e32ad7438fffe920c4be60a264ef2149c475",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "packages/operations-policy/fixtures/recovery-envelope.incomplete.json",
+      "mode": "100644",
+      "bytes": 1366,
+      "sha256": "7a9f4704a6e674d9f3ac30b2b1ff82745134368800e149d1d77d15c42c6a517c",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "packages/operations-policy/package.json",
+      "mode": "100644",
+      "bytes": 328,
+      "sha256": "369230dc1e47b6b8ed3ef5a77a05362ae217b80d65b98d92bf218e5e4a7df7f6",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "packages/operations-policy/policy.json",
+      "mode": "100644",
+      "bytes": 5328,
+      "sha256": "11633cfc88c2acb053d3bc7badc9e951ab0b939926c042a1c323d4c4ba28657d",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "packages/operations-policy/src/acceptance.py",
+      "mode": "100644",
+      "bytes": 12456,
+      "sha256": "a1e9c0bd78f7b16c3c5ba98a355664a480a23c56e386799ea2d0085528c88697",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "packages/operations-policy/src/check_package.py",
+      "mode": "100644",
+      "bytes": 1004,
+      "sha256": "460faa9aedb71da0df8ef71839518b67d67bc16368dc3082276f33967c9ebe98",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "packages/operations-policy/test/test_scenarios.py",
+      "mode": "100644",
+      "bytes": 18250,
+      "sha256": "47211b86f72a7a5a7d138701e8145cac1bc74b4d9b1464d94cdedc0034ee715d",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "packages/storage/.gitignore",
+      "mode": "100644",
+      "bytes": 67,
+      "sha256": "431618ee191fede1d9b6c789a26923b9499860781ad864b965b9b87bbe3fdfe4",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/storage/MUTATION-CONTEXT.md",
+      "mode": "100644",
+      "bytes": 11161,
+      "sha256": "1cd33ae148ea6a8c4ee2b2135c8cf430c83b42dc0f75dc887418a49848502315",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/storage/README.md",
+      "mode": "100644",
+      "bytes": 13678,
+      "sha256": "9ce3f03022dbd61f2208cec22cc7d972c449fd1f3b4bb26deedf7cb50ab95eb1",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/storage/package-lock.json",
+      "mode": "100644",
+      "bytes": 281,
+      "sha256": "fdbde5cff3b6301b5d1366601d808e2a101938a0e5d1205eca444a615cd8152b",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/storage/package.json",
+      "mode": "100644",
+      "bytes": 357,
+      "sha256": "8d90cde2709371bb62d079eb2a8e94dfa35448bdd085990dd04f0bea19861b61",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/storage/src/check-package.mjs",
+      "mode": "100644",
+      "bytes": 1233,
+      "sha256": "1f23b73488074178e6694a48dffdffa3af33d6be5e65b2f1ff3754182e73483b",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/storage/src/frozen-types.d.ts",
+      "mode": "100644",
+      "bytes": 14137,
+      "sha256": "ac6bc931df9bbc842ba890807915ed1448ceff2c53ac4805399b81b80c0d82e9",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/storage/src/index.d.mts",
+      "mode": "100644",
+      "bytes": 4936,
+      "sha256": "770d4c04035b2f1070ec4f8c46e72c90e5c6deb7b82d696799241e38801c06b1",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/storage/src/index.mjs",
+      "mode": "100644",
+      "bytes": 29511,
+      "sha256": "3ac87b3f8e110b357c66cbacd0ee9de054a49c71bcf6b2e449af01ba018440d5",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/storage/src/migrations.mjs",
+      "mode": "100644",
+      "bytes": 8903,
+      "sha256": "ba135a25c6e02f164849ded8b29fe12c03d2e4b15e5b034d76455e0a97399d50",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/storage/src/mutation-context.mjs",
+      "mode": "100644",
+      "bytes": 7032,
+      "sha256": "9c80093625d464afb4379aa05c6f4ede77419b004ebd0e85a90894d637cf289e",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/storage/test/context-positive.test.mjs",
+      "mode": "100644",
+      "bytes": 11117,
+      "sha256": "822b7bf43d482a0e2e4dffc47e8124097ab2b05b172b03e895a96b2fded63d8d",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/storage/test/final-guards.test.mjs",
+      "mode": "100644",
+      "bytes": 3254,
+      "sha256": "6b9a4e6cd627c6cf0cd9a719657e440eec4dc8f937f294dc443786aad5ccb2fb",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/storage/test/helpers.mjs",
+      "mode": "100644",
+      "bytes": 3776,
+      "sha256": "ec53fb4bd1aa29cdba287ae78ab363002b5d64aa9e12b4a99181d6c74e7be557",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/storage/test/process-worker.mjs",
+      "mode": "100644",
+      "bytes": 1146,
+      "sha256": "758feffe53e22c63bb1e4da0b8967f5abd3e7a6eaed528e35e504158cb893436",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/storage/test/recovery.test.mjs",
+      "mode": "100644",
+      "bytes": 9173,
+      "sha256": "0bcc2394762a295cb5da53d6d008e9032f7df92260457c504328b408349a26f9",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/storage/test/review-regressions.test.mjs",
+      "mode": "100644",
+      "bytes": 23036,
+      "sha256": "e0b528079492233304e1e6667c4cf1b55a50d5f63d2f6b529e11721ea328b266",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/storage/test/run-failure-controls.mjs",
+      "mode": "100644",
+      "bytes": 7574,
+      "sha256": "afd8b57577cbc897e2af81f4b7764ac894d9e60169e9ebff0bcebd0054ea9364",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/storage/test/storage.test.mjs",
+      "mode": "100644",
+      "bytes": 21856,
+      "sha256": "ac91fd861889cc74667d1dcd86beaf595c5da4284c2deb1cafc9eb725b97336d",
+      "owner": "storage"
+    },
+    {
+      "path": "server/browser/host.mjs",
+      "mode": "100644",
+      "bytes": 1681,
+      "sha256": "62a33f5808e2d63e3c2f4b1aa7e22c03abf1fa2151ce41dbe81be1d90d354792",
+      "owner": "core-integration"
+    },
+    {
+      "path": "server/src/common.mjs",
+      "mode": "100644",
+      "bytes": 2776,
+      "sha256": "ba453602c348d46a846e7d9e3d581b9203e71ad4d34309b382b10b8e65c5b6bb",
+      "owner": "core-integration"
+    },
+    {
+      "path": "server/src/http-contract.mjs",
+      "mode": "100644",
+      "bytes": 3202,
+      "sha256": "47cc7a5c26a830ab5e925b96b91be2ccb67cf7aeb4b0751d77c58179a0b2d7bc",
+      "owner": "core-integration"
+    },
+    {
+      "path": "server/src/mutation-authority.mjs",
+      "mode": "100644",
+      "bytes": 1811,
+      "sha256": "a8d01500bab95487237b9bc9cf43f42cd314f7ee0ec7ff68ecf5bc4892ba8608",
+      "owner": "core-integration"
+    },
+    {
+      "path": "server/src/mutation-preconditions.mjs",
+      "mode": "100644",
+      "bytes": 1757,
+      "sha256": "b2da7309372e3748091277cfc392256c2b99206bb7902fdeaef7ddbd4e0c4b14",
+      "owner": "core-integration"
+    },
+    {
+      "path": "server/src/network-sidecar.mjs",
+      "mode": "100644",
+      "bytes": 5274,
+      "sha256": "3eb962580dddc20c96ad361aa291ff1dc68e3832b8676f30055b299d063b445b",
+      "owner": "core-integration"
+    },
+    {
+      "path": "server/src/public-dto.mjs",
+      "mode": "100644",
+      "bytes": 1192,
+      "sha256": "c1f94b42008815f6855721b8863757ebbd756146d7e1940660762bee8ff9dd6a",
+      "owner": "core-integration"
+    },
+    {
+      "path": "server/src/recovery.mjs",
+      "mode": "100644",
+      "bytes": 6044,
+      "sha256": "a4c0c82f838532640da13d8a641b9c451fd6b61b4e2ceb9e17dafa85b8533b4e",
+      "owner": "core-integration"
+    },
+    {
+      "path": "server/src/router.mjs",
+      "mode": "100644",
+      "bytes": 5484,
+      "sha256": "40dcdc36b430597f5f053a8d0b75ab7ce34d4bc32a111fb5ea39979362f9fcd7",
+      "owner": "core-integration"
+    },
+    {
+      "path": "server/src/service.mjs",
+      "mode": "100644",
+      "bytes": 17120,
+      "sha256": "cd9aad060549f4dcbc8f8433e961d446ab91f44d186ad3eeaf25c5177463b3bb",
+      "owner": "core-integration"
+    },
+    {
+      "path": "server/src/source-presence.mjs",
+      "mode": "100644",
+      "bytes": 1540,
+      "sha256": "47ceef72671a433713640ac4b1bb33900aef76dbf734cd6d554c06456bb6babd",
+      "owner": "core-integration"
+    },
+    {
+      "path": "server/test/controller-integration.test.mjs",
+      "mode": "100644",
+      "bytes": 5731,
+      "sha256": "edda1b77bd657c0bd58d4f81aa8366fb82db5595b58d08a1858a5c3384a15237",
+      "owner": "core-integration"
+    },
+    {
+      "path": "server/test/core.test.mjs",
+      "mode": "100644",
+      "bytes": 17836,
+      "sha256": "809c7fea5d51fcfda05068ffa1a4676fb9d29c61445add4a4ee4a340fc8098c7",
+      "owner": "core-integration"
+    },
+    {
+      "path": "server/test/correction-3.positive.mjs",
+      "mode": "100644",
+      "bytes": 11662,
+      "sha256": "6920840b584a882bface448347facc1663d8e74a43bf95932d996f2747429c65",
+      "owner": "core-integration"
+    },
+    {
+      "path": "server/test/native-navigation.positive.mjs",
+      "mode": "100644",
+      "bytes": 7117,
+      "sha256": "8d6507a42b50a7e7461d94f759472607129c178ac0e9dcfdde7f0e4aa6f4de0c",
+      "owner": "core-integration"
+    },
+    {
+      "path": "server/test/support.mjs",
+      "mode": "100644",
+      "bytes": 8441,
+      "sha256": "50a3b3425bee4bacf763d1660e04d8f424e2147c3722a5ab00cd5a1668fcdb2a",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/core-integration/browser-harness.mjs",
+      "mode": "100644",
+      "bytes": 3495,
+      "sha256": "b49eaf9dff99241af2fd0d4b39debf24449ca994c33874f2be0df648490c3217",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/core-integration/build.mjs",
+      "mode": "100644",
+      "bytes": 1090,
+      "sha256": "1a2eeac004e560b9b68e657b292fdb0bff4a28dc19cb6bb74ddbd11df744062a",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/core-integration/failure-controls.mjs",
+      "mode": "100644",
+      "bytes": 2534,
+      "sha256": "665af4421f9ac9ca5b888d346399e02ac5897e4601f79036ffb8577daf7815c3",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/core-integration/preview-client.mjs",
+      "mode": "100644",
+      "bytes": 1293,
+      "sha256": "252f692e058a08298c24215ab2ef0b9a29c3184b3bd68353daaab2b011e6226a",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/core-integration/preview.mjs",
+      "mode": "100644",
+      "bytes": 4309,
+      "sha256": "2f7e25fd6af2a2c0aeab63f336e3c2f934e9e4bb0f996a653f6108a2c65b12a6",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/integration/baseline.test.mjs",
+      "mode": "100644",
+      "bytes": 5443,
+      "sha256": "a4c89c8e8d791dc5755b2c9e79a7360ef5f1806bbe1df6830627d4e4297277ef",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/integration/review-controls/adversarial.test.mjs",
+      "mode": "100644",
+      "bytes": 5257,
+      "sha256": "be079cfe3025c71adaa59a63d3ea55e42ab3760a9b3f6055e1ac7d247b1cb107",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/integration/review-controls/remap-lifecycle.test.mjs",
+      "mode": "100644",
+      "bytes": 4918,
+      "sha256": "e70c18d323fdfa43809b67836ed23f58c15eff72e24c5c474103d8cc0d1565de",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/integration/review-controls/repair-controls.test.mjs",
+      "mode": "100644",
+      "bytes": 4070,
+      "sha256": "9f963f128058d05cc32cf9e380ccde984cf1c98e34903b23b3b4d6e8fe583e86",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/publication/verify-source.mjs",
+      "mode": "100644",
+      "bytes": 3600,
+      "sha256": "ee20a1773dc1635634c9fca4598f65f69ca6532294d393c37510fdc8c1898207",
+      "owner": "core-integration"
+    },
+    {
+      "path": "web/.gitignore",
+      "mode": "100644",
+      "bytes": 20,
+      "sha256": "58aea3d6b4b0f8799c1e00c3b023898516997f6369ee8e13d8d4b4215f70a62b",
+      "owner": "web"
+    },
+    {
+      "path": "web/AGENTS.md",
+      "mode": "100644",
+      "bytes": 1708,
+      "sha256": "7aed72902f53ff41ced7d6097fee487e5aa7898ac43fee8193ac781e975c7f17",
+      "owner": "web"
+    },
+    {
+      "path": "web/README.md",
+      "mode": "100644",
+      "bytes": 9757,
+      "sha256": "4d7f032cdad587b3c2ca5fe0d8ffbdc9379694b7453896cc6982266373d7eb78",
+      "owner": "web"
+    },
+    {
+      "path": "web/demo/fixtures.mjs",
+      "mode": "100644",
+      "bytes": 4665,
+      "sha256": "e9e887893e58ef442825cf42b0c18d0c33533dfcaae15fe9769c9615a25c67e0",
+      "owner": "web"
+    },
+    {
+      "path": "web/demo/server.mjs",
+      "mode": "100644",
+      "bytes": 3535,
+      "sha256": "ac41d7c985e4b9abdb6b5e8365dc46c12efe2bf0327f06e81cfab97c70a54cc4",
+      "owner": "web"
+    },
+    {
+      "path": "web/demo/start.mjs",
+      "mode": "100644",
+      "bytes": 589,
+      "sha256": "8ace7dc12a7a15ebcece96a6a9ecb85eba4e4fc9fd315ab05a8d5ad085f382e0",
+      "owner": "web"
+    },
+    {
+      "path": "web/package-lock.json",
+      "mode": "100644",
+      "bytes": 251,
+      "sha256": "de85c6c13e661a92ad29c40d27e2e68766dc52b58e0cd5b1009dd8f0b2efbfd7",
+      "owner": "web"
+    },
+    {
+      "path": "web/package.json",
+      "mode": "100644",
+      "bytes": 282,
+      "sha256": "14b2cde42d930ef79c47dca2103a987234bd9b2bdbf5f442a147b2679ae3beaf",
+      "owner": "web"
+    },
+    {
+      "path": "web/src/app.mjs",
+      "mode": "100644",
+      "bytes": 7236,
+      "sha256": "31c7d97570b32f5164abde5cd9cbb8312fce2412988204bcec93d444eb1af61c",
+      "owner": "web"
+    },
+    {
+      "path": "web/src/copy.mjs",
+      "mode": "100644",
+      "bytes": 11781,
+      "sha256": "94d92b735f86711776d1f7112e51f07662810450a9f82b6405fa2c059fd93d00",
+      "owner": "web"
+    },
+    {
+      "path": "web/src/model.mjs",
+      "mode": "100644",
+      "bytes": 4892,
+      "sha256": "ec795797b337ffc5bfad8c28ab9855dbf9f23c62728d1a76ccbd131e569d76b2",
+      "owner": "web"
+    },
+    {
+      "path": "web/src/prepare.mjs",
+      "mode": "100644",
+      "bytes": 5766,
+      "sha256": "c2a8dd23369c2e2a2cc75f7fa81b61415a8bedf22010c9de445860e78b15021a",
+      "owner": "web"
+    },
+    {
+      "path": "web/src/render.mjs",
+      "mode": "100644",
+      "bytes": 24905,
+      "sha256": "f1391ddcfde26d8ae014c2bde9eb093798137f31c3f15e8e3d6d23aa231388a0",
+      "owner": "web"
+    },
+    {
+      "path": "web/src/styles.css",
+      "mode": "100644",
+      "bytes": 28402,
+      "sha256": "935fd09632698175d93a22002e987860412cb740ca898894bf6c779154b47b95",
+      "owner": "web"
+    },
+    {
+      "path": "web/test/controller.test.mjs",
+      "mode": "100644",
+      "bytes": 8252,
+      "sha256": "952c323fb5d23635de8245d54bd07557b4cb488645599ce7dffb4da637115dda",
+      "owner": "web"
+    },
+    {
+      "path": "web/test/server.test.mjs",
+      "mode": "100644",
+      "bytes": 2871,
+      "sha256": "d6422c578ab44722a6b817715348a629729276883e91288922466179ff75a040",
+      "owner": "web"
+    },
+    {
+      "path": "web/test/ui.test.mjs",
+      "mode": "100644",
+      "bytes": 20362,
+      "sha256": "bd5cb58fe5e72e576c574f67a98ddef53dd723f65822648025b29ed1b9f20d5b",
+      "owner": "web"
+    },
+    {
+      "path": "web/tools/build.mjs",
+      "mode": "100644",
+      "bytes": 932,
+      "sha256": "ebea3cdebabc26e36cae598c62029fe6a93120d1cfadee6ecf98303ee6d73008",
+      "owner": "web"
+    },
+    {
+      "path": "web/tools/failure-controls.mjs",
+      "mode": "100644",
+      "bytes": 6292,
+      "sha256": "ffbbc414d5fb96e1918ff678681353cb25505bc2d7cd3eb1b2ae9404ae330522",
+      "owner": "web"
+    }
+  ]
+}

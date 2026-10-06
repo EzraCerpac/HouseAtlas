@@ -1,0 +1,748 @@
+{
+  "contractVersion": "1.0.0",
+  "synthetic": true,
+  "sources": [
+    {
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+      "collectionId": "synthetic-collection-a",
+      "owner": "homebox",
+      "partitionMode": "exclusive-home",
+      "allowedExternalIds": []
+    },
+    {
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000003",
+      "sourceInstanceId": "00000000-0000-4000-8000-000000000011",
+      "collectionId": "synthetic-collection-b",
+      "owner": "homebox",
+      "partitionMode": "exclusive-home",
+      "allowedExternalIds": []
+    },
+    {
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "sourceInstanceId": "00000000-0000-4000-8000-000000000012",
+      "collectionId": "inventory",
+      "owner": "network",
+      "partitionMode": "exclusive-home",
+      "allowedExternalIds": []
+    }
+  ],
+  "records": [
+    {
+      "schemaVersion": 1,
+      "recordType": "evidence",
+      "recordId": "00000000-0000-4000-8000-000000000100",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "revision": 1,
+      "lifecycle": "active",
+      "createdAt": "2026-01-02T12:00:00Z",
+      "updatedAt": "2026-01-02T12:00:00Z",
+      "lastAuditId": "00000000-0000-4000-8000-000000010100",
+      "payload": {
+        "statement": "Synthetic owner identifies a cabinet and one mobile item.",
+        "provenance": {
+          "source": null,
+          "sourceRevision": null,
+          "sourceConfidence": null,
+          "evidenceBasis": "owner-report",
+          "factAt": "2025-12-01T00:00:00Z",
+          "retrievedAt": "2026-01-02T12:00:00Z",
+          "vantage": null,
+          "uncertainty": {
+            "status": "supported",
+            "explanation": null
+          }
+        },
+        "supersedesEvidenceIds": [],
+        "references": []
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "recordType": "evidence",
+      "recordId": "00000000-0000-4000-8000-000000000101",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "revision": 1,
+      "lifecycle": "active",
+      "createdAt": "2026-01-02T12:00:00Z",
+      "updatedAt": "2026-01-02T12:00:00Z",
+      "lastAuditId": "00000000-0000-4000-8000-000000010101",
+      "payload": {
+        "statement": "Synthetic Network claims segment membership.",
+        "provenance": {
+          "source": {
+            "workspaceId": "00000000-0000-4000-8000-000000000001",
+            "homeId": "00000000-0000-4000-8000-000000000002",
+            "key": {
+              "sourceInstanceId": "00000000-0000-4000-8000-000000000012",
+              "collectionId": "inventory",
+              "sourceKind": "network-segment",
+              "externalId": "segment-a"
+            }
+          },
+          "sourceRevision": 35,
+          "sourceConfidence": "confirmed",
+          "evidenceBasis": "owner-report",
+          "factAt": "2025-12-01T00:00:00Z",
+          "retrievedAt": "2026-01-02T12:00:00Z",
+          "vantage": null,
+          "uncertainty": {
+            "status": "supported",
+            "explanation": null
+          }
+        },
+        "supersedesEvidenceIds": [],
+        "references": []
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "recordType": "evidence",
+      "recordId": "00000000-0000-4000-8000-000000000102",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "revision": 1,
+      "lifecycle": "active",
+      "createdAt": "2026-01-02T12:00:00Z",
+      "updatedAt": "2026-01-02T12:00:00Z",
+      "lastAuditId": "00000000-0000-4000-8000-000000010102",
+      "payload": {
+        "statement": "Synthetic historical association is disputed.",
+        "provenance": {
+          "source": {
+            "workspaceId": "00000000-0000-4000-8000-000000000001",
+            "homeId": "00000000-0000-4000-8000-000000000002",
+            "key": {
+              "sourceInstanceId": "00000000-0000-4000-8000-000000000012",
+              "collectionId": "inventory",
+              "sourceKind": "network-device",
+              "externalId": "device-a"
+            }
+          },
+          "sourceRevision": 35,
+          "sourceConfidence": "unknown",
+          "evidenceBasis": "owner-report",
+          "factAt": "2025-12-01T00:00:00Z",
+          "retrievedAt": "2026-01-02T12:00:00Z",
+          "vantage": null,
+          "uncertainty": {
+            "status": "disputed",
+            "explanation": null
+          }
+        },
+        "supersedesEvidenceIds": [],
+        "references": []
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "recordType": "evidence",
+      "recordId": "00000000-0000-4000-8000-000000000103",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000003",
+      "revision": 1,
+      "lifecycle": "active",
+      "createdAt": "2026-01-02T12:00:00Z",
+      "updatedAt": "2026-01-02T12:00:00Z",
+      "lastAuditId": "00000000-0000-4000-8000-000000010103",
+      "payload": {
+        "statement": "Synthetic other-home evidence.",
+        "provenance": {
+          "source": null,
+          "sourceRevision": null,
+          "sourceConfidence": null,
+          "evidenceBasis": "owner-report",
+          "factAt": "2025-12-01T00:00:00Z",
+          "retrievedAt": "2026-01-02T12:00:00Z",
+          "vantage": null,
+          "uncertainty": {
+            "status": "supported",
+            "explanation": null
+          }
+        },
+        "supersedesEvidenceIds": [],
+        "references": []
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "recordType": "identity",
+      "recordId": "00000000-0000-4000-8000-000000000200",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "revision": 1,
+      "lifecycle": "active",
+      "createdAt": "2026-01-02T12:00:00Z",
+      "updatedAt": "2026-01-02T12:00:00Z",
+      "lastAuditId": "00000000-0000-4000-8000-000000010200",
+      "payload": {
+        "kind": "location",
+        "evidenceIds": [
+          "00000000-0000-4000-8000-000000000100"
+        ]
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "recordType": "identity",
+      "recordId": "00000000-0000-4000-8000-000000000201",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "revision": 1,
+      "lifecycle": "active",
+      "createdAt": "2026-01-02T12:00:00Z",
+      "updatedAt": "2026-01-02T12:00:00Z",
+      "lastAuditId": "00000000-0000-4000-8000-000000010201",
+      "payload": {
+        "kind": "item",
+        "evidenceIds": [
+          "00000000-0000-4000-8000-000000000100"
+        ]
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "recordType": "identity",
+      "recordId": "00000000-0000-4000-8000-000000000202",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000003",
+      "revision": 1,
+      "lifecycle": "active",
+      "createdAt": "2026-01-02T12:00:00Z",
+      "updatedAt": "2026-01-02T12:00:00Z",
+      "lastAuditId": "00000000-0000-4000-8000-000000010202",
+      "payload": {
+        "kind": "location",
+        "evidenceIds": [
+          "00000000-0000-4000-8000-000000000103"
+        ]
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "recordType": "binding",
+      "recordId": "00000000-0000-4000-8000-000000000300",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "revision": 1,
+      "lifecycle": "active",
+      "createdAt": "2026-01-02T12:00:00Z",
+      "updatedAt": "2026-01-02T12:00:00Z",
+      "lastAuditId": "00000000-0000-4000-8000-000000010300",
+      "payload": {
+        "atlasId": "00000000-0000-4000-8000-000000000200",
+        "source": {
+          "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+          "collectionId": "synthetic-collection-a",
+          "sourceKind": "homebox-entity",
+          "externalId": "00000000-0000-4000-8000-000000000500"
+        },
+        "reviewStatus": "accepted",
+        "sourceState": "present",
+        "evidenceIds": [
+          "00000000-0000-4000-8000-000000000100"
+        ]
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "recordType": "binding",
+      "recordId": "00000000-0000-4000-8000-000000000301",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "revision": 2,
+      "lifecycle": "active",
+      "createdAt": "2026-01-02T12:00:00Z",
+      "updatedAt": "2026-01-02T12:00:00Z",
+      "lastAuditId": "00000000-0000-4000-8000-000000010301",
+      "payload": {
+        "atlasId": "00000000-0000-4000-8000-000000000201",
+        "source": {
+          "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+          "collectionId": "synthetic-collection-a",
+          "sourceKind": "homebox-entity",
+          "externalId": "00000000-0000-4000-8000-000000000501"
+        },
+        "reviewStatus": "retired",
+        "sourceState": "unresolved",
+        "evidenceIds": [
+          "00000000-0000-4000-8000-000000000100"
+        ]
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "recordType": "binding",
+      "recordId": "00000000-0000-4000-8000-000000000302",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "revision": 1,
+      "lifecycle": "active",
+      "createdAt": "2026-01-02T12:00:00Z",
+      "updatedAt": "2026-01-02T12:00:00Z",
+      "lastAuditId": "00000000-0000-4000-8000-000000010302",
+      "payload": {
+        "atlasId": "00000000-0000-4000-8000-000000000201",
+        "source": {
+          "sourceInstanceId": "00000000-0000-4000-8000-000000000012",
+          "collectionId": "inventory",
+          "sourceKind": "network-device",
+          "externalId": "device-a"
+        },
+        "reviewStatus": "accepted",
+        "sourceState": "present",
+        "evidenceIds": [
+          "00000000-0000-4000-8000-000000000100"
+        ]
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "recordType": "location-semantics",
+      "recordId": "00000000-0000-4000-8000-000000000400",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "revision": 1,
+      "lifecycle": "active",
+      "createdAt": "2026-01-02T12:00:00Z",
+      "updatedAt": "2026-01-02T12:00:00Z",
+      "lastAuditId": "00000000-0000-4000-8000-000000010400",
+      "payload": {
+        "atlasId": "00000000-0000-4000-8000-000000000200",
+        "semanticKind": "unclassified",
+        "reviewStatus": "accepted",
+        "evidenceIds": [
+          "00000000-0000-4000-8000-000000000100"
+        ]
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "recordType": "circuit",
+      "recordId": "00000000-0000-4000-8000-000000000401",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "revision": 1,
+      "lifecycle": "active",
+      "createdAt": "2026-01-02T12:00:00Z",
+      "updatedAt": "2026-01-02T12:00:00Z",
+      "lastAuditId": "00000000-0000-4000-8000-000000010401",
+      "payload": {
+        "label": null,
+        "panel": null,
+        "evidenceIds": [
+          "00000000-0000-4000-8000-000000000100"
+        ]
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "recordType": "relation",
+      "recordId": "00000000-0000-4000-8000-000000000402",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "revision": 1,
+      "lifecycle": "active",
+      "createdAt": "2026-01-02T12:00:00Z",
+      "updatedAt": "2026-01-02T12:00:00Z",
+      "lastAuditId": "00000000-0000-4000-8000-000000010402",
+      "payload": {
+        "kind": "circuit-supplies",
+        "from": {
+          "kind": "atlas-record",
+          "ref": {
+            "recordType": "circuit",
+            "recordId": "00000000-0000-4000-8000-000000000401"
+          }
+        },
+        "to": {
+          "kind": "unresolved",
+          "description": "Synthetic outlet not yet identified"
+        },
+        "medium": "electricity",
+        "uncertainty": {
+          "status": "unknown",
+          "explanation": "No wiring survey"
+        },
+        "evidenceIds": [
+          "00000000-0000-4000-8000-000000000100"
+        ]
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "recordType": "valve",
+      "recordId": "00000000-0000-4000-8000-000000000403",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "revision": 1,
+      "lifecycle": "active",
+      "createdAt": "2026-01-02T12:00:00Z",
+      "updatedAt": "2026-01-02T12:00:00Z",
+      "lastAuditId": "00000000-0000-4000-8000-000000010403",
+      "payload": {
+        "label": null,
+        "medium": "unknown",
+        "evidenceIds": [
+          "00000000-0000-4000-8000-000000000100"
+        ]
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "recordType": "binding",
+      "recordId": "00000000-0000-4000-8000-000000000304",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "revision": 1,
+      "lifecycle": "active",
+      "createdAt": "2026-01-02T12:00:00Z",
+      "updatedAt": "2026-01-02T12:00:00Z",
+      "lastAuditId": "00000000-0000-4000-8000-000000010304",
+      "payload": {
+        "atlasId": "00000000-0000-4000-8000-000000000201",
+        "source": {
+          "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+          "collectionId": "synthetic-collection-a",
+          "sourceKind": "homebox-entity",
+          "externalId": "00000000-0000-4000-8000-000000000504"
+        },
+        "reviewStatus": "accepted",
+        "sourceState": "present",
+        "evidenceIds": [
+          "00000000-0000-4000-8000-000000000100"
+        ]
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "recordType": "reconciliation",
+      "recordId": "00000000-0000-4000-8000-000000000405",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "revision": 1,
+      "lifecycle": "active",
+      "createdAt": "2026-01-02T12:00:00Z",
+      "updatedAt": "2026-01-02T12:00:00Z",
+      "lastAuditId": "00000000-0000-4000-8000-000000010405",
+      "payload": {
+        "atlasId": "00000000-0000-4000-8000-000000000201",
+        "fromBindingId": "00000000-0000-4000-8000-000000000301",
+        "toBindingId": "00000000-0000-4000-8000-000000000304",
+        "reason": "import-id-remap",
+        "evidenceIds": [
+          "00000000-0000-4000-8000-000000000100"
+        ]
+      }
+    }
+  ],
+  "homeboxEntities": [
+    {
+      "schemaVersion": 1,
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "source": {
+        "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+        "collectionId": "synthetic-collection-a",
+        "sourceKind": "homebox-entity",
+        "externalId": "00000000-0000-4000-8000-000000000500"
+      },
+      "sourceUpdatedAt": "2025-12-01T00:00:00Z",
+      "retrievedAt": "2026-01-02T12:00:00Z",
+      "entity": {
+        "id": "00000000-0000-4000-8000-000000000500",
+        "name": "Synthetic cabinet",
+        "description": "",
+        "entityType": {
+          "id": "00000000-0000-4000-8000-000000000700",
+          "name": "Cabinet",
+          "isLocation": true
+        },
+        "parent": null,
+        "archived": false,
+        "quantity": null,
+        "manufacturer": null,
+        "modelNumber": null,
+        "serialNumber": null,
+        "notes": null
+      },
+      "attachments": [],
+      "maintenance": [],
+      "nativeLinks": [
+        {
+          "kind": "homebox-native",
+          "intent": "edit",
+          "entity": {
+            "workspaceId": "00000000-0000-4000-8000-000000000001",
+            "homeId": "00000000-0000-4000-8000-000000000002",
+            "key": {
+              "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+              "collectionId": "synthetic-collection-a",
+              "sourceKind": "homebox-entity",
+              "externalId": "00000000-0000-4000-8000-000000000500"
+            }
+          },
+          "href": "https://homebox.example.invalid/entities/00000000-0000-4000-8000-000000000500",
+          "verifiedRoute": false
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "source": {
+        "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+        "collectionId": "synthetic-collection-a",
+        "sourceKind": "homebox-entity",
+        "externalId": "00000000-0000-4000-8000-000000000502"
+      },
+      "sourceUpdatedAt": "2025-12-01T00:00:00Z",
+      "retrievedAt": "2026-01-02T12:00:00Z",
+      "entity": {
+        "id": "00000000-0000-4000-8000-000000000502",
+        "name": "Synthetic archived drawer",
+        "description": "",
+        "entityType": {
+          "id": "00000000-0000-4000-8000-000000000702",
+          "name": "Drawer",
+          "isLocation": true
+        },
+        "parent": {
+          "id": "00000000-0000-4000-8000-000000000500"
+        },
+        "archived": true,
+        "quantity": null,
+        "manufacturer": null,
+        "modelNumber": null,
+        "serialNumber": null,
+        "notes": null
+      },
+      "attachments": [],
+      "maintenance": [],
+      "nativeLinks": [
+        {
+          "kind": "homebox-native",
+          "intent": "edit",
+          "entity": {
+            "workspaceId": "00000000-0000-4000-8000-000000000001",
+            "homeId": "00000000-0000-4000-8000-000000000002",
+            "key": {
+              "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+              "collectionId": "synthetic-collection-a",
+              "sourceKind": "homebox-entity",
+              "externalId": "00000000-0000-4000-8000-000000000502"
+            }
+          },
+          "href": "https://homebox.example.invalid/entities/00000000-0000-4000-8000-000000000502",
+          "verifiedRoute": false
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "source": {
+        "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+        "collectionId": "synthetic-collection-a",
+        "sourceKind": "homebox-entity",
+        "externalId": "00000000-0000-4000-8000-000000000503"
+      },
+      "sourceUpdatedAt": "2025-12-01T00:00:00Z",
+      "retrievedAt": "2026-01-02T12:00:00Z",
+      "entity": {
+        "id": "00000000-0000-4000-8000-000000000503",
+        "name": "Synthetic type unavailable",
+        "description": "",
+        "entityType": null,
+        "parent": null,
+        "archived": false,
+        "quantity": null,
+        "manufacturer": null,
+        "modelNumber": null,
+        "serialNumber": null,
+        "notes": null
+      },
+      "attachments": [],
+      "maintenance": [],
+      "nativeLinks": [
+        {
+          "kind": "homebox-native",
+          "intent": "edit",
+          "entity": {
+            "workspaceId": "00000000-0000-4000-8000-000000000001",
+            "homeId": "00000000-0000-4000-8000-000000000002",
+            "key": {
+              "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+              "collectionId": "synthetic-collection-a",
+              "sourceKind": "homebox-entity",
+              "externalId": "00000000-0000-4000-8000-000000000503"
+            }
+          },
+          "href": "https://homebox.example.invalid/entities/00000000-0000-4000-8000-000000000503",
+          "verifiedRoute": false
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "source": {
+        "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+        "collectionId": "synthetic-collection-a",
+        "sourceKind": "homebox-entity",
+        "externalId": "00000000-0000-4000-8000-000000000504"
+      },
+      "sourceUpdatedAt": "2025-12-01T00:00:00Z",
+      "retrievedAt": "2026-01-02T12:00:00Z",
+      "entity": {
+        "id": "00000000-0000-4000-8000-000000000504",
+        "name": "Synthetic renamed mobile item",
+        "description": "",
+        "entityType": {
+          "id": "00000000-0000-4000-8000-000000000701",
+          "name": "Equipment",
+          "isLocation": false
+        },
+        "parent": null,
+        "archived": false,
+        "quantity": 1,
+        "manufacturer": null,
+        "modelNumber": null,
+        "serialNumber": null,
+        "notes": null
+      },
+      "attachments": [],
+      "maintenance": [],
+      "nativeLinks": [
+        {
+          "kind": "homebox-native",
+          "intent": "edit",
+          "entity": {
+            "workspaceId": "00000000-0000-4000-8000-000000000001",
+            "homeId": "00000000-0000-4000-8000-000000000002",
+            "key": {
+              "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+              "collectionId": "synthetic-collection-a",
+              "sourceKind": "homebox-entity",
+              "externalId": "00000000-0000-4000-8000-000000000504"
+            }
+          },
+          "href": "https://homebox.example.invalid/entities/00000000-0000-4000-8000-000000000504",
+          "verifiedRoute": false
+        }
+      ]
+    }
+  ],
+  "caches": [
+    {
+      "schemaVersion": 1,
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+      "collectionId": "synthetic-collection-a",
+      "status": "fresh",
+      "lastSuccessfulFetchAt": "2026-01-02T12:00:00Z",
+      "lastAttemptAt": "2026-01-02T12:00:00Z",
+      "generationId": "00000000-0000-4000-8000-000000000900",
+      "consistency": "non-transactional-offset-pages",
+      "error": null
+    }
+  ],
+  "networkRelations": [
+    {
+      "schemaVersion": 1,
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "sourceInstanceId": "00000000-0000-4000-8000-000000000012",
+      "collectionId": "inventory",
+      "externalId": "member-a",
+      "kind": "network-segment-membership",
+      "from": {
+        "kind": "device",
+        "id": "device-a",
+        "description": null
+      },
+      "to": {
+        "kind": "segment",
+        "id": "segment-a",
+        "description": null
+      },
+      "medium": "powerline",
+      "sourceRevision": 35,
+      "sourceSnapshotAt": "2026-01-02T12:00:00Z",
+      "retrievedAt": "2026-01-02T12:00:00Z",
+      "vantage": null,
+      "sourceConfidence": "confirmed",
+      "evidenceBasis": "owner-report",
+      "temporalStatus": "current-claim",
+      "factAt": "2025-12-01T00:00:00Z",
+      "notes": "Synthetic fixture; confidence is source-reported, not a fresh survey."
+    },
+    {
+      "schemaVersion": 1,
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "sourceInstanceId": "00000000-0000-4000-8000-000000000012",
+      "collectionId": "inventory",
+      "externalId": "association-a",
+      "kind": "network-association",
+      "from": {
+        "kind": "device",
+        "id": "device-a",
+        "description": null
+      },
+      "to": {
+        "kind": "device",
+        "id": "device-b",
+        "description": null
+      },
+      "medium": "wifi",
+      "sourceRevision": 35,
+      "sourceSnapshotAt": "2026-01-02T12:00:00Z",
+      "retrievedAt": "2026-01-02T12:00:00Z",
+      "vantage": null,
+      "sourceConfidence": "unknown",
+      "evidenceBasis": "owner-report",
+      "temporalStatus": "disputed",
+      "factAt": "2025-12-01T00:00:00Z",
+      "notes": "Synthetic fixture; confidence is source-reported, not a fresh survey."
+    },
+    {
+      "schemaVersion": 1,
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "sourceInstanceId": "00000000-0000-4000-8000-000000000012",
+      "collectionId": "inventory",
+      "externalId": "gap-a",
+      "kind": "network-connection",
+      "from": {
+        "kind": "device",
+        "id": "device-a",
+        "description": null
+      },
+      "to": {
+        "kind": "unresolved",
+        "id": null,
+        "description": "Unknown peer"
+      },
+      "medium": "ethernet",
+      "sourceRevision": 35,
+      "sourceSnapshotAt": "2026-01-02T12:00:00Z",
+      "retrievedAt": "2026-01-02T12:00:00Z",
+      "vantage": null,
+      "sourceConfidence": "unknown",
+      "evidenceBasis": "owner-report",
+      "temporalStatus": "current-claim",
+      "factAt": "2025-12-01T00:00:00Z",
+      "notes": "Synthetic fixture; confidence is source-reported, not a fresh survey."
+    }
+  ]
+}

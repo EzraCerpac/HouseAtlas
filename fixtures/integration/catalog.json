@@ -1,0 +1,97 @@
+{
+  "fixtureVersion": "at06-synthetic/1",
+  "contractVersion": "1.0.0",
+  "recordSchemaVersion": 1,
+  "synthetic": true,
+  "privateRecordsIncluded": false,
+  "fixtures": [
+    {
+      "path": "fixtures/integration/multi-home-unplaced.snapshot.json",
+      "shape": "snapshot",
+      "covers": [
+        "two homes with same label",
+        "arbitrary nested container",
+        "mobile unplaced",
+        "fixed unplaced",
+        "archive opt-in",
+        "missing materials",
+        "no floor/geometry inference"
+      ]
+    },
+    {
+      "path": "fixtures/integration/first-run.snapshot.json",
+      "shape": "snapshot",
+      "covers": [
+        "never-fetched cache",
+        "no source data",
+        "no fabricated rooms"
+      ]
+    },
+    {
+      "path": "fixtures/integration/no-cache-outage.snapshot.json",
+      "shape": "snapshot",
+      "covers": [
+        "unavailable without saved records",
+        "timeout",
+        "not empty collection"
+      ]
+    },
+    {
+      "path": "fixtures/integration/empty-collection.snapshot.json",
+      "shape": "snapshot",
+      "covers": [
+        "successful zero rows",
+        "fresh complete generation",
+        "not never-fetched"
+      ]
+    },
+    {
+      "path": "fixtures/integration/homebox-outage.snapshot.json",
+      "shape": "snapshot",
+      "covers": [
+        "prior successful generation retained",
+        "unchanged retrieval/success times",
+        "error",
+        "authorization separately required"
+      ]
+    },
+    {
+      "path": "fixtures/integration/access-revoked.snapshot.json",
+      "shape": "snapshot",
+      "covers": [
+        "prior successful generation retained",
+        "unchanged retrieval/success times",
+        "access-revoked",
+        "authorization separately required"
+      ]
+    },
+    {
+      "path": "fixtures/integration/network-outage.snapshot.json",
+      "shape": "snapshot",
+      "covers": [
+        "independent Network failure",
+        "HomeBox rooms/docs retained",
+        "source confidence and fact time retained"
+      ]
+    }
+  ],
+  "intakeMapping": [
+    {
+      "intakeConcern": "Unreviewed names, aliases, parent/floor and source matching",
+      "fixture": "multi-home-unplaced",
+      "rule": "No household labels or accepted bindings derived from private intake"
+    },
+    {
+      "intakeConcern": "Mobile and fixed unplaced items",
+      "fixture": "multi-home-unplaced",
+      "rule": "Null parent; preserve different explanations without creating an unknown room"
+    },
+    {
+      "intakeConcern": "Source confidence, reported membership and disputed association",
+      "fixture": "network-outage",
+      "rule": "Retain qualifiers; never derive circuits or geometry"
+    }
+  ],
+  "operationsPolicyVersion": "1.0.0",
+  "operationsStatus": "proposed-unmeasured-unqualified"
+}
