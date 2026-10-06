@@ -62,6 +62,19 @@ where
                 if record.attempt != attempt || record.activity_version == 0 {
                     return Err(WriteError::ActivityReceiptMismatch);
                 }
+                // Reservation may have awaited storage. Retained activity is a
+                // disclosure too: check current original intent/catalog access.
+                let current = self
+                    .authorization
+                    .authorize(AuthorizationRequest::Execute {
+                        command: &record.attempt.command,
+                        catalog: &record.attempt.mapped.catalog,
+                    })
+                    .await
+                    .map_err(|_| WriteError::Unauthorized)?;
+                if current.actor_id != record.attempt.actor_id {
+                    return Err(WriteError::Unauthorized);
+                }
                 return Ok(ExecutionResult {
                     activity: *record,
                     reused: true,
@@ -119,7 +132,21 @@ where
             dispatch,
             DispatchState::Acknowledged | DispatchState::Unknown
         ) {
-            let outcome = self.observe(&attempt.mapped, dispatch, authority).await;
+            // Dispatch and persistence both await. Do not begin a new provider
+            // GET under their earlier membership/capability. The already saved
+            // dispatch evidence remains intact if current access is unavailable.
+            let current = self
+                .authorization
+                .authorize(AuthorizationRequest::Execute {
+                    command: &attempt.command,
+                    catalog: &attempt.mapped.catalog,
+                })
+                .await
+                .map_err(|_| WriteError::Unauthorized)?;
+            if current.actor_id != attempt.actor_id {
+                return Err(WriteError::Unauthorized);
+            }
+            let outcome = self.observe(&attempt.mapped, dispatch, current).await;
             record = self.persist(&record, &outcome).await?;
         }
         Ok(ExecutionResult {
