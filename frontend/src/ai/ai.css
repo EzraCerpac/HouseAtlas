@@ -1,0 +1,56 @@
+.ha-ai {
+  max-width: 48rem;
+  color: inherit;
+}
+
+.ha-ai__header,
+.ha-ai__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.ha-ai__actions {
+  justify-content: flex-start;
+  margin-block: 0.75rem;
+}
+
+.ha-ai__facts {
+  display: grid;
+  grid-template-columns: minmax(8rem, auto) minmax(0, 1fr);
+  gap: 0.35rem 1rem;
+}
+
+.ha-ai__facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ha-ai label,
+.ha-ai textarea {
+  display: block;
+}
+
+.ha-ai textarea {
+  box-sizing: border-box;
+  width: 100%;
+  margin-block-start: 0.35rem;
+  font: inherit;
+}
+
+.ha-ai__text,
+.ha-ai pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ha-ai pre {
+  max-width: 100%;
+  overflow: auto;
+}
+
+.ha-ai :focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
