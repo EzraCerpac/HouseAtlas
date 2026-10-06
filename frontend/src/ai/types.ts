@@ -89,8 +89,18 @@ export type ConnectionAction =
   | { readonly action: 'consent' | 'disconnect' | 'manage-usage' };
 
 export interface ConnectionActionResult {
+  readonly actionId: string;
   readonly status: 'completed' | 'pending' | 'unconfirmed';
   readonly snapshot: ConnectionSnapshot;
+}
+
+export interface ConnectionActionRequest {
+  readonly actionId: string;
+  readonly command: ConnectionAction;
+}
+
+export interface HumanReviewResult {
+  readonly status: 'pending' | 'closed' | 'ready-to-resume';
 }
 
 export interface ReviewInput {
@@ -109,10 +119,11 @@ export type RequestStatus =
  */
 export interface AiClient {
   connection(signal: AbortSignal): Promise<ConnectionSnapshot>;
-  connectionAction(input: ConnectionAction, signal: AbortSignal): Promise<ConnectionActionResult>;
+  connectionAction(input: ConnectionActionRequest, signal: AbortSignal): Promise<ConnectionActionResult>;
+  connectionActionStatus(actionId: string, signal: AbortSignal): Promise<ConnectionActionResult>;
   run(input: { readonly requestId: string; readonly prompt: string }, signal: AbortSignal): Promise<RunOutcome>;
   cancel(requestId: string): Promise<CancelReceipt>;
-  openReview(input: ReviewInput, signal: AbortSignal): Promise<{ readonly status: 'pending' | 'closed' | 'ready-to-resume' }>;
+  openReview(input: ReviewInput, signal: AbortSignal): Promise<HumanReviewResult>;
   resume(input: ReviewInput, signal: AbortSignal): Promise<RunOutcome>;
   requestStatus(requestId: string, signal: AbortSignal): Promise<RequestStatus>;
 }
@@ -133,7 +144,10 @@ export type ActionState =
   | { readonly status: 'working' }
   | { readonly status: 'pending' | 'unconfirmed' | 'unavailable' };
 
-export type ConnectionActionState = ActionState & { readonly action: ConnectionAction['action'] | null };
+export type ConnectionActionState = ActionState & {
+  readonly action: ConnectionAction['action'] | null;
+  readonly actionId: string | null;
+};
 
 export type RequestState =
   | { readonly status: 'idle' }

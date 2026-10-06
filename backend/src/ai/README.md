@@ -62,7 +62,10 @@ stay optional; no cost, plan quota or reset is invented. `runtime.rs` supplies
 matching connection action, trusted human review and request-status DTOs, plus
 model discovery and scoped bridge admission interfaces. A bridge must enforce
 approved Origin/Host, per-install capability and actor/home/registration/epoch.
-No bridge or listener is installed by these interfaces.
+No bridge or listener is installed by these interfaces. Human review returns an
+object `{status}`. Connection actions carry a pre-submission `actionId` and
+original command; their separate status lookup echoes that ID without replay.
+Workflow completion establishes no grant or runtime readiness.
 
 ## Integration boundaries
 
@@ -82,9 +85,16 @@ resolved stock tool schemas; the host and transport must reconcile their limits.
 ## Scoped evidence and limitations
 
 The earlier source compiled with Rust 1.99.0 and two healthy examples. The
-follow-up compiled the actual source and passed five healthy examples: existing
+follow-ups compiled the actual source and passed seven healthy examples: existing
 published synthetic records/history, browser DTOs, exact wire3 read boundary,
-successful local OAuth begin/callback, and chunked completed tool-capable SSE.
+successful local OAuth begin/callback with and without offline access, actual
+Rust-serde lifecycle projections, and chunked completed tool-capable SSE. Direct
+scope alone requires access credentials; renewable credentials are required for
+offline access or refresh exchange. Empty repeated disconnects and issue receipts
+preserve existing revocation status; revocation probes remain held.
+An external healthy binding check consumed the Rust projections through the
+production TypeScript lifecycle adapter and deserialized an actual TypeScript
+hook action request using the Rust request DTO. Both directions passed.
 The four-definition `fixtures/stock-read-tools.json` is an exact narrow input
 projection for those examples, not the production catalog. Historical fixture
 peers preserve published behavior; the production bridge uses wire3 families.

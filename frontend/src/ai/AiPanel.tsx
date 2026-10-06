@@ -32,6 +32,7 @@ function AiPanelSession({ client, scopeLabel, scopeKey }: AiPanelProps) {
     onConnectionAction={input => { void session.connectionAction(input); }}
     onReview={() => { void session.review(); }}
     onRecover={() => { void session.recover(); }}
+    pendingConnectionKinds={session.pendingConnectionKinds}
   />;
 }
 
@@ -46,6 +47,7 @@ export interface AiPanelViewProps {
   readonly onConnectionAction: (input: ConnectionAction) => void;
   readonly onReview: () => void;
   readonly onRecover: () => void;
+  readonly pendingConnectionKinds?: readonly ConnectionAction['action'][];
 }
 
 const methodLabels: Record<ConnectionSnapshot['method'], string> = {
@@ -80,13 +82,17 @@ const heldMessages: Record<DomainHeld['state'], string> = {
 };
 
 export function AiPanelView({
-  state, scopeLabel, prompt, onPromptChange, onSubmit, onCancel, onRefresh, onConnectionAction, onReview, onRecover,
+  state, scopeLabel, prompt, onPromptChange, onSubmit, onCancel, onRefresh, onConnectionAction, onReview, onRecover, pendingConnectionKinds,
 }: AiPanelViewProps) {
   const id = useId();
   const [selectedRoute, setSelectedRoute] = useState<RuntimeRoute>('unset');
   const activeRequest = 'cancellation' in state.request ? state.request : null;
   const busy = activeRequest !== null;
   const connectionBusy = state.connectionAction.status === 'working';
+  const pendingKinds = pendingConnectionKinds ?? (
+    (state.connectionAction.status === 'pending' || state.connectionAction.status === 'unconfirmed')
+      && state.connectionAction.action !== null ? [state.connectionAction.action] : []
+  );
   const ready = state.connection.status === 'available' && canInfer(state.connection.snapshot);
   const cancellation = activeRequest === null ? null : cancellationMessage(activeRequest.cancellation);
   const cancelDisabled = activeRequest !== null && (activeRequest.cancellation.status === 'sending'
@@ -117,13 +123,13 @@ export function AiPanelView({
       {selectedRoute === 'issued-website-client' && <p>A registered server callback and supported credential placement require qualification.</p>}
       {selectedRoute === 'local-inference-companion' && <p>The selected computer must be available for inference. Phone relay remains unqualified.</p>}
       <div className="ha-ai__actions">
-        <button type="button" disabled={selectedRoute === 'unset' || busy || connectionBusy}
+        <button type="button" disabled={selectedRoute === 'unset' || busy || connectionBusy || pendingKinds.length > 0}
           onClick={() => { if (selectedRoute !== 'unset') onConnectionAction({ action: 'connect', route: selectedRoute }); }}>Connect</button>
-        <button type="button" disabled={busy || connectionBusy || state.connection.status !== 'available'}
+        <button type="button" disabled={busy || connectionBusy || pendingKinds.length > 0 || state.connection.status !== 'available'}
           onClick={() => onConnectionAction({ action: 'consent' })}>Review inference consent</button>
-        <button type="button" disabled={connectionBusy || state.connection.status !== 'available'}
+        <button type="button" disabled={connectionBusy || pendingKinds.includes('disconnect') || state.connection.status !== 'available'}
           onClick={() => onConnectionAction({ action: 'disconnect' })}>Disconnect</button>
-        <button type="button" disabled={connectionBusy || state.connection.status !== 'available'}
+        <button type="button" disabled={connectionBusy || pendingKinds.includes('manage-usage') || state.connection.status !== 'available'}
           onClick={() => onConnectionAction({ action: 'manage-usage' })}>Manage usage</button>
       </div>
       {state.connectionAction.status === 'working' && <p role="status">Opening connection action.</p>}

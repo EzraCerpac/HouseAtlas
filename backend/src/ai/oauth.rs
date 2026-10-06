@@ -461,7 +461,7 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
             || !self.security.state_matches(&attempt.material.state, state)
         {
             // An unrelated request cannot consume the legitimate pending attempt.
-            return Ok(receipt(record.state, OAuthIssue::CallbackInvalid, None));
+            return Ok(receipt(&record, OAuthIssue::CallbackInvalid, None));
         }
         let error = optional_parameter(&callback, "error")?;
         let code = optional_parameter(&callback, "code")?;
@@ -485,14 +485,10 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
             } else {
                 OAuthIssue::ProviderRejected
             };
-            return Ok(receipt(record.state, issue, None));
+            return Ok(receipt(&record, issue, None));
         }
         if !client_valid || code.is_none() {
-            return Ok(receipt(
-                record.state,
-                OAuthIssue::RegistrationIncomplete,
-                None,
-            ));
+            return Ok(receipt(&record, OAuthIssue::RegistrationIncomplete, None));
         }
         let code =
             ProtectedValue::from_trusted_adapter(code.ok_or(AiError::InvalidInput)?.to_owned())?;
@@ -518,12 +514,12 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
             Ok(ProviderTokens::Received(reply)) => reply,
             Ok(ProviderTokens::Rejected(diagnostic)) => {
                 return Ok(receipt(
-                    record.state,
+                    &record,
                     provider_issue(&diagnostic),
                     Some(diagnostic),
                 ));
             }
-            Err(_) => return Ok(receipt(record.state, OAuthIssue::ExchangeUnconfirmed, None)),
+            Err(_) => return Ok(receipt(&record, OAuthIssue::ExchangeUnconfirmed, None)),
         };
         validate_tokens(&reply, &record.kind, false)?;
         let token = reply
@@ -553,9 +549,9 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
                 identity
             }
             Ok(IdentityValidation::TemporarilyUnavailable) | Err(_) => {
-                return Ok(receipt(record.state, OAuthIssue::IdentityUnavailable, None));
+                return Ok(receipt(&record, OAuthIssue::IdentityUnavailable, None));
             }
-            _ => return Ok(receipt(record.state, OAuthIssue::IdentityInvalid, None)),
+            _ => return Ok(receipt(&record, OAuthIssue::IdentityInvalid, None)),
         };
         record.state = plan_state(&record.kind, reply.granted_scopes.as_deref().unwrap_or(&[]));
         record.identity = Some(identity);
@@ -599,14 +595,14 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
         match record.state {
             LifecycleState::ConfigurationRepairRequired => {
                 return Ok(receipt(
-                    record.state,
+                    &record,
                     OAuthIssue::ClientConfigurationInvalid,
                     None,
                 ));
             }
             LifecycleState::Disconnected | LifecycleState::ReauthorizationRequired => {
                 return Ok(receipt(
-                    record.state,
+                    &record,
                     OAuthIssue::ExplicitReauthorizationRequired,
                     None,
                 ));
@@ -633,11 +629,10 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
             record.refresh_checkpoint,
             RefreshCheckpoint::InvocationUnconfirmed(_)
         ) {
-            return Ok(receipt(
-                LifecycleState::RefreshUnconfirmed,
-                OAuthIssue::RefreshUnconfirmed,
-                None,
-            ));
+            return Ok(LifecycleReceipt {
+                state: LifecycleState::RefreshUnconfirmed,
+                ..receipt(&record, OAuthIssue::RefreshUnconfirmed, None)
+            });
         }
         if matches!(record.refresh_checkpoint, RefreshCheckpoint::None) {
             let refresh = record
@@ -685,9 +680,9 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
                         record.state = LifecycleState::ConfigurationRepairRequired;
                     }
                     self.credentials.persist_atomic(&mut lease, &record).await?;
-                    return Ok(receipt(record.state, issue, Some(diagnostic)));
+                    return Ok(receipt(&record, issue, Some(diagnostic)));
                 }
-                Err(_) => return Ok(receipt(record.state, OAuthIssue::RefreshUnconfirmed, None)),
+                Err(_) => return Ok(receipt(&record, OAuthIssue::RefreshUnconfirmed, None)),
             }
         }
         let rotation = match &record.refresh_checkpoint {
@@ -722,7 +717,7 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
                     new_identity = Some(identity)
                 }
                 Ok(IdentityValidation::TemporarilyUnavailable) | Err(_) => {
-                    return Ok(receipt(record.state, OAuthIssue::IdentityUnavailable, None));
+                    return Ok(receipt(&record, OAuthIssue::IdentityUnavailable, None));
                 }
                 _ => {
                     self.credentials.stop_use(&mut lease).await?;
@@ -730,7 +725,7 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
                     record.refresh_checkpoint = RefreshCheckpoint::None;
                     record.state = LifecycleState::ReauthorizationRequired;
                     self.credentials.persist_atomic(&mut lease, &record).await?;
-                    return Ok(receipt(record.state, OAuthIssue::IdentityInvalid, None));
+                    return Ok(receipt(&record, OAuthIssue::IdentityInvalid, None));
                 }
             }
         }
@@ -789,7 +784,14 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
         self.credentials.stop_use(&mut lease).await?;
         record.state = LifecycleState::Disconnected;
         record.pending_authorization = None;
-        record.revocation = RevocationState::Unconfirmed;
+        if record.credentials.is_some()
+            || !matches!(record.refresh_checkpoint, RefreshCheckpoint::None)
+        {
+            // Existing session material creates a new remote-disconnection
+            // obligation, even when no renewable token is available. An empty
+            // repeated disconnect preserves the prior revocation evidence.
+            record.revocation = RevocationState::Unconfirmed;
+        }
         // Stop use durably before remote I/O; a failed revocation never silently
         // reconnects or destroys the saved issued-client/account registration.
         self.credentials.persist_atomic(&mut lease, &record).await?;
@@ -807,10 +809,6 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
                 Ok(ProviderRevocation::Unconfirmed(detail)) => diagnostic = detail,
                 Err(_) => {}
             }
-        } else if record.credentials.is_none()
-            && matches!(record.refresh_checkpoint, RefreshCheckpoint::None)
-        {
-            record.revocation = RevocationState::NotRequested;
         }
         record.credentials = None;
         record.refresh_checkpoint = RefreshCheckpoint::None;
@@ -919,11 +917,13 @@ fn validate_tokens(
     {
         return Err(AiError::InvalidProviderOutput);
     }
-    if (refresh
-        || scopes
-            .iter()
-            .any(|scope| scope == DIRECT_USAGE_SCOPE || scope == "offline_access"))
-        && (reply.access_token.is_none() || reply.refresh_token.is_none())
+    let offline_access = scopes.iter().any(|scope| scope == "offline_access");
+    let direct_use = scopes.iter().any(|scope| scope == DIRECT_USAGE_SCOPE);
+    // The pinned DevKit requires access for direct use, but a renewable token
+    // only for an offline grant or a refresh exchange. Direct use alone does
+    // not imply offline access or invent a refresh token requirement.
+    if ((refresh || offline_access || direct_use) && reply.access_token.is_none())
+        || ((refresh || offline_access) && reply.refresh_token.is_none())
     {
         return Err(AiError::InvalidProviderOutput);
     }
@@ -962,14 +962,14 @@ fn provider_issue(diagnostic: &ProviderDiagnostic) -> OAuthIssue {
     }
 }
 fn receipt(
-    state: LifecycleState,
+    record: &RegistrationRecord,
     issue: OAuthIssue,
     diagnostic: Option<ProviderDiagnostic>,
 ) -> LifecycleReceipt {
     LifecycleReceipt {
-        state,
+        state: record.state,
         issue: Some(issue),
-        revocation: RevocationState::NotRequested,
+        revocation: record.revocation,
         diagnostic,
     }
 }
@@ -1066,18 +1066,18 @@ mod healthy_examples {
             cancellation_epoch: "synthetic-cancellation-1".into(),
         }
     }
-    fn token_reply() -> TokenReply {
+    fn token_reply(offline_access: bool) -> TokenReply {
+        let mut granted_scopes = vec!["openid".into(), DIRECT_USAGE_SCOPE.into()];
+        if offline_access {
+            granted_scopes.push("offline_access".into());
+        }
         TokenReply {
             id_token: Some(protected("opaque-synthetic-id-token")),
             access_token: Some(protected("opaque-synthetic-access-token")),
-            refresh_token: Some(protected("opaque-synthetic-refresh-token")),
+            refresh_token: offline_access.then(|| protected("opaque-synthetic-refresh-token")),
             token_type: Some("Bearer".into()),
             expires_at_ms: Some(NOW + 3_600_000),
-            granted_scopes: Some(vec![
-                "openid".into(),
-                "offline_access".into(),
-                DIRECT_USAGE_SCOPE.into(),
-            ]),
+            granted_scopes: Some(granted_scopes),
             received_at_ms: NOW,
         }
     }
@@ -1122,7 +1122,9 @@ mod healthy_examples {
         }
     }
 
-    struct SyntheticProvider;
+    struct SyntheticProvider {
+        offline_access: bool,
+    }
     impl OAuthProviderPort for SyntheticProvider {
         fn exchange<'a>(
             &'a self,
@@ -1140,7 +1142,7 @@ mod healthy_examples {
                 );
                 assert_eq!(grant.verifier.expose_in_trusted_boundary(), VERIFIER);
                 assert_eq!(grant.authentication, ClientAuthentication::Public);
-                Ok(ProviderTokens::Received(token_reply()))
+                Ok(ProviderTokens::Received(token_reply(self.offline_access)))
             })
         }
         fn refresh<'a>(
@@ -1148,7 +1150,7 @@ mod healthy_examples {
             _: &'a RegistrationBinding,
             _: RefreshGrant<'a>,
         ) -> PortFuture<'a, ProviderTokens> {
-            Box::pin(async { Ok(ProviderTokens::Received(token_reply())) })
+            Box::pin(async { Ok(ProviderTokens::Received(token_reply(true))) })
         }
         fn revoke<'a>(
             &'a self,
@@ -1257,8 +1259,7 @@ mod healthy_examples {
         }
     }
 
-    #[test]
-    fn healthy_local_oauth_components() {
+    fn healthy_local_callback(offline_access: bool) {
         let storage = SyntheticBoundary(Mutex::new(RegistrationRecord {
             binding: binding(),
             kind: RegistrationKind::LocalPublicClient,
@@ -1272,9 +1273,10 @@ mod healthy_examples {
             state: LifecycleState::Disconnected,
             revocation: RevocationState::NotRequested,
         }));
+        let provider = SyntheticProvider { offline_access };
         let lifecycle = OAuthLifecycle {
             security: &SyntheticSecurity,
-            provider: &SyntheticProvider,
+            provider: &provider,
             credentials: &storage,
         };
         let scope = binding();
@@ -1329,7 +1331,29 @@ mod healthy_examples {
                 .iter()
                 .any(|scope| scope == DIRECT_USAGE_SCOPE)
         );
+        let credentials = saved
+            .credentials
+            .as_ref()
+            .expect("synthetic protected tokens");
+        assert_eq!(
+            credentials
+                .granted_scopes
+                .iter()
+                .any(|scope| scope == "offline_access"),
+            offline_access,
+        );
+        assert_eq!(credentials.refresh_token.is_some(), offline_access);
         // Application authorization, runtime qualification and independent
         // paid-use admission are still required. No inference is invoked here.
+    }
+
+    #[test]
+    fn healthy_local_oauth_components() {
+        healthy_local_callback(true);
+    }
+
+    #[test]
+    fn healthy_local_oauth_direct_scope_without_offline() {
+        healthy_local_callback(false);
     }
 }

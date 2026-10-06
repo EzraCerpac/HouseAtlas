@@ -34,9 +34,20 @@ pub enum ConnectionActionStatus {
     Unconfirmed,
 }
 
+/// Correlation is captured before submission and bound to the scoped actor,
+/// registration and original command by the host. It supplies no authority.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConnectionActionRequest {
+    pub action_id: String,
+    pub command: ConnectionAction,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ConnectionActionResult {
+    pub action_id: String,
+    /// End of this workflow does not establish grant or runtime readiness.
     pub status: ConnectionActionStatus,
     pub snapshot: ConnectionSnapshot,
 }
@@ -49,7 +60,15 @@ pub trait ConnectionActionPort<C> {
     fn act<'a>(
         &'a self,
         context: &'a C,
-        action: &'a ConnectionAction,
+        request: &'a ConnectionActionRequest,
+        cancel: &'a Cancellation,
+    ) -> PortFuture<'a, ConnectionActionResult>;
+    /// Read the original scoped action. Never submit or replay from a lookup.
+    /// Echo its exact ID; an unavailable lookup cannot establish completion.
+    fn status<'a>(
+        &'a self,
+        context: &'a C,
+        action_id: &'a str,
         cancel: &'a Cancellation,
     ) -> PortFuture<'a, ConnectionActionResult>;
 }
@@ -98,6 +117,12 @@ pub enum HumanReviewStatus {
     ReadyToResume,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct HumanReviewResult {
+    pub status: HumanReviewStatus,
+}
+
 pub trait HumanReviewPort<C> {
     /// Opens the separate trusted human UI. Its own server record owns approval;
     /// claim() independently verifies that record before any resumed dispatch.
@@ -107,7 +132,7 @@ pub trait HumanReviewPort<C> {
         context: &'a C,
         input: &'a ReviewInput,
         cancel: &'a Cancellation,
-    ) -> PortFuture<'a, HumanReviewStatus>;
+    ) -> PortFuture<'a, HumanReviewResult>;
 }
 
 /// Credential-free model discovery observation, separate from a completed

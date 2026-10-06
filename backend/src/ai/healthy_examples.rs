@@ -457,3 +457,44 @@ fn healthy_stock_wire3_read_boundary() {
             .all(|r| r["payload"]["label"].is_null())
     );
 }
+
+/// Export actual serde DTO bytes for the external TypeScript lifecycle binding.
+/// This serializes positive synthetic data; no review, action or grant executes.
+#[test]
+fn healthy_runtime_wire_projection() {
+    let context = SyntheticContext {
+        workspace: String::new(),
+        home: String::new(),
+    };
+    let snapshot = ready(HealthyConnection.check(
+        &context,
+        "synthetic-selected-model",
+        &Cancellation::default(),
+    ))
+    .expect("healthy snapshot");
+    let action_id = "00000000-0000-4000-8000-000000020042".to_owned();
+    let request = runtime::ConnectionActionRequest {
+        action_id: action_id.clone(),
+        command: runtime::ConnectionAction::Connect {
+            route: RuntimeRoute::IssuedWebsiteClient,
+        },
+    };
+    let pending = runtime::ConnectionActionResult {
+        action_id: action_id.clone(),
+        status: runtime::ConnectionActionStatus::Pending,
+        snapshot: snapshot.clone(),
+    };
+    let completed = runtime::ConnectionActionResult {
+        action_id,
+        status: runtime::ConnectionActionStatus::Completed,
+        snapshot,
+    };
+    let review = runtime::HumanReviewResult {
+        status: runtime::HumanReviewStatus::ReadyToResume,
+    };
+    let wire = json!({ "actionRequest": request, "pendingAction": pending, "completedAction": completed, "humanReview": review });
+    println!(
+        "HOUSEATLAS_AI_HEALTHY_WIRE={}",
+        serde_json::to_string(&wire).expect("actual serde wire")
+    );
+}

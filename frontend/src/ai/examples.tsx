@@ -27,13 +27,13 @@ export const syntheticCircuitRequest: JsonValue = {
   payload: { label: null, panel: null, evidenceIds: ['00000000-0000-4000-8000-000000000100'] },
   idempotencyKey: '00000000-0000-4000-8000-000000001001', reason: 'Synthetic circuit record, label still unknown',
   preconditions: { target: null, guards: [{
-    target: { authority: 'atlas', recordType: 'evidence', recordId: '00000000-0000-4000-8000-000000000100' }, revision: 1,
+    target: { authority: 'atlas', recordType: 'evidence', recordId: '00000000-0000-4000-8000-000000000100' }, revision: { kind: 'atlas', value: 1 },
   }] },
   approvalReceiptId: null, requestId: '00000000-0000-4000-8000-000000001002',
 };
 
 const idleActions: Pick<AiSessionState, 'connectionAction' | 'reviewAction' | 'recoveryAction'> = {
-  connectionAction: { status: 'idle', action: null }, reviewAction: { status: 'idle' }, recoveryAction: { status: 'idle' },
+  connectionAction: { status: 'idle', action: null, actionId: null }, reviewAction: { status: 'idle' }, recoveryAction: { status: 'idle' },
 };
 
 export const healthyAiExamples: Readonly<Record<'ready' | 'siwcReady' | 'completed' | 'review' | 'cancelRequested' | 'cancelled', AiSessionState>> = {

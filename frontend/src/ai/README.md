@@ -16,7 +16,13 @@ held. The panel cannot derive plan use from identity or change these gates.
 Unknown eligibility remains visible and is checked by the trusted runtime.
 
 Connect, consent, disconnect and Manage usage call the host's injected
-`connectionAction` port. The three runtime candidates remain explicit: a local
+`connectionAction` port with an action ID retained before submission. Refresh
+queries the separate `connectionActionStatus` port for every retained original
+ID; only a matching completed workflow clears its pending status. Auxiliary
+Manage usage and Disconnect preserve other unresolved IDs. New Connect/consent
+is disabled until existing actions reconcile. Lookup uncertainty stays visible;
+connected snapshot facts cannot resolve an action. The three runtime candidates
+remain explicit: a local
 sign-in helper, an issued website client and a local inference companion.
 Selecting a candidate does not qualify or adopt it. A local companion's computer
 availability and unqualified phone relay are visible before Connect. The host
@@ -33,7 +39,8 @@ The required `requestStatus` port recovers the original identifier and its
 server-owned outcome; it never replays the command. A trusted `confirmed`
 cancellation receipt can resolve a lost result with unknown token counts only
 when the host has established terminal cancellation without unresolved domain
-holds. Known domain-held operations retain their identifiers and prepared, queued,
+holds. Accepting an authoritative request outcome clears obsolete recovery progress
+and aborts its stale lookup. Known domain-held operations retain their identifiers and prepared, queued,
 dispatching, rejected-before-dispatch, partial or unknown-held state; they never
 become completed writes from a cancellation receipt.
 
@@ -61,9 +68,18 @@ The earlier external harness used React/React DOM 19.2.0, TypeScript 5.9.3,
 `@types/react`/`@types/react-dom` 19.2.2 and jsdom 26.1.0. This follow-up targets the
 same strict settings and passed on React/React DOM 19.3.0, TypeScript 7.0.2 and
 `@types/react`/`@types/react-dom` 19.3.0. Six healthy render examples and mounted
-completion, review-preview and cancellation flows passed in an isolated harness. This
+completion, review-preview, cancellation and sequential Connect → Manage usage →
+Refresh reconciliation flows passed in an isolated harness. This
 component does not establish live authentication, provider cancellation,
-security, fault/concurrency behavior or runtime qualification.
+security, fault/concurrency behavior or runtime qualification. The actual
+Rust-serde lifecycle JSON was consumed through `wire.ts` decoders and
+`bindAiLifecyclePort`, including its object-shaped human-review result and
+correlated action request/results. The healthy preview validated against the
+exact stock wire3 input schema with frozen Atlas resources registered offline.
+The actual compiled hook's action request also deserialized using the Rust
+`ConnectionActionRequest` DTO, checking the other direction of the wire binding.
+Only valid examples ran; no negative-decoder, revocation or concurrency probes
+were executed.
 
 Connection decisions follow the supplied AI policy and official references:
 <https://developers.openai.com/siwc/ui-ux-guidelines>,
