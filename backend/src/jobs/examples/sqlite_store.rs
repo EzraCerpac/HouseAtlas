@@ -1,6 +1,7 @@
 //! Synthetic SQLite adapter for compiler review. No production schema ownership.
 use super::jobs::*;
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
+use std::collections::BTreeMap;
 use std::path::Path;
 
 #[derive(Debug)]
@@ -61,7 +62,11 @@ impl SyntheticSqliteStore {
             metadata TEXT NOT NULL,bytes TEXT NOT NULL,closure TEXT NOT NULL,orphan TEXT,unresolved INTEGER NOT NULL,
             UNIQUE(workspace,home,actor,mutation));
           CREATE TABLE IF NOT EXISTS scope_resources(job INTEGER NOT NULL REFERENCES jobs(seq),position INTEGER NOT NULL,
-            kind TEXT NOT NULL,id TEXT NOT NULL,PRIMARY KEY(job,position));")?;
+            kind TEXT NOT NULL,id TEXT NOT NULL,PRIMARY KEY(job,position));
+          CREATE TABLE IF NOT EXISTS liability_evidence(seq INTEGER PRIMARY KEY AUTOINCREMENT,
+            job INTEGER NOT NULL REFERENCES jobs(seq),fence INTEGER NOT NULL,
+            accounting_complete INTEGER NOT NULL,known_bytes INTEGER NOT NULL,reserved_bytes INTEGER,
+            metadata TEXT NOT NULL,bytes TEXT NOT NULL,closure TEXT NOT NULL,orphan TEXT,unresolved INTEGER NOT NULL);")?;
         let registration = &config.registration;
         connection.execute(
             "INSERT OR IGNORE INTO global_writer VALUES(1,?,?,?,?,0,NULL,NULL)",
@@ -235,18 +240,24 @@ fn activity(connection: &Connection, id: i64) -> Result<RemoteActivity> {
         _ => return Err(ExampleError::InvalidRow),
     })
 }
+type StoredLiability = (
+    bool,
+    i64,
+    Option<i64>,
+    String,
+    String,
+    String,
+    Option<String>,
+    u32,
+);
 fn liability(connection: &Connection, id: i64) -> Result<StorageLiability> {
-    type StoredLiability = (
-        bool,
-        i64,
-        Option<i64>,
-        String,
-        String,
-        String,
-        Option<String>,
-        u32,
-    );
     let(complete,known,reserved,metadata,bytes,closure,orphan,unresolved):StoredLiability=connection.query_row("SELECT accounting_complete,known_bytes,reserved_bytes,metadata,bytes,closure,orphan,unresolved FROM jobs WHERE seq=?",[id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?,row.get(5)?,row.get(6)?,row.get(7)?)))?;
+    decode_liability((
+        complete, known, reserved, metadata, bytes, closure, orphan, unresolved,
+    ))
+}
+fn decode_liability(value: StoredLiability) -> Result<StorageLiability> {
+    let (complete, known, reserved, metadata, bytes, closure, orphan, unresolved) = value;
     let accounting = if complete {
         ByteAccounting::Complete {
             known_bytes: unsigned(known)?,
@@ -393,7 +404,143 @@ fn store_activity(connection: &Connection, id: i64, value: &RemoteActivity) -> R
     )?;
     Ok(())
 }
+fn accounting_values(value: &ByteAccounting) -> (u64, Option<u64>) {
+    match *value {
+        ByteAccounting::Complete {
+            known_bytes,
+            reserved_bytes,
+        } => (known_bytes, Some(reserved_bytes)),
+        ByteAccounting::Incomplete { known_bytes } => (known_bytes, None),
+    }
+}
+fn safe_sum(left: u64, right: u64) -> Result<u64> {
+    left.checked_add(right)
+        .filter(|total| *total <= MAX_SAFE_INTEGER)
+        .ok_or(ExampleError::Exhausted)
+}
+fn merge_liability_facts(held: &mut StorageLiability, incoming: &StorageLiability) {
+    if held.metadata_commit_evidence == MetadataCommitEvidence::NotDispatched {
+        held.metadata_commit_evidence = incoming.metadata_commit_evidence;
+    } else if incoming.metadata_commit_evidence != MetadataCommitEvidence::NotDispatched
+        && incoming.metadata_commit_evidence != held.metadata_commit_evidence
+    {
+        held.metadata_commit_evidence = MetadataCommitEvidence::Unknown;
+    }
+    if held.byte_disposition == ByteDisposition::None {
+        held.byte_disposition = incoming.byte_disposition;
+    } else if incoming.byte_disposition != ByteDisposition::None
+        && incoming.byte_disposition != held.byte_disposition
+    {
+        held.byte_disposition = ByteDisposition::Unknown;
+    }
+    held.reference_closure_evidence = match (
+        held.reference_closure_evidence,
+        incoming.reference_closure_evidence,
+    ) {
+        (ReferenceClosureEvidence::Incomplete, _) | (_, ReferenceClosureEvidence::Incomplete) => {
+            ReferenceClosureEvidence::Incomplete
+        }
+        (left, right) if left == right => left,
+        _ => ReferenceClosureEvidence::Unassessed,
+    };
+    // This scalar is only a representative. Every orphan reference remains in
+    // append-only liability_evidence, including different orphans in one attempt.
+    if held.orphan_candidate_id.is_none() {
+        held.orphan_candidate_id = incoming.orphan_candidate_id.clone();
+    }
+}
+fn merge_attempt_liability(held: &mut StorageLiability, incoming: &StorageLiability) {
+    let (known, reserved) = accounting_values(&held.accounting);
+    let (incoming_known, incoming_reserved) = accounting_values(&incoming.accounting);
+    held.accounting = match reserved.zip(incoming_reserved) {
+        Some((reserved, incoming_reserved)) => ByteAccounting::Complete {
+            known_bytes: known.max(incoming_known),
+            reserved_bytes: reserved.max(incoming_reserved),
+        },
+        None => ByteAccounting::Incomplete {
+            known_bytes: known.max(incoming_known),
+        },
+    };
+    held.unresolved_attempts = held.unresolved_attempts.max(incoming.unresolved_attempts);
+    merge_liability_facts(held, incoming);
+}
+fn append_liability(
+    connection: &Connection,
+    id: i64,
+    fence: u64,
+    value: &StorageLiability,
+) -> Result<()> {
+    let (known, reserved) = accounting_values(&value.accounting);
+    if known > MAX_SAFE_INTEGER || reserved.is_some_and(|bytes| bytes > MAX_SAFE_INTEGER) {
+        return Err(ExampleError::Exhausted);
+    }
+    connection.execute("INSERT INTO liability_evidence(job,fence,accounting_complete,known_bytes,reserved_bytes,metadata,bytes,closure,orphan,unresolved) VALUES(?,?,?,?,?,?,?,?,?,?)", params![id,integer(fence)?,reserved.is_some(),integer(known)?,reserved.map(integer).transpose()?,format!("{:?}",value.metadata_commit_evidence),format!("{:?}",value.byte_disposition),format!("{:?}",value.reference_closure_evidence),value.orphan_candidate_id,value.unresolved_attempts])?;
+    Ok(())
+}
 fn store_liability(connection: &Connection, id: i64, value: &StorageLiability) -> Result<()> {
+    let evidence_count: i64 = connection.query_row(
+        "SELECT COUNT(*) FROM liability_evidence WHERE job=?",
+        [id],
+        |row| row.get(0),
+    )?;
+    if unsigned(evidence_count)? == 0 {
+        // Retain an existing summary if opening an older synthetic checkpoint.
+        // Fence zero is a retained baseline, not an invocation capability.
+        append_liability(connection, id, 0, &liability(connection, id)?)?;
+    }
+    let fence: i64 =
+        connection.query_row("SELECT lease_fence FROM jobs WHERE seq=?", [id], |row| {
+            row.get(0)
+        })?;
+    append_liability(connection, id, unsigned(fence)?, value)?;
+    let mut statement = connection.prepare("SELECT fence,accounting_complete,known_bytes,reserved_bytes,metadata,bytes,closure,orphan,unresolved FROM liability_evidence WHERE job=? ORDER BY seq")?;
+    let rows = statement.query_map([id], |row| {
+        Ok((
+            row.get::<_, i64>(0)?,
+            (
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+                row.get(6)?,
+                row.get(7)?,
+                row.get(8)?,
+            ),
+        ))
+    })?;
+    let mut attempts = BTreeMap::<u64, StorageLiability>::new();
+    for row in rows {
+        let (fence, stored) = row?;
+        let incoming = decode_liability(stored)?;
+        if let Some(held) = attempts.get_mut(&unsigned(fence)?) {
+            merge_attempt_liability(held, &incoming);
+        } else {
+            attempts.insert(unsigned(fence)?, incoming);
+        }
+    }
+    let mut values = attempts.into_values();
+    let mut aggregate = values.next().ok_or(ExampleError::InvalidRow)?;
+    for incoming in values {
+        let (known, reserved) = accounting_values(&aggregate.accounting);
+        let (incoming_known, incoming_reserved) = accounting_values(&incoming.accounting);
+        let known_bytes = safe_sum(known, incoming_known)?;
+        aggregate.accounting = match reserved.zip(incoming_reserved) {
+            Some((left, right)) => ByteAccounting::Complete {
+                known_bytes,
+                reserved_bytes: safe_sum(left, right)?,
+            },
+            None => ByteAccounting::Incomplete { known_bytes },
+        };
+        aggregate.unresolved_attempts = aggregate
+            .unresolved_attempts
+            .checked_add(incoming.unresolved_attempts)
+            .ok_or(ExampleError::Exhausted)?;
+        merge_liability_facts(&mut aggregate, &incoming);
+    }
+    // No finish/reconcile operation is qualified to clean up an older attempt.
+    // Monotonic per-attempt maxima can overreserve; they cannot forget liability.
+    let value = &aggregate;
     let (complete, known, reserved) = match value.accounting {
         ByteAccounting::Complete {
             known_bytes,
@@ -701,16 +848,21 @@ impl QueueStore for SyntheticSqliteStore {
         // Admission and immutable intent are durable BEFORE staging bytes/I/O.
         transaction.execute("UPDATE jobs SET status='running',attempts=?,updated_at=MAX(updated_at,?),next_at=NULL,lease_fence=?,lease_owner=?,lease_expires=?,body_accepted=1,logical_held=1,activity='active' WHERE seq=?",params![attempt,integer(now)?,integer(fence)?,config.registration.dispatcher_owner_id,integer(expires_at)?,id])?;
         if input.pending_byte_liability.required {
-            let mut held = liability(&transaction, id)?;
-            held.accounting = ByteAccounting::Complete {
-                known_bytes: 0,
-                reserved_bytes: input
-                    .pending_byte_liability
-                    .reserved_bytes
-                    .ok_or(ExampleError::InvalidRow)?,
+            let reservation = StorageLiability {
+                accounting: ByteAccounting::Complete {
+                    known_bytes: 0,
+                    reserved_bytes: input
+                        .pending_byte_liability
+                        .reserved_bytes
+                        .ok_or(ExampleError::InvalidRow)?,
+                },
+                metadata_commit_evidence: MetadataCommitEvidence::NotDispatched,
+                byte_disposition: ByteDisposition::None,
+                reference_closure_evidence: ReferenceClosureEvidence::Unassessed,
+                orphan_candidate_id: None,
+                unresolved_attempts: 1,
             };
-            held.unresolved_attempts = 1;
-            store_liability(&transaction, id, &held)?;
+            store_liability(&transaction, id, &reservation)?;
         }
         let result = LeasedJob {
             lease: lease(&transaction, id, config)?,

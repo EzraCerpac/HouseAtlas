@@ -23,6 +23,9 @@ use super::*;
 ///   uncertainty/partial scopes and byte/orphan liabilities remain retained.
 ///   Matching definite acknowledgement is not lost to a backwards timestamp;
 ///   persist max(now, prior.updated_at). A stale fence never changes a row.
+///   Reports describe the matching lease/attempt. Keep earlier attempts' known
+///   bytes, reservations, incomplete accounting, unresolved counts and orphan
+///   references; a new claim or finish report cannot replace that liability.
 /// * Reconcile checks original job/owner/fence and persists logical evidence. It
 ///   MUST preserve remote activity and byte/orphan liabilities. Human effect
 ///   resolution cannot release the physical slot. End evidence is a separate
