@@ -54,15 +54,26 @@ rollback and concurrent behavior are coded but their stopped controls are unrun.
 | Authoritative cache browse | `NetworkProvider::read(&RetainedState)`; pure `build_facet(...)` |
 | Preparation | `NetworkProvider::prepare_refresh(&mut self, prior, expected_cache_epoch, generation_id, transport, clock)` |
 | Complete publication input | `RefreshOutcome::Complete(CompleteGenerationProposal)` with read-only `state()` and `precondition()` accessors |
-| Failed attempt | `RefreshOutcome::Failed(RefreshFailure)` with sanitized error and retained public state; never a complete proposal |
+| Failed attempt | `RefreshOutcome::Failed(RefreshFailure)` with sanitized error and retained internal state; never a complete proposal |
 | Retained sidecar | `stage_row`, `validate_immutable_replay`, `reopen_sidecar`, `validate_sidecar_packet` |
 
 Preparation makes one GET and creates a complete proposal without changing
 `prior` or publishing a cache pointer. The proposal includes the expected prior
 generation ID and expected cache epoch. A successful same-revision inventory
 must have the same canonical source contents; a revision cannot go backwards.
-Source scalar serialization follows the published canonical JSON rules,
-including ECMAScript number rendering and UTF-16 key ordering.
+JSON numeric tokens are normalized at ingestion to finite IEEE-754 binary64
+values, matching JavaScript `Number`. Retained data preserves that interpreted
+value, not arbitrary-precision digits or the original integer/decimal/exponent
+spelling. Negative zero is normalized to zero, matching canonical JSON output.
+An integer Serde representation encodes the already-rounded binary64 value; it
+never retains additional raw-token precision. Canonical sidecar serialization
+and reopening therefore retain the same interpreted value. The `float_roundtrip`
+Serde JSON feature supplies correctly rounded decimal parsing. Source and review
+revisions accept all finite nonnegative safe integral numeric spellings,
+including `42`, `42.0` and `42e0`, and are stored as `u64` after validation.
+Canonical serialization uses ECMAScript number rendering and UTF-16 key ordering.
+Shared-schema collection/allowlist IDs and cache error messages count Unicode
+code points; upstream source labels/opaque IDs retain their pinned UTF-16 limits.
 
 The immutable `SidecarRow` preserves the published
 `houseatlas-network-sidecar/1` fields, canonical partition key, canonical body
@@ -70,7 +81,12 @@ and SHA-256 digest. Reopening requires the exact generation ID, published cache
 success metadata, retained relation set and retained review. Full packet
 validation precedes import. Bounds match the retained implementation: 10 MiB per
 row, 10,000 rows and 16 MiB per packet. `stage_row` prepares bytes; it performs no
-SQL write.
+SQL write. Reopening returns validated **internal** state, preserving retained
+generations even with revoked cache metadata so a subsequent authorized refresh
+still compares revisions and same-revision inventory. Failed preparation also
+keeps internal retention. The host must expose public data through `read`,
+`public_read` or `build_facet`, which withhold revoked records; internal retained
+state is not a browser DTO.
 
 AT07/AT51 must supply authorization and source-grant revalidation, a durable
 immutable sidecar store, atomic publication of the cache/relations with the CAS
@@ -94,7 +110,7 @@ The external task-owned harness pins:
 
 ```toml
 serde = { version = "=1.0.228", features = ["derive"] }
-serde_json = "=1.0.145"
+serde_json = { version = "=1.0.145", features = ["float_roundtrip"] }
 chrono = { version = "=0.4.42", default-features = false, features = ["std"] }
 sha2 = "=0.10.9"
 ryu-js = "=1.0.2"
@@ -106,12 +122,15 @@ healthy examples/harness and may be a dev feature in the shared manifest.
 AT51 owns application dependency selection and Cargo.lock. The external harness
 uses edition 2024 and Rust 1.99.0; it imports `mod.rs` directly as its library.
 
-The `healthy` module contains exactly five positive synthetic examples and
+The `healthy` module contains exactly seven positive synthetic examples and
 includes only the published inventory/review fixtures. They cover membership,
 facet/history separation, passive GET and complete proposal, retained sidecar
 reopening/replay, partitioned observations and invalidation, source-valid blank
 and Unicode text, and a retained older review followed by a healthy newer
-revision. They do not run the legacy Network test aggregate or stopped controls.
+revision, normalized JS numbers across canonical reopening, integral revision
+spellings and schema-valid supplementary Unicode collection IDs. Internal
+revocation retention is reviewed statically; no revocation control is executed.
+They do not run the legacy Network test aggregate or stopped controls.
 
 The external harness points its library path at this module. Activate the pinned
 runtime and set `AT09_HARNESS_MANIFEST` to the external harness manifest and
@@ -127,7 +146,8 @@ cargo run --locked --manifest-path "$AT09_HARNESS_MANIFEST"
 node "$AT09_PARITY_SCRIPT"
 ```
 
-The external driver emits baseline, label and observation scenarios. The offline
+The external driver emits baseline, label, observation, numeric-normalization,
+Unicode-collection and integral-revision scenarios. The offline
 JS comparison uses the actual published projector, facet builder, canonical
 serializer and schema validators: complete state, reopened state, fresh/stale
 facets, sidecar canonical bytes and digest match exactly, and the relations join

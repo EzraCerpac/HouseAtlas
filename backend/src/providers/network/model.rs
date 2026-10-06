@@ -58,6 +58,7 @@ pub struct LinkEvidence {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LinkReview {
+    #[serde(deserialize_with = "super::json::deserialize_revision")]
     pub revision: u64,
     pub links: BTreeMap<String, LinkEvidence>,
 }
@@ -81,6 +82,7 @@ pub struct NetworkRelation {
     pub from: NetworkEndpoint,
     pub to: NetworkEndpoint,
     pub medium: Medium,
+    #[serde(deserialize_with = "super::json::deserialize_revision")]
     pub source_revision: u64,
     #[serde(deserialize_with = "nullable")]
     pub source_snapshot_at: Option<String>,
@@ -102,6 +104,7 @@ pub struct QualifiedRecord {
     pub scope: SourceScope,
     pub source_kind: SourceKind,
     pub external_id: String,
+    #[serde(deserialize_with = "super::json::deserialize_revision")]
     pub source_revision: u64,
     #[serde(deserialize_with = "nullable")]
     pub source_snapshot_at: Option<String>,
@@ -124,6 +127,7 @@ pub struct RetainedObservation {
     #[serde(flatten)]
     pub scope: SourceScope,
     pub external_id: String,
+    #[serde(deserialize_with = "super::json::deserialize_revision")]
     pub source_revision: u64,
     #[serde(deserialize_with = "nullable")]
     pub source_snapshot_at: Option<String>,
@@ -136,6 +140,7 @@ pub struct RetainedObservation {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Provenance {
     pub input: String,
+    #[serde(deserialize_with = "super::json::deserialize_revision")]
     pub link_review_revision: u64,
     pub graph_positions_establish_geometry: bool,
     pub groups_establish_placement: bool,
@@ -148,6 +153,7 @@ pub struct NetworkGeneration {
     pub schema_version: u8,
     #[serde(flatten)]
     pub scope: SourceScope,
+    #[serde(deserialize_with = "super::json::deserialize_revision")]
     pub source_revision: u64,
     #[serde(deserialize_with = "nullable")]
     pub source_snapshot_at: Option<String>,

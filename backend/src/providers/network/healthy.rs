@@ -347,3 +347,50 @@ async fn healthy_retained_old_review_then_new_revision_proposal() {
     );
     stage_row(&source, &proposal).unwrap();
 }
+
+#[test]
+fn healthy_js_numbers_keep_the_same_value_through_canonical_reopen() {
+    use super::json::{bounded_json, canonical_json};
+    let original = br#"{"positive":9007199254740993,"negative":-9007199254740993,"u64Edge":18446744073709551615,"integer":42,"decimal":42.0,"exponent":42e0,"fraction":0.10000000000000002,"tiny":1e-7,"large":1e21}"#;
+    let normalized = bounded_json(original, 10_000).unwrap();
+    assert_eq!(normalized["positive"], json!(9_007_199_254_740_992_u64));
+    assert_eq!(normalized["negative"], json!(-9_007_199_254_740_992_i64));
+    assert_eq!(
+        normalized["u64Edge"].as_f64(),
+        Some(18_446_744_073_709_551_616.0)
+    );
+    assert_eq!(normalized["integer"], normalized["decimal"]);
+    assert_eq!(normalized["integer"], normalized["exponent"]);
+    let body = canonical_json(&normalized).unwrap();
+    assert_eq!(bounded_json(body.as_bytes(), 10_000).unwrap(), normalized);
+}
+
+#[test]
+fn healthy_integral_revision_spellings_and_schema_collection_lengths() {
+    let mut source = source();
+    source.scope.collection_id = "🧭".repeat(4096);
+    for spelling in ["42", "42.0", "42e0"] {
+        let document = WIRE.replacen("\"revision\": 42", &format!("\"revision\": {spelling}"), 1);
+        let annotations =
+            REVIEW.replacen("\"revision\": 42", &format!("\"revision\": {spelling}"), 1);
+        let review: LinkReview = serde_json::from_str(&annotations).unwrap();
+        assert_eq!(review.revision, 42);
+        let generation = project_capture(
+            &source,
+            NetworkCapture {
+                source: &source.scope,
+                document: document.as_bytes(),
+                retrieved_at: AT,
+                source_snapshot_at: None,
+            },
+            &review,
+            Limits::default(),
+        )
+        .unwrap();
+        assert_eq!(generation.source_revision, 42);
+        let state = state(&source, generation);
+        validate_state(&source, &state, Some(&review)).unwrap();
+        let facet = build_facet(&source, &state, AT, 300_000).unwrap();
+        assert_eq!(facet.scope.collection_id.chars().count(), 4096);
+    }
+}

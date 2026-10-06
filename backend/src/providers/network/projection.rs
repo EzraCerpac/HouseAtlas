@@ -1,4 +1,7 @@
-use super::{json::bounded_json, model::*};
+use super::{
+    json::{bounded_json, safe_revision},
+    model::*,
+};
 use chrono::DateTime;
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
@@ -9,6 +12,11 @@ pub(crate) fn text(value: &str, max: usize) -> bool {
 }
 pub(crate) fn id(value: &str) -> bool {
     !value.is_empty() && text(value, 4096)
+}
+// JSON Schema string lengths count Unicode code points. Keep this separate
+// from the pinned upstream text/opaque-ID rules, which count UTF-16 code units.
+fn schema_id(value: &str) -> bool {
+    !value.is_empty() && value.chars().count() <= 4096
 }
 pub(crate) fn uuid(value: &str) -> bool {
     value.len() == 36
@@ -46,8 +54,11 @@ pub(crate) fn validate_registration(source: &SourceRegistration) -> Result<()> {
         || !uuid(&scope.workspace_id)
         || !uuid(&scope.home_id)
         || !uuid(&scope.source_instance_id)
-        || !id(&scope.collection_id)
-        || source.allowed_external_ids.iter().any(|value| !id(value))
+        || !schema_id(&scope.collection_id)
+        || source
+            .allowed_external_ids
+            .iter()
+            .any(|value| !schema_id(value))
         || source
             .allowed_external_ids
             .iter()
@@ -197,11 +208,11 @@ fn inventory_input(
     max_records: usize,
 ) -> Result<InventoryInput> {
     object(document)?;
-    let revision = document
-        .get("revision")
-        .and_then(Value::as_u64)
-        .ok_or_else(|| NetworkError::new(ErrorCode::InvalidSchema))?;
-    guard(revision <= 9_007_199_254_740_991)?;
+    let revision = safe_revision(
+        document
+            .get("revision")
+            .ok_or_else(|| NetworkError::new(ErrorCode::InvalidSchema))?,
+    )?;
     let inv = document
         .get("inventory")
         .ok_or_else(|| NetworkError::new(ErrorCode::InvalidSchema))?;
@@ -570,7 +581,7 @@ pub fn validate_state(
     guard(cache.generation_id.as_ref().is_none_or(|value| uuid(value)))?;
     if let Some(error) = &cache.error {
         stamp(&error.at)?;
-        guard(id(&error.message))?;
+        guard(schema_id(&error.message))?;
     }
     guard(
         cache.status != CacheStatus::Fresh || (state.generation.is_some() && cache.error.is_none()),

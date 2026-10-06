@@ -15,6 +15,48 @@ pub(crate) fn bounded_json(bytes: &[u8], max_bytes: usize) -> Result<Value> {
         .map_err(|_| NetworkError::new(ErrorCode::InvalidSchema))?;
     Ok(value)
 }
+// Every JSON token is consumed as a finite IEEE-754 binary64 JS Number before
+// retention. Use one stable Serde storage representation for that value across
+// integer/decimal/exponent spellings and canonical sidecar round trips. Integer
+// storage here is an encoding of the already-rounded f64, never raw precision.
+fn js_number(value: f64) -> Option<Number> {
+    if !value.is_finite() {
+        return None;
+    }
+    if value == 0.0 {
+        return Some(0_u64.into());
+    }
+    if value.fract() == 0.0 {
+        if (0.0..18_446_744_073_709_551_616.0).contains(&value) {
+            return Some((value as u64).into());
+        }
+        if (i64::MIN as f64..0.0).contains(&value) {
+            return Some((value as i64).into());
+        }
+    }
+    Number::from_f64(value)
+}
+
+pub(crate) fn safe_revision(value: &Value) -> Result<u64> {
+    let number = value
+        .as_f64()
+        .ok_or_else(|| NetworkError::new(ErrorCode::InvalidSchema))?;
+    guard(
+        number.is_finite()
+            && number.fract() == 0.0
+            && (0.0..=9_007_199_254_740_991.0).contains(&number),
+    )?;
+    Ok(number as u64)
+}
+
+pub(crate) fn deserialize_revision<'de, D>(de: D) -> std::result::Result<u64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = <Value as serde::Deserialize>::deserialize(de)?;
+    safe_revision(&value).map_err(serde::de::Error::custom)
+}
+
 struct StrictValue {
     depth: usize,
 }
@@ -38,14 +80,14 @@ impl<'de> Visitor<'de> for StrictValue {
     fn visit_bool<E>(self, value: bool) -> std::result::Result<Value, E> {
         Ok(Value::Bool(value))
     }
-    fn visit_i64<E>(self, value: i64) -> std::result::Result<Value, E> {
-        Ok(Value::Number(value.into()))
+    fn visit_i64<E: serde::de::Error>(self, value: i64) -> std::result::Result<Value, E> {
+        self.visit_f64(value as f64)
     }
-    fn visit_u64<E>(self, value: u64) -> std::result::Result<Value, E> {
-        Ok(Value::Number(value.into()))
+    fn visit_u64<E: serde::de::Error>(self, value: u64) -> std::result::Result<Value, E> {
+        self.visit_f64(value as f64)
     }
     fn visit_f64<E: serde::de::Error>(self, value: f64) -> std::result::Result<Value, E> {
-        Number::from_f64(value)
+        js_number(value)
             .map(Value::Number)
             .ok_or_else(|| E::custom("nonfinite number"))
     }

@@ -210,7 +210,9 @@ fn decode_row(source: &SourceRegistration, row: &SidecarRow) -> Result<RetainedS
     Ok(state)
 }
 /// Reopen only the exact published generation pointer, cache metadata and relation
-/// set. Failed/stale cache status may refer to the same immutable successful row.
+/// set. Failed/stale/revoked cache status may refer to the same immutable
+/// successful row. Return internal retained state for subsequent revision checks;
+/// the host must use provider.read/public_read or build_facet for public output.
 pub fn reopen_sidecar(
     source: &SourceRegistration,
     published_cache: &CacheMetadata,
@@ -234,7 +236,7 @@ pub fn reopen_sidecar(
         generation: staged.generation,
     };
     validate_state(source, &state, configured_review)?;
-    Ok(state.public_read())
+    Ok(state)
 }
 /// Validate the full retained packet before the storage owner imports any row.
 /// Packet import/SQL transactions/export ordering belong to the durable store.

@@ -65,8 +65,9 @@ impl CompleteGenerationProposal {
 #[derive(Clone, Debug)]
 pub struct RefreshFailure {
     pub error: NetworkError,
-    /// Previous generation and success metadata survive ordinary failures.
-    /// Revoked public results contain no records and cannot lift an earlier denial.
+    /// Internal state: keep the validated previous generation for revision
+    /// comparison/recovery. Expose it only through provider.read/public_read or
+    /// build_facet, which withhold revoked records without destroying retention.
     pub state: RetainedState,
 }
 #[derive(Clone, Debug)]
@@ -143,10 +144,7 @@ impl NetworkProvider {
                     at: attempted_at,
                     message: error.message().into(),
                 });
-                RefreshOutcome::Failed(Box::new(RefreshFailure {
-                    error,
-                    state: state.public_read(),
-                }))
+                RefreshOutcome::Failed(Box::new(RefreshFailure { error, state }))
             }
         })
     }
