@@ -1,5 +1,5 @@
 //! SQL is private to storage. Callers never supply table names or connections.
-use super::*;
+use super::{cache_repository as cache_repo, *};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -139,7 +139,7 @@ pub(crate) fn write_record<C: Contract, R: Runtime>(
         if record.lifecycle == Lifecycle::Active && payload["availability"] == "available" {
             let proof = runtime.verify_available_asset(record)?;
             if payload["sha256"].as_str() != Some(&proof.sha256)
-                || payload["byteSize"].as_u64() != Some(proof.byte_size)
+                || super::numeric::safe_integer(&payload["byteSize"]) != Some(proof.byte_size)
             {
                 return Err(Error::new(
                     "invalid-transition",
@@ -180,82 +180,22 @@ pub(crate) fn bootstrap<C: Contract, R: Runtime>(
     }
     contract.validate_snapshot(snapshot)?;
     for source in &snapshot.sources {
-        let p = partition(source)?;
-        db.execute(
-            "INSERT INTO sources VALUES(?1,?2,?3,?4,?5)",
-            params![
-                p.workspace_id,
-                p.home_id,
-                p.source_instance_id,
-                p.collection_id,
-                json(contract, source)?
-            ],
-        )?;
-        db.execute(
-            "INSERT INTO cache_epochs VALUES(?1,?2,?3,?4,0)",
-            params![
-                p.workspace_id,
-                p.home_id,
-                p.source_instance_id,
-                p.collection_id
-            ],
-        )?;
+        cache_repo::write_source(db, contract, source)?;
     }
     for record in &snapshot.records {
         write_record(db, contract, runtime, record, None)?;
     }
     for cache in &snapshot.caches {
-        let p = partition(cache)?;
-        db.execute(
-            "INSERT INTO caches VALUES(?1,?2,?3,?4,?5)",
-            params![
-                p.workspace_id,
-                p.home_id,
-                p.source_instance_id,
-                p.collection_id,
-                json(contract, cache)?
-            ],
-        )?;
+        cache_repo::write_cache(db, contract, cache)?;
         if let Some(generation) = cache["generationId"].as_str() {
-            db.execute(
-                "INSERT INTO cache_generations VALUES(?1,?2,?3,?4,?5)",
-                params![
-                    p.workspace_id,
-                    p.home_id,
-                    p.source_instance_id,
-                    p.collection_id,
-                    generation
-                ],
-            )?;
+            cache_repo::reserve_generation(db, &partition(cache)?, generation)?;
         }
     }
     for projection in &snapshot.homebox_entities {
-        let source = &projection["source"];
-        db.execute(
-            "INSERT INTO projections VALUES(?1,?2,?3,?4,?5,?6)",
-            params![
-                string(projection, "workspaceId")?,
-                string(projection, "homeId")?,
-                string(source, "sourceInstanceId")?,
-                string(source, "collectionId")?,
-                string(source, "externalId")?,
-                json(contract, projection)?
-            ],
-        )?;
+        cache_repo::write_homebox(db, contract, projection)?;
     }
     for relation in &snapshot.network_relations {
-        let p = partition(relation)?;
-        db.execute(
-            "INSERT INTO network_relations VALUES(?1,?2,?3,?4,?5,?6)",
-            params![
-                p.workspace_id,
-                p.home_id,
-                p.source_instance_id,
-                p.collection_id,
-                string(relation, "externalId")?,
-                json(contract, relation)?
-            ],
-        )?;
+        cache_repo::write_network(db, contract, relation)?;
     }
     Ok(())
 }

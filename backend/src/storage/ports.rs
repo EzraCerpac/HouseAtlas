@@ -30,6 +30,11 @@ pub trait Contract {
     ) -> Result<()>;
     fn validate_result(&self, result: &MutationResult, prior: Prior<'_>) -> Result<()>;
     fn canonical_json(&self, value: &Value) -> Result<String>;
+    /// Source-event ordering at the published millisecond precision. None means
+    /// schema-accepted text has no orderable timestamp, as in the frozen core.
+    /// The contract owner reconciles the native parsing profile; wire strings
+    /// are retained verbatim and do not establish authorization or epoch order.
+    fn timestamp_millis(&self, value: &str) -> Result<Option<i64>>;
 }
 
 #[derive(Clone, Copy)]
@@ -46,6 +51,8 @@ pub enum Capability {
     ReadCache,
     ReadAssetManifest,
     Mutate,
+    ConfigureSource,
+    PublishCache,
 }
 
 /// Borrowed, detached data: no SQL handle, transaction, nested-read callback or

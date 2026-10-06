@@ -24,6 +24,7 @@ for await (const line of createInterface({input:process.stdin,crlfDelay:Infinity
         break;
       case 'canonical': value=canonicalJson(args.value); break;
       case 'digest': value=recordDigest(args.value); break;
+      case 'timestamp': value=Number.isFinite(Date.parse(args.value))?Date.parse(args.value):null; break;
       case 'context': value=mutationAuthorizationContext(args); break;
       default: throw new Error('Unknown checkpoint operation');
     }
