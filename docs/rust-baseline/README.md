@@ -43,6 +43,19 @@ Typed DTOs alone do not establish graph, authorization, current source authority
 transaction ordering, mutation receipts or other behavioral invariants. Their
 feature owners must implement those checks at integration boundaries.
 
+Open HomeBox DTO deserialization requires serde_json's `RawValue` protocol.
+Supported paths are `contracts::decode`, serde_json JSON deserializers, and
+`serde_json::from_value` with a Value whose object shape is already preserved.
+`decode` constructs that preserved Value before validation and DTO conversion.
+Generic Serde deserializers and wrappers that buffer these open DTOs through
+`flatten` or `untagged` are unsupported. The supplied schemas use no such wrapper
+around the four open HomeBox shapes; existing closed untagged DTOs are unchanged.
+The shared dependency selection requires serde_json 1.0.151 features
+`arbitrary_precision` and `raw_value`, plus jsonschema 0.58.6 feature
+`arbitrary-precision`. The integration owner has this feature requirement and
+protocol constraint; AT51 does not expand the supported paths beyond accepted
+source commit `6b3029cbbcf1462ecdeecc62a56c24f66e034057`.
+
 Rust integer fields use `JsonInteger` and checked exact decimal classification.
 Construct ordinary revisions with
 `JsonInteger::from(1_i64)` and inspect them with `as_number().as_i64()` or
@@ -83,20 +96,27 @@ node tools/rust-baseline/check.mjs
 ```
 
 `check.mjs` uses a temporary Cargo target outside the checkout, or a caller-supplied
-`CARGO_TARGET_DIR`, and invokes these exact source compiler commands:
+`CARGO_TARGET_DIR`. The named compiler command set, with all required features
+explicit for reproduction, is:
 
 ```sh
 node tools/rust-baseline/generate-contracts.mjs --check
 node tools/rust-baseline/check-contracts.mjs
 node packages/contracts/history/check-history.mjs
 cargo fmt --all --check
-cargo check --locked -p houseatlas-backend --lib --examples --features serde_json/arbitrary_precision,jsonschema/arbitrary-precision
-cargo clippy --locked -p houseatlas-backend --lib --examples --features serde_json/arbitrary_precision,jsonschema/arbitrary-precision -- -D warnings
-cargo run --locked -p houseatlas-backend --example healthy-contracts --features serde_json/arbitrary_precision,jsonschema/arbitrary-precision
-cargo run --locked -p houseatlas-backend --example healthy-dependencies --features serde_json/arbitrary_precision,jsonschema/arbitrary-precision
+cargo check --locked -p houseatlas-backend --lib --examples --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision
+cargo clippy --locked -p houseatlas-backend --lib --examples --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision -- -D warnings
+cargo run --locked -p houseatlas-backend --example healthy-contracts --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision
+cargo run --locked -p houseatlas-backend --example healthy-dependencies --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision
 npm --prefix frontend run typecheck
 npm --prefix frontend run build
 ```
+
+The accepted object-preservation compiler run selected `raw_value` explicitly
+in an external task-owned harness using these same named commands. The unchanged
+`check.mjs` runner inherits `raw_value` when the shared manifest selects it;
+its Cargo flags explicitly select the precision pair. This documentation-only
+handoff adds no code iteration or further boundary qualification.
 
 Regenerate DTOs deliberately with `node tools/rust-baseline/generate-contracts.mjs`;
 commit both language outputs together. The generator uses pinned Node builtins
