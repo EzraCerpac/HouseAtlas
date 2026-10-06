@@ -5,11 +5,12 @@
 
 #![forbid(unsafe_code)]
 
-#[cfg(not(target_os = "linux"))]
-compile_error!("The private media filesystem currently requires Linux");
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+compile_error!("The private media filesystem currently supports Linux and macOS");
 
 mod budget;
 pub mod content;
+mod platform_fs;
 mod private_fs;
 pub mod recovery;
 pub mod service;

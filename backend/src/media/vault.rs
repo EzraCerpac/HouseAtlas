@@ -3,7 +3,7 @@ use std::io::Read;
 use std::path::Path;
 use std::sync::Mutex;
 
-use rustix::fs::{AtFlags, linkat};
+use rustix::fs::{AtFlags, Mode, linkat};
 
 use super::content::validate_content;
 use super::private_fs::PrivateDir;
@@ -95,6 +95,18 @@ impl AssetVault {
         self.staging.check()
     }
 
+    /// Bottom-up barrier for a complete restored vault, including empty dirs.
+    pub(crate) fn sync_retained_hierarchy(&self) -> MediaResult<()> {
+        self.check_hierarchy()?;
+        let scopes = self.scopes.lock().map_err(|_| MediaError::Unavailable)?;
+        for scope in scopes.values() {
+            scope.sync()?;
+        }
+        self.blobs.sync()?;
+        self.staging.sync()?;
+        self.root.sync()
+    }
+
     fn with_scope<T>(
         &self,
         scope: &Scope,
@@ -132,7 +144,9 @@ impl AssetVault {
         };
         self.with_scope(scope, true, |directory| {
             let staged = self.staging.temporary("original-")?;
-            staged.directory.write_new("bytes", bytes, 0o400)?;
+            staged
+                .directory
+                .write_new("bytes", bytes, Mode::from_raw_mode(0o400))?;
             self.check_hierarchy()?;
             directory.check()?;
             staged.directory.check()?;
@@ -154,7 +168,11 @@ impl AssetVault {
                 }
                 Err(e) => return Err(e.into()),
             }
+            directory.sync_member(&member)?;
             directory.sync()?;
+            self.blobs.sync()?;
+            self.staging.sync()?;
+            self.root.sync()?;
             budget.check()?;
             Ok(PreparedIdentity {
                 storage_key: scope.storage_key(&digest)?,

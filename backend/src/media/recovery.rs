@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+use rustix::fs::Mode;
 use serde::{Deserialize, Serialize};
 
 use super::private_fs::{PrivateDir, destination_parent};
@@ -193,6 +194,7 @@ pub fn capture_recovery<P: RecoveryDatabasePort>(
     let staged = parent.temporary(".atlas-capture-")?;
     port.backup_to(&staged.directory.path.join("atlas.sqlite"), budget)?;
     staged.directory.check()?;
+    staged.directory.sync_member("atlas.sqlite")?;
     let (assets, database) = database_assets(port, &staged.directory, budget)?;
     let originals = staged.directory.child("originals", true)?;
     let mut total = database.len();
@@ -213,7 +215,7 @@ pub fn capture_recovery<P: RecoveryDatabasePort>(
         let blob = if let Some(bytes) = original {
             add_total(&mut total, bytes.len())?;
             let member = format!("{index}.blob");
-            originals.write_new(&member, &bytes, 0o400)?;
+            originals.write_new(&member, &bytes, Mode::from_raw_mode(0o400))?;
             Some(member)
         } else {
             None
@@ -239,7 +241,9 @@ pub fn capture_recovery<P: RecoveryDatabasePort>(
     if json.len() > MAX_MANIFEST {
         return Err(MediaError::TooLarge);
     }
-    staged.directory.write_new("manifest.json", &json, 0o600)?;
+    staged
+        .directory
+        .write_new("manifest.json", &json, Mode::from_raw_mode(0o600))?;
     originals.sync()?;
     staged.directory.sync()?;
     verify_directory(port, &staged.directory, budget)?;
@@ -334,7 +338,7 @@ pub fn restore_recovery<P: RecoveryDatabasePort>(
     }
     staged
         .directory
-        .write_new("atlas.sqlite", &database, 0o600)?;
+        .write_new("atlas.sqlite", &database, Mode::from_raw_mode(0o600))?;
     let vault = AssetVault::open(&staged.directory.path.join("media"))?;
     let originals = bundle.child("originals", false)?;
     for (record, entry) in verified.assets.iter().zip(&verified.manifest.assets) {
@@ -344,6 +348,7 @@ pub fn restore_recovery<P: RecoveryDatabasePort>(
         }
     }
     database_assets(port, &staged.directory, budget)?;
+    vault.sync_retained_hierarchy()?;
     staged.directory.sync()?;
     budget.check()?;
     let path = staged.publish(&name)?;

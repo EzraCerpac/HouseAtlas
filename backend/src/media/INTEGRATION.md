@@ -20,7 +20,8 @@ The external compiler harness pins `serde = 1.0.228` (derive),
 `serde_json = 1.0.145`, `sha2 = 0.10.9`, `flate2 = 1.1.5`
 (default features disabled, rust_backend), `crc32fast = 1.5.0`,
 `rustix = 1.1.2` (fs) and `tempfile = 3.23.0`.
-The host is Linux, compiled with Rust 1.99.0. The peer/backend manifest must
+The source supports Linux and macOS with a small platform boundary; current
+healthy checks run on Linux with Rust 1.99.0. The peer/backend manifest must
 reconcile these pins. No application manifest/lock is added by AT12.
 
 ## Typed peer ports
@@ -68,14 +69,49 @@ sessions, credentials/config, HomeBox originals and Network state remain exclude
 AT15 must compose its separate access/config restore and invalidate sessions.
 
 The vault uses descriptor-relative no-follow member opens/links, directory inode
-pins, private modes, synced original bytes and no-overwrite installation. Bundle
-publication uses Linux rename-with-NOREPLACE and synced parent directories.
+pins, private modes, synced original bytes and no-overwrite installation. New
+root, child and temporary directories sync themselves and their bound parents
+before returning, including existing-directory retries. Parent mode is checked
+as an existing directory rather than forced to the child vault's 0700 mode.
+File writes sync bytes and their directory; installed/reused originals sync
+again before scope/blobs/staging/root barriers. Capture syncs the peer-created
+closed database. Restore syncs the complete nested vault bottom-up, including
+empty directories, before outer staging publication. Barrier errors propagate.
+Bundle publication syncs its staging directory immediately before exclusive
+rename and its parent after rename.
 The integrator must exclusively own and serialize configured directories;
 ordinary synthetic examples do not qualify hostile same-owner interference,
 target power-loss/rename behavior, security, deployment or retention.
 Only operation-owned staging is cleaned when its directory identities still
 match. Installed originals have no delete/GC API. Staging left after process
 death needs a future drained offline cleanup owner.
+
+## macOS portability and remaining native checks
+
+`platform_fs.rs` is the platform boundary: both platforms use descriptor-relative
+exclusive rename through pinned rustix. Linux uses `RENAME_NOREPLACE`; macOS uses
+`renameatx_np` with `RENAME_EXCL`. macOS runtimes without that API fail rather
+than fall back to an overwriting rename. The sync helper propagates `fsync` on
+both platforms and additionally `F_FULLFSYNC` on macOS, including directory
+barriers. Unsupported filesystem sync operations fail; they are never ignored
+or replaced with weaker success. Apple describes this cache-flush requirement
+in its [fsync documentation](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/fsync.2.html).
+Private file creation accepts rustix `Mode` directly so the Darwin `mode_t`
+width is respected. Synthetic temporary paths are canonicalized to handle
+macOS `/tmp` and `/var` aliases without relaxing production directory pins.
+
+The selected environment has only the Linux standard-library target and no
+Apple SDK, xcrun or cross-toolchain; Darwin compilation/runtime checks were not
+run and no compiler/SDK was installed. Source-level macOS support is not native
+target qualification. The macOS target follow-up is native Rust 1.99 compilation
+and the two named ordinary healthy examples below on a disposable private
+directory on the intended Mac filesystem. Those examples must successfully
+exercise directory/file `F_FULLFSYNC`, scope creation/reopen, immutable hard
+links, and new-destination exclusive rename/capture/restore; record macOS
+version, architecture, volume/filesystem and actual errors outside Git.
+The exact APFS/volume directory/full-sync behavior remains unverified here.
+Crash/fault/power-loss, adversarial, concurrency, rejection and replay checks
+remain deferred and are not substituted by these healthy examples.
 
 ## Behavioral references inspected
 

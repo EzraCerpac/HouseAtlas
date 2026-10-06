@@ -3,12 +3,12 @@
 //! inode checks also detect replaced configured hierarchies between operations.
 use std::fs::{self, File};
 use std::io::{Read, Write};
-use std::os::unix::fs::{DirBuilderExt, MetadataExt};
+use std::os::unix::fs::MetadataExt;
 use std::path::{Component, Path, PathBuf};
 
-use rustix::fs::{self as rfs, AtFlags, Dir, Mode, OFlags, RenameFlags};
+use rustix::fs::{self as rfs, AtFlags, Dir, Mode, OFlags};
 
-use super::{MediaError, MediaResult, WorkBudget};
+use super::{MediaError, MediaResult, WorkBudget, platform_fs};
 
 impl From<rustix::io::Errno> for MediaError {
     fn from(error: rustix::io::Errno) -> Self {
@@ -29,21 +29,34 @@ impl PrivateDir {
         if path.components().any(|c| matches!(c, Component::ParentDir)) {
             return Err(MediaError::InvalidInput);
         }
-        if create {
-            match fs::DirBuilder::new().mode(0o700).create(&path) {
-                Ok(()) => (),
-                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => (),
+        let flags = OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC;
+        let parent = if create {
+            let parent_path = path.parent().ok_or(MediaError::InvalidInput)?.to_owned();
+            let name = path.file_name().ok_or(MediaError::InvalidInput)?;
+            let parent_file = File::from(rfs::open(&parent_path, flags, Mode::empty())?);
+            // The trusted existing parent can legitimately be 0755. Bind its
+            // identity without imposing the child vault's private mode on it.
+            check_existing_parent(&parent_path, &parent_file)?;
+            match rfs::mkdirat(&parent_file, name, Mode::from_raw_mode(0o700)) {
+                Ok(()) | Err(rustix::io::Errno::EXIST) => (),
                 Err(e) => return Err(e.into()),
             }
-        }
+            Some((parent_path, parent_file))
+        } else {
+            None
+        };
         if fs::canonicalize(&path)? != path {
             return Err(MediaError::Unavailable);
         }
-        let file = File::from(rfs::open(
-            &path,
-            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
-            Mode::empty(),
-        )?);
+        let file = File::from(match &parent {
+            Some((_, parent_file)) => rfs::openat(
+                parent_file,
+                path.file_name().ok_or(MediaError::InvalidInput)?,
+                flags,
+                Mode::empty(),
+            )?,
+            None => rfs::open(&path, flags, Mode::empty())?,
+        });
         let meta = file.metadata()?;
         if !meta.is_dir() || meta.mode() & 0o077 != 0 {
             return Err(MediaError::Unavailable);
@@ -55,6 +68,15 @@ impl PrivateDir {
             inode: meta.ino(),
         };
         result.check()?;
+        if let Some((parent_path, parent_file)) = parent {
+            // Include EXIST: a previous attempt can create the child and fail
+            // its barrier. A retry must establish both barriers before success.
+            result.sync()?;
+            check_existing_parent(&parent_path, &parent_file)?;
+            platform_fs::sync(&parent_file)?;
+            check_existing_parent(&parent_path, &parent_file)?;
+            result.check()?;
+        }
         Ok(result)
     }
 
@@ -100,6 +122,10 @@ impl PrivateDir {
         };
         self.check()?;
         child.check()?;
+        if create {
+            child.sync()?;
+            self.sync()?;
+        }
         Ok(child)
     }
 
@@ -169,25 +195,44 @@ impl PrivateDir {
         Ok(bytes)
     }
 
-    pub fn write_new(&self, name: &str, bytes: &[u8], mode: u32) -> MediaResult<()> {
+    pub fn write_new(&self, name: &str, bytes: &[u8], mode: Mode) -> MediaResult<()> {
         member(name)?;
         self.check()?;
         let mut file = File::from(rfs::openat(
             &self.file,
             name,
             OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
-            Mode::from_raw_mode(mode),
+            mode,
         )?);
         file.write_all(bytes)?;
-        file.sync_all()?;
-        self.check()?;
+        platform_fs::sync(&file)?;
+        self.sync()?;
         Ok(())
+    }
+
+    /// Close the durability obligation for a peer-created database or a
+    /// retained file reused after an uncertain earlier installation.
+    pub fn sync_member(&self, name: &str) -> MediaResult<()> {
+        member(name)?;
+        self.check()?;
+        let file = File::from(rfs::openat(
+            &self.file,
+            name,
+            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
+            Mode::empty(),
+        )?);
+        let meta = file.metadata()?;
+        if !meta.is_file() || meta.mode() & 0o077 != 0 {
+            return Err(MediaError::Unavailable);
+        }
+        platform_fs::sync(&file)?;
+        self.check()
     }
 
     pub fn sync(&self) -> MediaResult<()> {
         self.check()?;
-        self.file.sync_all()?;
-        Ok(())
+        platform_fs::sync(&self.file)?;
+        self.check()
     }
 
     pub fn temporary(&self, prefix: &str) -> MediaResult<StagedDirectory> {
@@ -204,11 +249,15 @@ impl PrivateDir {
             inode: self.inode,
         };
         parent.check()?;
-        Ok(StagedDirectory {
+        let staged = StagedDirectory {
             parent,
             directory,
             published: false,
-        })
+        };
+        // Construct the owner first so a barrier error retains normal cleanup.
+        staged.directory.sync()?;
+        staged.parent.sync()?;
+        Ok(staged)
     }
 
     pub fn require_absent(&self, name: &str) -> MediaResult<()> {
@@ -231,26 +280,13 @@ pub(crate) struct StagedDirectory {
 impl StagedDirectory {
     pub fn publish(mut self, name: &str) -> MediaResult<PathBuf> {
         self.parent.require_absent(name)?;
-        self.directory.check()?;
+        self.directory.sync()?;
         let staged_name = self
             .directory
             .path
             .file_name()
             .ok_or(MediaError::InvalidInput)?;
-        rfs::renameat_with(
-            &self.parent.file,
-            staged_name,
-            &self.parent.file,
-            name,
-            RenameFlags::NOREPLACE,
-        )
-        .map_err(|e| {
-            if e == rustix::io::Errno::EXIST {
-                MediaError::Conflict
-            } else {
-                e.into()
-            }
-        })?;
+        platform_fs::rename_new(&self.parent.file, staged_name, name)?;
         self.published = true;
         self.parent.sync()?;
         Ok(self.parent.path.join(name))
@@ -283,6 +319,20 @@ pub(crate) fn destination_parent(destination: &Path) -> MediaResult<(PrivateDir,
 fn member(name: &str) -> MediaResult<()> {
     if name.is_empty() || name == "." || name == ".." || name.contains('/') || name.contains('\0') {
         return Err(MediaError::InvalidInput);
+    }
+    Ok(())
+}
+
+fn check_existing_parent(path: &Path, file: &File) -> MediaResult<()> {
+    let expected = file.metadata()?;
+    let current = fs::symlink_metadata(path)?;
+    if !current.is_dir()
+        || current.file_type().is_symlink()
+        || current.dev() != expected.dev()
+        || current.ino() != expected.ino()
+        || fs::canonicalize(path)? != path
+    {
+        return Err(MediaError::Unavailable);
     }
     Ok(())
 }

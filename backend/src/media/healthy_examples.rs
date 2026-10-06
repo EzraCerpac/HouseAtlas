@@ -4,7 +4,7 @@
 use std::cell::Cell;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
@@ -287,7 +287,13 @@ fn healthy_owned_delivery_public_sqlite_capture_restore_and_receipt_bytes() {
         .prefix("houseatlas-at12-healthy-")
         .tempdir()
         .unwrap();
-    let vault_root = temp.path().join("media");
+    // macOS temporary roots can use /var or /tmp aliases; production directory
+    // pins deliberately require canonical configured paths on both platforms.
+    let temp_root = fs::canonicalize(temp.path()).unwrap();
+    let configured_parent = temp_root.join("configured-parent");
+    fs::create_dir(&configured_parent).unwrap();
+    fs::set_permissions(&configured_parent, fs::Permissions::from_mode(0o755)).unwrap();
+    let vault_root = configured_parent.join("media");
     let vault = AssetVault::open(&vault_root).unwrap();
     let (png, pixels) = png_fixture(false, 0);
     let prepared = vault
@@ -318,6 +324,21 @@ fn healthy_owned_delivery_public_sqlite_capture_restore_and_receipt_bytes() {
         .unwrap();
     assert_eq!(retry.identity, proof);
     assert_eq!(vault.read_retained(&asset, &budget()).unwrap(), png);
+    // Reopening existing private directories repeats creation barriers, while
+    // the trusted configured parent's legitimate 0755 mode is preserved.
+    let reopened_vault = AssetVault::open(&vault_root).unwrap();
+    assert_eq!(
+        reopened_vault.read_retained(&asset, &budget()).unwrap(),
+        png
+    );
+    assert_eq!(
+        fs::metadata(&configured_parent)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o755
+    );
 
     let store = SyntheticDeliveryStore {
         record: asset.clone(),
@@ -464,7 +485,7 @@ fn healthy_owned_delivery_public_sqlite_capture_restore_and_receipt_bytes() {
         );
     }
 
-    let input = temp.path().join("healthy-records.json");
+    let input = temp_root.join("healthy-records.json");
     let mut file = OpenOptions::new()
         .create_new(true)
         .write(true)
@@ -473,12 +494,12 @@ fn healthy_owned_delivery_public_sqlite_capture_restore_and_receipt_bytes() {
         .unwrap();
     file.write_all(&serde_json::to_vec(&serde_json::json!({"records": [asset, text_asset, pdf_asset], "vaultRoot": vault_root})).unwrap()).unwrap();
     file.sync_all().unwrap();
-    let database = temp.path().join("atlas.sqlite");
+    let database = temp_root.join("atlas.sqlite");
     public_peer("bootstrap", &database, Some(&input)).unwrap();
     let port = PublicFixtureDatabase {
         path: database.clone(),
     };
-    let bundle = temp.path().join("bundle");
+    let bundle = temp_root.join("bundle");
     let manifest = capture_recovery(&port, &vault, &bundle, &budget()).unwrap();
     assert_eq!(manifest.assets.len(), 4);
     assert_eq!(manifest.assets[0].asset_id, u(600));
@@ -497,7 +518,7 @@ fn healthy_owned_delivery_public_sqlite_capture_restore_and_receipt_bytes() {
         serde_json::Value::Null
     );
     let restored =
-        restore_recovery(&port, &bundle, &temp.path().join("restored"), &budget()).unwrap();
+        restore_recovery(&port, &bundle, &temp_root.join("restored"), &budget()).unwrap();
     assert_eq!(restored.manifest, manifest);
     let restored_vault = AssetVault::open(&restored.vault_root).unwrap();
     assert_eq!(
