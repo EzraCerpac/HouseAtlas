@@ -13,7 +13,7 @@ Pinned module inputs:
 | Baseline numeric correction (development; independent review pending) | 358ec380a82d6c9e9aac4ca039c0ab8a381cf011 |
 | Access | 3f83d8f35f2cc1948b5d361badfc77948745676d |
 | Domain and jobs correction | 25813f1222c60379850da37b7bf7e97e0e2750db |
-| Storage | d4a94d230da3f098eefaa846bf73f389f9d9965e |
+| Storage continuation and numeric correction | 816ba441ba1076eae426f69ac8b7c5177745ab53 |
 | Corrected React | f491bf1bc2c8ac2af2f004f9aac99b9368dda7d6 |
 
 Feature namespaces retain their owner bytes. Integration owns manifests,
@@ -58,8 +58,8 @@ source partition disjointness, evidence supersession, accepted classifications,
 binding reservations, explicit entity kinds, qualified parentage, cache generation
 dates and native route scope. The generated DTO peer performs checked numeric
 preprocessing and frozen JSON Schema validation before typed decoding.
-Unsupported graph families and every command/asset peer return unavailable;
-no mutation or media route is mounted. RFC 8785 serialization uses pinned
+Unsupported graph families fail validation; command and asset peers return unavailable.
+No mutation or media route is mounted. RFC 8785 serialization uses pinned
 serde_jcs 0.2.0.
 
 The domain and frontend wire proposals differ. Integration maps the qualified
@@ -68,6 +68,12 @@ React successor accepts site/other/archived and native view intent. Aliases and
 Network lists are absent in this restricted graph, mobility stays unknown,
 and media URLs remain null because no capability is issued. Home choices contain
 only workspaceId, homeId and label after real authorization.
+
+The storage source/cache continuation compiles with a native RFC 3339 timestamp
+adapter at millisecond precision; graph ordering uses the same milliseconds.
+Leap-second spellings remain unorderable. ConfigureSource and PublishCache remain
+unavailable from the read authority. No registration, cache publication or
+witness operation is executed, and the wider timestamp profile is unqualified.
 
 Actual GET routes are /api/atlas/view, /api/atlas/rooms, /api/atlas/items,
 /api/atlas/homes, /api/atlas/auth/session and
@@ -115,10 +121,13 @@ canonicalization still have the disclosed limits in
 unqualified. No large-number or negative-consumer probe is run here.
 Preserving every arbitrary open-object extra is also unqualified: the baseline's
 reserved-sentinel object-shape collision remains pending owner correction.
-The consumed storage checkpoint also rejects some schema-valid integer JSON
-spellings such as schemaVersion 1.0, revision 1e0 and byteSize 16.0; its owner's
-correction is pending. This finite fixture uses ordinary integer spellings and
-does not qualify that wider DTO/storage/Network compatibility.
+The consumed storage successor includes its owner's schema-valid integer-spelling
+correction and has bounded ordinary review acceptance. Domain cache/projection
+schemaVersion and attachment byteSize carriers still reject some schema-valid
+integral decimal/exponent spellings; that owner correction remains open. This
+finite fixture uses ordinary integer spellings and does not qualify wider
+DTO/domain/Network compatibility. Canonical JSON retains original input
+values; the typed validation adapter does not replace them with decoded DTOs.
 
 The portable stock.2 wire3/catalog/provider-policy and source-presence
 witness/qualification inputs were inspected with all supplied file hashes

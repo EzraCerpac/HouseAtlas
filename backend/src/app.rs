@@ -99,6 +99,12 @@ impl s::Authorization for ReadAuthority {
                     "Command integration unavailable",
                 ));
             }
+            s::Capability::ConfigureSource | s::Capability::PublishCache => {
+                return Err(s::Error::new(
+                    "unavailable",
+                    "Source publication integration unavailable",
+                ));
+            }
             s::Capability::ReadCache => {
                 if let Some(partition) = request.source_partition {
                     let partition: a::SourcePartition =

@@ -33,9 +33,10 @@ fn array<'a>(v: &'a Value, k: &str) -> Result<&'a [Value]> {
         .map(Vec::as_slice)
         .ok_or(invalid("Required graph array is missing"))
 }
-fn date(v: &Value) -> Result<OffsetDateTime> {
-    OffsetDateTime::parse(v.as_str().ok_or(invalid("Missing date"))?, &Rfc3339)
-        .map_err(|_| invalid("Invalid date"))
+fn date(v: &Value) -> Result<i64> {
+    ReadContracts
+        .timestamp_millis(v.as_str().ok_or(invalid("Missing date"))?)?
+        .ok_or(invalid("Unorderable date"))
 }
 fn scope(v: &Value) -> Value {
     json!([v["workspaceId"], v["homeId"]])
@@ -395,5 +396,19 @@ impl Contract for ReadContracts {
     }
     fn canonical_json(&self, value: &Value) -> Result<String> {
         serde_jcs::to_string(value).map_err(|_| invalid("Canonical JSON unavailable"))
+    }
+    fn timestamp_millis(&self, value: &str) -> Result<Option<i64>> {
+        // time's parser supplies a leap-second stand-in. The frozen source
+        // ordering profile has no orderable timestamp for that spelling.
+        if value.as_bytes().get(17..19) == Some(b"60") {
+            return Ok(None);
+        }
+        OffsetDateTime::parse(value, &Rfc3339)
+            .ok()
+            .map(|timestamp| {
+                i64::try_from(timestamp.unix_timestamp_nanos().div_euclid(1_000_000))
+                    .map_err(|_| Error::new("unavailable", "Timestamp processing unavailable"))
+            })
+            .transpose()
     }
 }
