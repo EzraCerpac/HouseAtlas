@@ -1906,8 +1906,19 @@ pub struct HomeboxPageWire {
     #[serde(rename = "total")]
     pub total: JsonInteger,
     /// Unmodeled fields are permitted only by this open upstream wire schema.
-    #[serde(flatten)]
+    #[serde(flatten, serialize_with = "serialize_homebox_page_wire_extras")]
     pub additional_properties: std::collections::BTreeMap<String, serde_json::Value>,
+}
+
+fn serialize_homebox_page_wire_extras<S: serde::Serializer>(
+    properties: &std::collections::BTreeMap<String, serde_json::Value>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    super::serialize_additional_properties(
+        properties,
+        &["items", "page", "pageSize", "total"],
+        serializer,
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1927,8 +1938,29 @@ pub struct HomeboxPageWireItemsItem {
     #[serde(default, skip_serializing_if = "Optional::is_missing")]
     pub parent: Optional<Option<HomeboxPageWireItemsItemParent>>,
     /// Unmodeled fields are permitted only by this open upstream wire schema.
-    #[serde(flatten)]
+    #[serde(
+        flatten,
+        serialize_with = "serialize_homebox_page_wire_items_item_extras"
+    )]
     pub additional_properties: std::collections::BTreeMap<String, serde_json::Value>,
+}
+
+fn serialize_homebox_page_wire_items_item_extras<S: serde::Serializer>(
+    properties: &std::collections::BTreeMap<String, serde_json::Value>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    super::serialize_additional_properties(
+        properties,
+        &[
+            "id",
+            "name",
+            "archived",
+            "updatedAt",
+            "entityType",
+            "parent",
+        ],
+        serializer,
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1940,8 +1972,18 @@ pub struct HomeboxPageWireItemsItemEntityType {
     #[serde(rename = "isLocation")]
     pub is_location: bool,
     /// Unmodeled fields are permitted only by this open upstream wire schema.
-    #[serde(flatten)]
+    #[serde(
+        flatten,
+        serialize_with = "serialize_homebox_page_wire_items_item_entity_type_extras"
+    )]
     pub additional_properties: std::collections::BTreeMap<String, serde_json::Value>,
+}
+
+fn serialize_homebox_page_wire_items_item_entity_type_extras<S: serde::Serializer>(
+    properties: &std::collections::BTreeMap<String, serde_json::Value>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    super::serialize_additional_properties(properties, &["id", "name", "isLocation"], serializer)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1949,8 +1991,18 @@ pub struct HomeboxPageWireItemsItemParent {
     #[serde(rename = "id")]
     pub id: String,
     /// Unmodeled fields are permitted only by this open upstream wire schema.
-    #[serde(flatten)]
+    #[serde(
+        flatten,
+        serialize_with = "serialize_homebox_page_wire_items_item_parent_extras"
+    )]
     pub additional_properties: std::collections::BTreeMap<String, serde_json::Value>,
+}
+
+fn serialize_homebox_page_wire_items_item_parent_extras<S: serde::Serializer>(
+    properties: &std::collections::BTreeMap<String, serde_json::Value>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    super::serialize_additional_properties(properties, &["id"], serializer)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

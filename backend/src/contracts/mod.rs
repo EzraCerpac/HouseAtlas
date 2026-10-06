@@ -51,9 +51,29 @@ fn required_field<'de, T: Deserialize<'de>, D: Deserializer<'de>>(
     T::deserialize(deserializer)
 }
 
-/// A finite JSON number preserving serde_json's i64/u64/f64 representation.
+/// Serialize open-wire extras only when no key shadows a modeled property.
+/// Generated open objects call this independently, including nested objects.
+pub(super) fn serialize_additional_properties<S: Serializer>(
+    properties: &BTreeMap<String, Value>,
+    modeled_keys: &[&str],
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    if let Some(key) = properties
+        .keys()
+        .find(|key| modeled_keys.contains(&key.as_str()))
+    {
+        return Err(serde::ser::Error::custom(format!(
+            "additional property shadows modeled key: {key}"
+        )));
+    }
+    properties.serialize(serializer)
+}
+
+/// A JSON number preserving the active serde_json numeric representation.
 /// Construction from f64 is fallible, so a known numeric field cannot silently
 /// serialize a nonfinite float as the schema's explicit unknown/null value.
+/// Lossless large-number preservation requires the paired precision features
+/// documented in docs/rust-baseline/numeric-semantics.md.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct JsonNumber(serde_json::Number);
@@ -80,9 +100,11 @@ impl From<u64> for JsonNumber {
     }
 }
 
-/// An integral JSON number within serde_json's i64/u64/finite-f64 model.
+/// A JSON integer using the locked schema library's numeric semantics.
 /// JSON Schema also permits integral spellings such as 1.0. Per-field limits
 /// are checked by the canonical schema at decode/validate/encode boundaries.
+/// With the paired precision features, large integer tokens are retained without
+/// conversion to f64. See the documented scientific-notation limitations.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct JsonInteger(serde_json::Number);
@@ -108,10 +130,7 @@ impl From<u64> for JsonInteger {
 impl<'de> Deserialize<'de> for JsonInteger {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = serde_json::Number::deserialize(deserializer)?;
-        if value.is_i64()
-            || value.is_u64()
-            || value.as_f64().is_some_and(|number| number.fract() == 0.0)
-        {
+        if jsonschema::json::JsonNumber::is_integer(&value) {
             Ok(Self(value))
         } else {
             Err(serde::de::Error::custom("expected an integral JSON number"))
@@ -131,7 +150,7 @@ impl<const N: i64> Serialize for ConstInt<N> {
 impl<'de, const N: i64> Deserialize<'de> for ConstInt<N> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = JsonInteger::deserialize(deserializer)?;
-        if value.0.as_i64() == Some(N) || value.0.as_f64() == Some(N as f64) {
+        if jsonschema::json::cmp::equal_numbers(&value.0, &serde_json::Number::from(N)) {
             Ok(Self)
         } else {
             Err(serde::de::Error::custom(format!("expected literal {N}")))
