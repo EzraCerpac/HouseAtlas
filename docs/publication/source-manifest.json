@@ -20,7 +20,7 @@
     "web"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "12bedf8ad93347a7ac29ee9082f78816cafcdfe95f9269da386f038d420e00a4",
+  "sourceDigestSha256": "19e3bcd490f98059708fc9db743c317fd31815de587315cea4050b6d58ca30e8",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -354,8 +354,8 @@
     {
       "path": "backend/src/domain/README.md",
       "mode": "100644",
-      "bytes": 7768,
-      "sha256": "c0cf73384bd23af9a1ed34a025e406ca4ad4b72d2f5ba3a55954deb7f7403fa5",
+      "bytes": 7893,
+      "sha256": "194ec4771208fce1e892ba210cfd58f1adfff8cc535a3b4f746dd16b23c7ad38",
       "owner": "domain"
     },
     {
@@ -438,8 +438,8 @@
     {
       "path": "backend/src/jobs/examples/sqlite_healthy.rs",
       "mode": "100644",
-      "bytes": 21581,
-      "sha256": "1485056c75201e2502fd6294f2ec09aaabc9abcdf9af786e7c9a92d3f9af864f",
+      "bytes": 21610,
+      "sha256": "feaebb9897b1b5da6f76ac3a0f377d15c38c5ae2430f39fc460c33cbb9ab28e0",
       "owner": "jobs"
     },
     {
@@ -459,8 +459,8 @@
     {
       "path": "backend/src/jobs/orchestrator.rs",
       "mode": "100644",
-      "bytes": 6978,
-      "sha256": "d40ef23b9571d707554376817b18361b2861504d66c3b13873a6ae299b6352bd",
+      "bytes": 7199,
+      "sha256": "d2aa3b55a19281044c5863fecbece1cc4a534e48e6ecb1be351c5730f4e7bc53",
       "owner": "jobs"
     },
     {
@@ -753,8 +753,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 7946,
-      "sha256": "89480377c82186d1a557e01fd2f6f383eaef99d8b3e1c808512382639a01ab4d",
+      "bytes": 7957,
+      "sha256": "efdf4d5d283fb4ad6e4cb5581bb3c24e9e58991b4f27af9faa99975cc23e8db7",
       "owner": "core-integration"
     },
     {

@@ -12,7 +12,7 @@ Pinned module inputs:
 | --- | --- |
 | Baseline contracts correction | dac410e22f63a231118f513a0a565093e0836213 |
 | Access | 3f83d8f35f2cc1948b5d361badfc77948745676d |
-| Domain and jobs | b4ead12aa65fe97772131eba698603a3323282a8 |
+| Domain and jobs correction | 25813f1222c60379850da37b7bf7e97e0e2750db |
 | Storage | d4a94d230da3f098eefaa846bf73f389f9d9965e |
 | Corrected React | f491bf1bc2c8ac2af2f004f9aac99b9368dda7d6 |
 
