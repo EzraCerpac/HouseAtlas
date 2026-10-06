@@ -1,0 +1,311 @@
+//! Healthy synthetic checkpoints only. No denial, failure, concurrency, replay
+//! controls, provider, listener, or legacy aggregate is exercised here.
+
+use std::sync::{
+    Arc,
+    atomic::{AtomicI64, Ordering},
+};
+
+use rusqlite::{Connection, params};
+use serde_json::{Value, json};
+
+use super::*;
+
+const ORIGIN: &str = "https://atlas.synthetic.invalid";
+const PASSWORD: &str = "Synthetic-test-password-only!";
+const NOW: i64 = 1_800_000_000_000;
+
+// Exact identities and scope from packages/access/test/fixtures.mjs.
+fn id(n: u32) -> CanonicalId {
+    CanonicalId::parse(format!("10000000-0000-4000-8000-{n:012}")).unwrap()
+}
+
+fn scope() -> Scope {
+    Scope {
+        workspace_id: id(1),
+        home_id: id(2),
+    }
+}
+
+fn request<'a>(
+    method: Method,
+    cookie: Option<&'a str>,
+    csrf: Option<&'a str>,
+) -> RequestEvidence<'a> {
+    RequestEvidence {
+        method,
+        url: "https://atlas.synthetic.invalid/api/atlas/v1",
+        origin: Some(ORIGIN),
+        sec_fetch_site: Some("same-origin"),
+        referer: None,
+        cookie,
+        csrf,
+        authorization: None,
+    }
+}
+
+fn setup() -> (AccessBoundary, Arc<AtomicI64>) {
+    let clock = Arc::new(AtomicI64::new(NOW));
+    let current = Arc::clone(&clock);
+    let config = AccessConfig::new(vec![ORIGIN.to_owned()])
+        .unwrap()
+        .with_clock(move || current.load(Ordering::Relaxed));
+    let mut boundary = AccessBoundary::in_memory(config).unwrap();
+    let verifier = hash_password(PASSWORD).unwrap();
+    boundary
+        .provision_user(&id(4), &id(5), "synthetic-viewer", &verifier, None)
+        .unwrap();
+    boundary
+        .provision_user(&id(6), &id(7), "synthetic-editor", &verifier, None)
+        .unwrap();
+    boundary
+        .set_membership(&id(4), &scope(), Role::Viewer, true)
+        .unwrap();
+    boundary
+        .set_membership(&id(6), &scope(), Role::Editor, true)
+        .unwrap();
+    (boundary, clock)
+}
+
+fn login(boundary: &mut AccessBoundary, username: &str) -> SessionReceipt {
+    let body = serde_json::to_vec(&json!({"username": username, "password": PASSWORD})).unwrap();
+    boundary
+        .login(
+            &request(Method::Post, None, None),
+            &body,
+            "synthetic-loopback",
+        )
+        .unwrap()
+}
+
+fn cookie(receipt: &SessionReceipt) -> &str {
+    receipt.set_cookie().split(';').next().unwrap()
+}
+
+#[test]
+fn healthy_session_principal_checkpoint() {
+    let (mut boundary, clock) = setup();
+    let session = login(&mut boundary, "synthetic-viewer");
+    assert_eq!(session.info().actor_id(), &id(5));
+    assert_eq!(session.info().expires_at_ms(), NOW + 604_800_000);
+    assert!(
+        session
+            .set_cookie()
+            .contains("Path=/; Secure; HttpOnly; SameSite=Strict")
+    );
+    let principal = boundary
+        .authorize(
+            &request(Method::Get, Some(cookie(&session)), None),
+            &scope(),
+            Action::Read,
+        )
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(principal.view()).unwrap(),
+        json!({
+            "actorId": id(5), "workspaceId": id(1), "homeId": id(2), "role": "viewer"
+        })
+    );
+    assert!(std::ptr::eq(
+        boundary.revalidate(&principal).unwrap(),
+        &principal
+    ));
+    boundary
+        .authorize_storage(&principal, &scope(), Capability::ReadHistory)
+        .unwrap();
+    boundary
+        .authorize_storage(&principal, &scope(), Capability::ReadAssetManifest)
+        .unwrap();
+
+    // Reuse the published valid empty history array. This is an access seam
+    // checkpoint; durable history traversal belongs to the storage lane.
+    let history: Vec<Value> = serde_json::from_str(include_str!(
+        "../../../packages/contracts/history/fixtures/empty.audit-array.json"
+    ))
+    .unwrap();
+    assert!(history.is_empty());
+
+    clock.store(NOW + 1000, Ordering::Relaxed);
+    let info = boundary
+        .session_info(&request(Method::Get, Some(cookie(&session)), None))
+        .unwrap();
+    assert_eq!(info.actor_id(), &id(5));
+    assert_eq!(info.expires_at_ms(), session.info().expires_at_ms());
+    let rotated = boundary
+        .rotate_session(&request(
+            Method::Post,
+            Some(cookie(&session)),
+            Some(info.csrf_token()),
+        ))
+        .unwrap();
+    assert_eq!(
+        rotated.info().expires_at_ms(),
+        session.info().expires_at_ms()
+    );
+    let current = boundary
+        .authorize(
+            &request(Method::Get, Some(cookie(&rotated)), None),
+            &scope(),
+            Action::History,
+        )
+        .unwrap();
+    boundary.revalidate(&current).unwrap();
+    let signed_out = boundary
+        .logout(&request(
+            Method::Post,
+            Some(cookie(&rotated)),
+            Some(rotated.info().csrf_token()),
+        ))
+        .unwrap();
+    assert_eq!(
+        signed_out,
+        format!("{SESSION_COOKIE}=; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=0")
+    );
+}
+
+#[test]
+fn healthy_transaction_local_authority_checkpoint() {
+    let (mut boundary, clock) = setup();
+    let registration: SourceRegistration = serde_json::from_value(json!({
+        "workspaceId": id(1), "homeId": id(2), "sourceInstanceId": id(8),
+        "collectionId": "synthetic-shared", "owner": "homebox",
+        "partitionMode": "reviewed-entity-allowlist", "allowedExternalIds": [id(9)]
+    }))
+    .unwrap();
+    boundary.put_source(&registration, None).unwrap();
+    let reference: SourceRef = serde_json::from_value(json!({
+        "workspaceId": id(1), "homeId": id(2), "key": {
+            "sourceInstanceId": id(8), "collectionId": "synthetic-shared",
+            "sourceKind": "homebox-entity", "externalId": id(9)
+        }
+    }))
+    .unwrap();
+    let empty_registration = SourceRegistration {
+        collection_id: "synthetic-empty-😀".into(),
+        allowed_external_ids: vec![],
+        ..registration.clone()
+    };
+    boundary.put_source(&empty_registration, None).unwrap();
+    let session = login(&mut boundary, "synthetic-editor");
+    let principal = boundary
+        .authorize(
+            &request(
+                Method::Post,
+                Some(cookie(&session)),
+                Some(session.info().csrf_token()),
+            ),
+            &scope(),
+            Action::Mutate,
+        )
+        .unwrap();
+    assert_eq!(principal.actor_id(), &id(7));
+    assert_eq!(principal.role(), Role::Editor);
+    let partition = boundary
+        .authorize_source_partition(&principal, &registration.partition())
+        .unwrap();
+    let entity = boundary.authorize_source(&principal, &reference).unwrap();
+    assert!(std::ptr::eq(
+        boundary.revalidate_source_partition(&partition).unwrap(),
+        &partition
+    ));
+    assert!(std::ptr::eq(
+        boundary.revalidate_source(&entity).unwrap(),
+        &entity
+    ));
+    boundary
+        .authorize_source_partition(&principal, &empty_registration.partition())
+        .unwrap();
+
+    // A real disposable SQLite record transaction, with a deliberately small
+    // synthetic storage peer. AT07's graph/receipt/audit implementation is not
+    // substituted or claimed by this checkpoint.
+    let mut records = Connection::open_in_memory().unwrap();
+    records
+        .execute_batch(
+            "CREATE TABLE synthetic_checkpoint(actor_id TEXT NOT NULL, home_id TEXT NOT NULL)",
+        )
+        .unwrap();
+    boundary
+        .with_mutation_authorization(&principal, |authority| -> AccessResult<()> {
+            let tx = records.transaction()?;
+            // Storage must check at receipt/replay entry as well as final COMMIT.
+            authority.authorize(&scope(), Capability::Mutate)?;
+            authority.authorize(
+                &scope(),
+                Capability::ReadCachePartition(&registration.partition()),
+            )?;
+            authority.authorize(&scope(), Capability::ReadCacheEntity(&reference))?;
+            authority.authorize(
+                &scope(),
+                Capability::ReadCachePartition(&empty_registration.partition()),
+            )?;
+            tx.execute(
+                "INSERT INTO synthetic_checkpoint VALUES(?1,?2)",
+                params![
+                    authority.principal().actor_id().as_str(),
+                    authority.principal().scope().home_id.as_str()
+                ],
+            )?;
+            clock.store(NOW + 1000, Ordering::Relaxed);
+            authority.authorize(&scope(), Capability::Mutate)?;
+            tx.commit()?;
+            Ok(())
+        })
+        .unwrap();
+    let saved: (String, String) = records
+        .query_row(
+            "SELECT actor_id,home_id FROM synthetic_checkpoint",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(saved, (id(7).as_str().into(), id(2).as_str().into()));
+    println!(
+        "AT11 healthy authority checkpoint: SQLite {}, schema {}, session/principal/source/empty-partition/current-precommit checks",
+        rusqlite::version(),
+        ACCESS_SCHEMA_VERSION
+    );
+}
+
+#[test]
+fn healthy_persistent_session_checkpoint() {
+    let path = std::env::temp_dir().join(format!(
+        "houseatlas-at11-{}.sqlite",
+        super::credentials::nonce().unwrap()
+    ));
+    let config = || {
+        AccessConfig::new(vec![ORIGIN.to_owned()])
+            .unwrap()
+            .with_clock(|| NOW)
+    };
+    let mut boundary = AccessBoundary::open(&path, config()).unwrap();
+    let verifier = hash_password(PASSWORD).unwrap();
+    boundary
+        .provision_user(&id(6), &id(7), "synthetic-editor", &verifier, None)
+        .unwrap();
+    boundary
+        .set_membership(&id(6), &scope(), Role::Editor, true)
+        .unwrap();
+    let session = login(&mut boundary, "synthetic-editor");
+    drop(boundary);
+    let mut reopened = AccessBoundary::open(&path, config()).unwrap();
+    let principal = reopened
+        .authorize(
+            &request(Method::Get, Some(cookie(&session)), None),
+            &scope(),
+            Action::Read,
+        )
+        .unwrap();
+    assert_eq!(principal.actor_id(), &id(7));
+    reopened.revalidate(&principal).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+    }
+    drop(reopened);
+    std::fs::remove_file(path).unwrap();
+}
