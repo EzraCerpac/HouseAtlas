@@ -130,7 +130,8 @@ inspected `healthy-schema.mjs` validates the same published single/batch values,
 two healthy snapshots and three history arrays using the actual published
 schema and pure graph validator. It invokes no retained test alias or control.
 
-Run only these scoped new-source checks after inspecting them:
+The published `246ff32999b5931f8c2418869494e6afc78f8897` wire3 checkpoint
+was verified with these scoped checks against its then-current source:
 
 ```sh
 source /workspace/.houseatlas-setup/rust-react-sqlite/activate.sh
@@ -156,10 +157,10 @@ Behavioral references: `web/src/{prepare,model}.mjs`,
 
 The exact stock wire3 and source-presence language-neutral inputs have now been
 adopted as application routing/correlation/qualification logic; shared schemas
-and generated contracts remain AT51-owned. Concrete missing peers are AT51's
-Rust/HTTP/schema adapter, AT07's Rust transaction/recovery/queue adapter, and
-AT11's Rust verified principal/captured authority adapter. Network inventory,
-geometry, aliases/mobility/navigation implementations remain owner-supplied.
+and generated contracts remain AT51-owned. Native AT07 storage and AT11 access
+APIs are published; the remaining stock, queue and presence composition is
+described below. Network inventory, geometry, aliases/mobility/navigation
+implementations remain owner-supplied.
 No HTTP writer or provider credential path exists. HomeBox wire3 collection IDs
 require canonical UUIDs; the earlier frozen fixture's opaque collection string
 is not passed unchanged as a wire3 example.
@@ -174,3 +175,60 @@ example contains receipt replay and is currently compile-only. See
 Fault/crash/rejection/adversarial/concurrency/negative-consumer qualification
 and all legacy broad aggregates remain deferred and unrun. No merge, listener,
 provider call or deployment is implemented by this component.
+
+## Native storage bridge and coordinated composition
+
+`native_storage::NativeStorage::from_store(&mut store, &contracts)` implements
+the existing frozen `ReadPort` and `CommandPort` over AT07's actual `AtlasStore`.
+It forwards the opaque original `A::Principal` without serializing it, retains
+the store's private connection and authorizer, and forwards the entire canonical
+single/batch command `Value` without rebuilding entries. Snapshot shape and graph,
+record shape, and each audit shape are validated before read release. Empty
+history and storage order are retained. Pure persisted-output validation failures
+are upstream incompleteness, separately from store authorization/command errors.
+The host supplies the same configured schema/profile as the store's contract;
+the private store does not expose that instance for this bridge to inspect.
+`NativeCanonicalContracts` delegates the three frozen input shapes to the same
+pure native contract policy; HTTP lexical and size admission remains AT51/52-owned.
+
+This composes the frozen storage APIs, not stock wire3 execution or durable
+provider admission. AT52's published `ReadContracts` and `ReadAuthority` still
+reject mutations. A future command-capable host must keep the original principal
+and source grants current under the access transaction fence throughout all
+AT07 phases; it must retain the new-presence hold. No route is mounted here.
+
+The compiler-only native harness is
+`/tmp/houseatlas-at36-native-adapter-harness/Cargo.toml`. It imports exact published
+AT07 `da3f607ee56ee7bcb836ed868bb1b10fdbcbb7f6`, AT11
+`3f83d8f35f2cc1948b5d361badfc77948745676d`, and AT51
+`358ec380a82d6c9e9aac4ca039c0ab8a381cf011` sources. Its direct dependencies are
+pinned to the published integration workspace
+`a5d456c43ac59acfc0c4f8aceafb08bae6df0ac0`; JSON preserves arbitrary precision
+and schema retrieval is disabled. The external harness owns its own lock. The
+older standalone wire3 harness remains evidence for the published checkpoint;
+current source needs the native storage module in the composed crate.
+
+```sh
+source /workspace/.houseatlas-setup/rust-react-sqlite/activate.sh
+cargo check --manifest-path /tmp/houseatlas-at36-native-adapter-harness/Cargo.toml --locked --lib
+cargo clippy --manifest-path /tmp/houseatlas-at36-native-adapter-harness/Cargo.toml --locked --lib -- -D warnings
+cargo build --manifest-path /tmp/houseatlas-at36-native-adapter-harness/Cargo.toml --locked --lib
+```
+
+Next owner seams are concrete:
+
+* AT07: synchronous per-operation authorizer override on the same store
+  connection, retaining every Intake/Validate/Candidate/Precommit/Replay check;
+  typed durable stock-envelope and atomic queue/witness repository operations.
+* AT11: original `SourceGrant` and `PartitionGrant` revalidation on the existing
+  `TransactionAuthorization` guard, plus genuinely qualified registration/access
+  facts needed by queue and witness admission. Freshly reacquired grants cannot
+  replace the original handles.
+* AT52: compose the scoped authorizer inside `with_mutation_authorization` and
+  mount through its existing blocking owner. Do not reenter the same access
+  mutex, reopen the store, manufacture epochs or interpret frozen receipts as
+  durable stock/provider receipts.
+
+The native bridge is compiled and statically reviewed, with no native runtime
+exercise or additional held controls. It cannot enable new source presence;
+atomic witness persistence and candidate/precommit rechecks remain required.

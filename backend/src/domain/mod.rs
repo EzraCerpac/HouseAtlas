@@ -6,6 +6,7 @@
 
 mod commands;
 mod model;
+pub mod native_storage;
 mod ports;
 mod presence;
 mod projection;
