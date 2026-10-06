@@ -60,7 +60,8 @@ impl PreparedOriginal {
 }
 
 /// Proposed AT07 callback. A storage availability commit must use this actual
-/// byte receipt, never the digest/size supplied by a client.
+/// byte receipt after retained-file and directory durability barriers complete,
+/// never the digest/size supplied by a client.
 pub trait AvailableAssetVerifier {
     fn verify_available_asset(
         &self,
@@ -105,6 +106,25 @@ impl AssetVault {
         self.blobs.sync()?;
         self.staging.sync()?;
         self.root.sync()
+    }
+
+    /// Establish durability even when an earlier installation retained the link
+    /// but returned a barrier error. Installation and availability verification
+    /// share this path; readable bytes alone are not an availability receipt.
+    fn sync_retained_member(
+        &self,
+        directory: &PrivateDir,
+        member: &str,
+        budget: &WorkBudget,
+    ) -> MediaResult<()> {
+        budget.check()?;
+        self.check_hierarchy()?;
+        directory.sync_member(member)?;
+        directory.sync()?;
+        self.blobs.sync()?;
+        self.staging.sync()?;
+        self.root.sync()?;
+        budget.check()
     }
 
     fn with_scope<T>(
@@ -168,12 +188,7 @@ impl AssetVault {
                 }
                 Err(e) => return Err(e.into()),
             }
-            directory.sync_member(&member)?;
-            directory.sync()?;
-            self.blobs.sync()?;
-            self.staging.sync()?;
-            self.root.sync()?;
-            budget.check()?;
+            self.sync_retained_member(directory, &member, budget)?;
             Ok(PreparedIdentity {
                 storage_key: scope.storage_key(&digest)?,
                 identity,
@@ -282,6 +297,13 @@ impl AvailableAssetVerifier for AssetVault {
         {
             return Err(MediaError::Unsupported);
         }
+        self.with_scope(&record.scope(), false, |directory| {
+            self.sync_retained_member(
+                directory,
+                &format!("{}.blob", record.payload.sha256),
+                budget,
+            )
+        })?;
         budget.check()?;
         Ok(BlobIdentity {
             sha256: sha256(&bytes),

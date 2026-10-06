@@ -28,7 +28,12 @@ reconcile these pins. No application manifest/lock is added by AT12.
 
 `vault::AvailableAssetVerifier::verify_available_asset(record, budget)` returns
 `BlobIdentity { sha256, byte_size }` after reopening actual scope-bound retained
-bytes and checking content. AT07 must use this inside its availability commit;
+bytes, checking content, and completing the same retained-member and
+scope/blobs/staging/root durability barriers used by installation. Verification
+establishes these barriers on every call, including bytes retained by an earlier
+installation that returned a sync error; no cached preparation flag substitutes
+for them. A barrier error prevents the identity from returning.
+AT07 must use this inside its availability commit;
 preparation alone never publishes an available asset record. Storage owns atomic
 record, asset manifest, audit and receipt commits.
 
