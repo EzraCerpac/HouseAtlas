@@ -81,12 +81,16 @@ function declare(name, schema) {
       else if (nullable(value)) attributes.push('#[serde(deserialize_with = "required_field")]');
       return {
         rust: attributes.map(line => `    ${line}`).join('\n') + `\n    pub ${rustIdentifier(key)}: ${isRequired ? type.rust : `Optional<${type.rust}>`},`,
+        decode: `            ${rustIdentifier(key)}: super::json_value::take_${isRequired ? 'required' : 'optional'}(&mut fields, ${JSON.stringify(key)})\n                .map_err(serde::de::Error::custom)?,`,
         ts: `  ${JSON.stringify(key)}${isRequired ? '' : '?'}: ${type.ts};`,
       };
     });
     const open = schema.additionalProperties;
     const extrasSerializer = `serialize_${snake(name)}_extras`;
-    item.rust = `#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]\n${open ? '' : '#[serde(deny_unknown_fields)]\n'}pub struct ${name} {\n${fields.map(field => field.rust).join('\n')}${open ? `\n    /// Unmodeled fields are permitted only by this open upstream wire schema.\n    #[serde(flatten, serialize_with = ${JSON.stringify(extrasSerializer)})]\n    pub additional_properties: std::collections::BTreeMap<String, serde_json::Value>,` : ''}\n}${open ? `\n\nfn ${extrasSerializer}<S: serde::Serializer>(\n    properties: &std::collections::BTreeMap<String, serde_json::Value>,\n    serializer: S,\n) -> Result<S::Ok, S::Error> {\n    super::serialize_additional_properties(\n        properties,\n        &[${Object.keys(schema.properties).map(key => JSON.stringify(key)).join(', ')}],\n        serializer,\n    )\n}` : ''}`;
+    // Whole-object raw capture precedes Serde's flatten buffering, preserving
+    // arbitrary object keys instead of interpreting serde_json's private tags.
+    const openDeserializer = open ? `\n\nimpl<'de> Deserialize<'de> for ${name} {\n    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {\n        let mut fields = super::json_value::deserialize_fields(deserializer)?;\n        Ok(Self {\n${fields.map(field => field.decode).join('\n')}\n            additional_properties: super::json_value::remaining_fields(fields)\n                .map_err(serde::de::Error::custom)?,\n        })\n    }\n}` : '';
+    item.rust = `#[derive(Debug, Clone, PartialEq, Serialize${open ? '' : ', Deserialize'})]\n${open ? '' : '#[serde(deny_unknown_fields)]\n'}pub struct ${name} {\n${fields.map(field => field.rust).join('\n')}${open ? `\n    /// Unmodeled fields are permitted only by this open upstream wire schema.\n    #[serde(flatten, serialize_with = ${JSON.stringify(extrasSerializer)})]\n    pub additional_properties: std::collections::BTreeMap<String, serde_json::Value>,` : ''}\n}${openDeserializer}${open ? `\n\nfn ${extrasSerializer}<S: serde::Serializer>(\n    properties: &std::collections::BTreeMap<String, serde_json::Value>,\n    serializer: S,\n) -> Result<S::Ok, S::Error> {\n    super::serialize_additional_properties(\n        properties,\n        &[${Object.keys(schema.properties).map(key => JSON.stringify(key)).join(', ')}],\n        serializer,\n    )\n}` : ''}`;
     item.ts = `export interface ${name} {\n${fields.map(field => field.ts).join('\n')}${open ? '\n  [key: string]: unknown;' : ''}\n}`;
   } else if (Object.hasOwn(schema, 'const') && typeof schema.const === 'string' || schema.enum) {
     const values = schema.enum ?? [schema.const];

@@ -1895,7 +1895,7 @@ pub enum SnapshotContractVersion {
     V100,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct HomeboxPageWire {
     #[serde(rename = "items")]
     pub items: Vec<HomeboxPageWireItemsItem>,
@@ -1910,6 +1910,24 @@ pub struct HomeboxPageWire {
     pub additional_properties: std::collections::BTreeMap<String, serde_json::Value>,
 }
 
+impl<'de> Deserialize<'de> for HomeboxPageWire {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let mut fields = super::json_value::deserialize_fields(deserializer)?;
+        Ok(Self {
+            items: super::json_value::take_required(&mut fields, "items")
+                .map_err(serde::de::Error::custom)?,
+            page: super::json_value::take_required(&mut fields, "page")
+                .map_err(serde::de::Error::custom)?,
+            page_size: super::json_value::take_required(&mut fields, "pageSize")
+                .map_err(serde::de::Error::custom)?,
+            total: super::json_value::take_required(&mut fields, "total")
+                .map_err(serde::de::Error::custom)?,
+            additional_properties: super::json_value::remaining_fields(fields)
+                .map_err(serde::de::Error::custom)?,
+        })
+    }
+}
+
 fn serialize_homebox_page_wire_extras<S: serde::Serializer>(
     properties: &std::collections::BTreeMap<String, serde_json::Value>,
     serializer: S,
@@ -1921,7 +1939,7 @@ fn serialize_homebox_page_wire_extras<S: serde::Serializer>(
     )
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct HomeboxPageWireItemsItem {
     #[serde(rename = "id")]
     pub id: String,
@@ -1945,6 +1963,28 @@ pub struct HomeboxPageWireItemsItem {
     pub additional_properties: std::collections::BTreeMap<String, serde_json::Value>,
 }
 
+impl<'de> Deserialize<'de> for HomeboxPageWireItemsItem {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let mut fields = super::json_value::deserialize_fields(deserializer)?;
+        Ok(Self {
+            id: super::json_value::take_required(&mut fields, "id")
+                .map_err(serde::de::Error::custom)?,
+            name: super::json_value::take_required(&mut fields, "name")
+                .map_err(serde::de::Error::custom)?,
+            archived: super::json_value::take_required(&mut fields, "archived")
+                .map_err(serde::de::Error::custom)?,
+            updated_at: super::json_value::take_required(&mut fields, "updatedAt")
+                .map_err(serde::de::Error::custom)?,
+            entity_type: super::json_value::take_optional(&mut fields, "entityType")
+                .map_err(serde::de::Error::custom)?,
+            parent: super::json_value::take_optional(&mut fields, "parent")
+                .map_err(serde::de::Error::custom)?,
+            additional_properties: super::json_value::remaining_fields(fields)
+                .map_err(serde::de::Error::custom)?,
+        })
+    }
+}
+
 fn serialize_homebox_page_wire_items_item_extras<S: serde::Serializer>(
     properties: &std::collections::BTreeMap<String, serde_json::Value>,
     serializer: S,
@@ -1963,7 +2003,7 @@ fn serialize_homebox_page_wire_items_item_extras<S: serde::Serializer>(
     )
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct HomeboxPageWireItemsItemEntityType {
     #[serde(rename = "id")]
     pub id: String,
@@ -1979,6 +2019,22 @@ pub struct HomeboxPageWireItemsItemEntityType {
     pub additional_properties: std::collections::BTreeMap<String, serde_json::Value>,
 }
 
+impl<'de> Deserialize<'de> for HomeboxPageWireItemsItemEntityType {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let mut fields = super::json_value::deserialize_fields(deserializer)?;
+        Ok(Self {
+            id: super::json_value::take_required(&mut fields, "id")
+                .map_err(serde::de::Error::custom)?,
+            name: super::json_value::take_required(&mut fields, "name")
+                .map_err(serde::de::Error::custom)?,
+            is_location: super::json_value::take_required(&mut fields, "isLocation")
+                .map_err(serde::de::Error::custom)?,
+            additional_properties: super::json_value::remaining_fields(fields)
+                .map_err(serde::de::Error::custom)?,
+        })
+    }
+}
+
 fn serialize_homebox_page_wire_items_item_entity_type_extras<S: serde::Serializer>(
     properties: &std::collections::BTreeMap<String, serde_json::Value>,
     serializer: S,
@@ -1986,7 +2042,7 @@ fn serialize_homebox_page_wire_items_item_entity_type_extras<S: serde::Serialize
     super::serialize_additional_properties(properties, &["id", "name", "isLocation"], serializer)
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct HomeboxPageWireItemsItemParent {
     #[serde(rename = "id")]
     pub id: String,
@@ -1996,6 +2052,18 @@ pub struct HomeboxPageWireItemsItemParent {
         serialize_with = "serialize_homebox_page_wire_items_item_parent_extras"
     )]
     pub additional_properties: std::collections::BTreeMap<String, serde_json::Value>,
+}
+
+impl<'de> Deserialize<'de> for HomeboxPageWireItemsItemParent {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let mut fields = super::json_value::deserialize_fields(deserializer)?;
+        Ok(Self {
+            id: super::json_value::take_required(&mut fields, "id")
+                .map_err(serde::de::Error::custom)?,
+            additional_properties: super::json_value::remaining_fields(fields)
+                .map_err(serde::de::Error::custom)?,
+        })
+    }
 }
 
 fn serialize_homebox_page_wire_items_item_parent_extras<S: serde::Serializer>(
