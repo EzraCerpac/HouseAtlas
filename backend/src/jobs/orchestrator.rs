@@ -168,11 +168,17 @@ impl<S: QueueStore, W: HomeBoxWriter> WriteQueue<S, W> {
         &mut self,
         reconciler: &mut R,
         now: Timestamp,
+        completed_at: impl FnOnce() -> Timestamp,
     ) -> Result<ReconcileOutcome, QueueError<S::Error>> {
         let Some(job) = self.store.held_job().map_err(QueueError::Store)? else {
             return Ok(ReconcileOutcome::NothingHeld);
         };
-        let (evidence, outcome) = match reconciler.reconcile(&job) {
+        let outcome = reconciler.reconcile(&job);
+        let finish_at = completed_at();
+        if finish_at < now {
+            return Err(QueueError::InvalidTime);
+        }
+        let (evidence, outcome) = match outcome {
             ReconciliationOutcome::StillUncertain => return Ok(ReconcileOutcome::StillHeld),
             ReconciliationOutcome::Applied { evidence, applied } => {
                 (evidence, WriteOutcome::Applied(applied))
@@ -186,9 +192,9 @@ impl<S: QueueStore, W: HomeBoxWriter> WriteQueue<S, W> {
         if evidence.private_evidence_reference.is_empty() {
             return Err(QueueError::InvalidReconciliationEvidence);
         }
-        let disposition = self.config.retry.classify(job.attempt, now, outcome);
+        let disposition = self.config.retry.classify(job.attempt, finish_at, outcome);
         self.store
-            .reconcile(&job.lease, now, &evidence, &disposition)
+            .reconcile(&job.lease, finish_at, &evidence, &disposition)
             .map(|snapshot| ReconcileOutcome::Resolved(Box::new(snapshot)))
             .map_err(QueueError::Store)
     }
