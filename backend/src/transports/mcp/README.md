@@ -30,6 +30,10 @@ silently overwritten command. Default serde_json nesting bounds apply. Defaults
 are 64 KiB input, 1 MiB output, 4,096 requests and 1 MiB retained ID text. The host
 reconnects when the request/ID bound is reached. `AdapterConfig` validates enough
 response capacity for a maximum-size request ID and server information.
+An oversized message closes the session before parsing or peer dispatch and
+returns no response bytes, preserving notification semantics without parsing
+beyond the configured bound. The host ends the closed connection. This behavior
+was reviewed statically; no oversized-input probe was executed.
 
 Request/call shape failures map to JSON-RPC errors. Canonical public tool failures
 map to `isError: true`; peer failures use static public messages. An optional

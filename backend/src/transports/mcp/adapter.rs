@@ -142,15 +142,16 @@ where
     }
 
     /// Handle one complete JSON message. The caller owns framing and IO. Returns
-    /// no bytes for notifications. Await this to completion before handling the
-    /// next message; there are no spawned tasks or in-flight request registry.
+    /// no bytes for notifications or oversized messages. An oversized message
+    /// closes the session before parsing; the host ends the connection. Await
+    /// this to completion before handling the next message; there are no spawned
+    /// tasks or in-flight request registry.
     pub async fn handle(&self, session: &mut Session<A::Context>, bytes: &[u8]) -> Option<Vec<u8>> {
         if bytes.len() > self.config.max_message_bytes {
-            return Some(self.encode(protocol::error(
-                None,
-                -32600,
-                "MCP message size limit exceeded",
-            )));
+            // Classification requires parsing beyond the configured bound. Close
+            // without a reply so an oversized notification cannot get a response.
+            session.close();
+            return None;
         }
         let message = match protocol::decode(bytes) {
             Ok(message) => message,
