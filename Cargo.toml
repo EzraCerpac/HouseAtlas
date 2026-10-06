@@ -10,12 +10,21 @@ publish = false
 
 [workspace.dependencies]
 axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "query", "tokio"] }
-tokio = { version = "=1.53.2", default-features = false, features = ["macros", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "=1.53.2", default-features = false, features = ["macros", "rt-multi-thread", "sync", "time", "signal"] }
 rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled"] }
 serde = { version = "=1.0.229", features = ["derive"] }
-serde_json = "=1.0.151"
-jsonschema = { version = "=0.58.6", default-features = false }
+serde_json = { version = "=1.0.151", features = ["arbitrary_precision", "float_roundtrip"] }
+jsonschema = { version = "=0.58.6", default-features = false, features = ["arbitrary-precision"] }
 tower = { version = "=0.5.3", default-features = false, features = ["util"] }
+base64 = "=0.22.1"
+getrandom = "=0.3.4"
+scrypt = { version = "=0.11.0", default-features = false }
+sha2 = "=0.10.9"
+subtle = "=2.6.1"
+url = "=2.5.7"
+time = { version = "=0.3.44", features = ["parsing", "formatting"] }
+serde_jcs = "=0.2.0"
+axum-server = { version = "=0.8.0", default-features = false, features = ["tls-rustls"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

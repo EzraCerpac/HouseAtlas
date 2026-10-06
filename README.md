@@ -52,3 +52,9 @@ See docs/core-integration/correction-3.md for the corrected behavior and held
 capability, docs/publication/provenance.md for maintenance, and docs/operations
 for generic target/recovery requirements. Open-source licensing remains a
 decision for a future public release; no license has been selected.
+
+The isolated Rust/React development slice adds an actual loopback TLS service,
+SQLite sessions and persistence, authorized room/item reads and a compiled React
+UI. Read [docs/rust-integration/README.md](docs/rust-integration/README.md) for its
+explicit disposable settings, exact ordinary commands and remaining product
+areas. Its positive browser smoke is separate from all stopped controls.

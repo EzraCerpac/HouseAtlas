@@ -1,0 +1,59 @@
+name: Rust React ordinary slice
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  source:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    env:
+      CARGO_TARGET_DIR: ${{ runner.temp }}/houseatlas-target
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Set exact Node runtime
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '26.10.0'
+          check-latest: false
+          package-manager-cache: false
+      - name: Verify revision and runtime
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(node --version)" = "v26.10.0"
+          test "$(npm --version)" = "11.19.1"
+          rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
+          test "$(rustc --version | cut -d ' ' -f 2)" = "1.99.0"
+      - name: Install exact npm locks without scripts
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ci --prefix packages/contracts --ignore-scripts --no-audit --no-fund
+          npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+      - name: Verify source allowlist and unconfigured template
+        run: npm run verify:publication
+      - name: Compile actual Rust and React source and named healthy examples
+        run: node tools/rust-integration/check-source.mjs
+      - name: Real disposable loopback TLS browser read slice
+        if: runner.os == 'Linux'
+        env:
+          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
+          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+        run: node tools/rust-integration/healthy-loopback.mjs
+      - name: Record scope
+        if: always()
+        run: |
+          printf '%s\n' 'Actual locked Rust/TS source compilation and two named healthy examples; Linux additionally runs actual SQLite/access/domain/React loopback TLS reads.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'macOS source compilation is separate from target NAS build/runtime qualification and supplies no target release.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'All stopped rejection, guards, replay, expiry, revocation, fault, crash, concurrency and provider controls remain unrun.' >> "$GITHUB_STEP_SUMMARY"

@@ -1,6 +1,6 @@
 {
   "format": "houseatlas-publication-source/1",
-  "status": "reviewed-ordinary-corrected-development-artifact; new-source-presence-blocked; final-new-history-audit-required",
+  "status": "development-composition; native-read-slice-only; source-presence-blocked; exact-candidate-review-required",
   "self": {
     "path": "docs/publication/source-manifest.json",
     "mode": "100644",
@@ -10,7 +10,9 @@
     "access",
     "contracts",
     "core-integration",
+    "domain",
     "homebox",
+    "jobs",
     "media",
     "network",
     "operations-policy",
@@ -18,13 +20,20 @@
     "web"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "e505893999e95608eeb90000c653d4febb153ab1428e77e3561abefe7c56e0a3",
+  "sourceDigestSha256": "7b80621869aa9b88a5de97909465eabf029c83a3857dd63d1f0f6e3cff39b02a",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
       "bytes": 2448,
       "sha256": "d76d082cac129fd056afef1e8c3fd3b8a205dd6f891fde2a1ec86f5355a4ba41",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".github/workflows/rust-react-ordinary.yml",
+      "mode": "100644",
+      "bytes": 2713,
+      "sha256": "371a83bf9ad48b4d5cbbd4ebde321543bd5cfce4507ddd6ba60252ad2a72141d",
       "owner": "core-integration"
     },
     {
@@ -63,10 +72,24 @@
       "owner": "core-integration"
     },
     {
+      "path": "Cargo.lock",
+      "mode": "100644",
+      "bytes": 51704,
+      "sha256": "4d60c131e8d4f64a41ad5b9833816651f3cdd5e455032cb6f687b403410d0cc3",
+      "owner": "core-integration"
+    },
+    {
+      "path": "Cargo.toml",
+      "mode": "100644",
+      "bytes": 1188,
+      "sha256": "d86efe6343ddec07dd43735c0b797020ce142fb1f531b0dad87282bd78303940",
+      "owner": "core-integration"
+    },
+    {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 3036,
-      "sha256": "f1aa47306b7e09c72856d2b911174651cd02611b2a427cd77fca1efcfde1fcad",
+      "bytes": 3430,
+      "sha256": "7d9a45682677a3018707bda404009be606a79eea5e0b5b7e0bbe57cff572b313",
       "owner": "core-integration"
     },
     {
@@ -217,6 +240,342 @@
       "owner": "network"
     },
     {
+      "path": "backend/Cargo.toml",
+      "mode": "100644",
+      "bytes": 961,
+      "sha256": "94d870a6a9b45e7b670f22d39c826fd10fe54f5b72df2296ab24623101733f0a",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/migrations/0001_rust_core.sql",
+      "mode": "100644",
+      "bytes": 6017,
+      "sha256": "043ba5dfb088960c596e6fe9a07adabeefc570ddcf23c76c4227b80fbe9258e9",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/access/README.md",
+      "mode": "100644",
+      "bytes": 7757,
+      "sha256": "1b4302e7d2c8f4f87f58865a23f4cda62ad38bf6135c6511b57fafe2e2e9aa87",
+      "owner": "access"
+    },
+    {
+      "path": "backend/src/access/boundary.rs",
+      "mode": "100644",
+      "bytes": 23369,
+      "sha256": "c5052b4c745b39f1006ceecf58488d7058aa748976a3dceb230ac24c760d29bb",
+      "owner": "access"
+    },
+    {
+      "path": "backend/src/access/credentials.rs",
+      "mode": "100644",
+      "bytes": 3746,
+      "sha256": "44f23d0200c0e70f2d2f3ed4025f2e871afa03de6708d18109cf4eb481eaac58",
+      "owner": "access"
+    },
+    {
+      "path": "backend/src/access/error.rs",
+      "mode": "100644",
+      "bytes": 1817,
+      "sha256": "e8827268d57f83b1a9e3c91cf2c3d717948967ed36df4a786405b16134f6ceaf",
+      "owner": "access"
+    },
+    {
+      "path": "backend/src/access/healthy.rs",
+      "mode": "100644",
+      "bytes": 10397,
+      "sha256": "a03fb7690505db3b78e0e092b2aa68bccab1ad9afe5064629067fd347aebda57",
+      "owner": "access"
+    },
+    {
+      "path": "backend/src/access/mod.rs",
+      "mode": "100644",
+      "bytes": 920,
+      "sha256": "f43a88467c7b7f9c2dfe6ab163bfd678fefa97c9a4b39945412b043be58827a6",
+      "owner": "access"
+    },
+    {
+      "path": "backend/src/access/schema.sql",
+      "mode": "100644",
+      "bytes": 1559,
+      "sha256": "36f818330ffa904e5205fb6580166ebfc2f1525b6a2ed9a12fd85fee57063e03",
+      "owner": "access"
+    },
+    {
+      "path": "backend/src/access/source.rs",
+      "mode": "100644",
+      "bytes": 6682,
+      "sha256": "c2bc4192f32b2beff612843feeaf21a6ac75ffa056164f9139adea161121d8dc",
+      "owner": "access"
+    },
+    {
+      "path": "backend/src/access/store.rs",
+      "mode": "100644",
+      "bytes": 13137,
+      "sha256": "477d8131c5bb6004f8e255a95bdf0400858eb10c9a4c818e613084013a6590fe",
+      "owner": "access"
+    },
+    {
+      "path": "backend/src/access/types.rs",
+      "mode": "100644",
+      "bytes": 9745,
+      "sha256": "ea8560f391f029a6d6b0b8cdbea48704f4b580ed215ceaecb71cf14efdfad194",
+      "owner": "access"
+    },
+    {
+      "path": "backend/src/app.rs",
+      "mode": "100644",
+      "bytes": 9909,
+      "sha256": "a0ade2a18d0e0271adec219a4e2340bb06a3d92beb5b4cb0937c81e144472645",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/config/mod.rs",
+      "mode": "100644",
+      "bytes": 2026,
+      "sha256": "2ec39d1bfbc4c53c49fd0b6bee5c191e748231697857f7913fdc8484d997a97f",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/contracts/generated.rs",
+      "mode": "100644",
+      "bytes": 68002,
+      "sha256": "2a709e34e1cf89e65c5671006d355e74de633d5ab634846b8d6bf0e84be2f4d4",
+      "owner": "contracts"
+    },
+    {
+      "path": "backend/src/contracts/mod.rs",
+      "mode": "100644",
+      "bytes": 9500,
+      "sha256": "1eb273d111875979572a4ca4b000ccd452b96a8521ff6645d4556e3eb0fb0a07",
+      "owner": "contracts"
+    },
+    {
+      "path": "backend/src/domain/README.md",
+      "mode": "100644",
+      "bytes": 7768,
+      "sha256": "c0cf73384bd23af9a1ed34a025e406ca4ad4b72d2f5ba3a55954deb7f7403fa5",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/commands.rs",
+      "mode": "100644",
+      "bytes": 5910,
+      "sha256": "08f274e23aa32003307c615148c39ecb6f6a2318135c1e88cf4c70755c360540",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/healthy-schema.mjs",
+      "mode": "100644",
+      "bytes": 1670,
+      "sha256": "71e6fe68a6ab0a1c0a5dbcc4ca5ea1c102443649c82e29da8d4801d8915a234c",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/healthy.rs",
+      "mode": "100644",
+      "bytes": 11273,
+      "sha256": "a71af495b7c1c26a354d9fc41fae521a0d4653f5e1571f7853310ef0cf21ec9d",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/mod.rs",
+      "mode": "100644",
+      "bytes": 2348,
+      "sha256": "1ae6e8b8c20a080cbe26d504741af9142b7edc87638c0aa35950ae671c52f574",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/model.rs",
+      "mode": "100644",
+      "bytes": 9135,
+      "sha256": "64efedf70021fffa56ff2e74a884c02698775cf97d8c78ed9a865aad94a9ecd8",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/ports.rs",
+      "mode": "100644",
+      "bytes": 3311,
+      "sha256": "4103e5d13736a941f8148114605c3884a0157b17e99594b5ff7cc9f020eaf543",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/projection.rs",
+      "mode": "100644",
+      "bytes": 14664,
+      "sha256": "db4c0d768bea0a138e4d70bed353162836cfab18d5accdec81e8d7eb7738598f",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/queries.rs",
+      "mode": "100644",
+      "bytes": 6056,
+      "sha256": "48a8fa74fbe9436d554c92ecf70d62579a5bcd883c49fae9ffbedbbabbaa29e7",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/http/contracts.rs",
+      "mode": "100644",
+      "bytes": 15485,
+      "sha256": "ccdc91cf5601cd3fec074f94d2b1a34cfbdba25bd355ad885fac1196ca4bbb88",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/http/mod.rs",
+      "mode": "100644",
+      "bytes": 10370,
+      "sha256": "ccd8af6e6a3610cea6b53a191bbdbe97ee7d6977eb2b53ce49bb056c601915c4",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/jobs/README.md",
+      "mode": "100644",
+      "bytes": 6941,
+      "sha256": "ab9b0f6db0a044c8bfe7eca1a018bc3e7d31224933a924f9148d94e28cf0ce2c",
+      "owner": "jobs"
+    },
+    {
+      "path": "backend/src/jobs/examples/sqlite_healthy.rs",
+      "mode": "100644",
+      "bytes": 21581,
+      "sha256": "1485056c75201e2502fd6294f2ec09aaabc9abcdf9af786e7c9a92d3f9af864f",
+      "owner": "jobs"
+    },
+    {
+      "path": "backend/src/jobs/mod.rs",
+      "mode": "100644",
+      "bytes": 346,
+      "sha256": "268bd0fc41a633e424305a67fba67340d4b5bb348d15e12ad7bb4ad834d069f4",
+      "owner": "jobs"
+    },
+    {
+      "path": "backend/src/jobs/model.rs",
+      "mode": "100644",
+      "bytes": 7123,
+      "sha256": "03772ccf11f3e86f00f6164892dcee9b34f058c2548e8e9803ffdd055be97734",
+      "owner": "jobs"
+    },
+    {
+      "path": "backend/src/jobs/orchestrator.rs",
+      "mode": "100644",
+      "bytes": 6978,
+      "sha256": "d40ef23b9571d707554376817b18361b2861504d66c3b13873a6ae299b6352bd",
+      "owner": "jobs"
+    },
+    {
+      "path": "backend/src/jobs/ports.rs",
+      "mode": "100644",
+      "bytes": 3763,
+      "sha256": "ec8e9ccd65682157f76bd5d0204d6fb9edb6bbb8e03859dc325f000225b352af",
+      "owner": "jobs"
+    },
+    {
+      "path": "backend/src/lib.rs",
+      "mode": "100644",
+      "bytes": 219,
+      "sha256": "b5ea5bc16de06bdad709606372871691d0f23d0a61cc835b48cc140e17a2c509",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/lifecycle/mod.rs",
+      "mode": "100644",
+      "bytes": 4926,
+      "sha256": "40fe2ef75ac450d9025a18308c0900aebb8b942d757b4a7fd70f0800df71f959",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/main.rs",
+      "mode": "100644",
+      "bytes": 3766,
+      "sha256": "dd3665da0ece1957bb4a092a14d4c777fbb891b13392d30712c9c202365991b2",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/storage/README.md",
+      "mode": "100644",
+      "bytes": 8959,
+      "sha256": "db40e6807a4336f943ecbef3468e506bf87e584fe4c4e9020cb2b0d21908c91a",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/checks/healthy.rs",
+      "mode": "100644",
+      "bytes": 19817,
+      "sha256": "18cc7e2a761c5c257e2bdbd28a1f33df7f19c8947a74bfd78f01ba7853372e84",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/checks/oracle.mjs",
+      "mode": "100644",
+      "bytes": 1829,
+      "sha256": "13f2179325658b732fed17a75b9362958d3fdc5510aad7f0d2982e162a77aa73",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/commands.rs",
+      "mode": "100644",
+      "bytes": 16519,
+      "sha256": "32db29759c986caf0092ebe8266683ce0586e9d8339bb3667143e21282b21e97",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/context.rs",
+      "mode": "100644",
+      "bytes": 13143,
+      "sha256": "7c0c462c7d6b95f1f709623a7e3488d14811e0942ce2d5f8140f828ef72965ab",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/error.rs",
+      "mode": "100644",
+      "bytes": 1314,
+      "sha256": "1cd2258efd5e2d7bd454ce376766f4929656942f167a18fb758c5a893180fada",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/migrations.rs",
+      "mode": "100644",
+      "bytes": 2552,
+      "sha256": "7ccc66bb4770aaf303ee58ac9e01e6362a71a52fd42f233fd5050bdd3402b4d3",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/mod.rs",
+      "mode": "100644",
+      "bytes": 589,
+      "sha256": "a0af928334d564101ddfb62d4dfae3df9184b4190e5647b8ab184a2f60272935",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/ports.rs",
+      "mode": "100644",
+      "bytes": 2426,
+      "sha256": "0f2eef35acf8c85b5e20da1aa2b1e5f67f11a2d22bb5f6ccebf7a054e11270ad",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/repository.rs",
+      "mode": "100644",
+      "bytes": 12395,
+      "sha256": "2ef06316a840a00b2f314afae29656f1534ff5b5c36fb68918b41721105fa96c",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/store.rs",
+      "mode": "100644",
+      "bytes": 11609,
+      "sha256": "8d2e5f680e6f6008a6015e534b4b387afb2f77bb7f3fcea67e32805a4e49e5b3",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/types.rs",
+      "mode": "100644",
+      "bytes": 11147,
+      "sha256": "a421be774ebc4e26aeae03b5b0eeffe67fc886b48f0d8c44b263ef1e18505df3",
+      "owner": "storage"
+    },
+    {
       "path": "config/deployment.example.json",
       "mode": "100644",
       "bytes": 688,
@@ -364,6 +723,48 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/rust-baseline/README.md",
+      "mode": "100644",
+      "bytes": 7709,
+      "sha256": "0c9d76194340ec601beb12ca4a7a3d1f6eaf585780a2bab714e306294da66a7d",
+      "owner": "contracts"
+    },
+    {
+      "path": "docs/rust-baseline/correction-1.md",
+      "mode": "100644",
+      "bytes": 3231,
+      "sha256": "ce542d174086f075f69f61097cb6da8219e475cf186803952a805f109212afff",
+      "owner": "contracts"
+    },
+    {
+      "path": "docs/rust-baseline/numeric-semantics.md",
+      "mode": "100644",
+      "bytes": 4077,
+      "sha256": "d70a6d4e8cdcca3ba5089bfb591ae00f7fe9e251be6ce27b69fab58d3b8b82b6",
+      "owner": "contracts"
+    },
+    {
+      "path": "docs/rust-baseline/verification.md",
+      "mode": "100644",
+      "bytes": 3495,
+      "sha256": "5a9c5288af8f687ab7bd1b9478a1689518ad8e21497a4d53ea75522e1e385fec",
+      "owner": "contracts"
+    },
+    {
+      "path": "docs/rust-integration/README.md",
+      "mode": "100644",
+      "bytes": 7647,
+      "sha256": "50cea542a9cdcad81e6ad86aa03971a184e651a146f5f261bc642e6e29b0707d",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/rust-integration/verification.md",
+      "mode": "100644",
+      "bytes": 2454,
+      "sha256": "b89f8be650f69de832c9693d269f009ac2003711367bf9773b4fe43704f8da87",
+      "owner": "core-integration"
+    },
+    {
       "path": "docs/ux/reference/at04-room-first.html",
       "mode": "100644",
       "bytes": 33858,
@@ -424,6 +825,139 @@
       "mode": "100644",
       "bytes": 1774,
       "sha256": "d153701552abf6425893cb83b3f1d039b3dc4e41b7b6952dcf4b477fead8d2e8",
+      "owner": "core-integration"
+    },
+    {
+      "path": "frontend/index.html",
+      "mode": "100644",
+      "bytes": 344,
+      "sha256": "e75162e803e34460ddcfdff0bcb4784ed5558e8f9d9dbb24e05c752264cf2744",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/package-lock.json",
+      "mode": "100644",
+      "bytes": 41710,
+      "sha256": "f74b03fbf60532aa764964d024b43941d6a07b05cf246e2a271386082e6495fc",
+      "owner": "core-integration"
+    },
+    {
+      "path": "frontend/package.json",
+      "mode": "100644",
+      "bytes": 555,
+      "sha256": "0c86fb4508b530783a3e822200a522e2907913dd714bb3d3dc0631f4845cf1e7",
+      "owner": "core-integration"
+    },
+    {
+      "path": "frontend/src/api/client.ts",
+      "mode": "100644",
+      "bytes": 1875,
+      "sha256": "d683f631abfda8ea5e503a36d729442c267b5d3c52918b3389c9e34c4193a72f",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/api/generated/contracts.ts",
+      "mode": "100644",
+      "bytes": 21445,
+      "sha256": "abb82ea98bb5c27c0b88d8648aae2e3f3a2fc57f767d380581a175915201f8f9",
+      "owner": "contracts"
+    },
+    {
+      "path": "frontend/src/app/App.tsx",
+      "mode": "100644",
+      "bytes": 14096,
+      "sha256": "7aacbadf88caabd99457bbc6e4a32fef23e47864c097ce40e438343c1b9b1f60",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/app/INTEGRATION.md",
+      "mode": "100644",
+      "bytes": 8532,
+      "sha256": "5c98dc8f3cd2de04ae96e9281b792149191da57f60de6bd715135d732bb7ce10",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/app/assets.d.ts",
+      "mode": "100644",
+      "bytes": 24,
+      "sha256": "35d26ea66c86da9701e4f4b467913481ffeae910761cea34c775c5dacb7f8eaa",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/app/components.tsx",
+      "mode": "100644",
+      "bytes": 17824,
+      "sha256": "eef03ae58eefb2a1e2f3f12f73939d6f76879c7284821837723c050355eceb46",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/app/copy.ts",
+      "mode": "100644",
+      "bytes": 6338,
+      "sha256": "76c0460ae57a1e2eae097ad9f86764d88d6a249b0f9acc315a55750ab64d655f",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/app/decode.ts",
+      "mode": "100644",
+      "bytes": 7895,
+      "sha256": "1183a10a89b2a178ddd527345aacd58c7a42d6b22c134f7f95a454e232085f13",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/app/healthy.examples.tsx",
+      "mode": "100644",
+      "bytes": 12701,
+      "sha256": "f7a1dc913c83f0282459f9c1524b5d12a649fb4a1d98f214d3a5a8a71da85a8b",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/app/model.ts",
+      "mode": "100644",
+      "bytes": 5712,
+      "sha256": "16c723c2516cfb2a1bd3b4d141f8dcdae22e2ce8f922497614ecbd3ed62bc80e",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/app/pages.tsx",
+      "mode": "100644",
+      "bytes": 15795,
+      "sha256": "cddef6671fbea5fca83398a6b96d4dd2cfdff5f1c83c006400163a60e2a983f5",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/app/types.ts",
+      "mode": "100644",
+      "bytes": 3503,
+      "sha256": "940a51dd9f64982970966d735c6bd00c10b4dc9ee4e4c2a8461047060b129225",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/main.tsx",
+      "mode": "100644",
+      "bytes": 1561,
+      "sha256": "a8e99b9c4b9687de45dcc2403830131adbebc591ca7c3341338e64c3953da0d7",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/styles/atlas.css",
+      "mode": "100644",
+      "bytes": 28402,
+      "sha256": "935fd09632698175d93a22002e987860412cb740ca898894bf6c779154b47b95",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/tsconfig.json",
+      "mode": "100644",
+      "bytes": 971,
+      "sha256": "c7cf9982de4629266903a6627c27f2c7ae2f0374e2232c90493b16745704a4ca",
+      "owner": "core-integration"
+    },
+    {
+      "path": "frontend/vite.config.ts",
+      "mode": "100644",
+      "bytes": 167,
+      "sha256": "1e40a82b3332abbd71136beb4ba1acf0f2437bf6d114ab163db711ff752abc95",
       "owner": "core-integration"
     },
     {
@@ -1008,6 +1542,13 @@
       "owner": "storage"
     },
     {
+      "path": "rust-toolchain.toml",
+      "mode": "100644",
+      "bytes": 86,
+      "sha256": "2ad6f15416572b4836585087f1d4abc53b8fa2dbd616f8dacfaa587ed6714228",
+      "owner": "core-integration"
+    },
+    {
       "path": "server/browser/host.mjs",
       "mode": "100644",
       "bytes": 1681,
@@ -1187,6 +1728,69 @@
       "mode": "100644",
       "bytes": 3600,
       "sha256": "ee20a1773dc1635634c9fca4598f65f69ca6532294d393c37510fdc8c1898207",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/rust-baseline/check-contracts.mjs",
+      "mode": "100644",
+      "bytes": 3005,
+      "sha256": "2fdcf06ba8a18b0779887afcb02a123e7ba1764f1a55a8a419ba9ba17c79030c",
+      "owner": "contracts"
+    },
+    {
+      "path": "tools/rust-baseline/check.mjs",
+      "mode": "100644",
+      "bytes": 2670,
+      "sha256": "c9ef3aff6ca4b04213dfeb21e23c172a8d9e76c3aa0c49cd35fcc9b8d51a01d2",
+      "owner": "contracts"
+    },
+    {
+      "path": "tools/rust-baseline/examples/healthy_contracts.rs",
+      "mode": "100644",
+      "bytes": 4165,
+      "sha256": "79b11bad2ce4ef7cd0c2266d762182061f65456a5eec7215ad9cd0c9ec6d9f59",
+      "owner": "contracts"
+    },
+    {
+      "path": "tools/rust-baseline/examples/healthy_dependencies.rs",
+      "mode": "100644",
+      "bytes": 1633,
+      "sha256": "6edd1240e082905a443008363196965f76ede32276cff8e1c18f6f8a0161a6c1",
+      "owner": "contracts"
+    },
+    {
+      "path": "tools/rust-baseline/generate-contracts.mjs",
+      "mode": "100644",
+      "bytes": 13272,
+      "sha256": "fdce5bbb1db65b32a0e58c4cdd0da9e65136137ffd41e58cca96691d8a5b9532",
+      "owner": "contracts"
+    },
+    {
+      "path": "tools/rust-baseline/healthy-contracts.ts",
+      "mode": "100644",
+      "bytes": 27731,
+      "sha256": "eac7c2ff9dedcabb491d93cfd715bbe054d52a0999012b8926644aff09442fa9",
+      "owner": "contracts"
+    },
+    {
+      "path": "tools/rust-baseline/react-compile.tsx",
+      "mode": "100644",
+      "bytes": 669,
+      "sha256": "a1bb600e7af13db6ef9743121ed9cfdea1bd039ea27868dda8f2336712d7d648",
+      "owner": "contracts"
+    },
+    {
+      "path": "tools/rust-integration/check-source.mjs",
+      "mode": "100644",
+      "bytes": 1665,
+      "sha256": "4bd5340d74f407dbfa1dad412f5320489de410295b8305467321ff8fb5d59b87",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/rust-integration/healthy-loopback.mjs",
+      "mode": "100644",
+      "bytes": 10868,
+      "sha256": "ed84a9984ab07c54db7230115a2e2669dfad6d41490fdf0c84322e78f704bafc",
       "owner": "core-integration"
     },
     {
