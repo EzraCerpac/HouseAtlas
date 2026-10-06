@@ -21,7 +21,7 @@ impl Default for RunLimits {
             max_rounds: 4,
             max_calls: 32,
             max_prompt_bytes: 16_384,
-            max_json_bytes: 262_144,
+            max_json_bytes: 4 * 1024 * 1024,
         }
     }
 }
@@ -34,7 +34,7 @@ impl RunLimits {
             || self.max_prompt_bytes == 0
             || self.max_prompt_bytes > 65_536
             || self.max_json_bytes == 0
-            || self.max_json_bytes > 1_048_576
+            || self.max_json_bytes > 16 * 1024 * 1024
         {
             Err(AiError::InvalidInput)
         } else {
@@ -54,14 +54,59 @@ impl RunLimits {
     }
 }
 
-/// A small host-owned component, with no task registry, executor or domain copy.
-pub struct AiRunner<'a, Conn, Infer, Catalog, Meter> {
+/// Retained only by the host's authenticated continuation store. The store binds
+/// this to actor/home/registration/epoch and claims it once after trusted review.
+/// Opaque prepared handles keep generated DTOs, digest and approvals in peers.
+pub struct AiCheckpoint<P> {
+    pub request_id: String,
+    pub model: String,
+    pub history: Vec<Value>,
+    pub pending: Vec<(super::ToolCall, P)>,
+    pub seen_calls: HashSet<String>,
+    pub next_round: usize,
+    pub usage: Usage,
+    pub operation_ids: Vec<String>,
+    pub limits: RunLimits,
+}
+
+enum StageFailure {
+    Known(AiError),
+    UnresolvedInference,
+}
+impl From<AiError> for StageFailure {
+    fn from(value: AiError) -> Self {
+        Self::Known(value)
+    }
+}
+fn finish(
+    result: Result<RunOutcome, StageFailure>,
+    usage: Usage,
+    operation_ids: Vec<String>,
+) -> Result<RunOutcome, UnconfirmedRun> {
+    match result {
+        Ok(outcome) => Ok(outcome),
+        Err(StageFailure::Known(AiError::CancelRequested)) => Ok(RunOutcome::Stopped { usage }),
+        Err(StageFailure::Known(reason)) => Ok(RunOutcome::Failed {
+            reason,
+            operation_ids,
+            usage,
+        }),
+        Err(StageFailure::UnresolvedInference) => Err(UnconfirmedRun {
+            reason: AiError::ProviderUnavailable,
+            usage,
+        }),
+    }
+}
+
+/// Host-owned orchestration, without a second queue, task registry or domain.
+pub struct AiRunner<'a, Conn, Infer, Catalog, Meter, Store> {
     pub connection: &'a Conn,
     pub inference: &'a Infer,
     pub catalog: &'a Catalog,
     pub usage: &'a Meter,
+    pub continuations: &'a Store,
 }
-impl<Conn, Infer, Catalog, Meter> AiRunner<'_, Conn, Infer, Catalog, Meter> {
+impl<Conn, Infer, Catalog, Meter, Store> AiRunner<'_, Conn, Infer, Catalog, Meter, Store> {
     pub async fn run<C>(
         &self,
         context: &C,
@@ -75,117 +120,215 @@ impl<Conn, Infer, Catalog, Meter> AiRunner<'_, Conn, Infer, Catalog, Meter> {
         Infer: InferencePort<C>,
         Catalog: DomainCatalog<C>,
         Meter: UsagePort<C>,
+        Store: super::ReviewContinuationPort<C, Catalog::Prepared>,
     {
         let mut usage = Usage::default();
-        match self
-            .run_inner(context, model, input, cancel, limits, &mut usage)
-            .await
-        {
-            Ok(outcome) => Ok(outcome),
-            Err(AiError::CancelRequested) => Ok(RunOutcome::Stopped { usage }),
-            Err(AiError::ProviderUnavailable) => Err(UnconfirmedRun {
-                reason: AiError::ProviderUnavailable,
+        let mut operation_ids = vec![];
+        let result = async {
+            let limits = limits.validate()?;
+            if input.prompt.trim().is_empty()
+                || input.prompt.len() > limits.max_prompt_bytes
+                || input.request_id.is_empty()
+                || input.request_id.len() > 128
+            {
+                return Err(AiError::InvalidInput.into());
+            }
+            let state = AiCheckpoint {
+                request_id: input.request_id,
+                model: model.to_owned(),
+                history: vec![json!({ "role": "user", "content": input.prompt })],
+                pending: vec![],
+                seen_calls: HashSet::new(),
+                next_round: 0,
                 usage,
-            }),
-            Err(reason) => Ok(RunOutcome::Failed { reason, usage }),
+                operation_ids: vec![],
+                limits,
+            };
+            self.run_inner(
+                context,
+                state,
+                false,
+                cancel,
+                &mut usage,
+                &mut operation_ids,
+            )
+            .await
         }
+        .await;
+        finish(result, usage, operation_ids)
     }
 
-    async fn run_inner<C>(
+    /// The browser supplies only identifiers. claim() verifies the separate
+    /// human UI, immutable intent and current context; the model sees no receipt.
+    pub async fn resume<C>(
         &self,
         context: &C,
-        model: &str,
-        input: RunInput,
+        request_id: &str,
+        continuation_id: &str,
         cancel: &Cancellation,
-        limits: RunLimits,
-        usage: &mut Usage,
-    ) -> Result<RunOutcome, AiError>
+    ) -> Result<RunOutcome, UnconfirmedRun>
     where
         Conn: ConnectionPort<C>,
         Infer: InferencePort<C>,
         Catalog: DomainCatalog<C>,
         Meter: UsagePort<C>,
+        Store: super::ReviewContinuationPort<C, Catalog::Prepared>,
     {
-        let limits = limits.validate()?;
-        if input.prompt.trim().is_empty()
-            || input.prompt.len() > limits.max_prompt_bytes
-            || input.request_id.is_empty()
-            || input.request_id.len() > 128
-        {
-            return Err(AiError::InvalidInput);
-        }
-        let mut history = vec![json!({ "role": "user", "content": input.prompt })];
-        let mut seen_calls = HashSet::new();
-        for round in 0..limits.max_rounds {
+        let mut usage = Usage::default();
+        let mut operation_ids = vec![];
+        let result = async {
             cancel.checkpoint()?;
-            let connection = self.connection.check(context, model, cancel).await?;
+            let state = self
+                .continuations
+                .claim(context, continuation_id, request_id, cancel)
+                .await?;
+            usage = state.usage;
+            operation_ids = state.operation_ids.clone();
+            if state.request_id != request_id || state.pending.is_empty() {
+                return Err(AiError::InvalidInput.into());
+            }
+            self.run_inner(context, state, true, cancel, &mut usage, &mut operation_ids)
+                .await
+        }
+        .await;
+        finish(result, usage, operation_ids)
+    }
+
+    async fn run_inner<C>(
+        &self,
+        context: &C,
+        mut state: AiCheckpoint<Catalog::Prepared>,
+        mut reviewed: bool,
+        cancel: &Cancellation,
+        usage: &mut Usage,
+        operation_ids: &mut Vec<String>,
+    ) -> Result<RunOutcome, StageFailure>
+    where
+        Conn: ConnectionPort<C>,
+        Infer: InferencePort<C>,
+        Catalog: DomainCatalog<C>,
+        Meter: UsagePort<C>,
+        Store: super::ReviewContinuationPort<C, Catalog::Prepared>,
+    {
+        let limits = state.limits.validate()?;
+        while state.next_round < limits.max_rounds {
+            cancel.checkpoint()?;
+            // A connection-stage ProviderUnavailable is a known failed check.
+            let connection = self.connection.check(context, &state.model, cancel).await?;
             cancel.checkpoint()?;
             if !connection.can_infer() {
-                return Err(AiError::ConnectionUnavailable);
+                return Err(AiError::ConnectionUnavailable.into());
             }
+            limits.bound(&state.history)?;
+            for (call, prepared) in &state.pending {
+                cancel.checkpoint()?;
+                let result = match self.catalog.effect(prepared) {
+                    ToolEffect::Read => {
+                        self.catalog.execute_read(context, prepared, cancel).await?
+                    }
+                    ToolEffect::RequiresReview if reviewed => {
+                        let dispatch = self
+                            .catalog
+                            .execute_reviewed(context, prepared, cancel)
+                            .await?;
+                        if let Some(id) = &dispatch.operation_id
+                            && !operation_ids.contains(id)
+                        {
+                            operation_ids.push(id.clone());
+                        }
+                        self.usage
+                            .domain_observed(context, &state.request_id, &dispatch)?;
+                        if !matches!(
+                            dispatch.state,
+                            super::stock::DomainDispatchState::Observed
+                                | super::stock::DomainDispatchState::Resolved
+                        ) {
+                            return Ok(RunOutcome::DomainHeld {
+                                operation_id: dispatch.operation_id,
+                                state: dispatch.state,
+                                usage: *usage,
+                            });
+                        }
+                        dispatch.value
+                    }
+                    ToolEffect::RequiresReview => return Err(AiError::InvalidCatalog.into()),
+                };
+                // Domain failures after completed inference remain typed failures,
+                // never unresolved inference. Submitted effects stay with peers.
+                cancel.checkpoint()?;
+                limits.bound(&result)?;
+                state.history.push(tool_output(call, result)?);
+                limits.bound(&state.history)?;
+            }
+            state.pending.clear();
+            reviewed = false;
+            cancel.checkpoint()?;
             let tools = self.catalog.tools(context)?;
             validate_tools(&tools, limits.max_calls)?;
-            let request = ResponsesRequest::new(model, history.clone(), &tools)?;
+            let request = ResponsesRequest::new(&state.model, state.history.clone(), &tools)?;
             limits.bound(&request)?;
-            let inferred = self
+            let first = state.next_round == 0;
+            let outcome = match self
                 .inference
-                .infer(context, &input.request_id, &request, cancel)
-                .await;
-            let outcome = match inferred {
+                .infer(context, &state.request_id, &request, cancel)
+                .await
+            {
                 Ok(outcome) => outcome,
                 Err(reason) => {
-                    // No authoritative measurement for this attempted round.
-                    // Prior measured rounds stay in UsagePort; run totals are
-                    // unknown rather than silently omitting this request.
-                    usage.accumulate(Usage::default(), round == 0);
-                    return Err(reason);
+                    usage.accumulate(Usage::default(), first);
+                    return Err(if reason == AiError::ProviderUnavailable {
+                        StageFailure::UnresolvedInference
+                    } else {
+                        StageFailure::Known(reason)
+                    });
                 }
             };
+            state.next_round += 1;
             let (output, observed) = match outcome {
                 InferenceOutcome::Completed { output, usage } => (output, usage),
                 InferenceOutcome::Cancelled { usage: observed } => {
-                    self.usage.observed(context, &input.request_id, observed);
-                    usage.accumulate(observed, round == 0);
+                    self.usage.observed(context, &state.request_id, observed);
+                    usage.accumulate(observed, first);
                     return Ok(RunOutcome::Cancelled { usage: *usage });
                 }
                 InferenceOutcome::Stopped { usage: observed } => {
-                    self.usage.observed(context, &input.request_id, observed);
-                    usage.accumulate(observed, round == 0);
+                    self.usage.observed(context, &state.request_id, observed);
+                    usage.accumulate(observed, first);
                     return Ok(RunOutcome::Stopped { usage: *usage });
+                }
+                InferenceOutcome::Unresolved {
+                    reason: _,
+                    usage: observed,
+                    diagnostic,
+                } => {
+                    self.usage
+                        .provider_failed(context, &state.request_id, &diagnostic);
+                    usage.accumulate(observed, first);
+                    return Err(StageFailure::UnresolvedInference);
                 }
                 InferenceOutcome::Failed {
                     reason,
                     usage: observed,
                     diagnostic,
                 } => {
-                    self.usage.observed(context, &input.request_id, observed);
+                    self.usage.observed(context, &state.request_id, observed);
                     self.usage
-                        .provider_failed(context, &input.request_id, &diagnostic);
-                    usage.accumulate(observed, round == 0);
+                        .provider_failed(context, &state.request_id, &diagnostic);
+                    usage.accumulate(observed, first);
                     return Ok(RunOutcome::Failed {
                         reason,
+                        operation_ids: operation_ids.clone(),
                         usage: *usage,
                     });
                 }
             };
-            self.usage.observed(context, &input.request_id, observed);
-            usage.accumulate(observed, round == 0);
+            self.usage.observed(context, &state.request_id, observed);
+            usage.accumulate(observed, first);
             cancel.checkpoint()?;
             limits.bound(&output)?;
             let calls = tool_calls(&output)?;
-            if calls.len() + seen_calls.len() > limits.max_calls {
-                return Err(AiError::LimitReached);
-            }
-            for call in &calls {
-                if !call.arguments.is_object()
-                    || call.call_id.len() > 256
-                    || !seen_calls.insert(call.call_id.clone())
-                {
-                    return Err(AiError::InvalidProviderOutput);
-                }
-                if !tools.iter().any(|tool| tool.name == call.name) {
-                    return Err(AiError::UnknownTool);
-                }
+            if calls.len() + state.seen_calls.len() > limits.max_calls {
+                return Err(AiError::LimitReached.into());
             }
             if calls.is_empty() {
                 return Ok(RunOutcome::Completed {
@@ -193,46 +336,51 @@ impl<Conn, Infer, Catalog, Meter> AiRunner<'_, Conn, Infer, Catalog, Meter> {
                     usage: *usage,
                 });
             }
-            // Surface proposals together before any tool executes in this round.
-            // Resumption needs a later exact access/catalog review capability.
-            if calls.iter().any(|call| {
-                tools
-                    .iter()
-                    .any(|tool| tool.name == call.name && tool.effect == ToolEffect::RequiresReview)
-            }) {
+            if state.next_round == limits.max_rounds {
+                return Err(AiError::LimitReached.into());
+            }
+            let mut reviews = vec![];
+            let mut requires_review = false;
+            for call in &calls {
+                if !call.arguments.is_object()
+                    || call.call_id.len() > 256
+                    || !state.seen_calls.insert(call.call_id.clone())
+                {
+                    return Err(AiError::InvalidProviderOutput.into());
+                }
+                if !tools.iter().any(|tool| tool.name == call.name) {
+                    return Err(AiError::UnknownTool.into());
+                }
+                let prepared = self.catalog.prepare(context, call)?;
+                if self.catalog.effect(&prepared) == ToolEffect::RequiresReview {
+                    requires_review = true;
+                    if let Some(challenge) = self.catalog.review(context, &prepared, cancel).await?
+                    {
+                        reviews.push(challenge);
+                    }
+                }
+                state.pending.push((call.clone(), prepared));
+            }
+            state.history.extend(output);
+            limits.bound(&state.history)?;
+            if requires_review {
+                // Retain every pending call before any read/write in this round.
+                // Model receipts, new payloads and approval channels are absent.
+                state.usage = *usage;
+                state.operation_ids = operation_ids.clone();
+                let continuation_id = self.continuations.retain(context, state, cancel).await?;
+                if continuation_id.is_empty() || continuation_id.len() > 256 {
+                    return Err(AiError::InvalidCatalog.into());
+                }
                 return Ok(RunOutcome::ReviewRequired {
                     calls,
+                    continuation_id,
+                    reviews,
                     usage: *usage,
                 });
             }
-            // Do not execute a read whose result cannot be returned to inference.
-            if round + 1 == limits.max_rounds {
-                return Err(AiError::LimitReached);
-            }
-            history.extend(output);
-            for call in calls {
-                cancel.checkpoint()?;
-                let current = self.catalog.tools(context)?;
-                validate_tools(&current, limits.max_calls)?;
-                let advertised = tools
-                    .iter()
-                    .find(|tool| tool.name == call.name)
-                    .ok_or(AiError::UnknownTool)?;
-                let now = current
-                    .iter()
-                    .find(|tool| tool.name == call.name)
-                    .ok_or(AiError::UnknownTool)?;
-                if now.effect != ToolEffect::Read || now.parameters != advertised.parameters {
-                    return Err(AiError::InvalidCatalog);
-                }
-                let result: Value = self.catalog.execute_read(context, &call, cancel).await?;
-                cancel.checkpoint()?;
-                limits.bound(&result)?;
-                history.push(tool_output(&call, result)?);
-                limits.bound(&history)?;
-            }
         }
-        Err(AiError::LimitReached)
+        Err(AiError::LimitReached.into())
     }
 }
 

@@ -14,8 +14,12 @@ export const failureMessages: Readonly<Record<AiErrorCode, string>> = {
 };
 
 export function canInfer(connection: ConnectionSnapshot): boolean {
-  return connection.authorization === 'connected'
+  return connection.account !== null
+    && connection.authorization === 'connected'
     && connection.eligibility !== 'ineligible'
+    && connection.paidUseAdmission !== 'held'
+    && connection.runtime.route !== 'unset'
+    && connection.runtime.qualification === 'qualified'
     && connection.runtime.availability === 'ready'
     && (connection.permission === 'granted'
       || (connection.method !== 'sign-in-with-chatgpt' && connection.permission === 'not-applicable'));
@@ -26,9 +30,13 @@ export function readinessMessage(connection: ConnectionSnapshot): string {
   if (connection.authorization === 'unconfigured') return 'Connection is not configured.';
   if (connection.authorization === 'sign-in-required') return 'Sign-in is required.';
   if (connection.authorization === 'expired') return 'Authorization has expired.';
+  if (connection.account === null) return 'The active account is unknown.';
   if (connection.permission === 'denied') return 'Inference permission was denied.';
   if (connection.permission !== 'granted'
     && (connection.method === 'sign-in-with-chatgpt' || connection.permission !== 'not-applicable')) return 'Inference permission is unknown.';
+  if (connection.paidUseAdmission === 'held') return 'Inference is disabled until zero paid use is verified or specific credit spending is approved.';
+  if (connection.runtime.route === 'unset') return 'An inference runtime has not been selected.';
+  if (connection.runtime.qualification === 'held') return 'The selected inference runtime is awaiting qualification.';
   if (connection.runtime.availability === 'sleeping') return 'The runtime is sleeping.';
   if (connection.runtime.availability === 'unreachable') return 'The runtime is unreachable.';
   if (connection.runtime.availability === 'unknown') return 'Runtime availability is unknown.';

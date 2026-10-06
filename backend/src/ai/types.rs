@@ -70,7 +70,6 @@ pub struct ToolDescriptor {
     pub name: String,
     pub description: String,
     pub parameters: Value,
-    pub effect: ToolEffect,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -113,6 +112,15 @@ pub enum RunOutcome {
     },
     ReviewRequired {
         calls: Vec<ToolCall>,
+        #[serde(rename = "continuationId")]
+        continuation_id: String,
+        reviews: Vec<super::stock::ReviewChallenge>,
+        usage: Usage,
+    },
+    DomainHeld {
+        #[serde(rename = "operationId")]
+        operation_id: Option<String>,
+        state: super::stock::DomainDispatchState,
         usage: Usage,
     },
     Cancelled {
@@ -124,6 +132,8 @@ pub enum RunOutcome {
     },
     Failed {
         reason: AiError,
+        #[serde(rename = "operationIds")]
+        operation_ids: Vec<String>,
         usage: Usage,
     },
 }
@@ -182,6 +192,13 @@ pub enum InferenceOutcome {
     },
     Stopped {
         usage: Usage,
+    },
+    /// Submitted inference has no observed terminal. Local protocol/limit
+    /// failure is not proof that the provider stopped processing the request.
+    Unresolved {
+        reason: AiError,
+        usage: Usage,
+        diagnostic: ProviderDiagnostic,
     },
     /// Known terminal/admission failure; never a successful partial delta.
     Failed {

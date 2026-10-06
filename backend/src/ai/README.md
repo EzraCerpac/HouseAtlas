@@ -1,116 +1,122 @@
 # AT42 AI component
 
-This namespace contains an embeddable Rust component for the new modular
-monolith. It adds no database, executor, service framework, listener, credential
-store, login implementation or provider transport. Include `pub mod ai;` from
-AT51's backend crate. Local types are proposed boundary contracts; AT51 owns
-their eventual generated forms and application manifests.
+This is an embeddable component for the Rust modular monolith. AT51 supplies the
+application crate, generated contracts and dependency locks. This namespace
+supplies orchestration and narrow adapters; it creates no listener, second
+command service, database queue or live credential/runtime configuration.
 
-## Coded behavior
+## Implemented behavior
 
-`AiRunner::run` accepts an opaque server context `C`, a host-selected model slug,
-a browser request ID/prompt, a cancellation handle and bounded local limits.
-The context has no serialization or cloning requirement and never enters model
-input. Browser/model actor, role, route and home claims do not grant authority.
+`AiRunner::run/resume` accepts current opaque server authorization context.
+Every round checks the active account, direct inference permission, eligibility,
+independent paid-use admission and a qualified available runtime. Sign-in cannot
+approve spending or start inference. Three runtime candidates remain distinct:
+local sign-in helper, issued website client and local inference companion.
+Actual runtime selection defaults unset/held. Companion availability and mobile
+relay require a deliberate later choice and qualification.
 
-Each inference round rechecks connection state and the authorized shared domain
-catalog. Read-only calls dispatch through that catalog with current context.
-Source refresh, diagnostics and mutation calls must have `RequiresReview` effect;
-the runner returns their proposals before executing any call in that round.
-There is no approval/resume operation. The shared catalog retains responsibility
-for schema validation, source authorization, current membership, history ordering,
-revision guards and storage transaction boundaries. AI duplicates none of them.
+`StockCatalog` projects the shared stock `0.3.0-at34.stock.2`, wire3, across ten
+original families and 164 retained command metadata entries. Authorized tool
+schemas come from the shared generated validator. Each call is prepared and its
+exact command arm/effect resolved individually, including label render/print.
+Reads and reviewed writes cannot be dispatched through each other's method.
+Captured scope and outer result schema version, command/request IDs, resolved
+scope and supplied intent digests are correlated before model disclosure.
+Committed Atlas receipts also require `data.requestDigest` equality. Full schema,
+resource graph authorization and canonical digest construction remain shared
+service responsibilities, rather than a competing AI implementation.
 
-The SIWC request builder enforces an explicit input array, namespaced functions,
-`store:false` and `stream:true`. It emits no unsupported SIWC parameters or
-credentials. Schemas pass through without rewriting nullable/optional fields;
-`strict:false` avoids independently changing the canonical domain schema.
-Completed output items, including opaque reasoning, are retained in order before
-correlated JSON-string tool results. `completed_event` decodes a terminal
-`response.completed` with completed status, never a partial text/tool delta.
-An actual transport still must bound streams and supply replayable output items.
+Before any call in a mixed review round executes, the host retains ordered
+history and opaque prepared handles. A separate trusted human UI owns approval;
+`resume` accepts only request/continuation IDs and atomically claims the scoped
+host checkpoint. Dispatch rechecks authority, epochs, immutable intent, impact
+and receipt through the shared service and its existing durable dispatcher.
+Prepared/queued/dispatching/partial/unknown work stays held. Each reviewed
+observation must be retained by `UsagePort::domain_observed` before processing
+continues; later typed failures carry earlier operation IDs.
 
-Identity authorization, direct inference permission, request eligibility and
-runtime availability are independent. SIWC readiness requires validated granted
-permission (the `chatgpt.tokens.use.direct` scope). Unknown request eligibility
-can proceed to an explicitly requested inference; known ineligibility cannot.
-No plan allowlist, automatic billing fallback or permanent awake-Mac assumption
-exists. The host verifies the selected account's current model and capabilities.
+`ResponsesRequest` uses the public endpoint, explicit complete history,
+`store:false`, `stream:true`, namespaced functions and unchanged shared schemas.
+`ResponsesAdapter` serializes bounded requests and incrementally decodes bounded
+SSE with a supplied I/O deadline. Completion requires `response.completed` and
+completed status. Ordered reasoning, function calls and assistant phase survive
+continuation. Credentials stay in the injected transport; no token getter exists.
+Known HTTP/terminal failures retain sanitized structured diagnostics. Local
+protocol/limit failures after submission remain unresolved inference. Connection
+or catalog errors are typed failures, including `ProviderUnavailable` from those
+stages; only unresolved inference produces `UnconfirmedRun`.
 
-Cancellation requests are distinct from confirmed upstream cancellation. The
-runner stops scheduling at checkpoints and reports `stopped`; adapters may report
-`cancelled` only with terminal confirmation. Known provider failures resolve
-`failed` with measured usage. Unresolved transport failure returns
-`UnconfirmedRun`; totals stay unknown for unmeasured attempted rounds. Token
-counts are optional provider observations, never quota, price or reset estimates.
-Structured provider status/code/parameter/request ID remains in an internal
-reporting port, outside the browser DTO and without raw response content.
+`OAuthLifecycle::begin/complete/refresh/disconnect` orchestrates documented local
+OAuth through injected security, provider and encrypted storage boundaries. It
+uses fresh state/nonce/PKCE-S256 material, exact loopback callback URI reuse,
+callback-issued client retention, identity/audience/nonce validation and granted
+direct scope. Website identity support remains distinct from plan-use access.
+Per-registration leases, authority/cancellation binding, persisted refresh
+invocation/rotation checkpoints and atomic encrypted writes prevent orchestration
+from blindly replaying consumed refresh tokens. Disconnect stops local use,
+clears local credentials and distinguishes confirmed from unconfirmed revocation.
+No cryptography, encryption, live exchange or server transfer route is fabricated.
 
-## Proposed peer interfaces
+Cancellation requests and terminal confirmation remain separate. Usage counts
+stay optional; no cost, plan quota or reset is invented. `runtime.rs` supplies
+matching connection action, trusted human review and request-status DTOs, plus
+model discovery and scoped bridge admission interfaces. A bridge must enforce
+approved Origin/Host, per-install capability and actor/home/registration/epoch.
+No bridge or listener is installed by these interfaces.
 
-- `ConnectionPort<C>::check`: revalidate account, direct permission, known
-  eligibility, selected model and runtime observation.
-- `RuntimePort<C>::status`: scoped runtime observation, with no automatic
-  process start or wake; the connection adapter can compose this port.
-- `InferencePort<C>::infer`: bounded async inference with a request ID and
-  cancellation handle; return completed, known failed, locally stopped or
-  confirmed cancelled outcome. Unresolved transport errors remain distinct.
-- `DomainCatalog<C>::tools/execute_read`: authorized catalog projection and
-  shared domain dispatch; no independently registered AI tools.
-- `UsagePort<C>::observed/provider_failed`: measured round usage and private
-  structured failure evidence.
-- `CancelPort<C>::cancel`: scope-bound request cancellation with requested,
-  confirmed, already-finished or unsupported receipt.
+## Integration boundaries
 
-`PortFuture` uses `std::future::Future`; no Tokio dependency is required. Proposed
-application dependencies: `serde = =1.0.229` with `derive`, `serde_json = =1.0.151`.
-The component accepts no SQLite handle; the shared domain/storage owner supplies
-the existing atomic operations through its catalog adapter.
+The host must bind AT11's current authority and cancellation epochs, AT51's
+exact offline schema resources/generated DTOs, scoped model settings, credential
+runtime, maintained cryptography/encrypted storage, continuation/request status
+and shared command service. It must validate all result resources before
+returning them to this adapter and retain physical-operation uncertainty/fences.
+These concrete peers are not implemented or qualified here. The exact contract
+inputs are available; their shared application binding is integration work.
 
-Missing exact integration inputs are AT51's Rust catalog descriptor/result/error
-types and schema-reference resolution, AT11's current opaque context and epoch
-bindings, the host request-ID lifecycle/status recovery port, selected-account
-model settings, replayable provider input conversion, and AT41's SIWC adapter
-design. No independently fabricated OAuth registration, redirect, token-refresh,
-credential-retention or approval capability is provided.
+Only existing `serde = =1.0.229` (`derive`) and `serde_json = =1.0.151` are needed.
+Ports use standard futures; no runtime/service framework or SQLite API is added.
+The local four-MiB JSON default can be configured within bounded ceilings for
+resolved stock tool schemas; the host and transport must reconcile their limits.
 
-## Prior scoped checks
+## Scoped evidence and limitations
 
-An isolated, locked compiler harness compiled these actual source files using
-Rust 1.99.0. Format, check, build and clippy with warnings denied passed. The
-application manifest, dependency lock and CI remain AT51 integration work;
-private harness paths and exact execution logs stay outside source delivery.
+The earlier source compiled with Rust 1.99.0 and two healthy examples. The
+follow-up compiled the actual source and passed five healthy examples: existing
+published synthetic records/history, browser DTOs, exact wire3 read boundary,
+successful local OAuth begin/callback, and chunked completed tool-capable SSE.
+The four-definition `fixtures/stock-read-tools.json` is an exact narrow input
+projection for those examples, not the production catalog. Historical fixture
+peers preserve published behavior; the production bridge uses wire3 families.
+All security, credential, catalog, storage and transport peers in examples are
+explicit stubs. Their synthetic success establishes neither live eligibility nor
+schema/security/provider qualification. Execution logs remain outside source.
 
-Both `healthy_examples` passed: credential-free
-connection/browser DTOs with granted permission and unknown eligibility, plus
-published scoped records and recorded-history reads with two synthetic inference
-rounds. They use the exact published record schema, plan-free snapshot, history
-contexts and recorded bare audit array. They preserve unknown circuit labels,
-history array shape, scope and opaque reasoning. The connection, inference,
-catalog and usage peers in these examples are explicitly stubbed; no actual
-provider, account, grant, domain mutation, SQLite transaction or listener runs.
+Stopped rejection, guard reversal, mutation/omission, denial, replay, expiry,
+revocation, adversarial, fault, crash, concurrency and negative-consumer controls
+remain unexecuted. Broad legacy aggregates were not run. Actual login, grant,
+models/inference, credential placement, deployment and listener access remain
+held. Ordinary compilation and healthy examples are not acceptance.
 
-Stopped rejection, guard-reversal, mutation/omission, adversarial, fault, crash,
-concurrency and negative-consumer controls remain deferred and unexecuted.
-Legacy broad aggregates were not run. Ordinary compile/example success does not
-qualify provider behavior, security, target readiness or deployment. No further
-validation was run during durable source packaging; delivery is not acceptance.
+## Input attribution
 
-## Official source inputs
+Application semantics use the supplied **HouseAtlas portable language-neutral
+stock.2/wire3 inputs**, **Language-neutral cloud supplement semantics**, and
+**Cloud-transferable write and AI integration policy**. Schema identity is
+`urn:houseatlas:agent:stock:3`; frozen Atlas resources resolve offline at
+`https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json`, never by network.
+Archive delivery metadata and private origin mappings are excluded from source.
 
-Reviewed on 2026-10-06:
+Official references reviewed on 2026-10-06:
 
-- [SIWC models and inference](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference):
-  public Responses endpoint, selected-account models and completed-stream success.
-- [SIWC preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations):
-  supported request subset, tool namespaces and explicit history.
-- [SIWC errors and recovery](https://developers.openai.com/siwc/token-sharing-open-source/errors-and-recovery):
-  direct-use permission, eligibility/usage failures and structured diagnostics.
-- [Function calling](https://developers.openai.com/api/docs/guides/function-calling):
-  namespace/function shapes and correlated tool outputs.
-- [Reasoning context](https://developers.openai.com/api/docs/guides/reasoning):
-  opaque reasoning preservation in stateless continuation.
-- [Self-hosted VMs](https://developers.openai.com/siwc/token-sharing-open-source/self-hosted-vms):
-  runtime placement independent from an awake Mac.
-- [Official Responses cancellation implementation](https://github.com/openai/openai-python/blob/main/src/openai/resources/responses/responses.py):
-  direct cancel supports background responses, which SIWC excludes.
+- [Registration/sign-in](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)
+  and [website identity](https://developers.openai.com/siwc/website).
+- [Models/inference](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference),
+  [preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations),
+  [errors/recovery](https://developers.openai.com/siwc/token-sharing-open-source/errors-and-recovery).
+- [Accounts/sessions](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions),
+  [usage UX](https://developers.openai.com/siwc/ui-ux-guidelines),
+  [self-hosted VMs](https://developers.openai.com/siwc/token-sharing-open-source/self-hosted-vms).
+- [Public DevKit pin](https://github.com/openai/sign-in-with-chatgpt-devkit/tree/f723814abdccec135b519c451fb6e1992ee5e933/packages/local/src),
+  [function calling](https://developers.openai.com/api/docs/guides/function-calling),
+  [reasoning context](https://developers.openai.com/api/docs/guides/reasoning).

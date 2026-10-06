@@ -34,9 +34,17 @@ impl ConnectionPort<SyntheticContext> for HealthyConnection {
                 permission: InferencePermission::Granted,
                 eligibility: Eligibility::Unknown,
                 authorization: AuthorizationState::Connected,
+                account: Some(AccountDisplay {
+                    account_id: "synthetic-account".into(),
+                    workspace_id: "synthetic-workspace".into(),
+                    label: "Synthetic account".into(),
+                }),
+                paid_use_admission: PaidUseAdmission::VerifiedZeroPaidUse,
                 usage_supported: true,
                 runtime: RuntimeSnapshot {
                     kind: RuntimeKind::Hosted,
+                    route: RuntimeRoute::IssuedWebsiteClient,
+                    qualification: RuntimeQualification::Qualified,
                     availability: RuntimeAvailability::Ready,
                     checked_at: Some("2026-10-06T00:00:00Z".into()),
                 },
@@ -49,6 +57,29 @@ struct HealthyCatalog {
     dispatched: Mutex<Vec<String>>,
 }
 impl DomainCatalog<SyntheticContext> for HealthyCatalog {
+    type Prepared = ToolCall;
+    fn prepare(&self, _: &SyntheticContext, call: &ToolCall) -> Result<ToolCall, AiError> {
+        Ok(call.clone())
+    }
+    fn effect(&self, _: &ToolCall) -> ToolEffect {
+        ToolEffect::Read
+    }
+    fn review<'a>(
+        &'a self,
+        _: &'a SyntheticContext,
+        _: &'a ToolCall,
+        _: &'a Cancellation,
+    ) -> PortFuture<'a, Option<ReviewChallenge>> {
+        Box::pin(async { Ok(None) })
+    }
+    fn execute_reviewed<'a>(
+        &'a self,
+        _: &'a SyntheticContext,
+        _: &'a ToolCall,
+        _: &'a Cancellation,
+    ) -> PortFuture<'a, DomainDispatch> {
+        Box::pin(async { Err(AiError::DomainUnavailable) })
+    }
     fn tools(&self, _: &SyntheticContext) -> Result<Vec<ToolDescriptor>, AiError> {
         let schema: Value = serde_json::from_str(SCHEMA).expect("published schema");
         Ok(vec![
@@ -56,13 +87,11 @@ impl DomainCatalog<SyntheticContext> for HealthyCatalog {
                 name: "getAtlasRecordHistory".into(),
                 description: "Read recorded Atlas audit history".into(),
                 parameters: schema["$defs"]["recordRef"].clone(),
-                effect: ToolEffect::Read,
             },
             ToolDescriptor {
                 name: "listRecords".into(),
                 description: "Read scoped records".into(),
                 parameters: json!({"type":"object","properties":{},"additionalProperties":false}),
-                effect: ToolEffect::Read,
             },
         ])
     }
@@ -113,6 +142,14 @@ impl UsagePort<SyntheticContext> for HealthyUsage {
         self.0.lock().expect("synthetic usage").push(usage);
     }
     fn provider_failed(&self, _: &SyntheticContext, _: &str, _: &ProviderDiagnostic) {}
+    fn domain_observed(
+        &self,
+        _: &SyntheticContext,
+        _: &str,
+        _: &DomainDispatch,
+    ) -> Result<(), AiError> {
+        Ok(())
+    }
 }
 
 struct HealthyInference {
@@ -202,11 +239,13 @@ fn healthy_published_reads_and_explicit_history() {
         dispatched: Mutex::new(vec![]),
     };
     let usage = HealthyUsage::default();
+    let store = HealthyStore;
     let runner = AiRunner {
         connection: &connection,
         inference: &inference,
         catalog: &catalog,
         usage: &usage,
+        continuations: &store,
     };
     let context = SyntheticContext {
         workspace: "00000000-0000-4000-8000-000000000001".into(),
@@ -274,4 +313,147 @@ fn healthy_connection_and_browser_dto() {
             ..
         }
     ));
+}
+
+// Historical fixture peer only. Production uses StockCatalog with exact wire3.
+// This healthy read path never retains/claims a review or dispatches a mutation.
+struct HealthyStore;
+impl ReviewContinuationPort<SyntheticContext, ToolCall> for HealthyStore {
+    fn retain<'a>(
+        &'a self,
+        _: &'a SyntheticContext,
+        _: runner::AiCheckpoint<ToolCall>,
+        _: &'a Cancellation,
+    ) -> PortFuture<'a, String> {
+        Box::pin(async { Err(AiError::InvalidCatalog) })
+    }
+    fn claim<'a>(
+        &'a self,
+        _: &'a SyntheticContext,
+        _: &'a str,
+        _: &'a str,
+        _: &'a Cancellation,
+    ) -> PortFuture<'a, runner::AiCheckpoint<ToolCall>> {
+        Box::pin(async { Err(AiError::InvalidCatalog) })
+    }
+}
+
+/// Exact stock request/result boundary; the synthetic peer is deliberately not
+/// a generated validator, authorization service, canonicalizer or database.
+struct HealthyStockPeer;
+impl stock::SharedStockPort<SyntheticContext> for HealthyStockPeer {
+    type Prepared = Value;
+    fn projection(&self, _: &SyntheticContext) -> Result<stock::StockCatalogProjection, AiError> {
+        // AT51 supplies the production full catalog projection. This example
+        // exercises prepare/dispatch only, without inventing 164 metadata arms.
+        Err(AiError::InvalidCatalog)
+    }
+    fn prepare(
+        &self,
+        context: &SyntheticContext,
+        family: stock::StockToolFamily,
+        arguments: &Value,
+    ) -> Result<stock::AcceptedStockCommand<Value>, AiError> {
+        assert_eq!(family, stock::StockToolFamily::AtlasRecords);
+        assert_eq!(arguments["commandId"], "atlas.circuit.list");
+        assert_eq!(arguments["context"]["workspaceId"], context.workspace);
+        assert_eq!(arguments["context"]["homeId"], context.home);
+        Ok(stock::AcceptedStockCommand::from_shared(
+            stock::StockRequestMetadata {
+                family,
+                command_id: "atlas.circuit.list".into(),
+                request_id: arguments["requestId"]
+                    .as_str()
+                    .expect("synthetic UUID")
+                    .into(),
+                // Explicit synthetic peer evidence; not a computed intent/witness.
+                request_digest: "synthetic-shared-digest".into(),
+                resolved_scope: stock::StockScope {
+                    workspace_id: context.workspace.clone(),
+                    home_id: context.home.clone(),
+                },
+                effect: ToolEffect::Read,
+            },
+            arguments.clone(),
+        ))
+    }
+    fn review<'a>(
+        &'a self,
+        _: &'a SyntheticContext,
+        _: &'a Value,
+        _: &'a Cancellation,
+    ) -> PortFuture<'a, Option<ReviewChallenge>> {
+        Box::pin(async { Ok(None) })
+    }
+    fn execute_read<'a>(
+        &'a self,
+        context: &'a SyntheticContext,
+        request: &'a Value,
+        _: &'a Cancellation,
+    ) -> PortFuture<'a, Value> {
+        Box::pin(async move {
+            let snapshot: Value = serde_json::from_str(SNAPSHOT).expect("published snapshot");
+            let records: Vec<Value> = snapshot["records"].as_array().expect("records").iter()
+                .filter(|r| r["workspaceId"] == context.workspace && r["homeId"] == context.home
+                    && r["recordType"] == "circuit")
+                .map(|r| json!({"target":{"authority":"atlas","recordType":"circuit","recordId":r["recordId"]},
+                    "revision":r["revision"],"lifecycle":r["lifecycle"],"payload":r["payload"]})).collect();
+            Ok(
+                json!({"schemaVersion":3,"commandId":request["commandId"],"requestId":request["requestId"],
+                "resolvedScope":request["context"],"status":"read","replayed":false,
+                "data":{"records":records,"nextCursor":null,"sourceStatus":"current"}}),
+            )
+        })
+    }
+    fn execute_reviewed<'a>(
+        &'a self,
+        _: &'a SyntheticContext,
+        _: &'a Value,
+        _: &'a Cancellation,
+    ) -> PortFuture<'a, DomainDispatch> {
+        Box::pin(async { Err(AiError::DomainUnavailable) })
+    }
+}
+
+#[test]
+fn healthy_stock_wire3_read_boundary() {
+    let context = SyntheticContext {
+        workspace: "00000000-0000-4000-8000-000000000001".into(),
+        home: "00000000-0000-4000-8000-000000000002".into(),
+    };
+    let schema: Value = serde_json::from_str(include_str!("fixtures/stock-read-tools.json"))
+        .expect("exact narrow schema");
+    assert_eq!(
+        schema["$defs"]["request_atlas_circuit_list"]["properties"]["schemaVersion"]["const"],
+        3
+    );
+    assert_eq!(stock::STOCK_TOOL_FAMILIES.len(), 10);
+    let catalog = stock::StockCatalog::new(HealthyStockPeer);
+    let call = ToolCall {
+        call_id: "synthetic-stock-call".into(),
+        name: "atlas_records".into(),
+        arguments: json!({
+            "schemaVersion":3,"commandId":"atlas.circuit.list",
+            "context":{"workspaceId":context.workspace,"homeId":context.home},
+            "target":{"authority":"atlas","recordType":"circuit"},
+            "payload":{"cursor":null,"pageSize":100,"includeArchived":false},
+            "requestId":"00000000-0000-4000-8000-000000010042"
+        }),
+    };
+    let prepared = catalog
+        .prepare(&context, &call)
+        .expect("synthetic prepared read");
+    assert_eq!(catalog.effect(&prepared), ToolEffect::Read);
+    let result = ready(catalog.execute_read(&context, &prepared, &Cancellation::default()))
+        .expect("synthetic wire read");
+    assert_eq!(result["commandId"], call.arguments["commandId"]);
+    assert_eq!(result["requestId"], call.arguments["requestId"]);
+    assert_eq!(result["resolvedScope"], call.arguments["context"]);
+    assert!(
+        result["data"]["records"]
+            .as_array()
+            .expect("records")
+            .iter()
+            .all(|r| r["payload"]["label"].is_null())
+    );
 }

@@ -2,6 +2,11 @@ use super::{
     AiError, CancelReceipt, Cancellation, ConnectionSnapshot, InferenceOutcome, ProviderDiagnostic,
     ResponsesRequest, RuntimeSnapshot, ToolCall, ToolDescriptor, Usage,
 };
+use super::{
+    ToolEffect,
+    runner::AiCheckpoint,
+    stock::{DomainDispatch, ReviewChallenge},
+};
 use serde_json::Value;
 use std::{future::Future, pin::Pin};
 
@@ -52,18 +57,58 @@ pub trait CancelPort<C> {
 }
 
 pub trait DomainCatalog<C> {
+    type Prepared: Send + Sync;
     /// Only tools authorized for current C; source schemas come from the shared
     /// domain catalog. Source refresh/diagnostic/write tools require review.
     fn tools(&self, context: &C) -> Result<Vec<ToolDescriptor>, AiError>;
-    /// Revalidate C and call arguments against shared contracts immediately at
-    /// dispatch. Keep scoped reads, history ordering/arrays, source status and
-    /// mutation preconditions intact. AI supplies no route, actor or grant.
+    /// Resolve exact stock wire3 command arm and effect using the shared typed
+    /// validator and current server actor/home. Family-level effects are invalid.
+    fn prepare(&self, context: &C, call: &ToolCall) -> Result<Self::Prepared, AiError>;
+    fn effect(&self, prepared: &Self::Prepared) -> ToolEffect;
+    /// Preparing intent neither issues approval nor submits a mutation.
+    fn review<'a>(
+        &'a self,
+        context: &'a C,
+        prepared: &'a Self::Prepared,
+        cancel: &'a Cancellation,
+    ) -> PortFuture<'a, Option<ReviewChallenge>>;
+    /// Revalidate context and exact result schema/correlation before disclosure.
+    /// Keep history arrays and authorized resource targets intact.
     fn execute_read<'a>(
         &'a self,
         context: &'a C,
-        call: &'a ToolCall,
+        prepared: &'a Self::Prepared,
         cancel: &'a Cancellation,
     ) -> PortFuture<'a, Value>;
+    /// Uses only the shared service's separate trusted-human approval record.
+    /// Revalidates immutable intent, rights/epochs, impact and receipt at dispatch;
+    /// uses the existing durable dispatcher. Never blindly replays unknown work.
+    fn execute_reviewed<'a>(
+        &'a self,
+        context: &'a C,
+        prepared: &'a Self::Prepared,
+        cancel: &'a Cancellation,
+    ) -> PortFuture<'a, DomainDispatch>;
+}
+
+/// Host storage binds checkpoints to actor/home/provider registration and epoch.
+/// No checkpoint/history/approval receipt is serialized to browser or model.
+pub trait ReviewContinuationPort<C, P> {
+    fn retain<'a>(
+        &'a self,
+        context: &'a C,
+        checkpoint: AiCheckpoint<P>,
+        cancel: &'a Cancellation,
+    ) -> PortFuture<'a, String>;
+    /// Atomically claim once, only after the separate trusted review UI is ready.
+    /// Check current authority, expiry and every pending review before returning.
+    fn claim<'a>(
+        &'a self,
+        context: &'a C,
+        continuation_id: &'a str,
+        request_id: &'a str,
+        cancel: &'a Cancellation,
+    ) -> PortFuture<'a, AiCheckpoint<P>>;
 }
 
 pub trait UsagePort<C> {
@@ -72,4 +117,12 @@ pub trait UsagePort<C> {
     fn observed(&self, context: &C, request_id: &str, usage: Usage);
     /// Preserve structured provider evidence privately, without raw content.
     fn provider_failed(&self, context: &C, request_id: &str, diagnostic: &ProviderDiagnostic);
+    /// Durably retain each dispatch before a later call can fail. Preserve exact
+    /// validated effects/verification/activity in scoped host request status.
+    fn domain_observed(
+        &self,
+        context: &C,
+        request_id: &str,
+        dispatch: &DomainDispatch,
+    ) -> Result<(), AiError>;
 }
