@@ -21,28 +21,17 @@ pub struct ReceiptKey {
     pub mutation_id: String,
 }
 
-/// Owned, already reviewed payload supplied by the future wire3 preparation port.
+/// Reviewed immutable waiting metadata. Request digest comes from the domain's
+/// exact stock.2 canonical intent; renewable observations are not new intents.
 ///
-/// Contract and operation identifiers are exact reviewed identifiers, not URLs or
-/// an invented provider dialect. Equality includes every payload byte. Payloads
-/// must contain no credentials. No generic JSON parsing or merge occurs here.
-#[derive(Clone, PartialEq, Eq)]
-pub struct PreparedWrite {
+/// No upload bytes or accepted/staged body is represented by this type.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct IntentMetadata {
     pub contract_id: String,
+    /// Reviewed command/operation key, distinct from the store-issued JobId.
     pub operation_id: String,
     pub target_external_id: Option<String>,
-    pub payload: Vec<u8>,
-}
-
-impl std::fmt::Debug for PreparedWrite {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PreparedWrite")
-            .field("contract_id", &self.contract_id)
-            .field("operation_id", &self.operation_id)
-            .field("target_external_id", &self.target_external_id)
-            .field("payload_bytes", &self.payload.len())
-            .finish()
-    }
+    pub request_digest: super::Digest,
 }
 
 /// Complete durable idempotency content. Storage binds it atomically to the key.
@@ -50,7 +39,9 @@ impl std::fmt::Debug for PreparedWrite {
 pub struct EnqueueRequest {
     pub receipt: ReceiptKey,
     pub partition: SourcePartition,
-    pub prepared: PreparedWrite,
+    pub intent: IntentMetadata,
+    pub write_scope: super::WriteScope,
+    pub pending_byte_liability: super::PendingByteLiability,
 }
 
 impl EnqueueRequest {
@@ -66,13 +57,25 @@ impl EnqueueRequest {
             &self.partition.home_id,
             &self.partition.source_instance_id,
             &self.partition.collection_id,
-            &self.prepared.contract_id,
-            &self.prepared.operation_id,
+            &self.intent.contract_id,
+            &self.intent.operation_id,
         ];
         if required.iter().any(|value| value.is_empty())
-            || self.prepared.target_external_id.as_deref() == Some("")
+            || self.intent.target_external_id.as_deref() == Some("")
         {
             return Err(InvalidRequest::MissingIdentifier);
+        }
+        // Frozen opaque source strings allow 4096 code points; wire3 command
+        // IDs allow 255. Do not replace Unicode scalar counts with byte lengths.
+        if required.iter().any(|value| value.chars().count() > 4096)
+            || self.intent.operation_id.chars().count() > 255
+            || self
+                .intent
+                .target_external_id
+                .as_ref()
+                .is_some_and(|value| value.chars().count() > 4096)
+        {
+            return Err(InvalidRequest::MetadataTooLarge);
         }
         if self.receipt.workspace_id != self.partition.workspace_id
             || self.receipt.home_id != self.partition.home_id
@@ -87,6 +90,7 @@ impl EnqueueRequest {
 pub enum InvalidRequest {
     MissingIdentifier,
     ScopeMismatch,
+    MetadataTooLarge,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -94,12 +98,16 @@ pub struct JobId(pub String);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum JobStatus {
+    Prepared,
     Queued,
     Running,
     RetryScheduled,
     Succeeded,
     Failed,
     NeedsReconciliation,
+    Partial,
+    ResolvedObserved,
+    ResolvedByHuman,
 }
 
 /// Typed sanitized acknowledgement; this never refreshes a read projection.
@@ -108,6 +116,14 @@ pub enum JobStatus {
 pub struct AppliedWrite {
     pub external_id: Option<String>,
     pub source_updated_at: Option<String>,
+    pub observation: ObservedWriteEvidence,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ObservedWriteEvidence {
+    pub response_digest: super::Digest,
+    pub readback_digest: super::Digest,
+    pub observed_at: Timestamp,
 }
 
 /// Fixed internal failure categories; never persist an upstream body or secret.
@@ -120,6 +136,7 @@ pub enum FailureCode {
     InvalidPreparedPayload,
     OutcomeUnknown,
     LeaseExpired,
+    AdmissionWaitExpired,
 }
 
 /// Caller-visible current output excludes prepared bytes and lease capabilities.
@@ -136,6 +153,10 @@ pub struct JobSnapshot {
     pub next_attempt_at: Option<Timestamp>,
     pub applied: Option<AppliedWrite>,
     pub failure: Option<FailureCode>,
+    pub remote_activity: super::RemoteActivity,
+    pub unknown_scope_fence_retained: bool,
+    pub storage_liability: super::StorageLiability,
+    pub body_accepted: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -143,6 +164,9 @@ pub enum EnqueueOutcome {
     Enqueued(JobSnapshot),
     /// The current original job is returned, without scheduling another write.
     Replayed(JobSnapshot),
+    RejectedBeforeDispatch {
+        reason: super::AdmissionRejection,
+    },
 }
 
 /// Persistent global capability. Fences never reset across process restarts.
@@ -151,6 +175,8 @@ pub struct Lease {
     pub job_id: JobId,
     pub fence: u64,
     pub expires_at: Timestamp,
+    pub owner_id: String,
+    pub physical_identity: super::PhysicalQueueIdentity,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -159,6 +185,9 @@ pub struct LeasedJob {
     pub request: EnqueueRequest,
     /// One-based count; the claim transaction increments it exactly once.
     pub attempt: u32,
+    pub canonical_scope: super::CanonicalScope,
+    /// Reserved atomically before the writer may accept or stage bytes.
+    pub pending_byte_liability: super::PendingByteLiability,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -171,6 +200,12 @@ pub enum ClaimOutcome {
     Claimed(LeasedJob),
     /// Expiry moves an active row here; it never grants a replacement lease.
     HeldForReconciliation(JobSnapshot),
+    Waiting {
+        reason: super::QueueWaitReason,
+    },
+    RejectedBeforeDispatch {
+        reason: super::AdmissionRejection,
+    },
 }
 
 /// Permission requires positive knowledge that the write was not applied.
@@ -190,6 +225,27 @@ pub enum WriteOutcome {
     Uncertain {
         reason: FailureCode,
     },
+    Partial {
+        reason: FailureCode,
+    },
+}
+
+/// An invoked outcome cannot contain not-dispatched activity. Effects and bytes
+/// do not determine whether a remote request has terminated.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InvocationReport {
+    pub outcome: WriteOutcome,
+    pub remote_activity: super::InvokedRemoteActivity,
+    pub storage_liability: super::StorageLiability,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DispatchReport {
+    NotInvoked {
+        reason: FailureCode,
+        storage_liability: super::StorageLiability,
+    },
+    Invoked(InvocationReport),
 }
 
 /// Atomic persistence disposition chosen after the synchronous writer returns.
@@ -201,8 +257,17 @@ pub enum FinishDisposition {
         at: Timestamp,
         reason: FailureCode,
     },
-    /// Preserve the active global lease/reservation for read-back reconciliation.
+    /// Retain the logical overlap fence for effect reconciliation. Physical
+    /// reservation independently follows qualified remote termination evidence.
     Hold(FailureCode),
+    Partial(FailureCode),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FinishReport {
+    pub disposition: FinishDisposition,
+    pub remote_activity: super::RemoteActivity,
+    pub storage_liability: super::StorageLiability,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -210,17 +275,35 @@ pub struct HeldJob {
     pub lease: Lease,
     pub request: EnqueueRequest,
     pub attempt: u32,
+    pub remote_activity: super::InvokedRemoteActivity,
 }
 
-/// A qualified reconciler must supply both worker-quiescence evidence and a
-/// complete scoped read-back. The reference is retained privately by storage.
-/// This opaque reference is not proof by itself or a user-provided boolean.
+/// Logical effect evidence, retained privately. It cannot establish remote end
+/// or release bytes/orphans. Qualified current read-back and explicit audited
+/// human effect resolution preserve their different evidence meanings.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReconciliationEvidence {
     pub private_evidence_reference: String,
+    pub evidence_digest: super::Digest,
+    pub kind: ReconciliationKind,
 }
 
-/// Only definite outcomes may release the writer reservation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ReconciliationKind {
+    CurrentStateObserved,
+    Human { actor_id: String },
+}
+
+/// Separate correlated termination capability from a qualified peer. Owner,
+/// epoch, physical identity and operation are bound by the full original lease.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RemoteEndEvidence {
+    pub lease: Lease,
+    pub termination_evidence_digest: super::Digest,
+}
+
+/// Resolve logical effects only. No variant proves remote end or releases the
+/// physical invocation reservation, storage liability or orphan bytes itself.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ReconciliationOutcome {
     StillUncertain,

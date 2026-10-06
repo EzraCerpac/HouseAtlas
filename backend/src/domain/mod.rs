@@ -7,8 +7,10 @@
 mod commands;
 mod model;
 mod ports;
+mod presence;
 mod projection;
 mod queries;
+pub mod stock;
 
 #[cfg(test)]
 mod healthy;
@@ -16,6 +18,7 @@ mod healthy;
 pub use commands::*;
 pub use model::*;
 pub use ports::*;
+pub use presence::*;
 pub use projection::*;
 pub use queries::*;
 

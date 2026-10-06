@@ -4,7 +4,7 @@ use super::{
 };
 use serde_json::Value;
 
-/// Immutable exact canonical command bytes (as parsed JSON). The constructor
+/// Immutable canonical command values after JSON parsing. The constructor
 /// preserves the distinction between absent and explicitly null preconditions.
 #[derive(Clone, Debug)]
 pub struct CanonicalMutation {

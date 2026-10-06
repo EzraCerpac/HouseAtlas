@@ -7,10 +7,12 @@ pub struct RetryPolicy {
     pub max_delay_ms: u64,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QueueConfig {
     pub lease_duration_ms: u64,
     pub retry: RetryPolicy,
+    pub registration: QueueRegistration,
+    pub admission_profile: AdmissionProfile,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -18,10 +20,17 @@ pub enum InvalidConfig {
     ZeroLease,
     ZeroAttempts,
     InvalidBackoff,
+    QueuePolicy(InvalidQueuePolicy),
 }
 
 impl QueueConfig {
     pub fn validate(&self) -> Result<(), InvalidConfig> {
+        self.registration
+            .validate()
+            .map_err(InvalidConfig::QueuePolicy)?;
+        self.admission_profile
+            .validate()
+            .map_err(InvalidConfig::QueuePolicy)?;
         if self.lease_duration_ms == 0 {
             return Err(InvalidConfig::ZeroLease);
         }
@@ -48,6 +57,7 @@ impl RetryPolicy {
         match outcome {
             WriteOutcome::Applied(applied) => FinishDisposition::Succeeded(applied),
             WriteOutcome::Uncertain { reason } => FinishDisposition::Hold(reason),
+            WriteOutcome::Partial { reason } => FinishDisposition::Partial(reason),
             WriteOutcome::NotApplied { reason, replay } => {
                 if replay != ReplayPermission::AfterBackoff || attempt >= self.max_attempts {
                     return FinishDisposition::Failed(reason);
@@ -71,6 +81,7 @@ pub enum QueueError<E> {
     InvalidRequest(InvalidRequest),
     InvalidTime,
     InvalidReconciliationEvidence,
+    QueuePolicy(InvalidQueuePolicy),
     Store(E),
 }
 
@@ -80,6 +91,8 @@ pub enum DispatchOutcome {
     Busy { expires_at: Timestamp },
     HeldForReconciliation(JobSnapshot),
     Finished(JobSnapshot),
+    Waiting { reason: QueueWaitReason },
+    RejectedBeforeDispatch { reason: AdmissionRejection },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -115,7 +128,14 @@ impl<S: QueueStore, W: HomeBoxWriter> WriteQueue<S, W> {
         now: Timestamp,
     ) -> Result<EnqueueOutcome, QueueError<S::Error>> {
         request.validate().map_err(QueueError::InvalidRequest)?;
-        self.store.enqueue(request, now).map_err(QueueError::Store)
+        let scope = self
+            .config
+            .registration
+            .resolve(&request.partition, &request.write_scope)
+            .map_err(QueueError::QueuePolicy)?;
+        self.store
+            .enqueue(request, &scope, &self.config, now)
+            .map_err(QueueError::Store)
     }
 
     /// Authorization is required before this receipt lookup and any replay.
@@ -137,7 +157,7 @@ impl<S: QueueStore, W: HomeBoxWriter> WriteQueue<S, W> {
             .ok_or(QueueError::InvalidTime)?;
         let claim = self
             .store
-            .claim_next(now, self.config.lease_duration_ms)
+            .claim_next(now, &self.config)
             .map_err(QueueError::Store)?;
         let job = match claim {
             ClaimOutcome::Idle => return Ok(DispatchOutcome::Idle),
@@ -148,22 +168,54 @@ impl<S: QueueStore, W: HomeBoxWriter> WriteQueue<S, W> {
                 return Ok(DispatchOutcome::HeldForReconciliation(snapshot));
             }
             ClaimOutcome::Claimed(job) => job,
+            ClaimOutcome::Waiting { reason } => return Ok(DispatchOutcome::Waiting { reason }),
+            ClaimOutcome::RejectedBeforeDispatch { reason } => {
+                return Ok(DispatchOutcome::RejectedBeforeDispatch { reason });
+            }
         };
-        let outcome = self.writer.write(&job);
+        let result = self.writer.write(&job);
         // An invalid clock cannot release a running row or cause a blind retry.
         let finish_at = completed_at();
         if finish_at < now {
             return Err(QueueError::InvalidTime);
         }
-        let disposition = self.config.retry.classify(job.attempt, finish_at, outcome);
+        let report = match result {
+            DispatchReport::NotInvoked {
+                reason,
+                storage_liability,
+            } => FinishReport {
+                disposition: FinishDisposition::Failed(reason),
+                remote_activity: RemoteActivity::NotDispatched,
+                storage_liability,
+            },
+            DispatchReport::Invoked(InvocationReport {
+                outcome,
+                remote_activity,
+                storage_liability,
+            }) => {
+                let disposition = if matches!(outcome, WriteOutcome::NotApplied { .. })
+                    && !matches!(remote_activity, InvokedRemoteActivity::EndedProven { .. })
+                {
+                    FinishDisposition::Hold(FailureCode::OutcomeUnknown)
+                } else {
+                    self.config.retry.classify(job.attempt, finish_at, outcome)
+                };
+                FinishReport {
+                    disposition,
+                    remote_activity: RemoteActivity::Invoked(remote_activity),
+                    storage_liability,
+                }
+            }
+        };
         self.store
-            .finish(&job.lease, finish_at, &disposition)
+            .finish(&job.lease, finish_at, &report)
             .map(DispatchOutcome::Finished)
             .map_err(QueueError::Store)
     }
 
     /// Explicit qualified recovery. This never calls the writer. Missing or
-    /// uncertain evidence retains the physical writer reservation durably.
+    /// uncertain evidence retains logical scope fences. Physical remote activity
+    /// and storage liabilities are preserved regardless of logical resolution.
     pub fn reconcile_held<R: HomeBoxReconciler>(
         &mut self,
         reconciler: &mut R,
@@ -187,7 +239,17 @@ impl<S: QueueStore, W: HomeBoxWriter> WriteQueue<S, W> {
                 evidence,
                 reason,
                 replay,
-            } => (evidence, WriteOutcome::NotApplied { reason, replay }),
+            } => {
+                let replay = if matches!(
+                    job.remote_activity,
+                    InvokedRemoteActivity::EndedProven { .. }
+                ) {
+                    replay
+                } else {
+                    ReplayPermission::Never
+                };
+                (evidence, WriteOutcome::NotApplied { reason, replay })
+            }
         };
         if evidence.private_evidence_reference.is_empty() {
             return Err(QueueError::InvalidReconciliationEvidence);
@@ -196,6 +258,21 @@ impl<S: QueueStore, W: HomeBoxWriter> WriteQueue<S, W> {
         self.store
             .reconcile(&job.lease, finish_at, &evidence, &disposition)
             .map(|snapshot| ReconcileOutcome::Resolved(Box::new(snapshot)))
+            .map_err(QueueError::Store)
+    }
+
+    /// Correlated termination changes only remote activity and physical admission.
+    /// It does not reconcile effects, release orphan liability or resend work.
+    pub fn prove_remote_end(
+        &mut self,
+        evidence: &RemoteEndEvidence,
+        now: Timestamp,
+    ) -> Result<JobSnapshot, QueueError<S::Error>> {
+        if evidence.lease.physical_identity != self.config.registration.identity {
+            return Err(QueueError::QueuePolicy(InvalidQueuePolicy::WrongQueue));
+        }
+        self.store
+            .prove_remote_end(evidence, now)
             .map_err(QueueError::Store)
     }
 

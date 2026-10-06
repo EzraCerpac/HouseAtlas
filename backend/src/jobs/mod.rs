@@ -6,7 +6,9 @@
 mod model;
 mod orchestrator;
 mod ports;
+mod stock;
 
 pub use model::*;
 pub use orchestrator::*;
 pub use ports::*;
+pub use stock::*;

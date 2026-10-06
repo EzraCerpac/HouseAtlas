@@ -149,6 +149,7 @@ pub(crate) struct BindingPayload {
     pub source: SourceKey,
     pub review_status: ReviewStatus,
     pub source_state: BindingSourceState,
+    pub evidence_ids: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]

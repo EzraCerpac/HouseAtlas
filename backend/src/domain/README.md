@@ -30,6 +30,25 @@ compute candidate graphs, digests, audit sequences or replay authority.
 Recorded history is a bare audit vector in storage order, including the valid
 empty and retained-tombstone cases; no prehistory is fabricated.
 
+`stock` adds the supplied stock `0.3.0-at34.stock.2` / wire3 domain boundary.
+Its closed registry covers all 164 operations and 21 grouped feature routes.
+Prepared values retain the exact accepted JSON and ordered child requests. The
+domain computes the published canonical intent digest, checks result/request
+correlation and delegates graph resolution, schema validation, captured
+authority and concrete storage/provider work through narrow owner ports. Every
+transport uses this same boundary. Native absent/held/append-only forms have
+explicit pre-dispatch dispositions. See `stock/README.md` for the API and scope.
+
+`presence.rs` implements semantic amendment 1.1.0 trigger detection on validated
+storage-supplied binding graphs. Review acceptance is not a trigger condition.
+Evidence membership comparison leaves submitted arrays unchanged. Typed
+qualifier facts contain exactly the six qualifier-owned fields; required-null
+observation dates retain their omission distinction. Candidate/precommit
+captures require the same exact qualified facts. The retained witness DTO adds
+storage-owned commit linkage without minting it. New admission stays held until
+reviewed Rust storage/access/recovery composition is complete. There is no
+presence endpoint or transaction implementation here.
+
 ## Proposed integration interfaces
 
 ```rust
@@ -78,8 +97,10 @@ the required captured-policy revalidation. The access fixture's revalidator is
 an explicit stub; production source-policy/version checks await AT11.
 The HTTP owner must enforce duplicate-key/body limits before passing parsed
 JSON, map error categories, and implement the frozen list envelopes/opaque
-cursor policy. `CurrentOutput` is a proposed browser extension, not a replacement
-for canonical HomeBox list responses or the frozen history schema.
+cursor policy. Wire3 owner adapters separately produce public Atlas record,
+HomeBox resource-view, download and history envelopes; public assets omit
+`storageKey`. Frozen HTTP history remains a bare audit vector. `CurrentOutput`
+is a proposed browser extension, not a replacement for either contract.
 Domain errors retain all frozen code categories and authorized revision/guard
 conflict revisions, so adapters can preserve the published 401/409/412/428
 classification. Canonical HomeBox list assembly must also retain the published
@@ -87,14 +108,18 @@ unsafe-external-URL rejection behavior; browser projection alone uses null URLs.
 
 ## Dependencies and scoped evidence
 
-External compiler manifest: `/tmp/houseatlas-at36-domain-harness/Cargo.toml`.
-No repository manifest/lock was created. Verified with Rust 1.99.0. Direct pins:
+Current external compiler manifest:
+`/tmp/houseatlas-at36-wire3-harness/Cargo.toml`. The original domain harness and
+checkpoint evidence are preserved separately. No repository manifest/lock was
+created. Verified with Rust 1.99.0. Direct production dependency pins:
 
 ```toml
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.145"
 time = { version = "=0.3.44", features = ["parsing"] }
 url = "=2.5.7"
+serde_jcs = "=0.1.0"
+sha2 = "=0.10.9"
 ```
 
 `healthy.rs` contains exactly four healthy synthetic examples. Read/access/
@@ -109,11 +134,11 @@ Run only these scoped new-source checks after inspecting them:
 
 ```sh
 source /workspace/.houseatlas-setup/rust-react-sqlite/activate.sh
-cargo fmt --manifest-path /tmp/houseatlas-at36-domain-harness/Cargo.toml --check
-cargo check --manifest-path /tmp/houseatlas-at36-domain-harness/Cargo.toml --locked
-cargo clippy --manifest-path /tmp/houseatlas-at36-domain-harness/Cargo.toml --locked --all-targets -- -D warnings
-cargo build --manifest-path /tmp/houseatlas-at36-domain-harness/Cargo.toml --locked
-cargo test --manifest-path /tmp/houseatlas-at36-domain-harness/Cargo.toml --locked --lib healthy::
+cargo fmt --manifest-path /tmp/houseatlas-at36-wire3-harness/Cargo.toml --check
+cargo check --manifest-path /tmp/houseatlas-at36-wire3-harness/Cargo.toml --locked --all-targets
+cargo clippy --manifest-path /tmp/houseatlas-at36-wire3-harness/Cargo.toml --locked --all-targets -- -D warnings
+cargo build --manifest-path /tmp/houseatlas-at36-wire3-harness/Cargo.toml --locked --all-targets
+cargo test --manifest-path /tmp/houseatlas-at36-wire3-harness/Cargo.toml --locked --lib healthy::
 node --check backend/src/domain/healthy-schema.mjs
 node backend/src/domain/healthy-schema.mjs
 ```
@@ -129,12 +154,23 @@ Behavioral references: `web/src/{prepare,model}.mjs`,
 `server/src/{http-contract,public-dto,service}.mjs` and
 `docs/contracts/history/http-history.v1.1.0.md`.
 
-Missing exact inputs: AT51 generated Rust/HTTP contracts, AT07's Rust transaction
-adapter, AT11's Rust principal/authority adapter, and full reviewed wire3
-HomeBox operation/precondition/receipt/acknowledgement schemas. Network facet,
-geometry, aliases/mobility/navigation peers are not synthesized. Queue payload
-preparation awaits wire3; no HTTP writer or provider credential path exists.
-See `../jobs/README.md` for the global queue and its real synthetic SQLite
-consumer. Fault/crash/rejection/adversarial/concurrency qualification and all
-legacy broad aggregates remain deferred and unrun. No remote push, PR, merge,
-listener, provider call or deployment is part of this patch.
+The exact stock wire3 and source-presence language-neutral inputs have now been
+adopted as application routing/correlation/qualification logic; shared schemas
+and generated contracts remain AT51-owned. Concrete missing peers are AT51's
+Rust/HTTP/schema adapter, AT07's Rust transaction/recovery/queue adapter, and
+AT11's Rust verified principal/captured authority adapter. Network inventory,
+geometry, aliases/mobility/navigation implementations remain owner-supplied.
+No HTTP writer or provider credential path exists. HomeBox wire3 collection IDs
+require canonical UUIDs; the earlier frozen fixture's opaque collection string
+is not passed unchanged as a wire3 example.
+
+The new composed compiler harness is
+`/tmp/houseatlas-at36-wire3-harness/Cargo.toml`; it includes the stock dependency
+pins above and compiles the synthetic SQLite consumer using
+`rusqlite = { version = "=0.40.2", features = ["bundled"] }`.
+The original checkpoint evidence is retained separately. The SQLite queue
+example contains receipt replay and is currently compile-only. See
+`../jobs/README.md` and `stock/README.md` for exact later source/evidence scope.
+Fault/crash/rejection/adversarial/concurrency/negative-consumer qualification
+and all legacy broad aggregates remain deferred and unrun. No merge, listener,
+provider call or deployment is implemented by this component.
