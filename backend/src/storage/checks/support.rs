@@ -1,4 +1,4 @@
-//! Offline synthetic peers shared only by the two scoped checkpoint binaries.
+//! Offline synthetic peers shared only by the scoped checkpoint binaries.
 use houseatlas_at07_checkpoint::storage::*;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};

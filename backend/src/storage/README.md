@@ -22,6 +22,17 @@ an unspecified retained-result preimage, explicit absence, and a supplied record
 precision; `None` means schema-accepted text has no orderable timestamp. Native
 parsing compatibility belongs to the contract owner. Storage preserves the
 original timestamp strings and adds no date-parser dependency.
+Integer carriers accept integral decimal and exponent spellings such as `1.0`
+and `1e0` within the published nonnegative safe-integer range. Required nullable
+revisions remain required. The same conversion compares asset `byteSize` with
+trusted byte proofs, including typed commands whose JSON payload contains
+`16.0`. These conversions do not rewrite payloads or change JCS/digest semantics;
+revision minima and schema-version constants remain mandatory Contract checks.
+AT51 must enable serde_json's `float_roundtrip` feature for correctly rounded
+decimal/exponent parsing before constructing these carriers or a `Value`.
+Default parsing rounds the accepted `9007199254740991.0` boundary down by one;
+storage cannot recover precision already lost by an ingress parser. This feature
+does not supply RFC 8785 serialization; that remains the Contract peer's job.
 The local carriers in `types.rs` preserve published wire names and schema 1;
 they are a narrow storage port pending reconciliation with AT51's generated
 types, not a replacement schema generation pipeline. Payloads and source/cache
@@ -68,7 +79,8 @@ unrun in this lane. No receipt expiry/deletion API exists.
 
 The first record checkpoint remains commit
 `d4a94d230da3f098eefaa846bf73f389f9d9965e` in draft PR #7. The source/cache
-continuation is a separate local patch against that checkpoint. It changes no
+continuation is its append-only child
+`da3f607ee56ee7bcb836ed868bb1b10fdbcbb7f6`. It changes no
 root manifest, generated contract or migration schema.
 
 Additional operations are `register_source`, `register_source_json`,
@@ -130,7 +142,7 @@ Proposed pinned direct dependencies for AT51:
 ```toml
 rusqlite = { version = "=0.40.2", features = ["bundled"] }
 serde = { version = "=1.0.228", features = ["derive"] }
-serde_json = "=1.0.149"
+serde_json = { version = "=1.0.149", features = ["float_roundtrip"] }
 sha2 = "=0.10.9"
 ```
 
@@ -172,14 +184,17 @@ name = "healthy"
 path = "/workspace/HouseAtlas/backend/src/storage/checks/healthy.rs"
 ```
 
-`checks/support.rs` shares only the synthetic check peers between the two
-executables and is excluded from application modules. Add this second harness
-binary for the local continuation:
+`checks/support.rs` shares only the synthetic check peers between the scoped
+executables and is excluded from application modules. Add these harness binaries
+for source/cache and accepted numeric checkpoints:
 
 ```toml
 [[bin]]
 name = "cache-healthy"
 path = "/workspace/HouseAtlas/backend/src/storage/checks/cache-healthy.rs"
+[[bin]]
+name = "numeric-healthy"
+path = "/workspace/HouseAtlas/backend/src/storage/checks/numeric-healthy.rs"
 ```
 
 After inspecting the check files, run only this scoped new lane:
@@ -192,6 +207,7 @@ cargo clippy --locked --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml --
 node --check backend/src/storage/checks/oracle.mjs
 HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml --bin healthy -- /tmp/houseatlas-at07-checkpoint-1
 HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml --bin cache-healthy -- /tmp/houseatlas-at07-cache-checkpoint-1
+HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml --bin numeric-healthy -- /tmp/houseatlas-at07-numeric-checkpoint-1
 ```
 
 The output directory must be fresh. The successful run records 9 committed
@@ -210,6 +226,17 @@ fractional/offset timestamp ordering with unchanged source dates, partition epoc
 three retained binding reservations, zero Atlas audits/receipts and healthy
 reopen. It uses no actual HomeBox/Network peer, authorization grant or source
 access. Successful examples do not qualify rejection or concurrent publication.
+
+The accepted-numeric executable covers decimal/exponent schema versions,
+single/batch revisions and guards, record/audit/result/publication carriers and
+the maximum safe cache epoch. It commits three commands and one complete
+publication, verifies a typed available asset's `16.0` byte size against sixteen
+immutable in-memory synthetic bytes, and checks that stored single/batch receipt
+hashes match the original numeric inputs' published JCS digests. Numeric payload
+and projection comparisons use the contract's canonical semantics, because
+serde JSON distinguishes integer and floating representations internally.
+No negative input or held control is executed; the synthetic bytes do not
+qualify real staged-media/filesystem integration.
 
 ## Remaining integration and qualification
 

@@ -117,6 +117,7 @@ pub struct CacheError {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CacheStatus {
+    #[serde(deserialize_with = "super::numeric::deserialize_u32")]
     pub schema_version: u32,
     pub workspace_id: String,
     pub home_id: String,
@@ -152,6 +153,7 @@ pub struct CacheGeneration {
     pub complete: bool,
     #[serde(deserialize_with = "required_nullable")]
     pub expected_generation_id: Option<String>,
+    #[serde(deserialize_with = "super::numeric::deserialize_safe_integer")]
     pub expected_cache_epoch: u64,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -159,6 +161,7 @@ pub struct CacheGeneration {
 pub struct CachePublicationState {
     #[serde(deserialize_with = "required_nullable")]
     pub cache: Option<CacheStatus>,
+    #[serde(deserialize_with = "super::numeric::deserialize_safe_integer")]
     pub cache_epoch: u64,
     pub homebox_entities: Vec<Value>,
     pub network_relations: Vec<Value>,

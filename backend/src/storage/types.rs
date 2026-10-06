@@ -86,11 +86,13 @@ pub enum Operation {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Record {
+    #[serde(deserialize_with = "super::numeric::deserialize_u32")]
     pub schema_version: u32,
     pub workspace_id: String,
     pub home_id: String,
     pub record_type: RecordType,
     pub record_id: String,
+    #[serde(deserialize_with = "super::numeric::deserialize_safe_integer")]
     pub revision: u64,
     pub lifecycle: Lifecycle,
     pub created_at: String,
@@ -122,6 +124,7 @@ impl Record {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Guard {
     pub record: RecordRef,
+    #[serde(deserialize_with = "super::numeric::deserialize_safe_integer")]
     pub expected_revision: u64,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -133,10 +136,11 @@ pub struct RecordValue {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Mutation {
+    #[serde(deserialize_with = "super::numeric::deserialize_u32")]
     pub schema_version: u32,
     pub mutation_id: String,
     pub operation: Operation,
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(deserialize_with = "super::numeric::deserialize_nullable_safe_integer")]
     pub expected_revision: Option<u64>,
     pub reason: String,
     pub guards: Vec<Guard>,
@@ -156,6 +160,7 @@ pub struct MutationEntry {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct BatchMutation {
+    #[serde(deserialize_with = "super::numeric::deserialize_u32")]
     pub schema_version: u32,
     pub batch_id: String,
     pub reason: String,
@@ -164,14 +169,16 @@ pub struct BatchMutation {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Audit {
+    #[serde(deserialize_with = "super::numeric::deserialize_u32")]
     pub schema_version: u32,
     pub audit_id: String,
     pub workspace_id: String,
     pub home_id: String,
     pub record: RecordRef,
     pub operation: Operation,
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(deserialize_with = "super::numeric::deserialize_nullable_safe_integer")]
     pub previous_revision: Option<u64>,
+    #[serde(deserialize_with = "super::numeric::deserialize_safe_integer")]
     pub result_revision: u64,
     pub actor_id: String,
     pub at: String,
@@ -184,6 +191,7 @@ pub struct Audit {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct MutationResult {
+    #[serde(deserialize_with = "super::numeric::deserialize_u32")]
     pub schema_version: u32,
     pub record: Record,
     pub audit: Audit,
@@ -192,6 +200,7 @@ pub struct MutationResult {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct BatchResult {
+    #[serde(deserialize_with = "super::numeric::deserialize_u32")]
     pub schema_version: u32,
     pub batch_id: String,
     pub results: Vec<MutationResult>,
@@ -272,6 +281,7 @@ pub struct MutationCachePartition {
     pub home_id: String,
     pub source_instance_id: String,
     pub collection_id: String,
+    #[serde(deserialize_with = "super::numeric::deserialize_safe_integer")]
     pub cache_epoch: u64,
 }
 #[derive(Debug, Clone, Serialize, PartialEq)]

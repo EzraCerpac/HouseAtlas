@@ -7,6 +7,7 @@ mod cache_types;
 mod context;
 mod error;
 mod migrations;
+mod numeric;
 mod ports;
 mod repository;
 mod store;

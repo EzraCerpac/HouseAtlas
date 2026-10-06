@@ -139,7 +139,7 @@ pub(crate) fn write_record<C: Contract, R: Runtime>(
         if record.lifecycle == Lifecycle::Active && payload["availability"] == "available" {
             let proof = runtime.verify_available_asset(record)?;
             if payload["sha256"].as_str() != Some(&proof.sha256)
-                || payload["byteSize"].as_u64() != Some(proof.byte_size)
+                || super::numeric::safe_integer(&payload["byteSize"]) != Some(proof.byte_size)
             {
                 return Err(Error::new(
                     "invalid-transition",
