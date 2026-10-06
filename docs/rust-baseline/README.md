@@ -43,11 +43,11 @@ Typed DTOs alone do not establish graph, authorization, current source authority
 transaction ordering, mutation receipts or other behavioral invariants. Their
 feature owners must implement those checks at integration boundaries.
 
-Rust integer fields use `JsonInteger` and the locked schema library's integer
-classification. Construct ordinary revisions with
+Rust integer fields use `JsonInteger` and checked exact decimal classification.
+Construct ordinary revisions with
 `JsonInteger::from(1_i64)` and inspect them with `as_number().as_i64()` or
 `as_number().as_u64()`. Canonical schema bounds remain enforced by the boundary
-helpers. The precision feature proposal and its remaining limitations are in
+helpers. The required precision feature pair and explicit processing limits are in
 [numeric-semantics.md](numeric-semantics.md). `ConstInt<1>` and
 `ConstBool<true>` represent literal schema markers; required nullable fields use
 `Option<T>`, and optional wire fields use `Optional<T>` to preserve omission
@@ -57,6 +57,9 @@ Generated serializers reject extras whose keys match any modeled property,
 including optional properties. Each nested open HomeBox object applies its own
 check. Direct Serde serialization and `validate`/`encode` propagate that error;
 extra fields cannot replace the typed modeled fields during serialization.
+All numeric tokens, including nested open extras, are checked before dependency
+schema processing. Unsupported representation work returns an explicit error;
+the frozen per-field schema bounds remain unchanged.
 General numeric fields use `JsonNumber` with a private serde_json number,
 `From<i64/u64>` and checked `from_f64(value) -> Option<JsonNumber>`. Non-finite
 values cannot be constructed through that API and converted silently into null.
@@ -130,5 +133,6 @@ The existing publication source allowlist describes the original JavaScript
 snapshot. Its maintainer must reconcile the accepted expanded Rust/React tree
 before publication verification can certify a new full file set. AT51 does not
 edit that manifest, existing schemas, legacy scripts or qualification gates.
-This baseline includes no hosted CI workflow, remote push, PR, deployment or
-provider/native-route qualification.
+This baseline includes no hosted CI workflow, deployment or provider/native-route
+qualification. Its draft PR 5 preserves the original scaffold and appends scoped
+contract corrections without changing the frozen publication allowlist.

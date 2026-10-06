@@ -2,6 +2,7 @@
 //! Use decode/validate/encode at a JSON boundary: serde alone does not check
 //! formats, numeric bounds, uniqueItems, oneOf exclusivity, or if/then rules.
 mod generated;
+mod numeric;
 pub use generated::*;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::DeserializeOwned};
@@ -66,15 +67,18 @@ pub(super) fn serialize_additional_properties<S: Serializer>(
             "additional property shadows modeled key: {key}"
         )));
     }
+    for value in properties.values() {
+        ensure_numbers_supported(value).map_err(serde::ser::Error::custom)?;
+    }
     properties.serialize(serializer)
 }
 
-/// A JSON number preserving the active serde_json numeric representation.
+/// A JSON number retaining its token within the checked processing envelope.
 /// Construction from f64 is fallible, so a known numeric field cannot silently
 /// serialize a nonfinite float as the schema's explicit unknown/null value.
-/// Lossless large-number preservation requires the paired precision features
+/// Token retention requires the paired precision features
 /// documented in docs/rust-baseline/numeric-semantics.md.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct JsonNumber(serde_json::Number);
 
@@ -84,7 +88,9 @@ impl JsonNumber {
     }
 
     pub fn from_f64(value: f64) -> Option<Self> {
-        serde_json::Number::from_f64(value).map(Self)
+        let number = serde_json::Number::from_f64(value)?;
+        numeric::analyze_number(&number).ok()?;
+        Some(Self(number))
     }
 }
 
@@ -100,11 +106,19 @@ impl From<u64> for JsonNumber {
     }
 }
 
-/// A JSON integer using the locked schema library's numeric semantics.
+impl<'de> Deserialize<'de> for JsonNumber {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let number = serde_json::Number::deserialize(deserializer)?;
+        numeric::analyze_number(&number).map_err(serde::de::Error::custom)?;
+        Ok(Self(number))
+    }
+}
+
+/// A JSON integer classified exactly from its checked decimal token.
 /// JSON Schema also permits integral spellings such as 1.0. Per-field limits
 /// are checked by the canonical schema at decode/validate/encode boundaries.
-/// With the paired precision features, large integer tokens are retained without
-/// conversion to f64. See the documented scientific-notation limitations.
+/// The paired precision features retain the token without an f64 conversion.
+/// See the documented token/exponent/decimal-shift processing limits.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct JsonInteger(serde_json::Number);
@@ -130,7 +144,8 @@ impl From<u64> for JsonInteger {
 impl<'de> Deserialize<'de> for JsonInteger {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = serde_json::Number::deserialize(deserializer)?;
-        if jsonschema::json::JsonNumber::is_integer(&value) {
+        let parts = numeric::analyze_number(&value).map_err(serde::de::Error::custom)?;
+        if parts.is_integer() {
             Ok(Self(value))
         } else {
             Err(serde::de::Error::custom("expected an integral JSON number"))
@@ -150,7 +165,8 @@ impl<const N: i64> Serialize for ConstInt<N> {
 impl<'de, const N: i64> Deserialize<'de> for ConstInt<N> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = JsonInteger::deserialize(deserializer)?;
-        if jsonschema::json::cmp::equal_numbers(&value.0, &serde_json::Number::from(N)) {
+        let parts = numeric::analyze_number(&value.0).map_err(serde::de::Error::custom)?;
+        if parts.equals_i64(N) {
             Ok(Self)
         } else {
             Err(serde::de::Error::custom(format!("expected literal {N}")))
@@ -183,6 +199,7 @@ pub enum ContractError {
     Json(serde_json::Error),
     Schema(String),
     Setup(String),
+    UnsupportedNumber(&'static str),
 }
 
 impl fmt::Display for ContractError {
@@ -191,6 +208,9 @@ impl fmt::Display for ContractError {
             Self::Json(error) => write!(formatter, "contract JSON: {error}"),
             Self::Schema(error) => write!(formatter, "contract schema: {error}"),
             Self::Setup(error) => write!(formatter, "contract schema setup: {error}"),
+            Self::UnsupportedNumber(error) => {
+                write!(formatter, "contract numeric processing: {error}")
+            }
         }
     }
 }
@@ -205,6 +225,23 @@ impl From<serde_json::Error> for ContractError {
 
 type Validators = BTreeMap<&'static str, jsonschema::Validator>;
 static VALIDATORS: OnceLock<Result<Validators, String>> = OnceLock::new();
+
+// Inspect every numeric token before handing either instances or schemas to
+// jsonschema. Iteration also covers unknown fields and nested open-wire extras.
+fn ensure_numbers_supported(value: &Value) -> Result<(), &'static str> {
+    let mut pending = vec![value];
+    while let Some(value) = pending.pop() {
+        match value {
+            Value::Number(number) => {
+                numeric::analyze_number(number)?;
+            }
+            Value::Array(values) => pending.extend(values),
+            Value::Object(values) => pending.extend(values.values()),
+            _ => {}
+        }
+    }
+    Ok(())
+}
 
 fn compile_validators() -> Result<Validators, String> {
     let atlas: Value = serde_json::from_str(include_str!(
@@ -236,6 +273,9 @@ fn compile_validators() -> Result<Validators, String> {
     schemas
         .into_iter()
         .map(|(name, schema)| {
+            ensure_numbers_supported(&schema).map_err(|error| {
+                format!("{name}: unsupported schema numeric processing: {error}")
+            })?;
             jsonschema::options()
                 .with_draft(jsonschema::Draft::Draft202012)
                 .should_validate_formats(true)
@@ -248,6 +288,7 @@ fn compile_validators() -> Result<Validators, String> {
 }
 
 fn validate_value<T: Contract>(value: &Value) -> Result<(), ContractError> {
+    ensure_numbers_supported(value).map_err(ContractError::UnsupportedNumber)?;
     let validators = VALIDATORS
         .get_or_init(compile_validators)
         .as_ref()
