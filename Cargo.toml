@@ -13,7 +13,7 @@ axum = { version = "=0.8.9", default-features = false, features = ["http1", "jso
 tokio = { version = "=1.53.2", default-features = false, features = ["macros", "rt-multi-thread", "sync", "time", "signal"] }
 rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled"] }
 serde = { version = "=1.0.229", features = ["derive"] }
-serde_json = { version = "=1.0.151", features = ["arbitrary_precision", "float_roundtrip"] }
+serde_json = { version = "=1.0.151", features = ["arbitrary_precision", "float_roundtrip", "raw_value"] }
 jsonschema = { version = "=0.58.6", default-features = false, features = ["arbitrary-precision"] }
 tower = { version = "=0.5.3", default-features = false, features = ["util"] }
 base64 = "=0.22.1"

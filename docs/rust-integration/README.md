@@ -10,7 +10,7 @@ Pinned module inputs:
 
 | Module | Exact head |
 | --- | --- |
-| Baseline numeric correction (development; independent review pending) | 358ec380a82d6c9e9aac4ca039c0ab8a381cf011 |
+| Baseline numeric/object-preserving correction | 6b3029cbbcf1462ecdeecc62a56c24f66e034057 |
 | Access | 3f83d8f35f2cc1948b5d361badfc77948745676d |
 | Domain and jobs correction | 25813f1222c60379850da37b7bf7e97e0e2750db |
 | Storage continuation and numeric correction | 816ba441ba1076eae426f69ac8b7c5177745ab53 |
@@ -112,15 +112,18 @@ target NAS macOS build/runtime and operational qualification.
 ## Remaining work
 
 Paired serde_json arbitrary_precision and jsonschema arbitrary-precision
-features are selected, plus float_roundtrip required by the Network proposal.
+features are selected, plus float_roundtrip and raw_value for the object-preserving
+generated decoder.
 Generated numeric tokens use the baseline's bounded checked preprocessing;
-independent acceptance of its latest numeric correction remains pending.
+its numeric/object-preserving correction has bounded ordinary review acceptance.
 JavaScript numbers, storage/domain fixed integer carriers and ECMAScript
 canonicalization still have the disclosed limits in
 ../rust-baseline/numeric-semantics.md. Full unbounded-number fidelity is
 unqualified. No large-number or negative-consumer probe is run here.
-Preserving every arbitrary open-object extra is also unqualified: the baseline's
-reserved-sentinel object-shape collision remains pending owner correction.
+The object-preserving decoder relies on serde_json's RawValue protocol. Additional
+generic Serde flatten/untagged wrappers are unsupported unless separately adapted;
+the host invokes direct generated DTO decoding. No user keys are reserved as a
+workaround. Wider cross-peer open-extra compatibility remains unqualified.
 The consumed storage successor includes its owner's schema-valid integer-spelling
 correction and has bounded ordinary review acceptance. Domain cache/projection
 schemaVersion and attachment byteSize carriers still reject some schema-valid

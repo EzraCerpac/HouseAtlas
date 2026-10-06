@@ -20,7 +20,7 @@
     "web"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0b844e670a05e5c9e3a13b2277cf87d10784fa423382b8abe6148b92682e13f6",
+  "sourceDigestSha256": "a9f17b71aa6a95d1e65413e17b995e0af35447be5f96e6e0803952a6088f5c07",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -81,8 +81,8 @@
     {
       "path": "Cargo.toml",
       "mode": "100644",
-      "bytes": 1188,
-      "sha256": "d86efe6343ddec07dd43735c0b797020ce142fb1f531b0dad87282bd78303940",
+      "bytes": 1201,
+      "sha256": "f010f9af338950919eac01ec6d532ad23a462293815d079142b6a7d88639a09e",
       "owner": "core-integration"
     },
     {
@@ -340,15 +340,22 @@
     {
       "path": "backend/src/contracts/generated.rs",
       "mode": "100644",
-      "bytes": 68002,
-      "sha256": "2a709e34e1cf89e65c5671006d355e74de633d5ab634846b8d6bf0e84be2f4d4",
+      "bytes": 71357,
+      "sha256": "90f0427ac7afb0d243948e7b63694f99d7db0dcb5b8c3193e8131fc547e8e1ca",
+      "owner": "contracts"
+    },
+    {
+      "path": "backend/src/contracts/json_value.rs",
+      "mode": "100644",
+      "bytes": 4571,
+      "sha256": "4609cc5aa2ed596571a9db10eaa43c0bcf779521e0cd3c0002e749b1dbb00657",
       "owner": "contracts"
     },
     {
       "path": "backend/src/contracts/mod.rs",
       "mode": "100644",
-      "bytes": 11108,
-      "sha256": "e2df15d6cca75f13fe30d28aea6cbbaf922a48a51d7a7ef7ce1a538dd5fb2eda",
+      "bytes": 11096,
+      "sha256": "8b269761f7f0fc469248e818692ef49b1fdc7b8e95a3dc7824b78eb37ab8dd13",
       "owner": "contracts"
     },
     {
@@ -816,8 +823,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 8967,
-      "sha256": "8d06e54530663c993f434693eba1177d4635e207d213ec0a0f79fa6888deb299",
+      "bytes": 9140,
+      "sha256": "6d16521b9380c89ec2767ff85d1cb36ed31af268154bf30fac329de93e7be0f9",
       "owner": "core-integration"
     },
     {
@@ -1824,8 +1831,8 @@
     {
       "path": "tools/rust-baseline/generate-contracts.mjs",
       "mode": "100644",
-      "bytes": 13272,
-      "sha256": "fdce5bbb1db65b32a0e58c4cdd0da9e65136137ffd41e58cca96691d8a5b9532",
+      "bytes": 14164,
+      "sha256": "1f000478df84293c8bf0116cec700948112422b72a22dc4c16d3e6bde61650ca",
       "owner": "contracts"
     },
     {
