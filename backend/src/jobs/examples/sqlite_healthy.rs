@@ -208,10 +208,10 @@ fn commit_disposition(
     if !matches!(
         prior.status,
         JobStatus::Running | JobStatus::NeedsReconciliation
-    ) || now < prior.updated_at
-    {
+    ) {
         return Err(ExampleError::StaleLease);
     }
+    let persisted_at = now.max(prior.updated_at);
     if let Some(evidence) = evidence
         && (prior.status != JobStatus::NeedsReconciliation
             || evidence.private_evidence_reference.is_empty()
@@ -235,7 +235,7 @@ fn commit_disposition(
          applied_date=?,failure=?,evidence=COALESCE(?,evidence) WHERE seq=?",
         params![
             status,
-            integer(now)?,
+            integer(persisted_at)?,
             next_at,
             applied.and_then(|value| value.external_id.as_deref()),
             applied.and_then(|value| value.source_updated_at.as_deref()),
