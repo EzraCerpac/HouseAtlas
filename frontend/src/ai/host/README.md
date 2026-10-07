@@ -108,7 +108,12 @@ each update, including same-size status changes and retirement. A private
 opening flag propagates active browser transport to aliases and blocks another
 same-scope action; it does not establish a retryable host receipt. Settlement
 or disposal clears that flag while retaining unresolved original IDs. Account
-facts stay local. Status reconciliation skips active opening rows. Disposal removes those observers;
+facts stay local. Clearing browser opening progress does not acknowledge host
+completion: the separate last accepted `hostStatus` remains null/pending until
+the host actually supplies an unconfirmed receipt. UI and hook share that
+observed-receipt retry predicate. An original-ID read can reconcile a lost
+response without replay; a failed read preserves the last observed status.
+Status reconciliation skips active opening rows. Disposal removes those observers;
 correlation rows retain no view/client. Every new connection action uses the
 same capacity predicate. Matching completion retires revised metadata; stale
 nonterminal observations cannot replace a newer row or restore a retired one.

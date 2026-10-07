@@ -4,7 +4,7 @@ import { cancellationMessage, canInfer, failureMessages, readinessMessage, token
 import type {
   AiClient, AiSessionState, ConnectionAction, ConnectionSnapshot, DomainHeld, RunOutcome, RuntimeRoute, UnresolvedConnectionAction, Usage,
 } from './types.js';
-import { useAiSession, useConnectionActionCapacity } from './useAiSession.js';
+import { hasObservedUnconfirmedReceipt, useAiSession, useConnectionActionCapacity } from './useAiSession.js';
 
 export interface AiPanelProps {
   readonly client: AiClient;
@@ -96,11 +96,13 @@ export function AiPanelView({
   const unresolvedActions = unresolvedConnectionActions ?? (
     (state.connectionAction.status === 'pending' || state.connectionAction.status === 'unconfirmed')
       && state.connectionAction.action !== null ? [{
-        actionId: state.connectionAction.actionId, action: state.connectionAction.action, status: state.connectionAction.status,
+        actionId: state.connectionAction.actionId, action: state.connectionAction.action, status: state.connectionAction.status, hostStatus: null,
       }] : []
   );
   const pendingKinds = unresolvedActions.map(action => action.action);
-  const disconnectPending = unresolvedActions.some(action => action.action === 'disconnect' && action.status === 'pending');
+  const disconnectRetryBlocked = unresolvedActions.some(action => action.action === 'disconnect' && !hasObservedUnconfirmedReceipt(action));
+  const disconnectReceiptMissing = unresolvedActions.some(action => action.action === 'disconnect'
+    && action.status === 'unconfirmed' && action.hostStatus !== 'unconfirmed');
   const disconnectCapacityExhausted = !useConnectionActionCapacity(unresolvedActions.length);
   // The submitted action is retained before its opening call settles. Show its
   // working progress separately, while preserving every older unresolved row.
@@ -139,12 +141,13 @@ export function AiPanelView({
           onClick={() => { if (selectedRoute !== 'unset') onConnectionAction({ action: 'connect', route: selectedRoute }); }}>Connect</button>
         <button type="button" disabled={busy || connectionBusy || pendingKinds.length > 0 || disconnectCapacityExhausted || state.connection.status !== 'available'}
           onClick={() => onConnectionAction({ action: 'consent' })}>Review inference consent</button>
-        <button type="button" disabled={connectionBusy || disconnectPending || disconnectCapacityExhausted || state.connection.status !== 'available'}
+        <button type="button" disabled={connectionBusy || disconnectRetryBlocked || disconnectCapacityExhausted || state.connection.status !== 'available'}
           onClick={() => onConnectionAction({ action: 'disconnect' })}>Disconnect</button>
         <button type="button" disabled={connectionBusy || pendingKinds.includes('manage-usage') || disconnectCapacityExhausted || state.connection.status !== 'available'}
           onClick={() => onConnectionAction({ action: 'manage-usage' })}>Manage usage</button>
       </div>
       {disconnectCapacityExhausted && <p role="status">Disconnect retry capacity is full.</p>}
+      {!connectionBusy && disconnectReceiptMissing && <p role="status">Refresh status before retrying Disconnect.</p>}
       {state.connectionAction.status === 'working' && <p role="status">Opening connection action.</p>}
       {visibleActions.length > 0 && <ul aria-label="Unresolved connection actions">
         {visibleActions.map(action => <li key={action.actionId ?? action.action}><p role="status">

@@ -45,7 +45,11 @@ Disconnect immediately disables inference while retaining any operation for
 reconciliation. An observed unconfirmed disconnect permits a new explicit
 Disconnect action with a fresh ID, while its original unconfirmed receipt remains
 visible and queryable. A pending or opening disconnect still blocks another
-submission. Retries use the existing three-per-scope and 96-total unresolved
+submission. A local failed/aborted opening call also stays blocked until an
+original-ID status read supplies an unconfirmed host receipt. The last accepted
+host status is stored separately from local transport uncertainty; failed
+status reads cannot turn observed pending into retryable unconfirmed work.
+Retries use the existing three-per-scope and 96-total unresolved
 action limits; they never evict older unresolved IDs. The button and hook share
 the same scope/global capacity predicate; mounted panels subscribe to the
 registry using React's `useSyncExternalStore`. Immutable cached snapshots change

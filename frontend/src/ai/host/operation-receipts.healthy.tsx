@@ -22,7 +22,8 @@ function assert(value: unknown, message: string): asserts value {
 function AliasPanel({ client, scopeKey, name }: { client: AiClient; scopeKey: string; name: string }) {
   const session = useAiSession(client, scopeKey);
   return <div data-alias={name}>
-    <output data-action-state={session.state.connectionAction.status}>{session.state.connectionAction.status}</output>
+    <output data-action-state={session.state.connectionAction.status}
+      data-host-status={session.unresolvedConnectionActions[0]?.hostStatus ?? 'none'}>{session.state.connectionAction.status}</output>
     <AiPanelView state={session.state} scopeLabel="Synthetic alias home" prompt="" onPromptChange={() => {}}
       onSubmit={() => {}} onCancel={() => {}} onReview={() => {}} onRecover={() => {}}
       onRefresh={() => { void session.refresh(); }}
@@ -98,13 +99,17 @@ export async function runHealthyAliasPanelsExample(container: HTMLElement) {
       await until(() => aliasesMatch('pending', 1), 'Pending state/row in both aliases');
       for (const name of ['A1', 'A2']) {
         assert(rows(name)[0]?.textContent?.includes('Manage usage is pending.'), 'Pending display');
+        assert(panel(name).querySelector('output')?.getAttribute('data-host-status') === 'pending', 'Accepted pending host receipt');
         assert(button(name, 'Manage usage').disabled, 'Duplicate pending action blocked in both aliases');
       }
       isolated();
       observed = 'unconfirmed';
       click('A2', 'Refresh status');
       await until(() => aliasesMatch('unconfirmed', 1), 'Same-size metadata/state update in both aliases');
-      for (const name of ['A1', 'A2']) assert(rows(name)[0]?.textContent?.includes('Manage usage is unconfirmed.'), 'Unconfirmed display');
+      for (const name of ['A1', 'A2']) {
+        assert(rows(name)[0]?.textContent?.includes('Manage usage is unconfirmed.'), 'Unconfirmed display');
+        assert(panel(name).querySelector('output')?.getAttribute('data-host-status') === 'unconfirmed', 'Accepted unconfirmed host receipt');
+      }
       isolated();
       observed = 'completed';
       click('A1', 'Refresh status');

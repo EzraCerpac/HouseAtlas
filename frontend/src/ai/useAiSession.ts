@@ -87,6 +87,11 @@ function initialState(): AiSessionState {
 
 const MAX_UNRESOLVED_CONNECTION_ACTIONS = 3;
 
+/** A local failed/aborted transport cannot acknowledge the host workflow. */
+export function hasObservedUnconfirmedReceipt(action: Pick<UnresolvedConnectionAction, 'status' | 'hostStatus'>): boolean {
+  return action.status === 'unconfirmed' && action.hostStatus === 'unconfirmed';
+}
+
 /** The existing browser correlation bounds, shared by admission and display. */
 export function hasConnectionActionCapacity(unresolvedCount: number, globalCount = pendingConnectionActions.size): boolean {
   return unresolvedCount < MAX_UNRESOLVED_CONNECTION_ACTIONS
@@ -228,7 +233,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
           // row already retired by another observer.
           if (result.status !== 'completed' && latest !== pending) continue;
           if (result.status === 'completed') retireConnectionAction(pending.actionId);
-          else recordConnectionAction(pending.actionId, { ...pending, status: result.status });
+          else recordConnectionAction(pending.actionId, { ...pending, status: result.status, hostStatus: result.status });
           // Each workflow is correlated separately from current connection facts.
           update(previous => ({ ...previous, connectionAction: retainedConnectionState(
             pendingConnectionActions.values(), scope,
@@ -346,7 +351,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
     // An observed unconfirmed disconnect needs a new explicit host action to
     // retry revocation. Keep its original receipt; never replay its action ID.
     if (retained.some(action => action.action === input.action
-      && !(input.action === 'disconnect' && action.status === 'unconfirmed'))
+      && !(input.action === 'disconnect' && hasObservedUnconfirmedReceipt(action)))
       || ((input.action === 'connect' || input.action === 'consent') && retained.length > 0)) return;
     connectionController.current?.abort();
     if (input.action === 'disconnect') void cancel();
@@ -363,7 +368,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
       return;
     }
     const controller = new AbortController();
-    const pending: PendingConnectionAction = { scopeKey: scope.key, actionId, action: input.action, status: 'unconfirmed', opening: true };
+    const pending: PendingConnectionAction = { scopeKey: scope.key, actionId, action: input.action, status: 'unconfirmed', hostStatus: null, opening: true };
     actionController.current = controller;
     openingActionId.current = actionId;
     // Retain every submitted workflow, including a lost response, until its own completion.
@@ -380,7 +385,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
       if (result.actionId !== actionId) throw new Error('Unexpected connection action result');
       if (latest !== pending && result.status !== 'completed') { superseded = true; return; }
       if (result.status === 'completed') retireConnectionAction(actionId);
-      else recordConnectionAction(actionId, { ...pending, status: result.status, opening: false });
+      else recordConnectionAction(actionId, { ...pending, status: result.status, hostStatus: result.status, opening: false });
       update(previous => ({ ...previous, connection: { status: 'available', snapshot: result.snapshot },
         connectionAction: retainedConnectionState(pendingConnectionActions.values(), scope,
           { status: 'idle', action: input.action, actionId }) }));
@@ -516,7 +521,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
   }, [scope, refresh, recover, watchRequest, unwatchRequest]);
 
   const unresolvedConnectionActions: readonly UnresolvedConnectionAction[] = [...pendingConnectionActions.values()]
-    .filter(action => action.scopeKey === scope.key).map(({ actionId, action, status }) => ({ actionId, action, status }));
+    .filter(action => action.scopeKey === scope.key).map(({ actionId, action, status, hostStatus }) => ({ actionId, action, status, hostStatus }));
   const pendingConnectionKinds = unresolvedConnectionActions.map(action => action.action);
   return { state, refresh, submit, cancel, connectionAction, review, recover, pendingConnectionKinds, unresolvedConnectionActions };
 }

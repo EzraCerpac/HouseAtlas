@@ -156,6 +156,8 @@ export interface UnresolvedConnectionAction {
   readonly actionId: string;
   readonly action: ConnectionAction['action'];
   readonly status: 'pending' | 'unconfirmed';
+  /** Last accepted host receipt; local transport failure is not an observation. */
+  readonly hostStatus: 'pending' | 'unconfirmed' | null;
 }
 
 export type RequestState =
