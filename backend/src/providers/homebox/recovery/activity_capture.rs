@@ -135,12 +135,15 @@ impl StockActivityNativeCapture {
         Some(before)
     }
     fn complete(&self, before: n::StoredOperation, raw: RawNativeCut) {
-        // A failed/cancelled capture cannot produce a qualified successor. Its
-        // original physical hold is unchanged; no inferred cleanup/end proof.
-        if let Ok(mut state) = self.0.try_lock() {
-            state.pending = Some((before, raw));
-            state.in_flight = false;
-        }
+        // Actual completed I/O evidence must survive transient contention.
+        // All holders of this mutex are synchronous and release it before any
+        // await or native I/O; completion can wait for the lock.
+        // Preserve the returned result even if an earlier holder panicked.
+        // Poison remains set: begin/retention/archive still fail unavailable,
+        // so recording data here does not rehabilitate a damaged capture.
+        let mut state = self.0.lock().unwrap_or_else(|poison| poison.into_inner());
+        state.pending = Some((before, raw));
+        state.in_flight = false;
     }
 }
 pub struct CapturingStockDispatch<D> {

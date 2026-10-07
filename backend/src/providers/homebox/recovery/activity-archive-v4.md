@@ -54,6 +54,13 @@ The encoder holds the original capture mutex from its quiescent-state check
 through complete validation, serialization and final exact source comparison.
 The capture's `begin()` cannot start inner I/O during encoding. This addresses
 PR88 discussion 4209603558 in source; the concurrency control remains unrun.
+Completion of actual native I/O waits for that same synchronous mutex before
+retaining the returned raw result and clearing `in_flight`; transient archive
+check contention cannot discard completed evidence. Mutex holders perform no
+await or native I/O. If a previous holder panicked, completion still preserves
+the raw result in the poisoned capture, while begin/retention/archive continue
+to refuse the poisoned lock. This addresses discussion 4209699827 in source;
+contention/poison controls remain unrun and no authority is rehabilitated.
 The encoder checks the genuine producer's actor/scope, the complete sealed
 record and every captured raw native result. It does not close
 capture; `seal` remains the separate final in-memory archive operation. A packet
