@@ -151,6 +151,15 @@ the partition epoch while retaining the successful generation and projection
 rows, and does not reserve the selected candidate generation UUID. Native source
 adapters use this fenced path; `record_cache_failure` remains a legacy unfenced
 entry point. Revoked status is sticky until a complete fresh publication succeeds.
+`record_prepared_cache_failure_at` accepts the adapter's captured attempt time
+and preserves it in both `lastAttemptAt` and `error.at`, instead of obtaining a
+later publication timestamp from `Runtime`. Its borrowed-authority counterpart
+is `record_prepared_cache_failure_at_with_authorization`. Both consume the same
+original fence and use the same transaction and native final-snapshot validation;
+the `CacheFailure` carrier and older methods retain their existing signatures.
+The captured-time API is coded and compiler-checked. Network's original adapter
+must still carry its captured timestamp to it; provider failure, clock change and
+other held qualification controls have not run for this seam.
 Cache writes do
 not create Atlas record audits or mutation receipts. Empty complete generations
 clear only projection rows and retain records and binding reservations. All
