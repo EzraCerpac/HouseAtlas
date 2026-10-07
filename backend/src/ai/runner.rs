@@ -245,6 +245,7 @@ impl<Conn, Infer, Catalog, Meter, Store> AiRunner<'_, Conn, Infer, Catalog, Mete
                         ) {
                             return Ok(RunOutcome::DomainHeld {
                                 operation_id: dispatch.operation_id,
+                                operation_ids: operation_ids.clone(),
                                 state: dispatch.state,
                                 usage: *usage,
                             });

@@ -120,6 +120,10 @@ pub enum RunOutcome {
     DomainHeld {
         #[serde(rename = "operationId")]
         operation_id: Option<String>,
+        /// Ordered, deduplicated correlations for all dispatches already
+        /// observed in this request, including the current held operation.
+        #[serde(rename = "operationIds", default)]
+        operation_ids: Vec<String>,
         state: super::stock::DomainDispatchState,
         usage: Usage,
     },

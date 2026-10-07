@@ -34,6 +34,13 @@ and receipt through the shared service and its existing durable dispatcher.
 Prepared/queued/dispatching/partial/unknown work stays held. Each reviewed
 observation must be retained by `UsagePort::domain_observed` before processing
 continues; later typed failures carry earlier operation IDs.
+Terminal `DomainHeld` outcomes also carry ordered, deduplicated `operationIds`
+for every dispatch already recorded in the request, including the current held
+operation when it has an ID. The singular `operationId` still identifies that
+held operation, and its state/usage remain unchanged. Earlier effects therefore
+remain correlated even when a later step stops domain processing. Historical
+stored outcomes without the new field deserialize with an empty collection;
+new browser DTOs require the coordinated decoder/type/display adaptation.
 
 `ResponsesRequest` uses the public endpoint, explicit complete history,
 `store:false`, `stream:true`, namespaced functions and unchanged shared schemas.
