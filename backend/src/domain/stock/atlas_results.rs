@@ -18,7 +18,7 @@ use serde_json::{Value, json};
 
 /// Borrow only the original root metadata returned by the native stock owner.
 /// Its actor is the owner's verified durable actor, not a request claim. The
-/// captured AT07 API has no StockAtlasCommit yet; this view grants no execution.
+/// actual owner commit supplies durable metadata; this view grants no execution.
 #[derive(Clone, Copy, Debug)]
 pub struct AtlasCommitView<'a> {
     pub original_request: &'a Value,
@@ -106,7 +106,14 @@ pub fn map_atlas_commit(
         if batch {
             // Parent intent retains every child transport/approval ID. No
             // independent child renewal or envelope substitution is permitted.
-            require(group.original_request == group_plan.original_request())?;
+            require(
+                native
+                    .canonical_json(group.original_request)
+                    .map_err(native_output_error)?
+                    == native
+                        .canonical_json(group_plan.original_request())
+                        .map_err(native_output_error)?,
+            )?;
             require(
                 group.original_request == &commit.original_request["payload"]["commands"][index],
             )?;
@@ -175,7 +182,9 @@ fn check_retained_intent(
     require(stored_digest == expected_digest)?;
     require(request_digest(retained)? == stored_digest)?;
     if !allow_root_renewal {
-        return require(current == retained);
+        // Full envelopes retain transport/approval IDs and every child field.
+        // Canonical numeric spellings do not change that immutable intent.
+        return require(canonical_bytes(current)? == canonical_bytes(retained)?);
     }
     // Compare actual canonical intent as well as its digest. Only this root's
     // transport request ID and approval receipt may differ during replay.

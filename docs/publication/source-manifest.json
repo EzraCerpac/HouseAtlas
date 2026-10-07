@@ -20,7 +20,7 @@
     "web"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d1d8a1b1ce17634d5663dab9d39ea96816ba6a5c43f1e57c1d06882a69590fbd",
+  "sourceDigestSha256": "9c6338d1801b6afaaa4b2db135ee858e23907fe58361c161ee72703f6679e91e",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -683,8 +683,8 @@
     {
       "path": "backend/src/domain/stock/atlas_results.rs",
       "mode": "100644",
-      "bytes": 11622,
-      "sha256": "2ead7ac6c1d0f9f899857831179bf885760fcc4039451f495e6421287e49e132",
+      "bytes": 12062,
+      "sha256": "578fab0dee3d28837d2688e91c5a550b86821e7b6e8a5a58232f685a78c47524",
       "owner": "domain"
     },
     {
@@ -739,8 +739,8 @@
     {
       "path": "backend/src/domain/stock/result.rs",
       "mode": "100644",
-      "bytes": 14257,
-      "sha256": "9bf2b2ad4454550dc1f34ff931f7839f17f507f19d73097137e1cb61e5b26be8",
+      "bytes": 14609,
+      "sha256": "db02c7a03a976e5835992a6eb3b47732c5c0febc5a4e58bd35eef02b4202aefd",
       "owner": "domain"
     },
     {
