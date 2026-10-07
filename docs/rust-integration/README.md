@@ -417,6 +417,18 @@ The snapshot adapter still needs genuine retained raw-generation qualification
 for unresolved ends while Core/Store are borrowed. Actual healthy snapshot GETs
 prove response shape, without proving preservation of authorized relationships.
 
+The captured failure-time source chain now uses the three original Network
+host-runtime leaves from `84da52f5bbb7c041a572def526eb2e31d534d590`, the original
+Network native publisher from `e52c377b48449707e2f768526cd73d0b31e9e62e`, and only
+Storage's cache transaction leaf from `e5fec02e68369d6c01507c96eebd8bcb2bcdc993`.
+The host passes the provider's exact pre-request attempt timestamp through the
+original publisher to the same Store's additive captured-time transaction,
+retaining the original fence and borrowed authority. No host-side error
+conversion or replacement publication owner is supplied. Failure-time,
+timeout, clock-change and concurrency behavior is compiled and source-inspected
+only; those paths remain unexercised. Broader latest Storage and Network module
+changes are not adopted by this update.
+
 The original Storage producer correction retains the producer-set guard before
 creating a durable reservation and records its operation identifier immediately
 after commit without another fallible lock acquisition. Only its two stock

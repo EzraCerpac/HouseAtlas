@@ -158,7 +158,7 @@ impl HostNetworkRuntime {
                     config.reviewed_origin(),
                 )?;
                 RefreshResult::SourceFailure(with_store(core, &lease.access, |store| {
-                    prepared.failure(store, failure.error.code)
+                    prepared.failure(store, &failure)
                 })?)
             }
         };

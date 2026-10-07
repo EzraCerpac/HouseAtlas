@@ -103,6 +103,23 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             .record_prepared_cache_failure(principal, fence, failure)
     }
 
+    /// Persist the provider adapter's captured attempt time under its original
+    /// pre-fetch fence. Native cache/snapshot validation checks the timestamp.
+    pub fn record_prepared_cache_failure_at(
+        &mut self,
+        principal: &A::Principal,
+        fence: CachePublicationFence,
+        failure: &CacheFailure,
+        attempted_at: &str,
+    ) -> Result<CacheStatus> {
+        self.cache_transaction().record_prepared_cache_failure_at(
+            principal,
+            fence,
+            failure,
+            attempted_at,
+        )
+    }
+
     /// Borrowed call authority; retains this store connection and fence issuer.
     pub fn register_source_with_authorization<B: Authorization>(
         &mut self,
@@ -170,6 +187,20 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
     ) -> Result<CacheStatus> {
         self.cache_transaction_with_authorization(authorization)
             .record_prepared_cache_failure(principal, fence, failure)
+    }
+
+    /// Captured attempt metadata with the original borrowed call authority,
+    /// connection and pre-fetch fence; does not infer any authorization grant.
+    pub fn record_prepared_cache_failure_at_with_authorization<B: Authorization>(
+        &mut self,
+        authorization: &B,
+        principal: &B::Principal,
+        fence: CachePublicationFence,
+        failure: &CacheFailure,
+        attempted_at: &str,
+    ) -> Result<CacheStatus> {
+        self.cache_transaction_with_authorization(authorization)
+            .record_prepared_cache_failure_at(principal, fence, failure, attempted_at)
     }
 
     fn cache_transaction(&mut self) -> CacheTransaction<'_, C, A, R> {
@@ -654,7 +685,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
         partition: &SourcePartition,
         failure: &CacheFailure,
     ) -> Result<CacheStatus> {
-        self.record_cache_failure_inner(principal, scope, partition, failure, None)
+        self.record_cache_failure_inner(principal, scope, partition, failure, None, None)
     }
 
     /// Consume the original pre-fetch fence when publishing sanitized failure
@@ -664,6 +695,31 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
         principal: &A::Principal,
         fence: CachePublicationFence,
         failure: &CacheFailure,
+    ) -> Result<CacheStatus> {
+        self.record_prepared_cache_failure_with_attempt(principal, fence, failure, None)
+    }
+
+    pub fn record_prepared_cache_failure_at(
+        &mut self,
+        principal: &A::Principal,
+        fence: CachePublicationFence,
+        failure: &CacheFailure,
+        attempted_at: &str,
+    ) -> Result<CacheStatus> {
+        self.record_prepared_cache_failure_with_attempt(
+            principal,
+            fence,
+            failure,
+            Some(attempted_at),
+        )
+    }
+
+    fn record_prepared_cache_failure_with_attempt(
+        &mut self,
+        principal: &A::Principal,
+        fence: CachePublicationFence,
+        failure: &CacheFailure,
+        attempted_at: Option<&str>,
     ) -> Result<CacheStatus> {
         if !std::sync::Arc::ptr_eq(self.instance, &fence.issuer)
             || fence.registration.partition() != fence.partition
@@ -679,6 +735,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
             &fence.partition,
             failure,
             Some(&fence),
+            attempted_at,
         )
     }
 
@@ -689,6 +746,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
         partition: &SourcePartition,
         failure: &CacheFailure,
         fence: Option<&CachePublicationFence>,
+        attempted_at: Option<&str>,
     ) -> Result<CacheStatus> {
         validate_partition(self.contract, partition)?;
         let input = serde_json::to_value(partition)?;
@@ -733,7 +791,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
             }
         }
         let mut candidate = repo::snapshot(&tx)?;
-        let at = self.runtime.now()?;
+        let at = attempted_at.map_or_else(|| self.runtime.now(), |at| Ok(at.to_owned()))?;
         let quarantined = prior
             .as_ref()
             .is_some_and(|c| c.status == CacheState::AccessRevoked)

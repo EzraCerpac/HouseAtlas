@@ -81,13 +81,27 @@ impl PreparedPublication {
     pub(super) fn failure(
         self,
         store: &mut Store,
-        code: n::ErrorCode,
+        failure: &n::RefreshFailure,
     ) -> s::Result<s::CacheStatus> {
+        let error = failure.state.cache.error.as_ref().ok_or_else(conflict)?;
+        if error.code != failure.error.code
+            || failure.state.cache.last_attempt_at.as_deref() != Some(error.at.as_str())
+        {
+            return Err(conflict());
+        }
+        // The provider captured this exact string BEFORE its inventory GET;
+        // the actual native publisher carries it to Storage's captured-time
+        // transaction without replacement or reformatting by the commit clock.
         let lease = self.lease;
         held_consuming(&lease, |authorization| {
             n::NativeNetworkPublisher::new(store)
                 .with_authorization(authorization)
-                .record_prepared_cache_failure(self.prepared.fence, code, lease.as_ref())
+                .record_prepared_cache_failure_at(
+                    self.prepared.fence,
+                    failure.error.code,
+                    lease.as_ref(),
+                    &error.at,
+                )
         })
     }
 }
