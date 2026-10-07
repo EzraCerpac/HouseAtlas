@@ -49,8 +49,10 @@ pub fn admitted(principal: &access::Principal) -> Vec<wire::OperationId> {
     operations.push(wire::OperationId::AtlasAssetDownload);
     if principal.role() == access::Role::Editor {
         operations.extend(wire::OperationId::ALL.iter().copied().filter(|id| {
-            crate::domain::stock::OperationId::parse(id.as_str())
-                .is_some_and(|id| crate::domain::stock::atlas_direct_operation(id).is_some())
+            crate::domain::stock::OperationId::parse(id.as_str()).is_some_and(|id| {
+                crate::domain::stock::atlas_direct_operation(id).is_some()
+                    || crate::domain::stock::atlas_derived_operation(id)
+            })
         }));
         // Execution still validates every ordered child through the same closed
         // planner map and its original-principal transaction fence.

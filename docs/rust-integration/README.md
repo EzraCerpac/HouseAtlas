@@ -231,7 +231,9 @@ and Vite. It runs exactly healthy-contracts, healthy-dependencies,
 healthy-native-semantics and healthy-maintenance-calendar. The separately named
 healthy-agent-stock performs
 genuine in-process MCP tools/list and tools/call over actual access/domain/SQLite;
-the workflow compiles it on both platforms and runs it only on Linux.
+its separate temporary specialized helper exercises the bounded derived forms
+documented in [specialized writes](atlas-specialized-writes.md).
+The workflow compiles it on both platforms and runs it only on Linux.
 
 Each of the twelve browser runners uses fresh Chromium and a disposable TLS
 certificate, observes actual SQLite rows read-only, stops gracefully and removes

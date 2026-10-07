@@ -32,7 +32,10 @@ guards, reference closure, SQLite transaction and canonical result release remai
 mandatory. The healthy stock-write runner covers fresh circuit/identity singles
 and identity-only/mixed batches; the other mapped forms remain runtime-unqualified.
 
-Missing product areas include the seven specialized Atlas writes, Core-only MCP download
+Six specialized single Atlas writes now reuse the original derived planner and
+same-Store native transaction; see [specialized writes](atlas-specialized-writes.md).
+Standalone stock staged asset-create intake, renderer-qualified asset review and
+mixed derived batches remain held. Missing product areas include Core-only MCP download
 admission and download link UI, stock HomeBox operation mounts, Core-only MCP Network query mounts, complete
 provider setup and UI, trusted AI configuration/startup callers and receipt identity,
 and composed populated recovery. The HTTP saved Network query adapter now uses

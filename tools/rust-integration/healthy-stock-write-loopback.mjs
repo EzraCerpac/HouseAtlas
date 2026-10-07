@@ -310,10 +310,11 @@ try {
     return {results,admission,intents:[single,batch,direct,mixed],receipts:[first,second,third,fourth],records:[firstRecord,...records,directRecord,...mixedRecords],histories:[firstHistory,...histories,directHistory,...mixedHistories]};
   })()`);
   assert.equal(stockWrites.results.length,19);
-  assert.equal(stockWrites.admission.commandIds.length,63);
-  assert.equal(new Set(stockWrites.admission.commandIds).size,63);
-  const held=['binding.create','binding.review','binding.restore','binding.remap','geometry.create','asset.create','asset.review'];
-  assert(held.every(id=>!stockWrites.admission.commandIds.includes('atlas.'+id)), 'Specialized evidence-dependent forms stay outside direct admission');
+  assert.equal(stockWrites.admission.commandIds.length,69);
+  assert.equal(new Set(stockWrites.admission.commandIds).size,69);
+  const derived=['binding.create','binding.review','binding.restore','binding.remap','geometry.create','asset.review'];
+  assert(derived.every(id=>stockWrites.admission.commandIds.includes('atlas.'+id)), 'Bounded single derived forms are advertised');
+  assert(!stockWrites.admission.commandIds.includes('atlas.asset.create'), 'Standalone asset creation still requires genuine staged Media intake');
   const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
   for(const [index,receipt] of stockWrites.receipts.entries()){
     const intent=stockWrites.intents[index];
