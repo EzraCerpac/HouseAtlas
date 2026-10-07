@@ -46,6 +46,7 @@ pub struct Host {
     pub origin: String,
     pub files: Arc<BTreeMap<String, (String, Vec<u8>)>>,
     homebox_cache_sources: Arc<Vec<crate::config::providers::homebox::TrustedHomeBoxSource>>,
+    network_bindings: Arc<Vec<crate::config::providers::network_host::NetworkBinding>>,
     response_ids: Arc<ResponseIds>,
     pages: Arc<Mutex<pages::Pages>>,
     admission: Arc<admission::Admission>,
@@ -68,6 +69,7 @@ impl Host {
             origin,
             files,
             homebox_cache_sources: Arc::new(homebox_cache_sources),
+            network_bindings: Arc::new(Vec::new()),
             response_ids: Arc::new(ResponseIds::new()?),
             pages: Arc::new(Mutex::new(pages::Pages::default())),
             admission: Arc::new(admission::Admission::default()),
@@ -75,6 +77,35 @@ impl Host {
                 agents::mcp_transport::TransportSessions::default(),
             )),
         })
+    }
+    /// Trusted optional native mounts. Opening a binding issues no grants and
+    /// performs no provider request; existing configured authority is required.
+    pub fn with_network_bindings(
+        mut self,
+        bindings: Vec<crate::config::providers::network_host::NetworkBinding>,
+    ) -> crate::storage::Result<Self> {
+        if bindings
+            .iter()
+            .any(|binding| !Arc::ptr_eq(binding.access().shared().as_existing(), &self.mcp_access))
+        {
+            return Err(crate::storage::Error::new(
+                "invalid-contract",
+                "Network canonical issuer does not match",
+            ));
+        }
+        let mut partitions = std::collections::BTreeSet::new();
+        for binding in &bindings {
+            let partition = binding.runtime().settings().configured_source().partition();
+            let key = serde_json::to_string(&partition)?;
+            if !partitions.insert(key) {
+                return Err(crate::storage::Error::new(
+                    "invalid-contract",
+                    "Network partition is configured more than once",
+                ));
+            }
+        }
+        self.network_bindings = Arc::new(bindings);
+        Ok(self)
     }
 }
 type HttpResult = Result<Response, HttpFailure>;
@@ -502,6 +533,7 @@ pub fn router(host: Host) -> Router {
     Router::new()
         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/collections/{collection_id}/cached", get(providers::cached_homebox).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/cached", get(providers::cached_homebox_query).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/providers/network/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/cached", get(providers::network::cached).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/mcp/workspaces/{workspace_id}/homes/{home_id}", post(agents::mcp_transport::post).get(agents::mcp_transport::unsupported).head(agents::mcp_transport::unsupported).delete(agents::mcp_transport::unsupported).fallback(agents::mcp_transport::unsupported))
         .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/place", get(editing::place).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/places/{record_id}/evidence", post(upload::command))

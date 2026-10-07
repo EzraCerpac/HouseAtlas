@@ -83,6 +83,11 @@ jobs:
       - name: Genuine native MCP stock get and audit page after fresh circuit commit
         if: runner.os == 'Linux'
         run: cargo run --locked -p houseatlas-backend --example healthy-agent-stock
+      - name: Real native Network publication and cached root TLS reads
+        if: runner.os == 'Linux'
+        run: |
+          cargo build --locked -p houseatlas-backend --example healthy-network-root-router
+          python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"
       - name: Real disposable loopback TLS browser read slice
         if: runner.os == 'Linux'
         env:
@@ -184,3 +189,4 @@ jobs:
           printf '%s\n' 'The named stock history runner adds three first-page/search reads over genuine stock-owned audits; nonnull cursor continuation is not demonstrated.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'The named native WebMCP runner uses actual document.modelContext discovery and invocation, genuine stock identity get, fresh circuit create, record readback and first audit page, with canonical results committed to React before tool return. No modelContext or stock service stub is installed.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'The separately named Unicode cache runner uses the fixed public opaque-collection profile, actual Viewer authority and one cached-only query GET. It compares both complete projections and original cache metadata with read-only SQLite source/cache/projection rows. No HTTP authentication mutation, editing, MCP, old-path comparison or provider I/O runs in that flow.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'The separately named Network flow performs one verified TLS fixture inventory GET, real native same-Store publication, actual root TLS viewer login, two cached GETs and three snapshot-backed relation/room/item GETs. The cached facet retains original generation/entity/link/observation provenance; generic snapshots conceal unresolved endpoints requiring raw-member evidence. Browse epochs/reservations remain unchanged. Source and root listeners are disposable IPv4 loopback only; no Network browser UI or live provider is qualified.' >> "$GITHUB_STEP_SUMMARY"

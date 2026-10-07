@@ -292,6 +292,47 @@ allowlist, and configures Linux execution of the named healthy flows. Current
 candidate CI status is reported separately. macOS source compilation supplies
 no target NAS build/runtime or operational qualification.
 
+## Optional cached Network host composition
+
+The optional native Network mount reads through the original Core, canonical
+Access allocation and existing Store. Its cached-only GET is scoped by workspace,
+home, source instance and an opaque collection selector. Fresh native partition
+and entity grants feed the retained generation disclosure; serialization is
+followed by the owner's same-store rerelease and original-authority check.
+Trusted configuration supplies the binding, and the default service has none.
+Browsing supplies no refresh, transport, lifecycle policy or provider credential.
+
+The current development composition includes the original Access shared issuer,
+registered-cache and borrowed snapshot Storage APIs, the genuine Domain offline
+recovery leaf required by that Access source, and the nested Network module.
+Storage's optional activity schema is compiled; the default disposable host
+still opens schema 5, with no activity dispatch or offline recovery mount.
+Existing SQL migrations and schema checksums remain intact.
+
+`healthy-network-root-router` is an explicitly declared healthy example. The
+inspected Python driver creates one disposable CA/end-entity certificate and a
+loopback inventory fixture. The example makes one verified TLS inventory GET,
+publishes through the actual native Store, starts the real root TLS listener,
+logs in a genuine viewer, then makes two cached GETs and three snapshot-backed
+relation/room/item GETs. Snapshot selectors use actual typed AT11 link grants;
+an unresolved snapshot endpoint currently conceals the whole partition,
+including its authorized resolved relations. The runtime must supply an original
+raw-generation qualifier compatible with the already borrowed Store before this
+snapshot path can be accepted. The three snapshot GETs assert response shape,
+not relation preservation. Native cached entities, links,
+relations, observation text and distinct fact/retrieval dates are preserved;
+cache epochs and generation reservations stay unchanged during browsing. Its
+listener supplies actual connection metadata; no transport extension is mocked.
+The native runtime binds read and disclosure to the exact owning Core and its
+current original issuer. This healthy flow passed and is separately named in
+Linux CI. It supplies no Network browser/UI, live-provider, rejection, revocation,
+concurrency, recovery or deployment qualification.
+
+```sh
+cargo build --locked -p houseatlas-backend --example healthy-network-root-router
+python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"
+```
+
 ## Explicit remaining areas
 
 Access now supplies opaque ConfigureSource and PublishCache grants under explicit
@@ -302,12 +343,12 @@ but no real configuration, credential release, filtered provider read or refresh
 has been mounted/executed in this disposable host. The cached route does not
 create those permissions or qualify freshness.
 
-Network host settings, retained facet and phased publication source compile.
-Its required whole-collection disclosure membership/credential authority and
-actual runtime remain unbound. The Network owner documents reqwest 0.12/WebPKI
-roots while the host pins reqwest 0.13.5 with Rustls platform verification.
-This TLS profile discrepancy still requires owner reconciliation before combined
-transport acceptance. No runner makes an actual provider request.
+Network host settings, retained facet, phased publication and the optional
+cached-only mount compile with reqwest 0.13.5 and Rustls platform verification.
+The runtime uses the canonical original issuer and complete retained-generation
+resource grants. Its owning Store/Access identity correction and one root healthy
+TLS flow are integrated; exact-candidate review and CI remain required. No actual Network UI, source setup or provider refresh
+is enabled in the default host, and no runner calls a real provider.
 
 Provider stock preparation, original whole-collection approval, verified
 route/build binding, durable operation activity/liability and qualified physical
@@ -366,6 +407,41 @@ unrun. The jobs checkpoint contains replay and is not executed. No broad test
 alias, remote listener, provider/NAS call, live login/grant, deployment or
 security/recovery/target/product acceptance is supplied by this composition.
 
+The optional Network runtime compares its original Access allocation with both
+Core and the Store's configured authorizer. Core/Store is acquired before
+immutable generation staging. Multiple runtime instances share a bounded
+process-local refresh lock keyed by the original Core handle and source partition.
+This is scheduling only; it supplies no authority or cross-process arbitration.
+Concurrency controls remain unrun.
+The snapshot adapter still needs genuine retained raw-generation qualification
+for unresolved ends while Core/Store are borrowed. Actual healthy snapshot GETs
+prove response shape, without proving preservation of authorized relationships.
+
+The captured failure-time source chain now uses the three original Network
+host-runtime leaves from `84da52f5bbb7c041a572def526eb2e31d534d590`, the original
+Network native publisher from `e52c377b48449707e2f768526cd73d0b31e9e62e`, and only
+Storage's cache transaction leaf from `e5fec02e68369d6c01507c96eebd8bcb2bcdc993`.
+The host passes the provider's exact pre-request attempt timestamp through the
+original publisher to the same Store's additive captured-time transaction,
+retaining the original fence and borrowed authority. No host-side error
+conversion or replacement publication owner is supplied. Failure-time,
+timeout, clock-change and concurrency behavior is compiled and source-inspected
+only; those paths remain unexercised. Broader latest Storage and Network module
+changes are not adopted by this update.
+
+The original Storage producer correction retains the producer-set guard before
+creating a durable reservation and records its operation identifier immediately
+after commit without another fallible lock acquisition. Only its two stock
+activity leaves are adopted from source e799d0c3; newer recovery and numeric
+persistence leaves are separate inputs. Lock contention, retries and interrupted
+commit qualification remain unrun. This is a source correction, not a completed
+activity-worker or recovery demonstration.
+
+This provisional Network composition also includes the accepted Access session
+binding seam together with earlier original shared-issuer and recovery extensions.
+Its three combined Access leaves need original-owner reconciliation before final
+acceptance; they are not byte-identical to either standalone source checkpoint.
+
 The multipart route preserves the owner-qualified committed receipt when stage
 metadata retirement fails. Retirement still requires the strict SQLite consumed
 upload loader and original mutation fence; the host never reconstructs cleanup
@@ -385,3 +461,13 @@ permissions. Other held classes and broad runtime aliases remain held; an
 overlapping case must genuinely fit the exact approved scope and lane safeguards.
 The unrun statements above record coverage, not a blanket prohibition of these
 three classes under that lane. Ordinary CI and historical results are unchanged.
+
+Root Network consolidation uses the original HostNetworkRuntime and RefreshResult
+through lifecycle aliases, retaining the separate closed original publication
+delegates and accepted authority lease types. The mounted cached HTTP adapter is
+moved byte-for-byte to the single network module; its genuine original grants,
+Core/Store borrowing and final disclosure checks are preserved. No provider owner
+namespace changes, refresh route, lifecycle activation or admission expansion are
+introduced. Superseded sidecar retention, raw snapshot qualification and original
+Access composition holds remain unresolved; ordinary source and the existing
+healthy loopback do not qualify the held classes.
