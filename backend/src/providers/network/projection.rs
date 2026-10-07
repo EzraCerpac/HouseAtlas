@@ -602,25 +602,36 @@ pub fn validate_state(
         {
             guard(review == &generation.link_review)?;
         }
-        let document = json!({"revision": generation.source_revision, "inventory": inventory_values(generation),
-            "observations": generation.observations.iter().map(|row| row.value.clone()).collect::<Vec<_>>()});
-        let bytes = serde_json::to_vec(&document)
-            .map_err(|_| NetworkError::new(ErrorCode::InvalidSchema))?;
-        let expected = project_capture(
-            source,
-            NetworkCapture {
-                source: &generation.scope,
-                document: &bytes,
-                retrieved_at: &generation.retrieved_at,
-                source_snapshot_at: generation.source_snapshot_at.as_deref(),
-            },
-            &generation.link_review,
-            Limits {
-                max_response_bytes: 10 * 1024 * 1024,
-                ..Limits::default()
-            },
-        )?;
-        guard(generation == &expected)?;
+        validate_generation(source, generation)?;
     }
+    Ok(())
+}
+
+/// Reconstruct the complete original capture using its retained review. This
+/// validates raw members and every projected relation together; it issues no
+/// grants and performs no cache read, provider request or freshness decision.
+pub fn validate_generation(
+    source: &SourceRegistration,
+    generation: &NetworkGeneration,
+) -> Result<()> {
+    let document = json!({"revision": generation.source_revision, "inventory": inventory_values(generation),
+        "observations": generation.observations.iter().map(|row| row.value.clone()).collect::<Vec<_>>()});
+    let bytes =
+        serde_json::to_vec(&document).map_err(|_| NetworkError::new(ErrorCode::InvalidSchema))?;
+    let expected = project_capture(
+        source,
+        NetworkCapture {
+            source: &generation.scope,
+            document: &bytes,
+            retrieved_at: &generation.retrieved_at,
+            source_snapshot_at: generation.source_snapshot_at.as_deref(),
+        },
+        &generation.link_review,
+        Limits {
+            max_response_bytes: 10 * 1024 * 1024,
+            ..Limits::default()
+        },
+    )?;
+    guard(generation == &expected)?;
     Ok(())
 }

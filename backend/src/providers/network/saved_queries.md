@@ -35,6 +35,18 @@ The public schema has no raw inventory, generation ID/digest, observation array
 or history-completeness field; none is invented. Full original data remains
 retained in the runtime's validated generation and disclosure baseline.
 
+`retained_link_bindings(source, generation)` provides private matching data for
+that host seam. It validates the complete capture with its retained review, then
+borrows each original raw link, its typed `from`/`to` records and the exact
+reviewed relation. An unresolved projected endpoint retains its null ID and
+original description; its hidden raw target stays available only in this
+private binding. Normalized segment membership does not change raw direction.
+These bindings issue no permission. The runtime/root must bind the same owning
+Core, original grants and native cache baseline before any facet is released.
+An unresolved projection alone must not revoke the partition or discard its
+resolved relations. Store baseline selection and runtime grant binding remain
+with their owners; this API does not by itself correct their selectors.
+
 Optional `resourceId` is an exact external-ID filter over returned typed node
 and relation namespaces. Every matching qualified identity is retained; equal
 opaque spellings do not merge identities or replace grants. It does not expand
@@ -63,19 +75,22 @@ MCP/WebMCP admission and shared manifests; this patch edits none of them and
 does not alter `host_runtime/**` or Domain.
 
 Ordinary evidence uses a disposable compiler copy of root PR73 source
-`70e5f066546b9944163b58142e571b3b1b990cf2`, containing the actual runtime
-`8192d0d1e99e6293c23557084431e53398244307` and its genuine peers. The new
+`995de879358c4a476b98c830a886e1894a758edb`, containing the actual runtime
+and its genuine peers. The new
 source is overlaid without changing any peer. The named fixture filter is:
 
 ```sh
 cargo test --locked --offline --lib providers::network::saved_queries::healthy::
 ```
 
-Those three positive fixtures execute actual Network projection, full native
+Those five positive fixtures execute actual Network projection, full native
 stock schemas/correlations and stock dispatch with explicit synthetic
 principal/witness/disclosure peers. They cover all three views, exact typed
 resource filtering, final result authorization, unchanged dates/evidence and
-stale saved data. They create no issuer, login, grants, Store or provider call.
+stale saved data. Two added examples check exact borrowed raw members,
+normalized membership direction, unresolved descriptions and preserved resolved
+relations/current cache status. They create no issuer, login, grants, Store or
+provider call.
 Full-source compilation is separate from genuine composed query qualification.
 The external test manifest adds the inherited Network test module's pins:
 `rcgen = =0.14.5` (defaults off; ring/crypto/pem) and

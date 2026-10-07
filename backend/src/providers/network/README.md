@@ -304,3 +304,24 @@ The published HTTP history schema remains unchanged; this lane emits no history
 HTTP response or audit event. The AT52 route/config adapters, production semantic Contract,
 AT11 authority mapping, real target wire review and held timeout/denial/failure/
 concurrency/recovery qualification remain future integration work.
+
+### Retained raw link binding
+
+`validate_generation(source, generation)` reconstructs the entire capture with
+its retained review and compares every qualified row and projected relation.
+`validate_state` uses this same validation without changing its cache checks.
+`retained_link_bindings(source, generation)` validates once and returns borrowed
+`RetainedLinkBinding` rows containing the original link, original typed `from`
+and `to` records, and the exact reviewed relation. Matching uses keyed indexes.
+Raw direction is preserved for normalized segment memberships; an unresolved
+projection keeps its null ID/description while the private binding still names
+the actual hidden raw member. These are matching records, not permission.
+
+Runtime and Store owners must use the original owning-Core grants and immutable
+native cache baseline before disclosure. An unresolved projected endpoint
+cannot replace raw-member binding or justify revoking the entire partition.
+The original Network core exports this seam; no host-runtime/Store selector is
+changed here. Saved stock output preserves the reviewed unknown and all other
+authorized relations. Its healthy examples use actual validation/projection/
+stock schemas with explicit synthetic authority peers, so they do not qualify
+the genuine runtime composition or held controls.

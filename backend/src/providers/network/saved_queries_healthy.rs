@@ -113,7 +113,10 @@ impl StockCommandPort<FixturePrincipal, Witness, SourceScope> for NoCommands {
         Err(stock::StockError::OwnerUnavailable)
     }
 }
-fn facet(now: &str) -> NetworkFacet {
+fn retained() -> (
+    super::super::SourceRegistration,
+    super::super::RetainedState,
+) {
     let source = super::super::healthy::source();
     let review = serde_json::from_str(REVIEW).unwrap();
     let generation = super::super::project_capture(
@@ -134,6 +137,10 @@ fn facet(now: &str) -> NetworkFacet {
     state.cache.last_successful_fetch_at = Some(AT.into());
     state.cache.generation_id = Some("00000000-0000-4000-8000-000000000901".into());
     state.generation = Some(generation);
+    (source, state)
+}
+fn facet(now: &str) -> NetworkFacet {
+    let (source, state) = retained();
     super::super::build_facet(&source, &state, now, 300_000).unwrap()
 }
 fn run(facet: &NetworkFacet, operation: stock::OperationId, resource: Option<&str>) -> Value {
@@ -265,4 +272,78 @@ fn healthy_saved_stale_snapshot_preserves_dates_and_evidence() {
         wire["data"]["relations"][0]["evidenceBasis"],
         "owner-report"
     );
+}
+
+#[test]
+fn healthy_retained_links_bind_original_members_and_projection() {
+    let (source, state) = retained();
+    let generation = state.generation.as_ref().unwrap();
+    let bindings = super::super::retained_link_bindings(&source, generation).unwrap();
+    assert_eq!(bindings.len(), generation.inventory.links.len());
+    for (binding, original) in bindings.iter().zip(&generation.inventory.links) {
+        assert!(std::ptr::eq(binding.link, original));
+        assert_eq!(binding.from.external_id, original.value["from"]);
+        assert_eq!(binding.to.external_id, original.value["to"]);
+        assert_eq!(binding.from.scope, source.scope);
+        assert_eq!(binding.to.scope, source.scope);
+        assert!(generation.network_relations.iter().any(|relation| {
+            relation.external_id == original.external_id && std::ptr::eq(binding.relation, relation)
+        }));
+    }
+    let gap = bindings
+        .iter()
+        .find(|row| row.link.external_id == "gap-a")
+        .unwrap();
+    assert_eq!(gap.from.source_kind, SourceKind::Interface);
+    assert_eq!(gap.to.source_kind, SourceKind::Device);
+    assert_eq!(gap.to.external_id, "device-b");
+    assert_eq!(gap.relation.to.kind, super::super::EndpointKind::Unresolved);
+    assert_eq!(gap.relation.to.id, None);
+    assert_eq!(gap.relation.to.description.as_deref(), Some("Unknown peer"));
+    let membership = bindings
+        .iter()
+        .find(|row| row.link.external_id == "member-a")
+        .unwrap();
+    assert_eq!(membership.from.source_kind, SourceKind::Segment);
+    assert_eq!(membership.to.source_kind, SourceKind::Interface);
+    // Public membership normalizes direction; the private binding does not.
+    assert_eq!(membership.relation.from.id.as_deref(), Some("interface-a"));
+    assert_eq!(membership.relation.to.id.as_deref(), Some("segment-a"));
+}
+
+#[test]
+fn healthy_saved_unknown_peer_preserves_partition_and_resolved_links() {
+    let facet = facet(AT);
+    assert_eq!(facet.status, FacetStatus::Fresh);
+    assert_eq!(facet.cache.status, super::super::CacheStatus::Fresh);
+    let gap = facet
+        .current_claims
+        .iter()
+        .find(|row| row.external_id == "gap-a")
+        .unwrap();
+    for operation in [
+        stock::OperationId::NetworkInventoryGet,
+        stock::OperationId::NetworkSnapshotGet,
+    ] {
+        let wire = run(&facet, operation, None);
+        assert_eq!(wire["data"]["sourceStatus"], "current");
+        assert_eq!(
+            wire["data"]["relations"],
+            serde_json::to_value(&facet.current_claims).unwrap()
+        );
+        assert_eq!(wire["data"]["relations"].as_array().unwrap().len(), 3);
+        let selected = run(&facet, operation, Some("gap-a"));
+        assert_eq!(selected["data"]["devices"], json!([]));
+        assert_eq!(selected["data"]["relations"], json!([gap]));
+        assert_eq!(
+            selected["data"]["relations"][0]["to"],
+            json!({"kind":"unresolved","id":null,"description":"Unknown peer"})
+        );
+    }
+    let history = run(&facet, stock::OperationId::NetworkHistoryGet, None);
+    assert_eq!(
+        history["data"]["relations"],
+        serde_json::to_value(&facet.history).unwrap()
+    );
+    assert_eq!(history["data"]["sourceStatus"], "current");
 }
