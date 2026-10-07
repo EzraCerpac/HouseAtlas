@@ -1,0 +1,17 @@
+.stock-completion {
+  max-width: 1100px;
+  margin: 24px auto;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--enamel);
+}
+.stock-completion h2 {
+  margin: 0 0 12px;
+  font-family: var(--sign);
+}
+.stock-completion pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

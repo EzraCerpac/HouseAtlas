@@ -6,6 +6,7 @@ import { createAtlasClient, createAtlasSessionClient } from "./api/client";
 import type { AtlasClient } from "./app/types";
 import "./styles/atlas.css";
 import "./styles/session.css";
+import "./styles/stock.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("HouseAtlas root missing");
