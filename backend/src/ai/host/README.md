@@ -316,3 +316,21 @@ Replay, corruption, expiry/revocation, crash, mutation/adversarial and historica
 held controls remain unrun. SIWC implementation GO does not establish account
 eligibility, paid inference or operational runtime approval. Root mount, manifest
 reseal and composed platform CI remain integrator-owned.
+
+
+## Callback and launch receipt ordering
+
+`action_finish` returns the canonical typed action receipt under an immediate
+SQLite writer transaction. A delayed Pending launch result cannot replace an
+observed Completed or Unconfirmed callback receipt or its snapshot. The common
+Connect/Consent response returns that preserved receipt too. Forward Pending to
+Completed/Unconfirmed and Completed display refresh remain available, including
+ManageUsage's cached completion followed by fresh metadata. This changes no
+original authority, credential, nonce, callback or user-review check.
+
+The exact three ordering cases in `action_receipt_checks.rs` are unmounted and
+belong only to the separately registered PR108 lane. They use in-memory SQLite
+and synthetic action DTOs; they execute no callback, credential or provider port.
+They verify both preserved return value and durable journal disclosure. Ordinary
+CI has no new test alias. Current root dev composition and outcomes are pinned
+in the owner handoff, separately from operational qualification.

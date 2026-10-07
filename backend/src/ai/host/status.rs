@@ -4,7 +4,7 @@ use crate::ai::{
     AiError, CancelReceipt, CancelStatus, Cancellation, PortFuture, ProviderDiagnostic, RunOutcome,
     Usage, UsagePort,
     oauth::RegistrationBinding,
-    runtime::{RequestStatus, RequestStatusPort},
+    runtime::{ConnectionActionResult, ConnectionActionStatus, RequestStatus, RequestStatusPort},
     stock::DomainDispatch,
 };
 use rusqlite::{Connection, OptionalExtension, params};
@@ -588,20 +588,54 @@ impl StatusJournal {
         &self,
         binding: &RegistrationBinding,
         id: &str,
-        result: Value,
-    ) -> Result<(), AiError> {
-        let changed = self
-            .db()?
+        result: ConnectionActionResult,
+    ) -> Result<ConnectionActionResult, AiError> {
+        if result.action_id != id {
+            return Err(AiError::InvalidInput);
+        }
+        let mut db = self.db()?;
+        let transaction = db
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(db_error)?;
+        let scope = action_scope_key(binding)?;
+        let (state, payload): (String, String) = transaction
+            .query_row(
+                "SELECT state,payload FROM ai_host_status
+                 WHERE scope=?1 AND id=?2 AND kind='action'",
+                params![scope, id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(db_error)?;
+        if state == "observed" {
+            let observed: ConnectionActionResult =
+                serde_json::from_str(&payload).map_err(|_| AiError::DomainUnavailable)?;
+            if observed.action_id != id {
+                return Err(AiError::DomainUnavailable);
+            }
+            // A launch finishing after its callback cannot reopen the workflow
+            // or replace its terminal snapshot. Return the canonical receipt to
+            // the caller as well as preserving it in durable status.
+            if matches!(result.status, ConnectionActionStatus::Pending)
+                && !matches!(observed.status, ConnectionActionStatus::Pending)
+            {
+                transaction.commit().map_err(db_error)?;
+                return Ok(observed);
+            }
+        } else if state != "unconfirmed" {
+            return Err(AiError::DomainUnavailable);
+        }
+        let changed = transaction
             .execute(
                 "UPDATE ai_host_status SET state='observed',payload=?3
             WHERE scope=?1 AND id=?2 AND kind='action'",
-                params![action_scope_key(binding)?, id, result.to_string()],
+                params![scope, id, json!(&result).to_string()],
             )
             .map_err(db_error)?;
         if changed != 1 {
             return Err(AiError::DomainUnavailable);
         }
-        Ok(())
+        transaction.commit().map_err(db_error)?;
+        Ok(result)
     }
     /// Known synchronous failure before OAuth begin/launch. Keep the original
     /// command and typed cause as private evidence, atomically with the terminal

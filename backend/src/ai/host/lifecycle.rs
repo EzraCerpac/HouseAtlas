@@ -261,7 +261,7 @@ where
             status,
             snapshot,
         };
-        self.journal.action_finish(binding, id, json!(&result))?;
+        self.journal.action_finish(binding, id, result)?;
         self.environment.revalidate(context, binding)
     }
 }
@@ -406,7 +406,7 @@ impl<
                     snapshot,
                 };
                 self.journal
-                    .action_finish(&binding, &request.action_id, json!(&result))?;
+                    .action_finish(&binding, &request.action_id, result)?;
             }
             let snapshot = match disconnected_snapshot {
                 Some(snapshot) => snapshot,
@@ -418,8 +418,7 @@ impl<
                 snapshot,
             };
             self.journal
-                .action_finish(&binding, &request.action_id, json!(&result))?;
-            Ok(result)
+                .action_finish(&binding, &request.action_id, result)
         })
     }
     fn status<'a>(
