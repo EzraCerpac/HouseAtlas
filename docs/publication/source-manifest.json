@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0c2ce8640cfb6232a031d587111fc6c8fbff43a15f4522f785d62f628c050854",
+  "sourceDigestSha256": "c9dbcfa61de89d1ecc8aaa4a5ba211d3221f12a44dbfb5e547af1e4d0d6f99bf",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -1952,8 +1952,8 @@
     {
       "path": "backend/src/transports/mcp/lifecycle/control.rs",
       "mode": "100644",
-      "bytes": 6065,
-      "sha256": "f5c6d4936b29bb5a887965923fc341bee7dcd430dd9fc314dc908280e03f50fa",
+      "bytes": 6439,
+      "sha256": "34fe92eac20ffc7cf3bb9739f8830a099a83b23bf51088a0a2e74977005a8aa6",
       "owner": "mcp"
     },
     {
@@ -2379,8 +2379,8 @@
     {
       "path": "docs/rust-integration/mcp-lifecycle-mount.md",
       "mode": "100644",
-      "bytes": 5439,
-      "sha256": "ae8e9792ad5e2c26304db8e50ecd6abff10376ac7236114bccce6504a293bd59",
+      "bytes": 5985,
+      "sha256": "83134811b72e0f113a89c6debd12f60f4cb59be34adb66633db07319bbd05f50",
       "owner": "core-integration"
     },
     {
