@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import type { LocationSemanticsPayloadSemanticKind } from "../api/generated/contracts.js";
 import type { StockResultEnvelope } from "../webmcp/stock.js";
 import type { AtlasEditingClient, PlaceEditAdmission } from "./editing";
@@ -28,9 +34,18 @@ export function PlaceEditor({
     useState<LocationSemanticsPayloadSemanticKind>("unclassified");
   const [status, setStatus] = useState(""),
     [receipt, setReceipt] = useState<StockResultEnvelope | null>(null);
+  const [licenseSelection, setLicenseSelection] = useState("");
   const active = useRef<AbortController | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
+  const opener = useRef<HTMLButtonElement>(null);
+  const restoreOpener = useRef(false);
   useEffect(() => () => active.current?.abort(), []);
+  useLayoutEffect(() => {
+    if (!open && restoreOpener.current) {
+      restoreOpener.current = false;
+      opener.current?.focus();
+    }
+  }, [open]);
   const source = {
     workspaceId: entry.workspaceId,
     homeId: entry.homeId,
@@ -47,6 +62,7 @@ export function PlaceEditor({
     )
       throw new TypeError("Place admission does not match current scope");
     setAdmission(next);
+    setLicenseSelection("");
     if (next) setKind(next.record.payload.semanticKind);
     return next;
   };
@@ -63,8 +79,8 @@ export function PlaceEditor({
     setOpen(true);
     try {
       const next = await load(controller.signal);
-      if (!controller.signal.aborted && !next)
-        setStatus("Atlas classification is unavailable.");
+      if (!controller.signal.aborted)
+        setStatus(next ? "" : "Atlas classification is unavailable.");
     } catch {
       if (!controller.signal.aborted)
         setStatus("Atlas classification could not be loaded.");
@@ -81,6 +97,8 @@ export function PlaceEditor({
   ) => {
     const controller = begin(progress);
     setReceipt(null);
+    let saved = false,
+      viewRefreshed = false;
     try {
       const result = await action(controller.signal);
       if (controller.signal.aborted) return;
@@ -100,6 +118,7 @@ export function PlaceEditor({
         setStatus("The change was not committed.");
         return;
       }
+      saved = true;
       if (!(await refresh()) || controller.signal.aborted) {
         setAdmission(null);
         if (!controller.signal.aborted)
@@ -108,6 +127,7 @@ export function PlaceEditor({
           );
         return;
       }
+      viewRefreshed = true;
       const next = await load(controller.signal);
       if (!controller.signal.aborted)
         setStatus(
@@ -119,7 +139,11 @@ export function PlaceEditor({
       if (!controller.signal.aborted) {
         setAdmission(null);
         setStatus(
-          "Completion could not be confirmed. Reload saved information before trying again.",
+          saved
+            ? viewRefreshed
+              ? "The change was saved. Editing information could not be refreshed."
+              : "The change was saved. Saved information could not be refreshed."
+            : "Completion could not be confirmed. Reload saved information before trying again.",
         );
       }
     } finally {
@@ -224,7 +248,7 @@ export function PlaceEditor({
   if (!open)
     return (
       <div className="actions">
-        <button type="button" onClick={() => void show()}>
+        <button ref={opener} type="button" onClick={() => void show()}>
           Edit Atlas place
         </button>
       </div>
@@ -308,7 +332,13 @@ export function PlaceEditor({
             </label>
             <label>
               <span>Source licence</span>
-              <select name="license" required disabled={busy}>
+              <select
+                name="license"
+                required
+                disabled={busy}
+                value={licenseSelection}
+                onChange={(event) => setLicenseSelection(event.target.value)}
+              >
                 <option value="">Choose licence</option>
                 {policy.licenses.map((choice, index) => (
                   <option key={index} value={index}>
@@ -337,6 +367,7 @@ export function PlaceEditor({
         type="button"
         disabled={busy}
         onClick={() => {
+          restoreOpener.current = true;
           setOpen(false);
           setAdmission(null);
           setReceipt(null);

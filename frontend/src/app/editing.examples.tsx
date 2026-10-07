@@ -47,6 +47,14 @@ export async function runHealthyEditing(
   const saveCompletion = new Promise<void>((resolve) => {
     completeSave = resolve;
   });
+  const permitted = {
+    label: "Synthetic permitted licence",
+    value: { status: "permitted" as const, reference: null },
+  };
+  const unknown = {
+    label: "Synthetic unknown licence",
+    value: { status: "unknown" as const, reference: null },
+  };
   const admission = (): PlaceEditAdmission => ({
     record,
     guards: supplied.guards,
@@ -54,12 +62,10 @@ export async function runHealthyEditing(
     attachmentPolicy: {
       contentTypes: ["text/plain"],
       maximumBytes: 1024,
-      licenses: [
-        {
-          label: "Synthetic permitted licence",
-          value: { status: "permitted", reference: null },
-        },
-      ],
+      licenses:
+        record.revision === supplied.record.revision
+          ? [permitted, unknown]
+          : [unknown, permitted],
     },
   });
   const editing: AtlasEditingClient = {
@@ -186,6 +192,17 @@ export async function runHealthyEditing(
       section && section.querySelector("h2") === document.activeElement,
       "Scoped editor and heading focus",
     );
+    check(
+      !section.textContent?.includes("Loading Atlas information…"),
+      "Successful opening clears loading announcement",
+    );
+    const initialLicense =
+      section.querySelector<HTMLSelectElement>('[name="license"]');
+    check(initialLicense, "Approved licence selector available");
+    await act(async () => {
+      initialLicense.value = "0";
+      initialLicense.dispatchEvent(new Event("change", { bubbles: true }));
+    });
     const form = section.querySelector<HTMLFormElement>(
       'form[aria-label="Place classification"]',
     );
@@ -222,6 +239,10 @@ export async function runHealthyEditing(
       form.querySelector<HTMLSelectElement>("select")?.value === "site",
       "Fresh canonical classification retained",
     );
+    check(
+      initialLicense.value === "",
+      "Fresh admission resets licence choice after normal policy reorder",
+    );
     checks.push(
       "classification submit: canonical wire3, guards, immutable fields, busy state and fresh view/admission",
     );
@@ -247,7 +268,10 @@ export async function runHealthyEditing(
       check(statement && reasonInput && license, "Attachment fields");
       statement.value = "Synthetic owner note";
       reasonInput.value = "Attach example evidence";
-      license.value = "0";
+      await act(async () => {
+        license.value = "1";
+        license.dispatchEvent(new Event("change", { bubbles: true }));
+      });
       await act(async () =>
         upload.dispatchEvent(
           new Event("submit", { bubbles: true, cancelable: true }),
@@ -271,6 +295,13 @@ export async function runHealthyEditing(
     );
     checks.push(
       "owned attachment intent: file/licence/evidence, fresh guards, host receipt and canonical refresh",
+    );
+    const close = button("Close");
+    close.focus();
+    await act(async () => close.click());
+    check(
+      document.activeElement === button("Edit Atlas place"),
+      "Close restores opener focus after commit",
     );
   } finally {
     await act(async () => root.unmount());

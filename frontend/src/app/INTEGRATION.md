@@ -119,6 +119,11 @@ added. Frozen payloads contain no alias/mobility write fields or commands, so th
 controls were not invented. Geometry, wiring, inventory CRUD and other unsupported
 actions remain outside this increment. This does not complete all editing flows.
 
+Review identified a native mutation reason limit of 1024 while the wire3 request
+schema and current forms allow 4096. Root must reconcile/advertise the admitted
+native limit before enabling the bridge, or explicitly change its supported
+contract. Preserve the full submitted reason; never silently truncate it to fit.
+
 `editing.examples.tsx` adds two ordinary React form groups with typed fake host
 ports: classification envelope/shared schema/current guards/preserved fields/busy
 state/canonical refresh; and explicit owned-file/licence/evidence intent/fresh
