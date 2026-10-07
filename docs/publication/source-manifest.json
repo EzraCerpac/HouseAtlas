@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b2f1fd5b060f102e1db26d7d02814d40e668e29b33b6134d8f4559a7487d2a17",
+  "sourceDigestSha256": "d149c84d93dd52b89ffca3ce0d2924c606151262fff90ace21d08999e73d713f",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -77,15 +77,15 @@
     {
       "path": "Cargo.lock",
       "mode": "100644",
-      "bytes": 85015,
-      "sha256": "f3815a570c6c9db04a16de9830c81024da8238208aeb44304a7234eafb2b7822",
+      "bytes": 79621,
+      "sha256": "32c5ec93227d8bdd550cd1c2211792cca25498550f24093cc3e60a9bf0db305e",
       "owner": "core-integration"
     },
     {
       "path": "Cargo.toml",
       "mode": "100644",
-      "bytes": 2015,
-      "sha256": "f000bfdbe6afd4ec5fcee2cfb3e9abb58a789b39e5579c59186d4fd1a459f4ee",
+      "bytes": 2127,
+      "sha256": "c8c1391fd49b09753016edef6d45c9305173f6a78b7118f3cb5375f4eee631c3",
       "owner": "core-integration"
     },
     {
@@ -245,8 +245,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 2029,
-      "sha256": "ba37ed97d52f2197786cfbce426ddd773bbfe861b514999de85ee2d9655ee6fb",
+      "bytes": 2036,
+      "sha256": "8e232b8dfaee5c2a51cba292f538182dd8a90914d16db3cc79e5f90f7a0a1765",
       "owner": "core-integration"
     },
     {
@@ -861,9 +861,51 @@
     {
       "path": "backend/src/credential_boundary/README.md",
       "mode": "100644",
-      "bytes": 4530,
-      "sha256": "9c8c1a4bf06ea2b3e9180161643e45d5e4cc174f47d30b662b7ee94b84561756",
+      "bytes": 7248,
+      "sha256": "a547482216f1c9856f7e0508a60c41ceb38c55341a92ac228ad7c9bd18b77f39",
       "owner": "ai"
+    },
+    {
+      "path": "backend/src/credential_boundary/authority.rs",
+      "mode": "100644",
+      "owner": "ai",
+      "bytes": 2425,
+      "sha256": "8f5150781f1d3e9bf9893b80aece9e9230308442c5b24f9d2a837437452b51fc"
+    },
+    {
+      "path": "backend/src/credential_boundary/boundary.rs",
+      "mode": "100644",
+      "owner": "ai",
+      "bytes": 16684,
+      "sha256": "f6a093143e34190531a53ddee3eaf3cc45018f3e5998f8e7cad6e1eb3e64ee8d"
+    },
+    {
+      "path": "backend/src/credential_boundary/crypto.rs",
+      "mode": "100644",
+      "owner": "ai",
+      "bytes": 2759,
+      "sha256": "95ae359537fa3f46b941b89919873d61e3671f9717d78dcd901c8e04a835f954"
+    },
+    {
+      "path": "backend/src/credential_boundary/encrypted_healthy.rs",
+      "mode": "100644",
+      "owner": "ai",
+      "bytes": 13766,
+      "sha256": "2b754feb6e97029146421038b4299ae6002a8a509318839f19453d584e2a2efe"
+    },
+    {
+      "path": "backend/src/credential_boundary/filesystem.rs",
+      "mode": "100644",
+      "owner": "ai",
+      "bytes": 11836,
+      "sha256": "b8fd1fbb0d8df2639cb56f4e3da208218c622a3862470a8d1ef9af59f47bc243"
+    },
+    {
+      "path": "backend/src/credential_boundary/filesystem_unavailable.rs",
+      "mode": "100644",
+      "owner": "ai",
+      "bytes": 835,
+      "sha256": "73a63e4d7d914544ae5d0a89ed5ea03bd64edd85185a2583546d2d5a36b74b3f"
     },
     {
       "path": "backend/src/credential_boundary/healthy.rs",
@@ -873,17 +915,31 @@
       "owner": "ai"
     },
     {
+      "path": "backend/src/credential_boundary/keys.rs",
+      "mode": "100644",
+      "owner": "ai",
+      "bytes": 3758,
+      "sha256": "88baf83c59e2866a67cce36e8a52c5d9cb2b6be94cef86f7bccf721ff77127e8"
+    },
+    {
+      "path": "backend/src/credential_boundary/material.rs",
+      "mode": "100644",
+      "owner": "ai",
+      "bytes": 1964,
+      "sha256": "f816146c4a3e03d2407f403e21db2781eb1b41a41eedbed2d4921f43eedaa1b6"
+    },
+    {
       "path": "backend/src/credential_boundary/mod.rs",
       "mode": "100644",
-      "bytes": 228,
-      "sha256": "113252943ffbb610961c8cc3244518fa578868340c44271e420e9de0cab078f4",
+      "bytes": 429,
+      "sha256": "5af1af5eba0d9bb9fd881734af68349d7e6147909fd406ef399deb7fd70246df",
       "owner": "ai"
     },
     {
       "path": "backend/src/credential_boundary/record.rs",
       "mode": "100644",
-      "bytes": 17245,
-      "sha256": "024fd1832a2b9caf16e95c76cc240dcf5157360f482db0c543282179c7348e94",
+      "bytes": 17359,
+      "sha256": "75f826b30444a3706bb29c575404ce0c2c589fa8bec2385bfc9d6f1b35945303",
       "owner": "ai"
     },
     {
@@ -980,22 +1036,43 @@
     {
       "path": "backend/src/domain/stock/README.md",
       "mode": "100644",
-      "bytes": 16299,
-      "sha256": "935272fadda1f73071902ce05996fbe75e6e92944da6582ce172f4f917d105bf",
+      "bytes": 16739,
+      "sha256": "13f5bbd25b9f68044b20cc767e590c3bd7b53adb90f6cf0b5f53d25d2f02acb7",
       "owner": "domain"
     },
     {
       "path": "backend/src/domain/stock/atlas_commands.rs",
       "mode": "100644",
-      "bytes": 11599,
-      "sha256": "25a358577c9ce7a8c46446a2b1acad8e3a4f2d928a9eb237bbe676869a531b66",
+      "bytes": 13372,
+      "sha256": "07f868e73f64f3f77788e80811577c7febe9ca0427942af2273ff660099dd86b",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/atlas_downloads.rs",
+      "mode": "100644",
+      "bytes": 18224,
+      "sha256": "2875d62c2c985365e5ae67f7cd5d5fe6d242543aaf526b5907e9047381f84245",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/atlas_lists.md",
+      "mode": "100644",
+      "bytes": 6159,
+      "sha256": "7cdbef78f68f2b2cb46224723e5342f059045e15d45f00faf65464f14f7bd2ee",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/atlas_lists.rs",
+      "mode": "100644",
+      "bytes": 9659,
+      "sha256": "4e5719fd5d354b47ed4dae8897a212e9e02fcacee39ed89c5c4c697304aea985",
       "owner": "domain"
     },
     {
       "path": "backend/src/domain/stock/atlas_reads.rs",
       "mode": "100644",
-      "bytes": 7512,
-      "sha256": "ed8cff1bca47311c005e4fed3b180ac0ad48290386eacdf638b8345364158163",
+      "bytes": 13064,
+      "sha256": "e3db486ae28f19526bae7c0ec03a8428c4dd081626ead7f51383b554d3e2ea09",
       "owner": "domain"
     },
     {
@@ -1020,10 +1097,38 @@
       "owner": "domain"
     },
     {
+      "path": "backend/src/domain/stock/derived_atlas_commands.rs",
+      "mode": "100644",
+      "bytes": 10390,
+      "sha256": "d630f2ade8b1873016dec457d4411b7e5b31f483785625683d72a7312c91e16e",
+      "owner": "domain"
+    },
+    {
       "path": "backend/src/domain/stock/digest.rs",
       "mode": "100644",
       "bytes": 3171,
       "sha256": "ccae1bccf415e062226d01b7d898244eaa8ba327a48fabd45b66d49f05b95bfd",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/examples/atlas_download_healthy.rs",
+      "mode": "100644",
+      "bytes": 11468,
+      "sha256": "55579dc97808942bb50632d502596f682f1be6d7a488ab4bf8c57c191a425181",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/examples/atlas_lists_healthy.rs",
+      "mode": "100644",
+      "bytes": 24720,
+      "sha256": "da277dce2521e9a7597c8d99ef6fe667ad8c5e7688f5189f55e1eb24700b4567",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/examples/atlas_mappings_healthy.rs",
+      "mode": "100644",
+      "bytes": 9489,
+      "sha256": "bff1f50880efc94ea88304b6a3469dc8316883d86f7571ce3b68390e44123503",
       "owner": "domain"
     },
     {
@@ -1078,8 +1183,8 @@
     {
       "path": "backend/src/domain/stock/mod.rs",
       "mode": "100644",
-      "bytes": 1768,
-      "sha256": "5e86511433ef95832ff7c88a3b8e86c162e666c4324698d984ea9b1679c0c33b",
+      "bytes": 1921,
+      "sha256": "04f4ecab5221327a62d458c9e8fd941317dc39a74cae5dc7104472af348d6593",
       "owner": "domain"
     },
     {
@@ -1143,6 +1248,13 @@
       "mode": "100644",
       "bytes": 2947,
       "sha256": "93a6265262ed36f0dfc6b439069720462adde15693618bae19fcd3068b018d5e",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/service_integration.md",
+      "mode": "100644",
+      "bytes": 5706,
+      "sha256": "b47935b846afff3f182e881beae11952dd6395f9166dd8324b2cde424671d1bc",
       "owner": "domain"
     },
     {
@@ -2961,8 +3073,8 @@
     {
       "path": "docs/rust-integration/ai-host-integration.md",
       "mode": "100644",
-      "bytes": 3211,
-      "sha256": "443fe05753c3faf8b6083be7b213c9af2efacd54c87248cf23ad6112e3f859aa",
+      "bytes": 3215,
+      "sha256": "aa062c32140e3d255e5ba9c448a9680cde36db1a69d2a9a066e1da678fd90fa0",
       "owner": "core-integration"
     },
     {
@@ -2975,8 +3087,8 @@
     {
       "path": "docs/rust-integration/credential-platform.md",
       "mode": "100644",
-      "bytes": 1524,
-      "sha256": "41b8b07edd1d61850365862624a2fa2c96f1c922ff5f520d8a638edf043e4caa",
+      "bytes": 1846,
+      "sha256": "9961b3432406085d8654ad3ea2d65709ea3fccd028171c54128a0438a6ba9a6f",
       "owner": "core-integration"
     },
     {

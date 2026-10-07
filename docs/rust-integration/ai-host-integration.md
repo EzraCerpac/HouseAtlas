@@ -25,11 +25,11 @@ separately in private evidence, with no acceptance claim.
 
 ## Credential prerequisites
 
-The composed record codec is plaintext only. Dependency selection and source
-compilation do not establish an encrypted store. The concrete OS-backed encrypted
-boundary, exclusive original registration lease, authenticated complete record,
-atomic persistence, original binding/cancellation and trusted clock remain
-required. See [credential platform](credential-platform.md). Credential-free
+The composed native-key encrypted boundary preserves the complete private
+record, exclusive original registration lease and authenticated atomic
+persistence. Compilation does not mount or provision it. Original host
+proof/stop-use/final fence, first-record trusted enrollment and core reconnect
+binding remain required. See [credential platform](credential-platform.md). Credential-free
 cached display metadata must remain synchronous and perform no lease or I/O.
 
 ## Verification and remaining inputs
@@ -41,8 +41,8 @@ AI protocol, credential, enrollment, inference or cancellation fixture. Healthy
 examples containing synthetic authority peers are compilation inputs only.
 
 Source checks do not qualify an operational AI slice. Genuine enrollment,
-encrypted credentials, model/catalog, canonical continuation and trusted human
-approval remain missing. Admission is durably recorded before model selection. A selection failure retains
+mounted encrypted credentials, model/catalog, canonical continuation and trusted
+human approval remain missing. Admission is durably recorded before model selection. A selection failure retains
 the original request correlation, typed reason and unknown usage. Prelaunch
 selection failures retain terminal lifecycle receipts; local Stopped outcomes
 release the browser slot while preserving provider uncertainty. Exact integrated

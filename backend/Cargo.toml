@@ -45,7 +45,7 @@ ring.workspace = true
 zeroize.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
-keyring.workspace = true
+secret-service.workspace = true
 
 [dev-dependencies]
 tower.workspace = true

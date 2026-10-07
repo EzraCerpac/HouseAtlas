@@ -16,6 +16,7 @@ use crate::ai::{
     },
 };
 use serde::{Deserialize, Deserializer, Serialize};
+use zeroize::Zeroize;
 
 const VERSION: u8 = 1;
 const MAX_BYTES: usize = 4 * 1024 * 1024;
@@ -39,6 +40,12 @@ impl RecordPlaintext {
     /// Supply solely to the trusted authenticated encryption adapter.
     pub fn expose_for_encryption(&self) -> &[u8] {
         &self.0
+    }
+}
+
+impl Drop for RecordPlaintext {
+    fn drop(&mut self) {
+        self.0.zeroize();
     }
 }
 

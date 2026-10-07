@@ -4,10 +4,13 @@
 //! to the actual Media owner.
 
 mod atlas_commands;
+mod atlas_downloads;
+mod atlas_lists;
 mod atlas_reads;
 mod atlas_results;
 mod attachment_measurement;
 mod catalog;
+mod derived_atlas_commands;
 mod digest;
 mod existing_asset_attachment;
 mod native_atlas_commands;
@@ -22,10 +25,13 @@ mod service;
 mod staged_atlas_commands;
 
 pub use atlas_commands::*;
+pub use atlas_downloads::*;
+pub use atlas_lists::*;
 pub use atlas_reads::*;
 pub use atlas_results::*;
 pub use attachment_measurement::*;
 pub use catalog::*;
+pub use derived_atlas_commands::*;
 pub use digest::*;
 pub use existing_asset_attachment::*;
 pub use native_atlas_commands::*;
