@@ -89,8 +89,8 @@ permits one derivation at a time per mutable boundary instance.
 
 Provisioning, membership/source administration, user-session revocation and
 `invalidate_all_sessions` are trusted local persistence seams only; no routes,
-account bootstrap or real account grants are supplied. File-backed opens use
-SQLite NOFOLLOW and mode 0600 on Unix. Restoring an old database requires the
+account bootstrap or real account grants are supplied. Normal file-backed opens
+use SQLite NOFOLLOW and mode 0600 on Unix. Restoring an old database requires the
 recovery owner's explicit epoch invalidation; restoration is not self-detecting.
 
 `AccessBoundary::open_existing(path, config)` is the strict recovery peer for
@@ -109,6 +109,54 @@ same-schema file. Trusted selection, path pins, excluded writers and recovery
 ordering remain caller-owned. No hostile replacement/race qualification is
 claimed. A positive persistent checkpoint verifies byte-preserving strict reopen
 and subsequent authorization using an existing synthetic session.
+
+## Provider lifecycle peer
+
+`LifecyclePolicy` is empty by default and becomes immutable when the boundary is
+constructed. Trusted startup configuration may supply `LifecycleRule::new`
+approvals naming the user ID, actor ID, exact full `SourceRegistration`, separate
+`ConfigureSource` or `PublishCache` capability, and principal issuance `Action`.
+Provider registry metadata and ordinary role/read permission supply no approval.
+No real owner rules are supplied here.
+
+Configuration additionally requires an existing CSRF-checked mutation principal
+with editor membership. Publication may use a read-issued principal only when
+that exact subject/action/registration/operation is independently approved. The
+policy constructor is an internal host seam, never a request deserializer.
+
+The access-owned methods fit PR #25's `TrustedLifecycleAuthority` contract:
+
+| Consumer operation | Access method |
+| --- | --- |
+| Capture | `access.capture_lifecycle(principal, registration, capability)` |
+| Revalidate | `access.revalidate_lifecycle(principal, grant, registration, capability)` |
+| Revalidate held fence | `guard.revalidate_lifecycle(grant, registration, capability)` |
+| Install | `access.install_source_authorized(principal, grant, registration)` |
+| Synchronous fence | `access.with_lifecycle_authorization(principal, grant, registration, capability, operation)` |
+
+The small host adapter maps the two capability enums explicitly and converts
+reference-returning checks with `.map(|_| ())`. `LifecycleGrant` is opaque,
+nonserializable and bound to full genuine principal provenance, boundary
+instance, approved registration and named capability. Publication pins the
+original enabled partition version. Configuration does not require an existing
+or readable source; installation checks and writes inside the same access
+transaction using the existing registration rules with quarantine preserved.
+
+The dedicated fence borrows the exact supplied principal. It validates the
+original lifecycle grant at entry and after the synchronous callback without
+issuing replacement authority. Previously captured entity/partition grants must
+also be checked through that guard for disclosure; publication authority adds
+no entities. Release the access fence before provider I/O. Storage must perform
+its own checks immediately before its COMMIT: the final access check cannot
+undo a separate committed storage transaction.
+
+The healthy configured example uses explicit synthetic startup rules, creates
+and replaces a registration, then publishes disposable metadata while checking
+the original lifecycle/entity/partition handles. It is not provider generation
+completion or AT07 storage-fence qualification. The exact PR #25 trait also
+compiles against a thin external adapter. The host adapter, original request
+grant handoff, scoped methods on the actual store, and access-side quarantine
+orchestration remain consumer-owned integration inputs.
 
 ## Dependencies for AT51
 
@@ -138,10 +186,11 @@ the router supplies requestId and null currentRevision.
 
 ## Healthy checkpoints
 
-`healthy.rs` contains three positive synthetic checkpoints: viewer
+`healthy.rs` contains four positive synthetic checkpoints: viewer
 login/read/history/manifest and session-info/rotation/logout; editor
 CSRF-issued principal and current source/empty-partition checks around a real
-disposable SQLite commit; and file-backed session persistence/reopen/mode.
+disposable SQLite commit; file-backed session persistence/strict reopen/mode;
+and explicitly configured lifecycle registration/publication with retained grants.
 Identities, origin and clock reuse `packages/access/test/fixtures.mjs`.
 The empty recorded history fixture is reused directly from
 `packages/contracts/history/fixtures/empty.audit-array.json`; it remains a
@@ -169,7 +218,7 @@ SQLite/scrypt work without blocking its async executor.
 
 AT07/AT51 must reconcile the real transaction callbacks and source closure
 precommit checks, including historical retained grants. Media resolution,
-internal source publication tokens and later admission witnesses belong to
+provider generation/fence orchestration and later admission witnesses belong to
 their owners. The public tree explicitly holds new source-presence admissions
 pending an atomic generation/epoch witness; this component supplies none.
 

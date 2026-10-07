@@ -7,6 +7,7 @@ mod boundary;
 mod credentials;
 mod error;
 mod existing;
+mod lifecycle;
 mod source;
 mod store;
 mod types;
@@ -14,6 +15,7 @@ mod types;
 pub use boundary::{AccessBoundary, AccessConfig, AccessLimits, TransactionAuthorization};
 pub use credentials::{PasswordVerifier, hash_password};
 pub use error::{AccessError, AccessResult};
+pub use lifecycle::{LifecycleCapability, LifecycleGrant, LifecyclePolicy, LifecycleRule};
 pub use types::{
     Action, CanonicalId, Capability, Method, PartitionGrant, PartitionMode, Principal,
     PrincipalView, RequestEvidence, Role, Scope, SessionInfo, SessionReceipt, SourceGrant,
