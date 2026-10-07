@@ -110,6 +110,10 @@ impl TrustedHomeBoxSource {
             .map_err(|_| ConfigError::InvalidEndpoint)
     }
 
+    pub(crate) fn max_filtered_parents(&self) -> usize {
+        self.limits.max_page_size
+    }
+
     /// The host supplies an owner-approved credential provider. Its Send-safe
     /// authority bridge must retain original opaque grants; editor membership
     /// and this configuration alone cannot authorize credential release.

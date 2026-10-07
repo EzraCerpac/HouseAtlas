@@ -1,17 +1,19 @@
 //! Scoped cached HomeBox reads for the root's existing authorized-read wrapper.
 use crate::{
-    app::{Core, RequestPrincipal},
+    access as a,
+    app::{Access, Core, RequestPrincipal},
     config::providers::homebox::TrustedHomeBoxSource,
     contracts,
     domain::HomeSummary,
     http::contracts::NativeContracts,
     http::{HttpFailure, failure},
-    lifecycle::providers::homebox_refresh::{HostError, ProviderAuthorityPort, ProviderPhase},
+    lifecycle::providers::homebox_refresh::HostError,
     providers::homebox::read,
     storage::{self, Contract},
 };
 use axum::http::StatusCode;
 use serde_json::{Value, json};
+use std::collections::BTreeSet;
 
 /// Invoke inside authorized_read, which owns request admission and the final
 /// original-principal release. Reading cache never starts a provider operation.
@@ -120,27 +122,92 @@ pub(in crate::http) fn cached_partition(
 /// The root runs this local future with the original principal and supplies the
 /// owner-approved credential bridge. This function has no Store/publication
 /// argument: a filtered view cannot replace or freshen the complete cache.
-pub async fn filtered_view<
-    A: ProviderAuthorityPort,
-    P: read::CredentialProvider,
-    K: read::Clock,
->(
-    authority: &mut A,
+/// Parent grants are captured before GETs; newly observed entity references get
+/// initial captures before disclosure. Existing handles are never replaced, and
+/// a sealed request denies unknown references. No access guard survives I/O.
+pub async fn filtered_view<P: read::CredentialProvider, K: read::Clock>(
+    access: &Access,
     principal: &RequestPrincipal,
     source: &TrustedHomeBoxSource,
     parent_ids: &[read::Uuid],
     credentials: P,
     clock: K,
 ) -> Result<read::FilteredView, HostError> {
-    authority.revalidate(principal, source, ProviderPhase::Fetch)?;
+    let mut parents = BTreeSet::new();
+    for id in parent_ids {
+        parents.insert(id.clone());
+        if parents.len() > source.max_filtered_parents() {
+            return Err(HostError::InvalidView);
+        }
+    }
+    if parents.is_empty() {
+        return Err(HostError::InvalidView);
+    }
+    let parents = parents.into_iter().collect::<Vec<_>>();
+    let partition: a::SourcePartition = serde_json::from_value(
+        serde_json::to_value(source.partition()).map_err(|_| HostError::Authority)?,
+    )
+    .map_err(|_| HostError::Authority)?;
+    {
+        let access = access.lock().map_err(|_| HostError::Authority)?;
+        principal
+            .capture_partition(&access, &partition)
+            .map_err(|_| HostError::Authority)?;
+        for id in &parents {
+            principal
+                .capture_source(&access, &entity_reference(&partition, id))
+                .map_err(|_| HostError::Authority)?;
+        }
+    }
     let mut reader = source
         .reader(credentials, clock)
         .map_err(HostError::Configuration)?;
-    let view = reader
-        .fetch_view(parent_ids)
-        .await
-        .map_err(|failed| HostError::Read(failed.error.code))?;
-    authority.authorize_view(principal, source, &view)?;
-    authority.revalidate(principal, source, ProviderPhase::Release)?;
+    let fetched = reader.fetch_view(&parents).await;
+    let access = access.lock().map_err(|_| HostError::Authority)?;
+    principal
+        .release(&access)
+        .map_err(|_| HostError::Authority)?;
+    let view = fetched.map_err(|failed| HostError::FilteredRead(Box::new(failed)))?;
+    for row in &view.homebox_entities {
+        let reference: a::SourceRef = serde_json::from_value(json!({
+            "workspaceId": row.workspace_id,
+            "homeId": row.home_id,
+            "key": row.source,
+        }))
+        .map_err(|_| HostError::Authority)?;
+        principal
+            .capture_source(&access, &reference)
+            .map_err(|_| HostError::Authority)?;
+        if let Some(parent) = &row.entity.parent {
+            principal
+                .capture_source(&access, &entity_reference(&partition, &parent.id))
+                .map_err(|_| HostError::Authority)?;
+        }
+        for link in &row.native_links {
+            let reference: a::SourceRef = serde_json::from_value(
+                serde_json::to_value(&link.entity).map_err(|_| HostError::Authority)?,
+            )
+            .map_err(|_| HostError::Authority)?;
+            principal
+                .capture_source(&access, &reference)
+                .map_err(|_| HostError::Authority)?;
+        }
+    }
+    principal
+        .release(&access)
+        .map_err(|_| HostError::Authority)?;
     Ok(view)
+}
+
+fn entity_reference(partition: &a::SourcePartition, id: &read::Uuid) -> a::SourceRef {
+    a::SourceRef {
+        workspace_id: partition.workspace_id.clone(),
+        home_id: partition.home_id.clone(),
+        key: a::SourceKey {
+            source_instance_id: partition.source_instance_id.clone(),
+            collection_id: partition.collection_id.clone(),
+            source_kind: a::SourceKind::HomeboxEntity,
+            external_id: id.as_str().into(),
+        },
+    }
 }
