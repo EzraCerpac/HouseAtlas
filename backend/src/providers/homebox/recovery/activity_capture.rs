@@ -165,26 +165,14 @@ impl<D: n::StockDispatchPort + Sync> n::StockDispatchPort for CapturingStockDisp
                 && r.operation().plan.as_ref() == Some(plan)
                 && &r.operation().captured_authority == authority
         }) else {
-            // The accepted port has no unavailable variant. Signal unresolved
-            // activity with an uncorrelated, response-less receipt; never claim
-            // no invocation for a busy/ambiguous original operation. This is
-            // NOT captured or qualified as native proof. The native reducer
-            // preserves its unproven physical hold, or the original owner may
-            // refuse the unqualified fact commit entirely.
-            return n::NativeDispatch::Invoked(n::DispatchReceipt {
-                operation_id: permit.operation_id,
-                plan_digest: permit.plan_digest.clone(),
-                context: n::Context {
-                    workspace_id: uuid::Uuid::nil(),
-                    home_id: uuid::Uuid::nil(),
-                },
-                source_instance_id: plan.readback.target.source_instance_id,
-                collection_id: plan.readback.target.collection_id,
-                response: None,
-                remote_activity: n::RemoteActivity::end_unproven(),
-            });
+            // The accepted writer preserves admission/holds and returns before
+            // every fact commit or readback on this no-proof outcome. No inner
+            // call, receipt, noninvocation claim or pending raw proof is made.
+            return n::NativeDispatch::Unavailable;
         };
         let result = self.inner.dispatch(permit, plan, authority).await;
+        // Even an actual inner Unavailable stays pending and blocks another
+        // invocation. It cannot match a fact successor or encode as proof.
         self.capture.complete(
             before,
             RawNativeCut::Dispatch {

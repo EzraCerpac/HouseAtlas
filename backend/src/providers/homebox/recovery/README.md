@@ -1,7 +1,12 @@
 # Retained HomeBox stock evidence
 
 For durable native cut bytes and evidence-only restoration, use the
-[authorized archive `/4` codec and adapter](activity-archive-v4.md).
+[authorized archive `/4` codec and adapter](activity-archive-v4.md). The current
+writer source marker is published PR103 `5281eb1857a90c2279fb2998b3c7d0e2e41ec9b6`;
+its no-proof Unavailable result cannot become a retained native receipt or
+noninvocation proof. Earlier version-one/two/three source and check records
+below remain historical inputs. Publication and compiler success do not grant
+final integration acceptance or live authority.
 
 For actual asynchronous profile6 activity, use the independently retained
 [native activity `/3` carrier and adapter](activity-v3.md). Jobs `/1` and `/2`

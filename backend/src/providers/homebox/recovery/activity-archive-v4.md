@@ -184,25 +184,39 @@ required writer bridge/recovery/domain declarations. No private retained-record
 constructor, live producer constructor, SQL or copied storage codec is exposed.
 This exact seam was sent to the original Storage owner and parent handoff.
 
-Final source composition pins original-owner Storage71
+The compiler composition pins original-owner Storage71
 `48e856068f8351b9256ef7912fc93619c259e79f`, actual writer
-`c784be5776b614f8f0bb225fcb5355ecb9e90e0d`, main dependencies/media/schema/lock
+`5281eb1857a90c2279fb2998b3c7d0e2e41ec9b6`, main dependencies/media/schema/lock
 `87ad201140edb7b3afdb4396095a320c2926eafe`, and original-owner corrected domain
 `fd72542686112e594d9a6f63b4782a62b5d9e6ef`. The original Storage6e54/8a171a/2befc971 sources and earlier codec inputs
 remain separately retained outside Git. The codec, baseline and retention blobs
 are unchanged from 2befc971; recovery now requires the queued Jobs callback.
 The archive source marker selects 48e8560 explicitly. Earlier packets and their
 source-specific validation records are preserved, not relabeled as this input.
+The writer marker selects published PR103 source5281eb18 explicitly. Only its
+ports.rs and workflow.rs differ from original c784be57; all other stock writer
+bytes are unchanged. Original c784 sources, markers, packets, commits and check
+records remain preserved outside Git. Published peer source and these compiler
+checks do not establish completed peer review, integration acceptance, native
+qualification or live authority; the integrator owns final source adoption.
 
 ## PR78 review and selected healthy evidence
 
 PR78 automatic findings 4207869490 and 4207869506 are addressed in the successor.
-An ambiguous capture cannot return the positive `NeverInvoked` claim. The
-accepted native dispatch enum has no unavailable variant, so the gate returns
-an explicitly uncorrelated response-less end-unproven signal; it is not captured
-or qualified as native proof. The native reducer preserves the unproven physical
-hold, or the original evidence owner refuses its unqualified fact commit. No
-receipt, cleanup or noninvocation proof is inferred from contention/cancellation.
+PR88 P1 4209795626 is addressed against the original writer owner's published
+`NativeDispatch::Unavailable` API. A refused capture returns that no-proof
+outcome directly, without an inner call, fabricated receipt, `complete()` or
+positive `NeverInvoked` claim. The writer preserves original admission and every
+physical/liability hold, refreshes original disclosure authority for its
+sanitized error, and returns before any fact persistence, readback or retry.
+No dispatch event can arise from the old uncorrelated receipt fallback, which
+has been removed. If the actual inner port returns unavailable, its typed result
+stays pending behind the invocation barrier; it cannot match a fact successor
+or qualify an archive. The closed proof wire keeps only actual Invoked receipts
+and genuine positive NeverInvoked evidence. Its now-fallible original-result
+conversion refuses Unavailable instead of serializing it as proof. These
+refusal/ambiguity paths are source-inspected and compiled only; all held
+refusal/concurrency/poison controls remain unrun.
 
 Readback compatibility now follows the accepted workflow's actor/physical
 binding rule. The actual refreshed authority is captured and encoded unchanged;

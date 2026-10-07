@@ -1,5 +1,5 @@
 //! Closed original-owner archive wire data; these rows are never grants.
-use super::{activity_capture::*, incompatible};
+use super::{activity_capture::*, incompatible, unavailable};
 use crate::{providers::homebox::write::stock as n, storage as s};
 use s::retained_native_codec_bridge as peer;
 use serde::{Deserialize, Serialize};
@@ -239,7 +239,7 @@ impl NativeRow {
                 permit: peer::encode_permit(permit)?,
                 plan: plan.clone(),
                 authority: authority.into(),
-                result: result.into(),
+                result: DispatchRow::try_from(result)?,
             },
             RawNativeCut::Observation {
                 plan,
@@ -298,11 +298,13 @@ pub(super) enum DispatchRow {
     NeverInvoked,
     Invoked(ReceiptRow),
 }
-impl From<&n::NativeDispatch> for DispatchRow {
-    fn from(v: &n::NativeDispatch) -> Self {
+impl TryFrom<&n::NativeDispatch> for DispatchRow {
+    type Error = s::Error;
+    fn try_from(v: &n::NativeDispatch) -> s::Result<Self> {
         match v {
-            n::NativeDispatch::NeverInvoked => Self::NeverInvoked,
-            n::NativeDispatch::Invoked(v) => Self::Invoked(v.into()),
+            n::NativeDispatch::Unavailable => Err(unavailable()),
+            n::NativeDispatch::NeverInvoked => Ok(Self::NeverInvoked),
+            n::NativeDispatch::Invoked(v) => Ok(Self::Invoked(v.into())),
         }
     }
 }
