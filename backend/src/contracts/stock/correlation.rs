@@ -83,8 +83,8 @@ pub struct StockResponse {
 }
 
 impl StockResponse {
-    /// Validate the request's exact output arm and all locally decidable wire
-    /// correlations. Batch roots require their ordered durable child envelopes;
+    /// Validate the stock error or request's exact output arm and all locally
+    /// decidable wire correlations. Batch roots require ordered durable child envelopes;
     /// non-batch responses require an empty child slice. This does no I/O.
     pub fn parse(
         validator: &StockValidation,
@@ -92,7 +92,12 @@ impl StockResponse {
         raw: Value,
         children: &[Value],
     ) -> StockResult<Self> {
-        validator.validate(&request.operation()?.output_schema, &raw)?;
+        let is_error = raw.get("code").is_some() && raw.get("commandId").is_none();
+        if is_error {
+            validator.validate("#/$defs/stockError", &raw)?;
+        } else {
+            validator.validate(&request.operation()?.output_schema, &raw)?;
+        }
         require(
             raw["requestId"] == request.request_id(),
             "requestId differs",
@@ -104,7 +109,6 @@ impl StockResponse {
             target: None,
             value: raw.clone(),
         }];
-        let is_error = raw.get("code").is_some() && raw.get("commandId").is_none();
         let mut child_responses = Vec::new();
         let (command_id, kind) = if is_error {
             require(children.is_empty(), "error response has child envelopes")?;
