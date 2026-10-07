@@ -79,6 +79,19 @@ trait ReadPort<P> {
 // ContractPort::validate resolves published recordRef/mutation/batchMutation.
 ```
 
+`native_storage::NativeScopedCommands::from_store(store, authorization)` binds
+the frozen command port to AT07's actual synchronous scoped authorizer methods.
+AT52 must construct it inside the existing access mutation callback with the
+original principal and retained grants. The native engine checks every phase
+using that same borrowed authorizer on its existing private connection; the
+adapter neither reenters the read fence nor rebinds the store's contract/runtime.
+The authorizer still must bind exact mutation context, phase and graph closure.
+When using the outer `Commands` service inside that callback, its `AccessPort`
+must also borrow the same guard; a mutex-backed global access adapter would
+reenter the held fence during the service's initial or final access checks.
+This frozen binding does not persist stock root/child intent or stock receipts;
+the actual atomic stock executor remains required for wire3 commands.
+
 Read models in `model.rs` are local projections and adapter values. Full schema
 and graph validation uses the existing published schema; these Rust structs do
 not replace that schema or constitute AT51 generated contracts. Record payloads

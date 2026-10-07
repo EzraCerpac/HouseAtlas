@@ -36,6 +36,96 @@ impl<'store, C: Contract, A: Authorization, R: Runtime> NativeStorage<'store, C,
     }
 }
 
+/// Frozen command binding to a borrowed native transaction authorizer.
+///
+/// AT52 constructs this inside its existing access mutation-authorization
+/// callback. The supplied B must retain the original principal/grants and check
+/// the native mutation context, phase and complete graph closure. This adapter
+/// issues no authority and calls no access/read adapter that could reenter the
+/// held fence. AT07 keeps its same private connection, contract, runtime and
+/// transaction engine; it invokes B throughout the existing phase checks.
+///
+/// This is only a frozen CommandPort. It cannot execute a stock plan with its
+/// required atomic original root/child envelopes, receipts or approval linkage.
+pub struct NativeScopedCommands<
+    'store,
+    'authorization,
+    C: Contract,
+    A: Authorization,
+    R: Runtime,
+    B: Authorization<Principal = A::Principal>,
+> {
+    store: &'store mut AtlasStore<C, A, R>,
+    authorization: &'authorization B,
+}
+
+impl<'store, 'authorization, C, A, R, B> NativeScopedCommands<'store, 'authorization, C, A, R, B>
+where
+    C: Contract,
+    A: Authorization,
+    R: Runtime,
+    B: Authorization<Principal = A::Principal>,
+{
+    pub fn from_store(
+        store: &'store mut AtlasStore<C, A, R>,
+        authorization: &'authorization B,
+    ) -> Self {
+        Self {
+            store,
+            authorization,
+        }
+    }
+}
+
+impl<C, A, R, B> CommandPort<A::Principal> for NativeScopedCommands<'_, '_, C, A, R, B>
+where
+    C: Contract,
+    A: Authorization,
+    R: Runtime,
+    B: Authorization<Principal = A::Principal>,
+{
+    fn execute(
+        &mut self,
+        principal: &A::Principal,
+        scope: &Scope,
+        target: &RecordRef,
+        command: &CanonicalMutation,
+    ) -> DomainResult<MutationResult> {
+        let native_scope = carrier(scope)?;
+        let native_target = carrier(target)?;
+        let result = self
+            .store
+            .execute_json_with_authorization(
+                self.authorization,
+                principal,
+                &native_scope,
+                &native_target,
+                command.wire(),
+            )
+            .map_err(native_error)?;
+        carrier(&result)
+    }
+
+    fn execute_batch(
+        &mut self,
+        principal: &A::Principal,
+        scope: &Scope,
+        batch: &CanonicalBatch,
+    ) -> DomainResult<BatchResult> {
+        let native_scope = carrier(scope)?;
+        let result = self
+            .store
+            .execute_batch_json_with_authorization(
+                self.authorization,
+                principal,
+                &native_scope,
+                batch.wire(),
+            )
+            .map_err(native_error)?;
+        carrier(&result)
+    }
+}
+
 impl<C: Contract, A: Authorization, R: Runtime> ReadPort<A::Principal>
     for NativeStorage<'_, C, A, R>
 {
