@@ -183,61 +183,87 @@ impl HostNetworkRuntime {
         n::validate_state(self.settings.source(), &state, Some(self.settings.review()))?;
         Ok(state)
     }
-    /// Initial genuine read capture. Native partition reads retain this exact
-    /// Store; sidecar loading never holds the access mutex or read transaction.
-    /// The caller moves any earlier original request grants, not DTO claims.
+    /// Initial genuine read capture from the owning canonical Core. No caller
+    /// Store can be paired with an independently supplied access issuer. Core
+    /// stays borrowed through all synchronous phases; access is released before
+    /// sidecar I/O and the held callbacks never reacquire the canonical mutex.
     pub fn read(
         &self,
-        store: &mut Store,
+        core: &Arc<Mutex<Core>>,
         access: Arc<NetworkAccess>,
         principal: crate::access::Principal,
         partition: crate::access::PartitionGrant,
         entities: Vec<crate::access::SourceGrant>,
         now: &str,
     ) -> Result<(n::NetworkFacet, Arc<OriginalNetworkDisclosure>)> {
-        let source = self.settings.configured_source().clone();
-        if partition.partition() != &source.partition()
-            || entities.len() > 10_000
-            || entities
-                .iter()
-                .any(|grant| !source.contains(grant.reference()))
-        {
-            return Err(wrong_scope().into());
-        }
-        let baseline = super::reads::read_partition(
-            store, &access, &principal, &source, &partition, &entities,
-        )
-        .map_err(n::NetworkPublicationError::Storage)?;
-        let cache: n::CacheMetadata = match &baseline.state.cache {
-            Some(cache) => serde_json::from_value(
-                serde_json::to_value(cache)
-                    .map_err(s::Error::from)
-                    .map_err(n::NetworkPublicationError::Storage)?,
+        with_core_store(core, &access, |store| {
+            let source = self.settings.configured_source().clone();
+            if partition.partition() != &source.partition()
+                || entities.len() > 10_000
+                || entities
+                    .iter()
+                    .any(|grant| !source.contains(grant.reference()))
+            {
+                return Err(wrong_scope().into());
+            }
+            let baseline = super::reads::read_partition(
+                store, &access, &principal, &source, &partition, &entities,
+            )
+            .map_err(n::NetworkPublicationError::Storage)?;
+            let cache: n::CacheMetadata = match &baseline.state.cache {
+                Some(cache) => serde_json::from_value(
+                    serde_json::to_value(cache)
+                        .map_err(s::Error::from)
+                        .map_err(n::NetworkPublicationError::Storage)?,
+                )
+                .map_err(s::Error::from)
+                .map_err(n::NetworkPublicationError::Storage)?,
+                None => n::RetainedState::empty(self.settings.source().scope.clone()).cache,
+            };
+            let relations: Vec<n::NetworkRelation> = serde_json::from_value(
+                serde_json::Value::Array(baseline.state.network_relations.clone()),
             )
             .map_err(s::Error::from)
-            .map_err(n::NetworkPublicationError::Storage)?,
-            None => n::RetainedState::empty(self.settings.source().scope.clone()).cache,
-        };
-        let relations: Vec<n::NetworkRelation> = serde_json::from_value(serde_json::Value::Array(
-            baseline.state.network_relations.clone(),
-        ))
-        .map_err(s::Error::from)
-        .map_err(n::NetworkPublicationError::Storage)?;
-        if !baseline.state.homebox_entities.is_empty() {
+            .map_err(n::NetworkPublicationError::Storage)?;
+            if !baseline.state.homebox_entities.is_empty() {
+                return Err(wrong_scope().into());
+            }
+            // Explicit filesystem phase outside every access borrow. The same
+            // Core/Store remains owned; canonical issuer replacement cannot race
+            // initial read, accepted generation capture and original release.
+            let retained = self.retained(&cache, &relations)?;
+            let lease = OriginalNetworkDisclosure::capture(
+                Arc::downgrade(core),
+                access.clone(),
+                principal,
+                source,
+                partition,
+                entities,
+                retained,
+                baseline,
+            )?;
+            // Stay inside this validated Core borrow; calling the public method
+            // here would reenter its mutex. Only supplied AT11 guards reach Store.
+            let facet = self.release_disclosure(store, &lease, now)?;
+            Ok((facet, lease))
+        })
+    }
+    /// Release from the exact owning Core and canonical issuer, using original
+    /// grants. This sends no transport request and captures no replacement grant.
+    pub fn disclose(
+        &self,
+        core: &Arc<Mutex<Core>>,
+        lease: &OriginalNetworkDisclosure,
+        now: &str,
+    ) -> Result<n::NetworkFacet> {
+        if !lease.belongs_to(core) {
             return Err(wrong_scope().into());
         }
-        // Explicit filesystem phase, outside every access borrow. Reopen checks
-        // the actual pointer, digest, complete source and exact native relations.
-        let retained = self.retained(&cache, &relations)?;
-        let lease = OriginalNetworkDisclosure::capture(
-            access, principal, source, partition, entities, retained, baseline,
-        )?;
-        let facet = self.disclose(store, &lease, now)?;
-        Ok((facet, lease))
+        with_core_store(core, &lease.access, |store| {
+            self.release_disclosure(store, lease, now)
+        })
     }
-    /// Release only through the actual same-store read and original AT11 guard.
-    /// This issues no transport request and does not reacquire any resource grant.
-    pub fn disclose(
+    fn release_disclosure(
         &self,
         store: &mut Store,
         lease: &OriginalNetworkDisclosure,
@@ -255,12 +281,23 @@ fn with_store<T>(
     access: &NetworkAccess,
     operation: impl FnOnce(&mut Store) -> s::Result<T>,
 ) -> Result<T> {
-    let mut core = core.try_lock().map_err(|_| storage_unavailable())?;
-    if !Arc::ptr_eq(access.shared().as_existing(), &core.access) {
+    with_core_store(core, access, |store| {
+        operation(store).map_err(n::NetworkPublicationError::Storage)
+    })
+}
+/// Check canonical identity before entering the supplied native Store operation.
+/// This guard owns the same Core/Store for the entire synchronous call.
+fn with_core_store<T>(
+    core: &Arc<Mutex<Core>>,
+    access: &NetworkAccess,
+    operation: impl FnOnce(&mut Store) -> Result<T>,
+) -> Result<T> {
+    let mut owner = core.try_lock().map_err(|_| storage_unavailable())?;
+    if !Arc::ptr_eq(access.shared().as_existing(), &owner.access) {
         return Err(wrong_scope().into());
     }
-    let store = core.store.get_mut().map_err(|_| storage_unavailable())?;
-    operation(store).map_err(n::NetworkPublicationError::Storage)
+    let store = owner.store.get_mut().map_err(|_| storage_unavailable())?;
+    operation(store)
 }
 fn unavailable() -> n::NetworkError {
     n::NetworkError::new(n::ErrorCode::Upstream)

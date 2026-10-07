@@ -5,15 +5,17 @@ use super::{
     disclosure::{GenerationMembership, generation_membership},
     grant_index::GrantIndex,
 };
+use crate::app::Core;
 use crate::{
     access as a, config::providers::registry::ConfiguredSource, providers::network as n,
     storage as s,
 };
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, Weak};
 
 /// No DTO issuer, raw constructor or grant replacement. Every resource handle
 /// was issued by AT11 with this genuine principal and original member grants.
 pub struct OriginalNetworkDisclosure {
+    owner: Weak<Mutex<Core>>,
     pub(super) access: Arc<NetworkAccess>,
     pub(super) principal: a::Principal,
     pub(super) source: Arc<ConfiguredSource>,
@@ -37,7 +39,15 @@ impl OriginalNetworkDisclosure {
     pub fn generation_id(&self) -> Option<&str> {
         self.retained.cache.generation_id.as_deref()
     }
+    pub(super) fn belongs_to(&self, core: &Arc<Mutex<Core>>) -> bool {
+        self.owner.ptr_eq(&Arc::downgrade(core))
+    }
     pub fn revalidate(&self) -> a::AccessResult<()> {
+        let core = self.owner.upgrade().ok_or(a::AccessError::Unavailable)?;
+        let owner = core.try_lock().map_err(|_| a::AccessError::Unavailable)?;
+        if !Arc::ptr_eq(self.access.shared().as_existing(), &owner.access) {
+            return Err(a::AccessError::Forbidden);
+        }
         self.access
             .lock()?
             .with_read_authorization(&self.principal, |guard| self.check_guard(guard))
@@ -62,7 +72,9 @@ impl OriginalNetworkDisclosure {
         }
         Ok(())
     }
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn capture(
+        owner: Weak<Mutex<Core>>,
         access: Arc<NetworkAccess>,
         principal: a::Principal,
         source: Arc<ConfiguredSource>,
@@ -141,6 +153,7 @@ impl OriginalNetworkDisclosure {
             .collect::<Result<Vec<_>, _>>()?;
         drop(boundary);
         Ok(Arc::new(Self {
+            owner,
             access,
             principal,
             source,

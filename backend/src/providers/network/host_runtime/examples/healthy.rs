@@ -376,20 +376,16 @@ async fn main() -> Result<(), Failure> {
             )?,
         );
     }
-    let (facet, disclosure) = {
-        let mut locked = core.try_lock().map_err(|_| "Core unexpectedly locked")?;
-        let same_store = locked.store.get_mut().map_err(|_| "Store poisoned")?;
-        runtime
-            .read(
-                same_store,
-                access.clone(),
-                viewer_principal,
-                viewer_partition,
-                viewer_entities,
-                "2026-01-02T12:00:01Z",
-            )
-            .map_err(publication_error)?
-    };
+    let (facet, disclosure) = runtime
+        .read(
+            &core,
+            access.clone(),
+            viewer_principal,
+            viewer_partition,
+            viewer_entities,
+            "2026-01-02T12:00:01Z",
+        )
+        .map_err(publication_error)?;
     disclosure.revalidate()?;
     assert_eq!(disclosure.link_grants().len(), 4);
     assert_eq!(disclosure.observation_grants().len(), 1);
@@ -463,16 +459,11 @@ async fn main() -> Result<(), Failure> {
         facet.observations[0].freshness,
         n::ObservationFreshness::Stale
     );
-    let released = {
-        let mut locked = core.try_lock().map_err(|_| "Core unexpectedly locked")?;
-        runtime
-            .disclose(
-                locked.store.get_mut().map_err(|_| "Store poisoned")?,
-                &disclosure,
-                "2026-01-02T12:00:01Z",
-            )
-            .map_err(publication_error)?
-    };
+    let owning_core_alias = core.clone();
+    assert!(Arc::ptr_eq(&core, &owning_core_alias));
+    let released = runtime
+        .disclose(&owning_core_alias, &disclosure, "2026-01-02T12:00:01Z")
+        .map_err(publication_error)?;
     assert_eq!(released, facet); // Same retained originals, no recapture or HTTP.
     let epoch_after: i64 = db.query_row(
         "SELECT epoch FROM cache_epochs WHERE source_instance_id=?1",
@@ -524,7 +515,7 @@ async fn main() -> Result<(), Failure> {
     sidecar.close()?;
     drop(core);
     println!(
-        "PASS healthy canonical Network: same Core/access/Store issuer, original principal before shared injection, accepted PR36 lease ABI; verified TLS inventory GET1, genuine AT11 original grants, same-store native publisher, epoch0->1, durable pointer/reopen, schema5; entities5/links4/relations4/observations1; genuine viewer link/observation capture and original-grant same-store rerelease; reads preserve epoch/reservations"
+        "PASS healthy canonical Network: same Core/access/Store issuer, original principal before shared injection, accepted PR36 lease ABI; verified TLS inventory GET1, genuine AT11 original grants, same-store native publisher, epoch0->1, durable pointer/reopen, schema5; entities5/links4/relations4/observations1; genuine viewer link/observation capture and original-grant same-Core/Store rerelease; canonical ownership checked before browse; reads preserve epoch/reservations"
     );
     Ok(())
 }
