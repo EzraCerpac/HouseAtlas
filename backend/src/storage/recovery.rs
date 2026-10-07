@@ -143,6 +143,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             &contract,
             &options,
             expected,
+            false,
             check,
             &mut checks::validate_connection,
         )?;
@@ -227,8 +228,15 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         let mut verify = |db: &Connection, native: &C, progress: &mut dyn FnMut() -> Result<()>| {
             checks::validate_connection_with_peers(db, native, peers, progress)
         };
-        let db =
-            open_existing_connection(database, &contract, &options, expected, check, &mut verify)?;
+        let db = open_existing_connection(
+            database,
+            &contract,
+            &options,
+            expected,
+            false,
+            check,
+            &mut verify,
+        )?;
         Ok(Self::from_existing_connection(
             db,
             contract,
@@ -237,6 +245,105 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             options,
         ))
     }
+    /// Explicit profile-6 capture. Original producer/native/media evidence and
+    /// independent discovery are required; this never scans for dispatch work.
+    pub fn backup_stock_activity_recovery_to_with_peers<
+        S: StockContractPort,
+        D: QueueDiscovery,
+        E: QueueRecoveryEvidence,
+        W: crate::providers::homebox::write::stock::StockContractPort,
+        AD: StockActivityRecoveryDiscovery,
+        AE: StockActivityRecoveryEvidence,
+    >(
+        &mut self,
+        destination: &Path,
+        base: &RecoveryValidationPeers<'_, S, D, E>,
+        activity: &StockActivityRecoveryPeers<'_, W, AD, AE>,
+        check: &mut dyn FnMut() -> Result<()>,
+    ) -> Result<RecoveryImage> {
+        if !self.options.stock_activity_profile {
+            return Err(checks::incompatible());
+        }
+        let mut verify = |db: &Connection, native: &C, progress: &mut dyn FnMut() -> Result<()>| {
+            checks::validate_connection_with_activity_peers(db, native, base, activity, progress)
+        };
+        backup_image(&self.db, &self.contract, destination, check, &mut verify)
+    }
+
+    /// Detached native activity validation; actual records are delivered only
+    /// to the required offline owner evidence peer, with no SQL/grant leakage.
+    pub fn validate_existing_stock_activity_recovery_image_with_peers<
+        S: StockContractPort,
+        D: QueueDiscovery,
+        E: QueueRecoveryEvidence,
+        W: crate::providers::homebox::write::stock::StockContractPort,
+        AD: StockActivityRecoveryDiscovery,
+        AE: StockActivityRecoveryEvidence,
+    >(
+        database: &Path,
+        contract: &C,
+        base: &RecoveryValidationPeers<'_, S, D, E>,
+        activity: &StockActivityRecoveryPeers<'_, W, AD, AE>,
+        check: &mut dyn FnMut() -> Result<()>,
+    ) -> Result<RecoveryImage> {
+        let mut verify = |db: &Connection, native: &C, progress: &mut dyn FnMut() -> Result<()>| {
+            checks::validate_connection_with_activity_peers(db, native, base, activity, progress)
+        };
+        validate_image(
+            contract,
+            database,
+            Instant::now() + Duration::from_secs(30),
+            check,
+            &mut verify,
+        )
+    }
+
+    /// Same-handle strict existing profile-6 reopen, no CREATE/migration or
+    /// original session/queued-handoff/permit reconstruction. Runtime authority
+    /// remains independently supplied and must qualify every later operation.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Explicit existing-image constructor with separate native activity and base peers"
+    )]
+    pub fn open_existing_stock_activity_recovery_image_with_peers<
+        S: StockContractPort,
+        D: QueueDiscovery,
+        E: QueueRecoveryEvidence,
+        W: crate::providers::homebox::write::stock::StockContractPort,
+        AD: StockActivityRecoveryDiscovery,
+        AE: StockActivityRecoveryEvidence,
+    >(
+        database: &Path,
+        contract: C,
+        authorization: A,
+        runtime: R,
+        options: StoreOptions,
+        expected: &RecoveryImage,
+        base: &RecoveryValidationPeers<'_, S, D, E>,
+        activity: &StockActivityRecoveryPeers<'_, W, AD, AE>,
+        check: &mut dyn FnMut() -> Result<()>,
+    ) -> Result<Self> {
+        let mut verify = |db: &Connection, native: &C, progress: &mut dyn FnMut() -> Result<()>| {
+            checks::validate_connection_with_activity_peers(db, native, base, activity, progress)
+        };
+        let db = open_existing_connection(
+            database,
+            &contract,
+            &options,
+            expected,
+            true,
+            check,
+            &mut verify,
+        )?;
+        Ok(Self::from_existing_connection(
+            db,
+            contract,
+            authorization,
+            runtime,
+            options,
+        ))
+    }
+
     fn from_existing_connection(
         db: Connection,
         contract: C,
@@ -320,12 +427,19 @@ fn open_existing_connection<C: Contract>(
     contract: &C,
     options: &StoreOptions,
     expected: &RecoveryImage,
+    activity: bool,
     check: &mut dyn FnMut() -> Result<()>,
     verify: Verifier<'_, C>,
 ) -> Result<Connection> {
-    if options.stock_activity_profile
+    if options.stock_activity_profile != activity
         || options.allow_synthetic_bootstrap
         || options.busy_timeout_ms > 60_000
+        || expected.database_schema
+            != if activity {
+                STOCK_ACTIVITY_DATABASE_VERSION
+            } else {
+                DATABASE_VERSION
+            }
     {
         return Err(Error::new(
             "invalid-contract",

@@ -21,6 +21,7 @@ use std::{
 use uuid::Uuid;
 
 type Check<T> = Result<T, Box<dyn std::error::Error>>;
+type Store = s::AtlasStore<s::NativeContract<NativeSemantics>, NativeReadAuthority, Clock>;
 const TIME: &str = "2026-10-07T12:00:00Z";
 fn id(n: u128) -> Uuid {
     Uuid::from_u128(0x00000000_0000_4000_8000_000000000000 | n)
@@ -72,6 +73,119 @@ struct Original {
     principal: a::Principal,
     source: a::SourceGrant,
     partition: a::PartitionGrant,
+}
+
+// Exact synthetic administrative/provenance peers for this isolated example.
+// Production recovery still needs actual access/codec/media owner bindings.
+struct OfflineDiscovery(Vec<s::StockActivityPhysicalRegistration>);
+impl s::StockActivityRecoveryDiscovery for OfflineDiscovery {
+    fn revalidate_registry(
+        &self,
+        registry: &[s::StockActivityPhysicalRegistration],
+    ) -> s::Result<()> {
+        if registry != self.0 {
+            return Err(s::Error::new(
+                "checkpoint-error",
+                "Trusted fixture registry differs",
+            ));
+        }
+        Ok(())
+    }
+    fn revalidate_registration(
+        &self,
+        registry: &[s::StockActivityPhysicalRegistration],
+        registration: &s::StockActivityPhysicalRegistration,
+    ) -> s::Result<()> {
+        self.revalidate_registry(registry)?;
+        if !self.0.contains(registration) {
+            return Err(s::Error::new(
+                "checkpoint-error",
+                "Trusted fixture registration missing",
+            ));
+        }
+        Ok(())
+    }
+}
+struct ProducerEvidence<'a> {
+    original: &'a Arc<Original>,
+    producer: &'a s::StockActivityProducer<Original>,
+}
+impl s::StockActivityRecoveryEvidence for ProducerEvidence<'_> {
+    fn validate_record(&self, record: &s::RetainedStockActivity) -> s::Result<()> {
+        // Independently retained live object, not a copy constructed from image.
+        if !std::ptr::eq(self.producer.original(), Arc::as_ptr(self.original))
+            || record != self.producer.record()
+        {
+            return Err(s::Error::new(
+                "checkpoint-error",
+                "Original producer cut differs",
+            ));
+        }
+        Ok(())
+    }
+    fn validate_event(&self, event: s::StockActivityRecoveryEvent<'_>) -> s::Result<()> {
+        let original = self.producer.record();
+        let index = usize::try_from(event.event.operation().activity_version - 1)
+            .map_err(|_| s::Error::new("checkpoint-error", "Fixture event version differs"))?;
+        if original.events().get(index) != Some(event.event)
+            || original.events().get(..=index) != Some(event.prefix)
+            || event.registration != original.registration()
+            || event.original != original.original()
+            || event.previous != index.checked_sub(1).and_then(|v| original.events().get(v))
+        {
+            return Err(s::Error::new(
+                "checkpoint-error",
+                "Original producer prefix differs",
+            ));
+        }
+        let admitted = event
+            .prefix
+            .iter()
+            .any(|v| matches!(v.facts(), s::StockActivityEventFacts::Admit(_)));
+        if event.body_accepted != admitted || event.permit.is_some() != admitted {
+            return Err(s::Error::new(
+                "checkpoint-error",
+                "Fixture admission cut differs",
+            ));
+        }
+        Ok(())
+    }
+}
+struct EmptyJobs;
+impl s::QueueDiscovery for EmptyJobs {
+    fn authorize_discovery(
+        &self,
+        _: &houseatlas_at07_checkpoint::jobs::QueueRegistration,
+    ) -> s::Result<()> {
+        Err(s::Error::new(
+            "owner-unavailable",
+            "No Jobs owner in activity fixture",
+        ))
+    }
+    fn validate_retained_enqueue(
+        &self,
+        _: &houseatlas_at07_checkpoint::domain::stock::ValidatedRequest,
+        _: &houseatlas_at07_checkpoint::jobs::EnqueueRequest,
+        _: &houseatlas_at07_checkpoint::jobs::CanonicalScope,
+        _: &houseatlas_at07_checkpoint::jobs::QueueConfig,
+    ) -> s::Result<()> {
+        Err(s::Error::new(
+            "owner-unavailable",
+            "No Jobs owner in activity fixture",
+        ))
+    }
+}
+impl s::QueueRecoveryEvidence for EmptyJobs {
+    fn validate_attempt(
+        &self,
+        _: &houseatlas_at07_checkpoint::jobs::QueueConfig,
+        _: s::QueueRecoveryAttempt<'_>,
+    ) -> s::Result<()> {
+        Err(s::Error::new(
+            "owner-unavailable",
+            "No Jobs owner in activity fixture",
+        ))
+    }
 }
 impl s::StockActivityPrincipal for Original {
     fn original_activity_principal(&self) -> &a::Principal {
@@ -348,6 +462,41 @@ impl s::StockActivityAuthorization<Original> for Peers {
         })
     }
 }
+impl s::StockActivityRetentionAuthorization<Original> for Peers {
+    fn authorize_retention(
+        &self,
+        original: &Original,
+        registration: &s::StockActivityRegistration,
+        guard: Option<&a::TransactionAuthorization<'_>>,
+        phase: s::StockActivityPhase,
+        record: &s::RetainedStockActivity,
+    ) -> Result<(), n::StockPortFault> {
+        <Self as s::StockActivityAuthorization<Original>>::authorize(
+            self,
+            original,
+            registration,
+            guard,
+            phase,
+            s::StockActivityAction::Disclose(record.operation()),
+        )?;
+        if record.registration() != &self.0.registration
+            || record.original().command != self.0.command
+        {
+            return Err(n::StockPortFault::EvidenceConflict);
+        }
+        for event in record.events() {
+            if let s::StockActivityEventFacts::Admit(admission) = event.facts()
+                && admission.preflight != self.preflight()
+            {
+                return Err(n::StockPortFault::EvidenceConflict);
+            }
+            if event.operation().command != self.0.command {
+                return Err(n::StockPortFault::EvidenceConflict);
+            }
+        }
+        Ok(())
+    }
+}
 impl n::StockDispatchPort for Peers {
     async fn dispatch(
         &self,
@@ -611,8 +760,104 @@ fn main() -> Check<()> {
     .map_err(|e| format!("ordinary journal read: {e:?}"))?;
     assert_eq!(loaded.outcome, outcome);
     assert_eq!(loaded.activity_version, 4);
+    let producer = writer
+        .activity
+        .retain_producer(outcome.operation_id)
+        .map_err(|e| format!("ordinary producer retention: {e:?}"))?;
+    assert!(std::ptr::eq(producer.original(), Arc::as_ptr(&original)));
+    assert_eq!(producer.record().operation(), &loaded);
+    assert_eq!(producer.record().original().activity_version, 1);
+    assert_eq!(producer.record().original().command, command);
+    assert_eq!(producer.record().events().len(), 4);
+    assert!(producer.record().body_accepted() && producer.record().physical_hold());
+    let s::StockActivityEventFacts::Admit(admission) = producer.record().events()[1].facts() else {
+        return Err("Actual admission cut missing".into());
+    };
+    assert_eq!(admission.preflight, peers.preflight());
+    assert_eq!(producer.record().permit(), Some(&admission.permit));
+    assert_eq!(
+        producer.record().events()[1].operation().plan.as_ref(),
+        Some(
+            &n::map_stock(&command, &admission.preflight.preparation)
+                .map_err(|e| format!("native plan: {e:?}"))?
+        )
+    );
+    let successor = writer
+        .activity
+        .retain_producer_successor(&producer)
+        .map_err(|e| format!("ordinary retained successor: {e:?}"))?;
+    assert_eq!(successor.record(), producer.record());
     drop(writer);
-    drop(store);
+    // Producer has no source-store Arc. Preserve it independently across close.
+    let mut store = Arc::try_unwrap(store)
+        .map_err(|_| "Activity retained source Store")?
+        .into_inner()
+        .map_err(|_| "Fixture Store poisoned")?;
+    let stock = houseatlas_at07_checkpoint::domain::stock::NativeStockContract::new()?;
+    let empty_jobs = EmptyJobs;
+    let base = s::RecoveryValidationPeers {
+        stock: &stock,
+        queues: &[],
+        discovery: &empty_jobs,
+        evidence: &empty_jobs,
+    };
+    let registry = vec![s::StockActivityPhysicalRegistration::from(
+        &peers.0.registration,
+    )];
+    let discovery = OfflineDiscovery(registry.clone());
+    let evidence = ProducerEvidence {
+        original: &original,
+        producer: &producer,
+    };
+    let activity = s::StockActivityRecoveryPeers {
+        contracts: &peers,
+        registry: &registry,
+        discovery: &discovery,
+        evidence: &evidence,
+    };
+    let image_path = root.join("activity-image.sqlite");
+    let mut progress = 0usize;
+    let mut check = || {
+        progress += 1;
+        Ok(())
+    };
+    let image = store.backup_stock_activity_recovery_to_with_peers(
+        &image_path,
+        &base,
+        &activity,
+        &mut check,
+    )?;
+    assert_eq!(image.database_schema, 6);
+    store.close()?;
+    let bytes = std::fs::read(&image_path)?;
+    let validated = Store::validate_existing_stock_activity_recovery_image_with_peers(
+        &image_path,
+        &s::NativeContract::new(NativeSemantics::native()),
+        &base,
+        &activity,
+        &mut check,
+    )?;
+    assert_eq!(validated, image);
+    assert_eq!(std::fs::read(&image_path)?, bytes);
+    let restored = root.join("restored-activity.sqlite");
+    std::fs::copy(&image_path, &restored)?;
+    let restored_store = Store::open_existing_stock_activity_recovery_image_with_peers(
+        &restored,
+        s::NativeContract::new(NativeSemantics::native()),
+        NativeReadAuthority(access.clone()),
+        Clock(Arc::new(AtomicU64::new(2000))),
+        s::StoreOptions {
+            stock_activity_profile: true,
+            ..Default::default()
+        },
+        &image,
+        &base,
+        &activity,
+        &mut check,
+    )?;
+    assert_eq!(restored_store.database_version(), 6);
+    restored_store.close()?;
+    assert!(progress > 0);
     let db = rusqlite::Connection::open_with_flags(
         &database,
         rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
@@ -646,7 +891,9 @@ fn main() -> Check<()> {
     assert!(observation["payload"].get("impactEvidenceDigest").is_some());
     println!(
         "{}",
-        json!({"fixture":"fresh-stock-activity","profile":6,"operations":count,"events":events,"bodyAccepted":accepted,"logicalHold":logical,"liabilityHold":liability,"physicalHold":held,"dispatches":1,"readbacks":1,"outcome":outcome,"database":database.display().to_string()})
+        json!({"fixture":"fresh-stock-activity","profile":6,"operations":count,"events":events,"bodyAccepted":accepted,"logicalHold":logical,"liabilityHold":liability,"physicalHold":held,"dispatches":1,"readbacks":1,"outcome":outcome,"database":database.display().to_string(),
+            "producerRetention":"original-Arc-and-native-admission-cut-pass","imageValidation":"unchanged-read-only-bytes","strictProfile6Reopen":"pass","recoveredDispatches":0,
+            "recoveryPeerScope":"independent synthetic administrative registry/producer equality; production native raw receipt/observation and media codecs remain required"})
     );
     Ok(())
 }

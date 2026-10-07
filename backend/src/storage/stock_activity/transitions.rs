@@ -58,6 +58,12 @@ impl<
             | StockReservation::Existing(v)
             | StockReservation::Queued(v) => v,
         };
+        if !matches!(reservation, StockReservation::Existing(_)) {
+            self.producer_operations
+                .try_lock()
+                .map_err(|_| StockPortFault::Unavailable)?
+                .insert(operation.operation_id);
+        }
         self.authorize(
             StockActivityPhase::Release,
             StockActivityAction::Disclose(operation),

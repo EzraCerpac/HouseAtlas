@@ -682,8 +682,9 @@ This selects profile 6 on the same original connection. Default profile 5,
 migrations 1–5, upload consumption and stock history remain unchanged. Neither
 profile upgrades an existing database into the other. The exact checksum ledger
 and SQL catalogue are checked on open. Existing recovery-image validation and
-strict recovery constructors remain profile 5; profile 6 recovery qualification
-is unavailable and fails closed. No live data migration is provided.
+strict recovery constructors remain profile 5. The separate native activity
+recovery methods below require explicit profile 6 and independently qualified
+owner peers; neither path upgrades a database. No live data migration is provided.
 
 Reserve stores the immutable original command and permanent dedup key. Waiting
 operations retain metadata with no permit or accepted body. Admission checks the
@@ -736,6 +737,90 @@ route/evidence policy are explicitly synthetic peers. It runs one dispatch and
 one readback, checks the ordinary authorized journal read and four retained
 events, and observes a confirmed outcome while the physical hold remains. No
 HTTP request, socket/listener, credential injection or live provider runs.
+
+### Native producer retention and profile 6 image validation
+
+`retain_producer(operation_id)` returns a sealed `StockActivityProducer<P>`
+owning the original `Arc<P>`, original session identity and an immutable
+`RetainedStockActivity`. Only new reservations actually committed by that same
+live session can produce it. `Existing` metadata and reopened/restored rows do
+not populate its in-memory origin set. `retain_producer_successor(&prior)`
+requires the original session/principal identity and an unchanged earlier event
+prefix. A producer owns no store/access lock or source-store Arc; the host can
+retain it outside Core across source close. It confers no dispatch, discovery,
+queued handoff or permission to reuse an expired user session.
+
+Retention requires the additional mandatory
+`StockActivityRetentionAuthorization<P>::authorize_retention` over the complete
+record at Entry, Precommit and Release. It qualifies historical/preflight fields
+and the actual archive/disclosure destination; latest-outcome disclosure alone
+does not qualify that larger cut. Entry/Precommit retain the original AT11 live
+mutation/source/partition fence. No default policy, SQL reentry or provider I/O
+is supplied. Root must capture the actual admission cut before native I/O and
+successor cuts after fact commits through its one chosen dispatcher.
+
+`RetainedStockActivity` exposes `registration()`, `original()`, `operation()`,
+`permit()`, `body_accepted()`, `physical_hold()` and `events()`. Each sealed event
+exposes its durable sequence, complete `StoredOperation` and typed native facts:
+Reserve, Queued, Admit, Reject, NeverInvoked, Dispatch or Observation. Admit keeps
+the actual `InvocationPermit`, `StockPreflight` and
+`StockActivityAdmissionEvidence`; every cut keeps the actual native outcome,
+remote activity and liability. There is no Jobs lease/fence/UUID or common
+producer DTO conversion. Existing profile 6 tables/private codec persist these
+facts; SQL and both profile checksum ledgers are unchanged.
+
+`StockActivityRecoveryPeers` binds the actual native `StockContractPort`, complete
+trusted `StockActivityPhysicalRegistration` registry, independent administrative
+`StockActivityRecoveryDiscovery` and mandatory `StockActivityRecoveryEvidence`.
+The physical registration contains only its real physical binding, owner ID and
+dispatcher epoch. Historical source epoch/qualification are retained operation
+data that the original evidence owner must compare against independent provenance.
+Recovery never selects configuration or grants from the image.
+
+The evidence peer must implement both `validate_record(&RetainedStockActivity)`
+and `validate_event(StockActivityRecoveryEvent)`. Event frames contain only the
+original baseline, exact event/previous event and prefix through that event;
+their permit/body-acceptance/physical-hold cut is computed from that prefix.
+Later response/readback/end or liability data cannot qualify an earlier frame.
+Callbacks run under the original read transaction without a SQL handle and must
+not reenter storage, perform native I/O or refresh authority. Unknown or missing
+original native/media evidence must remain unavailable.
+
+Explicit storage methods are:
+
+- `backup_stock_activity_recovery_to_with_peers(destination, base, activity, check)`;
+- `validate_existing_stock_activity_recovery_image_with_peers(database, contract, base, activity, check)`;
+- `open_existing_stock_activity_recovery_image_with_peers(database, contract, authorization, runtime, options, expected, base, activity, check)`.
+
+`base` is the existing `RecoveryValidationPeers` for complete native/stock/upload
+and independent Jobs validation; it does not supply activity attempt evidence.
+The separate `activity` peer closes every registry, operation, event, approval,
+body/permit, journal/reducer, physical pointer and cross-lane exclusion relation.
+Backup and detached validation retain the existing standalone read-only image
+rules; strict reopen uses the same existing handle before WAL and never calls a
+migration. New runtime authority is supplied independently, and no restored
+producer brand, queued handoff or dispatch session is constructed.
+
+Exact remaining native input: the activity journal contains actual
+`DispatchFacts`/`ObservationFacts` and their digests, not bounded raw
+`NativeDispatch`/`DispatchReceipt`/`NativeObservation`. Native/codec owners must
+retain those genuine producer objects independently and qualify them against
+each event-local cut. Media owns original staging/admission evidence and later
+liability provenance. Storage does not infer raw payloads, zero liability,
+physical termination or original grants from hashes. The production offline
+issuer, native/codec/media evidence adapter and host retention/persistence wiring
+are required owner integrations.
+
+The extended ordinary example retains an actual completed live producer and its
+successor, checks original pointer and admission/preflight/plan linkage, captures
+a standalone populated profile 6 image, verifies unchanged bytes through detached
+validation and strictly reopens a separate copy without execution. Its offline
+registry/producer-equality peer is explicitly synthetic; production raw codec or
+media qualification and pre-I/O host capture are not exercised. Exact PR62
+`5690f8d10569b2c7418ba3dc8fb314f9ad793588` config/dispatcher source is also compiled
+unchanged in the external harness. A fresh profile 5 upload/reopen example checks
+the preserved upload component. No held control campaign or recovered dispatch
+is run.
 
 The external `/tmp/houseatlas-at07-activity-composition` compiler harness mounts
 HTTP/stock/contracts from publication `c36bb0bc19bb631d815ab4bb44fa3514ebeac0b7`

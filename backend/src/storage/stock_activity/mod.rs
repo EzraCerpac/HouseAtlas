@@ -3,8 +3,13 @@
 mod baseline;
 mod codec;
 mod journal;
+mod recovery;
 mod repository;
+mod retention;
 mod transitions;
+pub(crate) use recovery::validate as validate_recovery_activity;
+pub use recovery::*;
+pub use retention::*;
 
 use super::{AtlasStore, Authorization, Contract, Runtime};
 use crate::{access, providers::homebox::write::stock as native};
@@ -22,7 +27,7 @@ pub trait StockActivityPrincipal: Send + Sync {
     fn original_activity_source(&self) -> &access::SourceGrant;
     fn original_activity_partition(&self) -> &access::PartitionGrant;
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StockActivityRegistration {
     pub physical_binding: PhysicalBinding,
     pub owner_id: Uuid,
@@ -117,6 +122,9 @@ pub struct StockActivitySession<C, A, R, P, G, S> {
     command: StockCommand,
     captured_authority: StockAuthority,
     session: Arc<()>,
+    // Only actual new reservations committed by this original live session.
+    // Reopening rows or receiving Existing metadata never populates this set.
+    producer_operations: Mutex<std::collections::BTreeSet<Uuid>>,
 }
 impl<
     C: Contract + Send,
@@ -155,6 +163,7 @@ impl<
             command,
             captured_authority,
             session: Arc::new(()),
+            producer_operations: Mutex::new(std::collections::BTreeSet::new()),
         };
         value.check_authority(&value.captured_authority)?;
         value.transact_live(|db, guard| {

@@ -6,7 +6,7 @@ pub(crate) fn validate(connection: &Connection) -> Result<()> {
     validate_profile(connection, false)
 }
 
-fn validate_profile(connection: &Connection, activity: bool) -> Result<()> {
+pub(crate) fn validate_profile(connection: &Connection, activity: bool) -> Result<()> {
     let migrations = profile(activity);
     let target = if activity {
         STOCK_ACTIVITY_DATABASE_VERSION

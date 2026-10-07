@@ -5,6 +5,7 @@ pub(super) struct Row {
     pub operation: StoredOperation,
     pub permit: Option<InvocationPermit>,
     pub body_accepted: bool,
+    pub events: Vec<RetainedStockActivityEvent>,
 }
 pub(super) fn register(
     db: &Connection,
@@ -109,11 +110,12 @@ pub(super) fn load(db: &Connection, id: Uuid) -> PortResult<Row> {
         return Err(StockPortFault::EvidenceConflict);
     }
     // Validate every retained fact's private codec; current outcome is a summary.
-    let rows = db.prepare("SELECT kind,facts_json,operation_json,activity_version FROM stock_activity_events WHERE operation_id=?1 ORDER BY sequence").map_err(unavailable)?.query_map([id.to_string()], |r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?))).map_err(unavailable)?.collect::<rusqlite::Result<Vec<_>>>().map_err(unavailable)?;
+    let rows = db.prepare("SELECT kind,facts_json,operation_json,activity_version,sequence FROM stock_activity_events WHERE operation_id=?1 ORDER BY sequence").map_err(unavailable)?.query_map([id.to_string()], |r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?,r.get::<_,i64>(4)?))).map_err(unavailable)?.collect::<rusqlite::Result<Vec<_>>>().map_err(unavailable)?;
     let mut last = None;
     let mut admissions = 0;
     let mut approval = None;
-    for (kind, facts, event_operation, version) in rows {
+    let mut events = Vec::new();
+    for (kind, facts, event_operation, version, sequence) in rows {
         match kind.as_str() {
             "admit" => {
                 let (_, _, admission) = codec::decode_admission(&facts).map_err(evidence)?;
@@ -147,6 +149,15 @@ pub(super) fn load(db: &Connection, id: Uuid) -> PortResult<Row> {
             return Err(StockPortFault::EvidenceConflict);
         }
         super::journal::check(last.as_ref(), &event, &kind, &facts, permit.as_ref())?;
+        let sequence = u64::try_from(sequence).map_err(evidence)?;
+        if sequence == 0 {
+            return Err(StockPortFault::EvidenceConflict);
+        }
+        events.push(RetainedStockActivityEvent {
+            sequence,
+            operation: event.clone(),
+            facts: retained_facts(&kind, &facts)?,
+        });
         last = Some(event);
     }
     let approved:Option<(String,String)>=db.query_row("SELECT approval_receipt_id,evidence_digest FROM stock_activity_approvals WHERE operation_id=?1",[id.to_string()],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(unavailable)?;
@@ -170,6 +181,88 @@ pub(super) fn load(db: &Connection, id: Uuid) -> PortResult<Row> {
         operation,
         permit,
         body_accepted: accepted,
+        events,
+    })
+}
+
+fn retained_facts(kind: &str, facts: &str) -> PortResult<StockActivityEventFacts> {
+    Ok(match kind {
+        "reserve" | "queued" | "never-invoked" => {
+            if facts != "{}" {
+                return Err(StockPortFault::EvidenceConflict);
+            }
+            match kind {
+                "reserve" => StockActivityEventFacts::Reserve,
+                "queued" => StockActivityEventFacts::Queued,
+                _ => StockActivityEventFacts::NeverInvoked,
+            }
+        }
+        "admit" => {
+            let (permit, preflight, evidence) = codec::decode_admission(facts).map_err(evidence)?;
+            StockActivityEventFacts::Admit(Box::new(StockActivityAdmissionCut {
+                permit,
+                preflight,
+                evidence,
+            }))
+        }
+        "dispatch" => {
+            StockActivityEventFacts::Dispatch(codec::decode_dispatch(facts).map_err(evidence)?)
+        }
+        "observation" => StockActivityEventFacts::Observation(
+            codec::decode_observation(facts).map_err(evidence)?,
+        ),
+        "reject" => {
+            let value: serde_json::Value = serde_json::from_str(facts).map_err(evidence)?;
+            if value.as_object().is_none_or(|v| v.len() != 1) {
+                return Err(StockPortFault::EvidenceConflict);
+            }
+            StockActivityEventFacts::Reject(
+                serde_json::from_value(value["reason"].clone()).map_err(evidence)?,
+            )
+        }
+        _ => return Err(StockPortFault::EvidenceConflict),
+    })
+}
+
+pub(super) fn retained(
+    db: &Connection,
+    id: Uuid,
+    registration: &StockActivityRegistration,
+) -> PortResult<RetainedStockActivity> {
+    let row = load(db, id)?;
+    let physical: (String,String,String,String,Option<String>) = db.query_row("SELECT deployment_id,configuration_digest,owner_id,dispatcher_epoch,active_operation_id FROM stock_activity_physical WHERE physical_database_id=?1",[registration.physical_binding.physical_database_id.to_string()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).map_err(unavailable)?;
+    if (physical.0, physical.1, physical.2, physical.3)
+        != (
+            registration.physical_binding.deployment_id.to_string(),
+            registration
+                .physical_binding
+                .configuration_digest
+                .as_str()
+                .into(),
+            registration.owner_id.to_string(),
+            registration.dispatcher_epoch.to_string(),
+        )
+    {
+        return Err(StockPortFault::EvidenceConflict);
+    }
+    let physical_hold = physical.4.as_deref() == Some(id.to_string().as_str());
+    let expected_hold = matches!(
+        row.operation.outcome.remote_activity,
+        RemoteActivity::Active { .. } | RemoteActivity::EndUnproven { .. }
+    );
+    if physical_hold != expected_hold {
+        return Err(StockPortFault::EvidenceConflict);
+    }
+    if let Some(permit) = &row.permit {
+        verify_permit(&row, permit, registration)?;
+    }
+    Ok(RetainedStockActivity {
+        registration: registration.clone(),
+        operation: row.operation,
+        permit: row.permit,
+        body_accepted: row.body_accepted,
+        physical_hold,
+        events: row.events,
     })
 }
 pub(super) fn append(
