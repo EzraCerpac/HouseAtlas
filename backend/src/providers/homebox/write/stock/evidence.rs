@@ -2,6 +2,7 @@
 //! Matching current values establishes observation, not causality or provider CAS.
 use super::{entity, resources, *};
 use serde_json::{Map, Number, Value};
+use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 type ResponseIdentity = (Option<StockTarget>, Vec<(String, Vec<Uuid>)>);
 
@@ -230,10 +231,10 @@ pub(super) fn observation_facts<C: StockContractPort>(
             let identity_resolved = generated_members_agree(operation, value);
             let current_agrees = !plan.readback.absence
                 && identity_resolved
-                && semantic_subset(
+                && native_values_agree(
+                    actual.resource_kind,
                     &plan.readback.expected,
                     &projected,
-                    None,
                     &operation.generated_members,
                 );
             let (mut effects, impact_digest, complete_impact) =
@@ -620,16 +621,116 @@ fn row_ids(rows: &[Value]) -> Option<Vec<Uuid>> {
 }
 
 fn unique_nonzero(ids: &[Uuid]) -> bool {
-    ids.iter()
-        .enumerate()
-        .all(|(index, id)| !id.is_nil() && !ids[..index].contains(id))
+    let mut seen = BTreeSet::new();
+    ids.iter().all(|id| !id.is_nil() && seen.insert(*id))
 }
 
 fn same_ids(left: &[Uuid], right: &[Uuid]) -> bool {
     unique_nonzero(left)
         && unique_nonzero(right)
         && left.len() == right.len()
-        && left.iter().all(|id| right.contains(id))
+        && left.iter().copied().collect::<BTreeSet<_>>()
+            == right.iter().copied().collect::<BTreeSet<_>>()
+}
+
+/// These representation rules are qualified native scalar fields, not
+/// general JSON equality. In particular, a nil UUID never becomes a concrete
+/// identity or an entity root-parent clear through this comparison.
+fn native_values_agree(
+    kind: ResourceKind,
+    expected: &Value,
+    actual: &Value,
+    members: &[(String, Vec<Uuid>)],
+) -> bool {
+    let (Some(expected_fields), Some(actual_fields)) = (expected.as_object(), actual.as_object())
+    else {
+        return semantic_subset(expected, actual, None, members);
+    };
+    // Omission preserves an absent native type relation, so it is still an
+    // expectation. Generic subset comparison must not ignore a newly present
+    // template. A qualified clear's null readback can match pointer omission.
+    if kind == ResourceKind::EntityType
+        && !optional_template_relation_equal(
+            expected_fields.get("defaultTemplateId"),
+            actual_fields.get("defaultTemplateId"),
+        )
+    {
+        return false;
+    }
+    expected_fields.iter().all(|(key, expected)| {
+        if kind == ResourceKind::EntityType && key == "defaultTemplateId" {
+            return true;
+        }
+        actual_fields
+            .get(key)
+            .is_some_and(|actual| match (kind, key.as_str()) {
+                (ResourceKind::Tag, "parentId")
+                    if tag_root_parent(expected) && tag_root_parent(actual) =>
+                {
+                    true
+                }
+                (ResourceKind::Maintenance, "cost") => decimal_cost_equal(expected, actual),
+                _ => semantic_subset(expected, actual, Some(key), members),
+            })
+    })
+}
+
+fn optional_template_relation_equal(expected: Option<&Value>, actual: Option<&Value>) -> bool {
+    match (
+        expected.filter(|value| !value.is_null()),
+        actual.filter(|value| !value.is_null()),
+    ) {
+        (None, None) => true,
+        (Some(expected), Some(actual)) => match (nonzero_id(expected), nonzero_id(actual)) {
+            (Some(expected), Some(actual)) => expected == actual,
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+fn tag_root_parent(value: &Value) -> bool {
+    value.is_null()
+        || value
+            .as_str()
+            .and_then(|value| Uuid::parse_str(value).ok())
+            .is_some_and(|id| id.is_nil())
+}
+
+fn decimal_cost_equal(expected: &Value, actual: &Value) -> bool {
+    match (
+        expected.as_str().and_then(decimal_parts),
+        actual.as_str().and_then(decimal_parts),
+    ) {
+        (Some(expected), Some(actual)) => expected == actual,
+        _ => false,
+    }
+}
+
+/// Compare finite decimal notation exactly using borrowed digit slices. This
+/// mirrors the native decimal value without parsing floats, rounding, changing
+/// intent, or extending the rule to unrelated strings or JSON numbers.
+fn decimal_parts(value: &str) -> Option<(bool, &str, &str)> {
+    let negative = value.starts_with('-');
+    let unsigned = if negative { &value[1..] } else { value };
+    let (whole, fraction) = match unsigned.split_once('.') {
+        Some((whole, fraction)) if !fraction.is_empty() => (whole, fraction),
+        Some(_) => return None,
+        None => (unsigned, ""),
+    };
+    if whole.is_empty()
+        || !whole.bytes().all(|byte| byte.is_ascii_digit())
+        || !fraction.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return None;
+    }
+    let whole = whole.trim_start_matches('0');
+    let fraction = fraction.trim_end_matches('0');
+    Some((
+        negative && (!whole.is_empty() || !fraction.is_empty()),
+        whole,
+        fraction,
+    ))
 }
 
 /// Subset comparison uses native value semantics while retaining the original
@@ -672,7 +773,7 @@ fn semantic_subset(
 }
 
 fn fields_agree(expected: &[Value], actual: &[Value], members: &[(String, Vec<Uuid>)]) -> bool {
-    if expected.len() != actual.len() || expected.len() > 100 {
+    if expected.len() != actual.len() {
         return false;
     }
     let Some(actual_ids) = row_ids(actual) else {
@@ -680,17 +781,23 @@ fn fields_agree(expected: &[Value], actual: &[Value], members: &[(String, Vec<Uu
     };
     let mut used = vec![false; actual.len()];
     let mut anonymous = Vec::new();
-    let mut known_ids = Vec::new();
+    // Existing native observations are already bounded by the qualified peer.
+    // Indexed identity matching does not reuse the wire's 100-row create cap.
+    let actual_by_id: BTreeMap<_, _> = actual_ids
+        .iter()
+        .enumerate()
+        .map(|(index, id)| (*id, index))
+        .collect();
+    let mut known_ids = BTreeSet::new();
     for field in expected {
         if let Some(value) = field.get("id") {
             let Some(id) = nonzero_id(value) else {
                 return false;
             };
-            if known_ids.contains(&id) {
+            if !known_ids.insert(id) {
                 return false;
             }
-            known_ids.push(id);
-            let Some(index) = actual_ids.iter().position(|actual| *actual == id) else {
+            let Some(&index) = actual_by_id.get(&id) else {
                 return false;
             };
             if !semantic_subset(field, &actual[index], None, members) {
@@ -703,6 +810,10 @@ fn fields_agree(expected: &[Value], actual: &[Value], members: &[(String, Vec<Uu
     }
     if anonymous.is_empty() {
         return true;
+    }
+    // Anonymous generated template rows still use the bounded aggregate match.
+    if expected.len() > 100 {
+        return false;
     }
     let mut retained = members.iter().filter(|(field, _)| field == "fields");
     let Some((_, response_ids)) = retained.next() else {

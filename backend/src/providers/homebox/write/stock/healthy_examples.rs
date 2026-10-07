@@ -184,7 +184,7 @@ fn preparation() -> Preparation {
     );
     let tag = json!({"id":fixture_id(0x600),"name":"Original tag","color":"#123456",
         "description":"Preserved tag description","icon":"tag","parentId":fixture_id(0x601)});
-    let maintenance = json!({"id":fixture_id(0xa00),"itemId":entity_id,"name":"Original maintenance",
+    let maintenance = json!({"id":fixture_id(0xa00),"itemID":entity_id,"name":"Original maintenance",
         "description":"Preserved maintenance description","cost":"12.50",
         "scheduledDate":"2026-01-10","completedDate":"2026-01-11"});
     let entity_type = json!({"id":fixture_id(0x700),"name":"Custom cupboard","icon":"box",
@@ -709,8 +709,52 @@ fn cases() -> Vec<Case> {
         json!({"purchasePrice":Value::Null,"soldPrice":Value::Null,"purchaseDate":Value::Null,
             "soldDate":Value::Null,"warrantyExpires":Value::Null}),
         NativeMethod::Put,
+        entity_path.clone(),
+    );
+    add(
+        "homebox.entity-type.update",
+        target(ResourceKind::EntityType, Some(fixture_id(0x700)), None),
+        json!({"name":"Healthy type without a default template"}),
+        NativeMethod::Put,
+        format!("/api/v1/entity-types/{}", fixture_id(0x700)),
+    );
+    add(
+        "homebox.tag.update",
+        target(ResourceKind::Tag, Some(fixture_id(0x600)), None),
+        json!({"name":"Healthy root tag","parentId":Value::Null}),
+        NativeMethod::Put,
+        format!("/api/v1/tags/{}", fixture_id(0x600)),
+    );
+    add(
+        "homebox.entity.update",
+        target(ResourceKind::Entity, Some(entity_id), None),
+        json!({"name":"Healthy entity retaining 101 fields"}),
+        NativeMethod::Put,
         entity_path,
     );
+    // These native observations are complete shapes, not wire mutation arrays.
+    // The wire request still changes only the named scalar above.
+    let no_template = cases.len() - 3;
+    cases[no_template]
+        .preparation
+        .snapshots
+        .iter_mut()
+        .find(|snapshot| snapshot.target.resource_kind == ResourceKind::EntityType)
+        .unwrap()
+        .value
+        .as_object_mut()
+        .unwrap()
+        .remove("defaultTemplateId");
+    let existing_fields = (0..101)
+        .map(|index| {
+            json!({
+                "id":fixture_id(0xd00 + index),"name":format!("Preserved field {index}"),
+                "type":"text","textValue":format!("Preserved value {index}"),
+                "numberValue":0,"booleanValue":false
+            })
+        })
+        .collect::<Vec<_>>();
+    cases.last_mut().unwrap().preparation.snapshots[0].value["fields"] = json!(existing_fields);
     cases
 }
 
@@ -733,6 +777,10 @@ fn assert_family_values(command: &StockCommand, preparation: &Preparation, plan:
         assert_eq!(body["id"], original["id"]);
         assert_eq!(body["entityTypeId"], original["entityType"]["id"]);
         assert_eq!(body["quantity"], original["quantity"]);
+        assert_eq!(
+            body["fields"].as_array().unwrap().len(),
+            original["fields"].as_array().unwrap().len()
+        );
         assert_eq!(
             body["syncChildEntityLocations"],
             command
@@ -856,6 +904,57 @@ fn assert_family_values(command: &StockCommand, preparation: &Preparation, plan:
                 command.payload["includeWarrantyDetails"]
             );
         }
+        "homebox.entity-type.update"
+            if command.payload["name"] == "Healthy type without a default template" =>
+        {
+            let NativeBody::Json(body) = &plan.request.body else {
+                panic!("healthy type update uses JSON")
+            };
+            assert_eq!(body.get("defaultTemplateId"), None);
+            assert_eq!(
+                command.original_wire["payload"].get("defaultTemplateId"),
+                None
+            );
+            let mut native = preparation.snapshot(&command.target).unwrap().value.clone();
+            native["name"] = command.payload["name"].clone();
+            super::healthy_workflow::assert_healthy_observation(
+                command,
+                preparation,
+                plan,
+                json!([native]),
+            );
+        }
+        "homebox.tag.update" if command.payload["name"] == "Healthy root tag" => {
+            assert_eq!(command.original_wire["payload"]["parentId"], Value::Null);
+            let mut native = preparation.snapshot(&command.target).unwrap().value.clone();
+            native["name"] = command.payload["name"].clone();
+            native["parentId"] = json!(Uuid::nil());
+            super::healthy_workflow::assert_healthy_observation(command, preparation, plan, native);
+        }
+        "homebox.entity.update"
+            if command.payload["name"] == "Healthy entity retaining 101 fields" =>
+        {
+            let mut native = preparation.snapshot(&command.target).unwrap().value.clone();
+            native["name"] = command.payload["name"].clone();
+            assert_eq!(native["fields"].as_array().unwrap().len(), 101);
+            super::healthy_workflow::assert_healthy_observation(command, preparation, plan, native);
+        }
+        "homebox.maintenance.update" => {
+            assert_eq!(command.original_wire["payload"]["cost"], "30.50");
+            let mut native = preparation.snapshot(&command.target).unwrap().value.clone();
+            native
+                .as_object_mut()
+                .unwrap()
+                .extend(command.payload.as_object().unwrap().clone());
+            native["cost"] = json!("30.5");
+            super::healthy_workflow::assert_healthy_observation(
+                command,
+                preparation,
+                plan,
+                json!([native]),
+            );
+            assert_eq!(command.payload["cost"], "30.50");
+        }
         _ => {}
     }
     if command.target.resource_kind == ResourceKind::Maintenance {
@@ -921,6 +1020,6 @@ fn healthy_synthetic_stock_operation_mappings() {
     assert_eq!(command_ids.len(), 49);
     assert_eq!(bulk_actions.len(), 6);
     assert_eq!(print_subjects.len(), 3);
-    assert_eq!(cases.len(), 66);
+    assert_eq!(cases.len(), 69);
     assert_eq!(healthy_cases().len(), cases.len());
 }

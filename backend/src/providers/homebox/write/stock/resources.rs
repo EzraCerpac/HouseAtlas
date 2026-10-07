@@ -37,7 +37,7 @@ const MAINTENANCE_FIELDS: &[&str] = &[
     "scheduledDate",
     "completedDate",
 ];
-const TYPE_FIELDS: &[&str] = &["name", "icon", "isLocation", "defaultTemplateId"];
+const TYPE_FIELDS: &[&str] = &["name", "icon", "isLocation"];
 const TEMPLATE_SCALARS: &[&str] = &[
     "name",
     "description",
@@ -111,13 +111,56 @@ fn body_maintenance(payload: &Value, current: Option<&Value>) -> BodyResult<Valu
     Ok(Value::Object(body))
 }
 
+/// The pinned EntityTypeSummary omits its optional default-template ID and
+/// nested relation when there is no relation. repo_entity_types.go at the
+/// pinned source commit (SHA256
+/// 7fba8c05d01c5677d8b22051203f095349ed45e49002f4eb838c8c5933150906)
+/// also treats omitted update input as the empty relationship. Preserve an
+/// observed relation explicitly; preserve an absent relation by omission,
+/// without manufacturing a wire-null clear or an empty native ID.
+fn type_state(current: &Value) -> BodyResult<Map<String, Value>> {
+    let mut body = preserved(current, TYPE_FIELDS)?;
+    let current = object(current)?;
+    let scalar = current.get("defaultTemplateId");
+    let nested = current
+        .get("defaultTemplate")
+        .filter(|value| !value.is_null())
+        .map(|value| required(object(value)?, "id"))
+        .transpose()?;
+    for id in [scalar, nested].into_iter().flatten() {
+        if id
+            .as_str()
+            .and_then(|value| Uuid::parse_str(value).ok())
+            .is_none_or(|value| value.is_nil())
+        {
+            return Err("native-type-template-identity-invalid");
+        }
+    }
+    if let (Some(scalar), Some(nested)) = (scalar, nested) {
+        let scalar_id = scalar
+            .as_str()
+            .and_then(|value| Uuid::parse_str(value).ok());
+        let nested_id = nested
+            .as_str()
+            .and_then(|value| Uuid::parse_str(value).ok());
+        if scalar_id.is_none() || scalar_id != nested_id {
+            return Err("native-type-template-identities-conflict");
+        }
+    }
+    if let Some(id) = scalar.or(nested) {
+        body.insert("defaultTemplateId".into(), id.clone());
+    }
+    Ok(body)
+}
+
 fn body_type(payload: &Value, current: Option<&Value>) -> BodyResult<Value> {
     let payload = object(payload)?;
     let mut body = match current {
-        Some(current) => preserved(current, TYPE_FIELDS)?,
+        Some(current) => type_state(current)?,
         None => Map::new(),
     };
     copy_present(payload, &mut body, TYPE_FIELDS);
+    copy_present(payload, &mut body, &["defaultTemplateId"]);
     Ok(Value::Object(body))
 }
 
@@ -599,9 +642,7 @@ pub(super) fn writable_resource(
         ResourceKind::Maintenance => preserved(value, MAINTENANCE_FIELDS)
             .map(Value::Object)
             .map_err(limitation),
-        ResourceKind::EntityType => preserved(value, TYPE_FIELDS)
-            .map(Value::Object)
-            .map_err(limitation),
+        ResourceKind::EntityType => type_state(value).map(Value::Object).map_err(limitation),
         ResourceKind::Template => {
             // Readback projection is distinct from submitting a PUT. The
             // template update mapping checks trusted preservation evidence.

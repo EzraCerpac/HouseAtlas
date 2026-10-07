@@ -186,31 +186,46 @@ where
                 StockErrorCode::UnknownHeld,
             );
         }
+        // Admission is asynchronous. Refresh the original captured authority
+        // after it returns, before invoking the provider. Refusal is proven
+        // never-invoked and persisted rather than leaving dispatch intent active.
+        let current = match self
+            .access
+            .authorize(command, AuthorityPhase::Execute)
+            .await
+        {
+            Ok(after_admission) if after_admission == current => after_admission,
+            refusal => {
+                let code = match refusal {
+                    Ok(_) => StockErrorCode::PreflightConflict,
+                    Err(code) => code,
+                };
+                // Persistence status must not undo access-denial sanitization.
+                let operation_id = if matches!(
+                    code,
+                    StockErrorCode::CapabilityDenied | StockErrorCode::Unauthenticated
+                ) {
+                    None
+                } else {
+                    Some(operation.operation_id)
+                };
+                let code = match self.never_invoked(&admitted, &permit).await {
+                    Ok(_) => code,
+                    Err(code) => code,
+                };
+                return error(command, operation_id, code);
+            }
+        };
         // Durable dispatch intent precedes exactly one external invocation.
         // Dropping this future does not release the remote invocation hold.
         let record = match self.dispatch.dispatch(&permit, &plan, &current).await {
             NativeDispatch::NeverInvoked => {
-                let saved = match self.activity.record_never_invoked(&permit).await {
+                let saved = match self.never_invoked(&admitted, &permit).await {
                     Ok(saved) => saved,
-                    Err(_) => {
-                        return error(
-                            command,
-                            Some(operation.operation_id),
-                            StockErrorCode::UnknownHeld,
-                        );
+                    Err(code) => {
+                        return error(command, Some(operation.operation_id), code);
                     }
                 };
-                if !same_operation(&admitted, &saved)
-                    || !valid_operation(&saved)
-                    || saved.activity_version <= admitted.activity_version
-                    || saved.outcome.state != OutcomeState::RejectedBeforeDispatch
-                {
-                    return error(
-                        command,
-                        Some(operation.operation_id),
-                        StockErrorCode::UnknownHeld,
-                    );
-                }
                 return self.disclose(command, saved).await;
             }
             NativeDispatch::Invoked(receipt) => {
@@ -388,6 +403,24 @@ where
             };
         }
         self.disclose(response_command, operation).await
+    }
+
+    async fn never_invoked(
+        &self,
+        admitted: &StoredOperation,
+        permit: &InvocationPermit,
+    ) -> Result<StoredOperation, StockErrorCode> {
+        match self.activity.record_never_invoked(permit).await {
+            Ok(saved)
+                if same_operation(admitted, &saved)
+                    && valid_operation(&saved)
+                    && saved.activity_version > admitted.activity_version
+                    && saved.outcome.state == OutcomeState::RejectedBeforeDispatch =>
+            {
+                Ok(saved)
+            }
+            _ => Err(StockErrorCode::UnknownHeld),
+        }
     }
 
     async fn reject(&self, operation: &StoredOperation, code: StockErrorCode) -> StockResult {

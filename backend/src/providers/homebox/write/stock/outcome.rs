@@ -287,13 +287,22 @@ impl StockOutcome {
 
     /// Trusted explicit resolution only; native remote end remains unchanged.
     /// These are not automatic consequences of a matching readback or timeout.
+    /// Terminal receipts retain their original verification and evidence.
     pub fn with_resolution(
         &self,
         evidence: Digest,
         actor: Option<Uuid>,
         human: bool,
     ) -> Option<Self> {
-        if !self.remote_activity.invoked() || human && actor.is_none() {
+        if !self.remote_activity.invoked()
+            || human && actor.is_none()
+            || matches!(
+                self.state,
+                OutcomeState::ConfirmedObserved
+                    | OutcomeState::ResolvedObserved
+                    | OutcomeState::ResolvedByHuman
+            )
+        {
             return None;
         }
         let mut next = self.clone();

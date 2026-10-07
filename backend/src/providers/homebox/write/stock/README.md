@@ -40,6 +40,13 @@ the observed sync flag and all untouched native scalars, source date spelling,
 parent/type/tag links and custom fields. A null root parent uses PUT because native
 PATCH null preserves the parent. Native sync can affect non-location children too;
 an EntityOut children projection is not complete impact evidence.
+Existing ID-bearing native fields are compared by exact identity without the
+100-row wire-create limit; their bounds come from qualified native decoding.
+Anonymous generated template rows retain bounded aggregate matching. Root tag
+parents compare null and the native nil UUID only in that relation field.
+Maintenance decimal costs compare exact numeric values without changing wire
+strings or hashing intent. An omitted entity-type default-template relation
+remains absent in preservation input and readback.
 
 Nine stock forms are explicitly unsupported by the catalog/native API: entity and
 location history/restore-deleted, file replace-bytes/restore-deleted, document-link
@@ -88,6 +95,9 @@ disclosure checks. Authorization is refreshed after every relevant asynchronous
 boundary, including retained results and post-dispatch readback. A renewed grant
 must not substitute for captured execution authority. Real drivers independently
 refuse `SyntheticFixture` qualification.
+After asynchronous admission, the writer refreshes that same captured authority
+before dispatch. Refusal persists never-invoked evidence and returns without
+native I/O; access-denial sanitization is independent of persistence success.
 
 The native preparation owner supplies `StockPreparationPort::prepare`: exact
 fresh providerObservation linkage, complete scoped native snapshots, trustworthy
@@ -120,6 +130,7 @@ generic 404, page omission, aggregate count or label image is sufficient.
 `StockOutcome::with_dispatch/with_observation` encode lifecycle facts for the
 durable transaction. Completed/resolved receipts remain historical; reconciliation
 updates only unfinished dispatched operations. Explicit trusted resolution does
+not overwrite a terminal receipt. Resolution also does
 not release physical invocation holds. Every invoked outcome retains
 causalityProven=false, atomicProviderCAS=false and nativeEditorRacePossible=true.
 Only genuinely correlated ended-proven evidence releases the physical hold.
@@ -130,11 +141,14 @@ The unqualified engineering profile numbers are not production settings.
 
 The external harness imports the actual module with Rust 1.99.0/edition 2024 and
 pins serde=1.0.228, serde_json=1.0.145 and uuid=1.18.1. AT51 owns final manifests.
-Run only the two stock healthy groups by exact name: 66 positive mapping cases
+Run only the two stock healthy groups by exact name: 69 positive mapping cases
 across all 48 required IDs/native variants, and one fresh acknowledged synthetic
-dispatch/readback. Shared contracts/access/preparation/ledger/transport remain
+dispatch/readback. Four positive exact readback examples cover optional type
+relations, root tags, 101 preserved fields and decimal cost spelling. The fresh
+workflow verifies same-authority refresh after admission and before dispatch.
+Shared contracts/access/preparation/ledger/transport remain
 stand-ins in these groups. They open no socket and use no real credentials/data.
-Their emitted 67 wire requests, one wire outcome and 66 native plans were
+Their emitted 70 wire requests, five wire outcomes and 69 native plans were
 validated offline against the exact supplied request/outcome schemas and pinned
 Swagger routes/body/form/query/response-status definitions. Swagger x-nullable
 was interpreted for shape validation; it was not treated as native clear proof.

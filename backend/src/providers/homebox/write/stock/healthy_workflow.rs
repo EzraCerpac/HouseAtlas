@@ -24,6 +24,7 @@ struct State {
     dispatches: usize,
     readbacks: usize,
     authorizations: usize,
+    events: Vec<&'static str>,
 }
 impl StockContractPort for Peers {
     fn validate_request(&self, wire: &Value) -> Result<StockCommand, StockError> {
@@ -58,6 +59,16 @@ impl StockAccessPort for Peers {
         let mut s = self.0.lock().unwrap();
         assert_eq!(command, &s.command);
         s.authorizations += 1;
+        let event = if s.dispatches == 0
+            && s.operation.as_ref().is_some_and(|operation| {
+                operation.outcome.state == OutcomeState::Dispatching
+                    && operation.captured_authority == s.authority
+            }) {
+            "authorize-after-admission"
+        } else {
+            "authorize"
+        };
+        s.events.push(event);
         Ok(s.authority.clone())
     }
 }
@@ -163,6 +174,7 @@ impl StockActivityPort for Peers {
             qualification: authority.qualification.clone(),
         };
         s.operation = Some(operation.clone());
+        s.events.push("admit");
         Ok(Admission::Admitted {
             permit: Box::new(permit),
             operation: Box::new(operation),
@@ -229,6 +241,8 @@ impl StockDispatchPort for Peers {
         authority: &StockAuthority,
     ) -> NativeDispatch {
         let mut s = self.0.lock().unwrap();
+        assert_eq!(s.events.last(), Some(&"authorize-after-admission"));
+        s.events.push("dispatch");
         s.dispatches += 1;
         assert_eq!(authority, &s.authority);
         assert_eq!(plan.request.method, NativeMethod::Patch);
@@ -293,13 +307,8 @@ fn ready<T>(future: impl Future<Output = T>) -> T {
     }
 }
 
-#[test]
-fn healthy_synthetic_stock_dispatch_and_readback() {
-    let (command, preparation) = super::healthy_examples::healthy_cases()
-        .into_iter()
-        .find(|(c, _)| c.command_id == "homebox.entity.quantity.set")
-        .unwrap();
-    let authority = StockAuthority {
+fn healthy_authority() -> StockAuthority {
+    StockAuthority {
         actor_id: id(30),
         source_epoch: 1,
         authority_digest: digest(),
@@ -309,16 +318,96 @@ fn healthy_synthetic_stock_dispatch_and_readback() {
             configuration_digest: digest(),
         },
         qualification: NativeQualification::SyntheticFixture,
-    };
-    let peers = Peers(Arc::new(Mutex::new(State {
-        command: command.clone(),
+    }
+}
+
+fn healthy_peers(command: StockCommand, preparation: Preparation) -> Peers {
+    Peers(Arc::new(Mutex::new(State {
+        command,
         preparation,
-        authority,
+        authority: healthy_authority(),
         operation: None,
         dispatches: 0,
         readbacks: 0,
         authorizations: 0,
-    })));
+        events: vec![],
+    })))
+}
+
+/// Reuse the existing synthetic activity and contract peers to check a
+/// positive exact-ID readback. The caller supplies the full native response
+/// envelope; no transport or generated-identity inference occurs here.
+pub(super) fn assert_healthy_observation(
+    command: &StockCommand,
+    preparation: &Preparation,
+    plan: &NativePlan,
+    native_value: Value,
+) {
+    let peers = healthy_peers(command.clone(), preparation.clone());
+    let authority = healthy_authority();
+    let StockReservation::Reserved(reserved) = ready(peers.reserve(command, &authority)).unwrap()
+    else {
+        panic!("healthy observation has a fresh reservation")
+    };
+    let preflight = ready(peers.prepare(command, &authority)).unwrap();
+    let Admission::Admitted {
+        permit,
+        operation: _,
+    } = ready(peers.admit(&reserved, plan, &digest(), &preflight, &authority)).unwrap()
+    else {
+        panic!("healthy observation has admitted native evidence")
+    };
+    let operation = ready(peers.record_dispatch(
+        &permit,
+        &DispatchFacts {
+            response_success: true,
+            response_digest: Some(digest()),
+            generated_target: None,
+            generated_identity_resolved: true,
+            generated_members: vec![],
+            remote_activity: RemoteActivity::end_unproven(),
+        },
+    ))
+    .unwrap();
+    let impact = plan.requires_complete_impact.then(|| ImpactObservation {
+        effects: vec![EffectEvidence {
+            target: WireTarget::try_from(&command.target).unwrap(),
+            effect: Effect::Updated,
+            digest: digest(),
+        }],
+        complete: true,
+        evidence_digest: digest(),
+    });
+    let observation = NativeObservation::Present {
+        context: command.context.clone(),
+        target: command.target.clone(),
+        value: native_value,
+        observed_at: TIME.into(),
+        complete: true,
+        impact,
+    };
+    let facts = super::evidence::observation_facts(&peers, &operation, &observation)
+        .expect("healthy native readback has exact scoped evidence");
+    assert!(facts.agrees);
+    assert!(facts.generated_identity_resolved);
+    let observed = ready(peers.save_observation(&operation, &facts)).unwrap();
+    assert_eq!(observed.outcome.state, OutcomeState::ConfirmedObserved);
+    assert_eq!(observed.outcome.request_digest, command.request_digest);
+    assert_eq!(observed.command.original_wire, command.original_wire);
+    peers.validate_outcome(&observed.outcome).unwrap();
+    println!(
+        "HEALTHY_STOCK_OUTCOME={}",
+        serde_json::to_string(&observed.outcome).unwrap()
+    );
+}
+
+#[test]
+fn healthy_synthetic_stock_dispatch_and_readback() {
+    let (command, preparation) = super::healthy_examples::healthy_cases()
+        .into_iter()
+        .find(|(c, _)| c.command_id == "homebox.entity.quantity.set")
+        .unwrap();
+    let peers = healthy_peers(command.clone(), preparation);
     let writer = StockWriter {
         contracts: peers.clone(),
         access: peers.clone(),
@@ -338,6 +427,11 @@ fn healthy_synthetic_stock_dispatch_and_readback() {
     assert_eq!(s.dispatches, 1);
     assert_eq!(s.readbacks, 1);
     assert!(s.authorizations >= 5);
+    assert!(
+        s.events
+            .windows(3)
+            .any(|events| { events == ["admit", "authorize-after-admission", "dispatch"] })
+    );
     println!("HEALTHY_STOCK_REQUEST={}", command.original_wire);
     println!(
         "HEALTHY_STOCK_OUTCOME={}",
