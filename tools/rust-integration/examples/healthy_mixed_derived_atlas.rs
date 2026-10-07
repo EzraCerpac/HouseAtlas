@@ -37,7 +37,7 @@ fn actor(principal: &RequestPrincipal) -> s::VerifiedActor {
 /// transaction guard and source grants issued by Access for this principal.
 /// It checks fixture correlation and phase order without standing in for the
 /// HTTP root's graph witness.
-struct FixtureAuthorization<'a, 'g> {
+pub(super) struct FixtureAuthorization<'a, 'g> {
     guard: &'a a::TransactionAuthorization<'g>,
     principal: &'a RequestPrincipal,
     raw: &'a Value,
@@ -50,7 +50,30 @@ struct FixtureAuthorization<'a, 'g> {
     last_phase: Cell<Option<u8>>,
 }
 
-impl FixtureAuthorization<'_, '_> {
+impl<'a, 'g> FixtureAuthorization<'a, 'g> {
+    pub(super) fn new(
+        guard: &'a a::TransactionAuthorization<'g>,
+        principal: &'a RequestPrincipal,
+        raw: &'a Value,
+        source_grants: &'a [a::SourceGrant],
+        partition_grants: &'a [a::PartitionGrant],
+        original: &'a s::Snapshot,
+        plan: &'a st::AtlasCommandPlan,
+    ) -> Self {
+        Self {
+            guard,
+            principal,
+            raw,
+            source_grants,
+            partition_grants,
+            original,
+            plan,
+            candidate: RefCell::new(None),
+            receipt: RefCell::new(None),
+            last_phase: Cell::new(None),
+        }
+    }
+
     fn same_principal(&self, principal: &RequestPrincipal) -> s::Result<()> {
         if !std::ptr::eq(principal, self.principal)
             || !std::ptr::eq(principal.principal.principal(), self.guard.principal())
@@ -523,18 +546,15 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
     access.with_mutation_authorization::<FixtureFailure>(
         principal.principal.principal(),
         |guard| {
-            let authorization = FixtureAuthorization {
+            let authorization = FixtureAuthorization::new(
                 guard,
-                principal: &principal,
-                raw: &batch,
-                source_grants: &source_grants,
-                partition_grants: &partition_grants,
-                original: &original,
-                plan: &plan,
-                candidate: RefCell::new(None),
-                receipt: RefCell::new(None),
-                last_phase: Cell::new(None),
-            };
+                &principal,
+                &batch,
+                &source_grants,
+                &partition_grants,
+                &original,
+                &plan,
+            );
             let mut store = core
                 .store
                 .lock()

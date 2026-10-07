@@ -14,6 +14,7 @@ mod ports;
 mod queue;
 mod repository;
 mod stock_activity;
+mod stock_asset_review_types;
 mod stock_derivation;
 mod stock_history_repository;
 mod stock_projection;
@@ -40,6 +41,7 @@ pub use queue::{
     StepKind,
 };
 pub use stock_activity::*;
+pub use stock_asset_review_types::*;
 pub use stock_types::*;
 pub use store::*;
 pub use types::*;

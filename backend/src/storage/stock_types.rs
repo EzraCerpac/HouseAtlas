@@ -69,6 +69,9 @@ pub struct StockAtlasCommit {
     /// Direct children have None; old direct/staged/single receipts omit it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub child_derivations: Option<Vec<Option<AtlasDerivation>>>,
+    /// Data-only opaque renderer measurements; fresh authority stays borrowed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub asset_review: Option<RetainedAssetReviewFacts>,
     pub wire: Value,
     pub children: Vec<Value>,
 }

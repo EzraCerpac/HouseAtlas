@@ -66,15 +66,16 @@ pub(crate) fn validate_retained_preimage<C: Contract, S: StockContractPort>(
         commit.derivation_format.as_deref(),
         &commit.derivation,
         &commit.child_derivations,
+        &commit.asset_review,
     ) {
-        (None, None, None) => Ok(()),
-        (Some(ATLAS_DERIVATION_FORMAT), Some(derivation), None) => {
+        (None, None, None, None) => Ok(()),
+        (Some(ATLAS_DERIVATION_FORMAT), Some(derivation), None, None) => {
             if request.id() == OperationId::AtlasBatchExecute || commit.groups.len() != 1 {
                 return Err(repo::incompatible());
             }
             validate_retained_group(&request, derivation, &commit.groups[0], None, contract)
         }
-        (Some(ATLAS_BATCH_DERIVATION_FORMAT), None, Some(derivations)) => {
+        (Some(ATLAS_BATCH_DERIVATION_FORMAT), None, Some(derivations), None) => {
             validate_batch_derivations(&request, derivations).map_err(|_| repo::incompatible())?;
             if commit.groups.len() != request.children().len() {
                 return Err(repo::incompatible());
@@ -92,6 +93,11 @@ pub(crate) fn validate_retained_preimage<C: Contract, S: StockContractPort>(
                 }
             }
             Ok(())
+        }
+        (Some(ATLAS_VERIFIED_ASSET_REVIEW_FORMAT), Some(derivation), None, Some(facts)) => {
+            validate_verified_review_data(&request, derivation, facts, commit, contract)?;
+            validate_group_envelope(&request, &commit.groups[0], None)?;
+            validate_group_original(&request, derivation, &commit.groups[0], contract)
         }
         _ => Err(repo::incompatible()),
     }
@@ -120,6 +126,15 @@ fn validate_retained_group<C: Contract>(
 ) -> Result<()> {
     validate_group_envelope(request, group, child_index)?;
     validate_derivation(request, derivation).map_err(|_| repo::incompatible())?;
+    validate_group_original(request, derivation, group, contract)
+}
+
+fn validate_group_original<C: Contract>(
+    request: &ValidatedRequest,
+    derivation: &AtlasDerivation,
+    group: &StockCommitGroup,
+    contract: &C,
+) -> Result<()> {
     let Some(original) = derivation_original(derivation) else {
         return Ok(());
     };
@@ -219,4 +234,73 @@ fn derivation_original(derivation: &AtlasDerivation) -> Option<&Record> {
         | AtlasDerivation::AssetReview { original, .. } => Some(original),
         AtlasDerivation::BindingCreate { .. } | AtlasDerivation::GeometryCreate { .. } => None,
     }
+}
+
+/// Retained DATA qualification only; no method here issues opaque Media proof,
+/// original principal, Store custody or replay permission.
+fn validate_verified_review_data<C: Contract>(
+    request: &ValidatedRequest,
+    derivation: &AtlasDerivation,
+    facts: &RetainedAssetReviewFacts,
+    commit: &StockAtlasCommit,
+    contract: &C,
+) -> Result<()> {
+    let AtlasDerivation::AssetReview {
+        original,
+        preview_policy: AssetPayloadPreviewPolicy::SafeRendered,
+        renderer_receipt_id: Some(receipt_id),
+    } = derivation
+    else {
+        return Err(repo::incompatible());
+    };
+    let receipt = &facts.renderer_receipt;
+    let measured: crate::media::types::AssetRecord =
+        serde_json::from_value(serde_json::to_value(original)?)?;
+    contract.validate_shape("record", &serde_json::to_value(original)?)?;
+    contract.validate_shape(
+        "recordRef",
+        &serde_json::json!({"recordType":"asset", "recordId":receipt.receipt_id}),
+    )?;
+    let digest = |s: &str| {
+        s.len() == 64
+            && s.bytes()
+                .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
+    };
+    if request.id() != OperationId::AtlasAssetReview
+        || request.payload()["treatment"] != "request-preview"
+        || request.payload()["rendererReceiptId"] != *receipt_id
+        || commit.replayed
+        || commit.groups.len() != 1
+        || commit.groups[0].native_results.len() != 1
+        || commit.groups[0].native_entries.len() != 1
+        || facts.format != "houseatlas-bound-asset-renderer-review/1"
+        || receipt.format != "houseatlas-existing-asset-renderer-review/1"
+        || receipt.renderer != "houseatlas-stripped-rgba8-png/1"
+        || receipt.receipt_id != *receipt_id
+        || receipt.actor_id != commit.actor_id
+        || receipt.scope.workspace_id != original.workspace_id
+        || receipt.scope.home_id != original.home_id
+        || receipt.asset_id != original.record_id
+        || receipt.revision != original.revision
+        || original.record_type != RecordType::Asset
+        || original.lifecycle != Lifecycle::Active
+        || measured.payload.availability != crate::media::types::Availability::Available
+        || !measured.payload.purpose.is_original()
+        || receipt.original_sha256 != measured.payload.sha256
+        || receipt.original_byte_size != measured.payload.byte_size
+        || receipt.original_byte_size == 0
+        || receipt.rendered_byte_size == 0
+        || !digest(&receipt.original_sha256)
+        || !digest(&receipt.rendered_sha256)
+        || receipt.original_record_digest
+            != crate::domain::stock::canonical_digest(&serde_json::to_value(original)?)
+                .map_err(|_| repo::incompatible())?
+        || facts.request_digest
+            != crate::domain::stock::canonical_digest(request.raw())
+                .map_err(|_| repo::incompatible())?
+        || commit.groups[0].operation_id != commit.operation_id
+    {
+        return Err(repo::incompatible());
+    }
+    Ok(())
 }
