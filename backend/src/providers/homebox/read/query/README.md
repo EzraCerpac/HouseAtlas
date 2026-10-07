@@ -147,9 +147,9 @@ facts. Native resource/query input reuses the existing bounded duplicate-key-awa
 parser with aggregate entry/text limits. The full frozen operation output is
 validated using the existing `HomeBoxQueries` envelope before capture is retained.
 
-Supported resource forms are entity tags, field list/get, document-link list/get,
+Supported baseline resource forms are entity tags, field list/get,
 maintenance list/get, tag list/get, entity-type list, template get, entity path and
-location tree (13 forms). Metadata query views are currency, statistics, location
+location tree (11 forms). Metadata query views are currency, statistics, location
 and tag statistics, purchase-price statistics, barcode product, and an asset lookup
 whose original asset spelling exactly matches a captured decoded entity detail
 (seven views). Native aliases need qualified source-owner correlation; no local
@@ -191,6 +191,11 @@ page/limit. A real cursor producer remains necessary for larger or searched view
 
 Concrete representation blockers remain:
 
+* Document-link list/get requires an observed native `archived: false`. Native
+  `ItemAttachment` has no such property; the legacy decoder's presentation false
+  is not source evidence. These forms remain unavailable for nonempty baseline
+  link observations pending source/contract reconciliation. No false property is
+  added to the baseline positive fixture.
 * Stored-file list/get requires `archived: boolean`, which the native stored-file
   source and decoded type do not establish. No fabricated `false` is emitted.
 * Native template list contains summaries without the required fields. A source
@@ -214,7 +219,7 @@ producer intake, Access graph policies, provider deployment or live capability.
 
 Three separate ordinary positive source tests in `observations_healthy.rs` run
 through actual `NativeStockContract`, `prepare`, `HomeBoxQueries` and
-`dispatch_prepared`. They cover 24 positive dispatches across the 13 resource
+`dispatch_prepared`. They cover 22 positive dispatches across the 11 resource
 forms and seven query views, including all four custom-field representations,
 actual nested source tree edges, a synthetic independently captured ancestor
 chain, template references, original calendar/cost spelling and exact numeric

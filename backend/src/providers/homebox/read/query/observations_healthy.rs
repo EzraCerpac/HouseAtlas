@@ -338,10 +338,8 @@ fn healthy_decoded_detail_and_maintenance_resources() {
     let fields = (61..=64)
         .map(|n| target(HomeboxResourceKind::Field, n, Some(5)))
         .collect::<Vec<_>>();
-    let link = target(HomeboxResourceKind::Attachment, 202, Some(5));
     let mut graph = vec![entity.clone(), target(HomeboxResourceKind::Tag, 60, None)];
     graph.extend(fields.clone());
-    graph.push(link.clone());
     let mut lookup = request(Op::HomeboxQueryRead, None, None);
     lookup["payload"] = json!({"view":"asset-lookup","assetId":"00012","limit":10});
     let mut lookup_graph = graph.clone();
@@ -385,27 +383,8 @@ fn healthy_decoded_detail_and_maintenance_resources() {
         );
         assert_eq!(got["data"]["resources"][0]["target"]["resourceId"], id(n));
     }
-    let links = run(
-        request(Op::HomeboxDocumentLinkList, None, Some(5)),
-        Source::Detail(&decoded),
-        graph.clone(),
-        vec![],
-    );
-    assert_eq!(
-        links["data"]["resources"][0]["data"]["storage"],
-        "external-link"
-    );
-    assert_eq!(
-        links["data"]["resources"][0]["data"]["url"],
-        "https://example.invalid/manual?q=%2f"
-    );
-    let got = run(
-        request(Op::HomeboxDocumentLinkGet, Some(202), Some(5)),
-        Source::Detail(&decoded),
-        graph,
-        vec![],
-    );
-    assert_eq!(got["data"]["resources"][0]["target"]["resourceId"], id(202));
+    // Native ItemAttachment has no archived fact. Do not fabricate a false
+    // fixture property to qualify frozen document-link list/get results.
     assert_eq!(decoded.original, original);
 
     let maintenance = json!([{"id":id(71),"name":"Check","description":"Calendar","completedDate":"","scheduledDate":"2026-02-01","cost":"12.50","itemID":id(5),"itemName":"Item"}]);
