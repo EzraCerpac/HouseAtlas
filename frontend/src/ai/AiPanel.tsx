@@ -4,7 +4,7 @@ import { cancellationMessage, canInfer, failureMessages, readinessMessage, token
 import type {
   AiClient, AiSessionState, ConnectionAction, ConnectionSnapshot, DomainHeld, RunOutcome, RuntimeRoute, UnresolvedConnectionAction, Usage,
 } from './types.js';
-import { hasConnectionActionCapacity, useAiSession } from './useAiSession.js';
+import { useAiSession, useConnectionActionCapacity } from './useAiSession.js';
 
 export interface AiPanelProps {
   readonly client: AiClient;
@@ -101,7 +101,7 @@ export function AiPanelView({
   );
   const pendingKinds = unresolvedActions.map(action => action.action);
   const disconnectPending = unresolvedActions.some(action => action.action === 'disconnect' && action.status === 'pending');
-  const disconnectCapacityExhausted = !hasConnectionActionCapacity(unresolvedActions.length);
+  const disconnectCapacityExhausted = !useConnectionActionCapacity(unresolvedActions.length);
   // The submitted action is retained before its opening call settles. Show its
   // working progress separately, while preserving every older unresolved row.
   const visibleActions = unresolvedActions.filter(action => !(connectionBusy && action.actionId === state.connectionAction.actionId));

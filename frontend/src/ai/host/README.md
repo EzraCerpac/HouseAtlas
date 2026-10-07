@@ -101,7 +101,9 @@ An observed unconfirmed disconnect can be retried explicitly with a new action
 ID. The previous receipt stays unresolved and remains queryable under its
 original ID. Opening/pending disconnects and existing retention capacity still
 bound admission. The button uses the hook's same scope/global capacity predicate
-and displays a full-capacity limitation. Refresh reads receipts; it never
+and subscribes to registry count changes, including changes from another mounted
+scope. Disposal removes that observer; correlation rows retain no view/client.
+It displays a full-capacity limitation. Refresh reads receipts; it never
 resubmits a disconnect.
 
 Current application authentication, original authority, home/provider binding,

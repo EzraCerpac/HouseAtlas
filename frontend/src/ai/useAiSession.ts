@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { canInfer } from './model.js';
 import type {
   AiClient, AiSessionState, CancellationState, ConnectionAction, ConnectionActionState, RequestState, RunOutcome, UnresolvedConnectionAction,
@@ -41,6 +41,31 @@ interface PendingConnectionAction extends UnresolvedConnectionAction {
 const pendingConnectionActions = new Map<string, PendingConnectionAction>();
 const MAX_RETAINED_CONNECTION_ACTIONS = 96;
 
+// Mounted views observe only the count. React removes these subscriptions on
+// disposal; the persistent correlation rows retain no observer or view/client.
+const actionCapacitySubscribers = new Set<() => void>();
+function subscribeActionCapacity(changed: () => void): () => void {
+  actionCapacitySubscribers.add(changed);
+  return () => { actionCapacitySubscribers.delete(changed); };
+}
+function actionCapacitySnapshot(): number { return pendingConnectionActions.size; }
+// Server rendering/hydration starts with an empty browser-only registry.
+function serverActionCapacitySnapshot(): number { return 0; }
+function notifyActionCapacity(previousCount: number): void {
+  if (previousCount !== pendingConnectionActions.size)
+    for (const changed of [...actionCapacitySubscribers]) changed();
+}
+function recordConnectionAction(actionId: string, action: PendingConnectionAction): void {
+  const previousCount = pendingConnectionActions.size;
+  pendingConnectionActions.set(actionId, action);
+  notifyActionCapacity(previousCount);
+}
+function retireConnectionAction(actionId: string): void {
+  const previousCount = pendingConnectionActions.size;
+  pendingConnectionActions.delete(actionId);
+  notifyActionCapacity(previousCount);
+}
+
 interface ScopedState {
   readonly scope: Scope;
   readonly state: AiSessionState;
@@ -56,9 +81,15 @@ function initialState(): AiSessionState {
 const MAX_UNRESOLVED_CONNECTION_ACTIONS = 3;
 
 /** The existing browser correlation bounds, shared by admission and display. */
-export function hasConnectionActionCapacity(unresolvedCount: number): boolean {
+export function hasConnectionActionCapacity(unresolvedCount: number, globalCount = pendingConnectionActions.size): boolean {
   return unresolvedCount < MAX_UNRESOLVED_CONNECTION_ACTIONS
-    && pendingConnectionActions.size < MAX_RETAINED_CONNECTION_ACTIONS;
+    && globalCount < MAX_RETAINED_CONNECTION_ACTIONS;
+}
+
+/** Keep every mounted panel current when a different scope changes capacity. */
+export function useConnectionActionCapacity(unresolvedCount: number): boolean {
+  const globalCount = useSyncExternalStore(subscribeActionCapacity, actionCapacitySnapshot, serverActionCapacitySnapshot);
+  return hasConnectionActionCapacity(unresolvedCount, globalCount);
 }
 
 function retainedConnectionState(
@@ -164,8 +195,8 @@ export function useAiSession(client: AiClient, scopeKey: string) {
           if (!current()) return;
           if (pendingConnectionActions.get(pending.actionId) !== pending) continue;
           if (result.actionId !== pending.actionId) throw new Error('Unexpected connection action status');
-          if (result.status === 'completed') pendingConnectionActions.delete(pending.actionId);
-          else pendingConnectionActions.set(pending.actionId, { ...pending, status: result.status });
+          if (result.status === 'completed') retireConnectionAction(pending.actionId);
+          else recordConnectionAction(pending.actionId, { ...pending, status: result.status });
           // Each workflow is correlated separately from current connection facts.
           update(previous => ({ ...previous, connectionAction: retainedConnectionState(
             pendingConnectionActions.values(), scope,
@@ -176,7 +207,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
         } catch {
           if (!current()) return;
           if (pendingConnectionActions.get(pending.actionId) !== pending) continue;
-          pendingConnectionActions.set(pending.actionId, { ...pending, status: 'unconfirmed' });
+          recordConnectionAction(pending.actionId, { ...pending, status: 'unconfirmed' });
           update(previous => ({ ...previous, connectionAction: retainedConnectionState(
             pendingConnectionActions.values(), scope, previous.connectionAction,
           ) }));
@@ -301,7 +332,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
     const pending: PendingConnectionAction = { scopeKey: scope.key, actionId, action: input.action, status: 'unconfirmed' };
     actionController.current = controller;
     // Retain every submitted workflow, including a lost response, until its own completion.
-    pendingConnectionActions.set(actionId, pending);
+    recordConnectionAction(actionId, pending);
     update(previous => ({ ...previous,
       connection: input.action === 'disconnect' ? { status: 'loading' } : previous.connection,
       connectionAction: { status: 'working', action: input.action, actionId } }));
@@ -310,8 +341,8 @@ export function useAiSession(client: AiClient, scopeKey: string) {
       if (actionController.current !== controller || controller.signal.aborted || activeScope.current !== scope
         || pendingConnectionActions.get(actionId) !== pending) return;
       if (result.actionId !== actionId) throw new Error('Unexpected connection action result');
-      if (result.status === 'completed') pendingConnectionActions.delete(actionId);
-      else pendingConnectionActions.set(actionId, { ...pending, status: result.status });
+      if (result.status === 'completed') retireConnectionAction(actionId);
+      else recordConnectionAction(actionId, { ...pending, status: result.status });
       update(previous => ({ ...previous, connection: { status: 'available', snapshot: result.snapshot },
         connectionAction: retainedConnectionState(pendingConnectionActions.values(), scope,
           { status: 'idle', action: input.action, actionId }) }));

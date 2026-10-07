@@ -47,8 +47,11 @@ Disconnect action with a fresh ID, while its original unconfirmed receipt remain
 visible and queryable. A pending or opening disconnect still blocks another
 submission. Retries use the existing three-per-scope and 96-total unresolved
 action limits; they never evict older unresolved IDs. The button and hook share
-the same scope/global capacity predicate; a full capacity disables Disconnect
-and displays its limitation. An unavailable connection
+the same scope/global capacity predicate; mounted panels subscribe to the
+registry's count using React's `useSyncExternalStore`. Size changes notify every
+mounted view, including a panel under another scope; disposal removes its
+subscription. A full capacity disables Disconnect and displays its limitation.
+An unavailable connection
 requires current host status before another action. No automatic retry or remote
 revocation confirmation is inferred.
 
