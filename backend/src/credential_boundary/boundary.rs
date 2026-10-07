@@ -315,6 +315,7 @@ impl<C: Sync, A: CredentialAuthority<C>, K: KeyProvider> Boundary<C, A, K> {
             if initial_record.binding != *binding
                 || initial_record.stable_host_id != self.host_id
                 || !valid_field(&initial_record.app_name)
+                || initial_record.app_name.trim().is_empty()
                 || initial_record.state != LifecycleState::Disconnected
                 || initial_record.revocation != RevocationState::NotRequested
                 || initial_record.issued_client_id.is_some()

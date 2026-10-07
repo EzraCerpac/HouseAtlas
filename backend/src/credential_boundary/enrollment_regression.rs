@@ -34,7 +34,11 @@ use boundary::{Boundary, FileCredentialBoundary};
 use keys::{KeyProvider, SecretKey};
 use std::{
     path::Path,
-    sync::{Arc, Barrier, Mutex, mpsc},
+    sync::{
+        Arc, Barrier, Mutex,
+        atomic::{AtomicUsize, Ordering},
+        mpsc,
+    },
     time::Duration,
 };
 
@@ -43,10 +47,11 @@ const KEY_BYTES: [u8; 32] = [
     0x31, 0x42, 0x53, 0x64, 0x75, 0x86, 0x97, 0xa8, 0xb9, 0xca, 0xdb, 0xec, 0xfd, 0x0e, 0x1f, 0x20,
     0x30, 0x41, 0x52, 0x63, 0x74, 0x85, 0x96, 0xa7, 0xb8, 0xc9, 0xda, 0xeb, 0xfc, 0x0d, 0x1e, 0x2f,
 ];
-const CASES: [&str; 3] = [
+const CASES: [&str; 4] = [
     "empty-enrollment",
     "existing-enrollment-denied",
     "racing-enrollment",
+    "blank-app-enrollment-denied",
 ];
 
 fn binding() -> RegistrationBinding {
@@ -83,13 +88,19 @@ fn initial_record(app_name: &str) -> RegistrationRecord {
 #[derive(Clone)]
 struct SyntheticAuthority {
     exact_scope: Arc<Mutex<RegistrationBinding>>,
+    retain_calls: Arc<AtomicUsize>,
 }
 
 impl SyntheticAuthority {
     fn new(binding: RegistrationBinding) -> Self {
         Self {
             exact_scope: Arc::new(Mutex::new(binding)),
+            retain_calls: Arc::new(AtomicUsize::new(0)),
         }
+    }
+
+    fn retain_calls(&self) -> usize {
+        self.retain_calls.load(Ordering::SeqCst)
     }
 
     fn check(&self, binding: &RegistrationBinding) -> Result<(), AiError> {
@@ -114,6 +125,7 @@ impl CredentialAuthority<RegistrationBinding> for SyntheticAuthority {
         context: &RegistrationBinding,
         binding: &RegistrationBinding,
     ) -> Result<Self::Original, AiError> {
+        self.retain_calls.fetch_add(1, Ordering::SeqCst);
         if context != binding {
             return Err(AiError::DomainUnavailable);
         }
@@ -189,11 +201,13 @@ impl CredentialAuthority<RegistrationBinding> for SyntheticAuthority {
 #[derive(Clone)]
 struct SyntheticKeys {
     exact_key_id: String,
+    load_calls: Arc<AtomicUsize>,
 }
 
 impl KeyProvider for SyntheticKeys {
     fn load<'a>(&'a self, id: &'a str) -> PortFuture<'a, SecretKey> {
         Box::pin(async move {
+            self.load_calls.fetch_add(1, Ordering::SeqCst);
             if id != self.exact_key_id {
                 return Err(AiError::DomainUnavailable);
             }
@@ -207,8 +221,25 @@ fn adapter(
     authority: Arc<SyntheticAuthority>,
     binding: &RegistrationBinding,
 ) -> Result<Boundary<RegistrationBinding, SyntheticAuthority, SyntheticKeys>, AiError> {
+    adapter_with_key_counter(path, authority, binding, Arc::new(AtomicUsize::new(0)))
+}
+
+fn adapter_with_key_counter(
+    path: &Path,
+    authority: Arc<SyntheticAuthority>,
+    binding: &RegistrationBinding,
+    load_calls: Arc<AtomicUsize>,
+) -> Result<Boundary<RegistrationBinding, SyntheticAuthority, SyntheticKeys>, AiError> {
     let (exact_key_id, _) = boundary::record_location(HOST_ID, binding)?;
-    Boundary::with_keys(path, HOST_ID, authority, SyntheticKeys { exact_key_id })
+    Boundary::with_keys(
+        path,
+        HOST_ID,
+        authority,
+        SyntheticKeys {
+            exact_key_id,
+            load_calls,
+        },
+    )
 }
 
 async fn empty_enrollment() -> Result<(), AiError> {
@@ -281,6 +312,79 @@ async fn existing_enrollment_denied() -> Result<(), AiError> {
         retained_bytes.expose_for_encryption(),
         original_bytes.expose_for_encryption()
     );
+    Ok(())
+}
+
+async fn blank_app_enrollment_denied() -> Result<(), AiError> {
+    let directory = tempfile::Builder::new()
+        .prefix("houseatlas-enrollment-regression-")
+        .tempdir()
+        .map_err(|_| AiError::DomainUnavailable)?;
+    let b = binding();
+    let authority = Arc::new(SyntheticAuthority::new(b.clone()));
+    let key_loads = Arc::new(AtomicUsize::new(0));
+    let store = adapter_with_key_counter(
+        directory.path(),
+        Arc::clone(&authority),
+        &b,
+        Arc::clone(&key_loads),
+    )?;
+
+    let invalid = initial_record(" \t\n ");
+    match store.enroll_atomic(&b, &b, &invalid).await {
+        Err(error) => assert_eq!(error, AiError::InvalidInput),
+        Ok(lease) => {
+            drop(lease);
+            panic!("whitespace-only app name must be rejected as invalid input")
+        }
+    }
+    assert_eq!(
+        authority.retain_calls(),
+        0,
+        "authority is untouched on invalid input"
+    );
+    assert_eq!(
+        key_loads.load(Ordering::SeqCst),
+        0,
+        "key provider is untouched on invalid input"
+    );
+    let mut entries =
+        std::fs::read_dir(directory.path()).map_err(|_| AiError::DomainUnavailable)?;
+    assert!(
+        entries.next().is_none(),
+        "invalid input creates no lock or ciphertext files"
+    );
+
+    let valid = initial_record("Synthetic enrollment after local validation");
+    let lease = store.enroll_atomic(&b, &b, &valid).await?;
+    let loaded = store.load(&lease).await?;
+    let expected = record::encode(&valid)?;
+    let actual = record::encode(&loaded)?;
+    assert_eq!(
+        expected.expose_for_encryption(),
+        actual.expose_for_encryption()
+    );
+    drop(lease);
+
+    let reopened = adapter_with_key_counter(
+        directory.path(),
+        authority.clone(),
+        &b,
+        Arc::clone(&key_loads),
+    )?;
+    let lease = reopened.acquire(&b, &b).await?;
+    let reloaded = reopened.load(&lease).await?;
+    let reopened_bytes = record::encode(&reloaded)?;
+    assert_eq!(
+        expected.expose_for_encryption(),
+        reopened_bytes.expose_for_encryption()
+    );
+    assert_eq!(
+        reloaded.app_name,
+        "Synthetic enrollment after local validation"
+    );
+    assert!(authority.retain_calls() > 0);
+    assert!(key_loads.load(Ordering::SeqCst) > 0);
     Ok(())
 }
 
@@ -394,6 +498,7 @@ enum Case {
     Empty,
     ExistingDenied,
     Racing,
+    BlankDenied,
 }
 
 fn select_case() -> Result<Case, AiError> {
@@ -405,6 +510,7 @@ fn select_case() -> Result<Case, AiError> {
         "empty-enrollment" => Ok(Case::Empty),
         "existing-enrollment-denied" => Ok(Case::ExistingDenied),
         "racing-enrollment" => Ok(Case::Racing),
+        "blank-app-enrollment-denied" => Ok(Case::BlankDenied),
         _ => Err(AiError::InvalidInput),
     }
 }
@@ -423,6 +529,7 @@ async fn main() -> Result<(), AiError> {
             Case::Empty => empty_enrollment().await,
             Case::ExistingDenied => existing_enrollment_denied().await,
             Case::Racing => racing_enrollment().await,
+            Case::BlankDenied => blank_app_enrollment_denied().await,
         }
     })
     .await

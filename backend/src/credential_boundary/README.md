@@ -19,8 +19,8 @@ The separate explicit `enroll_atomic(context, binding, initial_record)` creates
 only an absent record for the actual original authority and returns its held
 lease. Initial binding/host must match exactly; state is Disconnected and
 revocation NotRequested, with no issued client ID, identity, credentials, pending
-authorization or checkpoint. Native key availability is required; no key is
-provisioned. First publication uses atomic Linux NOREPLACE, so even a racing
+authorization or checkpoint. App name must contain non-whitespace text. Native
+key availability is required; no key is provisioned. First publication uses atomic Linux NOREPLACE, so even a racing
 file appearance is preserved without replacement. Metadata initializes only
 after the fenced commit succeeds. The original host owns the trusted startup
 registration configuration and enrollment permission.
@@ -123,8 +123,10 @@ Healthy success does not qualify OS service behavior, deployment or paid use.
 Policy commit `8f4065a3ee831df0b30d14f597c25a7bbcc7f212` permits exact reviewed
 synthetic concurrency/denial/failure cases outside ordinary CI. The explicit
 allowlist in `enrollment_regression.rs` is `empty-enrollment`,
-`existing-enrollment-denied`, and `racing-enrollment`. Owners review the pinned
-source and all imported helpers before execution. Each case uses a fresh private
+`existing-enrollment-denied`, `racing-enrollment`, and
+`blank-app-enrollment-denied`. The blank-app denial occurs before key/authority
+or file acquisition and then proves a valid enrollment remains possible. Owners
+review the pinned source and all imported helpers before execution. Each case uses a fresh private
 temporary root, a fixed synthetic key and synthetic authority; no native lookup,
 network socket, provider, real credential, user data or deployment is involved.
 The racing case starts two independent adapters for the same registration, holds
