@@ -645,6 +645,30 @@ pub(super) fn execute_staged(
         Some(UploadPlan::Staged(&qualified)),
     )
 }
+/// A standalone asset has no place selection or client-supplied attachment
+/// graph. The live Media seal and original principal qualify this exact root.
+pub(super) fn execute_staged_asset(
+    core: &Core,
+    p: &RequestPrincipal,
+    raw: Value,
+    staged: &crate::media::staged_upload::StagedAssetPlan,
+    contracts: &st::NativeStockContract,
+) -> st::StockResult<st::OwnerResult> {
+    let request = st::ValidatedRequest::parse(contracts, raw.clone())?;
+    require(
+        request.id() == st::OperationId::AtlasAssetCreate
+            && request.raw() == staged.request().raw()
+            && request.children().is_empty(),
+    )?;
+    let qualified = st::plan_staged_atlas_commands(&request, staged, &NativeContracts)?;
+    execute_profile(
+        core,
+        p,
+        raw,
+        contracts,
+        Some(UploadPlan::Staged(&qualified)),
+    )
+}
 pub(super) fn execute_existing(
     core: &Core,
     p: &RequestPrincipal,
