@@ -125,7 +125,15 @@ Store errors expose only a fixed publication failure.
 
 Lists use `/api/v1/entities`, explicit `isLocation=true/false`,
 `includeArchived=true`, bounded offset pages, and repeated `parentIds` for views.
-Detail and maintenance decode the pinned normalized synthetic dialect. JSON parsing
+The existing `new` constructor selects the pinned normalized synthetic dialect.
+`new_stock(registration, transport, clock, limits, stock_navigation)` selects actual
+`crate::providers::homebox::wire` v0.26.2 decoding for every list/detail/maintenance
+endpoint after bounded raw body receipt. `metadata_dialect()` exposes that selection.
+Both per-request and generation deadlines are checked before and after endpoint
+decoding. Stock maintenance always requests `status=both`. The decoder receives
+the reader response-byte ceiling, page-count × page-size entry ceiling and 16,384
+text-character ceiling; aggregate bytes/pages remain reader-owned. Wire errors map
+to the existing fixed reader error codes. JSON parsing
 checks UTF-8, duplicate keys including extras, finite numbers, escaped surrogates
 and depth 64. RawValue distinguishes actual JSON containers from arbitrary-precision
 Serde numeric maps. AT51 classifies integral lexical tokens before checked u64
@@ -166,16 +174,33 @@ provider authority B remains root/access host integration. No permissive replace
 supplied. Publication futures impose no extra Send/Sync bounds on those borrowed
 handles; the shared host must reconcile their execution context.
 
-The published fixture catalog marks actual detail/maintenance/attachment wire
-unqualified. Exact missing inputs are sanitized healthy responses plus matching
-HomeBox version/build/API evidence: location/item list pages including archived
-rows; an entity detail with null metadata and stored-file/external-link attachments;
-and maintenance with schedules/completions/cost. Capture method/path, pagination,
-status/content type/encoding and tenant semantics, sanitizing headers. Therefore
-this decoder still implements `atlas-normalized-synthetic-v1` with reference version
-`v0.26.2`; it does not demonstrate native wire compatibility. TLS handshakes, actual
-credential retrieval, tenant enforcement and native routes need separate authorized
-qualification. Published Atlas/history schemas remain unchanged.
+The native decoder peer is pinned to published
+`9eaab4bc39216de486fd8274e1503e3e9df86fad`. Maintenance date fields use its actual
+`MaintenanceDate`, preserving calendar YYYY-MM-DD and existing timestamp spelling
+without inventing a time or timezone. Source update/retrieval/cache timestamps
+remain `Timestamp`. Existing numeric maintenance cost remains the reader's finite
+number projection; native original string/decimal spelling is retained by the
+decoder only during decoding, never automatically persisted as private evidence.
+
+`StockNavigation` accepts independently qualified location and item navigation.
+Validation checks full scope and verified templates against the pinned native
+paths: location view/edit; item view/edit/maintenance. Unknown types have no native
+links. Source-derived route candidates do not themselves qualify a route.
+
+Calendar-date durable publication/reconstruction requires the contract owner's
+additive `format: date` / `^[0-9]{4}-[0-9]{2}-[0-9]{2}$` alternative alongside the
+existing date-time/null alternatives for both maintenance date fields in
+`packages/contracts/schemas/atlas.schema.json`, plus regenerated owned DTOs. The
+reader does not bypass the actual contract validator or edit shared schema bytes.
+Root must mount `providers::homebox::wire` beside `read`; no new dependency is
+required. Direct and borrowed-authorizer publication/failure fences are unchanged.
+
+The decoder's fixtures are source-derived synthetic examples, not installed target
+captures. Exact remaining qualification inputs are sanitized healthy responses plus
+matching version/build/API evidence, request paths/pagination, status/content type/
+encoding and tenant semantics. TLS handshakes, actual credentials, tenant
+enforcement, installed API/build and native routes require separate qualification.
+Atlas/history schema adoption remains contract-owner managed.
 
 ## Scoped healthy verification
 
@@ -210,3 +235,27 @@ Emitted snapshots pass published shape/semantic validation as additional evidenc
 no JavaScript oracle is used in the Rust publication path. Legacy broad aggregates,
 stopped rejection/guard-reversal/mutation/adversarial/fault/crash/concurrency/negative
 controls remain unrun. Ordinary success does not qualify deployment or security.
+
+## Native stock consumption checkpoint
+
+The external task-owned harness mounts the exact published native wire peer and
+this reader, retaining the previously pinned actual storage/contracts/domain/jobs
+peers. Two positive native reader examples consume source-derived fixtures with
+owned 7-byte body chunks: a four-entity generation across three pages, native
+attachments, archived/unknown types, original source timestamp, scheduled/completed
+calendar dates, numeric costs, type-specific synthetic qualified routes and a
+filtered view that preserves complete-cache metadata; existing timestamp maintenance
+spelling also survives the additive type. No real provider or failure operation is
+called. The actual wire's six healthy examples and existing eleven non-HTTP reader
+examples plus three SQLite success examples remain explicitly selected.
+
+```sh
+cargo test --manifest-path "$AT08_HARNESS/Cargo.toml" --locked --test native_reader -- --test-threads=1
+cargo test --manifest-path "$AT08_HARNESS/Cargo.toml" --locked --lib homebox_read::healthy:: -- --test-threads=1
+cargo test --manifest-path "$AT08_HARNESS/Cargo.toml" --locked --lib providers::homebox::wire::healthy:: -- --test-threads=1
+```
+
+Stock calendar-date publication awaits the exact contract-owner schema successor;
+no failing write or replacement authority/validator is used as a qualification
+probe. Failure handoff remains compile-only. Native target and held controls remain
+deferred. The existing shared-host mount and normal integration are root-owned.

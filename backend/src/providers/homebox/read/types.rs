@@ -214,8 +214,8 @@ pub struct Maintenance {
     pub entry_id: Uuid,
     pub name: String,
     pub description: String,
-    pub scheduled_date: Option<Timestamp>,
-    pub completed_date: Option<Timestamp>,
+    pub scheduled_date: Option<crate::providers::homebox::wire::MaintenanceDate>,
+    pub completed_date: Option<crate::providers::homebox::wire::MaintenanceDate>,
     pub cost: Option<f64>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
