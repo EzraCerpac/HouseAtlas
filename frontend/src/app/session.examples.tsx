@@ -23,8 +23,12 @@ export async function runHealthySessionExamples(
     expiresAt: "2026-10-08T12:30:00Z",
   };
   const checks: string[] = [];
+  let completeSession: (() => void) | undefined;
+  const initialSession = new Promise<null>((resolve) => {
+    completeSession = () => resolve(null);
+  });
   const sessions: AtlasSessionClient = {
-    session: async () => null,
+    session: async () => initialSession,
     signIn: async (credentials) => {
       assert(
         credentials.username === "example-reader" &&
@@ -53,6 +57,19 @@ export async function runHealthySessionExamples(
         />,
       ),
     );
+    const loadingHeading = container.querySelector("#page-heading");
+    assert(
+      loadingHeading && document.activeElement === loadingHeading,
+      "Initial session loading focuses the page heading",
+    );
+    const progress = container.querySelector('[role="status"]');
+    assert(
+      progress?.getAttribute("aria-live") === "polite" &&
+        progress.textContent === "Loading session…",
+      "Loading session is announced as progress",
+    );
+    assert(completeSession, "Ordinary session completion available");
+    await act(async () => completeSession?.());
     const username =
       container.querySelector<HTMLInputElement>('[name="username"]');
     const password =
@@ -69,7 +86,7 @@ export async function runHealthySessionExamples(
       "Native credential field semantics",
     );
     checks.push(
-      "ordinary signed-out form, labels, password semantics and initial focus",
+      "loading heading focus/progress and signed-out username focus, labels and password semantics",
     );
     username.value = "example-reader";
     password.value = "synthetic-example-only";

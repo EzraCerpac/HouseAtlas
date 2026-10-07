@@ -106,6 +106,8 @@ export function SessionApp({
   if (state.status === "signed-out") return <SignInForm signIn={signIn} />;
   return (
     <SessionPanel
+      focusHeading
+      loading={state.status === "loading"}
       title={
         state.status === "loading"
           ? "Loading session…"
@@ -132,10 +134,17 @@ export function SessionApp({
 function SessionPanel({
   title,
   children,
+  focusHeading = false,
+  loading = false,
 }: {
   title: string;
   children?: ReactNode;
+  focusHeading?: boolean;
+  loading?: boolean;
 }) {
+  useLayoutEffect(() => {
+    if (focusHeading) document.getElementById("page-heading")?.focus();
+  }, [focusHeading, title]);
   return (
     <>
       <a
@@ -154,7 +163,13 @@ function SessionPanel({
             <BrandMark />
             <span>HouseAtlas</span>
           </p>
-          <Heading>{title}</Heading>
+          <div
+            role={loading ? "status" : undefined}
+            aria-live={loading ? "polite" : undefined}
+            aria-atomic={loading ? true : undefined}
+          >
+            <Heading>{title}</Heading>
+          </div>
           {children}
         </div>
       </main>

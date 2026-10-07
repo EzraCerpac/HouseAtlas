@@ -122,7 +122,8 @@ export function createAtlasSessionClient(
       // Session GET rotates the nonce in the published boundary. Get the current
       // nonce immediately before this action instead of retaining a stale one.
       const info = await session(signal);
-      if (!info) throw new AtlasReadError(401);
+      // An authoritative no-session response already confirms completion.
+      if (!info) return;
       const response = await request(logout, signal, {
         method: "POST",
         headers: { Accept: "application/json", "X-Atlas-CSRF": info.csrfToken },
