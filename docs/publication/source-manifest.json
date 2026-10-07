@@ -1,6 +1,6 @@
 {
   "format": "houseatlas-publication-source/1",
-  "status": "development-native-preview-policy-composition-review-required",
+  "status": "development-native-attachment-receipt-review-composition-review-required",
   "self": {
     "path": "docs/publication/source-manifest.json",
     "mode": "100644",
@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "1a77d9490dd64206d70153f22cb2af9f5f2a77122b4a946c4e2cda7c66b27e4f",
+  "sourceDigestSha256": "121462bf311e939271e593c59f4439e0843f00cfc4fe860d071958d4f99099cd",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -1098,8 +1098,8 @@
     {
       "path": "backend/src/http/upload.rs",
       "mode": "100644",
-      "bytes": 10506,
-      "sha256": "8e13c9b21d58e5ad8b48bbc1a87e4500d27b45480d316497466e0e3bc61b35b3",
+      "bytes": 11263,
+      "sha256": "3b949e205e4cae4c0130d75ace90272544cd4ce8d0d58486a25b03f9a8b6af01",
       "owner": "core-integration"
     },
     {
@@ -2603,8 +2603,8 @@
     {
       "path": "docs/operations/recovery-and-rollback.md",
       "mode": "100644",
-      "bytes": 1510,
-      "sha256": "29d7701df4fbcccd38abe9838ed77605cfcb3bde302c05f8379e0b25b65891d7",
+      "bytes": 1756,
+      "sha256": "2f7543cda851fd24fa742c2ce0a3e1afde9244036738f86b1a2450284df688ef",
       "owner": "operations-policy"
     },
     {
@@ -2666,8 +2666,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 25017,
-      "sha256": "39fbde9fbc26dac613497804838d7c5a7fe8177678cdf2d07c9d97c683b58f02",
+      "bytes": 25791,
+      "sha256": "916a0a0210ab9b2b947064f8be52feb84bcdd6555db19baaba8dbd6180d7c942",
       "owner": "core-integration"
     },
     {
