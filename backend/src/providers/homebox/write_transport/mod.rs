@@ -36,7 +36,7 @@ impl Limits {
 }
 
 /// Sensitive transient header: deliberately no Debug, Serialize or getter.
-pub struct AuthorizationHeader(pub(crate) HeaderValue);
+pub struct AuthorizationHeader(HeaderValue);
 impl AuthorizationHeader {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, TransportFault> {
         let mut header = HeaderValue::from_bytes(bytes).map_err(|_| TransportFault::Resources)?;

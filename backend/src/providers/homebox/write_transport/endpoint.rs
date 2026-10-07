@@ -16,9 +16,9 @@ pub struct DispatchBinding {
 }
 
 pub struct SourceEndpoint {
-    pub(crate) origin: Url,
-    pub(crate) binding: DispatchBinding,
-    pub(crate) fixture: bool,
+    pub(super) origin: Url,
+    pub(super) binding: DispatchBinding,
+    pub(super) fixture: bool,
 }
 impl SourceEndpoint {
     /// The registry owner supplies genuine exact build/route qualification.
@@ -78,7 +78,7 @@ impl SourceEndpoint {
         &self.binding
     }
 
-    pub(crate) fn check(
+    pub(super) fn check(
         &self,
         permit: &stock::InvocationPermit,
         plan: &stock::NativePlan,

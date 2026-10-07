@@ -534,16 +534,9 @@ async fn healthy_stock_multipart_and_print_dispatch_port() {
         json!({"delivery":"print","subject":"item","resourceId":id(61),"maxBytes":4096}),
     );
     let print = map_stock(&print_command, &Preparation::default()).unwrap();
-    // Actual public 2x2 synthetic PNG from the accepted lifecycle fixture (artifact bytes
-    // are checked, not promoted to physical printer acknowledgement).
-    let png = vec![
-        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 2, 0, 0, 0, 2, 8, 6,
-        0, 0, 0, 114, 182, 13, 36, 0, 0, 0, 27, 116, 69, 88, 116, 102, 105, 120, 116, 117, 114,
-        101, 0, 115, 121, 110, 116, 104, 101, 116, 105, 99, 32, 111, 119, 110, 101, 100, 32, 80,
-        78, 71, 186, 29, 76, 128, 0, 0, 0, 18, 73, 68, 65, 84, 120, 156, 99, 248, 207, 192, 240,
-        31, 12, 129, 52, 24, 0, 0, 73, 200, 9, 247, 249, 171, 182, 13, 0, 0, 0, 0, 73, 69, 78, 68,
-        174, 66, 96, 130,
-    ];
+    // Exact successful print confirmation from the pinned native handler,
+    // without promoting HTTP success to physical printer or remote-end proof.
+    let confirmation = b"Printed!".to_vec();
     let server = tokio::spawn(serve(
         listener,
         vec![
@@ -564,8 +557,8 @@ async fn healthy_stock_multipart_and_print_dispatch_port() {
                 body: vec![],
                 content_type: None,
                 status: 200,
-                response: png.clone(),
-                response_type: "image/png",
+                response: confirmation.clone(),
+                response_type: "text/plain; charset=utf-8",
                 chunked: false,
                 injected_header: false,
             },
@@ -584,6 +577,6 @@ async fn healthy_stock_multipart_and_print_dispatch_port() {
     let response = receipt.response.unwrap();
     assert_eq!(response.status, 200);
     assert_eq!(response.value, Value::Null);
-    assert_eq!(response.body_digest, body::digest(&png));
+    assert_eq!(response.body_digest, body::digest(&confirmation));
     server.await.unwrap();
 }

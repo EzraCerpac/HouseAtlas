@@ -149,7 +149,7 @@ impl<P: DispatchResources> HttpDispatcher<P> {
             .header(
                 ACCEPT,
                 if plan.response == stock::ResponseKind::Printer {
-                    "image/png"
+                    "text/plain"
                 } else {
                     "application/json"
                 },
@@ -256,7 +256,6 @@ impl<P: DispatchResources> HttpDispatcher<P> {
             {
                 return Err(TransportFault::ResponseBound);
             }
-            let content_type = response.headers().get(CONTENT_TYPE).cloned();
             let mut bytes = Vec::new();
             while let Some(chunk) = response.chunk().await.map_err(network_fault)? {
                 evidence.response_bytes_observed = evidence
@@ -275,14 +274,11 @@ impl<P: DispatchResources> HttpDispatcher<P> {
                 match plan.response {
                     stock::ResponseKind::NoContent if bytes.is_empty() => serde_json::Value::Null,
                     stock::ResponseKind::NoContent => return Err(TransportFault::ResponseFormat),
-                    stock::ResponseKind::Printer
-                        if content_type
-                            .as_ref()
-                            .is_some_and(|h| h.as_bytes() == b"image/png")
-                            && bytes.starts_with(b"\x89PNG\r\n\x1a\n") =>
-                    {
-                        serde_json::Value::Null
-                    }
+                    // Pinned v1_ctrl_labelmaker.go returns these exact bytes
+                    // after PrintLabel succeeds. It does not set a media type.
+                    // Retain the actual text digest, without claiming physical
+                    // printer acknowledgement or remote termination proof.
+                    stock::ResponseKind::Printer if bytes == b"Printed!" => serde_json::Value::Null,
                     stock::ResponseKind::Printer => return Err(TransportFault::ResponseFormat),
                     _ => {
                         let value = body::json(&bytes)?;

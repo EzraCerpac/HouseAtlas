@@ -13,7 +13,13 @@ including its README, match that input exactly. The native mapping remains
 pinned by that owner to HomeBox source
 `e01dd737238a3fa7e1a6454b37de6c6fc88c86e4`. No upstream pin qualifies a deployed
 build. Root manifests, lock, module declarations, routers, shared schemas and
-accepted peer source remain integrator-owned and unchanged.
+accepted peer source remain integrator-owned and unchanged. PR44 public head
+`72349292ec6c51a0e6a5d36985e094d05166bd53` has the same complete Git tree
+`6f91afef01c6a188bd1d19262744cd92015d3105` as the original transport input.
+The later dispatcher input explicitly still consumes that byte-identical head;
+it does not resolve PR44 findings by itself. This successor closes findings
+4205632955 (actual print confirmation), 4205632971 (fixture constructor visibility),
+and 4205632986 (checked sensitive authorization header construction).
 
 ## Binding
 
@@ -43,7 +49,12 @@ authority against that configured binding and recomputes the plan digest through
 the accepted shared `contracts::semantics::canonical_digest` implementation.
 The fixed mapper route/method/body-kind/query/response/status envelope is also
 checked independently. No browser URL, source override, arbitrary header or
-arbitrary native route can be supplied through the prepared request API.
+arbitrary native route can be supplied through the prepared request API. Endpoint
+fields are accessible only inside this transport namespace; production callers
+must use `SourceEndpoint::https`, while the literal loopback fixture constructor
+exists only in test builds. The authorization header tuple field is private to
+the transport module and descendants, so host resources must call `from_bytes`,
+which checks nonempty bytes and marks the header sensitive.
 
 `DispatchResources` is the necessary private host bridge. `authorization` receives
 the configured endpoint and exact admitted permit/plan/captured authority and
@@ -99,12 +110,16 @@ keys/depth over 64. It checks transport syntax and an object root for successful
 JSON forms; this is not a new native resource schema. Stock evidence/preparation
 peers retain native identity/schema/effect/readback decisions. A genuine bounded
 JSON error can be returned with its actual non-success status. Successful
-no-content replies require empty bytes; successful print replies require the
-PNG media type/signature and yield null plus the artifact's actual byte digest.
-PNG decoding/content validation and physical printer acknowledgement are not
-established by that transport envelope. No JSON null is hashed in place of an
-empty response or artifact. `NativeResponse.body_digest` is SHA256 of complete
-identity-encoded response bytes, including original whitespace, not native JCS.
+no-content replies require empty bytes. Successful print replies require the
+exact `Printed!` confirmation emitted by the pinned `print=true` native handler
+and yield null plus SHA256 of those actual text bytes. The handler does not
+explicitly set a media type, so acceptance does not depend on one. This confirms
+only the received HTTP response; physical printer acknowledgement and remote
+termination remain unproven. PNG generation with `print=false` belongs to the
+read/artifact owner and is not accepted by this mutating transport. No JSON null
+is hashed in place of an empty response or print confirmation.
+`NativeResponse.body_digest` is SHA256 of complete identity-encoded response bytes,
+including original whitespace, not native JCS.
 
 ## Evidence and physical activity
 
@@ -142,7 +157,7 @@ continues to retain its native-editor-race and held-activity distinctions.
 | Bodyless DELETE and five bodyless bulk actions; JSON wipe action | Fixed routes and methods, bounded reply | Loopback DELETE with genuine empty 204; bulk forms compiled only |
 | Attachment file upload | Exact file/name/type/primary multipart with admitted stage size/hash | Stock-mapped UTF-8 filename, exact synthetic bytes, chunked entity reply and explicit synthetic header |
 | CSV import | Exact csv multipart; maxRows/impact remain local admission constraints | Stock-mapped CSV and genuine empty 204 |
-| Label print asset/item/location GET | Exact print=true query and bounded PNG artifact digest | Stock-mapped item print through `StockDispatchPort`; no physical printer |
+| Label print asset/item/location GET | Exact print=true query and bounded `Printed!` confirmation digest | Stock-mapped item print through `StockDispatchPort`; no physical printer |
 
 HTTPS execution is coded with normal verification but has not been exercised
 against a live HomeBox build or user's NAS. No real provider/account call,
