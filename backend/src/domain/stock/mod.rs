@@ -4,6 +4,7 @@
 
 mod atlas_commands;
 mod atlas_reads;
+mod atlas_results;
 mod catalog;
 mod digest;
 mod ports;
@@ -13,6 +14,7 @@ mod service;
 
 pub use atlas_commands::*;
 pub use atlas_reads::*;
+pub use atlas_results::*;
 pub use catalog::*;
 pub use digest::*;
 pub use ports::*;

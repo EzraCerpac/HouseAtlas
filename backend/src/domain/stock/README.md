@@ -67,6 +67,12 @@ are the exact ordered flattening of the internal per-child wire receipts.
 Those durable child receipts preserve per-child IDs without adding fields to
 the frozen public batch arm. Full output authority and media/source-reference
 disclosure remain separate mandatory owner checks even for untargeted data.
+Requested page sizes bound the declared top-level records, resources or history
+entries. Query limits bound the five declared row variants and purchase-price
+entries; aggregate statistics retain their aggregate meaning. Checked integral
+decoding handles accepted decimal/exponent budgets. Public artifact bytes are
+checked against `maxBytes`; staged import/export `maxRows` and printed bytes
+still require the actual owner's measurements before effects or delivery.
 
 Invoked native outcomes retain only `active`, `end-unproven` or `ended-proven`
 activity. A `not-dispatched` outcome must be a never-invoked state with empty
@@ -104,6 +110,17 @@ binding/remap/media/geometry transformations remain held. Planning executes no
 native mutation. AT07 must atomically retain the full stock envelopes, key
 reservations, stable operation IDs and audit linkage with native records and
 receipts; a frozen receipt or post-commit sidecar does not supply that guarantee.
+
+`map_atlas_commit` projects genuine native mutation results and retained stock
+metadata through borrowed `AtlasCommitView`/`AtlasCommitGroupView` carriers. It
+checks original intent, verified durable actor, ordered groups, native command
+and candidate correlation, exact output schemas and ordered public flattening.
+It creates no IDs, timestamps, receipt persistence or authority. Original
+preimages and complete final graph proof remain native transaction obligations;
+the mapper does not reconstruct them from newer reads. AT07's actual atomic
+stock commit carrier and scoped executor are still required to bind this pure
+projection to execution. Current stock dispatch must authorize the output and
+revalidate its captured principal before release.
 
 The current composed compiler harness includes real published storage/access/
 contract source snapshots and the current AT36 modules. Root manifests/locks
