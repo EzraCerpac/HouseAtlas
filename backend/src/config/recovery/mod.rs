@@ -4,12 +4,27 @@
 //! persistence and configuration are separate operator-selected inputs. The
 //! caller owns and drains the selected directories throughout recovery.
 use crate::{
-    access::AccessConfig,
+    access::{AccessConfig, OfflineRecoveryAuthority, RecoveryDiscoveryGrant},
     app::access_scope,
-    domain::{HomeSummary, Scope, stock::NativeStockContract},
+    domain::{
+        HomeSummary, Scope,
+        queue_recovery::{
+            NativeQueueDiscovery, NativeQueueRecoveryEvidence, OriginalEnqueueOwner,
+            QueueRecoveryBindings, QueuedMediaRecovery, TrustedQueueRegistry,
+        },
+        stock::NativeStockContract,
+    },
     jobs::QueueConfig,
     media::recovery::{DatabaseMember, MAX_DATABASE, RestoredRecovery},
-    storage::{QueueDiscovery, QueueRecoveryEvidence, RecoveryValidationPeers},
+    providers::homebox::recovery::{
+        HomeboxRetainedEvidence, HomeboxStockActivityEvidence, NativeWriterContracts,
+        RetainedNativeStockActivityArchive, RetainedWriterArchive,
+    },
+    storage::{
+        QueueDiscovery, QueueRecoveryEvidence, RecoveryValidationPeers,
+        StockActivityPhysicalRegistration, StockActivityPrincipal, StockActivityRecoveryDiscovery,
+        StockActivityRecoveryEvidence, StockActivityRecoveryPeers,
+    },
 };
 use rustix::fs::{Mode, OFlags, open};
 use std::{
@@ -240,5 +255,279 @@ impl<'a, D: QueueDiscovery, E: QueueRecoveryEvidence> RecoveryPeers<'a, D, E> {
             discovery: self.discovery,
             evidence: self.evidence,
         }
+    }
+}
+
+/// Independently selected owner inputs, never recovered from an image. The
+/// stock profile is the original live enqueue profile, not a schema version.
+/// Authority/grant must come from explicit trusted administrative approval and
+/// remain the SAME issuer outside Core across close and access-session reset.
+pub struct HomeboxRecoveryBindings<'a, O, M> {
+    pub queues: &'a [QueueConfig],
+    pub stock_contract_id: &'a str,
+    pub authority: &'a OfflineRecoveryAuthority,
+    pub grant: &'a RecoveryDiscoveryGrant,
+    pub original_owner: &'a O,
+    pub media: &'a M,
+    pub writer_contracts: &'a NativeWriterContracts,
+    pub writer_archive: &'a RetainedWriterArchive,
+}
+
+/// Concrete access/domain/HomeBox codec composition. Original enqueue/lease
+/// provenance and queued media proof remain REQUIRED independent owner ports.
+/// The archive must be independently authenticated retained writer facts; its
+/// constructor, matching packets and digests do not establish that provenance.
+/// No grant is minted, no approval is inferred and no provider is invoked here.
+/// Original/media/archive facts must be independently retrievable after restart;
+/// owner handles must obey RecoveryPeers' lock/alias obligations. Cold startup
+/// supplies an independently approved issuer/grant before opening any image.
+/// At least one configured physical queue is required, so the actual issuer can
+/// revalidate the supplied grant. Queue-free images retain the native host path.
+pub struct HomeboxRecoveryOwners<'a, O, M> {
+    registry: TrustedQueueRegistry,
+    bindings: HomeboxRecoveryBindings<'a, O, M>,
+    native_codec: HomeboxRecoveryCodec,
+}
+
+// Chosen by trusted host construction, never an image label or schema number.
+enum HomeboxRecoveryCodec {
+    OriginalUuid,
+    RetainedQueueBinding,
+}
+
+type HomeboxDiscovery<'a, O, M> =
+    NativeQueueDiscovery<'a, NativeStockContract, OfflineRecoveryAuthority, O, M>;
+type HomeboxEvidence<'a, 'peer, O, M> = NativeQueueRecoveryEvidence<
+    'a,
+    'peer,
+    NativeStockContract,
+    OfflineRecoveryAuthority,
+    O,
+    M,
+    HomeboxRetainedEvidence<'peer>,
+>;
+
+impl<'a, O: OriginalEnqueueOwner, M: QueuedMediaRecovery<O::Proof>>
+    HomeboxRecoveryOwners<'a, O, M>
+{
+    /// Preserved /1 selection and its original queue/writer UUID requirement.
+    pub fn new(bindings: HomeboxRecoveryBindings<'a, O, M>) -> Result<Self> {
+        Self::with_native_codec(bindings, HomeboxRecoveryCodec::OriginalUuid)
+    }
+
+    /// Explicit /2 selection for actual opaque storage job IDs. The original
+    /// writer owner must supply independently retained /2 archive records from
+    /// its actual claim, admitted operation and matching permit. This host never
+    /// creates that binding, derives a writer UUID or upgrades an image packet.
+    /// A configured peer selects one version; mixed versions have no fallback.
+    pub fn new_v2(bindings: HomeboxRecoveryBindings<'a, O, M>) -> Result<Self> {
+        Self::with_native_codec(bindings, HomeboxRecoveryCodec::RetainedQueueBinding)
+    }
+
+    fn with_native_codec(
+        bindings: HomeboxRecoveryBindings<'a, O, M>,
+        native_codec: HomeboxRecoveryCodec,
+    ) -> Result<Self> {
+        if bindings.queues.is_empty() {
+            return Err(InvalidRecoveryConfig);
+        }
+        let registry =
+            TrustedQueueRegistry::new(bindings.queues).map_err(|_| InvalidRecoveryConfig)?;
+        let owners = Self {
+            registry,
+            bindings,
+            native_codec,
+        };
+        owners.with_peers(|_| ())?;
+        Ok(owners)
+    }
+
+    /// Freeze every registration, including empty queues, in the supplied order.
+    pub fn queues(&self) -> &[QueueConfig] {
+        self.registry.configs()
+    }
+
+    // Keep the discovery, evidence and native codec alive in one operation
+    // scope, avoiding self-referential owners or a reconstructed principal.
+    pub(crate) fn with_peers<T>(
+        &self,
+        operation: impl FnOnce(
+            &RecoveryPeers<'_, HomeboxDiscovery<'_, O, M>, HomeboxEvidence<'_, '_, O, M>>,
+        ) -> T,
+    ) -> Result<T> {
+        let contracts = NativeStockContract::new().map_err(|_| InvalidRecoveryConfig)?;
+        let bindings = &self.bindings;
+        let discovery = NativeQueueDiscovery::new(
+            self.registry.configs(),
+            QueueRecoveryBindings {
+                stock_contract_id: bindings.stock_contract_id,
+                contracts: &contracts,
+                authority: bindings.authority,
+                grant: bindings.grant,
+                original_owner: bindings.original_owner,
+                media: bindings.media,
+            },
+        )
+        .map_err(|_| InvalidRecoveryConfig)?;
+        for queue in discovery.registry().configs() {
+            discovery
+                .authorize_discovery(&queue.registration)
+                .map_err(|_| InvalidRecoveryConfig)?;
+        }
+        let native = match self.native_codec {
+            HomeboxRecoveryCodec::OriginalUuid => {
+                HomeboxRetainedEvidence::new(bindings.writer_contracts, bindings.writer_archive)
+            }
+            HomeboxRecoveryCodec::RetainedQueueBinding => {
+                HomeboxRetainedEvidence::new_v2(bindings.writer_contracts, bindings.writer_archive)
+            }
+        };
+        let evidence = NativeQueueRecoveryEvidence::new(&discovery, &native);
+        let peers = RecoveryPeers::new(discovery.registry().configs(), &discovery, &evidence)?;
+        Ok(operation(&peers))
+    }
+}
+
+/// Independently selected async activity owners, separate from Jobs evidence.
+/// The complete registry includes empty physical registrations and is frozen
+/// here in its trusted order. Its metadata cannot issue offline authority.
+/// Discovery must retain its original independently approved administrative
+/// issuer outside Core across source close and access-session reset.
+///
+/// Evidence must qualify actual native admission, bounded raw dispatch and
+/// observation carriers, media admission and liability at EACH event-local
+/// prefix against independently authenticated producer retention. A later
+/// receipt, end proof or liability cut cannot qualify an earlier frame. Jobs
+/// codec /1 or /2, image rows and matching digests are not activity provenance.
+/// Missing owner proofs must fail; no default evidence or grant is supplied.
+/// Both callbacks run under storage's read transaction: no storage reentry,
+/// provider I/O, access refresh or opposing access/vault lock order. Owners must
+/// survive cold startup independently, without retaining source Core aliases.
+pub struct StockActivityRecoveryOwners<'a, W, D, E> {
+    contracts: &'a W,
+    registry: Vec<StockActivityPhysicalRegistration>,
+    discovery: &'a D,
+    evidence: ActivityEvidence<'a, E>,
+}
+enum ActivityEvidence<'a, E> {
+    Borrowed(&'a E),
+    Owned(E),
+}
+impl<
+    'a,
+    W: crate::providers::homebox::write::stock::StockContractPort,
+    D: StockActivityRecoveryDiscovery,
+    E: StockActivityRecoveryEvidence,
+> StockActivityRecoveryOwners<'a, W, D, E>
+{
+    pub fn new(
+        contracts: &'a W,
+        registry: &[StockActivityPhysicalRegistration],
+        discovery: &'a D,
+        evidence: &'a E,
+    ) -> Result<Self> {
+        Self::with_evidence(
+            contracts,
+            registry,
+            discovery,
+            ActivityEvidence::Borrowed(evidence),
+        )
+    }
+
+    fn with_evidence(
+        contracts: &'a W,
+        registry: &[StockActivityPhysicalRegistration],
+        discovery: &'a D,
+        evidence: ActivityEvidence<'a, E>,
+    ) -> Result<Self> {
+        let mut physical = HashSet::new();
+        if registry
+            .iter()
+            .any(|entry| !physical.insert(entry.physical_binding.physical_database_id))
+        {
+            return Err(InvalidRecoveryConfig);
+        }
+        let owners = Self {
+            contracts,
+            registry: registry.to_vec(),
+            discovery,
+            evidence,
+        };
+        owners.revalidate()?;
+        Ok(owners)
+    }
+
+    pub fn registry(&self) -> &[StockActivityPhysicalRegistration] {
+        &self.registry
+    }
+
+    pub(crate) fn revalidate(&self) -> Result<()> {
+        self.discovery
+            .revalidate_registry(&self.registry)
+            .map_err(|_| InvalidRecoveryConfig)?;
+        for registration in &self.registry {
+            self.discovery
+                .revalidate_registration(&self.registry, registration)
+                .map_err(|_| InvalidRecoveryConfig)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn storage(&self) -> StockActivityRecoveryPeers<'_, W, D, E> {
+        StockActivityRecoveryPeers {
+            contracts: self.contracts,
+            registry: &self.registry,
+            discovery: self.discovery,
+            evidence: match &self.evidence {
+                ActivityEvidence::Borrowed(evidence) => evidence,
+                ActivityEvidence::Owned(evidence) => evidence,
+            },
+        }
+    }
+}
+
+impl<
+    'a,
+    P: StockActivityPrincipal,
+    D: StockActivityRecoveryDiscovery,
+    M: StockActivityRecoveryEvidence,
+>
+    StockActivityRecoveryOwners<
+        'a,
+        NativeWriterContracts,
+        D,
+        HomeboxStockActivityEvidence<'a, P, M>,
+    >
+{
+    /// Explicit activity-native /3 composition over the independently retained
+    /// ORIGINAL sealed producer and actual bounded native port captures. The
+    /// archive must be independently authenticated/durably retrieved; this
+    /// constructor records neither approval nor archival completion.
+    /// The current native carrier has no serialized reload constructor. An
+    /// in-process archive can survive Core close; authentic process-restart
+    /// retrieval still requires a qualified original-owner companion.
+    ///
+    /// The mandatory original_media peer independently qualifies original
+    /// preflight/approval/media reservation and EVERY event-local liability and
+    /// provenance cut. The actual codec additionally checks each own native
+    /// prefix and recomputes accepted native reducers. No Jobs lease conversion,
+    /// manifest-selected codec, invented original evidence or permission minting.
+    pub fn homebox_native_v3(
+        contracts: &'a NativeWriterContracts,
+        registry: &[StockActivityPhysicalRegistration],
+        discovery: &'a D,
+        archive: &'a RetainedNativeStockActivityArchive<P>,
+        original_media: &'a M,
+    ) -> Result<Self> {
+        Self::with_evidence(
+            contracts,
+            registry,
+            discovery,
+            ActivityEvidence::Owned(HomeboxStockActivityEvidence::new(
+                contracts,
+                archive,
+                original_media,
+            )),
+        )
     }
 }
