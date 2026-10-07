@@ -1,10 +1,12 @@
 //! Adapters to the monolith's actual Rust storage and access components.
 //! No SQL, schema migration, semantic fallback or deserializable authority.
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::{access as a, contracts as dto, storage as s};
 
+use super::recovery::{MAX_ASSETS, RecoveryDatabasePort, RecoveryProfile, ValidatedDatabase};
 use super::service::{
     DeliveryMode, MediaAccessPort, MediaStoragePort, OwnedDescriptor, OwnedMediaMetadata,
     StoredAsset,
@@ -252,6 +254,88 @@ pub struct NativeMediaStorage<'a, C, A, R> {
 impl<'a, C, A, R> NativeMediaStorage<'a, C, A, R> {
     pub fn new(store: &'a Mutex<s::AtlasStore<C, A, R>>) -> Self {
         Self { store }
+    }
+}
+
+fn recovery_checkpoint(budget: &WorkBudget) -> s::Result<()> {
+    budget
+        .check()
+        .map_err(|_| s::Error::new("storage-unavailable", "Recovery operation budget exhausted"))
+}
+
+fn project_recovery_image(
+    image: s::RecoveryImage,
+    profile: RecoveryProfile,
+    budget: &WorkBudget,
+) -> MediaResult<ValidatedDatabase> {
+    budget.check()?;
+    if !profile.matches_metadata(
+        &image.contract_version,
+        image.database_schema,
+        Some(&image.database_lineage),
+    ) {
+        return Err(MediaError::Unavailable);
+    }
+    if image.assets.len() > MAX_ASSETS {
+        return Err(MediaError::TooLarge);
+    }
+    let mut assets = Vec::with_capacity(image.assets.len());
+    for record in &image.assets {
+        budget.check()?;
+        assets.push(project_asset(record)?);
+    }
+    budget.check()?;
+    Ok(ValidatedDatabase {
+        contract_version: image.contract_version,
+        database_schema: image.database_schema,
+        database_lineage: Some(image.database_lineage),
+        assets,
+    })
+}
+
+/// Offline trusted administration over the host-owned connection. Storage
+/// alone validates SQL, migrations, the unredacted graph and durable history.
+/// Paths must be operation-owned private staging/image paths, as supplied by
+/// recovery.rs; this port is not an HTTP upload or domain command boundary.
+impl<C, A, R> RecoveryDatabasePort for NativeMediaStorage<'_, C, A, R>
+where
+    C: s::Contract,
+    A: s::Authorization,
+    R: s::Runtime,
+{
+    fn recovery_profile(&self) -> RecoveryProfile {
+        RecoveryProfile::NativeRustV1 {
+            contract_version: s::CONTRACT_VERSION,
+            database_schema: s::DATABASE_VERSION,
+            database_lineage: s::DATABASE_LINEAGE,
+        }
+    }
+
+    fn backup_to(&self, destination: &Path, budget: &WorkBudget) -> MediaResult<()> {
+        budget.check()?;
+        let mut store = self.store.try_lock().map_err(|_| MediaError::Unavailable)?;
+        budget.check()?;
+        let image = store
+            .backup_recovery_to(destination, &mut || recovery_checkpoint(budget))
+            .map_err(storage_error)?;
+        drop(store);
+        project_recovery_image(image, self.recovery_profile(), budget)?;
+        Ok(())
+    }
+
+    fn validate_recovery_database(
+        &self,
+        database: &Path,
+        budget: &WorkBudget,
+    ) -> MediaResult<ValidatedDatabase> {
+        budget.check()?;
+        let store = self.store.try_lock().map_err(|_| MediaError::Unavailable)?;
+        budget.check()?;
+        let image = store
+            .validate_recovery_image(database, &mut || recovery_checkpoint(budget))
+            .map_err(storage_error)?;
+        drop(store);
+        project_recovery_image(image, self.recovery_profile(), budget)
     }
 }
 

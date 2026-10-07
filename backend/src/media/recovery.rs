@@ -16,8 +16,6 @@ use super::{AssetVault, MAX_BYTES, MediaError, MediaResult, WorkBudget};
 pub const CONTRACT_VERSION: &str = "1.0.0";
 /// Published JavaScript storage schema; native Rust storage has its own profile.
 pub const DATABASE_SCHEMA: u32 = 3;
-pub const NATIVE_DATABASE_SCHEMA: u32 = 1;
-pub const NATIVE_DATABASE_LINEAGE: &str = "houseatlas-rust-storage/1";
 pub const MAX_DATABASE: usize = 64 * 1024 * 1024;
 pub const MAX_MANIFEST: usize = 16 * 1024 * 1024;
 pub const MAX_TOTAL: usize = 256 * 1024 * 1024;
@@ -38,36 +36,56 @@ const EXCLUSIONS: [&str; 5] = [
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RecoveryProfile {
     LegacyJsV1,
-    NativeRustV1,
+    /// Compatibility identity supplied by the compiled storage peer, not a
+    /// native schema number guessed by media or accepted from a bundle.
+    NativeRustV1 {
+        contract_version: &'static str,
+        database_schema: u32,
+        database_lineage: &'static str,
+    },
 }
 
 impl RecoveryProfile {
     pub const fn format(self) -> &'static str {
         match self {
             Self::LegacyJsV1 => FORMAT,
-            Self::NativeRustV1 => NATIVE_FORMAT,
+            Self::NativeRustV1 { .. } => NATIVE_FORMAT,
         }
     }
 
     pub const fn contract_version(self) -> &'static str {
-        CONTRACT_VERSION
+        match self {
+            Self::LegacyJsV1 => CONTRACT_VERSION,
+            Self::NativeRustV1 {
+                contract_version, ..
+            } => contract_version,
+        }
     }
 
     pub const fn database_schema(self) -> u32 {
         match self {
             Self::LegacyJsV1 => DATABASE_SCHEMA,
-            Self::NativeRustV1 => NATIVE_DATABASE_SCHEMA,
+            Self::NativeRustV1 {
+                database_schema, ..
+            } => database_schema,
         }
     }
 
     pub const fn database_lineage(self) -> Option<&'static str> {
         match self {
             Self::LegacyJsV1 => None,
-            Self::NativeRustV1 => Some(NATIVE_DATABASE_LINEAGE),
+            Self::NativeRustV1 {
+                database_lineage, ..
+            } => Some(database_lineage),
         }
     }
 
-    fn matches_metadata(self, contract_version: &str, schema: u32, lineage: Option<&str>) -> bool {
+    pub(super) fn matches_metadata(
+        self,
+        contract_version: &str,
+        schema: u32,
+        lineage: Option<&str>,
+    ) -> bool {
         contract_version == self.contract_version()
             && schema == self.database_schema()
             && lineage == self.database_lineage()

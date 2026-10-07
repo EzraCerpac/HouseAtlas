@@ -1,14 +1,12 @@
 //! One healthy disposable native persistence/access/media composition.
-//! AT52 full native semantics remain a required peer: only this example uses
-//! the published pure semantic oracle. No JavaScript database adapter is used.
+//! Uses the actual published native semantic, SQLite, access and media peers.
+//! Synthetic identities/time only; no JavaScript semantic/database adapter.
 use std::cell::Cell;
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::{Arc, Mutex};
 
-use crate::{access as a, storage as s};
+use crate::{access as a, domain::native_semantics::NativeSemantics, storage as s};
 use serde_json::{Value, json};
 
 use super::AssetVault;
@@ -17,148 +15,9 @@ use super::native::{
     NativeMediaAccess, NativeMediaRuntime, NativeMediaStorage, NativeReadAuthority,
     RetainedPrincipal,
 };
+use super::recovery::{capture_recovery, restore_recovery, verify_recovery};
 use super::service::{DeliveryMode, MediaService, OwnedDescriptor, ReadMethod};
 use super::types::{AssetPurpose, ContentType};
-
-struct SemanticOracle {
-    process: Mutex<OracleProcess>,
-}
-
-struct OracleProcess {
-    child: Child,
-    input: ChildStdin,
-    output: BufReader<ChildStdout>,
-}
-
-impl Drop for OracleProcess {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
-
-impl SemanticOracle {
-    fn start() -> Self {
-        let helper = Path::new(file!())
-            .parent()
-            .unwrap()
-            .join("checks/semantic-oracle.mjs");
-        let mut child = Command::new("node")
-            .arg(helper)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
-            .spawn()
-            .unwrap();
-        let input = child.stdin.take().unwrap();
-        let output = BufReader::new(child.stdout.take().unwrap());
-        Self {
-            process: Mutex::new(OracleProcess {
-                child,
-                input,
-                output,
-            }),
-        }
-    }
-
-    fn call(&self, operation: &str, args: Value) -> s::Result<Value> {
-        let error = || s::Error::new("example-unavailable", "Published semantic peer unavailable");
-        let mut process = self.process.lock().map_err(|_| error())?;
-        writeln!(
-            process.input,
-            "{}",
-            json!({"operation":operation,"args":args})
-        )
-        .map_err(|_| error())?;
-        process.input.flush().map_err(|_| error())?;
-        let mut line = String::new();
-        process.output.read_line(&mut line).map_err(|_| error())?;
-        let response: Value = serde_json::from_str(&line)?;
-        if response["ok"] != true {
-            return Err(error());
-        }
-        Ok(response["value"].clone())
-    }
-}
-
-impl s::Contract for SemanticOracle {
-    fn validate_shape(&self, name: &str, value: &Value) -> s::Result<()> {
-        self.call("shape", json!({"name":name,"value":value}))
-            .map(|_| ())
-    }
-    fn validate_snapshot(&self, snapshot: &s::Snapshot) -> s::Result<()> {
-        self.call("snapshot", json!({"snapshot":snapshot}))
-            .map(|_| ())
-    }
-    fn assert_transition(
-        &self,
-        current: Option<&s::Record>,
-        command: &s::Mutation,
-        target: &s::ScopedTarget,
-    ) -> s::Result<u64> {
-        self.call(
-            "transition",
-            json!({"current":current,"command":command,"target":target}),
-        )?
-        .as_u64()
-        .ok_or(s::Error::new("example-unavailable", "Revision missing"))
-    }
-    fn assert_guards(
-        &self,
-        snapshot: &s::Snapshot,
-        current: Option<&s::Record>,
-        command: &s::Mutation,
-        target: &s::ScopedTarget,
-        created: &[s::ScopedTarget],
-    ) -> s::Result<()> {
-        self.call("guards", json!({"snapshot":snapshot,"current":current,"command":command,"target":target,"created":created})).map(|_| ())
-    }
-    fn assert_final_mutation(
-        &self,
-        snapshot: &s::Snapshot,
-        current: Option<&s::Record>,
-        command: &s::Mutation,
-        target: &s::ScopedTarget,
-    ) -> s::Result<()> {
-        self.call(
-            "final",
-            json!({"snapshot":snapshot,"current":current,"command":command,"target":target}),
-        )
-        .map(|_| ())
-    }
-    fn validate_result(&self, result: &s::MutationResult, prior: s::Prior<'_>) -> s::Result<()> {
-        let (kind, record) = match prior {
-            s::Prior::Unspecified => ("unspecified", None),
-            s::Prior::Missing => ("missing", None),
-            s::Prior::Record(record) => ("record", Some(record)),
-        };
-        self.call(
-            "result",
-            json!({"result":result,"priorKind":kind,"prior":record}),
-        )
-        .map(|_| ())
-    }
-    fn canonical_json(&self, value: &Value) -> s::Result<String> {
-        self.call("canonical", json!({"value":value}))?
-            .as_str()
-            .map(str::to_owned)
-            .ok_or(s::Error::new(
-                "example-unavailable",
-                "Canonical JSON missing",
-            ))
-    }
-    fn timestamp_millis(&self, value: &str) -> s::Result<Option<i64>> {
-        let result = self.call("timestamp", json!({"value":value}))?;
-        if result.is_null() {
-            Ok(None)
-        } else {
-            result
-                .as_i64()
-                .map(Some)
-                .ok_or(s::Error::new("example-unavailable", "Timestamp missing"))
-        }
-    }
-}
 
 struct SyntheticClockIds(Cell<u32>);
 impl s::Runtime for SyntheticClockIds {
@@ -331,7 +190,7 @@ fn healthy_native_owned_media_records_and_history() {
     };
     let mut store = s::AtlasStore::open(
         root.join("atlas.sqlite"),
-        s::NativeContract::new(SemanticOracle::start()),
+        s::NativeContract::new(NativeSemantics::native()),
         NativeReadAuthority(Arc::clone(&boundary)),
         runtime,
         s::StoreOptions {
@@ -416,7 +275,119 @@ fn healthy_native_owned_media_records_and_history() {
             s::Lifecycle::Tombstoned
         );
     }
+    let snapshot_before = store
+        .lock()
+        .unwrap()
+        .read_snapshot(&reader, &storage_scope)
+        .unwrap();
+    let captured_path = root.join("native-bundle");
+    let manifest = capture_recovery(&adapter, &vault, &captured_path, &budget()).unwrap();
+    assert_eq!(manifest.format, "houseatlas-rust-owned-recovery/1");
+    assert_eq!(manifest.database_schema, 2);
+    assert_eq!(manifest.contract_version, s::CONTRACT_VERSION);
+    assert_eq!(
+        manifest.database_lineage.as_deref(),
+        Some(s::DATABASE_LINEAGE)
+    );
+    assert_eq!(manifest.assets.len(), 4);
+    let missing = manifest
+        .assets
+        .iter()
+        .find(|asset| asset.asset_id == u(600))
+        .unwrap();
+    assert_eq!(missing.availability, super::types::Availability::Missing);
+    assert!(missing.blob.is_none());
+    for id in [611, 612] {
+        let retained = manifest
+            .assets
+            .iter()
+            .find(|asset| asset.asset_id == u(id))
+            .unwrap();
+        assert_eq!(retained.lifecycle, super::types::Lifecycle::Tombstoned);
+        assert!(retained.blob.is_some());
+    }
+    let verified = verify_recovery(&adapter, &captured_path, &budget()).unwrap();
+    assert_eq!(verified.manifest, manifest);
+    let restored = restore_recovery(
+        &adapter,
+        &captured_path,
+        &root.join("native-restored"),
+        &budget(),
+    )
+    .unwrap();
+    // Compare the complete closed image before normal opening enables WAL.
+    // This preserves original audit/receipt bodies without invoking replay.
+    assert_eq!(
+        fs::read(&restored.database_path).unwrap(),
+        fs::read(captured_path.join("atlas.sqlite")).unwrap()
+    );
+    let restored_vault = Arc::new(AssetVault::open(&restored.vault_root).unwrap());
+    for asset in &verified.assets {
+        if asset.payload.availability == super::types::Availability::Available
+            || [u(611), u(612)].contains(&asset.record_id)
+        {
+            assert_eq!(
+                restored_vault.read_retained(asset, &budget()).unwrap(),
+                vault.read_retained(asset, &budget()).unwrap()
+            );
+        }
+    }
+    let restored_store = Mutex::new(
+        s::AtlasStore::open(
+            &restored.database_path,
+            s::NativeContract::new(NativeSemantics::native()),
+            NativeReadAuthority(Arc::clone(&boundary)),
+            NativeMediaRuntime {
+                vault: Arc::clone(&restored_vault),
+                server: SyntheticClockIds(Cell::new(60_000)),
+            },
+            s::StoreOptions::default(),
+        )
+        .unwrap(),
+    );
+    let snapshot_after = restored_store
+        .lock()
+        .unwrap()
+        .read_snapshot(&reader, &storage_scope)
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(snapshot_after).unwrap(),
+        serde_json::to_value(snapshot_before).unwrap()
+    );
+    for id in [611, 612] {
+        let target = s::RecordRef {
+            record_type: s::RecordType::Asset,
+            record_id: u(id),
+        };
+        let before = store
+            .lock()
+            .unwrap()
+            .history(&reader, &storage_scope, &target)
+            .unwrap();
+        let after = restored_store
+            .lock()
+            .unwrap()
+            .history(&reader, &storage_scope, &target)
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(after).unwrap(),
+            serde_json::to_value(before).unwrap()
+        );
+    }
+    let restored_adapter = NativeMediaStorage::new(&restored_store);
+    let restored_service = MediaService::new(&restored_adapter, &access, &restored_vault);
+    let restored_original = restored_service
+        .deliver(
+            &reader,
+            &scope(),
+            &descriptor,
+            ReadMethod::Get,
+            DeliveryMode::Download,
+            &budget(),
+        )
+        .unwrap();
+    assert_eq!(restored_original.body, png);
     println!(
-        "healthy native Rust storage + actual AT11 login/principals/fenced single+batch mutation; actual media availability proof, SafeRendered PNG download/preview HEAD, DownloadOnly text download and ordered history; semantic/JCS oracle TEST-ONLY; native backup/restore peer API PENDING"
+        "healthy native Rust storage + actual AT11 login/principals/fenced single+batch mutation; SafeRendered PNG download/preview HEAD and DownloadOnly text download; actual native schema2 owned backup, read-only image validation, capture/verify/restore with missing original and retained tombstones; closed database/audit/receipt bytes, originals, scoped graph and ordered history preserved; stock journals EMPTY ONLY; actual native semantic/JCS/timestamp peers"
     );
 }
