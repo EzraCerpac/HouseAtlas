@@ -37,18 +37,19 @@ fn require(value: bool) -> st::StockResult<()> {
 }
 fn supported(request: &st::ValidatedRequest) -> st::StockResult<()> {
     use st::OperationId as O;
-    match request.id() {
-        O::AtlasCircuitCreate | O::AtlasLocationSemanticsReplace => Ok(()),
-        O::AtlasBatchExecute
-            if !request.children().is_empty()
-                && request
-                    .children()
-                    .iter()
-                    .all(|c| c.id() == O::AtlasIdentityCreate) =>
+    let mapped = |id| st::atlas_direct_operation(id).is_some();
+    if request.id() == O::AtlasBatchExecute {
+        if !request.children().is_empty()
+            && request.children().iter().all(|child| mapped(child.id()))
         {
             Ok(())
+        } else {
+            Err(st::StockError::CapabilityHeld)
         }
-        _ => Err(st::StockError::CapabilityHeld),
+    } else if mapped(request.id()) {
+        Ok(())
+    } else {
+        Err(st::StockError::CapabilityHeld)
     }
 }
 #[derive(Clone, Copy)]

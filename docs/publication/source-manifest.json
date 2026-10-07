@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "8a31edf7fe0e3fb8c1a6f085acb5b7beaf8dc06d7fc14a885e3cc2cb5b5b8811",
+  "sourceDigestSha256": "51a36d573661f2672172c0b44dc1ead0f34c0de0187ce9a7a8b85797995370aa",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -35,8 +35,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 14410,
-      "sha256": "4672fe81031fb28e364c9212d2237b49c44c5783635234bc9edcff57c19ce22c",
+      "bytes": 14509,
+      "sha256": "6a0523dbf4491f72a97101a8fc43f16efa7da8704dfe44698d4a0dae00c1515c",
       "owner": "core-integration"
     },
     {
@@ -1505,8 +1505,8 @@
     {
       "path": "backend/src/http/agents/capabilities.rs",
       "mode": "100644",
-      "bytes": 1551,
-      "sha256": "e0a5b29ecc3805a26b363de1ef0a9b971e6951f9e0c00bd863af04976eaa8bda",
+      "bytes": 1719,
+      "sha256": "9ff580bd2d26c8f4ec6198f382be40616e3557a6b3119d1baf4faeedf87fdd83",
       "owner": "core-integration"
     },
     {
@@ -1534,7 +1534,7 @@
       "path": "backend/src/http/agents/mod.rs",
       "mode": "100644",
       "bytes": 4289,
-      "sha256": "2a5d4025056cc70363e4139f43c3d239c3be9ddbd504884594990408d146a996",
+      "sha256": "46e98522830e3aa949aa4c87f5bd42e5d51366695a62c242cb08d4aceafa4bf5",
       "owner": "core-integration"
     },
     {
@@ -1666,8 +1666,8 @@
     {
       "path": "backend/src/http/stock_mutations.rs",
       "mode": "100644",
-      "bytes": 24649,
-      "sha256": "1d12f2efa7aa9f81f34aec25698f3ade523a4e76c35705d0f9131649f2f8880e",
+      "bytes": 24669,
+      "sha256": "047a7cedd9e4013c77505de203c1cf459c3611d445676a6ca720b5d2510153d5",
       "owner": "core-integration"
     },
     {
@@ -3808,8 +3808,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 30651,
-      "sha256": "d2ca3fb5f00db67241f9065b7df3dc9d600a352f01b74ebfd5e71eeb61612f4e",
+      "bytes": 30622,
+      "sha256": "e65566028c25c4b4ed2e5326a32eb72bdf5702495bcc451cf434d937f91baf01",
       "owner": "core-integration"
     },
     {
@@ -3822,8 +3822,8 @@
     {
       "path": "docs/rust-integration/agents.md",
       "mode": "100644",
-      "bytes": 12186,
-      "sha256": "019b7676e0ed86ae513723da09b424413348aab161c1c1b0a10c621a285f24d2",
+      "bytes": 12411,
+      "sha256": "38a0cfacfdec2f307b4400a63682e4235a16a2e2e253750faf5fbac2a0af8b5d",
       "owner": "core-integration"
     },
     {
@@ -3857,8 +3857,8 @@
     {
       "path": "docs/rust-integration/dev-composition.md",
       "mode": "100644",
-      "bytes": 3179,
-      "sha256": "1c69b3a6500b19c21c21513ebcfe7ded54cd48f541d319016dfc643a49f88494",
+      "bytes": 3588,
+      "sha256": "3a0fcc6d2d680bbc50f26810e678d83db6c6c35d92293f747769e1ffdf2ebc26",
       "owner": "core-integration"
     },
     {
@@ -3927,8 +3927,8 @@
     {
       "path": "docs/rust-integration/stock-writes.md",
       "mode": "100644",
-      "bytes": 3191,
-      "sha256": "6436251be52597cca752b62e3d5d4e0e697b7bdf09027aff70fe47404ac88194",
+      "bytes": 4381,
+      "sha256": "76df71a2fb1d96db0b4ca0ce8f13c1ed15b725ee13eb6f4ce354233482be6802",
       "owner": "core-integration"
     },
     {
@@ -5432,8 +5432,8 @@
     {
       "path": "tools/rust-integration/healthy-agent-loopback.mjs",
       "mode": "100644",
-      "bytes": 13912,
-      "sha256": "c567518dcdf633e87a6b494ccde4701501c601d08a7aca9c15934d2492127c06",
+      "bytes": 16436,
+      "sha256": "322f84b0390b77345bb2093be34a25f9849317b32767af5e493aae96e27b4001",
       "owner": "core-integration"
     },
     {
@@ -5509,8 +5509,8 @@
     {
       "path": "tools/rust-integration/healthy-stock-write-loopback.mjs",
       "mode": "100644",
-      "bytes": 31910,
-      "sha256": "6794efa7467423e7f56d9c2d4bd9866256b102b3dcf151de08403c06d44ebcc1",
+      "bytes": 33790,
+      "sha256": "f3705c3956edb8965e20e077cf339725b27a0318a538f99528cfadf7cc2426fa",
       "owner": "core-integration"
     },
     {

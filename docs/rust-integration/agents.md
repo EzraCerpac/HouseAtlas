@@ -12,9 +12,11 @@ This is a development candidate for independent composition review.
 
 After an authorized home view commits, React requests the server's scoped
 `GET /api/atlas/stock/v3/workspaces/{workspaceId}/homes/{homeId}/admission`.
-The server advertises the twenty Atlas record/history reads. A genuine editor
-session additionally admits `atlas.circuit.create` and
-`atlas.location-semantics.replace`. The catalog describes admission; each
+The server advertises thirty Atlas list/record/history reads. A genuine editor
+session additionally admits the owner’s closed 31-form direct-write map and
+nonempty batches whose every ordered child maps. The executor retains the
+original planner, guards, reference closure and transaction fence; admission
+alone does not supply any specialized binding, import-time or Media evidence. The catalog describes admission; each
 request obtains actual AT11 authorization again.
 
 Reads use `GET /api/atlas/stock/v3/workspaces/{workspaceId}/homes/{homeId}/invoke`
@@ -62,7 +64,7 @@ The actual JSON-only HTTP endpoint is
 `/api/atlas/mcp/workspaces/{workspaceId}/homes/{homeId}`. Every POST preserves
 its observed method and obtains genuine AT11 `Action::Mutate` authorization with
 the actual Editor cookie, Origin and current CSRF. Its catalog admits only the
-twenty record/history reads. This transport profile adds no access grant or
+thirty list/record/history reads. This transport profile adds no access grant or
 bearer-login scheme.
 
 Initialization negotiates MCP `2025-11-25`, returns HTTP 200 JSON and the actual
@@ -89,7 +91,7 @@ The mounted service revalidates the original authority before and after each
 message and preserves the native owner's result validation and rendering.
 
 The existing `http::agents::mcp::bind_read` also accepts an already issued opaque
-access principal and creates an embeddable native MCP session with twenty read
+access principal and creates an embeddable native MCP session with thirty read
 operations. Its synchronous stock execution retains the same issuance; no
 borrowed capture carrier crosses an await. The separate `healthy-agent-stock`
 Rust example performs a fresh synthetic circuit commit and in-process MCP
@@ -165,7 +167,7 @@ automatic retry or acceptance claim.
 
 The root exposes a transient session-change notification hook; external confirmed
 rotation-event producers and their positive runtime evidence remain missing.
-Batch tool admission, complete human editing and attachment flows, provider
+Specialized batch forms, complete human editing and attachment flows, provider
 refresh, actual Network/recovery
 execution, real source setup and remote AI clients remain missing. Access's
 separately accepted recovery successor remains unadopted because its

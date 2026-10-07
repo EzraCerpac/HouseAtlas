@@ -183,8 +183,8 @@ binding, consumed receipt and asset association.
 Mounted MCP is
 `POST /api/atlas/mcp/workspaces/{workspaceId}/homes/{homeId}`. Its cookie/CSRF
 profile uses actual observed POST evidence and genuine AT11 `Action::Mutate`
-Editor authority for every message, while its catalogue admits twenty Atlas
-record/history reads only. Initialization publishes an actual protocol-session
+Editor authority for every message, while its catalogue admits thirty Atlas
+list/record/history reads only. Initialization publishes an actual protocol-session
 header; subsequent messages retain the same original context and are revalidated.
 Protocol `2025-11-25` returns JSON over HTTP 200, with HTTP 202 and an empty body
 for the initialized notification. The host bounds messages at 64 KiB, body intake
@@ -340,8 +340,8 @@ is enabled in the default host, and no runner calls a real provider.
 Provider stock preparation, original whole-collection approval, verified
 route/build binding, durable operation activity/liability and qualified physical
 dispatch/readback remain unbound. The root supports ten Atlas record-get arms,
-twenty record/history reads, fresh circuit create, qualified location
-classification replacement, child-only ordered identity-create batches, and
+thirty list/record/history reads, the closed 31-form direct-write map,
+nonempty batches of mapped children, and
 the ordered genuine-stage asset/evidence/location-identity upload batch.
 Other stock commands remain unbound. Catalogue/schema compilation does not
 establish operation completeness. StockTarget requires a UUID collection; the

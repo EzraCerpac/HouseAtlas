@@ -124,13 +124,34 @@ try {
   const history={schemaVersion:3,commandId:'atlas.circuit.history',requestId:U(1604),context:view.scope,target:createdRequest.target,payload:{pageSize:1,cursor:null,includeArchived:false,q:'atlas.circuit.create'}};
   const events=await invoke(history);assert.equal(events.wire.requestId,history.requestId);assert.equal(events.wire.data.entries.length,1);assert.equal(events.wire.data.entries[0].eventId,created.wire.data.auditIds[0]);assert.equal(events.wire.data.entries[0].requestDigest,created.wire.data.requestDigest);
   assert.deepEqual(JSON.parse(events.visible),events.wire,'Actual native history committed before tool return');
+  // Exercise newly mounted direct identity and mixed batch arms through the
+  // genuine browser API, retaining the actual editor session and native guards.
+  const identity={...createdRequest,commandId:'atlas.identity.create',requestId:U(1605),target:{authority:'atlas',recordType:'identity',recordId:U(961)},payload:{kind:'item',evidenceIds:[U(100)]},idempotencyKey:U(1606)};
+  const identityResult=await invoke(identity);
+  assert.equal(identityResult.wire.status,'committed');assert.equal(identityResult.wire.replayed,false);
+  assert.deepEqual(JSON.parse(identityResult.visible),identityResult.wire,'Direct identity receipt visible before native completion');
+  const children=[{...identity,requestId:U(1607),target:{...identity.target,recordId:U(962)},idempotencyKey:U(1608)},{...createdRequest,requestId:U(1609),target:{...createdRequest.target,recordId:U(963)},idempotencyKey:U(1610)}];
+  const batch={...createdRequest,commandId:'atlas.batch.execute',requestId:U(1611),target:{authority:'atlas',kind:'batch',batchId:U(1613)},payload:{commands:children},idempotencyKey:U(1612),reason:'Healthy disposable native WebMCP mixed batch'};
+  const batchResult=await invoke(batch);
+  assert.equal(batchResult.wire.status,'committed');assert.equal(batchResult.wire.replayed,false);
+  assert.equal(batchResult.wire.requestId,batch.requestId);assert.equal(batchResult.wire.commandId,batch.commandId);
+  assert.deepEqual(JSON.parse(batchResult.visible),batchResult.wire,'Mixed batch receipt visible before native completion');
+  const directIntents=[identity,...children],directResults=[identityResult.wire.data.records[0],...batchResult.wire.data.records];
+  assert.equal(directResults.length,3);
+  for(const [index,intent] of directIntents.entries()){
+    const readback={schemaVersion:3,commandId:'atlas.'+intent.target.recordType+'.get',requestId:U(1614+index),context:view.scope,target:intent.target,payload:{}};
+    const actual=await invoke(readback);
+    assert.equal(actual.wire.requestId,readback.requestId);assert.deepEqual(actual.wire.data.records,[directResults[index]]);
+    assert.deepEqual(directResults[index],{target:intent.target,revision:1,lifecycle:'active',payload:intent.payload});
+    assert.deepEqual(JSON.parse(actual.visible),actual.wire,'New direct-map record readback visible before native completion');
+  }
   assert.equal(runtimeErrors.length, 0, 'No browser runtime exceptions in healthy flow');
   assert(observedUrls.every(url => url.startsWith(origin + '/')), 'Observed page requests stay on loopback');
   assert(responses.every(r => r.status === 200 || (r.status === 204 && r.url === origin + '/favicon.ico')), 'Observed healthy page responses');
   const sql="import sqlite3,json,sys; c=sqlite3.connect('file:'+sys.argv[1]+'?mode=ro',uri=True); print(json.dumps({t:c.execute('SELECT COUNT(*) FROM '+t).fetchone()[0] for t in ['records','audits','stock_operations','stock_groups','stock_keys','stock_audit_links','stock_history_cursors']})); c.close()";
   const rows=spawnSync('python3',['-c',sql,join(data,'atlas.sqlite')],{encoding:'utf8'});assert.equal(rows.status,0);const persisted=JSON.parse(rows.stdout);
-  assert.deepEqual(persisted,{records:7,audits:1,stock_operations:1,stock_groups:1,stock_keys:1,stock_audit_links:1,stock_history_cursors:0});
-  const evidence={rust:serviceOutput.trim(),browser:version.product,native,tools:first.tools,requests:[read,createdRequest,get,history].map(r=>({commandId:r.commandId,requestId:r.requestId})),correlation:true,visibleBeforeReturn:true,persisted,observedRequests:observedUrls.length,scope:'Actual native document WebMCP registration, shared offline schema, real Rust/AT11/SQLite stock read, one fresh circuit create, record readback and first history page. No synthetic peer, stopped control or provider.'};
+  assert.deepEqual(persisted,{records:10,audits:4,stock_operations:3,stock_groups:4,stock_keys:5,stock_audit_links:4,stock_history_cursors:0});
+  const evidence={rust:serviceOutput.trim(),browser:version.product,native,tools:first.tools,requests:[read,createdRequest,get,history,identity,batch].map(r=>({commandId:r.commandId,requestId:r.requestId})),correlation:true,visibleBeforeReturn:true,persisted,observedRequests:observedUrls.length,scope:'Actual native document WebMCP registration, shared offline schema, real Rust/AT11/SQLite stock reads, fresh circuit and identity singles, one atomic mixed identity/circuit batch, canonical React completion and actual readback, plus first circuit history page. Only exercised creates qualified; other mapped forms remain runtime-unqualified. No synthetic peer, stopped control or provider.'};
   if (process.env.HOUSEATLAS_EVIDENCE) writeFileSync(process.env.HOUSEATLAS_EVIDENCE, JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));
 } finally {

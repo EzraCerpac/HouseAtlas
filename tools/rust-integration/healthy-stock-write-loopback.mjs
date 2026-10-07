@@ -230,7 +230,7 @@ try {
     assert.equal(row.wire.commandId,'atlas.'+row.expected.target.recordType+'.get');
     assert.deepEqual(row.wire.data.records,[row.expected]);assert.equal(row.wire.data.nextCursor,null);assert.equal(row.wire.data.sourceStatus,'current');
   }
-  // Exactly one fresh native stock circuit and one ordered identity batch.
+  // Fresh circuit and identity singles plus identity-only and mixed batches.
   // All inputs are the healthy owner's public fixtures with real retained guards.
   const stockWrites = await evaluate(`(async () => {
     const prefix=${JSON.stringify(prefix)}, scope=${JSON.stringify(view.scope)}, results=[];
@@ -250,21 +250,36 @@ try {
     const second=await call(endpoint,batch,nextSession.csrfToken);
     const records=[],histories=[];
     for(const child of children){const path=prefix+'/records/identity/'+child.target.recordId;records.push(await call(path));histories.push(await call(path+'/history'));}
-    return {results,intents:[single,batch],receipts:[first,second],records:[firstRecord,...records],histories:[firstHistory,...histories]};
+    const admission=await call('/api/atlas/stock/v3/workspaces/'+scope.workspaceId+'/homes/'+scope.homeId+'/admission');
+    const direct=command('identity',923,1204,1304,{kind:'item',evidenceIds:[U(100)]});
+    const mixedChildren=[command('identity',924,1205,1305,{kind:'item',evidenceIds:[U(100)]}),command('circuit',925,1206,1306,{label:null,panel:null,evidenceIds:[U(100)]})];
+    const mixed={...batch,requestId:U(1207),target:{authority:'atlas',kind:'batch',batchId:U(1401)},payload:{commands:mixedChildren},idempotencyKey:U(1307),reason:'Healthy disposable ordered mixed native stock batch'};
+    const third=await call(endpoint,direct,nextSession.csrfToken);
+    const directPath=prefix+'/records/identity/'+U(923);
+    const directRecord=await call(directPath),directHistory=await call(directPath+'/history');
+    const fourth=await call(endpoint,mixed,nextSession.csrfToken);
+    const mixedRecords=[],mixedHistories=[];
+    for(const child of mixedChildren){const path=prefix+'/records/'+child.target.recordType+'/'+child.target.recordId;mixedRecords.push(await call(path));mixedHistories.push(await call(path+'/history'));}
+    return {results,admission,intents:[single,batch,direct,mixed],receipts:[first,second,third,fourth],records:[firstRecord,...records,directRecord,...mixedRecords],histories:[firstHistory,...histories,directHistory,...mixedHistories]};
   })()`);
-  assert.equal(stockWrites.results.length,10);
+  assert.equal(stockWrites.results.length,19);
+  assert.equal(stockWrites.admission.commandIds.length,62);
+  assert.equal(new Set(stockWrites.admission.commandIds).size,62);
+  const held=['binding.create','binding.review','binding.restore','binding.remap','geometry.create','asset.create','asset.review'];
+  assert(held.every(id=>!stockWrites.admission.commandIds.includes('atlas.'+id)), 'Specialized evidence-dependent forms stay outside direct admission');
   const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
   for(const [index,receipt] of stockWrites.receipts.entries()){
     const intent=stockWrites.intents[index];
     assert.equal(receipt.schemaVersion,3);assert.equal(receipt.commandId,intent.commandId);assert.equal(receipt.requestId,intent.requestId);
     assert.deepEqual(receipt.resolvedScope,view.scope);assert.equal(receipt.status,'committed');assert.equal(receipt.replayed,false);
     assert.match(receipt.operationId,UUID);assert.match(receipt.data.requestDigest,/^[0-9a-f]{64}$/);
-    assert.equal(receipt.data.records.length,index===0?1:2);assert.equal(receipt.data.auditIds.length,index===0?1:2);
+    const count=intent.payload.commands?.length??1;
+    assert.equal(receipt.data.records.length,count);assert.equal(receipt.data.auditIds.length,count);
     assert(receipt.data.auditIds.every(id=>UUID.test(id)));
   }
   const receiptRows=stockWrites.receipts.flatMap(receipt=>receipt.data.records);
   const auditIds=stockWrites.receipts.flatMap(receipt=>receipt.data.auditIds);
-  const intents=[stockWrites.intents[0],...stockWrites.intents[1].payload.commands];
+  const intents=stockWrites.intents.flatMap(intent=>intent.payload.commands??[intent]);
   for(const [index,row] of receiptRows.entries()){
     const record=stockWrites.records[index],history=stockWrites.histories[index];
     assert.deepEqual(row,{target:intents[index].target,revision:record.revision,lifecycle:record.lifecycle,payload:record.payload});
@@ -284,8 +299,8 @@ try {
     "print(json.dumps({'records':count(root/'atlas.sqlite','records'),'projections':count(root/'atlas.sqlite','projections'),'audits':count(root/'atlas.sqlite','audits'),'receipts':count(root/'atlas.sqlite','receipts'),'batchReceipts':count(root/'atlas.sqlite','batch_receipts'),'assetManifests':count(root/'atlas.sqlite','asset_manifests'),'stockOperations':count(root/'atlas.sqlite','stock_operations'),'stockGroups':count(root/'atlas.sqlite','stock_groups'),'stockKeys':count(root/'atlas.sqlite','stock_keys'),'stockAuditLinks':count(root/'atlas.sqlite','stock_audit_links'),'stockHistoryCursors':count(root/'atlas.sqlite','stock_history_cursors'),'sessions':count(root/'access.sqlite','access_sessions')}))"
   ].join('\n');
   const rows = spawnSync('python3', ['-c', sql, data], { encoding: 'utf8' });
-  assert.equal(rows.status, 0); assert.deepEqual(JSON.parse(rows.stdout), {records:14,projections:2,audits:8,receipts:8,batchReceipts:2,assetManifests:2,stockOperations:2,stockGroups:3,stockKeys:4,stockAuditLinks:3,stockHistoryCursors:0,sessions:1});
-  const evidence = { rust:serviceOutput.trim(), browser:version.product, apiReads:api.map(({path,status})=>({path,status})), coreReads, writes, media, stockWrites, stock:stock.map(row=>({path:row.path,status:row.status,frozenStatus:row.frozenStatus,commandId:row.wire.commandId,revision:row.expected.revision,matchesFrozen:true})), authResponses:responses.filter(r=>r.url.startsWith(origin+'/api/atlas/auth/')).map(r=>({path:new URL(r.url).pathname,status:r.status})), scopedRead:result.status, rooms:1, items:1, persisted:JSON.parse(rows.stdout), observedRequests:observedUrls.length, scope:'Actual native schema/graph/JCS, Rust/SQLite/access/domain/React positive loopback TLS session/login/logout, canonical paged reads, fresh circuit create, atomic local identity batch, native owned PNG/text availability and actual GET/HEAD download plus safe PNG preview, and genuine stock circuit/asset reads compared with actual frozen SQLite rows. Fresh stock circuit create and ordered identity batch use the actual original AT11 fence and native atomic stock journal. No rejected request, stopped control, replay, stock history request, recovery or external provider.' };
+  assert.equal(rows.status, 0); assert.deepEqual(JSON.parse(rows.stdout), {records:17,projections:2,audits:11,receipts:11,batchReceipts:3,assetManifests:2,stockOperations:4,stockGroups:6,stockKeys:8,stockAuditLinks:6,stockHistoryCursors:0,sessions:1});
+  const evidence = { rust:serviceOutput.trim(), browser:version.product, apiReads:api.map(({path,status})=>({path,status})), coreReads, writes, media, stockWrites, stock:stock.map(row=>({path:row.path,status:row.status,frozenStatus:row.frozenStatus,commandId:row.wire.commandId,revision:row.expected.revision,matchesFrozen:true})), authResponses:responses.filter(r=>r.url.startsWith(origin+'/api/atlas/auth/')).map(r=>({path:new URL(r.url).pathname,status:r.status})), scopedRead:result.status, rooms:1, items:1, persisted:JSON.parse(rows.stdout), observedRequests:observedUrls.length, scope:'Actual native schema/graph/JCS, Rust/SQLite/access/domain/React positive loopback TLS session/login/logout, canonical paged reads, fresh circuit create, atomic local identity batch, native owned PNG/text availability and actual GET/HEAD download plus safe PNG preview, and genuine stock circuit/asset reads compared with actual frozen SQLite rows. Fresh stock circuit and identity singles plus identity-only and mixed circuit/identity batches use the actual original AT11 fence and native atomic stock journal. The editor catalog has 30 reads, 31 direct writes and one restricted batch arm; this flow qualifies only the exercised creates, not all mapped forms. No rejected request, stopped control, replay, stock history request, recovery or external provider.' };
   if (process.env.HOUSEATLAS_EVIDENCE) writeFileSync(process.env.HOUSEATLAS_EVIDENCE, JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));
 } finally {

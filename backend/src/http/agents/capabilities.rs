@@ -39,10 +39,13 @@ pub fn reads() -> Vec<wire::OperationId> {
 pub fn admitted(principal: &access::Principal) -> Vec<wire::OperationId> {
     let mut operations = reads();
     if principal.role() == access::Role::Editor {
-        operations.push(wire::OperationId::AtlasCircuitCreate);
-        operations.push(wire::OperationId::AtlasLocationSemanticsReplace);
+        operations.extend(wire::OperationId::ALL.iter().copied().filter(|id| {
+            crate::domain::stock::OperationId::parse(id.as_str())
+                .is_some_and(|id| crate::domain::stock::atlas_direct_operation(id).is_some())
+        }));
+        // Execution still validates every ordered child through the same closed
+        // planner map and its original-principal transaction fence.
+        operations.push(wire::OperationId::AtlasBatchExecute);
     }
-    // Identity-create is currently child-only; neither catalog's flat admission
-    // nor this host advertises it as an independently executable operation.
     operations
 }
