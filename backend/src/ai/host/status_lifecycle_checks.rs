@@ -279,6 +279,7 @@ pub fn late_terminal_completion_survives_cancel_latch() {
     journal.stop_registration(&original).unwrap();
     let outcome = RunOutcome::Completed {
         text: "synthetic completion evidence".into(),
+        operation_ids: vec![],
         usage: Usage {
             input_tokens: Some(9),
             output_tokens: Some(4),

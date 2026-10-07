@@ -47,7 +47,7 @@ export const healthyAiExamples: Readonly<Record<'ready' | 'siwcReady' | 'complet
   completed: {
     ...idleActions, connection: { status: 'available', snapshot: syntheticConnection },
     request: { status: 'finished', requestId: 'synthetic-completed', outcome: {
-      status: 'completed', text: 'Synthetic room summary.', usage: { inputTokens: 12, outputTokens: 8, totalTokens: 20 },
+      status: 'completed', text: 'Synthetic room summary.', operationIds: [], usage: { inputTokens: 12, outputTokens: 8, totalTokens: 20 },
     } },
   },
   review: {

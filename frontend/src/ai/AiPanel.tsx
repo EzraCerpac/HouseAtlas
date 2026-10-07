@@ -215,7 +215,10 @@ function ConnectionDetails({ connection }: { readonly connection: ConnectionSnap
 
 function Outcome({ outcome }: { readonly outcome: RunOutcome }) {
   return <>
-    {outcome.status === 'completed' && <><h3>Response</h3><p className="ha-ai__text">{outcome.text}</p></>}
+    {outcome.status === 'completed' && <><h3>Response</h3><p className="ha-ai__text">{outcome.text}</p>
+      {outcome.operationIds.length > 0 && <><p>Recorded domain operations</p>
+        <ul aria-label="Recorded domain operations">{outcome.operationIds.map((id, index) => <li key={`${index}:${id}`}>{id}</li>)}</ul></>}
+    </>}
     {outcome.status === 'cancelled' && <p role="status">Request cancelled.</p>}
     {outcome.status === 'stopped' && <p role="status">Local processing stopped. Provider completion is unconfirmed.</p>}
     {outcome.status === 'failed' && <><h3>Request failed</h3><p role="status">{failureMessages[outcome.reason]}</p>

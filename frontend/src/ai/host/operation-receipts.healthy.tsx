@@ -167,7 +167,7 @@ export async function runHealthyOperationReceiptsExample(container: HTMLElement,
     async run(input) {
       requests.push(input.requestId);
       return requests.length === 1 ? peer.domainHeld
-        : { status: 'completed', text: 'Fresh synthetic request after held outcome', usage: outcome.usage };
+        : { status: 'completed', text: 'Fresh synthetic request after held outcome', operationIds: [], usage: outcome.usage };
     },
     cancel: requestId => base.cancel(requestId),
     requestStatus: (requestId, signal) => base.requestStatus(requestId, signal),
@@ -252,7 +252,7 @@ export async function runFocusedTerminalWorkflowChecks(container: HTMLElement, p
     async run(input) {
       requests.push(input.requestId);
       return requests.length === 1 ? peer.stopped
-        : { status: 'completed', text: 'Fresh request after local stopped result', usage: stopped.usage };
+        : { status: 'completed', text: 'Fresh request after local stopped result', operationIds: [], usage: stopped.usage };
     },
     async cancel(requestId) { cancellations++; return base.cancel(requestId); },
     async requestStatus(requestId, signal) { requestLookups++; return base.requestStatus(requestId, signal); },
