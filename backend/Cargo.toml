@@ -70,3 +70,7 @@ path = "../tools/rust-integration/examples/healthy_agent_stock.rs"
 [[example]]
 name = "healthy-canonical-upload-plan"
 path = "../tools/rust-integration/examples/healthy_canonical_upload_plan.rs"
+
+[[example]]
+name = "healthy-ai-host"
+path = "src/ai/host/healthy.rs"

@@ -9,7 +9,7 @@ rust-version = "1.99.0"
 publish = false
 
 [workspace.dependencies]
-axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "multipart", "query", "tokio"] }
+axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "multipart", "original-uri", "query", "tokio"] }
 tokio = { version = "=1.53.2", default-features = false, features = ["macros", "rt-multi-thread", "sync", "time", "signal"] }
 rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled", "backup"] }
 serde = { version = "=1.0.229", features = ["derive"] }
