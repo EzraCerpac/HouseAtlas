@@ -67,7 +67,7 @@ fn main() -> CheckResult<()> {
     )?;
     let initial: Snapshot = load(&root, "plan-free.snapshot.json")?;
     store.initialize_synthetic(&initial)?;
-    assert_eq!(store.database_version(), 1);
+    assert_eq!(store.database_version(), DATABASE_VERSION);
     let room = store.read_record(&principal, &scope, &reference(RecordType::Identity, 200))?;
     let item = store.read_record(&principal, &scope, &reference(RecordType::Identity, 201))?;
     assert_eq!(room.payload["kind"], "location");

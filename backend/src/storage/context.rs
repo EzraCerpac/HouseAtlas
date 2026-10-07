@@ -171,13 +171,24 @@ fn links<C: Contract>(
     Ok((unique(contract, refs)?, sources))
 }
 
-fn closure<C: Contract>(
+pub(crate) fn closure<C: Contract>(
     contract: &C,
     scope: &Scope,
     original: &Snapshot,
     candidate: Option<&Snapshot>,
     entries: &[MutationEntry],
     replay: Option<&Replay>,
+) -> Result<MutationClosure> {
+    closure_with_extra(contract, scope, original, candidate, entries, replay, &[])
+}
+pub(crate) fn closure_with_extra<C: Contract>(
+    contract: &C,
+    scope: &Scope,
+    original: &Snapshot,
+    candidate: Option<&Snapshot>,
+    entries: &[MutationEntry],
+    replay: Option<&Replay>,
+    extra: &[RecordRef],
 ) -> Result<MutationClosure> {
     let mut graph = nodes(original);
     if let Some(candidate) = candidate {
@@ -208,6 +219,7 @@ fn closure<C: Contract>(
             std::iter::once(key(&e.target)).chain(e.command.guards.iter().map(|g| key(&g.record)))
         })
         .collect();
+    selected.extend(extra.iter().map(key));
     if let Some(replay) = replay {
         selected.extend(replay.results.iter().map(|r| key(&r.record.reference())));
     }

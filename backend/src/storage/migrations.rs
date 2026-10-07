@@ -2,9 +2,12 @@ use super::{CONTRACT_VERSION, Error, Result};
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
 use sha2::{Digest, Sha256};
 
-pub const DATABASE_VERSION: u32 = 1;
+pub const DATABASE_VERSION: u32 = 2;
 pub const DATABASE_LINEAGE: &str = "houseatlas-rust-storage/1";
-const SQL: &str = include_str!("../../migrations/0001_rust_core.sql");
+const MIGRATIONS: &[(u32, &str)] = &[
+    (1, include_str!("../../migrations/0001_rust_core.sql")),
+    (2, include_str!("../../migrations/0002_stock_intents.sql")),
+];
 
 pub(crate) fn sha256(bytes: impl AsRef<[u8]>) -> String {
     format!("{:x}", Sha256::digest(bytes.as_ref()))
@@ -33,12 +36,6 @@ pub(crate) fn migrate(connection: &mut Connection) -> Result<()> {
         if existing {
             return Err(incompatible());
         }
-        tx.execute_batch(SQL)?;
-        tx.execute(
-            "INSERT INTO atlas_rust_migrations VALUES(1,?1)",
-            [sha256(SQL)],
-        )?;
-        tx.pragma_update(None, "user_version", DATABASE_VERSION)?;
     } else {
         let validate = || -> rusqlite::Result<bool> {
             let rows = tx
@@ -53,13 +50,26 @@ pub(crate) fn migrate(connection: &mut Connection) -> Result<()> {
                 )
                 .optional()
             };
-            Ok(rows == vec![(DATABASE_VERSION, sha256(SQL))]
+            Ok(rows
+                == MIGRATIONS
+                    .iter()
+                    .filter(|(v, _)| *v <= version)
+                    .map(|(v, sql)| (*v, sha256(sql)))
+                    .collect::<Vec<_>>()
                 && metadata("lineage")?.as_deref() == Some(DATABASE_LINEAGE)
                 && metadata("contractVersion")?.as_deref() == Some(CONTRACT_VERSION))
         };
         if !validate().map_err(|_| incompatible())? {
             return Err(incompatible());
         }
+    }
+    for (next, sql) in MIGRATIONS.iter().filter(|(v, _)| *v > version) {
+        tx.execute_batch(sql)?;
+        tx.execute(
+            "INSERT INTO atlas_rust_migrations VALUES(?1,?2)",
+            rusqlite::params![next, sha256(sql)],
+        )?;
+        tx.pragma_update(None, "user_version", next)?;
     }
     tx.commit()?;
     Ok(())

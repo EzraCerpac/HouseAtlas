@@ -3,6 +3,10 @@ use super::{migrations, repository as repo, *};
 mod cache;
 #[path = "commands.rs"]
 mod commands;
+#[path = "stock.rs"]
+mod stock;
+#[path = "stock_history.rs"]
+mod stock_history;
 
 use rusqlite::{Connection, TransactionBehavior};
 use serde::Serialize;

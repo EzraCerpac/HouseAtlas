@@ -159,11 +159,15 @@ second service framework or raw database handle is exposed.
 
 ## Database and dependencies
 
-The new lineage is `houseatlas-rust-storage/1`, database version 1, distinct from
+The new lineage is `houseatlas-rust-storage/1`, database version 2, distinct from
 published JS database version 3 and record schema 1. `0001_rust_core.sql` starts
 from an empty database, including published durable receipts/reservations/epochs
 in its initial schema. Its own checksum ledger and lineage/contract metadata are
-verified on reopen. Unrecognized databases with existing schema objects,
+verified as an exact ordered prefix before an additive Rust-only upgrade.
+`0002_stock_intents.sql` retains first-admitted stock envelopes, permanent
+scope/actor key ownership, ordered operation groups, native receipt/audit links
+and opaque history cursors. It does not backfill native-only receipts.
+Unrecognized databases with existing schema objects,
 altered history, other lineages and future versions are refused. There is no
 JS import/adoption/downgrade path. WAL,
 synchronous FULL, foreign keys and a configurable 0–60000 ms busy timeout are set
@@ -280,6 +284,42 @@ serde JSON distinguishes integer and floating representations internally.
 No negative input or held control is executed; the synthetic bytes do not
 qualify real staged-media/filesystem integration.
 
+## Stock intent transactions and history
+
+`execute_stock_json_with_authorization` requires the exact stock schema peer and
+one borrowed `StockAuthorization` for the original principal. The published
+domain planner and commit mapper supply accepted carriers and result schemas.
+Stock intake precedes receipt lookup. Native and stock authority checks run at
+each phase on the same transaction and captured original graph. Separate batch
+root guards extend stock closure without changing child guards/native contexts.
+Final graph and per-command checks still precede every write.
+
+Single commands retain one server operation UUID. Batches retain a root UUID
+and ordered child UUIDs. Key ownership spans root and child roles under
+workspace/home/actor; a native-only receipt cannot be promoted to a stock
+receipt. Retained envelopes, intent digests, actual native results and audit
+links commit together. Replay code validates those rows and original native
+digests, then renews only allowed root correlation fields in the returned
+projection. It never reconstructs old outcomes from current records. Replay
+behavior has not been executed as qualification.
+
+`stock_history_json_with_authorization` uses actual audit sequence order and a
+fixed watermark. Cursors are opaque server UUIDs stored with the actor, scope,
+target and exact query. Every page reauthorizes history and output. All relevant
+audits must have original stock linkage before filtering/paging; unavailable
+native prehistory is not silently omitted. `q` is a literal case-sensitive
+substring of original command ID or committed state. Both `includeArchived`
+values preserve historical tombstones and bind the continuation query.
+
+`checks/stock-healthy.rs` executes fresh create/replace/ordered batch commands,
+two history pages, matching search and reopened durable rows. Its schema peer
+uses exact published offline wire3/Atlas resources. Its graph/JCS/result peer
+invokes reviewed Rust semantics directly. Authority/runtime are synthetic;
+the unused required cache timestamp port errors explicitly. No JS oracle,
+provider call or held control runs in that checkpoint. Binding presence triggers
+derive from actual original/candidate records through the domain predicate and
+remain held until atomic witness qualification exists.
+
 ## Remaining integration and qualification
 
 The full native semantic Contract and branded Authorization/Runtime peers remain
@@ -287,8 +327,9 @@ required before application integration. AT51 must reconcile carriers/dependenci
 and connect the crate module; this lane does not change its manifests or generated types.
 The HomeBox service owner must reconcile its expanded publication fence and
 opaque complete generation with the store's consuming fence; a native compiled
-cross-owner adapter has not been exercised. Durable Network sidecars and sanitized
-wire3/generation/epoch witness schemas are absent from the published inputs.
+cross-owner adapter has not been exercised in this storage lane. Durable Network
+sidecars and atomic source-presence witness persistence remain unimplemented.
+Sanitized wire3/presence schemas are available as published inputs.
 No storage context, projection or caller source-state claim grants new provider
 presence admission.
 
