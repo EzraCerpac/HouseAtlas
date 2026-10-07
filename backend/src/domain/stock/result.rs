@@ -102,17 +102,20 @@ where
         require(wire["data"]["kind"] == expected_feature_kind(request)?)?;
         if let Some(artifact) = wire["data"].get("artifact") {
             operational_time(string(artifact, "expiresAt")?)?;
-            let bytes = artifact["byteSize"]
-                .as_u64()
+            let bytes = super::super::integer::safe_integer(&artifact["byteSize"])
                 .ok_or(StockError::CorrelationMismatch)?;
-            if let Some(max) = request.payload()["maxBytes"].as_u64() {
+            if let Some(max) = request.payload().get("maxBytes") {
+                let max = super::super::integer::safe_integer(max)
+                    .ok_or(StockError::CorrelationMismatch)?;
                 require(bytes <= max)?;
             }
         }
-        if let Some(limit) = request.payload()["limit"].as_u64()
-            && let Some(rows) = wire["data"]["rows"].as_array()
-        {
-            require(rows.len() as u64 <= limit)?;
+        if let Some(limit) = request.payload().get("limit") {
+            let limit = super::super::integer::safe_integer(limit)
+                .ok_or(StockError::CorrelationMismatch)?;
+            if let Some(rows) = wire["data"]["rows"].as_array() {
+                require(rows.len() as u64 <= limit)?;
+            }
         }
     }
     authority.authorize_result(principal, prepared, request, wire)?;

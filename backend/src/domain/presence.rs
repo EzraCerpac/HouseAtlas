@@ -127,6 +127,7 @@ pub enum QualifiedCacheState {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct QualifiedCache {
     pub generation_id: String,
+    #[serde(deserialize_with = "super::integer::deserialize_safe_integer")]
     pub cache_epoch: u64,
     pub status: QualifiedCacheState,
     pub last_successful_fetch_at: String,
@@ -140,6 +141,7 @@ pub struct QualifiedAuthority {
     pub access_package_version: String,
     /// Genuine persisted opaque epoch; no hidden principal version substitute.
     pub access_epoch: String,
+    #[serde(deserialize_with = "super::integer::deserialize_safe_integer")]
     pub source_registration_version: u64,
     pub source_registration_sha256: String,
 }
@@ -186,11 +188,13 @@ pub struct PresenceQualification {
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PresenceWitness {
+    #[serde(deserialize_with = "super::integer::deserialize_u8")]
     pub schema_version: u8,
     pub semantic_amendment_version: String,
     pub workspace_id: String,
     pub home_id: String,
     pub binding_record_id: String,
+    #[serde(deserialize_with = "super::integer::deserialize_safe_integer")]
     pub binding_revision: u64,
     pub audit_id: String,
     pub mutation_id: String,

@@ -12,9 +12,13 @@ room annotation joined through an active accepted qualified binding yields a
 room. Names, arbitrary container types and tree depth establish no placement.
 Parent references retain their source instance, collection, scope and external
 ID. Source update/retrieval dates remain separate; the display freshness window
-is the published 15 minutes. JSON numbers retain integer and supported floating
-values without routing every value through `f64`. Serialization does not preserve
-the original decimal or exponent spelling.
+is the published 15 minutes. Payload, quantity and cost numbers retain their
+accepted parsed JSON numbers. Integer deserialization uses AT51's exact integral
+classification, so decimal/exponent spellings of revisions and counters retain
+their numeric value within published bounds. Typed bounded counters serialize
+as integers; immutable command envelopes remain unchanged. Attachment byte sizes
+have no frozen schema maximum and retain AT51's `JsonInteger` carrier through
+current-output projection.
 
 Current output removes stored-file `proxyRef` and accepts only exact scoped
 injected media capabilities. It preserves allowed external URL bytes, returns

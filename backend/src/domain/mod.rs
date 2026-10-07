@@ -5,6 +5,7 @@
 //! nor a provider transport. See README.md for the integration port contracts.
 
 mod commands;
+mod integer;
 mod model;
 pub mod native_storage;
 mod ports;

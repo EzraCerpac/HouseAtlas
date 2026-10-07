@@ -108,11 +108,13 @@ pub enum Lifecycle {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Record {
+    #[serde(deserialize_with = "super::integer::deserialize_u8")]
     pub schema_version: u8,
     #[serde(flatten)]
     pub target: RecordRef,
     #[serde(flatten)]
     pub scope: Scope,
+    #[serde(deserialize_with = "super::integer::deserialize_safe_integer")]
     pub revision: u64,
     pub lifecycle: Lifecycle,
     pub created_at: String,
@@ -192,6 +194,7 @@ pub struct CacheError {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CacheStatus {
+    #[serde(deserialize_with = "super::integer::deserialize_u8")]
     pub schema_version: u8,
     #[serde(flatten)]
     pub partition: SourcePartition,
@@ -243,7 +246,8 @@ pub enum Attachment {
         attachment_id: String,
         title: String,
         content_type: Option<String>,
-        byte_size: Option<u64>,
+        #[serde(deserialize_with = "super::integer::deserialize_nullable_integer")]
+        byte_size: Option<crate::contracts::JsonInteger>,
         proxy_ref: Option<String>,
     },
     ExternalLink {
@@ -278,6 +282,7 @@ pub struct NativeLink {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HomeboxProjection {
+    #[serde(deserialize_with = "super::integer::deserialize_u8")]
     pub schema_version: u8,
     #[serde(flatten)]
     pub scope: Scope,
@@ -323,13 +328,16 @@ pub enum MutationOperation {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Audit {
+    #[serde(deserialize_with = "super::integer::deserialize_u8")]
     pub schema_version: u8,
     pub audit_id: String,
     #[serde(flatten)]
     pub scope: Scope,
     pub record: RecordRef,
     pub operation: MutationOperation,
+    #[serde(deserialize_with = "super::integer::deserialize_nullable_safe_integer")]
     pub previous_revision: Option<u64>,
+    #[serde(deserialize_with = "super::integer::deserialize_safe_integer")]
     pub result_revision: u64,
     pub actor_id: String,
     pub at: String,
@@ -342,6 +350,7 @@ pub struct Audit {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MutationResult {
+    #[serde(deserialize_with = "super::integer::deserialize_u8")]
     pub schema_version: u8,
     pub record: Record,
     pub audit: Audit,
@@ -351,6 +360,7 @@ pub struct MutationResult {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BatchResult {
+    #[serde(deserialize_with = "super::integer::deserialize_u8")]
     pub schema_version: u8,
     pub batch_id: String,
     pub results: Vec<MutationResult>,
