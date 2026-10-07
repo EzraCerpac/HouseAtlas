@@ -89,8 +89,9 @@ The authorizer still must bind exact mutation context, phase and graph closure.
 When using the outer `Commands` service inside that callback, its `AccessPort`
 must also borrow the same guard; a mutex-backed global access adapter would
 reenter the held fence during the service's initial or final access checks.
-This frozen binding does not persist stock root/child intent or stock receipts;
-the actual atomic stock executor remains required for wire3 commands.
+This frozen binding does not persist stock root/child intent or stock receipts.
+`stock::NativeAtlasCommands` separately binds the delivered atomic wire3 stock
+executor; `stock::NativeStockReads` binds durable paged/searchable history.
 
 Read models in `model.rs` are local projections and adapter values. Full schema
 and graph validation uses the existing published schema; these Rust structs do
@@ -274,8 +275,8 @@ AT07's scoped frozen JSON methods and AT11's original `SourceGrant`/
 `PartitionGrant` guard revalidation are delivered at those pins. Remaining
 owner seams are concrete:
 
-* AT07: typed durable stock-envelope and atomic queue/witness repository
-  operations.
+* AT07: atomic queue/witness repository operations. The durable stock-envelope
+  executor and history APIs were subsequently delivered at `d5161c6` below.
 * AT11/host: genuinely qualified registration/access facts needed by queue and
   witness admission. Freshly reacquired grants cannot replace original handles.
 * AT52: compose the scoped authorizer inside `with_mutation_authorization` and
@@ -471,13 +472,13 @@ admission remain owner duties. Neither catalogue/schema coverage nor these
 healthy cases establish complete executed operations. Held controls remain
 unrun.
 
-## Published native core and stock composition
+## Historical published native core and stock composition
 
-Current combined AT51 peer is
+The earlier combined AT51 peer is
 `49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c`, tree
 `eb886fd1ddc4adfe5065f4308f56933796b70142`, independently accepted
-within ordinary scope. AT07 remains
-`45e1e38e97a8e41536b4b6195449076d602589c0`; AT11 remains
+within ordinary scope. This earlier proof used AT07
+`45e1e38e97a8e41536b4b6195449076d602589c0`; AT11 was
 `4967dd2d38c5749be35aa7e44728c4d691246730`.
 The actual published contracts import directly from the captured peer tree;
 no owner overlay, copied export patch or substitute adapter is mounted.
@@ -512,3 +513,66 @@ cargo check --manifest-path /tmp/houseatlas-at36-native-published-combined-n0a8q
 cargo clippy --manifest-path /tmp/houseatlas-at36-native-published-combined-n0a8q0a7/Cargo.toml --locked --offline --lib --bins -- -D warnings
 cargo build --manifest-path /tmp/houseatlas-at36-native-published-combined-n0a8q0a7/Cargo.toml --locked --offline --lib --bins
 ```
+
+## Concrete native stock execution and history
+
+AT07 `d5161c6f86217cddb57113f952576d7f33fa1381` (tree
+`5bbf6b7bca2a9a85654d554ac56d7581c60b30c9`) now supplies atomic original
+root/child intents, intent digests, permanent keys and audit links through
+`execute_stock_json_with_authorization`. It also supplies authorized stock
+history with fixed watermarks and actor/scope/query-bound cursors through
+`stock_history_json_with_authorization`. Earlier missing-stock descriptions
+refer to older owner pins; these delivered APIs are bound here.
+
+`stock::NativeAtlasCommands` forwards the same original principal and exact
+prepared request to that executor, then returns `StockAtlasCommit::owner_result`
+without rebuilding receipts. `stock::NativeStockReads` supplies the required
+`StockHistoryPort`; `AtlasReads` delegates all ten history forms unchanged,
+including cursor and literal command/state search. Frozen record-get methods
+still use the store's configured authorizer A. The history/command authorizer B
+is separately borrowed; the host must keep A guard-safe or perform frozen reads
+outside B's held access fence.
+
+`stock::CapturedAccess` seals initial AT11 entity and independent partition
+handles from the exact original opaque principal. `NativeStockAuthority` binds
+the same capture and prepared request to AT11's actual read boundary or live
+`TransactionAuthorization`, implements native/stock storage authorization and
+frozen `AccessPort`, and checks exact request/plan/child/commit correlation.
+Its required `GraphAuthorization` receives the actual native facts, complete
+augmented stock closure (including root guards), history audits/output and
+original prepared witness/graph. That owner must prove the sealed capture belongs
+to the original witness; initial capture is never an authority refresh.
+There is no default or permissive graph checker. The full outer
+`StockAuthorityPort` producer/disclosure implementation remains host-owned and
+must also use the same live fence for mutation release.
+
+`dispatch_prepared` borrows that same prepared value so the native authorizer
+can retain it through every phase. The existing consuming `dispatch` delegates
+to the same release checks. The host captures owned results locally inside
+AT11's unit callback and releases them after the fence succeeds. This does not
+provide atomic rollback across the access and Atlas databases.
+
+Current peer compilation uses AT11
+`4967dd2d38c5749be35aa7e44728c4d691246730` and genuine combined AT51
+`49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c` with the AT07 pin above.
+The task-owned manifest is
+`/tmp/houseatlas-at36-final-compiler-delivery/harness/Cargo.toml`;
+`rusqlite = "=0.40.2"` requires `bundled` and `backup` for this owner source.
+No repository manifest, lock, generated contract, router or owner source changes
+are included. Scoped check, warning-strict Clippy and build commands and exact
+source/peer fingerprints are delivered separately.
+
+`stock/examples/native_storage_healthy.rs` is an inspected fresh SQLite consumer:
+create, replace, two ordered batch children, two recorded history pages and one
+matching search. It uses actual native storage/schema/semantic/adapters and
+`dispatch_prepared`, with explicitly synthetic authority, graph and clock/IDs.
+It requires a new output directory and published synthetic fixture files through
+`HOUSEATLAS_FIXTURE_ROOT`. AT11 guard binding is compiler/static evidence only;
+no credential, session or grant setup runs in this consumer. Fixed-watermark
+behavior is inspected owner code; no insertion-between-pages control is run.
+
+Production durable `QueueStore`, complete graph/disclosure qualification and
+atomic presence-witness composition remain integration duties. Provider dispatch
+and new source-presence admission remain held. The queue example is compile-only;
+no replay/negative/guard-reversal/fault/crash/concurrency controls, legacy broad
+aggregates, provider calls, listeners or deployment are run.
