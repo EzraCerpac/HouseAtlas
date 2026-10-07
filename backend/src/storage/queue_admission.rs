@@ -271,6 +271,20 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
                 expires_at: expires,
             });
         }
+        let identity = &config.registration.identity;
+        if let Some(reason) = crate::storage::stock_activity::jobs_hold(
+            &tx,
+            self.store.options.stock_activity_profile,
+            &identity.physical_database_id,
+            &identity.deployment_id,
+            identity.configuration_digest.as_hex(),
+            &config.registration.dispatcher_owner_id,
+        )? {
+            authorize_observation(QueuePhase::Precommit)?;
+            tx.commit()?;
+            authorize_observation(QueuePhase::Release)?;
+            return Ok(ClaimOutcome::Waiting { reason });
+        }
         let ids = due_ids(&tx, config)?;
         let mut candidate = None;
         for id in ids {

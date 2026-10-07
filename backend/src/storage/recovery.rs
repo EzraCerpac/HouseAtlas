@@ -323,7 +323,10 @@ fn open_existing_connection<C: Contract>(
     check: &mut dyn FnMut() -> Result<()>,
     verify: Verifier<'_, C>,
 ) -> Result<Connection> {
-    if options.allow_synthetic_bootstrap || options.busy_timeout_ms > 60_000 {
+    if options.stock_activity_profile
+        || options.allow_synthetic_bootstrap
+        || options.busy_timeout_ms > 60_000
+    {
         return Err(Error::new(
             "invalid-contract",
             "Existing storage options are incompatible",

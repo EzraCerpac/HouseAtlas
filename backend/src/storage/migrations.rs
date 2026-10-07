@@ -3,6 +3,16 @@ use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
 use sha2::{Digest, Sha256};
 
 pub(crate) fn validate(connection: &Connection) -> Result<()> {
+    validate_profile(connection, false)
+}
+
+fn validate_profile(connection: &Connection, activity: bool) -> Result<()> {
+    let migrations = profile(activity);
+    let target = if activity {
+        STOCK_ACTIVITY_DATABASE_VERSION
+    } else {
+        DATABASE_VERSION
+    };
     let incompatible = || {
         Error::new(
             "schema-incompatible",
@@ -15,7 +25,7 @@ pub(crate) fn validate(connection: &Connection) -> Result<()> {
             .prepare("SELECT version,sha256 FROM atlas_rust_migrations ORDER BY version")?
             .query_map([], |r| Ok((r.get::<_, u32>(0)?, r.get::<_, String>(1)?)))?
             .collect::<rusqlite::Result<Vec<_>>>()?;
-        let expected = MIGRATIONS
+        let expected = migrations
             .iter()
             .map(|(v, sql)| (*v, sha256(sql)))
             .collect::<Vec<_>>();
@@ -23,7 +33,7 @@ pub(crate) fn validate(connection: &Connection) -> Result<()> {
             .prepare("SELECT key,value FROM atlas_rust_metadata ORDER BY key")?
             .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
             .collect::<rusqlite::Result<Vec<_>>>()?;
-        if version != DATABASE_VERSION
+        if version != target
             || ledger != expected
             || metadata
                 != vec![
@@ -42,7 +52,7 @@ pub(crate) fn validate(connection: &Connection) -> Result<()> {
                 .collect()
         }
         let expected_db = Connection::open_in_memory()?;
-        for (_, sql) in MIGRATIONS {
+        for (_, sql) in &migrations {
             expected_db.execute_batch(sql)?;
         }
         let equal = catalog(connection)? == catalog(&expected_db)?;
@@ -57,6 +67,7 @@ pub(crate) fn validate(connection: &Connection) -> Result<()> {
 }
 
 pub const DATABASE_VERSION: u32 = 5;
+pub const STOCK_ACTIVITY_DATABASE_VERSION: u32 = 6;
 pub const DATABASE_LINEAGE: &str = "houseatlas-rust-storage/1";
 const MIGRATIONS: &[(u32, &str)] = &[
     (1, include_str!("../../migrations/0001_rust_core.sql")),
@@ -76,7 +87,21 @@ pub(crate) fn sha256(bytes: impl AsRef<[u8]>) -> String {
     format!("{:x}", Sha256::digest(bytes.as_ref()))
 }
 
-pub(crate) fn migrate(connection: &mut Connection) -> Result<()> {
+fn profile(activity: bool) -> Vec<(u32, &'static str)> {
+    let mut migrations = MIGRATIONS.to_vec();
+    if activity {
+        migrations.push((6, include_str!("../../migrations/0006_stock_activity.sql")));
+    }
+    migrations
+}
+
+pub(crate) fn migrate(connection: &mut Connection, activity: bool) -> Result<()> {
+    let migrations = profile(activity);
+    let target = if activity {
+        STOCK_ACTIVITY_DATABASE_VERSION
+    } else {
+        DATABASE_VERSION
+    };
     let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let incompatible = || {
         Error::new(
@@ -87,7 +112,7 @@ pub(crate) fn migrate(connection: &mut Connection) -> Result<()> {
     let version: u32 = tx.query_row("PRAGMA user_version", [], |r| r.get(0))?;
     // Schema 5 is a fresh profile. Preserve older checkpoints unchanged and
     // refuse upgrading any existing schema-1..4 user database.
-    if version != 0 && version != DATABASE_VERSION {
+    if version != 0 && version != target {
         return Err(incompatible());
     }
     if version == 0 {
@@ -116,7 +141,7 @@ pub(crate) fn migrate(connection: &mut Connection) -> Result<()> {
                 .optional()
             };
             Ok(rows
-                == MIGRATIONS
+                == migrations
                     .iter()
                     .filter(|(v, _)| *v <= version)
                     .map(|(v, sql)| (*v, sha256(sql)))
@@ -128,7 +153,7 @@ pub(crate) fn migrate(connection: &mut Connection) -> Result<()> {
             return Err(incompatible());
         }
     }
-    for (next, sql) in MIGRATIONS.iter().filter(|(v, _)| *v > version) {
+    for (next, sql) in migrations.iter().filter(|(v, _)| *v > version) {
         tx.execute_batch(sql)?;
         tx.execute(
             "INSERT INTO atlas_rust_migrations VALUES(?1,?2)",
@@ -137,5 +162,6 @@ pub(crate) fn migrate(connection: &mut Connection) -> Result<()> {
         tx.pragma_update(None, "user_version", next)?;
     }
     tx.commit()?;
+    validate_profile(connection, activity)?;
     Ok(())
 }

@@ -542,3 +542,35 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
         self.prove_remote_end_inner(evidence, now)
     }
 }
+
+/// Conservative cross-lane exclusion from actual Jobs rows. This grants no
+/// StockActivity permit and converts no scope, lease, epoch or accounting DTO.
+pub(crate) fn unresolved_physical_hold(db: &Connection, physical: &str) -> Result<bool> {
+    let ids = db
+        .prepare("SELECT job_id FROM queue_jobs WHERE physical_database_id=?1")?
+        .query_map([physical], |r| r.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    for id in ids {
+        let row = load(db, &id)?;
+        let liability = &row.liability;
+        let known = match liability.accounting {
+            ByteAccounting::Complete { known_bytes, .. }
+            | ByteAccounting::Incomplete { known_bytes } => known_bytes,
+        };
+        if row.logical
+            || matches!(
+                row.remote,
+                RemoteActivity::Invoked(
+                    InvokedRemoteActivity::Active | InvokedRemoteActivity::EndUnproven
+                )
+            )
+            || liability.reserved_bytes().is_none_or(|n| n > 0)
+            || known > 0
+            || liability.unresolved_attempts > 0
+            || liability.byte_disposition != ByteDisposition::None
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}

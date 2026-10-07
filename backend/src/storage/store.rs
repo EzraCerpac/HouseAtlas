@@ -20,12 +20,15 @@ use std::{collections::BTreeSet, path::Path, sync::Arc, time::Duration};
 pub struct StoreOptions {
     pub allow_synthetic_bootstrap: bool,
     pub busy_timeout_ms: u64,
+    /// Fresh-only opt-in profile; never upgrades an existing schema-5 database.
+    pub stock_activity_profile: bool,
 }
 impl Default for StoreOptions {
     fn default() -> Self {
         Self {
             allow_synthetic_bootstrap: false,
             busy_timeout_ms: 5_000,
+            stock_activity_profile: false,
         }
     }
 }
@@ -37,8 +40,8 @@ pub struct AtlasStore<C, A, R> {
     instance: Arc<()>,
     contract: C,
     authorization: A,
-    runtime: R,
-    options: StoreOptions,
+    pub(super) runtime: R,
+    pub(super) options: StoreOptions,
 }
 impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
     pub fn open(
@@ -54,7 +57,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         let mut db = Connection::open(path)?;
         db.busy_timeout(Duration::from_millis(options.busy_timeout_ms))?;
         db.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;")?;
-        migrations::migrate(&mut db)?;
+        migrations::migrate(&mut db, options.stock_activity_profile)?;
         db.pragma_update(None, "journal_mode", "WAL")?;
         Ok(Self {
             db,
@@ -66,7 +69,11 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         })
     }
     pub fn database_version(&self) -> u32 {
-        DATABASE_VERSION
+        if self.options.stock_activity_profile {
+            migrations::STOCK_ACTIVITY_DATABASE_VERSION
+        } else {
+            DATABASE_VERSION
+        }
     }
     pub fn close(self) -> Result<()> {
         self.db.close().map_err(|(_, e)| e.into())

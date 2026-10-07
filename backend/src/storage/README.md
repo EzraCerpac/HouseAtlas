@@ -663,3 +663,79 @@ injection, crash, concurrency and negative-consumer controls remain explicitly
 deferred and unrun. No legacy broad test aggregate was invoked. Ordinary success
 does not qualify real authorization, staged media, filesystem/power-loss recovery,
 provider/native routes, targets, deployment, pilots or production operation.
+
+## Native async stock activity (AT07 continuation)
+
+`StockActivitySession` implements the actual HomeBox
+`providers::homebox::write::stock::StockActivityPort`. It retains the original
+host wrapper, genuine AT11 principal/source/partition grants, shared access
+boundary and required `StockActivityAuthorization` peer. Public authority,
+permit and stored-operation DTOs remain data. There is no default policy or
+production qualification adapter. `new` accepts the shared
+`Arc<Mutex<AtlasStore<...>>>`, access boundary, original wrapper, policy,
+contracts, trusted registration, validated command and captured authority.
+`StockActivityRegistration` carries the stock owner's genuine physical binding,
+owner and source/dispatcher epochs; no Jobs lease or epoch is converted.
+
+Set `StoreOptions.stock_activity_profile = true` only for a fresh database.
+This selects profile 6 on the same original connection. Default profile 5,
+migrations 1–5, upload consumption and stock history remain unchanged. Neither
+profile upgrades an existing database into the other. The exact checksum ledger
+and SQL catalogue are checked on open. Existing recovery-image validation and
+strict recovery constructors remain profile 5; profile 6 recovery qualification
+is unavailable and fails closed. No live data migration is provided.
+
+Reserve stores the immutable original command and permanent dedup key. Waiting
+operations retain metadata with no permit or accepted body. Admission checks the
+original AT11 transaction guard, exact native mapping/preflight/plan digest,
+FIFO and physical exclusion. The mandatory owner policy qualifies original
+route, impact, observation, guards, human approval and byte reservation.
+Approval consumption, liability, dispatch plan, permit, owner slot and journal
+entry commit together. The complete preflight and admission evidence are kept.
+`queued_handoff` supplies a sealed in-memory original-owner carrier for an
+explicit never-invoked prepared/queued operation; it performs no startup scan,
+authority reconstruction or write retry.
+
+Dispatch, never-invoked and observation recording require original server-held
+evidence through the mandatory policy. They can persist evidence independently
+of current user disclosure, which is checked after commit. Live reserve/admit
+and owner handoff hold the actual AT11 synchronous transaction guard. No access
+or SQLite guard crosses an await. Native reducers preserve response/readback
+facts, independently version observations, and retain every complete observation
+including its time and impact evidence. Private versioned lossless JSON keeps
+original number tokens; canonical intent/plan hashes still use the shared owner.
+The strict loader checks SQL keys, admission/permit/body linkage, approval rows,
+all event versions and each reducer's fact-to-snapshot transition.
+
+Only original-owner-qualified never-start evidence or correlated `EndedProven`
+can clear the physical slot. Readback, confirmed effects, cancellation and
+expiry cannot clear it. The current native HTTP driver returns `EndUnproven`,
+and the peer port supplies no later termination-evidence method. A distinct
+future owner seam is needed for later endproof and accounting/effect resolution;
+this implementation does not infer either. Physical holds, logical uncertainty
+and liability stay distinct. Reciprocal checks and SQL triggers exclude Jobs
+and StockActivity invocation on one trusted physical DB. Exact Jobs accounting
+is read through its own private loader. Cross-lane unresolved effects or positive/
+unqualified liability conservatively hold that whole physical DB; precise shared
+scope and budget admission requires a future trusted owner view.
+
+`checks/stock-activity-healthy.rs` is one fresh ordinary synthetic quantity write
+through actual AT11 login/grants, AT51 closed stock contracts, the actual native
+mapper/writer and this SQLite adapter. Preparation, dispatch, readback and graph/
+route/evidence policy are explicitly synthetic peers. It runs one dispatch and
+one readback, checks the ordinary authorized journal read and four retained
+events, and observes a confirmed outcome while the physical hold remains. No
+HTTP request, socket/listener, credential injection or live provider runs.
+
+The external `/tmp/houseatlas-at07-activity-composition` compiler harness mounts
+HTTP/stock/contracts from publication `c36bb0bc19bb631d815ab4bb44fa3514ebeac0b7`
+and config/async stock dispatcher from `6eb067ee1c315a6e8b4057b89a46400fd06be60d`.
+Its separate existing storage protocols use actual domain/Jobs
+`8a568fb6ccef5b0fa575b18d6181dcc524d4db99`, access
+`4a0cd4da563a32d26677755a608180c960765353` and media
+`f0d6b10f00bb93fc1c1dd4eb3ae66ee1fbe3f873`. The external source ledger pins every mounted source. Root manifest/lock
+composition remains with AT51. No deployed registry, genuine human approval,
+production graph/witness/evidence policy or complete profile 6 recovery is
+qualified by this example. Replay, held/expiry, rejection, guard reversal,
+mutation/omission, adversarial, denial, faults/crashes, concurrency and negative
+consumers remain deferred and unrun.
