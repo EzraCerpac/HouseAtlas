@@ -351,6 +351,38 @@ impl AccessBoundary {
         Ok(())
     }
 
+    /// Current-authority fence around an actual synchronous storage read and
+    /// disclosure. The guard borrows the exact supplied principal. Retained
+    /// grants must be checked through it; source/generation membership remains
+    /// the provider/storage owners' responsibility. No raw connection escapes.
+    pub fn with_read_authorization<E: From<AccessError>>(
+        &mut self,
+        principal: &Principal,
+        operation: impl FnOnce(&TransactionAuthorization<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        let tx = self
+            .store
+            .db
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(AccessError::from)
+            .map_err(E::from)?;
+        let guard = TransactionAuthorization {
+            authority: CurrentAuthority {
+                db: &tx,
+                config: &self.config,
+                instance: &self.instance,
+            },
+            principal,
+        };
+        guard
+            .authorize(principal.scope(), Capability::Read)
+            .map_err(E::from)?;
+        operation(&guard)?;
+        guard.revalidate().map_err(E::from)?;
+        tx.commit().map_err(AccessError::from).map_err(E::from)?;
+        Ok(())
+    }
+
     pub fn session_info(&mut self, request: &RequestEvidence<'_>) -> AccessResult<SessionInfo> {
         if request.method != Method::Get {
             return Err(AccessError::MethodNotAllowed);

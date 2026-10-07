@@ -276,6 +276,32 @@ allowlist, and configures Linux execution of the named healthy flows. Current
 candidate CI status is reported separately. macOS source compilation supplies
 no target NAS build/runtime or operational qualification.
 
+## Optional cached Network host composition
+
+The optional native Network mount reads through the original Core, canonical
+Access allocation and existing Store. Its cached-only GET is scoped by workspace,
+home, source instance and an opaque collection selector. Fresh native partition
+and entity grants feed the retained generation disclosure; serialization is
+followed by the owner's same-store rerelease and original-authority check.
+Trusted configuration supplies the binding, and the default service has none.
+Browsing supplies no refresh, transport, lifecycle policy or provider credential.
+
+The current development composition includes the original Access shared issuer,
+registered-cache and borrowed snapshot Storage APIs, the genuine Domain offline
+recovery leaf required by that Access source, and the nested Network module.
+Storage's optional activity schema is compiled; the default disposable host
+still opens schema 5, with no activity dispatch or offline recovery mount.
+Existing SQL migrations and schema checksums remain intact.
+
+`healthy-network-root-router` is an explicitly declared, compiled-only example.
+Its planned ordinary flow is one disposable verified TLS inventory GET and
+native publication, a genuine viewer login through the root router, and two
+cached root-router reads with unchanged cache epochs and reservations. Root
+router calls in this example are in-process HTTP requests. It supplies no browser
+or root-listener transport evidence. The native runtime's owning Store/Access
+identity correction is still pending; this flow has not executed and the mount
+is not accepted. No new runtime flow is enabled in CI by declaring the example.
+
 ## Explicit remaining areas
 
 Access now supplies opaque ConfigureSource and PublishCache grants under explicit
@@ -286,12 +312,12 @@ but no real configuration, credential release, filtered provider read or refresh
 has been mounted/executed in this disposable host. The cached route does not
 create those permissions or qualify freshness.
 
-Network host settings, retained facet and phased publication source compile.
-Its required whole-collection disclosure membership/credential authority and
-actual runtime remain unbound. The Network owner documents reqwest 0.12/WebPKI
-roots while the host pins reqwest 0.13.5 with Rustls platform verification.
-This TLS profile discrepancy still requires owner reconciliation before combined
-transport acceptance. No runner makes an actual provider request.
+Network host settings, retained facet, phased publication and the optional
+cached-only mount compile with reqwest 0.13.5 and Rustls platform verification.
+The runtime uses the canonical original issuer and complete retained-generation
+resource grants. Its owning Store/Access identity correction and root healthy
+execution remain pending. No actual Network UI, source setup or provider refresh
+is enabled in the default host, and no runner calls a real provider.
 
 Provider stock preparation, original whole-collection approval, verified
 route/build binding, durable operation activity/liability and qualified physical

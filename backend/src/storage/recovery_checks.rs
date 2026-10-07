@@ -113,8 +113,20 @@ fn validate_core<C: Contract>(
     contract: &C,
     check: Check<'_>,
 ) -> Result<RecoveryImage> {
+    validate_core_profile(db, contract, check, false)
+}
+fn validate_core_profile<C: Contract>(
+    db: &Connection,
+    contract: &C,
+    check: Check<'_>,
+    activity: bool,
+) -> Result<RecoveryImage> {
     check()?;
-    migrations::validate(db)?;
+    if activity {
+        migrations::validate_profile(db, true)?;
+    } else {
+        migrations::validate(db)?;
+    }
     let mut integrity_rows = 0;
     each(db, "PRAGMA integrity_check", check, |row, _| {
         integrity_rows += 1;
@@ -214,7 +226,11 @@ fn validate_core<C: Contract>(
     Ok(RecoveryImage {
         contract_version: CONTRACT_VERSION.into(),
         database_lineage: DATABASE_LINEAGE.into(),
-        database_schema: DATABASE_VERSION,
+        database_schema: if activity {
+            STOCK_ACTIVITY_DATABASE_VERSION
+        } else {
+            DATABASE_VERSION
+        },
         assets,
     })
 }
@@ -273,6 +289,40 @@ pub(super) fn validate_connection_with_peers<
         peers.evidence,
         check,
     )?;
+    check()?;
+    Ok(image)
+}
+
+pub(super) fn validate_connection_with_activity_peers<
+    C: Contract,
+    S: crate::domain::stock::StockContractPort,
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+    W: crate::providers::homebox::write::stock::StockContractPort,
+    AD: StockActivityRecoveryDiscovery,
+    AE: StockActivityRecoveryEvidence,
+>(
+    db: &Connection,
+    contract: &C,
+    base: &super::RecoveryValidationPeers<'_, S, D, E>,
+    activity: &StockActivityRecoveryPeers<'_, W, AD, AE>,
+    check: Check<'_>,
+) -> Result<RecoveryImage> {
+    let image = validate_core_profile(db, contract, check, true)?;
+    super::super::super::stock_recovery::validate(db, contract, base.stock, check)?;
+    check()?;
+    // Independent Jobs rows keep their own registry, codecs and original claims.
+    // They are never used as native activity producer/attempt evidence.
+    super::super::super::queue::validate_recovery_queues(
+        db,
+        base.queues,
+        base.discovery,
+        base.stock,
+        base.evidence,
+        check,
+    )?;
+    check()?;
+    super::super::super::stock_activity::validate_recovery_activity(db, activity, check)?;
     check()?;
     Ok(image)
 }

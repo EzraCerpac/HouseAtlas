@@ -2,6 +2,7 @@
 pub mod providers {
     pub mod homebox;
     pub mod network;
+    pub mod network_host;
     pub mod registry;
 }
 pub mod recovery;
