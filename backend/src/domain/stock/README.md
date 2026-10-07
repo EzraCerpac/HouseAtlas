@@ -128,6 +128,11 @@ contract source snapshots and the current AT36 modules. Root manifests/locks
 and shared stock schema implementation remain peer-owned. Compiler/static
 review evidence for these new owner modules is separate from the earlier
 synthetic examples and does not establish production execution qualification.
+Exact AT07 `45e1e38e97a8e41536b4b6195449076d602589c0` now supplies typed
+snapshot/record/audit/guard/mutationResult mappings. A separate five-shape
+accepted consumer passed the actual native generated decoder; it supplies no
+semantic graph, storage, authority, receipt or provider execution. Exact
+peer/manifest/lock and pure-shape proof are recorded in `../README.md`.
 
 `examples/healthy.rs` is an isolated synthetic consumer using an external
 offline Python draft2020-12 validator against the exact stock/Atlas schemas.

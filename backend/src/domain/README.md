@@ -249,12 +249,32 @@ cargo clippy --manifest-path /tmp/houseatlas-at36-scoped-native-compiler-moanglp
 cargo build --manifest-path /tmp/houseatlas-at36-scoped-native-compiler-moanglpb/Cargo.toml --locked --offline --lib --bins
 ```
 
+The newer shape-compatible composition uses external manifest
+`/tmp/houseatlas-at36-fixed-native-composed-6t9pdcxd/Cargo.toml` with exact AT07
+`45e1e38e97a8e41536b4b6195449076d602589c0` and the same AT11/AT51 pins,
+dependency versions/features and lock hash above. Locked/offline library and
+compile-only queue-driver check, warning-strict Clippy and build passed. Rust
+fingerprints stayed unchanged; the initial full-source interval records only a
+concurrent README correction. That interval is retained as such.
+
+The separate external consumer
+`/tmp/houseatlas-at36-fixed-native-shapes-3ely7qql/Cargo.toml` also passed check,
+warning-strict Clippy and build. It then executed exactly five accepted pure
+shape calls once: snapshot, record, audit, guard and mutationResult. It uses the
+published plan-free snapshot/create-circuit result and an integral `1e0` guard.
+All shapes pass the actual typed AT51 decoder through genuine AT07
+`NativeContract`; the required semantic peer returns explicit unavailable
+errors and is never invoked. No storage transaction, access authorization,
+graph validation, queue or provider runs in this example. Consumer proof:
+`/tmp/houseatlas-at36-fixed-native-shapes-3ely7qql/checks-evidence.json`, SHA-256
+`a457f95947bf4fbb5986b6003c192e1fb9fb430df415b3807b4c4c0411c28bb7`.
+
 AT07's scoped frozen JSON methods and AT11's original `SourceGrant`/
 `PartitionGrant` guard revalidation are delivered at those pins. Remaining
 owner seams are concrete:
 
-* AT07: exact named shape mappings below, typed durable stock-envelope and
-  atomic queue/witness repository operations.
+* AT07: typed durable stock-envelope and atomic queue/witness repository
+  operations.
 * AT11/host: genuinely qualified registration/access facts needed by queue and
   witness admission. Freshly reacquired grants cannot replace original handles.
 * AT52: compose the scoped authorizer inside `with_mutation_authorization` and
@@ -265,9 +285,12 @@ owner seams are concrete:
   rollback. No access-mutex reentry, reopened store, manufactured epochs or
   relabeled frozen stock/provider receipts supplies this composition.
 
-At the inspected AT07 pin, `NativeContract::validate_shape` has a closed match
-that lacks these names. The storage owner must add existing typed AT51
-decode/validation for each name and retain its unknown-shape error:
+The earlier inspected AT07 `3b14f0362aa2161d51b99d71e7d52d50f27f07de`
+`NativeContract::validate_shape` lacked the five mappings below. Published AT07
+`45e1e38e97a8e41536b4b6195449076d602589c0`, tree
+`c7604784f4163b4792070b15340ce45b2d74b6f9`, now supplies all five through its
+existing `checked::<schema::Type>(value)` helper and actual AT51 typed decode.
+The unknown-name error and required semantic delegates are unchanged:
 
 | Shape name | AT51 generated type | Required domain caller |
 | --- | --- | --- |
@@ -281,6 +304,7 @@ Direct `validate_snapshot`/`validate_result` semantic delegation does not replac
 these named shape checks. Domain validation remains mandatory; unknown-name
 success or permissive fallback does not resolve this compatibility requirement.
 
-The native bridge is compiled and statically reviewed, with no native runtime
-exercise or additional held controls. It cannot enable new source presence;
+The native bridge is compiled and statically reviewed. The five pure shape
+calls above exercise generated decoding only; native mutation execution and
+additional held controls remain unrun. It cannot enable new source presence;
 atomic witness persistence and candidate/precommit rechecks remain required.
