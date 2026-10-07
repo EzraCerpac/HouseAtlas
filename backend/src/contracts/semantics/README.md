@@ -33,8 +33,14 @@ Use `houseatlas_backend::contracts::semantics` with the existing DTOs:
   mutation hashes use `{target, command, batchId, batchHash}` exactly.
 
 The input domain is schema-checked finite JSON in the published JavaScript
-numeric model. Public typed wrappers validate shape at their boundary; the
-standalone JavaScript guard/final helpers relied on previously validated callers.
+numeric model. Shape validation is wrapper-specific: standalone
+`required_references` and `assert_guards` serialize `current` without validating
+its record shape, so any supplied current record must already be shape-validated.
+The combined `validate_mutation_preconditions` path runs `assert_transition`
+first; on success, any present current record has been shape-validated before
+guards. A create with an existing current reports identity conflict before
+current-record shape validation. The published JavaScript guard/final helpers
+relied on previously validated callers.
 `SemanticError` exposes the published domain code and message. Invalid URL
 parsing is adapted from JavaScript's raw TypeError to typed `invalid-contract`;
 the valid URL component checks retain the original domain rules.
