@@ -209,7 +209,7 @@ impl<C, A: CredentialAuthority<C>, K: KeyProvider> Boundary<C, A, K> {
         authority: Arc<A>,
         keys: K,
     ) -> Result<Self, AiError> {
-        if !valid_field(stable_host_id) {
+        if !valid_field(stable_host_id) || stable_host_id.trim().is_empty() {
             return Err(AiError::InvalidInput);
         }
         Ok(Self {

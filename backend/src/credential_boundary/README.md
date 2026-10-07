@@ -12,7 +12,7 @@ integrator-owned. This source is not an operational credential-runtime approval.
 ## Storage and authority
 
 `new_existing` accepts an existing canonical absolute directory owned by the
-current effective UID with mode 0700, a trusted stable host ID, and the original
+current effective UID with mode 0700, a trusted non-whitespace stable host ID, and the original
 owner Arc. It does not create directories, change permissions, provision keys,
 unlock stores, enroll accounts, or create an initial registration record.
 The separate explicit `enroll_atomic(context, binding, initial_record)` creates
@@ -23,7 +23,14 @@ authorization or checkpoint. App name must contain non-whitespace text. Native
 key availability is required; no key is provisioned. First publication uses atomic Linux NOREPLACE, so even a racing
 file appearance is preserved without replacement. Metadata initializes only
 after the fenced commit succeeds. The original host owns the trusted startup
-registration configuration and enrollment permission.
+registration configuration and enrollment permission. First enrollment currently
+requires no issued client ID for either registration kind. An IssuedWebsite
+record cannot begin OAuth until the original host supplies the preprovisioned
+public client ID through an explicitly authorized metadata transition; active
+authenticated load/persist permits that None-to-Some transition and then freezes
+the value. This host transition is an unresolved integration requirement, and
+this adapter does not invent or provision a client. LocalPublicClient uses the
+core dynamic-client path.
 Missing or corrupt ciphertext is preserved; ordinary persistence requires a
 successful authenticated load and its exact ciphertext preimage.
 
@@ -124,7 +131,9 @@ Policy commit `8f4065a3ee831df0b30d14f597c25a7bbcc7f212` permits exact reviewed
 synthetic concurrency/denial/failure cases outside ordinary CI. The explicit
 allowlist in `enrollment_regression.rs` is `empty-enrollment`,
 `existing-enrollment-denied`, `racing-enrollment`, and
-`blank-app-enrollment-denied`. The blank-app denial occurs before key/authority
+`blank-app-enrollment-denied`, and `blank-host-construction-denied`. The blank-host
+case checks constructor rejection before directory acquisition and then enrolls
+and reopens a valid LocalPublicClient record. The blank-app denial occurs before key/authority
 or file acquisition and then proves a valid enrollment remains possible. Owners
 review the pinned source and all imported helpers before execution. Each case uses a fresh private
 temporary root, a fixed synthetic key and synthetic authority; no native lookup,
