@@ -50,6 +50,18 @@ impl<R> StagedNetworkPublication<R> {
         (self.proposal, self.receipt)
     }
 }
+/// Synchronous stage for the phased native host adapter. The provider's opaque
+/// complete proposal is consumed only after actual durable row staging succeeds.
+/// Host authority is required independently before staging and at publication.
+pub fn stage_complete_generation<S: DurableNetworkSidecar>(
+    source: &SourceRegistration,
+    proposal: CompleteGenerationProposal,
+    sidecar: &mut S,
+) -> Result<StagedNetworkPublication<S::Receipt>> {
+    let row = stage_row(source, &proposal)?;
+    let receipt = sidecar.stage(source, &row)?;
+    Ok(StagedNetworkPublication { proposal, receipt })
+}
 pub trait NetworkCachePublisher<L> {
     type Fence: NetworkPublicationFence;
     type Receipt;
@@ -225,26 +237,18 @@ where
                 .as_ref()
                 .ok_or_else(|| NetworkError::new(ErrorCode::InvalidSchema))?;
             authority.authorize_generation(&lease, &source, generation)?;
-            let row = stage_row(&source, &proposal)?;
-            let receipt = sidecar.stage(&source, &row)?;
+            let staged = stage_complete_generation(&source, *proposal, sidecar)?;
             check_cancelled(&cancellation)?;
             authority.revalidate_inventory(&lease, &source, &origin)?;
             let receipt = publisher
-                .publish_prepared_generation(
-                    fence,
-                    StagedNetworkPublication {
-                        proposal: *proposal,
-                        receipt,
-                    },
-                    lease.as_ref(),
-                )
+                .publish_prepared_generation(fence, staged, lease.as_ref())
                 .map_err(NetworkPublicationError::Storage)?;
             Ok(NetworkPublicationOutcome::Published(receipt))
         }
         RefreshOutcome::Failed(failure) => {
-            // The reviewed AT07 failure write has no fetch baseline predicate.
-            // Keep the original fence/lease and sanitized proposal for a future
-            // consuming, fenced host transaction; never write metadata here.
+            // Keep the original fence/lease and sanitized proposal for the
+            // native consuming failure transaction. The controller itself
+            // performs no failure write and never drops/rebases this fence.
             let precondition = PublicationPrecondition {
                 expected_generation_id: fence.baseline_generation_id().map(str::to_owned),
                 expected_cache_epoch: fence.baseline_cache_epoch(),
