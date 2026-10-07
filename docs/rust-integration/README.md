@@ -336,9 +336,11 @@ reset-surviving recovery authority, retained original enqueue/attempt provenance
 queued media/liability proof and retained native evidence codecs remain unbound.
 Committed owned-original availability cannot substitute for queued media proof.
 Successful image validation would not grant resume, dispatch or reconciliation
-authority. Historical schema2 evidence does not qualify current schema4 or
-populated stock/queue recovery. No modified-image probe, surrogate validator,
-JavaScript database migration or adoption is supplied.
+authority. Historical schema2 evidence does not qualify current native Rust
+profile5 or future profile6 stock activity recovery. Profiles1–4 are not upgraded
+by the strict native opener. Legacy JavaScript persistence uses schema3. No
+modified-image probe, surrogate validator, JavaScript database migration or
+adoption is supplied.
 
 Other missing product areas include atomic presence witness admission/recovery,
 trusted real source setup/refresh, actual Network facets, qualified source-native
@@ -356,3 +358,12 @@ replay, expiry, revocation, injected fault, crash and concurrency checks remain
 unrun. The jobs checkpoint contains replay and is not executed. No broad test
 alias, remote listener, provider/NAS call, live login/grant, deployment or
 security/recovery/target/product acceptance is supplied by this composition.
+
+The multipart route preserves the owner-qualified committed receipt when stage
+metadata retirement fails. Retirement still requires the strict SQLite consumed
+upload loader and original mutation fence; the host never reconstructs cleanup
+permission. It emits a fixed diagnostic and independently revalidates original
+principal and source grants before releasing the canonical result. Durable
+consumption remains in SQLite; immutable original bytes are retained. This does
+not implement a background reconciliation worker or qualify interrupted cleanup,
+fault, budget, replay or authority-loss behavior. Those controls remain unrun.
