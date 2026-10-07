@@ -54,7 +54,7 @@ impl PreparedPublication {
         store: &mut Store,
         references: &mut n::NetworkCacheReferences<'_>,
     ) -> s::Result<n::NetworkArchiveReservation> {
-        let residency = store.guard_cache_residency(references)?;
+        let mut residency = store.guard_cache_residency(references)?;
         let admission =
             residency.admit_before_transport(&self.prepared.fence, s::CACHE_ROW_BYTES)?;
         let (_references, committed) = residency.release();

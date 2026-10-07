@@ -6,6 +6,7 @@ use super::{
     projection::validate_registration,
     *,
 };
+use crate::storage::OriginalStagedCachePublication;
 use rusqlite::{Connection, OpenFlags, TransactionBehavior, params};
 use std::{collections::BTreeSet, path::Path};
 

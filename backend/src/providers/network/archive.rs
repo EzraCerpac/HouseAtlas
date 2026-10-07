@@ -4,10 +4,10 @@
 //! before transport. The catalog never evicts or rewrites retained generations.
 //! This Network owner does not issue Storage pins; original Storage reference
 //! guard integration remains required for accepted custody transfer.
+use super::projection::validate_registration;
 use super::{
     CompleteGenerationProposal, DurableNetworkReceipt, Limits, LinkReview, NetworkCapture,
     NetworkError, NetworkGeneration, SourceRegistration, SourceScope, project_capture,
-    validate_registration,
 };
 use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
@@ -556,19 +556,19 @@ impl NetworkImmutableArchive {
             let projected_hash: String = row.get(3).map_err(|_| err())?;
             let segment_hash: String = row.get(4).map_err(|_| err())?;
             let name: String = row.get(5).map_err(|_| err())?;
-            let size: i64 = row.get(6).map_err(|_| err())?;
+            let segment_bytes: i64 = row.get(6).map_err(|_| err())?;
             let header_json: String = row.get(7).map_err(|_| err())?;
-            if size <= 0 || size as usize > MAX_ACTIVE_SEGMENT_BYTES {
+            if segment_bytes <= 0 || segment_bytes as usize > MAX_ACTIVE_SEGMENT_BYTES {
                 return Err(size());
             }
-            total = total.checked_add(size as usize).ok_or_else(size)?;
+            total = total.checked_add(segment_bytes as usize).ok_or_else(size)?;
             if total > MAX_RETAINED_SEGMENT_BYTES {
                 return Err(size());
             }
             ensure(name == segment_name(&partition, &generation) && expected.insert(name.clone()))?;
             let path = self.segments.join(&name);
             let bytes = fs::read(&path).map_err(|_| err())?;
-            ensure(bytes.len() == size as usize && digest(&bytes) == segment_hash)?;
+            ensure(bytes.len() == segment_bytes as usize && digest(&bytes) == segment_hash)?;
             let (header, body) = read_segment(&path)?;
             ensure(
                 header.body_sha256 == body_hash
