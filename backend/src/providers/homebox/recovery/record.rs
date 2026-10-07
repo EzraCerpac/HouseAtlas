@@ -7,6 +7,8 @@ use serde_json::{Value, json};
 use w::StockContractPort;
 
 pub struct RetainedWriterAttempt {
+    pub(super) version: CodecVersion,
+    writer_job_binding: Option<RetainedWriterJobBinding>,
     pub(super) config: jobs::QueueConfig,
     pub(super) job: jobs::LeasedJob,
     pub(super) baseline: w::StoredOperation,
@@ -45,10 +47,60 @@ impl RetainedWriterAttempt {
         permit: w::InvocationPermit,
         prepared_media_evidence: Vec<u8>,
     ) -> storage::Result<Self> {
+        Self::prepare(
+            contracts,
+            config,
+            (job, None),
+            admitted,
+            preflight,
+            permit,
+            prepared_media_evidence,
+        )
+    }
+
+    /// Version two accepts a separately retained producer association between
+    /// the opaque storage claim and an existing writer UUID. The full original
+    /// admitted operation and permit must match that association exactly.
+    pub fn from_prepared_v2(
+        contracts: &NativeWriterContracts,
+        config: jobs::QueueConfig,
+        binding: RetainedWriterJobBinding,
+        admitted: w::StoredOperation,
+        preflight: w::StockPreflight,
+        permit: w::InvocationPermit,
+        prepared_media_evidence: Vec<u8>,
+    ) -> storage::Result<Self> {
+        let job = binding.job().clone();
+        Self::prepare(
+            contracts,
+            config,
+            (job, Some(binding)),
+            admitted,
+            preflight,
+            permit,
+            prepared_media_evidence,
+        )
+    }
+
+    fn prepare(
+        contracts: &NativeWriterContracts,
+        config: jobs::QueueConfig,
+        joined: (jobs::LeasedJob, Option<RetainedWriterJobBinding>),
+        admitted: w::StoredOperation,
+        preflight: w::StockPreflight,
+        permit: w::InvocationPermit,
+        prepared_media_evidence: Vec<u8>,
+    ) -> storage::Result<Self> {
+        let (job, writer_job_binding) = joined;
+        let version = if writer_job_binding.is_some() {
+            CodecVersion::V2
+        } else {
+            CodecVersion::V1
+        };
         let command = &admitted.command;
         let plan = admitted.plan.as_ref().ok_or_else(incompatible)?;
         let packet = PreparedPacket {
-            format: NATIVE_CODEC.into(),
+            format: version.native().into(),
             writer_commit: WRITER_COMMIT.into(),
             native_source_commit: w::NATIVE_SOURCE_COMMIT.into(),
             binding: binding(&job),
@@ -60,14 +112,20 @@ impl RetainedWriterAttempt {
             permit: permit_value(&permit),
             baseline: admitted.outcome.clone(),
             activity_version: admitted.activity_version,
+            writer_job_binding: writer_job_binding
+                .as_ref()
+                .map(RetainedWriterJobBinding::packet)
+                .transpose()?,
         };
         let prepared = storage::PreparedNativeIntent {
-            codec: NATIVE_CODEC.into(),
+            codec: version.native().into(),
             native_payload: encode(&packet)?,
             prepared_media_evidence,
             storage_liability: liability(&admitted.outcome.storage_liability)?,
         };
         let record = Self {
+            version,
+            writer_job_binding,
             config,
             job,
             baseline: admitted,
@@ -216,7 +274,11 @@ impl RetainedWriterAttempt {
             || job.lease.fence == 0
             || job.lease.expires_at == 0
             || job.attempt == 0
-            || job.lease.job_id.0 != p.operation_id.to_string()
+            || !match (&self.writer_job_binding, self.version) {
+                (None, CodecVersion::V1) => job.lease.job_id.0 == p.operation_id.to_string(),
+                (Some(binding), CodecVersion::V2) => binding.matches(job, &self.baseline, p),
+                _ => false,
+            }
             || job.lease.owner_id != p.owner_id.to_string()
             || self.baseline.actor_id != a.actor_id
             || self.baseline.activity_version == 0
@@ -352,7 +414,7 @@ impl RetainedWriterAttempt {
                 readback_digest = Some(digest(&observed.readback_digest)?);
                 (
                     storage::StepKind::ResponseReadback,
-                    READBACK_CODEC,
+                    self.version.readback(),
                     json!({"receipt":receipt(r),"observation":observation(o)}),
                 )
             }
@@ -378,7 +440,7 @@ impl RetainedWriterAttempt {
                 next.outcome.remote_activity = facts.remote_activity.clone();
                 (
                     storage::StepKind::RemoteEnd,
-                    REMOTE_END_CODEC,
+                    self.version.remote_end(),
                     json!({"receipt":receipt(r)}),
                 )
             }
@@ -395,7 +457,7 @@ impl RetainedWriterAttempt {
                 next.outcome.unknown_scope_fence_retained = false;
                 (
                     storage::StepKind::PositiveNoEffect,
-                    NEVER_INVOKED_CODEC,
+                    self.version.never_invoked(),
                     json!({"nativeDispatch":"NeverInvoked"}),
                 )
             }
@@ -498,6 +560,16 @@ impl RetainedWriterArchive {
     /// by decoding queue/image packets. Missing original owner evidence fails.
     pub fn new(attempts: Vec<RetainedWriterAttempt>) -> storage::Result<Self> {
         for (index, record) in attempts.iter().enumerate() {
+            // /2 joins one opaque job to one existing writer operation per
+            // physical identity. Multiple attempts retain that same association.
+            if attempts[..index].iter().any(|other| {
+                (record.version == CodecVersion::V2 || other.version == CodecVersion::V2)
+                    && other.job.lease.physical_identity == record.job.lease.physical_identity
+                    && ((other.job.lease.job_id == record.job.lease.job_id)
+                        != (other.baseline.operation_id == record.baseline.operation_id))
+            }) {
+                return Err(incompatible());
+            }
             if attempts[..index].iter().any(|other| {
                 other.job.lease.physical_identity == record.job.lease.physical_identity
                     && other.job.lease.job_id == record.job.lease.job_id

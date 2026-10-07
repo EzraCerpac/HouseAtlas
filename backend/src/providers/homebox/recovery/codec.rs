@@ -9,6 +9,43 @@ pub const NATIVE_CODEC: &str = "houseatlas-homebox-stock-native/1";
 pub const READBACK_CODEC: &str = "houseatlas-homebox-stock-readback/1";
 pub const REMOTE_END_CODEC: &str = "houseatlas-homebox-stock-remote-end/1";
 pub const NEVER_INVOKED_CODEC: &str = "houseatlas-homebox-stock-never-invoked/1";
+
+pub const NATIVE_CODEC_V2: &str = "houseatlas-homebox-stock-native/2";
+pub const READBACK_CODEC_V2: &str = "houseatlas-homebox-stock-readback/2";
+pub const REMOTE_END_CODEC_V2: &str = "houseatlas-homebox-stock-remote-end/2";
+pub const NEVER_INVOKED_CODEC_V2: &str = "houseatlas-homebox-stock-never-invoked/2";
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum CodecVersion {
+    V1,
+    V2,
+}
+impl CodecVersion {
+    pub fn native(self) -> &'static str {
+        match self {
+            Self::V1 => NATIVE_CODEC,
+            Self::V2 => NATIVE_CODEC_V2,
+        }
+    }
+    pub fn readback(self) -> &'static str {
+        match self {
+            Self::V1 => READBACK_CODEC,
+            Self::V2 => READBACK_CODEC_V2,
+        }
+    }
+    pub fn remote_end(self) -> &'static str {
+        match self {
+            Self::V1 => REMOTE_END_CODEC,
+            Self::V2 => REMOTE_END_CODEC_V2,
+        }
+    }
+    pub fn never_invoked(self) -> &'static str {
+        match self {
+            Self::V1 => NEVER_INVOKED_CODEC,
+            Self::V2 => NEVER_INVOKED_CODEC_V2,
+        }
+    }
+}
 // Matches the accepted storage queue's metadata bound. This is a codec limit,
 // not a provider response bound or a shared wire-schema change.
 const MAX_PACKET_BYTES: usize = 1_048_576;
@@ -28,6 +65,9 @@ pub(super) struct PreparedPacket {
     pub permit: Value,
     pub baseline: writer::StockOutcome,
     pub activity_version: u64,
+    // Absent for /1: its exact historical encoding remains unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub writer_job_binding: Option<Value>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

@@ -1,5 +1,6 @@
-//! Exactly one fresh synthetic evidence composition. No dispatch/recovery
-//! execution, SQL, provider/account, sockets, replay or stopped controls.
+//! Scoped healthy compositions: /1 uses typed frames; /2 also uses actual
+//! SQLite claim/journal/capture/validation. No dispatch, recovered execution,
+//! provider/account, sockets, replay or stopped controls.
 use super::{codec::*, *};
 use crate::{
     domain::{
@@ -107,6 +108,15 @@ impl QueuedMediaRecovery<OriginalProof> for SyntheticOwners {
 }
 #[test]
 fn healthy_retained_writer_composition() {
+    composition(false);
+}
+
+#[test]
+fn healthy_retained_writer_v2_storage_prepared() {
+    composition(true);
+}
+
+fn composition(version_two: bool) {
     let contracts = NativeWriterContracts::new().unwrap();
     let wire = json!({"schemaVersion":3,"commandId":"homebox.entity.quantity.set","requestId":id(11),
         "context":{"workspaceId":id(1),"homeId":id(2)},"target":{"authority":"homebox","sourceInstanceId":id(3),"collectionId":id(4),"resourceKind":"entity","resourceId":id(5)},
@@ -222,6 +232,12 @@ fn healthy_retained_writer_composition() {
         },
         pending_byte_liability: pending,
     };
+    let mut storage = version_two
+        .then(|| super::healthy_v2_support::ClaimedStorage::fresh(&config, &job.request, &wire));
+    let job = storage
+        .as_ref()
+        .map(|storage| storage.job.clone())
+        .unwrap_or(job);
     let native_liability = w::StorageLiability {
         accounting_complete: true,
         metadata_commit_evidence: w::MetadataEvidence::NotDispatched,
@@ -284,16 +300,83 @@ fn healthy_retained_writer_composition() {
         source_epoch: 1,
         preflight_digest: hash(3),
     };
-    let mut record = RetainedWriterAttempt::from_prepared(
-        &contracts,
-        config.clone(),
-        job.clone(),
-        admitted,
-        preflight,
-        permit,
-        b"synthetic-owner-positive-zero-media/1".to_vec(),
-    )
+    let mut record = if version_two {
+        let retained_binding = RetainedWriterJobBinding::retain(&job, &admitted, &permit).unwrap();
+        assert_eq!(retained_binding.writer_operation_id(), id(10));
+        assert_eq!(retained_binding.job(), &job);
+        assert_ne!(job.lease.job_id.0, id(10).to_string());
+        RetainedWriterAttempt::from_prepared_v2(
+            &contracts,
+            config.clone(),
+            retained_binding,
+            admitted,
+            preflight,
+            permit,
+            b"synthetic-owner-positive-zero-media/1".to_vec(),
+        )
+    } else {
+        RetainedWriterAttempt::from_prepared(
+            &contracts,
+            config.clone(),
+            job.clone(),
+            admitted,
+            preflight,
+            permit,
+            b"synthetic-owner-positive-zero-media/1".to_vec(),
+        )
+    }
     .unwrap();
+    if let Some(storage) = &mut storage {
+        storage.journal(record.prepared());
+        let mut archive = RetainedWriterArchive::new(vec![record]).unwrap();
+        {
+            let owners = SyntheticOwners {
+                config: config.clone(),
+                job: job.clone(),
+                wire: wire.clone(),
+                liabilities: vec![(
+                    "journal".into(),
+                    archive.attempts[0].prepared().storage_liability.clone(),
+                )],
+            };
+            let schemas = NativeStockContract::new().unwrap();
+            let discovery = NativeQueueDiscovery::new(
+                std::slice::from_ref(&config),
+                QueueRecoveryBindings {
+                    stock_contract_id: w::CONTRACT_VERSION,
+                    contracts: &schemas,
+                    authority: &owners,
+                    grant: &(),
+                    original_owner: &owners,
+                    media: &owners,
+                },
+            )
+            .unwrap();
+            let native = HomeboxRetainedEvidence::new_v2(&contracts, &archive);
+            let evidence = NativeQueueRecoveryEvidence::new(&discovery, &native);
+            let peers = storage::RecoveryValidationPeers {
+                stock: &schemas,
+                queues: discovery.registry().configs(),
+                discovery: &discovery,
+                evidence: &evidence,
+            };
+            storage.validate_prepared_image(&peers);
+            let packet: PreparedPacket =
+                decode(&archive.attempts[0].prepared().native_payload).unwrap();
+            assert_eq!(packet.format, NATIVE_CODEC_V2);
+            assert_eq!(
+                packet.writer_job_binding.as_ref().unwrap()["job"]["jobId"],
+                job.lease.job_id.0
+            );
+            assert_eq!(
+                packet.writer_job_binding.as_ref().unwrap()["writerOperationId"],
+                id(10).to_string()
+            );
+        }
+        // Continue the independently retained in-process producer record after
+        // its prepared cut was validated. No record is decoded from the image.
+        record = archive.attempts.pop().unwrap();
+    }
     let mut readback = native_before;
     readback["quantity"] = json!(0);
     let observed_digest = contracts.digest_native(&readback).unwrap();
@@ -356,7 +439,11 @@ fn healthy_retained_writer_composition() {
     let prepared = record.prepared().clone();
     let steps = record.steps().to_vec();
     let archive = RetainedWriterArchive::new(vec![record]).unwrap();
-    let native = HomeboxRetainedEvidence::new(&contracts, &archive);
+    let native = if version_two {
+        HomeboxRetainedEvidence::new_v2(&contracts, &archive)
+    } else {
+        HomeboxRetainedEvidence::new(&contracts, &archive)
+    };
     let owners = SyntheticOwners {
         config: config.clone(),
         job: job.clone(),
@@ -379,7 +466,12 @@ fn healthy_retained_writer_composition() {
     .unwrap();
     let evidence = NativeQueueRecoveryEvidence::new(&discovery, &native);
     let journal = storage::JournalEvidenceView {
-        native_codec: NATIVE_CODEC.into(),
+        native_codec: if version_two {
+            NATIVE_CODEC_V2
+        } else {
+            NATIVE_CODEC
+        }
+        .into(),
         native_payload_digest: j::Digest::from_hex(raw_digest(&prepared.native_payload)).unwrap(),
         prepared_media_digest: j::Digest::from_hex(raw_digest(&prepared.prepared_media_evidence))
             .unwrap(),
@@ -413,6 +505,14 @@ fn healthy_retained_writer_composition() {
         j::RemoteActivity::Invoked(j::InvokedRemoteActivity::EndUnproven)
     );
     assert_eq!(steps[1].kind, storage::StepKind::RemoteEnd);
+    if version_two {
+        assert_eq!(prepared.codec, NATIVE_CODEC_V2);
+        assert_eq!(steps[0].codec, READBACK_CODEC_V2);
+        assert_eq!(steps[1].codec, REMOTE_END_CODEC_V2);
+        eprintln!(
+            "/2: actual q+SHA256 claim/journal/prepared image validation; existing writer UUID preserved; no dispatch"
+        );
+    }
     eprintln!(
         "fresh native schema/reducer/retention composition: exact prepared packet, readback finish at prefix1, later end at prefix2; no execution"
     );

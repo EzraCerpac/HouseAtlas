@@ -10,16 +10,35 @@ use crate::{
 pub struct HomeboxRetainedEvidence<'a> {
     contracts: &'a NativeWriterContracts,
     archive: &'a RetainedWriterArchive,
+    version: CodecVersion,
 }
 impl<'a> HomeboxRetainedEvidence<'a> {
     pub fn new(contracts: &'a NativeWriterContracts, archive: &'a RetainedWriterArchive) -> Self {
-        Self { contracts, archive }
+        Self {
+            contracts,
+            archive,
+            version: CodecVersion::V1,
+        }
+    }
+    /// Trusted host selection, never a codec version taken from image data.
+    pub fn new_v2(
+        contracts: &'a NativeWriterContracts,
+        archive: &'a RetainedWriterArchive,
+    ) -> Self {
+        Self {
+            contracts,
+            archive,
+            version: CodecVersion::V2,
+        }
     }
     fn attempt<P>(
         &self,
         attempt: &RetainedAttempt<'_, P>,
     ) -> storage::Result<&RetainedWriterAttempt> {
         let record = self.archive.find(attempt.job)?;
+        if record.version != self.version {
+            return Err(unavailable());
+        }
         if record.config != *attempt.enqueue.config
             || record.job.request != *attempt.enqueue.request
             || record.job.canonical_scope != *attempt.enqueue.scope
@@ -33,8 +52,8 @@ impl<'a> HomeboxRetainedEvidence<'a> {
         let journal = attempt.journal.ok_or_else(unavailable)?;
         let _: PreparedPacket = decode(&prepared.native_payload)?;
         if prepared != &record.prepared
-            || prepared.codec != NATIVE_CODEC
-            || journal.native_codec != NATIVE_CODEC
+            || prepared.codec != self.version.native()
+            || journal.native_codec != self.version.native()
             || journal.native_payload_digest.as_hex() != raw_digest(&prepared.native_payload)
             || journal.prepared_media_digest.as_hex()
                 != raw_digest(&prepared.prepared_media_evidence)
@@ -47,13 +66,13 @@ impl<'a> HomeboxRetainedEvidence<'a> {
 }
 impl<P> NativeRetainedEvidence<P> for HomeboxRetainedEvidence<'_> {
     fn native_codec(&self) -> &str {
-        NATIVE_CODEC
+        self.version.native()
     }
     fn step_codec(&self, kind: &storage::StepKind) -> Option<&str> {
         match kind {
-            storage::StepKind::ResponseReadback => Some(READBACK_CODEC),
-            storage::StepKind::RemoteEnd => Some(REMOTE_END_CODEC),
-            storage::StepKind::PositiveNoEffect => Some(NEVER_INVOKED_CODEC),
+            storage::StepKind::ResponseReadback => Some(self.version.readback()),
+            storage::StepKind::RemoteEnd => Some(self.version.remote_end()),
+            storage::StepKind::PositiveNoEffect => Some(self.version.never_invoked()),
             storage::StepKind::Reconciliation | storage::StepKind::Other => None,
         }
     }
@@ -99,6 +118,9 @@ impl<P> NativeRetainedEvidence<P> for HomeboxRetainedEvidence<'_> {
     }
     fn validate_outcome(&self, frame: &RetainedOutcome<'_, '_, P>) -> storage::Result<()> {
         let record = self.archive.find(frame.job)?;
+        if record.version != self.version {
+            return Err(unavailable());
+        }
         let retained = record.outcomes.get(frame.index).ok_or_else(unavailable)?;
         let cut = frame.outcome;
         let prepared = frame.prepared.ok_or_else(unavailable)?;
@@ -109,7 +131,8 @@ impl<P> NativeRetainedEvidence<P> for HomeboxRetainedEvidence<'_> {
             || encode(&record.baseline.command.original_wire)?
                 != encode(frame.enqueue.original.raw())?
             || prepared != &record.prepared
-            || journal.native_codec != NATIVE_CODEC
+            || prepared.codec != self.version.native()
+            || journal.native_codec != self.version.native()
             || journal.native_payload_digest.as_hex() != raw_digest(&prepared.native_payload)
             || journal.prepared_media_digest.as_hex()
                 != raw_digest(&prepared.prepared_media_evidence)
