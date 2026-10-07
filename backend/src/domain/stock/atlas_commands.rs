@@ -200,6 +200,50 @@ pub(super) fn map_group_with_payload(
     })
 }
 
+/// Assemble a multi-entry operation without rewriting its stock envelope.
+/// Every entry retains the submitted guard array and is checked by the frozen
+/// contract. Authority, current preimages and atomic execution remain external.
+pub(super) fn map_group_with_entries(
+    request: &ValidatedRequest,
+    contracts: &impl Contract,
+    native_entries: Vec<MutationEntry>,
+) -> StockResult<AtlasCommandGroup> {
+    require_atlas_write(request)?;
+    check_reason(request.raw())?;
+    let guards = native_guards(request.raw(), contracts)?;
+    for entry in &native_entries {
+        if entry.command.guards != guards {
+            return Err(StockError::CorrelationMismatch);
+        }
+        let _: crate::storage::RecordRef = decode(
+            contracts,
+            "recordRef",
+            serde_json::to_value(&entry.target).map_err(|_| StockError::InvalidContract)?,
+        )?;
+        let _: crate::storage::Mutation = decode(
+            contracts,
+            "mutation",
+            serde_json::to_value(&entry.command).map_err(|_| StockError::InvalidContract)?,
+        )?;
+    }
+    let group = AtlasCommandGroup {
+        child_index: None,
+        original_request: request.raw().clone(),
+        request_digest: request.intent_digest().into(),
+        native_entries,
+    };
+    require_unique_batch_entries(std::slice::from_ref(&group))?;
+    Ok(group)
+}
+
+/// Closed native mapping shared by the planner and host admission.
+/// A mapped operation still requires the original authority, prestate guards,
+/// complete graph validation and atomic stock receipt transaction. This helper
+/// neither admits a request nor enables a capability by itself.
+pub fn atlas_direct_operation(id: OperationId) -> Option<Operation> {
+    native_operation(id).ok()
+}
+
 fn native_operation(id: OperationId) -> StockResult<Operation> {
     use OperationId::*;
     Ok(match id {
