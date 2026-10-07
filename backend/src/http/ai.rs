@@ -24,6 +24,38 @@ pub trait EnrollmentPort: RegistrationAuthority {
     fn capture(&self, original: &access::Principal) -> Result<RegistrationBinding, AiError>;
 }
 
+/// Wrap the same enrollment owner used by the host and lifecycle environment.
+/// Only receipt checks resolve a new cancellation epoch; all other operations
+/// retain the original full revalidation contract.
+pub struct ReceiptEnrollment<R>(pub Arc<R>);
+impl<R: EnrollmentPort> RegistrationAuthority for ReceiptEnrollment<R> {
+    fn revalidate(
+        &self,
+        original: &access::Principal,
+        binding: &RegistrationBinding,
+    ) -> Result<(), AiError> {
+        self.0.revalidate(original, binding)
+    }
+    fn revalidate_action_receipt(
+        &self,
+        original: &access::Principal,
+        binding: &RegistrationBinding,
+    ) -> Result<(), AiError> {
+        let current = self.0.capture(original)?;
+        crate::ai::host::native::revalidate_receipt_registration(
+            self.0.as_ref(),
+            original,
+            binding,
+            &current,
+        )
+    }
+}
+impl<R: EnrollmentPort> EnrollmentPort for ReceiptEnrollment<R> {
+    fn capture(&self, original: &access::Principal) -> Result<RegistrationBinding, AiError> {
+        self.0.capture(original)
+    }
+}
+
 /// Opaque original native context and HTTP admission retained across awaits.
 pub struct RequestContext {
     native: NativeHostContext,
@@ -133,6 +165,9 @@ impl<R: EnrollmentPort + 'static> ApplicationHttpAuthority for ApplicationAuthor
     fn release(&self, context: &RequestContext) -> Result<(), AiError> {
         self.revalidate(context, context.native.registration())
     }
+    fn release_after_disconnect(&self, context: &RequestContext) -> Result<(), AiError> {
+        self.revalidate_action_receipt(context, context.native.registration())
+    }
 }
 impl<R: EnrollmentPort> HostAuthority<RequestContext> for ApplicationAuthority<R> {
     fn binding(&self, context: &RequestContext) -> Result<RegistrationBinding, AiError> {
@@ -162,6 +197,35 @@ impl<R: EnrollmentPort> HostAuthority<RequestContext> for ApplicationAuthority<R
             .map_err(|_| AiError::ConnectionUnavailable)?;
         self.registrations
             .revalidate(context.native.original(), binding)
+    }
+    fn revalidate_action_receipt(
+        &self,
+        context: &RequestContext,
+        binding: &RegistrationBinding,
+    ) -> Result<(), AiError> {
+        if context.native.registration() != binding {
+            return Err(AiError::ConnectionUnavailable);
+        }
+        let access = {
+            let core = self
+                .host
+                .core
+                .lock()
+                .map_err(|_| AiError::DomainUnavailable)?;
+            Arc::clone(&core.access)
+        };
+        access
+            .lock()
+            .map_err(|_| AiError::DomainUnavailable)?
+            .revalidate(context.native.original())
+            .map_err(|_| AiError::ConnectionUnavailable)?;
+        let current = self.registrations.capture(context.native.original())?;
+        crate::ai::host::native::revalidate_receipt_registration(
+            self.registrations.as_ref(),
+            context.native.original(),
+            binding,
+            &current,
+        )
     }
 }
 

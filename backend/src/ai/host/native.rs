@@ -68,7 +68,37 @@ pub trait RegistrationAuthority: Send + Sync {
         original: &access::Principal,
         binding: &RegistrationBinding,
     ) -> Result<(), AiError>;
+    /// Receipt-only proof: preserve original principal, home, registration and
+    /// authority epoch; the trusted owner may resolve the current cancellation
+    /// epoch. Conservative until that owner supplies the narrower proof.
+    fn revalidate_action_receipt(
+        &self,
+        original: &access::Principal,
+        binding: &RegistrationBinding,
+    ) -> Result<(), AiError> {
+        self.revalidate(original, binding)
+    }
 }
+/// Compare only receipt ownership, then ask the existing enrollment authority
+/// to validate the freshly captured full binding. Never use for dispatch or
+/// credentials; original app authority must also be revalidated by the caller.
+pub fn revalidate_receipt_registration<R: RegistrationAuthority + ?Sized>(
+    registrations: &R,
+    original: &access::Principal,
+    previous: &RegistrationBinding,
+    current: &RegistrationBinding,
+) -> Result<(), AiError> {
+    if previous.actor_id != current.actor_id
+        || previous.workspace_id != current.workspace_id
+        || previous.home_id != current.home_id
+        || previous.registration_id != current.registration_id
+        || previous.authority_epoch != current.authority_epoch
+    {
+        return Err(AiError::ConnectionUnavailable);
+    }
+    registrations.revalidate(original, current)
+}
+
 pub struct NativeHostAuthority<R> {
     pub access: Arc<Mutex<access::AccessBoundary>>,
     pub registrations: R,
@@ -92,6 +122,22 @@ impl<R: RegistrationAuthority> HostAuthority<NativeHostContext> for NativeHostAu
             .revalidate(context.original())
             .map_err(|_| AiError::ConnectionUnavailable)?;
         self.registrations.revalidate(context.original(), binding)
+    }
+    fn revalidate_action_receipt(
+        &self,
+        context: &NativeHostContext,
+        binding: &RegistrationBinding,
+    ) -> Result<(), AiError> {
+        if binding != &context.binding {
+            return Err(AiError::ConnectionUnavailable);
+        }
+        self.access
+            .lock()
+            .map_err(|_| AiError::DomainUnavailable)?
+            .revalidate(context.original())
+            .map_err(|_| AiError::ConnectionUnavailable)?;
+        self.registrations
+            .revalidate_action_receipt(context.original(), binding)
     }
 }
 

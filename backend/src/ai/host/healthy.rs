@@ -4,7 +4,7 @@
 use axum::http::request::Parts;
 use houseatlas_backend::ai::{
     self, AiError, Cancellation, ConnectionPort, ConnectionSnapshot, DomainCatalog, PortFuture,
-    ToolCall, ToolDescriptor, ToolEffect,
+    ReviewContinuationPort, ToolCall, ToolDescriptor, ToolEffect,
     host::{
         HostAuthority,
         bridge::BridgeAdmission,
@@ -29,13 +29,29 @@ use serde_json::{Value, json};
 use std::{
     io::{BufRead, BufReader, Read, Write},
     net::{Ipv4Addr, SocketAddrV4, TcpListener},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 
 #[derive(Clone, Default)]
 struct Synthetic {
     retained_attempts: Arc<Mutex<usize>>,
+    rotated: Arc<AtomicBool>,
+    releases: Arc<AtomicUsize>,
+    receipt_releases: Arc<AtomicUsize>,
+    retired_handles: Arc<AtomicUsize>,
+}
+impl Synthetic {
+    fn current_binding(&self) -> RegistrationBinding {
+        let mut current = binding();
+        if self.rotated.load(Ordering::SeqCst) {
+            current.cancellation_epoch = "synthetic-cancel-epoch-next".into();
+        }
+        current
+    }
 }
 fn binding() -> RegistrationBinding {
     RegistrationBinding {
@@ -95,14 +111,23 @@ fn snapshot(ready: bool) -> ConnectionSnapshot {
 }
 impl HostAuthority<()> for Synthetic {
     fn binding(&self, _: &()) -> Result<RegistrationBinding, AiError> {
-        Ok(binding())
+        Ok(self.current_binding())
     }
     fn revalidate(&self, _: &(), b: &RegistrationBinding) -> Result<(), AiError> {
-        if b == &binding() {
+        if b == &self.current_binding() {
             Ok(())
         } else {
             Err(AiError::ConnectionUnavailable)
         }
+    }
+    fn revalidate_action_receipt(&self, _: &(), b: &RegistrationBinding) -> Result<(), AiError> {
+        let current = self.current_binding();
+        assert_eq!(b.actor_id, current.actor_id);
+        assert_eq!(b.workspace_id, current.workspace_id);
+        assert_eq!(b.home_id, current.home_id);
+        assert_eq!(b.registration_id, current.registration_id);
+        assert_eq!(b.authority_epoch, current.authority_epoch);
+        Ok(())
     }
 }
 impl ConnectionPort<()> for Synthetic {
@@ -194,21 +219,27 @@ impl ModelSession<()> for Synthetic {
         InferenceSession::revalidate(self, context, lease, cancel)
     }
 }
+struct SyntheticPrepared(Arc<AtomicUsize>);
+impl Drop for SyntheticPrepared {
+    fn drop(&mut self) {
+        self.0.fetch_add(1, Ordering::SeqCst);
+    }
+}
 impl DomainCatalog<()> for Synthetic {
-    type Prepared = ();
+    type Prepared = SyntheticPrepared;
     fn tools(&self, _: &()) -> Result<Vec<ToolDescriptor>, AiError> {
         Ok(vec![])
     }
-    fn prepare(&self, _: &(), _: &ToolCall) -> Result<(), AiError> {
+    fn prepare(&self, _: &(), _: &ToolCall) -> Result<SyntheticPrepared, AiError> {
         Err(AiError::DomainUnavailable)
     }
-    fn effect(&self, _: &()) -> ToolEffect {
+    fn effect(&self, _: &SyntheticPrepared) -> ToolEffect {
         ToolEffect::Read
     }
     fn review<'a>(
         &'a self,
         _: &'a (),
-        _: &'a (),
+        _: &'a SyntheticPrepared,
         _: &'a Cancellation,
     ) -> PortFuture<'a, Option<ReviewChallenge>> {
         Box::pin(async { Err(AiError::DomainUnavailable) })
@@ -216,7 +247,7 @@ impl DomainCatalog<()> for Synthetic {
     fn execute_read<'a>(
         &'a self,
         _: &'a (),
-        _: &'a (),
+        _: &'a SyntheticPrepared,
         _: &'a Cancellation,
     ) -> PortFuture<'a, Value> {
         Box::pin(async { Err(AiError::DomainUnavailable) })
@@ -224,14 +255,14 @@ impl DomainCatalog<()> for Synthetic {
     fn execute_reviewed<'a>(
         &'a self,
         _: &'a (),
-        _: &'a (),
+        _: &'a SyntheticPrepared,
         _: &'a Cancellation,
     ) -> PortFuture<'a, DomainDispatch> {
         Box::pin(async { Err(AiError::DomainUnavailable) })
     }
 }
-impl ExactReviewReady<(), ()> for Synthetic {
-    fn ready(&self, _: &(), _: &AiCheckpoint<()>) -> Result<(), AiError> {
+impl ExactReviewReady<(), SyntheticPrepared> for Synthetic {
+    fn ready(&self, _: &(), _: &AiCheckpoint<SyntheticPrepared>) -> Result<(), AiError> {
         Err(AiError::DomainUnavailable)
     }
 }
@@ -257,6 +288,12 @@ impl ApplicationHttpAuthority for Synthetic {
         })
     }
     fn release(&self, _: &()) -> Result<(), AiError> {
+        self.releases.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+    fn release_after_disconnect(&self, _: &()) -> Result<(), AiError> {
+        assert!(self.rotated.load(Ordering::SeqCst));
+        self.receipt_releases.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
 }
@@ -337,8 +374,13 @@ impl oauth::CredentialBoundary<()> for Synthetic {
         record: &'a oauth::RegistrationRecord,
     ) -> PortFuture<'a, ()> {
         Box::pin(async move {
-            assert!(record.pending_authorization.is_some());
-            *self.retained_attempts.lock().unwrap() += 1;
+            if record.pending_authorization.is_some() {
+                *self.retained_attempts.lock().unwrap() += 1;
+            } else {
+                assert_eq!(record.state, oauth::LifecycleState::Disconnected);
+                assert!(record.credentials.is_none());
+                assert!(self.rotated.load(Ordering::SeqCst));
+            }
             Ok(())
         })
     }
@@ -354,7 +396,10 @@ impl oauth::CredentialBoundary<()> for Synthetic {
         })
     }
     fn stop_use<'a>(&'a self, _: &'a mut ()) -> PortFuture<'a, ()> {
-        Box::pin(async { Err(AiError::ConnectionUnavailable) })
+        Box::pin(async move {
+            self.rotated.store(true, Ordering::SeqCst);
+            Ok(())
+        })
     }
     fn now_ms(&self) -> Result<u64, AiError> {
         Ok(1_700_000_000_000)
@@ -393,7 +438,7 @@ impl LifecycleEnvironment<()> for Synthetic {
     }
 }
 type Infer = ResponsesAdapter<HttpResponses<Synthetic>>;
-type Continuations = HostContinuations<Synthetic, Synthetic, ()>;
+type Continuations = HostContinuations<Synthetic, Synthetic, SyntheticPrepared>;
 type Actions = LifecycleHost<Synthetic, Synthetic, Synthetic, Synthetic>;
 struct Peers {
     synthetic: Synthetic,
@@ -552,7 +597,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .nest(
             "/api/atlas/runtime-bridge",
-            http::router(Arc::new(MountedHost(host)), gate),
+            http::router(Arc::new(MountedHost(host.clone())), gate),
         );
     let (stop_tx, stop_rx) = tokio::sync::oneshot::channel::<()>();
     let server = tokio::spawn(async move {
@@ -639,6 +684,119 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let retained = serde_json::from_slice::<Value>(&response.bytes().await?)?;
     assert_eq!(retained["status"], "finished");
     assert_eq!(retained["outcome"], completed);
+    // Inspected healthy local dismissal: seed a synthetic waiting outcome and
+    // retain the actual opaque checkpoint. No review/approval/dispatch occurs.
+    let call = ToolCall {
+        call_id: "synthetic-call".into(),
+        name: "synthetic-held".into(),
+        arguments: json!({}),
+    };
+    let usage = ai::Usage {
+        input_tokens: Some(2),
+        output_tokens: Some(1),
+        total_tokens: Some(3),
+    };
+    let continuation = host
+        .peers
+        .continuations
+        .retain(
+            &(),
+            AiCheckpoint {
+                request_id: "synthetic-review".into(),
+                model: "synthetic-model".into(),
+                history: vec![],
+                pending: vec![(
+                    call.clone(),
+                    SyntheticPrepared(synthetic.retired_handles.clone()),
+                )],
+                seen_calls: Default::default(),
+                next_round: 1,
+                usage,
+                operation_ids: vec![],
+                limits: ai::RunLimits::default(),
+            },
+            &Cancellation::default(),
+        )
+        .await?;
+    let waiting = ai::RunOutcome::ReviewRequired {
+        calls: vec![call],
+        continuation_id: continuation,
+        reviews: vec![],
+        usage,
+    };
+    let b = binding();
+    let scope = serde_json::to_string(&[
+        &b.actor_id,
+        &b.workspace_id,
+        &b.home_id,
+        &b.registration_id,
+        &b.authority_epoch,
+        &b.cancellation_epoch,
+    ])?;
+    Connection::open(&db_path)?.execute(
+        "INSERT INTO ai_host_status(scope,id,kind,state,payload)
+        VALUES(?1,'synthetic-review','request','finished',?2)",
+        rusqlite::params![scope, serde_json::to_string(&waiting)?],
+    )?;
+    let response = request(
+        reqwest::Method::POST,
+        "/requests/synthetic-review/cancel",
+        "synthetic-review",
+    )
+    .header("content-type", "application/json")
+    .body(json!({"requestId":"synthetic-review"}).to_string())
+    .send()
+    .await?;
+    assert!(response.status().is_success());
+    let dismissal: Value = serde_json::from_slice(&response.bytes().await?)?;
+    assert_eq!(dismissal["status"], "confirmed");
+    assert_eq!(synthetic.retired_handles.load(Ordering::SeqCst), 1);
+    let response = request(
+        reqwest::Method::GET,
+        "/requests/synthetic-review",
+        "synthetic-review",
+    )
+    .send()
+    .await?;
+    assert!(response.status().is_success());
+    let dismissed: Value = serde_json::from_slice(&response.bytes().await?)?;
+    assert_eq!(
+        dismissed["outcome"],
+        json!({"status":"cancelled","usage":usage})
+    );
+    // Normal no-token lifecycle disconnect: stop_use rotates the synthetic
+    // cancellation epoch. The real OAuth implementation never calls revoke.
+    let response = request(
+        reqwest::Method::POST,
+        "/connection/actions",
+        "synthetic-disconnect",
+    )
+    .header("content-type", "application/json")
+    .body(json!({"actionId":"synthetic-disconnect","command":{"action":"disconnect"}}).to_string())
+    .send()
+    .await?;
+    assert!(response.status().is_success());
+    let disconnected: Value = serde_json::from_slice(&response.bytes().await?)?;
+    assert_eq!(disconnected["status"], "completed");
+    assert_eq!(
+        disconnected["snapshot"]["authorization"],
+        "sign-in-required"
+    );
+    assert_eq!(disconnected["snapshot"]["paidUseAdmission"], "held");
+    let response = request(
+        reqwest::Method::GET,
+        "/connection/actions/synthetic-disconnect",
+        "synthetic-disconnect",
+    )
+    .send()
+    .await?;
+    assert!(response.status().is_success());
+    assert_eq!(
+        serde_json::from_slice::<Value>(&response.bytes().await?)?,
+        disconnected
+    );
+    assert_eq!(synthetic.releases.load(Ordering::SeqCst), 9);
+    assert_eq!(synthetic.receipt_releases.load(Ordering::SeqCst), 1);
     stop_tx.send(()).unwrap();
     server.await??;
     provider_thread.join().unwrap();
@@ -656,15 +814,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         |r| r.get(0),
     )?;
     assert_eq!(counts, 1);
+    let retired: i64 = readonly.query_row(
+        "SELECT count(*) FROM ai_host_observation WHERE category='continuation-retired'",
+        [],
+        |r| r.get(0),
+    )?;
+    assert_eq!(retired, 1);
+    assert_eq!(
+        serde_json::to_value(reopened.read(&binding(), "synthetic-review", true)?)?,
+        dismissed
+    );
+    // Poll the durable action under the newly captured cancellation epoch after
+    // a healthy reopen; this does not reissue disconnect or recover a fault.
+    let reopened_actions = LifecycleHost {
+        security: synthetic.clone(),
+        provider: synthetic.clone(),
+        credentials: synthetic.clone(),
+        environment: synthetic.clone(),
+        journal: reopened,
+    };
+    let action_poll = runtime::ConnectionActionPort::status(
+        &reopened_actions,
+        &(),
+        "synthetic-disconnect",
+        &Cancellation::default(),
+    )
+    .await?;
+    assert_eq!(serde_json::to_value(action_poll)?, disconnected);
     if let Some(path) = std::env::var_os("HOUSEATLAS_AI_HEALTHY_JSON") {
         std::fs::write(
             path,
             serde_json::to_vec(&json!({"connection":observed_connection,
-            "action":action,"run":completed,"requestStatus":retained,"models":models}))?,
+            "action":action,"disconnect":disconnected,"dismissal":dismissal,"dismissedStatus":dismissed,"run":completed,"requestStatus":retained,"models":models}))?,
         )?;
     }
     println!(
-        "healthy: actual loopback models/Responses HTTP, mounted router/run/status, durable usage/reopen, and pending OAuth begin/action lookup; account/crypto/encryption peers synthetic; no paid inference or stopped controls"
+        "healthy: actual loopback models/Responses HTTP, mounted router/run/status, durable usage/reopen, pending OAuth begin, local review dismissal, and no-token disconnect/epoch-stable receipt; account/crypto/encryption peers synthetic; no paid inference or stopped controls"
     );
     Ok(())
 }

@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "43004d2d6081a2b9c45e33ef389d74c972031ba8bcc8fa6c96c0cff326e041c1",
+  "sourceDigestSha256": "05cb5d6bf34217313458d719e184bed1f0976de5c5658e5ce4f35eba5b7df28f",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -399,8 +399,8 @@
     {
       "path": "backend/src/ai/host/README.md",
       "mode": "100644",
-      "bytes": 14026,
-      "sha256": "3c071b15ae22befda1e950c303c3cfdb995ebd0db2b7b31c05e77e82dbef8c80",
+      "bytes": 9552,
+      "sha256": "a3311d779af7fb86c016ee6cb2c2c8dbe82d6dcc696a0d2ce4437fb92e8701c0",
       "owner": "ai"
     },
     {
@@ -413,36 +413,36 @@
     {
       "path": "backend/src/ai/host/continuation.rs",
       "mode": "100644",
-      "bytes": 4752,
-      "sha256": "1c233678c07e094be626e249ff19ca83c6c27fb45db99aa980db7c37c76f8ba5",
+      "bytes": 5957,
+      "sha256": "b5e89c448cd47adae4f887a60dbd88aceb3f84fa7bee5054f7059b5cf15f8193",
       "owner": "ai"
     },
     {
       "path": "backend/src/ai/host/healthy.rs",
       "mode": "100644",
-      "bytes": 23888,
-      "sha256": "a71dbfb138df762cabb5e5b98b42f683e0a2914274254e284c535f0dc10f62cc",
+      "bytes": 30740,
+      "sha256": "47f4b419b3bfadc4139ec5048509979f9ce1778fad2972e61f4e02fbc79bac8c",
       "owner": "ai"
     },
     {
       "path": "backend/src/ai/host/http.rs",
       "mode": "100644",
-      "bytes": 10671,
-      "sha256": "226d5ad7726a4446ce8a402de226a4e3ef16aa32a61b89337de46620ddad2d31",
+      "bytes": 12815,
+      "sha256": "6c29930cc31180a42807cf757f39929815340008074d60640e761f27ffa6ec67",
       "owner": "ai"
     },
     {
       "path": "backend/src/ai/host/lifecycle.rs",
       "mode": "100644",
-      "bytes": 15943,
-      "sha256": "576b3d3f907497317e665aa1384b98ad49e555cd92789fe70bf931bd45199c61",
+      "bytes": 17025,
+      "sha256": "77d96291154d0e99c11613e47b8af8a48c5acff7be803d544aa354f03c56c144",
       "owner": "ai"
     },
     {
       "path": "backend/src/ai/host/mod.rs",
       "mode": "100644",
-      "bytes": 923,
-      "sha256": "efd7622a2e95ba5af85baee978461f1186baa795fe561b7f596f5f92fa1f1e31",
+      "bytes": 1434,
+      "sha256": "e12d36e605eb18acbac703440c18f711d9d01cb63ff928e87c727e736888b7de",
       "owner": "ai"
     },
     {
@@ -455,29 +455,29 @@
     {
       "path": "backend/src/ai/host/mounting.patch",
       "mode": "100644",
-      "bytes": 2801,
-      "sha256": "fd76620536c41dcda2d1c1ccf803d9e6b84e682c0cc5c2e07205daa10f86b637",
+      "bytes": 3194,
+      "sha256": "95ed6f7b6d31b42d2cdeb26d7bd6713431e31e900c82e912cfaa06bcafc9a372",
       "owner": "ai"
     },
     {
       "path": "backend/src/ai/host/native.rs",
       "mode": "100644",
-      "bytes": 12157,
-      "sha256": "3867981061a05fc29e83f90dd5dc4909bf85c247c47fcc24dc84764a3901a24d",
+      "bytes": 14014,
+      "sha256": "c0a3dc0a26f0cc19ef95cf71e5dab8efbb0c1be910027ba1bd384a752a23ccf1",
       "owner": "ai"
     },
     {
       "path": "backend/src/ai/host/service.rs",
       "mode": "100644",
-      "bytes": 10899,
-      "sha256": "ba1e1d57e3c867ea0f83c342c9535d35e5593122e60999d96a70fcc6f14c449e",
+      "bytes": 11659,
+      "sha256": "87d5a8a0b6e83e56c3d0fd8ca038cafd530e756e435da6e4b8003c3beb09131d",
       "owner": "ai"
     },
     {
       "path": "backend/src/ai/host/status.rs",
       "mode": "100644",
-      "bytes": 15523,
-      "sha256": "524dbeb86df611cd91ff14a3265281afa81c5d573a1cc95d29aadf01a35b8d37",
+      "bytes": 16766,
+      "sha256": "f8976ae052947018d8de0bb453608a9d5869634f41f3334e76d36a57e816766e",
       "owner": "ai"
     },
     {
@@ -1120,8 +1120,8 @@
     {
       "path": "backend/src/http/ai.rs",
       "mode": "100644",
-      "bytes": 7487,
-      "sha256": "e2cf9f10318bc31e119a372e7311b1fe3045c8a14a898fa71bd89976ae8c1fa9",
+      "bytes": 9750,
+      "sha256": "9f35d1da8dc53578aa074447846fe1d48424923b5521aff071ed82a115471ad0",
       "owner": "core-integration"
     },
     {
@@ -2604,8 +2604,8 @@
     {
       "path": "docs/rust-integration/ai-host-integration.md",
       "mode": "100644",
-      "bytes": 5484,
-      "sha256": "2cee792d8a9d89c87bb039e395903e6269fb5f113c0aaf4ffec3a6c0a9770206",
+      "bytes": 6374,
+      "sha256": "ee2a8821100613a9f9874e2871dfd8ebba3eaee717102ba1723a687f0ff83563",
       "owner": "core-integration"
     },
     {

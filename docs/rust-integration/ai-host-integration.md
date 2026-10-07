@@ -1,8 +1,8 @@
 # AI host composition
 
-This local continuation composes the exact accepted AI donor
-`edca73b09f879f167f7f2e258e534b734919290d`, Rust host PR51
-`f4d34ad5b2acdbd621511a3eb7a5bcb12aabe7d8`, and React host PR42
+This local continuation composes the exact published AI source
+`edca73b09f879f167f7f2e258e534b734919290d`, Rust host successor PR65
+`849685e693f5df107847cf8527403c9493a2afe7`, and React host PR42
 `8ea0ebaf3a53740b5080ca4f6a80559582eeec8d` over identity-corrected upload PR52
 `fa7c43621b6c6fa40d0199e795648bad804634a6`, tree
 `86be04724059facc9e52e8a5732d3cad94b3aad1`.
@@ -39,8 +39,14 @@ The original principal reaches `NativeHostContext::capture`; no JSON actor,
 registration, cookie label or copied grant can construct that private context.
 The enrollment owner's `capture(original)` must resolve genuine current server
 registration state, and its existing `RegistrationAuthority::revalidate` checks
-that exact binding. Both admission and final release revalidate the original
-Access principal and unchanged enrollment binding. The private wrapper retains
+that exact binding. Admission and ordinary final release revalidate the original Access principal
+and unchanged enrollment binding. A successfully persisted disconnect receipt
+uses the owner's narrow receipt proof: actor/home/registration/authority epoch
+remain equal, while intentional cancellation-epoch rotation is allowed.
+`ReceiptEnrollment` wraps the same enrollment owner for native host and lifecycle
+registration authorities; the root HTTP authority uses that same proof. Host
+construction must pass the same wrapped owner to every boundary. No host or
+enrollment is configured by the current binary. The private wrapper retains
 native context plus HTTP admission. The API adapter passes its borrowed native
 context to the same actual host, preserving that host's credential/model/catalog/
 continuation/trusted-human peers. No synthetic enrollment, inference admission,
@@ -50,8 +56,8 @@ The inherited actual upload regression completed all 44 healthy loopback request
 with the newly compiled binary and unchanged current application bundle. It
 retains the original native/stock history, media and read-only SQLite linkage
 checks. AI calls were absent; this is an upload/router regression, not AI runtime
-evidence. Identity-only ancestry reconciliation preserved source trees and all
-51 dirty work files. Application tests were not repeated for that metadata change.
+evidence. The receipt-proof successor has source compilation evidence only; this earlier
+healthy upload regression does not establish its runtime behavior.
 
 ## Remaining actual mounts
 
@@ -87,3 +93,9 @@ listener or deployment is attempted. Cancellation/replay/review examples are not
 run here. All stopped rejection, guard/mutation, adversarial, expiry/revocation,
 fault/crash/corruption, concurrency and resource-denial controls remain unrun.
 Compiler success does not qualify actual AI/browser/credential/runtime behavior.
+
+The original host owner corrected terminal review cancellation, durable action
+receipt polling after epoch rotation, and final authority checks on authenticated
+success and error responses. Root applied its exact mount proposal. New error
+paths and cancellation controls remain static-only here. The React owner's final
+terminal-outcome/standalone-report successor remains pending before publication.
