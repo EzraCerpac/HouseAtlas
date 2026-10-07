@@ -146,6 +146,57 @@ pub fn assert_transition(
         .map(|next_revision| Transition { next_revision })
 }
 
+/// Admit a detached current record in the published transition decision order.
+///
+/// Target and command shape are checked first. Create/existence and scoped
+/// identity decisions precede current payload decoding; only a matching current
+/// record is shape-checked before CAS, lifecycle and immutable-field decisions.
+/// `None` means absent; `Some` carries a detached record whose shape is not yet
+/// trusted. This function does not authorize, fetch or persist that record.
+pub fn assert_transition_from_value(
+    current: Option<&Value>,
+    command: &Mutation,
+    target: &MutationTarget,
+) -> Result<Transition, SemanticError> {
+    let target = target_value(target)?;
+    let command = shape_value(command)?;
+    if command["operation"] == "create" {
+        // No current payload or numeric decoding precedes permanent-ID reuse.
+        return mutations::assert_transition(current, &command, &target)
+            .map(|next_revision| Transition { next_revision });
+    }
+
+    let current = current
+        .filter(|current| {
+            ["workspaceId", "homeId", "recordType", "recordId"]
+                .iter()
+                .all(|field| current.get(*field) == target.get(*field))
+        })
+        .ok_or_else(|| {
+            SemanticError::new(
+                SemanticCode::NotFound,
+                "Record not found in authorized scope",
+            )
+        })?;
+    super::validate_value::<AtlasRecord>(current)?;
+    let current = canonical::normalize_numbers(current.clone())?;
+    mutations::assert_transition(Some(&current), &command, &target)
+        .map(|next_revision| Transition { next_revision })
+}
+
+/// Finite Node 26.10.0 Date.parse milliseconds for the published date-time domain.
+///
+/// Uses the existing format predicate and parser. `None` retains an unavailable
+/// or NaN result; it does not replace it with an epoch, refresh or current clock.
+/// Original timestamp bytes are never rewritten.
+pub fn timestamp_millis(value: &str) -> Option<i64> {
+    if timestamps::published_date_time_format(value) {
+        timestamps::parse_milliseconds(value)
+    } else {
+        None
+    }
+}
+
 pub fn required_references(
     snapshot: &Snapshot,
     current: Option<&AtlasRecord>,

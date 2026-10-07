@@ -71,6 +71,7 @@ const golden = {
   source: 'Published healthy synthetic fixtures; no held controls',
   snapshotDigests: Object.fromEntries(snapshots.map(name => [name, recordDigest(read(`${fixtures}${name}`))])),
   createTransition,
+  createdTimestampMillis: Date.parse(result.record.createdAt),
   createMutationDigest: recordDigest({ target: createTarget, command, batchId: null, batchHash: null }),
   batchDigest: batchHash,
   batchTransitions: transitions,

@@ -12,6 +12,15 @@ Use `houseatlas_backend::contracts::semantics` with the existing DTOs:
 - `MutationTarget { scope: Scope, record: RecordRef }` composes an authorized route.
 - `validate_snapshot(&Snapshot)` checks the complete graph.
 - `assert_transition(current, command, target)` returns `Transition.next_revision`.
+- `assert_transition_from_value(Option<&serde_json::Value>, &Mutation,
+  &MutationTarget) -> Result<Transition, SemanticError>` accepts the storage
+  peer's detached current carrier. It validates target/command first, makes
+  create/existence and scoped identity decisions before current shape or
+  numeric decoding, and then uses the existing transition implementation.
+  `None` is absence and `Some` denotes an existing detached row.
+- `timestamp_millis(&str) -> Option<i64>` uses the existing published date-time
+  format predicate and finite Date.parse port. This bounded helper does not
+  rewrite the string or replace `None` with an invented timestamp.
 - `required_references` and `assert_guards` read current and proposed payloads,
   including retained binding/remap chains. Batch-created references are exempted.
 - `validate_mutation_preconditions` calls transition validation before guards.
@@ -41,6 +50,14 @@ first; on success, any present current record has been shape-validated before
 guards. A create with an existing current reports identity conflict before
 current-record shape validation. The published JavaScript guard/final helpers
 relied on previously validated callers.
+
+The domain peer at `f35bcdc2d9c24646356bc080bfb1ef157120bcb3` declares
+`TransitionFromValue` with exactly the raw-current signature above. Its
+`TimestampMillis` function pointer additionally wraps the value in
+`storage::Result`, so composition can pass the noncapturing adapter
+`|value| Ok(semantics::timestamp_millis(value))`. Contracts remain independent
+of storage. Actual domain/storage composition is the recipient owner's check;
+this contract checkpoint does not compile or qualify that composition.
 `SemanticError` exposes the published domain code and message. Invalid URL
 parsing is adapted from JavaScript's raw TypeError to typed `invalid-contract`;
 the valid URL component checks retain the original domain rules.
@@ -141,3 +158,16 @@ example. Hosted ordinary CI is scoped to main events; this stacked draft does
 not claim a hosted compiler run. Integration must wire these functions into
 storage/core and add their dependencies to the shared lock before ordinary
 source compiler CI can run from the shared manifest.
+
+The independent peer API checkpoint is based on the accepted semantic head
+`003f9d6ae91418c793361894d47be0f8b258455c`. Its external harness is
+`/tmp/houseatlas-peer-contracts/Cargo.toml`, using the same exact dependencies
+and locked graph, with source paths into `/workspace/HouseAtlas-peer-api`.
+It compiles the actual library and the two named examples. Replace the manifest
+path in the four commands above with this peer harness path and add `--offline`.
+The native healthy example compares raw-current create and ordered import-remap
+transitions to the committed published references and compares the fixture's
+unchanged `createdAt` to Node's Date.parse milliseconds. Existing typed
+transition and parser logic remain unchanged. Only parser visibility changes
+to allow the bounded public export. No invalid-transition or other held
+controls are executed, and their decision ordering remains source-reviewed.

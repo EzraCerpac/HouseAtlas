@@ -4,9 +4,10 @@ use houseatlas_backend::contracts::{
     AtlasRecord, BatchMutation, Contract, HttpHistory, Mutation, MutationResult, RecordRef, Scope,
     Snapshot, decode,
     semantics::{
-        FinalMutation, MutationTarget, PriorRecord, batch_digest, canonical_digest,
-        mutation_digest, record_digest, reference_closure, validate_final_candidate,
-        validate_history, validate_mutation_preconditions, validate_result, validate_snapshot,
+        FinalMutation, MutationTarget, PriorRecord, assert_transition_from_value, batch_digest,
+        canonical_digest, mutation_digest, record_digest, reference_closure, timestamp_millis,
+        validate_final_candidate, validate_history, validate_mutation_preconditions,
+        validate_result, validate_snapshot,
     },
 };
 use serde_json::{Value, json};
@@ -86,6 +87,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     let transition = validate_mutation_preconditions(original, None, &command, &target, &[])?;
     assert_eq!(
+        assert_transition_from_value(None, &command, &target)?,
+        transition
+    );
+    assert_eq!(
+        timestamp_millis(record["createdAt"].as_str().expect("healthy createdAt")),
+        golden["createdTimestampMillis"].as_i64()
+    );
+    println!("PASS native raw-current create and fixture Date.parse milliseconds");
+    assert_eq!(
         json!({"nextRevision": transition.next_revision}),
         golden["createTransition"]
     );
@@ -148,6 +158,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     {
         let transition =
             validate_mutation_preconditions(original, *prior, &entry.command, target, &created)?;
+        let raw_current = prior.map(serde_json::to_value).transpose()?;
+        assert_eq!(
+            assert_transition_from_value(raw_current.as_ref(), &entry.command, target)?,
+            transition
+        );
         assert_eq!(
             json!({"nextRevision": transition.next_revision}),
             golden["batchTransitions"][index]
@@ -181,6 +196,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!(
         "PASS native healthy import-remap transitions, guards, ordered final decisions, request digests and reference closure"
     );
+    println!("PASS native raw-current import-remap transitions against published references");
 
     let histories: [(&str, &[u8]); 3] = [
         (

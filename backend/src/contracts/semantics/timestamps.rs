@@ -143,7 +143,7 @@ pub fn date_greater(left: &str, right: &str) -> bool {
     }
 }
 
-fn parse_milliseconds(value: &str) -> Option<i64> {
+pub(super) fn parse_milliseconds(value: &str) -> Option<i64> {
     let bytes = value.as_bytes();
     if bytes.get(4) != Some(&b'-') || bytes.get(7) != Some(&b'-') {
         return None;
