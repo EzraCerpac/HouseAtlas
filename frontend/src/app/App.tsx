@@ -6,6 +6,7 @@ import {
   useState,
   type FormEvent,
   type MouseEvent,
+  type ReactNode,
 } from "react";
 import type { AtlasClient, AtlasView, ReadyView, Scope } from "./types";
 import {
@@ -33,6 +34,8 @@ export interface AtlasAppProps {
   /** Reports only the committed authorized scope, or unavailable context. */
   onScopeCommit?: (scope: Scope | null) => void;
   editing?: AtlasEditingClient;
+  /** Wrap content with its current authorized view during the same render. */
+  renderContent?: (view: AtlasView, content: ReactNode) => ReactNode;
 }
 export const accessEventName = "atlas-access-invalidated";
 export function App({
@@ -43,6 +46,7 @@ export function App({
   session,
   onScopeCommit,
   editing,
+  renderContent,
 }: AtlasAppProps) {
   const [view, setView] = useState<AtlasView>(
     initialView ?? { status: "loading" },
@@ -240,7 +244,7 @@ export function App({
     view.status === "ready"
       ? ""
       : text(view.status === "unavailable" ? "viewUnavailable" : view.status);
-  return (
+  const content = (
     <div ref={root} onClick={onClick}>
       <a className="skip" href="#page-heading">
         {text("skip")}
@@ -342,6 +346,7 @@ export function App({
       </RouteContext.Provider>
     </div>
   );
+  return renderContent ? renderContent(view, content) : content;
 }
 function Shell({
   view,

@@ -1,11 +1,4 @@
-import {
-  Component,
-  useCallback,
-  useLayoutEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { Component, useLayoutEffect, useMemo, type ReactNode } from "react";
 import type { Scope } from "../api/generated/contracts.js";
 import {
   bindAtlasService,
@@ -19,6 +12,7 @@ import type {
 } from "../webmcp/stock.js";
 import type { SessionSnapshot } from "../webmcp/ports.js";
 import type { AtlasSessionInfo } from "./session";
+import type { AtlasView } from "./types";
 
 /** Controlled host metadata, never inferred from a browser catalog or role. */
 export interface StockAdmission {
@@ -125,22 +119,23 @@ class StockRenderBoundary extends Component<
 export function StockApplication({
   session,
   ports,
+  view,
   children,
 }: {
   readonly session: AtlasSessionInfo;
   readonly ports: StockApplicationPorts;
-  readonly children: (
-    onScopeCommit: (scope: Scope | null) => void,
-  ) => ReactNode;
+  /** Current App render view; prevents waiting for its scope layout callback. */
+  readonly view: AtlasView;
+  readonly children: ReactNode;
 }) {
-  const [scope, setScope] = useState<Scope | null>(null);
+  const scope = view.status === "ready" ? view.scope : null;
   const facade = useMemo(createContextFacade, []);
-  const onScopeCommit = useCallback((next: Scope | null) => {
-    setScope((current) =>
-      current && next && sameScope(current, next) ? current : next,
-    );
-  }, []);
   const { admission } = ports;
+  // An opaque render key masks prior results before the committed facade publishes.
+  const renderIdentity = useMemo(
+    () => ({}),
+    [session, scope, admission, admission?.revision, view],
+  );
   const bindings = useMemo(
     () => bindAtlasService(ports.service, admission?.commandIds ?? []),
     [ports.service, admission],
@@ -163,11 +158,12 @@ export function StockApplication({
           <p className="warning" role="alert">
             Command result could not be displayed.
           </p>
-          {children(onScopeCommit)}
+          {children}
         </>
       }
     >
       <CommandCoverageBoundary
+        renderIdentity={renderIdentity}
         sessions={facade.sessions}
         schemas={ports.schemas}
         bindings={bindings}
@@ -175,7 +171,7 @@ export function StockApplication({
           ? { modelContext: ports.modelContext }
           : {})}
       >
-        {children(onScopeCommit)}
+        {children}
       </CommandCoverageBoundary>
     </StockRenderBoundary>
   );

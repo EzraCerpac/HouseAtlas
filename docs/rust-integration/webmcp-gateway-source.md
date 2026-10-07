@@ -2,8 +2,8 @@
 
 This candidate adopts all 23 regular files in `frontend/src/webmcp/**` byte for
 byte from `d5f57d88e79a0ef916904f72bfd86716187702e4`. Its base is accepted main
-`31fbe77dd24ace510c68956da88b49381984e78e`, tree
-`0da900a64b92b3f5585911eeb77f42b147529ebd`. The explicit publication manifest
+`24ebf4c64518ec0a7e7115c17a07642e6c8b4e2a`, tree
+`d66bfa7c9910a1817cc8a9504e179401509d07fb`. The explicit publication manifest
 includes the seven new gateway/commit-acknowledgement leaves. No owner namespace
 adaptation, dependency change or backend admission change is included.
 
@@ -48,12 +48,23 @@ An optional opaque non-secret `renderIdentity` reaches both boundaries through
 publishes a changed context in a parent layout effect. Registration cleanup does
 not reverse domain execution. The owner's six changed leaves are adopted exact.
 
-Acceptance still requires the original app owner's pre-render `renderIdentity`
-checkpoint in `StockApplication`, including session, selected scope and admission
-before facade publication and before a child-discovered scope change commits.
-This candidate does not edit that app leaf or other frontend namespaces. The
-browser subscription cannot infer a future parent publication. Existing ordinary
-browser success does not qualify that still-unbound app integration. No new
-successor regression runner or synthetic gateway/download example is executed.
+The original app owner's pre-render checkpoint is now adopted byte for byte from
+`7f9f7c2832a3961ce226abd8b0c38d615ddfb9a6`: `App.tsx`, `SessionApp.tsx`,
+`StockApplication.tsx`, `render-identity.examples.tsx` and `INTEGRATION.md`.
+`App.renderContent` supplies the current view during render. `SessionApp` wraps
+that content with the actual `StockApplication`, which derives scope and an
+opaque empty-object identity from session, view, scope and admission/revision
+before publishing the facade in layout. This closes the app input dependency at
+source composition; integration does not hand-edit those five owner leaves.
+The existing thirty-request actual browser flow runs through that real app path.
+The new healthy sequential example is compiled but not executed as an additional
+regression group. Other frontend namespaces remain unchanged.
+
+Current review raises issued-link expiry/availability invalidation as unresolved
+gateway owner work: a time-limited issued link has no explicit expiry carrier or
+invalidation subscription. No actual gateway/download resolver is mounted here,
+so this does not establish an active root download regression. It remains a
+required owner disposition before future gateway availability acceptance.
+No review thread is resolved by this source checkpoint.
 Delayed-call races, partial-registration failure and all stopped controls remain
 unqualified; ordinary checks do not establish gateway/download runtime.

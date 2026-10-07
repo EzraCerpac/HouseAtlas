@@ -5,13 +5,14 @@
 //! its full current output-disclosure and captured-authority release checks.
 //! No source state, grant, media availability or request provenance is minted.
 //!
-//! All ten Atlas record-get forms and all ten stock history forms are mapped.
+//! All ten Atlas list/get/history families are mapped.
 //! Required stock history delegates paging, search and durable event provenance
-//! to its actual owner. Lists and byte downloads are outside this owner.
+//! to its actual owner. Byte downloads are outside this owner.
 
 use super::{
+    AtlasListBinding, AtlasListPagePort, AtlasListPages, AtlasListPrincipal, BoundAtlasListPages,
     OperationId, OwnerResult, PreparedRequest, StockContractPort, StockError, StockHistoryPort,
-    StockQueryPort, StockResult,
+    StockQueryPort, StockResult, UnavailableAtlasDownloads, UnavailableAtlasListPages,
 };
 use crate::{
     contracts,
@@ -23,25 +24,64 @@ use serde_json::{Value, json};
 /// Supply the existing real ReadPort (including NativeStorage backed by AT07)
 /// and the configured exact stock validator. Neither peer nor its authority is
 /// rebound by this mapper. The stock validator must use the full offline closure.
-pub struct AtlasReads<R, C> {
+pub struct AtlasReads<R, C, L = UnavailableAtlasListPages, D = UnavailableAtlasDownloads> {
     reads: R,
     contracts: C,
+    lists: L,
+    downloads: D,
 }
 
 impl<R, C> AtlasReads<R, C> {
     pub fn new(reads: R, contracts: C) -> Self {
-        Self { reads, contracts }
+        Self {
+            reads,
+            contracts,
+            lists: UnavailableAtlasListPages,
+            downloads: UnavailableAtlasDownloads,
+        }
     }
 
+    /// Bind a host-shared cursor cache to the exact original opaque principal.
+    /// Capture binding from the same AT11 issuance forwarded to Storage.
+    pub fn with_list_pages<'p, P: AtlasListPrincipal>(
+        self,
+        pages: AtlasListPages,
+        binding: AtlasListBinding<'p>,
+        principal: &'p P,
+    ) -> AtlasReads<R, C, BoundAtlasListPages<'p, P>> {
+        AtlasReads {
+            reads: self.reads,
+            contracts: self.contracts,
+            lists: BoundAtlasListPages {
+                pages,
+                binding,
+                principal,
+            },
+            downloads: self.downloads,
+        }
+    }
+}
+
+impl<R, C, L, D> AtlasReads<R, C, L, D> {
+    pub fn with_downloads<N>(self, downloads: N) -> AtlasReads<R, C, L, N> {
+        AtlasReads {
+            reads: self.reads,
+            contracts: self.contracts,
+            lists: self.lists,
+            downloads,
+        }
+    }
     pub fn into_parts(self) -> (R, C) {
         (self.reads, self.contracts)
     }
 }
 
-impl<P, W, G, R, C> StockQueryPort<P, W, G> for AtlasReads<R, C>
+impl<P, W, G, R, C, L, D> StockQueryPort<P, W, G> for AtlasReads<R, C, L, D>
 where
     R: ReadPort<P> + StockHistoryPort<P>,
     C: StockContractPort,
+    L: AtlasListPagePort<P>,
+    D: StockQueryPort<P, W, G>,
 {
     fn query(
         &mut self,
@@ -49,19 +89,15 @@ where
         prepared: &PreparedRequest<W, G>,
     ) -> StockResult<OwnerResult> {
         let request = prepared.request();
+        if request.id() == OperationId::AtlasAssetDownload {
+            return self.downloads.query(principal, prepared);
+        }
         let (record_type, mode) = read_arm(request.id()).ok_or(StockError::OwnerUnavailable)?;
         self.contracts
             .validate(request.operation().input_schema, request.raw())?;
         let scope = Scope {
             workspace_id: request.context().workspace_id.clone(),
             home_id: request.context().home_id.clone(),
-        };
-        let target = RecordRef {
-            record_type,
-            record_id: request.target()["recordId"]
-                .as_str()
-                .ok_or(StockError::InvalidContract)?
-                .to_owned(),
         };
         let record_type_wire =
             serde_json::to_value(record_type).map_err(|_| StockError::InvalidContract)?;
@@ -72,7 +108,60 @@ where
         }
 
         let data = match mode {
+            ReadMode::List => {
+                let snapshot = self
+                    .reads
+                    .snapshot(principal, &scope)
+                    .map_err(StockError::Domain)?;
+                validate_frozen::<contracts::Snapshot>(&snapshot)?;
+                let include_archived = request.payload()["includeArchived"]
+                    .as_bool()
+                    .ok_or(StockError::InvalidContract)?;
+                let mut records = Vec::new();
+                for record in &snapshot.records {
+                    if record.scope != scope {
+                        return Err(StockError::CorrelationMismatch);
+                    }
+                    if record.target.record_type != record_type
+                        || !include_archived
+                            && record.lifecycle == crate::domain::Lifecycle::Tombstoned
+                    {
+                        continue;
+                    }
+                    let target = json!({"authority":"atlas","recordType":record_type,
+                        "recordId":record.target.record_id});
+                    let public = public_record(record, &target)?;
+                    if request
+                        .payload()
+                        .get("q")
+                        .and_then(Value::as_str)
+                        .is_none_or(|q| matches_query(&public, q))
+                    {
+                        records.push(public);
+                    }
+                }
+                // Stable UUID order is independent of SQLite insertion order.
+                records.sort_by(|left, right| {
+                    left["target"]["recordId"]
+                        .as_str()
+                        .cmp(&right["target"]["recordId"].as_str())
+                });
+                if records
+                    .windows(2)
+                    .any(|rows| rows[0]["target"] == rows[1]["target"])
+                {
+                    return Err(StockError::CorrelationMismatch);
+                }
+                self.lists.page(principal, request, &snapshot, records)?
+            }
             ReadMode::Record => {
+                let target = RecordRef {
+                    record_type,
+                    record_id: request.target()["recordId"]
+                        .as_str()
+                        .ok_or(StockError::InvalidContract)?
+                        .to_owned(),
+                };
                 let record = self
                     .reads
                     .record(principal, &scope, &target)
@@ -149,6 +238,7 @@ fn validate_frozen<T: contracts::Contract>(value: &impl Serialize) -> StockResul
 #[derive(Clone, Copy)]
 enum ReadMode {
     Record,
+    List,
     History,
 }
 
@@ -156,15 +246,25 @@ fn read_arm(id: OperationId) -> Option<(RecordType, ReadMode)> {
     use OperationId::*;
     use ReadMode::*;
     Some(match id {
+        AtlasIdentityList => (RecordType::Identity, List),
         AtlasIdentityGet => (RecordType::Identity, Record),
+        AtlasBindingList => (RecordType::Binding, List),
         AtlasBindingGet => (RecordType::Binding, Record),
+        AtlasEvidenceList => (RecordType::Evidence, List),
         AtlasEvidenceGet => (RecordType::Evidence, Record),
+        AtlasLocationSemanticsList => (RecordType::LocationSemantics, List),
         AtlasLocationSemanticsGet => (RecordType::LocationSemantics, Record),
+        AtlasCircuitList => (RecordType::Circuit, List),
         AtlasCircuitGet => (RecordType::Circuit, Record),
+        AtlasValveList => (RecordType::Valve, List),
         AtlasValveGet => (RecordType::Valve, Record),
+        AtlasRelationList => (RecordType::Relation, List),
         AtlasRelationGet => (RecordType::Relation, Record),
+        AtlasGeometryList => (RecordType::Geometry, List),
         AtlasGeometryGet => (RecordType::Geometry, Record),
+        AtlasAssetList => (RecordType::Asset, List),
         AtlasAssetGet => (RecordType::Asset, Record),
+        AtlasReconciliationList => (RecordType::Reconciliation, List),
         AtlasReconciliationGet => (RecordType::Reconciliation, Record),
         AtlasIdentityHistory => (RecordType::Identity, History),
         AtlasBindingHistory => (RecordType::Binding, History),
@@ -178,4 +278,46 @@ fn read_arm(id: OperationId) -> Option<(RecordType, ReadMode)> {
         AtlasReconciliationHistory => (RecordType::Reconciliation, History),
         _ => return None,
     })
+}
+
+// Literal case-insensitive terms over public string values and the record ID.
+// Never search private asset storageKey, JSON property names or encoded bytes.
+fn matches_query(public: &Value, query: &str) -> bool {
+    fn strings(value: &Value, text: &mut String) {
+        match value {
+            Value::String(value) => {
+                text.push(' ');
+                text.push_str(value);
+            }
+            Value::Array(values) => {
+                for value in values {
+                    strings(value, text);
+                }
+            }
+            Value::Object(values) => {
+                for value in values.values() {
+                    strings(value, text);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut text = public["target"]["recordId"]
+        .as_str()
+        .unwrap_or("")
+        .to_owned();
+    strings(&public["payload"], &mut text);
+    let text = text.to_lowercase();
+    query
+        .to_lowercase()
+        .split_whitespace()
+        .all(|term| text.contains(term))
+}
+
+/// Closed list admission for host adapters. Catalog dispositions are unchanged.
+pub fn atlas_list_record_type(id: OperationId) -> Option<RecordType> {
+    match read_arm(id) {
+        Some((kind, ReadMode::List)) => Some(kind),
+        _ => None,
+    }
 }
