@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "17dbb9e1dea9031391c61726d9a15cea9ddf0a485224b3ba02311e19f95397ad",
+  "sourceDigestSha256": "bc1478fe7404a888478f7809436f822289c3d93adbff64e0d32bc4137e7bab15",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -851,6 +851,13 @@
       "owner": "domain"
     },
     {
+      "path": "backend/src/domain/stock/attachment_measurement.rs",
+      "mode": "100644",
+      "bytes": 2832,
+      "sha256": "bb88da166dd9bdfba595ba92b8a85185a2a52056c0ea8131070c9fc2ca35e1f8",
+      "owner": "domain"
+    },
+    {
       "path": "backend/src/domain/stock/catalog.rs",
       "mode": "100644",
       "bytes": 55581,
@@ -902,22 +909,22 @@
     {
       "path": "backend/src/domain/stock/existing_asset_attachment.md",
       "mode": "100644",
-      "bytes": 3990,
-      "sha256": "0f70841ce3dc83a512bc1887e92f9500c4b9e152d6539549bbecc0355244f2ae",
+      "bytes": 5051,
+      "sha256": "52ff94933d27570d59829a4379436d72063d820272a70a2f166dfacbbfdf7d45",
       "owner": "domain"
     },
     {
       "path": "backend/src/domain/stock/existing_asset_attachment.rs",
       "mode": "100644",
-      "bytes": 5323,
-      "sha256": "0172d3d8f9660de721a7b23b856dace0b21bdcb9f7f8dce4006875de4bdafb03",
+      "bytes": 5686,
+      "sha256": "3432e2699cd671720da146e8b5a856da127d4c073c7574449da0962757330201",
       "owner": "domain"
     },
     {
       "path": "backend/src/domain/stock/mod.rs",
       "mode": "100644",
-      "bytes": 1670,
-      "sha256": "faf8c290501d20432e2b8122adf86c9a3d7ffb68a7ef87fa45972af7d2430a44",
+      "bytes": 1768,
+      "sha256": "5e86511433ef95832ff7c88a3b8e86c162e666c4324698d984ea9b1679c0c33b",
       "owner": "domain"
     },
     {
@@ -1140,8 +1147,8 @@
     {
       "path": "backend/src/http/qualified_upload_plan.rs",
       "mode": "100644",
-      "bytes": 16972,
-      "sha256": "63ee5bf60399b88d92d4f247f86a8469e46bc665d8a1fd73c76b4a7847bfe17f",
+      "bytes": 17085,
+      "sha256": "b1c11341e47720723c8cc634c08aae93f1528352a7d9284e76fff0438c35f13d",
       "owner": "core-integration"
     },
     {
@@ -1168,8 +1175,8 @@
     {
       "path": "backend/src/http/stock_mutations.rs",
       "mode": "100644",
-      "bytes": 24638,
-      "sha256": "2865b769e8e271924ed6df621b56fcb9f55e705261c8f4c763ab3e04b40f2c57",
+      "bytes": 24649,
+      "sha256": "1d12f2efa7aa9f81f34aec25698f3ade523a4e76c35705d0f9131649f2f8880e",
       "owner": "core-integration"
     },
     {
@@ -1182,15 +1189,15 @@
     {
       "path": "backend/src/http/upload.rs",
       "mode": "100644",
-      "bytes": 10282,
-      "sha256": "82ef79062eeb30a1b4ff8e63d933920dde357f2e4357d71eca676b9e09d32414",
+      "bytes": 10506,
+      "sha256": "8e13c9b21d58e5ad8b48bbc1a87e4500d27b45480d316497466e0e3bc61b35b3",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/http/upload_batch.rs",
       "mode": "100644",
-      "bytes": 7840,
-      "sha256": "dffccf25cc1ff3db1dcfc9335402bf9ee357748b228baa637cd5c8267bca0922",
+      "bytes": 7851,
+      "sha256": "5e612c09947c9a2a0ebf73140f8d253ab76ff8b01c5ff50390ae8ae0ad07682b",
       "owner": "core-integration"
     },
     {
@@ -2983,6 +2990,13 @@
       "mode": "100644",
       "bytes": 9408,
       "sha256": "3c87f966a9d11a11204a83168cc5c343aa066cb678403f2240d6af762b53938f",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/rust-integration/upload-review-composition.md",
+      "mode": "100644",
+      "bytes": 1481,
+      "sha256": "506ee6ecc39232b4ed09b079433c2550ac819df541523d044d739c297963aeb1",
       "owner": "core-integration"
     },
     {
