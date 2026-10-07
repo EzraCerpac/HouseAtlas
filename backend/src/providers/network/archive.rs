@@ -400,7 +400,7 @@ impl NetworkImmutableArchive {
         fs::rename(&active_path, &final_path).map_err(|_| err())?;
         sync_dir(&self.segments)?;
         verify_segment(&final_path, &header, capture.body())?;
-        let segment_sha256 = digest(&fs::read(&final_path).map_err(|_| err())?);
+        let segment_sha256 = digest(&read_bounded_segment(&final_path)?);
         let tx = self
             .db
             .transaction_with_behavior(TransactionBehavior::Immediate)
@@ -455,9 +455,9 @@ impl NetworkImmutableArchive {
             return Err(size());
         }
         let path = self.segments.join(&name);
-        let segment = fs::read(&path).map_err(|_| err())?;
+        let segment = read_bounded_segment(&path)?;
         ensure(segment.len() == bytes as usize && digest(&segment) == segment_digest)?;
-        let (header, body) = read_segment(&path)?;
+        let (header, body) = decode_segment(&segment)?;
         ensure(
             header.registration == *registration
                 && header.source_attestation == registration.scope
@@ -567,9 +567,9 @@ impl NetworkImmutableArchive {
             }
             ensure(name == segment_name(&partition, &generation) && expected.insert(name.clone()))?;
             let path = self.segments.join(&name);
-            let bytes = fs::read(&path).map_err(|_| err())?;
+            let bytes = read_bounded_segment(&path)?;
             ensure(bytes.len() == segment_bytes as usize && digest(&bytes) == segment_hash)?;
-            let (header, body) = read_segment(&path)?;
+            let (header, body) = decode_segment(&bytes)?;
             ensure(
                 header.body_sha256 == body_hash
                     && header.projected_receipt_sha256 == projected_hash
@@ -691,17 +691,43 @@ fn segment_name(partition: &str, generation: &str) -> String {
 fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
-fn read_segment(path: &Path) -> Result<(SegmentHeader, Vec<u8>)> {
-    let meta = fs::symlink_metadata(path).map_err(|_| err())?;
-    if !meta.is_file()
-        || meta.file_type().is_symlink()
-        || meta.len() > MAX_ACTIVE_SEGMENT_BYTES as u64
+fn read_bounded_segment(path: &Path) -> Result<Vec<u8>> {
+    let path_meta = fs::symlink_metadata(path).map_err(|_| err())?;
+    if !path_meta.is_file()
+        || path_meta.file_type().is_symlink()
+        || path_meta.len() > MAX_ACTIVE_SEGMENT_BYTES as u64
     {
         return Err(invalid());
     }
-    let mut file = File::open(path).map_err(|_| err())?;
+    let file = OpenOptions::new()
+        .read(true)
+        .open(path)
+        .map_err(|_| err())?;
+    let opened_meta = file.metadata().map_err(|_| err())?;
+    if !opened_meta.is_file() || opened_meta.len() > MAX_ACTIVE_SEGMENT_BYTES as u64 {
+        return Err(invalid());
+    }
+    let mut bounded = file.take(MAX_ACTIVE_SEGMENT_BYTES as u64 + 1);
+    let mut bytes = Vec::with_capacity(opened_meta.len() as usize);
+    bounded.read_to_end(&mut bytes).map_err(|_| err())?;
+    if bytes.len() as u64 > MAX_ACTIVE_SEGMENT_BYTES as u64 {
+        return Err(size());
+    }
+    ensure(bytes.len() as u64 == opened_meta.len())?;
+    Ok(bytes)
+}
+
+fn read_segment(path: &Path) -> Result<(SegmentHeader, Vec<u8>)> {
+    let bytes = read_bounded_segment(path)?;
+    decode_segment(&bytes)
+}
+
+fn decode_segment(bytes: &[u8]) -> Result<(SegmentHeader, Vec<u8>)> {
+    if bytes.len() < FRAME_PREFIX_BYTES || bytes.len() > MAX_ACTIVE_SEGMENT_BYTES {
+        return Err(size());
+    }
     let mut prefix = [0u8; FRAME_PREFIX_BYTES];
-    file.read_exact(&mut prefix).map_err(|_| invalid())?;
+    prefix.copy_from_slice(&bytes[..FRAME_PREFIX_BYTES]);
     let header_len = u32::from_le_bytes(prefix[..4].try_into().map_err(|_| invalid())?) as usize;
     let body_len = u64::from_le_bytes(prefix[4..].try_into().map_err(|_| invalid())?) as usize;
     if header_len == 0 || header_len > MAX_HEADER_BYTES || body_len > MAX_ARCHIVE_ROW_BYTES {
@@ -711,14 +737,13 @@ fn read_segment(path: &Path) -> Result<(SegmentHeader, Vec<u8>)> {
         .checked_add(header_len)
         .and_then(|v| v.checked_add(body_len))
         .ok_or_else(size)?;
-    if expected as u64 != meta.len() {
+    if expected != bytes.len() {
         return Err(invalid());
     }
-    let mut header_bytes = vec![0; header_len];
-    file.read_exact(&mut header_bytes).map_err(|_| invalid())?;
-    let header: SegmentHeader = serde_json::from_slice(&header_bytes).map_err(|_| invalid())?;
-    let mut body = vec![0; body_len];
-    file.read_exact(&mut body).map_err(|_| invalid())?;
+    let header_end = FRAME_PREFIX_BYTES + header_len;
+    let header: SegmentHeader =
+        serde_json::from_slice(&bytes[FRAME_PREFIX_BYTES..header_end]).map_err(|_| invalid())?;
+    let body = bytes[header_end..].to_vec();
     if header.format != FORMAT {
         return Err(invalid());
     }
