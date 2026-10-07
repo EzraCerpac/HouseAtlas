@@ -1,8 +1,11 @@
 //! Trusted passive Network settings. No request, environment or source response
 //! supplies an origin, registration, review, credentials or filesystem path.
-use crate::providers::network as n;
+use crate::{config::providers::registry::ConfiguredSource, providers::network as n};
 use sha2::{Digest, Sha256};
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 /// The shared host currently compiles reqwest 0.13.5 with Rustls platform
 /// verification. The owner's 0.12.24 WebPKI profile remains a reconciliation
@@ -11,6 +14,7 @@ pub const COMPILED_TLS_PROFILE: &str = "reqwest-0.13.5-rustls-platform-verificat
 
 #[derive(Clone)]
 pub struct NetworkSettings {
+    configured_source: Arc<ConfiguredSource>,
     transport: n::NetworkHttpConfig,
     review: n::LinkReview,
     limits: n::Limits,
@@ -20,7 +24,7 @@ pub struct NetworkSettings {
 impl NetworkSettings {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        source: n::SourceRegistration,
+        configured_source: Arc<ConfiguredSource>,
         origin: &str,
         review: n::LinkReview,
         limits: n::Limits,
@@ -52,6 +56,11 @@ impl NetworkSettings {
                 return Err(n::NetworkError::new(n::ErrorCode::InvalidSchema));
             }
         }
+        let source: n::SourceRegistration = serde_json::from_value(
+            serde_json::to_value(configured_source.registration())
+                .map_err(|_| n::NetworkError::new(n::ErrorCode::InvalidSchema))?,
+        )
+        .map_err(|_| n::NetworkError::new(n::ErrorCode::InvalidSchema))?;
         let transport = n::NetworkHttpConfig::new(
             source,
             n::ReviewedNetworkOrigin::https(origin)?,
@@ -63,6 +72,7 @@ impl NetworkSettings {
         let partition = n::partition_key(&transport.source().scope)?;
         let sidecar_name = format!("network-{:x}.sqlite", Sha256::digest(partition.as_bytes()));
         Ok(Self {
+            configured_source,
             transport,
             review,
             limits,
@@ -74,6 +84,9 @@ impl NetworkSettings {
     pub fn with_reviewed_ca_pem(mut self, pem: &[u8]) -> Result<Self, n::NetworkError> {
         self.transport = self.transport.with_reviewed_ca_pem(pem)?;
         Ok(self)
+    }
+    pub fn configured_source(&self) -> &Arc<ConfiguredSource> {
+        &self.configured_source
     }
     pub fn source(&self) -> &n::SourceRegistration {
         self.transport.source()

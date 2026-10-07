@@ -3,6 +3,7 @@
 use crate::{
     access as a,
     app::{Core, RequestPrincipal},
+    config::providers::registry::ConfiguredSource,
     http::contracts::NativeContracts,
     lifecycle::providers::network::NetworkRuntime,
     providers::network as n,
@@ -20,7 +21,7 @@ pub trait NetworkDisclosureAuthority {
         &self,
         access: &a::AccessBoundary,
         principal: &RequestPrincipal,
-        source: &n::SourceRegistration,
+        source: &ConfiguredSource,
     ) -> a::AccessResult<Self::Membership>;
     fn authorize_facet(
         &self,
@@ -94,7 +95,7 @@ pub fn retained_facet<'p, 'a, A: NetworkDisclosureAuthority>(
             .capture_partition(&access, &partition)
             .map_err(access_error)?;
         authority
-            .capture_membership(&access, principal, source)
+            .capture_membership(&access, principal, runtime.settings().configured_source())
             .map_err(access_error)?
     };
     let mut caches = snapshot
