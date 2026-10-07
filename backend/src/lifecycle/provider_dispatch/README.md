@@ -138,22 +138,54 @@ this deployment path uses `DurableStockHost`.
 
 ## Exact source composition
 
+### Pending unavailable API composition
+
+The prepared verifier overlays only the original writer's stock namespace from
+PR103 `5281eb1857a90c2279fb2998b3c7d0e2e41ec9b6`, the transport namespace from
+draft PR105 `e5da350500daaa83333a9dbe4b16c7b018ca3888`, codec88
+`b326e78251b838d2e8cc0197b772276f2e6db548` and its exact Storage71 marker
+`48e856068f8351b9256ef7912fc93619c259e79f`. These are published source
+inputs, not final integration acceptance or live qualification.
+The writer's receipt-free `NativeDispatch::Unavailable` preserves admission and
+physical/liability holds, writes no fact, and performs no readback or retry. It
+refreshes actual Disclose authority after the driver await. The host delegates
+that result unchanged while retention is healthy; its sticky retention path
+continues to use Execute, current original SQL load and Disclose authorization.
+There is no dispatcher enum conversion or synthetic unavailable proof receipt.
+
+The exact codec successor returns Unavailable directly from refused begin(),
+without invoking its inner port or constructing a receipt. Its closed proof
+wire rejects Unavailable through fallible conversion; an actual inner Unavailable
+remains pending behind the invocation barrier. Its original archive encoders
+retain the same signatures and explicit caller byte limit. The earlier compiler
+failure at old codec8f's exhaustive DispatchRow match is superseded for this
+exact new composition. Strict locked/offline Clippy and both inspected fresh
+fixtures passed; unavailable/refusal paths are source-inspected and compiled
+only. Refusal/fault/revocation controls stay held, and peer review/validation
+status remains separate from final root acceptance/publication integrity.
+
 This continuation is based on preserved dispatcher62
 `5690f8d10569b2c7418ba3dc8fb314f9ad793588`, whose remapped base is
 `19310b10dcfc34424233496854c014000f44acbf`. Original integration was
-`7e742505fd360901a3976a993774a4bbdf7e2eaf`. Native writer bytes remain exact
-accepted `c784be5776b614f8f0bb225fcb5355ecb9e90e0d`.
+`7e742505fd360901a3976a993774a4bbdf7e2eaf`. Original writer
+`c784be5776b614f8f0bb225fcb5355ecb9e90e0d` remains preserved; its published
+5281 successor changes only ports.rs/workflow.rs inside the stock namespace.
 
 | External namespace | Exact tested input |
 | --- | --- |
-| Storage71 and migrations | `2befc971bd8b5590ab6b139b1163fbcd82256c66` |
-| Actual native activity/archive codec88 | `8f103c9ff6595c1ab26017f0f7f594f76fcff065` |
+| Storage71 and migrations | `48e856068f8351b9256ef7912fc93619c259e79f` |
+| Actual native activity/archive codec88 | `b326e78251b838d2e8cc0197b772276f2e6db548` |
+| Native stock writer | `5281eb1857a90c2279fb2998b3c7d0e2e41ec9b6` |
 | Domain70 | `c25c1a0316ef5e12b61560f00371d839085aefb5` |
 | Jobs | `8a568fb6ccef5b0fa575b18d6181dcc524d4db99` |
 | Separate original-owner Domain queue recovery | `fd72542686112e594d9a6f63b4782a62b5d9e6ef` |
 | Media63 | `ea8ef14e05795334b3d79ae9c95c0a456f8b0308` |
 | Access | `5e87c6c9152228ac4ae72814c6e6fc8f0ea8d7a2` |
-| Concrete write transport | `72349292ec6c51a0e6a5d36985e094d05166bd53` |
+| Concrete write transport | `e5da350500daaa83333a9dbe4b16c7b018ca3888` |
+
+Previously passing PR89 e32c0cc source used Storage2bef, codec8f and transport7234
+with original writerc784. Its source records and packets are preserved separately;
+the new archive writer/storage markers are not relabeled old evidence.
 
 Earlier inputs remain in Git: storage2643/default jobs, stock activity29a37d8,
 mutex-cycle successoref3117c, domain d9 and staged8a, media f0, access4a, and
@@ -177,6 +209,10 @@ preserved. The inspected `6e54c2dbf29485ac7d44fac418430652d39f46bc` and then
 `2befc971bd8b5590ab6b139b1163fbcd82256c66` carry queue guard/order and fresh
 metadata/replay occupancy corrections. The producer/data-codec API bytes and
 all SQL migration bytes are unchanged across those successors.
+The inspected Storage48e successor preserves those producer/data-codec/retention
+bytes and migrations. It adds an independently qualified queued Jobs occupancy
+callback to recovery, implemented by the codec owner's adapters. That callback
+and all recovery paths are compiled only here, never invoked by these fixtures.
 
 ## Inspected ordinary verification
 

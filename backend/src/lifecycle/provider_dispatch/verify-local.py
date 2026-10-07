@@ -16,14 +16,18 @@ import tempfile
 import tomllib
 
 BASE_INPUT = "19310b10dcfc34424233496854c014000f44acbf"
+# Published original-owner API candidate; final integration acceptance is pending.
+# Overlay only stock writer bytes, never the successor's root/main tree.
+WRITER_INPUT = "5281eb1857a90c2279fb2998b3c7d0e2e41ec9b6"
 PEER_INPUTS = [
-    ("2befc971bd8b5590ab6b139b1163fbcd82256c66", ["backend/src/storage", "backend/migrations"]),
+    (WRITER_INPUT, ["backend/src/providers/homebox/write/stock"]),
+    ("48e856068f8351b9256ef7912fc93619c259e79f", ["backend/src/storage", "backend/migrations"]),
     ("c25c1a0316ef5e12b61560f00371d839085aefb5", ["backend/src/domain"]),
     ("8a568fb6ccef5b0fa575b18d6181dcc524d4db99", ["backend/src/jobs"]),
     ("ea8ef14e05795334b3d79ae9c95c0a456f8b0308", ["backend/src/media"]),
     ("5e87c6c9152228ac4ae72814c6e6fc8f0ea8d7a2", ["backend/src/access"]),
-    ("72349292ec6c51a0e6a5d36985e094d05166bd53", ["backend/src/providers/homebox/write_transport"]),
-    ("8f103c9ff6595c1ab26017f0f7f594f76fcff065", ["backend/src/providers/homebox/recovery"]),
+    ("e5da350500daaa83333a9dbe4b16c7b018ca3888", ["backend/src/providers/homebox/write_transport"]),
+    ("b326e78251b838d2e8cc0197b772276f2e6db548", ["backend/src/providers/homebox/recovery"]),
 ]
 PNG_PACKAGES = [
     {"name":"fdeflate","version":"0.3.7",
