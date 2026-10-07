@@ -7,6 +7,79 @@ synthetic evidence, not live provider qualification. The sole integration leaf i
 peers and adopts the Network owner's `pub mod host_runtime;` declaration; manifests, locks, routers,
 shared schemas and integrity declarations remain integrator-owned.
 
+## Explicit isolated synthetic regression lane
+
+Accepted policy PR108 and the user's scoped instruction authorize only the
+four named cases in `examples/regression.rs` and its inspected loopback driver:
+`shared-source-flight`, `cancel-before-prepare`, `cancel-inflight`, and
+`captured-failure-time`. This separate lane is not an ordinary CI entrypoint.
+Earlier held/unrun statements below describe their original historical checks;
+they do not override this specific subsequent authorization. All other stopped
+controls remain held. In particular, no post-stage authority failure, expiry,
+revocation, crash, replay, corruption, adversarial or retention/quota campaign
+is part of these cases.
+
+The example uses the real canonical Core/AT11/Store/native chain and the accepted
+inventory plus the explicitly synthetic observation. It creates fresh private
+temporary database roots and genuine disposable local principals/grants. The
+driver allows only canonical IPv4 loopback HTTPS with a disposable verified CA
+and leaf; there is no external transport fallback, proxy, redirect or provider
+credential. It serves at most two passive inventory GETs per case. Fixed stdin
+markers coordinate overlap/cancellation during an observed GET without sleeps,
+production hooks, fake issuers or file I/O in authority callbacks. Each case is
+bounded by a 60-second process deadline, 10-second barriers/socket operations,
+15-second certificate/accept operations, a sub-64 KiB fixture and two workers.
+Temporary TLS keys and database roots are removed after the successful case.
+
+Root must declare the following target only in a reviewed isolated compiler
+manifest, leaving ordinary CI, repository manifests and discovery unchanged:
+
+```toml
+[[example]]
+name = "network-host-regression"
+path = "src/providers/network/host_runtime/examples/regression.rs"
+```
+
+Compile only the actual library and this explicit target with the locked accepted
+peers. Invoke each case by its exact name after recording the source pin, helper
+review, inputs, endpoint/resource/cleanup bounds and command in the external
+evidence receipt. No `cargo test --lib`, aggregate discovery or held-control
+wrapper is authorized. Command form, with explicit compiler manifest and binary:
+
+```sh
+cargo clippy --manifest-path "$COMPILER/backend/Cargo.toml" --locked --offline --lib --example network-host-regression -- -D warnings
+cargo build --manifest-path "$COMPILER/backend/Cargo.toml" --locked --offline --example network-host-regression
+python3 backend/src/providers/network/host_runtime/examples/regression-loopback.py "$CARGO_TARGET_DIR/debug/examples/network-host-regression" shared-source-flight
+python3 backend/src/providers/network/host_runtime/examples/regression-loopback.py "$CARGO_TARGET_DIR/debug/examples/network-host-regression" cancel-before-prepare
+python3 backend/src/providers/network/host_runtime/examples/regression-loopback.py "$CARGO_TARGET_DIR/debug/examples/network-host-regression" cancel-inflight
+python3 backend/src/providers/network/host_runtime/examples/regression-loopback.py "$CARGO_TARGET_DIR/debug/examples/network-host-regression" captured-failure-time
+```
+
+The concurrency case asserts that a second runtime with the same Core/source
+returns `AlreadyRunning` without preparing/reserving/publishing. Cancellation
+before preparation changes no native state; in-flight cancellation leaves no
+permanent reservation or sidecar/cache mutation, then a healthy
+retry verifies flight release. The 503 case follows a healthy publication and
+asserts exact pre-request attempt/error timestamps through actual native `_at`
+publication, preserving the prior successful time, generation, relations and
+every sidecar partition/ID/digest/body. Its timestamp is fixture data, not an
+authority clock or expiry test. Results qualify only these reported synthetic
+cases, not live providers, security, recovery, deployment or production.
+
+Both immutable-staging and superseded-generation retention findings require
+actual original-peer custody and Root/Storage reference/history policy inputs.
+See [the bounded custody contract](custody-contract.md). No arbitrary deletion,
+cutoff or silent discard is implemented; these source holds remain separate.
+
+Recorded successor evidence: all four exact cases passed on the actual original
+root archive plus byte-exact accepted Native/Storage timestamp peers. Strict
+locked/offline library/named-example Clippy and build passed. Observed GET counts
+were respectively 1, 0, 2 and 2; every disposable database/TLS root was removed.
+The failure case now exercises the captured-time branch through genuine AT11
+borrowed native publication. The external source/command/helper review and raw
+log hashes are in the integration evidence receipt. No late post-stage cancel,
+authority failure or retention reclamation result is claimed.
+
 ## Required owner interfaces
 
 Mount the accepted Network provider and PR36 lifecycle runtime, closed provider
@@ -56,8 +129,9 @@ status are retained without a host-side conversion or replacement writer.
 The provider's captured `cache.error.at` must match its `last_attempt_at`; that
 exact original string passes to durable failure metadata without replacement
 by the commit-time clock. Original per-call/precommit checks, quarantine and
-definite-commit-result handling remain. This path is coded and compiled; failed
-transport, timeout and clock-change qualification remain held and unrun.
+definite-commit-result handling remain. The separately authorized named synthetic
+503 case now exercises this path. Other failed-transport, timeout and clock-change
+qualification remains held and unrun.
 The original registration, partition, generation, epoch, issuing store and UUID
 remain AT07 native fence/CAS checks. Actual durable staged receipt scope,
 generation and digest are checked before consuming publication. PR36 quarantine
@@ -337,6 +411,7 @@ at 10,000. The refresh's retained Core/flight handles prevent address reuse whil
 a flight is active. Registry contention/poison/capacity errors precede provider
 work; an already held source flight returns the existing `AlreadyRunning` result.
 This does not replace native issuing-Store/registration/epoch/pointer CAS or
-coordinate distinct processes/independently opened native Stores. Multiple-runtime
-overlap, capacity and other concurrency controls remain held; compilation and
-one normal healthy refresh provide scoped development evidence only.
+coordinate distinct processes/independently opened native Stores. The explicitly
+authorized same-Core/source overlap case now passes; capacity, cross-process
+and other unselected concurrency controls remain held. Earlier compilation/healthy
+evidence and the new named regression stay separately scoped.
