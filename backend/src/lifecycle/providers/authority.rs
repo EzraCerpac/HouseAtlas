@@ -1,8 +1,9 @@
 //! Original provider authority captured before I/O and rechecked at publication.
-//! Access/storage owners must implement the explicit seams below. There is no
-//! permissive adapter, second SQLite connection or RequestPrincipal in an Arc.
+//! Binds the access owner's lifecycle grants to the same AtlasStore's scoped
+//! transactions. No guard survives I/O and no raw publication fence escapes.
 use crate::{
-    access as a, app::Access, config::providers::registry::ConfiguredSource, storage as s,
+    access as a, app::Access, config::providers::registry::ConfiguredSource, providers::network,
+    storage as s,
 };
 use std::sync::Arc;
 
@@ -12,10 +13,9 @@ pub enum LifecycleCapability {
     PublishCache,
 }
 
-/// Requested access-owner contract. Grant must be opaque, nonserializable and
+/// Access-owner contract. Grant must be opaque, nonserializable and
 /// bound to the issuing boundary, genuine principal, full registration and
 /// named capability. Read/entity permissions cannot issue either capability.
-/// No implementation is supplied until the original access owner approves it.
 pub trait TrustedLifecycleAuthority: Send + Sync {
     type Grant: Send + Sync;
     fn capture(
@@ -67,42 +67,82 @@ pub trait TrustedLifecycleAuthority: Send + Sync {
     ) -> Result<(), E>;
 }
 
-/// Requested storage-owner seam. Every method must use the SAME AtlasStore's
-/// connection, transaction engine and issuer identity. B::Principal deliberately
-/// need not equal its persistent ReadAuthority's RequestPrincipal. Retain all
-/// existing registration checks, precommit checks and consuming fence/CAS checks.
-pub trait ScopedProviderStore {
-    fn register_source_with_authorization<B: s::Authorization>(
-        &mut self,
-        authorization: &B,
-        principal: &B::Principal,
-        registration: &s::SourceRegistration,
-    ) -> s::Result<s::SourceRegistration>;
-    fn prepare_cache_publication_with_authorization<B: s::Authorization>(
-        &mut self,
-        authorization: &B,
-        principal: &B::Principal,
-        scope: &s::Scope,
-        partition: &s::SourcePartition,
-    ) -> s::Result<s::PreparedCachePublication>;
-    /// Caller supplies the provider owner's opaque complete-generation result.
-    /// These raw rows are only the storage handoff, never completeness evidence.
-    fn publish_prepared_generation_with_authorization<B: s::Authorization>(
-        &mut self,
-        authorization: &B,
-        principal: &B::Principal,
-        fence: s::CachePublicationFence,
-        cache: &s::CacheStatus,
-        homebox_entities: &[serde_json::Value],
-        network_relations: &[serde_json::Value],
-    ) -> s::Result<s::CacheStatus>;
-    fn record_prepared_cache_failure_with_authorization<B: s::Authorization>(
-        &mut self,
-        authorization: &B,
-        principal: &B::Principal,
-        fence: s::CachePublicationFence,
-        failure: &s::CacheFailure,
-    ) -> s::Result<s::CacheStatus>;
+/// Thin binding to the original access owner's opaque lifecycle authority.
+/// Policy is supplied independently at boundary construction and defaults empty.
+/// Registry membership and read grants never create lifecycle approval here.
+#[derive(Clone, Copy, Default)]
+pub struct NativeLifecycleAuthority;
+impl TrustedLifecycleAuthority for NativeLifecycleAuthority {
+    type Grant = a::LifecycleGrant;
+    fn capture(
+        &self,
+        access: &a::AccessBoundary,
+        principal: &a::Principal,
+        registration: &a::SourceRegistration,
+        capability: LifecycleCapability,
+    ) -> a::AccessResult<Self::Grant> {
+        access.capture_lifecycle(principal, registration, native_capability(capability))
+    }
+    fn revalidate(
+        &self,
+        access: &a::AccessBoundary,
+        principal: &a::Principal,
+        grant: &Self::Grant,
+        registration: &a::SourceRegistration,
+        capability: LifecycleCapability,
+    ) -> a::AccessResult<()> {
+        access
+            .revalidate_lifecycle(
+                principal,
+                grant,
+                registration,
+                native_capability(capability),
+            )
+            .map(|_| ())
+    }
+    fn revalidate_guard(
+        &self,
+        guard: &a::TransactionAuthorization<'_>,
+        grant: &Self::Grant,
+        registration: &a::SourceRegistration,
+        capability: LifecycleCapability,
+    ) -> a::AccessResult<()> {
+        guard
+            .revalidate_lifecycle(grant, registration, native_capability(capability))
+            .map(|_| ())
+    }
+    fn install_source(
+        &self,
+        access: &mut a::AccessBoundary,
+        principal: &a::Principal,
+        grant: &Self::Grant,
+        registration: &a::SourceRegistration,
+    ) -> a::AccessResult<()> {
+        access.install_source_authorized(principal, grant, registration)
+    }
+    fn with_authorization<E: From<a::AccessError>>(
+        &self,
+        access: &mut a::AccessBoundary,
+        principal: &a::Principal,
+        grant: &Self::Grant,
+        registration: &a::SourceRegistration,
+        capability: LifecycleCapability,
+        operation: impl FnOnce(&a::TransactionAuthorization<'_>) -> Result<(), E>,
+    ) -> Result<(), E> {
+        access.with_lifecycle_authorization(
+            principal,
+            grant,
+            registration,
+            native_capability(capability),
+            operation,
+        )
+    }
+}
+fn native_capability(capability: LifecycleCapability) -> a::LifecycleCapability {
+    match capability {
+        LifecycleCapability::ConfigureSource => a::LifecycleCapability::ConfigureSource,
+        LifecycleCapability::PublishCache => a::LifecycleCapability::PublishCache,
+    }
 }
 
 struct CapturedLifecycle<G: Send + Sync> {
@@ -174,11 +214,17 @@ impl<G: Send + Sync> ConfigurationLease<G> {
     /// Existing quarantine is preserved with enabled=None. Two databases are
     /// ordered here, not atomically committed: an access error may leave only a
     /// durable registration. Return that error; never claim configuration success.
-    pub fn register<A: TrustedLifecycleAuthority<Grant = G>, S: ScopedProviderStore>(
+    pub fn register<A, C, B, R>(
         &self,
         authority: &A,
-        store: &mut S,
-    ) -> s::Result<s::SourceRegistration> {
+        store: &mut s::AtlasStore<C, B, R>,
+    ) -> s::Result<s::SourceRegistration>
+    where
+        A: TrustedLifecycleAuthority<Grant = G>,
+        C: s::Contract,
+        B: s::Authorization,
+        R: s::Runtime,
+    {
         let captured = &self.0;
         let mut access = captured.access.try_lock().map_err(|_| unavailable())?;
         captured
@@ -382,11 +428,17 @@ impl<G: Send + Sync> ProviderLease<G> {
         }
         self.revalidate(authority)
     }
-    pub fn prepare_publication<A: TrustedLifecycleAuthority<Grant = G>, S: ScopedProviderStore>(
+    pub fn prepare_publication<A, C, B, R>(
         self: &Arc<Self>,
         authority: &A,
-        store: &mut S,
-    ) -> s::Result<PreparedProviderPublication<G>> {
+        store: &mut s::AtlasStore<C, B, R>,
+    ) -> s::Result<PreparedProviderPublication<G>>
+    where
+        A: TrustedLifecycleAuthority<Grant = G>,
+        C: s::Contract,
+        B: s::Authorization,
+        R: s::Runtime,
+    {
         self.with_publication(authority, |authorization| {
             let registration = self.source().registration();
             let prepared = store.prepare_cache_publication_with_authorization(
@@ -413,9 +465,9 @@ impl<G: Send + Sync> ProviderLease<G> {
         }
         Ok(())
     }
-    /// Root borrows the SAME store for synchronous prepare/consume work here.
-    /// The typed authorizer repeats original-handle checks at every storage phase.
-    pub fn with_publication<A: TrustedLifecycleAuthority<Grant = G>, T>(
+    // Only closed operations in this module receive the live authorizer. Neither
+    // a caller callback nor a caller-defined store can extract an extra fence.
+    fn with_publication<A: TrustedLifecycleAuthority<Grant = G>, T>(
         &self,
         authority: &A,
         operation: impl FnOnce(&ProviderAuthorization<'_, A>) -> s::Result<T>,
@@ -449,6 +501,8 @@ impl<G: Send + Sync> ProviderLease<G> {
 
 /// No Clone, Deserialize or raw constructor. Keeps the exact original lease
 /// beside the actual issuing-store fence throughout provider I/O and failures.
+/// HomeBox success additionally needs its producer's full registration witness;
+/// its current CompleteGeneration alone does not establish configured coverage.
 pub struct PreparedProviderPublication<G: Send + Sync> {
     lease: Arc<ProviderLease<G>>,
     prepared: s::PreparedCachePublication,
@@ -457,38 +511,132 @@ impl<G: Send + Sync> PreparedProviderPublication<G> {
     pub fn lease(&self) -> &Arc<ProviderLease<G>> {
         &self.lease
     }
+    /// Internal retained provider state. Entity disclosure still requires the
+    /// original source grants; this is not a public read or a completeness proof.
     pub fn state(&self) -> &s::CachePublicationState {
         self.prepared.state()
     }
-    pub fn fence(&self) -> &s::CachePublicationFence {
-        self.prepared.fence()
+    pub fn baseline_generation_id(&self) -> Option<&str> {
+        self.prepared.fence().baseline_generation_id()
     }
-    /// Consume the ORIGINAL lease/fence handoff. Storage still checks its actual
-    /// instance and durable CAS; the callback must use the provider owner's
-    /// opaque complete-generation result or the separately typed failure path.
-    pub fn with_publication<A: TrustedLifecycleAuthority<Grant = G>, T>(
+    pub fn baseline_cache_epoch(&self) -> u64 {
+        self.prepared.fence().baseline_cache_epoch().value()
+    }
+    pub fn reserved_generation_id(&self) -> &str {
+        self.prepared.fence().reserved_generation_id()
+    }
+    /// Consume the private original fence through the issuing store's actual
+    /// failure engine, under the same original lease and held access authority.
+    pub fn record_failure<A, C, B, R>(
         self,
         authority: &A,
-        operation: impl FnOnce(&ProviderAuthorization<'_, A>, s::CachePublicationFence) -> s::Result<T>,
-    ) -> s::Result<T> {
+        store: &mut s::AtlasStore<C, B, R>,
+        failure: &s::CacheFailure,
+    ) -> s::Result<s::CacheStatus>
+    where
+        A: TrustedLifecycleAuthority<Grant = G>,
+        C: s::Contract,
+        B: s::Authorization,
+        R: s::Runtime,
+    {
         let (_, fence) = self.prepared.into_parts();
         self.lease.check_fence(&fence)?;
-        self.lease
-            .with_publication(authority, |authorization| operation(authorization, fence))
+        self.lease.with_publication(authority, |authorization| {
+            store.record_prepared_cache_failure_with_authorization(
+                authorization,
+                self.lease.as_ref(),
+                fence,
+                failure,
+            )
+        })
+    }
+    /// Accept only the provider's opaque complete proposal with its actual
+    /// durable SQLite receipt. Rows/metadata alone cannot qualify publication.
+    /// The full configured registration validates the retained inventory again;
+    /// the same original lease and issuing-store fence remain private throughout.
+    pub fn publish_network<A, C, B, R>(
+        self,
+        authority: &A,
+        store: &mut s::AtlasStore<C, B, R>,
+        staged: network::StagedNetworkPublication<network::DurableNetworkReceipt>,
+    ) -> s::Result<s::CacheStatus>
+    where
+        A: TrustedLifecycleAuthority<Grant = G>,
+        C: s::Contract,
+        B: s::Authorization,
+        R: s::Runtime,
+    {
+        let (baseline, fence) = self.prepared.into_parts();
+        self.lease.check_fence(&fence)?;
+        if fence.registration().owner != s::SourceOwner::Network
+            || baseline.cache.as_ref().is_some_and(|cache| {
+                cache.status == s::CacheState::AccessRevoked
+                    || cache.error.as_ref().is_some_and(|error| {
+                        matches!(
+                            error.code,
+                            s::FailureCode::Auth | s::FailureCode::WrongScope
+                        )
+                    })
+            })
+        {
+            return Err(publication_conflict());
+        }
+        // Only metadata is converted. Genuine principals and opaque grants
+        // remain in the original lease and never cross a serialization boundary.
+        let registration: network::SourceRegistration =
+            serde_json::from_value(serde_json::to_value(self.lease.source().registration())?)?;
+        let proposal = staged.proposal();
+        let expected = proposal.precondition();
+        if expected.expected_generation_id.as_deref() != fence.baseline_generation_id()
+            || expected.expected_cache_epoch != fence.baseline_cache_epoch().value()
+            || proposal.state().cache.scope != registration.scope
+            || proposal.state().cache.generation_id.as_deref()
+                != Some(fence.reserved_generation_id())
+        {
+            return Err(publication_conflict());
+        }
+        let row =
+            network::stage_row(&registration, proposal).map_err(|_| publication_conflict())?;
+        let receipt = staged.receipt();
+        if receipt.partition_key() != row.partition_key
+            || receipt.generation_id() != row.generation_id
+            || receipt.sha256() != row.sha256
+        {
+            return Err(publication_conflict());
+        }
+        let generation = proposal
+            .state()
+            .generation
+            .as_ref()
+            .ok_or_else(publication_conflict)?;
+        let cache: s::CacheStatus =
+            serde_json::from_value(serde_json::to_value(&proposal.state().cache)?)?;
+        let rows = generation
+            .network_relations
+            .iter()
+            .map(serde_json::to_value)
+            .collect::<Result<Vec<_>, _>>()?;
+        self.lease.with_publication(authority, |authorization| {
+            store.publish_prepared_generation_with_authorization(
+                authorization,
+                self.lease.as_ref(),
+                fence,
+                &cache,
+                &[],
+                &rows,
+            )
+        })
     }
 }
 
 /// Exists only during an owner-held access transaction; it is never persistent
 /// ReadAuthority and exposes neither administration nor a SQLite handle.
-pub struct ProviderAuthorization<'a, A: TrustedLifecycleAuthority> {
+struct ProviderAuthorization<'a, A: TrustedLifecycleAuthority> {
     guard: &'a a::TransactionAuthorization<'a>,
     authority: &'a A,
     lease: &'a ProviderLease<A::Grant>,
 }
 impl<A: TrustedLifecycleAuthority> ProviderAuthorization<'_, A> {
-    pub fn lease(&self) -> &ProviderLease<A::Grant> {
-        self.lease
-    }
     fn revalidate(&self) -> a::AccessResult<()> {
         self.lease.captured.revalidate_guard(
             self.guard,
@@ -604,4 +752,10 @@ impl From<s::Error> for PhaseError {
 }
 fn unavailable() -> s::Error {
     s::Error::new("upstream-unavailable", "Provider authority unavailable")
+}
+fn publication_conflict() -> s::Error {
+    s::Error::new(
+        "guard-conflict",
+        "Provider proposal does not match its original fence",
+    )
 }
