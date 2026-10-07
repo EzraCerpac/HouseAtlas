@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import { detectModelContext } from "./browser.js";
 import { mountStockWebMcp, type StockCompletion, type StockMountOptions } from "./stock.js";
 import type { RegistrationStatus } from "./ports.js";
-import { useCommittedResult } from "./useCommittedResult.js";
+import { useCommittedResult, useSessionViewToken, type RenderIdentity } from "./useCommittedResult.js";
 
 export interface StockBoundaryState {
   readonly registration: RegistrationStatus;
@@ -10,6 +10,7 @@ export interface StockBoundaryState {
 }
 export type StockWebMcpBoundaryProps = Omit<StockMountOptions, "visible" | "modelContext"> & {
   readonly modelContext?: StockMountOptions["modelContext"];
+  readonly renderIdentity?: RenderIdentity;
   /** UI owner renders the complete canonical result in this committed subtree. */
   readonly children: (state: StockBoundaryState) => ReactNode;
 };
@@ -18,19 +19,24 @@ export type StockWebMcpBoundaryProps = Omit<StockMountOptions, "visible" | "mode
  */
 export function StockWebMcpBoundary(props: StockWebMcpBoundaryProps): ReactNode {
   const { sessions, schemas, service, children } = props;
-  const [registration, setRegistration] = useState<RegistrationStatus>({ state: "inactive" });
   const explicitContext = Object.hasOwn(props, "modelContext");
   const suppliedContext = props.modelContext;
-  const view = useMemo(() => ({}), [sessions, schemas, service, explicitContext, suppliedContext]);
+  const sessionToken = useSessionViewToken(sessions);
+  const view = useMemo(() => ({}), [sessions, sessionToken, props.renderIdentity, schemas, service, explicitContext, suppliedContext]);
   const { value: completion, activate } = useCommittedResult<StockCompletion>(view);
-  useEffect(() => {
+  const [observed, setObserved] = useState<{ readonly view: object; readonly status: RegistrationStatus }>(
+    () => ({ view, status: { state: "inactive" } }));
+  const registration: RegistrationStatus = observed.view === view ? observed.status : { state: "inactive" };
+  // Layout cleanup retires the prior browser registrations before replacement
+  // child layouts/paint; unregistering still does not reverse domain execution.
+  useLayoutEffect(() => {
     const visible = activate();
     const modelContext = explicitContext ? suppliedContext
       : detectModelContext(typeof document === "undefined" ? undefined : document);
     const handle = mountStockWebMcp({ modelContext, sessions, schemas, service, visible });
     const onStatus = (): void => {
       const status = handle.getStatus();
-      setRegistration(status);
+      setObserved({ view, status });
       // A partial registration failure removes tool availability, while calls
       // already underway still need their canonical result to reach the view.
       if (status.state !== "registered" && !(status.state === "failed" && status.phase === "registration"))
@@ -43,6 +49,6 @@ export function StockWebMcpBoundary(props: StockWebMcpBoundaryProps): ReactNode 
       handle.dispose();
       visible.deactivate();
     };
-  }, [explicitContext, suppliedContext, sessions, schemas, service, activate]);
+  }, [explicitContext, suppliedContext, sessions, schemas, service, activate, view]);
   return children({ registration, completion });
 }

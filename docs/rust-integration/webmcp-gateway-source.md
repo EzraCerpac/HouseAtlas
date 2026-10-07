@@ -1,9 +1,9 @@
 # WebMCP gateway source candidate
 
 This candidate adopts all 23 regular files in `frontend/src/webmcp/**` byte for
-byte from `68079b0c0c3b606d26956710702c54be01298ea3`. Its base is accepted main
-`7f75ecaa288e410ed625d95b53f0162c7d1d4186`, tree
-`b0a44cde66b04b1b128324a6b0aee625b3be5877`. The explicit publication manifest
+byte from `d5f57d88e79a0ef916904f72bfd86716187702e4`. Its base is accepted main
+`31fbe77dd24ace510c68956da88b49381984e78e`, tree
+`0da900a64b92b3f5585911eeb77f42b147529ebd`. The explicit publication manifest
 includes the seven new gateway/commit-acknowledgement leaves. No owner namespace
 adaptation, dependency change or backend admission change is included.
 
@@ -41,11 +41,19 @@ All stopped negative, replay, expiry, revocation, fault, concurrency and
 adversarial controls remain unrun. No provider or remote listener is enabled.
 
 This remains a source-composition checkpoint. The exact original-owner successor
-keys completion state to current session/service/catalog/model-context inputs,
-masking prior result/link state during replacement rendering before descendant
-layout effects. It also preserves underway completion after registration-only
-failure, settles discarded acknowledgement tickets on explicit clear, and allows
-a null owner filename. These six changed owner leaves supersede the earlier
-stale-display source. No feature namespace edits are made by integration.
-Delayed-call races, partial-registration failure and stopped controls remain
+subscribes to stable-port session state/revision, keys result and registration
+status to current view inputs, and retires prior registrations in layout cleanup.
+An optional opaque non-secret `renderIdentity` reaches both boundaries through
+`CommandCoverageBoundary`. It masks previous result/link/status before a host
+publishes a changed context in a parent layout effect. Registration cleanup does
+not reverse domain execution. The owner's six changed leaves are adopted exact.
+
+Acceptance still requires the original app owner's pre-render `renderIdentity`
+checkpoint in `StockApplication`, including session, selected scope and admission
+before facade publication and before a child-discovered scope change commits.
+This candidate does not edit that app leaf or other frontend namespaces. The
+browser subscription cannot infer a future parent publication. Existing ordinary
+browser success does not qualify that still-unbound app integration. No new
+successor regression runner or synthetic gateway/download example is executed.
+Delayed-call races, partial-registration failure and all stopped controls remain
 unqualified; ordinary checks do not establish gateway/download runtime.

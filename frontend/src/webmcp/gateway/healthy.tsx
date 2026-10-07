@@ -5,7 +5,7 @@ import fixture from "../../../../backend/src/contracts/stock/examples/healthy.js
 import { createStockSchemas } from "../../../integration/stock-schemas.js";
 import { stockCatalog, stockInputSchema } from "../stock-schema.js";
 import type { CatalogTool, JsonObject, JsonValue, ModelContextPort, RegisteredBrowserTool, ToolAnnotations } from "../ports.js";
-import { GatewayWebMcpBoundary } from "./GatewayWebMcpBoundary.js";
+import { GatewayWebMcpBoundary, type GatewayWebMcpBoundaryProps } from "./GatewayWebMcpBoundary.js";
 import type { GatewayDownloadPort, GatewaySessionPort, GatewayToolBinding } from "./ports.js";
 
 function check(value: unknown, message: string): asserts value {
@@ -26,9 +26,14 @@ export async function runGatewayHealthyReact(container: HTMLElement): Promise<re
   };
   const applicationSession = { schemaVersion: 1 as const, actorId: "healthy-synthetic-actor",
     csrfToken: "synthetic-marker-no-credential", expiresAt: "2026-12-01T00:00:00Z" };
+  let sessionRevision = "healthy-gateway:1";
+  const sessionListeners = new Set<() => void>();
   const sessions: GatewaySessionPort = {
-    getSnapshot: () => ({ state: "authenticated", revision: "healthy-gateway:1" }),
-    subscribe: () => () => {},
+    getSnapshot: () => ({ state: "authenticated", revision: sessionRevision }),
+    subscribe: listener => {
+      sessionListeners.add(listener);
+      return () => { sessionListeners.delete(listener); };
+    },
     getContext: () => ({ applicationSession, scope: request.context,
       toolNames: ["fixture_gateway_read", "fixture_gateway_download", "fixture_unbound"] }),
   };
@@ -54,7 +59,7 @@ export async function runGatewayHealthyReact(container: HTMLElement): Promise<re
       service: { async execute(input, context) {
         check(context.applicationSession === applicationSession, "Original session reaches the actual host port");
         check(JSON.stringify(context.scope) === JSON.stringify(request.context), "Selected scope reaches host unchanged");
-        check(context.session.revision === "healthy-gateway:1" && !context.signal.aborted, "Healthy invocation context");
+        check(context.session.revision === sessionRevision && !context.signal.aborted, "Healthy invocation context");
         calls.push(structuredClone(input));
         events.push(`execute:${name}`);
         return structuredClone(response);
@@ -75,10 +80,19 @@ export async function runGatewayHealthyReact(container: HTMLElement): Promise<re
         filename: "healthy.json", mediaType: "application/json", label: "Download file" } : null;
     },
   };
+  function HealthyHost({ publishRevision, ...props }: GatewayWebMcpBoundaryProps & { readonly publishRevision?: string }) {
+    useLayoutEffect(() => {
+      if (publishRevision) {
+        sessionRevision = publishRevision;
+        for (const listener of sessionListeners) listener();
+      }
+    }, [publishRevision]);
+    return <GatewayWebMcpBoundary {...props} />;
+  }
   const root = createRoot(container);
   await act(async () => {
-    root.render(<GatewayWebMcpBoundary modelContext={modelContext} sessions={sessions}
-      bindings={bindings} downloads={downloads}><p>Healthy host view</p></GatewayWebMcpBoundary>);
+    root.render(<HealthyHost modelContext={modelContext} sessions={sessions}
+      bindings={bindings} downloads={downloads}><p>Healthy host view</p></HealthyHost>);
   });
   check(container.querySelector('[aria-label="Gateway tools"]')?.textContent === "registered", "Real React registration state");
   check([...tools.keys()].join(",") === "fixture_gateway_read,fixture_gateway_download", "Only actual admitted-and-bound peers register");
@@ -121,17 +135,23 @@ export async function runGatewayHealthyReact(container: HTMLElement): Promise<re
   // All earlier executions have finished. Exercise a normal sequential host
   // remount, not the held pending-call/race or obsolete-consumer controls.
   let firstReplacementCommitObserved = false;
-  function ReplacementHostView() {
+  function ReplacementHostView({ beforePublication }: { readonly beforePublication?: string }) {
     useLayoutEffect(() => {
+      check(tools.size === 0, "Previous registrations retire before the replacement child layout");
       check(!container.querySelector("[data-gateway-tool]") && !container.querySelector("a[download]"),
         "First replacement layout commit contains no prior result or link");
+      check(container.querySelector('[aria-label="Gateway tools"]')?.textContent === "inactive",
+        "First replacement layout commit does not claim the previous catalog is registered");
+      if (beforePublication) check(sessionRevision === beforePublication,
+        "New render identity masks the prior view before parent layout publishes its session revision");
       firstReplacementCommitObserved = true;
     }, []);
     return <p>Healthy replacement host view</p>;
   }
+  const replacementBindings = [...bindings];
   await act(async () => {
-    root.render(<GatewayWebMcpBoundary modelContext={modelContext} sessions={sessions}
-      bindings={[...bindings]} downloads={downloads}><ReplacementHostView /></GatewayWebMcpBoundary>);
+    root.render(<HealthyHost modelContext={modelContext} sessions={sessions}
+      bindings={replacementBindings} downloads={downloads}><ReplacementHostView /></HealthyHost>);
   });
   check(firstReplacementCommitObserved, "New host's first actual layout commit was observed");
   check([...tools.keys()].length === 2 && !container.querySelector("[data-gateway-tool]"), "New activation starts with current registrations and no old result");
@@ -143,8 +163,41 @@ export async function runGatewayHealthyReact(container: HTMLElement): Promise<re
   check(JSON.stringify(await nextExecution) === JSON.stringify(response), "Healthy current activation can complete its task");
   check(container.querySelector('[data-gateway-tool="fixture_gateway_read"] pre')?.textContent === JSON.stringify(response, null, 2),
     "Current activation acknowledges the new visible result");
+
+  // A healthy revision publication on the same port object must also select a
+  // new view. No executions are pending; actor, scope and admission stay healthy.
+  await act(async () => {
+    sessionRevision = "healthy-gateway:2";
+    for (const listener of sessionListeners) listener();
+    root.render(<HealthyHost modelContext={modelContext} sessions={sessions}
+      bindings={replacementBindings} downloads={downloads}><ReplacementHostView key="revision:2" /></HealthyHost>);
+  });
+  check(container.querySelector('[aria-label="Gateway tools"]')?.textContent === "registered",
+    "Stable session port revision produces a current registration");
+  await act(async () => {
+    nextExecution = tools.get("fixture_gateway_read")!.execute(request);
+    await Promise.resolve();
+  });
+  check(JSON.stringify(await nextExecution) === JSON.stringify(response), "Current stable-port revision completes normally");
+
+  // A host that publishes in its parent layout supplies identity before render.
+  // The child's first layout observes no old result/status before publication.
+  await act(async () => {
+    root.render(<HealthyHost modelContext={modelContext} sessions={sessions}
+      bindings={replacementBindings} downloads={downloads} renderIdentity="healthy-view:3" publishRevision="healthy-gateway:3">
+      <ReplacementHostView key="render:3" beforePublication="healthy-gateway:2" />
+    </HealthyHost>);
+  });
+  check(container.querySelector('[aria-label="Gateway tools"]')?.textContent === "registered",
+    "Parent-layout publication settles on the current host view");
+  await act(async () => {
+    nextExecution = tools.get("fixture_gateway_read")!.execute(request);
+    await Promise.resolve();
+  });
+  check(JSON.stringify(await nextExecution) === JSON.stringify(response), "Explicit host render identity completes normally");
   await act(async () => root.unmount());
   check(tools.size === 0, "Unmount removes synthetic registrations");
   return ["gateway admitted service intersection and shared schemas", "canonical gateway result visible before return",
-    "issued download presentation visible before return", "healthy sequential gateway reactivation", "gateway unmount cleanup"];
+    "issued download presentation visible before return", "healthy sequential gateway reactivation",
+    "stable session revision and parent-layout render identity", "gateway unmount cleanup"];
 }

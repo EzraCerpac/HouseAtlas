@@ -1,4 +1,29 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import type { SessionPort } from "./ports.js";
+
+/** An opaque, non-secret host identity known before rendering a changed view.
+ * Required when the host publishes its committed SessionPort context later in
+ * a layout effect. It grants no authority and must never contain credentials. */
+export type RenderIdentity = object | string | number | null;
+
+/** Session peers may return a fresh object on every read. Subscribe to a stable
+ * primitive containing only the existing non-secret state/revision contract.
+ * Adapter session failures retain their own status handling. */
+export function useSessionViewToken(sessions: SessionPort): string {
+  const subscribe = useCallback((listener: () => void) => {
+    try { return sessions.subscribe(listener); }
+    catch { return () => {}; } // startWebMcp reports the session failure status.
+  }, [sessions]);
+  const read = useCallback(() => {
+    try {
+      const snapshot = sessions.getSnapshot();
+      return JSON.stringify([snapshot.state, snapshot.revision]);
+    } catch {
+      return "unavailable";
+    }
+  }, [sessions]);
+  return useSyncExternalStore(subscribe, read, read);
+}
 
 interface CommitTicket<T> {
   readonly activation: symbol;
