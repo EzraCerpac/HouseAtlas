@@ -1,5 +1,9 @@
 # Native activity evidence version three
 
+The explicit [archive `/4` successor](activity-archive-v4.md) adds bounded byte
+encoding/authorized evidence restoration and addresses the two PR78 automatic
+review findings. The original published PR78 commit remains immutable.
+
 This leaf qualifies original profile6 stock activity evidence through accepted
 Storage71 `StockActivityRecoveryEvidence`. Jobs codecs `/1` and `/2` remain
 separate. No Jobs ID, lease, timestamp or fence becomes a native operation or

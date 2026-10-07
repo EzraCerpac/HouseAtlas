@@ -23,6 +23,7 @@ pub(super) enum RawNativeCut {
 }
 /// Read-only original native result and its exact prior journal cut. Values are
 /// captured by the wrappers below, never accepted from image JSON or ID pairs.
+#[derive(Clone)]
 pub struct RetainedStockNativeEvent {
     pub(super) sequence: u64,
     pub(super) before: n::StoredOperation,
@@ -161,9 +162,24 @@ impl<D: n::StockDispatchPort + Sync> n::StockDispatchPort for CapturingStockDisp
                 && r.operation().plan.as_ref() == Some(plan)
                 && &r.operation().captured_authority == authority
         }) else {
-            // This wrapper positively did not invoke its inner port. No native
-            // event is captured, so this alone cannot qualify image facts.
-            return n::NativeDispatch::NeverInvoked;
+            // The accepted port has no unavailable variant. Signal unresolved
+            // activity with an uncorrelated, response-less receipt; never claim
+            // no invocation for a busy/ambiguous original operation. This is
+            // NOT captured or qualified as native proof. The native reducer
+            // preserves its unproven physical hold, or the original owner may
+            // refuse the unqualified fact commit entirely.
+            return n::NativeDispatch::Invoked(n::DispatchReceipt {
+                operation_id: permit.operation_id,
+                plan_digest: permit.plan_digest.clone(),
+                context: n::Context {
+                    workspace_id: uuid::Uuid::nil(),
+                    home_id: uuid::Uuid::nil(),
+                },
+                source_instance_id: plan.readback.target.source_instance_id,
+                collection_id: plan.readback.target.collection_id,
+                response: None,
+                remote_activity: n::RemoteActivity::end_unproven(),
+            });
         };
         let result = self.inner.dispatch(permit, plan, authority).await;
         self.capture.complete(
@@ -192,7 +208,7 @@ impl<B: n::StockReadbackPort + Sync> n::StockReadbackPort for CapturingStockRead
         let Some(before) = self.capture.begin(|r| {
             r.operation() == operation
                 && r.permit().is_some()
-                && &operation.captured_authority == authority
+                && super::activity_validation::readback_authority_matches(operation, authority)
                 && n::retained_bridge::readback_plan(operation).as_ref() == Some(plan)
         }) else {
             return n::NativeObservation::Unavailable;
@@ -256,6 +272,17 @@ impl<P: s::StockActivityPrincipal> RetainedNativeStockActivity<P> {
             capture: capture.clone(),
             native: vec![],
         })
+    }
+    pub(super) fn archive_ready(&self) -> s::Result<()> {
+        let state = self.capture.0.try_lock().map_err(|_| unavailable())?;
+        if state.closed
+            || state.in_flight
+            || state.pending.is_some()
+            || state.record.as_ref() != Some(self.producer.record())
+        {
+            return Err(unavailable());
+        }
+        Ok(())
     }
     pub fn producer(&self) -> &s::StockActivityProducer<P> {
         &self.producer

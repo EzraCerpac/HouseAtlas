@@ -1,6 +1,9 @@
 //! Retained accepted stock-writer facts, never recovery or invocation authority.
 mod activity_adapter;
+mod activity_archive;
+mod activity_archive_rows;
 mod activity_capture;
+mod activity_restored_adapter;
 mod activity_validation;
 mod adapter;
 mod binding;
@@ -9,11 +12,19 @@ mod contracts;
 mod record;
 
 pub use activity_adapter::{HomeboxStockActivityEvidence, RetainedNativeStockActivityArchive};
+pub use activity_archive::{
+    ACTIVITY_ARCHIVE_STORAGE_COMMIT, ACTIVITY_NATIVE_ARCHIVE_CODEC_V4,
+    MAX_NATIVE_ACTIVITY_ARCHIVE_BYTES, MAX_NATIVE_ACTIVITY_ARCHIVE_EVENTS,
+    NativeActivityArchivePacket, NativeActivityArchiveReadAuthorization,
+    RestoredNativeActivityArchive, RestoredNativeActivityCut, RestoredNativeActivityEvent,
+    RestoredNativeActivityEvidence,
+};
 pub use activity_capture::{
     ACTIVITY_DISPATCH_CODEC_V3, ACTIVITY_NATIVE_CODEC_V3, ACTIVITY_OBSERVATION_CODEC_V3,
     ArchivedNativeStockActivity, CapturingStockDispatch, CapturingStockReadback,
     RetainedNativeStockActivity, RetainedStockNativeEvent, StockActivityNativeCapture,
 };
+pub use activity_restored_adapter::HomeboxRestoredStockActivityEvidence;
 pub use adapter::HomeboxRetainedEvidence;
 pub use binding::{JOB_BINDING_FORMAT_V2, RetainedWriterJobBinding};
 pub use codec::{

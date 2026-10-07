@@ -1,5 +1,8 @@
 # Retained HomeBox stock evidence
 
+For durable native cut bytes and evidence-only restoration, use the
+[authorized archive `/4` codec and adapter](activity-archive-v4.md).
+
 For actual asynchronous profile6 activity, use the independently retained
 [native activity `/3` carrier and adapter](activity-v3.md). Jobs `/1` and `/2`
 remain distinct and do not qualify activity by translating leases or epochs.

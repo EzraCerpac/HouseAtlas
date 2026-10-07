@@ -491,7 +491,11 @@ impl n::StockReadbackPort for Peers {
         plan: &n::ReadbackPlan,
         authority: &n::StockAuthority,
     ) -> n::NativeObservation {
-        assert_eq!(authority, &self.0.authority);
+        assert_eq!(authority.actor_id, self.0.authority.actor_id);
+        assert_eq!(
+            authority.physical_binding,
+            self.0.authority.physical_binding
+        );
         assert_eq!(operation.command, self.0.command);
         assert_eq!(plan.target, self.0.command.target);
         assert_eq!(plan.path, format!("/api/v1/entities/{}", id(500)));
@@ -583,6 +587,13 @@ impl s::StockActivityRecoveryEvidence for OriginalEvidence {
 }
 #[test]
 fn healthy_profile6_native_capture_and_event_cuts() -> Result<(), Box<dyn std::error::Error>> {
+    composition(false)
+}
+#[test]
+fn healthy_profile6_authorized_archive_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
+    composition(true)
+}
+fn composition(archive_roundtrip: bool) -> Result<(), Box<dyn std::error::Error>> {
     use super::*;
     use n::{StockActivityPort, StockDispatchPort, StockReadbackPort};
     let directory = tempfile::tempdir()?;
@@ -776,6 +787,13 @@ fn healthy_profile6_native_capture_and_event_cuts() -> Result<(), Box<dyn std::e
     // Original live producer and complete pre-I/O cut remain independently held.
     // This test has no production durable archive or native driver.
     assert_eq!(retained.producer().record().operation(), &*admitted);
+    let mut archive_packets = Vec::new();
+    if archive_roundtrip {
+        let packet = NativeActivityArchivePacket::encode(&contracts, &retained)?;
+        assert_eq!(packet.cut().events().len(), 2);
+        assert!(packet.cut().native_events().is_empty());
+        archive_packets.push(sync_packet(directory.path(), "before-io.json", &packet)?);
+    }
     let raw_dispatch = ready(dispatch.dispatch(&permit, &plan, &authority));
     let n::NativeDispatch::Invoked(receipt) = &raw_dispatch else {
         panic!("healthy synthetic native receipt");
@@ -789,8 +807,26 @@ fn healthy_profile6_native_capture_and_event_cuts() -> Result<(), Box<dyn std::e
     retained.retain_successor(&contracts, successor)?;
     assert_eq!(retained.native_events()[0].dispatch(), Some(&raw_dispatch));
     assert_eq!(retained.native_events()[0].before(), &*admitted);
+    if archive_roundtrip {
+        let packet = NativeActivityArchivePacket::encode(&contracts, &retained)?;
+        assert_eq!(packet.cut().events().len(), 3);
+        assert_eq!(packet.cut().native_events().len(), 1);
+        archive_packets.push(sync_packet(
+            directory.path(),
+            "after-dispatch.json",
+            &packet,
+        )?);
+    }
     let resolved = n::retained_bridge::readback_plan(&dispatched).expect("exact native GET");
-    let raw_observation = ready(readback.readback(&dispatched, &resolved, &authority));
+    let readback_authority = if archive_roundtrip {
+        n::StockAuthority {
+            authority_digest: digest(&json!({"syntheticRefreshedAuthority":true})),
+            ..authority.clone()
+        }
+    } else {
+        authority.clone()
+    };
+    let raw_observation = ready(readback.readback(&dispatched, &resolved, &readback_authority));
     let observed_facts = n::retained_bridge::observation(&contracts, &dispatched, &raw_observation)
         .expect("qualified fresh observation");
     let observed = ready(activity.save_observation(&dispatched, &observed_facts))
@@ -811,6 +847,18 @@ fn healthy_profile6_native_capture_and_event_cuts() -> Result<(), Box<dyn std::e
     ));
     assert!(!observed.outcome.causality_proven && !observed.outcome.atomic_provider_cas);
     assert!(!observed.outcome.unknown_scope_fence_retained);
+    if archive_roundtrip {
+        let packet = NativeActivityArchivePacket::encode(&contracts, &retained)?;
+        assert_eq!(
+            packet.cut().native_events()[1].authority(),
+            &readback_authority
+        );
+        archive_packets.push(sync_packet(
+            directory.path(),
+            "after-observation.json",
+            &packet,
+        )?);
+    }
     let archive = RetainedNativeStockActivityArchive::new(vec![retained.seal(&contracts)?])?;
     let original_evidence = OriginalEvidence(peers.clone());
     let evidence = HomeboxStockActivityEvidence::new(&contracts, &archive, &original_evidence);
@@ -856,11 +904,62 @@ fn healthy_profile6_native_capture_and_event_cuts() -> Result<(), Box<dyn std::e
         &activity_registration,
     )];
     let discovery = OfflineDiscovery(registry.clone());
+    let archive_owner = SyntheticArchiveOwner {
+        original: original.clone(),
+        registration: activity_registration.clone(),
+        packets: archive_packets
+            .iter()
+            .map(|(_, bytes)| bytes.clone())
+            .collect(),
+    };
+    let restored_records = archive_packets
+        .iter()
+        .map(|(path, expected)| {
+            let bytes = std::fs::read(path)?;
+            assert_eq!(&bytes, expected);
+            NativeActivityArchivePacket::decode(&contracts, &bytes, &archive_owner)
+                .map_err(std::io::Error::other)
+        })
+        .collect::<Result<Vec<_>, std::io::Error>>()?;
+    if archive_roundtrip {
+        assert_eq!(restored_records.len(), 3);
+        assert_eq!(restored_records[0].cut().events().len(), 2);
+        assert!(restored_records[0].cut().native_events().is_empty());
+        assert_eq!(restored_records[1].cut().events().len(), 3);
+        assert!(
+            restored_records[1]
+                .cut()
+                .operation()
+                .outcome
+                .readback_digest
+                .is_none()
+        );
+        assert_eq!(restored_records[2].cut().events().len(), 4);
+        assert_eq!(
+            restored_records[2].cut().native_events()[1].authority(),
+            &readback_authority
+        );
+    }
+    // Earlier snapshots are healthy roundtrips, not multiple current versions
+    // of the same operation in the recovery archive.
+    let current = restored_records.into_iter().last().into_iter().collect();
+    let restored_archive = RestoredNativeActivityArchive::new(current)?;
+    let restored_evidence = HomeboxRestoredStockActivityEvidence::new(
+        &contracts,
+        &restored_archive,
+        &original_evidence,
+    );
+    let selected: &dyn s::StockActivityRecoveryEvidence = if archive_roundtrip {
+        &restored_evidence
+    } else {
+        &evidence
+    };
+    let selected = SelectedEvidence(selected);
     let activity_peers = s::StockActivityRecoveryPeers {
         contracts: &contracts,
         registry: &registry,
         discovery: &discovery,
-        evidence: &evidence,
+        evidence: &selected,
     };
     let image_path = directory.path().join("activity-image.sqlite");
     let mut check = || Ok(());
@@ -887,5 +986,69 @@ fn healthy_profile6_native_capture_and_event_cuts() -> Result<(), Box<dyn std::e
     println!(
         "profile6 native /3: sealed original producer, actual synthetic NativeDispatch/receipt/observation capture, four own-prefix events, unchanged image bytes, physical hold preserved; no recovered execution"
     );
+    if archive_roundtrip {
+        println!(
+            "archive /4: three fresh synced authorized cut packets, genuine pre-I/O producer association, closed lossless decode via original storage codecs, refreshed GET authority retained, restored evidence qualifies four own prefixes; no producer restored and no execution resumed"
+        );
+    }
     Ok(())
+}
+
+fn sync_packet(
+    directory: &std::path::Path,
+    name: &str,
+    packet: &super::NativeActivityArchivePacket,
+) -> std::io::Result<(std::path::PathBuf, Vec<u8>)> {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+    let path = directory.join(name);
+    let mut file = std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .mode(0o600)
+        .open(&path)?;
+    file.write_all(packet.bytes())?;
+    file.sync_all()?;
+    std::fs::File::open(directory)?.sync_all()?;
+    Ok((path, packet.bytes().to_vec()))
+}
+// Independent synthetic original archive issuer retained outside the image.
+// Production supplies its actual authenticated read/origin/generation binding.
+struct SyntheticArchiveOwner {
+    original: Arc<Original>,
+    registration: s::StockActivityRegistration,
+    packets: Vec<Vec<u8>>,
+}
+impl super::NativeActivityArchiveReadAuthorization for SyntheticArchiveOwner {
+    fn authorize_archive(
+        &self,
+        bytes: &[u8],
+        cut: &super::RestoredNativeActivityCut,
+    ) -> s::Result<()> {
+        assert!(self.packets.iter().any(|expected| expected == bytes));
+        assert_eq!(cut.registration(), &self.registration);
+        assert_eq!(
+            cut.original().actor_id.to_string(),
+            self.original.principal.actor_id().as_str()
+        );
+        assert_eq!(
+            cut.original().command.context.workspace_id.to_string(),
+            self.original.principal.scope().workspace_id.as_str()
+        );
+        assert_eq!(
+            cut.original().command.context.home_id.to_string(),
+            self.original.principal.scope().home_id.as_str()
+        );
+        assert_eq!(cut.operation().operation_id, cut.original().operation_id);
+        Ok(())
+    }
+}
+struct SelectedEvidence<'a>(&'a dyn s::StockActivityRecoveryEvidence);
+impl s::StockActivityRecoveryEvidence for SelectedEvidence<'_> {
+    fn validate_record(&self, record: &s::RetainedStockActivity) -> s::Result<()> {
+        self.0.validate_record(record)
+    }
+    fn validate_event(&self, event: s::StockActivityRecoveryEvent<'_>) -> s::Result<()> {
+        self.0.validate_event(event)
+    }
 }

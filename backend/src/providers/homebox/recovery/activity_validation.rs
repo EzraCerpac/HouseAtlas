@@ -12,6 +12,31 @@ pub(super) fn validate_prefix(
     native: &[RetainedStockNativeEvent],
 ) -> s::Result<()> {
     require(!prefix.is_empty() && record.events().get(..prefix.len()) == Some(prefix))?;
+    validate_event_prefix(contracts, record.registration(), prefix, native)
+}
+pub(super) trait ActivityEventView {
+    fn sequence(&self) -> u64;
+    fn operation(&self) -> &n::StoredOperation;
+    fn facts(&self) -> &s::StockActivityEventFacts;
+}
+impl ActivityEventView for s::RetainedStockActivityEvent {
+    fn sequence(&self) -> u64 {
+        self.sequence()
+    }
+    fn operation(&self) -> &n::StoredOperation {
+        self.operation()
+    }
+    fn facts(&self) -> &s::StockActivityEventFacts {
+        self.facts()
+    }
+}
+pub(super) fn validate_event_prefix<T: ActivityEventView>(
+    contracts: &NativeWriterContracts,
+    registration: &s::StockActivityRegistration,
+    prefix: &[T],
+    native: &[RetainedStockNativeEvent],
+) -> s::Result<()> {
+    require(!prefix.is_empty())?;
     let first = prefix.first().ok_or_else(incompatible)?;
     require(matches!(first.facts(), s::StockActivityEventFacts::Reserve))?;
     let mut permit = None;
@@ -19,7 +44,6 @@ pub(super) fn validate_prefix(
     for (index, event) in prefix.iter().enumerate() {
         let operation = event.operation();
         let original = first.operation();
-        let registration = record.registration();
         require(
             event.sequence() != 0
                 && operation.operation_id == original.operation_id
@@ -64,7 +88,8 @@ pub(super) fn validate_prefix(
                 index == 0
                     && operation.activity_version == 1
                     && operation.plan.is_none()
-                    && permit.is_none(),
+                    && permit.is_none()
+                    && *operation == s::retained_native_codec_bridge::baseline(operation),
             )?,
             s::StockActivityEventFacts::Queued => {
                 let mut expected = prefix[index.checked_sub(1).ok_or_else(incompatible)?]
@@ -181,7 +206,7 @@ pub(super) fn validate_native(
     contracts: &NativeWriterContracts,
     registration: &s::StockActivityRegistration,
     before: &n::StoredOperation,
-    event: &s::RetainedStockActivityEvent,
+    event: &impl ActivityEventView,
     permit: Option<&n::InvocationPermit>,
     raw: &RetainedStockNativeEvent,
 ) -> s::Result<()> {
@@ -268,7 +293,7 @@ pub(super) fn validate_native(
             s::StockActivityEventFacts::Observation(facts),
         ) => {
             require(
-                authority == &before.captured_authority
+                readback_authority_matches(before, authority)
                     && n::retained_bridge::readback_plan(before).as_ref() == Some(plan),
             )?;
             let actual = n::retained_bridge::observation(contracts, before, result)
@@ -289,4 +314,15 @@ pub(super) fn validate_native(
         .validate_outcome(&expected.outcome)
         .map_err(|_| incompatible())?;
     require(expected == *event.operation())
+}
+
+// Exact accepted workflow compatibility after a refreshed readback grant.
+// This comparison never creates a grant; actual authority is retained and the
+// inner original readback owner independently authorizes the GET.
+pub(super) fn readback_authority_matches(
+    operation: &n::StoredOperation,
+    authority: &n::StockAuthority,
+) -> bool {
+    authority.actor_id == operation.actor_id
+        && authority.physical_binding == operation.captured_authority.physical_binding
 }
