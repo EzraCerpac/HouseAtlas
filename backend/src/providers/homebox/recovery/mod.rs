@@ -1,10 +1,19 @@
 //! Retained accepted stock-writer facts, never recovery or invocation authority.
+mod activity_adapter;
+mod activity_capture;
+mod activity_validation;
 mod adapter;
 mod binding;
 mod codec;
 mod contracts;
 mod record;
 
+pub use activity_adapter::{HomeboxStockActivityEvidence, RetainedNativeStockActivityArchive};
+pub use activity_capture::{
+    ACTIVITY_DISPATCH_CODEC_V3, ACTIVITY_NATIVE_CODEC_V3, ACTIVITY_OBSERVATION_CODEC_V3,
+    ArchivedNativeStockActivity, CapturingStockDispatch, CapturingStockReadback,
+    RetainedNativeStockActivity, RetainedStockNativeEvent, StockActivityNativeCapture,
+};
 pub use adapter::HomeboxRetainedEvidence;
 pub use binding::{JOB_BINDING_FORMAT_V2, RetainedWriterJobBinding};
 pub use codec::{
@@ -33,3 +42,6 @@ mod healthy;
 
 #[cfg(test)]
 mod healthy_v2_support;
+
+#[cfg(test)]
+mod healthy_activity_v3;

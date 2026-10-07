@@ -1,5 +1,9 @@
 # Retained HomeBox stock evidence
 
+For actual asynchronous profile6 activity, use the independently retained
+[native activity `/3` carrier and adapter](activity-v3.md). Jobs `/1` and `/2`
+remain distinct and do not qualify activity by translating leases or epochs.
+
 Version two joins the actual opaque storage job ID and the separately issued
 writer operation UUID through `RetainedWriterJobBinding`. Select
 `HomeboxRetainedEvidence::new_v2` explicitly in the trusted recovery host.
