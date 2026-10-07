@@ -1,121 +1,127 @@
 # Network host binding
 
-This leaf supplies concrete AT11 callbacks, exact PR36 callback ABI, and a closed
-same-store native publication runtime. It is development code, not live target
-qualification. All changes are below `backend/src/providers/network/host_runtime/`.
-Root manifests, locks, module declarations, routers and shared schemas are untouched.
+Concrete AT11 callbacks, PR36 callback ABI, same-store native publication and
+original-authority browse disclosure. This is private development code and local
+synthetic evidence, not live provider qualification. The sole integration leaf is
+`backend/src/providers/network/host_runtime/mod.rs`. Root mounts the accepted
+peers and adds `pub mod host_runtime;` to Network; manifests, locks, routers,
+shared schemas and integrity declarations remain integrator-owned.
 
-## Exact inputs and mount
+## Exact inputs
 
-| Input | Exact source |
+| Input | Source |
 | --- | --- |
-| PR36 Network runtime ordering/quarantine | `529ecbcaf6e308b658a7f05fecc3214379fc707a` |
-| Borrowed NativeNetworkPublisher | `37025316d419d9bf6dd3568cbcc883ee32fa6180` |
-| AT11 original lifecycle authority | `4a0cd4da563a32d26677755a608180c960765353` |
-| Same-store per-call storage | `2643eced79c5a581f72cc53634659d93da323cfb` |
-| Closed provider authority and configured registry | `9b24642266a043d03d181e16c44ec0cc6fd8f5b8` |
+| PR36 ordering/quarantine | `529ecbcaf6e308b658a7f05fecc3214379fc707a` |
+| Actual borrowed NativeNetworkPublisher | `37025316d419d9bf6dd3568cbcc883ee32fa6180` |
+| Original accepted AT11 lifecycle | `4a0cd4da563a32d26677755a608180c960765353` |
+| Original accepted same-store per-call storage | `2643eced79c5a581f72cc53634659d93da323cfb` |
+| Closed authority/configured registry | `9b24642266a043d03d181e16c44ec0cc6fd8f5b8` |
+| Actual AT11 typed link/observation and read-fence successor | `5e87c6c9152228ac4ae72814c6e6fc8f0ea8d7a2` |
+| Actual storage PR58 borrowed partition/snapshot read successor | `04eb931d20cee8b04847543d167c3ee8efd6f98b` |
 
-The peers remain byte-identical. The runtime is a fresh implementation of PR36's
-phase ordering, not a modification of that accepted file. The exact integration
-leaf is `backend/src/providers/network/host_runtime/mod.rs`. After mounting the
-accepted peers, root adds only `pub mod host_runtime;` to the Network declaration.
-The external compiler composition also mounts accepted config registry/settings
-and lifecycle authority/runtime declarations; those are integrator-owned.
+The two successors supply missing owner APIs; the historical inputs remain
+preserved. Peer bytes are mounted externally without importing their ancestry.
+The implementation uses the original lifecycle/per-call publication semantics,
+the successor's genuine `NetworkLinkGrant`/`NetworkObservationGrant` and
+`with_read_authorization`, and `RegisteredCacheRead` through the real
+`read_cache_partition_with_authorization` engine.
 
-`OwnedNetworkAccess::bind_accepted_original` returns `AcceptedNetworkAuthority`,
-whose `NetworkReadAuthority::Lease` is exactly
-`Arc<lifecycle::providers::network::NetworkAuthorityLease>`. Pass that adapter and
-`adapter.lease().clone()` to the unchanged PR36 `NetworkRuntime::refresh`.
+The external compiler additionally mounts unchanged media
+`f0d6b10f00bb93fc1c1dd4eb3ae66ee1fbe3f873`, staged domain/stock
+`8a568fb6ccef5b0fa575b18d6181dcc524d4db99`, queue-recovery
+`fd72542686112e594d9a6f63b4782a62b5d9e6ef`, and the actual HTTP stock-read
+leaf from `4e695187a4dd045ccdc9729db5ca546682b40bdc`. They satisfy schema-5
+storage and access compiler dependencies; no upload, stock or recovery action
+executes in this Network example. Root reconciles their module declarations.
 
-`HostNetworkRuntime::refresh` is the closed native-publisher entry point. It takes
-actual `app::Core`/`app::Store`, a `NetworkAuthority`, and its original
-`OriginalNetworkLease`. Prepare, success and failure each call
-`NativeNetworkPublisher::new(the_same_store).with_authorization(...)` inside the
-original AT11 lifecycle transaction. No raw fence or caller authorizer escapes.
-The actual durable receipt's partition/generation/digest is compared before
-consuming publication. The original registration, partition, cache generation,
-cache epoch and reserved UUID remain AT07's native issuing-store/CAS checks.
-PR36's quarantine predicate precedes retained loading, credentials, transport
-construction and staging. Publication also retains the closed quarantine check.
-The final release revalidates the original principal and all original handles.
+## Entrypoints
 
-## Callback profile
+`OwnedNetworkAccess::bind_accepted_original` returns `AcceptedNetworkAuthority`.
+Its callback lease is exactly
+`Arc<lifecycle::providers::network::NetworkAuthorityLease>`; pass the adapter and
+`adapter.lease().clone()` to unchanged PR36 `NetworkRuntime::refresh`.
 
-`OwnedNetworkAccess` owns the genuine `AccessBoundary::in_memory` backend, not a
-cache or mirror of another authority database. No file-backed constructor,
-replacement boundary, raw connection or authority-issuing callback is exposed.
-Its typed startup/auth/admin methods delegate to AT11. Lifecycle policy is explicit,
-default-deny owner input; registration metadata never creates policy or a grant.
-At most 256 policy rules and 10,000 original grants/allowlist IDs are admitted.
-The authority lock uses `try_lock`; there is no waiting lock acquisition.
+`HostNetworkRuntime::refresh` is the closed native publication entrypoint. It
+uses actual `app::Core` and its existing `app::Store`. Prepare, success and
+failure delegate to `NativeNetworkPublisher::new(the_same_store)` with a private
+borrowed authorizer inside the genuine original AT11 lifecycle transaction.
+The original registration, partition, generation, epoch, issuing store and UUID
+remain AT07 native fence/CAS checks. Actual durable staged receipt scope,
+generation and digest are checked before consuming publication. PR36 quarantine
+ordering precedes retained loading, credentials, transport and sidecar stage.
+Final release checks the same original principal and grants.
 
-All transport callbacks use current AT11 session/user/restore epoch/expiry,
-membership version/role, complete registration/enabled partition/version and
-original-source checks on that same memory database. The clock is AT11's normal
-system clock, with no injected callback. No filesystem work, network work,
-credential acquisition, grant refresh or cached permit is hidden in a callback.
-The Network transport checks its absolute deadline before and after callbacks;
-synchronous CPU work is bounded by configured input sizes, not hard-preemptible.
-Durable sidecar and Atlas SQLite work occurs in explicit outer phases, and no
-store/access guard spans HTTPS. The held publication fence necessarily contains
-explicit durable Atlas transaction I/O; it is not a transport callback.
+`HostNetworkRuntime::read(&mut app::Store, access, original_principal,
+original_partition_grant, original_entity_grants, now)` performs a genuine
+ReadCache partition read under AT11's actual read transaction. It requires the
+exact stored registration selector, complete scope and original handles. The
+sidecar is loaded outside the access lock and checked by the actual Network
+reopen/projector against the native cache pointer, digest and exact relations.
+The generation's whole typed entity closure is matched to original grants.
+Actual AT11 captures raw link grants and observation grants; these matching
+selectors are data, never a substitute membership issuer.
 
-This is an explicit **process-local authority profile**. It cannot accept a
-principal issued by the existing root's file-backed boundary. Root must select
-this one genuine issuer for Network authentication and admin updates, or obtain
-an access-owner nonblocking current-authority API for its existing backend.
-Rehoming existing sessions, importing credentials or silently mirroring durable
-authority is not implemented or authorized. Login/provisioning methods are not
-mounted automatically. Session material supplied to transport is already-held,
-private, bounded and origin/lease-bound; this leaf never acquires it.
+The read returns a facet and opaque `OriginalNetworkDisclosure`. Release via
+`HostNetworkRuntime::disclose(the_same_store, &original_disclosure, now)` enters
+AT11's read fence, checks every original principal/partition/entity/link/
+observation handle, invokes the actual borrowed native read on that application
+Store, compares the complete `RegisteredCacheRead` with the captured baseline,
+then builds and releases the facet after original-authority revalidation. The
+comparison includes full registration, integer epoch, pointer/status/timestamps
+and retained rows. The caller retains the same application Store across these
+phases. A stale baseline requires a new request; release never refreshes grants,
+changes registrations, reserves IDs or sends HTTP.
 
-## Membership and disclosure boundary
+Raw links retain both original endpoints, including reversed normalized links
+and hidden endpoints projected as unresolved. Observations have a separate
+namespace even when their ID spells a link ID; the original collector, device
+and interface tuple is bound by AT11. Collector text is provenance, not an issuer
+or independent capability. Public SourceKind remains frozen. Availability
+partition grants and PublishCache lifecycle grants do not grant entity browse.
 
-Network's real `validate_state` reprojects all original source JSON against the
-full registration and reviewed links, checking original grouping/interface
-parents, raw link endpoints, normalized relations, observation IDs and device/
-interface references. `generation_references` retains every supported typed
-member, not just visible endpoints. Original AT11 entity grants cover groups,
-devices, interfaces and segments. The genuine lifecycle grant covers internal
-publication of the complete approved registration, including links/observations;
-it does not authorize their public disclosure.
+## Authority and transport profile
 
-**Blocking peer gap:** AT11 `4a0cd4da` has no `network-link` or observation
-`SourceKind`. Partition grants authorize availability metadata, and lifecycle
-grants authorize publication, neither entity disclosure. `disclose` refuses a
-generation containing links, relations or observations before returning payload.
-It never relabels these as device/interface grants or invents a membership issuer.
-This refusal is compiler/static-reviewed only; no rejected-request probe is run.
-A complete facet needs a genuine owner extension for original grants covering
-those kinds (including observation collector/member scope) and root's actual
-same-store authorized read binding. The current `disclose` input must already
-come from root's authorized retained snapshot; it is not a new storage read API.
-The PR must remain draft while this completion gap and issuer selection remain.
+`OwnedNetworkAccess` owns genuine `AccessBoundary::in_memory`, not a mirror of a
+durable issuer. No path constructor, replacement/raw database, cached permit or
+external authority callback is exposed. Typed startup/auth/admin methods delegate
+to AT11. Explicit default-deny lifecycle policy is independent of registration
+metadata. Limits are 256 policy rules and 10,000 original grants/allowlist IDs;
+accepted Network projection bounds inventory and observation inputs. Lock
+acquisition is `try_lock`; the normal AT11 clock is retained.
 
-## One verified TLS profile and manifest proposal
+Transport callbacks check current session/user/restore epoch/expiry, membership
+version/role, complete enabled registration/version and original source grants
+on this sole memory authority. They perform no filesystem/network work,
+credential acquisition or grant refresh. CPU work is bounded and cooperative,
+not hard-preemptible. The accepted transport checks its deadline before/after
+callbacks. No Store or access guard spans HTTPS. Explicit native publication/read
+transactions contain Atlas filesystem I/O; durable sidecar I/O is outside access
+locks and transport callbacks.
 
-Use the root's existing single dependency and lock:
+This is a process-local authority profile. Root must use this genuine issuer for
+Network authentication and admin updates, or obtain an access-owner nonblocking
+current-authority API for its durable issuer. Existing root-issued principals
+cannot be imported or rehomed. These auth methods are not mounted automatically.
+Private upstream session material, if provided, is already-held, bounded and
+origin/lease-bound. No provider account or credential is acquired.
+
+Use one normal verified client and the existing root lock:
 
 ```toml
 reqwest = { version = "=0.13.5", default-features = false, features = ["blocking", "rustls"] }
 ```
 
-This is the proposed canonical declaration for both HomeBox and Network; it
-already matches the saved root, so no root manifest/lock edit is necessary.
-Replace the Network owner's historical 0.12.24/WebPKI dependency guidance with
-this shared 0.13.5 Rustls platform-verification profile at integration. No parallel
-0.12 client is introduced. The actual existing `HttpInventoryTransport` uses
-that resolved client with certificate/hostname verification, reviewed additional
-roots, HTTPS-only, no proxy, no redirects, identity encoding and bounded stream.
-No insecure certificate/hostname option exists here. Root's stale profile note
-is a documentation correction proposal, not an edited accepted input.
-Only passive `GET /api/inventory` is sent. Snapshot, ARP, diagnostics, demand and
-Network writes have no entry point in this leaf.
+This is the manifest proposal and already matches saved root. Reconcile the
+owner's historical 0.12.24/WebPKI guidance to this shared Rustls platform profile
+at integration. No manifest edit or parallel client is introduced. Actual
+HttpInventoryTransport keeps certificate/hostname verification, reviewed extra
+roots, HTTPS-only, no proxy/redirects, identity encoding and bounded streaming.
+The only upstream operation is passive `GET /api/inventory`.
 
-## Scoped checks
+## Scoped development evidence
 
-Inspect the example and Python fixture bodies first. In an external disposable
-copy of the exact peers with this leaf mounted, root may add this example target:
+Inspect the example/script bodies before execution. In the disposable exact-peer
+compiler tree, add the example target without changing saved root:
 
 ```toml
 [[example]]
@@ -123,9 +129,7 @@ name = "healthy-network-host"
 path = "src/providers/network/host_runtime/examples/healthy.rs"
 ```
 
-Use Rust 1.99.0 and the retained root lock. Set `CARGO_TARGET_DIR` outside source.
-Only the named library/example targets and one inspected healthy fixture are in
-this lane:
+With Rust 1.99.0 and CARGO_TARGET_DIR outside source, the named checks are:
 
 ```sh
 rustfmt --edition 2024 --check backend/src/providers/network/host_runtime/*.rs backend/src/providers/network/host_runtime/examples/healthy.rs
@@ -135,46 +139,48 @@ cargo build --locked --offline --example healthy-network-host
 python3 backend/src/providers/network/host_runtime/examples/healthy-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-host"
 ```
 
-The loopback fixture uses an ephemeral OpenSSL CA and signed end-entity certificate with an IP SAN,
-verifies it through the normal merged trust profile, and permits exactly one
-chunked passive inventory GET. It supplies genuine synthetic AT11 policy,
-scrypt login, CSRF-checked configuration principal, read principal, membership,
-original partition/entity/lifecycle grants and real disposable Atlas/sidecar
-SQLite. The Atlas default authorizer has no lifecycle rights; the actual borrowed
-per-call native authorizer performs publication on the same open Store.
-Read-only inspection checks epoch 0→1, exact cache pointer, four relation rows,
-retained source text/date, and durable close/reopen. No public link disclosure is
-executed. Temporary certificates, keys, passwords and databases are removed;
-no secret or household value is printed or committed.
+The inspected loopback fixture uses a disposable CA and signed CA:FALSE,
+serverAuth/IP-SAN end entity, normal TLS verification and exactly one chunked
+inventory GET. Its owned fixture preserves the entire accepted inventory and
+revision, adding one explicitly synthetic observation with an ID also used by a
+link. Genuine disposable AT11 scrypt logins, CSRF configuration, independent
+lifecycle policy, original handles and real Atlas/sidecar SQLite are used. The
+Store's unrelated configured authorizer has no publication privileges. A
+separate genuine viewer with no lifecycle policy performs browse on that same
+Store. Checks cover schema 5, epoch 0→1, exact pointer/four relations, five typed
+entities/four raw link grants/one observation grant, original hidden/reversed
+endpoints, distinct observation namespace and collector/members, three current
+claims/one history row, original text/fact/retrieval timestamps and stale source
+observation despite a fresh capture. Original-grant rerelease preserves epoch
+and the preexisting generation reservations. Sidecar close/reopen remains checked.
+
+Earlier evidence is preserved: the first intended healthy fixture unexpectedly
+returned SourceFailure and consumed synthetic failure-status publication. Its
+error category was not retained. Static inspection found the initial OpenSSL
+CA:TRUE certificate was served as the end entity. A corrected separate CA/leaf
+then passed one healthy GET with five entities/four links/four relations and no
+observations; it did not qualify public disclosure. That accidental failure is
+not a held-control campaign or healthy qualification. Failure-status qualification
+remains open. The successor's compilation and healthy disclosure results are
+recorded in the private development PR.
 
 Historical stopped rejection/replay/fault/crash/concurrency/corruption/expiry/
-revocation/adversarial controls remain held. Quarantine and unsupported-disclosure paths are compiled/static-reviewed, not exercised.
-An initial intended-healthy fixture unexpectedly returned SourceFailure and
-therefore executed the consuming synthetic failure-status publication. Its error
-category was not retained. Source inspection found OpenSSL's default CA:TRUE
-certificate had been served as the end entity. The fixture now generates a
-separate CA and proper CA:FALSE/serverAuth/IP-SAN leaf, retaining normal TLS
-verification. That accidental result is not a held-control campaign or healthy
-qualification; failure-status qualification remains open. No real provider/account/NAS call,
-new real credential/grant, deployment, paid inference, security qualification,
-main merge or operational acceptance is supplied.
-
-## Observed development result
-
-Rust 1.99.0 locked offline library/example compilation, warnings-denied Clippy
-and scoped rustfmt passed in the external composition. The successful corrected
-fixture made exactly one verified loopback inventory GET and observed genuine
-AT11 original grants, same-store native publication, SQLite epoch 0→1, exact
-pointer and durable reopen, five typed entities, four retained links, four
-relations and zero observations. These results do not qualify public disclosure
-or a live provider. The initial unintended SourceFailure is recorded above.
-
-The final source audit compared all 51 storage files to `2643eced`, all 12 access
-files to `4a0cd4da` and all 14 Network owner files to `37025316`; all matched
-exactly, excluding the explicit external module mount suffix. PR36 runtime and
-closed authority/registry files retain their exact accepted bytes. The compiler
-copy's lock SHA-256 is
+revocation/adversarial controls remain held; broad aggregates are unrun. No real
+provider/account/NAS call, new real credentials/grants, deployment, paid
+inference, main merge or operational acceptance is supplied. Temporary local
+keys, passwords and databases are removed; none are printed or committed.
+The compiler lock SHA-256 remains
 `7f70d4f7d57cd5c440a212429264d6399a808acbc71ca6f425b99c1af7e6e58a`,
-byte-identical to the saved root lock. No 0.12 client or new dependency is used.
-The saved checkout remains intentionally unmounted; its central integrity
-manifest is integrator-owned and is not regenerated by this leaf.
+identical to saved root. Root's unmounted checkout/integrity metadata is not
+regenerated by this leaf.
+
+Final successor evidence: Rust 1.99.0 locked offline library/example compilation,
+warnings-denied Clippy, scoped rustfmt/diff checks and the named healthy TLS
+example passed. The example printed successful same-store publication, schema 5,
+genuine viewer resource-grant capture and original-grant rerelease with unchanged
+epoch/reservations; the listener recorded exactly one inventory GET. Source audit
+matched all 16 access, 55 storage, five migration, 18 media, 23 domain/stock,
+five queue-recovery and 14 Network peer files to the pins above, allowing only
+the explicit external Network module mount suffix. PR36 runtime and closed
+authority/registry leaves also matched exactly. Those external peer mounts are
+compiler inputs, not changes in this PR or additional qualification claims.

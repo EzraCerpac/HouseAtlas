@@ -16,8 +16,11 @@ def main():
         raise SystemExit("Expected compiled healthy-network-host example")
     executable = Path(sys.argv[1]).resolve(strict=True)
     root = Path(__file__).resolve().parents[6]
-    payload = (root / "adapters/network/fixtures/inventory.wire.json").read_bytes()
-    json.loads(payload)
+    payload = (Path(__file__).parent / "fixtures/inventory-with-observation.wire.json").read_bytes()
+    supplied = json.loads(payload)
+    original = json.loads((root / "adapters/network/fixtures/inventory.wire.json").read_bytes())
+    original["observations"] = supplied["observations"]
+    assert supplied == original  # Preserve every original inventory/revision value.
     with tempfile.TemporaryDirectory(prefix="houseatlas-network-tls-") as directory:
         cert = Path(directory) / "certificate.pem"
         authority_cert = Path(directory) / "authority.pem"

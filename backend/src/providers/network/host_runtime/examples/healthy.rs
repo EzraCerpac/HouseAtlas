@@ -16,6 +16,12 @@ use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
 
 type Failure = Box<dyn std::error::Error + Send + Sync>;
+fn publication_error(error: n::NetworkPublicationError<s::Error>) -> Failure {
+    match error {
+        n::NetworkPublicationError::Network(error) => error.into(),
+        n::NetworkPublicationError::Storage(error) => error.into(),
+    }
+}
 fn evidence<'a>(
     url: &'a str,
     origin: &'a str,
@@ -255,6 +261,179 @@ async fn main() -> Result<(), Failure> {
         |r| r.get(0),
     )?;
     assert_eq!(count, 4);
+    let reservations: i64 =
+        db.query_row("SELECT COUNT(*) FROM cache_generations", [], |r| r.get(0))?;
+    let schema: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+    assert_eq!(schema, 5);
+    // A distinct genuine viewer has no lifecycle policy. Browse uses only its
+    // current Read authority and original typed resource grants on the same Store.
+    let viewer = a::CanonicalId::parse("00000000-0000-4000-8000-000000000006")?;
+    let viewer_actor = a::CanonicalId::parse("00000000-0000-4000-8000-000000000007")?;
+    let viewer_password = format!("Disposable-{}", app::new_id()?);
+    access.provision_user(
+        &viewer,
+        &viewer_actor,
+        "synthetic-network-viewer",
+        &a::hash_password(&viewer_password)?,
+        None,
+    )?;
+    access.set_membership(&viewer, &scope, a::Role::Viewer, true)?;
+    let viewer_receipt = access.login(
+        &evidence(&login_url, origin, a::Method::Post, None, None),
+        &serde_json::to_vec(
+            &json!({"username":"synthetic-network-viewer", "password":viewer_password}),
+        )?,
+        "disposable-loopback-viewer",
+    )?;
+    let viewer_cookie = viewer_receipt
+        .set_cookie()
+        .split(';')
+        .next()
+        .ok_or("Missing viewer cookie")?;
+    let viewer_principal = access.authorize(
+        &evidence(&read_url, origin, a::Method::Get, Some(viewer_cookie), None),
+        &scope,
+        a::Action::Read,
+    )?;
+    let viewer_partition = access.partition_grant(
+        &viewer_principal,
+        &runtime.settings().configured_source().partition(),
+    )?;
+    let mut viewer_entities = Vec::new();
+    for (kind, id) in [
+        (a::SourceKind::NetworkGroup, "group-a"),
+        (a::SourceKind::NetworkDevice, "device-a"),
+        (a::SourceKind::NetworkDevice, "device-b"),
+        (a::SourceKind::NetworkInterface, "interface-a"),
+        (a::SourceKind::NetworkSegment, "segment-a"),
+    ] {
+        viewer_entities.push(
+            access.source_grant(
+                &viewer_principal,
+                &a::SourceRef {
+                    workspace_id: scope.workspace_id.clone(),
+                    home_id: scope.home_id.clone(),
+                    key: a::SourceKey {
+                        source_instance_id: runtime
+                            .settings()
+                            .configured_source()
+                            .partition()
+                            .source_instance_id,
+                        collection_id: registration.collection_id.clone(),
+                        source_kind: kind,
+                        external_id: id.into(),
+                    },
+                },
+            )?,
+        );
+    }
+    let (facet, disclosure) = {
+        let mut locked = core.try_lock().map_err(|_| "Core unexpectedly locked")?;
+        let same_store = locked.store.get_mut().map_err(|_| "Store poisoned")?;
+        runtime
+            .read(
+                same_store,
+                access.clone(),
+                viewer_principal,
+                viewer_partition,
+                viewer_entities,
+                "2026-01-02T12:00:01Z",
+            )
+            .map_err(publication_error)?
+    };
+    disclosure.revalidate()?;
+    assert_eq!(disclosure.link_grants().len(), 4);
+    assert_eq!(disclosure.observation_grants().len(), 1);
+    let raw_member = disclosure
+        .link_grants()
+        .iter()
+        .find(|g| g.reference().external_id() == "member-a")
+        .ok_or("Missing genuine member grant")?
+        .reference();
+    assert_eq!(raw_member.from().key.external_id, "segment-a");
+    assert_eq!(raw_member.to().key.external_id, "interface-a");
+    let raw_gap = disclosure
+        .link_grants()
+        .iter()
+        .find(|g| g.reference().external_id() == "gap-a")
+        .ok_or("Missing genuine hidden endpoint grant")?
+        .reference();
+    assert_eq!(raw_gap.to().key.external_id, "device-b");
+    let observation = disclosure.observation_grants()[0].reference();
+    assert_eq!(observation.external_id(), raw_member.external_id()); // Separate namespaces.
+    assert_eq!(observation.collector_id(), "synthetic-collector-a");
+    assert_eq!(
+        observation
+            .device()
+            .ok_or("Missing device")?
+            .key
+            .external_id,
+        "device-a"
+    );
+    assert_eq!(
+        observation
+            .interface()
+            .ok_or("Missing interface")?
+            .key
+            .external_id,
+        "interface-a"
+    );
+    assert_eq!(
+        (
+            facet.groups.len(),
+            facet.devices.len(),
+            facet.interfaces.len(),
+            facet.segments.len()
+        ),
+        (1, 2, 1, 1)
+    );
+    assert_eq!(
+        (
+            facet.current_claims.len(),
+            facet.history.len(),
+            facet.observations.len()
+        ),
+        (3, 1, 1)
+    );
+    assert_eq!(facet.status, n::FacetStatus::Fresh);
+    assert!(facet.read_only);
+    assert!(!facet.capabilities.physical_placement);
+    assert_eq!(
+        facet.observations[0].observation.fact_at,
+        "2026-01-01T01:02:03Z"
+    );
+    assert_eq!(
+        facet.observations[0].observation.retrieved_at,
+        "2026-01-02T12:00:00Z"
+    );
+    assert_eq!(
+        facet.observations[0].observation.value["value"]["note"],
+        "Original synthetic source text"
+    );
+    assert_eq!(
+        facet.observations[0].freshness,
+        n::ObservationFreshness::Stale
+    );
+    let released = {
+        let mut locked = core.try_lock().map_err(|_| "Core unexpectedly locked")?;
+        runtime
+            .disclose(
+                locked.store.get_mut().map_err(|_| "Store poisoned")?,
+                &disclosure,
+                "2026-01-02T12:00:01Z",
+            )
+            .map_err(publication_error)?
+    };
+    assert_eq!(released, facet); // Same retained originals, no recapture or HTTP.
+    let epoch_after: i64 = db.query_row(
+        "SELECT epoch FROM cache_epochs WHERE source_instance_id=?1",
+        [&registration.source_instance_id],
+        |r| r.get(0),
+    )?;
+    let reservations_after: i64 =
+        db.query_row("SELECT COUNT(*) FROM cache_generations", [], |r| r.get(0))?;
+    assert_eq!(epoch_after, epoch);
+    assert_eq!(reservations_after, reservations);
     drop(db);
     let source = runtime.settings().source().clone();
     let review = runtime.settings().review().clone();
@@ -282,7 +461,7 @@ async fn main() -> Result<(), Failure> {
         .ok_or("Missing retained generation")?;
     assert_eq!(generation_references(&source, generation)?.len(), 5);
     assert_eq!(generation.inventory.links.len(), 4);
-    assert_eq!(generation.observations.len(), 0);
+    assert_eq!(generation.observations.len(), 1);
     assert_eq!(generation.retrieved_at, "2026-01-02T12:00:00Z");
     let reopened = n::reopen_sidecar(
         &source,
@@ -295,7 +474,7 @@ async fn main() -> Result<(), Failure> {
     sidecar.close()?;
     drop(core);
     println!(
-        "PASS healthy native Network: verified TLS inventory GET1, genuine AT11 original grants, same-store native publisher, epoch0->1, durable pointer/reopen, entities5/links4/relations4/observations0; public link disclosure unqualified"
+        "PASS healthy native Network: verified TLS inventory GET1, genuine AT11 original grants, same-store native publisher, epoch0->1, durable pointer/reopen, schema5; entities5/links4/relations4/observations1; genuine viewer link/observation capture and original-grant same-store rerelease; reads preserve epoch/reservations"
     );
     Ok(())
 }

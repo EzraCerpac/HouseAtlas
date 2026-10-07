@@ -1,8 +1,6 @@
 use super::{
-    NetworkAuthority, OriginalNetworkLease, PreparedPublication,
-    authority::{access_error, wrong_scope},
-    disclosure::disclosable,
-    generation_references,
+    NetworkAuthority, OriginalNetworkDisclosure, OriginalNetworkLease, OwnedNetworkAccess,
+    PreparedPublication, authority::wrong_scope,
 };
 use crate::{
     app::{Core, Store},
@@ -184,35 +182,71 @@ impl HostNetworkRuntime {
         n::validate_state(self.settings.source(), &state, Some(self.settings.review()))?;
         Ok(state)
     }
-    /// Pure browse over a caller's actual authorized same-store cache snapshot.
-    /// Loads only retained sidecar bytes, never issues GET, demand or refresh.
-    /// No complete link/observation disclosure is claimed without AT11 kinds.
+    /// Initial genuine read capture. Native partition reads retain this exact
+    /// Store; sidecar loading never holds the access mutex or read transaction.
+    /// The caller moves any earlier original request grants, not DTO claims.
+    pub fn read(
+        &self,
+        store: &mut Store,
+        access: Arc<OwnedNetworkAccess>,
+        principal: crate::access::Principal,
+        partition: crate::access::PartitionGrant,
+        entities: Vec<crate::access::SourceGrant>,
+        now: &str,
+    ) -> Result<(n::NetworkFacet, Arc<OriginalNetworkDisclosure>)> {
+        let source = self.settings.configured_source().clone();
+        if partition.partition() != &source.partition()
+            || entities.len() > 10_000
+            || entities
+                .iter()
+                .any(|grant| !source.contains(grant.reference()))
+        {
+            return Err(wrong_scope().into());
+        }
+        let baseline = super::reads::read_partition(
+            store, &access, &principal, &source, &partition, &entities,
+        )
+        .map_err(n::NetworkPublicationError::Storage)?;
+        let cache: n::CacheMetadata = match &baseline.state.cache {
+            Some(cache) => serde_json::from_value(
+                serde_json::to_value(cache)
+                    .map_err(s::Error::from)
+                    .map_err(n::NetworkPublicationError::Storage)?,
+            )
+            .map_err(s::Error::from)
+            .map_err(n::NetworkPublicationError::Storage)?,
+            None => n::RetainedState::empty(self.settings.source().scope.clone()).cache,
+        };
+        let relations: Vec<n::NetworkRelation> = serde_json::from_value(serde_json::Value::Array(
+            baseline.state.network_relations.clone(),
+        ))
+        .map_err(s::Error::from)
+        .map_err(n::NetworkPublicationError::Storage)?;
+        if !baseline.state.homebox_entities.is_empty() {
+            return Err(wrong_scope().into());
+        }
+        // Explicit filesystem phase, outside every access borrow. Reopen checks
+        // the actual pointer, digest, complete source and exact native relations.
+        let retained = self.retained(&cache, &relations)?;
+        let lease = OriginalNetworkDisclosure::capture(
+            access, principal, source, partition, entities, retained, baseline,
+        )?;
+        let facet = self.disclose(store, &lease, now)?;
+        Ok((facet, lease))
+    }
+    /// Release only through the actual same-store read and original AT11 guard.
+    /// This issues no transport request and does not reacquire any resource grant.
     pub fn disclose(
         &self,
-        lease: &OriginalNetworkLease,
-        cache: &n::CacheMetadata,
-        relations: &[n::NetworkRelation],
+        store: &mut Store,
+        lease: &OriginalNetworkDisclosure,
         now: &str,
-    ) -> std::result::Result<n::NetworkFacet, n::NetworkError> {
+    ) -> Result<n::NetworkFacet> {
         if lease.source().registration() != self.settings.configured_source().registration() {
-            return Err(wrong_scope());
+            return Err(wrong_scope().into());
         }
-        lease.revalidate().map_err(access_error)?;
-        let retained = self.retained(cache, relations)?;
-        if let Some(generation) = retained.public_read().generation.as_ref() {
-            disclosable(generation)?;
-            lease
-                .revalidate_disclosure(&generation_references(self.settings.source(), generation)?)
-                .map_err(access_error)?;
-        }
-        let facet = n::build_facet(
-            self.settings.source(),
-            &retained,
-            now,
-            self.settings.stale_after_ms(),
-        )?;
-        lease.revalidate().map_err(access_error)?;
-        Ok(facet)
+        super::reads::release(store, lease, now, self.settings.stale_after_ms())
+            .map_err(n::NetworkPublicationError::Storage)
     }
 }
 fn with_store<T>(
