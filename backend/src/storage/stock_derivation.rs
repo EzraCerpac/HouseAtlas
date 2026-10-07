@@ -52,7 +52,7 @@ pub(crate) fn validate_retained_preimage<C: Contract, S: StockContractPort>(
             {
                 return Err(repo::incompatible());
             }
-            let before_digest = repo::digest(contract, original)?;
+            let before_digest = super::repository::digest(contract, original)?;
             let mut matches = commit
                 .groups
                 .iter()

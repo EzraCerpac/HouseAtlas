@@ -70,7 +70,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         S: StockContractPort,
     {
         let request = ValidatedRequest::parse(contracts, raw.clone()).map_err(stock_error)?;
-        super::stock_derivation::validate_derivation(&request, derivation).map_err(stock_error)?;
+        super::super::stock_derivation::validate_derivation(&request, derivation)?;
         let plan = stock::plan_derived_atlas_commands(&request, derivation, &self.contract)
             .map_err(stock_error)?;
         self.execute_stock_plan(
@@ -373,7 +373,7 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
     }
     fn validate_original(&self, original: &Snapshot) -> Result<()> {
         if let Some(derivation) = self.derivation {
-            super::stock_derivation::validate_original(
+            super::super::stock_derivation::validate_original(
                 self.contract,
                 self.request,
                 original,

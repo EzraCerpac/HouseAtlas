@@ -64,6 +64,9 @@ pub(crate) fn retained_plan<C: Contract, S: StockContractPort>(
         ValidatedRequest::parse(stock, commit.original_request.clone()).map_err(incompatible)?;
     if commit.derivation.is_some() || commit.derivation_format.is_some() {
         super::stock_derivation::validate_retained_preimage(commit, stock, native)?;
+        if super::upload_repository::load_for_commit(db, native, stock, commit)?.is_some() {
+            return Err(repo::incompatible());
+        }
         let derivation = commit.derivation.as_ref().ok_or_else(repo::incompatible)?;
         let plan = stock::plan_derived_atlas_commands(&original, derivation, native)
             .map_err(incompatible)?;
