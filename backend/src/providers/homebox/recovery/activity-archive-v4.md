@@ -116,6 +116,14 @@ admission/preflight, dispatch and observation facts. It checks the original
 baseline and actual native mapper/schema/timestamp/reducers, complete attempt,
 raw correlations, final permit/body acceptance/hold and own historical prefixes.
 Archive origin authentication is separate from event effect qualification.
+Every embedded Storage string is also explicitly re-encoded with its original
+owner codec and compared byte-for-byte before the decoded value is accepted:
+original/final/event/native-prior operations, current/captured permits and all
+admission/dispatch/observation facts. This closes PR88 discussion 4209218048 at
+the owned data bridge, independent of what equivalent encodings the underlying
+peer decoder may accept. The outer packet check alone cannot establish nested
+string canonicality. Positive fresh packet composition exercises all five
+checked codec families; held noncanonical/corruption probes remain unrun.
 Every image frame must match its own archived prefix/previous/permit/body
 acceptance/physical hold; later receipt/readback/end/liability cannot qualify an
 earlier cut. Complete-current records reject duplicate operation IDs and global
