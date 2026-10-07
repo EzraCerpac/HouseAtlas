@@ -135,6 +135,98 @@ returns calendar dates. Its contract/decoder owners must reconcile that exact ar
 this adapter never manufactures midnight/timezones. No broad native/live or full
 six-family completion is claimed from the typed selection/envelope coverage.
 
+## Captured native observation owner
+
+`DecodedReadObservation::{from_detail,from_maintenance,from_native}` now provides
+concrete, pure projections from already captured native bytes. The constructors
+borrow the exact validated original request and require an independently captured
+`SourceScope`, original retrieval time and source status. Detail and maintenance
+inputs are the existing `wire::Decoded<Detail>` and `Decoded<MaintenanceLog>`;
+the original bytes are re-decoded, so mutable DTO fields cannot replace source
+facts. Native resource/query input reuses the existing bounded duplicate-key-aware
+parser with aggregate entry/text limits. The full frozen operation output is
+validated using the existing `HomeBoxQueries` envelope before capture is retained.
+
+Supported resource forms are entity tags, field list/get, document-link list/get,
+maintenance list/get, tag list/get, entity-type list, template get, entity path and
+location tree (13 forms). Metadata query views are currency, statistics, location
+and tag statistics, purchase-price statistics, barcode product, and an asset lookup
+whose original asset spelling exactly matches a captured decoded entity detail
+(seven views). Native aliases need qualified source-owner correlation; no local
+asset-number coercion is supplied. Barcode image tokens remain explicitly
+unavailable (`null`) until a real broker supplies managed delivery; native URLs
+and base64 are never promoted into tokens.
+
+Native dates, retrieval offsets/precision, decimal cost strings and numeric query
+tokens remain unchanged. Entity field time values retain the contract's explicit
+`baseline-time-value-unexposed` state; native template time values are actually
+exposed and preserved. Required rows and owner/member IDs are checked without
+truncation. Unknown entity type data in sparse path/tree observations stays omitted.
+Native tree child nesting supplies direct source parent relations, never placement.
+Tag root null/nil normalization follows the existing native tag relation convention.
+
+`references()`, `parent_relations()` and `ordered_path()` expose source selectors,
+direct relations and native path order to the original graph resolver. A path
+must include its requested entity exactly once as its final row; native order
+alone supplies no ancestor authorization or qualified ordering guarantee. The graph owner must
+independently prove every original relation and output obligation, including
+whole-collection/egress permissions and `AncestorPath` disclosure. References
+are evidence selectors, never source grants or a substitute for the complete
+resolved graph. The source owner still retains the actual endpoint/request/response
+correlation and route evidence; bytes or source scope DTOs cannot establish it.
+
+After the actual owner resolves/authorizes that graph through `domain::stock::prepare`,
+bind `DecodedReadOwner::bind(original_principal, &original_prepared, observation)`
+and pass it into `HomeBoxQueries` and `dispatch_prepared`. The owner retains exact
+principal and prepared-value identity, including the original witness/graph, plus
+the complete unchanged request. It issues no authority or provider observation
+handle, and opens no provider, broker, history store or credential. Async source
+intake belongs to the original source owner before graph resolution, outside
+Access/SQLite guards. This slice adds no application admission or HTTP/MCP mount.
+
+Native list conversions preserve complete bounded response order, return no
+invented cursor and refuse cursor/q selections that their source captures cannot
+represent. They return unavailable rather than truncate data exceeding the selected
+page/limit. A real cursor producer remains necessary for larger or searched views.
+
+Concrete representation blockers remain:
+
+* Stored-file list/get requires `archived: boolean`, which the native stored-file
+  source and decoded type do not establish. No fabricated `false` is emitted.
+* Native template list contains summaries without the required fields. A source
+  producer must capture full details, or the contract owner must reconcile that arm.
+* Native field-name/value responses are anonymous string arrays; the frozen result
+  expects identity-bearing entity resource rows. Their ownership/correlation
+  mapping is not present, and no entity ID is invented.
+* Collection maintenance query requires date-time/null while known native dates
+  are calendar dates. Resource maintenance reads already accept calendar dates;
+  their exact fixed-decimal cost strings are preserved. An exponent cost that the
+  resource schema cannot represent remains unavailable, never reformatted.
+* Entity-type default-template facts must actually be supplied; absent or nil-only
+  unqualified relations cannot be rewritten into a known null relation.
+* Frozen UUID-only collection IDs still require an actual UUID registration;
+  opaque legacy keys are not transformed or hashed into IDs.
+
+History, downloads/export/label/QR artifacts, writes and provider setup remain
+with their respective original owners. Existing cached four-form application
+mounts remain unchanged. Source adapter coverage does not qualify application
+producer intake, Access graph policies, provider deployment or live capability.
+
+Three separate ordinary positive source tests in `observations_healthy.rs` run
+through actual `NativeStockContract`, `prepare`, `HomeBoxQueries` and
+`dispatch_prepared`. They cover 24 positive dispatches across the 13 resource
+forms and seven query views, including all four custom-field representations,
+actual nested source tree edges, a synthetic independently captured ancestor
+chain, template references, original calendar/cost spelling and exact numeric
+tokens. The principal/authority/graph are explicitly synthetic fixture owners;
+they prove no production grant, HTTP/MCP lifecycle or upstream source intake.
+Run only these exact cases with the existing source harness and `--exact
+--test-threads=1`:
+
+* `providers::homebox::read::query::observations_healthy::healthy_decoded_detail_and_maintenance_resources`
+* `providers::homebox::read::query::observations_healthy::healthy_decoded_native_resource_graphs`
+* `providers::homebox::read::query::observations_healthy::healthy_decoded_native_query_metadata`
+
 ## Ordinary positive verification
 
 The whole actual backend library compiles at the exact base plus this scoped slice.

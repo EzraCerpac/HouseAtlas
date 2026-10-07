@@ -40,7 +40,7 @@ pub const REQUIRED_READ_OPERATIONS: [Op; 28] = [
 
 /// Only a validated immutable Domain request can select a read operation.
 /// No public unchecked constructor, mutation/printing arm or HTTP override.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HomeBoxReadQuery {
     scope: SourceScope,
     target: StockTarget,
