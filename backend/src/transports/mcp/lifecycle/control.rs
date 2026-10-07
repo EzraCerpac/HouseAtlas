@@ -33,6 +33,7 @@ pub(super) struct ActiveRequest {
     pub id: RequestId,
     pub cancellable: bool,
     pub cancelled: bool,
+    pub cancellation_pending: bool,
 }
 
 impl SessionControl {
@@ -68,7 +69,8 @@ impl SessionControl {
 
     /// Call after root HTTP admission, scope/cookie registry selection and real
     /// POST authentication. No response bytes are produced for any notification.
-    /// Malformed, unknown, completed and uncancellable IDs are ignored.
+    /// Malformed, unknown and completed IDs are ignored. A matching notice is
+    /// retained until read classification; it never cancels a write or initialize.
     pub fn notification(
         &self,
         current: &AuthenticatedIdentity,
@@ -108,10 +110,14 @@ impl SessionControl {
         }
         if let Some(active) = state.active.as_mut()
             && Some(&active.id) == target.id.as_ref()
-            && active.cancellable
         {
-            active.cancelled = true;
-            Ok(NotificationDisposition::Cancelled)
+            active.cancellation_pending = true;
+            if active.cancellable {
+                active.cancelled = true;
+                Ok(NotificationDisposition::Cancelled)
+            } else {
+                Ok(NotificationDisposition::Ignored)
+            }
         } else {
             Ok(NotificationDisposition::Ignored)
         }
@@ -126,6 +132,7 @@ impl SessionControl {
             id,
             cancellable,
             cancelled: false,
+            cancellation_pending: false,
         });
         Ok(ActiveGuard {
             control: self.clone(),
@@ -137,6 +144,7 @@ impl SessionControl {
         let mut state = self.shared.lock().map_err(|_| PortError::Unavailable)?;
         if let Some(active) = state.active.as_mut() {
             active.cancellable = true;
+            active.cancelled |= active.cancellation_pending;
         }
         Ok(())
     }
