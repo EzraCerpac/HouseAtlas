@@ -20,6 +20,15 @@ original planner, guards, reference closure and transaction fence; admission
 alone does not supply any specialized binding, import-time or Media evidence. The catalog describes admission; each
 request obtains actual AT11 authorization again.
 
+Scopes with an actual configured Network binding additionally admit exactly
+`network.inventory.get`, `network.snapshot.get` and `network.history.get` through
+HTTP. The root releases Core around the original native read/disclosure runtime,
+captures configured member grants before sealing, and retains the same original
+disclosure lease through exact output recomputation and final authority checks.
+These reads perform no refresh. Core-only MCP and Network browser tool execution
+remain unqualified separately; the default disposable host configures no Network
+binding and does not advertise those IDs.
+
 Reads use `GET /api/atlas/stock/v3/workspaces/{workspaceId}/homes/{homeId}/invoke`
 with one `request` query parameter containing the complete wire3 JSON envelope.
 GET remains a read-authorized route. Encoded query bytes are bounded at 32768

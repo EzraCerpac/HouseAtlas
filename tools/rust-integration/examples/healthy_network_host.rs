@@ -491,6 +491,79 @@ async fn main() -> Result<(), Failure> {
             "Original synthetic source text"
         );
     }
+    // Real stock invocation uses the same genuine viewer and native disclosure;
+    // it does not inject a constructed facet or send any inventory request.
+    let stock_root = format!(
+        "{origin}/api/atlas/stock/v3/workspaces/{}/homes/{}",
+        registration.workspace_id, registration.home_id
+    );
+    let response = client
+        .get(format!("{stock_root}/admission"))
+        .header("origin", origin)
+        .header("sec-fetch-site", "same-origin")
+        .header("cookie", &viewer_cookie)
+        .send()
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let admitted: Value = serde_json::from_slice(&response.bytes().await?)?;
+    let contracts = d::stock::NativeStockContract::new()?;
+    for support in &n::SAVED_NETWORK_QUERY_SUPPORT {
+        assert!(
+            admitted["commandIds"]
+                .as_array()
+                .ok_or("Missing admission")?
+                .iter()
+                .any(|id| id == support.operation.as_str())
+        );
+        let request = json!({"schemaVersion":3,"commandId":support.operation.as_str(),
+            "requestId":app::new_id()?,
+            "context":{"workspaceId":registration.workspace_id,"homeId":registration.home_id},
+            "target":{"authority":"network","sourceInstanceId":registration.source_instance_id,
+                "collectionId":registration.collection_id},"payload":{}});
+        let encoded = url::form_urlencoded::Serializer::new(String::new())
+            .append_pair("request", &serde_json::to_string(&request)?)
+            .finish();
+        let response = client
+            .get(format!("{stock_root}/invoke?{encoded}"))
+            .header("origin", origin)
+            .header("sec-fetch-site", "same-origin")
+            .header("cookie", &viewer_cookie)
+            .send()
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()["cache-control"], "private, no-store");
+        let wire: Value = serde_json::from_slice(&response.bytes().await?)?;
+        d::stock::StockContractPort::validate(
+            &contracts,
+            support.operation.operation().output_schema,
+            &wire,
+        )?;
+        assert_eq!(wire["commandId"], request["commandId"]);
+        assert_eq!(wire["requestId"], request["requestId"]);
+        assert_eq!(wire["resolvedScope"], request["context"]);
+        assert_eq!(wire["status"], "read");
+        assert_eq!(wire["replayed"], false);
+        assert_eq!(wire["data"]["readOnly"], true);
+        assert_eq!(
+            wire["data"]["devices"]
+                .as_array()
+                .ok_or("Missing actual nodes")?
+                .len(),
+            5
+        );
+        let expected = if support.view == d::stock::NetworkView::History {
+            1
+        } else {
+            3
+        };
+        assert_eq!(
+            wire["data"]["relations"]
+                .as_array()
+                .ok_or("Missing actual relations")?
+                .len(),
+            expected
+        );
+    }
     // Snapshot-backed routes use the private selector's actual typed AT11 link
     // path. Projected unresolved ends remain concealed here; the dedicated
     // cached facet above preserves them using its original raw-member evidence.
@@ -531,7 +604,7 @@ async fn main() -> Result<(), Failure> {
         .close()?;
     drop(core);
     println!(
-        "PASS healthy root Network router: one actual TLS inventory GET/custody-aware native publication; immutable Native archive reopen matches original response bytes/hash and exact registration/generation, one sealed row/no active reservation/permanent ID retained; genuine viewer HTTP login; two cached root GETs and three snapshot-backed relation/room/item GETs on same canonical Core/Access/Store; original cached entity/link/observation disclosure; unresolved snapshot endpoints remain concealed; epoch/reservations unchanged; no provider request from browsing. Root HTTP uses its real TLS loopback listener and actual connection metadata; no browser qualification."
+        "PASS healthy root Network router: one actual TLS inventory GET/custody-aware native publication; immutable Native archive reopen matches original response bytes/hash and exact registration/generation, one sealed row/no active reservation/permanent ID retained; genuine viewer HTTP login; scoped stock admission and all three genuine saved stock query forms; two cached root GETs and three snapshot-backed relation/room/item GETs on same canonical Core/Access/Store; original cached entity/link/observation disclosure; unresolved snapshot endpoints remain concealed; epoch/reservations unchanged; no provider request from browsing. Ten actual Root TLS requests; no browser qualification."
     );
     Ok(())
 }

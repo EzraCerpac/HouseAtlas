@@ -175,6 +175,26 @@ impl RequestPrincipal {
             .push(access.authorize_source_partition(&self.principal, partition)?);
         Ok(())
     }
+    /// Clone only a handle captured by this original request before sealing.
+    pub(crate) fn captured_partition(
+        &self,
+        partition: &a::SourcePartition,
+    ) -> a::AccessResult<a::PartitionGrant> {
+        self.partitions
+            .borrow()
+            .iter()
+            .find(|grant| grant.partition() == partition)
+            .cloned()
+            .ok_or(a::AccessError::Unavailable)
+    }
+    pub(crate) fn captured_source(&self, source: &a::SourceRef) -> a::AccessResult<a::SourceGrant> {
+        self.sources
+            .borrow()
+            .iter()
+            .find(|grant| grant.reference() == source)
+            .cloned()
+            .ok_or(a::AccessError::Unavailable)
+    }
     fn capture_network_link(
         &self,
         access: &a::AccessBoundary,

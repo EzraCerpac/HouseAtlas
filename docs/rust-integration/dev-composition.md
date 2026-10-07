@@ -33,12 +33,13 @@ mandatory. The healthy stock-write runner covers fresh circuit/identity singles
 and identity-only/mixed batches; the other mapped forms remain runtime-unqualified.
 
 Missing product areas include the seven specialized Atlas writes, Core-only MCP download
-admission and download link UI, stock HomeBox operation mounts, stock Network query mounts, complete
+admission and download link UI, stock HomeBox operation mounts, Core-only MCP Network query mounts, complete
 provider setup and UI, trusted AI configuration/startup callers and receipt identity,
-and composed populated recovery. Saved Network queries require lock-per-phase
-orchestration around the original runtime, plus original grants captured before
-source capture is sealed. Calling that runtime inside the current locked stock
-callback would re-enter Core. Profile-6 recovery requires genuine activity
+and composed populated recovery. The HTTP saved Network query adapter now uses
+lock-per-phase orchestration around the original runtime, with configured member
+grants captured before source capture is sealed. It retains the same original
+disclosure lease through exact output recomputation and final authorization.
+Profile-6 recovery requires genuine activity
 registration discovery and original-media evidence; the retained synthetic test
 peers are not production substitutes. Gateway download execution/resolution is
 also unbound. Scope and completion receipt corrections remain in the tracked
@@ -70,4 +71,5 @@ before constructing transport or provider. Its successful native producer retain
 the actual response body in a bounded immutable segment and durable catalog,
 reopens and verifies the original bytes, and couples that receipt to the projected
 generation before publication. See [network-archive-custody.md](network-archive-custody.md).
-The saved stock query mount remains separate work.
+The three saved stock query forms are mounted in HTTP only for scopes with an
+actual configured Network binding. They never refresh or construct a provider.

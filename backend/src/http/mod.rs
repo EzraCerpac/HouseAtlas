@@ -17,6 +17,7 @@ mod reads;
 mod response;
 mod stock_downloads;
 mod stock_mutations;
+mod stock_network_reads;
 mod stock_reads;
 mod upload;
 mod upload_batch;
@@ -291,6 +292,54 @@ fn authorized_read<T>(
     let result = operation(&mut core, &principal, &selected.summary)?;
     let access = core
         .access
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    principal.release(&access).map_err(access_error)?;
+    Ok(result)
+}
+/// Scoped stock reads may call native owners which acquire their owning Core.
+/// Retain the actual issuance and canonical allocation across the unlocked phase.
+fn authorized_read_unlocked<T>(
+    host: &Host,
+    headers: &CheckedHeaders,
+    uri: &Uri,
+    method: &Method,
+    scope: d::Scope,
+    operation: impl FnOnce(&RequestPrincipal) -> Result<T, HttpFailure>,
+) -> Result<T, HttpFailure> {
+    let access_scope =
+        crate::app::access_scope(&scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
+    let core = host
+        .core
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    if !core.homes.iter().any(|home| home.scope == scope) {
+        return Err(failure(StatusCode::NOT_FOUND));
+    }
+    let canonical = core.access.clone();
+    let url = format!(
+        "{}{}",
+        host.origin,
+        uri.path_and_query().map_or("/", |path| path.as_str())
+    );
+    let request = evidence(&host.origin, headers, uri, &url, method).map_err(access_error)?;
+    let principal = canonical
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
+        .authorize(&request, &access_scope, a::Action::Read)
+        .map_err(access_error)?;
+    let principal = RequestPrincipal::new(principal);
+    drop(core);
+    let result = operation(&principal)?;
+    let core = host
+        .core
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    if !Arc::ptr_eq(&canonical, &core.access) || !core.homes.iter().any(|home| home.scope == scope)
+    {
+        return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+    }
+    let access = canonical
         .lock()
         .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
     principal.release(&access).map_err(access_error)?;
