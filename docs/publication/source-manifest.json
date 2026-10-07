@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "84770359e08171623efbc46318a6034424c645fad5fcd4217cb1498e88600bb8",
+  "sourceDigestSha256": "d6dae4c6856f41b5e4d8065eff1412b1447801bea9c939c993519d0c95af5951",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -69,8 +69,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 2287,
-      "sha256": "e1f83c7c5c667af697f5305a439e4363a35275a5ff6874a023ec26241701429d",
+      "bytes": 2887,
+      "sha256": "f6072cf238c0ff1c61d0e88041c5da119615ec723154f77ca7178e48f1dab54e",
       "owner": "core-integration"
     },
     {
@@ -90,8 +90,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 3430,
-      "sha256": "7d9a45682677a3018707bda404009be606a79eea5e0b5b7e0bbe57cff572b313",
+      "bytes": 5380,
+      "sha256": "1839ab7a42697d37ff2f432a5cd55743bd781e1c36712087a6383474982da1fb",
       "owner": "core-integration"
     },
     {
@@ -2680,8 +2680,8 @@
     {
       "path": "docs/operations/qualification-and-rollout.md",
       "mode": "100644",
-      "bytes": 1067,
-      "sha256": "942799b8ab8bcf5816b98ee63228d6e582836f017391d800a7e073e091e2ccb3",
+      "bytes": 1552,
+      "sha256": "20dd5366613f50429a1ba823b584970161ba412b686b076071fab465712eb31d",
       "owner": "operations-policy"
     },
     {
@@ -2694,8 +2694,8 @@
     {
       "path": "docs/operations/scenario-validation.md",
       "mode": "100644",
-      "bytes": 1382,
-      "sha256": "fcd93c8961f1872d4979c4a8faa4b755c5940518619a3d01c57820c47de0e73b",
+      "bytes": 1817,
+      "sha256": "8fd371ebf340a02f99908b4ab99b5a67480fad4650df6cc7bc146f50b59876ed",
       "owner": "operations-policy"
     },
     {
@@ -2750,8 +2750,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 25791,
-      "sha256": "916a0a0210ab9b2b947064f8be52feb84bcdd6555db19baaba8dbd6180d7c942",
+      "bytes": 26492,
+      "sha256": "cb00d993b1a3b996ec62577153472d1595939ae78451f2df1331b4ffeee3247d",
       "owner": "core-integration"
     },
     {
@@ -2764,8 +2764,8 @@
     {
       "path": "docs/rust-integration/agents.md",
       "mode": "100644",
-      "bytes": 11485,
-      "sha256": "e6d6a5482967668f28bddc2760052e26b8620956131698c747d2992ea1168693",
+      "bytes": 12186,
+      "sha256": "019b7676e0ed86ae513723da09b424413348aab161c1c1b0a10c621a285f24d2",
       "owner": "core-integration"
     },
     {
@@ -2863,7 +2863,7 @@
       "path": "docs/rust-integration/webmcp-gateway-source.md",
       "mode": "100644",
       "bytes": 4664,
-      "sha256": "80afe1676c6f65febd7ae82535617e9ed8b2bd1480da75deeb117e81fed777b6",
+      "sha256": "63e307c6552417ef4c95e73b79e6f8f665deee93286c30b9b149bfb0e3dc2356",
       "owner": "core-integration"
     },
     {

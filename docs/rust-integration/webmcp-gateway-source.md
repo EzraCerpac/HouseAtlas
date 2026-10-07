@@ -2,8 +2,8 @@
 
 This candidate adopts all 23 regular files in `frontend/src/webmcp/**` byte for
 byte from `d5f57d88e79a0ef916904f72bfd86716187702e4`. Its base is accepted main
-`24ebf4c64518ec0a7e7115c17a07642e6c8b4e2a`, tree
-`d66bfa7c9910a1817cc8a9504e179401509d07fb`. The explicit publication manifest
+`8f4065a3ee831df0b30d14f597c25a7bbcc7f212`, tree
+`85cf0cc69d2d204d4967ea37923a38d4f6022961`. The explicit publication manifest
 includes the seven new gateway/commit-acknowledgement leaves. No owner namespace
 adaptation, dependency change or backend admission change is included.
 
