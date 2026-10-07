@@ -30,6 +30,7 @@ import type { Entry, ReadyView, Scope } from "./types";
 import type { SessionSettings } from "./session";
 import type { AtlasEditingClient } from "./editing";
 import { PlaceEditor } from "./PlaceEditor";
+import { AiSettingsSection } from "../ai/host/index.js";
 
 export interface PageProps {
   view: ReadyView;
@@ -94,6 +95,7 @@ export function AtlasPage({
               )}
             </div>
           </section>
+          <AiSettingsSection />
           {session && (
             <section className="setting">
               <div className="setting-text">

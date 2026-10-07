@@ -1,6 +1,7 @@
 //! Loopback TLS routes and browser DTO projection. No source/provider transport.
 mod admission;
 pub mod agents;
+pub mod ai;
 mod auth;
 pub mod contracts;
 mod editing;
@@ -530,7 +531,11 @@ async fn static_file(State(host): State<Host>, uri: Uri) -> HttpResult {
     Ok(response)
 }
 pub fn router(host: Host) -> Router {
-    Router::new()
+    router_with_ai(host, None)
+}
+/// The caller supplies an AI router bound to actual session and enrollment peers.
+pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
+    let base = Router::new()
         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/collections/{collection_id}/cached", get(providers::cached_homebox).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/cached", get(providers::cached_homebox_query).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/network/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/cached", get(providers::network::cached).head(auth::session_head).fallback(auth::session_head))
@@ -568,10 +573,17 @@ pub fn router(host: Host) -> Router {
         .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/network/relations", get(reads::network).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}", get(reads::record).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}/history", get(reads::history).head(auth::session_head).fallback(auth::session_head))
-        .fallback(get(static_file))
-        .layer(middleware::from_fn_with_state(
-            host.clone(),
-            response_adapter,
-        ))
-        .with_state(host)
+        .fallback(get(static_file));
+    let base = match ai {
+        Some(ai) => base.nest(
+            "/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/ai",
+            ai.with_state::<Host>(()),
+        ),
+        None => base,
+    };
+    base.layer(middleware::from_fn_with_state(
+        host.clone(),
+        response_adapter,
+    ))
+    .with_state(host)
 }

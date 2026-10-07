@@ -41,6 +41,11 @@ crc32fast.workspace = true
 png.workspace = true
 rustix.workspace = true
 tempfile.workspace = true
+ring.workspace = true
+zeroize.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+secret-service.workspace = true
 
 [dev-dependencies]
 tower.workspace = true
@@ -71,6 +76,10 @@ path = "../tools/rust-integration/examples/healthy_agent_stock.rs"
 [[example]]
 name = "healthy-canonical-upload-plan"
 path = "../tools/rust-integration/examples/healthy_canonical_upload_plan.rs"
+
+[[example]]
+name = "healthy-ai-host"
+path = "src/ai/host/healthy.rs"
 
 [[example]]
 name = "healthy-mcp-lifecycle"

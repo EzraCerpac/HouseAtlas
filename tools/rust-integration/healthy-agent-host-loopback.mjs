@@ -115,6 +115,7 @@ try {
   assert.deepEqual(JSON.parse(first.visible),first.wire,'Canonical result already committed to React when native tool returns');
   await evaluate("location.hash='#settings'");
   await until(async()=> (await evaluate('document.body?.innerText ?? ""')).includes('Sign out'),'Actual session Settings');
+  assert.equal(await evaluate("document.querySelector('section.ai-host[aria-label=AI]')?.innerText.includes('AI host is unavailable.')"), true, 'Actual optional AI Settings mount with no supplied runtime port');
   await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Sign out').click()");
   await until(async()=>await evaluate("Boolean(document.getElementById('atlas-username'))"),'Ordinary successful logout form');
   await evaluate(`document.getElementById('atlas-username').value=${JSON.stringify(editorLogin.username)};document.getElementById('atlas-password').value=${JSON.stringify(editorLogin.password)};document.querySelector('.session-form').requestSubmit()`);
@@ -317,6 +318,7 @@ try {
   assert.equal(persisted.audit.beforeDigest, event.beforeDigest);
   assert.equal(persisted.audit.afterDigest, event.afterDigest);
   const evidence = {
+    unconfiguredAiSettings: true,
     flow: 'HEALTHY Rust TLS cached-only HomeBox read native WebMCP classification React completion and mounted MCP',
     rust: serviceOutput.trim(), binarySha256: createHash('sha256').update(readFileSync(binary)).digest('hex'),
     browser: version.product, native, tools: first.tools,
