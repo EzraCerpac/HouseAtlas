@@ -720,7 +720,11 @@ scope and measured `PreparedOriginal`. Its sealed `ExistingOriginalAsset` expose
 the existing record, ID, revision, payload, scope and target. Exact scoped content
 identity, original purpose, active available state and independently measured
 retained bytes must agree. Existing provenance is returned unchanged. The method
-does not create an alias, consume a stage or authorize an attachment. Domain must
+requires both `ReadAssetManifest` and `Read` for the resolved target under the
+same original principal, rechecked before retained-byte access, before commit
+and before disclosure. The full-record carrier does not rely on manifest-only
+authority; a missing original still exposes no record.
+It does not create an alias, consume a stage or authorize an attachment. Domain must
 bind the returned ID/revision and revalidate references and guards inside its
 normal mutation transaction; unique scoped storage keys remain enforced.
 
@@ -728,6 +732,14 @@ These methods also accept an authorizer borrowing the original held AT11 fence,
 so a host need not reacquire the access mutex or invent a principal. They use a
 single read transaction on the original connection and recheck original authority
 before returning. No migration or database profile changes.
+
+The upload checkpoint's optional third argument
+`isolated-record-read-regression` selects one separately scoped synthetic query:
+manifest access delegates to the genuine fixture authority, while exact-target
+record access is refused. It verifies no full-record result, no additional
+retained-byte verification and no snapshot change. The ordinary default excludes
+this case. Its authorization record stays outside publication Git; other stopped
+campaigns remain deferred.
 
 The scoped ordinary upload-resolution example compiles actual contracts
 `49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c`, domain/jobs

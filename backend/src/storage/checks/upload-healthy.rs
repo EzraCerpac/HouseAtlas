@@ -194,6 +194,38 @@ struct MeasuredRuntime<R> {
     native: R,
     proof_calls: Rc<Cell<usize>>,
 }
+
+// Used only by the separately selected isolated record-read regression. This
+// narrows a synthetic query's capability; it creates no grant or principal.
+struct ManifestOnlyQuery<'a> {
+    native: &'a NativeReadAuthority,
+    target: &'a s::RecordRef,
+    granted_manifests: Cell<usize>,
+    denied_records: Cell<usize>,
+}
+impl s::Authorization for ManifestOnlyQuery<'_> {
+    type Principal = RetainedPrincipal;
+    fn authorize(
+        &self,
+        principal: &RetainedPrincipal,
+        request: s::AuthorizationRequest<'_>,
+    ) -> s::Result<s::VerifiedActor> {
+        if request.capability == s::Capability::Read {
+            assert_eq!(request.targets, std::slice::from_ref(self.target));
+            self.denied_records.set(self.denied_records.get() + 1);
+            return Err(s::Error::new(
+                "forbidden",
+                "Synthetic record read unavailable",
+            ));
+        }
+        let manifest = request.capability == s::Capability::ReadAssetManifest;
+        let actor = s::Authorization::authorize(self.native, principal, request)?;
+        if manifest {
+            self.granted_manifests.set(self.granted_manifests.get() + 1);
+        }
+        Ok(actor)
+    }
+}
 impl<R: s::Runtime> s::Runtime for MeasuredRuntime<R> {
     fn now(&self) -> s::Result<String> {
         self.native.now()
@@ -539,6 +571,11 @@ impl<'p, T: s::StockAuthorization<Principal = a::Principal>> s::StockAuthorizati
 }
 
 fn main() -> Check {
+    let isolated_record_read = match std::env::args().nth(3).as_deref() {
+        None => false,
+        Some("isolated-record-read-regression") => true,
+        Some(_) => return Err("Unknown isolated regression selection".into()),
+    };
     let repository = PathBuf::from(std::env::var("HOUSEATLAS_ROOT")?);
     let output = PathBuf::from(
         std::env::args()
@@ -952,9 +989,13 @@ fn main() -> Check {
 
     let access = Arc::new(Mutex::new(access));
     let reopened_vault = Arc::new(AssetVault::open(&output.join("media"))?);
-    let read_runtime = NativeMediaRuntime {
-        vault: reopened_vault,
-        server: server.clone(),
+    let read_proof_calls = Rc::new(Cell::new(0));
+    let read_runtime = MeasuredRuntime {
+        native: NativeMediaRuntime {
+            vault: reopened_vault,
+            server: server.clone(),
+        },
+        proof_calls: Rc::clone(&read_proof_calls),
     };
     let mut reader = s::AtlasStore::open(
         &database,
@@ -1040,6 +1081,32 @@ fn main() -> Check {
         existing.payload()["evidenceIds"],
         asset_record.payload["evidenceIds"]
     );
+    if isolated_record_read {
+        let before = serde_json::to_value(reader.read_snapshot(&original, &storage_scope)?)?;
+        let byte_checks = read_proof_calls.get();
+        let manifest_only = ManifestOnlyQuery {
+            native: &queries,
+            target: &asset_ref,
+            granted_manifests: Cell::new(0),
+            denied_records: Cell::new(0),
+        };
+        match reader.resolve_original_asset_with_authorization(
+            &manifest_only,
+            &original,
+            &storage_scope,
+            &prepared,
+        ) {
+            Err(error) => assert_eq!(error.code, "forbidden"),
+            Ok(_) => return Err("Manifest-only authority must not disclose a full record".into()),
+        }
+        assert_eq!(manifest_only.granted_manifests.get(), 2);
+        assert_eq!(manifest_only.denied_records.get(), 1);
+        assert_eq!(read_proof_calls.get(), byte_checks);
+        assert_eq!(
+            serde_json::to_value(reader.read_snapshot(&original, &storage_scope)?)?,
+            before
+        );
+    }
     let manifest = reader.read_asset_manifest(&original, &storage_scope, &asset_ref)?;
     assert_eq!(manifest["sha256"], sha256(bytes));
     assert_eq!(manifest["byteSize"], bytes.len() as u64);
@@ -1156,7 +1223,9 @@ fn main() -> Check {
             "mediaPolicyEvidence": "independent-original-opaque-Media-stage-and-native-commit-only",
             "committedConsumptionLookup":"strict-native-stock-audit-links-pass",
             "existingOriginalResolution":{"assetId":existing.asset_id(),"revision":existing.revision(),"scope":existing.scope(),"provenance":"preserved","retainedBytes":"independently-verified"},
-            "heldControls": "deferred-and-unrun"
+            "isolatedRecordReadRegression":isolated_record_read,
+            "recordReadRegressionResult":if isolated_record_read { "manifest grants retained; exact-target record read refused; no record/byte access/snapshot change" } else { "unrun" },
+            "heldControls":if isolated_record_read { "all other campaigns deferred-and-unrun; only separately selected isolated record-read case executed" } else { "deferred-and-unrun" }
         }))?,
     )?;
     println!(
