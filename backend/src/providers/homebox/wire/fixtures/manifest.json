@@ -1,0 +1,57 @@
+{
+  "evidenceKind": "source-derived-synthetic",
+  "capturedTarget": false,
+  "observedTargetVersion": null,
+  "sourceRevision": null,
+  "referenceRelease": "v0.26.2",
+  "referenceSourceCommit": "e01dd737238a3fa7e1a6454b37de6c6fc88c86e4",
+  "swaggerSha256": "5da7752182cb6172db0550cbd799ee340836d3dba8ceaff7c6ed12976f9e3493",
+  "derivation": "Hand-constructed public examples using official Go JSON tags, Swagger definitions and mapper behavior. No target capture or household data. Explicit null parent/type examples exercise the schema nullable annotations; actual Go pointers are omitted. attachments/fields null follow Go nil slice serialization.",
+  "files": [
+    {
+      "path": "locations.page.json",
+      "sha256": "e0e3ed30ab1a9c3af2a4e9be9f8fe9751e7cd64ccda01e68b72eeed6ff8b71bd",
+      "definition": "repo.EntityListResult"
+    },
+    {
+      "path": "items.page.json",
+      "sha256": "fe5976a5d2038d148c04e0ba259641654cf341a77a29f3cedb1acbe130ee0431",
+      "definition": "repo.EntityListResult"
+    },
+    {
+      "path": "items-second.page.json",
+      "sha256": "861f644aa7a91779fef98655ac44618d58af5f5fef1eeb840b06f34872f9073e",
+      "definition": "repo.EntityListResult"
+    },
+    {
+      "path": "empty.page.json",
+      "sha256": "b1abee65e889fc906754bb7eecd53248459fcd792be48b1e6302b1584e11d4c9",
+      "definition": "repo.EntityListResult"
+    },
+    {
+      "path": "location.detail.json",
+      "sha256": "8d0fed6b0ea5905a86cde35ce2dc0888ff2d9dfd53434e3fd9c043f6a98e2de4",
+      "definition": "repo.EntityOut"
+    },
+    {
+      "path": "item.detail.json",
+      "sha256": "abcf22cdd6777ab39f989c99480b403020223a0e4237265100621ec639451e10",
+      "definition": "repo.EntityOut"
+    },
+    {
+      "path": "unknown.detail.json",
+      "sha256": "ea6d9bbd071171ea415986ac8cf8e919cd8042a4275de3afb0e3a765940f25bf",
+      "definition": "repo.EntityOut"
+    },
+    {
+      "path": "maintenance.json",
+      "sha256": "c3587a816458e57281881b4e8bee871a2da52f2f76c73421673540dd10a71e53",
+      "definition": "repo.MaintenanceEntryWithDetails[]"
+    },
+    {
+      "path": "empty-maintenance.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "definition": "repo.MaintenanceEntryWithDetails[]"
+    }
+  ]
+}

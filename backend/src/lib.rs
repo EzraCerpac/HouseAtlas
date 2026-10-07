@@ -18,6 +18,7 @@ pub mod providers {
     pub mod network;
     pub mod homebox {
         pub mod read;
+        pub mod wire;
         pub mod write;
     }
 }

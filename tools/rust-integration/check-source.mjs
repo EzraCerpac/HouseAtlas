@@ -1,4 +1,4 @@
-// Actual source compilation and three explicitly named healthy native examples.
+// Actual source compilation and four explicitly named healthy native examples.
 // No cargo test aggregate, checkpoint oracle, jobs replay, or stopped control.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -21,7 +21,8 @@ run('cargo', ['clippy', '--locked', '-p', 'houseatlas-backend', '--lib', '--bins
 run('cargo', ['run', '--locked', '-p', 'houseatlas-backend', '--example', 'healthy-contracts']);
 run('cargo', ['run', '--locked', '-p', 'houseatlas-backend', '--example', 'healthy-dependencies']);
 run('cargo', ['run', '--locked', '-p', 'houseatlas-backend', '--example', 'healthy-native-semantics']);
+run('cargo', ['run', '--locked', '-p', 'houseatlas-backend', '--example', 'healthy-maintenance-calendar']);
 run('cargo', ['build', '--locked', '-p', 'houseatlas-backend', '--bin', 'houseatlas']);
 run('npm', ['--prefix', 'frontend', 'run', 'typecheck']);
 run('npm', ['--prefix', 'frontend', 'run', 'build']);
-console.log('PASS actual Rust library/binary/module source, strict TS React app, and three named healthy native examples');
+console.log('PASS actual Rust library/binary/module source, strict TS React app, and four named healthy native examples');

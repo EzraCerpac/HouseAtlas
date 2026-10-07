@@ -7,14 +7,15 @@
   "frozenAtlasSchema": {
     "uri": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json",
     "path": "packages/contracts/schemas/atlas.schema.json",
-    "sha256": "ef00707b251051da4157598833d4c91d15d01b73eebfa049daf8c52a2ff23806"
+    "sha256": "ba73d972c87391fe06cd41d68e73bc2d73fc3fcac322889cfb3b8d909c3f3f72"
   },
   "transformations": [
     "Remove catalog task-allocation fields and replace descriptive task labels with component/qualification names; retain command identities and historical/current restrictions.",
     "Replace presence policy coordination status/owner narrative with specified typed boundary; retain implementation-review-pending and held capability.",
     "Replace witness descriptive concurrence narrative; rewrite its relative Atlas reference to the existing frozen repository schema.",
     "Remove coordination, personal runtime/outreach and implementation-approval narrative from application policy prose; retain normative rules, unqualified holds and stopped checks.",
-    "Omit transfer manifests and replace archive resource layout with this repository offline map; retain public upstream reference pins."
+    "Omit transfer manifests and replace archive resource layout with this repository offline map; retain public upstream reference pins.",
+    "Adopt the published maintenance calendar-date amendment d7b502106948cb955a81e8b280a837282663bb2c for scheduledDate/completedDate only; retain date-time/null compatibility and every other Atlas field constraint."
   ],
   "files": [
     {
@@ -109,7 +110,7 @@
     {
       "path": "contracts/stock-wire3/resource-map.json",
       "bytes": 1707,
-      "sha256": "29857eafbc38c9c7b9b528463de3f56c5065f8e9b7475386727c99c410da08ea"
+      "sha256": "d405b319f7e17b95ecebcbe3e089490fd8f02c5f5452e72f8ac58ee653b73d31"
     }
   ]
 }

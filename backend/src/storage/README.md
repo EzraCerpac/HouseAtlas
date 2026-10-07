@@ -485,8 +485,8 @@ ordinary example after inspecting its source:
 
 ```sh
 source /workspace/.houseatlas-setup/rust-react-sqlite/activate.sh
-cargo clippy --locked --manifest-path "${AT07_COMPOSITION_DIR}/Cargo.toml" --lib --bin queue-healthy --bin populated-recovery-healthy --bin recovery-healthy -- -D warnings
-HOUSEATLAS_ROOT="${HOUSEATLAS_SOURCE_DIR}" HOUSEATLAS_STOCK_ROOT="${AT07_STOCK_SOURCE_DIR}" HOUSEATLAS_CONTRACT_PEER=49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c HOUSEATLAS_DOMAIN_PEER=f51bc7962b491faa1cc563f2ec0f737c471e4e26 cargo run --locked --manifest-path "${AT07_COMPOSITION_DIR}/Cargo.toml" --bin populated-recovery-healthy -- "${AT07_HEALTHY_OUTPUT}"
+cargo clippy --locked --manifest-path /tmp/houseatlas-at07-native-queue-composition/Cargo.toml --lib --bin queue-healthy --bin populated-recovery-healthy --bin recovery-healthy -- -D warnings
+HOUSEATLAS_ROOT=/workspace/HouseAtlas HOUSEATLAS_STOCK_ROOT=/tmp/houseatlas-at07-native-queue-peer49 HOUSEATLAS_CONTRACT_PEER=49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c HOUSEATLAS_DOMAIN_PEER=f51bc7962b491faa1cc563f2ec0f737c471e4e26 cargo run --locked --manifest-path /tmp/houseatlas-at07-native-queue-composition/Cargo.toml --bin populated-recovery-healthy -- /tmp/houseatlas-at07-populated-recovery-healthy-1
 ```
 
 The supplied peer labels are exact public source pins. This example qualifies
@@ -644,6 +644,42 @@ requirements, including serde_jcs 0.2.0; it lives outside root manifests/locks.
 No staged authority is reconstructed from persisted rows or after owner loss.
 Pending stage expiry, restart reconciliation, byte cleanup and replay/fault
 qualification remain deferred.
+
+### Committed stage lookup and existing original resolution
+
+The upload-resolution continuation adds two read-only methods on the original
+open store. `committed_upload_with_authorization` takes the original per-call
+`Authorization` principal, actual `StockContractPort`, exact scope and token.
+It returns `Option<ConsumedUpload>` only after validating the persisted binding,
+complete native/stock receipt and audit links, retained stock projection and
+current original asset-manifest/history authority. A missing row gives no cleanup
+permission. Media owns durable staging quota and removal; maintenance after the
+original authority is lost needs a separately qualified owner API.
+
+`resolve_original_asset_with_authorization` takes that same original authority,
+scope and measured `PreparedOriginal`. Its sealed `ExistingOriginalAsset` exposes
+the existing record, ID, revision, payload, scope and target. Exact scoped content
+identity, original purpose, active available state and independently measured
+retained bytes must agree. Existing provenance is returned unchanged. The method
+does not create an alias, consume a stage or authorize an attachment. Domain must
+bind the returned ID/revision and revalidate references and guards inside its
+normal mutation transaction; unique scoped storage keys remain enforced.
+
+These methods also accept an authorizer borrowing the original held AT11 fence,
+so a host need not reacquire the access mutex or invent a principal. They use a
+single read transaction on the original connection and recheck original authority
+before returning. No migration or database profile changes.
+
+The scoped ordinary upload-resolution example compiles actual contracts
+`49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c`, domain/jobs
+`8a568fb6ccef5b0fa575b18d6181dcc524d4db99`, access
+`4a0cd4da563a32d26677755a608180c960765353` and media
+`f0d6b10f00bb93fc1c1dd4eb3ae66ee1fbe3f873`. After the ordinary atomic upload
+and authorized reopen, it checks genuine committed consumption and resolves the
+same original ID/revision, full provenance and measured bytes. This supersedes
+the earlier external-proposal composition limitation for this example. A second
+HTTP attachment and durable staging cleanup still require the Media/Domain
+owners' integration and are not exercised by this read-only storage example.
 
 ## Remaining integration and qualification
 

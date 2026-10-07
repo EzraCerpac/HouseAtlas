@@ -857,6 +857,49 @@ fn main() -> Check {
         place_record.payload["evidenceIds"],
         json!([id(100), id(200_020)])
     );
+    let queries = NativeReadAuthority(Arc::clone(&access));
+    let consumed = reader
+        .committed_upload_with_authorization(
+            &queries,
+            &original,
+            &schemas,
+            &storage_scope,
+            &receipt.staged.upload_token,
+        )?
+        .ok_or("Committed consumption missing")?;
+    assert_eq!(consumed.asset_id(), receipt.asset_id);
+    assert_eq!(consumed.staged(), &receipt.staged);
+    assert_eq!(consumed.root_operation_id(), commit.operation_id);
+    assert_eq!(
+        consumed.asset_audit_id(),
+        commit.groups[0].native_results[0].audit.audit_id
+    );
+    let prepared = m::vault::PreparedOriginal {
+        purpose: m::types::AssetPurpose::EvidenceOriginal,
+        storage_key: asset_record.payload["storageKey"]
+            .as_str()
+            .ok_or("Original storage key")?
+            .into(),
+        identity: m::types::BlobIdentity {
+            sha256: sha256(bytes),
+            byte_size: bytes.len() as u64,
+        },
+        content_type: m::types::ContentType::parse(&receipt.staged.content_type)?,
+    };
+    let existing = reader
+        .resolve_original_asset_with_authorization(&queries, &original, &storage_scope, &prepared)?
+        .ok_or("Existing original missing")?;
+    assert_eq!(existing.asset_id(), receipt.asset_id);
+    assert_eq!(existing.revision(), 1);
+    assert_eq!(existing.record(), &asset_record);
+    assert_eq!(
+        existing.payload()["sourceLicense"],
+        asset_record.payload["sourceLicense"]
+    );
+    assert_eq!(
+        existing.payload()["evidenceIds"],
+        asset_record.payload["evidenceIds"]
+    );
     let manifest = reader.read_asset_manifest(&original, &storage_scope, &asset_ref)?;
     assert_eq!(manifest["sha256"], sha256(bytes));
     assert_eq!(manifest["byteSize"], bytes.len() as u64);
@@ -908,6 +951,8 @@ fn main() -> Check {
             "place": place_record, "manifest": manifest,
             "commit": commit,
             "reopen": "ordinary-original-authorized-reads-pass",
+            "committedConsumptionLookup":"strict-native-stock-audit-links-pass",
+            "existingOriginalResolution":{"assetId":existing.asset_id(),"revision":existing.revision(),"scope":existing.scope(),"provenance":"preserved","retainedBytes":"independently-verified"},
             "heldControls": "deferred-and-unrun"
         }))?,
     )?;

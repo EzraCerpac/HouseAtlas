@@ -106,6 +106,47 @@ pub(super) async fn command(
         let asset_key = runtime.new_id().map_err(|_| unavailable())?;
         let schemas = st::NativeStockContract::new().map_err(stock_reads::http_error)?;
         let stages = NativeUploadStages::open(&core.vault, &runtime).map_err(media_error)?;
+        let admission = UploadAdmission {
+            request_id: asset_request_id.clone(),
+            purpose: types::AssetPurpose::EvidenceOriginal,
+            content_type: types::ContentType::parse(&input.metadata.content_type).map_err(media_error)?,
+            filename: input.metadata.filename.clone(),
+            source_license: input.metadata.source_license.clone(),
+            evidence_ids: vec![],
+        };
+        // Measure real bytes under the original mutation fence, then resolve
+        // through Storage outside that fence; its authorizer acquires Access.
+        let mut measured = None;
+        {
+            let mut access = core.access.lock().map_err(|_| unavailable())?;
+            principal.release(&access).map_err(access_error)?;
+            access.with_mutation_authorization::<super::HttpFailure>(principal.principal.principal(), |guard| {
+                measured = Some(stages.prepare_original_for_resolution(
+                    guard, principal.principal.retained(), &admission,
+                    &mut input.bytes.as_slice(), &budget).map_err(media_error)?);
+                Ok(())
+            })?;
+            principal.release(&access).map_err(access_error)?;
+        }
+        let measured = measured.ok_or_else(unavailable)?;
+        let store_scope = crate::storage::Scope {
+            workspace_id: scope.workspace_id.clone(), home_id: scope.home_id.clone(),
+        };
+        let existing = core.store.lock().map_err(|_| unavailable())?
+            .resolve_original_asset_with_authorization(
+                &crate::app::ReadAuthority(core.access.clone()), &principal, &store_scope, &measured)
+            .map_err(|error| stock_reads::http_error(st::StockError::Domain(crate::app::storage_error(error))))?;
+        if let Some(asset) = existing {
+            let plan = upload_batch::plan_existing_upload_batch(
+                &principal, &selection, &input.metadata, &asset, &measured, &inputs)
+                .map_err(stock_reads::http_error)?;
+            let result = stock_mutations::execute_existing(
+                &core, &principal, &selection, plan.plan().original_request().clone(),
+                &asset, &measured, &schemas).map_err(stock_reads::http_error)?;
+            let access = core.access.lock().map_err(|_| unavailable())?;
+            principal.release(&access).map_err(access_error)?;
+            return Ok(json_response(result.wire));
+        }
         let mut staged = None;
         {
             let mut access = core.access.lock().map_err(|_| unavailable())?;
@@ -116,14 +157,7 @@ pub(super) async fn command(
                     let receipt = stages.stage_original(
                         guard,
                         principal.principal.retained(),
-                        UploadAdmission {
-                            request_id: asset_request_id.clone(),
-                            purpose: types::AssetPurpose::EvidenceOriginal,
-                            content_type: types::ContentType::parse(&input.metadata.content_type).map_err(media_error)?,
-                            filename: input.metadata.filename.clone(),
-                            source_license: input.metadata.source_license.clone(),
-                            evidence_ids: vec![],
-                        },
+                        admission,
                         &mut input.bytes.as_slice(),
                         &budget,
                     ).map_err(media_error)?;
@@ -150,7 +184,21 @@ pub(super) async fn command(
         let raw = plan.plan().original_request().clone();
         let result = stock_mutations::execute_staged(&core, &principal, &selection, raw, &staged, &schemas)
             .map_err(stock_reads::http_error)?;
-        let access = core.access.lock().map_err(|_| unavailable())?;
+        // Only the actual committed-consumption loader can authorize metadata
+        // retirement. A successful response or guessed token is insufficient.
+        let consumed = core.store.lock().map_err(|_| unavailable())?
+            .committed_upload_with_authorization(
+                &crate::app::ReadAuthority(core.access.clone()), &principal, &schemas,
+                &store_scope, &staged.staged().upload_token)
+            .map_err(|error| stock_reads::http_error(st::StockError::Domain(crate::app::storage_error(error))))?
+            .ok_or_else(unavailable)?;
+        let mut access = core.access.lock().map_err(|_| unavailable())?;
+        principal.release(&access).map_err(access_error)?;
+        access.with_mutation_authorization::<super::HttpFailure>(principal.principal.principal(), |guard| {
+            stages.cleanup_consumed(guard, principal.principal.retained(), &consumed, &budget)
+                .map_err(media_error)?;
+            Ok(())
+        })?;
         principal.release(&access).map_err(access_error)?;
         Ok(json_response(result.wire))
     }).await.map_err(|_| unavailable())?

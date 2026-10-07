@@ -9,8 +9,7 @@ use std::{
 };
 
 pub type Adapter<'a> = m::McpAdapter<m::NativePrincipalPort, m::NativeCatalog, StockService<'a>>;
-pub(crate) type OwnedAdapter =
-    m::McpAdapter<m::NativePrincipalPort, m::NativeCatalog, OwnedStockService>;
+pub(crate) type OwnedLifecycle = m::lifecycle::NativeSession<OwnedStockService>;
 
 fn read_catalog(principal: &m::NativePrincipal) -> Result<m::NativeCatalog, m::PortError> {
     let schemas = m::NativeSchemas::from_bytes(
@@ -41,37 +40,12 @@ pub async fn bind_read(
     Ok((adapter, session))
 }
 
-/// Own the core handle for a persistent HTTP session. The original is a genuine
-/// AT11 POST+CSRF Editor principal; the catalogue admits read/history only.
-pub(crate) async fn bind_owned(
+/// Bind the lifecycle successor to the actual owned root stock service.
+pub(crate) async fn bind_owned_lifecycle(
     core: Arc<Mutex<Core>>,
-    original: crate::access::Principal,
-) -> Result<(OwnedAdapter, m::Session<m::NativeContext>), m::PortError> {
-    use m::PrincipalPort;
-    let access = core
-        .lock()
-        .map_err(|_| m::PortError::Unavailable)?
-        .access
-        .clone();
-    let context = m::NativeContext::from_principal(original);
-    let principal_port = m::NativePrincipalPort::new(access);
-    let principal = principal_port.resolve(&context).await?;
-    let catalog = read_catalog(&principal)?;
-    let adapter = m::McpAdapter::new(
-        principal_port,
-        catalog,
-        OwnedStockService { core },
-        m::AdapterConfig {
-            max_session_requests: 256,
-            max_session_id_bytes: 64 * 1024,
-            ..m::AdapterConfig::default()
-        },
-    )
-    .map_err(|_| m::PortError::Unavailable)?;
-    // NativeContext is constructed exactly once. Both the catalogue's principal
-    // and this Session retain that same Arc, including across later HTTP POSTs.
-    let session = adapter.open(context);
-    Ok((adapter, session))
+    identity: m::lifecycle::AuthenticatedIdentity,
+) -> Result<OwnedLifecycle, m::PortError> {
+    m::lifecycle::mount_adapter::bind(identity, OwnedStockService { core }).await
 }
 
 /// One exact execution/error conversion for both borrowed and mounted services.

@@ -121,3 +121,55 @@ pub fn plan_fresh_upload_batch<'u>(
     // original metadata/file/license/purpose, then calls the genuine factory.
     qualified_upload_plan::qualify(principal, selection, &root, staged)
 }
+
+/// Build a fresh evidence intent referencing the exact authorized original.
+pub fn plan_existing_upload_batch<'u>(
+    principal: &RequestPrincipal,
+    selection: &ResolvedPlace<'_, '_>,
+    metadata: &UploadMetadata,
+    asset: &'u crate::storage::ExistingOriginalAsset,
+    measured: &'u crate::media::vault::PreparedOriginal,
+    inputs: &FreshUploadInputs,
+) -> st::StockResult<st::ExistingAssetAttachmentPlan<'u>> {
+    if !std::ptr::eq(selection.metadata(), metadata) {
+        return Err(st::StockError::AuthorityChanged);
+    }
+    let guards = qualified_upload_plan::existing_stock_guards(selection, asset)?;
+    let schemas = st::NativeStockContract::new()?;
+    let evidence = st::ValidatedRequest::parse(
+        &schemas,
+        json!({
+            "schemaVersion":3,"commandId":"atlas.evidence.create",
+            "requestId":inputs.evidence_request_id,"context":metadata.context,
+            "target":{"authority":"atlas","recordType":"evidence","recordId":inputs.evidence_id},
+            "payload":{"statement":metadata.statement,"provenance":{
+                "source":null,"sourceRevision":null,"sourceConfidence":null,"evidenceBasis":"unknown",
+                "factAt":null,"retrievedAt":inputs.retrieved_at,"vantage":null,
+                "uncertainty":{"status":"unknown","explanation":null}},
+                "supersedesEvidenceIds":[],"references":[{"kind":"atlas-asset","assetId":asset.asset_id()}]},
+            "idempotencyKey":inputs.evidence_key,"reason":metadata.reason,
+            "preconditions":{"target":null,"guards":guards},"approvalReceiptId":null
+        }),
+    )?;
+    let mut identity = selection
+        .identity_request(
+            &inputs.identity_request_id,
+            &inputs.identity_key,
+            &inputs.evidence_id,
+        )?
+        .raw()
+        .clone();
+    identity["preconditions"]["guards"] = guards.clone();
+    let identity = st::ValidatedRequest::parse(&schemas, identity)?;
+    let root = st::ValidatedRequest::parse(
+        &schemas,
+        json!({
+            "schemaVersion":3,"commandId":"atlas.batch.execute","requestId":metadata.request_id,
+            "context":metadata.context,"target":{"authority":"atlas","kind":"batch","batchId":inputs.batch_id},
+            "payload":{"commands":[evidence.raw().clone(),identity.raw().clone()]},
+            "idempotencyKey":metadata.idempotency_key,"reason":metadata.reason,
+            "preconditions":{"target":null,"guards":guards},"approvalReceiptId":null
+        }),
+    )?;
+    qualified_upload_plan::qualify_existing(principal, selection, &root, asset, measured)
+}

@@ -168,19 +168,21 @@ pub(super) async fn rotate(
     no_query(&uri)?;
     tokio::task::spawn_blocking(move || {
         let _admitted = checked.admission_permit()?;
-        let core = host
-            .core
-            .lock()
-            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
         let request_url = url(&host, &uri);
         let observed =
             evidence(&host.origin, &checked, &uri, &request_url, &method).map_err(access_error)?;
-        let receipt = core
-            .access
-            .lock()
-            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
-            .rotate_session(&observed)
-            .map_err(access_error)?;
+        let access = host.mcp_access.clone();
+        let (receipt, event) =
+            crate::transports::mcp::lifecycle::rotate_confirmed(access, &observed)
+                .map_err(access_error)?;
+        // Confirmed after native commit. No Core/Access lock is held while
+        // controls close and the registry forgets affected old sessions.
+        match host.mcp.lock() {
+            Ok(mut sessions) => sessions.on_rotation(&event),
+            // This path only invalidates controls. Preserve the actual native
+            // rotation receipt even if the transient registry was poisoned.
+            Err(poisoned) => poisoned.into_inner().on_rotation(&event),
+        }
         receipt_response(receipt)
     })
     .await

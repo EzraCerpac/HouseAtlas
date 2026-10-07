@@ -51,9 +51,22 @@ fn supported(request: &st::ValidatedRequest) -> st::StockResult<()> {
         _ => Err(st::StockError::CapabilityHeld),
     }
 }
+#[derive(Clone, Copy)]
+enum UploadPlan<'a, 'u> {
+    Staged(&'a st::StagedAtlasCommandPlan<'u>),
+    Existing(&'a st::ExistingAssetAttachmentPlan<'u>),
+}
+impl<'a, 'u> UploadPlan<'a, 'u> {
+    fn plan(self) -> &'a st::AtlasCommandPlan {
+        match self {
+            Self::Staged(plan) => plan.plan(),
+            Self::Existing(plan) => plan.plan(),
+        }
+    }
+}
 fn supported_profile(
     request: &st::ValidatedRequest,
-    upload: Option<&st::StagedAtlasCommandPlan<'_>>,
+    upload: Option<UploadPlan<'_, '_>>,
 ) -> st::StockResult<()> {
     if let Some(upload) = upload {
         require(upload.plan().original_request() == request.raw())
@@ -83,7 +96,7 @@ struct Authority<'p, 'a, 'u> {
     principal: &'p RequestPrincipal,
     access: &'a Access,
     store: &'a Mutex<Store>,
-    upload: Option<&'a st::StagedAtlasCommandPlan<'u>>,
+    upload: Option<UploadPlan<'a, 'u>>,
 }
 impl Authority<'_, '_, '_> {
     fn original(
@@ -227,7 +240,7 @@ impl<'p> st::StockAuthorityPort<RequestPrincipal> for Authority<'p, '_, '_> {
         }))
     }
 }
-struct Preparer<'a, 'u>(&'a Mutex<Store>, Option<&'a st::StagedAtlasCommandPlan<'u>>);
+struct Preparer<'a, 'u>(&'a Mutex<Store>, Option<UploadPlan<'a, 'u>>);
 impl<'p> st::StockPreparerPort<RequestPrincipal, Witness<'p>> for Preparer<'_, '_> {
     type Graph = Graph;
     fn resolve(
@@ -416,7 +429,7 @@ struct Commands<'a, 'u> {
     store: &'a Mutex<Store>,
     access: &'a Access,
     contracts: st::NativeStockContract,
-    upload: Option<&'a st::StagedAtlasCommandPlan<'u>>,
+    upload: Option<UploadPlan<'a, 'u>>,
 }
 impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands<'_, '_> {
     fn execute(
@@ -458,7 +471,7 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
                     phase: Cell::new(None),
                     failure: RefCell::new(None),
                 };
-                let result = if let Some(upload) = self.upload {
+                let result = if let Some(UploadPlan::Staged(upload)) = self.upload {
                     store.execute_staged_stock_json_with_authorization(
                         &authorization,
                         p,
@@ -532,14 +545,40 @@ pub(super) fn execute_staged(
 ) -> st::StockResult<st::OwnerResult> {
     let request = st::ValidatedRequest::parse(contracts, raw.clone())?;
     let qualified = super::qualified_upload_plan::qualify(p, selection, &request, staged)?;
-    execute_profile(core, p, raw, contracts, Some(&qualified))
+    execute_profile(
+        core,
+        p,
+        raw,
+        contracts,
+        Some(UploadPlan::Staged(&qualified)),
+    )
+}
+pub(super) fn execute_existing(
+    core: &Core,
+    p: &RequestPrincipal,
+    selection: &super::qualified_upload_plan::ResolvedPlace<'_, '_>,
+    raw: Value,
+    asset: &s::ExistingOriginalAsset,
+    measured: &crate::media::vault::PreparedOriginal,
+    contracts: &st::NativeStockContract,
+) -> st::StockResult<st::OwnerResult> {
+    let request = st::ValidatedRequest::parse(contracts, raw.clone())?;
+    let qualified =
+        super::qualified_upload_plan::qualify_existing(p, selection, &request, asset, measured)?;
+    execute_profile(
+        core,
+        p,
+        raw,
+        contracts,
+        Some(UploadPlan::Existing(&qualified)),
+    )
 }
 fn execute_profile(
     core: &Core,
     p: &RequestPrincipal,
     raw: Value,
     contracts: &st::NativeStockContract,
-    upload: Option<&st::StagedAtlasCommandPlan<'_>>,
+    upload: Option<UploadPlan<'_, '_>>,
 ) -> st::StockResult<st::OwnerResult> {
     let authority = Authority {
         principal: p,

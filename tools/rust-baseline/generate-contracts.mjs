@@ -135,6 +135,12 @@ function typeOf(schema, hint) {
     const value = typeOf(rest.length === 1 ? rest[0] : { anyOf: rest }, hint);
     return { rust: `Option<${value.rust}>`, ts: `${value.ts} | null` };
   }
+  // Format alternatives share a string wire type; their constraints remain
+  // authoritative at the JSON Schema boundary rather than duplicate DTO arms.
+  if (schema.anyOf?.length && schema.anyOf.every(branch => branch.type === 'string'
+    && !branch.$ref && !branch.enum && !Object.hasOwn(branch, 'const'))) {
+    return { rust: 'String', ts: 'string' };
+  }
   if (branches || Array.isArray(schema.type) || schema.type === 'object') {
     return { rust: declare(hint, schema), ts: hint };
   }

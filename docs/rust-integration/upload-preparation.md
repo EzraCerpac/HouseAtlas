@@ -14,12 +14,11 @@ This continuation starts from reviewed PR39 main
 `027efbbe00688bea65560f20231ed17ac28fab2f`. Both CI workflows preserve the exact
 subsequent CI40 source at `8f9b0dae87233c9833ef42c85a3afca692eb7efe`.
 
-The paired feature inputs are Media
-`f0d6b10f00bb93fc1c1dd4eb3ae66ee1fbe3f873`, Domain
-`8a568fb6ccef5b0fa575b18d6181dcc524d4db99` (directly over
-`acb7c4d6ef7fea7ee7d3f22ee5f0208bc1fb36ce`), and Storage
-`e23a1c959119b1f64061d51555be5f45cf48e3e5`. Runtime files retain exact owner
-bytes; established owner README privacy adaptations remain separate.
+Current owner successors are Media PR63
+`ea8ef14e05795334b3d79ae9c95c0a456f8b0308`, Domain PR70
+`c25c1a0316ef5e12b61560f00371d839085aefb5` and Storage PR57
+`f5ec22394a6ffbfcf8682ea8150902d6e88f646b`. Their runtime bytes are
+composed exactly. Root manifests pin standard PNG decoding at `png 0.18.1`.
 
 Storage schema5 is fresh-only and contains 29 tables. It refuses existing
 schema1–4 databases without upgrade or relabeling. Its actual staged execution
@@ -82,43 +81,71 @@ the same selector bounds. Prior PR39 place limits and cache evidence remain
 historical; cached opaque query decoding is unchanged. Maximum-range and
 resource-denial qualification remain unexercised.
 
+## Original reuse and committed cleanup
+
+Media measures the actual bytes under the original Access mutation fence.
+Storage then resolves a current available original in that exact authorized
+home, verifies retained bytes and returns its sealed `ExistingOriginalAsset`.
+The resolver runs outside the mutation fence because its actual authorizer
+acquires Access. Core serializes this complete ordinary request.
+
+For a matching original, root builds a fresh evidence-create and guarded PLACE
+identity-replace intent. It binds the original asset ID and exact revision into
+root and both child guards, retains the complete original selection and passes
+Storage's resolved asset and Media's measured original to the genuine Domain
+existing-asset factory. The same native execution, witness, graph, closure,
+transaction and output authority remain mandatory. No new asset, stage,
+consumption, provenance update or asset audit is emitted.
+
+For new content, the original staged asset-create path remains authoritative.
+After the actual durable commit and authorized release, Storage's strict
+`committed_upload_with_authorization` loader returns a genuine consumed carrier.
+Under the original Access mutation fence, Media `cleanup_consumed` verifies it
+and retires matching pending metadata. Durable pending-directory and retained
+original/byte accounting survives owner reopen; original blobs remain charged.
+The standard bounded PNG decoder supports grayscale, indexed, 16-bit and static
+Adam7 forms in source. Expiry implementation remains untested. The POST route
+uses Axum's own method fallback and Allow header; unsupported-method controls
+remain unrun.
+
 ## Explicit verification and limitations
 
 After inspecting its complete body, run the separately named
 `tools/rust-integration/healthy-upload-loopback.mjs` with the locked compiled
-`HOUSEATLAS_BINARY` and actual `HOUSEATLAS_CHROMIUM`. It creates a fresh disposable
-TLS loopback fixture, uses genuine session transitions, selects one generated
-2×2 PNG through the actual React file input and submits the form once. It checks
-canonical receipt retention after refresh, native/stock record and first history
-reads, genuine browser WebMCP reads, successful owned-original GET and read-only
-SQLite creation/receipt/consumption linkage. It runs no negative or aggregate
-control. Credentials, tokens and internal stage/journal envelopes stay outside
-published evidence. The standalone healthy planning example remains a separate
-read-only check and is not added to an aggregate.
+`HOUSEATLAS_BINARY` and actual `HOUSEATLAS_CHROMIUM`. It uses a fresh disposable
+TLS loopback service and real React file input. Two distinct fresh user intents
+attach the same small generated PNG; request, operation and idempotency IDs differ.
+This is not retry or replay. The second committed batch creates evidence and
+advances the PLACE identity to revision3 while the original asset record,
+provenance and sole audit remain unchanged. Both canonical receipts remain
+visible after their actual refreshes. Native/stock histories, genuine browser
+WebMCP reads, owned-original GET and read-only SQLite linkage are observed.
 
-The mounted ordinary run completed 44 loopback browser requests with real
-Chromium 151.0.7922.173 and one 84-byte generated PNG. Read-only SQLite observation
-found 8 records, 3 audits, 3 native receipts, 1 batch receipt, 1 asset manifest,
-1 stock root, 3 groups, 4 keys, 3 audit/history links, 0 history cursors and
-1 upload consumption. Exact creation/group/receipt/manifest/consumption links,
-the complete original guards and reason matched. Identity advanced to revision2;
-semantics remained unchanged at revision1. Native/stock histories and genuine
-WebMCP reads returned the committed data; owned-original GET returned exact PNG
-bytes. All product requests succeeded. Earlier observer-only quoting and native
-batch-array decoding mistakes were corrected before the complete pass.
+The initial composed-owner run completed 51 successful browser requests. SQLite
+contained 9 records, 5 audits, 5 native receipts, 2 batch receipts, 1 asset
+manifest, 2 stock roots, 5 groups, 7 keys and 1 upload consumption. Pending stage
+metadata count was zero. Semantics remained unchanged at revision1. One initial
+observer compared the whole stored commit wrapper with its public wire member;
+that observer-only field selection was corrected before the complete pass.
 
-Locked Rust source checks, rustfmt, strict Clippy, generated contract/catalog
-consistency, the three named healthy native examples, TypeScript and Vite passed.
-Vite retains its existing large-bundle warning. The new upload runner remains
-separately named and is not automatically added to CI by this integration lane.
-Hosted evidence for this exact continuation is pending; prior main CI success
-does not certify it.
+Locked actual Rust compilation, rustfmt, strict Clippy and strict TypeScript/Vite
+remain required. Vite retains its existing large-bundle warning. This upload
+runner is separately named and is not automatically added to runtime CI.
+The final composition includes reviewed main
+`a4e583c45a381cd5dc710a256c8d15d0aa8f2e5a`. Its locked source compilation,
+rustfmt, strict Clippy, four explicitly named healthy Rust examples, generated
+contract/history checks and strict TypeScript/Vite pass. The rebuilt actual
+binary SHA256 is `6a5a1ab4fc2633c256e68865fd2d69a6afb12a82fecb19525684b4570dc382b4`.
+It passed the 51-request attachment flow and the separate 10-request healthy
+MCP lifecycle flow. Evidence SHA256 values are respectively
+`8f6fb7d5301f74be62e9f1d6dc245391a2ebee2261ab4fcd71dcba770ac11a50`
+and `cb9a69d5a180e6abec8f45d121602b22e63035409c4d79b0dd00ab9a0088a7ac`.
+Final composed exact-head hosted review/CI must clear before normal merge.
 
-The route supplies no existing-database migration, pending-stage restart
-reconciliation/expiry/cleanup, automatic retry, replay, recovery/export, hard
-filesystem cancellation or concurrency qualification. No remote listener,
-provider/NAS call, real household data, operational login/grant, AI inference or
-deployment runs. All stopped rejection, guard reversal, mutation/omission,
-adversarial, replay, expiry, revocation, fault, crash, concurrency and
-resource-denial controls remain unrun. Ordinary success is development evidence,
-not product, security, recovery or target acceptance.
+No existing-database migration, automatic retry/replay, restart reconciliation,
+recovery/export, hard filesystem cancellation, other PNG forms, text/PDF,
+maximum-range or concurrency qualification is supplied by this smoke. No remote
+listener, provider/NAS call, private data, operational login/grant, AI inference
+or deployment occurs. All stopped rejection, guard reversal, mutation/omission,
+adversarial, replay, expiry, revocation, fault, crash, concurrency and denial
+controls remain unrun. Ordinary success is development evidence only.

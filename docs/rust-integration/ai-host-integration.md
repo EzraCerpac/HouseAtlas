@@ -85,28 +85,30 @@ new explicit browser example is compiled, not executed by this integration.
 
 ## Verification and limits
 
-Locked Rust library/binary/explicit-example compilation and strict Clippy pass
-with the actual sources. Strict TypeScript and Vite pass. Both hosted workflow
-files remain the exact CI40 files; the separate AI protocol example is not added
-to ordinary runtime CI. The central publication manifest includes the exact composed files, modes,
-digests and logical ownership. Hosted evidence remains separate from these local
-source checks.
+The current root composition includes reviewed main
+`87ad201140edb7b3afdb4396095a320c2926eafe`, preserving its actual original-reuse
+and committed upload cleanup path, corrected method fallback, native reader,
+calendar formatting and MCP lifecycle. Exact owner AI source remains unchanged.
+The UI original-cancellation correlation and backend empty-completion findings
+remain with their owners. This composition stays draft and cannot merge until
+those exact successors and final review/CI clear.
 
-No new live account, credential/grant, provider call, inference spend, operational
-listener or deployment is attempted. Cancellation/replay/review examples are not
-run here. All stopped rejection, guard/mutation, adversarial, expiry/revocation,
-fault/crash/corruption, concurrency and resource-denial controls remain unrun.
-Compiler success does not qualify actual AI/browser/credential/runtime behavior.
+Locked actual Rust library/binary/explicit-example compilation, rustfmt, strict
+Clippy, generated contract/catalog/history checks, four explicitly named healthy
+native examples, strict TypeScript and Vite pass. Both workflows are unchanged.
+The actual rebuilt binary SHA256 is
+`d44e95ef78db1fa051f50be7f89838ac29bf6775248f5476d8967693f09edae9`.
+It passed the inspected 30-request browser classification/MCP read/history flow
+with real SQLite linkage and actual Settings AI-unconfigured display. It also
+passed the separate 51-request fresh attachment/reuse flow. Evidence SHA256 is
+`3190ef885bcfe418fa7617ec142e54bc4ad3583997be9023696f80110b4ee598`
+and `08d0812b45d7e377819079af607a5900c137736d8502604a3f28084937806743`
+respectively. Vite retains its existing large-bundle warning.
 
-The original host owner corrected terminal review cancellation, durable action
-receipt polling after epoch rotation, and final authority checks on authenticated
-success and error responses. Root applied its exact mount proposal. New error
-paths and cancellation controls remain static-only here. The exact UI terminal-outcome/standalone-report successor is now included.
-
-The final owner composition passes locked Rust source/explicit-example checks,
-rustfmt, strict Clippy, strict TypeScript and Vite (145 actual bundle modules).
-The inspected real browser classification runner also checks the actual Settings
-AI section in its unconfigured state, then completes the ordinary native stock
-classification/MCP read/history flow: 30 HTTP requests with real SQLite linkage.
-No AI request, lifecycle action, model selection or credential peer is exercised.
-The separate host cancellation/protocol examples remain compiled only.
+No AI request, lifecycle action, model selection, credential peer, inference
+spend, live account/grant, provider call, remote listener or deployment runs.
+Cancellation/replay/review/protocol examples remain compiled only. All stopped
+rejection, guard/mutation, adversarial, expiry/revocation, fault/crash/corruption,
+concurrency and denial controls remain unrun. Actual enrollment, OS credentials,
+model/catalog, canonical continuation and trusted human approval remain missing.
+Compiler and ordinary unconfigured UI success do not qualify AI runtime behavior.

@@ -38,6 +38,7 @@ reqwest.workspace = true
 tokio-util.workspace = true
 flate2.workspace = true
 crc32fast.workspace = true
+png.workspace = true
 rustix.workspace = true
 tempfile.workspace = true
 
@@ -74,3 +75,11 @@ path = "../tools/rust-integration/examples/healthy_canonical_upload_plan.rs"
 [[example]]
 name = "healthy-ai-host"
 path = "src/ai/host/healthy.rs"
+
+[[example]]
+name = "healthy-mcp-lifecycle"
+path = "src/transports/mcp/lifecycle/healthy.rs"
+
+[[example]]
+name = "healthy-maintenance-calendar"
+path = "src/contracts/examples/healthy-maintenance-calendar.rs"
