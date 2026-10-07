@@ -32,10 +32,47 @@ fn media_error(error: m::MediaError) -> super::HttpFailure {
     failure(StatusCode::from_u16(error.status()).unwrap_or(StatusCode::SERVICE_UNAVAILABLE))
 }
 
+// This conversion runs only after a native stock request has been validated.
+// It conveys the sanitized error category, never a new grant, current revision,
+// or a claim that an uncertain durable commit was rolled back.
+fn stock_error(error: super::HttpFailure) -> st::StockError {
+    use d::DomainError as D;
+    match error.status {
+        StatusCode::UNAUTHORIZED => st::StockError::Domain(D::Unauthenticated),
+        StatusCode::FORBIDDEN => st::StockError::CapabilityDenied,
+        StatusCode::NOT_FOUND => st::StockError::Domain(D::NotFound),
+        StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => {
+            st::StockError::InvalidContract
+        }
+        StatusCode::PRECONDITION_REQUIRED => st::StockError::Domain(D::RevisionRequired {
+            current_revision: error.current_revision,
+        }),
+        StatusCode::PRECONDITION_FAILED => st::StockError::Domain(D::RevisionConflict {
+            current_revision: error.current_revision,
+        }),
+        StatusCode::CONFLICT => st::StockError::Domain(D::IdentityConflict),
+        _ => st::StockError::OwnerUnavailable,
+    }
+}
+
 /// The command route has already issued a fresh Mutate principal from the
 /// actual POST/CSRF request and parsed the native stock envelope. This path
 /// consumes only the original Box and same-Store pin found by the selector.
 pub(super) fn execute(
+    host: &Host,
+    core: &Core,
+    current: &RequestPrincipal,
+    request: &st::ValidatedRequest,
+    contracts: &st::NativeStockContract,
+    scope: &d::Scope,
+) -> HttpResult {
+    match execute_validated(host, core, current, request, contracts, scope) {
+        Ok(response) => Ok(response),
+        Err(error) => super::agents::command_error(stock_error(error), request.request_id()),
+    }
+}
+
+fn execute_validated(
     host: &Host,
     core: &Core,
     current: &RequestPrincipal,
