@@ -22,18 +22,7 @@ impl<
             StockActivityPhase::Entry,
             StockActivityAction::Reserve(command, authority),
         )?;
-        let (id, now) = {
-            let store = self
-                .store
-                .try_lock()
-                .map_err(|_| StockPortFault::Unavailable)?;
-            (
-                Uuid::parse_str(&store.runtime.new_id().map_err(unavailable)?).map_err(evidence)?,
-                store.runtime.now().map_err(unavailable)?,
-            )
-        };
-        self.schemas.validate_observed_at(&now)?;
-        let reservation = self.transact_live(|db, guard| {
+        let reservation = self.transact_live_with_runtime(|db, guard, runtime| {
             repository::register(db,&self.registration)?;
             let prior: Option<String> = db.query_row("SELECT operation_id FROM stock_activity_operations WHERE actor_id=?1 AND workspace_id=?2 AND home_id=?3 AND idempotency_key=?4",params![authority.actor_id.to_string(),command.context.workspace_id.to_string(),command.context.home_id.to_string(),command.idempotency_key.to_string()],|r|r.get(0)).optional().map_err(unavailable)?;
             if let Some(prior) = prior {
@@ -45,6 +34,12 @@ impl<
                 // original-owner queued_handoff; reserve never redispatches.
                 return Ok(StockReservation::Existing(Box::new(row.operation)));
             }
+            // Existing durable results do not depend on fresh metadata. Borrow
+            // the original runtime under this same Store transaction, avoiding
+            // a second lock or an out-of-transaction lookup/allocation gap.
+            let id=Uuid::parse_str(&runtime.new_id().map_err(unavailable)?).map_err(evidence)?;
+            let now=runtime.now().map_err(unavailable)?;
+            self.schemas.validate_observed_at(&now)?;
             let waiting=repository::occupied(db,&self.registration)?;
             let operation=super::baseline::fresh(command,authority,id,&now,waiting);
             self.checked(&operation)?;

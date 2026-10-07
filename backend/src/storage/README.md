@@ -967,3 +967,18 @@ retained Jobs rows. This avoids lifetime-history full decoding and extra
 per-row queries, while SQLite still evaluates summaries within the selected
 physical identity's history; it makes no constant-time claim and adds no schema
 or checksum change.
+
+Native reservation resolves its durable actor/scope/idempotency key under the
+original live fence and same Store transaction before allocating a new ID or
+timestamp. Returning `Existing` still checks exact intent, stored operation and
+current disclosure authority, but invokes neither metadata getter. A missing
+reservation borrows the original runtime from that already locked Store; no
+second Store acquisition or lookup/allocation gap is introduced.
+
+Global native recovery replay uses the same physical/logical/liability prefix
+predicate at reservation and admission cuts. A `Prepared` reservation requires
+no earlier native hold at its sequence. `Queued` remains valid with a native or
+independently qualified Jobs hold; Jobs has no shared native event sequence, so
+its historical occupancy is not invented. These changes are verified by source
+review, actual compilation and existing ordinary healthy examples; no retained
+reservation replay, metadata fault or spliced-history control is executed.
