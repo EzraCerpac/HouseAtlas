@@ -3,9 +3,8 @@
 The existing stock commands endpoint and native stock dispatcher now bind the
 Domain owner's six single derived forms: binding create, review, restore and
 remap, geometry create, and asset review. Editor HTTP admission uses the same
-closed Domain operation predicate as execution. The root HTTP batch arm still
-requires every child to map directly. The Domain/Storage mixed derived batch
-adapter below is available for the integration owner to mount.
+closed Domain operation predicate as execution. The root HTTP batch arm mounts
+the Domain/Storage mixed derived batch adapter described below.
 The host retains its existing fresh-only Intake, Validate, Candidate and
 Precommit fence. Retries and replay remain unavailable; retained projection
 support is not permission to execute those phases.
@@ -16,11 +15,15 @@ neither the requested key nor its cached projection establishes a presence
 witness. Review and restore retain the complete original binding preimage.
 Each geometry command's import time comes from one server clock sample retained in
 its plan, including a separate retained sample for each geometry child in a batch.
-Asset review preserves the original asset envelope and admits only `block` and
-`download-only` with null renderer receipt IDs. `request-preview` remains held
-because the actual renderer-receipt qualification peer is unavailable.
-Standalone stock `asset.create` remains outside admission; the existing qualified
-attachment route retains its genuine Media stage and atomic consumption profile.
+The generic derived asset-review path preserves the original envelope and admits
+`block` and `download-only` with null renderer receipt IDs. A separate fresh single
+`request-preview` path now consumes the actual opaque Media proof and same-Store
+issuance pin under the original Access guard. It checks the durable successor and
+canonical receipt before releasing the result. Mixed renderer reviews remain held.
+Standalone stock `asset.create` uses a same-request text/plain stage with unknown
+license and download-only policy; generic JSON intake remains unavailable.
+The existing qualified attachment route retains its genuine Media stage and
+atomic consumption profile.
 
 The original per-call principal, source handles, full original graph and native
 closure remain under the existing Access transaction fence. Capture covers all
@@ -105,8 +108,9 @@ stock row codec. Older binaries that deny unknown fields cannot read new batch
 bodies and must not receive a database containing them; this source change does
 not authorize a live data upgrade or rollback deployment.
 
-HTTP preparation, source capture, transaction fence adoption and result release
-remain integration-owner work. Replay execution is excluded. The same named `healthy-agent-stock` example mounts a fixture-only Store peer
+Root HTTP preparation, source capture, transaction fence adoption and result
+release use the same original fresh fence. Replay execution is excluded.
+The same named `healthy-agent-stock` example mounts a fixture-only Store peer
 around a genuine Access-issued editor principal and synchronous mutation guard.
 It pins the same Store original snapshot and immutable plan, captures actual
 source and partition grants including prior remap journals' retired bindings,
@@ -118,5 +122,16 @@ operation IDs are the actual distinct runtime IDs and audit IDs match the
 native result carriers. After normal close/reopen, nine matching record/history
 pairs validate retained reconstruction and actual audit digests for every
 expanded output. The existing single-command v1 history checks still pass in
-the same Store. This is positive native owner-adapter evidence; HTTP mounting
-and its root result-release fence remain unqualified here.
+the same Store. This is positive native owner-adapter evidence. The browser
+stock-write fixture separately exercises a direct circuit/identity batch with
+one derived unresolved-binding child through the actual HTTP consumer; it does
+not exercise all six specialized children over HTTP.
+
+The native helper additionally reviews an existing private synthetic PNG using
+actual Media rendering, Store-issued original custody, exact request binding and
+transaction precommit checks. Normal reopen validates the saved reviewed record
+and matching history. The browser fixture separately obtains a server proof and
+checks actual safe-rendered bytes, revision2 and the native/stock journal links.
+These paths retain `atlas-verified-asset-review/1` measurements as data, with no
+way to deserialize authority or adopt replay. A postcommit release error leaves
+the durable canonical journal intact and must not be reported as rollback.

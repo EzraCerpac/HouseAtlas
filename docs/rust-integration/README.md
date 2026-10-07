@@ -237,7 +237,8 @@ genuine in-process MCP tools/list and tools/call over actual access/domain/SQLit
 its specialized helper exercises the bounded derived forms
 documented in [specialized writes](atlas-specialized-writes.md).
 Run `cargo run --locked -p houseatlas-backend --example healthy-agent-stock`
-for six specialized singles and the positive seven-child mixed derived batch,
+for six specialized singles, the positive seven-child mixed derived batch and
+one actual proof-qualified existing-PNG review,
 using real Access/Store and normal reopened record/history reads in disposable
 synthetic state. It exercises no replay, live provider or held controls.
 The workflow compiles it on both platforms and runs it only on Linux.
@@ -263,7 +264,13 @@ and one ordered two-identity batch with record/history readback. Media adds two
 fresh owned asset commits, PNG/text original GET/HEAD and PNG preview; text
 preview and PNG preview HEAD are unrun. Stock read compares circuit/asset results
 with frozen records. Stock write adds fresh circuit and ordered identity-batch
-roots through actual stock execution. Stock history adds three first-page/search
+roots through actual stock execution, plus a mixed unresolved-binding child.
+It also obtains a genuine server renderer receipt for an existing private PNG,
+commits one fresh request-preview review through the same-Store consumer, and
+checks actual rendered bytes, unchanged original provenance, revision2 and the
+complete native/stock receipt and audit linkage. It compares the full Media
+request digest and the distinct Stock intent digest to their respective carriers.
+Stock history adds three first-page/search
 reads, each with one event; nonnull stock cursor continuation remains unrun.
 The original WebMCP runner discovers real document tools, reads an identity,
 creates a circuit, then reads the record and first audit page.

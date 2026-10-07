@@ -37,15 +37,24 @@ same-Store native transaction; see [specialized writes](atlas-specialized-writes
 Standalone text/plain stock asset-create now uses same-request actual Media
 staging, the original Access allocation and atomic Store consumption. Its named
 healthy TLS fixture verifies the one committed receipt, linked history and exact
-authenticated download bytes. Generic JSON staged intake, renderer-qualified
-asset review remain separate consumer implementation gaps. Mixed derived batches
+authenticated download bytes. Generic JSON staged intake remains unavailable.
+Mixed derived batches
 now have the native Domain/Storage owner implementation and ordered versioned
 retention and the root HTTP consumer through the unchanged original fresh fence.
-Media now provides opaque actual retained-byte renderer proof with exact
-request/preimage/successor revalidation; its example does not prove a Store commit.
-The host now retains the complete original principal allocation
-with the genuine opaque renderer carrier in bounded session-bound custody; the
-same-Store proof consumer remains a distinct source gap. Four cached HomeBox
+Media provides opaque actual retained-byte renderer proof with exact
+request/preimage/successor revalidation. The host retains the complete original
+principal allocation and same-Store issuance pin in bounded session-bound custody.
+The fresh single `asset.review/request-preview` consumer checks the opaque proof
+inside the actual Store transaction and against the durable successor before
+Domain disclosure and final current/original authorization. The native example
+also checks normal reopened record/history data. The browser stock-write fixture
+uses the server-issued proof for an existing private synthetic PNG and verifies
+the actual rendered bytes, revision, provenance and SQLite receipt/audit linkage.
+Complete Media request digests and Stock intent digests retain their distinct
+meanings. Renderer proof data cannot recreate authority or enable replay. Mixed
+renderer reviews remain unavailable. A release error can follow a durable commit;
+it does not establish rollback or permission to retry.
+Four cached HomeBox
 entity/location reads are mounted in native stock and HTTP/MCP. The remaining
 HomeBox read families and durable writer host require genuine owner peers. PR119
 adds native-byte observation adapters, followed by an archive-fact correction and
