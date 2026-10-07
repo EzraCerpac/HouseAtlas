@@ -281,6 +281,13 @@ pub struct HomeboxRecoveryBindings<'a, O, M> {
 pub struct HomeboxRecoveryOwners<'a, O, M> {
     registry: TrustedQueueRegistry,
     bindings: HomeboxRecoveryBindings<'a, O, M>,
+    native_codec: HomeboxRecoveryCodec,
+}
+
+// Chosen by trusted host construction, never an image label or schema number.
+enum HomeboxRecoveryCodec {
+    OriginalUuid,
+    RetainedQueueBinding,
 }
 
 type HomeboxDiscovery<'a, O, M> =
@@ -298,13 +305,34 @@ type HomeboxEvidence<'a, 'peer, O, M> = NativeQueueRecoveryEvidence<
 impl<'a, O: OriginalEnqueueOwner, M: QueuedMediaRecovery<O::Proof>>
     HomeboxRecoveryOwners<'a, O, M>
 {
+    /// Preserved /1 selection and its original queue/writer UUID requirement.
     pub fn new(bindings: HomeboxRecoveryBindings<'a, O, M>) -> Result<Self> {
+        Self::with_native_codec(bindings, HomeboxRecoveryCodec::OriginalUuid)
+    }
+
+    /// Explicit /2 selection for actual opaque storage job IDs. The original
+    /// writer owner must supply independently retained /2 archive records from
+    /// its actual claim, admitted operation and matching permit. This host never
+    /// creates that binding, derives a writer UUID or upgrades an image packet.
+    /// A configured peer selects one version; mixed versions have no fallback.
+    pub fn new_v2(bindings: HomeboxRecoveryBindings<'a, O, M>) -> Result<Self> {
+        Self::with_native_codec(bindings, HomeboxRecoveryCodec::RetainedQueueBinding)
+    }
+
+    fn with_native_codec(
+        bindings: HomeboxRecoveryBindings<'a, O, M>,
+        native_codec: HomeboxRecoveryCodec,
+    ) -> Result<Self> {
         if bindings.queues.is_empty() {
             return Err(InvalidRecoveryConfig);
         }
         let registry =
             TrustedQueueRegistry::new(bindings.queues).map_err(|_| InvalidRecoveryConfig)?;
-        let owners = Self { registry, bindings };
+        let owners = Self {
+            registry,
+            bindings,
+            native_codec,
+        };
         owners.with_peers(|_| ())?;
         Ok(owners)
     }
@@ -341,8 +369,14 @@ impl<'a, O: OriginalEnqueueOwner, M: QueuedMediaRecovery<O::Proof>>
                 .authorize_discovery(&queue.registration)
                 .map_err(|_| InvalidRecoveryConfig)?;
         }
-        let native =
-            HomeboxRetainedEvidence::new(bindings.writer_contracts, bindings.writer_archive);
+        let native = match self.native_codec {
+            HomeboxRecoveryCodec::OriginalUuid => {
+                HomeboxRetainedEvidence::new(bindings.writer_contracts, bindings.writer_archive)
+            }
+            HomeboxRecoveryCodec::RetainedQueueBinding => {
+                HomeboxRetainedEvidence::new_v2(bindings.writer_contracts, bindings.writer_archive)
+            }
+        };
         let evidence = NativeQueueRecoveryEvidence::new(&discovery, &native);
         let peers = RecoveryPeers::new(discovery.registry().configs(), &discovery, &evidence)?;
         Ok(operation(&peers))
