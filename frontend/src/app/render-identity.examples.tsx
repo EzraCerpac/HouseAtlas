@@ -41,10 +41,13 @@ export async function runHealthyRenderIdentity(
   check(family, "Healthy command family required");
   let session = supplied.session;
   let scope: Scope = supplied.scope;
+  let revision = "synthetic-admission:1";
   let admission: StockAdmission = {
     scope,
     commandIds: [supplied.request.commandId],
-    revision: "synthetic-admission:1",
+    get revision() {
+      return revision;
+    },
   };
   const service = {
     async dispatch() {
@@ -120,13 +123,19 @@ export async function runHealthyRenderIdentity(
     checks.push(
       "session replacement masks the prior result before parent publication",
     );
-    admission = { ...admission, commandIds: [...admission.commandIds] };
+    admission = {
+      ...admission,
+      commandIds: [...admission.commandIds],
+      get revision() {
+        return revision;
+      },
+    };
     await render();
     await execute();
     checks.push(
       "admission replacement masks the prior result before parent publication",
     );
-    admission = { ...admission, revision: "synthetic-admission:2" };
+    revision = "synthetic-admission:2";
     await render();
     await execute();
     checks.push(
