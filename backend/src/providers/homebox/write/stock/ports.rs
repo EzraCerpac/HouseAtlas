@@ -227,6 +227,10 @@ pub struct DispatchReceipt {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NativeDispatch {
+    /// Capture/admission gate or driver unavailable without trustworthy evidence
+    /// of invocation or noninvocation. Carries no receipt and creates no fact.
+    /// Preserve admitted intent and every existing hold; never retry dispatch.
+    Unavailable,
     /// Exact driver proof of never starting invocation; not a generic HTTP error.
     NeverInvoked,
     Invoked(DispatchReceipt),
@@ -237,6 +241,9 @@ pub enum NativeDispatch {
 /// remote end. EndedProven requires independent correlated termination proof.
 /// Real drivers independently reject SyntheticFixture and verify qualified
 /// registry evidence for the exact active stock.2 catalogue/build/route.
+/// An ambiguous gate refusal returns Unavailable, never a fabricated receipt or
+/// NeverInvoked. Wrappers must preserve it as unavailable, exclude it from native
+/// proof archives and retain their invocation barrier without calling again.
 pub trait StockDispatchPort {
     fn dispatch(
         &self,

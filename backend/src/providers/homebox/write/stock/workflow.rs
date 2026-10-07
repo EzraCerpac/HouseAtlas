@@ -219,6 +219,12 @@ where
         // Durable dispatch intent precedes exactly one external invocation.
         // Dropping this future does not release the remote invocation hold.
         let record = match self.dispatch.dispatch(&permit, &plan, &current).await {
+            NativeDispatch::Unavailable => {
+                // Admission is already durable. Unavailability proves neither
+                // invocation nor noninvocation: leave every fact and hold intact
+                // and return without persistence, readback or another dispatch.
+                return self.dispatch_unavailable(&admitted).await;
+            }
             NativeDispatch::NeverInvoked => {
                 let saved = match self.never_invoked(&admitted, &permit).await {
                     Ok(saved) => saved,
@@ -411,6 +417,29 @@ where
             };
         }
         self.disclose(response_command, operation).await
+    }
+
+    async fn dispatch_unavailable(&self, admitted: &StoredOperation) -> StockResult {
+        // The dispatch await may outlive access. Only refresh disclosure of the
+        // original admitted intent; this grants no dispatch/readback authority.
+        let code = match self
+            .access
+            .authorize(
+                &admitted.command,
+                AuthorityPhase::Disclose(&admitted.outcome),
+            )
+            .await
+        {
+            Ok(current)
+                if current.actor_id == admitted.actor_id
+                    && current.physical_binding == admitted.captured_authority.physical_binding =>
+            {
+                StockErrorCode::UnknownHeld
+            }
+            Ok(_) => StockErrorCode::CapabilityDenied,
+            Err(code) => code,
+        };
+        error(&admitted.command, Some(admitted.operation_id), code)
     }
 
     async fn never_invoked(
