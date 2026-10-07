@@ -206,6 +206,67 @@ this example does not qualify the composed recovery host. Actual production
 issuer approval, complete registry and trusted physical database mapping remain
 unconfigured. No production call site is added.
 
+## Network link and observation disclosure
+
+`NetworkLinkRef` and `NetworkObservationRef` are distinct server-only selectors;
+the frozen `SourceKind` enum and wire contracts stay unchanged. A link selector
+names the exact partition, raw link ID and BOTH raw endpoint `SourceRef`s.
+Endpoint kinds are device, interface or segment. Retain original raw endpoints
+when projection reorders them or represents a reviewed endpoint as unresolved.
+An observation selector names its partition, observation ID, collector ID and
+every declared device/interface member. Observation IDs may share spelling with
+inventory/link IDs; the typed link and observation selectors remain distinct.
+
+| Operation | Access-owned method |
+| --- | --- |
+| Capture link read permission | `access.authorize_network_link(principal, reference, original_from, original_to)` |
+| Capture observation read permission | `access.authorize_network_observation(principal, reference, original_device, original_interface)` |
+| Check original link permission | `access.revalidate_network_link(grant)` or `guard.revalidate_network_link(grant)` |
+| Check original observation permission | `access.revalidate_network_observation(grant)` or `guard.revalidate_network_observation(grant)` |
+| Hold current read authority | `access.with_read_authorization(principal, operation)` |
+
+Capture requires a genuine current principal, an enabled Network-owned source
+and its existing read policy. Reviewed partitions require an approved row ID
+and at least one observation member; every declared member must have the exact
+supplied original `SourceGrant`. Exclusive-home partitions also permit
+collection-only observations. Each opaque grant privately retains its genuine
+partition version and original member grants. Guard checks bind it to the
+guard's complete original principal provenance and return the original handle;
+revalidation never captures replacement permission. None of these methods
+creates lifecycle/publication authority, accepted-generation membership or a
+source-presence admission witness.
+
+The collector ID is partition-qualified matching/provenance data. It is neither
+an issuer nor an independently approved collector capability. These checks use
+the pinned Network projection's existing row-ID/member read policy. An additional
+collector-specific authorization policy requires an explicit owner contract;
+none is invented here. The Network owner must validate the retained generation
+and match each selector, collector and raw member declaration to that generation
+before disclosure; caller-created selectors alone supply no membership proof.
+
+`with_read_authorization` holds an immediate access transaction around a bounded
+synchronous callback. It checks the exact borrowed principal at entry and after
+the callback and exposes no raw connection. The consumer must check its original
+partition/entity/link/observation handles through the guard before reading and
+immediately before releasing owned output. A callback may capture an owned
+result, but the caller must release it only after the fence returns `Ok(())`.
+The root runtime must put its actual same-Store authorized snapshot read inside
+this callback. Supplied metadata or a separate synthetic reader cannot establish
+that binding. Release the access fence before provider I/O or async work.
+
+PR #48's Network runtime can consume these grants directly in its original
+lease. Its generation validation and relation/observation disclosure callbacks
+remain Network-owned. AT07/AT51 must fix the existing reader's link selector:
+it currently relabels relation link IDs as `network-segment`. A genuine segment
+grant cannot authorize a link row. No storage/router/provider files are changed
+by this access lane.
+
+`network_healthy.rs` exercises a genuine viewer session, reviewed source, raw
+link endpoints, both observation members, same-spelled link/observation IDs,
+original-handle checks and a disposable SQLite read inside the access fence.
+The reader is an explicit synthetic peer. This checkpoint does not qualify the
+actual Network generation, same-Store read composition or release pipeline.
+
 ## Dependencies for AT51
 
 Direct dependency versions proposed for the shared application manifest:

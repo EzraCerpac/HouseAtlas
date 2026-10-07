@@ -8,6 +8,7 @@ mod credentials;
 mod error;
 mod existing;
 mod lifecycle;
+mod network;
 mod recovery;
 mod source;
 mod store;
@@ -17,6 +18,9 @@ pub use boundary::{AccessBoundary, AccessConfig, AccessLimits, TransactionAuthor
 pub use credentials::{PasswordVerifier, hash_password};
 pub use error::{AccessError, AccessResult};
 pub use lifecycle::{LifecycleCapability, LifecycleGrant, LifecyclePolicy, LifecycleRule};
+pub use network::{
+    NetworkLinkGrant, NetworkLinkRef, NetworkObservationGrant, NetworkObservationRef,
+};
 pub use recovery::{OfflineRecoveryApproval, OfflineRecoveryAuthority, RecoveryDiscoveryGrant};
 pub use types::{
     Action, CanonicalId, Capability, Method, PartitionGrant, PartitionMode, Principal,
@@ -32,3 +36,6 @@ mod healthy;
 
 #[cfg(test)]
 mod recovery_healthy;
+
+#[cfg(test)]
+mod network_healthy;
