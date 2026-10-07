@@ -18,7 +18,8 @@ use support::*;
 
 // Constant storage-owned table names for check evidence only. This is not an
 // application SQL/connection/callback interface.
-const TABLES: [&str; 28] = [
+const TABLES: [&str; 29] = [
+    "upload_consumptions",
     "atlas_rust_migrations",
     "atlas_rust_metadata",
     "records",

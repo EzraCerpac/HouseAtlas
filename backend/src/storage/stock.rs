@@ -42,6 +42,55 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
     {
         let request = ValidatedRequest::parse(contracts, raw.clone()).map_err(stock_error)?;
         let plan = stock::plan_atlas_commands(&request, &self.contract).map_err(stock_error)?;
+        self.execute_stock_plan(authorization, principal, contracts, &request, &plan, None)
+    }
+
+    /// Consumes one authentic stage in the original stock/native transaction.
+    /// The per-call principal need not be the persistent read principal type.
+    pub fn execute_staged_stock_json_with_authorization<B, S>(
+        &mut self,
+        authorization: &B,
+        principal: &B::Principal,
+        contracts: &S,
+        raw: &Value,
+        staged: &crate::media::staged_upload::StagedAssetPlan,
+    ) -> Result<StockAtlasCommit>
+    where
+        B: StockAuthorization,
+        B::Principal: StagedUploadPrincipal,
+        S: StockContractPort,
+    {
+        if !std::ptr::eq(
+            principal.original_upload_principal(),
+            staged.original_principal().principal(),
+        ) {
+            return Err(Error::new(
+                "forbidden",
+                "Original upload principal is required",
+            ));
+        }
+        let request = ValidatedRequest::parse(contracts, raw.clone()).map_err(stock_error)?;
+        let qualified = stock::plan_staged_atlas_commands(&request, staged, &self.contract)
+            .map_err(stock_error)?;
+        self.execute_stock_plan(
+            authorization,
+            principal,
+            contracts,
+            &request,
+            qualified.plan(),
+            Some(staged),
+        )
+    }
+
+    fn execute_stock_plan<B: StockAuthorization, S: StockContractPort>(
+        &mut self,
+        authorization: &B,
+        principal: &B::Principal,
+        contracts: &S,
+        request: &ValidatedRequest,
+        plan: &AtlasCommandPlan,
+        staged: Option<&crate::media::staged_upload::StagedAssetPlan>,
+    ) -> Result<StockAtlasCommit> {
         let entries = plan
             .groups()
             .iter()
@@ -50,7 +99,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         let batch = plan.batch_target_id().map(|id| BatchMutation {
             schema_version: 1,
             batch_id: id.into(),
-            reason: raw["reason"].as_str().unwrap_or_default().into(),
+            reason: request.raw()["reason"].as_str().unwrap_or_default().into(),
             commands: entries.clone(),
         });
         if let Some(batch) = &batch {
@@ -62,8 +111,9 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             principal,
             runtime: &self.runtime,
             contracts,
-            request: &request,
-            plan: &plan,
+            request,
+            plan,
+            staged,
             entries: &entries,
             batch: batch.as_ref(),
             commit: None,
@@ -93,6 +143,7 @@ struct StockTransaction<'a, C, B: Authorization, R, S> {
     contracts: &'a S,
     request: &'a ValidatedRequest,
     plan: &'a AtlasCommandPlan,
+    staged: Option<&'a crate::media::staged_upload::StagedAssetPlan>,
     entries: &'a [MutationEntry],
     batch: Option<&'a BatchMutation>,
     commit: Option<StockAtlasCommit>,
@@ -174,6 +225,22 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
         db: &Connection,
         actor: &VerifiedActor,
     ) -> Result<Option<Vec<MutationResult>>> {
+        // CommandTransaction has completed native and stock intake checks.
+        // Check consumption before any stock key/receipt can return early.
+        let consumed = self
+            .staged
+            .map(|staged| {
+                super::super::upload_repository::admit(
+                    db,
+                    self.contract,
+                    self.contracts,
+                    actor,
+                    self.request,
+                    staged,
+                )
+            })
+            .transpose()?
+            .unwrap_or(false);
         let scope = self.plan.scope();
         if let Some((id, ordinal)) =
             stock_repo::key(db, scope, &actor.actor_id, self.plan.root_idempotency_key())?
@@ -181,11 +248,15 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
             if ordinal.is_some() {
                 return Err(stock_repo::conflict());
             }
+            if self.staged.is_some() && !consumed {
+                return Err(stock_repo::incompatible());
+            }
             let mut commit = stock_repo::load(db, self.contract, scope, &actor.actor_id, &id)?;
             if commit.request_digest != self.plan.request_digest() {
                 return Err(stock_repo::conflict());
             }
             super::super::stock_projection::validate_retained(
+                db,
                 &commit,
                 self.contracts,
                 self.contract,
@@ -233,6 +304,9 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
                 .collect();
             self.commit = Some(commit);
             return Ok(Some(results));
+        }
+        if consumed {
+            return Err(stock_repo::incompatible());
         }
         let mut keys = BTreeSet::new();
         keys.insert(self.plan.root_idempotency_key());
@@ -361,6 +435,17 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
             self.plan.scope(),
             self.commit.as_ref().ok_or_else(stock_repo::incompatible)?,
             hashes,
-        )
+        )?;
+        if let Some(staged) = self.staged {
+            super::super::upload_repository::consume(
+                db,
+                self.contract,
+                self.contracts,
+                self.request,
+                staged,
+                self.commit.as_ref().ok_or_else(stock_repo::incompatible)?,
+            )?;
+        }
+        Ok(())
     }
 }

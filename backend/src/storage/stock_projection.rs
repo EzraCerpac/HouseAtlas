@@ -4,6 +4,7 @@ use crate::domain::stock::{
     self, AtlasCommandPlan, AtlasCommitGroupView, AtlasCommitView, OwnerResult, StockContractPort,
     ValidatedRequest,
 };
+use rusqlite::Connection;
 
 fn incompatible(_: stock::StockError) -> Error {
     repo::incompatible()
@@ -53,7 +54,25 @@ pub(crate) fn project<C: Contract, S: StockContractPort>(
     )
     .map_err(incompatible)
 }
+pub(crate) fn retained_plan<C: Contract, S: StockContractPort>(
+    db: &Connection,
+    commit: &StockAtlasCommit,
+    stock: &S,
+    native: &C,
+) -> Result<(ValidatedRequest, AtlasCommandPlan)> {
+    let original =
+        ValidatedRequest::parse(stock, commit.original_request.clone()).map_err(incompatible)?;
+    let consumed = super::upload_repository::load_for_commit(db, native, stock, commit)?;
+    let plan = match consumed {
+        Some(consumed) => stock::plan_retained_staged_atlas_commands(&original, &consumed, native),
+        None => stock::plan_atlas_commands(&original, native),
+    }
+    .map_err(incompatible)?;
+    Ok((original, plan))
+}
+
 pub(crate) fn validate_retained<C: Contract, S: StockContractPort>(
+    db: &Connection,
     commit: &StockAtlasCommit,
     stock: &S,
     native: &C,
@@ -61,9 +80,7 @@ pub(crate) fn validate_retained<C: Contract, S: StockContractPort>(
     if commit.replayed {
         return Err(repo::incompatible());
     }
-    let original =
-        ValidatedRequest::parse(stock, commit.original_request.clone()).map_err(incompatible)?;
-    let plan = stock::plan_atlas_commands(&original, native).map_err(incompatible)?;
+    let (original, plan) = retained_plan(db, commit, stock, native)?;
     let output = project(&original, &plan, commit, stock, native)?;
     if native.canonical_json(&output.wire)? != native.canonical_json(&commit.wire)?
         || native.canonical_json(&serde_json::to_value(&output.children)?)?
