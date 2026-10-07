@@ -273,7 +273,10 @@ export function useAiSession(client: AiClient, scopeKey: string) {
         connectionAction: { status: 'unavailable', action: input.action, actionId: null } }));
       return;
     }
-    if (retained.some(action => action.action === input.action)
+    // An observed unconfirmed disconnect needs a new explicit host action to
+    // retry revocation. Keep its original receipt; never replay its action ID.
+    if (retained.some(action => action.action === input.action
+      && !(input.action === 'disconnect' && action.status === 'unconfirmed'))
       || ((input.action === 'connect' || input.action === 'consent') && retained.length > 0)) return;
     connectionController.current?.abort();
     if (input.action === 'disconnect') void cancel();

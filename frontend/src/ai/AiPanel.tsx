@@ -100,6 +100,7 @@ export function AiPanelView({
       }] : []
   );
   const pendingKinds = unresolvedActions.map(action => action.action);
+  const disconnectPending = unresolvedActions.some(action => action.action === 'disconnect' && action.status === 'pending');
   // The submitted action is retained before its opening call settles. Show its
   // working progress separately, while preserving every older unresolved row.
   const visibleActions = unresolvedActions.filter(action => !(connectionBusy && action.actionId === state.connectionAction.actionId));
@@ -137,7 +138,7 @@ export function AiPanelView({
           onClick={() => { if (selectedRoute !== 'unset') onConnectionAction({ action: 'connect', route: selectedRoute }); }}>Connect</button>
         <button type="button" disabled={busy || connectionBusy || pendingKinds.length > 0 || state.connection.status !== 'available'}
           onClick={() => onConnectionAction({ action: 'consent' })}>Review inference consent</button>
-        <button type="button" disabled={connectionBusy || pendingKinds.includes('disconnect') || state.connection.status !== 'available'}
+        <button type="button" disabled={connectionBusy || disconnectPending || state.connection.status !== 'available'}
           onClick={() => onConnectionAction({ action: 'disconnect' })}>Disconnect</button>
         <button type="button" disabled={connectionBusy || pendingKinds.includes('manage-usage') || state.connection.status !== 'available'}
           onClick={() => onConnectionAction({ action: 'manage-usage' })}>Manage usage</button>
@@ -215,6 +216,8 @@ function Outcome({ outcome }: { readonly outcome: RunOutcome }) {
     {outcome.status === 'domain-held' && <>
       <h3>Domain operation</h3><p role="status">{heldMessages[outcome.state]}</p>
       <dl className="ha-ai__facts"><dt>Operation ID</dt><dd>{outcome.operationId ?? 'Unknown'}</dd></dl>
+      {outcome.operationIds.length > 0 && <><p>Recorded domain operations</p>
+        <ul aria-label="Recorded domain operations">{outcome.operationIds.map(id => <li key={id}>{id}</li>)}</ul></>}
     </>}
     {outcome.status === 'review-required' && <>
       <h3>Tool review</h3>

@@ -80,8 +80,9 @@ export function decodeRunOutcome(value: unknown): RunOutcome {
       return { status, continuationId: text(row['continuationId']), calls: array(row['calls'], call), reviews: array(row['reviews'], review), usage: usage(row['usage']) };
     }
     case 'domain-held': {
-      const row = object(value, ['status', 'operationId', 'state', 'usage']);
+      const row = object(value, ['status', 'operationId', 'operationIds', 'state', 'usage']);
       return { status, operationId: row['operationId'] === null ? null : text(row['operationId']),
+        operationIds: array(row['operationIds'], text),
         state: choice(row['state'], ['prepared', 'queued', 'dispatching', 'rejected-before-dispatch', 'partial', 'unknown-held']), usage: usage(row['usage']) };
     }
     case 'failed': {

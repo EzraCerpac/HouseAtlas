@@ -42,8 +42,13 @@ availability and unqualified phone relay are visible before Connect. The host
 opens its reviewed sign-in/consent or usage surface; the panel has no provider
 URLs, browser tokens, automatic login, inference on sign-in or paid fallback.
 Disconnect immediately disables inference while retaining any operation for
-reconciliation. Pending actions and unconfirmed disconnect/revocation remain
-visible; a failed disconnect stays disabled until the host supplies current status.
+reconciliation. An observed unconfirmed disconnect permits a new explicit
+Disconnect action with a fresh ID, while its original unconfirmed receipt remains
+visible and queryable. A pending or opening disconnect still blocks another
+submission. Retries use the existing three-per-scope and 96-total unresolved
+action limits; they never evict older unresolved IDs. An unavailable connection
+requires current host status before another action. No automatic retry or remote
+revocation confirmation is inferred.
 
 A submit creates a random UUID and starts one scoped request. Cancellation uses
 a separate typed request while retaining the result transport. Disposal aborts
@@ -73,7 +78,8 @@ it does not complete or release any domain operation. Local stopped and
 review-required outcomes remain retained. Local stop preserves its observed
 usage and visible uncertainty.
 Accepting an authoritative request outcome clears obsolete recovery progress
-and aborts its stale lookup. Known domain-held operations retain their identifiers and prepared, queued,
+and aborts its stale lookup. Known domain-held operations retain the host's
+ordered `operationIds`, nullable current `operationId`, and prepared, queued,
 dispatching, rejected-before-dispatch, partial or unknown-held state; they never
 become completed writes from a cancellation receipt.
 
