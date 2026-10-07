@@ -89,7 +89,7 @@ The disposable verification now consumes these exact published peer trees:
 
 | Namespace | Published source |
 | --- | --- |
-| Storage and migrations, including async activity | `29a37d8de35d5930a396fce3b06bdb901ba5421a` |
+| Storage and migrations, including async activity | `ef3117c43e5d2cf1d53e71ea436b1594d6743e3d` |
 | Domain and Jobs, including staged consumption APIs | `8a568fb6ccef5b0fa575b18d6181dcc524d4db99` |
 | Media | `f0d6b10f00bb93fc1c1dd4eb3ae66ee1fbe3f873` |
 | Access | `4a0cd4da563a32d26677755a608180c960765353` |
@@ -102,6 +102,14 @@ namespaces are copied by exact Git object into disposable external storage;
 no peer changes or their commit ancestry enter this scoped checkout. The
 verifier requires these objects already fetched read-only. This is explicit
 source adoption for compilation, not live or integrator mounting acceptance.
+
+Storage is PR55's exact current ready head, the direct successor of sealed
+`29a37d8de35d5930a396fce3b06bdb901ba5421a`. Its inspected mutex-cycle correction
+uses `try_lock` for both activity transaction and runtime ID/time store access.
+Contention returns `Unavailable` without permit, retry or physical release;
+the genuine evidence policy must still avoid storage reentry. The original
+sealed evidence packet and profile SQL remain unchanged. These source facts
+do not qualify concurrency or contention; those controls remain held.
 
 ## Local evidence
 
@@ -132,7 +140,7 @@ exactly two inspected fresh fixtures:
 The production HTTP specialization is compiled, not invoked. Both fixtures
 use explicit synthetic policy/qualification facts. Peer test runners are not
 mounted or run. There is no HTTP request, socket, real account/provider,
-credential creation, deployment or inference. Replay, recovered dispatch,
+production credential creation, deployment or inference. Replay, recovered dispatch,
 rejection, faults, crashes, concurrency, corruption, expiry, revocation and
 adversarial controls remain held. No later positive termination proof is
 manufactured, and these checks do not establish production qualification.

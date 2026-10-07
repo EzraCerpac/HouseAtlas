@@ -17,7 +17,7 @@ import tomllib
 
 BASE_INPUT = "19310b10dcfc34424233496854c014000f44acbf"
 PEER_INPUTS = [
-    ("29a37d8de35d5930a396fce3b06bdb901ba5421a", ["backend/src/storage", "backend/migrations"]),
+    ("ef3117c43e5d2cf1d53e71ea436b1594d6743e3d", ["backend/src/storage", "backend/migrations"]),
     ("8a568fb6ccef5b0fa575b18d6181dcc524d4db99", ["backend/src/domain", "backend/src/jobs"]),
     ("f0d6b10f00bb93fc1c1dd4eb3ae66ee1fbe3f873", ["backend/src/media"]),
     ("4a0cd4da563a32d26677755a608180c960765353", ["backend/src/access"]),
