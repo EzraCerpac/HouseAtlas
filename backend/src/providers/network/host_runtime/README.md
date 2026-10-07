@@ -19,6 +19,9 @@ Storage additionally supplies its immutable
 `AtlasStore::configured_authorization(&self) -> &A` accessor. The leaf checks the
 actual configured `app::ReadAuthority.0` allocation as well as `Core.access`;
 public Core construction alone cannot establish that those issuers match.
+Its additive `record_prepared_cache_failure_at_with_authorization` transaction
+also accepts the provider's original pre-request attempt timestamp under the
+same issuing-Store publication fence and borrowed original authorizer.
 
 The external compiler also mounts accepted media, staged domain/stock,
 queue-recovery and HTTP stock-read leaves for the storage/access dependencies.
@@ -41,9 +44,18 @@ Its callback lease is exactly
 `adapter.lease().clone()` to unchanged PR36 `NetworkRuntime::refresh`.
 
 `HostNetworkRuntime::refresh` is the closed native publication entrypoint. It
-uses actual `app::Core` and its existing `app::Store`. Prepare, success and
-failure delegate to `NativeNetworkPublisher::new(the_same_store)` with a private
-borrowed authorizer inside the genuine original AT11 lifecycle transaction.
+uses actual `app::Core` and its existing `app::Store`. Preparation and successful
+publication delegate to `NativeNetworkPublisher::new(the_same_store)` with a
+private borrowed authorizer inside the genuine original AT11 lifecycle
+transaction. Failure publication uses that Store's actual additive
+`record_prepared_cache_failure_at_with_authorization` with the same original
+fence, lease and borrowed authorizer. The original Network-owner check,
+sanitized native code conversion and default failure status are retained.
+The provider's captured `cache.error.at` must match its `last_attempt_at`; that
+exact original string passes to durable failure metadata without replacement
+by the commit-time clock. Original per-call/precommit checks, quarantine and
+definite-commit-result handling remain. This path is coded and compiled; failed
+transport, timeout and clock-change qualification remain held and unrun.
 The original registration, partition, generation, epoch, issuing store and UUID
 remain AT07 native fence/CAS checks. Actual durable staged receipt scope,
 generation and digest are checked before consuming publication. PR36 quarantine
