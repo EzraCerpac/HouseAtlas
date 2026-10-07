@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "a7b9bb985f64d689e856adde29224544a0644a69f87b5d74dbedad05497419bd",
+  "sourceDigestSha256": "eb7d86801870c7f0c8f235b6f4bcc19c79e50bdf7ea033e50f85d7216eaac8b7",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -3136,8 +3136,8 @@
     {
       "path": "backend/src/storage/checks/projection-numbers-healthy.rs",
       "mode": "100644",
-      "bytes": 10556,
-      "sha256": "ffbc7a983a2289bd3c56a5e846cdf4b84d7ab5cc2ee2f60b9a7ec9d4c76fa013",
+      "bytes": 10797,
+      "sha256": "5bd4257c481a28245ca6047804811cfe2d69450cf66913f13aa1abf625a44121",
       "owner": "storage"
     },
     {
@@ -4123,8 +4123,8 @@
     {
       "path": "docs/rust-integration/review-source-ledger.md",
       "mode": "100644",
-      "bytes": 18716,
-      "sha256": "35f74eff5f8d5869c5c962951db836cc3d43c94e7258837969a3d37270e39049",
+      "bytes": 19244,
+      "sha256": "13b8209c931c2db2063d5bd605bcd6d82adb11621259e1dc7ab7141c59d8b7d4",
       "owner": "core-integration"
     },
     {

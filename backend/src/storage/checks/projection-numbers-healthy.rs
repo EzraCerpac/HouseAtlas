@@ -152,7 +152,10 @@ async fn main() -> Check<()> {
             .map(|(i, cost)| {
                 let mut entry = template[i % 3].clone();
                 entry["id"] = json!(id(301 + i as u64));
-                entry["cost"] = json!(cost);
+                // Parse the original numeric token with arbitrary precision;
+                // json!(cost) would encode this &str as a JSON string.
+                entry["cost"] = serde_json::from_str::<Value>(cost)
+                    .expect("Fixture cost is a valid JSON number");
                 entry
             })
             .collect(),
