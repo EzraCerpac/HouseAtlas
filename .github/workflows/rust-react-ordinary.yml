@@ -6,6 +6,10 @@ on:
     branches: [main]
 permissions:
   contents: read
+# Cancel superseded candidates for one PR; every main/release event keeps its own group.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   source:
     strategy:
@@ -15,6 +19,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     env:
+      CARGO_INCREMENTAL: '0'
       SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Checkout exact candidate
@@ -38,6 +43,34 @@ jobs:
           printf 'CARGO_TARGET_DIR=%s/houseatlas-target\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
           test "$(rustc --version | cut -d ' ' -f 2)" = "1.99.0"
+      - name: Set isolated npm content cache
+        run: printf 'npm_config_cache=%s/houseatlas-npm\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      # Cache public package content only, never node_modules, npm logs or credentials.
+      # PRs restore exact keys; only successful main pushes may publish caches.
+      - name: Restore exact npm content cache
+        id: npm-cache
+        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ${{ runner.temp }}/houseatlas-npm/_cacache
+          key: npm-v1-${{ matrix.os }}-${{ runner.arch }}-node-26.10.0-npm-11.19.1-${{ hashFiles('package-lock.json', 'packages/contracts/package-lock.json', 'frontend/package-lock.json') }}
+      # No broad restore keys: registry and compiled outputs are lock/toolchain/OS specific.
+      - name: Restore exact Cargo registry cache
+        id: cargo-registry-cache
+        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            ~/.cargo/registry/cache
+            ~/.cargo/registry/index
+            ~/.cargo/registry/src
+          key: cargo-registry-v1-${{ matrix.os }}-${{ runner.arch }}-rust-1.99.0-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', '.cargo/**') }}
+      # Compiled outputs also pin source, embedded schemas/fixtures and build configuration.
+      # Disposable runtime state is created outside this build directory and never cached.
+      - name: Restore exact Cargo build cache
+        id: cargo-target-cache
+        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ${{ runner.temp }}/houseatlas-target
+          key: cargo-target-v1-${{ matrix.os }}-${{ runner.arch }}-rust-1.99.0-no-incremental-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-${{ hashFiles('.github/workflows/rust-react-ordinary.yml', 'tools/rust-integration/check-source.mjs', 'Cargo.toml', '.cargo/**', 'backend/**', 'tools/rust-baseline/**', 'tools/rust-integration/examples/**', 'packages/contracts/**', 'contracts/**', 'adapters/homebox/fixtures/**', 'adapters/network/fixtures/**') }}
       - name: Install exact npm locks without scripts
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
@@ -110,6 +143,27 @@ jobs:
           HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
           HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
         run: node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs
+      - name: Save npm content cache from verified main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.npm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ${{ runner.temp }}/houseatlas-npm/_cacache
+          key: ${{ steps.npm-cache.outputs.cache-primary-key }}
+      - name: Save Cargo registry cache from verified main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cargo-registry-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            ~/.cargo/registry/cache
+            ~/.cargo/registry/index
+            ~/.cargo/registry/src
+          key: ${{ steps.cargo-registry-cache.outputs.cache-primary-key }}
+      - name: Save Cargo build cache from verified main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cargo-target-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ${{ runner.temp }}/houseatlas-target
+          key: ${{ steps.cargo-target-cache.outputs.cache-primary-key }}
       - name: Record scope
         # Stock read/write/history runners add four/ten/three healthy requests respectively.
         if: always()
