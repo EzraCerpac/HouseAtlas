@@ -124,24 +124,8 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
         {
             return Err(stale());
         }
-        if matches!(report.remote_activity, RemoteActivity::NotDispatched)
-            && matches!(
-                report.disposition,
-                FinishDisposition::Succeeded(_) | FinishDisposition::RetryAt { .. }
-            )
-        {
-            return Err(invalid());
-        }
         check_finish_evidence(report, evidence)?;
         if matches!(report.remote_activity, RemoteActivity::Invoked(_)) && journal.is_none() {
-            return Err(invalid());
-        }
-        if matches!(report.disposition, FinishDisposition::RetryAt { .. })
-            && !matches!(
-                report.remote_activity,
-                RemoteActivity::Invoked(InvokedRemoteActivity::EndedProven { .. })
-            )
-        {
             return Err(invalid());
         }
         insert_evidence(&tx, &job, evidence)?;

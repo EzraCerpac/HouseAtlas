@@ -101,6 +101,16 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
                 QueuePhase::Precommit,
                 QueueAction::Held(job),
             )?;
+        } else {
+            authorize_session(
+                self.authority,
+                self.principal,
+                self.witness,
+                self.original,
+                self.receipt,
+                QueuePhase::Precommit,
+                QueueAction::Snapshot(self.receipt),
+            )?;
         }
         tx.commit()?;
         if let Some(job) = out.as_ref() {
@@ -112,6 +122,16 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
                 self.receipt,
                 QueuePhase::Release,
                 QueueAction::Held(job),
+            )?;
+        } else {
+            authorize_session(
+                self.authority,
+                self.principal,
+                self.witness,
+                self.original,
+                self.receipt,
+                QueuePhase::Release,
+                QueueAction::Snapshot(self.receipt),
             )?;
         }
         Ok(out)

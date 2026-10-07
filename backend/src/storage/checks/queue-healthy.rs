@@ -16,7 +16,12 @@ use houseatlas_at07_checkpoint::{
 };
 use serde_json::{Value, json};
 use sha2::{Digest as ShaDigest, Sha256};
-use std::{cell::Cell, fs, path::PathBuf, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    fs,
+    path::PathBuf,
+    rc::Rc,
+};
 use support::{
     CheckResult, OfflineStockSchemas, PureRustSemantics, SyntheticAuthorization, SyntheticRuntime,
     id,
@@ -339,6 +344,7 @@ struct OriginalWitness {
 struct SyntheticQueueAuthority {
     checks: Cell<usize>,
     dispatch_checks: Cell<usize>,
+    snapshot_phases: RefCell<Vec<&'static str>>,
 }
 impl QueueAuthorization for SyntheticQueueAuthority {
     type Principal = VerifiedActor;
@@ -349,7 +355,7 @@ impl QueueAuthorization for SyntheticQueueAuthority {
         principal: &VerifiedActor,
         witness: &OriginalWitness,
         original: &ValidatedRequest,
-        _phase: QueuePhase,
+        phase: QueuePhase,
         action: QueueAction<'_>,
     ) -> Result<VerifiedActor> {
         if *original.raw() != original_wire()
@@ -371,6 +377,13 @@ impl QueueAuthorization for SyntheticQueueAuthority {
         self.checks.set(self.checks.get() + 1);
         if matches!(action, QueueAction::Dispatch { .. }) {
             self.dispatch_checks.set(self.dispatch_checks.get() + 1);
+        }
+        if matches!(action, QueueAction::Snapshot(_)) {
+            self.snapshot_phases.borrow_mut().push(match phase {
+                QueuePhase::Entry => "Entry",
+                QueuePhase::Precommit => "Precommit",
+                QueuePhase::Release => "Release",
+            });
         }
         Ok(principal.clone())
     }
@@ -689,6 +702,12 @@ fn main() -> CheckResult<()> {
         assert_eq!(saved.status, JobStatus::Succeeded);
         assert_eq!(saved.attempts, 1);
         assert!(saved.body_accepted);
+        let before = queue_authorization.snapshot_phases.borrow().len();
+        assert!(session.held_job()?.is_none());
+        assert_eq!(
+            &queue_authorization.snapshot_phases.borrow()[before..],
+            &["Entry", "Precommit", "Release"]
+        );
     }
     store.validate_queue_storage(&config, &discovery, &schemas)?;
     store.close()?;
@@ -746,6 +765,7 @@ fn main() -> CheckResult<()> {
         "databaseVersion":DATABASE_VERSION, "runtimePath":"WriteQueue -> NativeHomeBoxWriter -> QueueStoreHandle/QueueJournalHandle -> AtlasStore",
         "intentDigest":original.intent_digest(), "invocations":invocations.get(),
         "authorityChecks":queue_authorization.checks.get(), "finalDispatchChecks":queue_authorization.dispatch_checks.get(),
+        "emptyHeldReadAuthorityPhases":["Entry","Precommit","Release"],
         "offlineResources":schemas.resources["resources"].as_array().ok_or("Offline resource map missing")?.len(),
         "schemaChecks":schemas.calls.borrow().clone(), "rowCounts":counts,
         "physicalSlotReleased":released,"reopens":2,"retainedQueueValidated":true,

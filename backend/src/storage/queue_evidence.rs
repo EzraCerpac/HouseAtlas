@@ -99,6 +99,7 @@ pub(super) fn check_finish_evidence(
     report: &FinishReport,
     evidence: &[QueueStepEvidence],
 ) -> Result<()> {
+    validate_finish_report(report)?;
     check_disposition_evidence(&report.disposition, evidence)?;
     if matches!(report.remote_activity, RemoteActivity::Invoked(_))
         && matches!(report.disposition, FinishDisposition::Failed(_))
@@ -115,6 +116,23 @@ pub(super) fn check_finish_evidence(
             e.kind == StepKind::RemoteEnd
                 && e.termination_digest.as_ref() == Some(termination_evidence_digest)
         })
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+// Shared by live finishes and immutable retained outcome validation.
+fn validate_finish_report(report: &FinishReport) -> Result<()> {
+    if matches!(report.remote_activity, RemoteActivity::NotDispatched)
+        && !matches!(report.disposition, FinishDisposition::Failed(_))
+    {
+        return Err(invalid());
+    }
+    if matches!(report.disposition, FinishDisposition::RetryAt { .. })
+        && !matches!(
+            report.remote_activity,
+            RemoteActivity::Invoked(InvokedRemoteActivity::EndedProven { .. })
+        )
     {
         return Err(invalid());
     }
