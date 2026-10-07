@@ -140,9 +140,9 @@ this deployment path uses `DurableStockHost`.
 
 ### Pending unavailable API composition
 
-The prepared verifier overlays only the original writer's stock namespace from
+The scoped verifier overlays only the original writer's stock namespace from
 PR103 `5281eb1857a90c2279fb2998b3c7d0e2e41ec9b6`, the transport namespace from
-draft PR105 `e5da350500daaa83333a9dbe4b16c7b018ca3888`, codec88
+PR105 `8ee32dddc5b5b77a4f8dd41c3e4a27ce6801d3b0`, codec88
 `b326e78251b838d2e8cc0197b772276f2e6db548` and its exact Storage71 marker
 `48e856068f8351b9256ef7912fc93619c259e79f`. These are published source
 inputs, not final integration acceptance or live qualification.
@@ -181,7 +181,14 @@ This continuation is based on preserved dispatcher62
 | Separate original-owner Domain queue recovery | `fd72542686112e594d9a6f63b4782a62b5d9e6ef` |
 | Media63 | `ea8ef14e05795334b3d79ae9c95c0a456f8b0308` |
 | Access | `5e87c6c9152228ac4ae72814c6e6fc8f0ea8d7a2` |
-| Concrete write transport | `e5da350500daaa83333a9dbe4b16c7b018ca3888` |
+| Concrete write transport | `8ee32dddc5b5b77a4f8dd41c3e4a27ce6801d3b0` |
+
+Transport8ee differs from the earlier tested e5da input only in its README and
+healthy verifier. Its runtime and fixture Rust blobs are identical. The owner's
+final verifier additionally compiles its original StockDispatchPort consumer
+against writer5281; its healthy loopback evidence remains owner-scoped. This
+dispatcher separately compiles and runs only its two fresh fixtures against the
+exact final transport input. No unavailable/refusal case is exercised.
 
 Previously passing PR89 e32c0cc source used Storage2bef, codec8f and transport7234
 with original writerc784. Its source records and packets are preserved separately;

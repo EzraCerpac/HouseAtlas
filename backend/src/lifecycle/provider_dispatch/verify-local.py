@@ -26,7 +26,7 @@ PEER_INPUTS = [
     ("8a568fb6ccef5b0fa575b18d6181dcc524d4db99", ["backend/src/jobs"]),
     ("ea8ef14e05795334b3d79ae9c95c0a456f8b0308", ["backend/src/media"]),
     ("5e87c6c9152228ac4ae72814c6e6fc8f0ea8d7a2", ["backend/src/access"]),
-    ("e5da350500daaa83333a9dbe4b16c7b018ca3888", ["backend/src/providers/homebox/write_transport"]),
+    ("8ee32dddc5b5b77a4f8dd41c3e4a27ce6801d3b0", ["backend/src/providers/homebox/write_transport"]),
     ("b326e78251b838d2e8cc0197b772276f2e6db548", ["backend/src/providers/homebox/recovery"]),
 ]
 PNG_PACKAGES = [
