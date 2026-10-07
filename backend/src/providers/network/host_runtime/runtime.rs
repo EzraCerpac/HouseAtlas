@@ -102,9 +102,19 @@ impl HostNetworkRuntime {
             Arc::new(lease.clone()),
             cancellation.clone(),
         )?;
-        let outcome = self
-            .settings
-            .provider()?
+        let mut provider = self.settings.provider()?;
+        // Obtain the original Store fence and Native admission before transport.
+        // Store is locked before the canonical Network catalog owner.
+        let reservation = with_store(core, &lease.access, |store| {
+            let mut references = n::NetworkCacheReferences::new(
+                &self.sidecar,
+                self.settings.source(),
+                self.settings.review(),
+                config.limits(),
+            );
+            prepared.admit_before_transport(store, &mut references)
+        })?;
+        let fetched = provider
             .prepare_refresh(
                 &prior,
                 baseline.cache_epoch,
@@ -112,31 +122,56 @@ impl HostNetworkRuntime {
                 &transport,
                 clock,
             )
-            .await?;
-        cancelled(&cancellation)?;
-        authority.revalidate_inventory(&lease, self.settings.source(), config.reviewed_origin())?;
+            .await;
+        let outcome = match fetched {
+            Ok(outcome) => outcome,
+            Err(error) => {
+                self.cancel_archive_reservation(reservation)?;
+                return Err(error.into());
+            }
+        };
+        if let Err(error) = cancelled(&cancellation).and_then(|_| {
+            authority.revalidate_inventory(&lease, self.settings.source(), config.reviewed_origin())
+        }) {
+            self.cancel_archive_reservation(reservation)?;
+            return Err(error.into());
+        }
         let result = match outcome {
             n::RefreshOutcome::Complete(proposal) => {
-                let generation = proposal
-                    .state()
-                    .generation
-                    .as_ref()
-                    .ok_or_else(wrong_scope)?;
-                authority.authorize_generation(&lease, self.settings.source(), generation)?;
-                cancelled(&cancellation)?;
+                let generation = proposal.state().generation.as_ref();
+                let Some(generation) = generation else {
+                    self.cancel_archive_reservation(reservation)?;
+                    return Err(wrong_scope().into());
+                };
+                if let Err(error) = authority
+                    .authorize_generation(&lease, self.settings.source(), generation)
+                    .and_then(|_| cancelled(&cancellation))
+                {
+                    self.cancel_archive_reservation(reservation)?;
+                    return Err(error.into());
+                }
                 // Acquire/validate Core and its Store BEFORE the immutable stage.
                 // Contention must not strand a row under the sidecar quota.
                 // Keep this same borrow through publication; HTTPS has ended,
                 // and no access/authority lock spans the sidecar filesystem I/O.
                 RefreshResult::Published(with_core_store(core, &lease.access, |store| {
-                    let staged = {
-                        let mut sidecar = self.sidecar.try_lock().map_err(|_| unavailable())?;
-                        n::stage_complete_generation(
-                            self.settings.source(),
-                            *proposal,
-                            &mut *sidecar,
-                        )?
+                    let mut sidecar = self.sidecar.try_lock().map_err(|_| unavailable())?;
+                    let projected = n::stage_complete_generation(
+                        self.settings.source(),
+                        *proposal,
+                        &mut *sidecar,
+                    );
+                    let projected = match projected {
+                        Ok(staged) => staged,
+                        // Stage started: preserve the admission and permanent
+                        // ID as ambiguous custody for fail-closed recovery.
+                        Err(error) => return Err(error.into()),
                     };
+                    // This consumes the one-shot reservation and binds the
+                    // exact raw response receipt to the actual native staged
+                    // proposal before Storage publication.
+                    let staged = projected.attach_original_archive(&mut *sidecar, reservation)?;
+                    drop(sidecar);
                     // Staging is durable: finish with the SAME original fence
                     // despite late request cancellation. Original authority and
                     // native precommit checks remain; their errors propagate.
@@ -145,12 +180,19 @@ impl HostNetworkRuntime {
                         self.settings.source(),
                         config.reviewed_origin(),
                     )?;
+                    let mut references = n::NetworkCacheReferences::new(
+                        &self.sidecar,
+                        self.settings.source(),
+                        self.settings.review(),
+                        config.limits(),
+                    );
                     prepared
-                        .publish(store, staged)
+                        .publish(store, staged, &mut references)
                         .map_err(n::NetworkPublicationError::Storage)
                 })?)
             }
             n::RefreshOutcome::Failed(failure) => {
+                self.cancel_archive_reservation(reservation)?;
                 cancelled(&cancellation)?;
                 authority.revalidate_inventory(
                     &lease,
@@ -167,24 +209,35 @@ impl HostNetworkRuntime {
         // cancellation fails; disclosure still requires its own original grants.
         Ok(result)
     }
+    fn cancel_archive_reservation(&self, reservation: n::NetworkArchiveReservation) -> Result<()> {
+        self.sidecar
+            .try_lock()
+            .map_err(|_| unavailable())?
+            .cancel_original_capture(reservation)
+            .map_err(Into::into)
+    }
     fn retained(
         &self,
         cache: &n::CacheMetadata,
         relations: &[n::NetworkRelation],
     ) -> std::result::Result<n::RetainedState, n::NetworkError> {
         let state = if let Some(id) = &cache.generation_id {
-            let row = self
-                .sidecar
-                .try_lock()
-                .map_err(|_| unavailable())?
-                .load(self.settings.source(), id)?;
-            n::reopen_sidecar(
+            let sidecar = self.sidecar.try_lock().map_err(|_| unavailable())?;
+            let original = sidecar.reopen_original_capture(self.settings.source(), id)?;
+            let row = sidecar.load(self.settings.source(), id)?;
+            let reopened = n::reopen_sidecar(
                 self.settings.source(),
                 cache,
                 relations,
                 &row,
                 Some(self.settings.review()),
-            )?
+            )?;
+            if row.sha256 != original.projected_receipt_sha256()
+                || reopened.generation.as_ref() != Some(original.generation())
+            {
+                return Err(wrong_scope());
+            }
+            reopened
         } else {
             n::RetainedState {
                 cache: cache.clone(),
