@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "4139f12afcce99287082c247801b69e3181467bf0bade5cfccf2688a7d4d0f5d",
+  "sourceDigestSha256": "3e020a2b53f3838ba46641c584838fc48795885c1120264cdae97b4b638f25eb",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -420,8 +420,8 @@
     {
       "path": "backend/src/ai/README.md",
       "mode": "100644",
-      "bytes": 11819,
-      "sha256": "0f6d980cbba3c7125ab54178baf788287cadfd0274015d28f1298e3358ff147d",
+      "bytes": 12444,
+      "sha256": "6e36cb2f9b76be8c9075313690f0947a234f294389061f4482493eaf6bddd6f9",
       "owner": "ai"
     },
     {
@@ -441,8 +441,8 @@
     {
       "path": "backend/src/ai/healthy_examples.rs",
       "mode": "100644",
-      "bytes": 20527,
-      "sha256": "0b5a3357c18d4170780b937e38d61acde96b7f0295d69353829064d0334652cd",
+      "bytes": 28464,
+      "sha256": "608f5b974ba452aec1935512beb6b020e1e013f11c04932a64de4142c49577ff",
       "owner": "ai"
     },
     {
@@ -630,8 +630,15 @@
     {
       "path": "backend/src/ai/oauth.rs",
       "mode": "100644",
-      "bytes": 72364,
-      "sha256": "ed08b453985613e7ca94c8b3df78c50c9cebdd363b6d849e29f5f350c384f469",
+      "bytes": 79310,
+      "sha256": "82a2e891ec94ca182a9e8746eed908d317c78bcd063c9a49d904c03b78e6a027",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/oauth_begin_denial_checks.rs",
+      "mode": "100644",
+      "bytes": 395,
+      "sha256": "e7c4f2c329f8cee40bd011f7b529d11e92c0f7d7f4437e190432e66d4d0a2976",
       "owner": "ai"
     },
     {
@@ -651,8 +658,8 @@
     {
       "path": "backend/src/ai/runner.rs",
       "mode": "100644",
-      "bytes": 15762,
-      "sha256": "e29658d4ffa08f9ce5bdbd8a716b6f6185099c4142d005d98f649a22c28f224b",
+      "bytes": 15820,
+      "sha256": "143db87a3e04ebbbb3cf7381316967ab43f80460abfe0585b4075598a840cc67",
       "owner": "ai"
     },
     {
@@ -679,8 +686,8 @@
     {
       "path": "backend/src/ai/types.rs",
       "mode": "100644",
-      "bytes": 6821,
-      "sha256": "206535335e1cedec8237fac9d664548fe53db38b739f9436ccaa147512a85867",
+      "bytes": 7065,
+      "sha256": "3144eee7ece09d78daa7d5bd841644503ae9733e337e154e525f3bc947f74f7b",
       "owner": "ai"
     },
     {
