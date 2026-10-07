@@ -41,7 +41,10 @@ fn supported(request: &st::ValidatedRequest) -> st::StockResult<()> {
     let mapped = |id| st::atlas_direct_operation(id).is_some();
     if request.id() == O::AtlasBatchExecute {
         if !request.children().is_empty()
-            && request.children().iter().all(|child| mapped(child.id()))
+            && request
+                .children()
+                .iter()
+                .all(|child| mapped(child.id()) || st::atlas_derived_operation(child.id()))
         {
             Ok(())
         } else {
@@ -82,6 +85,7 @@ struct Graph {
     plan: st::AtlasCommandPlan,
     request: st::ValidatedRequest,
     derivation: Option<st::AtlasDerivation>,
+    child_derivations: Option<Vec<Option<st::AtlasDerivation>>>,
 }
 
 // Derivation is owner data from the same authorized snapshot, never client
@@ -287,18 +291,33 @@ impl<'p> st::StockAuthorityPort<RequestPrincipal> for Authority<'p, '_, '_> {
         if request.id() == st::OperationId::AtlasBindingRemap {
             let graph = prepared.graph();
             require(purpose == st::DisclosurePurpose::RemapRecord)?;
-            require(
-                graph
-                    .plan
-                    .groups()
-                    .iter()
-                    .flat_map(|group| group.native_entries())
-                    .any(|entry| {
-                        target["authority"] == "atlas"
-                            && target["recordType"] == entry.target.record_type.as_str()
-                            && target["recordId"] == entry.target.record_id
-                    }),
-            )?;
+            let child_index = if prepared.request().raw() == request.raw() {
+                None
+            } else {
+                Some(
+                    prepared
+                        .request()
+                        .children()
+                        .iter()
+                        .position(|child| child.raw() == request.raw())
+                        .ok_or_else(changed)?,
+                )
+            };
+            let group = graph
+                .plan
+                .groups()
+                .iter()
+                .find(|group| {
+                    group.child_index() == child_index
+                        && group.original_request() == request.raw()
+                        && group.request_digest() == request.intent_digest()
+                })
+                .ok_or_else(changed)?;
+            require(group.native_entries().iter().any(|entry| {
+                target["authority"] == "atlas"
+                    && target["recordType"] == entry.target.record_type.as_str()
+                    && target["recordId"] == entry.target.record_id
+            }))?;
         } else {
             require(purpose == st::DisclosurePurpose::ExactTarget && target == request.target())?;
         }
@@ -329,18 +348,34 @@ impl<'p> st::StockPreparerPort<RequestPrincipal, Witness<'p>> for Preparer<'_, '
         } else {
             None
         };
+        let child_derivations =
+            if self.1.is_none() && request.id() == st::OperationId::AtlasBatchExecute {
+                let vector = request
+                    .children()
+                    .iter()
+                    .map(|child| derive(child, &original))
+                    .collect::<st::StockResult<Vec<_>>>()?;
+                vector.iter().any(Option::is_some).then_some(vector)
+            } else {
+                None
+            };
         Ok(Graph {
             plan: match self.1 {
                 Some(upload) => upload.plan().clone(),
-                None => match &derivation {
-                    Some(derivation) => {
+                None => match (&derivation, &child_derivations) {
+                    (Some(derivation), None) => {
                         st::plan_derived_atlas_commands(request, derivation, &NativeContracts)?
                     }
-                    None => st::plan_atlas_commands(request, &NativeContracts)?,
+                    (None, Some(vector)) => {
+                        st::plan_derived_atlas_batch_commands(request, vector, &NativeContracts)?
+                    }
+                    (None, None) => st::plan_atlas_commands(request, &NativeContracts)?,
+                    _ => return Err(changed()),
                 },
             },
             original,
             derivation,
+            child_derivations,
             request: request.clone(),
         })
     }
@@ -432,14 +467,34 @@ impl Transaction<'_, '_, '_> {
                     !receipt.replayed
                         && receipt.original_request == *graph.plan.original_request()
                         && receipt.request_digest == graph.plan.request_digest()
+                        && receipt.operation_id == graph.request.id().as_str()
                         && receipt.actor_id == actor.actor_id
-                        && receipt.groups.len() == graph.plan.groups().len(),
+                        && receipt.groups.len() == graph.plan.groups().len()
+                        && receipt.derivation == graph.derivation
+                        && receipt.child_derivations == graph.child_derivations
+                        && receipt.derivation_format.as_deref()
+                            == match (&graph.derivation, &graph.child_derivations) {
+                                (Some(_), None) => Some(st::ATLAS_DERIVATION_FORMAT),
+                                (None, Some(_)) => Some(st::ATLAS_BATCH_DERIVATION_FORMAT),
+                                (None, None) => None,
+                                _ => return Err(changed()),
+                            },
                 )?;
                 for (actual, group) in receipt.groups.iter().zip(graph.plan.groups()) {
+                    let expected_operation = match group.child_index() {
+                        Some(index) => graph
+                            .request
+                            .children()
+                            .get(index)
+                            .ok_or_else(changed)?
+                            .id(),
+                        None => graph.request.id(),
+                    };
                     require(
                         actual.child_index == group.child_index()
                             && actual.original_request == *group.original_request()
                             && actual.request_digest == group.request_digest()
+                            && actual.operation_id == expected_operation.as_str()
                             && actual.native_entries == group.native_entries(),
                     )?;
                 }
@@ -562,6 +617,14 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
                         &self.contracts,
                         prepared.request().raw(),
                         upload.staged(),
+                    )
+                } else if let Some(vector) = &graph.child_derivations {
+                    store.execute_derived_stock_batch_json_with_authorization(
+                        &authorization,
+                        p,
+                        &self.contracts,
+                        prepared.request().raw(),
+                        vector,
                     )
                 } else if let Some(derivation) = &graph.derivation {
                     store.execute_derived_stock_json_with_authorization(
