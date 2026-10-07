@@ -67,8 +67,9 @@ enforced before `read_info()` or preview row allocation. Both the source row
 `width * 4` must fit. Preview compression writes split at 64 KiB. This is an
 optional rendering capability, not an original admission/availability policy.
 Preview failure does not mutate retained records or availability. Existing
-`SafeRendered` metadata permits attempting the renderer; it is not a guarantee
-that every optional rendering operation completes. Decoder allocation limit is
+`SafeRendered` requires successful renderer qualification at original admission;
+it cannot be inferred from MIME or original-format validation. A later preview
+operation remains subject to its own budget and output limit. Decoder allocation limit is
 256 MiB; application preview frame/row buffers are additional. Cancellation is
 cooperative between bounded calls, with no hard latency, preemption or
 allocation-success guarantee.
@@ -112,8 +113,9 @@ input equivalence. No stopped controls were executed.
 
 Root owns combined integration, optional-preview presentation and normal merge.
 The original compatibility policy blocker in the first packet is corrected in
-this source; no new dependency, peer interface or width-admission decision is
-required. The original PR76 packet and preceding evidence remain preserved.
+this source. The later renderer-policy correction below has an explicit root
+consumer reconciliation requirement. No new dependency or width-admission
+policy is introduced. Original PR76 packets/evidence remain preserved.
 
 Selected ordinary positive examples are the four exact cases under
 `media::healthy_review_examples::`: unchanged standard sample/transparency and
@@ -137,6 +139,66 @@ supports the budget placement; no cancellation, deadline, over-limit, denial,
 adversarial, fault/crash, concurrency, replay, negative-consumer or legacy broad
 control runs. Mac runtime and production witness/restore/retention qualification
 remain deferred. Earlier logs and evidence remain preserved unchanged.
+
+## PR76 renderer-policy finding: exact-head successor
+
+The [renderer-policy finding](https://github.com/EzraCerpac/HouseAtlas/pull/76#discussion_r4208144350)
+is genuine at `221552159aa053725ce141e4a748a98be5c861b7`: original validation
+returned no renderer proof, while `PreparedOriginal::with_provenance` still
+assigned `SafeRendered` from PNG MIME alone. The frozen catalog explicitly
+requires a verified renderer receipt (`contracts/stock-wire3/agent/operation-catalog.json`,
+`atlas.asset.create.payload.previewPolicy`). This successor corrects new
+qualification without rewriting existing originals or retained records.
+
+`AssetVault::prepare_original` now returns opaque `vault::QualifiedOriginal`:
+private measured metadata plus immutable server-derived preview qualification.
+Its `with_provenance` emits `SafeRendered` only after the actual bounded renderer
+successfully returns stripped PNG pixels/output. Eligible PNGs are rendered
+under the same operation budget before blob installation and receipt creation.
+Row-ineligible originals skip rendering and remain `Available`/`DownloadOnly`;
+non-PNG originals also remain download-only. Optional renderer `TooLarge` or
+`Unsupported` leaves the original download-only; budget failures propagate
+rather than become successful qualification. No held failure control was run.
+The qualifier and renderer share the same row-cap predicate.
+
+The carrier implements read-only `Deref<Target=PreparedOriginal>` for current
+measured-reference consumers. `into_measured()` deliberately discards renderer
+qualification. Plain `PreparedOriginal::with_provenance` always emits
+`DownloadOnly`: measured digest/size/content type do not prove a render. The
+original public measured struct fields are unchanged, so existing owner literals
+still compile. Upload staging receives the qualified carrier and serializes
+its actual policy using unchanged StageRecord/PlanRecord formats. Measurement
+for reuse keeps its existing `PreparedOriginal` return and does not render;
+its new internal vault helper uses the same validation/quota/barriers with
+qualification disabled. Original availability verification, restore and GET/HEAD
+retain bounded original validation and do not render or change stored policy.
+
+**Exact root consumer need before adopting this successor:** at the actual
+compiled peer baseline `87ad201140edb7b3afdb4396095a320c2926eafe`,
+`backend/src/storage/upload_repository.rs:97-123` reconstructs expected staged
+payload via bare `PreparedOriginal::with_provenance`, then compares the entire
+payload. The same source dependency is confirmed read-only at current public
+main `a16f9a55e5beab5348aa00a2675a0e03c9aef98b`. That measured carrier now
+correctly yields download-only; this peer
+would reject genuinely qualified safe-rendered staged PNGs. Root/AT07 must
+reconcile expected preview qualification from the actual immutable, validated
+Media bound StageRecord, or an agreed typed renderer-proof seam. Neither model
+input nor MIME may grant `SafeRendered`. Existing explicit annotations expecting
+`prepare_original -> PreparedOriginal` should use `.into_measured()` when they
+need only measured metadata. No peer namespace is edited here. Root source
+compilation proves current type composition, not successful SQL consumption
+under this changed semantic dependency. Do not merge without that reconciliation.
+
+Six selected healthy positives now pass: the previous five plus
+`media::healthy_review_examples::healthy_png_renderer_qualification_and_published_stage_policy`.
+The new case checks actual bounded render qualification, measured-only policy,
+correct newly published wide/bounded PNG stage policies under actual AT11 guard,
+and unchanged measurement-only reuse. The existing wide original case now
+asserts download-only together with available/hash/bytes/restore/GET/HEAD.
+Neither attempts an oversized preview nor runs stopped negative/fault controls.
+No existing record migration, stored qualification downgrade or exhaustive
+renderer-failure/security/production qualification is claimed. Both prior PR76
+packets remain unchanged; root owns consumer adoption and normal merge.
 
 ## Dependencies for AT51
 

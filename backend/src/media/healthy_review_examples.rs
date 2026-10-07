@@ -494,3 +494,117 @@ fn healthy_incremental_png_many_rows_and_bounded_wide_rows() {
         "healthy incremental PNG: 2048 ordinary rows with repeated known pixels, plus accepted RGBA8/16 row-bound examples; real pinned decoder and stripped RGBA8 output; cancellation/deadline/over-limit controls remain unrun"
     );
 }
+
+#[test]
+fn healthy_png_renderer_qualification_and_published_stage_policy() {
+    use super::healthy_examples::license;
+    use super::types::{Availability, PreviewPolicy, sha256};
+
+    let temp = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(temp.path()).unwrap();
+    let vault = AssetVault::open(&root.join("media")).unwrap();
+    let server = Server {
+        next: Cell::new(280_000),
+        seconds: Cell::new(1_800_000_000),
+    };
+    let stages = NativeUploadStages::open(&vault, &server).unwrap();
+    let (mut access, principal) = authorized_editor();
+    for (width, expected_policy) in [
+        (2, PreviewPolicy::SafeRendered),
+        (20_000, PreviewPolicy::DownloadOnly),
+    ] {
+        let pixels = [12, 34, 56, 255].repeat(width as usize);
+        let mut original = Vec::new();
+        {
+            let mut encoder = png::Encoder::new(&mut original, width, 1);
+            encoder.set_color(ColorType::Rgba);
+            encoder.set_depth(BitDepth::Eight);
+            encoder
+                .write_header()
+                .unwrap()
+                .write_image_data(&pixels)
+                .unwrap();
+        }
+        let qualified = vault
+            .prepare_original(
+                &scope(),
+                AssetPurpose::EvidenceOriginal,
+                ContentType::Png,
+                &mut original.as_slice(),
+                &budget(),
+            )
+            .unwrap();
+        let measured = qualified.clone().into_measured();
+        assert_eq!(measured.identity.sha256, sha256(&original));
+        // Measuring bytes/MIME alone does not convey renderer qualification.
+        assert_eq!(
+            measured
+                .clone()
+                .with_provenance(license(), vec![])
+                .unwrap()
+                .preview_policy,
+            PreviewPolicy::DownloadOnly
+        );
+        let payload = qualified.with_provenance(license(), vec![]).unwrap();
+        assert_eq!(payload.preview_policy, expected_policy);
+        assert_eq!(payload.availability, Availability::Available);
+        assert_eq!(payload.sha256, measured.identity.sha256);
+        if expected_policy == PreviewPolicy::SafeRendered {
+            assert_eq!(
+                rgba(&content::render_png(&original, &budget()).unwrap()),
+                pixels
+            );
+        }
+        access
+            .with_mutation_authorization(
+                principal.principal(),
+                |guard| -> Result<(), Box<dyn std::error::Error>> {
+                    // Genuine owner admission publishes the same qualification.
+                    let admission = UploadAdmission {
+                        request_id: u(290_000 + width),
+                        purpose: AssetPurpose::EvidenceOriginal,
+                        content_type: ContentType::Png,
+                        filename: "fresh-qualified.png".into(),
+                        source_license: license(),
+                        evidence_ids: vec![],
+                    };
+                    let retained = stages.prepare_original_for_resolution(
+                        guard,
+                        &principal,
+                        &admission,
+                        &mut original.as_slice(),
+                        &budget(),
+                    )?;
+                    assert_eq!(retained.identity, measured.identity);
+                    assert_eq!(
+                        retained.with_provenance(license(), vec![])?.preview_policy,
+                        PreviewPolicy::DownloadOnly
+                    );
+                    let receipt = stages.stage_original(
+                        guard,
+                        &principal,
+                        admission,
+                        &mut original.as_slice(),
+                        &budget(),
+                    )?;
+                    let directory = root
+                        .join("media/uploads")
+                        .join(sha256(receipt.staged.upload_token.as_bytes()));
+                    let stage: serde_json::Value =
+                        serde_json::from_slice(&fs::read(directory.join("stage.json"))?)?;
+                    assert_eq!(
+                        stage["payload"]["previewPolicy"],
+                        serde_json::to_value(expected_policy)?
+                    );
+                    assert_eq!(stage["payload"]["availability"], "available");
+                    assert_eq!(stage["payload"]["sha256"], sha256(&original));
+                    assert_eq!(stage["payload"]["byteSize"], original.len() as u64);
+                    Ok(())
+                },
+            )
+            .unwrap();
+    }
+    println!(
+        "healthy renderer qualification: successful bounded PNG render yields SafeRendered; legal wide PNG preserved DownloadOnly; actual AT11 stage admission publishes both correct policies; measured metadata/reuse remain DownloadOnly; no oversized-preview denial or held controls invoked"
+    );
+}

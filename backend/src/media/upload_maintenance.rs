@@ -86,7 +86,7 @@ impl<R: s::Runtime> NativeUploadStages<'_, R> {
         }
         let reservation = self.directory.temporary(".upload-")?;
         self.write_reservation_lifetime(&reservation.directory)?;
-        let prepared = self.vault.prepare_upload_original(
+        let prepared = self.vault.prepare_upload_original_measured(
             &scope,
             admission.purpose,
             admission.content_type,

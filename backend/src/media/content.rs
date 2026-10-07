@@ -5,7 +5,7 @@ use std::io::Write;
 
 use flate2::{Compression, write::ZlibEncoder};
 
-use super::types::ContentType;
+use super::types::{ContentType, PreviewPolicy};
 use super::{MAX_BYTES, MediaError, MediaResult, WorkBudget};
 
 const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
@@ -193,16 +193,7 @@ pub fn render_png(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Vec<u8>> {
             .try_into()
             .map_err(|_| MediaError::Unsupported)?,
     );
-    let samples = match header[9] {
-        0 | 3 => 1u64,
-        2 => 3,
-        4 => 2,
-        _ => 4,
-    };
-    let source_row = (u64::from(width) * samples * u64::from(header[8])).div_ceil(8) + 1;
-    if source_row > MAX_PNG_PREVIEW_ROW_BYTES as u64
-        || u64::from(width) * 4 > MAX_PNG_PREVIEW_ROW_BYTES as u64
-    {
+    if !preview_rows_fit(&header) {
         return Err(MediaError::TooLarge);
     }
     let width = width as usize;
@@ -258,6 +249,39 @@ pub fn render_png(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Vec<u8>> {
         return Err(MediaError::TooLarge);
     }
     Ok(output)
+}
+
+fn preview_rows_fit(header: &[u8; 13]) -> bool {
+    let width = u64::from(u32::from_be_bytes(header[..4].try_into().unwrap()));
+    let samples = match header[9] {
+        0 | 3 => 1u64,
+        2 => 3,
+        4 => 2,
+        _ => 4,
+    };
+    let source_row = (width * samples * u64::from(header[8])).div_ceil(8) + 1;
+    source_row <= MAX_PNG_PREVIEW_ROW_BYTES as u64 && width * 4 <= MAX_PNG_PREVIEW_ROW_BYTES as u64
+}
+
+/// Called only after original validation. Row-ineligible originals are kept
+/// without invoking the optional renderer; an actual successful bounded render
+/// is the sole source of SafeRendered qualification. Budget failures propagate.
+pub(super) fn qualify_original_preview(
+    bytes: &[u8],
+    content_type: ContentType,
+    budget: &WorkBudget,
+) -> MediaResult<PreviewPolicy> {
+    budget.check()?;
+    if content_type != ContentType::Png || !preview_rows_fit(&inspect_png(bytes, budget)?) {
+        return Ok(PreviewPolicy::DownloadOnly);
+    }
+    let rendered = render_png(bytes, budget);
+    budget.check()?;
+    match rendered {
+        Ok(_) => Ok(PreviewPolicy::SafeRendered),
+        Err(MediaError::TooLarge | MediaError::Unsupported) => Ok(PreviewPolicy::DownloadOnly),
+        Err(error) => Err(error),
+    }
 }
 
 fn png_chunk(output: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {

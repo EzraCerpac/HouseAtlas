@@ -5,7 +5,7 @@ use std::sync::Mutex;
 
 use rustix::fs::{AtFlags, Mode, linkat};
 
-use super::content::validate_original_content;
+use super::content::{qualify_original_preview, validate_original_content};
 use super::private_fs::PrivateDir;
 use super::types::{
     AssetOwner, AssetPayload, AssetPurpose, AssetRecord, Availability, BlobIdentity, ContentType,
@@ -23,11 +23,47 @@ pub struct AssetVault {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Measured original metadata alone conveys no renderer qualification.
 pub struct PreparedOriginal {
     pub purpose: AssetPurpose,
     pub storage_key: String,
     pub identity: BlobIdentity,
     pub content_type: ContentType,
+}
+
+/// Server-created original with immutable optional renderer qualification.
+/// Public measured metadata remains available by reference; converting into
+/// that metadata deliberately discards renderer qualification.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QualifiedOriginal {
+    measured: PreparedOriginal,
+    preview_policy: PreviewPolicy,
+}
+
+impl std::ops::Deref for QualifiedOriginal {
+    type Target = PreparedOriginal;
+    fn deref(&self) -> &Self::Target {
+        &self.measured
+    }
+}
+
+impl QualifiedOriginal {
+    pub fn into_measured(self) -> PreparedOriginal {
+        self.measured
+    }
+
+    pub fn with_provenance(
+        self,
+        source_license: SourceLicense,
+        evidence_ids: Vec<String>,
+    ) -> MediaResult<AssetPayload> {
+        let mut payload = self
+            .measured
+            .with_provenance(source_license, evidence_ids)?;
+        payload.preview_policy = self.preview_policy;
+        payload.validate()?;
+        Ok(payload)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -39,6 +75,7 @@ pub struct RetainedUsage {
 struct PreparationPolicy<'a> {
     minimum_bytes: usize,
     limits: Option<&'a super::staged_upload::UploadLimits>,
+    qualify_preview: bool,
 }
 
 impl PreparedOriginal {
@@ -58,11 +95,7 @@ impl PreparedOriginal {
             content_type: self.content_type.as_str().to_owned(),
             source_license,
             availability: Availability::Available,
-            preview_policy: if self.content_type == ContentType::Png {
-                PreviewPolicy::SafeRendered
-            } else {
-                PreviewPolicy::DownloadOnly
-            },
+            preview_policy: PreviewPolicy::DownloadOnly,
             evidence_ids,
         };
         payload.validate()?;
@@ -306,7 +339,7 @@ impl AssetVault {
         content_type: ContentType,
         body: &mut impl Read,
         budget: &WorkBudget,
-    ) -> MediaResult<PreparedOriginal> {
+    ) -> MediaResult<QualifiedOriginal> {
         self.prepare_original_with_minimum(
             scope,
             purpose,
@@ -316,11 +349,36 @@ impl AssetVault {
             PreparationPolicy {
                 minimum_bytes: 0,
                 limits: None,
+                qualify_preview: true,
             },
         )
     }
 
     pub(super) fn prepare_upload_original(
+        &self,
+        scope: &Scope,
+        purpose: AssetPurpose,
+        content_type: ContentType,
+        body: &mut impl Read,
+        budget: &WorkBudget,
+        limits: &super::staged_upload::UploadLimits,
+    ) -> MediaResult<QualifiedOriginal> {
+        self.prepare_original_with_minimum(
+            scope,
+            purpose,
+            content_type,
+            body,
+            budget,
+            PreparationPolicy {
+                minimum_bytes: 1,
+                limits: Some(limits),
+                qualify_preview: true,
+            },
+        )
+    }
+
+    /// Reuse resolution measures originals without doing optional preview work.
+    pub(super) fn prepare_upload_original_measured(
         &self,
         scope: &Scope,
         purpose: AssetPurpose,
@@ -338,8 +396,10 @@ impl AssetVault {
             PreparationPolicy {
                 minimum_bytes: 1,
                 limits: Some(limits),
+                qualify_preview: false,
             },
         )
+        .map(QualifiedOriginal::into_measured)
     }
 
     fn enforce_upload_capacity(
@@ -387,7 +447,7 @@ impl AssetVault {
         body: &mut impl Read,
         budget: &WorkBudget,
         policy: PreparationPolicy<'_>,
-    ) -> MediaResult<PreparedOriginal> {
+    ) -> MediaResult<QualifiedOriginal> {
         scope.validate()?;
         if !purpose.is_original() {
             return Err(MediaError::InvalidInput);
@@ -417,13 +477,21 @@ impl AssetVault {
         if let Some(limits) = policy.limits {
             self.enforce_upload_capacity(scope, &bytes, limits, budget)?;
         }
+        let preview_policy = if policy.qualify_preview {
+            qualify_original_preview(&bytes, content_type, budget)?
+        } else {
+            PreviewPolicy::DownloadOnly
+        };
         let prepared = self.install(scope, &bytes, budget)?;
         budget.check()?;
-        Ok(PreparedOriginal {
-            purpose,
-            storage_key: prepared.storage_key,
-            identity: prepared.identity,
-            content_type,
+        Ok(QualifiedOriginal {
+            measured: PreparedOriginal {
+                purpose,
+                storage_key: prepared.storage_key,
+                identity: prepared.identity,
+                content_type,
+            },
+            preview_policy,
         })
     }
 

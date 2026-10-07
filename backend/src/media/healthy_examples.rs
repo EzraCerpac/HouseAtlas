@@ -613,6 +613,10 @@ fn healthy_wide_original_identity_availability_restore_and_download() {
         );
         let unchanged = asset.clone();
         assert_eq!(asset.payload.availability, Availability::Available);
+        assert_eq!(
+            asset.payload.preview_policy,
+            super::types::PreviewPolicy::DownloadOnly
+        );
         let identity = source.verify_available_asset(&asset, &budget()).unwrap();
         assert_eq!(identity.sha256, sha256(&original));
         assert_eq!(identity.byte_size, original.len() as u64);
