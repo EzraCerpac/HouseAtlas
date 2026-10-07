@@ -19,11 +19,11 @@ export type StockWebMcpBoundaryProps = Omit<StockMountOptions, "visible" | "mode
 export function StockWebMcpBoundary(props: StockWebMcpBoundaryProps): ReactNode {
   const { sessions, schemas, service, children } = props;
   const [registration, setRegistration] = useState<RegistrationStatus>({ state: "inactive" });
-  const { value: completion, port: visible } = useCommittedResult<StockCompletion>();
+  const { value: completion, activate } = useCommittedResult<StockCompletion>();
   const explicitContext = Object.hasOwn(props, "modelContext");
   const suppliedContext = props.modelContext;
   useEffect(() => {
-    visible.activate();
+    const visible = activate();
     const modelContext = explicitContext ? suppliedContext
       : detectModelContext(typeof document === "undefined" ? undefined : document);
     const handle = mountStockWebMcp({ modelContext, sessions, schemas, service, visible });
@@ -39,6 +39,6 @@ export function StockWebMcpBoundary(props: StockWebMcpBoundaryProps): ReactNode 
       handle.dispose();
       visible.deactivate();
     };
-  }, [explicitContext, suppliedContext, sessions, schemas, service, visible]);
+  }, [explicitContext, suppliedContext, sessions, schemas, service, activate]);
   return children({ registration, completion });
 }

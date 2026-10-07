@@ -118,8 +118,23 @@ export async function runGatewayHealthyReact(container: HTMLElement): Promise<re
   }
   check(events.join(",") === names.flatMap(name => [`execute:${name}`, `validate:${name}`, `download:${name}`, `return:${name}`]).join(","),
     "Healthy service, owner validation, download resolution and return ordering");
+  // All earlier executions have finished. Exercise a normal sequential host
+  // remount, not the held pending-call/race or obsolete-consumer controls.
+  await act(async () => {
+    root.render(<GatewayWebMcpBoundary modelContext={modelContext} sessions={sessions}
+      bindings={[...bindings]} downloads={downloads}><p>Healthy host view</p></GatewayWebMcpBoundary>);
+  });
+  check([...tools.keys()].length === 2 && !container.querySelector("[data-gateway-tool]"), "New activation starts with current registrations and no old result");
+  let nextExecution!: Promise<JsonValue>;
+  await act(async () => {
+    nextExecution = tools.get("fixture_gateway_read")!.execute(request);
+    await Promise.resolve();
+  });
+  check(JSON.stringify(await nextExecution) === JSON.stringify(response), "Healthy current activation can complete its task");
+  check(container.querySelector('[data-gateway-tool="fixture_gateway_read"] pre')?.textContent === JSON.stringify(response, null, 2),
+    "Current activation acknowledges the new visible result");
   await act(async () => root.unmount());
   check(tools.size === 0, "Unmount removes synthetic registrations");
   return ["gateway admitted service intersection and shared schemas", "canonical gateway result visible before return",
-    "issued download presentation visible before return", "gateway unmount cleanup"];
+    "issued download presentation visible before return", "healthy sequential gateway reactivation", "gateway unmount cleanup"];
 }

@@ -38,6 +38,9 @@ import { GatewayWebMcpBoundary } from "./GatewayWebMcpBoundary.js";
 This boundary renders the complete result and download action inside its own
 acknowledged React subtree. Execution resolves after the layout commit. Stock
 and gateway use `useCommittedResult` for the same acknowledgement lifecycle.
+Each effect activation receives its own commit lease; a service call started
+under an earlier mount cannot commit after the boundary reactivates. This is
+coded and compiled; its delayed-call race qualification remains held and unrun.
 The host must unmount the boundary if its enclosing view fails to render. One
 document owner coordinates disjoint tool names across stock, gateway and AI;
 this component does not take over those other registrations.
@@ -50,9 +53,10 @@ replaces that host nor broadens Atlas family support to HomeBox or Network.
 
 Healthy `healthy.tsx` uses the unchanged first native stock request/result
 fixture and shared offline schema through injected synthetic gateway peers.
-The `fixture_gateway_*` names exist only in the example. Four check groups
+The `fixture_gateway_*` names exist only in the example. Five check groups
 verify admitted/bound registration, canonical DOM completion, an issued
-synthetic download link visible before return, and unmount cleanup. No export
+synthetic download link visible before return, normal sequential reactivation
+after earlier executions finish, and unmount cleanup. No export
 job, byte transfer, provider call, listener or live browser registration runs.
 Strict source compilation passes. The original four stock DOM groups and six
 adapter/history checks also pass after acknowledgement extraction.

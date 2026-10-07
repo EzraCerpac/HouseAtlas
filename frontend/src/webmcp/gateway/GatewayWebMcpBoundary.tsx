@@ -25,12 +25,12 @@ export function GatewayResult({ completion }: { readonly completion: GatewayComp
  * result/link after React commits; it does not wait for the user to download. */
 export function GatewayWebMcpBoundary(props: GatewayWebMcpBoundaryProps) {
   const { sessions, bindings, downloads, children } = props;
-  const { value: completion, port } = useCommittedResult<GatewayCompletion>();
+  const { value: completion, activate } = useCommittedResult<GatewayCompletion>();
   const [registration, setRegistration] = useState<RegistrationStatus>({ state: "inactive" });
   const explicitContext = Object.hasOwn(props, "modelContext");
   const suppliedContext = props.modelContext;
   useEffect(() => {
-    port.activate();
+    const port = activate();
     const modelContext = explicitContext ? suppliedContext
       : detectModelContext(typeof document === "undefined" ? undefined : document);
     const handle = mountGatewayWebMcp({ modelContext, sessions, bindings, visible: port,
@@ -47,7 +47,7 @@ export function GatewayWebMcpBoundary(props: GatewayWebMcpBoundaryProps) {
       handle.dispose();
       port.deactivate();
     };
-  }, [explicitContext, suppliedContext, sessions, bindings, downloads, port]);
+  }, [explicitContext, suppliedContext, sessions, bindings, downloads, activate]);
   return <>{children}<output aria-label="Gateway tools">{registration.state}</output>
     <GatewayResult completion={completion} /></>;
 }
