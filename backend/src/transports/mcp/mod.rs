@@ -5,17 +5,25 @@
 //! implementation is included. See `README.md` for the integration contract.
 
 mod adapter;
+mod asset_download;
 mod native_catalog;
 mod native_context;
 mod native_schemas;
 mod native_service;
+mod operation_mapping;
 mod ports;
 mod protocol;
 
+pub use asset_download::{
+    AssetDownloadCodec, AssetDownloadMetadata, AssetDownloadPort, AssetDownloadRequest,
+    AssetDownloadResult, UnavailableAssetDownloads,
+};
 pub use native_catalog::{NativeCatalog, NativeOperation, NativeOutput};
 pub use native_context::{NativeContext, NativePrincipal, NativePrincipalPort, NativeRequirement};
 pub use native_schemas::NativeSchemas;
+pub use native_service::NativeQueries;
 pub use native_service::{NativeStockService, UnavailableCommands};
+pub use operation_mapping::{OperationMapping, ToolName};
 
 pub use adapter::{AdapterConfig, ConfigError, McpAdapter, Session, SessionState};
 pub use ports::{
@@ -32,5 +40,11 @@ mod healthy_examples;
 
 #[cfg(test)]
 mod healthy_native;
+
+#[cfg(test)]
+mod healthy_mappings;
+
+#[cfg(test)]
+mod healthy_download;
 
 pub mod lifecycle;
