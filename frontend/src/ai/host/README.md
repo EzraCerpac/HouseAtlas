@@ -100,7 +100,9 @@ Rust dispatch enum's internal observed/resolved values are not browser holds.
 An observed unconfirmed disconnect can be retried explicitly with a new action
 ID. The previous receipt stays unresolved and remains queryable under its
 original ID. Opening/pending disconnects and existing retention capacity still
-bound admission. Refresh reads receipts; it never resubmits a disconnect.
+bound admission. The button uses the hook's same scope/global capacity predicate
+and displays a full-capacity limitation. Refresh reads receipts; it never
+resubmits a disconnect.
 
 Current application authentication, original authority, home/provider binding,
 CSRF, bounds, workflow/request storage and termination evidence stay backend

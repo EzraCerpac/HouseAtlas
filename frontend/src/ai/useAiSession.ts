@@ -55,6 +55,12 @@ function initialState(): AiSessionState {
 
 const MAX_UNRESOLVED_CONNECTION_ACTIONS = 3;
 
+/** The existing browser correlation bounds, shared by admission and display. */
+export function hasConnectionActionCapacity(unresolvedCount: number): boolean {
+  return unresolvedCount < MAX_UNRESOLVED_CONNECTION_ACTIONS
+    && pendingConnectionActions.size < MAX_RETAINED_CONNECTION_ACTIONS;
+}
+
 function retainedConnectionState(
   actions: Iterable<PendingConnectionAction>, scope: Scope, fallback: ConnectionActionState,
 ): ConnectionActionState {
@@ -264,8 +270,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
       || (pendingRun.current !== null && input.action !== 'manage-usage' && input.action !== 'disconnect')) return;
     const retained = [...pendingConnectionActions.values()].filter(action => action.scopeKey === scope.key);
     if (scope.key.length === 0 || scope.key.length > MAX_SCOPE_KEY_LENGTH
-      || retained.length >= MAX_UNRESOLVED_CONNECTION_ACTIONS
-      || pendingConnectionActions.size >= MAX_RETAINED_CONNECTION_ACTIONS) {
+      || !hasConnectionActionCapacity(retained.length)) {
       // Keep every unresolved row; admission failure is visible separately
       // from their status and cannot submit or evict a workflow.
       update(previous => ({ ...previous,
