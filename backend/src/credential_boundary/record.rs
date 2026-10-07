@@ -509,6 +509,13 @@ pub fn decode(decrypted: &[u8]) -> Result<RegistrationRecord, AiError> {
         .transpose()?;
     let refresh_checkpoint: RefreshCheckpoint =
         checkpoint::decode(v.refresh_checkpoint.as_bytes())?;
+    // Version 1 stores the exact original codec output. Requiring that complete
+    // frame also prevents its optional reply members from being silently absent.
+    // This is format validation after authentication, never authentication itself.
+    let complete_checkpoint = checkpoint::encode(&refresh_checkpoint)?;
+    if complete_checkpoint.expose_for_encryption() != v.refresh_checkpoint.as_bytes() {
+        return Err(AiError::DomainUnavailable);
+    }
     Ok(RegistrationRecord {
         binding: v.binding.into(),
         kind: v.kind.into(),
