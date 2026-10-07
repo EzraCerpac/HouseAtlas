@@ -256,6 +256,21 @@ try {
   const receipt = JSON.parse(completionBody.base64Encoded ? Buffer.from(completionBody.body, 'base64').toString('utf8') : completionBody.body);
   const renderedReceipt = await evaluate("document.querySelector('section[aria-label=\"Atlas place editing\"] details pre')?.textContent");
   assert.deepEqual(JSON.parse(renderedReceipt), receipt, 'The real canonical batch receipt remains visible after refresh');
+  const receiptLayouts = [];
+  const checkReceiptLayout = async expected => {
+    for (const [width, height] of [[390, 844], [1280, 900]]) {
+      await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+      const layout = await evaluate("(async()=>{const details=document.querySelector('section[aria-label=\"Atlas place editing\"] details');details.open=true;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));const pre=details.querySelector('pre');return {viewport:innerWidth,document:document.documentElement.scrollWidth,body:document.body.scrollWidth,preClient:pre.clientWidth,preScroll:pre.scrollWidth,text:pre.textContent};})()");
+      assert.equal(layout.text, JSON.stringify(expected, null, 2), 'Expanded receipt preserves the complete canonical JSON');
+      assert.equal(layout.viewport, width);
+      assert(layout.document <= width && layout.body <= width && layout.preScroll <= layout.preClient, 'Expanded receipt stays within the healthy phone/desktop viewport');
+      const { text, ...metrics } = layout;
+      receiptLayouts.push(metrics);
+    }
+    await evaluate("document.querySelector('section[aria-label=\"Atlas place editing\"] details').open=false");
+    await send('Emulation.clearDeviceMetricsOverride');
+  };
+  await checkReceiptLayout(receipt);
   assert.equal(receipt.schemaVersion, 3); assert.equal(receipt.commandId, 'atlas.batch.execute');
   assert.match(receipt.requestId, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
   assert.equal(receipt.status, 'committed'); assert.equal(receipt.replayed, false);
@@ -555,6 +570,7 @@ finally:
   assert.deepEqual(secondEvidence.payload.references,[{kind:'atlas-asset',assetId:asset.target.recordId}]);
   assert.deepEqual(secondIdentity.payload,{...identity.payload,evidenceIds:[...identity.payload.evidenceIds,secondEvidence.target.recordId]});
   assert.deepEqual(JSON.parse(await evaluate("document.querySelector('section[aria-label=\"Atlas place editing\"] details pre')?.textContent")),secondReceipt);
+  await checkReceiptLayout(secondReceipt);
   const unchangedAsset = await getJson(nativePrefix + '/asset/' + asset.target.recordId);
   assert.equal(unchangedAsset.status,200); assert.deepEqual(unchangedAsset.body,originalRecord.body);
   const originalHistory = await getJson(nativePrefix + '/asset/' + asset.target.recordId + '/history');
@@ -597,6 +613,7 @@ c.close()
     persisted: { counts: persisted.counts, orderedNativeStockHistoryLinkage: true, nativeBatchMatches: true, consumption: persisted.consumption, exactOriginalGuards: true, fullReasonPreserved: true, identityRevision: 2, semanticsRevision: 1 },
     repeatedAttachment: { receipt:secondReceipt, counts:repeated.counts, originalAssetUnchanged:true, originalAuditUnchanged:true, exactAssetRevisionGuard:true, noNewStageConsumption:true, pendingStages },
     observedRequests: observedUrls.length,
+    receiptLayouts,
     limitations: ['One small generated PNG is attached through two separate fresh actual React intents; no text/PDF, large-file or maximum-range qualification.', 'The fresh schema-5 disposable database is observed read-only after success; no existing-database upgrade, retry, replay, recovery, crash, fault, expiry, revocation, denial or concurrency control.', 'No provider, remote listener, private household data, operational grant or deployment.'],
   };
   if (process.env.HOUSEATLAS_EVIDENCE) writeFileSync(process.env.HOUSEATLAS_EVIDENCE, JSON.stringify(evidence, null, 2) + '\n');

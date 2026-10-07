@@ -280,7 +280,9 @@ source facts, cache dates and generation. No upload or provider I/O occurs.
 The separately named upload runner submits two fresh actual React attachment
 intents for one small generated PNG and checks native SQLite receipts, one
 original asset and consumption, the exact original asset revision guard,
-unchanged original provenance and zero pending stages. It performs no retry,
+unchanged original provenance and zero pending stages. Both expanded canonical
+receipts retain their complete JSON within 390px phone and 1280px desktop views.
+It performs no retry,
 replay, expiry, recovery or failure control.
 Private evidence packets, fingerprints and optional screenshots remain outside Git.
 
