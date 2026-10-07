@@ -2,7 +2,10 @@
 //! Binds the access owner's lifecycle grants to the same AtlasStore's scoped
 //! transactions. No guard survives I/O and no raw publication fence escapes.
 use crate::{
-    access as a, app::Access, config::providers::registry::ConfiguredSource, providers::network,
+    access as a,
+    app::Access,
+    config::providers::registry::ConfiguredSource,
+    providers::{homebox::read as homebox, network},
     storage as s,
 };
 use std::sync::Arc;
@@ -454,6 +457,37 @@ impl<G: Send + Sync> ProviderLease<G> {
             })
         })
     }
+    /// Bind the full configured reader to the original principal and same-store
+    /// fence. The returned proof borrows this immutable lease (or external Arc),
+    /// never the synchronous access guard, authorizer or store borrow.
+    pub fn prepare_homebox_publication<'lease, A, C, B, R, T, K>(
+        &'lease self,
+        authority: &A,
+        store: &mut s::AtlasStore<C, B, R>,
+        reader: &homebox::HomeBoxReader<T, K>,
+    ) -> s::Result<PreparedHomeBoxPublication<'lease, G>>
+    where
+        A: TrustedLifecycleAuthority<Grant = G>,
+        C: s::Contract,
+        B: s::Authorization,
+        R: s::Runtime,
+        T: homebox::Transport,
+        K: homebox::Clock,
+    {
+        if self.source().registration().owner != s::SourceOwner::Homebox {
+            return Err(publication_conflict());
+        }
+        self.with_publication(authority, |authorization| {
+            let prepared = reader
+                .prepare_publication_with_authorization(store, authorization, self)
+                .map_err(homebox_publication_error)?;
+            self.check_fence(prepared.fence())?;
+            Ok(PreparedHomeBoxPublication {
+                lease: self,
+                prepared,
+            })
+        })
+    }
     fn check_fence(&self, fence: &s::CachePublicationFence) -> s::Result<()> {
         if fence.registration() != self.source().registration()
             || *fence.partition() != self.source().registration().partition()
@@ -501,8 +535,8 @@ impl<G: Send + Sync> ProviderLease<G> {
 
 /// No Clone, Deserialize or raw constructor. Keeps the exact original lease
 /// beside the actual issuing-store fence throughout provider I/O and failures.
-/// HomeBox success additionally needs its producer's full registration witness;
-/// its current CompleteGeneration alone does not establish configured coverage.
+/// HomeBox uses the separate closed reader path below; its standalone
+/// CompleteGeneration is not accepted as configured-coverage evidence.
 pub struct PreparedProviderPublication<G: Send + Sync> {
     lease: Arc<ProviderLease<G>>,
     prepared: s::PreparedCachePublication,
@@ -627,6 +661,135 @@ impl<G: Send + Sync> PreparedProviderPublication<G> {
             )
         })
     }
+}
+
+/// Private peer proof and original borrowed lease. No raw constructor, Clone,
+/// generation, retained-row or fence accessor permits an alternative handoff.
+pub struct PreparedHomeBoxPublication<'lease, G: Send + Sync> {
+    lease: &'lease ProviderLease<G>,
+    prepared: homebox::PreparedGeneration<'lease, ProviderLease<G>>,
+}
+pub struct StagedHomeBoxPublication<'lease, G: Send + Sync> {
+    lease: &'lease ProviderLease<G>,
+    staged: homebox::StagedPublication<'lease, ProviderLease<G>>,
+}
+pub struct FailedHomeBoxPublication<'lease, G: Send + Sync> {
+    lease: &'lease ProviderLease<G>,
+    failed: homebox::FailedPublication<'lease, ProviderLease<G>>,
+}
+pub enum HomeBoxPublicationOutcome<'lease, G: Send + Sync> {
+    Complete(Box<StagedHomeBoxPublication<'lease, G>>),
+    Failed(Box<FailedHomeBoxPublication<'lease, G>>),
+}
+impl<'lease, G: Send + Sync> PreparedHomeBoxPublication<'lease, G> {
+    /// The reader repeats full registration/coverage and quarantine checks
+    /// before GET. All access/store transactions have ended before this await.
+    /// Revalidate original authority again before returning either opaque result;
+    /// failure publication remains a separate explicit consuming operation.
+    pub async fn fetch<A, T, K>(
+        self,
+        authority: &A,
+        reader: &mut homebox::HomeBoxReader<T, K>,
+    ) -> s::Result<HomeBoxPublicationOutcome<'lease, G>>
+    where
+        A: TrustedLifecycleAuthority<Grant = G>,
+        T: homebox::Transport,
+        K: homebox::Clock,
+    {
+        self.lease.revalidate(authority).map_err(storage_access)?;
+        let outcome = self.prepared.fetch(reader).await;
+        self.lease.revalidate(authority).map_err(storage_access)?;
+        match outcome {
+            Ok(staged) => Ok(HomeBoxPublicationOutcome::Complete(Box::new(
+                StagedHomeBoxPublication {
+                    lease: self.lease,
+                    staged,
+                },
+            ))),
+            Err(homebox::RefreshError::Read(failed)) => {
+                if !std::ptr::eq(failed.principal(), self.lease) {
+                    return Err(publication_conflict());
+                }
+                self.lease.check_fence(failed.fence())?;
+                Ok(HomeBoxPublicationOutcome::Failed(Box::new(
+                    FailedHomeBoxPublication {
+                        lease: self.lease,
+                        failed: *failed,
+                    },
+                )))
+            }
+            Err(homebox::RefreshError::Publication(error)) => Err(homebox_publication_error(error)),
+        }
+    }
+}
+impl<G: Send + Sync> StagedHomeBoxPublication<'_, G> {
+    /// Consume only the opaque reader result under its same original lease.
+    /// AT07 retains the actual issuing-store, registration and durable CAS fence.
+    pub fn commit<A, C, B, R>(
+        self,
+        authority: &A,
+        store: &mut s::AtlasStore<C, B, R>,
+    ) -> s::Result<s::CacheStatus>
+    where
+        A: TrustedLifecycleAuthority<Grant = G>,
+        C: s::Contract,
+        B: s::Authorization,
+        R: s::Runtime,
+    {
+        self.lease.with_publication(authority, |authorization| {
+            self.staged
+                .commit_with_authorization(store, authorization)
+                .map_err(homebox_publication_error)
+        })
+    }
+}
+impl<G: Send + Sync> FailedHomeBoxPublication<'_, G> {
+    /// Fixed peer error category only; no retained rows, URLs or proof escapes.
+    pub fn error_code(&self) -> homebox::ErrorCode {
+        self.failed.failure().error.code
+    }
+    /// No automatic write or unfenced fallback. The actual reader's retained
+    /// failed-read proposal and original fence are consumed only on this call.
+    pub fn commit_failure<A, C, B, R>(
+        self,
+        authority: &A,
+        store: &mut s::AtlasStore<C, B, R>,
+    ) -> s::Result<s::CacheStatus>
+    where
+        A: TrustedLifecycleAuthority<Grant = G>,
+        C: s::Contract,
+        B: s::Authorization,
+        R: s::Runtime,
+    {
+        if !std::ptr::eq(self.failed.principal(), self.lease) {
+            return Err(publication_conflict());
+        }
+        self.lease.check_fence(self.failed.fence())?;
+        self.lease.with_publication(authority, |authorization| {
+            self.failed
+                .commit_failure_with_authorization(store, authorization)
+                .map_err(homebox_publication_error)
+        })
+    }
+}
+fn homebox_publication_error(error: homebox::PublishError) -> s::Error {
+    let (code, message) = match error {
+        homebox::PublishError::ScopeMismatch | homebox::PublishError::RegistrationMismatch => (
+            "guard-conflict",
+            "HomeBox reader does not match its configured source",
+        ),
+        homebox::PublishError::InvalidRetainedState => {
+            ("invalid-contract", "HomeBox retained state is unavailable")
+        }
+        homebox::PublishError::Quarantined => (
+            "forbidden",
+            "Source requires separately authorized scope revalidation",
+        ),
+        homebox::PublishError::StoreRejected => {
+            ("upstream-unavailable", "HomeBox publication unavailable")
+        }
+    };
+    s::Error::new(code, message)
 }
 
 /// Exists only during an owner-held access transaction; it is never persistent
