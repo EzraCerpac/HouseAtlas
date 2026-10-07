@@ -306,8 +306,11 @@ loopback inventory fixture. The example makes one verified TLS inventory GET,
 publishes through the actual native Store, starts the real root TLS listener,
 logs in a genuine viewer, then makes two cached GETs and three snapshot-backed
 relation/room/item GETs. Snapshot selectors use actual typed AT11 link grants;
-unresolved snapshot endpoints remain concealed without substitute raw-member
-evidence. Native cached entities, links,
+an unresolved snapshot endpoint currently conceals the whole partition,
+including its authorized resolved relations. The runtime must supply an original
+raw-generation qualifier compatible with the already borrowed Store before this
+snapshot path can be accepted. The three snapshot GETs assert response shape,
+not relation preservation. Native cached entities, links,
 relations, observation text and distinct fact/retrieval dates are preserved;
 cache epochs and generation reservations stay unchanged during browsing. Its
 listener supplies actual connection metadata; no transport extension is mocked.

@@ -129,7 +129,11 @@ impl HostNetworkRuntime {
                     let mut sidecar = self.sidecar.try_lock().map_err(|_| unavailable())?;
                     n::stage_complete_generation(self.settings.source(), *proposal, &mut *sidecar)?
                 };
-                cancelled(&cancellation)?;
+                // The immutable sidecar row is now durable. Late request
+                // cancellation must not abandon it and consume the bounded
+                // sidecar quota; finish native publication with the SAME
+                // original authority and fence, including current/precommit
+                // checks. Authority/storage failures still propagate.
                 authority.revalidate_inventory(
                     &lease,
                     self.settings.source(),
