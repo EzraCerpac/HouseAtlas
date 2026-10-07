@@ -7,10 +7,9 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { App } from "./App";
+import { App, type AtlasAppProps } from "./App";
 import { BrandMark, Heading } from "./components";
 import type { AtlasClient } from "./types";
-import type { Scope } from "../api/generated/contracts.js";
 import type { AtlasEditingClient } from "./editing";
 import type {
   AtlasCredentials,
@@ -111,7 +110,7 @@ export function SessionApp({
     }
   };
   if (state.status === "authenticated") {
-    const renderApp = (onScopeCommit?: (scope: Scope | null) => void) => (
+    return (
       <App
         client={client}
         signIn={showSignIn}
@@ -120,16 +119,21 @@ export function SessionApp({
           ...(sessions.signOut ? { signOut: () => void signOut() } : {}),
         }}
         {...(accessEvents ? { accessEvents } : {})}
-        {...(onScopeCommit ? { onScopeCommit } : {})}
+        {...(stock
+          ? ({
+              renderContent: (view, content) => (
+                <StockApplication
+                  session={state.info}
+                  ports={stock}
+                  view={view}
+                >
+                  {content}
+                </StockApplication>
+              ),
+            } satisfies Pick<AtlasAppProps, "renderContent">)
+          : {})}
         {...(editing ? { editing } : {})}
       />
-    );
-    return stock ? (
-      <StockApplication session={state.info} ports={stock}>
-        {renderApp}
-      </StockApplication>
-    ) : (
-      renderApp()
     );
   }
   if (state.status === "signed-out") return <SignInForm signIn={signIn} />;

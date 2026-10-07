@@ -11,6 +11,7 @@ import type { StockRequestEnvelope, StockSchemaPort } from "../webmcp/stock.js";
 import { stockFamilies } from "../webmcp/stock-schema.js";
 import { StockApplication, type StockAdmission } from "./StockApplication";
 import type { AtlasSessionInfo } from "./session";
+import type { AtlasView } from "./types";
 
 function check(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
@@ -21,6 +22,7 @@ export async function runHealthyRenderIdentity(
   supplied: {
     readonly session: AtlasSessionInfo;
     readonly scope: Scope;
+    readonly view: AtlasView;
     readonly schemas: StockSchemaPort;
     readonly request: StockRequestEnvelope;
     readonly result: JsonValue;
@@ -40,7 +42,8 @@ export async function runHealthyRenderIdentity(
   );
   check(family, "Healthy command family required");
   let session = supplied.session;
-  let scope: Scope = supplied.scope;
+  let view = supplied.view;
+  const scope: Scope = supplied.scope;
   let revision = "synthetic-admission:1";
   let admission: StockAdmission = {
     scope,
@@ -57,10 +60,9 @@ export async function runHealthyRenderIdentity(
   const root = createRoot(container);
   let firstLayout: boolean | undefined;
   let expectedVisible = false;
-  function View({ commit }: { readonly commit: (scope: Scope) => void }) {
+  function View() {
     useLayoutEffect(() => {
       firstLayout ??= !!container.querySelector(".stock-completion");
-      commit(scope);
     });
     return <h1>Healthy example</h1>;
   }
@@ -70,6 +72,7 @@ export async function runHealthyRenderIdentity(
       root.render(
         <StockApplication
           session={session}
+          view={view}
           ports={{
             admission,
             modelContext,
@@ -77,7 +80,7 @@ export async function runHealthyRenderIdentity(
             service,
           }}
         >
-          {(commit) => <View commit={commit} />}
+          <View />
         </StockApplication>,
       ),
     );
@@ -141,12 +144,22 @@ export async function runHealthyRenderIdentity(
     checks.push(
       "admission revision update masks the prior result before parent publication",
     );
-    // A healthy new scope is learned through the normal child commit callback.
-    // Its parent render follows that callback; it is not a pre-render view signal.
-    scope = { ...scope };
-    expectedVisible = true;
+    view = { ...supplied.view };
     await render();
-    checks.push("equivalent committed scope retains the current result");
+    await execute();
+    checks.push(
+      "replacement view masks the prior result before parent publication",
+    );
+    expectedVisible = false;
+    view = { status: "loading" };
+    await render();
+    checks.push(
+      "current loading view masks the result in its first child layout",
+    );
+    view = supplied.view;
+    await render();
+    await execute();
+    checks.push("healthy ready view resumes complete committed results");
   } finally {
     await act(async () => root.unmount());
   }
