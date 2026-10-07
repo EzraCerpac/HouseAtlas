@@ -193,15 +193,19 @@ impl s::Runtime for ServerIds {
 struct MeasuredRuntime<R> {
     native: R,
     proof_calls: Rc<Cell<usize>>,
+    fail_proof: Rc<Cell<bool>>,
 }
 
-// Used only by the separately selected isolated record-read regression. This
+// Used only by explicitly selected isolated query regressions. This
 // narrows a synthetic query's capability; it creates no grant or principal.
 struct ManifestOnlyQuery<'a> {
     native: &'a NativeReadAuthority,
     target: &'a s::RecordRef,
     granted_manifests: Cell<usize>,
     denied_records: Cell<usize>,
+    record_checks: Cell<usize>,
+    deny_manifest: bool,
+    deny_at: usize,
 }
 impl s::Authorization for ManifestOnlyQuery<'_> {
     type Principal = RetainedPrincipal;
@@ -210,18 +214,30 @@ impl s::Authorization for ManifestOnlyQuery<'_> {
         principal: &RetainedPrincipal,
         request: s::AuthorizationRequest<'_>,
     ) -> s::Result<s::VerifiedActor> {
-        if request.capability == s::Capability::Read {
-            assert_eq!(request.targets, std::slice::from_ref(self.target));
-            self.denied_records.set(self.denied_records.get() + 1);
-            return Err(s::Error::new(
-                "forbidden",
-                "Synthetic record read unavailable",
-            ));
-        }
         let manifest = request.capability == s::Capability::ReadAssetManifest;
+        let record = request.capability == s::Capability::Read;
+        if !request.targets.is_empty() {
+            assert_eq!(request.targets, std::slice::from_ref(self.target));
+        }
         let actor = s::Authorization::authorize(self.native, principal, request)?;
         if manifest {
             self.granted_manifests.set(self.granted_manifests.get() + 1);
+        }
+        if record {
+            self.record_checks.set(self.record_checks.get() + 1);
+        }
+        let selected = if self.deny_manifest { manifest } else { record };
+        let checks = if self.deny_manifest {
+            self.granted_manifests.get()
+        } else {
+            self.record_checks.get()
+        };
+        if selected && checks == self.deny_at {
+            self.denied_records.set(self.denied_records.get() + 1);
+            return Err(s::Error::new(
+                "forbidden",
+                "Synthetic selected query boundary refused",
+            ));
         }
         Ok(actor)
     }
@@ -234,8 +250,14 @@ impl<R: s::Runtime> s::Runtime for MeasuredRuntime<R> {
         self.native.new_id()
     }
     fn verify_available_asset(&self, record: &s::Record) -> s::Result<s::AssetProof> {
-        let proof = self.native.verify_available_asset(record)?;
         self.proof_calls.set(self.proof_calls.get() + 1);
+        if self.fail_proof.replace(false) {
+            return Err(s::Error::new(
+                "asset-unavailable",
+                "Synthetic retained-byte proof failure",
+            ));
+        }
+        let proof = self.native.verify_available_asset(record)?;
         Ok(proof)
     }
 }
@@ -571,11 +593,18 @@ impl<'p, T: s::StockAuthorization<Principal = a::Principal>> s::StockAuthorizati
 }
 
 fn main() -> Check {
-    let isolated_record_read = match std::env::args().nth(3).as_deref() {
-        None => false,
-        Some("isolated-record-read-regression") => true,
+    let regression = match std::env::args().nth(3).as_deref() {
+        None => None,
+        Some(
+            case @ ("isolated-record-read-regression"
+            | "isolated-manifest-denial-regression"
+            | "isolated-record-precommit-denial-regression"
+            | "isolated-record-release-denial-regression"
+            | "isolated-asset-proof-failure-regression"),
+        ) => Some(case.to_owned()),
         Some(_) => return Err("Unknown isolated regression selection".into()),
     };
+    let isolated_record_read = regression.is_some();
     let repository = PathBuf::from(std::env::var("HOUSEATLAS_ROOT")?);
     let output = PathBuf::from(
         std::env::args()
@@ -802,6 +831,7 @@ fn main() -> Check {
                 server: server.clone(),
             },
             proof_calls: Rc::clone(&proof_calls),
+            fail_proof: Rc::new(Cell::new(false)),
         };
         let mut store = s::AtlasStore::open(
             &database,
@@ -990,12 +1020,14 @@ fn main() -> Check {
     let access = Arc::new(Mutex::new(access));
     let reopened_vault = Arc::new(AssetVault::open(&output.join("media"))?);
     let read_proof_calls = Rc::new(Cell::new(0));
+    let fail_read_proof = Rc::new(Cell::new(false));
     let read_runtime = MeasuredRuntime {
         native: NativeMediaRuntime {
             vault: reopened_vault,
             server: server.clone(),
         },
         proof_calls: Rc::clone(&read_proof_calls),
+        fail_proof: Rc::clone(&fail_read_proof),
     };
     let mut reader = s::AtlasStore::open(
         &database,
@@ -1081,31 +1113,76 @@ fn main() -> Check {
         existing.payload()["evidenceIds"],
         asset_record.payload["evidenceIds"]
     );
-    if isolated_record_read {
+    if let Some(case) = &regression {
         let before = serde_json::to_value(reader.read_snapshot(&original, &storage_scope)?)?;
         let byte_checks = read_proof_calls.get();
-        let manifest_only = ManifestOnlyQuery {
+        let (deny_manifest, deny_at, expected_manifests, expected_records, expected_proofs) =
+            match case.as_str() {
+                "isolated-record-read-regression" => (false, 1, 2, 1, 0),
+                "isolated-manifest-denial-regression" => (true, 1, 1, 0, 0),
+                "isolated-record-precommit-denial-regression" => (false, 2, 3, 2, 1),
+                "isolated-record-release-denial-regression" => (false, 3, 4, 3, 1),
+                "isolated-asset-proof-failure-regression" => (false, usize::MAX, 2, 1, 1),
+                _ => return Err("Query case outside explicit allowlist".into()),
+            };
+        let proof_failure = case == "isolated-asset-proof-failure-regression";
+        fail_read_proof.set(proof_failure);
+        let narrowed = ManifestOnlyQuery {
             native: &queries,
             target: &asset_ref,
             granted_manifests: Cell::new(0),
             denied_records: Cell::new(0),
+            record_checks: Cell::new(0),
+            deny_manifest,
+            deny_at,
         };
         match reader.resolve_original_asset_with_authorization(
-            &manifest_only,
+            &narrowed,
             &original,
             &storage_scope,
             &prepared,
         ) {
-            Err(error) => assert_eq!(error.code, "forbidden"),
-            Ok(_) => return Err("Manifest-only authority must not disclose a full record".into()),
+            Err(error) => assert_eq!(
+                error.code,
+                if proof_failure {
+                    "asset-unavailable"
+                } else {
+                    "forbidden"
+                }
+            ),
+            Ok(_) => return Err("Refused query must not disclose a full record".into()),
         }
-        assert_eq!(manifest_only.granted_manifests.get(), 2);
-        assert_eq!(manifest_only.denied_records.get(), 1);
-        assert_eq!(read_proof_calls.get(), byte_checks);
+        assert_eq!(narrowed.granted_manifests.get(), expected_manifests);
+        assert_eq!(narrowed.record_checks.get(), expected_records);
+        assert_eq!(narrowed.denied_records.get(), usize::from(!proof_failure));
+        assert_eq!(read_proof_calls.get(), byte_checks + expected_proofs);
+        assert!(!fail_read_proof.get());
         assert_eq!(
             serde_json::to_value(reader.read_snapshot(&original, &storage_scope)?)?,
             before
         );
+        // The genuine full-authority query still succeeds after the isolated
+        // one-shot refusal. No retained grant or record was changed.
+        assert_eq!(
+            reader
+                .resolve_original_asset_with_authorization(
+                    &queries,
+                    &original,
+                    &storage_scope,
+                    &prepared,
+                )?
+                .ok_or("Original disappeared after isolated query")?
+                .record(),
+            &asset_record
+        );
+        let result = json!({"case":case,"result":"pass","manifestChecks":expected_manifests,
+            "recordChecks":expected_records,"proofAttemptsBeforeRefusal":expected_proofs,
+            "fullRecordDisclosed":false,"snapshotUnchanged":true});
+        fs::write(
+            output.join("regression-evidence.json"),
+            serde_json::to_vec_pretty(&result)?,
+        )?;
+        println!("{result}");
     }
     let manifest = reader.read_asset_manifest(&original, &storage_scope, &asset_ref)?;
     assert_eq!(manifest["sha256"], sha256(bytes));
@@ -1224,8 +1301,8 @@ fn main() -> Check {
             "committedConsumptionLookup":"strict-native-stock-audit-links-pass",
             "existingOriginalResolution":{"assetId":existing.asset_id(),"revision":existing.revision(),"scope":existing.scope(),"provenance":"preserved","retainedBytes":"independently-verified"},
             "isolatedRecordReadRegression":isolated_record_read,
-            "recordReadRegressionResult":if isolated_record_read { "manifest grants retained; exact-target record read refused; no record/byte access/snapshot change" } else { "unrun" },
-            "heldControls":if isolated_record_read { "all other campaigns deferred-and-unrun; only separately selected isolated record-read case executed" } else { "deferred-and-unrun" }
+            "recordReadRegressionResult":regression.as_deref().unwrap_or("unrun"),
+            "heldControls":if isolated_record_read { "all other campaigns deferred-and-unrun; only separately selected isolated query case executed" } else { "deferred-and-unrun" }
         }))?,
     )?;
     println!(

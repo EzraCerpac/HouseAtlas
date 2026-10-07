@@ -1108,3 +1108,35 @@ untouched pre-change healthy canonical database is also validated read-only.
 The fixture principal/transport/clock are synthetic; there is no provider,
 listener, production authorization or held-control qualification. Root owns
 the final Reader/Storage composition and shared manifest integration.
+
+
+### Separately selected synthetic regressions
+
+The isolated regression lane in main policy `8f4065a` permits only explicitly
+reviewed synthetic concurrency, denial and failure cases. Ordinary invocations
+and CI do not select these cases. These Storage cases use fresh disposable roots,
+original synthetic Access principals and local SQLite/vaults, with no transport,
+provider, user data, operational credentials or deployment. Remove disposable
+state after collecting the exact source, command and result evidence.
+
+`stock-activity-healthy <fresh-root> <case>` selects exactly one of
+`producer-postcommit-failure`, `producer-precommit-denial` or
+`producer-concurrent-reservation`. They check original producer membership after
+a refused postcommit disclosure, rollback without membership after a precommit
+refusal, and one creator/one observer from concurrent first reservations. They
+perform no stock dispatch or readback. Original authority remains valid; only
+the synthetic owner callback is narrowed at the selected phase.
+
+`upload-healthy <fresh-root> text <case>` selects exactly one of
+`isolated-record-read-regression`, `isolated-manifest-denial-regression`,
+`isolated-record-precommit-denial-regression`,
+`isolated-record-release-denial-regression` or
+`isolated-asset-proof-failure-regression`. The existing ordinary fixture creates
+one synthetic asset. Selected queries then refuse only the named capability
+boundary or one local proof attempt, asserting no full-record result and no
+snapshot change. The first record refusal and initial manifest refusal open no
+retained bytes; later refusals occur after exactly one proof attempt. Genuine
+full authority succeeds afterwards without changing grants or records.
+
+These exact cases do not release guard reversal, mutation/omission, adversarial,
+private-intake, expiry, revocation, crash, broad-suite or production qualification.
