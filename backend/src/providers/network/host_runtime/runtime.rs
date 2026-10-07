@@ -172,7 +172,7 @@ impl HostNetworkRuntime {
                     let projected = n::stage_complete_generation(
                         self.settings.source(),
                         *proposal,
-                        &mut *sidecar,
+                        &mut sidecar,
                     );
                     let projected = match projected {
                         Ok(staged) => staged,
@@ -183,7 +183,7 @@ impl HostNetworkRuntime {
                     // This consumes the one-shot reservation and binds the
                     // exact raw response receipt to the actual native staged
                     // proposal before Storage publication.
-                    let staged = projected.attach_original_archive(&mut *sidecar, reservation)?;
+                    let staged = projected.attach_original_archive(&mut sidecar, reservation)?;
                     drop(sidecar);
                     // Staging is durable: finish with the SAME original fence
                     // despite late request cancellation. Original authority and
