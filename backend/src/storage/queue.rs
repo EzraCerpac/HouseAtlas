@@ -55,6 +55,60 @@ use std::{
 
 const MAX_METADATA_BYTES: usize = 1_048_576;
 
+/// Exact immutable cross-lane reference only. Independent activity evidence
+/// must already qualify occupancy at the native queued cut; current/final
+/// Jobs state is deliberately not substituted for that historical observation.
+pub(crate) fn validate_reservation_occupancy(
+    db: &Connection,
+    attempt: &LeasedJob,
+    binding: &crate::providers::homebox::write::stock::PhysicalBinding,
+    owner: uuid::Uuid,
+) -> Result<()> {
+    let identity = &attempt.lease.physical_identity;
+    if identity.deployment_id != binding.deployment_id.to_string()
+        || identity.physical_database_id != binding.physical_database_id.to_string()
+        || identity.configuration_digest.as_hex() != binding.configuration_digest.as_str()
+        || attempt.lease.owner_id != owner.to_string()
+        || attempt.lease.fence == 0
+        || attempt.attempt == 0
+    {
+        return Err(bad());
+    }
+    let registration: (String, String, String) = db.query_row(
+        "SELECT deployment_id,configuration_digest,owner_id FROM queue_physical WHERE physical_database_id=?1",
+        [&identity.physical_database_id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    ).map_err(|_| bad())?;
+    if registration
+        != (
+            identity.deployment_id.clone(),
+            identity.configuration_digest.as_hex().into(),
+            attempt.lease.owner_id.clone(),
+        )
+    {
+        return Err(bad());
+    }
+    let row = load(db, &attempt.lease.job_id.0)?;
+    if row.deployment != identity.deployment_id
+        || row.physical != identity.physical_database_id
+        || row.request != attempt.request
+        || row.scope != attempt.canonical_scope
+        || row.request.pending_byte_liability != attempt.pending_byte_liability
+    {
+        return Err(bad());
+    }
+    let retained: String = db
+        .query_row(
+            "SELECT original_leased_job_json FROM queue_attempts WHERE job_id=?1 AND fence=?2",
+            params![attempt.lease.job_id.0, decimal(attempt.lease.fence)],
+            |row| row.get(0),
+        )
+        .map_err(|_| bad())?;
+    if retained != encoded(&leased_value(attempt))? {
+        return Err(bad());
+    }
+    Ok(())
+}
+
 fn bad() -> Error {
     Error::new("schema-incompatible", "Stored queue value is incompatible")
 }
@@ -415,17 +469,22 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         {
             return Err(Error::new("forbidden", "Queue actor binding changed"));
         }
-        register(&mut self.db, &config, || {
-            authorize_session(
-                authority,
-                principal,
-                witness,
-                original,
-                receipt,
-                QueuePhase::Precommit,
-                QueueAction::Register(&config),
-            )
-        })?;
+        register(
+            &mut self.db,
+            &config,
+            self.options.stock_activity_profile,
+            || {
+                authorize_session(
+                    authority,
+                    principal,
+                    witness,
+                    original,
+                    receipt,
+                    QueuePhase::Precommit,
+                    QueueAction::Register(&config),
+                )
+            },
+        )?;
         authorize_session(
             authority,
             principal,
@@ -541,4 +600,46 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
     ) -> Result<JobSnapshot> {
         self.prove_remote_end_inner(evidence, now)
     }
+}
+
+/// Conservative cross-lane exclusion from actual Jobs rows. This grants no
+/// StockActivity permit and converts no scope, lease, epoch or accounting DTO.
+pub(crate) fn unresolved_physical_hold(db: &Connection, physical: &str) -> Result<bool> {
+    let deployment: Option<String> = db
+        .query_row(
+            "SELECT deployment_id FROM queue_physical WHERE physical_database_id=?1",
+            [physical],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let Some(deployment) = deployment else {
+        return Ok(false);
+    };
+    let ids = db
+        .prepare(CROSS_LANE_HOLD_CANDIDATES)?
+        .query_map(params![deployment, physical], |r| r.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    for id in ids {
+        let row = load(db, &id)?;
+        let liability = &row.liability;
+        let known = match liability.accounting {
+            ByteAccounting::Complete { known_bytes, .. }
+            | ByteAccounting::Incomplete { known_bytes } => known_bytes,
+        };
+        if row.logical
+            || matches!(
+                row.remote,
+                RemoteActivity::Invoked(
+                    InvokedRemoteActivity::Active | InvokedRemoteActivity::EndUnproven
+                )
+            )
+            || liability.reserved_bytes().is_none_or(|n| n > 0)
+            || known > 0
+            || liability.unresolved_attempts > 0
+            || liability.byte_disposition != ByteDisposition::None
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }

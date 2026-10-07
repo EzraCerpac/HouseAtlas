@@ -22,12 +22,15 @@ use std::{collections::BTreeSet, path::Path, sync::Arc, time::Duration};
 pub struct StoreOptions {
     pub allow_synthetic_bootstrap: bool,
     pub busy_timeout_ms: u64,
+    /// Fresh-only opt-in profile; never upgrades an existing schema-5 database.
+    pub stock_activity_profile: bool,
 }
 impl Default for StoreOptions {
     fn default() -> Self {
         Self {
             allow_synthetic_bootstrap: false,
             busy_timeout_ms: 5_000,
+            stock_activity_profile: false,
         }
     }
 }
@@ -39,10 +42,17 @@ pub struct AtlasStore<C, A, R> {
     instance: Arc<()>,
     contract: C,
     authorization: A,
-    runtime: R,
-    options: StoreOptions,
+    pub(super) runtime: R,
+    pub(super) options: StoreOptions,
 }
 impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
+    /// Borrow the original authorizer supplied when this Store was opened.
+    /// Composition can check its owner identity without acquiring an authority
+    /// lock. This borrow does not authorize any read, mutation or disclosure.
+    pub fn configured_authorization(&self) -> &A {
+        &self.authorization
+    }
+
     pub fn open(
         path: impl AsRef<Path>,
         contract: C,
@@ -56,7 +66,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         let mut db = Connection::open(path)?;
         db.busy_timeout(Duration::from_millis(options.busy_timeout_ms))?;
         db.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;")?;
-        migrations::migrate(&mut db)?;
+        migrations::migrate(&mut db, options.stock_activity_profile)?;
         db.pragma_update(None, "journal_mode", "WAL")?;
         Ok(Self {
             db,
@@ -68,7 +78,11 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         })
     }
     pub fn database_version(&self) -> u32 {
-        DATABASE_VERSION
+        if self.options.stock_activity_profile {
+            migrations::STOCK_ACTIVITY_DATABASE_VERSION
+        } else {
+            DATABASE_VERSION
+        }
     }
     pub fn close(self) -> Result<()> {
         self.db.close().map_err(|(_, e)| e.into())
@@ -152,141 +166,201 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         Ok(manifest)
     }
     pub fn read_snapshot(&mut self, principal: &A::Principal, scope: &Scope) -> Result<Snapshot> {
-        let tx = self.db.transaction()?;
-        authorize(
+        read_snapshot(
+            &mut self.db,
             &self.contract,
             &self.authorization,
             principal,
-            read_request(scope, Capability::Read, &[]),
-        )?;
-        let mut snapshot = repo::snapshot(&tx)?.scoped(scope);
-        let partition_key = |p: &SourcePartition| {
-            (
-                p.workspace_id.clone(),
-                p.home_id.clone(),
-                p.source_instance_id.clone(),
-                p.collection_id.clone(),
-            )
-        };
-        let mut denied = BTreeSet::new();
-        for cache in &snapshot.caches {
-            if cache["status"] == "access-revoked" {
-                denied.insert(partition_key(&repo::partition(cache)?));
-            }
-        }
-        for source in &snapshot.sources {
-            let partition = repo::partition(source)?;
-            let mut request = read_request(scope, Capability::ReadCache, &[]);
-            request.source_partition = Some(&partition);
-            if source_denied(authorize(
-                &self.contract,
-                &self.authorization,
-                principal,
-                request,
-            ))? {
-                denied.insert(partition_key(&partition));
-            }
-        }
-        let mut check = |partition: SourcePartition, sources: Vec<Value>| -> Result<()> {
-            if denied.contains(&partition_key(&partition)) {
-                return Ok(());
-            }
-            for source in &sources {
-                let mut request = read_request(scope, Capability::ReadCache, &[]);
-                request.source = Some(source);
-                if source_denied(authorize(
-                    &self.contract,
-                    &self.authorization,
-                    principal,
-                    request,
-                ))? {
-                    denied.insert(partition_key(&partition));
-                    break;
-                }
-            }
-            Ok(())
-        };
-        for projection in &snapshot.homebox_entities {
-            let source = &projection["source"];
-            let partition = SourcePartition {
-                workspace_id: scope.workspace_id.clone(),
-                home_id: scope.home_id.clone(),
-                source_instance_id: repo::string(source, "sourceInstanceId")?.into(),
-                collection_id: repo::string(source, "collectionId")?.into(),
-            };
-            check(
-                partition,
-                vec![json!({"workspaceId":scope.workspace_id,"homeId":scope.home_id,"key":source})],
-            )?;
-        }
-        for relation in &snapshot.network_relations {
-            let partition = repo::partition(relation)?;
-            let base = json!({"sourceInstanceId":partition.source_instance_id,"collectionId":partition.collection_id,
-                "sourceKind":"network-segment","externalId":relation["externalId"]});
-            let mut refs =
-                vec![json!({"workspaceId":scope.workspace_id,"homeId":scope.home_id,"key":base})];
-            for endpoint in [&relation["from"], &relation["to"]] {
-                if endpoint["kind"] != "unresolved" {
-                    let mut key = base.clone();
-                    key["sourceKind"] =
-                        Value::String(format!("network-{}", repo::string(endpoint, "kind")?));
-                    key["externalId"] = endpoint["id"].clone();
-                    refs.push(
-                        json!({"workspaceId":scope.workspace_id,"homeId":scope.home_id,"key":key}),
-                    );
-                }
-            }
-            check(partition, refs)?;
-        }
-        snapshot.homebox_entities = snapshot
-            .homebox_entities
-            .into_iter()
-            .map(|r| {
-                let source = &r["source"];
-                let key = (
-                    repo::string(&r, "workspaceId")?.into(),
-                    repo::string(&r, "homeId")?.into(),
-                    repo::string(source, "sourceInstanceId")?.into(),
-                    repo::string(source, "collectionId")?.into(),
-                );
-                Ok((r, !denied.contains(&key)))
-            })
-            .collect::<Result<Vec<_>>>()?
-            .into_iter()
-            .filter_map(|(r, visible)| visible.then_some(r))
-            .collect();
-        snapshot.network_relations = snapshot
-            .network_relations
-            .into_iter()
-            .map(|r| Ok((!denied.contains(&partition_key(&repo::partition(&r)?)), r)))
-            .collect::<Result<Vec<_>>>()?
-            .into_iter()
-            .filter_map(|(visible, r)| visible.then_some(r))
-            .collect();
-        for cache in &mut snapshot.caches {
-            if denied.contains(&partition_key(&repo::partition(cache)?)) {
-                cache["status"] = json!("access-revoked");
-            }
-        }
-        for source in &snapshot.sources {
-            let p = repo::partition(source)?;
-            if denied.contains(&partition_key(&p))
-                && !snapshot
-                    .caches
-                    .iter()
-                    .any(|c| repo::partition(c).is_ok_and(|c| c == p))
-            {
-                let cache = json!({"schemaVersion":1,"workspaceId":p.workspace_id,"homeId":p.home_id,"sourceInstanceId":p.source_instance_id,
-                    "collectionId":p.collection_id,"status":"access-revoked","lastSuccessfulFetchAt":null,"lastAttemptAt":null,"generationId":null,
-                    "consistency":"non-transactional-offset-pages","error":null});
-                self.contract.validate_shape("cacheStatus", &cache)?;
-                snapshot.caches.push(cache);
-            }
-        }
-        tx.commit()?;
-        Ok(snapshot)
+            scope,
+        )
+    }
+
+    /// Same-store snapshot read using an original per-call authority fence.
+    /// Private network-link selectors require a host-owned typed link adapter;
+    /// they are not frozen SourceKind values or generation-membership proof.
+    pub fn read_snapshot_with_authorization<B: Authorization>(
+        &mut self,
+        authorization: &B,
+        principal: &B::Principal,
+        scope: &Scope,
+    ) -> Result<Snapshot> {
+        read_snapshot(
+            &mut self.db,
+            &self.contract,
+            authorization,
+            principal,
+            scope,
+        )
     }
 }
+fn read_snapshot<C: Contract, B: Authorization>(
+    db: &mut Connection,
+    contract: &C,
+    authorization: &B,
+    principal: &B::Principal,
+    scope: &Scope,
+) -> Result<Snapshot> {
+    let tx = db.transaction()?;
+    let actor = authorize(
+        contract,
+        authorization,
+        principal,
+        read_request(scope, Capability::Read, &[]),
+    )?;
+    let mut snapshot = repo::snapshot(&tx)?.scoped(scope);
+    let partition_key = |p: &SourcePartition| {
+        (
+            p.workspace_id.clone(),
+            p.home_id.clone(),
+            p.source_instance_id.clone(),
+            p.collection_id.clone(),
+        )
+    };
+    let mut denied = BTreeSet::new();
+    let mut accepted = Vec::<(Option<SourcePartition>, Option<Value>)>::new();
+    for cache in &snapshot.caches {
+        if cache["status"] == "access-revoked" {
+            denied.insert(partition_key(&repo::partition(cache)?));
+        }
+    }
+    for source in &snapshot.sources {
+        let partition = repo::partition(source)?;
+        let mut request = read_request(scope, Capability::ReadCache, &[]);
+        request.source_partition = Some(&partition);
+        if source_denied(authorize(contract, authorization, principal, request))? {
+            denied.insert(partition_key(&partition));
+        } else {
+            accepted.push((Some(partition), None));
+        }
+    }
+    let mut check = |partition: SourcePartition, sources: Vec<Value>| -> Result<()> {
+        if denied.contains(&partition_key(&partition)) {
+            return Ok(());
+        }
+        for source in &sources {
+            let mut request = read_request(scope, Capability::ReadCache, &[]);
+            request.source = Some(source);
+            if source_denied(authorize(contract, authorization, principal, request))? {
+                denied.insert(partition_key(&partition));
+                break;
+            }
+            accepted.push((None, Some(source.clone())));
+        }
+        Ok(())
+    };
+    for projection in &snapshot.homebox_entities {
+        let source = &projection["source"];
+        let partition = SourcePartition {
+            workspace_id: scope.workspace_id.clone(),
+            home_id: scope.home_id.clone(),
+            source_instance_id: repo::string(source, "sourceInstanceId")?.into(),
+            collection_id: repo::string(source, "collectionId")?.into(),
+        };
+        check(
+            partition,
+            vec![json!({"workspaceId":scope.workspace_id,"homeId":scope.home_id,"key":source})],
+        )?;
+    }
+    for relation in &snapshot.network_relations {
+        let partition = repo::partition(relation)?;
+        let base = json!({"sourceInstanceId":partition.source_instance_id,"collectionId":partition.collection_id,
+                "sourceKind":"network-link","externalId":relation["externalId"]});
+        // Private selector retains the exact cached endpoint binding. Entity
+        // grants alone cannot qualify a reused link ID with different ends.
+        let mut refs = vec![
+            json!({"workspaceId":scope.workspace_id,"homeId":scope.home_id,
+            "key":base,"from":relation["from"],"to":relation["to"]}),
+        ];
+        for endpoint in [&relation["from"], &relation["to"]] {
+            if endpoint["kind"] != "unresolved" {
+                let mut key = base.clone();
+                key["sourceKind"] =
+                    Value::String(format!("network-{}", repo::string(endpoint, "kind")?));
+                key["externalId"] = endpoint["id"].clone();
+                refs.push(
+                    json!({"workspaceId":scope.workspace_id,"homeId":scope.home_id,"key":key}),
+                );
+            }
+        }
+        check(partition, refs)?;
+    }
+    snapshot.homebox_entities = snapshot
+        .homebox_entities
+        .into_iter()
+        .map(|r| {
+            let source = &r["source"];
+            let key = (
+                repo::string(&r, "workspaceId")?.into(),
+                repo::string(&r, "homeId")?.into(),
+                repo::string(source, "sourceInstanceId")?.into(),
+                repo::string(source, "collectionId")?.into(),
+            );
+            Ok((r, !denied.contains(&key)))
+        })
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
+        .filter_map(|(r, visible)| visible.then_some(r))
+        .collect();
+    snapshot.network_relations = snapshot
+        .network_relations
+        .into_iter()
+        .map(|r| Ok((!denied.contains(&partition_key(&repo::partition(&r)?)), r)))
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
+        .filter_map(|(visible, r)| visible.then_some(r))
+        .collect();
+    for cache in &mut snapshot.caches {
+        if denied.contains(&partition_key(&repo::partition(cache)?)) {
+            cache["status"] = json!("access-revoked");
+        }
+    }
+    for source in &snapshot.sources {
+        let p = repo::partition(source)?;
+        if denied.contains(&partition_key(&p))
+            && !snapshot
+                .caches
+                .iter()
+                .any(|c| repo::partition(c).is_ok_and(|c| c == p))
+        {
+            let cache = json!({"schemaVersion":1,"workspaceId":p.workspace_id,"homeId":p.home_id,"sourceInstanceId":p.source_instance_id,
+                    "collectionId":p.collection_id,"status":"access-revoked","lastSuccessfulFetchAt":null,"lastAttemptAt":null,"generationId":null,
+                    "consistency":"non-transactional-offset-pages","error":null});
+            contract.validate_shape("cacheStatus", &cache)?;
+            snapshot.caches.push(cache);
+        }
+    }
+    let recheck = || -> Result<()> {
+        let current = authorize(
+            contract,
+            authorization,
+            principal,
+            read_request(scope, Capability::Read, &[]),
+        )?;
+        if current != actor {
+            return Err(Error::new(
+                "unauthenticated",
+                "Snapshot read principal changed",
+            ));
+        }
+        for (partition, source) in &accepted {
+            let mut request = read_request(scope, Capability::ReadCache, &[]);
+            request.source_partition = partition.as_ref();
+            request.source = source.as_ref();
+            if authorize(contract, authorization, principal, request)? != actor {
+                return Err(Error::new(
+                    "unauthenticated",
+                    "Snapshot source principal changed",
+                ));
+            }
+        }
+        Ok(())
+    };
+    recheck()?;
+    tx.commit()?;
+    recheck()?;
+    Ok(snapshot)
+}
+
 fn shape<C: Contract, T: Serialize>(contract: &C, name: &str, value: &T) -> Result<()> {
     contract.validate_shape(name, &serde_json::to_value(value)?)
 }

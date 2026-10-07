@@ -286,6 +286,20 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
             authorize_observation(QueuePhase::Release)?;
             return Ok(ClaimOutcome::Idle);
         };
+        let identity = &config.registration.identity;
+        if let Some(reason) = crate::storage::stock_activity::jobs_hold(
+            &tx,
+            self.store.options.stock_activity_profile,
+            &identity.physical_database_id,
+            &identity.deployment_id,
+            identity.configuration_digest.as_hex(),
+            &config.registration.dispatcher_owner_id,
+        )? {
+            authorize_observation(QueuePhase::Precommit)?;
+            tx.commit()?;
+            authorize_observation(QueuePhase::Release)?;
+            return Ok(ClaimOutcome::Waiting { reason });
+        }
         let row = load(&tx, &id)?;
         if row.request.receipt != *self.receipt {
             authorize_observation(QueuePhase::Precommit)?;

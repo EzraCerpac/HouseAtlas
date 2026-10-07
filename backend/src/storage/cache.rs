@@ -114,6 +114,20 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             .register_source(principal, registration)
     }
 
+    /// Read under an original borrowed authority fence on this open store.
+    /// Retained rows, including quarantined rows, remain internal matching data:
+    /// the host must qualify generation membership and exact entity disclosure.
+    pub fn read_cache_partition_with_authorization<B: Authorization>(
+        &mut self,
+        authorization: &B,
+        principal: &B::Principal,
+        scope: &Scope,
+        partition: &SourcePartition,
+    ) -> Result<RegisteredCacheRead> {
+        self.cache_transaction_with_authorization(authorization)
+            .read_cache_partition(principal, scope, partition)
+    }
+
     /// Borrowed call authority; retains this store connection and fence issuer.
     pub fn prepare_cache_publication_with_authorization<B: Authorization>(
         &mut self,
@@ -190,6 +204,77 @@ struct CacheTransaction<'a, C, A, R> {
     instance: &'a Arc<()>,
 }
 impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
+    fn read_cache_partition(
+        &mut self,
+        principal: &A::Principal,
+        scope: &Scope,
+        partition: &SourcePartition,
+    ) -> Result<RegisteredCacheRead> {
+        shape(self.contract, "scope", scope)?;
+        validate_partition(self.contract, partition)?;
+        if partition.scope() != *scope {
+            return Err(Error::new("not-found", "Source unavailable"));
+        }
+        let tx = self.db.transaction()?;
+        let registration = cache_repo::source(&tx, partition)?;
+        shape(self.contract, "sourceRegistration", &registration)?;
+        if registration.partition() != *partition {
+            return Err(Error::new(
+                "schema-incompatible",
+                "Registered source is incompatible",
+            ));
+        }
+        let source = serde_json::to_value(&registration)?;
+        let check = || {
+            let mut request = read_request(scope, Capability::ReadCache, &[]);
+            request.source_partition = Some(partition);
+            request.source = Some(&source);
+            authorize(self.contract, self.authorization, principal, request)
+        };
+        let actor = check()?;
+        let state = cache_repo::publication_state(&tx, partition)?;
+        if let Some(cache) = &state.cache {
+            shape(self.contract, "cacheStatus", cache)?;
+            if cache.partition() != *partition {
+                return Err(Error::new("schema-incompatible", "Cache is incompatible"));
+            }
+        }
+        for row in &state.homebox_entities {
+            self.contract.validate_shape("homeboxProjection", row)?;
+            if registration.owner != SourceOwner::Homebox || homebox_partition(row)? != *partition {
+                return Err(Error::new(
+                    "schema-incompatible",
+                    "Projection is incompatible",
+                ));
+            }
+        }
+        for row in &state.network_relations {
+            self.contract.validate_shape("networkRelation", row)?;
+            if registration.owner != SourceOwner::Network || repo::partition(row)? != *partition {
+                return Err(Error::new(
+                    "schema-incompatible",
+                    "Relation is incompatible",
+                ));
+            }
+        }
+        let recheck = || -> Result<()> {
+            if check()? != actor {
+                return Err(Error::new(
+                    "unauthenticated",
+                    "Cache read principal changed",
+                ));
+            }
+            Ok(())
+        };
+        recheck()?;
+        tx.commit()?;
+        recheck()?;
+        Ok(RegisteredCacheRead {
+            registration,
+            state,
+        })
+    }
+
     pub fn register_source(
         &mut self,
         principal: &A::Principal,
