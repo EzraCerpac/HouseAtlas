@@ -41,6 +41,11 @@ crc32fast.workspace = true
 png.workspace = true
 rustix.workspace = true
 tempfile.workspace = true
+ring.workspace = true
+zeroize.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring.workspace = true
 
 [dev-dependencies]
 tower.workspace = true

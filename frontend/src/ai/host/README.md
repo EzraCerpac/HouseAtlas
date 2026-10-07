@@ -86,12 +86,25 @@ human UI owns retained approval; the backend revalidates and claims the existing
 continuation before dispatch.
 
 `RunOutcome` carries completed, review-required, domain-held, cancelled, stopped
-or failed state. The failed arm preserves its reason, earlier operationIds and
+or failed state. New domain-held DTOs require `operationIds` alongside nullable
+current `operationId`, state and usage. The strict decoder preserves the ordered
+collection; the panel displays every correlation without inferring completion
+of earlier or current operations. Producer and consumer must be adopted together.
+The failed arm preserves its reason, earlier operationIds and
 usage. Non-2xx or invalid transport rejects the promise and remains unconfirmed
 in the shared hook; only an accepted terminal DTO is canonical completion/error.
 Status reads do not resubmit work. Browser domain-held states are prepared,
 queued, dispatching, rejected-before-dispatch, partial and unknown-held. The
 Rust dispatch enum's internal observed/resolved values are not browser holds.
+
+An observed unconfirmed disconnect can be retried explicitly with a new action
+ID. The previous receipt stays unresolved and remains queryable under its
+original ID. Opening/pending disconnects and existing retention capacity still
+bound admission. The button uses the hook's same scope/global capacity predicate
+and subscribes to registry count changes, including changes from another mounted
+scope. Disposal removes that observer; correlation rows retain no view/client.
+It displays a full-capacity limitation. Refresh reads receipts; it never
+resubmits a disconnect.
 
 Current application authentication, original authority, home/provider binding,
 CSRF, bounds, workflow/request storage and termination evidence stay backend
@@ -178,6 +191,21 @@ component groups and the persisted-dismissal group, retaining 2 input, 1 output
 and 3 total tokens from the actual peer with one status lookup. No browser
 runtime exception was observed; browser requests were static loopback assets
 and the exported synthetic peer JSON.
+`operation-receipts.healthy.tsx` exports
+`runHealthyOperationReceiptsExample(container, peerJson)`. Its peer object contains
+actual Rust-serde `domainHeld`, matching finished `requestStatus`, and seeded
+`disconnect`/`completedDisconnect` receipt projections. It passes the populated
+held DTO through the real client decoder, hook and panel, checks all three ordered
+operation correlations, current ID, queued state and unknown usage, then submits
+a fresh request. A subsequent explicit disconnect retry uses a fresh action ID
+while retaining and polling the original unconfirmed receipt. Only synthetic
+browser correlation IDs are rebound; no remote revocation or held-step execution
+is simulated. The existing six sequential browser groups and these two receipt
+groups passed in Chromium 151.0.7922.173 with no runtime exception. The Rust peer
+serializes the actual library DTOs; it supplies no credential or provider adapter.
+Strict TypeScript checking and the production build also passed. Capacity,
+negative/omitted DTO, concurrency and all held controls remain unexecuted.
+
 No live login/inference/provider/account operation, new credential/grant,
 spending or deployment occurs. Historical stopped rejection/replay/expiry/
 revocation, fault/corruption, adversarial/mutation and concurrency controls remain

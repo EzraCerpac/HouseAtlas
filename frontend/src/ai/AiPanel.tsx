@@ -4,7 +4,7 @@ import { cancellationMessage, canInfer, failureMessages, readinessMessage, token
 import type {
   AiClient, AiSessionState, ConnectionAction, ConnectionSnapshot, DomainHeld, RunOutcome, RuntimeRoute, UnresolvedConnectionAction, Usage,
 } from './types.js';
-import { useAiSession } from './useAiSession.js';
+import { useAiSession, useConnectionActionCapacity } from './useAiSession.js';
 
 export interface AiPanelProps {
   readonly client: AiClient;
@@ -76,12 +76,12 @@ const actionLabels: Record<ConnectionAction['action'], string> = {
   connect: 'Connect', consent: 'Inference consent', disconnect: 'Disconnect', 'manage-usage': 'Manage usage',
 };
 const heldMessages: Record<DomainHeld['state'], string> = {
-  prepared: 'Domain intent is prepared. No write has been dispatched.',
-  queued: 'Domain operation is queued. No completed write is reported.',
-  dispatching: 'Domain operation is dispatching. Completion is unconfirmed.',
-  'rejected-before-dispatch': 'Domain operation was rejected before dispatch.',
-  partial: 'Domain operation has partial effects. Reconciliation is required.',
-  'unknown-held': 'Domain operation has unknown effects and remains held. Reconciliation is required.',
+  prepared: 'Current domain intent is prepared and has not been dispatched.',
+  queued: 'Current domain operation is queued. Its completion is unconfirmed.',
+  dispatching: 'Current domain operation is dispatching. Its completion is unconfirmed.',
+  'rejected-before-dispatch': 'Current domain operation was rejected before dispatch.',
+  partial: 'Current domain operation has partial effects. Reconciliation is required.',
+  'unknown-held': 'Current domain operation has unknown effects and remains held. Reconciliation is required.',
 };
 
 export function AiPanelView({
@@ -100,6 +100,8 @@ export function AiPanelView({
       }] : []
   );
   const pendingKinds = unresolvedActions.map(action => action.action);
+  const disconnectPending = unresolvedActions.some(action => action.action === 'disconnect' && action.status === 'pending');
+  const disconnectCapacityExhausted = !useConnectionActionCapacity(unresolvedActions.length);
   // The submitted action is retained before its opening call settles. Show its
   // working progress separately, while preserving every older unresolved row.
   const visibleActions = unresolvedActions.filter(action => !(connectionBusy && action.actionId === state.connectionAction.actionId));
@@ -137,11 +139,12 @@ export function AiPanelView({
           onClick={() => { if (selectedRoute !== 'unset') onConnectionAction({ action: 'connect', route: selectedRoute }); }}>Connect</button>
         <button type="button" disabled={busy || connectionBusy || pendingKinds.length > 0 || state.connection.status !== 'available'}
           onClick={() => onConnectionAction({ action: 'consent' })}>Review inference consent</button>
-        <button type="button" disabled={connectionBusy || pendingKinds.includes('disconnect') || state.connection.status !== 'available'}
+        <button type="button" disabled={connectionBusy || disconnectPending || disconnectCapacityExhausted || state.connection.status !== 'available'}
           onClick={() => onConnectionAction({ action: 'disconnect' })}>Disconnect</button>
         <button type="button" disabled={connectionBusy || pendingKinds.includes('manage-usage') || state.connection.status !== 'available'}
           onClick={() => onConnectionAction({ action: 'manage-usage' })}>Manage usage</button>
       </div>
+      {disconnectCapacityExhausted && <p role="status">Disconnect retry capacity is full.</p>}
       {state.connectionAction.status === 'working' && <p role="status">Opening connection action.</p>}
       {visibleActions.length > 0 && <ul aria-label="Unresolved connection actions">
         {visibleActions.map(action => <li key={action.actionId ?? action.action}><p role="status">
@@ -214,7 +217,9 @@ function Outcome({ outcome }: { readonly outcome: RunOutcome }) {
       {outcome.operationIds.length > 0 && <><p>Earlier domain operations remain recorded by the host.</p><ul>{outcome.operationIds.map(id => <li key={id}>{id}</li>)}</ul></>}</>}
     {outcome.status === 'domain-held' && <>
       <h3>Domain operation</h3><p role="status">{heldMessages[outcome.state]}</p>
-      <dl className="ha-ai__facts"><dt>Operation ID</dt><dd>{outcome.operationId ?? 'Unknown'}</dd></dl>
+      <dl className="ha-ai__facts"><dt>Current operation ID</dt><dd>{outcome.operationId ?? 'Unknown'}</dd></dl>
+      {outcome.operationIds.length > 0 && <><p>Recorded domain operations</p>
+        <ul aria-label="Recorded domain operations">{outcome.operationIds.map(id => <li key={id}>{id}</li>)}</ul></>}
     </>}
     {outcome.status === 'review-required' && <>
       <h3>Tool review</h3>

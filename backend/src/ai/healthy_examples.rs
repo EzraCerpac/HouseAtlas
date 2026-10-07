@@ -498,3 +498,29 @@ fn healthy_runtime_wire_projection() {
         serde_json::to_string(&wire).expect("actual serde wire")
     );
 }
+
+#[test]
+fn healthy_domain_operation_correlation_dto() {
+    // Positive DTO projection only. No catalog dispatch, held-step execution,
+    // approval, rejection, failure or domain reconciliation probe runs here.
+    let operations = vec![
+        "synthetic-earlier-observed".to_owned(),
+        "synthetic-earlier-resolved".to_owned(),
+        "synthetic-current-operation".to_owned(),
+    ];
+    let outcome = RunOutcome::DomainHeld {
+        operation_id: operations.last().cloned(),
+        operation_ids: operations.clone(),
+        state: DomainDispatchState::Queued,
+        usage: Usage::default(),
+    };
+    let wire = serde_json::to_value(&outcome).expect("healthy domain correlation DTO");
+    assert_eq!(wire["operationIds"], json!(operations));
+    assert_eq!(wire["operationId"], "synthetic-current-operation");
+    assert_eq!(wire["state"], "queued");
+    assert_eq!(wire["usage"]["totalTokens"], Value::Null);
+    assert_eq!(
+        serde_json::from_value::<RunOutcome>(wire).expect("healthy DTO round trip"),
+        outcome
+    );
+}

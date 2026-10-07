@@ -5,6 +5,7 @@ pub mod ai;
 pub mod app;
 pub mod config;
 pub mod contracts;
+pub mod credential_boundary;
 pub mod domain;
 pub mod http;
 pub mod jobs;

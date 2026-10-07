@@ -67,6 +67,8 @@ export interface ReviewRequired {
 export interface DomainHeld {
   readonly status: 'domain-held';
   readonly operationId: string | null;
+  /** Ordered correlations retained by the host, including earlier operations. */
+  readonly operationIds: readonly string[];
   readonly state: 'prepared' | 'queued' | 'dispatching' | 'rejected-before-dispatch' | 'partial' | 'unknown-held';
   readonly usage: Usage;
 }
