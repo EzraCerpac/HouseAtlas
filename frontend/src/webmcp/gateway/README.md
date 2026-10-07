@@ -51,6 +51,21 @@ coded and compiled; its delayed-call race qualification remains held and unrun.
 Result state is keyed to the actual session/service/catalog/model-context inputs.
 A replacement render omits the prior result and link before descendant layout
 effects observe the new view, rather than waiting for passive effect cleanup.
+Registration status uses the same input identity; a replacement view reports
+inactive until its own handle publishes availability instead of inheriting the
+previous catalog's registered status.
+Both boundaries subscribe to the existing session state/revision through
+`useSyncExternalStore`; changing a revision on a stable port also changes the
+view identity. A host that publishes its facade in a parent layout effect must
+add `renderIdentity` known before rendering changed session/scope/admission.
+This opaque non-secret value flows through `CommandCoverageBoundary` as well.
+For `StockApplication`, the app owner must supply a memoized render-context key
+including session, selected scope and admission/revision before `facade.publish`.
+If selected scope is discovered only by a child's layout callback, the owner
+must invalidate admission or supply the future scope key before that child's
+changed view commits. A subscription cannot infer a future parent publication.
+AT39 does not edit the app leaf; this exact input remains a root/app integration
+dependency, separate from the compiled browser component.
 Registration-only failure keeps already-running calls' result presentation;
 an explicit view clear settles discarded acknowledgement tickets with a view
 error. Neither action reverses domain work. Partial-registration failure/race
@@ -67,10 +82,11 @@ replaces that host nor broadens Atlas family support to HomeBox or Network.
 
 Healthy `healthy.tsx` uses the unchanged first native stock request/result
 fixture and shared offline schema through injected synthetic gateway peers.
-The `fixture_gateway_*` names exist only in the example. Five check groups
+The `fixture_gateway_*` names exist only in the example. Six check groups
 verify admitted/bound registration, canonical DOM completion, an issued
 synthetic download link visible before return, normal sequential reactivation
-after earlier executions finish, and unmount cleanup. No export
+after earlier executions finish, stable-port revision changes and explicit
+render identity before parent-layout publication, and unmount cleanup. No export
 job, byte transfer, provider call, listener or live browser registration runs.
 Strict source compilation passes. The original four stock DOM groups and six
 adapter/history checks also pass after acknowledgement extraction.

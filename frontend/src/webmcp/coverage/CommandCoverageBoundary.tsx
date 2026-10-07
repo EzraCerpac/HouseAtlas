@@ -32,6 +32,7 @@ export function CommandCoverageBoundary(props: CommandCoverageBoundaryProps) {
   const ports = useMemo(() => bindCommandFamilies(sessions, bindings), [sessions, bindings]);
   return <CommandRenderBoundary fallback={<><p role="alert">Command result could not be displayed.</p>{children}</>}>
     <StockWebMcpBoundary sessions={ports.sessions} schemas={schemas} service={ports.service}
+      {...(Object.hasOwn(props, "renderIdentity") ? { renderIdentity: props.renderIdentity } : {})}
       {...(Object.hasOwn(props, "modelContext") ? { modelContext: props.modelContext } : {})}>
       {({ completion }) => <>{children}<CanonicalCommandResult completion={completion} /></>}
     </StockWebMcpBoundary>
