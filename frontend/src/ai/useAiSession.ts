@@ -256,9 +256,12 @@ export function useAiSession(client: AiClient, scopeKey: string) {
     recoveryController.current?.abort();
     recoveryController.current = null;
     if (outcome.status === 'completed' || outcome.status === 'cancelled' || outcome.status === 'failed'
-      || outcome.status === 'domain-held') {
+      || outcome.status === 'domain-held' || outcome.status === 'stopped') {
       // DomainHeld is a canonical terminal request result. Its domain operation
       // stays held and visible; it does not occupy the inference request slot.
+      // A returned Stopped likewise ends local processing. Its displayed
+      // provider uncertainty/usage remain; releasing this browser slot does
+      // not confirm upstream completion or change the durable host journal.
       unwatchRequest();
       requestObservers.delete(pending.retained);
       retainedRequests.delete(scope.key);
@@ -270,9 +273,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
         ? { status: 'awaiting-review', requestId: pending.requestId, outcome, cancellation }
         : outcome.status === 'domain-held'
           ? { status: 'domain-held', requestId: pending.requestId, outcome, cancellation }
-          : outcome.status === 'stopped'
-            ? { status: 'unconfirmed', requestId: pending.requestId, outcome, cancellation }
-            : { status: 'finished', requestId: pending.requestId, outcome };
+          : { status: 'finished', requestId: pending.requestId, outcome };
       return { ...previous, request, recoveryAction: { status: 'idle' } };
     });
   }, [scope, update, unwatchRequest]);

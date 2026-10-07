@@ -227,6 +227,18 @@ production build also pass. Capacity exhaustion, negative/omitted DTO,
 overlapping opening/status calls, concurrency and all held controls remain
 unexecuted; superseded-call cleanup is source inspected only.
 
+`runFocusedTerminalWorkflowChecks(container, peerJson, prelaunchPeerJson)` is
+separate explicit validation requested for PR54 findings4210200212/4210200228.
+A returned Rust Stopped DTO releases the local active slot and retains the
+stopped/provider-unconfirmed display and usage; a fresh explicit request uses
+another ID. It does not interrupt provider I/O or confirm provider completion.
+A synthetic Connect rejection is reconciled using the actual Rust host's
+persisted prelaunch-failure receipt, with two explicit fresh IDs and two
+original-ID reads. The terminal workflow DTO grants no inference/runtime
+authority. These two narrow checks extend the ten healthy groups; historical
+failure, rejection/replay, expiry/revocation and concurrency controls outside
+these explicitly requested paths remain held.
+
 No live login/inference/provider/account operation, new credential/grant,
 spending or deployment occurs. Historical stopped rejection/replay/expiry/
 revocation, fault/corruption, adversarial/mutation and concurrency controls remain
