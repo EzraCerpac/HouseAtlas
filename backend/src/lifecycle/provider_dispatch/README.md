@@ -76,6 +76,10 @@ replacement grant, physical release or recovery authority.
 The accepted writer's sanitized authentication/capability errors remain intact.
 Other retention errors return `UnknownHeld` with no retry or operation ID; an
 earlier retained cut is not a current disclosure authorization.
+Calls after a sticky failure still run the actual current access peer before
+returning retention state. Compatible original actor/physical binding is required;
+access refusal returns its sanitized code with no operation ID or retry. The
+retention latch remains set and no native I/O is attempted.
 
 The original codec wrappers capture actual `NativeDispatch`/`DispatchReceipt`
 and `NativeObservation` before returning them for native fact reduction. After
@@ -139,7 +143,7 @@ accepted `c784be5776b614f8f0bb225fcb5355ecb9e90e0d`.
 | External namespace | Exact tested input |
 | --- | --- |
 | Storage71 and migrations | `2befc971bd8b5590ab6b139b1163fbcd82256c66` |
-| Actual native activity/archive codec88 | `1d202f4e61726db9fa49cadbb2f8bf6900551d5f` |
+| Actual native activity/archive codec88 | `8f103c9ff6595c1ab26017f0f7f594f76fcff065` |
 | Domain70 | `c25c1a0316ef5e12b61560f00371d839085aefb5` |
 | Jobs | `8a568fb6ccef5b0fa575b18d6181dcc524d4db99` |
 | Separate original-owner Domain queue recovery | `fd72542686112e594d9a6f63b4782a62b5d9e6ef` |
@@ -160,6 +164,10 @@ support genuine waiting producers and explicit caller limits. It also carries
 the original owner's source fixes for ambiguous capture never claiming positive
 never-invoked evidence and retaining compatible refreshed readback authority.
 Those stopped controls are not executed here.
+The final codec pin additionally wraps all five nested Storage string decoders
+with explicit decoded-data-to-original-encoding equality. Its APIs and archive
+format are unchanged; this source correction is tested only with healthy
+canonical frames, with encoding alias/corruption probes still held.
 The requested Storage71 `8a171a18d7d035d4fce5818442c1f654a340683e` remains
 preserved. The inspected `6e54c2dbf29485ac7d44fac418430652d39f46bc` and then
 `2befc971bd8b5590ab6b139b1163fbcd82256c66` carry queue guard/order and fresh

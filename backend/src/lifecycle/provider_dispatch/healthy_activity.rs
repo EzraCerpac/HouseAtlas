@@ -772,6 +772,7 @@ fn healthy_fresh_stock_activity() -> Check<()> {
         },
         command: command.clone(),
         actor_id: authority.actor_id,
+        physical_binding: authority.physical_binding.clone(),
         deployment: PhantomData,
         retention,
     };

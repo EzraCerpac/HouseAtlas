@@ -23,7 +23,7 @@ PEER_INPUTS = [
     ("ea8ef14e05795334b3d79ae9c95c0a456f8b0308", ["backend/src/media"]),
     ("5e87c6c9152228ac4ae72814c6e6fc8f0ea8d7a2", ["backend/src/access"]),
     ("72349292ec6c51a0e6a5d36985e094d05166bd53", ["backend/src/providers/homebox/write_transport"]),
-    ("1d202f4e61726db9fa49cadbb2f8bf6900551d5f", ["backend/src/providers/homebox/recovery"]),
+    ("8f103c9ff6595c1ab26017f0f7f594f76fcff065", ["backend/src/providers/homebox/recovery"]),
 ]
 PNG_PACKAGES = [
     {"name":"fdeflate","version":"0.3.7",

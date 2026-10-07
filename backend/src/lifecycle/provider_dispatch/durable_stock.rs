@@ -137,6 +137,7 @@ impl<C: storage::Contract + Send, A: storage::Authorization + Send, R: storage::
         let registration = config.activity_registration();
         let command = binding.command.clone();
         let actor_id = binding.captured_authority.actor_id;
+        let physical_binding = binding.captured_authority.physical_binding.clone();
         let contracts = SharedContracts(Arc::clone(&binding.contracts));
         let retention = Retention::new(
             Arc::clone(&self.archive),
@@ -162,6 +163,7 @@ impl<C: storage::Contract + Send, A: storage::Authorization + Send, R: storage::
             },
             command,
             actor_id,
+            physical_binding,
             deployment: PhantomData,
             retention,
         })
@@ -251,6 +253,7 @@ pub struct BoundStock<'h, C, A, R, P: storage::StockActivityPrincipal, G, S, X, 
     writer: DurableWriter<C, A, R, P, G, S, X, F, D, B>,
     command: native::StockCommand,
     actor_id: Uuid,
+    physical_binding: native::PhysicalBinding,
     deployment: PhantomData<&'h mut DurableStockHost<C, A, R>>,
     retention: Arc<Retention<P, G>>,
 }
@@ -271,7 +274,7 @@ where
     /// Execute only the original command validated when this session was bound.
     pub async fn execute(&mut self) -> native::StockResult {
         if self.retention.ready().is_err() {
-            return self.retention_error();
+            return self.sticky_retention_error().await;
         }
         let result = self.writer.execute(&self.command.original_wire).await;
         self.finish(result)
@@ -292,7 +295,9 @@ where
         &mut self,
         handoff: &storage::QueuedStockActivity,
     ) -> Result<native::StockResult, native::StockPortFault> {
-        self.retention.ready()?;
+        if self.retention.ready().is_err() {
+            return Ok(self.sticky_retention_error().await);
+        }
         let operation = self.writer.activity.session.retain_handoff(handoff)?;
         let result = self.writer.run_reserved(operation).await;
         Ok(self.finish(result))
@@ -344,6 +349,33 @@ where
             return result;
         }
         self.retention_error()
+    }
+    async fn sticky_retention_error(&self) -> native::StockResult {
+        // Run the actual current access peer even though this binding's
+        // retention latch prevents every subsequent native invocation.
+        let code = match self
+            .writer
+            .access
+            .authorize(&self.command, native::AuthorityPhase::Execute)
+            .await
+        {
+            Ok(current)
+                if current.actor_id == self.actor_id
+                    && current.physical_binding == self.physical_binding =>
+            {
+                return self.retention_error();
+            }
+            Ok(_) => native::StockErrorCode::CapabilityDenied,
+            Err(code) => code,
+        };
+        native::StockResult::Error(native::StockError {
+            schema_version: 3,
+            request_id: self.command.request_id,
+            code,
+            message: "Current authority does not permit this operation or disclosure.".into(),
+            retry: native::RetryAdvice::None,
+            operation_id: None,
+        })
     }
     fn retention_error(&self) -> native::StockResult {
         native::StockResult::Error(native::StockError {
