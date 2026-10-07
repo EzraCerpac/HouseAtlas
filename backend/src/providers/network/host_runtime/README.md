@@ -115,7 +115,14 @@ still reports incomplete configuration and may leave the durable registration.
 `NetworkAccess::bind_accepted_original` returns `AcceptedNetworkAuthority`.
 Its callback lease is exactly
 `Arc<lifecycle::providers::network::NetworkAuthorityLease>`; pass the adapter and
-`adapter.lease().clone()` to unchanged PR36 `NetworkRuntime::refresh`.
+`adapter.lease().clone()` to the original accepted PR36 generic coordinator.
+The current Root consolidation retains this closed lease carrier but replaces
+its coordinator with an alias of `HostNetworkRuntime`. For that actual mounted
+Root, retain the original handles with `access.retain_original(...)`, construct
+`NetworkAuthority::new(lease.clone(), &settings.transport(), session)`, and call
+`HostNetworkRuntime::refresh(&core, authority, lease, cancellation, clock)`.
+The owning Core supplies the Store. The original compatibility adapter and
+closed native delegates remain available with their exact retained lease ABI.
 
 `HostNetworkRuntime::refresh` is the closed native publication entrypoint. It
 uses actual `app::Core` and its existing `app::Store`. Preparation, successful
