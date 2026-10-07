@@ -72,8 +72,10 @@ NativeContracts delegates schema, full graph, transition, guards, final candidat
 result and JCS semantics to the exact shared owner. Write intake checks canonical
 raw routes, original mutation authority and CSRF before bounded JSON body parsing.
 The parser preserves literal object keys, rejects duplicate decoded keys and uses
-the reference root-depth-zero limit of 64. Numeric values avoid f64 rounding;
-serde may normalize equivalent numeric token spelling before canonicalization.
+the reference root-depth-zero limit of 64. Intake retains numeric values without
+f64 rounding, although serde may normalize equivalent token spelling. Shared JCS
+and persisted canonical JSON use the finite ECMAScript/f64 numeric model and its
+rounding boundary; see the owner's [canonical numbers and timestamps](../../backend/src/contracts/semantics/README.md#canonical-numbers-and-timestamps).
 
 Actual domain Commands call the actual SQLite command engine with a borrowed
 per-call authorizer inside the access transaction fence. Source grants are
