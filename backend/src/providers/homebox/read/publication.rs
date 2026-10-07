@@ -38,12 +38,19 @@ pub struct StagedPublication<'a, P> {
     fence: storage::CachePublicationFence,
     generation: CompleteGeneration,
 }
-#[derive(Debug)]
-pub enum RefreshError {
+pub enum RefreshError<'a, P> {
     Publication(PublishError),
-    Read(Box<FailedRead>),
+    Read(Box<FailedPublication<'a, P>>),
 }
-impl fmt::Display for RefreshError {
+impl<P> fmt::Debug for RefreshError<'_, P> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Publication(error) => f.debug_tuple("Publication").field(error).finish(),
+            Self::Read(error) => f.debug_tuple("Read").field(error).finish(),
+        }
+    }
+}
+impl<P> fmt::Display for RefreshError<'_, P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Publication(error) => fmt::Display::fmt(error, f),
@@ -51,22 +58,58 @@ impl fmt::Display for RefreshError {
         }
     }
 }
-impl std::error::Error for RefreshError {}
+impl<P> std::error::Error for RefreshError<'_, P> {}
 impl<T: Transport, K: Clock> HomeBoxReader<T, K> {
     pub fn prepare_publication<'a, C: Contract, A: Authorization, R: Runtime>(
         &self,
         store: &mut AtlasStore<C, A, R>,
         principal: &'a A::Principal,
     ) -> Result<PreparedGeneration<'a, A::Principal>, PublishError> {
-        let partition = storage::SourcePartition {
+        let partition = self.publication_partition();
+        let prepared = store
+            .prepare_cache_publication(principal, &partition.scope(), &partition)
+            .map_err(|_| PublishError::StoreRejected)?;
+        self.bind_publication(principal, prepared)
+    }
+    /// Use the owner's borrowed call authority on this same issuing store.
+    /// The original principal is retained; the authority is used only for this
+    /// synchronous call and must be revalidated by the host at later phases.
+    pub fn prepare_publication_with_authorization<
+        'a,
+        C: Contract,
+        A: Authorization,
+        R: Runtime,
+        B: Authorization,
+    >(
+        &self,
+        store: &mut AtlasStore<C, A, R>,
+        authorization: &B,
+        principal: &'a B::Principal,
+    ) -> Result<PreparedGeneration<'a, B::Principal>, PublishError> {
+        let partition = self.publication_partition();
+        let prepared = store
+            .prepare_cache_publication_with_authorization(
+                authorization,
+                principal,
+                &partition.scope(),
+                &partition,
+            )
+            .map_err(|_| PublishError::StoreRejected)?;
+        self.bind_publication(principal, prepared)
+    }
+    fn publication_partition(&self) -> storage::SourcePartition {
+        storage::SourcePartition {
             workspace_id: self.scope().workspace_id.as_str().into(),
             home_id: self.scope().home_id.as_str().into(),
             source_instance_id: self.scope().source_instance_id.as_str().into(),
             collection_id: self.scope().collection_id.clone(),
-        };
-        let prepared = store
-            .prepare_cache_publication(principal, &partition.scope(), &partition)
-            .map_err(|_| PublishError::StoreRejected)?;
+        }
+    }
+    fn bind_publication<'a, P>(
+        &self,
+        principal: &'a P,
+        prepared: storage::PreparedCachePublication,
+    ) -> Result<PreparedGeneration<'a, P>, PublishError> {
         if !matches_registration(self.registration(), prepared.fence().registration()) {
             return Err(PublishError::RegistrationMismatch);
         }
@@ -89,7 +132,7 @@ impl<'a, P> PreparedGeneration<'a, P> {
     pub async fn fetch<T: Transport, K: Clock>(
         self,
         reader: &mut HomeBoxReader<T, K>,
-    ) -> Result<StagedPublication<'a, P>, RefreshError> {
+    ) -> Result<StagedPublication<'a, P>, RefreshError<'a, P>> {
         let partition = self.fence.partition();
         let scope = reader.scope();
         if partition.workspace_id != scope.workspace_id.as_str()
@@ -112,10 +155,16 @@ impl<'a, P> PreparedGeneration<'a, P> {
         }
         let id = Uuid::parse(self.fence.reserved_generation_id())
             .map_err(|_| RefreshError::Publication(PublishError::InvalidRetainedState))?;
-        let generation = reader
-            .fetch_generation(Some(&self.previous), id)
-            .await
-            .map_err(|error| RefreshError::Read(Box::new(error)))?;
+        let generation = match reader.fetch_generation(Some(&self.previous), id).await {
+            Ok(generation) => generation,
+            Err(failure) => {
+                return Err(RefreshError::Read(Box::new(FailedPublication {
+                    principal: self.principal,
+                    fence: self.fence,
+                    failure,
+                })));
+            }
+        };
         Ok(StagedPublication {
             principal: self.principal,
             fence: self.fence,
@@ -163,6 +212,38 @@ impl<P> StagedPublication<'_, P> {
         self,
         store: &mut AtlasStore<C, A, R>,
     ) -> Result<storage::CacheStatus, PublishError> {
+        let (cache, rows) = self.publication_values()?;
+        store
+            .publish_prepared_generation(self.principal, self.fence, &cache, &rows, &[])
+            .map_err(|_| PublishError::StoreRejected)
+    }
+    /// Consume the original proof through the actual borrowed-authority API.
+    /// Configured store authority and its principal type remain unchanged.
+    pub fn commit_with_authorization<
+        C: Contract,
+        A: Authorization,
+        R: Runtime,
+        B: Authorization<Principal = P>,
+    >(
+        self,
+        store: &mut AtlasStore<C, A, R>,
+        authorization: &B,
+    ) -> Result<storage::CacheStatus, PublishError> {
+        let (cache, rows) = self.publication_values()?;
+        store
+            .publish_prepared_generation_with_authorization(
+                authorization,
+                self.principal,
+                self.fence,
+                &cache,
+                &rows,
+                &[],
+            )
+            .map_err(|_| PublishError::StoreRejected)
+    }
+    fn publication_values(
+        &self,
+    ) -> Result<(storage::CacheStatus, Vec<serde_json::Value>), PublishError> {
         if self.generation.quarantine() {
             return Err(PublishError::Quarantined);
         }
@@ -178,8 +259,6 @@ impl<P> StagedPublication<'_, P> {
             .map(serde_json::to_value)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| PublishError::InvalidRetainedState)?;
-        store
-            .publish_prepared_generation(self.principal, self.fence, &cache, &rows, &[])
-            .map_err(|_| PublishError::StoreRejected)
+        Ok((cache, rows))
     }
 }

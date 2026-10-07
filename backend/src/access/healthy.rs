@@ -50,6 +50,10 @@ fn setup() -> (AccessBoundary, Arc<AtomicI64>) {
     let config = AccessConfig::new(vec![ORIGIN.to_owned()])
         .unwrap()
         .with_clock(move || current.load(Ordering::Relaxed));
+    (provisioned_boundary(config), clock)
+}
+
+fn provisioned_boundary(config: AccessConfig) -> AccessBoundary {
     let mut boundary = AccessBoundary::in_memory(config).unwrap();
     let verifier = hash_password(PASSWORD).unwrap();
     boundary
@@ -64,7 +68,7 @@ fn setup() -> (AccessBoundary, Arc<AtomicI64>) {
     boundary
         .set_membership(&id(6), &scope(), Role::Editor, true)
         .unwrap();
-    (boundary, clock)
+    boundary
 }
 
 fn login(boundary: &mut AccessBoundary, username: &str) -> SessionReceipt {
@@ -80,6 +84,167 @@ fn login(boundary: &mut AccessBoundary, username: &str) -> SessionReceipt {
 
 fn cookie(receipt: &SessionReceipt) -> &str {
     receipt.set_cookie().split(';').next().unwrap()
+}
+
+#[test]
+fn healthy_configured_lifecycle_checkpoint() {
+    let registration = SourceRegistration {
+        workspace_id: id(1),
+        home_id: id(2),
+        source_instance_id: id(8),
+        collection_id: "synthetic-configured-provider".into(),
+        owner: SourceOwner::Homebox,
+        partition_mode: PartitionMode::ReviewedEntityAllowlist,
+        allowed_external_ids: vec![id(9).as_str().into()],
+    };
+    let policy = LifecyclePolicy::from_trusted_configuration(vec![
+        LifecycleRule::new(
+            id(6),
+            id(7),
+            registration.clone(),
+            LifecycleCapability::ConfigureSource,
+            Action::Mutate,
+        )
+        .unwrap(),
+        LifecycleRule::new(
+            id(4),
+            id(5),
+            registration.clone(),
+            LifecycleCapability::PublishCache,
+            Action::Read,
+        )
+        .unwrap(),
+    ]);
+    let config = AccessConfig::new(vec![ORIGIN.into()])
+        .unwrap()
+        .with_clock(|| NOW)
+        .with_lifecycle_policy(policy);
+    let mut boundary = provisioned_boundary(config);
+    let editor_session = login(&mut boundary, "synthetic-editor");
+    let editor = boundary
+        .authorize(
+            &request(
+                Method::Post,
+                Some(cookie(&editor_session)),
+                Some(editor_session.info().csrf_token()),
+            ),
+            &scope(),
+            Action::Mutate,
+        )
+        .unwrap();
+    // Configure authority precedes creation: no existing/readable row is needed.
+    let configuration = boundary
+        .capture_lifecycle(&editor, &registration, LifecycleCapability::ConfigureSource)
+        .unwrap();
+    boundary
+        .install_source_authorized(&editor, &configuration, &registration)
+        .unwrap();
+    // Ordinary healthy replacement uses the same approval and preserves state.
+    boundary
+        .install_source_authorized(&editor, &configuration, &registration)
+        .unwrap();
+
+    let viewer_session = login(&mut boundary, "synthetic-viewer");
+    let viewer = boundary
+        .authorize(
+            &request(Method::Get, Some(cookie(&viewer_session)), None),
+            &scope(),
+            Action::Read,
+        )
+        .unwrap();
+    let publication = boundary
+        .capture_lifecycle(&viewer, &registration, LifecycleCapability::PublishCache)
+        .unwrap();
+    // A provider lease clones the original genuine principal, not its safe DTO.
+    let retained_principal = viewer.clone();
+    let partition = boundary
+        .authorize_source_partition(&retained_principal, &registration.partition())
+        .unwrap();
+    let reference = SourceRef {
+        workspace_id: id(1),
+        home_id: id(2),
+        key: SourceKey {
+            source_instance_id: id(8),
+            collection_id: registration.collection_id.clone(),
+            source_kind: SourceKind::HomeboxEntity,
+            external_id: id(9).as_str().into(),
+        },
+    };
+    let entity = boundary
+        .authorize_source(&retained_principal, &reference)
+        .unwrap();
+    assert!(std::ptr::eq(
+        boundary
+            .revalidate_lifecycle(
+                &retained_principal,
+                &publication,
+                &registration,
+                LifecycleCapability::PublishCache,
+            )
+            .unwrap(),
+        &publication
+    ));
+
+    // This disposable metadata peer is not AT07 storage or provider generation
+    // completion/fence semantics. No provider I/O occurs in this checkpoint.
+    let mut cache = Connection::open_in_memory().unwrap();
+    cache
+        .execute_batch(
+            "CREATE TABLE synthetic_publication(actor TEXT NOT NULL, collection TEXT NOT NULL)",
+        )
+        .unwrap();
+    boundary
+        .with_lifecycle_authorization(
+            &retained_principal,
+            &publication,
+            &registration,
+            LifecycleCapability::PublishCache,
+            |guard| -> AccessResult<()> {
+                assert!(std::ptr::eq(guard.principal(), &retained_principal));
+                assert!(std::ptr::eq(
+                    guard.revalidate_lifecycle(
+                        &publication,
+                        &registration,
+                        LifecycleCapability::PublishCache,
+                    )?,
+                    &publication
+                ));
+                assert!(std::ptr::eq(
+                    guard.revalidate_source_partition(&partition)?,
+                    &partition
+                ));
+                assert!(std::ptr::eq(guard.revalidate_source(&entity)?, &entity));
+                let tx = cache.transaction()?;
+                tx.execute(
+                    "INSERT INTO synthetic_publication VALUES(?1,?2)",
+                    params![
+                        guard.principal().actor_id().as_str(),
+                        registration.collection_id
+                    ],
+                )?;
+                guard.revalidate_lifecycle(
+                    &publication,
+                    &registration,
+                    LifecycleCapability::PublishCache,
+                )?;
+                guard.revalidate_source_partition(&partition)?;
+                guard.revalidate_source(&entity)?;
+                tx.commit()?;
+                Ok(())
+            },
+        )
+        .unwrap();
+    let published: (String, String) = cache
+        .query_row(
+            "SELECT actor,collection FROM synthetic_publication",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(
+        published,
+        (id(5).as_str().into(), registration.collection_id)
+    );
 }
 
 #[test]
@@ -318,6 +483,22 @@ fn healthy_persistent_session_checkpoint() {
         .unwrap();
     assert_eq!(principal.actor_id(), &id(7));
     reopened.revalidate(&principal).unwrap();
+    drop(reopened);
+
+    // Strict reopen checks the already provisioned compiled schema. The file,
+    // opaque epoch and existing session stay unchanged until normal use begins.
+    let before = std::fs::read(&path).unwrap();
+    let mut strict = AccessBoundary::open_existing(&path, config()).unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), before);
+    let principal = strict
+        .authorize(
+            &request(Method::Get, Some(cookie(&session)), None),
+            &scope(),
+            Action::Read,
+        )
+        .unwrap();
+    assert_eq!(principal.actor_id(), &id(7));
+    strict.revalidate(&principal).unwrap();
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -326,6 +507,6 @@ fn healthy_persistent_session_checkpoint() {
             0o600
         );
     }
-    drop(reopened);
+    drop(strict);
     std::fs::remove_file(path).unwrap();
 }

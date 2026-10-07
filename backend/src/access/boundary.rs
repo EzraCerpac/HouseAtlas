@@ -9,9 +9,9 @@ use subtle::ConstantTimeEq;
 use url::Url;
 
 use super::{
-    AccessError, AccessResult, Action, CanonicalId, Capability, Method, PartitionGrant,
-    PasswordVerifier, Principal, RequestEvidence, Role, SESSION_COOKIE, Scope, SessionInfo,
-    SessionReceipt, SourceGrant,
+    AccessError, AccessResult, Action, CanonicalId, Capability, LifecyclePolicy, Method,
+    PartitionGrant, PasswordVerifier, Principal, RequestEvidence, Role, SESSION_COOKIE, Scope,
+    SessionInfo, SessionReceipt, SourceGrant,
     credentials::{digest, hex, nonce, random_bytes, verify_password},
     store::{self, Session, Store, User},
     types::RestoreEpoch,
@@ -59,6 +59,7 @@ pub struct AccessConfig {
     origins: Vec<String>,
     limits: AccessLimits,
     clock: Box<dyn Fn() -> i64 + Send + Sync>,
+    pub(super) lifecycle: LifecyclePolicy,
 }
 
 impl AccessConfig {
@@ -79,6 +80,7 @@ impl AccessConfig {
         Ok(Self {
             origins,
             limits: AccessLimits::default(),
+            lifecycle: LifecyclePolicy::default(),
             clock: Box::new(|| {
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)
@@ -93,6 +95,13 @@ impl AccessConfig {
         limits.validate()?;
         self.limits = limits;
         Ok(self)
+    }
+
+    /// Startup-only owner policy; never populate from request/registry metadata.
+    /// The default policy has no lifecycle rules.
+    pub fn with_lifecycle_policy(mut self, policy: LifecyclePolicy) -> Self {
+        self.lifecycle = policy;
+        self
     }
 
     /// Trusted clock seam, useful for deterministic synthetic checkpoints.
@@ -126,6 +135,13 @@ impl AccessBoundary {
     /// The operator selects the private directory and recovery policy separately.
     pub fn open(path: impl AsRef<Path>, config: AccessConfig) -> AccessResult<Self> {
         Self::from_store(Store::open(path.as_ref())?, config)
+    }
+
+    /// Reopen separately provisioned trusted access state without creation,
+    /// initialization, migration, permission changes or session/epoch reset.
+    /// Compatibility requires the full compiled schema, not only its version.
+    pub fn open_existing(path: impl AsRef<Path>, config: AccessConfig) -> AccessResult<Self> {
+        Self::from_store(Store::open_existing(path.as_ref())?, config)
     }
 
     fn from_store(store: Store, config: AccessConfig) -> AccessResult<Self> {
@@ -525,7 +541,7 @@ impl AccessBoundary {
 /// No connection, administration, provider work or deferred work is exposed.
 pub struct TransactionAuthorization<'a> {
     pub(super) authority: CurrentAuthority<'a>,
-    principal: &'a Principal,
+    pub(super) principal: &'a Principal,
 }
 
 impl TransactionAuthorization<'_> {

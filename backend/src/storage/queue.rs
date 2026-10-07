@@ -21,6 +21,7 @@ mod journal_checks;
 use journal_checks::*;
 #[path = "queue_recovery.rs"]
 mod recovery;
+pub(crate) use recovery::validate_recovery_queues;
 use recovery::*;
 #[path = "queue_liability.rs"]
 mod liability;
@@ -208,6 +209,35 @@ pub trait QueueDiscovery {
         scope: &CanonicalScope,
         config: &QueueConfig,
     ) -> Result<()>;
+}
+/// Borrowed retained facts only. Codec qualification cannot mint a grant,
+/// terminate remote activity, release a fence, or remove byte liabilities.
+pub struct QueueRecoveryOutcome<'a> {
+    pub at: Timestamp,
+    pub kind: &'a str,
+    pub report: &'a FinishReport,
+    pub reconciliation: Option<&'a Value>,
+    pub steps: &'a [QueueStepEvidence],
+    pub liabilities: &'a [(String, StorageLiability)],
+}
+pub struct QueueRecoveryAttempt<'a> {
+    pub original: &'a ValidatedRequest,
+    pub job: &'a LeasedJob,
+    /// Actual retained bytes, not a payload reconstructed from a digest.
+    pub prepared: Option<&'a PreparedNativeIntent>,
+    pub journal: Option<&'a JournalEvidenceView>,
+    pub steps: &'a [QueueStepEvidence],
+    pub liabilities: &'a [(String, StorageLiability)],
+    pub outcomes: &'a [QueueRecoveryOutcome<'a>],
+}
+/// Required full-image native/media/evidence codec peer. It validates every
+/// retained journal and step against the exact original and leased attempt,
+/// including outcome-local evidence cuts, reconciliation and termination facts.
+/// Return unavailable for unknown codecs or missing external evidence. These
+/// synchronous callbacks receive no database handle and perform no provider I/O.
+pub trait QueueRecoveryEvidence {
+    fn validate_attempt(&self, config: &QueueConfig, frame: QueueRecoveryAttempt<'_>)
+    -> Result<()>;
 }
 #[derive(Clone, Debug)]
 pub struct QueueOriginalIntent {

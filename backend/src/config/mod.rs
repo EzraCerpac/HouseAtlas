@@ -1,4 +1,15 @@
 //! Explicit disposable loopback settings; no deployment settings are inferred.
+pub mod providers {
+    pub mod homebox;
+    pub mod network;
+    pub mod registry;
+}
+pub mod recovery;
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum FixtureProfile {
+    Standard,
+    OpaqueCachedHomebox,
+}
 use std::{
     net::{Ipv4Addr, SocketAddr},
     path::PathBuf,
@@ -9,6 +20,7 @@ pub struct Config {
     pub cert: PathBuf,
     pub key: PathBuf,
     pub listen: SocketAddr,
+    pub fixture_profile: FixtureProfile,
 }
 impl Config {
     pub fn from_args() -> Result<Self, String> {
@@ -21,6 +33,7 @@ impl Config {
                 "--tls-cert",
                 "--tls-key",
                 "--port",
+                "--fixture-profile",
             ]
             .contains(&name.as_str())
             {
@@ -52,12 +65,18 @@ impl Config {
             .get("--port")
             .map_or(Ok(0), |s| s.parse::<u16>())
             .map_err(|_| "Invalid port")?;
+        let fixture_profile = match values.get("--fixture-profile").map(String::as_str) {
+            None | Some("standard") => FixtureProfile::Standard,
+            Some("opaque-cached-homebox") => FixtureProfile::OpaqueCachedHomebox,
+            _ => return Err("Unsupported disposable fixture profile".into()),
+        };
         Ok(Self {
             directory,
             frontend: path("--frontend-dist")?,
             cert: path("--tls-cert")?,
             key: path("--tls-key")?,
             listen: SocketAddr::from((Ipv4Addr::LOCALHOST, port)),
+            fixture_profile,
         })
     }
 }

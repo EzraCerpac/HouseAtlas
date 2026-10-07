@@ -20,6 +20,7 @@ import { BrandMark, Heading, RouteContext, AtlasLink } from "./components";
 import { AtlasPage } from "./pages";
 import { text } from "./copy";
 import type { SessionSettings } from "./session";
+import type { AtlasEditingClient } from "./editing";
 
 export interface AtlasAppProps {
   client: AtlasClient;
@@ -31,6 +32,7 @@ export interface AtlasAppProps {
   session?: SessionSettings;
   /** Reports only the committed authorized scope, or unavailable context. */
   onScopeCommit?: (scope: Scope | null) => void;
+  editing?: AtlasEditingClient;
 }
 export const accessEventName = "atlas-access-invalidated";
 export function App({
@@ -40,6 +42,7 @@ export function App({
   accessEvents,
   session,
   onScopeCommit,
+  editing,
 }: AtlasAppProps) {
   const [view, setView] = useState<AtlasView>(
     initialView ?? { status: "loading" },
@@ -80,7 +83,8 @@ export function App({
         const next = scope
           ? await client.loadHome(scope, abort.signal)
           : await client.load(abort.signal);
-        if (attempt !== generation.current || abort.signal.aborted) return;
+        if (attempt !== generation.current || abort.signal.aborted)
+          return false;
         if (
           next.status === "ready" &&
           expected &&
@@ -97,8 +101,13 @@ export function App({
           changeHome || next.status !== "ready"
             ? "page-heading"
             : "action:reload";
+        return (
+          next.status === "ready" &&
+          (!expected || sameScope(next.scope, expected))
+        );
       } catch {
-        if (attempt !== generation.current || abort.signal.aborted) return;
+        if (attempt !== generation.current || abort.signal.aborted)
+          return false;
         if (changeHome || currentView.current.status !== "ready") {
           setView({ status: "unavailable" });
           setFailedHome(scope ?? null);
@@ -110,6 +119,7 @@ export function App({
       } finally {
         if (attempt === generation.current) setBusy(false);
       }
+      return false;
     },
     [client],
   );
@@ -320,6 +330,9 @@ export function App({
                   busy={busy}
                   switchHome={switchHome}
                   {...(session ? { session } : {})}
+                  {...(editing
+                    ? { editing, refresh: () => read(view.scope) }
+                    : {})}
                 />
               </main>
               <HouseIndex view={view} route={route} />

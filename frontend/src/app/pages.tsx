@@ -28,6 +28,8 @@ import {
 } from "./components";
 import type { Entry, ReadyView, Scope } from "./types";
 import type { SessionSettings } from "./session";
+import type { AtlasEditingClient } from "./editing";
+import { PlaceEditor } from "./PlaceEditor";
 
 export interface PageProps {
   view: ReadyView;
@@ -35,6 +37,8 @@ export interface PageProps {
   busy: boolean;
   switchHome: (scope: Scope) => void;
   session?: SessionSettings;
+  editing?: AtlasEditingClient;
+  refresh?: () => Promise<boolean>;
 }
 export function AtlasPage({
   view,
@@ -42,6 +46,8 @@ export function AtlasPage({
   busy,
   switchHome,
   session,
+  editing,
+  refresh,
 }: PageProps) {
   const entries = visibleEntries(view, route.archived),
     places = entries.filter((p) => p.kind === "place");
@@ -130,7 +136,13 @@ export function AtlasPage({
   if (route.page === "place" || route.page === "item") {
     const entry = entries.find((p) => p.key === route.key);
     return entry ? (
-      <Detail entry={entry} view={view} archived={route.archived} />
+      <Detail
+        key={entry.key}
+        entry={entry}
+        view={view}
+        archived={route.archived}
+        {...(editing && refresh ? { editing, refresh } : {})}
+      />
     ) : (
       <>
         <Heading>{text("notFound")}</Heading>
@@ -355,10 +367,14 @@ function Detail({
   entry,
   view,
   archived,
+  editing,
+  refresh,
 }: {
   entry: Entry;
   view: ReadyView;
   archived: boolean;
+  editing?: AtlasEditingClient;
+  refresh?: () => Promise<boolean>;
 }) {
   const chain = ancestry(view, entry),
     place = entry.kind === "place";
@@ -422,6 +438,9 @@ function Detail({
       )}
       <RecordStatus entry={entry} />
       {cache && <CacheState cache={cache} inline />}
+      {place && !entry.entity.archived && editing && refresh && (
+        <PlaceEditor entry={entry} client={editing} refresh={refresh} />
+      )}
       {view.canEdit && (
         <div className="actions">
           {edit ? (

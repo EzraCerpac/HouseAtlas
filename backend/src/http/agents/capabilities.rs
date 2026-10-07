@@ -30,6 +30,7 @@ pub fn admitted(principal: &access::Principal) -> Vec<wire::OperationId> {
     let mut operations = reads();
     if principal.role() == access::Role::Editor {
         operations.push(wire::OperationId::AtlasCircuitCreate);
+        operations.push(wire::OperationId::AtlasLocationSemanticsReplace);
     }
     // Identity-create is currently child-only; neither catalog's flat admission
     // nor this host advertises it as an independently executable operation.

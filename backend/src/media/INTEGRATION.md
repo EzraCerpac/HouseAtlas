@@ -35,18 +35,25 @@ is added by AT12; the earlier isolated harness and its logs are preserved.
 
 ## Compiled native peer composition
 
-`native.rs` imports the monolith's `crate::{storage, access, contracts}`. Its
-external harness compiles exact published AT07
-`1b52c415710467407176eda4fe4b519ca51d840d`, AT11
-`4967dd2d38c5749be35aa7e44728c4d691246730` and AT51
-`49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c`, plus AT30 domain
-`f51bc7962b491faa1cc563f2ec0f737c471e4e26`. Schema-2 storage requires the
-domain's stock types even for an empty stock journal. Those actual compiled
+`native.rs` imports the monolith's `crate::{storage, access, contracts}`;
+`native_recovery.rs` also requires the actual domain stock and queue ports. The
+current external harness compiles exact published AT07
+`06eb465f6fe4b99530ef1636b46ea3e01e537106`, AT11
+`4a0cd4da563a32d26677755a608180c960765353` and AT51
+`49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c`, plus actual domain/jobs
+`d9e2b59ffef4b7ac2b11705df735b89d8371fdc5`. Storage's current native schema is
+4. These actual compiled
 peer modules and embedded schema/fixture inputs remain outside this lane's Git
 namespace and ancestry. The native healthy example uses actual AT30
 `NativeSemantics::native()` bound to AT51 graph/transition/result/JCS/timestamp
 functions. The prior pure JS semantic helper is retained as checkpoint source,
 but this native example no longer invokes it. Host mounting belongs to AT52.
+The accepted `80194a0e0f098cef85d71db602a78ae52db6bcad` packet and logs are
+preserved separately: it used schema-2 AT07 `1b52c415710467407176eda4fe4b519ca51d840d`
+and AT30 `f51bc7962b491faa1cc563f2ec0f737c471e4e26`, AT11
+`4967dd2d38c5749be35aa7e44728c4d691246730` and the same AT51 pin.
+The current adapter introduces no migration or compatibility fallback for that
+older database schema.
 
 `NativeMediaStorage::new(&Mutex<AtlasStore<C,A,R>>)` borrows the host's actual
 store and calls its authorized `read_record` and `read_asset_manifest` APIs.
@@ -113,7 +120,7 @@ Recovery preserves audit/receipt bytes in the copied database; it does not
 independently validate history rows or claim future witness lineage.
 
 `NativeMediaStorage` implements `RecoveryDatabasePort` using two actual
-storage-owned APIs published in [AT07's recovery checkpoint](https://github.com/EzraCerpac/HouseAtlas/commit/1b52c415710467407176eda4fe4b519ca51d840d):
+storage-owned APIs retained in [AT07's corrected recovery checkpoint](https://github.com/EzraCerpac/HouseAtlas/commit/06eb465f6fe4b99530ef1636b46ea3e01e537106):
 
 ```rust
 pub struct RecoveryImage {
@@ -149,20 +156,74 @@ Recovery paths belong to offline trusted administration and must be private,
 operation-owned staging/image paths. Ordinary writable `open` and authorized
 filtered `read_snapshot` are not image validators. Restore copies the validated
 closed image, validates private staging through the same read-only port, syncs
-originals/hierarchy and publishes a new destination. The healthy example then
-opens it through the normal native store. Complete image copying preserves
+originals/hierarchy and publishes a new destination. Complete image copying preserves
 records/reservations, ordered audits, single/batch receipts, source/cache/
-projection/Network relation rows and cache generations/epochs. The current
-schema-2 peer requires all five stock journal tables to be empty; nonempty
-stock recovery needs its exact stock-aware validation peer. That error
-propagates without filtering or legacy fallback. No nonempty stock/rejection
-probe was run. Source supports no native schema-1 recovery/migration here.
+projection/Network relation rows and cache generations/epochs. The native-only
+`NativeMediaStorage` recovery adapter requires empty stock journal/cursor tables
+and absent queue state; it validates derived native audit lookup rows. Populated
+images use the required-peer adapter below. Storage errors
+propagate without filtering or legacy fallback; no rejection probe was run.
 Cancellation is cooperative between calls; synchronous SQLite/contract work,
 filesystem sync and publication cannot be preempted by the callback. No hard
 ten-second completion or concurrent-restore qualification is claimed.
 Sanitized wire3/presence schemas are available published inputs, but durable
 Network sidecars and atomic presence-witness persistence remain unimplemented;
 no profile field or claimed capture invents them.
+
+## Populated native recovery and strict reopening
+
+`native_recovery::NativeMediaRecovery` implements the same media recovery port
+through AT07's actual `backup_recovery_to_with_peers`,
+`validate_recovery_image_with_peers` and detached
+`validate_existing_recovery_image_with_peers` APIs. All peers are explicit:
+
+```rust
+pub struct RecoveryValidationPeers<'a, S, D, E> {
+    pub stock: &'a S,       // actual StockContractPort
+    pub queues: &'a [QueueConfig], // complete trusted registry
+    pub discovery: &'a D,  // actual QueueDiscovery
+    pub evidence: &'a E,   // actual QueueRecoveryEvidence
+}
+// C: storage::Contract, A: storage::Authorization, R: storage::Runtime
+// S: StockContractPort, D: QueueDiscovery, E: QueueRecoveryEvidence
+let live = NativeMediaRecovery::new(&store, live_peers);
+let detached = NativeMediaRecovery::<C, A, R, S, D, E>::validator(
+    &contract, detached_peers,
+);
+// Both modes expose validate_image(path, budget) -> MediaResult<RecoveryImage>.
+// Only the live-store mode can backup_image(path, budget).
+```
+
+The live mode borrows the existing store; detached verification/restoration
+opens no new source store and uses no CREATE or migration. The frame borrows
+its owners and requires no extra Send/Sync/static bounds or permissive defaults.
+Peer callbacks execute under storage's store lock/read transaction and must be
+bounded, avoid storage reentry and avoid an opposing access/vault lock order.
+The media budget remains cooperative through the actual storage callback.
+
+The host provides the complete registry, including empty registered queues,
+and owner-qualified evidence codecs. `QueueRecoveryEvidence::validate_attempt`
+receives the actual original request, leased job, optional prepared bytes and
+journal, complete step/liability records and outcome-local cuts. The owner must
+qualify those bytes, their correlation, local termination and reconciliation;
+unavailable codecs cannot be treated as successful validation. Discovery must
+validate the registration and exact original enqueue derivation. Media supplies
+no surrogate validators, configuration, witness authority or dispatch adapters.
+
+`backup_image` and `validate_image` preserve AT07's original `RecoveryImage`,
+including raw ordered asset records and metadata. Projection happens only at
+the media port boundary. The host must retain that raw return when calling
+AT07's `open_existing_recovery_image_with_peers(path, contract, authority,
+runtime, options, &image, &peers, check)`. The media manifest/projected assets
+cannot reconstruct it. The strict opener is host-owned and uses fresh actual
+authority/runtime, forbids bootstrap, and does not create or migrate a missing
+database. Full-image digest and private exclusive path binding remain required;
+the image identity alone does not bind every database byte. Successful validation
+or reopening grants no recovered queue resume, dispatch or reconciliation
+authority. The host's existing `NativeStockContract::new()` supplies the stock
+port; production discovery/evidence implementations and the registry must come
+from their actual owners. Separate access/config restore and future witness lineage remain
+outside this component.
 
 ## Contracts and remaining integration
 
@@ -176,8 +237,9 @@ the published `houseatlas-owned-recovery/1`, contract 1.0.0/database schema 3 an
 its exact absent-lineage wire shape. `NativeRustV1` selects a distinct
 `houseatlas-rust-owned-recovery/1` with compatibility fields taken from AT07's
 compiled `CONTRACT_VERSION`, `DATABASE_VERSION` and `DATABASE_LINEAGE` exports.
-This checkpoint supports native contract 1.0.0/schema 2 and required
-`databaseLineage: houseatlas-rust-storage/1`, with empty stock journals only.
+The current compiled peer supports native contract 1.0.0/schema 4 and required
+`databaseLineage: houseatlas-rust-storage/1`. Populated stock/queue recovery
+requires the explicit peer frame above.
 Media holds no native numeric schema constant. Unified algorithms freeze the
 trusted profile per operation, require that exact identity from actual validated
 peer metadata, and copy that actual metadata into the manifest. Bundle fields
@@ -227,7 +289,7 @@ The selected environment has only the Linux standard-library target and no
 Apple SDK, xcrun or cross-toolchain; Darwin compilation/runtime checks were not
 run and no compiler/SDK was installed. Source-level macOS support is not native
 target qualification. The macOS target follow-up is native Rust 1.99 compilation
-and the two named ordinary healthy examples below on a disposable private
+and the named ordinary healthy examples below on a disposable private
 directory on the intended Mac filesystem. Those examples must successfully
 exercise directory/file `F_FULLFSYNC`, scope creation/reopen, immutable hard
 links, and new-destination exclusive rename/capture/restore; record macOS
@@ -264,7 +326,7 @@ cargo clippy --locked --manifest-path "$AT12_MANIFEST" --all-targets -- -D warni
 cargo test --locked --manifest-path "$AT12_MANIFEST" --lib media::healthy_ -- --nocapture --test-threads=1
 ```
 
-Exactly three named positive examples run. The two retained examples remain:
+Exactly three named positive library examples run. The two retained examples remain:
 one independently builds ten static
 RGB/RGBA PNG inputs covering filters 0–4, then checks dimensions/pixels and
 metadata-free output. The other checks actual original verification/immutable
@@ -286,12 +348,12 @@ PNG GET/preview HEAD, an active `DownloadOnly` text GET before its tombstone,
 and ordered history read through the native adapters. Existing published
 optional-geometry graph/cache/projection/Network relation rows are bootstrapped
 into disposable native SQLite. Actual native online backup and read-only
-closed-image validation now exercise schema-2 capture/verify/restore with that
+closed-image validation exercise the compiled native schema's capture/verify/restore with that
 graph, a missing original and retained text/PDF tombstones. The restored closed
 database is byte-identical before normal opening enables WAL, preserving audit
 and receipt bodies without replay. Retained originals, scoped graph reads and
 ordered history are compared after native reopen; restored PNG delivery uses
-actual native storage/access. The stock journals are empty. No stock operation
+actual native storage/access. The stock journals are empty and queue state absent. No stock operation
 or rejection control runs. Both original and restored stores use actual Rust
 `NativeSemantics::native()`; no JS semantic or database adapter executes in
 this native example. Root dependency/type/CI reconciliation and trusted AT52
@@ -300,10 +362,41 @@ the separate retained JS SQLite example continue to qualify only explicit
 legacy compatibility. The prior native composition's pure JS semantic helper
 and logs remain preserved; this successor supplies no runtime semantic fallback.
 
+The selected external `healthy-populated-media-recovery` example adapts AT07's
+published ordinary `queue-check.rs::run(true)` fixture. It uses the actual
+native stock schema/semantic/domain/job/storage/media code, new stock
+create/replace/ordered two-child batch, persisted history cursors/search and one
+completed synthetic native queue dispatch. It invokes media capture, live and
+detached verify, detached restore and raw-image validation, then the actual
+strict existing opener with required peers and fresh synthetic authority/runtime.
+Captured/restored closed database bytes match; all rows of all 28 tables match
+across closed source, capture and restore before strict reopening. Stock graph,
+history/page/search and the succeeded queue receipt survive opening. Later
+history reads can add cursors; no post-read full-table equality is claimed.
+The original empty-held read is excluded from this adapted example.
+
+Its stock validator delegates to AT51's actual offline `StockValidation`, and
+all four resource-map files have exact published Git-blob and map SHA-256 checks.
+Recovery frames use the actual domain `NativeStockContract` as their stock port.
+The discovery and evidence implementations validate one exact healthy fixture
+and supply no production codec qualification. Identity/time/authority, the
+in-memory prepared transport and original witness are synthetic. The witness is
+supplied again from this process and is not reconstructed from the image. This
+populated case has no physical originals; the separate media library examples
+cover those. Unresolved liabilities, production evidence codecs, future witness
+lineage and recovered queue dispatch remain unqualified. No provider or stopped
+control executes. Harness source, adaptation, lock, peer manifests and logs remain
+outside Git. Its selected command is:
+
+```sh
+cargo run --locked --manifest-path "$AT12_MANIFEST" \
+  --example healthy-populated-media-recovery -- "$FRESH_PRIVATE_EVIDENCE_DIRECTORY"
+```
+
 A preliminary example invoked one same-payload synthetic receipt replay through
 the published `AtlasStore.execute` API for an already committed tombstone, before
 the history document's broader replay deferral was reconciled. That execution
 remains in the historical log and is not erased by removing its invocation from
 the retained check. The final run compares receipt bytes only; the preliminary
-run supplies no replay qualification. No further validation runs during durable
-source packaging. Prior harness results are not Rust integration/CI acceptance.
+run supplies no replay qualification. Earlier logs remain unchanged; these
+healthy checks do not supply Rust integration/CI acceptance.

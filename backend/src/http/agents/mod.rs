@@ -2,6 +2,7 @@
 pub mod capabilities;
 mod errors;
 pub mod mcp;
+pub(crate) mod mcp_transport;
 pub mod stock_dispatch;
 
 use super::{CheckedHeaders, Host, HttpResult, authorized_read, failure, intake, json_response};
@@ -32,7 +33,7 @@ pub(super) async fn admission(
     tokio::task::spawn_blocking(move || {
         let _admitted = headers.admission_permit()?;
         authorized_read(&host, &headers, &uri, &method, Some(d::Scope { workspace_id, home_id }), false, |_, p, home| {
-            Ok(json_response(json!({"schemaVersion":3,"scope":home.scope,"commandIds":capabilities::admitted(&p.principal).iter().map(|id|id.as_str()).collect::<Vec<_>>(),"revision":"native-stock-host:1"})))
+            Ok(json_response(json!({"schemaVersion":3,"scope":home.scope,"commandIds":capabilities::admitted(&p.principal).iter().map(|id|id.as_str()).collect::<Vec<_>>(),"revision":"native-stock-host:2","maximumReasonCodePoints":1024})))
         })
     }).await.map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
 }

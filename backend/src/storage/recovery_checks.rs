@@ -108,7 +108,7 @@ fn validate_adjacent_transition<C: Contract>(
     )
 }
 
-pub(super) fn validate_connection<C: Contract>(
+fn validate_core<C: Contract>(
     db: &Connection,
     contract: &C,
     check: Check<'_>,
@@ -210,6 +210,22 @@ pub(super) fn validate_connection<C: Contract>(
     validate_cache_state(db, contract, &sources, &snapshot, check)?;
     validate_manifests(db, contract, &records, &assets, check)?;
     validate_history(db, contract, &records, check)?;
+    check()?;
+    Ok(RecoveryImage {
+        contract_version: CONTRACT_VERSION.into(),
+        database_lineage: DATABASE_LINEAGE.into(),
+        database_schema: DATABASE_VERSION,
+        assets,
+    })
+}
+
+/// Existing native-only compatibility path does not silently skip app rows.
+pub(super) fn validate_connection<C: Contract>(
+    db: &Connection,
+    contract: &C,
+    check: Check<'_>,
+) -> Result<RecoveryImage> {
+    let image = validate_core(db, contract, check)?;
     // These exact AT12 signatures have no required StockContractPort. Do not
     // certify nonempty stock envelopes/wire/cursor state using native C alone.
     // Native-only upgraded v2 databases legitimately have an empty journal.
@@ -232,12 +248,33 @@ pub(super) fn validate_connection<C: Contract>(
         ));
     }
     check()?;
-    Ok(RecoveryImage {
-        contract_version: CONTRACT_VERSION.into(),
-        database_lineage: DATABASE_LINEAGE.into(),
-        database_schema: DATABASE_VERSION,
-        assets,
-    })
+    Ok(image)
+}
+
+pub(super) fn validate_connection_with_peers<
+    C: Contract,
+    S: crate::domain::stock::StockContractPort,
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+>(
+    db: &Connection,
+    contract: &C,
+    peers: &super::RecoveryValidationPeers<'_, S, D, E>,
+    check: Check<'_>,
+) -> Result<RecoveryImage> {
+    let image = validate_core(db, contract, check)?;
+    super::super::super::stock_recovery::validate(db, contract, peers.stock, check)?;
+    check()?;
+    super::super::super::queue::validate_recovery_queues(
+        db,
+        peers.queues,
+        peers.discovery,
+        peers.stock,
+        peers.evidence,
+        check,
+    )?;
+    check()?;
+    Ok(image)
 }
 
 fn validate_reservations(

@@ -3,11 +3,14 @@ mod admission;
 pub mod agents;
 mod auth;
 pub mod contracts;
+mod editing;
 mod headers;
 mod intake;
 mod media;
 mod mutations;
 mod pages;
+pub mod providers;
+mod query;
 mod reads;
 mod response;
 mod stock_mutations;
@@ -38,23 +41,30 @@ pub struct Host {
     pub core: Arc<Mutex<Core>>,
     pub origin: String,
     pub files: Arc<BTreeMap<String, (String, Vec<u8>)>>,
+    homebox_cache_sources: Arc<Vec<crate::config::providers::homebox::TrustedHomeBoxSource>>,
     response_ids: Arc<ResponseIds>,
     pages: Arc<Mutex<pages::Pages>>,
     admission: Arc<admission::Admission>,
+    mcp: Arc<Mutex<agents::mcp_transport::TransportSessions>>,
 }
 impl Host {
     pub fn new(
         core: Core,
         origin: String,
         files: Arc<BTreeMap<String, (String, Vec<u8>)>>,
+        homebox_cache_sources: Vec<crate::config::providers::homebox::TrustedHomeBoxSource>,
     ) -> crate::storage::Result<Self> {
         Ok(Self {
             core: Arc::new(Mutex::new(core)),
             origin,
             files,
+            homebox_cache_sources: Arc::new(homebox_cache_sources),
             response_ids: Arc::new(ResponseIds::new()?),
             pages: Arc::new(Mutex::new(pages::Pages::default())),
             admission: Arc::new(admission::Admission::default()),
+            mcp: Arc::new(Mutex::new(
+                agents::mcp_transport::TransportSessions::default(),
+            )),
         })
     }
 }
@@ -98,6 +108,7 @@ fn domain_error(error: d::DomainError) -> HttpFailure {
     }
 }
 async fn response_adapter(State(host): State<Host>, mut request: Request, next: Next) -> Response {
+    let mcp_path = agents::mcp_transport::matches_path(request.uri().path());
     let request_id = host.response_ids.next();
     let admitted = host.admission.admit();
     let checked = admitted.as_ref().map_err(Clone::clone).and_then(|permit| {
@@ -124,6 +135,7 @@ async fn response_adapter(State(host): State<Host>, mut request: Request, next: 
     };
     if (response.status().is_client_error() || response.status().is_server_error())
         && !agents::is_stock_response(&response)
+        && !agents::mcp_transport::is_mcp_response(&response)
     {
         let error = response
             .extensions()
@@ -131,7 +143,11 @@ async fn response_adapter(State(host): State<Host>, mut request: Request, next: 
             .cloned()
             .unwrap_or_else(|| HttpFailure::for_status(response.status()));
         let allow = response.headers().get(header::ALLOW).cloned();
-        response = error.response(request_id);
+        response = if mcp_path {
+            agents::mcp_transport::http_failure(error)
+        } else {
+            error.response(request_id)
+        };
         if let Some(allow) = allow {
             response.headers_mut().insert(header::ALLOW, allow);
         }
@@ -475,6 +491,10 @@ async fn static_file(State(host): State<Host>, uri: Uri) -> HttpResult {
 }
 pub fn router(host: Host) -> Router {
     Router::new()
+        .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/collections/{collection_id}/cached", get(providers::cached_homebox).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/cached", get(providers::cached_homebox_query).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/mcp/workspaces/{workspace_id}/homes/{home_id}", post(agents::mcp_transport::post).get(agents::mcp_transport::unsupported).head(agents::mcp_transport::unsupported).delete(agents::mcp_transport::unsupported).fallback(agents::mcp_transport::unsupported))
+        .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/place", get(editing::place).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/admission", get(agents::admission).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/invoke", get(agents::invoke).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/commands", post(stock_mutations::command))

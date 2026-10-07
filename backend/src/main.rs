@@ -67,6 +67,8 @@ fn main() -> Result<(), lifecycle::Failure> {
 async fn run() -> Result<(), lifecycle::Failure> {
     let config = Config::from_args().map_err(|e| format!("HouseAtlas settings: {e}"))?;
     let files = Arc::new(frontend(&config.frontend)?);
+    let profile = config.fixture_profile;
+    let homebox_cache_sources = lifecycle::cached_homebox_sources_with_profile(profile)?;
     let tls =
         axum_server::tls_rustls::RustlsConfig::from_pem_file(&config.cert, &config.key).await?;
     let listener = TcpListener::bind(config.listen)?;
@@ -75,14 +77,16 @@ async fn run() -> Result<(), lifecycle::Failure> {
     let origin = format!("https://{address}");
     let directory = config.directory.clone();
     let setup_origin = origin.clone();
-    let core = tokio::task::spawn_blocking(move || lifecycle::prepare(&directory, &setup_origin))
-        .await??;
+    let core = tokio::task::spawn_blocking(move || {
+        lifecycle::prepare_with_profile(&directory, &setup_origin, profile)
+    })
+    .await??;
     let database_version = core
         .store
         .lock()
         .map_err(|_| "Storage unavailable")?
         .database_version();
-    let host = Host::new(core, origin.clone(), files)?;
+    let host = Host::new(core, origin.clone(), files, homebox_cache_sources)?;
     println!(
         "SQLite {} / record database schema {}",
         rusqlite::version(),
@@ -96,7 +100,14 @@ async fn run() -> Result<(), lifecycle::Failure> {
             shutdown.graceful_shutdown(Some(std::time::Duration::from_secs(5)));
         }
     });
-    axum_server::from_tcp_rustls(listener, tls)?
+    let mut server = axum_server::from_tcp_rustls(listener, tls)?;
+    // The full cached query selector fits alongside ordinary browser headers.
+    // HTTP/1 keeps its existing larger buffer; this is a bounded HTTP/2 limit.
+    server
+        .http_builder()
+        .http2()
+        .max_header_list_size(96 * 1024);
+    server
         .handle(handle)
         .serve(router(host).into_make_service_with_connect_info::<std::net::SocketAddr>())
         .await?;
