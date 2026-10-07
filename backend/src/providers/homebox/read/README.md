@@ -222,6 +222,11 @@ cargo test --manifest-path "$AT08_HARNESS/Cargo.toml" --locked homebox_read::hea
 cargo test --manifest-path "$AT08_HARNESS/Cargo.toml" --locked --test healthy_publication -- --test-threads=1
 ```
 
+The exact-cost examples are registered as `homebox_read::healthy_numeric`, so
+the documented `homebox_read::healthy` filter also selects both numeric tests.
+The source filename remains `numeric_healthy.rs` for the existing publication
+row; the test-only module name changes no production reader API.
+
 Eleven reader examples cover synthetic metadata, pagination, views, empty/minimal
 generations, provenance, allowlists, freshness, native navigation, integral spellings
 and valid URI representation. The HTTP example opens one ephemeral loopback listener,

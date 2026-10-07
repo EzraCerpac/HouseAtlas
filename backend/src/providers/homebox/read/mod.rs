@@ -30,4 +30,5 @@ mod healthy;
 #[cfg(test)]
 mod healthy_http;
 #[cfg(test)]
-mod numeric_healthy;
+#[path = "numeric_healthy.rs"]
+mod healthy_numeric;
