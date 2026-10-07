@@ -41,6 +41,10 @@ continues; later typed failures carry earlier operation IDs.
 SSE with a supplied I/O deadline. Completion requires `response.completed` and
 completed status. Ordered reasoning, function calls and assistant phase survive
 continuation. Credentials stay in the injected transport; no token getter exists.
+For a no-tool round, completion also requires nonblank accepted output-text or
+refusal content. A completed stream containing no accepted answer is a typed
+`InvalidProviderOutput` failure, retaining observed usage and earlier operation
+IDs. Accepted text/refusal formatting and tool rounds remain unchanged.
 Known HTTP/terminal failures retain sanitized structured diagnostics. Local
 protocol/limit failures after submission remain unresolved inference. Connection
 or catalog errors are typed failures, including `ProviderUnavailable` from those

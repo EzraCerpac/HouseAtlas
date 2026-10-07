@@ -38,11 +38,28 @@ visible; a failed disconnect stays disabled until the host supplies current stat
 A submit creates a random UUID and starts one scoped request. Cancellation uses
 a separate typed request while retaining the result transport. Disposal aborts
 stale transport and sends best-effort cancellation without claiming remote end.
+A module-local registry retains at most 32 unresolved request IDs and their
+cancellation metadata across view unmounts. Its exact host-supplied key includes
+the genuine actor, application session, workspace/home, registration and
+cancellation epoch; labels or client object identity cannot substitute for it.
+Keys longer than 4096 characters and a full registry prevent submission before
+host I/O. Unresolved entries are never evicted to make space. Returning under
+the same full key restores only correlation and reads the original request once;
+it does not restore prompts, replay inference or automatically resume review.
+The registry stores no client, result payload or credential, and lasts only for
+the loaded browser module, not a page reload or process restart. Backend durable
+status remains canonical. Only an exact matching full key retrieves correlation;
+backend authority checks still govern every request. A currently mounted view
+observes late cancellation acknowledgements for its exact retained entry. That
+observer is removed on disposal; no disposed view/client is cached.
 The required `requestStatus` port recovers the original identifier and its
 server-owned outcome; it never replays the command. A trusted `confirmed`
-cancellation receipt can resolve a lost result with unknown token counts only
-when the host has established terminal cancellation without unresolved domain
-holds. Accepting an authoritative request outcome clears obsolete recovery progress
+cancellation receipt remains an acknowledgement until canonical status supplies
+the outcome and its usage; the panel constructs no cancelled result or counts.
+Only accepted completed, cancelled or failed outcomes retire matching request
+correlation. Local stopped, review-required and domain-held outcomes remain
+retained. Local stop preserves its observed usage and visible uncertainty.
+Accepting an authoritative request outcome clears obsolete recovery progress
 and aborts its stale lookup. Known domain-held operations retain their identifiers and prepared, queued,
 dispatching, rejected-before-dispatch, partial or unknown-held state; they never
 become completed writes from a cancellation receipt.

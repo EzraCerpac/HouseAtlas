@@ -331,8 +331,14 @@ impl<Conn, Infer, Catalog, Meter, Store> AiRunner<'_, Conn, Infer, Catalog, Mete
                 return Err(AiError::LimitReached.into());
             }
             if calls.is_empty() {
+                let text = output_text(&output);
+                // Completion of the provider stream is not an answer. Only
+                // accepted text/refusal content can complete a no-tool round.
+                if text.trim().is_empty() {
+                    return Err(AiError::InvalidProviderOutput.into());
+                }
                 return Ok(RunOutcome::Completed {
-                    text: output_text(&output),
+                    text,
                     usage: *usage,
                 });
             }
