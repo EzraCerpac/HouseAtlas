@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "3d6947777d6bf5492d4e25a2fca7dc69b4dbed826ef3f845084fc0d869cc128e",
+  "sourceDigestSha256": "1b1ca7c78e7330af5345279d6b6ed70f38a7815fcf6adeab589abfcd0f24032b",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -755,8 +755,8 @@
     {
       "path": "backend/src/domain/stock/atlas_downloads.rs",
       "mode": "100644",
-      "bytes": 13543,
-      "sha256": "6a0ae73f2308734e207722351d4514bb9d82aff1b377f5c8249a689bac9e987f",
+      "bytes": 14205,
+      "sha256": "2b1af6b0a0ac19c0625cf9d5381fc3992f152edbfc2d49d8363d833fda8ba21e",
       "owner": "domain"
     },
     {
