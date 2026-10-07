@@ -317,6 +317,9 @@ pub trait CredentialBoundary<C>: Sync {
     /// Atomically encrypt/persist the complete same-registration record. Durable
     /// pending rotation is not active credentials. Never replace another account
     /// or rebase the captured binding to a different actor/home/authority epoch.
+    /// An explicit authorization begin may adopt only this active operation's
+    /// already captured cancellation epoch, after clearing older session material.
+    /// The original lease/proof stays unchanged; a stopped lease cannot adopt it.
     fn persist_atomic<'a>(
         &'a self,
         lease: &'a mut Self::Lease,
@@ -384,6 +387,15 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
             // the older session retained after a partial disconnect.
             return Err(AiError::ConnectionUnavailable);
         }
+        if record.binding.authority_epoch != binding.authority_epoch
+            || (record.binding.cancellation_epoch != binding.cancellation_epoch
+                && record.credentials.is_some())
+        {
+            // Only a cleared session can adopt this operation's captured
+            // cancellation binding. Retained credentials must not become usable
+            // merely because a fresh authorization has been requested.
+            return Err(AiError::ConnectionUnavailable);
+        }
         let now = finite_time(self.credentials.now_ms()?)?;
         let (redirect_uri, callback_host, authentication) = match (&record.kind, callback) {
             (
@@ -439,6 +451,10 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
             )?,
         };
         let launch = authorization_url(&record, &attempt);
+        // Persist the explicit reconnect transition with its new attempt under
+        // this same active original lease. Stable ownership/authority is checked
+        // above; neither a receipt proof nor this record renews that authority.
+        record.binding.cancellation_epoch = binding.cancellation_epoch.clone();
         // A new attempt does not replace a previously valid identity/token set.
         record.pending_authorization = Some(attempt);
         self.credentials
@@ -1541,6 +1557,203 @@ mod healthy_examples {
         assert_eq!(credentials.refresh_token.is_some(), offline_access);
         // Application authorization, runtime qualification and independent
         // paid-use admission are still required. No inference is invoked here.
+    }
+
+    // Positive cleared-record reconnect peer. The binding stands in for the
+    // opaque original host proof; this is not a credential/authority adapter.
+    struct ReconnectBoundary {
+        record: Mutex<RegistrationRecord>,
+        captures: AtomicUsize,
+        validations: AtomicUsize,
+    }
+    impl CredentialBoundary<()> for ReconnectBoundary {
+        type Lease = RegistrationBinding;
+        fn acquire<'a>(
+            &'a self,
+            _: &'a (),
+            expected: &'a RegistrationBinding,
+        ) -> PortFuture<'a, Self::Lease> {
+            Box::pin(async move {
+                assert_eq!(expected, &binding());
+                self.captures.fetch_add(1, Ordering::Relaxed);
+                Ok(expected.clone())
+            })
+        }
+        fn load<'a>(&'a self, lease: &'a Self::Lease) -> PortFuture<'a, RegistrationRecord> {
+            Box::pin(async move {
+                assert_eq!(lease, &binding());
+                Ok(duplicate_record(
+                    &self.record.lock().expect("synthetic record"),
+                ))
+            })
+        }
+        fn persist_atomic<'a>(
+            &'a self,
+            lease: &'a mut Self::Lease,
+            record: &'a RegistrationRecord,
+        ) -> PortFuture<'a, ()> {
+            Box::pin(async move {
+                assert_eq!(lease, &binding(), "captured lease binding stays unchanged");
+                assert_eq!(&record.binding, lease, "record adopts the captured binding");
+                *self.record.lock().expect("synthetic record") = duplicate_record(record);
+                Ok(())
+            })
+        }
+        fn revalidate<'a>(
+            &'a self,
+            _: &'a (),
+            lease: &'a Self::Lease,
+            expected: &'a RegistrationBinding,
+        ) -> PortFuture<'a, ()> {
+            Box::pin(async move {
+                assert_eq!(lease, expected);
+                assert_eq!(expected, &binding());
+                self.validations.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            })
+        }
+        fn stop_use<'a>(&'a self, _: &'a mut Self::Lease) -> PortFuture<'a, ()> {
+            Box::pin(async { panic!("positive reconnect never stops its active lease") })
+        }
+        fn now_ms(&self) -> Result<u64, AiError> {
+            Ok(NOW)
+        }
+    }
+
+    #[test]
+    fn healthy_trusted_reconnect_cancellation_binding() {
+        // These are valid already-cleared records, not injected revocation or
+        // cancellation failures. No stop/rotate/revoke control is executed.
+        for state in [
+            LifecycleState::Disconnected,
+            LifecycleState::ReauthorizationRequired,
+        ] {
+            let mut record = empty_registration();
+            record.binding.cancellation_epoch = "synthetic-retired-cancellation".into();
+            record.issued_client_id = Some(CLIENT.into());
+            record.identity = Some(VerifiedIdentity {
+                subject: "synthetic-verified-subject".into(),
+                name: Some("Synthetic account".into()),
+                email: None,
+            });
+            record.state = state;
+            record.revocation = RevocationState::Confirmed;
+            let storage = ReconnectBoundary {
+                record: Mutex::new(record),
+                captures: AtomicUsize::new(0),
+                validations: AtomicUsize::new(0),
+            };
+            let provider = provider(true);
+            let lifecycle = OAuthLifecycle {
+                security: &SyntheticSecurity,
+                provider: &provider,
+                credentials: &storage,
+            };
+            let scope = binding();
+            let launch = ready(lifecycle.begin(
+                &(),
+                &scope,
+                CallbackSelection::AvailableLoopbackPort(NonZeroU16::new(55431).unwrap()),
+                SignInPurpose::EnablePlanUse,
+            ))
+            .expect("healthy trusted reconnect launch");
+            assert!(
+                launch
+                    .trusted_authorization_url()
+                    .contains(&format!("client_id={CLIENT}"))
+            );
+            assert!(!launch.trusted_authorization_url().contains(DYNAMIC_CLIENT));
+            {
+                let saved = storage.record.lock().expect("synthetic record");
+                assert_eq!(saved.binding, scope);
+                assert_eq!(saved.pending_authorization.as_ref().unwrap().binding, scope);
+                assert_eq!(saved.state, state);
+                assert_eq!(saved.revocation, RevocationState::Confirmed);
+                assert!(saved.credentials.is_none());
+                assert!(matches!(saved.refresh_checkpoint, RefreshCheckpoint::None));
+                assert_eq!(saved.issued_client_id.as_deref(), Some(CLIENT));
+                assert_eq!(saved.stable_host_id, "synthetic-stable-host");
+                assert_eq!(
+                    saved.identity.as_ref().unwrap().subject,
+                    "synthetic-verified-subject"
+                );
+            }
+            assert_eq!(storage.captures.load(Ordering::Relaxed), 1);
+            assert_eq!(storage.validations.load(Ordering::Relaxed), 2);
+            assert_eq!(provider.exchanges.load(Ordering::Relaxed), 0);
+            assert_eq!(provider.refreshes.load(Ordering::Relaxed), 0);
+            let receipt = ready(lifecycle.complete(
+                &(),
+                &scope,
+                CallbackRequest {
+                    method: "GET".into(),
+                    host: "127.0.0.1:55431".into(),
+                    redirect_uri: CALLBACK.into(),
+                    parameters: vec![
+                        ("state".into(), STATE.into()),
+                        ("code".into(), "opaque-synthetic-code".into()),
+                    ],
+                },
+            ))
+            .expect("healthy synthetic reconnect callback");
+            assert_eq!(receipt.state, LifecycleState::Connected);
+            let saved = storage.record.lock().expect("synthetic record");
+            assert_eq!(
+                saved.binding, scope,
+                "full binding required by StoredSession/StoredModels"
+            );
+            assert_eq!(saved.issued_client_id.as_deref(), Some(CLIENT));
+            assert_eq!(saved.stable_host_id, "synthetic-stable-host");
+            assert_eq!(
+                saved.identity.as_ref().unwrap().subject,
+                "synthetic-verified-subject"
+            );
+            assert!(saved.pending_authorization.is_none());
+            assert!(matches!(saved.refresh_checkpoint, RefreshCheckpoint::None));
+            assert!(saved.credentials.is_some());
+            assert_eq!(storage.captures.load(Ordering::Relaxed), 2);
+            assert_eq!(provider.exchanges.load(Ordering::Relaxed), 1);
+            assert_eq!(provider.refreshes.load(Ordering::Relaxed), 0);
+        }
+    }
+
+    #[test]
+    fn healthy_same_binding_authorization_preserves_current_session() {
+        let mut record = empty_registration();
+        record.state = LifecycleState::Connected;
+        record.issued_client_id = Some(CLIENT.into());
+        record.credentials = Some(saved_tokens(token_reply(true), vec![]));
+        let storage = SyntheticBoundary(Mutex::new(record));
+        let provider = provider(true);
+        let lifecycle = OAuthLifecycle {
+            security: &SyntheticSecurity,
+            provider: &provider,
+            credentials: &storage,
+        };
+        ready(lifecycle.begin(
+            &(),
+            &binding(),
+            CallbackSelection::AvailableLoopbackPort(NonZeroU16::new(55431).unwrap()),
+            SignInPurpose::EnablePlanUse,
+        ))
+        .expect("healthy unchanged-binding authorization");
+        let saved = storage.0.lock().expect("synthetic record");
+        assert_eq!(saved.binding, binding());
+        assert_eq!(saved.state, LifecycleState::Connected);
+        assert_eq!(
+            saved
+                .credentials
+                .as_ref()
+                .unwrap()
+                .access_token
+                .as_ref()
+                .unwrap()
+                .expose_in_trusted_boundary(),
+            "opaque-synthetic-access-token"
+        );
+        assert!(saved.pending_authorization.is_some());
+        assert_eq!(provider.exchanges.load(Ordering::Relaxed), 0);
+        assert_eq!(provider.refreshes.load(Ordering::Relaxed), 0);
     }
 
     #[test]
