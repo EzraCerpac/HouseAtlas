@@ -26,14 +26,12 @@ pub enum RefreshResult {
 pub struct HostNetworkRuntime {
     settings: NetworkSettings,
     sidecar: Mutex<n::SqliteNetworkSidecar>,
-    flight: tokio::sync::Mutex<()>,
 }
 impl HostNetworkRuntime {
     pub fn open(settings: NetworkSettings) -> std::result::Result<Self, n::NetworkError> {
         Ok(Self {
             sidecar: Mutex::new(settings.open_sidecar()?),
             settings,
-            flight: tokio::sync::Mutex::new(()),
         })
     }
     pub fn settings(&self) -> &NetworkSettings {
@@ -63,7 +61,8 @@ impl HostNetworkRuntime {
         if !Arc::ptr_eq(&captured, &lease) {
             return Err(wrong_scope().into());
         }
-        let Ok(_flight) = self.flight.try_lock() else {
+        let flight = super::refresh_flight::for_source(core, self.settings.source())?;
+        let Ok(_flight) = flight.try_lock() else {
             return Ok(RefreshResult::AlreadyRunning);
         };
         cancelled(&cancellation)?;
