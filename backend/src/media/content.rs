@@ -1,7 +1,7 @@
 //! Bounded standard static PNG decoding and stripped RGBA preview encoding;
 //! PDF and UTF-8 text are originals
 //! for download only. This validates framing, not PDF document safety.
-use std::io::{Cursor, Write};
+use std::io::Write;
 
 use flate2::{Compression, write::ZlibEncoder};
 
@@ -10,6 +10,13 @@ use super::{MAX_BYTES, MediaError, MediaResult, WorkBudget};
 
 const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
 const MAX_PIXELS: u64 = 25_000_000;
+
+/// Bound source/filter and expanded RGBA rows before the codec allocates.
+/// Its public incremental API still filters/transforms each row synchronously.
+pub const MAX_PNG_DECODE_ROW_BYTES: usize = 64 * 1024;
+
+#[path = "png_decode.rs"]
+mod png_decode;
 
 pub fn validate_content(
     bytes: &[u8],
@@ -124,6 +131,18 @@ pub fn render_png(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Vec<u8>> {
                 {
                     return Err(MediaError::Unsupported);
                 }
+                let samples = match h[9] {
+                    0 | 3 => 1u64,
+                    2 => 3,
+                    4 => 2,
+                    _ => 4,
+                };
+                let source_row = (u64::from(width) * samples * u64::from(h[8])).div_ceil(8) + 1;
+                if source_row > MAX_PNG_DECODE_ROW_BYTES as u64
+                    || u64::from(width) * 4 > MAX_PNG_DECODE_ROW_BYTES as u64
+                {
+                    return Err(MediaError::TooLarge);
+                }
                 header = Some(h);
             }
             b"IDAT" => {
@@ -170,43 +189,8 @@ pub fn render_png(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Vec<u8>> {
             .try_into()
             .map_err(|_| MediaError::Unsupported)?,
     ) as usize;
-    let mut decoder = png::Decoder::new(Cursor::new(bytes));
-    decoder.set_limits(png::Limits {
-        bytes: 256 * 1024 * 1024,
-    });
-    decoder.set_ignore_text_chunk(true);
-    decoder.set_ignore_iccp_chunk(true);
-    decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
-    budget.check()?;
-    let mut reader = decoder.read_info().map_err(|_| MediaError::Unsupported)?;
-    let size = reader.output_buffer_size().ok_or(MediaError::TooLarge)?;
-    if size > (MAX_PIXELS as usize) * 4 {
-        return Err(MediaError::TooLarge);
-    }
-    let mut raw = Vec::new();
-    raw.try_reserve_exact(size)
-        .map_err(|_| MediaError::TooLarge)?;
-    raw.resize(size, 0);
-    budget.check()?;
-    let frame = reader
-        .next_frame(&mut raw)
-        .map_err(|_| MediaError::Unsupported)?;
-    reader.finish().map_err(|_| MediaError::Unsupported)?;
-    budget.check()?;
-    if frame.width as usize != width
-        || frame.height as usize != height
-        || frame.bit_depth != png::BitDepth::Eight
-        || frame.buffer_size() != size
-    {
-        return Err(MediaError::Unsupported);
-    }
-    let channels = match frame.color_type {
-        png::ColorType::Grayscale => 1,
-        png::ColorType::GrayscaleAlpha => 2,
-        png::ColorType::Rgb => 3,
-        png::ColorType::Rgba => 4,
-        png::ColorType::Indexed => return Err(MediaError::Unsupported),
-    };
+    let decoded = png_decode::decode(bytes, width, height, budget)?;
+    let channels = decoded.channels;
     let stride = width
         .checked_mul(4)
         .and_then(|n| n.checked_add(1))
@@ -216,7 +200,7 @@ pub fn render_png(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Vec<u8>> {
         .map_err(|_| MediaError::TooLarge)?;
     row.resize(stride, 0);
     let mut encoder = ZlibEncoder::new(LimitedOutput(Vec::new()), Compression::new(6));
-    for samples in raw.chunks_exact(frame.line_size) {
+    for samples in decoded.pixels.chunks_exact(decoded.line_size) {
         budget.check()?;
         for (index, (source, target)) in samples
             .chunks_exact(channels)

@@ -1,4 +1,4 @@
-# AT12 Rust media integration proposal
+# AT12 Rust media integration
 
 Base: published `EzraCerpac/HouseAtlas` commit
 `9f7561d99e09a680ec5282ca0c8aed4e10c6cbc9`. AT12 owns only this directory.
@@ -15,6 +15,87 @@ owner validates method, canonical descriptors, query/fragment policy and access
 before invoking these typed operations, and maps errors to private responses.
 It must emit immediately after final authorization revalidation.
 
+## PR63 findings: bounded successor on landed main
+
+This successor starts from actual landed main
+`87ad201140edb7b3afdb4396095a320c2926eafe`; its sole ancestry root remains
+published `9f7561d99e09a680ec5282ca0c8aed4e10c6cbc9`. Main already contains the
+original storage owner's genuine consumption/resolution APIs, the root upload
+composition and `png = "=0.18.1"`. The scoped compiler harness imports the actual
+access/contracts/domain/jobs/storage/media source at that main baseline, with
+only this media successor changed. No compatible lookalike, new dependency,
+root manifest/lock, SQL/schema, peer implementation or public stage/binding
+contract is introduced. The earlier sections retain historical recovery and
+PR52 evidence with their original source pins and limits.
+
+The [pending-lifetime finding](https://github.com/EzraCerpac/HouseAtlas/pull/63#discussion_r4206144188)
+is genuine in landed main and **fixed in this source**. A scratch-only immutable
+`reservation-lifetime.json` is synced before accepting/installing bytes so
+interrupted admissions remain counted. After body validation/installation,
+provenance and `stage.json` are complete, a separate fresh immutable
+`lifetime.json` is written immediately before publication, and the reservation
+member is removed with the existing descriptor-relative unlink/parent barrier.
+Published receipts still contain exactly `lifetime.json` and `stage.json`.
+After publication, parent/vault barriers and final authorization, the published
+lease is reread and checked before returning a receipt/retaining its authority.
+If those barriers consume the lease, the operation fails closed and published
+metadata remains charged for ordinary expiry; no published lease is refreshed.
+Expiry prefers the reservation lease for scratch directories that contain it,
+and supports earlier/interrupted scratch directories with only `lifetime.json`.
+Binding requires a live pending lease at intake; a published bound plan remains
+retained, and expiry never pretends to cancel its returned capability.
+
+The [whole-frame PNG finding](https://github.com/EzraCerpac/HouseAtlas/pull/63#discussion_r4206144202)
+is genuine in landed main and **fixed in this source**. `png_decode.rs` uses the
+pinned codec's incremental `next_interlaced_row()` API. Every returned row is
+checked before/after decode and copy/Adam7 expansion, and input is wrapped by
+budget-aware `Read`, outer `BufRead` and `Seek`. Each `fill_buf()` exposes at
+most 4 KiB to the codec and checks the actual operation budget, including
+buffered inflation, metadata reads and final image completion. Codec errors
+recheck the budget before format translation, preserving cancellation/deadline
+as the existing `Unavailable`. Frame initialization checks every 64 KiB too.
+Ordinary rows must have exactly the declared layout/count; Adam7 uses the
+actual opaque pass metadata and the pinned library's expansion helper, with
+exact total transformed byte accounting. No whole-frame decoder call remains
+in the production path and no replacement codec/filter/deinterlace framework
+is introduced.
+
+The codec still synchronously filters/transforms a whole row. To bound that
+step, `content::MAX_PNG_DECODE_ROW_BYTES` is 64 KiB, enforced before
+`read_info()` or codec row allocation. Both the source row
+`ceil(width * source_samples * bit_depth / 8) + 1` and the normalized RGBA pixel
+row `width * 4` must fit. The preview filter byte is additional; its compressor
+writes still split at 64 KiB. Existing 10 MiB input/output, 25-million-pixel,
+static-only, sample/transparency and metadata-stripping rules remain. Decoder
+allocation limit is 256 MiB; application frame/row buffers are additional.
+Cancellation is cooperative between bounded calls, with no hard latency,
+preemption or allocation-success guarantee.
+
+**Root owner need before merge:** the decoded-row bound intentionally narrows
+accepted dimensions. For example, RGBA8 source rows allow width 16,383 and
+RGBA16 width 8,191. Previously retained wider PNGs were accepted by older source;
+this successor can report them too large during preview or byte validation,
+including availability/recovery verification. Root must assess compatibility
+and the bounded policy before adopting this source. It changes no retained
+bytes, reservation, asset identity, licence, evidence or migration and supplies
+no fabricated compatibility result. No peer API change is required. Combined
+root review/validation and normal merge remain with root.
+
+Selected ordinary positive examples are the four exact cases under
+`media::healthy_review_examples::`: unchanged standard sample/transparency and
+independent Adam7 known-pixel checks; durable quota/reopen/shared bytes/unbound
+expiry; fresh completed-stage lifetime followed by successful genuine binding;
+and many-row plus accepted RGBA8/16 row-bound PNGs. The lifetime case advances
+a synthetic server clock by two seconds during a successful body read with a
+one-second configured pending lifetime, then verifies a new completed lease
+and binds successfully under the actual original AT11 guard. It performs no
+sleep, expired/failed bind or stock mutation. PNG examples compare actual
+known pixels and stripped output using the real pinned decoder. Static review
+supports the budget placement; no cancellation, deadline, over-limit, denial,
+adversarial, fault/crash, concurrency, replay, negative-consumer or legacy broad
+control runs. Mac runtime and production witness/restore/retention qualification
+remain deferred. Earlier logs and evidence remain preserved unchanged.
+
 ## Dependencies for AT51
 
 The composed external compiler harness pins `serde = 1.0.229` (derive),
@@ -22,8 +103,9 @@ The composed external compiler harness pins `serde = 1.0.229` (derive),
 `sha2 = 0.10.9`, `flate2 = 1.1.5`
 (default features disabled, rust_backend), `crc32fast = 1.5.0`,
 `rustix = 1.1.2` (fs), `tempfile = 3.23.0` and `png = 0.18.1`.
-The PR52 continuation requires the root owner to add the exact new
-`png = "=0.18.1"` dependency and reconcile its lock; AT12 changed no manifest.
+The historical PR52 continuation required the root owner to add the exact new
+`png = "=0.18.1"` dependency and reconcile its lock; landed main now contains it.
+AT12 changed no manifest.
 The source supports Linux and macOS with a small platform boundary; current
 healthy checks run on Linux with Rust 1.99.0. The peer/backend manifest must
 reconcile these pins. Actual AT07/AT11/AT51 composition also uses their pinned
@@ -269,23 +351,25 @@ result and revision into their qualified existing-asset evidence transaction.
 Resolution alone neither authorizes attachment nor supplies a staged/native
 plan. This media patch implements and verifies preparation/resolution inputs;
 it does not claim a second statement/evidence commit or root HTTP wiring.
-The root owner must compose this storage pin, add `png = "=0.18.1"`, wire fresh
-consumed cleanup after successful stock commit, and integrate the qualified
-existing-asset domain path before all three PR52 findings are closed.
+That PR52 handoff required root composition of the storage pin, exact PNG
+dependency, fresh consumed cleanup and qualified existing-asset domain path.
+Landed main now contains that root composition; this successor neither edits
+nor independently requalifies its HTTP/domain path.
 
-PNG support now covers ordinary static grayscale 1/2/4/8/16, indexed 1/2/4/8
+The PR52 PNG implementation covered ordinary static grayscale 1/2/4/8/16, indexed 1/2/4/8
 with palette/transparency, gray-alpha 8/16, RGB/RGBA 8/16 and Adam7 interlace.
 The bounded pinned decoder expands samples/transparency and strips 16-bit
 samples before producing metadata-free RGBA8 IHDR/IDAT/IEND output. APNG
 remains unsupported. Existing 10 MiB input/output and 25-million-pixel bounds
-remain. The decoder has a 256 MiB allocation limit; frame/row buffers are
-additional. Decode and peer calls remain bounded cooperative operations;
+remain. The successor additionally enforces the row bound described above.
+The decoder has a 256 MiB allocation limit; frame/row buffers are additional.
+Decode and peer calls remain bounded cooperative operations;
 conversion/compression checks the operation budget periodically, with compressed
 writes no larger than 64 KiB. No hard cancellation, memory-exhaustion, adversarial
 or performance qualification is claimed.
 
-The current checks select only two new ordinary positive library examples and
-one external healthy storage-owner composition, all with fresh synthetic state:
+The historical PR52 checks selected two new ordinary positive library examples
+and one external healthy storage-owner composition, all with fresh synthetic state:
 
 ```sh
 cargo test --locked --manifest-path "$AT12_MANIFEST" --lib \
