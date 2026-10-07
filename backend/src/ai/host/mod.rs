@@ -3,6 +3,8 @@
 pub mod bridge;
 pub mod checkpoint;
 pub mod continuation;
+pub mod credentials;
+pub mod enrollment;
 pub mod http;
 pub mod lifecycle;
 pub mod models;

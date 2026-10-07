@@ -24,6 +24,12 @@ pub trait EnrollmentPort: RegistrationAuthority {
     fn capture(&self, original: &access::Principal) -> Result<RegistrationBinding, AiError>;
 }
 
+impl EnrollmentPort for crate::ai::host::enrollment::EnrollmentOwner {
+    fn capture(&self, original: &access::Principal) -> Result<RegistrationBinding, AiError> {
+        crate::ai::host::enrollment::EnrollmentOwner::capture(self, original)
+    }
+}
+
 /// Wrap the same enrollment owner used by the host and lifecycle environment.
 /// Only receipt checks resolve a new cancellation epoch; all other operations
 /// retain the original full revalidation contract.

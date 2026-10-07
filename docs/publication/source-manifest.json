@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "e548ee3cc9c082d6bdd2fe09508c9169275da70e99d8dcdc7911e217880ac670",
+  "sourceDigestSha256": "bdad536a78dc09a1ba8aabf82bfd4999a6aeedb26f2fd10dc8c9d5e0d920ebca",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -448,8 +448,8 @@
     {
       "path": "backend/src/ai/host/README.md",
       "mode": "100644",
-      "bytes": 15682,
-      "sha256": "ee613838506f68fe581d8ff918b742629524a120bec1924aa2d37c11ed429d64",
+      "bytes": 20886,
+      "sha256": "18b7ffe19534c4b45afad4dff0387c631caffea327c1c908c4b7033ff2d3bb6a",
       "owner": "ai"
     },
     {
@@ -471,6 +471,34 @@
       "mode": "100644",
       "bytes": 5957,
       "sha256": "b5e89c448cd47adae4f887a60dbd88aceb3f84fa7bee5054f7059b5cf15f8193",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/host/credential_enrollment_healthy.rs",
+      "mode": "100644",
+      "bytes": 8139,
+      "sha256": "83037ce23c54b069871223399e72508cf5e52079cb6b655aa87e02b334e3ce28",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/host/credentials.rs",
+      "mode": "100644",
+      "bytes": 3942,
+      "sha256": "88bd98d1ba9bf258951778af1aa6fdd0cb6a3d8e05b3db43b07aa5c355ef84cc",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/host/enrollment.rs",
+      "mode": "100644",
+      "bytes": 18533,
+      "sha256": "98cf189f4baecd1e2c2ed63e3e634eed88df8481ecac57f99012f4fda4d2f2b3",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/host/enrollment_healthy.rs",
+      "mode": "100644",
+      "bytes": 6193,
+      "sha256": "e1411272f2df27e2d0cab806a33a8ebad0b8b8963a127f3b8251060c0b50f4ea",
       "owner": "ai"
     },
     {
@@ -497,15 +525,22 @@
     {
       "path": "backend/src/ai/host/lifecycle.rs",
       "mode": "100644",
-      "bytes": 24595,
-      "sha256": "95ac6bef46c0dfbaa8bcf4a32eddb847269fa2535a63692f54aed6152688fb31",
+      "bytes": 26653,
+      "sha256": "e0d6e06d5754842ba2c0b090d573e28c7088104edabfdba4051c9f70d149cadd",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/host/manage_usage_checks.rs",
+      "mode": "100644",
+      "bytes": 11814,
+      "sha256": "4c706eeecc67b9146b8daaa1e801dfc9ca5a0344e7f355288557b4342798a6f4",
       "owner": "ai"
     },
     {
       "path": "backend/src/ai/host/mod.rs",
       "mode": "100644",
-      "bytes": 1472,
-      "sha256": "a1239b5605da38680d0ddbc16c36e437c91a8518b38b306be2d653a12fb1a7c4",
+      "bytes": 1513,
+      "sha256": "c4766986ba3e1ef90dbbef7ef59706ce84cdae5f4c1b12ee0dff74ae3231d495",
       "owner": "ai"
     },
     {
@@ -513,6 +548,13 @@
       "mode": "100644",
       "bytes": 9002,
       "sha256": "7ff22bfd448eeb05cce0583346512861fa0b4a43928f5ec58e03a1e33a4e0c6d",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/host/mounting-enrollment.patch",
+      "mode": "100644",
+      "bytes": 459,
+      "sha256": "13d69b67ac3338b11181f5c1ee4f141d5cb7e8917e9182fa679696665ceccad0",
       "owner": "ai"
     },
     {
@@ -539,15 +581,22 @@
     {
       "path": "backend/src/ai/host/service.rs",
       "mode": "100644",
-      "bytes": 21021,
-      "sha256": "df82fb4d5e39cf8a14406df4aa5d72b990f9b92e5110d7802a4eb23d95e73a84",
+      "bytes": 23169,
+      "sha256": "c3f296205b6df8cbb109d907c9b2b559bc2f2fc2036389c55a488686d09b926e",
       "owner": "ai"
     },
     {
       "path": "backend/src/ai/host/status.rs",
       "mode": "100644",
-      "bytes": 23122,
-      "sha256": "643cff146e410d5e7451ec36b0737a09e2d09932695b54053f6dfde3919fff31",
+      "bytes": 35198,
+      "sha256": "0532cc063ae3d06751a4f638b09f96afba29b5e228726b2b3917489ea70b6fc6",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/host/status_lifecycle_checks.rs",
+      "mode": "100644",
+      "bytes": 15482,
+      "sha256": "9faf13172417312c249cd777338fc5389597e7860a50c987b51e0b12412416fc",
       "owner": "ai"
     },
     {
@@ -1498,8 +1547,8 @@
     {
       "path": "backend/src/http/ai.rs",
       "mode": "100644",
-      "bytes": 9750,
-      "sha256": "9f35d1da8dc53578aa074447846fe1d48424923b5521aff071ed82a115471ad0",
+      "bytes": 10002,
+      "sha256": "b78b05bd465610f37a8b957c9a7faf9fd7863773a5ffd9d9ad4e6aca3614a60f",
       "owner": "core-integration"
     },
     {
@@ -4032,15 +4081,15 @@
     {
       "path": "frontend/src/ai/AiPanel.tsx",
       "mode": "100644",
-      "bytes": 17043,
-      "sha256": "a7a6f885d7d9673a9b548f986895b561a7bf3a118a464b9650ffd0b3867b25f7",
+      "bytes": 17239,
+      "sha256": "636852d525c78d07da39e0ba87efd63c6786ea24f03e2882a7cded339ff8eb82",
       "owner": "ai"
     },
     {
       "path": "frontend/src/ai/README.md",
       "mode": "100644",
-      "bytes": 11233,
-      "sha256": "46f2f2b1e5080ea562219d558fc5fcb0d941e14663f863e72b91860b4274549a",
+      "bytes": 11783,
+      "sha256": "66656695bff894e8f86ece5ff9a76f9b215397e81376419148898c3093a7ab81",
       "owner": "ai"
     },
     {
@@ -4060,15 +4109,15 @@
     {
       "path": "frontend/src/ai/host/AiHost.tsx",
       "mode": "100644",
-      "bytes": 4994,
-      "sha256": "94fa025e5973b10095867d698ce96bcbdcb9e553cd54e7df2952a1474671c2f7",
+      "bytes": 5165,
+      "sha256": "6d5d8fc317b0eb129b9464884d2076cd69f71a44100e1237ea1a3168908941e8",
       "owner": "ai"
     },
     {
       "path": "frontend/src/ai/host/README.md",
       "mode": "100644",
-      "bytes": 15379,
-      "sha256": "c7a206b5178460c66703a8b115ff8ce0afbfda38853a8305cd617f0d7e11412d",
+      "bytes": 16101,
+      "sha256": "d98cd08d844151a723f16e80829d41aa375e2878eb8359cbbd8f01f270382e12",
       "owner": "ai"
     },
     {
@@ -4090,6 +4139,13 @@
       "mode": "100644",
       "bytes": 6348,
       "sha256": "a25108f62ddee4add3e9a3fe9b7d482f875fcbfc9d9b61264e293d602ca0bfb9",
+      "owner": "ai"
+    },
+    {
+      "path": "frontend/src/ai/host/epoch-receipts.focused.tsx",
+      "mode": "100644",
+      "bytes": 11398,
+      "sha256": "e7aed466fe2a29c5e57a5300aef1ee285ab136e7e08ea9a3d600a747908276ab",
       "owner": "ai"
     },
     {
@@ -4137,8 +4193,8 @@
     {
       "path": "frontend/src/ai/index.ts",
       "mode": "100644",
-      "bytes": 812,
-      "sha256": "d12c34249030a38ff3bc2bc9b318941dc760f8f5cead3d4a5ace770fbb732d07",
+      "bytes": 831,
+      "sha256": "be0125e810ca9ec8951fbc2247458e4deb596b8a0c7ff5471c2c4a9ca05dd261",
       "owner": "ai"
     },
     {
@@ -4151,15 +4207,15 @@
     {
       "path": "frontend/src/ai/types.ts",
       "mode": "100644",
-      "bytes": 7119,
-      "sha256": "a0485487e5d59f6cb639217d53dd4c9b21303e4f744d87b52e376eacb5c0a8c2",
+      "bytes": 7474,
+      "sha256": "0afecb3bc328dea09b39441e8d31e2e3c1496bbf713a2261a57cf6b98b3503e5",
       "owner": "ai"
     },
     {
       "path": "frontend/src/ai/useAiSession.ts",
       "mode": "100644",
-      "bytes": 29738,
-      "sha256": "feaf74da95a0be814a433de79f0fb3d9f74ae0e2a034115aa36e04c610d38781",
+      "bytes": 31338,
+      "sha256": "faa983789e0a5ca99373d12a617f48af1276517e58f683408322ee9c5606603b",
       "owner": "ai"
     },
     {
