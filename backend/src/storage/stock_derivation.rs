@@ -31,44 +31,65 @@ pub(crate) fn validate_original<C: Contract>(
     Ok(())
 }
 
+/// Require exact child alignment and at least one specialized mapper. All-direct
+/// batches keep their old metadata-free retained format and execution API.
+pub(crate) fn validate_batch_derivations(
+    request: &ValidatedRequest,
+    derivations: &[Option<AtlasDerivation>],
+) -> Result<()> {
+    if request.id() != OperationId::AtlasBatchExecute
+        || request.children().is_empty()
+        || derivations.len() != request.children().len()
+        || !derivations.iter().any(Option::is_some)
+    {
+        return Err(repo::incompatible());
+    }
+    for (child, derivation) in request.children().iter().zip(derivations) {
+        match derivation {
+            Some(derivation) => validate_derivation(child, derivation)?,
+            None if crate::domain::stock::atlas_direct_operation(child.id()).is_some() => {}
+            None => return Err(repo::incompatible()),
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn validate_retained_preimage<C: Contract, S: StockContractPort>(
     commit: &StockAtlasCommit,
     stock: &S,
     contract: &C,
 ) -> Result<()> {
-    match (&commit.derivation_format, &commit.derivation) {
-        (None, None) => Ok(()),
-        (Some(format), Some(derivation))
-            if format == crate::domain::stock::ATLAS_DERIVATION_FORMAT =>
-        {
-            let request = ValidatedRequest::parse(stock, commit.original_request.clone())
-                .map_err(|_| repo::incompatible())?;
-            validate_derivation(&request, derivation).map_err(|_| repo::incompatible())?;
-            let Some(original) = derivation_original(derivation) else {
-                return Ok(());
-            };
-            if original.workspace_id != request.context().workspace_id
-                || original.home_id != request.context().home_id
-            {
+    use crate::domain::stock::{ATLAS_BATCH_DERIVATION_FORMAT, ATLAS_DERIVATION_FORMAT};
+    let request = ValidatedRequest::parse(stock, commit.original_request.clone())
+        .map_err(|_| repo::incompatible())?;
+    match (
+        commit.derivation_format.as_deref(),
+        &commit.derivation,
+        &commit.child_derivations,
+    ) {
+        (None, None, None) => Ok(()),
+        (Some(ATLAS_DERIVATION_FORMAT), Some(derivation), None) => {
+            if request.id() == OperationId::AtlasBatchExecute || commit.groups.len() != 1 {
                 return Err(repo::incompatible());
             }
-            let before_digest = super::repository::digest(contract, original)?;
-            let mut matches = commit
-                .groups
-                .iter()
-                .flat_map(|group| group.native_results.iter())
-                .filter(|result| {
-                    result.audit.record.record_type == original.record_type
-                        && result.audit.record.record_id == original.record_id
-                });
-            let result = matches.next().ok_or_else(repo::incompatible)?;
-            if matches.next().is_some()
-                || result.audit.workspace_id != original.workspace_id
-                || result.audit.home_id != original.home_id
-                || result.audit.previous_revision != Some(original.revision)
-                || result.audit.before_digest.as_deref() != Some(before_digest.as_str())
-            {
+            validate_retained_group(&request, derivation, &commit.groups[0], None, contract)
+        }
+        (Some(ATLAS_BATCH_DERIVATION_FORMAT), None, Some(derivations)) => {
+            validate_batch_derivations(&request, derivations).map_err(|_| repo::incompatible())?;
+            if commit.groups.len() != request.children().len() {
                 return Err(repo::incompatible());
+            }
+            for (index, ((child, derivation), group)) in request
+                .children()
+                .iter()
+                .zip(derivations)
+                .zip(&commit.groups)
+                .enumerate()
+            {
+                validate_group_envelope(child, group, Some(index))?;
+                if let Some(derivation) = derivation {
+                    validate_retained_group(child, derivation, group, Some(index), contract)?;
+                }
             }
             Ok(())
         }
@@ -76,11 +97,80 @@ pub(crate) fn validate_retained_preimage<C: Contract, S: StockContractPort>(
     }
 }
 
+fn validate_group_envelope(
+    request: &ValidatedRequest,
+    group: &StockCommitGroup,
+    child_index: Option<usize>,
+) -> Result<()> {
+    if group.child_index != child_index
+        || group.original_request != *request.raw()
+        || group.request_digest != request.intent_digest()
+    {
+        return Err(repo::incompatible());
+    }
+    Ok(())
+}
+
+fn validate_retained_group<C: Contract>(
+    request: &ValidatedRequest,
+    derivation: &AtlasDerivation,
+    group: &StockCommitGroup,
+    child_index: Option<usize>,
+    contract: &C,
+) -> Result<()> {
+    validate_group_envelope(request, group, child_index)?;
+    validate_derivation(request, derivation).map_err(|_| repo::incompatible())?;
+    let Some(original) = derivation_original(derivation) else {
+        return Ok(());
+    };
+    if original.workspace_id != request.context().workspace_id
+        || original.home_id != request.context().home_id
+    {
+        return Err(repo::incompatible());
+    }
+    let before_digest = super::repository::digest(contract, original)?;
+    // An original must link to its own child group's audit, never a sibling's.
+    let mut matches = group.native_results.iter().filter(|result| {
+        result.audit.record.record_type == original.record_type
+            && result.audit.record.record_id == original.record_id
+    });
+    let result = matches.next().ok_or_else(repo::incompatible)?;
+    if matches.next().is_some()
+        || result.audit.workspace_id != original.workspace_id
+        || result.audit.home_id != original.home_id
+        || result.audit.previous_revision != Some(original.revision)
+        || result.audit.before_digest.as_deref() != Some(before_digest.as_str())
+    {
+        return Err(repo::incompatible());
+    }
+    Ok(())
+}
+
 pub(crate) fn validate_derivation(
     request: &ValidatedRequest,
     derivation: &AtlasDerivation,
 ) -> Result<()> {
     let request_error = || Error::new("invalid-contract", "Derived stock mapping is incompatible");
+    use OperationId as O;
+    let aligned = matches!(
+        (request.id(), derivation),
+        (O::AtlasBindingCreate, AtlasDerivation::BindingCreate { .. })
+            | (O::AtlasBindingReview, AtlasDerivation::BindingReview { .. })
+            | (
+                O::AtlasBindingRestore,
+                AtlasDerivation::BindingRestore { .. }
+            )
+            | (O::AtlasBindingRemap, AtlasDerivation::BindingRemap { .. })
+            | (
+                O::AtlasGeometryCreate,
+                AtlasDerivation::GeometryCreate { .. }
+            )
+            | (O::AtlasAssetReview, AtlasDerivation::AssetReview { .. })
+    );
+    if !aligned {
+        return Err(request_error());
+    }
+
     match derivation {
         AtlasDerivation::BindingCreate { source_state }
         | AtlasDerivation::BindingRemap { source_state, .. }
