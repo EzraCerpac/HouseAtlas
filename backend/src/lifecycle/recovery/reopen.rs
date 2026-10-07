@@ -3,7 +3,10 @@
 use crate::{
     access::AccessBoundary,
     app::{Core, ReadAuthority, ServerRuntime, Store},
-    config::recovery::{ExistingPath, HomeboxRecoveryOwners, RecoveryConfig, RecoveryPeers},
+    config::recovery::{
+        ExistingPath, HomeboxRecoveryOwners, RecoveryConfig, RecoveryPeers,
+        StockActivityRecoveryOwners,
+    },
     domain::{
         queue_recovery::{OriginalEnqueueOwner, QueuedMediaRecovery},
         stock::NativeStockContract,
@@ -17,7 +20,11 @@ use crate::{
         types::Availability,
         vault::AvailableAssetVerifier,
     },
-    storage::{self, QueueDiscovery, QueueRecoveryEvidence, StoreOptions},
+    providers::homebox::write::stock::StockContractPort,
+    storage::{
+        self, QueueDiscovery, QueueRecoveryEvidence, StockActivityRecoveryDiscovery,
+        StockActivityRecoveryEvidence, StoreOptions,
+    },
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -288,6 +295,112 @@ fn close_source(source: Core) -> Result<(), ReopenError> {
     drop(access.into_inner().map_err(|_| ReopenError::SourceClose)?);
     drop(vault);
     Ok(())
+}
+
+/// Cold strict profile-6 opening with independently selected base and native
+/// activity owners. No producer brand, live source/session, queued handoff or
+/// original invocation authority is reconstructed from the validated image.
+pub fn reopen_stock_activity_closed<
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+    W: StockContractPort,
+    AD: StockActivityRecoveryDiscovery,
+    AE: StockActivityRecoveryEvidence,
+>(
+    config: RecoveryConfig,
+    base: &RecoveryPeers<'_, D, E>,
+    activity: &StockActivityRecoveryOwners<'_, W, AD, AE>,
+    budget: &WorkBudget,
+) -> Result<Core, ReopenError> {
+    reopen_stock_activity_selected(None, config, base, activity, budget)
+}
+
+/// Consumes the drained original Core on every outcome. Owners are held outside
+/// Core/session reset and must not retain source access/vault aliases. Image
+/// validity grants neither recovered execution nor physical-hold release.
+pub fn reopen_stock_activity_with_owners<
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+    W: StockContractPort,
+    AD: StockActivityRecoveryDiscovery,
+    AE: StockActivityRecoveryEvidence,
+>(
+    source: Core,
+    config: RecoveryConfig,
+    base: &RecoveryPeers<'_, D, E>,
+    activity: &StockActivityRecoveryOwners<'_, W, AD, AE>,
+    budget: &WorkBudget,
+) -> Result<Core, ReopenError> {
+    reopen_stock_activity_selected(Some(source), config, base, activity, budget)
+}
+
+fn reopen_stock_activity_selected<
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+    W: StockContractPort,
+    AD: StockActivityRecoveryDiscovery,
+    AE: StockActivityRecoveryEvidence,
+>(
+    source: Option<Core>,
+    config: RecoveryConfig,
+    base: &RecoveryPeers<'_, D, E>,
+    activity: &StockActivityRecoveryOwners<'_, W, AD, AE>,
+    budget: &WorkBudget,
+) -> Result<Core, ReopenError> {
+    checkpoint(budget)?;
+    configuration(&config)?;
+    activity
+        .revalidate()
+        .map_err(|_| ReopenError::Configuration)?;
+    let before = image_digest(&config.database, budget)?;
+    declared_image(&config, before)?;
+    let port = super::host::StockActivityRecoveryPort::validator(base, activity);
+    let image = port
+        .validate_image(config.database.path(), budget)
+        .map_err(|_| ReopenError::Image)?;
+    let validated = port
+        .validate_recovery_database(config.database.path(), budget)
+        .map_err(|_| ReopenError::Image)?;
+    if image_digest(&config.database, budget)? != before {
+        return Err(ReopenError::Image);
+    }
+    finish_reopen(
+        source,
+        config,
+        budget,
+        before,
+        validated,
+        |database, access, vault| {
+            activity
+                .revalidate()
+                .map_err(|_| ReopenError::Configuration)?;
+            let store = Store::open_existing_stock_activity_recovery_image_with_peers(
+                database,
+                NativeContracts,
+                ReadAuthority(access),
+                NativeMediaRuntime {
+                    vault,
+                    server: ServerRuntime,
+                },
+                StoreOptions {
+                    stock_activity_profile: true,
+                    ..StoreOptions::default()
+                },
+                &image,
+                &base.storage(),
+                &activity.storage(),
+                &mut || storage_checkpoint(budget),
+            )
+            .map_err(|_| ReopenError::Store)?;
+            // Recheck the SAME external issuer after access-session reset and
+            // strict opening. A new boundary or equal metadata is no substitute.
+            if activity.revalidate().is_err() {
+                store.close().map_err(|_| ReopenError::Store)?;
+                return Err(ReopenError::Configuration);
+            }
+            Ok(store)
+        },
+    )
 }
 
 fn finish_reopen(

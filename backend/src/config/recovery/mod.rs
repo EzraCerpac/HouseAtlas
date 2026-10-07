@@ -17,9 +17,14 @@ use crate::{
     jobs::QueueConfig,
     media::recovery::{DatabaseMember, MAX_DATABASE, RestoredRecovery},
     providers::homebox::recovery::{
-        HomeboxRetainedEvidence, NativeWriterContracts, RetainedWriterArchive,
+        HomeboxRetainedEvidence, HomeboxStockActivityEvidence, NativeWriterContracts,
+        RetainedNativeStockActivityArchive, RetainedWriterArchive,
     },
-    storage::{QueueDiscovery, QueueRecoveryEvidence, RecoveryValidationPeers},
+    storage::{
+        QueueDiscovery, QueueRecoveryEvidence, RecoveryValidationPeers,
+        StockActivityPhysicalRegistration, StockActivityPrincipal, StockActivityRecoveryDiscovery,
+        StockActivityRecoveryEvidence, StockActivityRecoveryPeers,
+    },
 };
 use rustix::fs::{Mode, OFlags, open};
 use std::{
@@ -380,5 +385,149 @@ impl<'a, O: OriginalEnqueueOwner, M: QueuedMediaRecovery<O::Proof>>
         let evidence = NativeQueueRecoveryEvidence::new(&discovery, &native);
         let peers = RecoveryPeers::new(discovery.registry().configs(), &discovery, &evidence)?;
         Ok(operation(&peers))
+    }
+}
+
+/// Independently selected async activity owners, separate from Jobs evidence.
+/// The complete registry includes empty physical registrations and is frozen
+/// here in its trusted order. Its metadata cannot issue offline authority.
+/// Discovery must retain its original independently approved administrative
+/// issuer outside Core across source close and access-session reset.
+///
+/// Evidence must qualify actual native admission, bounded raw dispatch and
+/// observation carriers, media admission and liability at EACH event-local
+/// prefix against independently authenticated producer retention. A later
+/// receipt, end proof or liability cut cannot qualify an earlier frame. Jobs
+/// codec /1 or /2, image rows and matching digests are not activity provenance.
+/// Missing owner proofs must fail; no default evidence or grant is supplied.
+/// Both callbacks run under storage's read transaction: no storage reentry,
+/// provider I/O, access refresh or opposing access/vault lock order. Owners must
+/// survive cold startup independently, without retaining source Core aliases.
+pub struct StockActivityRecoveryOwners<'a, W, D, E> {
+    contracts: &'a W,
+    registry: Vec<StockActivityPhysicalRegistration>,
+    discovery: &'a D,
+    evidence: ActivityEvidence<'a, E>,
+}
+enum ActivityEvidence<'a, E> {
+    Borrowed(&'a E),
+    Owned(E),
+}
+impl<
+    'a,
+    W: crate::providers::homebox::write::stock::StockContractPort,
+    D: StockActivityRecoveryDiscovery,
+    E: StockActivityRecoveryEvidence,
+> StockActivityRecoveryOwners<'a, W, D, E>
+{
+    pub fn new(
+        contracts: &'a W,
+        registry: &[StockActivityPhysicalRegistration],
+        discovery: &'a D,
+        evidence: &'a E,
+    ) -> Result<Self> {
+        Self::with_evidence(
+            contracts,
+            registry,
+            discovery,
+            ActivityEvidence::Borrowed(evidence),
+        )
+    }
+
+    fn with_evidence(
+        contracts: &'a W,
+        registry: &[StockActivityPhysicalRegistration],
+        discovery: &'a D,
+        evidence: ActivityEvidence<'a, E>,
+    ) -> Result<Self> {
+        let mut physical = HashSet::new();
+        if registry
+            .iter()
+            .any(|entry| !physical.insert(entry.physical_binding.physical_database_id))
+        {
+            return Err(InvalidRecoveryConfig);
+        }
+        let owners = Self {
+            contracts,
+            registry: registry.to_vec(),
+            discovery,
+            evidence,
+        };
+        owners.revalidate()?;
+        Ok(owners)
+    }
+
+    pub fn registry(&self) -> &[StockActivityPhysicalRegistration] {
+        &self.registry
+    }
+
+    pub(crate) fn revalidate(&self) -> Result<()> {
+        self.discovery
+            .revalidate_registry(&self.registry)
+            .map_err(|_| InvalidRecoveryConfig)?;
+        for registration in &self.registry {
+            self.discovery
+                .revalidate_registration(&self.registry, registration)
+                .map_err(|_| InvalidRecoveryConfig)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn storage(&self) -> StockActivityRecoveryPeers<'_, W, D, E> {
+        StockActivityRecoveryPeers {
+            contracts: self.contracts,
+            registry: &self.registry,
+            discovery: self.discovery,
+            evidence: match &self.evidence {
+                ActivityEvidence::Borrowed(evidence) => evidence,
+                ActivityEvidence::Owned(evidence) => evidence,
+            },
+        }
+    }
+}
+
+impl<
+    'a,
+    P: StockActivityPrincipal,
+    D: StockActivityRecoveryDiscovery,
+    M: StockActivityRecoveryEvidence,
+>
+    StockActivityRecoveryOwners<
+        'a,
+        NativeWriterContracts,
+        D,
+        HomeboxStockActivityEvidence<'a, P, M>,
+    >
+{
+    /// Explicit activity-native /3 composition over the independently retained
+    /// ORIGINAL sealed producer and actual bounded native port captures. The
+    /// archive must be independently authenticated/durably retrieved; this
+    /// constructor records neither approval nor archival completion.
+    /// The current native carrier has no serialized reload constructor. An
+    /// in-process archive can survive Core close; authentic process-restart
+    /// retrieval still requires a qualified original-owner companion.
+    ///
+    /// The mandatory original_media peer independently qualifies original
+    /// preflight/approval/media reservation and EVERY event-local liability and
+    /// provenance cut. The actual codec additionally checks each own native
+    /// prefix and recomputes accepted native reducers. No Jobs lease conversion,
+    /// manifest-selected codec, invented original evidence or permission minting.
+    pub fn homebox_native_v3(
+        contracts: &'a NativeWriterContracts,
+        registry: &[StockActivityPhysicalRegistration],
+        discovery: &'a D,
+        archive: &'a RetainedNativeStockActivityArchive<P>,
+        original_media: &'a M,
+    ) -> Result<Self> {
+        Self::with_evidence(
+            contracts,
+            registry,
+            discovery,
+            ActivityEvidence::Owned(HomeboxStockActivityEvidence::new(
+                contracts,
+                archive,
+                original_media,
+            )),
+        )
     }
 }
