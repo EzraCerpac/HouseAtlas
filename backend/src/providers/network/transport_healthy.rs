@@ -157,7 +157,7 @@ impl NetworkCachePublisher<HealthyLease> for HealthyPublisher {
             .unwrap();
         assert_eq!(count, 1); // The actual SQLite stage committed before this consuming port call.
         let (proposal, _receipt) = staged.into_parts();
-        let (state, _precondition) = proposal.into_parts();
+        let (state, _precondition, _original_capture) = proposal.into_parts();
         assert_eq!(
             state.cache.generation_id.as_deref(),
             Some(fence.reserved_generation_id())

@@ -49,10 +49,23 @@ impl PreparedPublication {
     pub fn lease(&self) -> &Arc<OriginalNetworkLease> {
         &self.lease
     }
+    pub(super) fn admit_before_transport(
+        &self,
+        store: &mut Store,
+        references: &mut n::NetworkCacheReferences<'_>,
+    ) -> s::Result<n::NetworkArchiveReservation> {
+        let residency = store.guard_cache_residency(references)?;
+        let admission =
+            residency.admit_before_transport(&self.prepared.fence, s::CACHE_ROW_BYTES)?;
+        let (_references, committed) = residency.release();
+        committed?;
+        Ok(admission)
+    }
     pub(super) fn publish(
         self,
         store: &mut Store,
-        staged: n::StagedNetworkPublication<n::DurableNetworkReceipt>,
+        staged: n::StagedNetworkPublication<n::NetworkStagingReceipt<n::DurableNetworkReceipt>>,
+        references: &mut n::NetworkCacheReferences<'_>,
     ) -> s::Result<s::CacheStatus> {
         if self.prepared.baseline.cache.as_ref().is_some_and(|cache| {
             cache.status == n::CacheStatus::AccessRevoked
@@ -65,9 +78,9 @@ impl PreparedPublication {
         let source: n::SourceRegistration =
             serde_json::from_value(serde_json::to_value(self.lease.source.registration())?)?;
         let row = n::stage_row(&source, staged.proposal()).map_err(|_| conflict())?;
-        if staged.receipt().partition_key() != row.partition_key
-            || staged.receipt().generation_id() != row.generation_id
-            || staged.receipt().sha256() != row.sha256
+        if staged.receipt().projected().partition_key() != row.partition_key
+            || staged.receipt().projected().generation_id() != row.generation_id
+            || staged.receipt().projected().sha256() != row.sha256
         {
             return Err(conflict());
         }
@@ -75,7 +88,12 @@ impl PreparedPublication {
         held_consuming(&lease, |authorization| {
             n::NativeNetworkPublisher::new(store)
                 .with_authorization(authorization)
-                .publish_prepared_generation(self.prepared.fence, staged, lease.as_ref())
+                .publish_staged_generation_with_custody(
+                    self.prepared.fence,
+                    staged,
+                    lease.as_ref(),
+                    references,
+                )
         })
     }
     pub(super) fn failure(

@@ -1,6 +1,7 @@
 //! Passive Network inventory component. The host owns authorization, transport
 //! configuration, single-flight scheduling and atomic durable publication.
 mod adapter;
+mod archive;
 mod durable;
 mod facet;
 pub mod host_runtime;
@@ -15,6 +16,11 @@ mod saved_queries;
 mod sidecar;
 
 pub use adapter::*;
+pub use archive::{
+    MAX_ACTIVE_SEGMENT_BYTES, MAX_ARCHIVE_ENTRIES, MAX_ARCHIVE_ROW_BYTES,
+    MAX_RETAINED_SEGMENT_BYTES, NetworkArchiveReceipt, NetworkArchiveReservation,
+    NetworkImmutableArchive, ReopenedNetworkCapture,
+};
 pub use durable::*;
 pub use facet::*;
 pub use http::*;

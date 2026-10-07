@@ -144,6 +144,33 @@ where
     R: storage::Runtime,
     B: storage::Authorization,
 {
+    /// Commit the exact original staged object through Store's custody-aware
+    /// path. The Network archive guard verifies immutable raw bytes while the
+    /// Store holds its own IMMEDIATE transaction and pin registry.
+    pub fn publish_staged_generation_with_custody<L>(
+        &mut self,
+        fence: storage::CachePublicationFence,
+        staged: StagedNetworkPublication<NetworkStagingReceipt<DurableNetworkReceipt>>,
+        lease: &L,
+        references: &mut impl storage::OriginalCacheReferences<
+            Staged = StagedNetworkPublication<NetworkStagingReceipt<DurableNetworkReceipt>>,
+        >,
+    ) -> storage::Result<storage::CacheStatus>
+    where
+        L: NativeNetworkLease<B>,
+    {
+        let published = self
+            .store
+            .publish_staged_generation_with_authorization(
+                self.authorization,
+                lease.storage_principal(),
+                fence,
+                staged,
+                references,
+            )
+            .map_err(|rejected| rejected.into_parts().0)?;
+        Ok(published.cache().clone())
+    }
     pub fn record_prepared_cache_failure<L: NativeNetworkLease<B>>(
         &mut self,
         fence: storage::CachePublicationFence,
