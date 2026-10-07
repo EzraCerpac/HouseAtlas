@@ -1,0 +1,301 @@
+//! One healthy loopback GET and actual native publication. This executable has
+//! no stopped-control branch. All passwords, certificates and DBs are disposable.
+use houseatlas_backend::{
+    access as a,
+    app::{self, Core, ReadAuthority, ServerRuntime, Store},
+    config::providers::{network::NetworkSettings, registry::ProviderRegistry},
+    domain as d,
+    http::contracts::NativeContracts,
+    media::{AssetVault, native::NativeMediaRuntime},
+    providers::network::{self as n, host_runtime::*},
+    storage as s,
+};
+use n::DurableNetworkSidecar;
+use serde_json::{Value, json};
+use std::sync::{Arc, Mutex};
+use tokio_util::sync::CancellationToken;
+
+type Failure = Box<dyn std::error::Error + Send + Sync>;
+fn evidence<'a>(
+    url: &'a str,
+    origin: &'a str,
+    method: a::Method,
+    cookie: Option<&'a str>,
+    csrf: Option<&'a str>,
+) -> a::RequestEvidence<'a> {
+    a::RequestEvidence {
+        method,
+        url,
+        origin: Some(origin),
+        sec_fetch_site: Some("same-origin"),
+        referer: None,
+        cookie,
+        authorization: None,
+        csrf,
+    }
+}
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), Failure> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() != 3 {
+        return Err("Expected disposable loopback origin and certificate path".into());
+    }
+    let origin = &args[1];
+    let parsed = url::Url::parse(origin)?;
+    if parsed.scheme() != "https"
+        || parsed.host_str() != Some("127.0.0.1")
+        || parsed.port().is_none()
+        || parsed.origin().ascii_serialization() != *origin
+    {
+        return Err("Fixture requires canonical IPv4 loopback HTTPS".into());
+    }
+    let ca = std::fs::read(&args[2])?;
+    let directory = tempfile::tempdir()?;
+    let directory_path = std::fs::canonicalize(directory.path())?;
+    let mut snapshot: Value = serde_json::from_str(include_str!(
+        "../../../../../../packages/contracts/fixtures/plan-free.snapshot.json"
+    ))?;
+    let mut registration: s::SourceRegistration =
+        serde_json::from_value(snapshot["sources"][2].clone())?;
+    registration.partition_mode = s::PartitionMode::ReviewedEntityAllowlist;
+    registration.allowed_external_ids = [
+        "group-a",
+        "device-a",
+        "device-b",
+        "interface-a",
+        "segment-a",
+        "member-a",
+        "association-a",
+        "connection-a",
+        "gap-a",
+    ]
+    .map(String::from)
+    .to_vec();
+    snapshot["sources"][2] = serde_json::to_value(&registration)?;
+    snapshot["networkRelations"] = json!([]);
+    let registry = ProviderRegistry::from_trusted_configuration(vec![registration.clone()])?;
+    let source = registry.sources()[0].clone();
+    let scope = source.partition().scope();
+    let user = a::CanonicalId::parse("00000000-0000-4000-8000-000000000004")?;
+    let actor = a::CanonicalId::parse("00000000-0000-4000-8000-000000000005")?;
+    let policy = vec![
+        a::LifecycleRule::new(
+            user.clone(),
+            actor.clone(),
+            source.access_registration().clone(),
+            a::LifecycleCapability::ConfigureSource,
+            a::Action::Mutate,
+        )?,
+        a::LifecycleRule::new(
+            user.clone(),
+            actor.clone(),
+            source.access_registration().clone(),
+            a::LifecycleCapability::PublishCache,
+            a::Action::Read,
+        )?,
+    ];
+    let access = OwnedNetworkAccess::new(vec![origin.clone()], a::AccessLimits::default(), policy)?;
+    let password = format!("Disposable-{}", app::new_id()?);
+    access.provision_user(
+        &user,
+        &actor,
+        "synthetic-network-editor",
+        &a::hash_password(&password)?,
+        None,
+    )?;
+    access.set_membership(&user, &scope, a::Role::Editor, true)?;
+    let login_url = format!("{origin}/api/atlas/auth/login");
+    let receipt = access.login(
+        &evidence(&login_url, origin, a::Method::Post, None, None),
+        &serde_json::to_vec(&json!({"username":"synthetic-network-editor", "password":password}))?,
+        "disposable-loopback",
+    )?;
+    let cookie = receipt
+        .set_cookie()
+        .split(';')
+        .next()
+        .ok_or("Missing session cookie")?;
+    let csrf = receipt.info().csrf_token();
+    let configure_url = format!("{origin}/api/atlas/configure");
+    let principal = access.authorize(
+        &evidence(
+            &configure_url,
+            origin,
+            a::Method::Post,
+            Some(cookie),
+            Some(csrf),
+        ),
+        &scope,
+        a::Action::Mutate,
+    )?;
+    // The configured Atlas authorizer is a genuine unrelated AT11 boundary.
+    // Publication must use the per-call original authorizer on this SAME Store;
+    // the configured ReadAuthority grants no ConfigureSource/PublishCache.
+    let default_access = Arc::new(Mutex::new(a::AccessBoundary::in_memory(
+        a::AccessConfig::new(vec![origin.clone()])?,
+    )?));
+    let vault = Arc::new(AssetVault::open(&directory_path.join("media"))?);
+    let atlas_path = directory_path.join("atlas.sqlite");
+    let mut store = Store::open(
+        &atlas_path,
+        NativeContracts,
+        ReadAuthority(default_access.clone()),
+        NativeMediaRuntime {
+            vault: vault.clone(),
+            server: ServerRuntime,
+        },
+        s::StoreOptions {
+            allow_synthetic_bootstrap: true,
+            ..Default::default()
+        },
+    )?;
+    store.initialize_synthetic(&serde_json::from_value(snapshot)?)?;
+    access.configure(&mut store, &principal, &source)?;
+    let read_url = format!("{origin}/api/atlas/network");
+    let principal = access.authorize(
+        &evidence(&read_url, origin, a::Method::Get, Some(cookie), None),
+        &scope,
+        a::Action::Read,
+    )?;
+    let partition = access.partition_grant(&principal, &source.partition())?;
+    let mut grants = Vec::new();
+    for (kind, id) in [
+        (a::SourceKind::NetworkGroup, "group-a"),
+        (a::SourceKind::NetworkDevice, "device-a"),
+        (a::SourceKind::NetworkDevice, "device-b"),
+        (a::SourceKind::NetworkInterface, "interface-a"),
+        (a::SourceKind::NetworkSegment, "segment-a"),
+    ] {
+        grants.push(access.source_grant(
+            &principal,
+            &a::SourceRef {
+                workspace_id: scope.workspace_id.clone(),
+                home_id: scope.home_id.clone(),
+                key: a::SourceKey {
+                    source_instance_id: source.partition().source_instance_id,
+                    collection_id: registration.collection_id.clone(),
+                    source_kind: kind,
+                    external_id: id.into(),
+                },
+            },
+        )?);
+    }
+    let lease = access.retain_original(principal, source.clone(), partition, grants)?;
+    let settings = NetworkSettings::new(
+        source,
+        origin,
+        serde_json::from_str(include_str!(
+            "../../../../../../adapters/network/fixtures/link-review.json"
+        ))?,
+        n::Limits::default(),
+        2000,
+        2000,
+        300_000,
+        &directory_path,
+    )?
+    .with_reviewed_ca_pem(&ca)?;
+    let authority = NetworkAuthority::new(lease.clone(), &settings.transport(), None)?;
+    let home = d::HomeSummary {
+        scope: d::Scope {
+            workspace_id: registration.workspace_id.clone(),
+            home_id: registration.home_id.clone(),
+        },
+        label: "Synthetic Network home".into(),
+    };
+    let core = Arc::new(Mutex::new(Core {
+        access: default_access,
+        store: Mutex::new(store),
+        vault,
+        homes: vec![home.clone()],
+        home,
+    }));
+    let runtime = HostNetworkRuntime::open(settings)?;
+    let outcome = runtime
+        .refresh(
+            &core,
+            authority,
+            lease.clone(),
+            CancellationToken::new(),
+            || "2026-01-02T12:00:00Z".into(),
+        )
+        .await;
+    let cache = match outcome {
+        Ok(RefreshResult::Published(cache)) => cache,
+        Ok(RefreshResult::SourceFailure(cache)) => {
+            return Err(format!(
+                "Healthy fixture returned sanitized source failure: {:?}",
+                cache.error.as_ref().map(|e| &e.code)
+            )
+            .into());
+        }
+        Ok(RefreshResult::AlreadyRunning) => return Err("Unexpected in-progress result".into()),
+        Err(n::NetworkPublicationError::Network(e)) => return Err(e.into()),
+        Err(n::NetworkPublicationError::Storage(e)) => return Err(e.into()),
+    };
+    lease.revalidate()?;
+    let db = rusqlite::Connection::open_with_flags(
+        &atlas_path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )?;
+    let epoch: i64 = db.query_row(
+        "SELECT epoch FROM cache_epochs WHERE source_instance_id=?1",
+        [&registration.source_instance_id],
+        |r| r.get(0),
+    )?;
+    assert_eq!(epoch, 1);
+    let body: String = db.query_row(
+        "SELECT body FROM caches WHERE source_instance_id=?1",
+        [&registration.source_instance_id],
+        |r| r.get(0),
+    )?;
+    assert_eq!(serde_json::from_str::<s::CacheStatus>(&body)?, cache);
+    let count: i64 = db.query_row(
+        "SELECT COUNT(*) FROM network_relations WHERE source_instance_id=?1",
+        [&registration.source_instance_id],
+        |r| r.get(0),
+    )?;
+    assert_eq!(count, 4);
+    drop(db);
+    let source = runtime.settings().source().clone();
+    let review = runtime.settings().review().clone();
+    let key = n::partition_key(&source.scope)?;
+    use sha2::{Digest, Sha256};
+    let sidecar_path = directory_path.join(format!(
+        "network-{:x}.sqlite",
+        Sha256::digest(key.as_bytes())
+    ));
+    runtime.close()?;
+    let sidecar = n::SqliteNetworkSidecar::open(&sidecar_path, std::slice::from_ref(&source))?;
+    let row = sidecar.load(
+        &source,
+        cache.generation_id.as_deref().ok_or("Missing generation")?,
+    )?;
+    let packet = n::SidecarPacket {
+        format: n::SIDECAR_FORMAT.into(),
+        rows: vec![row],
+    };
+    let retained = n::validate_sidecar_packet(&packet, std::slice::from_ref(&source))?.remove(0);
+    let cache: n::CacheMetadata = serde_json::from_value(serde_json::to_value(cache)?)?;
+    let generation = retained
+        .generation
+        .as_ref()
+        .ok_or("Missing retained generation")?;
+    assert_eq!(generation_references(&source, generation)?.len(), 5);
+    assert_eq!(generation.inventory.links.len(), 4);
+    assert_eq!(generation.observations.len(), 0);
+    assert_eq!(generation.retrieved_at, "2026-01-02T12:00:00Z");
+    let reopened = n::reopen_sidecar(
+        &source,
+        &cache,
+        &generation.network_relations,
+        &packet.rows[0],
+        Some(&review),
+    )?;
+    assert_eq!(reopened, retained);
+    sidecar.close()?;
+    drop(core);
+    println!(
+        "PASS healthy native Network: verified TLS inventory GET1, genuine AT11 original grants, same-store native publisher, epoch0->1, durable pointer/reopen, entities5/links4/relations4/observations0; public link disclosure unqualified"
+    );
+    Ok(())
+}
