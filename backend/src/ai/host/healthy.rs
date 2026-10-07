@@ -43,6 +43,8 @@ struct Synthetic {
     releases: Arc<AtomicUsize>,
     receipt_releases: Arc<AtomicUsize>,
     retired_handles: Arc<AtomicUsize>,
+    observations: Arc<AtomicUsize>,
+    disconnect_displays: Arc<AtomicUsize>,
 }
 impl Synthetic {
     fn current_binding(&self) -> RegistrationBinding {
@@ -429,12 +431,22 @@ impl LifecycleEnvironment<()> for Synthetic {
     fn manage_usage<'a>(&'a self, _: &'a ()) -> PortFuture<'a, ()> {
         Box::pin(async { Err(AiError::ConnectionUnavailable) })
     }
+    fn disconnect_display(&self, _: &()) -> ConnectionSnapshot {
+        // Local retirement has already happened. This is cached fixture display
+        // only, with no asynchronous observation or credential acquisition.
+        assert!(self.rotated.load(Ordering::SeqCst));
+        self.disconnect_displays.fetch_add(1, Ordering::SeqCst);
+        snapshot(false)
+    }
     fn snapshot<'a>(
         &'a self,
         _: &'a (),
         _: &'a Cancellation,
     ) -> PortFuture<'a, ConnectionSnapshot> {
-        Box::pin(async { Ok(snapshot(false)) })
+        Box::pin(async move {
+            self.observations.fetch_add(1, Ordering::SeqCst);
+            Ok(snapshot(false))
+        })
     }
 }
 type Infer = ResponsesAdapter<HttpResponses<Synthetic>>;
@@ -764,6 +776,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         dismissed["outcome"],
         json!({"status":"cancelled","usage":usage})
     );
+    assert_eq!(synthetic.observations.load(Ordering::SeqCst), 1);
     // Normal no-token lifecycle disconnect: stop_use rotates the synthetic
     // cancellation epoch. The real OAuth implementation never calls revoke.
     let response = request(
@@ -778,6 +791,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert!(response.status().is_success());
     let disconnected: Value = serde_json::from_slice(&response.bytes().await?)?;
     assert_eq!(disconnected["status"], "completed");
+    assert_eq!(synthetic.observations.load(Ordering::SeqCst), 1);
+    assert_eq!(synthetic.disconnect_displays.load(Ordering::SeqCst), 1);
     assert_eq!(
         disconnected["snapshot"]["authorization"],
         "sign-in-required"
@@ -800,7 +815,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     stop_tx.send(()).unwrap();
     server.await??;
     provider_thread.join().unwrap();
+    drop(host);
     drop(journal);
+    // Inspected positive upgrade input: earlier versions used the six-field
+    // request scope for action rows. Seed one receipt and one ordinary pending
+    // action, then let the actual journal constructor upgrade them atomically.
+    // No callback, credential exchange or action replay is performed.
+    let mut legacy_receipt = disconnected.clone();
+    legacy_receipt["actionId"] = json!("synthetic-legacy-receipt");
+    let legacy_payload = serde_json::to_string(&legacy_receipt)?;
+    let pending_payload = json!({"action":"consent"}).to_string();
+    {
+        let original = Connection::open(&db_path)?;
+        original.execute(
+            "INSERT INTO ai_host_status(scope,id,kind,state,payload,cancelled)
+            VALUES(?1,'synthetic-legacy-receipt','action','observed',?2,0)",
+            rusqlite::params![scope, legacy_payload],
+        )?;
+        original.execute(
+            "INSERT INTO ai_host_status(scope,id,kind,state,payload,cancelled)
+            VALUES(?1,'synthetic-legacy-pending','action','unconfirmed',?2,0)",
+            rusqlite::params![scope, pending_payload],
+        )?;
+    }
     let reopened = StatusJournal::new(Connection::open(&db_path)?)?;
     assert_eq!(
         serde_json::to_value(reopened.read(&binding(), "synthetic-run", true)?)?,
@@ -820,6 +857,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         |r| r.get(0),
     )?;
     assert_eq!(retired, 1);
+    let current = synthetic.current_binding();
+    let action_scope = serde_json::to_string(&[
+        &current.actor_id,
+        &current.workspace_id,
+        &current.home_id,
+        &current.registration_id,
+        &current.authority_epoch,
+    ])?;
+    for (id, state, payload) in [
+        (
+            "synthetic-legacy-receipt",
+            "observed",
+            legacy_payload.as_str(),
+        ),
+        (
+            "synthetic-legacy-pending",
+            "unconfirmed",
+            pending_payload.as_str(),
+        ),
+    ] {
+        let row:(String,String,String,i64) = readonly.query_row(
+            "SELECT scope,state,payload,cancelled FROM ai_host_status WHERE kind='action' AND id=?1",
+            [id], |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)))?;
+        assert_eq!(row, (action_scope.clone(), state.into(), payload.into(), 0));
+        let upgrade: (String, String) = readonly.query_row(
+            "SELECT scope,payload FROM ai_host_observation
+             WHERE category='action-scope-upgraded' AND id=?1",
+            [id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+        assert_eq!(
+            upgrade,
+            (
+                scope.clone(),
+                json!({"receiptScope":action_scope}).to_string()
+            )
+        );
+    }
     assert_eq!(
         serde_json::to_value(reopened.read(&binding(), "synthetic-review", true)?)?,
         dismissed
@@ -841,15 +916,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .await?;
     assert_eq!(serde_json::to_value(action_poll)?, disconnected);
+    let legacy_poll = runtime::ConnectionActionPort::status(
+        &reopened_actions,
+        &(),
+        "synthetic-legacy-receipt",
+        &Cancellation::default(),
+    )
+    .await?;
+    assert_eq!(serde_json::to_value(legacy_poll)?, legacy_receipt);
+    let pending_poll = runtime::ConnectionActionPort::status(
+        &reopened_actions,
+        &(),
+        "synthetic-legacy-pending",
+        &Cancellation::default(),
+    )
+    .await?;
+    assert!(matches!(
+        pending_poll.status,
+        runtime::ConnectionActionStatus::Unconfirmed
+    ));
+    assert_eq!(pending_poll.action_id, "synthetic-legacy-pending");
+    assert_eq!(
+        pending_poll.snapshot.paid_use_admission,
+        ai::PaidUseAdmission::Held
+    );
     if let Some(path) = std::env::var_os("HOUSEATLAS_AI_HEALTHY_JSON") {
         std::fs::write(
             path,
             serde_json::to_vec(&json!({"connection":observed_connection,
-            "action":action,"disconnect":disconnected,"dismissal":dismissal,"dismissedStatus":dismissed,"run":completed,"requestStatus":retained,"models":models}))?,
+            "action":action,"disconnect":disconnected,"legacyReceipt":legacy_receipt,"legacyPending":pending_poll,"dismissal":dismissal,"dismissedStatus":dismissed,"run":completed,"requestStatus":retained,"models":models}))?,
         )?;
     }
     println!(
-        "healthy: actual loopback models/Responses HTTP, mounted router/run/status, durable usage/reopen, pending OAuth begin, local review dismissal, and no-token disconnect/epoch-stable receipt; account/crypto/encryption peers synthetic; no paid inference or stopped controls"
+        "healthy: actual loopback models/Responses HTTP, mounted router/run/status, durable usage/reopen, pending OAuth begin, local review dismissal, no-token disconnect/epoch-stable receipt without fresh observation, and legacy action-key upgrade/polling; account/crypto/encryption peers synthetic; no paid inference or stopped controls"
     );
     Ok(())
 }

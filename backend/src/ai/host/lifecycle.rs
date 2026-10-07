@@ -23,6 +23,10 @@ pub trait LifecycleEnvironment<C>: HostAuthority<C> {
     /// verifier/state/code/token material must never enter browser IPC or logs.
     fn launch<'a>(&'a self, context: &'a C, launch: AuthorizationLaunch) -> PortFuture<'a, ()>;
     fn manage_usage<'a>(&'a self, context: &'a C) -> PortFuture<'a, ()>;
+    /// Cached credential-free display/configuration only, after local stop-use.
+    /// Infallible and synchronous: no provider/runtime I/O, credential lease,
+    /// new grant or fresh observation. The host clears admission/readiness.
+    fn disconnect_display(&self, context: &C) -> ConnectionSnapshot;
     fn snapshot<'a>(
         &'a self,
         context: &'a C,
@@ -190,11 +194,12 @@ impl<
                     ConnectionActionStatus::Pending
                 }
                 ConnectionAction::Disconnect => {
-                    let mut snapshot = self.environment.snapshot(context, cancel).await?;
                     self.journal.stop_registration(&binding)?;
                     let receipt = self.lifecycle().disconnect(context, &binding).await?;
                     self.environment
                         .revalidate_action_receipt(context, &binding)?;
+                    // Display collection cannot prevent or precede local stop.
+                    let mut snapshot = self.environment.disconnect_display(context);
                     // Only local credential-use facts are cleared. Preserve the
                     // previously authorized display; infer no remote revocation.
                     snapshot.authorization = crate::ai::AuthorizationState::SignInRequired;
