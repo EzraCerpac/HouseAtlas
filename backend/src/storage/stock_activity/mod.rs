@@ -189,6 +189,16 @@ impl<
         &self,
         f: impl FnOnce(&Connection, &R) -> PortResult<T>,
     ) -> PortResult<T> {
+        self.transact_with_runtime_committed(f, |_| {})
+    }
+    /// Infallible internal bookkeeping after the original SQL commit, before
+    /// any post-commit live-fence/disclosure failure. Acquire needed locks in
+    /// the transaction closure; this callback must perform no fallible work.
+    fn transact_with_runtime_committed<T>(
+        &self,
+        f: impl FnOnce(&Connection, &R) -> PortResult<T>,
+        committed: impl FnOnce(&mut T),
+    ) -> PortResult<T> {
         // A live call retains the access fence before entering here, while an
         // evidence policy may consult access with the store already borrowed.
         // Never wait for the store mutex: contention returns Unavailable and
@@ -205,8 +215,9 @@ impl<
         let tx = db
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(unavailable)?;
-        let result = f(&tx, runtime)?;
+        let mut result = f(&tx, runtime)?;
         tx.commit().map_err(unavailable)?;
+        committed(&mut result);
         Ok(result)
     }
     fn transact_live<T>(
@@ -218,6 +229,13 @@ impl<
     fn transact_live_with_runtime<T>(
         &self,
         f: impl FnOnce(&Connection, &access::TransactionAuthorization<'_>, &R) -> PortResult<T>,
+    ) -> PortResult<T> {
+        self.transact_live_with_runtime_committed(f, |_| {})
+    }
+    fn transact_live_with_runtime_committed<T>(
+        &self,
+        f: impl FnOnce(&Connection, &access::TransactionAuthorization<'_>, &R) -> PortResult<T>,
+        committed: impl FnOnce(&mut T),
     ) -> PortResult<T> {
         let mut boundary = self
             .access
@@ -232,18 +250,21 @@ impl<
                     guard
                         .revalidate_source_partition(self.original.original_activity_partition())?;
                     output = Some(
-                        self.transact_with_runtime(|db, runtime| {
-                            let result = f(db, guard, runtime)?;
-                            guard
-                                .revalidate_source(self.original.original_activity_source())
-                                .map_err(evidence)?;
-                            guard
-                                .revalidate_source_partition(
-                                    self.original.original_activity_partition(),
-                                )
-                                .map_err(evidence)?;
-                            Ok(result)
-                        })
+                        self.transact_with_runtime_committed(
+                            |db, runtime| {
+                                let result = f(db, guard, runtime)?;
+                                guard
+                                    .revalidate_source(self.original.original_activity_source())
+                                    .map_err(evidence)?;
+                                guard
+                                    .revalidate_source_partition(
+                                        self.original.original_activity_partition(),
+                                    )
+                                    .map_err(evidence)?;
+                                Ok(result)
+                            },
+                            committed,
+                        )
                         .map_err(AuthorityFailure),
                     );
                     match output.as_ref() {

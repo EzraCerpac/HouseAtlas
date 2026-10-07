@@ -22,7 +22,7 @@ impl<
             StockActivityPhase::Entry,
             StockActivityAction::Reserve(command, authority),
         )?;
-        let reservation = self.transact_live_with_runtime(|db, guard, runtime| {
+        let (reservation, _) = self.transact_live_with_runtime_committed(|db, guard, runtime| {
             repository::register(db,&self.registration)?;
             let prior: Option<String> = db.query_row("SELECT operation_id FROM stock_activity_operations WHERE actor_id=?1 AND workspace_id=?2 AND home_id=?3 AND idempotency_key=?4",params![authority.actor_id.to_string(),command.context.workspace_id.to_string(),command.context.home_id.to_string(),command.idempotency_key.to_string()],|r|r.get(0)).optional().map_err(unavailable)?;
             if let Some(prior) = prior {
@@ -32,8 +32,12 @@ impl<
                 self.authorize_guard(Some(guard),StockActivityPhase::Precommit,StockActivityAction::Disclose(&row.operation))?;
                 // Existing metadata is handed off only through the explicit
                 // original-owner queued_handoff; reserve never redispatches.
-                return Ok(StockReservation::Existing(Box::new(row.operation)));
+                return Ok((StockReservation::Existing(Box::new(row.operation)), None));
             }
+            // Contention must fail before creating a durable reservation.
+            // Hold the original producer set lock through commit so no later
+            // lock acquisition can lose this session's producer eligibility.
+            let producer = self.producer_operations.try_lock().map_err(|_|StockPortFault::Unavailable)?;
             // Existing durable results do not depend on fresh metadata. Borrow
             // the original runtime under this same Store transaction, avoiding
             // a second lock or an out-of-transaction lookup/allocation gap.
@@ -46,19 +50,22 @@ impl<
             self.authorize_guard(Some(guard),StockActivityPhase::Precommit,StockActivityAction::Reserve(command,authority))?;
             db.execute("INSERT INTO stock_activity_operations VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,NULL,0,0,0)",params![id.to_string(),authority.physical_binding.physical_database_id.to_string(),authority.actor_id.to_string(),command.context.workspace_id.to_string(),command.context.home_id.to_string(),command.idempotency_key.to_string(),command.request_digest.as_str(),"1",codec::encode_operation(&operation).map_err(evidence)?]).map_err(unavailable)?;
             repository::append(db,&operation,"reserve","{}")?;
-            Ok(if waiting {StockReservation::Queued(Box::new(operation))}else{StockReservation::Reserved(Box::new(operation))})
+            Ok((if waiting {StockReservation::Queued(Box::new(operation))}else{StockReservation::Reserved(Box::new(operation))}, Some(producer)))
+        }, |(reservation, producer)| {
+            if let Some(mut producer) = producer.take() {
+                match reservation {
+                    StockReservation::Reserved(operation) | StockReservation::Queued(operation) => {
+                        producer.insert(operation.operation_id);
+                    }
+                    StockReservation::Existing(_) => {}
+                }
+            }
         })?;
         let operation = match &reservation {
             StockReservation::Reserved(v)
             | StockReservation::Existing(v)
             | StockReservation::Queued(v) => v,
         };
-        if !matches!(reservation, StockReservation::Existing(_)) {
-            self.producer_operations
-                .try_lock()
-                .map_err(|_| StockPortFault::Unavailable)?
-                .insert(operation.operation_id);
-        }
         self.authorize(
             StockActivityPhase::Release,
             StockActivityAction::Disclose(operation),

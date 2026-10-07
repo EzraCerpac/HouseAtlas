@@ -43,10 +43,11 @@ fn ordinal(value: usize) -> Result<i64> {
     i64::try_from(value).map_err(|_| incompatible())
 }
 
-pub(super) fn validate<C: Contract, S: StockContractPort>(
+pub(super) fn validate<C: Contract, S: StockContractPort, E: QueueRecoveryEvidence>(
     db: &Connection,
     native: &C,
     stock: &S,
+    evidence: &E,
     check: &mut dyn FnMut() -> Result<()>,
 ) -> Result<()> {
     check()?;
@@ -200,7 +201,7 @@ pub(super) fn validate<C: Contract, S: StockContractPort>(
     drop(rows);
     drop(statement);
     validate_owned_rows(db, groups, keys, links, check)?;
-    super::upload_repository::validate_all(db, native, stock, check)?;
+    super::upload_repository::validate_all(db, native, stock, evidence, check)?;
     validate_lookup(db, check)?;
     validate_cursors(db, native, stock, check)?;
     check()

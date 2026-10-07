@@ -20,6 +20,8 @@ use std::{
 };
 use uuid::Uuid;
 
+mod producer_regression;
+
 type Check<T> = Result<T, Box<dyn std::error::Error>>;
 type Store = s::AtlasStore<s::NativeContract<NativeSemantics>, NativeReadAuthority, Clock>;
 const TIME: &str = "2026-10-07T12:00:00Z";
@@ -223,6 +225,7 @@ struct Fixture {
     dispatches: AtomicUsize,
     readbacks: AtomicUsize,
     policy_checks: AtomicUsize,
+    regression_failure: AtomicUsize,
 }
 impl Peers {
     fn current(
@@ -372,7 +375,7 @@ impl s::StockActivityAuthorization<Original> for Peers {
         original: &Original,
         registration: &s::StockActivityRegistration,
         guard: Option<&a::TransactionAuthorization<'_>>,
-        _phase: s::StockActivityPhase,
+        phase: s::StockActivityPhase,
         action: s::StockActivityAction<'_>,
     ) -> Result<(), n::StockPortFault> {
         if !std::ptr::eq(original, Arc::as_ptr(&self.0.original))
@@ -384,6 +387,25 @@ impl s::StockActivityAuthorization<Original> for Peers {
             return Err(n::StockPortFault::EvidenceConflict);
         }
         self.current(guard)?;
+        // Only explicitly selected isolated regression cases arm this peer.
+        let failure = match (phase, &action) {
+            (s::StockActivityPhase::Precommit, s::StockActivityAction::Reserve(..)) => 1,
+            (s::StockActivityPhase::Release, s::StockActivityAction::Disclose(..)) => 2,
+            _ => 0,
+        };
+        if failure != 0
+            && self
+                .0
+                .regression_failure
+                .compare_exchange(failure, 0, Ordering::SeqCst, Ordering::SeqCst)
+                .is_ok()
+        {
+            return Err(if failure == 1 {
+                n::StockPortFault::EvidenceConflict
+            } else {
+                n::StockPortFault::Unavailable
+            });
+        }
         match action {
             s::StockActivityAction::Reserve(command, authority) => {
                 if command != &self.0.command || authority != &self.0.authority {
@@ -568,6 +590,15 @@ impl n::StockReadbackPort for Peers {
 }
 
 fn main() -> Check<()> {
+    let regression = match std::env::args().nth(2).as_deref() {
+        None => None,
+        Some(
+            case @ ("producer-postcommit-failure"
+            | "producer-precommit-denial"
+            | "producer-concurrent-reservation"),
+        ) => Some(case.to_owned()),
+        Some(_) => return Err("Unknown isolated producer regression selection".into()),
+    };
     let root = std::env::args_os()
         .nth(1)
         .map(std::path::PathBuf::from)
@@ -713,6 +744,7 @@ fn main() -> Check<()> {
         dispatches: AtomicUsize::new(0),
         readbacks: AtomicUsize::new(0),
         policy_checks: AtomicUsize::new(0),
+        regression_failure: AtomicUsize::new(0),
     }));
     let store = Arc::new(Mutex::new(s::AtlasStore::open(
         &database,
@@ -735,6 +767,9 @@ fn main() -> Check<()> {
         authority.clone(),
     )
     .map_err(|e| format!("activity session: {e:?}"))?;
+    if let Some(case) = regression {
+        return producer_regression::run(&case, &root, &database, &activity, &peers, &store);
+    }
     let writer = n::StockWriter {
         contracts: peers.clone(),
         access: peers.clone(),

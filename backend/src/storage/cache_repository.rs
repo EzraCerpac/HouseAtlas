@@ -142,7 +142,12 @@ pub(crate) fn reserve_generation(db: &Connection, p: &SourcePartition, id: &str)
     )?;
     Ok(())
 }
-pub(crate) fn write_homebox<C: Contract>(db: &Connection, contract: &C, row: &Value) -> Result<()> {
+/// Projection bodies retain the provider's exact JSON numbers. They are not
+/// mutation digests or receipts, which still use the published JCS contract.
+pub(crate) fn projection_json(row: &Value) -> Result<String> {
+    Ok(serde_json::to_string(row)?)
+}
+pub(crate) fn write_homebox(db: &Connection, row: &Value) -> Result<()> {
     let source = &row["source"];
     db.execute(
         "INSERT INTO projections VALUES(?1,?2,?3,?4,?5,?6)",
@@ -152,7 +157,7 @@ pub(crate) fn write_homebox<C: Contract>(db: &Connection, contract: &C, row: &Va
             repo::string(source, "sourceInstanceId")?,
             repo::string(source, "collectionId")?,
             repo::string(source, "externalId")?,
-            repo::json(contract, row)?
+            projection_json(row)?
         ],
     )?;
     Ok(())
@@ -182,7 +187,7 @@ pub(crate) fn replace_projections<C: Contract>(
     db.execute("DELETE FROM projections WHERE workspace_id=?1 AND home_id=?2 AND source_instance_id=?3 AND collection_id=?4",params![p.workspace_id,p.home_id,p.source_instance_id,p.collection_id])?;
     db.execute("DELETE FROM network_relations WHERE workspace_id=?1 AND home_id=?2 AND source_instance_id=?3 AND collection_id=?4",params![p.workspace_id,p.home_id,p.source_instance_id,p.collection_id])?;
     for row in homebox {
-        write_homebox(db, contract, row)?;
+        write_homebox(db, row)?;
     }
     for row in network {
         write_network(db, contract, row)?;

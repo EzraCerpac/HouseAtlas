@@ -50,6 +50,13 @@ pub struct ConsumedUpload {
     pub(super) group_operation_id: String,
     pub(super) asset_audit_id: String,
 }
+
+/// Borrowed image data to match against independently retained original Media
+/// renderer qualification. Neither variant is a renderer receipt or authority.
+pub enum MediaPolicyRecoveryFrame<'a> {
+    Asset(&'a Record),
+    Upload(&'a ConsumedUpload),
+}
 impl ConsumedUpload {
     pub fn asset_request(&self) -> &Value {
         &self.binding.original_request
