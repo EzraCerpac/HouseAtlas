@@ -157,6 +157,33 @@ authorization decision or handle replacement here. The actual store authorizer
 must keep and revalidate that same branded handle at precommit; binding this
 trait to the actual AT11 principal remains AT52 work.
 
+`NativeNetworkPublisher::new(&mut original_store).with_authorization(&original_authorizer)`
+returns `BorrowedNativeNetworkPublisher`, using AT07's per-call cache seam from
+`e11c17a175eb73980c31b0b3f71d90dbbf816899`, retained in
+`6754297d06a82b14c360ab7721295467d04eddb7`. Its prepare, complete publication
+and fenced failure methods call only the corresponding
+`*_with_authorization` native methods with that borrowed peer. Its lease
+implements `NativeNetworkLease<B>`; `B::Principal` may differ from the configured
+store authorizer's principal. The original open store, issuing-store identity
+and opaque fence remain unchanged. Release this synchronous wrapper for the
+provider await, then construct it over the same store and same original
+borrowed authorizer for publication. Do not recreate authority or reopen Atlas
+storage between these phases. Configured and borrowed adapters share the same
+proposal/carrier checks; the configured API remains available. The existing
+retained sidecar stages provider rows independently; the per-call seam creates
+no database, connection, grant or fence replacement.
+
+The external per-call healthy example compiles full published AT07 storage at
+`6754297d06a82b14c360ab7721295467d04eddb7` with contract/domain/jobs sources
+at published host `825c106a30cfdd5297878f2b169efcb483eeb308`. It uses actual
+native contract DTOs and `NativeSemantics`, distinct positive configured and
+per-call principal types, one original borrowed authorizer/principal, complete
+synthetic inventory publication, and a valid fenced synthetic status write.
+It checks epoch `0 -> 1 -> 2`, four retained relations, sidecar reopening,
+unchanged scoped records and zero audits. The pending failed-read method is
+compiled; failed reads and held failure/rejection/concurrency controls are not
+executed. Actual AT11 handle binding and host wiring remain integration work.
+
 For failures, `NativeNetworkPublisher::publish_pending_failure` consumes the
 pending proposal's original fence, baseline precondition and original lease,
 then calls the actual `record_prepared_cache_failure(principal, fence, failure)`.
