@@ -18,10 +18,25 @@ use sha2::{Digest, Sha256};
 /// Storage must retain this mapping version with immutable derivation data.
 pub const ATLAS_DERIVATION_FORMAT: &str = "atlas-derived-command/1";
 
+/// Closed stock-catalogue predicate for the specialized derivation mapper.
+/// This declares mapping support only; it does not qualify evidence or grant
+/// execution authority.
+pub fn atlas_derived_operation(id: OperationId) -> bool {
+    matches!(
+        id,
+        OperationId::AtlasBindingCreate
+            | OperationId::AtlasBindingReview
+            | OperationId::AtlasBindingRestore
+            | OperationId::AtlasBindingRemap
+            | OperationId::AtlasGeometryCreate
+            | OperationId::AtlasAssetReview
+    )
+}
+
 /// Immutable inputs needed to reproduce a specialized mapping. They carry no
 /// authority. In particular SafeRendered requires the Media owner's actual
 /// renderer-receipt validation; supplying its enum or UUID cannot establish it.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum AtlasDerivation {
     BindingCreate {

@@ -14,6 +14,7 @@ mod ports;
 mod queue;
 mod repository;
 mod stock_activity;
+mod stock_derivation;
 mod stock_history_repository;
 mod stock_projection;
 mod stock_recovery;

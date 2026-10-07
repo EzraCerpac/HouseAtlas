@@ -6,7 +6,9 @@ use super::super::{
 use super::{AtlasStore, shape};
 use crate::domain::{
     self,
-    stock::{self, AtlasCommandPlan, StockContractPort, StockError, ValidatedRequest},
+    stock::{
+        self, AtlasCommandPlan, AtlasDerivation, StockContractPort, StockError, ValidatedRequest,
+    },
 };
 use rusqlite::Connection;
 use serde_json::Value;
@@ -42,7 +44,44 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
     {
         let request = ValidatedRequest::parse(contracts, raw.clone()).map_err(stock_error)?;
         let plan = stock::plan_atlas_commands(&request, &self.contract).map_err(stock_error)?;
-        self.execute_stock_plan(authorization, principal, contracts, &request, &plan, None)
+        self.execute_stock_plan(
+            authorization,
+            principal,
+            contracts,
+            &request,
+            &plan,
+            None,
+            None,
+        )
+    }
+
+    /// Executes one specialized derived Atlas mapping in the same native
+    /// transaction and borrowed original-principal authorization fence.
+    pub fn execute_derived_stock_json_with_authorization<B, S>(
+        &mut self,
+        authorization: &B,
+        principal: &A::Principal,
+        contracts: &S,
+        raw: &Value,
+        derivation: &AtlasDerivation,
+    ) -> Result<StockAtlasCommit>
+    where
+        B: StockAuthorization<Principal = A::Principal>,
+        S: StockContractPort,
+    {
+        let request = ValidatedRequest::parse(contracts, raw.clone()).map_err(stock_error)?;
+        super::stock_derivation::validate_derivation(&request, derivation).map_err(stock_error)?;
+        let plan = stock::plan_derived_atlas_commands(&request, derivation, &self.contract)
+            .map_err(stock_error)?;
+        self.execute_stock_plan(
+            authorization,
+            principal,
+            contracts,
+            &request,
+            &plan,
+            None,
+            Some(derivation),
+        )
     }
 
     /// Consumes one authentic stage in the original stock/native transaction.
@@ -79,6 +118,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             &request,
             qualified.plan(),
             Some(staged),
+            None,
         )
     }
 
@@ -90,6 +130,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         request: &ValidatedRequest,
         plan: &AtlasCommandPlan,
         staged: Option<&crate::media::staged_upload::StagedAssetPlan>,
+        derivation: Option<&AtlasDerivation>,
     ) -> Result<StockAtlasCommit> {
         let entries = plan
             .groups()
@@ -114,6 +155,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             request,
             plan,
             staged,
+            derivation,
             entries: &entries,
             batch: batch.as_ref(),
             commit: None,
@@ -144,6 +186,7 @@ struct StockTransaction<'a, C, B: Authorization, R, S> {
     request: &'a ValidatedRequest,
     plan: &'a AtlasCommandPlan,
     staged: Option<&'a crate::media::staged_upload::StagedAssetPlan>,
+    derivation: Option<&'a AtlasDerivation>,
     entries: &'a [MutationEntry],
     batch: Option<&'a BatchMutation>,
     commit: Option<StockAtlasCommit>,
@@ -329,6 +372,15 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
         Ok(None)
     }
     fn validate_original(&self, original: &Snapshot) -> Result<()> {
+        if let Some(derivation) = self.derivation {
+            super::stock_derivation::validate_original(
+                self.contract,
+                self.request,
+                original,
+                self.plan.scope(),
+                derivation,
+            )?;
+        }
         // A single root's guards are its native command guards. Preserve the
         // native transition-then-guards order instead of checking them twice.
         if self.plan.batch_target_id().is_none() {
@@ -420,9 +472,12 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
             actor_id: actor.actor_id.clone(),
             replayed: false,
             groups,
+            derivation_format: None,
+            derivation: None,
             wire: Value::Null,
             children: Vec::new(),
         };
+        commit.set_derivation(self.derivation.cloned());
         let output = self.project(&commit)?;
         commit.wire = output.wire;
         commit.children = output.children;

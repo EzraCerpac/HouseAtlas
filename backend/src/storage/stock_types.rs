@@ -1,6 +1,8 @@
 //! Durable stock metadata, with authority kept in borrowed required peers.
 use super::*;
-use crate::domain::stock::{AtlasCommandPlan, OwnerResult};
+use crate::domain::stock::{
+    ATLAS_DERIVATION_FORMAT, AtlasCommandPlan, AtlasDerivation, OwnerResult,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -56,8 +58,20 @@ pub struct StockAtlasCommit {
     pub actor_id: String,
     pub replayed: bool,
     pub groups: Vec<StockCommitGroup>,
+    /// Present only for the six specialized Atlas mappings. Older direct and
+    /// staged receipts omit these fields and remain readable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub derivation_format: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub derivation: Option<AtlasDerivation>,
     pub wire: Value,
     pub children: Vec<Value>,
+}
+impl StockAtlasCommit {
+    pub(crate) fn set_derivation(&mut self, derivation: Option<AtlasDerivation>) {
+        self.derivation_format = derivation.as_ref().map(|_| ATLAS_DERIVATION_FORMAT.into());
+        self.derivation = derivation;
+    }
 }
 impl StockAtlasCommit {
     pub fn owner_result(&self) -> OwnerResult {
