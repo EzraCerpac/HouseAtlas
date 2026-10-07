@@ -50,7 +50,7 @@ export interface ApplicationServicePort {
 
 /** Resolve after the matching UI state is committed; preserve DTO fields/order. */
 export interface VisibleResultPort {
-  apply(toolName: string, result: JsonValue, context: InvocationContext): Promise<void>;
+  apply(toolName: string, result: JsonValue, context: InvocationContext, input: JsonObject): Promise<void>;
 }
 
 export interface RegisteredBrowserTool {

@@ -89,7 +89,7 @@ export function startWebMcp(options: WebMcpOptions): WebMcpHandle {
     signal.throwIfAborted();
     if (!sessionMatches(session, sessions.getSnapshot())) throw unavailable();
     // Give the view its own copy so display transformations cannot alter the wire.
-    await visible.apply(tool.name, jsonSnapshot(result), context);
+    await visible.apply(tool.name, jsonSnapshot(result), context, parsed);
     signal.throwIfAborted();
     if (!sessionMatches(session, sessions.getSnapshot())) throw unavailable();
     return result;
