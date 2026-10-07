@@ -1,4 +1,5 @@
 //! Command transaction and durable receipt orchestration.
+use super::super::command_extension::{CommandExtension, Core};
 use super::super::{
     context::{self, ContextInput},
     repository as repo,
@@ -96,11 +97,11 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
 
 /// A borrowed view of the store's private connection and required peers.
 /// Default and per-call authorization share exactly this transaction engine.
-struct CommandTransaction<'a, C, A, R> {
-    db: &'a mut Connection,
-    contract: &'a C,
-    authorization: &'a A,
-    runtime: &'a R,
+pub(super) struct CommandTransaction<'a, C, A, R> {
+    pub(super) db: &'a mut Connection,
+    pub(super) contract: &'a C,
+    pub(super) authorization: &'a A,
+    pub(super) runtime: &'a R,
 }
 impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> {
     fn execute(
@@ -120,6 +121,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
                 command: command.clone(),
             }],
             None,
+            &mut Core,
         )?
         .pop()
         .ok_or(Error::new(
@@ -160,23 +162,19 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
         batch: &BatchMutation,
     ) -> Result<BatchResult> {
         shape(self.contract, "batchMutation", batch)?;
-        let results = self.execute_entries(principal, scope, &batch.commands, Some(batch))?;
-        let result = BatchResult {
-            schema_version: 1,
-            batch_id: batch.batch_id.clone(),
-            replayed: results.iter().all(|r| r.replayed),
-            results,
-        };
-        shape(self.contract, "batchResult", &result)?;
-        Ok(result)
+        let results =
+            self.execute_entries(principal, scope, &batch.commands, Some(batch), &mut Core)?;
+        // execute_entries validates this exact envelope before committing.
+        Ok(batch_result(batch, results))
     }
 
-    fn execute_entries(
+    pub(super) fn execute_entries(
         &mut self,
         principal: &A::Principal,
         scope: &Scope,
         entries: &[MutationEntry],
         batch: Option<&BatchMutation>,
+        extension: &mut dyn CommandExtension,
     ) -> Result<Vec<MutationResult>> {
         shape(self.contract, "scope", scope)?;
         if entries.is_empty() || entries.len() > 100 {
@@ -231,9 +229,11 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
                 mutation: Some(&intake),
             },
         )?;
+        extension.authorize(&intake, &original, None, None, &actor)?;
         let revalidate = |phase: MutationPhase,
                           candidate: Option<&Snapshot>,
-                          replay: Option<&Replay>|
+                          replay: Option<&Replay>,
+                          extension: &mut dyn CommandExtension|
          -> Result<()> {
             let facts = context(phase, candidate, replay)?;
             let verified = authorize(
@@ -249,12 +249,13 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
                     mutation: Some(&facts),
                 },
             )?;
-            if verified.actor_id != actor.actor_id {
+            if verified != actor {
                 return Err(Error::new(
                     "unauthenticated",
                     "Verified principal changed during transaction",
                 ));
             }
+            extension.authorize(&facts, &original, candidate, replay, &actor)?;
             Ok(())
         };
         let ids: BTreeSet<_> = entries.iter().map(|e| &e.command.mutation_id).collect();
@@ -278,7 +279,9 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
                 repo::digest(self.contract, &value)
             })
             .transpose()?;
-        let replay_results = |mut results: Vec<MutationResult>| -> Result<Vec<MutationResult>> {
+        let replay_results = |mut results: Vec<MutationResult>,
+                              extension: &mut dyn CommandExtension|
+         -> Result<Vec<MutationResult>> {
             if results.len() != entries.len() {
                 return Err(Error::new(
                     "schema-incompatible",
@@ -313,13 +316,39 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
                     ));
                 }
             }
+            if let Some(batch) = batch {
+                shape(
+                    self.contract,
+                    "batchResult",
+                    &batch_result(batch, results.clone()),
+                )?;
+            }
             let replay = Replay {
                 results: results.clone(),
             };
-            revalidate(MutationPhase::Replay, None, Some(&replay))?;
-            revalidate(MutationPhase::ReplayPrecommit, None, Some(&replay))?;
+            revalidate(MutationPhase::Replay, None, Some(&replay), extension)?;
+            revalidate(
+                MutationPhase::ReplayPrecommit,
+                None,
+                Some(&replay),
+                extension,
+            )?;
             Ok(results)
         };
+        if !extension.stock() {
+            super::super::stock_repository::assert_core_keys_free(
+                &tx,
+                scope,
+                &actor.actor_id,
+                entries,
+                batch,
+            )?;
+        }
+        if let Some(retained) = extension.admit(&tx, &actor)? {
+            let result = replay_results(retained, extension)?;
+            tx.commit()?;
+            return Ok(result);
+        }
         if let Some(batch) = batch
             && let Some(receipt) = repo::receipt(
                 &tx,
@@ -329,13 +358,16 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
                 &batch.batch_id,
             )?
         {
+            if extension.stock() {
+                return Err(super::super::stock_repository::conflict());
+            }
             if Some(&receipt.hash) != batch_hash.as_ref() {
                 return Err(Error::new(
                     "idempotency-conflict",
                     "Batch ID already binds another ordered envelope",
                 ));
             }
-            let result = replay_results(serde_json::from_str(&receipt.body)?)?;
+            let result = replay_results(serde_json::from_str(&receipt.body)?, extension)?;
             tx.commit()?;
             return Ok(result);
         }
@@ -354,6 +386,9 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
             })
             .collect::<Result<Vec<_>>>()?;
         if receipts.iter().any(Option::is_some) {
+            if extension.stock() {
+                return Err(super::super::stock_repository::conflict());
+            }
             if batch.is_some()
                 || receipts
                     .iter()
@@ -376,11 +411,12 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
                     .map_err(Error::from)
                 })
                 .collect::<Result<Vec<MutationResult>>>()?;
-            let result = replay_results(results)?;
+            let result = replay_results(results, extension)?;
             tx.commit()?;
             return Ok(result);
         }
-        revalidate(MutationPhase::Validate, None, None)?;
+        revalidate(MutationPhase::Validate, None, None, extension)?;
+        extension.validate_original(&original)?;
         let mut candidate = original.clone();
         let mut results = Vec::with_capacity(entries.len());
         let created: Vec<_> = entries
@@ -487,7 +523,17 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
                 &ScopedTarget::new(scope, &entry.target),
             )?;
         }
-        revalidate(MutationPhase::Candidate, Some(&candidate), None)?;
+        if let Some(batch) = batch {
+            // Full output bounds and correlations participate in the same
+            // transaction as every record, audit, and receipt write.
+            shape(
+                self.contract,
+                "batchResult",
+                &batch_result(batch, results.clone()),
+            )?;
+        }
+        extension.stage(&original, &results, &actor)?;
+        revalidate(MutationPhase::Candidate, Some(&candidate), None, extension)?;
         for ((result, entry), hash) in results.iter().zip(entries).zip(&hashes) {
             repo::write_record(
                 &tx,
@@ -523,8 +569,18 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
                 &repo::json(self.contract, &results)?,
             )?;
         }
-        revalidate(MutationPhase::Precommit, Some(&candidate), None)?;
+        extension.persist(&tx, &hashes)?;
+        revalidate(MutationPhase::Precommit, Some(&candidate), None, extension)?;
         tx.commit()?;
         Ok(results)
+    }
+}
+
+fn batch_result(batch: &BatchMutation, results: Vec<MutationResult>) -> BatchResult {
+    BatchResult {
+        schema_version: 1,
+        batch_id: batch.batch_id.clone(),
+        replayed: results.iter().all(|result| result.replayed),
+        results,
     }
 }

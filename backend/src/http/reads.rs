@@ -39,6 +39,7 @@ pub(super) async fn record(
 ) -> HttpResult {
     no_query(&uri)?;
     tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
         authorized_read(
             &host,
             &headers,
@@ -52,7 +53,11 @@ pub(super) async fn record(
             |core, p, home| {
                 let target = target(kind, id)?;
                 let mut query = d::Queries {
-                    store: Reads(&mut core.store),
+                    store: Reads(
+                        core.store
+                            .get_mut()
+                            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
+                    ),
                     access: HomeAuthority {
                         access: Arc::clone(&core.access),
                         home: home.clone(),
@@ -82,6 +87,7 @@ pub(super) async fn history(
 ) -> HttpResult {
     no_query(&uri)?;
     tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
         authorized_read(
             &host,
             &headers,
@@ -95,7 +101,11 @@ pub(super) async fn history(
             |core, p, home| {
                 let target = target(kind, id)?;
                 let mut query = d::Queries {
-                    store: Reads(&mut core.store),
+                    store: Reads(
+                        core.store
+                            .get_mut()
+                            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
+                    ),
                     access: HomeAuthority {
                         access: Arc::clone(&core.access),
                         home: home.clone(),
@@ -128,6 +138,7 @@ async fn list(
     collection: &'static str,
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
         authorized_read(
             &host,
             &headers,
@@ -146,6 +157,8 @@ async fn list(
                 .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
                 let snapshot = core
                     .store
+                    .get_mut()
+                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
                     .read_snapshot(p, &scope)
                     .map_err(|error| domain_error(crate::app::storage_error(error)))?;
                 s::Contract::validate_snapshot(&NativeContracts, &snapshot)

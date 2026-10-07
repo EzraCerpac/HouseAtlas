@@ -1,9 +1,12 @@
 //! Checked transport metadata. Header absence and invalid encoding are distinct.
 use crate::access::{AccessError, AccessResult, SESSION_COOKIE};
-use axum::http::{HeaderMap, Uri, Version, header};
+use axum::http::{HeaderMap, StatusCode, Uri, Version, header};
 
 #[derive(Clone)]
 pub(super) struct CheckedHeaders {
+    // Clones follow the actual blocking closure, retaining its admission slot
+    // even if the caller drops the async HTTP future while that work runs.
+    admission: Option<super::admission::Permit>,
     host: Option<String>,
     pub origin: Option<String>,
     pub sec_fetch_site: Option<String>,
@@ -54,6 +57,7 @@ impl CheckedHeaders {
             }
         }
         Ok(Self {
+            admission: None,
             host: single(headers, "host")?,
             origin: single(headers, "origin")?,
             sec_fetch_site: single(headers, "sec-fetch-site")?,
@@ -62,6 +66,15 @@ impl CheckedHeaders {
             authorization: single(headers, "authorization")?,
             csrf: single(headers, "x-atlas-csrf")?,
         })
+    }
+    pub(super) fn with_admission(mut self, permit: super::admission::Permit) -> Self {
+        self.admission = Some(permit);
+        self
+    }
+    pub(super) fn admission_permit(&self) -> Result<super::admission::Permit, super::HttpFailure> {
+        self.admission
+            .clone()
+            .ok_or_else(|| super::failure(StatusCode::SERVICE_UNAVAILABLE))
     }
     pub fn check_authority(&self, origin: &str, uri: &Uri) -> AccessResult<()> {
         let expected = origin

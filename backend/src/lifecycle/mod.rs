@@ -58,6 +58,50 @@ pub fn prepare(directory: &Path, origin: &str) -> Result<Core, Failure> {
         label: "Synthetic home".into(),
     };
     let scope = crate::app::access_scope(&home.scope)?;
+    let vault = Arc::new(crate::media::AssetVault::open(&directory.join("media"))?);
+    let media_scope = crate::media::types::Scope {
+        workspace_id: home.scope.workspace_id.clone(),
+        home_id: home.scope.home_id.clone(),
+    };
+    // Public independently encoded 2x2 PNG and ordinary synthetic UTF-8 text.
+    // Prepare real immutable originals only; availability is committed later by
+    // the healthy HTTP write through the actual storage/runtime proof callback.
+    use base64::Engine as _;
+    let png = base64::engine::general_purpose::STANDARD.decode("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAG3RFWHRmaXh0dXJlAHN5bnRoZXRpYyBvd25lZCBQTke6HUyAAAAAEklEQVR4nGP4z8DwHwyBNBgAAEnICff5q7YNAAAAAElFTkSuQmCC")?;
+    let text = b"Synthetic owned original.\n".to_vec();
+    let mut prepared_media = Vec::new();
+    for (asset_id, content_type, bytes) in [
+        (
+            "00000000-0000-4000-8000-000000000950",
+            crate::media::types::ContentType::Png,
+            png,
+        ),
+        (
+            "00000000-0000-4000-8000-000000000951",
+            crate::media::types::ContentType::Text,
+            text,
+        ),
+    ] {
+        let budget = crate::media::WorkBudget::new(
+            std::time::Duration::from_secs(10),
+            crate::media::Cancellation::default(),
+        )?;
+        let prepared = vault.prepare_original(
+            &media_scope,
+            crate::media::types::AssetPurpose::EvidenceOriginal,
+            content_type,
+            &mut bytes.as_slice(),
+            &budget,
+        )?;
+        let payload = prepared.with_provenance(
+            crate::media::types::SourceLicense {
+                status: crate::media::types::LicenseStatus::Unknown,
+                reference: None,
+            },
+            vec!["00000000-0000-4000-8000-000000000100".into()],
+        )?;
+        prepared_media.push(json!({"assetId":asset_id,"payload":payload,"originalBase64":base64::engine::general_purpose::STANDARD.encode(bytes)}));
+    }
     let access_path = directory.join("access.sqlite");
     let mut access =
         a::AccessBoundary::open(&access_path, a::AccessConfig::new(vec![origin.into()])?)?;
@@ -118,7 +162,8 @@ pub fn prepare(directory: &Path, origin: &str) -> Result<Core, Failure> {
     receipt_file.write_all(&serde_json::to_vec(
         &json!({"origin":origin,"cookie":cookie,
             "login":{"username":"synthetic-viewer","password":password},
-            "editorLogin":{"username":"synthetic-editor","password":editor_password}}),
+            "editorLogin":{"username":"synthetic-editor","password":editor_password},
+            "preparedMedia":prepared_media}),
     )?)?;
     receipt_file.sync_all()?;
     drop(receipt);
@@ -134,7 +179,10 @@ pub fn prepare(directory: &Path, origin: &str) -> Result<Core, Failure> {
         &path,
         NativeContracts,
         ReadAuthority(Arc::clone(&access)),
-        ServerRuntime,
+        crate::media::native::NativeMediaRuntime {
+            vault: Arc::clone(&vault),
+            server: ServerRuntime,
+        },
         s::StoreOptions {
             allow_synthetic_bootstrap: true,
             ..Default::default()
@@ -146,12 +194,16 @@ pub fn prepare(directory: &Path, origin: &str) -> Result<Core, Failure> {
         &path,
         NativeContracts,
         ReadAuthority(Arc::clone(&access)),
-        ServerRuntime,
+        crate::media::native::NativeMediaRuntime {
+            vault: Arc::clone(&vault),
+            server: ServerRuntime,
+        },
         s::StoreOptions::default(),
     )?;
     Ok(Core {
         access,
-        store,
+        store: Mutex::new(store),
+        vault,
         homes: vec![home.clone()],
         home,
     })

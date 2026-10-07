@@ -70,7 +70,11 @@ async fn main() -> Result<(), lifecycle::Failure> {
     let setup_origin = origin.clone();
     let core = tokio::task::spawn_blocking(move || lifecycle::prepare(&directory, &setup_origin))
         .await??;
-    let database_version = core.store.database_version();
+    let database_version = core
+        .store
+        .lock()
+        .map_err(|_| "Storage unavailable")?
+        .database_version();
     let host = Host::new(core, origin.clone(), files)?;
     println!(
         "SQLite {} / record database schema {}",

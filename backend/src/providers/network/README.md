@@ -80,6 +80,7 @@ rollback and concurrent behavior are coded but their stopped controls are unrun.
 | Original current authority | `NetworkReadAuthority` and its opaque associated `Lease` |
 | Durable immutable rows | `DurableNetworkSidecar`, native `SqliteNetworkSidecar`, opaque `DurableNetworkReceipt` |
 | Consuming host publication | `refresh_network`, `NetworkCachePublisher<Lease>`, `NetworkPublicationFence`, `StagedNetworkPublication<Receipt>` |
+| Native consuming transactions | `NativeNetworkPublisher`, `NativeNetworkLease`, `stage_complete_generation` |
 | Retained failure proposal | `NetworkPublicationOutcome<Receipt, Fence, Lease>::SourceFailure(PendingNetworkFailure)`; no metadata write |
 
 Preparation makes one GET and creates a complete proposal without changing
@@ -133,46 +134,72 @@ replaces the original CAS witness. Source failure returns a sealed
 `PendingNetworkFailure` containing sanitized failure/internal retention, the
 original baseline generation/cache-epoch precondition, original fence and
 original authority lease. It writes no cache metadata. No partial generation
-crosses the complete-publication boundary.
+crosses the complete-publication boundary. Published snapshots may contain
+seeded Network relation rows before the first successful cache pointer. Those
+rows remain native storage projections; with no pointer, the provider has no
+retained inventory generation, matching the published sidecar's behavior.
 
-The AT07 seam was inspected at immutable peer commit
-`3b14f0362aa2161d51b99d71e7d52d50f27f07de`. Host mapping is narrow:
+`native.rs` binds directly to AT07's `AtlasStore<C, A, R>` at immutable
+published commit `9b13f1e97635a3f531e8c14642cd3c5e94401fef`. It implements
+`NetworkCachePublisher` with the ACTUAL `CachePublicationFence` and
+`CacheStatus`, not a recreated witness. Source registration from the original
+fence must equal reviewed Network configuration, including partition mode and
+allowlist. The wrapper checks the original generation/cache-epoch precondition
+and reserved candidate ID before consuming the original fence at native
+`publish_prepared_generation`. The success transaction validates publication
+against the current immutable source registration and compares the original
+generation/cache epoch. The failure transaction explicitly compares the current
+registration with the full registration captured in the original fence.
 
-- Convert `prepare_cache_publication(principal, scope, partition).into_parts()`
-  into `PreparedNetworkCache`, preserving the actual non-cloneable fence.
-- Implement the fence getters using its original partition, baseline generation,
-  `CacheEpoch.value()` and reserved generation. Do not serialize/recreate it.
-- Consume `StagedNetworkPublication::into_parts()`, then call
-  `publish_prepared_generation(principal, original_fence, cache, [], relations)`.
-  Revalidate the same original access lease inside the host authorization/commit
-  boundary; the sidecar receipt is proof of staging, never authority.
-- Keep `PendingNetworkFailure` until AT07 supplies a fenced failure transaction.
-  Proposed peer API: `record_prepared_cache_failure(principal, original_fence,
-  failure)`. The transaction must validate issuer/partition, revalidate the same
-  original authority lease, compare both original generation ID and cache epoch,
-  then retain previous success metadata/rows while advancing the epoch. Consume
-  the original fence without rereading/rebasing the fetch baseline.
-- Do not map a failed refresh to existing `record_cache_failure`, which lacks
-  the fetch baseline predicate. `PendingNetworkFailure::into_parts()` transfers
-  the original fence, precondition, sanitized failure and original lease to the
-  future host adapter. Until that actual fenced transaction exists, the proposal
-  remains pending; it never changes a newer authoritative cache.
+`NativeNetworkLease<A>` borrows the storage principal that retains the original
+inventory authority lease. There is no default principal, grant acquisition,
+authorization decision or handle replacement here. The actual store authorizer
+must keep and revalidate that same branded handle at precommit; binding this
+trait to the actual AT11 principal remains AT52 work.
 
-The healthy example implements this publisher port as a synthetic peer and
-checks the native sidecar row is committed before the consuming call. The actual
-AT07 transaction adapter, AT11 authority adapter, AT52 router/configuration and
-source-partition coalescing are still host integration inputs. The controller
-is coded; those peers are not silently supplied by permissive defaults. Fenced
-failure publication is an explicit missing AT07 input, not a fallback to its
-unfenced write.
+For failures, `NativeNetworkPublisher::publish_pending_failure` consumes the
+pending proposal's original fence, baseline precondition and original lease,
+then calls the actual `record_prepared_cache_failure(principal, fence, failure)`.
+The sibling `record_prepared_cache_failure(fence, code, lease)` supports explicit
+server-owned sanitized status publication through that same native transaction.
+Both require a Network-owned original registration; neither calls legacy
+`record_cache_failure`. AT07 checks issuing store, captured full registration,
+generation and SQLite epoch in its write transaction, retains prior success
+metadata/rows, advances the epoch and does not reserve the unused candidate ID.
+The generic controller still returns pending failures; a native host explicitly
+consumes them through this bound method. No stale baseline is reread or rebased.
 
+Use `NativeNetworkPublisher` only in synchronous prepare/commit phases. Release
+its store borrow before provider GETs, retain the original fence/lease, and
+recreate the wrapper over the SAME open store at commit. `stage_complete_generation`
+consumes the provider's opaque complete proposal after native durable sidecar
+staging; its sealed result is the native publisher's complete-publication input.
+Authorize source/generation separately before staging and inside publication.
+The existing async controller remains useful for injectable publisher ports;
+the phased native binding lets Atlas browsing continue during provider work.
+
+The external native healthy executable uses the unchanged published
+`plan-free.snapshot.json`, including its seeded Network relations before a cache
+pointer exists. It compiles actual Network code, this
+exact AT07 source, and native AT51 contract types at
+`6b3029cbbcf1462ecdeecc62a56c24f66e034057`. Its offline published semantic/JCS
+oracle, authorization/runtime/principal and injected inventory are explicit
+synthetic peers. It publishes one complete projected generation after actual
+SQLite sidecar staging, writes one valid synthetic timeout status using a
+current original fence, verifies epoch 0 -> 1 -> 2, retained generation/four
+relations, no audit creation/no failure-candidate reservation, and native
+store/sidecar close/reopen. No read fails and no stale-failure/race probe runs.
+The pending failed-read consumer is compiled; failed transport execution remains
+held. Actual AT11 authority, production Rust semantic Contract and AT52
+route/configuration/coalescing remain host integration inputs.
 Lane-local Serde models mirror published Network projections, `sourceRegistration`,
 `cacheStatus` and `networkRelation`. They remain conversion boundaries for shared
 Rust types; no contract or history/audit schema changes are made.
 ## Dependencies and verification
 
 The external task-owned compiler harness uses edition 2024/Rust 1.99.0 and
-imports this namespace's actual `mod.rs`. It now uses the inspected host pins:
+imports this namespace's actual `mod.rs` alongside the exact published storage
+and contract modules in its external library wrapper. It uses the inspected pins:
 
 ```toml
 serde = { version = "=1.0.229", features = ["derive"] }
@@ -185,6 +212,8 @@ reqwest = { version = "=0.12.24", default-features = false, features = ["rustls-
 tokio-util = { version = "=0.7.16", features = ["rt"] }
 url = "=2.5.7"
 rusqlite = { version = "=0.40.2", features = ["bundled"] }
+# Existing AT07/AT51 native contract dependency, defaults disable retrieval:
+jsonschema = { version = "=0.58.6", default-features = false, features = ["arbitrary-precision"] }
 ```
 
 AT52 owns dependency reconciliation and Cargo.lock. The strict JSON dispatcher
@@ -213,8 +242,11 @@ cargo fmt --manifest-path "$AT09_HARNESS_MANIFEST" --check
 cargo check --locked --manifest-path "$AT09_HARNESS_MANIFEST"
 cargo clippy --locked --manifest-path "$AT09_HARNESS_MANIFEST" --all-targets -- -D warnings
 cargo test --locked --manifest-path "$AT09_HARNESS_MANIFEST" --lib healthy::
-cargo run --locked --manifest-path "$AT09_HARNESS_MANIFEST"
+cargo run --locked --manifest-path "$AT09_HARNESS_MANIFEST" --bin houseatlas-at09-harness
 node "$AT09_PARITY_SCRIPT"
+# AT09_STORAGE_PEER points to the exact external published storage/oracle tree.
+# AT09_HEALTHY_OUTPUT is a fresh private synthetic directory.
+cargo run --locked --manifest-path "$AT09_HARNESS_MANIFEST" --bin native-healthy -- "$AT09_HEALTHY_OUTPUT"
 ```
 
 The external driver emits baseline, label, observation, numeric-normalization,
@@ -242,6 +274,6 @@ Behavioral references at the pinned base:
 - `packages/contracts/src/index.mjs` (canonical scalar serialization and validation)
 
 The published HTTP history schema remains unchanged; this lane emits no history
-HTTP response or audit event. The AT52 route/config adapters, AT07 consuming transaction mapping,
+HTTP response or audit event. The AT52 route/config adapters, production semantic Contract,
 AT11 authority mapping, real target wire review and held timeout/denial/failure/
 concurrency/recovery qualification remain future integration work.

@@ -1,0 +1,31 @@
+//! Owned media primitives for the HouseAtlas modular monolith.
+//!
+//! Storage and access remain authoritative through the ports below. This module
+//! opens no listener, calls no provider, and contains no database migrations.
+
+#![forbid(unsafe_code)]
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+compile_error!("The private media filesystem currently supports Linux and macOS");
+
+mod budget;
+pub mod content;
+pub mod native;
+mod platform_fs;
+mod private_fs;
+pub mod recovery;
+pub mod service;
+pub mod types;
+pub mod vault;
+
+#[cfg(test)]
+mod healthy_examples;
+#[cfg(test)]
+mod healthy_native_examples;
+
+pub use budget::{Cancellation, WorkBudget};
+pub use types::{MediaError, MediaResult};
+pub use vault::AssetVault;
+
+pub const MEDIA_VERSION: &str = "0.1.1";
+pub const MAX_BYTES: usize = 10 * 1024 * 1024;

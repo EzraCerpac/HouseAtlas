@@ -1,12 +1,16 @@
 //! Loopback TLS routes and browser DTO projection. No source/provider transport.
+mod admission;
 mod auth;
 pub mod contracts;
 mod headers;
 mod intake;
+mod media;
 mod mutations;
 mod pages;
 mod reads;
 mod response;
+mod stock_mutations;
+mod stock_reads;
 use crate::{
     access as a,
     app::{Core, HomeAuthority, Reads, RequestPrincipal, capture_homes},
@@ -35,6 +39,7 @@ pub struct Host {
     pub files: Arc<BTreeMap<String, (String, Vec<u8>)>>,
     response_ids: Arc<ResponseIds>,
     pages: Arc<Mutex<pages::Pages>>,
+    admission: Arc<admission::Admission>,
 }
 impl Host {
     pub fn new(
@@ -48,6 +53,7 @@ impl Host {
             files,
             response_ids: Arc::new(ResponseIds::new()?),
             pages: Arc::new(Mutex::new(pages::Pages::default())),
+            admission: Arc::new(admission::Admission::default()),
         })
     }
 }
@@ -92,10 +98,18 @@ fn domain_error(error: d::DomainError) -> HttpFailure {
 }
 async fn response_adapter(State(host): State<Host>, mut request: Request, next: Next) -> Response {
     let request_id = host.response_ids.next();
-    let checked = CheckedHeaders::read(request.headers(), request.version()).and_then(|headers| {
-        headers.check_authority(&host.origin, request.uri())?;
-        Ok(headers)
+    let admitted = host.admission.admit();
+    let checked = admitted.as_ref().map_err(Clone::clone).and_then(|permit| {
+        let headers =
+            CheckedHeaders::read(request.headers(), request.version()).map_err(access_error)?;
+        headers
+            .check_authority(&host.origin, request.uri())
+            .map_err(access_error)?;
+        Ok(headers.with_admission(permit.clone()))
     });
+    // Keep admission through response construction even when route extraction
+    // drops request extensions; blocking closures retain their separate clones.
+    let _admitted = admitted;
     let mut response = if request.uri().path().contains('%') {
         failure(StatusCode::FORBIDDEN).into_response()
     } else {
@@ -104,7 +118,7 @@ async fn response_adapter(State(host): State<Host>, mut request: Request, next: 
                 request.extensions_mut().insert(headers);
                 next.run(request).await
             }
-            Err(error) => access_error(error).into_response(),
+            Err(error) => error.into_response(),
         }
     };
     if response.status().is_client_error() || response.status().is_server_error() {
@@ -225,7 +239,11 @@ fn query_view(
     home: &d::HomeSummary,
 ) -> Result<d::CurrentOutput, HttpFailure> {
     let mut queries = d::Queries {
-        store: Reads(&mut core.store),
+        store: Reads(
+            core.store
+                .get_mut()
+                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
+        ),
         access: HomeAuthority {
             access: Arc::clone(&core.access),
             home: home.clone(),
@@ -289,6 +307,7 @@ async fn current(
     method: Method,
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
         authorized_read(
             &host,
             &headers,
@@ -314,6 +333,7 @@ async fn scoped(
     method: Method,
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
         authorized_read(
             &host,
             &headers,
@@ -341,6 +361,7 @@ async fn rooms(
     method: Method,
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
         authorized_read(
             &host,
             &headers,
@@ -364,6 +385,7 @@ async fn items(
     method: Method,
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
         authorized_read(
             &host,
             &headers,
@@ -387,6 +409,7 @@ async fn homes(
     method: Method,
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
         let core = host
             .core
             .lock()
@@ -449,6 +472,10 @@ async fn static_file(State(host): State<Host>, uri: Uri) -> HttpResult {
 }
 pub fn router(host: Host) -> Router {
     Router::new()
+        .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/commands", post(stock_mutations::command))
+        .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}", get(stock_reads::record).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}/history", get(stock_reads::history).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/media/{workspace_id}/{home_id}/{digest}/{mode}", get(media::deliver).fallback(media::other))
         .route("/api/atlas/view", get(current))
         .route(
             "/api/atlas/homes/{workspace_id}/{home_id}/view",

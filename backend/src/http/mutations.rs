@@ -13,16 +13,15 @@ use crate::{
     storage as s,
 };
 use axum::{
-    body::to_bytes,
     extract::{Path, Request, State},
     http::StatusCode,
 };
 use s::Contract;
 use serde::{Serialize, de::DeserializeOwned};
-use serde_json::{Value, json};
+use serde_json::json;
 use std::{cell::RefCell, collections::BTreeSet, sync::Arc};
 
-fn convert<T: DeserializeOwned>(value: &impl Serialize) -> d::DomainResult<T> {
+pub(super) fn convert<T: DeserializeOwned>(value: &impl Serialize) -> d::DomainResult<T> {
     serde_json::to_value(value)
         .and_then(serde_json::from_value)
         .map_err(|_| d::DomainError::UpstreamUnavailable)
@@ -39,7 +38,7 @@ fn same(left: &impl Serialize, right: &impl Serialize) -> d::DomainResult<bool> 
             )
             .map_err(crate::app::storage_error)?)
 }
-fn native_closure(
+pub(super) fn native_closure(
     scope: &s::Scope,
     original: &s::Snapshot,
     candidate: Option<&s::Snapshot>,
@@ -59,19 +58,6 @@ fn native_closure(
         replay.as_deref(),
     )
     .map_err(|_| d::DomainError::UpstreamUnavailable)
-}
-impl d::ContractPort for NativeContracts {
-    fn validate(&self, shape: d::ContractShape, value: &Value) -> d::DomainResult<()> {
-        self.validate_shape(
-            match shape {
-                d::ContractShape::RecordRef => "recordRef",
-                d::ContractShape::Mutation => "mutation",
-                d::ContractShape::BatchMutation => "batchMutation",
-            },
-            value,
-        )
-        .map_err(crate::app::storage_error)
-    }
 }
 fn preconditions(context: &s::MutationAuthorizationContext) -> d::DomainResult<()> {
     let facts = context
@@ -193,7 +179,7 @@ fn hold_presence(context: &s::MutationAuthorizationContext) -> d::DomainResult<(
     }
     Ok(())
 }
-struct MutateAuthority<'g, 'p> {
+pub(super) struct MutateAuthority<'g, 'p> {
     guard: &'g a::TransactionAuthorization<'g>,
     principal: &'p RequestPrincipal,
     scope: s::Scope,
@@ -203,7 +189,7 @@ struct MutateAuthority<'g, 'p> {
     failure: RefCell<Option<d::DomainError>>,
 }
 impl MutateAuthority<'_, '_> {
-    fn verify(
+    pub(super) fn verify(
         &self,
         p: &RequestPrincipal,
         request: s::AuthorizationRequest<'_>,
@@ -265,6 +251,28 @@ impl MutateAuthority<'_, '_> {
         })
     }
 }
+impl<'g, 'p> MutateAuthority<'g, 'p> {
+    pub(super) fn new(
+        guard: &'g a::TransactionAuthorization<'g>,
+        principal: &'p RequestPrincipal,
+        scope: s::Scope,
+        entries: Vec<s::MutationEntry>,
+        batch: Option<s::BatchMutation>,
+    ) -> Self {
+        Self {
+            guard,
+            principal,
+            scope,
+            entries,
+            batch,
+            context_id: RefCell::new(None),
+            failure: RefCell::new(None),
+        }
+    }
+    pub(super) fn take_failure(&self) -> Option<d::DomainError> {
+        self.failure.borrow_mut().take()
+    }
+}
 impl s::Authorization for MutateAuthority<'_, '_> {
     type Principal = RequestPrincipal;
     fn authorize(
@@ -278,7 +286,7 @@ impl s::Authorization for MutateAuthority<'_, '_> {
         })
     }
 }
-fn access_domain(error: a::AccessError) -> d::DomainError {
+pub(super) fn access_domain(error: a::AccessError) -> d::DomainError {
     match error {
         a::AccessError::Unauthenticated => d::DomainError::Unauthenticated,
         a::AccessError::NotFound => d::DomainError::NotFound,
@@ -287,15 +295,19 @@ fn access_domain(error: a::AccessError) -> d::DomainError {
         _ => d::DomainError::Forbidden,
     }
 }
-struct WriteFailure(d::DomainError);
+pub(super) struct WriteFailure(pub(super) d::DomainError);
 impl From<a::AccessError> for WriteFailure {
     fn from(error: a::AccessError) -> Self {
         Self(access_domain(error))
     }
 }
 enum Output {
-    Single(Box<s::MutationResult>),
-    Batch(s::BatchResult),
+    Single(Box<d::MutationResult>),
+    Batch(d::BatchResult),
+}
+enum Call<'a> {
+    Single(&'a d::RecordRef, &'a d::CanonicalMutation),
+    Batch(&'a d::CanonicalBatch),
 }
 struct Writes<'a> {
     store: &'a mut Store,
@@ -306,9 +318,13 @@ impl Writes<'_> {
         &mut self,
         p: &RequestPrincipal,
         scope: &d::Scope,
-        target: Option<&d::RecordRef>,
-        wire: &Value,
+        call: Call<'_>,
     ) -> d::DomainResult<Output> {
+        let domain_scope = scope.clone();
+        let (target, wire) = match &call {
+            Call::Single(target, command) => (Some(*target), command.wire()),
+            Call::Batch(batch) => (None, batch.wire()),
+        };
         let scope: s::Scope = convert(scope)?;
         let batch: Option<s::BatchMutation> = if target.is_none() {
             Some(convert(wire)?)
@@ -348,31 +364,21 @@ impl Writes<'_> {
                     context_id: RefCell::new(None),
                     failure: RefCell::new(None),
                 };
-                let result = match &batch {
-                    Some(_) => self
-                        .store
-                        .execute_batch_json_with_authorization(&authorization, p, &scope, wire)
-                        .map(Output::Batch),
-                    None => self
-                        .store
-                        .execute_json_with_authorization(
-                            &authorization,
-                            p,
-                            &scope,
-                            &entries[0].target,
-                            wire,
-                        )
-                        .map(Box::new)
-                        .map(Output::Single),
+                let mut native =
+                    d::native_storage::NativeScopedCommands::from_store(self.store, &authorization);
+                let result = match &call {
+                    Call::Single(target, command) => {
+                        d::CommandPort::execute(&mut native, p, &domain_scope, target, command)
+                            .map(Box::new)
+                            .map(Output::Single)
+                    }
+                    Call::Batch(batch) => {
+                        d::CommandPort::execute_batch(&mut native, p, &domain_scope, batch)
+                            .map(Output::Batch)
+                    }
                 };
                 output = Some(result.map_err(|error| {
-                    WriteFailure(
-                        authorization
-                            .failure
-                            .borrow_mut()
-                            .take()
-                            .unwrap_or_else(|| crate::app::storage_error(error)),
-                    )
+                    WriteFailure(authorization.failure.borrow_mut().take().unwrap_or(error))
                 })?);
                 Ok(())
             })
@@ -389,8 +395,8 @@ impl d::CommandPort<RequestPrincipal> for Writes<'_> {
         target: &d::RecordRef,
         command: &d::CanonicalMutation,
     ) -> d::DomainResult<d::MutationResult> {
-        match self.execute(p, scope, Some(target), command.wire())? {
-            Output::Single(result) => convert(&result),
+        match self.execute(p, scope, Call::Single(target, command))? {
+            Output::Single(result) => Ok(*result),
             _ => Err(d::DomainError::UpstreamUnavailable),
         }
     }
@@ -400,8 +406,8 @@ impl d::CommandPort<RequestPrincipal> for Writes<'_> {
         scope: &d::Scope,
         batch: &d::CanonicalBatch,
     ) -> d::DomainResult<d::BatchResult> {
-        match self.execute(p, scope, None, batch.wire())? {
-            Output::Batch(result) => convert(&result),
+        match self.execute(p, scope, Call::Batch(batch))? {
+            Output::Batch(result) => Ok(result),
             _ => Err(d::DomainError::UpstreamUnavailable),
         }
     }
@@ -425,14 +431,16 @@ async fn command(
     let method = request.method().clone();
     let capture_host = host.clone();
     let capture_scope = scope.clone();
+    let capture_checked = checked.clone();
     let principal = tokio::task::spawn_blocking(move || {
+        let _admitted = capture_checked.admission_permit()?;
         let core = capture_host
             .core
             .lock()
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
         let url = format!("{}{}", capture_host.origin, uri.path());
-        let observed =
-            evidence(&capture_host.origin, &checked, &uri, &url, &method).map_err(access_error)?;
+        let observed = evidence(&capture_host.origin, &capture_checked, &uri, &url, &method)
+            .map_err(access_error)?;
         let principal = core
             .access
             .lock()
@@ -447,10 +455,11 @@ async fn command(
     .await
     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))??;
     intake::metadata(&request, 1_048_576)?;
-    let bytes = to_bytes(request.into_body(), 1_048_576)
-        .await
-        .map_err(|_| failure(StatusCode::PAYLOAD_TOO_LARGE))?;
+    let bytes = super::admission::body(request.into_body(), 1_048_576).await?;
     tokio::task::spawn_blocking(move || {
+        // Keep the admitted work slot through the actual transaction even when
+        // the HTTP caller cancels its await. No unbounded replacement work.
+        let _admitted = checked.admission_permit()?;
         let wire = intake::json(&bytes)?;
         let mut core = host
             .core
@@ -463,13 +472,17 @@ async fn command(
             .cloned()
             .ok_or_else(|| failure(StatusCode::NOT_FOUND))?;
         let access = Arc::clone(&core.access);
+        let contracts = NativeContracts;
         let mut commands = d::Commands {
             store: Writes {
-                store: &mut core.store,
+                store: core
+                    .store
+                    .get_mut()
+                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
                 access: Arc::clone(&access),
             },
             access: HomeAuthority { access, home },
-            contracts: NativeContracts,
+            contracts: d::native_storage::NativeCanonicalContracts::from_contracts(&contracts),
         };
         let value = match target {
             Some(target) => serde_json::to_value(

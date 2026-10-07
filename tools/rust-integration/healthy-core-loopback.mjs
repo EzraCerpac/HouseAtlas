@@ -170,6 +170,7 @@ try {
   })()`);
   assert.deepEqual(writes.single,{revision:1,replayed:false,recordMatches:true,historyCount:1,auditActor:'00000000-0000-4000-8000-000000000007',historyRevision:1});
   assert.deepEqual(writes.batch,{count:2,replayed:false,revisions:[1,1],recordsMatch:true,historyCounts:[1,1],auditActors:[writes.actorId,writes.actorId]});
+  assert(observedUrls.every(url=>url.startsWith(origin+'/')), 'All auth, reads and fresh commands stay on loopback');
   assert(responses.every(r=>r.status===200 || (r.status===204 && r.url===origin+'/favicon.ico')), 'All observed core flows remain successful ordinary responses');
   assert.equal(runtimeErrors.length,0);
   const sql = [
@@ -186,11 +187,18 @@ try {
   if (process.env.HOUSEATLAS_EVIDENCE) writeFileSync(process.env.HOUSEATLAS_EVIDENCE, JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));
 } finally {
-  if (cdp && browser?.exitCode === null) await cdp.send('Browser.close').catch(() => {});
-  if (service?.exitCode === null) {
-    service.kill('SIGINT');
-    await until(() => service.exitCode !== null, 'graceful Rust shutdown', 10000);
-    assert.equal(service.exitCode, 0, 'Graceful ordinary shutdown');
+  try {
+    if (cdp && browser?.exitCode === null) await cdp.send('Browser.close').catch(() => {});
+    if (browser?.exitCode === null) await until(() => browser.exitCode !== null, 'ordinary Chromium shutdown', 10000);
+  } finally {
+    try {
+      if (service?.exitCode === null) {
+        service.kill('SIGINT');
+        await until(() => service.exitCode !== null, 'graceful Rust shutdown', 10000);
+        assert.equal(service.exitCode, 0, 'Graceful ordinary shutdown');
+      }
+    } finally {
+      rmSync(scratch, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+    }
   }
-  rmSync(scratch, { recursive: true, force: true });
 }

@@ -5,7 +5,6 @@ use super::{
 };
 use crate::access::{SessionInfo, SessionReceipt};
 use axum::{
-    body::to_bytes,
     extract::{ConnectInfo, Extension, Request, State},
     http::{HeaderValue, Method, StatusCode, Uri, header},
     response::{IntoResponse, Response},
@@ -98,12 +97,14 @@ pub(super) async fn login(
         .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
     let uri = request.uri().clone();
     let method = request.method().clone();
+    host.admission
+        .login(&checked, &method, &host.origin, address.ip())
+        .map_err(access_error)?;
     // Bound actual streamed bytes, independent of Content-Length claims. The
     // access peer separately validates its strict bounded login JSON.
-    let body = to_bytes(request.into_body(), 4096)
-        .await
-        .map_err(|_| failure(StatusCode::PAYLOAD_TOO_LARGE))?;
+    let body = super::admission::body(request.into_body(), 4096).await?;
     tokio::task::spawn_blocking(move || {
+        let _admitted = checked.admission_permit()?;
         let core = host
             .core
             .lock()
@@ -132,6 +133,7 @@ pub(super) async fn session(
 ) -> HttpResult {
     no_query(&uri)?;
     tokio::task::spawn_blocking(move || {
+        let _admitted = checked.admission_permit()?;
         let core = host
             .core
             .lock()
@@ -165,6 +167,7 @@ pub(super) async fn rotate(
 ) -> HttpResult {
     no_query(&uri)?;
     tokio::task::spawn_blocking(move || {
+        let _admitted = checked.admission_permit()?;
         let core = host
             .core
             .lock()
@@ -191,6 +194,7 @@ pub(super) async fn logout(
 ) -> HttpResult {
     no_query(&uri)?;
     tokio::task::spawn_blocking(move || {
+        let _admitted = checked.admission_permit()?;
         let core = host
             .core
             .lock()

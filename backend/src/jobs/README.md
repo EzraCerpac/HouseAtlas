@@ -1,111 +1,153 @@
 # HomeBox write jobs
 
-This internal Rust migration component supplies typed enqueue, status lookup,
-single-call dispatch, explicit retry classification and qualified reconciliation.
-It has no production dependencies beyond `std`, starts no scheduler/listener,
-and makes no provider call by itself. It does not change the published version-one
-HTTP contract, which uses read projections and native HomeBox navigation.
+The stock.2 Rust component supplies metadata admission, typed queue inspection,
+single physical dispatch, explicit safe retry classification, logical effect
+reconciliation and separate correlated termination recording. Production source
+uses only `std`; there is no transport, listener, scheduler or credential store.
+The source composes the adopted agent wire3 semantics without replacing the
+frozen Atlas record/audit schema or inventing provider CAS.
 
-`mod.rs` exports the jobs-local values in `model.rs`, injected ports in `ports.rs`
-and the `WriteQueue` orchestration in `orchestrator.rs`. Scope adapters may map
-the shared domain/access types to `SourcePartition` and `ReceiptKey`; no scope is
-inferred from names, labels or an unqualified external ID. Collection spelling
-is preserved. `JobSnapshot` omits prepared payload bytes and lease capabilities.
-An acknowledgement preserves an explicitly unknown external ID/source date and
-never publishes or freshens a HomeBox read generation.
+`model.rs` defines jobs-local values and `orchestrator.rs` owns mutable ports.
+`stock.rs` provides physical registration/alias normalization, typed logical
+scopes, remote activity, storage accounting, explicit profiles and the pure
+`decide_admission` classifier. `ports.rs` states the shared SQLite/access/provider
+integration requirements. These internal values require adapters to the exact
+closed wire3 DTOs; they are not automatically serialized HTTP contracts.
 
-The application authorizes each enqueue, receipt lookup and replay. The writer
-must recheck current actor, source grant and quarantine state immediately before
-dispatch. The actual access owner supplies those checks. The current component
-has no authentication, credential storage, arbitrary URL/method configuration or
-generic remote transport. `PreparedWrite` is owned opaque input from a reviewed
-preparer; its Debug output reports payload length, not payload content.
+## Identity and waiting metadata
 
-## Durable storage seam
+Trusted installation supplies `QueueRegistration`: deployment ID, actual physical
+provider database ID, configuration digest, dispatcher owner and all source aliases.
+A queued request cannot choose an alternate physical database. Aliases resolve
+complete registered partitions to canonical physical collection identities.
+Collection scopes overlap contained resources; resource scopes overlap matching
+kind/ID pairs. Alias comparison uses the canonical collection, so two transports
+for the same physical collection do not escape logical overlap checks.
 
-`QueueStore` is the production SQLite integration seam. Its documentation spells
-out the transaction invariants. The key `(workspace, home, actor, mutation)` is
-bound permanently to the entire exact prepared request, including partition,
-contract ID, operation ID, target and every payload byte. A matching retry returns
-the existing current job; different content must conflict. This exact prepared
-byte comparison is internal queue idempotency and does not replace the published
-Atlas command receipt's RFC 8785/SHA-256 canonicalization or record/audit result.
-Storage must keep the binding after terminal completion; expiry cannot authorize
-a duplicate physical write.
+All provider-mutating jobs and transports join one durable invocation slot per
+actual physical database. Classification follows qualified operation semantics,
+including GET operations with physical effects such as printing. Reads, inference,
+preparation and Atlas-local CAS need no physical invocation slot.
 
-There is one persistent physical writer slot for all homes, workspaces,
-instances and collections. Due jobs are selected by durable enqueue sequence.
-An atomic claim reserves that slot, increments the job attempt and advances a
-checked global fencing counter that survives process restart. An atomic finish
-matches the active job and fence, persists the outcome and releases the slot
-only after a definite outcome. The synchronous mutable ownership of `WriteQueue`
-covers claim, writer call and finish; distinct instances rely on the shared
-adapter's atomic global slot. The trait alone does not implement this exclusion.
+`EnqueueRequest` contains bounded intent metadata, the exact accepted canonical
+request digest, full partition, derived write scope and pending byte liability.
+It contains no uploaded body or staged bytes. Waiting output always has
+`bodyAccepted=false`. Domain contract validation derives the digest with the
+stock.2 root-only exclusions and preserves ordered child intent; queue storage
+permanently binds actor/home/idempotency key to it and immutable metadata. Lookup
+and retained receipt disclosure require current authorization.
 
-Only `NotApplied { replay: AfterBackoff }`, backed by positive evidence that the
-write did not apply, can schedule a retry. Backoff is bounded, deterministic and
-subject to an explicit attempt budget. Overflow produces a terminal failure.
-An uncertain result retains the slot and enters `NeedsReconciliation`. Lease
-expiry also retains the slot instead of replacing the writer: a database fence
-does not stop an already dispatched HomeBox operation. A returning original
-writer may finish its same active held fence, but an obsolete fence is refused.
+`QueueStore` must recompute admission and reserve qualified liabilities in the
+same SQLite transaction that admits the exclusive dispatcher. Waiting capacity
+and FIFO metadata ordering are explicit. `max_admission_wait_ms` finalizes only
+never-dispatched metadata attempts, retaining their keys/results. Expiry cannot
+finalize actual invocations or release their activity, logical fences or bytes.
+No upload bytes may be accepted or staged until exclusive admission plus the
+qualified reservation. The injected writer resolves the approved immutable
+intent, persists its exact dispatch form before physical I/O and rechecks current
+actor/home/source/resource authority, observation, impact and approvals.
 
-`HomeBoxReconciler` is a separate injected read-back capability. Releasing a hold
-requires verified previous-writer quiescence plus a complete currently authorized
-source read-back, with a private evidence reference retained in the resolution
-transaction. An opaque reference is not evidence by itself. An unresolved result
-preserves the hold; reconciliation never calls the writer. No qualified live
-reconciler is implemented or claimed by this lane.
+## Independent activity, effects and storage
 
-## Healthy synthetic evidence
+An invoked report carries only `Active`, `EndUnproven` or `EndedProven` remote
+activity. `NotDispatched` belongs to a positively never-invoked result. Only
+qualified correlated termination evidence permits `EndedProven`; a successful
+response, matching readback, timeout, local cancellation, expiry or human effect
+resolution does not establish remote end.
 
-`examples/sqlite_healthy.rs` implements a synthetic SQLite `QueueStore` consumer
-with immediate mutation transactions, permanent receipt uniqueness, full request
-comparison, one global slot and fence-checked completion. It is a readable
-integration example, not the shared AT07 production storage adapter or a second
-service framework. The two partition scopes and target ID are taken from
-`packages/contracts/fixtures/plan-free.snapshot.json`. Its explicit prepared
-dialect `at36-synthetic-prepared/1` is an opaque fake acknowledgement operation,
-not a real HomeBox write schema.
+Atomic finish matches the original physical identity, owner and durable fence.
+It persists logical outcome, remote activity and byte/orphan liability separately.
+Confirmed observed effects may still retain the physical invocation hold.
+Conversely, a proven ended invocation can release its physical slot while unknown
+or partial logical effects retain narrower overlap fences. A disjoint operation
+can then proceed only if other admission requirements also pass.
 
-The only executable example enqueues two healthy commands in separate homes,
-replays the first exact receipt, succeeds once, closes and reopens its disposable
-database, replays the persisted receipt, succeeds once for the second home and
-observes an idle queue. It checks two writer calls, one durable global slot and
-fencing progression across the clean restart. The temporary directory is created
-exclusively and removed after success. No fault, rejection, uncertain-result,
-crash, concurrency, denial, adversarial or negative-consumer control is executed.
-Those branches are source-compiled, not behaviorally qualified here.
+Logical reconciliation records current-state observation or audited human
+resolution and preserves remote activity and storage liability. The separate
+`prove_remote_end` method releases only the exact correlated physical invocation
+hold; it cannot reconcile effects, drop logical fences, purge bytes or resend work.
+The synchronous completion clock is sampled and validated after reconciliation
+returns. Retry timing and persistence use that completion time. A matching
+acknowledgement survives backwards persisted timestamps using
+`max(now, prior.updated_at)`; exact fence validation remains independent.
 
-The scoped external compiler harness is
-`/tmp/houseatlas-at36-jobs-harness/Cargo.toml`; its library path is this `mod.rs`
-and its `healthy-queue` binary path is the checked-in example. Only that harness
-depends on `rusqlite = { version = "=0.40.2", features = ["bundled"] }`, with its
-Cargo.lock retained outside the checkout. Its observed SQLite version is 3.53.2
-through locked `libsqlite3-sys` 0.38.2. No root manifest or lock is edited here.
+A retry requires positive route-qualified knowledge of non-application, explicit
+`AfterBackoff` permission, proven remote end and remaining attempt budget. It
+never follows ambiguity merely because an error looks retryable. Reconciliation
+stores its evidence independently of dispatch-visible retry scheduling. Neither
+human effect resolution nor database takeover authorizes ambiguous redispatch.
 
-After inspecting the sources, activate the retained runtime and run:
+`StorageLiability` preserves metadata commit evidence, byte disposition,
+reference closure evidence, orphan identity and unresolved attempt count.
+Incomplete accounting has `reservedBytes=None`. No inferred zero, age, missing
+row, filename or hash gives cleanup authority. Pending upload reservation and
+aggregate unresolved liabilities are separate admission inputs.
+
+Claim and finish reports cannot replace prior attempts' retained liability.
+The synthetic SQLite adapter now keeps append-only liability evidence by the
+original fence, including every orphan reference. It computes checked sums of
+per-attempt known/reserved bytes and unresolved counts; within an attempt it
+retains conservative maxima and never upgrades incomplete accounting. This
+can overreserve and provides no cleanup authority. Reconciliation and remote
+end proof leave this ledger unchanged. This correction is compiler-only;
+retry/replay and failure controls remain held.
+
+`native_homebox.rs` provides `NativeHomeBoxWriter<Owner,Transport>` over mandatory
+typed peers. The owner loads the original durable intent and journals the exact
+qualified native dispatch before returning a single-use invocation. A separate
+required final `authorize_dispatch` runs immediately before the transport consumes
+that invocation. Exact original job/lease/payload/journal binding is checked;
+response acknowledgement, verified effects, remote termination and liability
+stay independent. This is executable adapter logic over injected transport,
+not a concrete route/body qualification, production journal implementation or
+live provider capability. Unknown acknowledgement cannot become Applied and
+an Applied result requires the matching definite response digest.
+
+## Profiles and qualification
+
+`AdmissionProfile::stock_engineering_fixture()` explicitly selects the offline
+profile: one active invocation, four metadata waiters, 10 seconds admission wait,
+four unresolved storage attempts and 64 MiB reserved liabilities. These numbers
+are unmeasured, not user-selected and not production-qualified. There is no
+`Default` production profile. A deployment profile requires an injected trusted
+qualification and concrete limits; code approval does not supply qualification.
+
+Shared AT07 storage must implement the atomic queue, intent/audit composition,
+permanent receipts and coherent recovery. AT11 supplies current access/registration
+facts. Provider peers supply route-qualified preparation, immutable dispatch intent,
+bounded media intake, exact response/readback correlation and termination evidence.
+The SQLite adapter below remains synthetic. No peer is treated as live-qualified
+by this component, and no provider-side/all-writer fence or causal proof is claimed.
+
+## Compiler-only example and evidence
+
+`examples/sqlite_healthy.rs` and `examples/sqlite_store.rs` compose a synthetic
+SQLite consumer with metadata-only waiting, trusted aliases, one persistent slot,
+fenced finish, independent activity/effect/liability persistence and a clean reopen.
+They are explicitly compiler-only under the current instruction. Do not execute
+this example. Historical queue-example execution belongs solely to the earlier
+pre-stock checkpoint; its original source hashes, patch and report are preserved
+outside the checkout. It does not qualify this delta or release stopped controls.
+
+The separate external harness is
+`/tmp/houseatlas-at36-jobs-stock-harness/Cargo.toml`. Production remains std-only;
+the example alone uses pinned `rusqlite = "=0.40.2"` with bundled SQLite through
+locked `libsqlite3-sys` 0.38.2. No new application SQLite version is claimed from
+compiler-only work. Root manifests and locks are owned by the coordinator.
+
+Inspected compiler checks are:
 
 ```sh
 source /workspace/.houseatlas-setup/rust-react-sqlite/activate.sh
-cargo fmt --check --manifest-path /tmp/houseatlas-at36-jobs-harness/Cargo.toml
-cargo check --locked --manifest-path /tmp/houseatlas-at36-jobs-harness/Cargo.toml
-cargo clippy --locked --manifest-path /tmp/houseatlas-at36-jobs-harness/Cargo.toml --all-targets -- -D warnings
-cargo build --locked --manifest-path /tmp/houseatlas-at36-jobs-harness/Cargo.toml
-cargo run --locked --manifest-path /tmp/houseatlas-at36-jobs-harness/Cargo.toml --bin healthy-queue
+cargo fmt --check --manifest-path /tmp/houseatlas-at36-jobs-stock-harness/Cargo.toml
+cargo check --locked --manifest-path /tmp/houseatlas-at36-jobs-stock-harness/Cargo.toml --all-targets
+cargo clippy --locked --manifest-path /tmp/houseatlas-at36-jobs-stock-harness/Cargo.toml --all-targets -- -D warnings
+cargo build --locked --manifest-path /tmp/houseatlas-at36-jobs-stock-harness/Cargo.toml
 ```
 
-## Remaining integration inputs
-
-AT07 must supply the shared production `QueueStore` adapter and atomic integration
-with the authorized command/audit transaction. AT11 must supply current access
-and source-quarantine checks. AT51 owns the real backend crate and dependency
-lock. No shared root scaffolding is required to compile this scoped source.
-
-Full wire3 has not been provided. Exact reviewed operation IDs, command payload
-and result schemas, expected upstream preconditions, immutable idempotency
-content and replay semantics, prepared payload validation and bounded source
-driver/read-back interfaces must be reconciled before enabling provider writes.
-No real provider dialect, source actor-history evidence, upstream CAS or native
-route has been invented. This code and healthy example are not evidence of
-live-provider, security, recovery-fault, pilot or deployment qualification.
+No example, replay, rejection, expiry, fault, crash, concurrency, adversarial or
+negative-consumer control is executed for this delta. Compiler success does not
+establish operational recovery, full security, actual provider, pilot or deployment
+qualification. Exact wire3 source forms are now available; remaining blockers are
+qualified production adapters and their reviewed composition, rather than a
+missing contract archive.

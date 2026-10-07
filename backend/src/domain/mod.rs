@@ -5,10 +5,15 @@
 //! nor a provider transport. See README.md for the integration port contracts.
 
 mod commands;
+mod integer;
 mod model;
+pub mod native_semantics;
+pub mod native_storage;
 mod ports;
+mod presence;
 mod projection;
 mod queries;
+pub mod stock;
 
 #[cfg(test)]
 mod healthy;
@@ -16,6 +21,7 @@ mod healthy;
 pub use commands::*;
 pub use model::*;
 pub use ports::*;
+pub use presence::*;
 pub use projection::*;
 pub use queries::*;
 

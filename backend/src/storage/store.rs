@@ -3,6 +3,13 @@ use super::{migrations, repository as repo, *};
 mod cache;
 #[path = "commands.rs"]
 mod commands;
+#[path = "recovery.rs"]
+mod recovery;
+#[path = "stock.rs"]
+mod stock;
+#[path = "stock_history.rs"]
+mod stock_history;
+pub use recovery::RecoveryImage;
 
 use rusqlite::{Connection, TransactionBehavior};
 use serde::Serialize;

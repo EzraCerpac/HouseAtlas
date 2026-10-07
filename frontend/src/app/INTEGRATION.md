@@ -69,6 +69,9 @@ home reads and its explicit expired/revoked/denied states. Session UI state keep
 only expiry; it does not retain actor IDs or CSRF tokens. Password input is
 cleared before awaiting login. Nothing persists credentials or private views.
 Settings shows expiry with the browser's time zone and optional Sign out.
+The non-ready access panel also exposes the configured Sign out action while
+withholding house content and choices. `SessionApp` continues to own that action;
+no additional client port or provider operation is introduced.
 
 `session.ts` declares the published exact success DTO
 `{schemaVersion:1, actorId:string, csrfToken:string, expiresAt:RFC3339}` and ports:

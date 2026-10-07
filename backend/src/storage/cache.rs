@@ -122,6 +122,8 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             return Err(Error::new("not-found", "Source unavailable"));
         }
         let state = cache_repo::publication_state(&tx, partition)?;
+        let registration = cache_repo::source(&tx, partition)?;
+        shape(&self.contract, "sourceRegistration", &registration)?;
         let reserved_generation_id = self.runtime.new_id()?;
         shape(
             &self.contract,
@@ -140,6 +142,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         let fence = CachePublicationFence {
             issuer: self.instance.clone(),
             partition: partition.clone(),
+            registration,
             baseline_generation_id: state.cache.as_ref().and_then(|c| c.generation_id.clone()),
             baseline_cache_epoch: CacheEpoch(state.cache_epoch),
             reserved_generation_id,
@@ -347,12 +350,50 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         })?;
         self.replace_cache_generation(principal, scope, &generation)
     }
+    /// Legacy unfenced status publication. Native source adapters use
+    /// record_prepared_cache_failure with the original pre-fetch fence.
     pub fn record_cache_failure(
         &mut self,
         principal: &A::Principal,
         scope: &Scope,
         partition: &SourcePartition,
         failure: &CacheFailure,
+    ) -> Result<CacheStatus> {
+        self.record_cache_failure_inner(principal, scope, partition, failure, None)
+    }
+
+    /// Consume the original pre-fetch fence when publishing sanitized failure
+    /// metadata. The selected generation ID is not reserved by this operation.
+    pub fn record_prepared_cache_failure(
+        &mut self,
+        principal: &A::Principal,
+        fence: CachePublicationFence,
+        failure: &CacheFailure,
+    ) -> Result<CacheStatus> {
+        if !std::sync::Arc::ptr_eq(&self.instance, &fence.issuer)
+            || fence.registration.partition() != fence.partition
+        {
+            return Err(Error::new(
+                "guard-conflict",
+                "Cache failure does not match its pre-fetch fence",
+            ));
+        }
+        self.record_cache_failure_inner(
+            principal,
+            &fence.partition.scope(),
+            &fence.partition,
+            failure,
+            Some(&fence),
+        )
+    }
+
+    fn record_cache_failure_inner(
+        &mut self,
+        principal: &A::Principal,
+        scope: &Scope,
+        partition: &SourcePartition,
+        failure: &CacheFailure,
+        fence: Option<&CachePublicationFence>,
     ) -> Result<CacheStatus> {
         validate_partition(&self.contract, partition)?;
         let input = serde_json::to_value(partition)?;
@@ -370,9 +411,33 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         if partition.scope() != *scope {
             return Err(Error::new("not-found", "Source unavailable"));
         }
-        cache_repo::source(&tx, partition)?;
-        let mut candidate = repo::snapshot(&tx)?;
+        let registration = cache_repo::source(&tx, partition)?;
         let prior = cache_repo::cache(&tx, partition)?;
+        if let Some(fence) = fence {
+            if registration != fence.registration {
+                return Err(Error::new(
+                    "guard-conflict",
+                    "Source registration changed during fetch",
+                ));
+            }
+            if prior
+                .as_ref()
+                .and_then(|cache| cache.generation_id.as_ref())
+                != fence.baseline_generation_id.as_ref()
+            {
+                return Err(Error::new(
+                    "guard-conflict",
+                    "Cache generation changed during fetch",
+                ));
+            }
+            if cache_repo::epoch(&tx, partition)? != fence.baseline_cache_epoch.value() {
+                return Err(Error::new(
+                    "guard-conflict",
+                    "Cache publication or source failure changed during fetch",
+                ));
+            }
+        }
+        let mut candidate = repo::snapshot(&tx)?;
         let at = self.runtime.now()?;
         let quarantined = prior
             .as_ref()

@@ -67,7 +67,7 @@ fn main() -> CheckResult<()> {
     )?;
     let initial: Snapshot = load(&root, "plan-free.snapshot.json")?;
     store.initialize_synthetic(&initial)?;
-    assert_eq!(store.database_version(), 1);
+    assert_eq!(store.database_version(), DATABASE_VERSION);
     let room = store.read_record(&principal, &scope, &reference(RecordType::Identity, 200))?;
     let item = store.read_record(&principal, &scope, &reference(RecordType::Identity, 201))?;
     assert_eq!(room.payload["kind"], "location");
@@ -334,7 +334,7 @@ fn main() -> CheckResult<()> {
     assert_eq!(oracle.counts.borrow().get("transition"), Some(&9));
     assert_eq!(oracle.counts.borrow().get("guards"), Some(&9));
     assert_eq!(oracle.counts.borrow().get("final"), Some(&9));
-    let evidence = json!({"lineage":lineage,"databaseVersion":1,"sqliteVersion":rusqlite::version(),"auditRows":count("audits")?,
+    let evidence = json!({"lineage":lineage,"databaseVersion":DATABASE_VERSION,"sqliteVersion":rusqlite::version(),"auditRows":count("audits")?,
         "receiptRows":count("receipts")?,"batchReceiptRows":count("batch_receipts")?,"bindingReservations":count("binding_reservations")?,
         "contextsCompared":captured.len(),"storedAuthorizerContexts":contexts.borrow().len(),"borrowedAuthorizerContexts":per_call_contexts.borrow().len(),
         "borrowedAuthorizerPhases":per_call_contexts.borrow().iter().map(|context| context.phase).collect::<Vec<_>>(),

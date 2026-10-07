@@ -6,6 +6,7 @@ use std::fmt;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PublishError {
     ScopeMismatch,
+    RegistrationMismatch,
     InvalidRetainedState,
     Quarantined,
     StoreRejected,
@@ -14,6 +15,7 @@ impl fmt::Display for PublishError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::ScopeMismatch => "Publication scope does not match the reader.",
+            Self::RegistrationMismatch => "Reader does not match the durable source registration.",
             Self::InvalidRetainedState => {
                 "Retained generation does not match the published contract."
             }
@@ -65,6 +67,9 @@ impl<T: Transport, K: Clock> HomeBoxReader<T, K> {
         let prepared = store
             .prepare_cache_publication(principal, &partition.scope(), &partition)
             .map_err(|_| PublishError::StoreRejected)?;
+        if !matches_registration(self.registration(), prepared.fence().registration()) {
+            return Err(PublishError::RegistrationMismatch);
+        }
         let (state, fence) = prepared.into_parts();
         let previous = super::retained::previous(state, self.scope())?;
         Ok(PreparedGeneration {
@@ -94,6 +99,13 @@ impl<'a, P> PreparedGeneration<'a, P> {
         {
             return Err(RefreshError::Publication(PublishError::ScopeMismatch));
         }
+        // Repeat on the consuming reader: a caller may pass a different reader
+        // after preparation. Scope alone does not establish complete coverage.
+        if !matches_registration(reader.registration(), self.fence.registration()) {
+            return Err(RefreshError::Publication(
+                PublishError::RegistrationMismatch,
+            ));
+        }
         // An ordinary refresh cannot turn durable quarantine into fresh access.
         if self.previous.cache().quarantined() || self.previous.quarantine {
             return Err(RefreshError::Publication(PublishError::Quarantined));
@@ -110,6 +122,38 @@ impl<'a, P> PreparedGeneration<'a, P> {
             generation,
         })
     }
+}
+fn matches_registration(
+    reader: &SourceRegistration,
+    durable: &storage::SourceRegistration,
+) -> bool {
+    use std::collections::BTreeSet;
+    reader.workspace_id.as_str() == durable.workspace_id
+        && reader.home_id.as_str() == durable.home_id
+        && reader.source_instance_id.as_str() == durable.source_instance_id
+        && reader.collection_id == durable.collection_id
+        && reader.owner == "homebox"
+        && durable.owner == storage::SourceOwner::Homebox
+        && matches!(
+            (reader.partition_mode, durable.partition_mode),
+            (
+                PartitionMode::ExclusiveHome,
+                storage::PartitionMode::ExclusiveHome
+            ) | (
+                PartitionMode::ReviewedEntityAllowlist,
+                storage::PartitionMode::ReviewedEntityAllowlist
+            )
+        )
+        && reader
+            .allowed_external_ids
+            .iter()
+            .map(Uuid::as_str)
+            .collect::<BTreeSet<_>>()
+            == durable
+                .allowed_external_ids
+                .iter()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>()
 }
 impl<P> StagedPublication<'_, P> {
     pub fn generation(&self) -> &CompleteGeneration {
