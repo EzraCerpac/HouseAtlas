@@ -9,11 +9,11 @@ mod integer;
 mod model;
 pub mod native_semantics;
 pub mod native_storage;
-pub mod queue_recovery;
 mod ports;
 mod presence;
 mod projection;
 mod queries;
+pub mod queue_recovery;
 pub mod stock;
 
 #[cfg(test)]

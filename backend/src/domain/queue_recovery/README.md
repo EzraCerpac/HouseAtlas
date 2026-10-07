@@ -63,7 +63,8 @@ data and are not serialized or reconstructed during image validation.
 `../../jobs/examples/recovery_fresh_populated.rs` uses actual stock schemas, native Atlas
 semantics, SQLite storage, these D/E implementations and the actual PR34 peer
 constructor. Its explicit synthetic authority/provenance/no-media/native owners
-are fixture qualification only. It registers two physical queues (one empty),
+are fixture qualification only. It registers two home-scoped physical queues
+with the same workspace/source/collection strings (one queue is empty),
 enqueues one fresh quantity-zero intent, claims it, validates a claimed image,
 journals exact fixture native/media bytes, then validates a journaled image.
 No transport or recovered dispatch is constructed. Unsupported step/outcome,

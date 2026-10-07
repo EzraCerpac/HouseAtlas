@@ -118,6 +118,20 @@ pub struct FixtureOwner {
     pub attempt_checks: Cell<usize>,
     pub native_checks: Cell<usize>,
 }
+impl FixtureOwner {
+    pub fn new(original: ValidatedRequest, request: EnqueueRequest, primary: QueueConfig) -> Self {
+        Self {
+            original,
+            request,
+            primary,
+            admitted: RefCell::new(None),
+            journal: RefCell::new(None),
+            original_checks: Cell::new(0),
+            attempt_checks: Cell::new(0),
+            native_checks: Cell::new(0),
+        }
+    }
+}
 impl OriginalEnqueueOwner for FixtureOwner {
     type Proof = FixtureProof;
     fn retained_enqueue(

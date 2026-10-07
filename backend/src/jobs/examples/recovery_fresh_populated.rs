@@ -11,11 +11,7 @@ use houseatlas_at36_stock_harness::{
     storage::*,
 };
 use serde_json::{Value, json};
-use std::{
-    cell::{Cell, RefCell},
-    fs,
-    path::PathBuf,
-};
+use std::{cell::Cell, fs, path::PathBuf};
 use support::*;
 
 fn original_wire() -> Value {
@@ -74,8 +70,7 @@ fn main() -> CheckResult<()> {
     let empty = config(
         "fixture-empty",
         SourcePartition {
-            source_instance_id: id(7),
-            collection_id: id(8),
+            home_id: id(9),
             ..request.partition.clone()
         },
     );
@@ -89,16 +84,33 @@ fn main() -> CheckResult<()> {
         home_id: id(2),
         actor_id: id(50),
     };
-    let owner = FixtureOwner {
-        original,
-        request,
-        primary: primary.clone(),
-        admitted: RefCell::new(None),
-        journal: RefCell::new(None),
-        original_checks: Cell::new(0),
-        attempt_checks: Cell::new(0),
-        native_checks: Cell::new(0),
+    let owner = FixtureOwner::new(original, request, primary.clone());
+    // Identical workspace/source/collection strings remain home-scoped. The
+    // second home's queue is registered under its own original actor/witness.
+    let mut empty_raw = owner.original.raw().clone();
+    empty_raw["context"]["homeId"] = json!(id(9));
+    let empty_original = ValidatedRequest::parse(&stock, empty_raw)?;
+    let mut empty_request = owner.request.clone();
+    empty_request.receipt.home_id = id(9);
+    empty_request.partition.home_id = id(9);
+    empty_request.intent.request_digest = digest(empty_original.intent_digest())?;
+    let empty_owner = FixtureOwner::new(empty_original, empty_request, empty.clone());
+    let empty_actor = VerifiedActor {
+        home_id: id(9),
+        ..actor.clone()
     };
+    assert_ne!(
+        owner.request.partition.home_id,
+        empty_owner.request.partition.home_id
+    );
+    assert_eq!(
+        owner.request.partition.source_instance_id,
+        empty_owner.request.partition.source_instance_id
+    );
+    assert_eq!(
+        owner.request.partition.collection_id,
+        empty_owner.request.partition.collection_id
+    );
     let grant = FixtureRecoveryGrant::issue(&registry);
     let recovery_authority = FixtureRecoveryAuthority {
         issued: &grant,
@@ -148,17 +160,24 @@ fn main() -> CheckResult<()> {
     let witness = FixtureLiveWitness {
         original_digest: owner.original.intent_digest().to_owned(),
     };
-    // Register the second empty queue explicitly; the validator must retain it.
+    // Register the other home's empty queue; image validation must retain it.
     {
+        let empty_live = FixtureLiveAuthority {
+            owner: &empty_owner,
+            registry: &registry,
+        };
+        let empty_witness = FixtureLiveWitness {
+            original_digest: empty_owner.original.intent_digest().to_owned(),
+        };
         let _session = store.queue_session(
             empty,
             QueueSessionBinding {
-                receipt: &owner.request.receipt,
-                original: &owner.original,
-                principal: &actor,
-                witness: &witness,
+                receipt: &empty_owner.request.receipt,
+                original: &empty_owner.original,
+                principal: &empty_actor,
+                witness: &empty_witness,
             },
-            &live,
+            &empty_live,
             QueueEvidenceInbox::default(),
         )?;
     }
@@ -234,7 +253,8 @@ fn main() -> CheckResult<()> {
     fs::write(
         output.join("result.json"),
         serde_json::to_vec_pretty(&json!({
-            "fixtureOnly":true,"registryEntries":registry.len(),"emptyRegistrations":1,
+        "fixtureOnly":true,"registryEntries":registry.len(),"emptyRegistrations":1,
+        "distinctHomeRegistrations":true,"sharedSourceAndCollection":true,
             "originalChecks":owner.original_checks.get(),"attemptChecks":owner.attempt_checks.get(),
             "nativePreparedChecks":owner.native_checks.get(),"recoveryAuthorityChecks":recovery_authority.checks.get(),
             "claimedImageIdentityPreserved":true,"journaledImageIdentityPreserved":true,

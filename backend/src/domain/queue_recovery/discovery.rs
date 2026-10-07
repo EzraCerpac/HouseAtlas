@@ -21,12 +21,11 @@ impl TrustedQueueRegistry {
                     || previous.registration.identity.deployment_id
                         == config.registration.identity.deployment_id
                         && previous.registration.aliases.iter().any(|left| {
-                            config.registration.aliases.iter().any(|right| {
-                                left.partition.workspace_id == right.partition.workspace_id
-                                    && left.partition.source_instance_id
-                                        == right.partition.source_instance_id
-                                    && left.partition.collection_id == right.partition.collection_id
-                            })
+                            config
+                                .registration
+                                .aliases
+                                .iter()
+                                .any(|right| left.partition == right.partition)
                         })
                 {
                     return Err(incompatible());
