@@ -9,6 +9,7 @@ mod model;
 mod native;
 mod projection;
 mod publication;
+mod saved_queries;
 mod sidecar;
 
 pub use adapter::*;
@@ -19,6 +20,7 @@ pub use model::*;
 pub use native::*;
 pub use projection::{NetworkCapture, project_capture, validate_state};
 pub use publication::*;
+pub use saved_queries::*;
 pub use sidecar::*;
 
 #[cfg(test)]
