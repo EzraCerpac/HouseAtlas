@@ -45,8 +45,8 @@ projection rows remain exact JSON data, validated by the contract peer.
 
 `NativeContract<C>` composes `crate::contracts` at published AT51 checkpoint
 `6b3029cbbcf1462ecdeecc62a56c24f66e034057` with a required semantic peer `C`.
-It dispatches the storage input shapes and the native domain bridge's
-`snapshot`, `record` and `audit` output shapes to generated native DTOs via
+It dispatches the storage input shapes, including the stock mapper's `guard`,
+and `snapshot`, `record`, `audit` and `mutationResult` output shapes to native DTOs via
 `contracts::decode<T>`, and validates snapshot/result shapes before delegation.
 Shared numeric processing errors retain AT51's static explanation under the
 existing `invalid-contract` storage error code; no input tokens are exposed.
@@ -198,8 +198,10 @@ arbitrary HomeBox types, explicit nullable type flags, unknowns and original dat
 remain unchanged. It exercises room/item atomic create, item replace/tombstone/
 restore, a circuit create, ordered binding retirement/create/journal, scoped
 queries, empty seeded history, retained tombstone read, and healthy reopen.
-It also validates the final committed snapshot, restored item and four ordered
-item audits through the exact native output shape names used by the domain bridge.
+It also validates the final committed snapshot, restored item, four ordered
+item audits and committed circuit result through the exact native output shape
+names used by the domain and service bridges. The circuit's original evidence
+guard exercises the stock mapper's explicit `guard` shape dispatch.
 
 An external Cargo harness named `houseatlas-at07-checkpoint` has these dependencies,
 `src/lib.rs` containing the following, and a `healthy` binary pointing to the

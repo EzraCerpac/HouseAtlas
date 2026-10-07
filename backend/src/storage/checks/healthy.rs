@@ -210,6 +210,9 @@ fn main() -> CheckResult<()> {
     for audit in &history {
         native_contract.validate_shape("audit", &serde_json::to_value(audit)?)?;
     }
+    assert_eq!(circuit_command.guards.len(), 1);
+    native_contract.validate_shape("guard", &serde_json::to_value(&circuit_command.guards[0])?)?;
+    native_contract.validate_shape("mutationResult", &serde_json::to_value(&circuit)?)?;
     store.close()?;
     let mut reopened = AtlasStore::open(
         &path,
@@ -335,7 +338,8 @@ fn main() -> CheckResult<()> {
         "receiptRows":count("receipts")?,"batchReceiptRows":count("batch_receipts")?,"bindingReservations":count("binding_reservations")?,
         "contextsCompared":captured.len(),"storedAuthorizerContexts":contexts.borrow().len(),"borrowedAuthorizerContexts":per_call_contexts.borrow().len(),
         "borrowedAuthorizerPhases":per_call_contexts.borrow().iter().map(|context| context.phase).collect::<Vec<_>>(),
-        "nativeOutputShapes":{"snapshot":1,"record":1,"audit":history.len()},
+        "nativeInputShapes":{"guard":1},
+        "nativeOutputShapes":{"snapshot":1,"record":1,"audit":history.len(),"mutationResult":1},
         "contractCalls":*oracle.counts.borrow(),"circuit":circuit,"roomItemBatch":created,
         "restoredItem":restored,"itemHistory":history,"remap":remapped,"snapshot":final_snapshot,
         "peerScope":"AT51 native shapes/numeric types; offline published semantic/JCS oracle; synthetic authorization/runtime","deferred":"replay/rejection/fault/crash/concurrency and full native semantic/access/runtime peer integration"});
