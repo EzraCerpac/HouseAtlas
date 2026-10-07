@@ -8,6 +8,7 @@ use crate::{
 };
 #[cfg(test)]
 mod healthy;
+pub mod stock_http;
 
 /// Own this once in the deployment host. A mutable borrow serializes all local
 /// callers; AT07's durable physical slot covers every registered source alias.

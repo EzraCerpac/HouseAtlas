@@ -11,6 +11,9 @@ import subprocess
 import tempfile
 import tomllib
 
+TRANSPORT_INPUT = "c36bb0bc19bb631d815ab4bb44fa3514ebeac0b7"
+TRANSPORT_PATH = "backend/src/providers/homebox/write_transport"
+
 
 def verify():
     root = Path(__file__).resolve().parents[4]
@@ -28,6 +31,18 @@ def verify():
         import json
 
         quoted = json.dumps
+        # Inspect the pinned sibling input independently; do not merge its
+        # ancestry or write its namespace into this checkout. Only exact source
+        # bytes enter the disposable typechecking harness. This does not accept
+        # the peer's code or provide its missing live/storage qualification.
+        peer = harness / "write_transport"
+        peer.mkdir()
+        for filename in ["mod.rs", "body.rs", "endpoint.rs", "http.rs", "routes.rs", "healthy.rs"]:
+            source = subprocess.run(
+                ["git", "show", f"{TRANSPORT_INPUT}:{TRANSPORT_PATH}/{filename}"],
+                cwd=root, check=True, stdout=subprocess.PIPE,
+            ).stdout
+            (peer / filename).write_bytes(source)
         (harness / "Cargo.toml").write_text(
             '[package]\nname="houseatlas-provider-dispatch-check"\n'
             'version="0.1.0"\nedition="2024"\n[dependencies]\n'
@@ -42,7 +57,10 @@ def verify():
             + "\n]\n"
         )
         (harness / "src/lib.rs").write_text(
-            "pub use houseatlas_backend::{jobs,storage,domain,providers,http};\n"
+            "pub use houseatlas_backend::{jobs,storage,domain,http,contracts};\n"
+            "pub mod providers { pub use houseatlas_backend::providers::network;\n"
+            "pub mod homebox { pub use houseatlas_backend::providers::homebox::{read,write};\n"
+            "#[path=" + quoted(str(peer / "mod.rs")) + "] pub mod write_transport; }}\n"
             "pub mod config { pub use houseatlas_backend::config::*; #[path="
             + quoted(str(root / "backend/src/config/provider_dispatch/mod.rs"))
             + "] pub mod provider_dispatch; }\n#[path="
