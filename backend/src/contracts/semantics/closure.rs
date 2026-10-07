@@ -161,8 +161,10 @@ pub(super) fn reference_closure(
             if selected.contains_key(key) {
                 for record_ref in &direct.refs {
                     let ref_key = reference_key(record_ref)?;
-                    if !selected.contains_key(&ref_key) {
-                        selected.insert(ref_key, record_ref.clone());
+                    if let std::collections::btree_map::Entry::Vacant(entry) =
+                        selected.entry(ref_key)
+                    {
+                        entry.insert(record_ref.clone());
                         changed = true;
                     }
                 }

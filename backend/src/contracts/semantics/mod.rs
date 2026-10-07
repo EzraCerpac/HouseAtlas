@@ -6,6 +6,7 @@
 mod canonical;
 mod closure;
 mod common;
+mod formats;
 mod graph;
 mod history;
 mod mutations;
@@ -21,6 +22,8 @@ use super::{
 };
 
 pub use canonical::{canonical_json, digest as canonical_digest};
+pub(super) use formats::published_uri_format;
+pub(super) use timestamps::published_date_time_format;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SemanticCode {
@@ -374,7 +377,8 @@ fn scoped_snapshot(mut snapshot: Value, scope: &Value) -> Result<Value, Semantic
             .map(|row| common::same_scope(row, scope).map(|included| (row, included)))
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
-            .filter_map(|(row, included)| included.then(|| row.clone()))
+            .filter(|(_, included)| *included)
+            .map(|(row, _)| row.clone())
             .collect();
         snapshot[field] = Value::Array(filtered);
     }

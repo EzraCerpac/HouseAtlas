@@ -280,6 +280,8 @@ fn compile_validators() -> Result<Validators, String> {
             })?;
             jsonschema::options()
                 .with_draft(jsonschema::Draft::Draft202012)
+                .with_format("date-time", semantics::published_date_time_format)
+                .with_format("uri", semantics::published_uri_format)
                 .should_validate_formats(true)
                 .should_ignore_unknown_formats(false)
                 .build(&schema)

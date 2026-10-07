@@ -252,11 +252,10 @@ fn add_binding_closure(
             target,
             "binding",
             text(&journal["payload"]["toBindingId"])?,
-        )? {
-            if visited.insert(text(&next["recordId"])?.to_owned()) {
-                add_reference(refs, target, "binding", &next["recordId"])?;
-                pending.push((next, 0));
-            }
+        )? && visited.insert(text(&next["recordId"])?.to_owned())
+        {
+            add_reference(refs, target, "binding", &next["recordId"])?;
+            pending.push((next, 0));
         }
     }
     Ok(())

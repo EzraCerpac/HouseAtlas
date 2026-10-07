@@ -13,6 +13,120 @@
 //! use V8's numeral/millisecond conversion, including its long-fraction quirk.
 //! These helpers never rewrite the timestamp's original wire bytes.
 
+/// Ajv-formats 3.0.1's full `date-time` format used by the published contract.
+///
+/// This is deliberately distinct from Date.parse: the format admits ECMAScript
+/// whitespace separators and hour-only offsets, and its leap-second branch has
+/// different admissibility rules. Retain the literal getTime arithmetic rather
+/// than substituting a stricter RFC 3339 or successful-Date.parse check.
+pub(in crate::contracts) fn published_date_time_format(value: &str) -> bool {
+    // getDateTime splits on /t|\s/i and requires exactly two pieces. In
+    // particular, extra whitespace (including a trailing newline) fails.
+    let mut pieces =
+        value.split(|character| matches!(character, 'T' | 't') || ecmascript_whitespace(character));
+    let Some(date) = pieces.next() else {
+        return false;
+    };
+    let Some(time) = pieces.next() else {
+        return false;
+    };
+    if pieces.next().is_some() || !published_date_format(date) {
+        return false;
+    }
+    published_time_format(time)
+}
+
+fn published_date_format(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
+        return false;
+    }
+    let Some(year) = decimal(&bytes[..4]) else {
+        return false;
+    };
+    let Some(month) = decimal(&bytes[5..7]) else {
+        return false;
+    };
+    let Some(day) = decimal(&bytes[8..10]) else {
+        return false;
+    };
+    let days = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) => 29,
+        2 => 28,
+        _ => return false,
+    };
+    (1..=days).contains(&day)
+}
+
+fn published_time_format(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    if bytes.len() < 9 || bytes[2] != b':' || bytes[5] != b':' {
+        return false;
+    }
+    let Some(hour) = decimal(&bytes[..2]) else {
+        return false;
+    };
+    let Some(minute) = decimal(&bytes[3..5]) else {
+        return false;
+    };
+    if decimal(&bytes[6..8]).is_none() {
+        return false;
+    }
+    let mut cursor = 8;
+    if bytes.get(cursor) == Some(&b'.') {
+        cursor += 1;
+        let start = cursor;
+        while bytes.get(cursor).is_some_and(u8::is_ascii_digit) {
+            cursor += 1;
+        }
+        if cursor == start {
+            return false;
+        }
+    }
+    // Ajv applies unary + to the entire seconds token. Parsing as f64 preserves
+    // its rounding before sec < 60 / sec < 61, including long decimal fractions.
+    let Ok(second) = value[6..cursor].parse::<f64>() else {
+        return false;
+    };
+    let (offset_sign, offset_hour, offset_minute) = match &bytes[cursor..] {
+        [b'Z' | b'z'] => (1, 0, 0),
+        [sign @ (b'+' | b'-'), rest @ ..] => {
+            let (offset_hour, offset_minute) = match rest {
+                [_, _] => (decimal(rest), Some(0)),
+                [_, _, _, _] => (decimal(&rest[..2]), decimal(&rest[2..])),
+                [_, _, b':', _, _] => (decimal(&rest[..2]), decimal(&rest[3..])),
+                _ => return false,
+            };
+            let (Some(offset_hour), Some(offset_minute)) = (offset_hour, offset_minute) else {
+                return false;
+            };
+            (
+                if *sign == b'-' { -1 } else { 1 },
+                offset_hour,
+                offset_minute,
+            )
+        }
+        _ => return false,
+    };
+    if offset_hour > 23 || offset_minute > 59 {
+        return false;
+    }
+    if hour <= 23 && minute <= 59 && second < 60.0 {
+        return true;
+    }
+    // Source's leap-second branch intentionally performs only this one minute
+    // carry and checks exact 23/-1 and 59/-1 values, without modulo reduction.
+    let utc_minute = minute - offset_minute * offset_sign;
+    let utc_hour = hour - offset_hour * offset_sign - i64::from(utc_minute < 0);
+    matches!(utc_hour, 23 | -1) && matches!(utc_minute, 59 | -1) && second < 61.0
+}
+
+fn ecmascript_whitespace(value: char) -> bool {
+    v8_legacy_whitespace(value) || matches!(value, '\u{2028}' | '\u{2029}')
+}
+
 /// The published `Date.parse(left) < Date.parse(right)` comparison.
 pub fn date_less(left: &str, right: &str) -> bool {
     match (parse_milliseconds(left), parse_milliseconds(right)) {

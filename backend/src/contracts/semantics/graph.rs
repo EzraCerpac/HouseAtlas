@@ -27,7 +27,7 @@ impl<'a> Graph<'a> {
             .ok_or_else(|| {
                 SemanticError::new(
                     SemanticCode::NotFound,
-                    &format!("Missing scoped {kind} reference"),
+                    format!("Missing scoped {kind} reference"),
                 )
             })
     }
@@ -571,13 +571,13 @@ pub(super) fn validate_snapshot(snapshot: &Value) -> Result<()> {
             } else {
                 None
             };
-            if let Some(parent) = next {
-                if !same_scope(start, parent)? {
-                    return Err(SemanticError::new(
-                        SemanticCode::Forbidden,
-                        "Cross-home parentage",
-                    ));
-                }
+            if let Some(parent) = next
+                && !same_scope(start, parent)?
+            {
+                return Err(SemanticError::new(
+                    SemanticCode::Forbidden,
+                    "Cross-home parentage",
+                ));
             }
         }
     }
