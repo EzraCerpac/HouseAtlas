@@ -1,6 +1,6 @@
 {
   "format": "houseatlas-publication-source/1",
-  "status": "development-native-preview-policy-composition-review-required",
+  "status": "development-native-homebox-decimal-reader-composition-review-required",
   "self": {
     "path": "docs/publication/source-manifest.json",
     "mode": "100644",
@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "1a77d9490dd64206d70153f22cb2af9f5f2a77122b4a946c4e2cda7c66b27e4f",
+  "sourceDigestSha256": "eccd83cc85683c9fc20f1a7db52ce7e05dd23e88e08ad9594b898e34cbc703b3",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -1406,8 +1406,8 @@
     {
       "path": "backend/src/providers/homebox/read/decode.rs",
       "mode": "100644",
-      "bytes": 14383,
-      "sha256": "821e7324b63b0e8d3fb3a4d837f2cebd390e1bb7bcae4448dd4c6a078a98a6c9",
+      "bytes": 14662,
+      "sha256": "a299ec356c27ef6f7b7afc06d082ecd03f587acb74c7a8ac8978afe835db2970",
       "owner": "homebox"
     },
     {
@@ -1448,8 +1448,8 @@
     {
       "path": "backend/src/providers/homebox/read/mod.rs",
       "mode": "100644",
-      "bytes": 965,
-      "sha256": "32151d0a78564785580f9057edbaebb7b2a3c30ea26659117f24cab1121bc7f9",
+      "bytes": 999,
+      "sha256": "3b13805682fef9251657cc1778cbb4e7460fddaa2d3665848d4e113820f4f611",
       "owner": "homebox"
     },
     {
@@ -1457,6 +1457,13 @@
       "mode": "100644",
       "bytes": 2364,
       "sha256": "46ada8ca10d0b912471cbf70eb56e5ef727a221d6fc82bae2d784a094d9d716a",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/read/numeric_healthy.rs",
+      "mode": "100644",
+      "bytes": 6052,
+      "sha256": "974d86afe75e869234ea4ddbdb943f10f01b35a130e6f10a4e802a56882ac82d",
       "owner": "homebox"
     },
     {
@@ -1483,8 +1490,8 @@
     {
       "path": "backend/src/providers/homebox/read/types.rs",
       "mode": "100644",
-      "bytes": 14047,
-      "sha256": "a666585069e68d4ac67ed7ac1749ef735cbe0016dbccaf09930b166bdd446558",
+      "bytes": 14215,
+      "sha256": "aa3e07bf73de803a3c9eb4b23c2c7cc713c592acc6d0270dae9cfb0e02ac0f41",
       "owner": "homebox"
     },
     {
@@ -2666,8 +2673,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 25017,
-      "sha256": "39fbde9fbc26dac613497804838d7c5a7fe8177678cdf2d07c9d97c683b58f02",
+      "bytes": 25557,
+      "sha256": "7d5015c8c7d739cb368028c9cd3260a3d6573d902b4d3873a8f9153b03a9b21a",
       "owner": "core-integration"
     },
     {

@@ -363,3 +363,11 @@ replay, expiry, revocation, injected fault, crash and concurrency checks remain
 unrun. The jobs checkpoint contains replay and is not executed. No broad test
 alias, remote listener, provider/NAS call, live login/grant, deployment or
 security/recovery/target/product acceptance is supplied by this composition.
+
+The native HomeBox reader retains maintenance cost decimal/exponent tokens in
+`serde_json::Number`, including the existing null/unknown state, instead of
+replacing them with the finite-check float. This preserves intake and projection
+serialization. SQLite's native RFC8785 canonical persistence still uses the
+JavaScript finite-number model and may round these amounts; this composition
+does not claim durable arbitrary decimal fidelity or recover previously rounded
+observations. Owned numeric examples remain unrun by root integration.
