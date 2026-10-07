@@ -15,6 +15,7 @@ mod queue;
 mod repository;
 mod stock_history_repository;
 mod stock_projection;
+mod stock_recovery;
 mod stock_repository;
 mod stock_types;
 mod store;
@@ -30,9 +31,10 @@ pub use ports::{
 pub use queue::{
     JournalEvidenceView, NativeJournalReceipt, PreparedNativeIntent, QueueAction,
     QueueAuthorization, QueueDiscovery, QueueEvidenceInbox, QueueHandles, QueueJournalHandle,
-    QueueJournalPort, QueueOriginalIntent, QueuePhase, QueueSession, QueueSessionBinding,
-    QueueStepEvidence, QueueStoreHandle, StepKind,
+    QueueJournalPort, QueueOriginalIntent, QueuePhase, QueueRecoveryAttempt, QueueRecoveryEvidence,
+    QueueRecoveryOutcome, QueueSession, QueueSessionBinding, QueueStepEvidence, QueueStoreHandle,
+    StepKind,
 };
 pub use stock_types::*;
-pub use store::{AtlasStore, RecoveryImage, StoreOptions};
+pub use store::{AtlasStore, RecoveryImage, RecoveryValidationPeers, StoreOptions};
 pub use types::*;

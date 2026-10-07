@@ -9,7 +9,7 @@ mod recovery;
 mod stock;
 #[path = "stock_history.rs"]
 mod stock_history;
-pub use recovery::RecoveryImage;
+pub use recovery::{RecoveryImage, RecoveryValidationPeers};
 
 use rusqlite::{Connection, TransactionBehavior};
 use serde::Serialize;
