@@ -67,9 +67,13 @@ activation revalidates the original binding and preserves identity matching.
 A new authorization launch cannot overwrite an unresolved checkpoint.
 Disconnect stops local use and distinguishes confirmed from unconfirmed
 revocation. For a pending exchange it attempts revocation of both renewable
-sessions when older credentials also exist. Unconfirmed renewable exchange
-material remains encrypted and non-active for a later explicit disconnect;
-confirmed cleanup clears it. No renewable token is invented for direct-only
+sessions when older credentials also exist. Each confirmed session is retired
+independently and persisted before another revocation await. Only unconfirmed
+material remains encrypted and non-active for a later explicit disconnect,
+including an older-only remainder after the exchange session was retired.
+New authorization cannot overwrite disconnected retained credentials. Material
+without a renewable token stays explicitly unconfirmed; no local abandonment
+or cleanup authority is invented. No renewable token is invented for direct-only
 or website identity replies.
 No cryptography, encryption, live exchange or server transfer route is fabricated.
 

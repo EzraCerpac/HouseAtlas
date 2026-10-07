@@ -377,8 +377,11 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
         self.credentials
             .revalidate(context, &lease, binding)
             .await?;
-        if !matches!(record.refresh_checkpoint, RefreshCheckpoint::None) {
-            // A new launch must not overwrite unverified session material.
+        if !matches!(record.refresh_checkpoint, RefreshCheckpoint::None)
+            || (record.state == LifecycleState::Disconnected && record.credentials.is_some())
+        {
+            // A new launch must not overwrite unverified session material or
+            // the older session retained after a partial disconnect.
             return Err(AiError::ConnectionUnavailable);
         }
         let now = finite_time(self.credentials.now_ms()?)?;
@@ -881,69 +884,80 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
         // Stop use durably before remote I/O; a failed revocation never silently
         // reconnects or destroys the saved issued-client/account registration.
         self.credentials.persist_atomic(&mut lease, &record).await?;
-        let exchange = match &record.refresh_checkpoint {
-            RefreshCheckpoint::ExchangeReceived {
-                client_id, reply, ..
-            } => Some((client_id, reply.refresh_token.as_ref())),
-            _ => None,
-        };
-        let refresh = match &record.refresh_checkpoint {
-            RefreshCheckpoint::Received { reply, .. }
-            | RefreshCheckpoint::ExchangeReceived { reply, .. } => reply.refresh_token.as_ref(),
-            _ => record
-                .credentials
-                .as_ref()
-                .and_then(|tokens| tokens.refresh_token.as_ref()),
-        };
+        let exchange = matches!(
+            record.refresh_checkpoint,
+            RefreshCheckpoint::ExchangeReceived { .. }
+        );
         let mut diagnostic = None;
-        let mut all_confirmed = false;
-        if let (Some(client), Some(refresh)) = (
-            exchange
-                .map(|(client, _)| client)
-                .or(record.issued_client_id.as_ref()),
-            refresh,
-        ) {
-            match self.provider.revoke(binding, client, refresh).await {
-                Ok(ProviderRevocation::Confirmed) => all_confirmed = true,
-                Ok(ProviderRevocation::Unconfirmed(detail)) => diagnostic = detail,
-                Err(_) => {}
+        let mut primary_confirmed = false;
+        {
+            let (client, refresh) = match &record.refresh_checkpoint {
+                RefreshCheckpoint::ExchangeReceived {
+                    client_id, reply, ..
+                } => (Some(client_id), reply.refresh_token.as_ref()),
+                RefreshCheckpoint::Received { reply, .. } => (
+                    record.issued_client_id.as_ref(),
+                    reply.refresh_token.as_ref(),
+                ),
+                _ => (
+                    record.issued_client_id.as_ref(),
+                    record
+                        .credentials
+                        .as_ref()
+                        .and_then(|tokens| tokens.refresh_token.as_ref()),
+                ),
+            };
+            if let (Some(client), Some(refresh)) = (client, refresh) {
+                match self.provider.revoke(binding, client, refresh).await {
+                    Ok(ProviderRevocation::Confirmed) => primary_confirmed = true,
+                    Ok(ProviderRevocation::Unconfirmed(detail)) => diagnostic = detail,
+                    Err(_) => {}
+                }
             }
+        }
+        if primary_confirmed {
+            record.refresh_checkpoint = RefreshCheckpoint::None;
+            if !exchange {
+                record.credentials = None;
+            }
+            record.revocation = if record.credentials.is_none() {
+                RevocationState::Confirmed
+            } else {
+                RevocationState::Unconfirmed
+            };
+            // Durably retire this confirmed session before another provider
+            // await. A later disconnect cannot resubmit its removed token.
+            self.credentials.persist_atomic(&mut lease, &record).await?;
         }
         // A new authorization exchange is a separate renewable session from
         // any previously active credentials. Disconnect must attempt both;
         // success for one cannot stand in for revocation of the other.
-        if exchange.is_some()
+        let mut previous_confirmed = false;
+        if exchange
             && let Some(previous) = record.credentials.as_ref()
+            && let (Some(client), Some(refresh)) =
+                (&record.issued_client_id, &previous.refresh_token)
         {
-            match (&record.issued_client_id, &previous.refresh_token) {
-                (Some(client), Some(refresh)) => {
-                    match self.provider.revoke(binding, client, refresh).await {
-                        Ok(ProviderRevocation::Confirmed) => {}
-                        Ok(ProviderRevocation::Unconfirmed(detail)) => {
-                            all_confirmed = false;
-                            if diagnostic.is_none() {
-                                diagnostic = detail;
-                            }
-                        }
-                        Err(_) => all_confirmed = false,
+            match self.provider.revoke(binding, client, refresh).await {
+                Ok(ProviderRevocation::Confirmed) => previous_confirmed = true,
+                Ok(ProviderRevocation::Unconfirmed(detail)) => {
+                    if diagnostic.is_none() {
+                        diagnostic = detail;
                     }
                 }
-                _ => all_confirmed = false,
+                Err(_) => {}
             }
         }
-        if all_confirmed {
-            record.revocation = RevocationState::Confirmed;
-        }
-        // An unconfirmed exchange-session revocation must remain available for
-        // a later explicit disconnect; disconnected state prevents activation.
-        if !matches!(
-            &record.refresh_checkpoint,
-            RefreshCheckpoint::ExchangeReceived { reply, .. } if reply.refresh_token.is_some()
-        ) || record.revocation == RevocationState::Confirmed
-        {
+        if previous_confirmed {
             record.credentials = None;
-            record.refresh_checkpoint = RefreshCheckpoint::None;
+            record.revocation = if matches!(record.refresh_checkpoint, RefreshCheckpoint::None) {
+                RevocationState::Confirmed
+            } else {
+                RevocationState::Unconfirmed
+            };
         }
+        // Preserve only unconfirmed session material, including an older-only
+        // remainder on a later disconnect. Disconnected state prevents use.
         self.credentials.persist_atomic(&mut lease, &record).await?;
         Ok(LifecycleReceipt {
             state: record.state,
