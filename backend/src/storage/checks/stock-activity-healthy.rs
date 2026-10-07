@@ -111,6 +111,16 @@ struct ProducerEvidence<'a> {
     producer: &'a s::StockActivityProducer<Original>,
 }
 impl s::StockActivityRecoveryEvidence for ProducerEvidence<'_> {
+    fn queued_reservation_jobs(
+        &self,
+        _: &s::StockActivityRegistration,
+        _: &s::RetainedStockActivityEvent,
+    ) -> s::Result<houseatlas_at07_checkpoint::jobs::LeasedJob> {
+        Err(s::Error::new(
+            "owner-unavailable",
+            "No independently retained Jobs occupancy cut in this fixture",
+        ))
+    }
     fn validate_record(&self, record: &s::RetainedStockActivity) -> s::Result<()> {
         // Independently retained live object, not a copy constructed from image.
         if !std::ptr::eq(self.producer.original(), Arc::as_ptr(self.original))

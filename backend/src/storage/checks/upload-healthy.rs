@@ -5,13 +5,14 @@
 use houseatlas_at07_checkpoint::{
     access as a,
     domain::{self as d, native_semantics::NativeSemantics, stock},
+    jobs as j,
     media::{self as m, AssetVault, Cancellation, WorkBudget},
     storage as s,
 };
 use m::{
     native::{NativeMediaRuntime, NativeReadAuthority, RetainedPrincipal},
     staged_upload::{NativeUploadStages, UploadAdmission},
-    types::{AssetPurpose, ContentType, LicenseStatus, SourceLicense, sha256},
+    types::{AssetPurpose, ContentType, LicenseStatus, PreviewPolicy, SourceLicense, sha256},
 };
 use rusqlite::{Connection, OpenFlags, params};
 use serde_json::{Value, json};
@@ -33,6 +34,35 @@ fn budget() -> WorkBudget {
     WorkBudget::new(Duration::from_secs(10), Cancellation::default())
         .expect("synthetic positive budget")
 }
+
+// Successful ordinary originals only. Wide PNGs are valid downloadable
+// originals; no oversized preview request or stopped rejection is exercised.
+fn original_example(
+    mode: &str,
+) -> Result<(Vec<u8>, ContentType, PreviewPolicy), Box<dyn std::error::Error>> {
+    let (width, policy) = match mode {
+        "text" => {
+            return Ok((
+                b"Fresh synthetic evidence; no household content.\n".to_vec(),
+                ContentType::Text,
+                PreviewPolicy::DownloadOnly,
+            ));
+        }
+        "rendered-png" => (2, PreviewPolicy::SafeRendered),
+        "download-only-png" => (20_000, PreviewPolicy::DownloadOnly),
+        _ => return Err("Expected text, rendered-png or download-only-png".into()),
+    };
+    let mut bytes = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut bytes, width, 2);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header()?;
+        let pixels = [40, 80, 120, 255].repeat(width as usize * 2);
+        writer.write_image_data(&pixels)?;
+    }
+    Ok((bytes, ContentType::Png, policy))
+}
 fn request<'a>(cookie: Option<&'a str>, csrf: Option<&'a str>) -> a::RequestEvidence<'a> {
     a::RequestEvidence {
         method: a::Method::Post,
@@ -52,6 +82,43 @@ fn guard(record_type: &str, record: &str) -> Value {
 
 #[derive(Clone)]
 struct ServerIds(Rc<Cell<u32>>);
+
+// This independently configured fixture has no Jobs lane. Exhaustive image
+// validation checks that the registry is empty; these evidence ports cannot
+// qualify any job, attempt, grant or resumed invocation.
+struct NoQueueEvidence;
+impl s::QueueDiscovery for NoQueueEvidence {
+    fn authorize_discovery(&self, _: &j::QueueRegistration) -> s::Result<()> {
+        Err(s::Error::new(
+            "owner-unavailable",
+            "No Jobs owner in upload fixture",
+        ))
+    }
+    fn validate_retained_enqueue(
+        &self,
+        _: &stock::ValidatedRequest,
+        _: &j::EnqueueRequest,
+        _: &j::CanonicalScope,
+        _: &j::QueueConfig,
+    ) -> s::Result<()> {
+        Err(s::Error::new(
+            "owner-unavailable",
+            "No Jobs owner in upload fixture",
+        ))
+    }
+}
+impl s::QueueRecoveryEvidence for NoQueueEvidence {
+    fn validate_attempt(
+        &self,
+        _: &j::QueueConfig,
+        _: s::QueueRecoveryAttempt<'_>,
+    ) -> s::Result<()> {
+        Err(s::Error::new(
+            "owner-unavailable",
+            "No Jobs owner in upload fixture",
+        ))
+    }
+}
 impl s::Runtime for ServerIds {
     fn now(&self) -> s::Result<String> {
         Ok("2026-10-07T12:00:00Z".into())
@@ -510,7 +577,9 @@ fn main() -> Check {
         .ok_or("Synthetic place identity 200 missing")?["payload"]
         .clone();
     assert_eq!(place_payload["kind"], "location");
-    let bytes = b"Fresh synthetic evidence; no household content.\n";
+    let example = std::env::args().nth(2).unwrap_or_else(|| "text".into());
+    let (original_bytes, content_type, preview_policy) = original_example(&example)?;
+    let bytes = original_bytes.as_slice();
     let license = SourceLicense {
         status: LicenseStatus::Unknown,
         reference: None,
@@ -521,18 +590,19 @@ fn main() -> Check {
     // stock preparation, native+stock commit and final output authorization.
     access.with_mutation_authorization(original.principal(), |fence| -> Check {
         assert!(std::ptr::eq(fence.principal(), original.principal()));
+        let mut body = bytes;
         let receipt = stages.stage_original(
             fence,
             &original,
             UploadAdmission {
                 request_id: id(210_000),
                 purpose: AssetPurpose::EvidenceOriginal,
-                content_type: ContentType::Text,
-                filename: "synthetic-evidence.txt".into(),
+                content_type,
+                filename: format!("synthetic-evidence.{}", content_type.extension()),
                 source_license: license.clone(),
                 evidence_ids: vec![id(100)],
             },
-            &mut bytes.as_slice(),
+            &mut body,
             &budget(),
         )?;
         assert_eq!(receipt.asset_id, id(200_001));
@@ -562,6 +632,7 @@ fn main() -> Check {
             validated_asset.intent_digest()
         );
         assert_eq!(staged.asset_id(), receipt.asset_id);
+        assert_eq!(staged.payload().preview_policy, preview_policy);
         assert!(std::ptr::eq(
             staged.original_principal().principal(),
             original.principal()
@@ -674,6 +745,10 @@ fn main() -> Check {
             &staged,
         )?;
         assert!(!commit.replayed);
+        assert_eq!(
+            commit.groups[0].native_results[0].record.payload["previewPolicy"],
+            serde_json::to_value(preview_policy)?
+        );
         assert_eq!(commit.original_request, root);
         assert_eq!(commit.request_digest, prepared.request().intent_digest());
         assert_eq!(commit.groups.len(), 3);
@@ -763,6 +838,10 @@ fn main() -> Check {
     );
     assert_eq!(binding["stage"]["staged"]["sha256"], sha256(bytes));
     assert_eq!(
+        binding["stage"]["payload"]["previewPolicy"],
+        serde_json::to_value(preview_policy)?
+    );
+    assert_eq!(
         serde_json::from_str::<Value>(&root_json)?,
         commit.original_request
     );
@@ -848,6 +927,10 @@ fn main() -> Check {
     assert_eq!(asset_record.payload["byteSize"], bytes.len() as u64);
     assert_eq!(asset_record.payload["availability"], "available");
     assert_eq!(
+        asset_record.payload["previewPolicy"],
+        serde_json::to_value(preview_policy)?
+    );
+    assert_eq!(
         evidence_record.payload["references"],
         json!([{"kind":"atlas-asset","assetId":receipt.asset_id}])
     );
@@ -868,6 +951,7 @@ fn main() -> Check {
         )?
         .ok_or("Committed consumption missing")?;
     assert_eq!(consumed.asset_id(), receipt.asset_id);
+    assert_eq!(consumed.asset_payload(), &asset_record.payload);
     assert_eq!(consumed.staged(), &receipt.staged);
     assert_eq!(consumed.root_operation_id(), commit.operation_id);
     assert_eq!(
@@ -933,14 +1017,65 @@ fn main() -> Check {
     assert!(snapshot.records.iter().any(|row| row.record_id == id(200)
         && row.revision == 2
         && row.payload["evidenceIds"] == json!([id(100), id(200_020)])));
+    let no_queue = NoQueueEvidence;
+    let peers = s::RecoveryValidationPeers {
+        stock: &schemas,
+        queues: &[],
+        discovery: &no_queue,
+        evidence: &no_queue,
+    };
+    let mut check = || Ok(());
+    let image_path = output.join("recovery.sqlite");
+    let restored_path = output.join("restored.sqlite");
+    let image = reader.backup_recovery_to_with_peers(&image_path, &peers, &mut check)?;
+    let image_bytes = fs::read(&image_path)?;
+    assert_eq!(
+        reader.validate_recovery_image_with_peers(&image_path, &peers, &mut check)?,
+        image
+    );
+    assert_eq!(fs::read(&image_path)?, image_bytes);
     reader.close()?;
+    fs::copy(&image_path, &restored_path)?;
+    let mut restored = s::AtlasStore::open_existing_recovery_image_with_peers(
+        &restored_path,
+        s::NativeContract::new(NativeSemantics::native()),
+        NativeReadAuthority(Arc::clone(&access)),
+        NativeMediaRuntime {
+            vault: Arc::clone(&vault),
+            server: server.clone(),
+        },
+        s::StoreOptions::default(),
+        &image,
+        &peers,
+        &mut check,
+    )?;
+    assert_eq!(
+        restored.read_record(&original, &storage_scope, &asset_ref)?,
+        asset_record
+    );
+    let restored_consumed = restored
+        .committed_upload_with_authorization(
+            &queries,
+            &original,
+            &schemas,
+            &storage_scope,
+            &receipt.staged.upload_token,
+        )?
+        .ok_or("Restored consumption missing")?;
+    assert_eq!(restored_consumed.asset_payload(), consumed.asset_payload());
+    assert_eq!(
+        restored_consumed.binding_digest(),
+        consumed.binding_digest()
+    );
+    assert_eq!(restored_consumed.root_operation_id(), commit.operation_id);
+    restored.close()?;
     fs::write(
         output.join("healthy-evidence.json"),
         serde_json::to_vec_pretty(&json!({
             "schemaVersion": 5, "scope": storage_scope,
             "ordinaryCommittedUploadTransactions": 1,
-            "stagedMediaPeer": "f0d6b10f00bb93fc1c1dd4eb3ae66ee1fbe3f873",
-            "qualifiedDomainPlanner": "external-proposal-against-d9",
+            "originalExample": example, "contentType": content_type.as_str(),
+            "boundPreviewPolicy": preview_policy,
             "principal": "same-genuine-access-handle-in-host-wrapper",
             "graphAuthority": "exact-synthetic-fixture-only",
             "commands": ["atlas.asset.create", "atlas.evidence.create", "atlas.identity.replace"],
@@ -951,6 +1086,8 @@ fn main() -> Check {
             "place": place_record, "manifest": manifest,
             "commit": commit,
             "reopen": "ordinary-original-authorized-reads-pass",
+            "fullRecovery": "native-stock-upload-closure-read-only-image-strict-profile5-reopen-pass",
+            "recoveryQueueScope": "independent-empty-registry-evidence-unavailable-no-job-callback",
             "committedConsumptionLookup":"strict-native-stock-audit-links-pass",
             "existingOriginalResolution":{"assetId":existing.asset_id(),"revision":existing.revision(),"scope":existing.scope(),"provenance":"preserved","retainedBytes":"independently-verified"},
             "heldControls": "deferred-and-unrun"
