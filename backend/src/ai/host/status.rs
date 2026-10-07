@@ -165,38 +165,56 @@ impl StatusJournal {
         &self,
         binding: &RegistrationBinding,
         id: &str,
+        retire: impl FnOnce(&str) -> Result<(), AiError>,
     ) -> Result<CancelReceipt, AiError> {
         let scope = scope_key(binding)?;
-        let mut db = self.db()?;
-        let tx = db.transaction().map_err(db_error)?;
-        let (state, payload): (String, Option<String>) = tx.query_row(
+        // Match begin's active->database order. Release the database before
+        // retiring handles, whose registry uses registry->database order.
+        let active = self.active.lock().map_err(|_| AiError::DomainUnavailable)?;
+        let (state,payload):(String,Option<String>)=self.db()?.query_row(
             "SELECT state,payload FROM ai_host_status WHERE scope=?1 AND id=?2 AND kind='request'",
-            params![scope,id], |r| Ok((r.get(0)?, r.get(1)?))).map_err(db_error)?;
-        let waiting_review = payload
-            .as_deref()
-            .and_then(|s| serde_json::from_str::<RunOutcome>(s).ok())
-            .is_some_and(|o| matches!(o, RunOutcome::ReviewRequired { .. }));
-        let status = if state == "finished" && !waiting_review {
+            params![scope,id],|r|Ok((r.get(0)?,r.get(1)?))).map_err(db_error)?;
+        let waiting =
+            if state == "finished" && !active.contains_key(&(scope.clone(), id.to_owned())) {
+                payload
+                    .as_deref()
+                    .map(serde_json::from_str::<RunOutcome>)
+                    .transpose()
+                    .map_err(|_| AiError::DomainUnavailable)?
+            } else {
+                None
+            };
+        let status = if let Some(RunOutcome::ReviewRequired {
+            continuation_id,
+            usage,
+            ..
+        }) = waiting
+        {
+            retire(&continuation_id)?;
+            let terminal = serde_json::to_string(&RunOutcome::Cancelled { usage })
+                .map_err(|_| AiError::DomainUnavailable)?;
+            let changed = self
+                .db()?
+                .execute(
+                    "UPDATE ai_host_status SET cancelled=1,state='finished',payload=?3
+                WHERE scope=?1 AND id=?2 AND kind='request' AND state='finished' AND payload=?4",
+                    params![scope, id, terminal, payload],
+                )
+                .map_err(db_error)?;
+            if changed != 1 {
+                return Err(AiError::DomainUnavailable);
+            }
+            CancelStatus::Confirmed
+        } else if state == "finished" {
             CancelStatus::AlreadyFinished
         } else {
-            tx.execute(
-                "UPDATE ai_host_status SET cancelled=1 WHERE scope=?1 AND id=?2 AND kind='request'",
-                params![scope, id],
-            )
-            .map_err(db_error)?;
+            self.db()?.execute("UPDATE ai_host_status SET cancelled=1 WHERE scope=?1 AND id=?2 AND kind='request'",
+                params![scope,id]).map_err(db_error)?;
+            if let Some(cancel) = active.get(&(scope, id.to_owned())) {
+                cancel.request();
+            }
             CancelStatus::Requested
         };
-        tx.commit().map_err(db_error)?;
-        drop(db);
-        if status == CancelStatus::Requested
-            && let Some(cancel) = self
-                .active
-                .lock()
-                .map_err(|_| AiError::DomainUnavailable)?
-                .get(&(scope, id.to_owned()))
-        {
-            cancel.request();
-        }
         Ok(CancelReceipt {
             request_id: id.into(),
             status,
@@ -278,7 +296,7 @@ impl StatusJournal {
             .execute(
                 "INSERT INTO ai_host_status(scope,id,kind,state,payload)
             VALUES(?1,?2,'action','unconfirmed',?3)",
-                params![scope_key(binding)?, id, command.to_string()],
+                params![action_scope_key(binding)?, id, command.to_string()],
             )
             .map_err(db_error)?;
         Ok(())
@@ -293,7 +311,7 @@ impl StatusJournal {
             .execute(
                 "UPDATE ai_host_status SET state='observed',payload=?3
             WHERE scope=?1 AND id=?2 AND kind='action'",
-                params![scope_key(binding)?, id, result.to_string()],
+                params![action_scope_key(binding)?, id, result.to_string()],
             )
             .map_err(db_error)?;
         Ok(())
@@ -334,7 +352,7 @@ impl StatusJournal {
     ) -> Result<Option<Value>, AiError> {
         let (state, payload): (String,String) = self.db()?.query_row(
             "SELECT state,payload FROM ai_host_status WHERE scope=?1 AND id=?2 AND kind='action'",
-            params![scope_key(binding)?,id], |r| Ok((r.get(0)?,r.get(1)?))).map_err(db_error)?;
+            params![action_scope_key(binding)?,id], |r| Ok((r.get(0)?,r.get(1)?))).map_err(db_error)?;
         if state == "observed" {
             Ok(Some(
                 serde_json::from_str(&payload).map_err(|_| AiError::DomainUnavailable)?,
@@ -435,4 +453,15 @@ impl<C: Sync, A: HostAuthority<C>> RequestStatusPort<C> for ScopedStatus<A> {
             Ok(status)
         })
     }
+}
+
+fn action_scope_key(b: &RegistrationBinding) -> Result<String, AiError> {
+    serde_json::to_string(&[
+        &b.actor_id,
+        &b.workspace_id,
+        &b.home_id,
+        &b.registration_id,
+        &b.authority_epoch,
+    ])
+    .map_err(|_| AiError::InvalidInput)
 }

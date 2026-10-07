@@ -29,6 +29,12 @@ pub trait HttpAuthority: Send + Sync {
     -> PortFuture<'a, Self::Context>;
     /// Original authority and release headers must remain current after await.
     fn release(&self, context: &Self::Context) -> Result<(), AiError>;
+    /// Only a successfully persisted disconnect receipt may use this proof.
+    /// Original app authority remains required; only cancellation rotation is
+    /// permitted. Defaults to the stricter ordinary release.
+    fn release_after_disconnect(&self, context: &Self::Context) -> Result<(), AiError> {
+        self.release(context)
+    }
 }
 struct Mount<H, G> {
     api: Arc<H>,
@@ -99,64 +105,80 @@ where
     let (head, body) = request.into_parts();
     let mutating = head.method == axum::http::Method::POST;
     let context = mount.gate.authenticate(&head, mutating).await?;
-    let path = head.uri.path();
-    let command = if mutating {
-        if head
-            .headers
-            .get(axum::http::header::CONTENT_TYPE)
-            .and_then(|h| h.to_str().ok())
-            .and_then(|s| s.split(';').next())
-            .map(str::trim)
-            != Some("application/json")
-        {
-            return Err(AiError::InvalidInput);
-        }
-        let bytes = tokio::time::timeout(
-            std::time::Duration::from_secs(10),
-            to_bytes(body, 128 * 1024),
-        )
-        .await
-        .map_err(|_| AiError::LimitReached)?
-        .map_err(|_| AiError::LimitReached)?;
-        match path {
-            "/run" => HostCommand::Run(decode::<RunInput>(&bytes)?),
-            "/resume" => HostCommand::Resume(decode::<ReviewInput>(&bytes)?),
-            "/review" => HostCommand::Review(decode::<ReviewInput>(&bytes)?),
-            _ if path.starts_with("/requests/") && path.ends_with("/cancel") => {
-                let id = &path[10..path.len() - 7];
-                let input = decode::<CancelInput>(&bytes)?;
-                if input.request_id != id {
-                    return Err(AiError::InvalidInput);
+    let mut disconnected = false;
+    // Every result after authentication passes through the release proof,
+    // including decoding, body limits and asynchronous host errors.
+    let result = async {
+        let path = head.uri.path();
+        let command = if mutating {
+            if head
+                .headers
+                .get(axum::http::header::CONTENT_TYPE)
+                .and_then(|h| h.to_str().ok())
+                .and_then(|s| s.split(';').next())
+                .map(str::trim)
+                != Some("application/json")
+            {
+                return Err(AiError::InvalidInput);
+            }
+            let bytes = tokio::time::timeout(
+                std::time::Duration::from_secs(10),
+                to_bytes(body, 128 * 1024),
+            )
+            .await
+            .map_err(|_| AiError::LimitReached)?
+            .map_err(|_| AiError::LimitReached)?;
+            match path {
+                "/run" => HostCommand::Run(decode::<RunInput>(&bytes)?),
+                "/resume" => HostCommand::Resume(decode::<ReviewInput>(&bytes)?),
+                "/review" => HostCommand::Review(decode::<ReviewInput>(&bytes)?),
+                _ if path.starts_with("/requests/") && path.ends_with("/cancel") => {
+                    let id = &path[10..path.len() - 7];
+                    let input = decode::<CancelInput>(&bytes)?;
+                    if input.request_id != id {
+                        return Err(AiError::InvalidInput);
+                    }
+                    HostCommand::Cancel(input.request_id)
                 }
-                HostCommand::Cancel(input.request_id)
+                "/connection/actions" => {
+                    HostCommand::Action(decode::<ConnectionActionRequest>(&bytes)?)
+                }
+                _ => return Err(AiError::InvalidInput),
             }
-            "/connection/actions" => {
-                HostCommand::Action(decode::<ConnectionActionRequest>(&bytes)?)
+        } else {
+            match path {
+                "/connection" => HostCommand::Connection,
+                "/models" => HostCommand::Models,
+                _ if path.starts_with("/requests/") => HostCommand::Status(path[10..].into()),
+                _ if path.starts_with("/connection/actions/") => {
+                    HostCommand::ActionStatus(path[20..].into())
+                }
+                _ => return Err(AiError::InvalidInput),
             }
-            _ => return Err(AiError::InvalidInput),
-        }
-    } else {
-        match path {
-            "/connection" => HostCommand::Connection,
-            "/models" => HostCommand::Models,
-            _ if path.starts_with("/requests/") => HostCommand::Status(path[10..].into()),
-            _ if path.starts_with("/connection/actions/") => {
-                HostCommand::ActionStatus(path[20..].into())
+        };
+        match &command {
+            HostCommand::Status(id) | HostCommand::Cancel(id) | HostCommand::ActionStatus(id)
+                if !valid_id(id) =>
+            {
+                return Err(AiError::InvalidInput);
             }
-            _ => return Err(AiError::InvalidInput),
+            _ => {}
         }
-    };
-    match &command {
-        HostCommand::Status(id) | HostCommand::Cancel(id) | HostCommand::ActionStatus(id)
-            if !valid_id(id) =>
-        {
-            return Err(AiError::InvalidInput);
-        }
-        _ => {}
+        let disconnect = matches!(&command, HostCommand::Action(input)
+        if matches!(input.command, crate::ai::runtime::ConnectionAction::Disconnect));
+        let value = mount.api.call(&context, command).await?;
+        disconnected = disconnect;
+        Ok(value)
     }
-    let value = mount.api.call(&context, command).await?;
-    mount.gate.release(&context)?;
-    Ok(value)
+    .await;
+    // A failed release replaces either success or the earlier error: stale
+    // contexts must not disclose even a validation or provider error response.
+    if disconnected {
+        mount.gate.release_after_disconnect(&context)?;
+    } else {
+        mount.gate.release(&context)?;
+    }
+    result
 }
 fn decode<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, AiError> {
     serde_json::from_slice(bytes).map_err(|_| AiError::InvalidInput)
@@ -168,6 +190,12 @@ pub trait ApplicationHttpAuthority: Send + Sync {
     type Context: Send + Sync;
     fn capture<'a>(&'a self, head: &'a Parts, mutating: bool) -> PortFuture<'a, Self::Context>;
     fn release(&self, context: &Self::Context) -> Result<(), AiError>;
+    /// Only a successfully persisted disconnect receipt may use this proof.
+    /// Original app authority remains required; only cancellation rotation is
+    /// permitted. Defaults to the stricter ordinary release.
+    fn release_after_disconnect(&self, context: &Self::Context) -> Result<(), AiError> {
+        self.release(context)
+    }
 }
 pub struct AdmittedContext<C> {
     original: C,
@@ -210,6 +238,9 @@ where
     fn release(&self, context: &Self::Context) -> Result<(), AiError> {
         self.application.release(&context.original)
     }
+    fn release_after_disconnect(&self, context: &Self::Context) -> Result<(), AiError> {
+        self.application.release_after_disconnect(&context.original)
+    }
 }
 fn single_header<'a>(head: &'a Parts, name: &str) -> Result<&'a str, AiError> {
     let mut values = head.headers.get_all(name).iter();
@@ -250,7 +281,7 @@ impl<H: HostApi> HostApi for MountedHost<H> {
     }
 }
 
-/// In-app same-origin session mounting, compatible with PR42's actual cookie
+/// In-app same-origin session mounting, compatible with the app cookie
 /// and X-Atlas-CSRF transport. Companion installation capabilities belong only
 /// to BridgeHttpGate; this gate resolves registration/epochs on the server.
 pub struct SessionHttpGate<G, A> {
@@ -279,5 +310,11 @@ where
         self.application.release(context)?;
         let binding = self.authority.binding(context)?;
         self.authority.revalidate(context, &binding)
+    }
+    fn release_after_disconnect(&self, context: &Self::Context) -> Result<(), AiError> {
+        // The application owner proves original session/home/registration and
+        // authority epoch using the current enrollment. Reacquiring the old
+        // full binding here would reject the stop-use rotation just performed.
+        self.application.release_after_disconnect(context)
     }
 }

@@ -16,6 +16,10 @@ use std::{
 pub trait ExactReviewReady<C, P>: Send + Sync {
     fn ready(&self, context: &C, checkpoint: &AiCheckpoint<P>) -> Result<(), AiError>;
 }
+/// Retire retained handles without claiming, approving or dispatching them.
+pub trait ContinuationRetirement<C>: Send + Sync {
+    fn retire(&self, context: &C, request_id: &str, continuation_id: &str) -> Result<(), AiError>;
+}
 struct Retained<P> {
     binding: RegistrationBinding,
     expires: Instant,
@@ -134,5 +138,31 @@ impl<C: Sync, P: Send + Sync, A: HostAuthority<C>, G: ExactReviewReady<C, P>>
                 .ok_or(AiError::DomainUnavailable)?
                 .checkpoint)
         })
+    }
+}
+
+impl<C, P: Send + Sync, A: HostAuthority<C>, G: Send + Sync> ContinuationRetirement<C>
+    for HostContinuations<A, G, P>
+{
+    fn retire(&self, context: &C, request_id: &str, continuation_id: &str) -> Result<(), AiError> {
+        let binding = self.authority.binding(context)?;
+        self.authority.revalidate(context, &binding)?;
+        let mut entries = self
+            .entries
+            .lock()
+            .map_err(|_| AiError::DomainUnavailable)?;
+        if let Some(entry) = entries.get(continuation_id) {
+            if entry.binding != binding || entry.checkpoint.request_id != request_id {
+                return Err(AiError::ConnectionUnavailable);
+            }
+            self.journal.append(
+                &binding,
+                request_id,
+                "continuation-retired",
+                serde_json::json!({"continuationId":continuation_id}),
+            )?;
+            entries.remove(continuation_id);
+        }
+        Ok(())
     }
 }

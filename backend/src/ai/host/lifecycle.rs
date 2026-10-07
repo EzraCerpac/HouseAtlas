@@ -134,6 +134,7 @@ impl<
             self.journal
                 .action_begin(&binding, &request.action_id, json!(&request.command))?;
             // The durable action ID is captured before any OS/provider action.
+            let mut disconnected_snapshot = None;
             let status = match request.command {
                 ConnectionAction::Connect { route } => {
                     self.environment.select_candidate(context, route)?;
@@ -189,8 +190,20 @@ impl<
                     ConnectionActionStatus::Pending
                 }
                 ConnectionAction::Disconnect => {
+                    let mut snapshot = self.environment.snapshot(context, cancel).await?;
                     self.journal.stop_registration(&binding)?;
                     let receipt = self.lifecycle().disconnect(context, &binding).await?;
+                    self.environment
+                        .revalidate_action_receipt(context, &binding)?;
+                    // Only local credential-use facts are cleared. Preserve the
+                    // previously authorized display; infer no remote revocation.
+                    snapshot.authorization = crate::ai::AuthorizationState::SignInRequired;
+                    snapshot.permission = crate::ai::InferencePermission::Unknown;
+                    snapshot.eligibility = crate::ai::Eligibility::Unknown;
+                    snapshot.paid_use_admission = crate::ai::PaidUseAdmission::Held;
+                    snapshot.runtime.availability = crate::ai::RuntimeAvailability::Unknown;
+                    snapshot.runtime.checked_at = None;
+                    disconnected_snapshot = Some(snapshot);
                     if receipt.revocation == oauth::RevocationState::Unconfirmed {
                         ConnectionActionStatus::Unconfirmed
                     } else {
@@ -205,7 +218,10 @@ impl<
             let result = ConnectionActionResult {
                 action_id: request.action_id.clone(),
                 status,
-                snapshot: self.environment.snapshot(context, cancel).await?,
+                snapshot: match disconnected_snapshot {
+                    Some(snapshot) => snapshot,
+                    None => self.environment.snapshot(context, cancel).await?,
+                },
             };
             self.journal
                 .action_finish(&binding, &request.action_id, json!(&result))?;

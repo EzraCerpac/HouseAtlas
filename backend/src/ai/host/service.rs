@@ -1,6 +1,7 @@
 //! Actual host execution of the accepted runner and exact user-review continuation.
 use super::{
     HostAuthority,
+    continuation::ContinuationRetirement,
     status::{RequestMeter, StatusJournal},
 };
 use crate::ai::{
@@ -24,7 +25,8 @@ pub trait HostPeers: Send + Sync {
     type Continuations: ReviewContinuationPort<
             Self::Context,
             <Self::Catalog as DomainCatalog<Self::Context>>::Prepared,
-        > + Sync;
+        > + ContinuationRetirement<Self::Context>
+        + Sync;
     type Human: HumanReviewPort<Self::Context> + Sync;
     type Actions: ConnectionActionPort<Self::Context> + Sync;
     type Models: ModelsPort<Self::Context> + Sync;
@@ -80,6 +82,8 @@ impl<P: HostPeers, A: HostAuthority<P::Context>> HostApi for AiHost<P, A> {
         Box::pin(async move {
             let binding = self.authority.binding(context)?;
             self.authority.revalidate(context, &binding)?;
+            let disconnect = matches!(&command,HostCommand::Action(request)
+                if matches!(request.command,crate::ai::runtime::ConnectionAction::Disconnect));
             let value = match command {
                 HostCommand::Run(input) => {
                     let model = self.peers.selected_model(context)?;
@@ -197,7 +201,13 @@ impl<P: HostPeers, A: HostAuthority<P::Context>> HostApi for AiHost<P, A> {
                     )
                 }
                 HostCommand::Status(id) => json!(self.journal.read(&binding, &id, true)?),
-                HostCommand::Cancel(id) => json!(self.journal.stop(&binding, &id)?),
+                HostCommand::Cancel(id) => {
+                    json!(self.journal.stop(&binding, &id, |continuation| {
+                        self.peers
+                            .continuations()
+                            .retire(context, &id, continuation)
+                    })?)
+                }
                 HostCommand::Connection => {
                     let model = self.peers.selected_model(context)?;
                     json!(
@@ -234,7 +244,12 @@ impl<P: HostPeers, A: HostAuthority<P::Context>> HostApi for AiHost<P, A> {
                         .await?
                 ),
             };
-            self.authority.revalidate(context, &binding)?;
+            if disconnect {
+                self.authority
+                    .revalidate_action_receipt(context, &binding)?;
+            } else {
+                self.authority.revalidate(context, &binding)?;
+            }
             Ok(value)
         })
     }
@@ -244,7 +259,9 @@ impl<C: Sync, P: HostPeers<Context = C>, A: HostAuthority<C>> CancelPort<C> for 
         Box::pin(async move {
             let binding = self.authority.binding(context)?;
             self.authority.revalidate(context, &binding)?;
-            let receipt = self.journal.stop(&binding, id)?;
+            let receipt = self.journal.stop(&binding, id, |continuation| {
+                self.peers.continuations().retire(context, id, continuation)
+            })?;
             self.authority.revalidate(context, &binding)?;
             Ok(receipt)
         })
