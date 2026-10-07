@@ -33,6 +33,20 @@ reads, three-field home DTOs and native links. It uses fake GET transports and
 disposable local stores, opens no socket and calls no provider. The source-backed
 binding example is `unresolved`; it exercises no new source-presence admission.
 
+The adopted Lantern frontend uses the existing session, authorized view,
+editing and command-result boundaries. Its original 44 authored reference files
+remain unchanged in `frontend/lantern-reference/HouseAtlas-Lantern-B-Source.zip`.
+See `frontend/lantern-reference/README.md` for source boundaries and capability gaps.
+These inspected frontend commands check types, build source and project healthy
+synthetic records only; they make no provider calls or real data mutations:
+
+```sh
+npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+npm run typecheck --prefix frontend
+npm run build --prefix frontend
+node frontend/lantern-tests/healthy-read.mjs
+```
+
 Ordinary CI uses the same scoped commands, pinned actions/runtime and lockfiles.
 Concurrency, denial and failure-injection tests are permitted only in the
 separate regression lane below; they remain excluded from ordinary CI.

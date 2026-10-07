@@ -1,9 +1,10 @@
 import { stockCatalog, stockFamilies } from "../stock-schema.js";
 import type { StockDispatchPort, StockSessionPort } from "../stock.js";
 
-/** Families with an actual native Atlas executor at PR39. Provider peers remain
- * unbound; a schema or catalog disposition cannot create one. */
-export type AtlasCommandFamily = "atlas_records" | "atlas_bindings" | "atlas_media_geometry";
+/** Families routed by the native stock executor. Only owner-supplied command
+ * IDs within these families bind; other provider peers remain unbound. */
+export type AtlasCommandFamily = "atlas_records" | "atlas_bindings" | "atlas_media_geometry"
+  | "homebox_entities_locations" | "network_queries";
 export interface CommandFamilyBinding {
   readonly toolName: AtlasCommandFamily;
   /** Exact executable arms supplied by the service owner, never browser grants.
@@ -67,7 +68,9 @@ export function bindCommandFamilies(sessions: StockSessionPort, bindings: readon
 /** Split the existing common executor using its owner's exact support list.
  * This does not infer service support from catalog metadata or user roles. */
 export function bindAtlasService(service: StockDispatchPort, commandIds: readonly string[]): readonly CommandFamilyBinding[] {
-  const names: readonly AtlasCommandFamily[] = ["atlas_records", "atlas_bindings", "atlas_media_geometry"];
+  const names: readonly AtlasCommandFamily[] = [
+    "atlas_records", "atlas_bindings", "atlas_media_geometry", "homebox_entities_locations", "network_queries",
+  ];
   const bindings = names.map(toolName => ({ toolName, service,
     commandIds: commandIds.filter(id => stockFamilies.families.find(row => row.toolName === toolName)?.commandIds.includes(id)),
   }));

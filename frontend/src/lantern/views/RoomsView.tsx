@@ -1,0 +1,182 @@
+import { useState } from 'react';
+import { roomContents, unplaced, dueState, CLAIM_LABEL } from '../data/query';
+import { useSelect, useStore } from '../state/store';
+import { ROOM_TINT } from '../atlas/palette';
+import { EntityLink, Empty } from '../components/ui';
+
+export function RoomsView() {
+  return (
+    <div className="view">
+      <header className="view-head">
+        <h1>Rooms &amp; places</h1>
+
+      </header>
+      <RoomIndex />
+    </div>
+  );
+}
+
+export function RoomIndex() {
+  const { house, state, projection } = useStore();
+  const select = useSelect();
+  const [floorFilter, setFloorFilter] = useState<string>('all');
+  const floors = [...house.floors].sort((a, b) => b.order - a.order);
+  const shown = floorFilter === 'all' ? floors : floors.filter((f) => f.id === floorFilter);
+  const un = unplaced(house);
+  const unknownRecords = house.items.filter((item) => item.id.startsWith('uk-'));
+  const selectedId = state.selection?.id;
+
+  return (
+    <div className="room-index">
+      <div className="filter-row" role="group" aria-label="Filter places">
+        <button type="button" className="chip-btn" aria-pressed={floorFilter === 'all'} onClick={() => setFloorFilter('all')}>
+          All places
+        </button>
+        {floors.map((f) => (
+          <button key={f.id} type="button" className="chip-btn" aria-pressed={floorFilter === f.id} onClick={() => setFloorFilter(f.id)}>
+            {f.name}
+          </button>
+        ))}
+      </div>
+
+      {shown.map((f) => {
+        const rooms = house.spaces.filter((s) => s.floorId === f.id && s.kind !== 'stair');
+        return (
+          <section key={f.id} className="ledger" aria-labelledby={`ledger-${f.id}`}>
+            <div className="ledger-floor" aria-hidden="true">
+              {f.short}
+            </div>
+            <div className="ledger-body">
+              <h2 id={`ledger-${f.id}`} className="ledger-title">
+                {f.name}
+                {!f.hasPlan && <span className="mini-claim claim-unknown">No plan</span>}
+              </h2>
+              {!rooms.length && <Empty>No places supplied.</Empty>}
+              <ul className="ledger-rows">
+                {rooms.map((r) => {
+                  const c = roomContents(house, r.id);
+                  const due = c.tasks.filter((t) => dueState(t, house.displayNow) === 'overdue' || dueState(t, house.displayNow) === 'soon').length;
+                  return (
+                    <li key={r.id} className={`ledger-row${selectedId === r.id ? ' is-selected' : ''}`}>
+                      <button type="button" className="ledger-main" onClick={() => select(r.id)}>
+                        <span className="ledger-swatch" style={{ background: projection.entries.has(r.id) ? "#8a8f99" : ROOM_TINT[r.kind] }} aria-hidden="true" />
+                        <span className="ledger-name">{r.name}</span>
+                        <span className="ledger-kind">{projection.entries.get(r.id)?.semanticKind ?? 'Unknown'}</span>
+                        <span className="ledger-facts">
+                          {c.items.length > 0 && <span>{c.items.length} belongings recorded here</span>}
+                          <span>{c.docs.length} documents</span>
+                          {projection.entries.get(r.id) && <span>Source: {projection.entries.get(r.id)?.sourceState}; cache: {projection.entries.get(r.id)?.cacheStatus}</span>}
+                          {c.outlets.length > 0 && <span>{c.outlets.length} outlets</span>}
+                          {c.valves.length > 0 && <span>{c.valves.length} valves</span>}
+                          {c.devices.length > 0 && <span>{c.devices.length} devices</span>}
+                          {due > 0 && <span className="tone-alert">{due} upkeep due</span>}
+                        </span>
+                        <span className={`ledger-shape${r.geometry === 'reviewed' ? '' : ' is-none'}`}>{r.geometry === 'reviewed' ? 'Shape reviewed' : 'No shape'}</span>
+                      </button>
+                      {c.containers.length > 0 && (
+                        <ul className="ledger-storage" aria-label={`Storage in ${r.name}`}>
+                          {c.containers.map((ct) => (
+                            <li key={ct.id}>
+                              <EntityLink id={ct.id} sub={`${ct.kind}, ${house.items.filter((i) => i.containerId === ct.id).length} inside. Storage, not a room.`} />
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </section>
+        );
+      })}
+
+      <section className="ledger ledger-unplaced" aria-labelledby="ledger-unplaced">
+        <div className="ledger-floor" aria-hidden="true">
+          ?
+        </div>
+        <div className="ledger-body">
+          <h2 id="ledger-unplaced" className="ledger-title">
+            No reviewed placement
+          </h2>
+          <p className="body-text muted">These records have no reviewed position on a plan in the saved view.</p>
+          <div className="unplaced-grid">
+            <div>
+              <h3>Belongings without a reviewed room</h3>
+              {un.noRoomItems.length ? (
+                <ul className="rows">
+                  {un.noRoomItems.map((i) => (
+                    <li key={i.id} className="link-row">
+                      <EntityLink id={i.id} sub={[i.locationNote ?? CLAIM_LABEL[i.locationClaim], projection.entries.get(i.id) && `Source: ${projection.entries.get(i.id)?.sourceState}; cache: ${projection.entries.get(i.id)?.cacheStatus}`].filter(Boolean).join(' · ')} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <Empty>No belongings without a reviewed room in the supplied view.</Empty>
+              )}
+            </div>
+            <div>
+              <h3>Known by room, spot not recorded</h3>
+              {un.roomOnlyItems.length ? (
+                <ul className="rows">
+                  {un.roomOnlyItems.map((i) => (
+                    <li key={i.id} className="link-row">
+                      <EntityLink id={i.id} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <Empty>Reviewed room placement is unavailable.</Empty>
+              )}
+            </div>
+            <div>
+              <h3>Valves without a position</h3>
+              {un.valves.length ? (
+                <ul className="rows">
+                  {un.valves.map((v) => (
+                    <li key={v.id} className="link-row">
+                      <EntityLink id={v.id} sub={v.note} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <Empty>Reviewed valve placement is unavailable.</Empty>
+              )}
+            </div>
+            <div>
+              <h3>Network devices without a location</h3>
+              {un.devices.length ? (
+                <ul className="rows">
+                  {un.devices.map((d) => (
+                    <li key={d.id} className="link-row">
+                      <EntityLink id={d.id} sub={d.note} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <Empty>Reviewed device placement is unavailable.</Empty>
+              )}
+            </div>
+            <div>
+              <h3>Unclassified records</h3>
+              {unknownRecords.length ? (
+                <ul className="rows">
+                  {unknownRecords.map((record) => {
+                    const entry = projection.entries.get(record.id);
+                    return (
+                      <li key={record.id} className="link-row">
+                        <EntityLink id={record.id} sub={entry ? `Source: ${entry.sourceState}; cache: ${entry.cacheStatus}` : 'Classification not supplied'} />
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <Empty>No unclassified records in the supplied view.</Empty>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
