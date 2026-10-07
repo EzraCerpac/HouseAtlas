@@ -1,6 +1,6 @@
 {
   "format": "houseatlas-publication-source/1",
-  "status": "development-native-agent-correction-exact-candidate-review-required",
+  "status": "development-browser-diagnostic-exact-candidate-review-required",
   "self": {
     "path": "docs/publication/source-manifest.json",
     "mode": "100644",
@@ -22,13 +22,20 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "6828e5834a1bdd0490c93c0edf2f0650259037a3b2092c70ae54c1054d7aef94",
+  "sourceDigestSha256": "292c13aebd4e943886c8f4f72cefa40cce6ec6d4303f934b7b8a7ce7a930f072",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
       "bytes": 2448,
       "sha256": "d76d082cac129fd056afef1e8c3fd3b8a205dd6f891fde2a1ec86f5355a4ba41",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".github/workflows/rust-browser-diagnostic.yml",
+      "mode": "100644",
+      "bytes": 1217,
+      "sha256": "7ad9e0c60ef68c2db67fe50ac61836fb8a2da0dfd51e535ff997a9386b4bebd4",
       "owner": "core-integration"
     },
     {
@@ -3376,6 +3383,13 @@
       "bytes": 669,
       "sha256": "a1bb600e7af13db6ef9743121ed9cfdea1bd039ea27868dda8f2336712d7d648",
       "owner": "contracts"
+    },
+    {
+      "path": "tools/rust-integration/blank-chrome-diagnostic.mjs",
+      "mode": "100644",
+      "bytes": 8434,
+      "sha256": "480f9ae738203ec62bac7911f33aa40040236ae5421965e30c552772a36aed50",
+      "owner": "core-integration"
     },
     {
       "path": "tools/rust-integration/check-source.mjs",
