@@ -16,6 +16,7 @@ use houseatlas_backend::{
     storage as s,
 };
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     net::{SocketAddr, TcpListener},
@@ -348,6 +349,45 @@ async fn main() -> Result<(), Failure> {
         db.query_row("SELECT COUNT(*) FROM cache_generations", [], |r| r.get(0))?;
     let schema: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0))?;
     assert_eq!(schema, 5);
+    // Inspect only the successful original capture: reopen the actual Native
+    // archive and compare the retained bytes with the one served TLS document.
+    let archive_paths: Vec<_> = std::fs::read_dir(&directory_path)?
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.ends_with(".raw-archive.sqlite"))
+        })
+        .collect();
+    assert_eq!(archive_paths.len(), 1);
+    let original_bytes = include_bytes!(
+        "../../../backend/src/providers/network/host_runtime/examples/fixtures/inventory-with-observation.wire.json"
+    );
+    let raw_digest = format!("{:x}", Sha256::digest(original_bytes));
+    let native_archive = n::NetworkImmutableArchive::open(&archive_paths[0])?;
+    let capture = native_archive.reopen(
+        settings.source(),
+        cache
+            .generation_id
+            .as_deref()
+            .ok_or("Missing committed generation")?,
+    )?;
+    assert_eq!(capture.body(), original_bytes);
+    assert_eq!(capture.body_sha256(), raw_digest);
+    assert_eq!(capture.registration(), settings.source());
+    let archive_db = rusqlite::Connection::open_with_flags(
+        &archive_paths[0],
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )?;
+    let (sealed, reserved, permanent): (i64, i64, i64) = archive_db.query_row(
+        "SELECT (SELECT COUNT(*) FROM network_archive_catalog), (SELECT COUNT(*) FROM network_archive_reservations), (SELECT COUNT(*) FROM network_archive_generation_ids)",
+        [], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    )?;
+    assert_eq!((sealed, reserved, permanent), (1, 0, 1));
+    drop(archive_db);
+    native_archive.close()?;
     // A distinct genuine viewer has no lifecycle policy. Browse uses only its
     // current Read authority and original typed resource grants on the same Store.
     let viewer = a::CanonicalId::parse("00000000-0000-4000-8000-000000000006")?;
@@ -491,7 +531,7 @@ async fn main() -> Result<(), Failure> {
         .close()?;
     drop(core);
     println!(
-        "PASS healthy root Network router: one actual TLS inventory GET/native publication; genuine viewer HTTP login; two cached root GETs and three snapshot-backed relation/room/item GETs on same canonical Core/Access/Store; original cached entity/link/observation disclosure; unresolved snapshot endpoints remain concealed; epoch/reservations unchanged; no provider request from browsing. Root HTTP uses its real TLS loopback listener and actual connection metadata; no browser qualification."
+        "PASS healthy root Network router: one actual TLS inventory GET/custody-aware native publication; immutable Native archive reopen matches original response bytes/hash and exact registration/generation, one sealed row/no active reservation/permanent ID retained; genuine viewer HTTP login; two cached root GETs and three snapshot-backed relation/room/item GETs on same canonical Core/Access/Store; original cached entity/link/observation disclosure; unresolved snapshot endpoints remain concealed; epoch/reservations unchanged; no provider request from browsing. Root HTTP uses its real TLS loopback listener and actual connection metadata; no browser qualification."
     );
     Ok(())
 }

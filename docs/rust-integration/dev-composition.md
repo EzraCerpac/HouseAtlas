@@ -57,3 +57,17 @@ provide no pre-existing approval, native data key, configured registration,
 inference permission or provider activation. Trusted startup remains responsible
 for external approval provenance and supplying the actual receipt identity.
 The default disposable service does not enroll AI accounts or read native keys.
+
+The later AI core and original frontend successors preserve ordered accumulated
+domain operation IDs in completed outcomes, strict decoding, polling and visible
+results. Original OAuth authorization remains live while its current unexpired
+attempt exists; callback receipt persistence preserves an already recorded
+terminal result. These source corrections do not activate AI configuration or
+qualify provider, cancellation, expiry or denial behavior.
+
+Network refresh now reserves capacity through the original Store custody guard
+before constructing transport or provider. Its successful native producer retains
+the actual response body in a bounded immutable segment and durable catalog,
+reopens and verifies the original bytes, and couples that receipt to the projected
+generation before publication. See [network-archive-custody.md](network-archive-custody.md).
+The saved stock query mount remains separate work.
