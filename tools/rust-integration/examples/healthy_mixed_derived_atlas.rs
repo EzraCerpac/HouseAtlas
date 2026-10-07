@@ -5,9 +5,10 @@
 
 use houseatlas_backend::{
     access as a,
-    app::{Core, RequestPrincipal, access_scope},
+    app::{Core, RequestPrincipal},
     contracts::{AssetPayloadPreviewPolicy, BindingPayloadSourceState, stock as wire},
     domain::stock::{self as st, AtlasDerivation},
+    http::contracts::NativeContracts,
     lifecycle::Failure,
     storage as s,
 };
@@ -17,53 +18,7 @@ use std::{
     collections::BTreeSet,
 };
 
-const ORIGIN: &str = "https://atlas.synthetic.invalid";
-
-fn id(n: u32) -> String {
-    format!("00000000-0000-4000-8000-{n:012}")
-}
-
-fn target(kind: &str, n: u32) -> Value {
-    json!({"authority":"atlas","recordType":kind,"recordId":id(n)})
-}
-
-fn guard(kind: &str, n: u32, revision: u64) -> Value {
-    json!({"target":target(kind,n),"revision":{"kind":"atlas","value":revision}})
-}
-
-fn principal(
-    core: &Core,
-    cookie: &str,
-    csrf: &str,
-    post: bool,
-    path: &str,
-) -> Result<RequestPrincipal, Failure> {
-    let scope = access_scope(&core.home.scope)?;
-    let url = format!("{ORIGIN}{path}");
-    let mut access = core.access.lock().map_err(|_| "Access unavailable")?;
-    Ok(RequestPrincipal::new(access.authorize(
-        &a::RequestEvidence {
-            method: if post {
-                a::Method::Post
-            } else {
-                a::Method::Get
-            },
-            url: &url,
-            origin: Some(ORIGIN),
-            sec_fetch_site: Some("same-origin"),
-            referer: None,
-            cookie: Some(cookie),
-            authorization: None,
-            csrf: if post { Some(csrf) } else { None },
-        },
-        &scope,
-        if post {
-            a::Action::Mutate
-        } else {
-            a::Action::Read
-        },
-    )?))
-}
+use super::{guard, id, principal, target};
 
 fn denied() -> s::Error {
     s::Error::new("forbidden", "Fixture Access authorization was not accepted")
@@ -91,6 +46,7 @@ struct FixtureAuthorization<'a, 'g> {
     original: &'a s::Snapshot,
     plan: &'a st::AtlasCommandPlan,
     candidate: RefCell<Option<s::Snapshot>>,
+    receipt: RefCell<Option<s::StockAtlasCommit>>,
     last_phase: Cell<Option<u8>>,
 }
 
@@ -142,10 +98,8 @@ impl FixtureAuthorization<'_, '_> {
             s::MutationPhase::Precommit => 3,
             s::MutationPhase::Replay | s::MutationPhase::ReplayPrecommit => return Err(denied()),
         };
-        if let Some(previous) = self.last_phase.get() {
-            if rank < previous || rank > previous + 1 {
-                return Err(denied());
-            }
+        if self.last_phase.get().map_or(0, |previous| previous + 1) != rank {
+            return Err(denied());
         }
         self.last_phase.set(Some(rank));
         Ok(())
@@ -235,17 +189,20 @@ impl s::StockAuthorization for FixtureAuthorization<'_, '_> {
                 return Err(denied());
             }
             *self.candidate.borrow_mut() = Some(candidate.clone());
+            *self.receipt.borrow_mut() = Some(frame.commit.ok_or_else(denied)?.clone());
         }
         if frame.native.phase == s::MutationPhase::Precommit {
             let candidate = frame.native.candidate.as_ref().ok_or_else(denied)?;
-            if self.candidate.borrow().as_ref() != Some(candidate) {
+            if self.candidate.borrow().as_ref() != Some(candidate)
+                || self.receipt.borrow().as_ref() != frame.commit
+            {
                 return Err(denied());
             }
         }
 
         // Each submitted root/child guard must occur in the actual native
         // closure, including the remap's original binding preimage.
-        for guard in &frame.plan.root_guards() {
+        for guard in frame.plan.root_guards() {
             if !frame.closure.record_refs.contains(&guard.record) {
                 return Err(denied());
             }
@@ -357,7 +314,7 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
         .as_object_mut()
         .ok_or("Geometry payload object required")?
         .remove("importedAt");
-    let expected_imported_at = s::Runtime::now(&crate::app::ServerRuntime)?;
+    let expected_imported_at = s::Runtime::now(&houseatlas_backend::app::ServerRuntime)?;
 
     let batch = json!({
         "schemaVersion":3,
@@ -474,7 +431,7 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
             source_state: BindingPayloadSourceState::Unresolved,
         }),
     ];
-    let plan = st::plan_derived_atlas_batch_commands(&request, &derivations, &contracts)?;
+    let plan = st::plan_derived_atlas_batch_commands(&request, &derivations, &NativeContracts)?;
     assert_eq!(plan.groups().len(), request.children().len());
     assert_eq!(
         plan.groups()
@@ -522,6 +479,20 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
             references.push(reference);
         }
     }
+    // Reverse dependencies include earlier remap journals and their retired
+    // bindings. Capture real grants for every original binding, not just the
+    // current batch targets; the native owner still determines its full closure.
+    for record in &original.records {
+        if record.record_type == s::RecordType::Binding && !record.payload["source"].is_null() {
+            let reference: a::SourceRef = serde_json::from_value(json!({
+                "workspaceId":scope.workspace_id,"homeId":scope.home_id,
+                "key":record.payload["source"]
+            }))?;
+            if !references.contains(&reference) {
+                references.push(reference);
+            }
+        }
+    }
     for mapping in geometry_payload["mappings"]
         .as_array()
         .ok_or("Geometry mappings required")?
@@ -561,6 +532,7 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
                 original: &original,
                 plan: &plan,
                 candidate: RefCell::new(None),
+                receipt: RefCell::new(None),
                 last_phase: Cell::new(None),
             };
             let mut store = core
@@ -648,16 +620,30 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
     assert_eq!(commit.groups.len(), expected_operations.len());
     let mut operation_ids = BTreeSet::new();
     operation_ids.insert(commit.operation_id.as_str());
+    let mut audit_ids = BTreeSet::new();
     for (index, (group, operation)) in commit.groups.iter().zip(expected_operations).enumerate() {
         assert_eq!(group.child_index, Some(index));
         assert_eq!(commit.children[index]["commandId"], operation);
         assert_eq!(commit.children[index]["operationId"], group.operation_id);
         assert!(operation_ids.insert(group.operation_id.as_str()));
+        let group_audits = group
+            .native_results
+            .iter()
+            .map(|result| {
+                assert!(audit_ids.insert(result.audit.audit_id.as_str()));
+                result.audit.audit_id.clone()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            commit.children[index]["data"]["auditIds"],
+            json!(group_audits)
+        );
         assert_eq!(
             commit.children[index]["requestId"],
             batch["payload"]["commands"][index]["requestId"]
         );
     }
+    assert_eq!(audit_ids.len(), 9);
     assert_eq!(commit.children.len(), 7);
     assert_eq!(
         commit.children[1]["data"]["records"]

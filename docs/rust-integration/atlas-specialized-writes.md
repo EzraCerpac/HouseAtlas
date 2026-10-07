@@ -50,8 +50,10 @@ envelopes. Its fixture selects one home and the relevant Atlas records from the
 published optional-geometry graph, with unresolved bindings and a missing,
 blocked synthetic asset. It submits eight fresh commands: create, review,
 tombstone, restore and remap bindings, create geometry, then review the asset
-as download-only and blocked. Remap supplies an explicit guard on the old
-binding for its new journal. After an ordinary close/reopen, seven record reads
+as download-only and blocked. One further ordinary tombstone prepares the
+restore child in the positive mixed batch below. Remap supplies an explicit
+guard on the old binding for its new journal. After an ordinary close/reopen,
+seven record reads
 and ten matching history reads check the actual saved revisions and audit IDs.
 This is native in-process executor evidence, not HTTP transport qualification.
 It adds no socket, provider call, real credential, user database,
@@ -103,5 +105,17 @@ bodies and must not receive a database containing them; this source change does
 not authorize a live data upgrade or rollback deployment.
 
 HTTP preparation, source capture, transaction fence adoption and result release
-remain integration-owner work. Replay execution is excluded. Positive fixture
-results are reported with the exact source commit separately.
+remain integration-owner work. Replay execution is excluded. The same named `healthy-agent-stock` example mounts a fixture-only Store peer
+around a genuine Access-issued editor principal and synchronous mutation guard.
+It pins the same Store original snapshot and immutable plan, captures actual
+source and partition grants including prior remap journals' retired bindings,
+enforces exact Intake/Validate/Candidate/Precommit order and pins the candidate
+and receipt through Precommit. It exercises all six specialized children and
+one direct circuit child on disjoint targets: seven stock groups expand to nine
+native records/audits. Typed response parsing checks root/child envelopes;
+operation IDs are the actual distinct runtime IDs and audit IDs match the
+native result carriers. After normal close/reopen, nine matching record/history
+pairs validate retained reconstruction and actual audit digests for every
+expanded output. The existing single-command v1 history checks still pass in
+the same Store. This is positive native owner-adapter evidence; HTTP mounting
+and its root result-release fence remain unqualified here.

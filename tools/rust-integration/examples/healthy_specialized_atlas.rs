@@ -18,6 +18,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+#[path = "healthy_mixed_derived_atlas.rs"]
+mod healthy_mixed_derived_atlas;
+
 const ORIGIN: &str = "https://atlas.synthetic.invalid";
 fn id(n: u32) -> String {
     format!("00000000-0000-4000-8000-{n:012}")
@@ -419,6 +422,20 @@ pub fn healthy() -> Result<(), Failure> {
         asset_reviews.push(result);
     }
 
+    // Ordinary preparation for a positive restore child; no held control is
+    // exercised. The entire batch reads this one real transaction prestate.
+    let batch_tombstone = command(
+        &client,
+        "atlas.binding.tombstone",
+        target("binding", 300),
+        json!({}),
+        Some(3),
+        vec![guard("identity", 200, 1), guard("evidence", 100, 1)],
+        9,
+    )?;
+    assert_eq!(batch_tombstone["data"]["records"][0]["revision"], 4);
+    let mixed = healthy_mixed_derived_atlas::healthy(&core, &cookie, &csrf)?;
+
     // Explicitly close and reopen the same specialized SQLite file before
     // querying the stock owner. The original session remains in actual Access.
     let Core {
@@ -452,13 +469,13 @@ pub fn healthy() -> Result<(), Failure> {
         homes,
     };
     for (serial, kind, n, revision) in [
-        (1, "binding", 930, 2),
-        (2, "binding", 300, 3),
+        (1, "binding", 930, 3),
+        (2, "binding", 300, 5),
         (3, "binding", 301, 2),
-        (4, "binding", 931, 1),
+        (4, "binding", 931, 2),
         (5, "reconciliation", 932, 1),
         (6, "geometry", 933, 1),
-        (7, "asset", 600, 3),
+        (7, "asset", 600, 4),
     ] {
         let got = read(
             &core,
@@ -513,6 +530,56 @@ pub fn healthy() -> Result<(), Failure> {
         assert!(events.iter().any(|event| event["commandId"] == operation
             && event["eventId"] == audit["data"]["auditIds"][index]));
     }
+    // Every mixed output is read after normal reopen. Each history load
+    // validates the saved batch plan, including all seven original children,
+    // fixed import time and each derived preimage's own audit beforeDigest.
+    let mut mixed_outputs = 0;
+    for (group_index, group) in mixed.groups.iter().enumerate() {
+        for (entry_index, native) in group.native_results.iter().enumerate() {
+            let selector = json!({"authority":"atlas",
+                "recordType":native.record.record_type.as_str(),"recordId":native.record.record_id});
+            let read_serial = 100 + (group_index * 3 + entry_index) as u32;
+            let got = read(
+                &core,
+                &cookie,
+                &validator,
+                &format!("atlas.{}.get", native.record.record_type.as_str()),
+                selector.clone(),
+                json!({}),
+                read_serial,
+            )?;
+            assert_eq!(
+                got["data"]["records"][0],
+                mixed.children[group_index]["data"]["records"][entry_index]
+            );
+            let history = read(
+                &core,
+                &cookie,
+                &validator,
+                &format!("atlas.{}.history", native.record.record_type.as_str()),
+                selector,
+                json!({"pageSize":20,"cursor":null,"includeArchived":false,
+                    "q":group.original_request["commandId"]}),
+                read_serial + 50,
+            )?;
+            let events = history["data"]["entries"]
+                .as_array()
+                .ok_or("Missing mixed history")?;
+            assert!(
+                events
+                    .iter()
+                    .any(|event| event["eventId"] == native.audit.audit_id
+                        && event["requestDigest"] == group.request_digest
+                        && event["beforeDigest"] == json!(native.audit.before_digest)
+                        && event["afterDigest"] == json!(native.audit.after_digest))
+            );
+            mixed_outputs += 1;
+        }
+    }
+    assert_eq!(mixed_outputs, 9);
+    println!(
+        "PASS healthy mixed derived Atlas batch: seven ordered children, nine native entries/audits, genuine Access guard; nine reopened record/history pairs"
+    );
     drop(core);
     scratch.close()?;
     println!(
