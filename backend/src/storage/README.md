@@ -157,6 +157,43 @@ clear only projection rows and retain records and binding reservations. All
 these writes use the same connection and fixed internal SQL as bootstrap; no
 second service framework or raw database handle is exposed.
 
+### Original borrowed partition and snapshot reads
+
+`read_cache_partition_with_authorization<B: Authorization>` borrows the original
+per-call principal/authority on this same open store. It returns
+`RegisteredCacheRead { registration: SourceRegistration, state: CachePublicationState }`
+from one read transaction. The request uses `ReadCache`, exact scope/partition,
+empty targets, no mutation context and the actual stored registration as
+`request.source`. Storage validates the registration, cache and retained row
+shapes/partitions/owners, and rechecks the same original actor before commit and
+return. It does not require `PublishCache`, reserve an ID, issue a publication
+fence or write. Quarantined retained rows remain internal matching data; this
+carrier grants neither disclosure nor accepted-generation membership.
+
+`read_snapshot_with_authorization<B: Authorization>` shares the existing
+configured-authority snapshot engine and uses the supplied original fence.
+The engine retains per-partition concealment semantics and revalidates successful
+source checks before returning. Link rows now request their private qualified
+`key.sourceKind: "network-link"` selector with the actual link ID. Endpoints
+retain their actual entity kinds. Frozen public `SourceKind` is unchanged.
+Network must resolve this private selector through its original genuine typed
+link grant, including both raw endpoints and accepted-generation membership;
+a segment grant does not qualify a link row. Storage does not reconstruct those
+facts from a projected relation.
+
+`checks/network-read-healthy.rs` exercises the original actual AT11
+`5e87c6c9152228ac4ae72814c6e6fc8f0ea8d7a2` principal/read transaction and retained
+partition/entity/typed link grant pointers, two published healthy relations,
+exact private link selectors, atomic registration/epoch/rows and authorized
+reopen. It creates no new publication reservation or mutation receipt. Native
+contract shapes and the published offline semantic oracle are compiled; the raw
+relation membership adapter is an explicitly synthetic fixture, not the Network
+sidecar validator. The complete access source additionally mounts actual
+domain queue-recovery `fd72542686112e594d9a6f63b4782a62b5d9e6ef` in the external
+harness alongside domain/jobs8a and mediaf0. No root manifests or locks change.
+Network/root own sidecar validation outside the lock, genuine membership-grant
+capture, fenced reread comparisons and final owned-output release.
+
 ## Database and dependencies
 
 The new lineage is `houseatlas-rust-storage/1`, database version 5, distinct from
