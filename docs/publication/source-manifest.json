@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "4ff77385d551ea257f0c3867991365533e1b18c5de16df828b09fbdc2aa06d67",
+  "sourceDigestSha256": "9089cad0538c109145e8172854c65e4a5c776231305507793e7f515f676d08fa",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -419,8 +419,8 @@
     {
       "path": "backend/src/app.rs",
       "mode": "100644",
-      "bytes": 15925,
-      "sha256": "14bfa03d7b252b90aee8ef8bc59606ab475cbc839514f7842f18c818e51e3c6c",
+      "bytes": 20483,
+      "sha256": "12295d1c4c46712dc3f1165cba9aed738d55d3394fa94d5caed46fa12fe64a91",
       "owner": "core-integration"
     },
     {
@@ -2841,8 +2841,8 @@
     {
       "path": "docs/rust-integration/native-storage-composition.md",
       "mode": "100644",
-      "bytes": 2145,
-      "sha256": "9e20dc73d1977fcc1992606b84a126032f5f69f1d0c4ff902836c2bb3d402e24",
+      "bytes": 2687,
+      "sha256": "c07b9d276ce68dd49dc02b368d1216107271dd758dee8231fd5a034b1f2a6f97",
       "owner": "core-integration"
     },
     {

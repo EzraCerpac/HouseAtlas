@@ -8,6 +8,14 @@ canonical issuer and provides typed Network and offline recovery handles.
 Domain supplies the native queue recovery contract. Source receipts and
 historical input mappings remain outside tracked publication files.
 
+Root handles a cached Network link as a distinct typed selector, using both
+cached endpoints and actual AT11 member/link issuance. The request retains those
+opaque grants and revalidates them at release and through the original mutation
+guard; the frozen public SourceKind is unchanged. Projected unresolved ends
+require raw-member evidence, which the generic snapshot adapter does not have,
+so its existing partition concealment applies. The concrete Network owner
+supplies its separate retained-generation disclosure path for those facts.
+
 The executable still opens the existing profile-5 store. Profile 6 is an explicit
 fresh-database option in Storage; this composition installs no activity worker,
 provider dispatcher, recovery action, grant or automatic database upgrade.
