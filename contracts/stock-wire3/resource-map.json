@@ -1,0 +1,48 @@
+{
+  "format": "houseatlas-offline-schema-resources/1",
+  "resourceRoot": "contracts/stock-wire3",
+  "dialect": "https://json-schema.org/draft/2020-12/schema",
+  "networkResolution": false,
+  "resources": [
+    {
+      "uri": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json",
+      "path": "packages/contracts/schemas/atlas.schema.json",
+      "sha256": "ef00707b251051da4157598833d4c91d15d01b73eebfa049daf8c52a2ff23806"
+    },
+    {
+      "uri": "urn:houseatlas:agent:stock:3",
+      "path": "contracts/stock-wire3/agent/agent.schema.json",
+      "sha256": "314ee5f5effca941b3be92cb5cc37150aa17a3ab5dd8646255cebc74767b602d"
+    },
+    {
+      "path": "contracts/stock-wire3/presence/witness.v1.schema.json",
+      "resolution": "repository file URL; relative references",
+      "sha256": "5784677d596eade2dbbe9eb349fb346682e3fd611f8bbe146f9c635e59ab9ab1"
+    },
+    {
+      "path": "contracts/stock-wire3/presence/qualification.v1.schema.json",
+      "resolution": "repository file URL; relative references",
+      "sha256": "b79a1905937e5ccda46bbe2a325374ba3f0348a82329c6031136d2765dc25ac1"
+    }
+  ],
+  "metadataSchemaResources": [
+    {
+      "path": "contracts/stock-wire3/agent/operation-catalog.json",
+      "fields": [
+        "inputSchema",
+        "outputSchema"
+      ],
+      "fragmentBaseUri": "urn:houseatlas:agent:stock:3",
+      "schemaPath": "contracts/stock-wire3/agent/agent.schema.json"
+    },
+    {
+      "path": "contracts/stock-wire3/agent/tool-families.json",
+      "fields": [
+        "inputSchema",
+        "outputSchema"
+      ],
+      "fragmentBaseUri": "urn:houseatlas:agent:stock:3",
+      "schemaPath": "contracts/stock-wire3/agent/agent.schema.json"
+    }
+  ]
+}

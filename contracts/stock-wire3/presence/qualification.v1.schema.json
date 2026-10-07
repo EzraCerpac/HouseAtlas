@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HouseAtlas source-presence qualification schema 1",
+  "description": "Trusted synchronous server qualification facts only; AtlasStore derives assertions and stamps persisted witness linkage. Browser JSON is not authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "bindingRecordId",
+    "source",
+    "observedAt",
+    "cache",
+    "authority",
+    "observation"
+  ],
+  "properties": {
+    "bindingRecordId": {
+      "$ref": "./witness.v1.schema.json#/properties/bindingRecordId"
+    },
+    "source": {
+      "$ref": "./witness.v1.schema.json#/properties/source"
+    },
+    "observedAt": {
+      "$ref": "./witness.v1.schema.json#/properties/observedAt"
+    },
+    "cache": {
+      "$ref": "./witness.v1.schema.json#/properties/cache"
+    },
+    "authority": {
+      "$ref": "./witness.v1.schema.json#/properties/authority"
+    },
+    "observation": {
+      "$ref": "./witness.v1.schema.json#/properties/observation"
+    }
+  },
+  "allOf": [
+    {
+      "$ref": "./witness.v1.schema.json#/allOf/0"
+    },
+    {
+      "$ref": "./witness.v1.schema.json#/allOf/1"
+    }
+  ]
+}

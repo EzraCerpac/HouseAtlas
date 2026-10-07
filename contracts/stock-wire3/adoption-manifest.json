@@ -1,0 +1,115 @@
+{
+  "format": "houseatlas-contract-adoption/1",
+  "contractVersion": "0.3.0-at34.stock.2",
+  "wireSchemaVersion": 3,
+  "semanticAmendmentVersion": "1.1.0",
+  "runtimeQualification": false,
+  "frozenAtlasSchema": {
+    "uri": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json",
+    "path": "packages/contracts/schemas/atlas.schema.json",
+    "sha256": "ef00707b251051da4157598833d4c91d15d01b73eebfa049daf8c52a2ff23806"
+  },
+  "transformations": [
+    "Remove catalog task-allocation fields and replace descriptive task labels with component/qualification names; retain command identities and historical/current restrictions.",
+    "Replace presence policy coordination status/owner narrative with specified typed boundary; retain implementation-review-pending and held capability.",
+    "Replace witness descriptive concurrence narrative; rewrite its relative Atlas reference to the existing frozen repository schema.",
+    "Remove coordination, personal runtime/outreach and implementation-approval narrative from application policy prose; retain normative rules, unqualified holds and stopped checks.",
+    "Omit transfer manifests and replace archive resource layout with this repository offline map; retain public upstream reference pins."
+  ],
+  "files": [
+    {
+      "path": "contracts/stock-wire3/PROVIDER-AND-AI-POLICY.md",
+      "bytes": 18126,
+      "sha256": "f0f5ee9b081a57fe186dc35f9b7b6b7de0f06321283db35cd21c5a34e53fbdd2",
+      "sourceContentSha256": "483f7067cdee079288e918449f09a6043fe72364420d78d1515580288ab963a1"
+    },
+    {
+      "path": "contracts/stock-wire3/README.md",
+      "bytes": 2762,
+      "sha256": "0c769bb54c36176b7a8b5c5260870629376deefd57326d466c40244d27b5b1b8"
+    },
+    {
+      "path": "contracts/stock-wire3/SEMANTICS.md",
+      "bytes": 13036,
+      "sha256": "e6da333b5d7c28dc66317aa2d7165590d307ca3a22c3a066e8f8fe6309bd8f2d",
+      "sourceContentSha256": "c3f85755080f85e3ca4a9dd50635c89910aa78c550dd140852b0403ab179bd86"
+    },
+    {
+      "path": "contracts/stock-wire3/agent/agent.schema.json",
+      "bytes": 940503,
+      "sha256": "314ee5f5effca941b3be92cb5cc37150aa17a3ab5dd8646255cebc74767b602d",
+      "sourceContentSha256": "314ee5f5effca941b3be92cb5cc37150aa17a3ab5dd8646255cebc74767b602d"
+    },
+    {
+      "path": "contracts/stock-wire3/agent/capabilities.json",
+      "bytes": 37379,
+      "sha256": "911b6fc1621c66c6d3d22fb183202a8d140e22eaefea6c858a06912267f95c26",
+      "sourceContentSha256": "911b6fc1621c66c6d3d22fb183202a8d140e22eaefea6c858a06912267f95c26"
+    },
+    {
+      "path": "contracts/stock-wire3/agent/engineering-profile.json",
+      "bytes": 403,
+      "sha256": "fa5fb6803fededeebe0c37888039d5dc494c4e073609437e1f0b956e4531105f",
+      "sourceContentSha256": "fa5fb6803fededeebe0c37888039d5dc494c4e073609437e1f0b956e4531105f"
+    },
+    {
+      "path": "contracts/stock-wire3/agent/feature-routes.json",
+      "bytes": 4424,
+      "sha256": "17f192d5e5cc23e24852b6722bc5648151001d6a10e9be2667804bb898f2637e",
+      "sourceContentSha256": "17f192d5e5cc23e24852b6722bc5648151001d6a10e9be2667804bb898f2637e"
+    },
+    {
+      "path": "contracts/stock-wire3/agent/operation-catalog.json",
+      "bytes": 309045,
+      "sha256": "767cbaa866edbe4448f30bffcf778617234d6e4eae32eb620b8210bdeee9ebcc",
+      "sourceContentSha256": "55063c5d08f37c7c45f350b29b0aa60d788c34a4dfab154f6b6b69cb6f0ca6ad"
+    },
+    {
+      "path": "contracts/stock-wire3/agent/tool-families.json",
+      "bytes": 10757,
+      "sha256": "6aceccd2e90a3e506bbfb2c2f8843f96e82bb2bea8faf26a6dc3e65649079cb7",
+      "sourceContentSha256": "6aceccd2e90a3e506bbfb2c2f8843f96e82bb2bea8faf26a6dc3e65649079cb7"
+    },
+    {
+      "path": "contracts/stock-wire3/native/homebox.swagger.json",
+      "bytes": 216647,
+      "sha256": "5da7752182cb6172db0550cbd799ee340836d3dba8ceaff7c6ed12976f9e3493",
+      "sourceContentSha256": "5da7752182cb6172db0550cbd799ee340836d3dba8ceaff7c6ed12976f9e3493"
+    },
+    {
+      "path": "contracts/stock-wire3/native/provider-route-dispositions.json",
+      "bytes": 22458,
+      "sha256": "044b4ded817eb116a702c695e947a71770c1332a85336358ac4da0e2f754bea2",
+      "sourceContentSha256": "044b4ded817eb116a702c695e947a71770c1332a85336358ac4da0e2f754bea2"
+    },
+    {
+      "path": "contracts/stock-wire3/native/source-reference.json",
+      "bytes": 1532,
+      "sha256": "d92c3c1f4b5464e145f74e796f8c28b5cb22f64c3a43bda1dbb34d0e1440b252",
+      "sourceContentSha256": "d92c3c1f4b5464e145f74e796f8c28b5cb22f64c3a43bda1dbb34d0e1440b252"
+    },
+    {
+      "path": "contracts/stock-wire3/presence/policy.v1.1.0.json",
+      "bytes": 4895,
+      "sha256": "e893838c0ef684a24fa92ac99da5773e1972d7c2d05d4623d531fd2a67f30d5b",
+      "sourceContentSha256": "21d65af4acc776fe3e55002b59bbf35df5f5f3eb2fda5e0c5b51e8bb7c17b003"
+    },
+    {
+      "path": "contracts/stock-wire3/presence/qualification.v1.schema.json",
+      "bytes": 1180,
+      "sha256": "b79a1905937e5ccda46bbe2a325374ba3f0348a82329c6031136d2765dc25ac1",
+      "sourceContentSha256": "b79a1905937e5ccda46bbe2a325374ba3f0348a82329c6031136d2765dc25ac1"
+    },
+    {
+      "path": "contracts/stock-wire3/presence/witness.v1.schema.json",
+      "bytes": 10298,
+      "sha256": "5784677d596eade2dbbe9eb349fb346682e3fd611f8bbe146f9c635e59ab9ab1",
+      "sourceContentSha256": "69c54184c7d14d0cab50ba9b53c484c7e4a03e5c32e70917aff6a1bc14982164"
+    },
+    {
+      "path": "contracts/stock-wire3/resource-map.json",
+      "bytes": 1707,
+      "sha256": "29857eafbc38c9c7b9b528463de3f56c5065f8e9b7475386727c99c410da08ea"
+    }
+  ]
+}

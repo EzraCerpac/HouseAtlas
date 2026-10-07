@@ -1,0 +1,1188 @@
+{
+  "queueContract": {
+    "strategy": "single-deployment-durable-provider-queue",
+    "approvedDesign": true,
+    "exclusiveDispatcher": true,
+    "maxActiveMutations": 1,
+    "physicalDatabaseBindingRequired": true,
+    "allAtlasMutationTransportsAndAliases": true,
+    "readsAndPreparationConcurrent": true,
+    "atlasLocalCASConcurrent": true,
+    "endUnprovenActivityHoldDurable": true,
+    "waitingUploadBodies": false,
+    "distributedCoordination": false,
+    "implemented": false,
+    "qualification": false,
+    "engineeringProfileVersion": "single-dispatch-engineering-1"
+  },
+  "contractVersion": "0.3.0-at34.stock.2",
+  "wireSchemaVersion": 3,
+  "providerStrategy": "stock-homebox-scoped-atlas-writes",
+  "decisionScope": "approved-stock-strategy-for-implementation",
+  "strategyDecision": "go",
+  "providerQualified": false,
+  "liveWriteReady": false,
+  "atomicProviderCAS": false,
+  "allWriterFence": false,
+  "nativeEditorRacePossible": true,
+  "atlasOwnedCASRequired": true,
+  "nativeEditorRestricted": false,
+  "originalCandidateCommands": 158,
+  "stockProductForms": 69,
+  "mediatedHistoryViews": 2,
+  "unsupportedForms": 9,
+  "successfulOriginalFormsRequired": 144,
+  "additionalTypedCommandGroups": 6,
+  "additionalRouteKeys": 21,
+  "proposedToolFamilies": 10,
+  "operations": [
+    {
+      "commandId": "atlas.identity.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.identity.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.identity.history",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.identity.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.identity.replace",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.identity.tombstone",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.identity.restore",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.binding.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.binding.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.binding.history",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.binding.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.binding.review",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.binding.tombstone",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.binding.restore",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.evidence.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.evidence.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.evidence.history",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.evidence.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.evidence.tombstone",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.evidence.restore",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.location-semantics.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.location-semantics.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.location-semantics.history",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.location-semantics.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.location-semantics.replace",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.location-semantics.tombstone",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.location-semantics.restore",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.circuit.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.circuit.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.circuit.history",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.circuit.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.circuit.replace",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.circuit.tombstone",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.circuit.restore",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.valve.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.valve.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.valve.history",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.valve.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.valve.replace",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.valve.tombstone",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.valve.restore",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.relation.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.relation.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.relation.history",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.relation.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.relation.replace",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.relation.tombstone",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.relation.restore",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.geometry.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.geometry.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.geometry.history",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.geometry.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.geometry.tombstone",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.geometry.restore",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.asset.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.asset.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.asset.history",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.asset.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.asset.review",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.asset.tombstone",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.asset.restore",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.reconciliation.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.reconciliation.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.reconciliation.history",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.reconciliation.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.reconciliation.tombstone",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.reconciliation.restore",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.binding.remap",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.asset.download",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "homebox.entity.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.history",
+      "status": "unsupported-capability",
+      "successfulExecutionRequired": false,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.update",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.archive",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.unarchive",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.reparent",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.delete",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.restore-deleted",
+      "status": "unsupported-capability",
+      "successfulExecutionRequired": false,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.duplicate",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.location.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.location.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.location.history",
+      "status": "unsupported-capability",
+      "successfulExecutionRequired": false,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.location.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.location.update",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.location.archive",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.location.unarchive",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.location.reparent",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.location.delete",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.location.restore-deleted",
+      "status": "unsupported-capability",
+      "successfulExecutionRequired": false,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.location.duplicate",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.children.sync",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.mediated-history",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas-operation-ledger",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.location.children.sync",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.location.mediated-history",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas-operation-ledger",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.quantity.set",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.type.set",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.location.tree",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.path",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.tag.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.tag.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.tag.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.tag.update",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.tag.delete",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.tags.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.tags.set",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.tags.add",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.tags.remove",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.field.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.field.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.field.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.field.update",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.field.delete",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.field-names",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity.field-values",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.file.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.file.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.file.upload",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.file.update",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.file.download",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.file.delete",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.file.replace-bytes",
+      "status": "unsupported-capability",
+      "successfulExecutionRequired": false,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.file.restore-deleted",
+      "status": "unsupported-capability",
+      "successfulExecutionRequired": false,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.document-link.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.document-link.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.document-link.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.document-link.update",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.document-link.delete",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.document-link.retarget",
+      "status": "unsupported-capability",
+      "successfulExecutionRequired": false,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.maintenance.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.maintenance.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.maintenance.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.maintenance.update",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.maintenance.schedule",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.maintenance.complete",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.maintenance.reopen",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.maintenance.delete",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.maintenance.attachment-upload",
+      "status": "unsupported-capability",
+      "successfulExecutionRequired": false,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.maintenance.attachment-delete",
+      "status": "unsupported-capability",
+      "successfulExecutionRequired": false,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity-type.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity-type.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity-type.update",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.entity-type.delete",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.template.list",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.template.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.template.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.template.update",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.template.delete",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "homebox.template.create-item",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": "homebox"
+    },
+    {
+      "commandId": "atlas.binding.reassign-identity",
+      "status": "held-policy",
+      "successfulExecutionRequired": false,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.asset.hard-purge",
+      "status": "held-policy",
+      "successfulExecutionRequired": false,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.evidence.replace",
+      "status": "forbidden-append-only",
+      "successfulExecutionRequired": false,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.geometry.replace",
+      "status": "forbidden-append-only",
+      "successfulExecutionRequired": false,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.reconciliation.replace",
+      "status": "forbidden-append-only",
+      "successfulExecutionRequired": false,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "network.inventory.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "network",
+      "archiveAuthority": null
+    },
+    {
+      "commandId": "network.snapshot.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "network",
+      "archiveAuthority": null
+    },
+    {
+      "commandId": "network.history.get",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "network",
+      "archiveAuthority": null
+    },
+    {
+      "commandId": "atlas.batch.execute",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "atlas",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "homebox.bulk.execute",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": null
+    },
+    {
+      "commandId": "homebox.import.csv",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": null
+    },
+    {
+      "commandId": "homebox.export.create",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": null
+    },
+    {
+      "commandId": "homebox.query.read",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": null
+    },
+    {
+      "commandId": "homebox.label.output",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": null
+    },
+    {
+      "commandId": "homebox.qrcode.render",
+      "status": "supported-pending-qualification",
+      "successfulExecutionRequired": true,
+      "dataAuthority": "homebox",
+      "archiveAuthority": null
+    }
+  ]
+}

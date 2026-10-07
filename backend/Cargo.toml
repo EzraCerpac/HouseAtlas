@@ -1,0 +1,48 @@
+[package]
+name = "houseatlas-backend"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+axum.workspace = true
+tokio.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+jsonschema.workspace = true
+base64.workspace = true
+getrandom.workspace = true
+scrypt.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+url.workspace = true
+time.workspace = true
+serde_jcs.workspace = true
+axum-server.workspace = true
+
+[dev-dependencies]
+tower.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "houseatlas"
+path = "src/main.rs"
+
+[[example]]
+name = "healthy-contracts"
+path = "../tools/rust-baseline/examples/healthy_contracts.rs"
+
+[[example]]
+name = "healthy-dependencies"
+path = "../tools/rust-baseline/examples/healthy_dependencies.rs"

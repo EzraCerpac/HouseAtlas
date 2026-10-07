@@ -1,0 +1,306 @@
+{
+  "contractVersion": "0.3.0-at34.stock.2",
+  "proposalOnly": true,
+  "familyCount": 10,
+  "families": [
+    {
+      "toolName": "atlas_records",
+      "commandIds": [
+        "atlas.identity.get",
+        "atlas.identity.list",
+        "atlas.identity.history",
+        "atlas.identity.create",
+        "atlas.identity.replace",
+        "atlas.identity.tombstone",
+        "atlas.identity.restore",
+        "atlas.evidence.get",
+        "atlas.evidence.list",
+        "atlas.evidence.history",
+        "atlas.evidence.create",
+        "atlas.evidence.tombstone",
+        "atlas.evidence.restore",
+        "atlas.location-semantics.get",
+        "atlas.location-semantics.list",
+        "atlas.location-semantics.history",
+        "atlas.location-semantics.create",
+        "atlas.location-semantics.replace",
+        "atlas.location-semantics.tombstone",
+        "atlas.location-semantics.restore",
+        "atlas.circuit.get",
+        "atlas.circuit.list",
+        "atlas.circuit.history",
+        "atlas.circuit.create",
+        "atlas.circuit.replace",
+        "atlas.circuit.tombstone",
+        "atlas.circuit.restore",
+        "atlas.valve.get",
+        "atlas.valve.list",
+        "atlas.valve.history",
+        "atlas.valve.create",
+        "atlas.valve.replace",
+        "atlas.valve.tombstone",
+        "atlas.valve.restore",
+        "atlas.relation.get",
+        "atlas.relation.list",
+        "atlas.relation.history",
+        "atlas.relation.create",
+        "atlas.relation.replace",
+        "atlas.relation.tombstone",
+        "atlas.relation.restore",
+        "atlas.reconciliation.get",
+        "atlas.reconciliation.list",
+        "atlas.reconciliation.history",
+        "atlas.reconciliation.create",
+        "atlas.reconciliation.tombstone",
+        "atlas.reconciliation.restore",
+        "atlas.evidence.replace",
+        "atlas.reconciliation.replace",
+        "atlas.batch.execute"
+      ],
+      "inputSchema": "#/$defs/family_input_atlas_records",
+      "outputSchema": "#/$defs/family_output_atlas_records",
+      "approvalAuthority": "none; receipt issued only by separate trusted human UI",
+      "availability": "server-derived authorized command arms; unsupported required commands remain explicit in catalog",
+      "transports": [
+        "remote-mcp",
+        "webmcp",
+        "in-app-chatgpt"
+      ]
+    },
+    {
+      "toolName": "atlas_bindings",
+      "commandIds": [
+        "atlas.binding.get",
+        "atlas.binding.list",
+        "atlas.binding.history",
+        "atlas.binding.create",
+        "atlas.binding.review",
+        "atlas.binding.tombstone",
+        "atlas.binding.restore",
+        "atlas.binding.remap",
+        "atlas.binding.reassign-identity"
+      ],
+      "inputSchema": "#/$defs/family_input_atlas_bindings",
+      "outputSchema": "#/$defs/family_output_atlas_bindings",
+      "approvalAuthority": "none; receipt issued only by separate trusted human UI",
+      "availability": "server-derived authorized command arms; unsupported required commands remain explicit in catalog",
+      "transports": [
+        "remote-mcp",
+        "webmcp",
+        "in-app-chatgpt"
+      ]
+    },
+    {
+      "toolName": "atlas_media_geometry",
+      "commandIds": [
+        "atlas.geometry.get",
+        "atlas.geometry.list",
+        "atlas.geometry.history",
+        "atlas.geometry.create",
+        "atlas.geometry.tombstone",
+        "atlas.geometry.restore",
+        "atlas.asset.get",
+        "atlas.asset.list",
+        "atlas.asset.history",
+        "atlas.asset.create",
+        "atlas.asset.review",
+        "atlas.asset.tombstone",
+        "atlas.asset.restore",
+        "atlas.asset.download",
+        "atlas.asset.hard-purge",
+        "atlas.geometry.replace"
+      ],
+      "inputSchema": "#/$defs/family_input_atlas_media_geometry",
+      "outputSchema": "#/$defs/family_output_atlas_media_geometry",
+      "approvalAuthority": "none; receipt issued only by separate trusted human UI",
+      "availability": "server-derived authorized command arms; unsupported required commands remain explicit in catalog",
+      "transports": [
+        "remote-mcp",
+        "webmcp",
+        "in-app-chatgpt"
+      ]
+    },
+    {
+      "toolName": "homebox_entities_locations",
+      "commandIds": [
+        "homebox.entity.get",
+        "homebox.entity.list",
+        "homebox.entity.history",
+        "homebox.entity.create",
+        "homebox.entity.update",
+        "homebox.entity.archive",
+        "homebox.entity.unarchive",
+        "homebox.entity.reparent",
+        "homebox.entity.delete",
+        "homebox.entity.restore-deleted",
+        "homebox.entity.duplicate",
+        "homebox.location.get",
+        "homebox.location.list",
+        "homebox.location.history",
+        "homebox.location.create",
+        "homebox.location.update",
+        "homebox.location.archive",
+        "homebox.location.unarchive",
+        "homebox.location.reparent",
+        "homebox.location.delete",
+        "homebox.location.restore-deleted",
+        "homebox.location.duplicate",
+        "homebox.entity.children.sync",
+        "homebox.entity.mediated-history",
+        "homebox.location.children.sync",
+        "homebox.location.mediated-history",
+        "homebox.entity.quantity.set",
+        "homebox.entity.type.set",
+        "homebox.location.tree",
+        "homebox.entity.path"
+      ],
+      "inputSchema": "#/$defs/family_input_homebox_entities_locations",
+      "outputSchema": "#/$defs/family_output_homebox_entities_locations",
+      "approvalAuthority": "none; receipt issued only by separate trusted human UI",
+      "availability": "server-derived authorized command arms; unsupported required commands remain explicit in catalog",
+      "transports": [
+        "remote-mcp",
+        "webmcp",
+        "in-app-chatgpt"
+      ]
+    },
+    {
+      "toolName": "homebox_tags_fields",
+      "commandIds": [
+        "homebox.tag.list",
+        "homebox.tag.get",
+        "homebox.tag.create",
+        "homebox.tag.update",
+        "homebox.tag.delete",
+        "homebox.entity.tags.get",
+        "homebox.entity.tags.set",
+        "homebox.entity.tags.add",
+        "homebox.entity.tags.remove",
+        "homebox.field.list",
+        "homebox.field.get",
+        "homebox.field.create",
+        "homebox.field.update",
+        "homebox.field.delete",
+        "homebox.entity.field-names",
+        "homebox.entity.field-values"
+      ],
+      "inputSchema": "#/$defs/family_input_homebox_tags_fields",
+      "outputSchema": "#/$defs/family_output_homebox_tags_fields",
+      "approvalAuthority": "none; receipt issued only by separate trusted human UI",
+      "availability": "server-derived authorized command arms; unsupported required commands remain explicit in catalog",
+      "transports": [
+        "remote-mcp",
+        "webmcp",
+        "in-app-chatgpt"
+      ]
+    },
+    {
+      "toolName": "homebox_templates_types",
+      "commandIds": [
+        "homebox.entity-type.list",
+        "homebox.entity-type.create",
+        "homebox.entity-type.update",
+        "homebox.entity-type.delete",
+        "homebox.template.list",
+        "homebox.template.get",
+        "homebox.template.create",
+        "homebox.template.update",
+        "homebox.template.delete",
+        "homebox.template.create-item"
+      ],
+      "inputSchema": "#/$defs/family_input_homebox_templates_types",
+      "outputSchema": "#/$defs/family_output_homebox_templates_types",
+      "approvalAuthority": "none; receipt issued only by separate trusted human UI",
+      "availability": "server-derived authorized command arms; unsupported required commands remain explicit in catalog",
+      "transports": [
+        "remote-mcp",
+        "webmcp",
+        "in-app-chatgpt"
+      ]
+    },
+    {
+      "toolName": "homebox_files_links",
+      "commandIds": [
+        "homebox.file.list",
+        "homebox.file.get",
+        "homebox.file.upload",
+        "homebox.file.update",
+        "homebox.file.download",
+        "homebox.file.delete",
+        "homebox.file.replace-bytes",
+        "homebox.file.restore-deleted",
+        "homebox.document-link.list",
+        "homebox.document-link.get",
+        "homebox.document-link.create",
+        "homebox.document-link.update",
+        "homebox.document-link.delete",
+        "homebox.document-link.retarget"
+      ],
+      "inputSchema": "#/$defs/family_input_homebox_files_links",
+      "outputSchema": "#/$defs/family_output_homebox_files_links",
+      "approvalAuthority": "none; receipt issued only by separate trusted human UI",
+      "availability": "server-derived authorized command arms; unsupported required commands remain explicit in catalog",
+      "transports": [
+        "remote-mcp",
+        "webmcp",
+        "in-app-chatgpt"
+      ]
+    },
+    {
+      "toolName": "homebox_maintenance",
+      "commandIds": [
+        "homebox.maintenance.list",
+        "homebox.maintenance.get",
+        "homebox.maintenance.create",
+        "homebox.maintenance.update",
+        "homebox.maintenance.schedule",
+        "homebox.maintenance.complete",
+        "homebox.maintenance.reopen",
+        "homebox.maintenance.delete",
+        "homebox.maintenance.attachment-upload",
+        "homebox.maintenance.attachment-delete"
+      ],
+      "inputSchema": "#/$defs/family_input_homebox_maintenance",
+      "outputSchema": "#/$defs/family_output_homebox_maintenance",
+      "approvalAuthority": "none; receipt issued only by separate trusted human UI",
+      "availability": "server-derived authorized command arms; unsupported required commands remain explicit in catalog",
+      "transports": [
+        "remote-mcp",
+        "webmcp",
+        "in-app-chatgpt"
+      ]
+    },
+    {
+      "toolName": "network_queries",
+      "commandIds": [
+        "network.inventory.get",
+        "network.snapshot.get",
+        "network.history.get"
+      ],
+      "inputSchema": "#/$defs/family_input_network_queries",
+      "outputSchema": "#/$defs/family_output_network_queries",
+      "approvalAuthority": "none; receipt issued only by separate trusted human UI",
+      "availability": "server-derived authorized command arms; unsupported required commands remain explicit in catalog",
+      "transports": [
+        "remote-mcp",
+        "webmcp",
+        "in-app-chatgpt"
+      ]
+    },
+    {
+      "toolName": "homebox_product_features",
+      "commandIds": [
+        "homebox.bulk.execute",
+        "homebox.import.csv",
+        "homebox.export.create",
+        "homebox.query.read",
+        "homebox.label.output",
+        "homebox.qrcode.render"
+      ],
+      "proposalOnly": true,
+      "inputSchema": "#/$defs/family_input_homebox_product_features",
+      "outputSchema": "#/$defs/family_output_homebox_product_features"
+    }
+  ],
+  "noGenericHttpOrOperatorEscape": true
+}

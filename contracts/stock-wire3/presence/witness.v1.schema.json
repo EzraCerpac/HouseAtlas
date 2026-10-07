@@ -1,0 +1,420 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HouseAtlas source-presence witness schema 1 / semantic amendment 1.1.0",
+  "description": "Append-only AtlasStore transaction-owned provenance witness, separate from frozen record/audit schema1. Runtime source qualification, atomic persistence and recovery require reviewed typed composition. Browser-supplied JSON confers no authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "semanticAmendmentVersion",
+    "workspaceId",
+    "homeId",
+    "bindingRecordId",
+    "bindingRevision",
+    "auditId",
+    "mutationId",
+    "actorId",
+    "operation",
+    "trigger",
+    "source",
+    "observedAt",
+    "admittedAt",
+    "cache",
+    "authority",
+    "observation"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "semanticAmendmentVersion": {
+      "const": "1.1.0"
+    },
+    "workspaceId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "homeId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "bindingRecordId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "bindingRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "auditId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "mutationId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "actorId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "operation": {
+      "enum": [
+        "create",
+        "replace",
+        "restore"
+      ]
+    },
+    "trigger": {
+      "enum": [
+        "create-present",
+        "nonpresent-to-present",
+        "restore-active-present",
+        "present-evidence-ids-replaced"
+      ]
+    },
+    "source": {
+      "$ref": "../../../packages/contracts/schemas/atlas.schema.json#/$defs/sourceKey"
+    },
+    "observedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "admittedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "cache": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generationId",
+        "cacheEpoch",
+        "status",
+        "lastSuccessfulFetchAt"
+      ],
+      "properties": {
+        "generationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "cacheEpoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "status": {
+          "const": "fresh"
+        },
+        "lastSuccessfulFetchAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authorityContextVersion",
+        "contextId",
+        "accessPackageVersion",
+        "accessEpoch",
+        "sourceRegistrationVersion",
+        "sourceRegistrationSha256"
+      ],
+      "properties": {
+        "authorityContextVersion": {
+          "const": "atlas-mutation-authorization-context/1"
+        },
+        "contextId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "accessPackageVersion": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+        },
+        "accessEpoch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "sourceRegistrationVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "sourceRegistrationSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "observation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "memberSha256",
+            "memberRetrievedAt",
+            "sourceUpdatedAt"
+          ],
+          "properties": {
+            "kind": {
+              "const": "homebox-entity"
+            },
+            "memberSha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "memberRetrievedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "sourceUpdatedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "memberSha256",
+            "verifiedGenerationSha256",
+            "generationRetrievedAt",
+            "sourceSnapshotAt"
+          ],
+          "properties": {
+            "kind": {
+              "const": "network-inventory"
+            },
+            "memberSha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "verifiedGenerationSha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "generationRetrievedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "sourceSnapshotAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "properties": {
+        "source": {
+          "properties": {
+            "sourceKind": {
+              "enum": [
+                "homebox-entity",
+                "network-device",
+                "network-group"
+              ]
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    {
+      "if": {
+        "properties": {
+          "source": {
+            "properties": {
+              "sourceKind": {
+                "const": "homebox-entity"
+              }
+            },
+            "type": "object"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "observation": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "memberSha256",
+              "memberRetrievedAt",
+              "sourceUpdatedAt"
+            ],
+            "properties": {
+              "kind": {
+                "const": "homebox-entity"
+              },
+              "memberSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "memberRetrievedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "sourceUpdatedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "observation": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "memberSha256",
+              "verifiedGenerationSha256",
+              "generationRetrievedAt",
+              "sourceSnapshotAt"
+            ],
+            "properties": {
+              "kind": {
+                "const": "network-inventory"
+              },
+              "memberSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "verifiedGenerationSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "generationRetrievedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "sourceSnapshotAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "type": "object"
+    },
+    {
+      "if": {
+        "properties": {
+          "trigger": {
+            "const": "create-present"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "operation": {
+            "const": "create"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "trigger": {
+            "const": "nonpresent-to-present"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "operation": {
+            "const": "replace"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "trigger": {
+            "const": "restore-active-present"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "operation": {
+            "const": "restore"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "trigger": {
+            "const": "present-evidence-ids-replaced"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "operation": {
+            "const": "replace"
+          }
+        }
+      }
+    }
+  ]
+}
