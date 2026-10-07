@@ -89,7 +89,8 @@ export function AiPanelView({
 }: AiPanelViewProps) {
   const id = useId();
   const [selectedRoute, setSelectedRoute] = useState<RuntimeRoute>('unset');
-  const activeRequest = 'cancellation' in state.request ? state.request : null;
+  const activeRequest = 'cancellation' in state.request && state.request.status !== 'domain-held'
+    ? state.request : null;
   const busy = activeRequest !== null;
   const connectionBusy = state.connectionAction.status === 'working';
   const unresolvedActions = unresolvedConnectionActions ?? (

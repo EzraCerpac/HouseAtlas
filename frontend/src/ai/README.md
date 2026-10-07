@@ -24,7 +24,17 @@ is disabled until existing actions reconcile. Lookup uncertainty stays visible;
 the panel renders every unresolved action's own status, including an earlier
 Disconnect warning while a later Manage usage action is pending or opening.
 Only matching completion clears that action. Connected snapshot facts cannot
-resolve an action. The three runtime candidates
+resolve an action. A module-local registry retains at most three unresolved
+actions per exact host scope and 96 across all scopes. It stores only the full
+scope key (at most 4096 characters), action ID, kind and pending/unconfirmed
+status; no client, command payload, connection snapshot or credential is cached.
+Disposal aborts the view's observer without deleting submitted action IDs.
+A matching mount restores their visible statuses and reads each original ID
+once through the status port, without replaying an action. Capacity prevents
+new submissions before host I/O and never evicts unresolved work. The registry
+lasts for the loaded browser module, not a page reload. Cancellation-epoch
+rotation does not rebind cached IDs; host-owned action migration remains a
+separate integration boundary. The three runtime candidates
 remain explicit: a local
 sign-in helper, an issued website client and a local inference companion.
 Selecting a candidate does not qualify or adopt it. A local companion's computer
@@ -56,9 +66,12 @@ The required `requestStatus` port recovers the original identifier and its
 server-owned outcome; it never replays the command. A trusted `confirmed`
 cancellation receipt remains an acknowledgement until canonical status supplies
 the outcome and its usage; the panel constructs no cancelled result or counts.
-Only accepted completed, cancelled or failed outcomes retire matching request
-correlation. Local stopped, review-required and domain-held outcomes remain
-retained. Local stop preserves its observed usage and visible uncertainty.
+Accepted completed, cancelled, failed and terminal domain-held outcomes retire
+matching request correlation. The displayed domain-held result retains its
+usage, operation IDs and uncertainty while freeing the inference request slot;
+it does not complete or release any domain operation. Local stopped and
+review-required outcomes remain retained. Local stop preserves its observed
+usage and visible uncertainty.
 Accepting an authoritative request outcome clears obsolete recovery progress
 and aborts its stale lookup. Known domain-held operations retain their identifiers and prepared, queued,
 dispatching, rejected-before-dispatch, partial or unknown-held state; they never
@@ -70,7 +83,8 @@ separate trusted host UI. Only its `ready-to-resume` result triggers `resume` wi
 the existing request/continuation IDs. The host retains and consumes its own
 receipt and revalidates authority, intent and impact. No model/browser receipt
 body, approval authority, policy epoch or grant is sent by this island. Review
-and held operations block a second panel request until authoritative recovery.
+blocks a second panel request until authoritative recovery. A terminal
+domain-held request leaves domain reconciliation with its existing owner.
 
 Model output and JSON arguments render as React text. Tool calls remain
 previews. Token counts preserve `null` as Unknown; no quota, reset time, price or

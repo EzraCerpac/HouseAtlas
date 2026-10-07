@@ -266,14 +266,20 @@ pub struct AuthorizationAttempt {
     pub expires_at_ms: u64,
 }
 
-/// A sent refresh can have consumed its token. Persist the invocation before
-/// sending, then the received rotation before identity verification/activation.
-/// Neither checkpoint authorizes inference or replay of the previous token.
+/// Persist received exchanges/rotations before identity verification/activation.
+/// A sent refresh can have consumed its token, so persist its invocation too.
+/// No checkpoint authorizes inference or replay of a code/previous token.
 pub enum RefreshCheckpoint {
     None,
     InvocationUnconfirmed(RegistrationBinding),
     Received {
         binding: RegistrationBinding,
+        reply: TokenReply,
+    },
+    ExchangeReceived {
+        binding: RegistrationBinding,
+        client_id: String,
+        nonce: ProtectedValue,
         reply: TokenReply,
     },
 }
@@ -371,6 +377,10 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
         self.credentials
             .revalidate(context, &lease, binding)
             .await?;
+        if !matches!(record.refresh_checkpoint, RefreshCheckpoint::None) {
+            // A new launch must not overwrite unverified session material.
+            return Err(AiError::ConnectionUnavailable);
+        }
         let now = finite_time(self.credentials.now_ms()?)?;
         let (redirect_uri, callback_host, authentication) = match (&record.kind, callback) {
             (
@@ -447,6 +457,9 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
         let mut lease = self.credentials.acquire(context, binding).await?;
         let mut record = self.credentials.load(&lease).await?;
         check_binding(&record, binding)?;
+        if !matches!(record.refresh_checkpoint, RefreshCheckpoint::None) {
+            return Err(AiError::ConnectionUnavailable);
+        }
         let attempt = record
             .pending_authorization
             .as_ref()
@@ -521,7 +534,67 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
             }
             Err(_) => return Ok(receipt(&record, OAuthIssue::ExchangeUnconfirmed, None)),
         };
-        validate_tokens(&reply, &record.kind, false)?;
+        record.refresh_checkpoint = RefreshCheckpoint::ExchangeReceived {
+            binding: binding.clone(),
+            client_id: client,
+            nonce: attempt.material.nonce,
+            reply,
+        };
+        record.state = LifecycleState::IdentityVerificationPending;
+        // Capture received remote session material before any validation await.
+        // The encrypted checkpoint is not active credentials; persistence is
+        // required even if keys/identity verification are temporarily unavailable.
+        self.credentials.persist_atomic(&mut lease, &record).await?;
+        self.activate_exchange(context, binding, &mut lease, &mut record)
+            .await
+    }
+
+    /// Retry only verification of a durable received exchange. Never exchanges
+    /// the consumed authorization code or starts a new grant/refresh/inference.
+    pub async fn verify_received_exchange<C>(
+        &self,
+        context: &C,
+        binding: &RegistrationBinding,
+    ) -> Result<LifecycleReceipt, AiError>
+    where
+        B: CredentialBoundary<C>,
+    {
+        let mut lease = self.credentials.acquire(context, binding).await?;
+        let mut record = self.credentials.load(&lease).await?;
+        check_binding(&record, binding)?;
+        self.credentials
+            .revalidate(context, &lease, binding)
+            .await?;
+        if record.state != LifecycleState::IdentityVerificationPending {
+            return Err(AiError::ConnectionUnavailable);
+        }
+        self.activate_exchange(context, binding, &mut lease, &mut record)
+            .await
+    }
+
+    async fn activate_exchange<C>(
+        &self,
+        context: &C,
+        binding: &RegistrationBinding,
+        lease: &mut B::Lease,
+        record: &mut RegistrationRecord,
+    ) -> Result<LifecycleReceipt, AiError>
+    where
+        B: CredentialBoundary<C>,
+    {
+        let (client, nonce, reply) = match &record.refresh_checkpoint {
+            RefreshCheckpoint::ExchangeReceived {
+                binding: captured,
+                client_id,
+                nonce,
+                reply,
+            } if captured == binding && record.issued_client_id.as_ref() == Some(client_id) => {
+                (client_id, nonce, reply)
+            }
+            _ => return Err(AiError::ConnectionUnavailable),
+        };
+        validate_tokens(reply, &record.kind, false)?;
+        self.credentials.revalidate(context, lease, binding).await?;
         let token = reply
             .id_token
             .as_ref()
@@ -532,8 +605,8 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
                 token,
                 IdentityRequirements {
                     issuer: OIDC_ISSUER,
-                    audience: &client,
-                    nonce: Some(&attempt.material.nonce),
+                    audience: client,
+                    nonce: Some(nonce),
                     received_at_ms: reply.received_at_ms,
                 },
             )
@@ -549,12 +622,18 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
                 identity
             }
             Ok(IdentityValidation::TemporarilyUnavailable) | Err(_) => {
-                return Ok(receipt(&record, OAuthIssue::IdentityUnavailable, None));
+                return Ok(receipt(record, OAuthIssue::IdentityUnavailable, None));
             }
-            _ => return Ok(receipt(&record, OAuthIssue::IdentityInvalid, None)),
+            _ => return Ok(receipt(record, OAuthIssue::IdentityInvalid, None)),
         };
         record.state = plan_state(&record.kind, reply.granted_scopes.as_deref().unwrap_or(&[]));
         record.identity = Some(identity);
+        self.credentials.revalidate(context, lease, binding).await?;
+        let reply = match std::mem::replace(&mut record.refresh_checkpoint, RefreshCheckpoint::None)
+        {
+            RefreshCheckpoint::ExchangeReceived { reply, .. } => reply,
+            _ => return Err(AiError::ConnectionUnavailable),
+        };
         // Website identity has no supported plan-use token contract. Retain
         // only its validated identity mapping; local plan-use registrations
         // keep their protected token set in the selected credential boundary.
@@ -563,12 +642,8 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
         } else {
             None
         };
-        record.refresh_checkpoint = RefreshCheckpoint::None;
         record.revocation = RevocationState::NotRequested;
-        self.credentials
-            .revalidate(context, &lease, binding)
-            .await?;
-        self.credentials.persist_atomic(&mut lease, &record).await?;
+        self.credentials.persist_atomic(lease, record).await?;
         Ok(LifecycleReceipt {
             state: record.state,
             issue: (record.state == LifecycleState::PlanUseDisabled)
@@ -592,6 +667,17 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
         self.credentials
             .revalidate(context, &lease, binding)
             .await?;
+        if matches!(
+            record.refresh_checkpoint,
+            RefreshCheckpoint::ExchangeReceived { .. }
+        ) && record.state == LifecycleState::IdentityVerificationPending
+        {
+            // Explicit host refresh can finish verification without a second
+            // exchange or refresh grant, including a first website identity.
+            return self
+                .activate_exchange(context, binding, &mut lease, &mut record)
+                .await;
+        }
         match record.state {
             LifecycleState::ConfigurationRepairRequired => {
                 return Ok(receipt(
@@ -795,23 +881,69 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
         // Stop use durably before remote I/O; a failed revocation never silently
         // reconnects or destroys the saved issued-client/account registration.
         self.credentials.persist_atomic(&mut lease, &record).await?;
+        let exchange = match &record.refresh_checkpoint {
+            RefreshCheckpoint::ExchangeReceived {
+                client_id, reply, ..
+            } => Some((client_id, reply.refresh_token.as_ref())),
+            _ => None,
+        };
         let refresh = match &record.refresh_checkpoint {
-            RefreshCheckpoint::Received { reply, .. } => reply.refresh_token.as_ref(),
+            RefreshCheckpoint::Received { reply, .. }
+            | RefreshCheckpoint::ExchangeReceived { reply, .. } => reply.refresh_token.as_ref(),
             _ => record
                 .credentials
                 .as_ref()
                 .and_then(|tokens| tokens.refresh_token.as_ref()),
         };
         let mut diagnostic = None;
-        if let (Some(client), Some(refresh)) = (&record.issued_client_id, refresh) {
+        let mut all_confirmed = false;
+        if let (Some(client), Some(refresh)) = (
+            exchange
+                .map(|(client, _)| client)
+                .or(record.issued_client_id.as_ref()),
+            refresh,
+        ) {
             match self.provider.revoke(binding, client, refresh).await {
-                Ok(ProviderRevocation::Confirmed) => record.revocation = RevocationState::Confirmed,
+                Ok(ProviderRevocation::Confirmed) => all_confirmed = true,
                 Ok(ProviderRevocation::Unconfirmed(detail)) => diagnostic = detail,
                 Err(_) => {}
             }
         }
-        record.credentials = None;
-        record.refresh_checkpoint = RefreshCheckpoint::None;
+        // A new authorization exchange is a separate renewable session from
+        // any previously active credentials. Disconnect must attempt both;
+        // success for one cannot stand in for revocation of the other.
+        if exchange.is_some()
+            && let Some(previous) = record.credentials.as_ref()
+        {
+            match (&record.issued_client_id, &previous.refresh_token) {
+                (Some(client), Some(refresh)) => {
+                    match self.provider.revoke(binding, client, refresh).await {
+                        Ok(ProviderRevocation::Confirmed) => {}
+                        Ok(ProviderRevocation::Unconfirmed(detail)) => {
+                            all_confirmed = false;
+                            if diagnostic.is_none() {
+                                diagnostic = detail;
+                            }
+                        }
+                        Err(_) => all_confirmed = false,
+                    }
+                }
+                _ => all_confirmed = false,
+            }
+        }
+        if all_confirmed {
+            record.revocation = RevocationState::Confirmed;
+        }
+        // An unconfirmed exchange-session revocation must remain available for
+        // a later explicit disconnect; disconnected state prevents activation.
+        if !matches!(
+            &record.refresh_checkpoint,
+            RefreshCheckpoint::ExchangeReceived { reply, .. } if reply.refresh_token.is_some()
+        ) || record.revocation == RevocationState::Confirmed
+        {
+            record.credentials = None;
+            record.refresh_checkpoint = RefreshCheckpoint::None;
+        }
         self.credentials.persist_atomic(&mut lease, &record).await?;
         Ok(LifecycleReceipt {
             state: record.state,
@@ -1033,7 +1165,10 @@ mod healthy_examples {
     use std::{
         future::Future,
         pin::pin,
-        sync::Mutex,
+        sync::{
+            Mutex,
+            atomic::{AtomicUsize, Ordering},
+        },
         task::{Context, Poll, Waker},
     };
 
@@ -1124,6 +1259,8 @@ mod healthy_examples {
 
     struct SyntheticProvider {
         offline_access: bool,
+        exchanges: AtomicUsize,
+        refreshes: AtomicUsize,
     }
     impl OAuthProviderPort for SyntheticProvider {
         fn exchange<'a>(
@@ -1132,6 +1269,7 @@ mod healthy_examples {
             grant: CodeExchange<'a>,
         ) -> PortFuture<'a, ProviderTokens> {
             Box::pin(async move {
+                self.exchanges.fetch_add(1, Ordering::Relaxed);
                 assert_eq!(scope, &binding());
                 assert_eq!(grant.client_id, CLIENT);
                 assert_eq!(grant.redirect_uri, CALLBACK);
@@ -1150,7 +1288,10 @@ mod healthy_examples {
             _: &'a RegistrationBinding,
             _: RefreshGrant<'a>,
         ) -> PortFuture<'a, ProviderTokens> {
-            Box::pin(async { Ok(ProviderTokens::Received(token_reply(true))) })
+            Box::pin(async move {
+                self.refreshes.fetch_add(1, Ordering::Relaxed);
+                Ok(ProviderTokens::Received(token_reply(true)))
+            })
         }
         fn revoke<'a>(
             &'a self,
@@ -1200,8 +1341,27 @@ mod healthy_examples {
                     expires_at_ms: pending.expires_at_ms,
                 }
             }),
-            // Refresh is outside this positive begin/callback example.
-            refresh_checkpoint: RefreshCheckpoint::None,
+            refresh_checkpoint: match &record.refresh_checkpoint {
+                RefreshCheckpoint::None => RefreshCheckpoint::None,
+                RefreshCheckpoint::InvocationUnconfirmed(binding) => {
+                    RefreshCheckpoint::InvocationUnconfirmed(binding.clone())
+                }
+                RefreshCheckpoint::Received { binding, reply } => RefreshCheckpoint::Received {
+                    binding: binding.clone(),
+                    reply: duplicate_reply(reply),
+                },
+                RefreshCheckpoint::ExchangeReceived {
+                    binding,
+                    client_id,
+                    nonce,
+                    reply,
+                } => RefreshCheckpoint::ExchangeReceived {
+                    binding: binding.clone(),
+                    client_id: client_id.clone(),
+                    nonce: duplicate(nonce),
+                    reply: duplicate_reply(reply),
+                },
+            },
             state: record.state,
             revocation: record.revocation,
         }
@@ -1249,6 +1409,17 @@ mod healthy_examples {
             Ok(NOW)
         }
     }
+    fn duplicate_reply(reply: &TokenReply) -> TokenReply {
+        TokenReply {
+            id_token: reply.id_token.as_ref().map(duplicate),
+            access_token: reply.access_token.as_ref().map(duplicate),
+            refresh_token: reply.refresh_token.as_ref().map(duplicate),
+            token_type: reply.token_type.clone(),
+            expires_at_ms: reply.expires_at_ms,
+            granted_scopes: reply.granted_scopes.clone(),
+            received_at_ms: reply.received_at_ms,
+        }
+    }
     fn ready<F: Future>(future: F) -> F::Output {
         match pin!(future)
             .as_mut()
@@ -1259,8 +1430,8 @@ mod healthy_examples {
         }
     }
 
-    fn healthy_local_callback(offline_access: bool) {
-        let storage = SyntheticBoundary(Mutex::new(RegistrationRecord {
+    fn empty_registration() -> RegistrationRecord {
+        RegistrationRecord {
             binding: binding(),
             kind: RegistrationKind::LocalPublicClient,
             app_name: "HouseAtlas synthetic example".into(),
@@ -1272,8 +1443,18 @@ mod healthy_examples {
             refresh_checkpoint: RefreshCheckpoint::None,
             state: LifecycleState::Disconnected,
             revocation: RevocationState::NotRequested,
-        }));
-        let provider = SyntheticProvider { offline_access };
+        }
+    }
+    fn provider(offline_access: bool) -> SyntheticProvider {
+        SyntheticProvider {
+            offline_access,
+            exchanges: AtomicUsize::new(0),
+            refreshes: AtomicUsize::new(0),
+        }
+    }
+    fn healthy_local_callback(offline_access: bool) {
+        let storage = SyntheticBoundary(Mutex::new(empty_registration()));
+        let provider = provider(offline_access);
         let lifecycle = OAuthLifecycle {
             security: &SyntheticSecurity,
             provider: &provider,
@@ -1313,6 +1494,7 @@ mod healthy_examples {
         ))
         .expect("healthy callback completion");
         assert_eq!(outcome.state, LifecycleState::Connected);
+        assert_eq!(provider.exchanges.load(Ordering::Relaxed), 1);
         let saved = storage.0.lock().expect("synthetic storage");
         assert_eq!(saved.issued_client_id.as_deref(), Some(CLIENT));
         assert_eq!(
@@ -1355,5 +1537,47 @@ mod healthy_examples {
     #[test]
     fn healthy_local_oauth_direct_scope_without_offline() {
         healthy_local_callback(false);
+    }
+
+    #[test]
+    fn healthy_received_exchange_verification() {
+        // A valid received checkpoint is a positive storage fixture, not a
+        // simulated key outage or failed exchange. No provider I/O is invoked.
+        let mut record = empty_registration();
+        record.issued_client_id = Some(CLIENT.into());
+        record.state = LifecycleState::IdentityVerificationPending;
+        record.refresh_checkpoint = RefreshCheckpoint::ExchangeReceived {
+            binding: binding(),
+            client_id: CLIENT.into(),
+            nonce: protected(NONCE),
+            reply: token_reply(true),
+        };
+        let storage = SyntheticBoundary(Mutex::new(record));
+        let provider = provider(true);
+        let lifecycle = OAuthLifecycle {
+            security: &SyntheticSecurity,
+            provider: &provider,
+            credentials: &storage,
+        };
+        let outcome = ready(lifecycle.verify_received_exchange(&(), &binding()))
+            .expect("healthy received exchange verification");
+        assert_eq!(outcome.state, LifecycleState::Connected);
+        assert_eq!(provider.exchanges.load(Ordering::Relaxed), 0);
+        assert_eq!(provider.refreshes.load(Ordering::Relaxed), 0);
+        let saved = storage.0.lock().expect("synthetic storage");
+        assert!(matches!(saved.refresh_checkpoint, RefreshCheckpoint::None));
+        assert_eq!(
+            saved
+                .identity
+                .as_ref()
+                .map(|identity| identity.subject.as_str()),
+            Some("synthetic-verified-subject")
+        );
+        assert!(
+            saved
+                .credentials
+                .as_ref()
+                .is_some_and(|tokens| tokens.refresh_token.is_some())
+        );
     }
 }
