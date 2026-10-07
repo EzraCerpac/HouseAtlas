@@ -166,6 +166,13 @@ pub struct CachePublicationState {
     pub homebox_entities: Vec<Value>,
     pub network_relations: Vec<Value>,
 }
+/// Read-only snapshot of one stored registration and its retained cache rows.
+/// This data carries no generation-membership proof or authorization grant.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RegisteredCacheRead {
+    pub registration: SourceRegistration,
+    pub state: CachePublicationState,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CacheFailure {

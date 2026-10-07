@@ -1,7 +1,7 @@
 //! Exact native activity validation with separately qualified offline owners.
 use super::*;
 use crate::storage::{self, Result};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Complete trusted physical configuration, including registered empty owners.
 /// Metadata only; the image cannot select a registry or issue discovery power.
@@ -106,14 +106,15 @@ pub(crate) fn validate<
             r.get(0)
         })?;
     require(usize::try_from(physical_count).ok() == Some(peers.registry.len()))?;
-    let cross_conflict:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM stock_activity_physical s JOIN queue_physical q USING(physical_database_id) WHERE s.deployment_id<>q.deployment_id OR s.configuration_digest<>q.configuration_digest OR s.owner_id<>q.owner_id OR (s.active_operation_id IS NOT NULL AND q.active_job_id IS NOT NULL))",[],|r|r.get(0))?;
+    let cross_conflict:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM stock_activity_physical s JOIN queue_physical q USING(physical_database_id) WHERE s.deployment_id<>q.deployment_id OR s.configuration_digest<>q.configuration_digest OR s.owner_id<>q.owner_id)",[],|r|r.get(0))?;
     require(!cross_conflict)?;
     let rows=db.prepare("SELECT operation_id,physical_database_id FROM stock_activity_operations ORDER BY rowid")?
         .query_map([],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?)))?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     let mut sequences = BTreeSet::new();
     let mut approvals = 0usize;
-    let mut held = BTreeSet::new();
+    let mut held = BTreeMap::new();
+    let mut records = Vec::new();
     for (id, physical) in rows {
         check()?;
         let id_uuid = Uuid::parse_str(&id).map_err(|_| incompatible())?;
@@ -167,7 +168,10 @@ pub(crate) fn validate<
             check()?;
         }
         if record.physical_hold() {
-            require(held.insert(id))?;
+            require(
+                held.insert(registered.physical_binding.physical_database_id, id_uuid)
+                    .is_none(),
+            )?;
         }
         check()?;
         peers.evidence.validate_record(&record)?;
@@ -175,6 +179,7 @@ pub(crate) fn validate<
         peers
             .discovery
             .revalidate_registration(peers.registry, registered)?;
+        records.push(record);
     }
     let expected: Vec<u64> =
         (1..=u64::try_from(sequences.len()).map_err(|_| incompatible())?).collect();
@@ -187,9 +192,29 @@ pub(crate) fn validate<
         r.get(0)
     })?;
     require(usize::try_from(consumed).ok() == Some(approvals))?;
-    let pointers=db.prepare("SELECT active_operation_id FROM stock_activity_physical WHERE active_operation_id IS NOT NULL ORDER BY rowid")?
-        .query_map([],|r|r.get::<_,String>(0))?.collect::<rusqlite::Result<BTreeSet<_>>>()?;
-    require(held == pointers)?;
+    let pointers=db.prepare("SELECT physical_database_id,active_operation_id FROM stock_activity_physical WHERE active_operation_id IS NOT NULL ORDER BY rowid")?
+        .query_map([],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut owners = BTreeMap::new();
+    let mut pointed_operations = BTreeSet::new();
+    for (physical, id) in pointers {
+        let physical_uuid = Uuid::parse_str(&physical).map_err(|_| incompatible())?;
+        let id_uuid = Uuid::parse_str(&id).map_err(|_| incompatible())?;
+        require(physical_uuid.to_string() == physical && id_uuid.to_string() == id)?;
+        require(pointed_operations.insert(id_uuid))?;
+        require(owners.insert(physical_uuid, id_uuid).is_none())?;
+    }
+    require(held == owners)?;
+    require(super::replay::validate(&records, check)? == owners)?;
+    // Match both live admission directions, including holds retained after a
+    // physical pointer is released. Jobs performs its own strict row decoding.
+    for physical in &physical_ids {
+        check()?;
+        let physical = physical.to_string();
+        let native_held:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM stock_activity_physical WHERE physical_database_id=?1 AND active_operation_id IS NOT NULL) OR EXISTS(SELECT 1 FROM stock_activity_operations WHERE physical_database_id=?1 AND (logical_hold=1 OR liability_hold=1))",[&physical],|r|r.get(0))?;
+        let jobs_active:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM queue_physical WHERE physical_database_id=?1 AND active_job_id IS NOT NULL)",[&physical],|r|r.get(0))?;
+        let jobs_held = crate::storage::queue::unresolved_physical_hold(db, &physical)?;
+        require(!(native_held && (jobs_active || jobs_held)))?;
+    }
     peers.discovery.revalidate_registry(peers.registry)?;
     check()
 }

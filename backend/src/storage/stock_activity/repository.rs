@@ -354,7 +354,7 @@ pub(crate) fn jobs_hold(
     Ok(logical.then_some(crate::jobs::QueueWaitReason::LogicalOutcomeHeld))
 }
 
-fn liability_hold(liability: &StorageLiability) -> bool {
+pub(super) fn liability_hold(liability: &StorageLiability) -> bool {
     !liability.accounting_complete
         || liability.reserved_bytes.is_some_and(|v| v > 0)
         || liability.known_bytes > 0

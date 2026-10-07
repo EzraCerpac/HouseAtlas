@@ -157,6 +157,43 @@ clear only projection rows and retain records and binding reservations. All
 these writes use the same connection and fixed internal SQL as bootstrap; no
 second service framework or raw database handle is exposed.
 
+### Original borrowed partition and snapshot reads
+
+`read_cache_partition_with_authorization<B: Authorization>` borrows the original
+per-call principal/authority on this same open store. It returns
+`RegisteredCacheRead { registration: SourceRegistration, state: CachePublicationState }`
+from one read transaction. The request uses `ReadCache`, exact scope/partition,
+empty targets, no mutation context and the actual stored registration as
+`request.source`. Storage validates the registration, cache and retained row
+shapes/partitions/owners, and rechecks the same original actor before commit and
+return. It does not require `PublishCache`, reserve an ID, issue a publication
+fence or write. Quarantined retained rows remain internal matching data; this
+carrier grants neither disclosure nor accepted-generation membership.
+
+`read_snapshot_with_authorization<B: Authorization>` shares the existing
+configured-authority snapshot engine and uses the supplied original fence.
+The engine retains per-partition concealment semantics and revalidates successful
+source checks before returning. Link rows now request their private qualified
+`key.sourceKind: "network-link"` selector with the actual link ID. Endpoints
+retain their actual entity kinds. Frozen public `SourceKind` is unchanged.
+Network must resolve this private selector through its original genuine typed
+link grant, including both raw endpoints and accepted-generation membership;
+a segment grant does not qualify a link row. Storage does not reconstruct those
+facts from a projected relation.
+
+`checks/network-read-healthy.rs` exercises the original actual AT11
+`5e87c6c9152228ac4ae72814c6e6fc8f0ea8d7a2` principal/read transaction and retained
+partition/entity/typed link grant pointers, two published healthy relations,
+exact private link selectors, atomic registration/epoch/rows and authorized
+reopen. It creates no new publication reservation or mutation receipt. Native
+contract shapes and the published offline semantic oracle are compiled; the raw
+relation membership adapter is an explicitly synthetic fixture, not the Network
+sidecar validator. The complete access source additionally mounts actual
+domain queue-recovery `fd72542686112e594d9a6f63b4782a62b5d9e6ef` in the external
+harness alongside domain/jobs8a and mediaf0. No root manifests or locks change.
+Network/root own sidecar validation outside the lock, genuine membership-grant
+capture, fenced reread comparisons and final owned-output release.
+
 ## Database and dependencies
 
 The new lineage is `houseatlas-rust-storage/1`, database version 5, distinct from
@@ -645,6 +682,42 @@ No staged authority is reconstructed from persisted rows or after owner loss.
 Pending stage expiry, restart reconciliation, byte cleanup and replay/fault
 qualification remain deferred.
 
+### Committed stage lookup and existing original resolution
+
+The upload-resolution continuation adds two read-only methods on the original
+open store. `committed_upload_with_authorization` takes the original per-call
+`Authorization` principal, actual `StockContractPort`, exact scope and token.
+It returns `Option<ConsumedUpload>` only after validating the persisted binding,
+complete native/stock receipt and audit links, retained stock projection and
+current original asset-manifest/history authority. A missing row gives no cleanup
+permission. Media owns durable staging quota and removal; maintenance after the
+original authority is lost needs a separately qualified owner API.
+
+`resolve_original_asset_with_authorization` takes that same original authority,
+scope and measured `PreparedOriginal`. Its sealed `ExistingOriginalAsset` exposes
+the existing record, ID, revision, payload, scope and target. Exact scoped content
+identity, original purpose, active available state and independently measured
+retained bytes must agree. Existing provenance is returned unchanged. The method
+does not create an alias, consume a stage or authorize an attachment. Domain must
+bind the returned ID/revision and revalidate references and guards inside its
+normal mutation transaction; unique scoped storage keys remain enforced.
+
+These methods also accept an authorizer borrowing the original held AT11 fence,
+so a host need not reacquire the access mutex or invent a principal. They use a
+single read transaction on the original connection and recheck original authority
+before returning. No migration or database profile changes.
+
+The scoped ordinary upload-resolution example compiles actual contracts
+`49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c`, domain/jobs
+`8a568fb6ccef5b0fa575b18d6181dcc524d4db99`, access
+`4a0cd4da563a32d26677755a608180c960765353` and media
+`f0d6b10f00bb93fc1c1dd4eb3ae66ee1fbe3f873`. After the ordinary atomic upload
+and authorized reopen, it checks genuine committed consumption and resolves the
+same original ID/revision, full provenance and measured bytes. This supersedes
+the earlier external-proposal composition limitation for this example. A second
+HTTP attachment and durable staging cleanup still require the Media/Domain
+owners' integration and are not exercised by this read-only storage example.
+
 ## Remaining integration and qualification
 
 The full native semantic Contract and branded Authorization/Runtime peers remain
@@ -834,3 +907,40 @@ production graph/witness/evidence policy or complete profile 6 recovery is
 qualified by this example. Replay, held/expiry, rejection, guard reversal,
 mutation/omission, adversarial, denial, faults/crashes, concurrency and negative
 consumers remain deferred and unrun.
+
+### Composed Storage owner continuation
+
+The profile 6 component includes the PR57 upload consumption/original-asset
+queries and PR58 borrowed snapshot/registered cache reads together. Both
+`upload_queries` and the borrowed read engine are declared by the same Store;
+`ExistingOriginalAsset` and `RegisteredCacheRead` remain available alongside
+sealed native producer retention. Schema 5 remains the default and all SQL
+migrations and checksum ledgers are unchanged.
+
+Recovery now compares exact physical-to-operation pointer maps, explicitly
+rejecting duplicate operation pointers across physical rows. It checks complete
+native physical/logical/liability occupancy against Jobs active pointers and
+the same strict unresolved hold predicate used by live native admission, even
+after a lane releases its physical pointer. The native journal is also replayed
+in global sequence order: each admission must respect earlier pending FIFO
+reservations and the physical/logical/liability state at that event cut; proven
+end and never-invoked events release only their actual physical owner. Final
+replayed owners must match both the typed records and SQL pointer pairs.
+Per-operation native reducers and mandatory independent event evidence still
+apply. Jobs and native journals have no shared historical sequence, so this
+does not infer historical cross-lane ordering from final state or timestamps.
+
+The external union harness compiles the three ordinary activity, upload and
+Network-read binaries with actual AT11
+`5e87c6c9152228ac4ae72814c6e6fc8f0ea8d7a2`, Domain PR70
+`c25c1a0316ef5e12b61560f00371d839085aefb5`, Media PR63
+`ea8ef14e05795334b3d79ae9c95c0a456f8b0308`, Jobs
+`8a568fb6ccef5b0fa575b18d6181dcc524d4db99`, queue recovery
+`fd72542686112e594d9a6f63b4782a62b5d9e6ef`, native contracts/stock
+`c36bb0bc19bb631d815ab4bb44fa3514ebeac0b7` and PR62 config/dispatcher
+`5690f8d10569b2c7418ba3dc8fb314f9ad793588`. External module mounting adds
+only the queue recovery module declaration to Domain; owner bodies are
+unchanged. Media's exact `png = "=0.18.1"` dependency is pinned in that external
+harness. Root owns canonical manifest/lock and host composition. Ordinary
+success exercises healthy cuts; no spliced journal, rejection, duplicate
+pointer or other held control is executed.

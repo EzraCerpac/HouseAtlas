@@ -4,6 +4,7 @@ mod baseline;
 mod codec;
 mod journal;
 mod recovery;
+mod replay;
 mod repository;
 mod retention;
 mod transitions;
