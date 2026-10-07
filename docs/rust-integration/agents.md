@@ -46,10 +46,12 @@ before acknowledging tool completion. It registers tools through actual
 availability follows the actual committed scope and admitted catalog. A failed
 optional catalog load leaves the authorized home visible with tools unavailable.
 
-The healthy browser runner supports the two source-inspected native releases:
+The healthy browser runner supports three source-inspected native releases:
 [Chromium 151.0.7922.173](https://chromium.googlesource.com/chromium/src/+/refs/tags/151.0.7922.173/third_party/blink/renderer/core/script_tools/model_context.idl)
-and [154.0.8037.57](https://chromium.googlesource.com/chromium/src/+/refs/tags/154.0.8037.57/third_party/blink/renderer/core/script_tools/model_context.idl).
-Both accept JSON text through `executeTool`. A browser version change requires
+[154.0.8037.57](https://chromium.googlesource.com/chromium/src/+/refs/tags/154.0.8037.57/third_party/blink/renderer/core/script_tools/model_context.idl)
+and [154.0.8037.97](https://chromium.googlesource.com/chromium/src/+/refs/tags/154.0.8037.97/third_party/blink/renderer/core/script_tools/model_context.idl).
+All accept JSON text through `executeTool`; the two 154 patch release IDLs are
+byte-identical. A browser version change requires
 source inspection before the runner continues.
 
 ## Genuine embeddable MCP flow
