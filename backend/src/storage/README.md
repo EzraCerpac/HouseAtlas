@@ -346,6 +346,24 @@ provider call or held control runs in that checkpoint. Binding presence triggers
 derive from actual original/candidate records through the domain predicate and
 remain held until atomic witness qualification exists.
 
+## Borrowed cache publication authority
+
+The source lifecycle handoff uses `register_source_with_authorization`,
+`prepare_cache_publication_with_authorization`,
+`publish_prepared_generation_with_authorization`, and
+`record_prepared_cache_failure_with_authorization`. Each borrows its required
+`B: Authorization` and `B::Principal` only for the synchronous call; that
+principal type may differ from the store's persistent read-authority principal.
+Both configured and per-call methods use one private cache transaction engine on
+the same store connection and instance. Preparation rechecks the original actor
+before returning its fence; consuming success and failure keep that actual
+issuer, full registration, generation and epoch guards inside the transaction.
+No authorizer is replaced, fence reconstructed, or second store opened. The
+actual PR25 authority interface `e86819b4a4103fa716b774e6dc97b81176011a30`
+matches these signatures. Access-owner lifecycle grants and held transaction
+authorization remain required host inputs. This handoff checkpoint is compiler
+and source review only; no provider publication or failure path is executed.
+
 ## Native recovery images
 
 `backup_recovery_to(&mut self, destination, check)` uses this store's owned

@@ -2,8 +2,9 @@
 //! record commands or a source-presence admission/witness implementation.
 use super::super::{cache_repository as cache_repo, repository as repo, *};
 use super::{AtlasStore, authorize, read_request, shape};
-use rusqlite::TransactionBehavior;
+use rusqlite::{Connection, TransactionBehavior};
 use serde_json::{Value, json};
+use std::sync::Arc;
 
 impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
     pub fn register_source(
@@ -11,15 +12,198 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         principal: &A::Principal,
         registration: &SourceRegistration,
     ) -> Result<SourceRegistration> {
-        shape(&self.contract, "sourceRegistration", registration)?;
+        self.cache_transaction()
+            .register_source(principal, registration)
+    }
+
+    pub fn register_source_json(
+        &mut self,
+        principal: &A::Principal,
+        registration: &Value,
+    ) -> Result<SourceRegistration> {
+        self.cache_transaction()
+            .register_source_json(principal, registration)
+    }
+
+    pub fn read_cache_for_publication(
+        &mut self,
+        principal: &A::Principal,
+        scope: &Scope,
+        partition: &SourcePartition,
+    ) -> Result<CachePublicationState> {
+        self.cache_transaction()
+            .read_cache_for_publication(principal, scope, partition)
+    }
+
+    pub fn prepare_cache_publication(
+        &mut self,
+        principal: &A::Principal,
+        scope: &Scope,
+        partition: &SourcePartition,
+    ) -> Result<PreparedCachePublication> {
+        self.cache_transaction()
+            .prepare_cache_publication(principal, scope, partition)
+    }
+
+    pub fn publish_prepared_generation(
+        &mut self,
+        principal: &A::Principal,
+        fence: CachePublicationFence,
+        cache: &CacheStatus,
+        homebox_entities: &[Value],
+        network_relations: &[Value],
+    ) -> Result<CacheStatus> {
+        self.cache_transaction().publish_prepared_generation(
+            principal,
+            fence,
+            cache,
+            homebox_entities,
+            network_relations,
+        )
+    }
+
+    pub fn replace_cache_generation(
+        &mut self,
+        principal: &A::Principal,
+        scope: &Scope,
+        generation: &CacheGeneration,
+    ) -> Result<CacheStatus> {
+        self.cache_transaction()
+            .replace_cache_generation(principal, scope, generation)
+    }
+
+    pub fn replace_cache_generation_json(
+        &mut self,
+        principal: &A::Principal,
+        scope: &Scope,
+        generation: &Value,
+    ) -> Result<CacheStatus> {
+        self.cache_transaction()
+            .replace_cache_generation_json(principal, scope, generation)
+    }
+
+    pub fn record_cache_failure(
+        &mut self,
+        principal: &A::Principal,
+        scope: &Scope,
+        partition: &SourcePartition,
+        failure: &CacheFailure,
+    ) -> Result<CacheStatus> {
+        self.cache_transaction()
+            .record_cache_failure(principal, scope, partition, failure)
+    }
+
+    pub fn record_prepared_cache_failure(
+        &mut self,
+        principal: &A::Principal,
+        fence: CachePublicationFence,
+        failure: &CacheFailure,
+    ) -> Result<CacheStatus> {
+        self.cache_transaction()
+            .record_prepared_cache_failure(principal, fence, failure)
+    }
+
+    /// Borrowed call authority; retains this store connection and fence issuer.
+    pub fn register_source_with_authorization<B: Authorization>(
+        &mut self,
+        authorization: &B,
+        principal: &B::Principal,
+        registration: &SourceRegistration,
+    ) -> Result<SourceRegistration> {
+        self.cache_transaction_with_authorization(authorization)
+            .register_source(principal, registration)
+    }
+
+    /// Borrowed call authority; retains this store connection and fence issuer.
+    pub fn prepare_cache_publication_with_authorization<B: Authorization>(
+        &mut self,
+        authorization: &B,
+        principal: &B::Principal,
+        scope: &Scope,
+        partition: &SourcePartition,
+    ) -> Result<PreparedCachePublication> {
+        self.cache_transaction_with_authorization(authorization)
+            .prepare_cache_publication(principal, scope, partition)
+    }
+
+    /// Borrowed call authority; retains this store connection and fence issuer.
+    pub fn publish_prepared_generation_with_authorization<B: Authorization>(
+        &mut self,
+        authorization: &B,
+        principal: &B::Principal,
+        fence: CachePublicationFence,
+        cache: &CacheStatus,
+        homebox_entities: &[Value],
+        network_relations: &[Value],
+    ) -> Result<CacheStatus> {
+        self.cache_transaction_with_authorization(authorization)
+            .publish_prepared_generation(
+                principal,
+                fence,
+                cache,
+                homebox_entities,
+                network_relations,
+            )
+    }
+
+    /// Borrowed call authority; retains this store connection and fence issuer.
+    pub fn record_prepared_cache_failure_with_authorization<B: Authorization>(
+        &mut self,
+        authorization: &B,
+        principal: &B::Principal,
+        fence: CachePublicationFence,
+        failure: &CacheFailure,
+    ) -> Result<CacheStatus> {
+        self.cache_transaction_with_authorization(authorization)
+            .record_prepared_cache_failure(principal, fence, failure)
+    }
+
+    fn cache_transaction(&mut self) -> CacheTransaction<'_, C, A, R> {
+        CacheTransaction {
+            db: &mut self.db,
+            contract: &self.contract,
+            authorization: &self.authorization,
+            runtime: &self.runtime,
+            instance: &self.instance,
+        }
+    }
+    fn cache_transaction_with_authorization<'a, B: Authorization>(
+        &'a mut self,
+        authorization: &'a B,
+    ) -> CacheTransaction<'a, C, B, R> {
+        CacheTransaction {
+            db: &mut self.db,
+            contract: &self.contract,
+            authorization,
+            runtime: &self.runtime,
+            instance: &self.instance,
+        }
+    }
+}
+
+/// One private transaction engine shared by configured and borrowed authority.
+struct CacheTransaction<'a, C, A, R> {
+    db: &'a mut Connection,
+    contract: &'a C,
+    authorization: &'a A,
+    runtime: &'a R,
+    instance: &'a Arc<()>,
+}
+impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
+    pub fn register_source(
+        &mut self,
+        principal: &A::Principal,
+        registration: &SourceRegistration,
+    ) -> Result<SourceRegistration> {
+        shape(self.contract, "sourceRegistration", registration)?;
         let scope = registration.scope();
         let input = serde_json::to_value(registration)?;
         let tx = self
             .db
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let actor = trusted_authorize(
-            &self.contract,
-            &self.authorization,
+            self.contract,
+            self.authorization,
             principal,
             &scope,
             Capability::ConfigureSource,
@@ -46,12 +230,12 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         } else {
             candidate.sources.push(input.clone());
             self.contract.validate_snapshot(&candidate)?;
-            cache_repo::write_source(&tx, &self.contract, &input)?;
+            cache_repo::write_source(&tx, self.contract, &input)?;
             registration.clone()
         };
         revalidate(
-            &self.contract,
-            &self.authorization,
+            self.contract,
+            self.authorization,
             principal,
             &scope,
             Capability::ConfigureSource,
@@ -79,12 +263,12 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         scope: &Scope,
         partition: &SourcePartition,
     ) -> Result<CachePublicationState> {
-        validate_partition(&self.contract, partition)?;
+        validate_partition(self.contract, partition)?;
         let source = serde_json::to_value(partition)?;
         let tx = self.db.transaction()?;
         trusted_authorize(
-            &self.contract,
-            &self.authorization,
+            self.contract,
+            self.authorization,
             principal,
             scope,
             Capability::PublishCache,
@@ -107,12 +291,12 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         scope: &Scope,
         partition: &SourcePartition,
     ) -> Result<PreparedCachePublication> {
-        validate_partition(&self.contract, partition)?;
+        validate_partition(self.contract, partition)?;
         let input = serde_json::to_value(partition)?;
         let tx = self.db.transaction()?;
-        trusted_authorize(
-            &self.contract,
-            &self.authorization,
+        let actor = trusted_authorize(
+            self.contract,
+            self.authorization,
             principal,
             scope,
             Capability::PublishCache,
@@ -123,10 +307,10 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         }
         let state = cache_repo::publication_state(&tx, partition)?;
         let registration = cache_repo::source(&tx, partition)?;
-        shape(&self.contract, "sourceRegistration", &registration)?;
+        shape(self.contract, "sourceRegistration", &registration)?;
         let reserved_generation_id = self.runtime.new_id()?;
         shape(
-            &self.contract,
+            self.contract,
             "recordRef",
             &RecordRef {
                 record_type: RecordType::Identity,
@@ -140,13 +324,22 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             ));
         }
         let fence = CachePublicationFence {
-            issuer: self.instance.clone(),
+            issuer: Arc::clone(self.instance),
             partition: partition.clone(),
             registration,
             baseline_generation_id: state.cache.as_ref().and_then(|c| c.generation_id.clone()),
             baseline_cache_epoch: CacheEpoch(state.cache_epoch),
             reserved_generation_id,
         };
+        revalidate(
+            self.contract,
+            self.authorization,
+            principal,
+            scope,
+            Capability::PublishCache,
+            &input,
+            &actor,
+        )?;
         tx.commit()?;
         Ok(PreparedCachePublication { state, fence })
     }
@@ -162,7 +355,8 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         homebox_entities: &[Value],
         network_relations: &[Value],
     ) -> Result<CacheStatus> {
-        if !std::sync::Arc::ptr_eq(&self.instance, &fence.issuer)
+        if !std::sync::Arc::ptr_eq(self.instance, &fence.issuer)
+            || fence.registration.partition() != fence.partition
             || cache.partition() != fence.partition
             || cache.generation_id.as_deref() != Some(fence.reserved_generation_id.as_str())
         {
@@ -171,7 +365,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                 "Staged generation does not match its pre-fetch fence",
             ));
         }
-        self.replace_cache_generation(
+        self.replace_cache_generation_inner(
             principal,
             &fence.partition.scope(),
             &CacheGeneration {
@@ -182,6 +376,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                 expected_generation_id: fence.baseline_generation_id.clone(),
                 expected_cache_epoch: fence.baseline_cache_epoch.value(),
             },
+            Some(&fence),
         )
     }
 
@@ -191,28 +386,43 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         scope: &Scope,
         generation: &CacheGeneration,
     ) -> Result<CacheStatus> {
+        self.replace_cache_generation_inner(principal, scope, generation, None)
+    }
+    fn replace_cache_generation_inner(
+        &mut self,
+        principal: &A::Principal,
+        scope: &Scope,
+        generation: &CacheGeneration,
+        fence: Option<&CachePublicationFence>,
+    ) -> Result<CacheStatus> {
         let input = serde_json::to_value(&generation.cache)?;
         let tx = self
             .db
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let actor = trusted_authorize(
-            &self.contract,
-            &self.authorization,
+            self.contract,
+            self.authorization,
             principal,
             scope,
             Capability::PublishCache,
             &input,
         )?;
         let original = repo::snapshot(&tx)?;
-        shape(&self.contract, "cacheStatus", &generation.cache)?;
+        shape(self.contract, "cacheStatus", &generation.cache)?;
         let partition = generation.cache.partition();
         let source = cache_repo::source(&tx, &partition)?;
+        if fence.is_some_and(|fence| source != fence.registration) {
+            return Err(Error::new(
+                "guard-conflict",
+                "Source registration changed during fetch",
+            ));
+        }
         if partition.scope() != *scope
             || !generation.complete
             || generation.cache.status != CacheState::Fresh
             || generation.cache.last_attempt_at.is_none()
             || timestamp_after(
-                &self.contract,
+                self.contract,
                 generation.cache.last_attempt_at.as_deref(),
                 generation.cache.last_successful_fetch_at.as_deref(),
             )?
@@ -244,7 +454,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             ));
         }
         if timestamp_after(
-            &self.contract,
+            self.contract,
             prior
                 .as_ref()
                 .and_then(|c| c.last_successful_fetch_at.as_deref()),
@@ -277,7 +487,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             self.contract.validate_shape("networkRelation", relation)?;
             if repo::partition(relation)? != partition
                 || timestamp_after(
-                    &self.contract,
+                    self.contract,
                     relation["retrievedAt"].as_str(),
                     generation.cache.last_successful_fetch_at.as_deref(),
                 )?
@@ -314,17 +524,17 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         }
         cache_repo::replace_projections(
             &tx,
-            &self.contract,
+            self.contract,
             &partition,
             &generation.homebox_entities,
             &generation.network_relations,
         )?;
-        cache_repo::write_cache(&tx, &self.contract, &input)?;
+        cache_repo::write_cache(&tx, self.contract, &input)?;
         cache_repo::reserve_generation(&tx, &partition, generation_id)?;
         cache_repo::advance_epoch(&tx, &partition)?;
         revalidate(
-            &self.contract,
-            &self.authorization,
+            self.contract,
+            self.authorization,
             principal,
             scope,
             Capability::PublishCache,
@@ -370,7 +580,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         fence: CachePublicationFence,
         failure: &CacheFailure,
     ) -> Result<CacheStatus> {
-        if !std::sync::Arc::ptr_eq(&self.instance, &fence.issuer)
+        if !std::sync::Arc::ptr_eq(self.instance, &fence.issuer)
             || fence.registration.partition() != fence.partition
         {
             return Err(Error::new(
@@ -395,14 +605,14 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         failure: &CacheFailure,
         fence: Option<&CachePublicationFence>,
     ) -> Result<CacheStatus> {
-        validate_partition(&self.contract, partition)?;
+        validate_partition(self.contract, partition)?;
         let input = serde_json::to_value(partition)?;
         let tx = self
             .db
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let actor = trusted_authorize(
-            &self.contract,
-            &self.authorization,
+            self.contract,
+            self.authorization,
             principal,
             scope,
             Capability::PublishCache,
@@ -470,11 +680,11 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         candidate.caches = select_partition(candidate.caches, partition, false, false)?;
         candidate.caches.push(value.clone());
         self.contract.validate_snapshot(&candidate)?;
-        cache_repo::write_cache(&tx, &self.contract, &value)?;
+        cache_repo::write_cache(&tx, self.contract, &value)?;
         cache_repo::advance_epoch(&tx, partition)?;
         revalidate(
-            &self.contract,
-            &self.authorization,
+            self.contract,
+            self.authorization,
             principal,
             scope,
             Capability::PublishCache,
