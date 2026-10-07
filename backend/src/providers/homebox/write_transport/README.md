@@ -21,6 +21,18 @@ it does not resolve PR44 findings by itself. This successor closes findings
 4205632955 (actual print confirmation), 4205632971 (fixture constructor visibility),
 and 4205632986 (checked sensitive authorization header construction).
 
+Writer successor PR103, immutable input
+`5281eb1857a90c2279fb2998b3c7d0e2e41ec9b6`, adds `NativeDispatch::Unavailable`.
+This transport compiles against its actual extracted stock module; that is
+consumer compatibility evidence, not acceptance of the review-pending writer.
+The HTTP driver constructs results at its own known invocation boundary and
+does not translate another driver's results. Its before-execution proof remains
+`NeverInvoked`; its invoked receipts remain `EndUnproven`. An outer capture gate
+without invocation/noninvocation proof must preserve `Unavailable`, without
+fabricating a receipt or archive, persisting a dispatch fact, releasing a hold,
+performing readback or dispatching again. Those gate and durable decisions remain
+with the codec and writer owners.
+
 ## Binding
 
 The integrator declares `pub mod write_transport` alongside `read` and `write`
@@ -176,6 +188,9 @@ With the accepted pinned Rust 1.99.0 toolchain and application dependencies cach
 ```sh
 export CARGO_TARGET_DIR=/tmp/houseatlas-write-transport-target
 bash backend/src/providers/homebox/write_transport/verify-healthy.sh
+# Compatibility check using an already locally available immutable writer input:
+HOUSEATLAS_WRITER_COMMIT=5281eb1857a90c2279fb2998b3c7d0e2e41ec9b6 \
+  bash backend/src/providers/homebox/write_transport/verify-healthy.sh
 ```
 
 The script creates and removes a disposable external Cargo harness. It imports
@@ -186,6 +201,14 @@ runs Clippy with warnings denied, then runs only these exact names separately:
 - `write_transport::healthy::healthy_stock_json_methods_and_prepared_bytes`
 - `write_transport::healthy::healthy_stock_multipart_and_print_dispatch_port`
 - `write_transport::healthy::healthy_stock_file_fields_and_explicit_header`
+
+With `HOUSEATLAS_WRITER_COMMIT`, it reads the exact local Git blobs for the whole
+stock namespace into that disposable harness and logs their identities. It uses
+the application's actual shared contracts and pins, makes no fetch, changes no
+peer checkout files and imports no peer ancestry into publication history.
+Compilation includes the writer's new three-variant API; only the same three
+positive transport groups execute. The unavailable gate/refusal behavior has
+been inspected in source and remains unexecuted under the held-control policy.
 
 These are seven fresh sequential socket exchanges across three healthy groups,
 with real loopback HTTP/1, fixed-length/chunked replies and exact inspected request
