@@ -417,6 +417,19 @@ The snapshot adapter still needs genuine retained raw-generation qualification
 for unresolved ends while Core/Store are borrowed. Actual healthy snapshot GETs
 prove response shape, without proving preservation of authorized relationships.
 
+The original Storage producer correction retains the producer-set guard before
+creating a durable reservation and records its operation identifier immediately
+after commit without another fallible lock acquisition. Only its two stock
+activity leaves are adopted from source e799d0c3; newer recovery and numeric
+persistence leaves are separate inputs. Lock contention, retries and interrupted
+commit qualification remain unrun. This is a source correction, not a completed
+activity-worker or recovery demonstration.
+
+This provisional Network composition also includes the accepted Access session
+binding seam together with earlier original shared-issuer and recovery extensions.
+Its three combined Access leaves need original-owner reconciliation before final
+acceptance; they are not byte-identical to either standalone source checkpoint.
+
 The multipart route preserves the owner-qualified committed receipt when stage
 metadata retirement fails. Retirement still requires the strict SQLite consumed
 upload loader and original mutation fence; the host never reconstructs cleanup
