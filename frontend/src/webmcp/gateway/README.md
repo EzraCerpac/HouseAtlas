@@ -48,6 +48,9 @@ and gateway use `useCommittedResult` for the same acknowledgement lifecycle.
 Each effect activation receives its own commit lease; a service call started
 under an earlier mount cannot commit after the boundary reactivates. This is
 coded and compiled; its delayed-call race qualification remains held and unrun.
+Result state is keyed to the actual session/service/catalog/model-context inputs.
+A replacement render omits the prior result and link before descendant layout
+effects observe the new view, rather than waiting for passive effect cleanup.
 Registration-only failure keeps already-running calls' result presentation;
 an explicit view clear settles discarded acknowledgement tickets with a view
 error. Neither action reverses domain work. Partial-registration failure/race

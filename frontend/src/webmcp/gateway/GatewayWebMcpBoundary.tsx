@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { detectModelContext } from "../browser.js";
 import type { RegistrationStatus } from "../ports.js";
 import { useCommittedResult } from "../useCommittedResult.js";
@@ -25,10 +25,11 @@ export function GatewayResult({ completion }: { readonly completion: GatewayComp
  * result/link after React commits; it does not wait for the user to download. */
 export function GatewayWebMcpBoundary(props: GatewayWebMcpBoundaryProps) {
   const { sessions, bindings, downloads, children } = props;
-  const { value: completion, activate } = useCommittedResult<GatewayCompletion>();
   const [registration, setRegistration] = useState<RegistrationStatus>({ state: "inactive" });
   const explicitContext = Object.hasOwn(props, "modelContext");
   const suppliedContext = props.modelContext;
+  const view = useMemo(() => ({}), [sessions, bindings, downloads, explicitContext, suppliedContext]);
+  const { value: completion, activate } = useCommittedResult<GatewayCompletion>(view);
   useEffect(() => {
     const port = activate();
     const modelContext = explicitContext ? suppliedContext
