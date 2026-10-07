@@ -76,12 +76,12 @@ const actionLabels: Record<ConnectionAction['action'], string> = {
   connect: 'Connect', consent: 'Inference consent', disconnect: 'Disconnect', 'manage-usage': 'Manage usage',
 };
 const heldMessages: Record<DomainHeld['state'], string> = {
-  prepared: 'Domain intent is prepared. No write has been dispatched.',
-  queued: 'Domain operation is queued. No completed write is reported.',
-  dispatching: 'Domain operation is dispatching. Completion is unconfirmed.',
-  'rejected-before-dispatch': 'Domain operation was rejected before dispatch.',
-  partial: 'Domain operation has partial effects. Reconciliation is required.',
-  'unknown-held': 'Domain operation has unknown effects and remains held. Reconciliation is required.',
+  prepared: 'Current domain intent is prepared and has not been dispatched.',
+  queued: 'Current domain operation is queued. Its completion is unconfirmed.',
+  dispatching: 'Current domain operation is dispatching. Its completion is unconfirmed.',
+  'rejected-before-dispatch': 'Current domain operation was rejected before dispatch.',
+  partial: 'Current domain operation has partial effects. Reconciliation is required.',
+  'unknown-held': 'Current domain operation has unknown effects and remains held. Reconciliation is required.',
 };
 
 export function AiPanelView({
@@ -215,7 +215,7 @@ function Outcome({ outcome }: { readonly outcome: RunOutcome }) {
       {outcome.operationIds.length > 0 && <><p>Earlier domain operations remain recorded by the host.</p><ul>{outcome.operationIds.map(id => <li key={id}>{id}</li>)}</ul></>}</>}
     {outcome.status === 'domain-held' && <>
       <h3>Domain operation</h3><p role="status">{heldMessages[outcome.state]}</p>
-      <dl className="ha-ai__facts"><dt>Operation ID</dt><dd>{outcome.operationId ?? 'Unknown'}</dd></dl>
+      <dl className="ha-ai__facts"><dt>Current operation ID</dt><dd>{outcome.operationId ?? 'Unknown'}</dd></dl>
       {outcome.operationIds.length > 0 && <><p>Recorded domain operations</p>
         <ul aria-label="Recorded domain operations">{outcome.operationIds.map(id => <li key={id}>{id}</li>)}</ul></>}
     </>}

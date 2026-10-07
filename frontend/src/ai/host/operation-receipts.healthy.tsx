@@ -78,7 +78,8 @@ export async function runHealthyOperationReceiptsExample(container: HTMLElement,
     await until(() => includes('Recorded domain operations'), 'Canonical held outcome');
     const rendered = [...container.querySelectorAll('[aria-label="Recorded domain operations"] li')].map(item => item.textContent);
     assert(JSON.stringify(rendered) === JSON.stringify(outcome.operationIds), 'All correlations retain host order');
-    assert(includes(outcome.operationId ?? 'Unknown') && includes('Domain operation is queued.'), 'Current operation and held state');
+    assert(includes('Current operation ID') && includes(outcome.operationId ?? 'Unknown')
+      && includes('Current domain operation is queued.'), 'Current operation and held state');
     const labels = { 'Input tokens': 'inputTokens', 'Output tokens': 'outputTokens', 'Total tokens': 'totalTokens' } as const;
     for (const label of container.querySelectorAll('.ha-ai__result dt')) {
       const key = Object.entries(labels).find(([name]) => name === label.textContent)?.[1];
