@@ -10,6 +10,24 @@ pub fn execute(
     principal: &RequestPrincipal,
     raw: Value,
 ) -> st::StockResult<st::OwnerResult> {
+    execute_qualified(core, principal, raw, None)
+}
+
+pub(super) fn execute_with_downloads(
+    core: &Core,
+    principal: &RequestPrincipal,
+    raw: Value,
+    handles: &st::AtlasDownloadHandles,
+) -> st::StockResult<st::OwnerResult> {
+    execute_qualified(core, principal, raw, Some(handles))
+}
+
+fn execute_qualified(
+    core: &Core,
+    principal: &RequestPrincipal,
+    raw: Value,
+    handles: Option<&st::AtlasDownloadHandles>,
+) -> st::StockResult<st::OwnerResult> {
     let contracts = st::NativeStockContract::new()?;
     let request = st::ValidatedRequest::parse(&contracts, raw.clone())?;
     let scope = principal.principal.scope();
@@ -25,6 +43,6 @@ pub fn execute(
     if request.is_mutation() {
         super::super::stock_mutations::execute_raw(core, principal, raw, &contracts)
     } else {
-        super::super::stock_reads::execute_raw(core, principal, raw, &contracts)
+        super::super::stock_reads::execute_raw_qualified(core, principal, raw, &contracts, handles)
     }
 }

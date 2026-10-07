@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "feb485c646ec917e17738781d1327ded7b1e4fa687be936ae043cc06f93c7c55",
+  "sourceDigestSha256": "e5d7ef55175765ace252c38cc93c8ddd3a484e298b103d589cc9365f27e276d6",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -35,8 +35,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 14509,
-      "sha256": "6a0523dbf4491f72a97101a8fc43f16efa7da8704dfe44698d4a0dae00c1515c",
+      "bytes": 14621,
+      "sha256": "95d80d21ea466cde4d2e00396ade55727ec806a49727032576e413ba5cfbdccf",
       "owner": "core-integration"
     },
     {
@@ -1505,8 +1505,8 @@
     {
       "path": "backend/src/http/agents/capabilities.rs",
       "mode": "100644",
-      "bytes": 1719,
-      "sha256": "9ff580bd2d26c8f4ec6198f382be40616e3557a6b3119d1baf4faeedf87fdd83",
+      "bytes": 1941,
+      "sha256": "5dca0f00b61d317a6950828c3441f932c66e48866764e3644198c8b52eaddde0",
       "owner": "core-integration"
     },
     {
@@ -1533,15 +1533,15 @@
     {
       "path": "backend/src/http/agents/mod.rs",
       "mode": "100644",
-      "bytes": 4289,
-      "sha256": "46e98522830e3aa949aa4c87f5bd42e5d51366695a62c242cb08d4aceafa4bf5",
+      "bytes": 4433,
+      "sha256": "f31aac88912b2de076f5ac4f1473a332c99f09c4212f6902366cf68e16b50170",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/http/agents/stock_dispatch.rs",
       "mode": "100644",
-      "bytes": 1072,
-      "sha256": "4ecb4b0bb3afcc33f9583d3efa23d8bbfbcc072d59aca28085e702e856d9edb1",
+      "bytes": 1568,
+      "sha256": "69d67cacecbc8a29bc3ef6a9e672399df498abd02f993403baf3029481009e18",
       "owner": "core-integration"
     },
     {
@@ -1596,8 +1596,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 23175,
-      "sha256": "f03bf02c876dbb7c365ad8789c955c0d7ecb3ca23200a77028706b8023512f8a",
+      "bytes": 23466,
+      "sha256": "3772a0cdc9c084a23b103816c808d4b6e5fe2f78095a55191e6057467e83a3cc",
       "owner": "core-integration"
     },
     {
@@ -1664,6 +1664,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/http/stock_downloads.rs",
+      "mode": "100644",
+      "bytes": 7873,
+      "sha256": "3b2588eb0b59a59e07431079e3a59e705e11a35607763fe7a2295cbbf312741f",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/http/stock_mutations.rs",
       "mode": "100644",
       "bytes": 24669,
@@ -1673,8 +1680,8 @@
     {
       "path": "backend/src/http/stock_reads.rs",
       "mode": "100644",
-      "bytes": 31777,
-      "sha256": "7264ffc3f3756e0838fd7cb5a04dc62aabefea8c3b6be2a49d9418421a27c11d",
+      "bytes": 32715,
+      "sha256": "2bffac5487bb0fc3210a920fcbbae0e8c14828ba061bc21a5699b8de6cf22fcd",
       "owner": "core-integration"
     },
     {
@@ -3808,8 +3815,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 30622,
-      "sha256": "e65566028c25c4b4ed2e5326a32eb72bdf5702495bcc451cf434d937f91baf01",
+      "bytes": 30609,
+      "sha256": "79eec5173c8d385618673637772e2e28fee0006c92bfa8dc6098fbe0486a1285",
       "owner": "core-integration"
     },
     {
@@ -3822,8 +3829,8 @@
     {
       "path": "docs/rust-integration/agents.md",
       "mode": "100644",
-      "bytes": 12411,
-      "sha256": "38a0cfacfdec2f307b4400a63682e4235a16a2e2e253750faf5fbac2a0af8b5d",
+      "bytes": 12488,
+      "sha256": "17a52a8cb12f124f3c51ce03ff8d5817d9e46f78499aa6846f51b19778c7c009",
       "owner": "core-integration"
     },
     {
@@ -3857,8 +3864,8 @@
     {
       "path": "docs/rust-integration/dev-composition.md",
       "mode": "100644",
-      "bytes": 3588,
-      "sha256": "3a0fcc6d2d680bbc50f26810e678d83db6c6c35d92293f747769e1ffdf2ebc26",
+      "bytes": 3888,
+      "sha256": "d5c9867979c9497363c7fcc88c5b5505fc98a70998fd01ee3bf73036f3167e08",
       "owner": "core-integration"
     },
     {
@@ -3911,6 +3918,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/rust-integration/stock-downloads.md",
+      "mode": "100644",
+      "bytes": 2351,
+      "sha256": "ba16036c8ea9c06c3e1390b3edce75822b3590ce7db859b5ff11e62937828cc6",
+      "owner": "core-integration"
+    },
+    {
       "path": "docs/rust-integration/stock-history.md",
       "mode": "100644",
       "bytes": 2415,
@@ -3927,8 +3941,8 @@
     {
       "path": "docs/rust-integration/stock-writes.md",
       "mode": "100644",
-      "bytes": 4381,
-      "sha256": "76df71a2fb1d96db0b4ca0ce8f13c1ed15b725ee13eb6f4ce354233482be6802",
+      "bytes": 4687,
+      "sha256": "0cb82fa6b0a38f167002e36404ce27c8a9ef2ce132b7763916b31dfec30de5d4",
       "owner": "core-integration"
     },
     {
@@ -5440,7 +5454,7 @@
       "path": "tools/rust-integration/healthy-atlas-lists-loopback.mjs",
       "mode": "100644",
       "bytes": 15142,
-      "sha256": "161013005bf5c3be9195eefd563f4653de1206fb85ce0f18251b250356606531",
+      "sha256": "e97a314249001961707e39f0b11f73d3541d0ec704dd4f80342eda2a7b2b2d8a",
       "owner": "core-integration"
     },
     {
@@ -5509,8 +5523,8 @@
     {
       "path": "tools/rust-integration/healthy-stock-write-loopback.mjs",
       "mode": "100644",
-      "bytes": 33790,
-      "sha256": "f3705c3956edb8965e20e077cf339725b27a0318a538f99528cfadf7cc2426fa",
+      "bytes": 38059,
+      "sha256": "b232d994b5dd33f5e20b83cee73107852fd6c4f206e752d804cd3a4924c865ef",
       "owner": "core-integration"
     },
     {

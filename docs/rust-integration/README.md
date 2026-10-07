@@ -38,11 +38,11 @@ the baseline file because the React input does not carry it.
 Integration owns root manifests/locks/module declarations, app/config/http/
 lifecycle/main, frontend host glue, narrow checks and central publication
 integrity. The accepted HomeBox, Network and recovery host leaves compile with
-the actual owners. Only the cached HomeBox route is mounted in the demonstrated
-provider slice; provider refresh, Network runtime and recovery operations have
-not run. A pending Domain queue-recovery checkpoint is not consumed here. The
-separately accepted Access recovery successor is also unadopted: it imports
-`domain::queue_recovery`, which the accepted Domain input does not expose.
+the actual owners. Cached HomeBox and the actual passive Network host are
+composed; their evidence retains its original checkpoint and bounded ordinary
+scope. `domain::queue_recovery` and the Access recovery extensions are present.
+Their compilation does not supply the independent discovery, original-media
+or durable archive peers required for composed populated recovery.
 
 ## Actual running core
 

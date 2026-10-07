@@ -34,6 +34,8 @@ struct Authority<'p, 'store> {
     store: &'store Mutex<Store>,
     list_pages: &'store st::AtlasListPages,
     list_binding: st::AtlasListBinding<'p>,
+    vault: &'store crate::media::AssetVault,
+    download_handles: Option<&'store st::AtlasDownloadHandles>,
 }
 fn unavailable() -> st::StockError {
     st::StockError::OwnerUnavailable
@@ -72,6 +74,7 @@ fn read_operation(request: &st::ValidatedRequest) -> st::StockResult<()> {
         || request.operation().authority != st::Authority::Atlas
         || !(request.id().as_str().ends_with(".get")
             || request.id().as_str().ends_with(".history")
+            || request.id() == st::OperationId::AtlasAssetDownload
             || st::atlas_list_record_type(request.id()).is_some())
     {
         return Err(unavailable());
@@ -291,14 +294,26 @@ impl<'p> st::StockAuthorityPort<RequestPrincipal> for Authority<'p, '_> {
             }
             return self.revalidate(p, prepared.witness(), request);
         }
+        let downloads = super::stock_downloads::Downloads {
+            store: self.store,
+            access: self.access,
+            vault: self.vault,
+            handles: self.download_handles,
+        };
+        if request.id() == st::OperationId::AtlasAssetDownload {
+            downloads.validate_issued(p, prepared, &result["data"])?;
+        }
         let expected = st::StockQueryPort::query(
-            &mut NativeQueries {
-                store: self.store,
-                access: self.access,
-                contracts: st::NativeStockContract::new()?,
-                list_pages: self.list_pages,
-                list_binding: self.list_binding.clone(),
-            },
+            &mut crate::transports::mcp::NativeQueries::new(
+                NativeQueries {
+                    store: self.store,
+                    access: self.access,
+                    contracts: st::NativeStockContract::new()?,
+                    list_pages: self.list_pages,
+                    list_binding: self.list_binding.clone(),
+                },
+                downloads,
+            )?,
             p,
             prepared,
         )?;
@@ -668,6 +683,16 @@ pub(super) fn execute_raw(
     raw: Value,
     contracts: &st::NativeStockContract,
 ) -> st::StockResult<st::OwnerResult> {
+    execute_raw_qualified(core, p, raw, contracts, None)
+}
+
+pub(super) fn execute_raw_qualified(
+    core: &Core,
+    p: &RequestPrincipal,
+    raw: Value,
+    contracts: &st::NativeStockContract,
+    handles: Option<&st::AtlasDownloadHandles>,
+) -> st::StockResult<st::OwnerResult> {
     let list_binding = {
         let access = core.access.lock().map_err(|_| unavailable())?;
         p.release(&access).map_err(|_| changed())?;
@@ -679,10 +704,11 @@ pub(super) fn execute_raw(
         store: &core.store,
         list_pages: &core.atlas_list_pages,
         list_binding: list_binding.clone(),
+        vault: &core.vault,
+        download_handles: handles,
     };
     let prepared = st::prepare(p, raw, contracts, &authority, &mut Preparer(&core.store))?;
-    // Compose the actual SQLite read owner without admitting downloads. The
-    // media byte route has no canonical stock token issuer/redemption owner.
+    // Only a qualified HTTP Host supplies the cache also used by redemption.
     let mut queries = crate::transports::mcp::NativeQueries::new(
         NativeQueries {
             store: &core.store,
@@ -691,7 +717,7 @@ pub(super) fn execute_raw(
             list_pages: &core.atlas_list_pages,
             list_binding,
         },
-        crate::transports::mcp::UnavailableAssetDownloads,
+        super::stock_downloads::Downloads::for_core(core, handles),
     )?;
     st::dispatch(
         p,

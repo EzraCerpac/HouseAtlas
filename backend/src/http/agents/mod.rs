@@ -82,7 +82,12 @@ pub(super) async fn invoke(
                 if request.is_mutation() {
                     return errors::response(st::StockError::CapabilityDenied, id);
                 }
-                match stock_dispatch::execute(core, p, raw) {
+                match stock_dispatch::execute_with_downloads(
+                    core,
+                    p,
+                    raw,
+                    &host.atlas_download_handles,
+                ) {
                     Ok(result) => Ok(json_response(result.wire)),
                     Err(error) => errors::response(error, id),
                 }

@@ -12,7 +12,8 @@ This is a development candidate for independent composition review.
 
 After an authorized home view commits, React requests the server's scoped
 `GET /api/atlas/stock/v3/workspaces/{workspaceId}/homes/{homeId}/admission`.
-The server advertises thirty Atlas list/record/history reads. A genuine editor
+The HTTP server advertises thirty Atlas list/record/history reads plus managed
+`atlas.asset.download`. Core-only MCP retains thirty reads. A genuine editor
 session additionally admits the owner’s closed 31-form direct-write map and
 nonempty batches whose every ordered child maps. The executor retains the
 original planner, guards, reference closure and transaction fence; admission

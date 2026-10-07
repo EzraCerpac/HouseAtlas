@@ -21,14 +21,19 @@ one literal item filter and read-only comparison against saved SQLite rows.
 It executes no rejection, expiry, replay, revocation, fault or concurrency case.
 The ordinary workflows also run on dev pushes; cache publication stays on main.
 
+The HTTP host also mounts the actual managed Atlas download issuer and
+authenticated scoped GET/HEAD redemption, sharing one native handle cache.
+See [stock-downloads.md](stock-downloads.md) for the original-principal boundary
+and the separate unmounted MCP/link UI.
+
 The root also admits the Domain owner’s closed 31-form direct-write map and
 nonempty batches whose ordered children all map. Original-principal preparation,
 guards, reference closure, SQLite transaction and canonical result release remain
 mandatory. The healthy stock-write runner covers fresh circuit/identity singles
 and identity-only/mixed batches; the other mapped forms remain runtime-unqualified.
 
-Missing product areas include the seven specialized Atlas writes and download
-admission, stock HomeBox operation mounts, stock Network query mounts, complete
+Missing product areas include the seven specialized Atlas writes, Core-only MCP download
+admission and download link UI, stock HomeBox operation mounts, stock Network query mounts, complete
 provider setup and UI, trusted AI configuration/startup callers and receipt identity,
 and composed populated recovery. Saved Network queries require lock-per-phase
 orchestration around the original runtime, plus original grants captured before

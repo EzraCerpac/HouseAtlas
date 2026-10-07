@@ -38,6 +38,9 @@ pub fn reads() -> Vec<wire::OperationId> {
 }
 pub fn admitted(principal: &access::Principal) -> Vec<wire::OperationId> {
     let mut operations = reads();
+    // HTTP Host provides both the genuine issuer and authenticated redemption.
+    // The Core-only MCP catalog continues to use reads() without this operation.
+    operations.push(wire::OperationId::AtlasAssetDownload);
     if principal.role() == access::Role::Editor {
         operations.extend(wire::OperationId::ALL.iter().copied().filter(|id| {
             crate::domain::stock::OperationId::parse(id.as_str())

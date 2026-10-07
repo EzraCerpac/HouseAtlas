@@ -65,7 +65,7 @@ try {
   }, 'actual Rust TLS listener', 30000);
   const { origin, cookie, login, editorLogin, preparedMedia } = JSON.parse(readFileSync(join(data, 'smoke-session.json')));
   assert.match(origin, /^https:\/\/127\.0\.0\.1:\d+$/);
-  browser = spawn(chromium, ['--headless=new', '--no-sandbox', '--disable-gpu', '--remote-debugging-pipe', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-features=MediaRouter,OptimizationHints', '--ignore-certificate-errors', '--user-data-dir=' + join(scratch, 'browser'), 'about:blank'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
+  browser = spawn(chromium, ['--headless=new', '--enable-experimental-web-platform-features', '--enable-features=WebMCP', '--no-sandbox', '--disable-gpu', '--remote-debugging-pipe', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-features=MediaRouter,OptimizationHints', '--ignore-certificate-errors', '--user-data-dir=' + join(scratch, 'browser'), 'about:blank'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
   cdp = new Pipe(browser);
   const version = await cdp.send('Browser.getVersion');
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
@@ -207,6 +207,53 @@ try {
   const png=media.assets.find(a=>a.type==='image/png'),text=media.assets.find(a=>a.type==='text/plain');
   assert.equal(png.previewPolicy,'safe-rendered');assert.equal(text.previewPolicy,'download-only');assert.equal(text.preview,null);
   assert.deepEqual(png.preview.signature,[137,80,78,71,13,10,26,10]);assert.deepEqual(png.preview.kinds,['IHDR','IDAT','IEND']);assert.equal(png.preview.length,png.preview.actualLength);assert.equal(png.preview.type,'image/png');assert.equal(png.preview.disposition,'inline; filename="preview.png"');assert.equal(png.preview.csp,"default-src 'none'; sandbox");
+  // Issue genuine stock handles, then redeem current authorized original bytes.
+  // PNG issuance uses real native WebMCP and observes React before tool return;
+  // text issuance uses the exact HTTP stock envelope. No shim or provider.
+  await until(async()=>await evaluate("document.modelContext.getTools().then(tools=>tools.some(tool=>tool.name==='atlas_media_geometry'))"),'Actual admitted managed-media registration');
+  const stockDownloads=await evaluate(`(async()=>{
+    const scope=${JSON.stringify(view.scope)}, originals=${JSON.stringify(preparedMedia)}, rows=[];
+    const U=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
+    for(const [index,original] of originals.entries()){
+      const request={schemaVersion:3,commandId:'atlas.asset.download',requestId:U(1500+index),context:scope,target:{authority:'atlas',recordType:'asset',recordId:original.assetId},payload:{}};
+      let wire,visible=null;
+      if(index===0){
+        const tools=await document.modelContext.getTools(),tool=tools.find(tool=>tool.name==='atlas_media_geometry');
+        const result=await document.modelContext.executeTool(tool,JSON.stringify(request));
+        wire=typeof result==='string'?JSON.parse(result):result;
+        visible=document.querySelector('.stock-completion pre')?.textContent;
+      }else{
+        const endpoint='/api/atlas/stock/v3/workspaces/'+scope.workspaceId+'/homes/'+scope.homeId+'/invoke?request='+encodeURIComponent(JSON.stringify(request));
+        const response=await fetch(endpoint,{credentials:'same-origin',cache:'no-store',redirect:'error'});
+        if(response.status!==200)throw new Error('Healthy stock download issuance failed');
+        wire=await response.json();
+      }
+      const path='/api/atlas/media/downloads/'+scope.workspaceId+'/'+scope.homeId+'/'+wire.data.downloadToken;
+      const deliveries=[];
+      for(const method of ['GET','HEAD']){
+        const response=await fetch(path,{method,credentials:'same-origin',cache:'no-store',redirect:'error'});
+        if(response.status!==200)throw new Error('Healthy stock handle redemption failed');
+        deliveries.push({method,status:response.status,bytes:Array.from(new Uint8Array(await response.arrayBuffer())),length:Number(response.headers.get('content-length')),contentType:response.headers.get('content-type'),disposition:response.headers.get('content-disposition'),cache:response.headers.get('cache-control'),csp:response.headers.get('content-security-policy')});
+      }
+      rows.push({request,wire,visible,deliveries,original:Array.from(atob(original.originalBase64),c=>c.charCodeAt(0)),payload:original.payload});
+    }
+    return rows;
+  })()`);
+  assert.equal(stockDownloads.length,2);
+  for(const [index,row] of stockDownloads.entries()){
+    assert.equal(row.wire.commandId,row.request.commandId);assert.equal(row.wire.requestId,row.request.requestId);
+    assert.equal(row.wire.status,'read');assert.equal(row.wire.replayed,false);assert.deepEqual(row.wire.resolvedScope,view.scope);
+    assert.deepEqual(row.wire.data.target,row.request.target);assert.match(row.wire.data.downloadToken,/^[a-f0-9-]{36}$/);
+    assert.equal(row.wire.data.sha256,row.payload.sha256);assert.equal(row.wire.data.byteSize,row.original.length);
+    assert.equal(row.wire.data.contentType,row.payload.contentType);assert.equal(row.wire.data.disposition,'attachment');
+    if(index===0)assert.deepEqual(JSON.parse(row.visible),row.wire,'Canonical issued metadata visible before native WebMCP returns');
+    assert.deepEqual(row.deliveries[0].bytes,row.original);assert.deepEqual(row.deliveries[1].bytes,[]);
+    for(const delivery of row.deliveries){
+      assert.equal(delivery.length,row.original.length);assert.equal(delivery.contentType,row.payload.contentType);
+      assert.match(delivery.disposition,/^attachment; filename="original\.(png|txt)"$/);
+      assert.equal(delivery.cache,'private, no-store');assert.equal(delivery.csp,"default-src 'none'; sandbox");
+    }
+  }
   // Four ordinary GETs compare genuine stock dispatch with actual frozen SQLite reads.
   const stock=await evaluate(`(async()=>{
     const U=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
@@ -263,8 +310,8 @@ try {
     return {results,admission,intents:[single,batch,direct,mixed],receipts:[first,second,third,fourth],records:[firstRecord,...records,directRecord,...mixedRecords],histories:[firstHistory,...histories,directHistory,...mixedHistories]};
   })()`);
   assert.equal(stockWrites.results.length,19);
-  assert.equal(stockWrites.admission.commandIds.length,62);
-  assert.equal(new Set(stockWrites.admission.commandIds).size,62);
+  assert.equal(stockWrites.admission.commandIds.length,63);
+  assert.equal(new Set(stockWrites.admission.commandIds).size,63);
   const held=['binding.create','binding.review','binding.restore','binding.remap','geometry.create','asset.create','asset.review'];
   assert(held.every(id=>!stockWrites.admission.commandIds.includes('atlas.'+id)), 'Specialized evidence-dependent forms stay outside direct admission');
   const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -300,7 +347,7 @@ try {
   ].join('\n');
   const rows = spawnSync('python3', ['-c', sql, data], { encoding: 'utf8' });
   assert.equal(rows.status, 0); assert.deepEqual(JSON.parse(rows.stdout), {records:17,projections:2,audits:11,receipts:11,batchReceipts:3,assetManifests:2,stockOperations:4,stockGroups:6,stockKeys:8,stockAuditLinks:6,stockHistoryCursors:0,sessions:1});
-  const evidence = { rust:serviceOutput.trim(), browser:version.product, apiReads:api.map(({path,status})=>({path,status})), coreReads, writes, media, stockWrites, stock:stock.map(row=>({path:row.path,status:row.status,frozenStatus:row.frozenStatus,commandId:row.wire.commandId,revision:row.expected.revision,matchesFrozen:true})), authResponses:responses.filter(r=>r.url.startsWith(origin+'/api/atlas/auth/')).map(r=>({path:new URL(r.url).pathname,status:r.status})), scopedRead:result.status, rooms:1, items:1, persisted:JSON.parse(rows.stdout), observedRequests:observedUrls.length, scope:'Actual native schema/graph/JCS, Rust/SQLite/access/domain/React positive loopback TLS session/login/logout, canonical paged reads, fresh circuit create, atomic local identity batch, native owned PNG/text availability and actual GET/HEAD download plus safe PNG preview, and genuine stock circuit/asset reads compared with actual frozen SQLite rows. Fresh stock circuit and identity singles plus identity-only and mixed circuit/identity batches use the actual original AT11 fence and native atomic stock journal. The editor catalog has 30 reads, 31 direct writes and one restricted batch arm; this flow qualifies only the exercised creates, not all mapped forms. No rejected request, stopped control, replay, stock history request, recovery or external provider.' };
+  const evidence = { rust:serviceOutput.trim(), browser:version.product, apiReads:api.map(({path,status})=>({path,status})), coreReads, writes, media, stockDownloads, stockWrites, stock:stock.map(row=>({path:row.path,status:row.status,frozenStatus:row.frozenStatus,commandId:row.wire.commandId,revision:row.expected.revision,matchesFrozen:true})), authResponses:responses.filter(r=>r.url.startsWith(origin+'/api/atlas/auth/')).map(r=>({path:new URL(r.url).pathname,status:r.status})), scopedRead:result.status, rooms:1, items:1, persisted:JSON.parse(rows.stdout), observedRequests:observedUrls.length, scope:'Actual native schema/graph/JCS, Rust/SQLite/access/domain/React positive loopback TLS session/login/logout, canonical paged reads, fresh circuit create, atomic local identity batch, native owned PNG/text availability and actual GET/HEAD download plus safe PNG preview, and genuine stock circuit/asset reads compared with actual frozen SQLite rows. Fresh stock circuit and identity singles plus identity-only and mixed circuit/identity batches use the actual original AT11 fence and native atomic stock journal. Genuine stock PNG/text handles issue through native WebMCP/HTTP and redeem current originals with GET/HEAD. Native issued metadata is visible before return; the download link UI remains unbound. The editor HTTP catalog has 31 reads, 31 direct writes and one restricted batch arm; this flow qualifies only the exercised creates, not all mapped forms. No rejected request, stopped control, replay, stock history request, recovery or external provider.' };
   if (process.env.HOUSEATLAS_EVIDENCE) writeFileSync(process.env.HOUSEATLAS_EVIDENCE, JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));
 } finally {

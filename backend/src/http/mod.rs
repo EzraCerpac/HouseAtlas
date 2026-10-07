@@ -15,6 +15,7 @@ pub mod qualified_upload_plan;
 mod query;
 mod reads;
 mod response;
+mod stock_downloads;
 mod stock_mutations;
 mod stock_reads;
 mod upload;
@@ -48,6 +49,7 @@ pub struct Host {
     pub files: Arc<BTreeMap<String, (String, Vec<u8>)>>,
     homebox_cache_sources: Arc<Vec<crate::config::providers::homebox::TrustedHomeBoxSource>>,
     network_bindings: Arc<Vec<crate::config::providers::network_host::NetworkBinding>>,
+    atlas_download_handles: d::stock::AtlasDownloadHandles,
     response_ids: Arc<ResponseIds>,
     pages: Arc<Mutex<pages::Pages>>,
     admission: Arc<admission::Admission>,
@@ -71,6 +73,7 @@ impl Host {
             files,
             homebox_cache_sources: Arc::new(homebox_cache_sources),
             network_bindings: Arc::new(Vec::new()),
+            atlas_download_handles: d::stock::AtlasDownloadHandles::default(),
             response_ids: Arc::new(ResponseIds::new()?),
             pages: Arc::new(Mutex::new(pages::Pages::default())),
             admission: Arc::new(admission::Admission::default()),
@@ -549,6 +552,7 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}", get(stock_reads::record).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}/history", get(stock_reads::history).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/media/{workspace_id}/{home_id}/{digest}/{mode}", get(media::deliver).fallback(media::other))
+        .route("/api/atlas/media/downloads/{workspace_id}/{home_id}/{token}", get(stock_downloads::redeem).fallback(media::other))
         .route("/api/atlas/view", get(current))
         .route(
             "/api/atlas/homes/{workspace_id}/{home_id}/view",

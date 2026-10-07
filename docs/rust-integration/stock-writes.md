@@ -5,7 +5,7 @@ accepts the complete native stock wire3 envelope for the Domain owner’s closed
 31-form direct-write map, or a nonempty `atlas.batch.execute` whose every ordered
 child maps. HTTP admission and the actual native planner share
 `atlas_direct_operation`; no copied catalog allowlist grants execution. An editor’s
-WebMCP catalog adds those 31 forms and the restricted batch arm to 30 Atlas reads.
+WebMCP catalog adds those 31 forms and the restricted batch arm to 31 HTTP Atlas reads.
 Mounted MCP retains its separate read-only profile.
 
 The map covers seven creates, five replacements, ten tombstones and nine restores.
@@ -49,7 +49,11 @@ batches, and six resulting frozen record/history pairs. Each root is submitted
 once. Read-only SQLite inspection also checks four stock operations, six groups,
 eight permanent keys and six stock audit links. Only these fresh creates have
 runtime evidence; compilation and catalog admission do not qualify all 31 forms.
-It makes no stock history, provider, replay or rejected call.
+It also issues PNG/text stock download handles through native WebMCP and HTTP,
+checks visible canonical issued metadata before native return, and redeems
+original bytes with authenticated GET/HEAD. These six additional requests do
+not establish the unmounted download link UI or MCP handle lifecycle. It makes
+no stock history, provider, replay or rejected call.
 
 The native `healthy-agent-loopback.mjs` runner also exercises the newly admitted
 identity single and mixed identity/circuit batch through actual
