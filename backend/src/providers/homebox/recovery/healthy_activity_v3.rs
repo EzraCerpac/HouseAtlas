@@ -491,7 +491,11 @@ impl n::StockReadbackPort for Peers {
         plan: &n::ReadbackPlan,
         authority: &n::StockAuthority,
     ) -> n::NativeObservation {
-        assert_eq!(authority, &self.0.authority);
+        assert_eq!(authority.actor_id, self.0.authority.actor_id);
+        assert_eq!(
+            authority.physical_binding,
+            self.0.authority.physical_binding
+        );
         assert_eq!(operation.command, self.0.command);
         assert_eq!(plan.target, self.0.command.target);
         assert_eq!(plan.path, format!("/api/v1/entities/{}", id(500)));
@@ -510,6 +514,16 @@ impl n::StockReadbackPort for Peers {
 
 struct OriginalEvidence(Peers);
 impl s::StockActivityRecoveryEvidence for OriginalEvidence {
+    fn queued_reservation_jobs(
+        &self,
+        _: &s::StockActivityRegistration,
+        _: &s::RetainedStockActivityEvent,
+    ) -> s::Result<crate::jobs::LeasedJob> {
+        // This healthy fixture's sequential queue is explained by its earlier
+        // proven native hold. It has no independently retained Jobs occupancy.
+        // Missing cross-lane proof is unavailable, never default success.
+        Err(super::unavailable())
+    }
     fn validate_record(&self, record: &s::RetainedStockActivity) -> s::Result<()> {
         assert_eq!(record.registration(), &self.0.0.registration);
         assert_eq!(record.original().command, self.0.0.command);
@@ -581,8 +595,45 @@ impl s::StockActivityRecoveryEvidence for OriginalEvidence {
         Ok(())
     }
 }
+struct CompleteOriginalEvidence<'a> {
+    primary: &'a OriginalEvidence,
+    queued: Option<&'a OriginalEvidence>,
+}
+impl CompleteOriginalEvidence<'_> {
+    fn owner(&self, command: &n::StockCommand) -> s::Result<&OriginalEvidence> {
+        std::iter::once(self.primary)
+            .chain(self.queued)
+            .find(|owner| &owner.0.0.command == command)
+            .ok_or_else(super::unavailable)
+    }
+}
+impl s::StockActivityRecoveryEvidence for CompleteOriginalEvidence<'_> {
+    fn queued_reservation_jobs(
+        &self,
+        registration: &s::StockActivityRegistration,
+        queued_cut: &s::RetainedStockActivityEvent,
+    ) -> s::Result<crate::jobs::LeasedJob> {
+        self.owner(&queued_cut.operation().command)?
+            .queued_reservation_jobs(registration, queued_cut)
+    }
+    fn validate_record(&self, record: &s::RetainedStockActivity) -> s::Result<()> {
+        self.owner(&record.original().command)?
+            .validate_record(record)
+    }
+    fn validate_event(&self, frame: s::StockActivityRecoveryEvent<'_>) -> s::Result<()> {
+        self.owner(&frame.original.command)?.validate_event(frame)
+    }
+}
 #[test]
 fn healthy_profile6_native_capture_and_event_cuts() -> Result<(), Box<dyn std::error::Error>> {
+    composition(false)
+}
+#[test]
+fn healthy_profile6_configured_producer_archive_roundtrip() -> Result<(), Box<dyn std::error::Error>>
+{
+    composition(true)
+}
+fn composition(archive_roundtrip: bool) -> Result<(), Box<dyn std::error::Error>> {
     use super::*;
     use n::{StockActivityPort, StockDispatchPort, StockReadbackPort};
     let directory = tempfile::tempdir()?;
@@ -753,6 +804,31 @@ fn healthy_profile6_native_capture_and_event_cuts() -> Result<(), Box<dyn std::e
     let n::StockReservation::Reserved(reserved) = reservation else {
         panic!("fresh reservation");
     };
+    let archive_limit = 256 * 1024;
+    let mut archive_packets = Vec::new();
+    let reserved_producer = if archive_roundtrip {
+        let producer = activity
+            .retain_producer(reserved.operation_id)
+            .map_err(|e| format!("reserved producer: {e:?}"))?;
+        assert!(std::ptr::eq(producer.original(), Arc::as_ptr(&original)));
+        let packet =
+            NativeActivityArchivePacket::encode_producer(&contracts, &producer, archive_limit)?;
+        assert_eq!(packet.cut().operation(), &*reserved);
+        assert_eq!(packet.cut().events().len(), 1);
+        assert!(!packet.cut().body_accepted() && !packet.cut().physical_hold());
+        assert!(packet.cut().permit().is_none() && packet.cut().native_events().is_empty());
+        // Positive exact-bound success, not an overflow/denial probe.
+        let exact = NativeActivityArchivePacket::encode_producer(
+            &contracts,
+            &producer,
+            packet.bytes().len(),
+        )?;
+        assert_eq!(exact.bytes(), packet.bytes());
+        archive_packets.push(sync_packet(directory.path(), "reserve.json", &packet)?);
+        Some(producer)
+    } else {
+        None
+    };
     let preflight = peers.preflight();
     let plan = n::map_stock(&command, &preflight.preparation).map_err(|e| format!("map: {e:?}"))?;
     let plan_digest = digest(&serde_json::to_value(&plan)?);
@@ -768,14 +844,23 @@ fn healthy_profile6_native_capture_and_event_cuts() -> Result<(), Box<dyn std::e
     else {
         panic!("fresh admission");
     };
-    let producer = activity
-        .retain_producer(admitted.operation_id)
-        .map_err(|e| format!("producer: {e:?}"))?;
+    let producer = if let Some(prior) = &reserved_producer {
+        activity.retain_producer_successor(prior)
+    } else {
+        activity.retain_producer(admitted.operation_id)
+    }
+    .map_err(|e| format!("producer: {e:?}"))?;
     assert!(std::ptr::eq(producer.original(), Arc::as_ptr(&original)));
     let mut retained = RetainedNativeStockActivity::bind_admitted(&contracts, producer, &capture)?;
     // Original live producer and complete pre-I/O cut remain independently held.
     // This test has no production durable archive or native driver.
     assert_eq!(retained.producer().record().operation(), &*admitted);
+    if archive_roundtrip {
+        let packet = NativeActivityArchivePacket::encode(&contracts, &retained, archive_limit)?;
+        assert_eq!(packet.cut().events().len(), 2);
+        assert!(packet.cut().native_events().is_empty());
+        archive_packets.push(sync_packet(directory.path(), "before-io.json", &packet)?);
+    }
     let raw_dispatch = ready(dispatch.dispatch(&permit, &plan, &authority));
     let n::NativeDispatch::Invoked(receipt) = &raw_dispatch else {
         panic!("healthy synthetic native receipt");
@@ -789,8 +874,26 @@ fn healthy_profile6_native_capture_and_event_cuts() -> Result<(), Box<dyn std::e
     retained.retain_successor(&contracts, successor)?;
     assert_eq!(retained.native_events()[0].dispatch(), Some(&raw_dispatch));
     assert_eq!(retained.native_events()[0].before(), &*admitted);
+    if archive_roundtrip {
+        let packet = NativeActivityArchivePacket::encode(&contracts, &retained, archive_limit)?;
+        assert_eq!(packet.cut().events().len(), 3);
+        assert_eq!(packet.cut().native_events().len(), 1);
+        archive_packets.push(sync_packet(
+            directory.path(),
+            "after-dispatch.json",
+            &packet,
+        )?);
+    }
     let resolved = n::retained_bridge::readback_plan(&dispatched).expect("exact native GET");
-    let raw_observation = ready(readback.readback(&dispatched, &resolved, &authority));
+    let readback_authority = if archive_roundtrip {
+        n::StockAuthority {
+            authority_digest: digest(&json!({"syntheticRefreshedAuthority":true})),
+            ..authority.clone()
+        }
+    } else {
+        authority.clone()
+    };
+    let raw_observation = ready(readback.readback(&dispatched, &resolved, &readback_authority));
     let observed_facts = n::retained_bridge::observation(&contracts, &dispatched, &raw_observation)
         .expect("qualified fresh observation");
     let observed = ready(activity.save_observation(&dispatched, &observed_facts))
@@ -811,7 +914,80 @@ fn healthy_profile6_native_capture_and_event_cuts() -> Result<(), Box<dyn std::e
     ));
     assert!(!observed.outcome.causality_proven && !observed.outcome.atomic_provider_cas);
     assert!(!observed.outcome.unknown_scope_fence_retained);
+    if archive_roundtrip {
+        let packet = NativeActivityArchivePacket::encode(&contracts, &retained, archive_limit)?;
+        assert_eq!(
+            packet.cut().native_events()[1].authority(),
+            &readback_authority
+        );
+        let exact =
+            NativeActivityArchivePacket::encode(&contracts, &retained, packet.bytes().len())?;
+        assert_eq!(exact.bytes(), packet.bytes());
+        archive_packets.push(sync_packet(
+            directory.path(),
+            "after-observation.json",
+            &packet,
+        )?);
+    }
     let archive = RetainedNativeStockActivityArchive::new(vec![retained.seal(&contracts)?])?;
+    // A fresh sequential queued reservation produces metadata only. There is
+    // no second admission, concurrent operation, I/O, replay or held probe.
+    let queued_peers = if archive_roundtrip {
+        let mut queued_wire = command.original_wire.clone();
+        queued_wire["requestId"] = json!(id(120));
+        queued_wire["idempotencyKey"] = json!(id(121));
+        let queued_command = n::StockContractPort::validate_request(&contracts, &queued_wire)
+            .map_err(|e| format!("queued request: {e:?}"))?;
+        let queued_peers = Peers(Arc::new(Fixture {
+            access: access.clone(),
+            original: original.clone(),
+            validation: wire::StockValidation::new()?,
+            command: queued_command.clone(),
+            authority: authority.clone(),
+            registration: activity_registration.clone(),
+            snapshot: peers.0.snapshot.clone(),
+            response: peers.0.response.clone(),
+            dispatches: AtomicUsize::new(0),
+            readbacks: AtomicUsize::new(0),
+            policy_checks: AtomicUsize::new(0),
+        }));
+        let queued_session = s::StockActivitySession::new(
+            store.clone(),
+            access.clone(),
+            original.clone(),
+            Arc::new(queued_peers.clone()),
+            Arc::new(NativeWriterContracts::new()?),
+            activity_registration.clone(),
+            queued_command.clone(),
+            authority.clone(),
+        )
+        .map_err(|e| format!("queued session: {e:?}"))?;
+        let queued = ready(queued_session.reserve(&queued_command, &authority))
+            .map_err(|e| format!("queued reserve: {e:?}"))?;
+        let n::StockReservation::Queued(queued) = queued else {
+            panic!("fresh waiting metadata");
+        };
+        let producer = queued_session
+            .retain_producer(queued.operation_id)
+            .map_err(|e| format!("queued producer: {e:?}"))?;
+        assert!(std::ptr::eq(producer.original(), Arc::as_ptr(&original)));
+        let packet =
+            NativeActivityArchivePacket::encode_producer(&contracts, &producer, archive_limit)?;
+        assert_eq!(packet.cut().operation(), &*queued);
+        assert_eq!(packet.cut().events().len(), 1);
+        assert_eq!(
+            packet.cut().operation().outcome.state,
+            n::OutcomeState::Queued
+        );
+        assert!(!packet.cut().body_accepted() && !packet.cut().physical_hold());
+        assert!(packet.cut().permit().is_none() && packet.cut().native_events().is_empty());
+        archive_packets.push(sync_packet(directory.path(), "queued.json", &packet)?);
+        assert_eq!(queued_peers.0.dispatches.load(Ordering::SeqCst), 0);
+        assert_eq!(queued_peers.0.readbacks.load(Ordering::SeqCst), 0);
+        Some(queued_peers)
+    } else {
+        None
+    };
     let original_evidence = OriginalEvidence(peers.clone());
     let evidence = HomeboxStockActivityEvidence::new(&contracts, &archive, &original_evidence);
     let record = archive.retained(observed.operation_id)?.producer().record();
@@ -856,11 +1032,77 @@ fn healthy_profile6_native_capture_and_event_cuts() -> Result<(), Box<dyn std::e
         &activity_registration,
     )];
     let discovery = OfflineDiscovery(registry.clone());
+    let archive_owner = SyntheticArchiveOwner {
+        original: original.clone(),
+        registration: activity_registration.clone(),
+        packets: archive_packets
+            .iter()
+            .map(|(_, bytes)| bytes.clone())
+            .collect(),
+    };
+    let restored_records = archive_packets
+        .iter()
+        .map(|(path, expected)| {
+            let bytes = std::fs::read(path)?;
+            assert_eq!(&bytes, expected);
+            NativeActivityArchivePacket::decode(&contracts, &bytes, &archive_owner)
+                .map_err(std::io::Error::other)
+        })
+        .collect::<Result<Vec<_>, std::io::Error>>()?;
+    if archive_roundtrip {
+        assert_eq!(restored_records.len(), 5);
+        assert_eq!(restored_records[0].cut().events().len(), 1);
+        assert!(restored_records[0].cut().native_events().is_empty());
+        assert_eq!(restored_records[1].cut().events().len(), 2);
+        assert_eq!(restored_records[2].cut().events().len(), 3);
+        assert!(
+            restored_records[2]
+                .cut()
+                .operation()
+                .outcome
+                .readback_digest
+                .is_none()
+        );
+        assert_eq!(restored_records[3].cut().events().len(), 4);
+        assert_eq!(
+            restored_records[3].cut().native_events()[1].authority(),
+            &readback_authority
+        );
+        assert_eq!(
+            restored_records[4].cut().operation().outcome.state,
+            n::OutcomeState::Queued
+        );
+        assert!(
+            archive_packets
+                .iter()
+                .all(|(_, bytes)| bytes.len() <= archive_limit)
+        );
+    }
+    // Earlier snapshots are healthy roundtrips, not multiple current versions
+    // of the same operation in the recovery archive.
+    let current = restored_records.into_iter().skip(3).collect();
+    let restored_archive = RestoredNativeActivityArchive::new(current)?;
+    let queued_evidence = queued_peers.map(OriginalEvidence);
+    let complete_original_evidence = CompleteOriginalEvidence {
+        primary: &original_evidence,
+        queued: queued_evidence.as_ref(),
+    };
+    let restored_evidence = HomeboxRestoredStockActivityEvidence::new(
+        &contracts,
+        &restored_archive,
+        &complete_original_evidence,
+    );
+    let selected: &dyn s::StockActivityRecoveryEvidence = if archive_roundtrip {
+        &restored_evidence
+    } else {
+        &evidence
+    };
+    let selected = SelectedEvidence(selected);
     let activity_peers = s::StockActivityRecoveryPeers {
         contracts: &contracts,
         registry: &registry,
         discovery: &discovery,
-        evidence: &evidence,
+        evidence: &selected,
     };
     let image_path = directory.path().join("activity-image.sqlite");
     let mut check = || Ok(());
@@ -887,5 +1129,76 @@ fn healthy_profile6_native_capture_and_event_cuts() -> Result<(), Box<dyn std::e
     println!(
         "profile6 native /3: sealed original producer, actual synthetic NativeDispatch/receipt/observation capture, four own-prefix events, unchanged image bytes, physical hold preserved; no recovered execution"
     );
+    if archive_roundtrip {
+        println!(
+            "archive /4: five fresh synced packets include genuine reserve and queued producers plus admitted/native cuts; configured 256 KiB limit and positive exact-byte bounds; original storage codecs and refreshed GET authority retained; five own-prefix image events, no producer restored or execution resumed"
+        );
+    }
     Ok(())
+}
+
+fn sync_packet(
+    directory: &std::path::Path,
+    name: &str,
+    packet: &super::NativeActivityArchivePacket,
+) -> std::io::Result<(std::path::PathBuf, Vec<u8>)> {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+    let path = directory.join(name);
+    let mut file = std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .mode(0o600)
+        .open(&path)?;
+    file.write_all(packet.bytes())?;
+    file.sync_all()?;
+    std::fs::File::open(directory)?.sync_all()?;
+    Ok((path, packet.bytes().to_vec()))
+}
+// Independent synthetic original archive issuer retained outside the image.
+// Production supplies its actual authenticated read/origin/generation binding.
+struct SyntheticArchiveOwner {
+    original: Arc<Original>,
+    registration: s::StockActivityRegistration,
+    packets: Vec<Vec<u8>>,
+}
+impl super::NativeActivityArchiveReadAuthorization for SyntheticArchiveOwner {
+    fn authorize_archive(
+        &self,
+        bytes: &[u8],
+        cut: &super::RestoredNativeActivityCut,
+    ) -> s::Result<()> {
+        assert!(self.packets.iter().any(|expected| expected == bytes));
+        assert_eq!(cut.registration(), &self.registration);
+        assert_eq!(
+            cut.original().actor_id.to_string(),
+            self.original.principal.actor_id().as_str()
+        );
+        assert_eq!(
+            cut.original().command.context.workspace_id.to_string(),
+            self.original.principal.scope().workspace_id.as_str()
+        );
+        assert_eq!(
+            cut.original().command.context.home_id.to_string(),
+            self.original.principal.scope().home_id.as_str()
+        );
+        assert_eq!(cut.operation().operation_id, cut.original().operation_id);
+        Ok(())
+    }
+}
+struct SelectedEvidence<'a>(&'a dyn s::StockActivityRecoveryEvidence);
+impl s::StockActivityRecoveryEvidence for SelectedEvidence<'_> {
+    fn queued_reservation_jobs(
+        &self,
+        registration: &s::StockActivityRegistration,
+        queued_cut: &s::RetainedStockActivityEvent,
+    ) -> s::Result<crate::jobs::LeasedJob> {
+        self.0.queued_reservation_jobs(registration, queued_cut)
+    }
+    fn validate_record(&self, record: &s::RetainedStockActivity) -> s::Result<()> {
+        self.0.validate_record(record)
+    }
+    fn validate_event(&self, event: s::StockActivityRecoveryEvent<'_>) -> s::Result<()> {
+        self.0.validate_event(event)
+    }
 }

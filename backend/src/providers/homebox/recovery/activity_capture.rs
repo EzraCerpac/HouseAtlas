@@ -23,6 +23,7 @@ pub(super) enum RawNativeCut {
 }
 /// Read-only original native result and its exact prior journal cut. Values are
 /// captured by the wrappers below, never accepted from image JSON or ID pairs.
+#[derive(Clone)]
 pub struct RetainedStockNativeEvent {
     pub(super) sequence: u64,
     pub(super) before: n::StoredOperation,
@@ -134,12 +135,15 @@ impl StockActivityNativeCapture {
         Some(before)
     }
     fn complete(&self, before: n::StoredOperation, raw: RawNativeCut) {
-        // A failed/cancelled capture cannot produce a qualified successor. Its
-        // original physical hold is unchanged; no inferred cleanup/end proof.
-        if let Ok(mut state) = self.0.try_lock() {
-            state.pending = Some((before, raw));
-            state.in_flight = false;
-        }
+        // Actual completed I/O evidence must survive transient contention.
+        // All holders of this mutex are synchronous and release it before any
+        // await or native I/O; completion can wait for the lock.
+        // Preserve the returned result even if an earlier holder panicked.
+        // Poison remains set: begin/retention/archive still fail unavailable,
+        // so recording data here does not rehabilitate a damaged capture.
+        let mut state = self.0.lock().unwrap_or_else(|poison| poison.into_inner());
+        state.pending = Some((before, raw));
+        state.in_flight = false;
     }
 }
 pub struct CapturingStockDispatch<D> {
@@ -161,11 +165,14 @@ impl<D: n::StockDispatchPort + Sync> n::StockDispatchPort for CapturingStockDisp
                 && r.operation().plan.as_ref() == Some(plan)
                 && &r.operation().captured_authority == authority
         }) else {
-            // This wrapper positively did not invoke its inner port. No native
-            // event is captured, so this alone cannot qualify image facts.
-            return n::NativeDispatch::NeverInvoked;
+            // The accepted writer preserves admission/holds and returns before
+            // every fact commit or readback on this no-proof outcome. No inner
+            // call, receipt, noninvocation claim or pending raw proof is made.
+            return n::NativeDispatch::Unavailable;
         };
         let result = self.inner.dispatch(permit, plan, authority).await;
+        // Even an actual inner Unavailable stays pending and blocks another
+        // invocation. It cannot match a fact successor or encode as proof.
         self.capture.complete(
             before,
             RawNativeCut::Dispatch {
@@ -192,7 +199,7 @@ impl<B: n::StockReadbackPort + Sync> n::StockReadbackPort for CapturingStockRead
         let Some(before) = self.capture.begin(|r| {
             r.operation() == operation
                 && r.permit().is_some()
-                && &operation.captured_authority == authority
+                && super::activity_validation::readback_authority_matches(operation, authority)
                 && n::retained_bridge::readback_plan(operation).as_ref() == Some(plan)
         }) else {
             return n::NativeObservation::Unavailable;
@@ -256,6 +263,25 @@ impl<P: s::StockActivityPrincipal> RetainedNativeStockActivity<P> {
             capture: capture.clone(),
             native: vec![],
         })
+    }
+    pub(super) fn with_archive_ready<T>(
+        &self,
+        encode: impl FnOnce() -> s::Result<T>,
+    ) -> s::Result<T> {
+        let state = self.capture.0.try_lock().map_err(|_| unavailable())?;
+        if state.closed
+            || state.in_flight
+            || state.pending.is_some()
+            || state.record.as_ref() != Some(self.producer.record())
+        {
+            return Err(unavailable());
+        }
+        // Keep the original capture reserved through validation, serialization
+        // and final source comparison. begin() cannot start inner I/O while
+        // this guard is held; no state/authority is handed to the encoder.
+        let result = encode();
+        drop(state);
+        result
     }
     pub fn producer(&self) -> &s::StockActivityProducer<P> {
         &self.producer

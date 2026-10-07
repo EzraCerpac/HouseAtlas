@@ -1,5 +1,13 @@
 # Native activity evidence version three
 
+The explicit [archive `/4` successor](activity-archive-v4.md) adds bounded byte
+encoding/authorized evidence restoration and addresses the two PR78 automatic
+review findings. The original published PR78 commit remains immutable. The
+current archive successor uses the original writer's explicit no-proof
+Unavailable result to refuse capture gates without committing a dispatch;
+see its exact source and validation limits. The source pins below record the
+original version-three checks and are not relabeled as newer inputs.
+
 This leaf qualifies original profile6 stock activity evidence through accepted
 Storage71 `StockActivityRecoveryEvidence`. Jobs codecs `/1` and `/2` remain
 separate. No Jobs ID, lease, timestamp or fence becomes a native operation or
@@ -112,7 +120,7 @@ dispatch, receipt and observation for the original authorized archive owner.
 Unsupported rejection and missing raw/unavailable-observation qualification
 remain unavailable. Historical stopped controls stay unrun.
 
-## Exact source and selected validation
+## Preserved version-three source and selected validation
 
 * Storage71: `8a171a18d7d035d4fce5818442c1f654a340683e` (including its exact migrations).
 * Actual accepted writer: `c784be5776b614f8f0bb225fcb5355ecb9e90e0d`.

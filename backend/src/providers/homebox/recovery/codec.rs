@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest as _, Sha256};
 
-pub const WRITER_COMMIT: &str = "c784be5776b614f8f0bb225fcb5355ecb9e90e0d";
+pub const WRITER_COMMIT: &str = "5281eb1857a90c2279fb2998b3c7d0e2e41ec9b6";
 pub const NATIVE_CODEC: &str = "houseatlas-homebox-stock-native/1";
 pub const READBACK_CODEC: &str = "houseatlas-homebox-stock-readback/1";
 pub const REMOTE_END_CODEC: &str = "houseatlas-homebox-stock-remote-end/1";
