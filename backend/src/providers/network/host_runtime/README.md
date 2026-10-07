@@ -149,9 +149,9 @@ canonical filesystem or replace its authority checks with a mirror/cache.
 The actual native consuming Store APIs recheck the original authorizer at
 precommit and return a receipt only after COMMIT. Publication and failure-status
 publication preserve that definite receipt even if AT11's automatic transaction
-exit check or Access commit subsequently fails. Sanitized finalization evidence
-is best-effort and emitted after releasing the access mutex; diagnostic I/O
-failure cannot replace the committed result. Errors before native success still
+exit check or Access commit subsequently fails. No diagnostic I/O runs on this
+committed-return path; a stalled stderr pipe cannot delay its definite receipt
+or keep Core borrowed. Errors before native success still
 propagate. Preparation retains ordinary entry/exit checks. A publication receipt
 grants no browse permission; disclosure revalidates its own original grants.
 Cancellation remains checked before durable generation staging and before
@@ -163,9 +163,14 @@ durable staging, and that same borrow remains held through publication. A
 contended Core therefore fails before creating an immutable row. HTTPS is
 already complete and no authority lock spans sidecar I/O. A later cancellation
 cannot replace the committed
-outcome. Authority/storage failures still propagate; this does not add cleanup,
-retry, bypass or retention semantics for those failures. Cancellation/fault/expiry
-races are statically reviewed only; held control campaigns remain unrun.
+outcome. Authority/storage failures still propagate. A failed current-authority
+or native check after durable staging can leave an unpublished immutable row
+which still counts against the sidecar quota. The accepted stage/load APIs and
+original private publication fence provide no abort or durable recovery seam
+for that row. This is an unresolved source-lifecycle hold, requiring coordinated
+original-peer support before operational qualification. Current checks remain
+mandatory and sidecar I/O remains outside authority locks. Cancellation/fault/
+expiry races are statically reviewed only; held control campaigns remain unrun.
 
 Use one normal verified client and the existing root lock:
 
