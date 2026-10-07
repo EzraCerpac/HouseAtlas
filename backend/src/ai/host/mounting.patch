@@ -1,0 +1,60 @@
+--- a/backend/src/lib.rs
++++ b/backend/src/lib.rs
+@@ -20,3 +20,5 @@
+         pub mod write;
+     }
+ }
++
++pub mod ai;
+--- a/backend/src/ai/mod.rs
++++ b/backend/src/ai/mod.rs
+@@ -19,3 +19,5 @@
+ pub use runner::{AiRunner, RunLimits};
+ pub use stock::{DomainDispatch, DomainDispatchState, ReviewChallenge};
+ pub use types::*;
++
++pub mod host;
+--- a/backend/Cargo.toml
++++ b/backend/Cargo.toml
+@@ -66,3 +66,7 @@
+ [[example]]
+ name = "healthy-agent-stock"
+ path = "../tools/rust-integration/examples/healthy_agent_stock.rs"
++
++[[example]]
++name = "healthy-ai-host"
++path = "src/ai/host/healthy.rs"
+--- a/backend/src/http/mod.rs
++++ b/backend/src/http/mod.rs
+@@ -490,7 +490,12 @@
+     Ok(response)
+ }
+ pub fn router(host: Host) -> Router {
+-    Router::new()
++    router_with_ai(host, None)
++}
++/// Integrator supplies an already authenticated and scoped AI router explicitly.
++/// None preserves the existing application without an AI runtime mount.
++pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
++    let base = Router::new()
+         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/collections/{collection_id}/cached", get(providers::cached_homebox).head(auth::session_head).fallback(auth::session_head))
+         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/cached", get(providers::cached_homebox_query).head(auth::session_head).fallback(auth::session_head))
+         .route("/api/atlas/mcp/workspaces/{workspace_id}/homes/{home_id}", post(agents::mcp_transport::post).get(agents::mcp_transport::unsupported).head(agents::mcp_transport::unsupported).delete(agents::mcp_transport::unsupported).fallback(agents::mcp_transport::unsupported))
+@@ -526,8 +531,15 @@
+         .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/network/relations", get(reads::network).head(auth::session_head).fallback(auth::session_head))
+         .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}", get(reads::record).head(auth::session_head).fallback(auth::session_head))
+         .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}/history", get(reads::history).head(auth::session_head).fallback(auth::session_head))
+-        .fallback(get(static_file))
+-        .layer(middleware::from_fn_with_state(
++        .fallback(get(static_file));
++    let base = match ai {
++        Some(ai) => base.nest(
++            "/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/ai",
++            ai.with_state::<Host>(()),
++        ),
++        None => base,
++    };
++    base.layer(middleware::from_fn_with_state(
+             host.clone(),
+             response_adapter,
+         ))
