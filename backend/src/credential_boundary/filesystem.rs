@@ -139,7 +139,7 @@ impl FileLease {
         .map_err(|_| UNAVAILABLE)?;
         if fd.dev() != self.lock_device
             || fd.ino() != self.lock_inode
-            || path.st_dev != self.lock_device
+            || stat_device(&path) != self.lock_device
             || path.st_ino != self.lock_inode
             || path.st_uid != self.store.uid
             || path.st_mode & 0o7777 != 0o600
@@ -198,7 +198,7 @@ impl FileLease {
     fn check_member(&self, name: &str, meta: &fs::Metadata) -> Result<()> {
         let path = rfs::statat(&self.store.directory, name, AtFlags::SYMLINK_NOFOLLOW)
             .map_err(|_| UNAVAILABLE)?;
-        if path.st_dev != meta.dev()
+        if stat_device(&path) != meta.dev()
             || path.st_ino != meta.ino()
             || path.st_uid != self.store.uid
             || path.st_mode & 0o7777 != 0o600
@@ -339,7 +339,7 @@ impl Drop for Staged<'_> {
                 self.name.as_str(),
                 AtFlags::SYMLINK_NOFOLLOW,
             )
-            && path.st_dev == meta.dev()
+            && stat_device(&path) == meta.dev()
             && path.st_ino == meta.ino()
         {
             let _ = rfs::unlinkat(
@@ -356,6 +356,19 @@ fn private_regular(meta: &fs::Metadata, uid: u32) -> Result<()> {
         return Err(UNAVAILABLE);
     }
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn stat_device(stat: &rfs::Stat) -> u64 {
+    stat.st_dev
+}
+
+#[cfg(not(target_os = "linux"))]
+#[allow(clippy::unnecessary_cast)]
+fn stat_device(stat: &rfs::Stat) -> u64 {
+    // Match std::os::unix::fs::MetadataExt::dev's native dev_t-to-u64 cast.
+    // On macOS dev_t is signed i32, and high-bit values must match exactly.
+    stat.st_dev as u64
 }
 
 fn valid_name(name: &str) -> bool {
