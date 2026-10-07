@@ -8,6 +8,8 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+#[cfg(target_os = "linux")]
+use rustix::fs::RenameFlags;
 use rustix::fs::{self as rfs, AtFlags, FlockOperation, Mode, OFlags};
 use sha2::{Digest, Sha256};
 
@@ -219,13 +221,32 @@ impl FileLease {
         staged.write(bytes)?;
         self.check()?;
         self.check_preimage(expected)?;
-        rfs::renameat(
-            &self.store.directory,
-            staged.name.as_str(),
-            &self.store.directory,
-            format!("{}.bin", self.name).as_str(),
-        )
-        .map_err(|_| UNAVAILABLE)?;
+        let destination = format!("{}.bin", self.name);
+        match expected {
+            None => {
+                // The absence check is advisory against noncooperating writers.
+                // Linux NOREPLACE makes first publication itself no-clobber;
+                // unsupported filesystem/kernel implementations fail closed.
+                #[cfg(target_os = "linux")]
+                rfs::renameat_with(
+                    &self.store.directory,
+                    staged.name.as_str(),
+                    &self.store.directory,
+                    destination.as_str(),
+                    RenameFlags::NOREPLACE,
+                )
+                .map_err(|_| UNAVAILABLE)?;
+                #[cfg(not(target_os = "linux"))]
+                return Err(UNAVAILABLE);
+            }
+            Some(_) => rfs::renameat(
+                &self.store.directory,
+                staged.name.as_str(),
+                &self.store.directory,
+                destination.as_str(),
+            )
+            .map_err(|_| UNAVAILABLE)?,
+        }
         // Rename is the commit point. A failed barrier is still unavailable;
         // callers must inspect the original lease rather than assume rollback.
         staged.disarm();

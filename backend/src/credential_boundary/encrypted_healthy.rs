@@ -376,6 +376,7 @@ fn assert_record_round_trip(
 async fn main() -> Result<(), AiError> {
     verify_production_contract::<FileCredentialBoundary<(), SyntheticAuthority>>();
     let _native_constructor = FileCredentialBoundary::<(), SyntheticAuthority>::new_existing;
+    let _native_enrollment = FileCredentialBoundary::<(), SyntheticAuthority>::enroll_atomic;
     let mut cases = 0;
     for index in 0..4 {
         let directory = tempfile::tempdir().map_err(|_| AiError::DomainUnavailable)?;

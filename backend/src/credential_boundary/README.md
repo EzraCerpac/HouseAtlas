@@ -15,7 +15,15 @@ integrator-owned. This source is not an operational credential-runtime approval.
 current effective UID with mode 0700, a trusted stable host ID, and the original
 owner Arc. It does not create directories, change permissions, provision keys,
 unlock stores, enroll accounts, or create an initial registration record.
-Trusted first-record enrollment is a separate owner handoff and remains pending.
+The separate explicit `enroll_atomic(context, binding, initial_record)` creates
+only an absent record for the actual original authority and returns its held
+lease. Initial binding/host must match exactly; state is Disconnected and
+revocation NotRequested, with no issued client ID, identity, credentials, pending
+authorization or checkpoint. Native key availability is required; no key is
+provisioned. First publication uses atomic Linux NOREPLACE, so even a racing
+file appearance is preserved without replacement. Metadata initializes only
+after the fenced commit succeeds. The original host owns the trusted startup
+registration configuration and enrollment permission.
 Missing or corrupt ciphertext is preserved; ordinary persistence requires a
 successful authenticated load and its exact ciphertext preimage.
 
@@ -103,8 +111,29 @@ key lookup is compiled but never called by these fixtures.
 
 The original host separately owns synchronous infallible metadata-only
 `LifecycleEnvironment::cached_display`; no I/O or credential lease belongs in
-that method. Original owner implementation, first-record enrollment, mount,
-root pin adoption, composed review/CI and operational qualification remain
-integration requirements. Negative, fault, replay, denial, expiry, revocation,
-concurrency, omission, adversarial and aggregate controls remain held and unrun.
+that method. Original owner implementation, trusted startup enrollment
+configuration, mount, root pin adoption, composed review/CI and operational
+qualification remain integration requirements. The separate regression lane
+below covers only its named synthetic enrollment cases. Other negative, fault, replay, expiry, revocation, omission, adversarial
+and aggregate controls remain held and unrun.
 Healthy success does not qualify OS service behavior, deployment or paid use.
+
+## Separate enrollment regression lane
+
+Policy commit `8f4065a3ee831df0b30d14f597c25a7bbcc7f212` permits exact reviewed
+synthetic concurrency/denial/failure cases outside ordinary CI. The explicit
+allowlist in `enrollment_regression.rs` is `empty-enrollment`,
+`existing-enrollment-denied`, and `racing-enrollment`. Owners review the pinned
+source and all imported helpers before execution. Each case uses a fresh private
+temporary root, a fixed synthetic key and synthetic authority; no native lookup,
+network socket, provider, real credential, user data or deployment is involved.
+The racing case starts two independent adapters for the same registration, holds
+the successful lease until both attempts finish, and checks a single intact
+record survives. Every case removes its disposable state on completion.
+
+The separate external entrypoint is selected explicitly with `--case NAME`;
+there is no broad discovery, ordinary-CI alias or workflow change. Its run is
+bounded by an external timeout and the fixture's bounded synchronization. Record
+exact source, command, named case and outcome in the review handoff. Success
+establishes only these isolated synthetic regressions and releases no G1-G5 or
+native/provider/recovery qualification. Other held classes remain held.
