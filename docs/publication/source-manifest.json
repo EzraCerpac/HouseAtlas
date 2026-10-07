@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "51a36d573661f2672172c0b44dc1ead0f34c0de0187ce9a7a8b85797995370aa",
+  "sourceDigestSha256": "feb485c646ec917e17738781d1327ded7b1e4fa687be936ae043cc06f93c7c55",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -1050,8 +1050,8 @@
     {
       "path": "backend/src/credential_boundary/keys.rs",
       "mode": "100644",
-      "bytes": 3758,
-      "sha256": "88baf83c59e2866a67cce36e8a52c5d9cb2b6be94cef86f7bccf721ff77127e8",
+      "bytes": 3801,
+      "sha256": "346c3dd468c01d1a7e4ba99e754452227d5b09b8ebbc5d6dcb9ded0668118559",
       "owner": "ai"
     },
     {
