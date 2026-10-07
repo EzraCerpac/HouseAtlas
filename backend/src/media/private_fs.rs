@@ -235,6 +235,40 @@ impl PrivateDir {
         self.check()
     }
 
+    pub fn member_size(&self, name: &str) -> MediaResult<u64> {
+        member(name)?;
+        self.check()?;
+        let stat = rfs::statat(&self.file, name, AtFlags::SYMLINK_NOFOLLOW)?;
+        if rfs::FileType::from_raw_mode(stat.st_mode) != rfs::FileType::RegularFile
+            || stat.st_mode & 0o077 != 0
+        {
+            return Err(MediaError::Unavailable);
+        }
+        u64::try_from(stat.st_size).map_err(|_| MediaError::Unavailable)
+    }
+
+    /// Exact private regular members only; no recursive pathname deletion.
+    pub fn remove_file(&self, name: &str, budget: &WorkBudget) -> MediaResult<()> {
+        budget.check()?;
+        self.member_size(name)?;
+        rfs::unlinkat(&self.file, name, AtFlags::empty())?;
+        self.sync()?;
+        budget.check()
+    }
+
+    pub fn remove_empty_child(&self, name: &str, budget: &WorkBudget) -> MediaResult<()> {
+        budget.check()?;
+        let child = self.child(name, false)?;
+        if !child.members()?.is_empty() {
+            return Err(MediaError::Unavailable);
+        }
+        child.check()?;
+        self.check()?;
+        rfs::unlinkat(&self.file, name, AtFlags::REMOVEDIR)?;
+        self.sync()?;
+        budget.check()
+    }
+
     pub fn temporary(&self, prefix: &str) -> MediaResult<StagedDirectory> {
         self.check()?;
         let temp = tempfile::Builder::new()

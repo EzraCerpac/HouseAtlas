@@ -9,6 +9,8 @@ mod recovery;
 mod stock;
 #[path = "stock_history.rs"]
 mod stock_history;
+#[path = "upload_queries.rs"]
+mod upload_queries;
 pub use recovery::{RecoveryImage, RecoveryValidationPeers};
 
 use rusqlite::{Connection, TransactionBehavior};

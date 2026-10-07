@@ -25,6 +25,8 @@ mod healthy_examples;
 #[cfg(test)]
 mod healthy_native_examples;
 #[cfg(test)]
+mod healthy_review_examples;
+#[cfg(test)]
 mod healthy_upload_examples;
 
 pub use budget::{Cancellation, WorkBudget};

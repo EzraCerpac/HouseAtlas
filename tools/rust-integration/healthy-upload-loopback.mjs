@@ -1,4 +1,4 @@
-// Proposed one healthy real React evidence attachment upload, actual native
+// Two fresh healthy React attachment intents for the same original, actual native
 // WebMCP reads, successful owned-media GET and read-only SQLite linkage.
 // Requires the actual inspected root upload route/admission/client to be mounted.
 // No provider, rejection, replay, expiry, revocation, fault, crash, recovery,
@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, existsSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, existsSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -526,21 +526,78 @@ finally:
   }
   assert.deepEqual(persisted.nativeBatch, { results: 3, replayed: false, auditIds: receipt.data.auditIds });
   assert.deepEqual(persisted.consumption, { count: 1, assetId: asset.target.recordId, groupOrdinal: 0, rootRequestMatches: true, assetRequestMatches: true, assetIntentMatches: true, groupMatches: true, auditMatches: true, assetMatches: true, manifestMatches: true, purpose: 'evidence-original', sourceLicense: license, filename, contentType: 'image/png', sha256: uploadSha256, byteSize: uploadBytes.length });
+  // A second distinct user intent for identical bytes is ordinary attachment,
+  // not a retry or replay: React issues fresh request and idempotency IDs.
+  const originalRecord = await getJson(nativePrefix + '/asset/' + asset.target.recordId);
+  assert.equal(originalRecord.status, 200);
+  const secondStatement = 'Second fresh evidence intent referencing the same generated original.';
+  const secondReason = 'Attach the same generated original with a separate fresh evidence intent.';
+  await until(async () => await evaluate("Boolean(document.querySelector('form[aria-label=\"Atlas attachment\"] input[name=file]:not(:disabled)'))"), 'Refreshed actual attachment form');
+  const secondDocument = await send('DOM.getDocument', { depth: 0 });
+  const secondInput = await send('DOM.querySelector', { nodeId: secondDocument.root.nodeId, selector: 'form[aria-label="Atlas attachment"] input[name=file]' });
+  await send('DOM.setFileInputFiles', { nodeId: secondInput.nodeId, files: [uploadFile] });
+  await evaluate(`(()=>{const form=document.querySelector('form[aria-label="Atlas attachment"]');for(const [name,value] of Object.entries(${JSON.stringify({ statement:secondStatement, reason:secondReason })})){const field=form.querySelector('input[name='+name+']');field.value=value;field.dispatchEvent(new Event('input',{bubbles:true}));}const select=form.querySelector('select[name=license]');select.value='0';select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await evaluate("document.querySelector('form[aria-label=\"Atlas attachment\"]').requestSubmit()");
+  await until(() => uploadRequests.length === 2, 'Second fresh actual multipart POST');
+  const secondCaptured = uploadRequests[1];
+  await until(() => loaded.has(secondCaptured.requestId), 'Second fresh successful response completed');
+  assert.equal(responses.find(response => response.requestId === secondCaptured.requestId)?.status, 200);
+  const secondBody = await send('Network.getResponseBody', { requestId: secondCaptured.requestId });
+  const secondReceipt = JSON.parse(secondBody.base64Encoded ? Buffer.from(secondBody.body,'base64').toString('utf8') : secondBody.body);
+  await until(async () => await evaluate("document.querySelector('section[aria-label=\"Atlas place editing\"] [role=status]')?.textContent==='Saved. Information refreshed.' && document.querySelector('section[aria-label=\"Atlas place editing\"]')?.getAttribute('aria-busy')==='false'"), 'Second committed receipt and actual refresh');
+  assert.notEqual(secondReceipt.requestId, receipt.requestId);
+  assert.notEqual(secondReceipt.operationId, receipt.operationId);
+  assert.equal(secondReceipt.status,'committed'); assert.equal(secondReceipt.replayed,false);
+  assert.deepEqual(secondReceipt.data.records.map(row=>row.target.recordType),['evidence','identity']);
+  const [secondEvidence, secondIdentity] = secondReceipt.data.records;
+  assert.equal(secondIdentity.revision,3); assert.equal(secondEvidence.revision,1);
+  assert.equal(secondEvidence.payload.statement,secondStatement);
+  assert.deepEqual(secondEvidence.payload.references,[{kind:'atlas-asset',assetId:asset.target.recordId}]);
+  assert.deepEqual(secondIdentity.payload,{...identity.payload,evidenceIds:[...identity.payload.evidenceIds,secondEvidence.target.recordId]});
+  assert.deepEqual(JSON.parse(await evaluate("document.querySelector('section[aria-label=\"Atlas place editing\"] details pre')?.textContent")),secondReceipt);
+  const unchangedAsset = await getJson(nativePrefix + '/asset/' + asset.target.recordId);
+  assert.equal(unchangedAsset.status,200); assert.deepEqual(unchangedAsset.body,originalRecord.body);
+  const originalHistory = await getJson(nativePrefix + '/asset/' + asset.target.recordId + '/history');
+  assert.equal(originalHistory.status,200); assert.equal(originalHistory.body.length,1);
+  assert.equal(originalHistory.body[0].auditId,receipt.data.auditIds[0]);
+  const repeatedSql = String.raw`
+import json,pathlib,sqlite3,sys
+c=sqlite3.connect(pathlib.Path(sys.argv[1]).resolve().as_uri()+'?mode=ro',uri=True)
+op=c.execute('SELECT original_json,commit_json FROM stock_operations WHERE operation_id=?',(sys.argv[2],)).fetchone()
+root,commit=map(json.loads,op)
+asset=sys.argv[3]
+guard={'target':{'authority':'atlas','recordType':'asset','recordId':asset},'revision':{'kind':'atlas','value':1}}
+children=root['payload']['commands']
+counts={t:c.execute('SELECT COUNT(*) FROM '+t).fetchone()[0] for t in ['records','audits','receipts','batch_receipts','asset_manifests','stock_operations','stock_groups','stock_keys','upload_consumptions']}
+print(json.dumps({'counts':counts,'commitWire':commit['wire'],'commands':[v['commandId'] for v in children],'freshKey':root['idempotencyKey']!=json.loads(c.execute('SELECT original_json FROM stock_operations WHERE operation_id=?',(sys.argv[4],)).fetchone()[0])['idempotencyKey'],'assetGuardBound':all(v['preconditions']['guards'].count(guard)==1 for v in [root,*children]),'noNewStageConsumption':c.execute('SELECT COUNT(*) FROM upload_consumptions WHERE root_operation_id=?',(sys.argv[2],)).fetchone()[0]==0}))
+c.close()
+`;
+  const repeatedRows = spawnSync('python3',['-c',repeatedSql,join(data,'atlas.sqlite'),secondReceipt.operationId,asset.target.recordId,receipt.operationId],{encoding:'utf8'});
+  assert.equal(repeatedRows.status,0,'Actual read-only second attachment observation');
+  const repeated = JSON.parse(repeatedRows.stdout);
+  assert.deepEqual(repeated.counts,{records:9,audits:5,receipts:5,batch_receipts:2,asset_manifests:1,stock_operations:2,stock_groups:5,stock_keys:7,upload_consumptions:1});
+  assert.deepEqual(repeated.commitWire,secondReceipt);
+  assert.deepEqual(repeated.commands,['atlas.evidence.create','atlas.identity.replace']);
+  assert.equal(repeated.freshKey,true); assert.equal(repeated.assetGuardBound,true); assert.equal(repeated.noNewStageConsumption,true);
+  // Observe only directory count; never record paths, stage tokens or bindings.
+  const pendingStages = readdirSync(join(data,'media','uploads')).length;
+  assert.equal(pendingStages,0,'Genuine committed stage metadata retired; reuse issued no stage');
   assert.equal(runtimeErrors.length, 0);
   assert(observedUrls.every(url => url.startsWith(origin + '/')), 'Every page request remains on the real loopback origin');
   assert(responses.every(response => response.status === 200 || (response.status === 204 && response.url === origin + '/favicon.ico')), 'Only ordinary successful responses occur');
   assert(responses.some(response => response.url === origin + '/api/atlas/auth/logout' && response.status === 200));
   assert(responses.some(response => response.url === origin + '/api/atlas/auth/login' && response.status === 200));
   const evidence = {
-    flow: 'One healthy real React attachment upload with native Rust/SQLite/access/media/domain/stock peers',
+    flow: 'Two fresh healthy React attachment intents sharing one genuine original through Rust/SQLite/access/media/domain/stock peers',
     binarySha256: createHash('sha256').update(readFileSync(binary)).digest('hex'), browser: version.product,
     fixture: { initialRecords: 6, initialAudits: 0, preparedOriginals: preparedMedia.length, semanticsRecordId: U(400), identityRecordId: U(200) },
     upload: { filename, contentType: 'image/png', byteSize: uploadBytes.length, sha256: uploadSha256, reason, statement, sourceLicense: license, submissions: uploadRequests.length, formPolicy, receipt, canonicalReceiptDisplayed: true, actualRefresh: true },
     media: { status: delivered.status, bytesMatch: true, byteSize: uploadBytes.length, contentType: delivered.type, cache: delivered.cache, resource: delivered.resource, nosniff: delivered.nosniff },
     nativeWebMcp: { actualRegistration: true, visibleBeforeReturn: true, get: nativeRecord.wire, history: nativeHistory.wire },
     persisted: { counts: persisted.counts, orderedNativeStockHistoryLinkage: true, nativeBatchMatches: true, consumption: persisted.consumption, exactOriginalGuards: true, fullReasonPreserved: true, identityRevision: 2, semanticsRevision: 1 },
+    repeatedAttachment: { receipt:secondReceipt, counts:repeated.counts, originalAssetUnchanged:true, originalAuditUnchanged:true, exactAssetRevisionGuard:true, noNewStageConsumption:true, pendingStages },
     observedRequests: observedUrls.length,
-    limitations: ['Exactly one small generated PNG is uploaded once through the actual React form; no text/PDF, large-file or maximum-range qualification.', 'The fresh schema-5 disposable database is observed read-only after success; no existing-database upgrade, retry, replay, recovery, crash, fault, expiry, revocation, denial or concurrency control.', 'No provider, remote listener, private household data, operational grant or deployment.'],
+    limitations: ['One small generated PNG is attached through two separate fresh actual React intents; no text/PDF, large-file or maximum-range qualification.', 'The fresh schema-5 disposable database is observed read-only after success; no existing-database upgrade, retry, replay, recovery, crash, fault, expiry, revocation, denial or concurrency control.', 'No provider, remote listener, private household data, operational grant or deployment.'],
   };
   if (process.env.HOUSEATLAS_EVIDENCE) writeFileSync(process.env.HOUSEATLAS_EVIDENCE, JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));

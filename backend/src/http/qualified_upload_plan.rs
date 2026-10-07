@@ -379,3 +379,63 @@ pub fn qualify<'u>(
     }
     st::plan_staged_atlas_commands(root, staged, &NativeContracts)
 }
+
+/// Bind the actual resolved original revision without changing original guards.
+pub fn existing_stock_guards(
+    selection: &ResolvedPlace<'_, '_>,
+    asset: &s::ExistingOriginalAsset,
+) -> st::StockResult<Value> {
+    let mut guards = selection.stock_guards();
+    let rows = guards.as_array_mut().ok_or_else(unavailable)?;
+    let target = json!({"authority":"atlas","recordType":"asset","recordId":asset.asset_id()});
+    if rows.iter().any(|guard| guard["target"] == target) || rows.len() >= 100 {
+        return Err(changed());
+    }
+    rows.push(json!({"target":target,"revision":{"kind":"atlas","value":asset.record().revision}}));
+    Ok(guards)
+}
+
+/// The same original selection/principal qualifies a newly measured attachment.
+pub fn qualify_existing<'u>(
+    principal: &RequestPrincipal,
+    selection: &ResolvedPlace<'_, '_>,
+    root: &st::ValidatedRequest,
+    asset: &'u s::ExistingOriginalAsset,
+    measured: &'u crate::media::vault::PreparedOriginal,
+) -> st::StockResult<st::ExistingAssetAttachmentPlan<'u>> {
+    let children = root.children();
+    if !std::ptr::eq(principal, selection.principal)
+        || principal.principal.scope().workspace_id.as_str() != root.context().workspace_id
+        || principal.principal.scope().home_id.as_str() != root.context().home_id
+        || root.id() != O::AtlasBatchExecute
+        || children.len() != 2
+        || children[0].id() != O::AtlasEvidenceCreate
+        || children[1].id() != O::AtlasIdentityReplace
+    {
+        return Err(changed());
+    }
+    let guards = existing_stock_guards(selection, asset)?;
+    let evidence_id = children[0].target()["recordId"]
+        .as_str()
+        .ok_or_else(invalid)?;
+    if root.raw()["requestId"] != selection.metadata.request_id
+        || root.raw()["idempotencyKey"] != selection.metadata.idempotency_key
+        || root.raw()["reason"] != selection.metadata.reason
+        || root.raw()["preconditions"]["guards"] != guards
+        || children.iter().any(|child| {
+            child.raw()["reason"] != selection.metadata.reason
+                || child.raw()["context"] != root.raw()["context"]
+                || child.raw()["preconditions"]["guards"] != guards
+        })
+        || children[0].payload()["statement"] != selection.metadata.statement
+        || children[1].target()["recordId"] != selection.identity.target.record_id
+        || children[1].payload() != &selection.identity_payload_with_evidence(evidence_id)?
+        || children[1].raw()["preconditions"]["target"]
+            != json!({"kind":"atlas","value":selection.identity.revision})
+        || measured.purpose != crate::media::types::AssetPurpose::EvidenceOriginal
+        || measured.content_type.as_str() != selection.metadata.content_type
+    {
+        return Err(changed());
+    }
+    st::plan_existing_asset_attachment(root, asset, measured, &NativeContracts)
+}

@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "139b9fd3c431d46494fcd7dcfd8ac9840d706ebec788017ab382ea15028998bc",
+  "sourceDigestSha256": "e4e6f71a93e19c2fde11a1fdc13a7427045bcd48ca919ca9ae0b6c7de8262e0d",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -76,15 +76,15 @@
     {
       "path": "Cargo.lock",
       "mode": "100644",
-      "bytes": 68757,
-      "sha256": "398928b04d2bf2f9f33a4adb04eb94c70fd255feb7394298be4c06a171e782d8",
+      "bytes": 69267,
+      "sha256": "3cf336251020c03f844c7739a27189c3cc7aa8e04843ee6a0fc5c8e2b19ebfe6",
       "owner": "core-integration"
     },
     {
       "path": "Cargo.toml",
       "mode": "100644",
-      "bytes": 1824,
-      "sha256": "f8bdca1737331afda3e17dc753ddd5cd3c11ac5c0202502797fcf758529c0578",
+      "bytes": 1840,
+      "sha256": "e06a02df2108659ae231671fedcb590c7ce8e92a6461b6ef9da7ba1153dcbff5",
       "owner": "core-integration"
     },
     {
@@ -244,8 +244,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 1608,
-      "sha256": "8f6098a2d1efc9595ce7e0e2c740831d6185b2918996b2a5d9581b17955de8ab",
+      "bytes": 1629,
+      "sha256": "2f1712e43d4ac9f7a50345d3aa6fbef82a6520d9fe4d7d8d70cb96ddb55af317",
       "owner": "core-integration"
     },
     {
@@ -802,10 +802,24 @@
       "owner": "domain"
     },
     {
+      "path": "backend/src/domain/stock/existing_asset_attachment.md",
+      "mode": "100644",
+      "bytes": 3990,
+      "sha256": "0f70841ce3dc83a512bc1887e92f9500c4b9e152d6539549bbecc0355244f2ae",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/existing_asset_attachment.rs",
+      "mode": "100644",
+      "bytes": 5323,
+      "sha256": "0172d3d8f9660de721a7b23b856dace0b21bdcb9f7f8dce4006875de4bdafb03",
+      "owner": "domain"
+    },
+    {
       "path": "backend/src/domain/stock/mod.rs",
       "mode": "100644",
-      "bytes": 1601,
-      "sha256": "e6cc9fb006220ba6b64d15d6aaaa1a113a681cbd202136182552a9cf81b270be",
+      "bytes": 1670,
+      "sha256": "faf8c290501d20432e2b8122adf86c9a3d7ffb68a7ef87fa45972af7d2430a44",
       "owner": "domain"
     },
     {
@@ -979,8 +993,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 20756,
-      "sha256": "5a6c98c4d1b3569c81a3d7605c9dcf43efa3e21f33beb56b12f6064c3184d9f5",
+      "bytes": 20727,
+      "sha256": "f5072f6a5c4a09891d8d45a39bd9495e3c4f0f64d6d486be904c5f193a85ace4",
       "owner": "core-integration"
     },
     {
@@ -1021,8 +1035,8 @@
     {
       "path": "backend/src/http/qualified_upload_plan.rs",
       "mode": "100644",
-      "bytes": 14101,
-      "sha256": "333c722358b90048a53bcf966ed3088ed139d19e837463930a1c7703cc38abb3",
+      "bytes": 16972,
+      "sha256": "63ee5bf60399b88d92d4f247f86a8469e46bc665d8a1fd73c76b4a7847bfe17f",
       "owner": "core-integration"
     },
     {
@@ -1049,8 +1063,8 @@
     {
       "path": "backend/src/http/stock_mutations.rs",
       "mode": "100644",
-      "bytes": 23597,
-      "sha256": "b583cf5ce1346aa5e20788b48a8182e140ac4799a98afe2c3715387458c6d40b",
+      "bytes": 24638,
+      "sha256": "2865b769e8e271924ed6df621b56fcb9f55e705261c8f4c763ab3e04b40f2c57",
       "owner": "core-integration"
     },
     {
@@ -1063,15 +1077,15 @@
     {
       "path": "backend/src/http/upload.rs",
       "mode": "100644",
-      "bytes": 7442,
-      "sha256": "ee66cc72c8460d2ac4afd5a8de281d769d3bd1e561e7204641d7d487b87e98a8",
+      "bytes": 10282,
+      "sha256": "82ef79062eeb30a1b4ff8e63d933920dde357f2e4357d71eca676b9e09d32414",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/http/upload_batch.rs",
       "mode": "100644",
-      "bytes": 5241,
-      "sha256": "3b577cdfaa4803c7e0b7fb121237bb0db649863286bd88f38a2864c29a9a3adb",
+      "bytes": 7840,
+      "sha256": "dffccf25cc1ff3db1dcfc9335402bf9ee357748b228baa637cd5c8267bca0922",
       "owner": "core-integration"
     },
     {
@@ -1203,8 +1217,8 @@
     {
       "path": "backend/src/media/INTEGRATION.md",
       "mode": "100644",
-      "bytes": 37983,
-      "sha256": "fe465bd85bb6448d8c7f9142e1f09f37030573eaaed50214f908f221a0944ab7",
+      "bytes": 38525,
+      "sha256": "9fadaf1041e8e46585e317b978828205c037f3b7ccdd239909b1b4611408b543",
       "owner": "media"
     },
     {
@@ -1231,8 +1245,8 @@
     {
       "path": "backend/src/media/content.rs",
       "mode": "100644",
-      "bytes": 9542,
-      "sha256": "48cd9068a5a40842df9efdc325c3ec7acab00f0ec297c28cfe266b1e0e4d95de",
+      "bytes": 9968,
+      "sha256": "3dccb03c79ce809f76943ff062a4d5a041bc1fabd9b12370d589e1cc040bad62",
       "owner": "media"
     },
     {
@@ -1250,6 +1264,13 @@
       "owner": "media"
     },
     {
+      "path": "backend/src/media/healthy_review_examples.rs",
+      "mode": "100644",
+      "bytes": 11853,
+      "sha256": "f21092c02a969b243061f74150499e4ead706792e2d8e92e044607847c398e1c",
+      "owner": "media"
+    },
+    {
       "path": "backend/src/media/healthy_upload_examples.rs",
       "mode": "100644",
       "bytes": 8341,
@@ -1259,8 +1280,8 @@
     {
       "path": "backend/src/media/mod.rs",
       "mode": "100644",
-      "bytes": 911,
-      "sha256": "e0d71b9cdd550ef69011e3598f4a4251cc9cea07889ce4d43c4e29dc62afb5cd",
+      "bytes": 953,
+      "sha256": "4896807057d809cc4c5cf30c8b7125571ed1147b7c333b0e82476b418e97504c",
       "owner": "media"
     },
     {
@@ -1287,8 +1308,8 @@
     {
       "path": "backend/src/media/private_fs.rs",
       "mode": "100644",
-      "bytes": 11314,
-      "sha256": "b8724ecb1cb347c6283438dafe001194e8f3be3e38bb10c1358535a01987591a",
+      "bytes": 12530,
+      "sha256": "c14bd0a4a3e6cf424979f81eb5bfdc1712ad556057dac905d92645fab25cc1b8",
       "owner": "media"
     },
     {
@@ -1308,8 +1329,8 @@
     {
       "path": "backend/src/media/staged_upload.rs",
       "mode": "100644",
-      "bytes": 14968,
-      "sha256": "e1a14fdc81f5e7250a4c0b78ba49daca3a41469dcd6b02c7b26624f62b26a288",
+      "bytes": 15928,
+      "sha256": "747c1b184712b89929ef8e8c3db815ab36b6d2c3f8e0267278c243b0e28ddbd3",
       "owner": "media"
     },
     {
@@ -1320,10 +1341,17 @@
       "owner": "media"
     },
     {
+      "path": "backend/src/media/upload_maintenance.rs",
+      "mode": "100644",
+      "bytes": 12170,
+      "sha256": "28dd6a640e57ef4d3103982b1b33de6275323dd8d12a8e34ff4a266cfd5da60d",
+      "owner": "media"
+    },
+    {
       "path": "backend/src/media/vault.rs",
       "mode": "100644",
-      "bytes": 13135,
-      "sha256": "dc588c909aabe527db5a440a23bc9f59019762687ace2f55d18d9f3ecb693735",
+      "bytes": 17580,
+      "sha256": "e0f268fbb245ac9fe5d68702beb42f017a6cd3eb2fc073246c1cdb08064a52c0",
       "owner": "media"
     },
     {
@@ -1644,8 +1672,8 @@
     {
       "path": "backend/src/storage/README.md",
       "mode": "100644",
-      "bytes": 43318,
-      "sha256": "4570fe2eaafc0aac07fc47a4e2c9b7fffe17e9dc0c3f2375117afbdaa2348ef1",
+      "bytes": 45717,
+      "sha256": "5b10b194e26f998d4c1a784e36ca15bb1ab5e6ccaeb7c399ae4628508a7fc6f6",
       "owner": "storage"
     },
     {
@@ -1749,8 +1777,8 @@
     {
       "path": "backend/src/storage/checks/upload-healthy.rs",
       "mode": "100644",
-      "bytes": 36672,
-      "sha256": "6644cc8c672438c98beb4e2de610e264bda92043d6881de04d3595b1a7b3bee4",
+      "bytes": 38582,
+      "sha256": "d94393bd7983c0fabe0acbf3f9fd2bb2a9b6a42b2c9c8130b88df64c72f470d8",
       "owner": "storage"
     },
     {
@@ -1791,8 +1819,8 @@
     {
       "path": "backend/src/storage/mod.rs",
       "mode": "100644",
-      "bytes": 1430,
-      "sha256": "0d91e80ec00f69557621af35ace97b2262a70cb290f4beeeff8fd24db9d94fcb",
+      "bytes": 1453,
+      "sha256": "dc417a279cf0f39a5deef322f6d18eabe315dcd6aa18c8d59e08da1da2c7b55a",
       "owner": "storage"
     },
     {
@@ -1994,8 +2022,8 @@
     {
       "path": "backend/src/storage/store.rs",
       "mode": "100644",
-      "bytes": 11900,
-      "sha256": "6bcc4a339c7c49a574714833be015e85164097c70a7693dea37d151921c9b929",
+      "bytes": 11950,
+      "sha256": "bcd0d3738b0fcdc93049e2ac22897105ef948b6d36125054a84a0c25594ec029",
       "owner": "storage"
     },
     {
@@ -2006,17 +2034,24 @@
       "owner": "storage"
     },
     {
+      "path": "backend/src/storage/upload_queries.rs",
+      "mode": "100644",
+      "bytes": 4717,
+      "sha256": "26013c608f8ef251c2ba4ff1a3b67db97501cc7727e56313163f1a2352411474",
+      "owner": "storage"
+    },
+    {
       "path": "backend/src/storage/upload_repository.rs",
       "mode": "100644",
-      "bytes": 16569,
-      "sha256": "ef95d04373da3f4a6e902c12c2dda2b83a25d790135f367c7b0bfb6127e9549e",
+      "bytes": 20411,
+      "sha256": "37e34adac2930685b761856d076a77c2cbf8bf36d86cd7fc9a5338ed75cf709f",
       "owner": "storage"
     },
     {
       "path": "backend/src/storage/upload_types.rs",
       "mode": "100644",
-      "bytes": 2966,
-      "sha256": "cec43dee3b8fb8455703af8fab730bffffb6a81a2ea01b12316344c42a3dc84b",
+      "bytes": 3934,
+      "sha256": "288ddb8ef4807353e7d3de6eff94ca38b3f927d4bacfc7eeb8533960a80e3df6",
       "owner": "storage"
     },
     {
@@ -2470,8 +2505,8 @@
     {
       "path": "docs/rust-integration/upload-preparation.md",
       "mode": "100644",
-      "bytes": 7703,
-      "sha256": "ee3adbcb84428b8d908e16991928f6da5385ef1849cff5590e8038b2063c5e15",
+      "bytes": 8772,
+      "sha256": "c0e537f9872fd3d837ac9076a7e46db59e92eba5ff02e417c60b5561e3eaa6ae",
       "owner": "core-integration"
     },
     {
@@ -3772,8 +3807,8 @@
     {
       "path": "tools/rust-integration/healthy-upload-loopback.mjs",
       "mode": "100644",
-      "bytes": 45415,
-      "sha256": "6a67352d335b210dc9b4de714deeb7f95769f52b458e78ae69a346070e27af16",
+      "bytes": 51807,
+      "sha256": "8263ee49a2fe3b7f60f1b58c9dad05c1176ff10fac3e7d318ab04a78d3ac3124",
       "owner": "core-integration"
     },
     {

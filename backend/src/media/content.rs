@@ -1,8 +1,9 @@
-//! Bounded static 8-bit RGB/RGBA PNG decoding; PDF and UTF-8 text are originals
+//! Bounded standard static PNG decoding and stripped RGBA preview encoding;
+//! PDF and UTF-8 text are originals
 //! for download only. This validates framing, not PDF document safety.
-use std::io::{Read, Write};
+use std::io::{Cursor, Write};
 
-use flate2::{Compression, read::ZlibDecoder, write::ZlibEncoder};
+use flate2::{Compression, write::ZlibEncoder};
 
 use super::types::ContentType;
 use super::{MAX_BYTES, MediaError, MediaResult, WorkBudget};
@@ -63,7 +64,6 @@ pub fn render_png(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Vec<u8>> {
     }
     let mut offset = 8usize;
     let mut header = None;
-    let mut idat = Vec::new();
     let mut state = 0u8;
     let mut has_idat = false;
     let mut ended = false;
@@ -115,7 +115,13 @@ pub fn render_png(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Vec<u8>> {
                 {
                     return Err(MediaError::TooLarge);
                 }
-                if h[8] != 8 || !matches!(h[9], 2 | 6) || h[10..].iter().any(|b| *b != 0) {
+                if !matches!(
+                    (h[9], h[8]),
+                    (0, 1 | 2 | 4 | 8 | 16) | (2 | 4 | 6, 8 | 16) | (3, 1 | 2 | 4 | 8)
+                ) || h[10] != 0
+                    || h[11] != 0
+                    || h[12] > 1
+                {
                     return Err(MediaError::Unsupported);
                 }
                 header = Some(h);
@@ -126,7 +132,6 @@ pub fn render_png(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Vec<u8>> {
                 }
                 state = 1;
                 has_idat = true;
-                idat.extend_from_slice(data);
             }
             b"IEND" => {
                 if !has_idat || len != 0 || end != bytes.len() {
@@ -134,7 +139,7 @@ pub fn render_png(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Vec<u8>> {
                 }
                 ended = true;
             }
-            b"acTL" | b"fcTL" | b"fdAT" | b"tRNS" => return Err(MediaError::Unsupported),
+            b"acTL" | b"fcTL" | b"fdAT" => return Err(MediaError::Unsupported),
             _ => {
                 if state == 1 {
                     state = 2;
@@ -165,67 +170,78 @@ pub fn render_png(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Vec<u8>> {
             .try_into()
             .map_err(|_| MediaError::Unsupported)?,
     ) as usize;
-    let bpp = if header[9] == 6 { 4 } else { 3 };
-    let stride = width.checked_mul(bpp).ok_or(MediaError::TooLarge)?;
-    let size = height.checked_mul(stride + 1).ok_or(MediaError::TooLarge)?;
-    let mut decoder = ZlibDecoder::new(idat.as_slice());
+    let mut decoder = png::Decoder::new(Cursor::new(bytes));
+    decoder.set_limits(png::Limits {
+        bytes: 256 * 1024 * 1024,
+    });
+    decoder.set_ignore_text_chunk(true);
+    decoder.set_ignore_iccp_chunk(true);
+    decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
+    budget.check()?;
+    let mut reader = decoder.read_info().map_err(|_| MediaError::Unsupported)?;
+    let size = reader.output_buffer_size().ok_or(MediaError::TooLarge)?;
+    if size > (MAX_PIXELS as usize) * 4 {
+        return Err(MediaError::TooLarge);
+    }
     let mut raw = Vec::new();
     raw.try_reserve_exact(size)
         .map_err(|_| MediaError::TooLarge)?;
-    let mut scratch = [0u8; 65536];
-    loop {
-        budget.check()?;
-        let limit = scratch.len().min(size + 1 - raw.len());
-        let read = decoder
-            .read(&mut scratch[..limit])
-            .map_err(|_| MediaError::Unsupported)?;
-        if read == 0 {
-            break;
-        }
-        raw.extend_from_slice(&scratch[..read]);
-        if raw.len() > size {
-            return Err(MediaError::Unsupported);
-        }
-    }
-    if raw.len() != size {
+    raw.resize(size, 0);
+    budget.check()?;
+    let frame = reader
+        .next_frame(&mut raw)
+        .map_err(|_| MediaError::Unsupported)?;
+    reader.finish().map_err(|_| MediaError::Unsupported)?;
+    budget.check()?;
+    if frame.width as usize != width
+        || frame.height as usize != height
+        || frame.bit_depth != png::BitDepth::Eight
+        || frame.buffer_size() != size
+    {
         return Err(MediaError::Unsupported);
     }
-    let mut scanlines = vec![0u8; size];
-    for y in 0..height {
+    let channels = match frame.color_type {
+        png::ColorType::Grayscale => 1,
+        png::ColorType::GrayscaleAlpha => 2,
+        png::ColorType::Rgb => 3,
+        png::ColorType::Rgba => 4,
+        png::ColorType::Indexed => return Err(MediaError::Unsupported),
+    };
+    let stride = width
+        .checked_mul(4)
+        .and_then(|n| n.checked_add(1))
+        .ok_or(MediaError::TooLarge)?;
+    let mut row = Vec::new();
+    row.try_reserve_exact(stride)
+        .map_err(|_| MediaError::TooLarge)?;
+    row.resize(stride, 0);
+    let mut encoder = ZlibEncoder::new(LimitedOutput(Vec::new()), Compression::new(6));
+    for samples in raw.chunks_exact(frame.line_size) {
         budget.check()?;
-        let row = y * (stride + 1);
-        let filter = raw[row];
-        if filter > 4 {
-            return Err(MediaError::Unsupported);
-        }
-        for x in 0..stride {
-            if x & 65535 == 0 {
+        for (index, (source, target)) in samples
+            .chunks_exact(channels)
+            .zip(row[1..].as_chunks_mut::<4>().0.iter_mut())
+            .enumerate()
+        {
+            if index & 16383 == 0 {
                 budget.check()?;
             }
-            let at = row + 1 + x;
-            let a = if x >= bpp { scanlines[at - bpp] } else { 0 };
-            let b = if y > 0 { scanlines[at - stride - 1] } else { 0 };
-            let c = if y > 0 && x >= bpp {
-                scanlines[at - stride - 1 - bpp]
-            } else {
-                0
-            };
-            let add = match filter {
-                0 => 0,
-                1 => a,
-                2 => b,
-                3 => ((u16::from(a) + u16::from(b)) / 2) as u8,
-                _ => paeth(a, b, c),
-            };
-            scanlines[at] = raw[at].wrapping_add(add);
+            match channels {
+                1 => target.copy_from_slice(&[source[0], source[0], source[0], 255]),
+                2 => target.copy_from_slice(&[source[0], source[0], source[0], source[1]]),
+                3 => target.copy_from_slice(&[source[0], source[1], source[2], 255]),
+                _ => target.copy_from_slice(source),
+            }
+        }
+        for chunk in row.chunks(65536) {
+            budget.check()?;
+            encoder.write_all(chunk).map_err(|_| MediaError::TooLarge)?;
         }
     }
-    drop(raw);
-    let mut encoder = ZlibEncoder::new(LimitedOutput(Vec::new()), Compression::new(6));
-    for chunk in scanlines.chunks(65536) {
-        budget.check()?;
-        encoder.write_all(chunk).map_err(|_| MediaError::TooLarge)?;
-    }
+    let mut header = header;
+    header[8] = 8;
+    header[9] = 6;
+    header[12] = 0;
     let encoded = encoder.finish().map_err(|_| MediaError::TooLarge)?.0;
     budget.check()?;
     let mut output = PNG_SIGNATURE.to_vec();
@@ -236,19 +252,6 @@ pub fn render_png(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Vec<u8>> {
         return Err(MediaError::TooLarge);
     }
     Ok(output)
-}
-
-fn paeth(a: u8, b: u8, c: u8) -> u8 {
-    let (a, b, c) = (i32::from(a), i32::from(b), i32::from(c));
-    let p = a + b - c;
-    let (x, y, z) = ((p - a).abs(), (p - b).abs(), (p - c).abs());
-    if x <= y && x <= z {
-        a as u8
-    } else if y <= z {
-        b as u8
-    } else {
-        c as u8
-    }
 }
 
 fn png_chunk(output: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {

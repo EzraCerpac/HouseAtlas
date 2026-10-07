@@ -416,3 +416,91 @@ pub(crate) fn validate_all<C: Contract, S: stock::StockContractPort>(
     }
     Ok(())
 }
+
+/// Fixed scoped token lookup, including complete original native/stock links.
+/// Neither a token nor a decoded binding confers any authorization.
+pub(crate) fn load_for_token<C: Contract, S: stock::StockContractPort>(
+    db: &Connection,
+    native: &C,
+    schemas: &S,
+    scope: &Scope,
+    token: &str,
+) -> Result<Option<ConsumedUpload>> {
+    uuid(native, token)?;
+    let token_hash = super::migrations::sha256(token.as_bytes());
+    let mut query=db.prepare(&format!("SELECT {COLUMNS} FROM upload_consumptions WHERE token_hash=?1 AND workspace_id=?2 AND home_id=?3"))?;
+    let mut rows = query.query(params![token_hash, scope.workspace_id, scope.home_id])?;
+    let Some(row) = rows.next()? else {
+        return Ok(None);
+    };
+    let consumed = decode_row(native, schemas, row)?;
+    let commit = stock_repo::load(
+        db,
+        native,
+        scope,
+        consumed.actor_id(),
+        consumed.root_operation_id(),
+    )?;
+    validate_links(db, native, &consumed, &commit)?;
+    super::stock_projection::validate_retained(db, &commit, schemas, native)?;
+    Ok(Some(consumed))
+}
+
+pub(crate) fn existing_original<C: Contract>(
+    db: &Connection,
+    native: &C,
+    scope: &Scope,
+    prepared: &PreparedOriginal,
+) -> Result<Option<ExistingOriginalAsset>> {
+    if !prepared.purpose.is_original() {
+        return Err(Error::new(
+            "invalid-contract",
+            "Original asset purpose is required",
+        ));
+    }
+    let media_scope = media::Scope {
+        workspace_id: scope.workspace_id.clone(),
+        home_id: scope.home_id.clone(),
+    };
+    let key = media_scope
+        .storage_key(&prepared.identity.sha256)
+        .map_err(|_| incompatible())?;
+    require(prepared.storage_key == key)?;
+    let Some((id,manifest_json,revision,record_json))=db.query_row(
+        "SELECT m.record_id,m.body,r.revision,r.body FROM asset_manifests m JOIN records r ON r.workspace_id=m.workspace_id AND r.record_id=m.record_id AND r.home_id=m.home_id WHERE m.workspace_id=?1 AND m.home_id=?2 AND m.storage_key=?3 AND r.record_type='asset'",
+        params![scope.workspace_id,scope.home_id,key],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,i64>(2)?,r.get::<_,String>(3)?)),
+    ).optional()? else {return Ok(None);};
+    let record: Record = serde_json::from_str(&record_json)?;
+    let manifest: Value = serde_json::from_str(&manifest_json)?;
+    native.validate_shape("record", &serde_json::to_value(&record)?)?;
+    native.validate_shape("assetPayload", &manifest)?;
+    require(
+        record.matches(
+            scope,
+            &RecordRef {
+                record_type: RecordType::Asset,
+                record_id: id,
+            },
+        ) && i64::try_from(record.revision).ok() == Some(revision)
+            && native.canonical_json(&serde_json::to_value(&record)?)? == record_json
+            && native.canonical_json(&manifest)? == manifest_json
+            && native.canonical_json(&record.payload)? == manifest_json,
+    )?;
+    // Existing provenance is returned intact. Submitted provenance cannot
+    // replace it, and another purpose/type cannot silently reuse this key.
+    if record.lifecycle != Lifecycle::Active
+        || manifest["availability"] != "available"
+        || manifest["owner"] != "atlas"
+        || manifest["purpose"] != serde_json::to_value(prepared.purpose)?
+        || manifest["contentType"] != prepared.content_type.as_str()
+        || manifest["storageKey"] != prepared.storage_key
+        || manifest["sha256"] != prepared.identity.sha256
+        || super::numeric::safe_integer(&manifest["byteSize"]) != Some(prepared.identity.byte_size)
+    {
+        return Err(Error::new(
+            "identity-conflict",
+            "Existing original asset is incompatible",
+        ));
+    }
+    Ok(Some(ExistingOriginalAsset { record }))
+}

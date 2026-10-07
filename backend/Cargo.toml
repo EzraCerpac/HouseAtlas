@@ -38,6 +38,7 @@ reqwest.workspace = true
 tokio-util.workspace = true
 flate2.workspace = true
 crc32fast.workspace = true
+png.workspace = true
 rustix.workspace = true
 tempfile.workspace = true
 
