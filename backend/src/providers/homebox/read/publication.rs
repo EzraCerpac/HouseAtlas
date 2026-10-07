@@ -1,53 +1,141 @@
-use super::{CompleteGeneration, SourceScope};
-use std::{fmt, future::Future};
-
-/// Captured by the shared authorized service before reads. Not an access grant.
-/// The store MUST compare this epoch with current source authority in its transaction.
-/// Provisional: this port also needs AT07's pre-read baseline generation/cache
-/// epoch and reserved generation ID. See the README reconciliation proposal.
-/// Scope/source_epoch alone are insufficient for production publication fencing.
-#[derive(Clone, Debug)]
-pub struct PublicationFence {
-    pub scope: SourceScope,
-    pub source_epoch: u64,
-}
+//! Consuming adapter for AT07's actual store-issued publication fence.
+use super::*;
+use crate::storage::{self, AtlasStore, Authorization, Contract, Runtime};
+use std::fmt;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PublishError {
     ScopeMismatch,
+    InvalidRetainedState,
+    Quarantined,
     StoreRejected,
 }
 impl fmt::Display for PublishError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            Self::ScopeMismatch => "Publication scope does not match the staged generation.",
+            Self::ScopeMismatch => "Publication scope does not match the reader.",
+            Self::InvalidRetainedState => {
+                "Retained generation does not match the published contract."
+            }
+            Self::Quarantined => "Source requires separately authorized scope revalidation.",
             Self::StoreRejected => "Complete-generation publication was not accepted by storage.",
         })
     }
 }
 impl std::error::Error for PublishError {}
 
-/// AT07 integration port, not a database implementation. Implementations atomically
-/// replace cache/projections under the current source epoch, retain Atlas identities
-/// and unresolved missing bindings, and preserve quarantine until admin reenable.
-/// Failure must leave the previous generation intact. No filtered-view port exists.
-pub trait GenerationPublisher {
-    type Receipt;
-    fn commit_complete(
-        &mut self,
-        generation: &CompleteGeneration,
-        fence: &PublicationFence,
-    ) -> impl Future<Output = Result<Self::Receipt, PublishError>> + Send;
+/// No Clone/Deserialize/construction from raw rows or a caller-supplied fence.
+/// The exact borrowed principal survives preparation, GET and commit.
+pub struct PreparedGeneration<'a, P> {
+    principal: &'a P,
+    fence: storage::CachePublicationFence,
+    previous: PreviousGeneration,
 }
-impl CompleteGeneration {
-    pub async fn publish<P: GenerationPublisher>(
-        &self,
-        publisher: &mut P,
-        fence: &PublicationFence,
-    ) -> Result<P::Receipt, PublishError> {
-        if self.cache.scope() != fence.scope {
-            return Err(PublishError::ScopeMismatch);
+pub struct StagedPublication<'a, P> {
+    principal: &'a P,
+    fence: storage::CachePublicationFence,
+    generation: CompleteGeneration,
+}
+#[derive(Debug)]
+pub enum RefreshError {
+    Publication(PublishError),
+    Read(Box<FailedRead>),
+}
+impl fmt::Display for RefreshError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Publication(error) => fmt::Display::fmt(error, f),
+            Self::Read(error) => fmt::Display::fmt(error, f),
         }
-        publisher.commit_complete(self, fence).await
+    }
+}
+impl std::error::Error for RefreshError {}
+impl<T: Transport, K: Clock> HomeBoxReader<T, K> {
+    pub fn prepare_publication<'a, C: Contract, A: Authorization, R: Runtime>(
+        &self,
+        store: &mut AtlasStore<C, A, R>,
+        principal: &'a A::Principal,
+    ) -> Result<PreparedGeneration<'a, A::Principal>, PublishError> {
+        let partition = storage::SourcePartition {
+            workspace_id: self.scope().workspace_id.as_str().into(),
+            home_id: self.scope().home_id.as_str().into(),
+            source_instance_id: self.scope().source_instance_id.as_str().into(),
+            collection_id: self.scope().collection_id.clone(),
+        };
+        let prepared = store
+            .prepare_cache_publication(principal, &partition.scope(), &partition)
+            .map_err(|_| PublishError::StoreRejected)?;
+        let (state, fence) = prepared.into_parts();
+        let previous = super::retained::previous(state, self.scope())?;
+        Ok(PreparedGeneration {
+            principal,
+            fence,
+            previous,
+        })
+    }
+}
+impl<'a, P> PreparedGeneration<'a, P> {
+    pub fn fence(&self) -> &storage::CachePublicationFence {
+        &self.fence
+    }
+    pub fn previous(&self) -> &PreviousGeneration {
+        &self.previous
+    }
+    pub async fn fetch<T: Transport, K: Clock>(
+        self,
+        reader: &mut HomeBoxReader<T, K>,
+    ) -> Result<StagedPublication<'a, P>, RefreshError> {
+        let partition = self.fence.partition();
+        let scope = reader.scope();
+        if partition.workspace_id != scope.workspace_id.as_str()
+            || partition.home_id != scope.home_id.as_str()
+            || partition.source_instance_id != scope.source_instance_id.as_str()
+            || partition.collection_id != scope.collection_id
+        {
+            return Err(RefreshError::Publication(PublishError::ScopeMismatch));
+        }
+        // An ordinary refresh cannot turn durable quarantine into fresh access.
+        if self.previous.cache().quarantined() || self.previous.quarantine {
+            return Err(RefreshError::Publication(PublishError::Quarantined));
+        }
+        let id = Uuid::parse(self.fence.reserved_generation_id())
+            .map_err(|_| RefreshError::Publication(PublishError::InvalidRetainedState))?;
+        let generation = reader
+            .fetch_generation(Some(&self.previous), id)
+            .await
+            .map_err(|error| RefreshError::Read(Box::new(error)))?;
+        Ok(StagedPublication {
+            principal: self.principal,
+            fence: self.fence,
+            generation,
+        })
+    }
+}
+impl<P> StagedPublication<'_, P> {
+    pub fn generation(&self) -> &CompleteGeneration {
+        &self.generation
+    }
+    pub fn commit<C: Contract, A: Authorization<Principal = P>, R: Runtime>(
+        self,
+        store: &mut AtlasStore<C, A, R>,
+    ) -> Result<storage::CacheStatus, PublishError> {
+        if self.generation.quarantine() {
+            return Err(PublishError::Quarantined);
+        }
+        let cache = serde_json::from_value(
+            serde_json::to_value(self.generation.cache())
+                .map_err(|_| PublishError::InvalidRetainedState)?,
+        )
+        .map_err(|_| PublishError::InvalidRetainedState)?;
+        let rows = self
+            .generation
+            .entities()
+            .iter()
+            .map(serde_json::to_value)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| PublishError::InvalidRetainedState)?;
+        store
+            .publish_prepared_generation(self.principal, self.fence, &cache, &rows, &[])
+            .map_err(|_| PublishError::StoreRejected)
     }
 }

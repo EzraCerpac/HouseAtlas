@@ -16,7 +16,24 @@ impl<'de> DeserializeSeed<'de> for JsonSeed {
         if self.0 > 64 {
             return Err(serde::de::Error::custom("nesting limit"));
         }
-        d.deserialize_any(self)
+        // Read lexical containers explicitly: arbitrary_precision numbers use a
+        // private Serde map representation, which must never be confused with an
+        // actual JSON extension object. RawValue retains that distinction.
+        let raw = <&serde_json::value::RawValue>::deserialize(d)?;
+        let token = raw.get();
+        let mut decoder = serde_json::Deserializer::from_str(token);
+        let value = match token.as_bytes().first() {
+            Some(b'{') => decoder.deserialize_map(self),
+            Some(b'[') => decoder.deserialize_seq(self),
+            _ => serde_json::from_str::<Value>(token),
+        }
+        .map_err(serde::de::Error::custom)?;
+        if let Value::Number(n) = &value
+            && n.as_f64().is_none_or(|n| !n.is_finite())
+        {
+            return Err(serde::de::Error::custom("nonfinite number"));
+        }
+        Ok(value)
     }
 }
 impl<'de> Visitor<'de> for JsonSeed {
@@ -100,19 +117,30 @@ impl WireEntity {
         Ok(())
     }
 }
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub(super) struct WirePage {
     pub items: Vec<Value>,
-    #[serde(deserialize_with = "super::types::deserialize_integral_u64")]
     pub page: u64,
-    #[serde(deserialize_with = "super::types::deserialize_integral_u64")]
     pub page_size: u64,
-    #[serde(deserialize_with = "super::types::deserialize_integral_u64")]
     pub total: u64,
 }
 pub(super) fn page(value: Value) -> Result<WirePage, ReadError> {
-    serde_json::from_value(value).map_err(|_| invalid())
+    #[derive(Deserialize)]
+    struct Integer(#[serde(deserialize_with = "super::types::deserialize_integral_u64")] u64);
+    let integer = |key: &str| -> Result<u64, ReadError> {
+        let value = value.get(key).ok_or_else(invalid)?;
+        if !value.is_number() {
+            return Err(invalid());
+        }
+        serde_json::from_value::<Integer>(value.clone())
+            .map(|v| v.0)
+            .map_err(|_| invalid())
+    };
+    Ok(WirePage {
+        items: value["items"].as_array().ok_or_else(invalid)?.clone(),
+        page: integer("page")?,
+        page_size: integer("pageSize")?,
+        total: integer("total")?,
+    })
 }
 
 /// Normalize only UUID fields; collection IDs remain opaque and case-sensitive.
@@ -239,6 +267,9 @@ fn attachments(value: Value) -> Result<Vec<Attachment>, ReadError> {
         )?;
         // A provider cannot mint an Atlas media capability. Preserve metadata only.
         if stored {
+            if !raw["byteSize"].is_null() && !raw["byteSize"].is_number() {
+                return Err(invalid());
+            }
             raw["proxyRef"] = Value::Null;
         }
         let a: Attachment = serde_json::from_value(raw).map_err(|_| invalid())?;

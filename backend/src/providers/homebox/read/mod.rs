@@ -5,6 +5,7 @@ mod error;
 mod http_transport;
 mod navigation;
 mod publication;
+mod retained;
 mod types;
 
 pub use client::{Body, Clock, GetRequest, GetResponse, HomeBoxReader, Limits, Transport};
@@ -13,7 +14,7 @@ pub use http_transport::{
     AuthorizationHeader, CredentialProvider, HttpBody, HttpTransport, SourceEndpoint,
 };
 pub use navigation::{NativeNavigation, NativeRoute};
-pub use publication::{GenerationPublisher, PublicationFence, PublishError};
+pub use publication::{PreparedGeneration, PublishError, RefreshError, StagedPublication};
 pub use types::*;
 
 pub const HOMEBOX_REFERENCE_VERSION: &str = "v0.26.2";

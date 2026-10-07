@@ -7,29 +7,24 @@ use std::collections::BTreeSet;
 /// JSON Schema integer describes a value, not a particular numeric spelling.
 /// Accept integral floats without Rust's saturating out-of-range float casts.
 pub(super) fn deserialize_integral_u64<'de, D: Deserializer<'de>>(d: D) -> Result<u64, D::Error> {
-    struct Integral;
-    impl<'de> serde::de::Visitor<'de> for Integral {
-        type Value = u64;
-        fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.write_str("a nonnegative integral JSON number within the u64 range")
-        }
-        fn visit_u64<E: Error>(self, v: u64) -> Result<u64, E> {
-            Ok(v)
-        }
-        fn visit_i64<E: Error>(self, v: i64) -> Result<u64, E> {
-            u64::try_from(v).map_err(E::custom)
-        }
-        fn visit_f64<E: Error>(self, v: f64) -> Result<u64, E> {
-            // u64::MAX rounds UP to 2^64 as f64; that bound must be exclusive.
-            const EXCLUSIVE_LIMIT: f64 = 18_446_744_073_709_551_616.0;
-            if v.is_finite() && (0.0..EXCLUSIVE_LIMIT).contains(&v) && v.fract() == 0.0 {
-                Ok(v as u64)
-            } else {
-                Err(E::custom("integral number outside the u64 range"))
-            }
-        }
+    // Reuse AT51's lexical classification before any bounded conversion.
+    let integer = crate::contracts::JsonInteger::deserialize(d)?;
+    let number = integer.as_number();
+    if let Some(v) = number.as_u64() {
+        return Ok(v);
     }
-    d.deserialize_any(Integral)
+    if let Some(v) = number.as_i64() {
+        return u64::try_from(v).map_err(D::Error::custom);
+    }
+    let v = number
+        .as_f64()
+        .ok_or_else(|| D::Error::custom("number outside range"))?;
+    const EXCLUSIVE_LIMIT: f64 = 18_446_744_073_709_551_616.0;
+    if v.is_finite() && (0.0..EXCLUSIVE_LIMIT).contains(&v) && v.fract() == 0.0 {
+        Ok(v as u64)
+    } else {
+        Err(D::Error::custom("integral number outside the u64 range"))
+    }
 }
 
 fn deserialize_optional_integral_u64<'de, D: Deserializer<'de>>(
@@ -169,7 +164,7 @@ pub struct EntityType {
 pub struct Parent {
     pub id: Uuid,
 }
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Entity {
     pub id: Uuid,
@@ -223,7 +218,7 @@ pub struct Maintenance {
     pub completed_date: Option<Timestamp>,
     pub cost: Option<f64>,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum NativeIntent {
     View,
@@ -260,7 +255,7 @@ pub struct Projection {
     pub maintenance: Vec<Maintenance>,
     pub native_links: Vec<NativeLink>,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum CacheState {
     Empty,

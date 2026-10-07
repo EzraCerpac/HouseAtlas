@@ -1,202 +1,160 @@
 # AT08 Rust HomeBox reads
 
-This namespace is based only on published HouseAtlas commit
-`9f7561d99e09a680ec5282ca0c8aed4e10c6cbc9`. It supplies an embeddable component
-for the modular monolith, with no HTTP server, credential store,
-SQLite implementation, provider writes or attachment download.
+This embeddable component descends only from published HouseAtlas baseline
+`9f7561d99e09a680ec5282ca0c8aed4e10c6cbc9`. AT08 edits only this namespace;
+root manifests, locks, generated contracts and peer sources remain owner-managed.
+There are no provider writes, embedded credentials, media downloads or HTTP server.
 
-## Interfaces for reconciliation
+## Host dependencies and interfaces
 
-AT51 should expose `providers::homebox::read` through the shared module tree.
-No shared manifests, locks, generated contracts or sibling namespaces are edited.
-The task-owned compiler harness uses edition 2024 and these exact dependencies:
+The continuation's external compiler harness uses edition 2024 with these pins:
 
 ```toml
-serde = { version = "=1.0.228", features = ["derive"] }
-serde_json = "=1.0.145"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = { version = "=1.0.151", features = ["arbitrary_precision", "float_roundtrip", "raw_value"] }
 chrono = { version = "=0.4.42", default-features = false, features = ["std"] }
 url = "=2.5.7"
 fluent-uri = { version = "=0.4.1", default-features = false }
-tokio = { version = "=1.48.0", features = ["time", "rt", "macros", "net", "io-util"] }
+tokio = { version = "=1.53.2", features = ["time", "rt", "macros", "net", "io-util"] }
 reqwest = { version = "=0.13.5", default-features = false, features = ["rustls"] }
 ```
 
-The external harness retains its own Cargo.lock. Tokio supplies timers and a
-current-thread runtime and networking for the disposable loopback example. Chrono validates
-RFC3339 strings without replacing their original precision or offset. These pins
-are a narrow dependency proposal; shared application selection remains with AT51.
-The feature-disabled `fluent-uri` parser validates a borrowed original RFC3986 URI
-before WHATWG URL parsing; no normalization, resolution or retrieval is performed.
-
+AT51/52 should reconcile these in the shared manifest and expose this module.
 `HomeBoxReader::new(registration, transport, clock, limits, navigation)` freezes
-the server-provided registration and navigation. `Transport::get(GetRequest)`
-returns `GetResponse<Body>`; `Body::next_chunk` transfers owned byte vectors.
-The request exposes GET, a fixed relative path, repeated query pairs, exact scope,
-the `X-Tenant` value, a redirect refusal policy and an absolute monotonic deadline.
-It has no credentials, arbitrary headers, URL override or write operation.
+server-provided scope/registration. `Transport::get(GetRequest)` accepts only a
+fixed relative GET path, repeated query pairs, full partition, tenant and monotonic
+deadline. `Body::next_chunk` transfers owned byte vectors. No browser URL override,
+arbitrary header or write operation is exposed. Clock timestamps retain spelling.
 
-`fetch_generation(previous, server_generation_id)` returns either a privately
-constructed `CompleteGeneration` or `FailedRead`. A complete result exposes
-cache, projections, unresolved missing external IDs, stats and retained quarantine.
-It is a staged publication candidate, with a `revalidation-candidate` transition
-and `deletion_confirmed() == false`. Missing rows never delete Atlas records or
-prove upstream deletion. A successful empty collection has a fresh generation.
+`fetch_generation(previous, server_generation_id)` returns an opaque
+`CompleteGeneration` or sanitized `FailedRead`. Complete results expose cache,
+projections, unresolved missing external IDs, stats and retained quarantine.
+Missing entities never delete Atlas identities or prove upstream deletion.
+A successful empty collection is a complete fresh generation.
 
-`fetch_view(parent_ids)` returns a different `FilteredView` type containing only
-projections and stats. It has no cache, generation, missing-record evidence or
-publication method. Its successful quarantine transition is `preserve`. Parent
-filters are unavailable on the full-generation method. Source-scope/auth failures
-offer `quarantine`; unrelated view failures leave quarantine unchanged. Full-read
-failures propose failure metadata only and preserve prior generation/success times.
-An invalid prior state produces no cache proposal. Failure objects contain only
-fixed error codes/messages; response data and driver diagnostics are not exposed.
+`fetch_view(parent_ids)` returns a separate `FilteredView` with only projections
+and stats. It has no generation, complete cache or publication method; successful
+filtered reads never freshen the complete cache. Auth/scope failures propose
+quarantine; unrelated failures preserve quarantine. Failure proposals retain
+prior successful generation/timestamps and contain fixed messages, no response data.
+`cache_freshness` is pure and confers no cached-access authority.
 
-`CompleteGeneration::publish(publisher, fence)` checks the full scope then hands
-the immutable candidate to `GenerationPublisher::commit_complete`. The fence
-contains full scope and captured source epoch. AT07 must implement one transaction
-which verifies current authority/epoch, atomically replaces cache and projections,
-retains Atlas identities and unresolved bindings, and preserves quarantine. A failed
-commit must leave the previous generation intact. Only complete generations can
-enter this port; there is no filtered-view publication operation. The synthetic
-publisher example checks the handoff only, not these storage guarantees.
+## Concrete bounded HTTP transport
 
-The compiled fence is provisional and currently carries only scope/source epoch.
-That is insufficient to prevent an older read from replacing a newer committed
-generation. Proposed AT07 reconciliation, with exact epoch types to be agreed:
+`SourceEndpoint::https(origin, scope)` accepts a trusted configured HTTPS origin
+and full partition. `HttpTransport::new` uses reqwest with normal Rustls platform
+certificate verification. Redirects, retries, environment proxies and automatic
+decompression are explicitly disabled. Requests send the configured `X-Tenant`,
+JSON Accept and identity encoding. `CredentialProvider::read_authorization` is a
+host-owned cancellable port for current original grants and configured credentials.
+The opaque sensitive `AuthorizationHeader` exposes no Debug, serialization or
+content accessor. Production GETs require a credential header.
 
-```rust
-struct PublicationFence {
-    scope: SourceScope,
-    source_epoch: u64,
-    baseline_generation_id: Option<Uuid>, // durable generation before any GET
-    baseline_cache_epoch: u64,            // AT07 cacheEpoch captured with it
-    reserved_generation_id: Uuid,        // reserved by storage before any GET
-}
-```
+The body bounds declared/observed response bytes and every await by the request
+deadline, dropping the response on timeout/error/limit or when its owner is dropped.
+The reader independently bounds aggregate generation bytes/time, pages and size.
+Client diagnostics and URLs are discarded. The scope receipt identifies configured
+source binding; it does not prove provider tenant enforcement. A credential-free
+plain HTTP constructor exists only in test builds and requires a literal loopback
+IP. This component activates no production source.
 
-AT07 should return this capture together with the matching `PreviousGeneration`.
-The coordinator passes `reserved_generation_id` into `fetch_generation`; the
-publication transaction must compare current source authority, baseline generation
-and cacheEpoch with the capture, verify the reserved ID equals the staged cache ID,
-and consume the reservation exactly once. Epoch comparison/increment, reservation
-lifecycle and atomic rejection are AT07 responsibilities. This proposal does not
-add fabricated storage enforcement; the port must be reconciled before integration.
+## Actual consuming SQLite publication fence
 
-`PreviousGeneration::new(cache, entities, quarantine)` accepts typed storage
-state and the reader rechecks schema/graph/scope invariants before issuing GETs.
-`cache_freshness` returns an aged copy and never persists timestamps or authorizes
-cached access. Output structs serialize to the published schema-1 field names.
-The enclosing JS result envelope is not recreated; shared integration should map
-these typed variants to its established service/HTTP envelopes.
+`reader.prepare_publication(store, principal)` calls AT07's actual
+`AtlasStore::prepare_cache_publication` before GETs. `PreparedGeneration::fetch`
+consumes captured state and the store-issued `CachePublicationFence`, passing its
+selected ID into the full reader. `StagedPublication::commit` consumes the same
+fence and calls `publish_prepared_generation` with the opaque complete generation.
+The original borrowed principal survives preparation, GET and commit. No principal
+replacement, raw row construction, cloned fence or filtered publication is exposed.
 
-## Decoding and bounded reads
+AT07 binds its fence to the issuing store, full partition, baseline generation,
+cache epoch and selected ID. Its immediate transaction reauthorizes, validates
+schema/final graph, checks baselines/time ordering, replaces projections/cache,
+permanently reserves the ID on successful commit, advances epoch, and revalidates
+the actor. Preparation selects the ID; it does not permanently reserve it before
+GETs. The storage fence does not replace current access-registry authority.
 
-Lists use `/api/v1/entities` with explicit `isLocation=true/false`,
-`includeArchived=true`, bounded pages and repeated `parentIds` for views. Authorized
-rows use `/api/v1/entities/{id}` and `/api/v1/entities/{id}/maintenance`. Each response
-requires a full scope receipt from the trusted bound transport. A raw provider
-response is not assumed to contain that receipt. Off-allowlist rows are never
-hydrated, and authorized parents must remain inside the registered allowlist.
-Shared registration validation must enforce disjoint partitions across homes.
+Retained rows pass actual `crate::contracts::decode` validation before reconstruction;
+the reader repeats scope/allowlist/graph checks before GETs. Ordinary refresh
+refuses retained quarantine and cannot reenable a source. Administrative revalidation
+needs a separate qualified path. Failed reads remain proposals: the reviewed store
+has no consuming failure-fence/CAS API, so this adapter does not persist failure
+metadata automatically. Store errors expose only a fixed publication failure.
 
-The reader bounds response and cumulative bytes, total pages, page size, per-request
-time and whole-generation time using the frozen policy defaults, which may only be
-tightened. Pending request/body futures are dropped at timeout; an actual driver
-must make dropping cancel its work. Deadlines are also checked after synchronous
-decode and during staging/graph traversal. Exclusive mutable borrowing serializes
-reads on one reader; service/store serialization remains a separate obligation.
+## Decoder and provenance
 
-JSON validation rejects invalid UTF-8, duplicate keys (including extension objects),
-nonfinite numbers, unpaired escaped surrogates and nesting beyond 64. Typed decoding
-validates required metadata arrays, lengths, UUIDs, dates, attachment shapes and
-maintenance. External references must preserve the literal lowercase `http://` or
-`https://` prefix required by the published schema; normalized URL-parser scheme
-checks alone are insufficient. The original ASCII URI grammar and percent-encoded
-octets are validated before URL parsing can repair their representation. The exact
-valid reference spelling is retained. Page counters and nullable attachment byte sizes
-accept integral JSON float/exponent spellings, with finite/nonnegative/integral
-and exclusive 2^64 range checks before converting floating values to u64.
-Identical repeated entity rows collapse; conflicts, observed count
-drift, list/detail changes and parent cycles abort publication. These coded guards
-have not been exercised by rejection, fault, adversarial or concurrency controls.
-Offset-page reads remain non-transactional and convey no CAS or history evidence.
+Lists use `/api/v1/entities`, explicit `isLocation=true/false`,
+`includeArchived=true`, bounded offset pages, and repeated `parentIds` for views.
+Detail and maintenance decode the pinned normalized synthetic dialect. JSON parsing
+checks UTF-8, duplicate keys including extras, finite numbers, escaped surrogates
+and depth 64. RawValue distinguishes actual JSON containers from arbitrary-precision
+Serde numeric maps. AT51 classifies integral lexical tokens before checked u64
+conversion; `.0`/exponent integer spellings remain accepted.
 
-UUID spelling normalizes without changing opaque collection spelling. Original
-provider dates, retrieval dates, arbitrary container types, null types/parents and
-explicit unknown metadata survive projection. External URLs remain references.
-Stored-file proxy references are withheld pending AT11/12 media authorization.
-Native links default to empty and require a scope-matched, explicitly verified
-route configuration. Example routes are synthetic, not actual route qualification.
+Identical repeated rows collapse; conflicts, count drift, list/detail changes and
+parent cycles abort staging. These guards are coded but rejection/fault/race controls
+remain deferred. Offset pages remain nontransactional upstream reads. UUID spelling
+normalizes; opaque collection spelling, source dates/offsets, retrieval dates,
+arbitrary container types, null parents/types and explicit unknowns survive.
+External HTTP(S) URI references retain their exact validated spelling. Stored-file
+proxy references are withheld pending media authorization. Native links default
+to empty and require explicitly verified scope-matched route configuration.
 
-## Exact inputs and open peer integration
+## Reviewed peers and remaining integration
 
-Published inputs are `packages/contracts/schemas/atlas.schema.json`,
-`packages/contracts/policy/boundaries.json`, the minimal
-`packages/contracts/fixtures/homebox-page.wire.json` and
-`adapters/homebox/fixtures/metadata.normalized-synthetic-v1.json`. The catalog pins
-`atlas-normalized-synthetic-v1` and reference HomeBox `v0.26.2`. The old adapter
-is a behavioral reference. It is not linked into the Rust implementation.
-Published HTTP history schema `http-history.v1.1.0.schema.json` remains unchanged;
-HomeBox metadata reads do not invent durable Atlas audit history.
+The external host harness compiles actual read-only published source snapshots:
 
-No generated Rust contracts or AT07/11/51 Rust interfaces exist in this baseline.
-The local typed schema-compatible structs are proposed integration types, not a
-second generated contract authority. Exact shared type paths, durable source-epoch
-representation, AT07 transaction API, AT11 current grant/quarantine API and trusted
-transport receipt construction remain reconciliation inputs. No such peer is
-stubbed as a working production implementation.
+- AT07 storage: `3b14f0362aa2161d51b99d71e7d52d50f27f07de`.
+- AT51 generated contracts: `07576e6be463dd481b49071071c66dec144b1e0c`.
+- AT11 canonical-ID types: `4967dd2d38c5749be35aa7e44728c4d691246730`.
+- AT52 native read-contract adapter: `46047d0193fbce720bba7a1d209b5428c51dba94`.
 
-The fixture catalog explicitly says that actual detail/maintenance wire schemas
-are unqualified. AT06/08/12/21 must review real wire samples and source-bound driver
-behavior before claiming provider compatibility. AT11 permission checks do not
-reenable a source. Only separately qualified administrative evidence plus staged
-complete read-back may lift quarantine. Credentials, source grants and native route
-qualification remain outside this module.
+No peer source/ancestry is copied into this branch. The host harness uses the actual
+native frozen schema/graph and SQLite implementation, with synthetic authority,
+clock and provider transport. Its URL predicate is an exact function excerpt from
+AT36 projection.rs at `64da6ea293dbb7fd7798105e92e7c4a65be7262f`, satisfying the read-contract graph dependency.
 
-## Scoped checks
+The reviewed host leaves ConfigureSource/PublishCache unavailable. Production
+needs AT52/AT11's current original branded source-authority adapter and a credential
+provider bound to approved server configuration. No permissive replacement is
+supplied. Publication futures impose no extra Send/Sync bounds on those borrowed
+handles; the shared host must reconcile their execution context.
 
-The external task-owned harness imports this actual `mod.rs` directly.
-Activate the retained pinned runtime first. Set `AT08_HARNESS` to the external
-harness directory. The authorized checks are:
+The published fixture catalog marks actual detail/maintenance/attachment wire
+unqualified. Exact missing inputs are sanitized healthy responses plus matching
+HomeBox version/build/API evidence: location/item list pages including archived
+rows; an entity detail with null metadata and stored-file/external-link attachments;
+and maintenance with schedules/completions/cost. Capture method/path, pagination,
+status/content type/encoding and tenant semantics, sanitizing headers. Therefore
+this decoder still implements `atlas-normalized-synthetic-v1` with reference version
+`v0.26.2`; it does not demonstrate native wire compatibility. TLS handshakes, actual
+credential retrieval, tenant enforcement and native routes need separate authorized
+qualification. Published Atlas/history schemas remain unchanged.
+
+## Scoped healthy verification
+
+Activate the retained pinned runtime. The external host harness imports this actual
+module plus exact reviewed peers. `AT08_HARNESS` names that external directory:
 
 ```sh
-cargo fmt --manifest-path "$AT08_HARNESS/Cargo.toml" --check
+rustfmt --edition 2024 --check backend/src/providers/homebox/read/mod.rs
 cargo check --manifest-path "$AT08_HARNESS/Cargo.toml" --locked
 cargo build --manifest-path "$AT08_HARNESS/Cargo.toml" --locked
 cargo clippy --manifest-path "$AT08_HARNESS/Cargo.toml" --locked --all-targets -- -D warnings
-AT08_EVIDENCE_DIR="$AT08_HARNESS/evidence" cargo test --manifest-path "$AT08_HARNESS/Cargo.toml" --locked homebox_read::healthy:: -- --test-threads=1
+cargo test --manifest-path "$AT08_HARNESS/Cargo.toml" --locked homebox_read::healthy -- --test-threads=1
+cargo test --manifest-path "$AT08_HARNESS/Cargo.toml" --locked --test healthy_publication -- --test-threads=1
 ```
 
-The eleven explicitly named success-only examples exercise published synthetic
-metadata, scoped GETs/pagination, filtered views, empty generations, pinned minimal
-pages, provenance/UUID spelling, allowlists, pure freshness and synthetic native
-navigation/publication handoff, integral numeric spellings, literal URL references
-and valid escaped URI spelling (path/query/fragment, host case and IPv6 authority).
-Emitted snapshots are checked against the published
-shape and semantic validator; view projections are checked separately. The healthy HTTP example opens one ephemeral literal-loopback listener, closes it
-after eight successful chunked GETs, and sends no authorization header. It calls no
-provider. This exercises the concrete HTTP path, not TLS or provider compatibility. Legacy broad test aggregates and stopped
-rejection, guard-reversal, mutation/omission, adversarial, fault/crash, concurrency and
-negative-consumer controls remain unrun. Ordinary results do not qualify source
-access, real wire compatibility, SQLite publication, recovery, security or deployment.
-
-## Configured HTTP driver
-
-`SourceEndpoint::https(origin, scope)` accepts a server-reviewed HTTPS origin and
-full partition scope; request data cannot override either. `HttpTransport::new`
-uses pinned reqwest with normal Rustls platform certificate verification. Proxy
-discovery, redirects, retries and automatic decompression are disabled explicitly.
-GETs send the configured opaque `X-Tenant`, JSON Accept and identity encoding.
-`CredentialProvider::read_authorization` is a host-owned, cancellable port for
-current original grants and configured source credentials. The opaque sensitive
-`AuthorizationHeader` has no Debug, serialization or content accessor. Production
-GETs require a credential header; none is embedded in source or fixtures.
-
-The streaming body checks declared and observed per-response byte limits, bounds
-each await by the request deadline, and drops the response on timeout/error/limit
-or when its owner is dropped. The reader independently caps aggregate generation
-bytes and time. Errors discard client diagnostic text and URLs. A scope receipt
-identifies the configured endpoint, not independent proof of tenant enforcement.
-The unauthenticated plain HTTP endpoint constructor exists only in test builds and
-requires a literal loopback IP. Host source configuration and grant adapters remain
-AT52/AT11 responsibilities; no live endpoint is activated by this component.
+Eleven reader examples cover synthetic metadata, pagination, views, empty/minimal
+generations, provenance, allowlists, freshness, native navigation, integral spellings
+and valid URI representation. The HTTP example opens one ephemeral loopback listener,
+completes eight successful chunked GETs without credentials, and closes it. The
+external SQLite example uses consuming fences for two successful generations,
+reads published rows/cache, preserves six seeded Atlas records, checks epochs
+0 → 1 → 2, reconstructs retained metadata,
+and confirms a filtered view leaves SQLite unchanged. Authority/runtime are synthetic.
+Emitted snapshots pass published shape/semantic validation as additional evidence;
+no JavaScript oracle is used in the Rust publication path. Legacy broad aggregates,
+stopped rejection/guard-reversal/mutation/adversarial/fault/crash/concurrency/negative
+controls remain unrun. Ordinary success does not qualify deployment or security.

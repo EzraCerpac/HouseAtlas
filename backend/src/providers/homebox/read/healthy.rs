@@ -342,27 +342,8 @@ async fn reviewed_allowlist_projects_only_registered_entities() {
     emit("allowlist.snapshot.json", snapshot(&g, &reg));
 }
 
-#[derive(Default)]
-struct SyntheticPublisher {
-    committed: Option<Uuid>,
-    captured_epoch: Option<u64>,
-}
-impl GenerationPublisher for SyntheticPublisher {
-    type Receipt = Uuid;
-    async fn commit_complete(
-        &mut self,
-        generation: &CompleteGeneration,
-        fence: &PublicationFence,
-    ) -> Result<Uuid, PublishError> {
-        // This spy confirms typed handoff only; it is not SQLite/epoch qualification.
-        let id = generation.cache().generation_id.clone().unwrap();
-        self.committed = Some(id.clone());
-        self.captured_epoch = Some(fence.source_epoch);
-        Ok(id)
-    }
-}
 #[tokio::test(flavor = "current_thread")]
-async fn verified_synthetic_navigation_and_typed_complete_publication() {
+async fn verified_synthetic_navigation_preserves_source_identity() {
     let reg = registration();
     let navigation = NativeNavigation {
         scope: reg.scope(),
@@ -386,16 +367,6 @@ async fn verified_synthetic_navigation_and_typed_complete_publication() {
             )
         );
     }
-    let mut store = SyntheticPublisher::default();
-    let fence = PublicationFence {
-        scope: reg.scope(),
-        source_epoch: 7,
-    };
-    assert_eq!(
-        g.publish(&mut store, &fence).await.unwrap(),
-        generation_id()
-    );
-    assert_eq!(store.captured_epoch, Some(7));
     emit("navigation.snapshot.json", snapshot(&g, &reg));
 }
 
