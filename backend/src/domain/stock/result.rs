@@ -95,6 +95,7 @@ where
     if let Some(time) = wire.get("retrievedAt").and_then(Value::as_str) {
         operational_time(time)?;
     }
+    check_requested_array_bounds(request, wire)?;
     if matches!(kind, OutputKind::FeatureRead | OutputKind::LabelVariant) && !request.is_mutation()
     {
         require(wire["sourceInstanceId"] == request.target()["sourceInstanceId"])?;
@@ -108,13 +109,6 @@ where
                 let max = super::super::integer::safe_integer(max)
                     .ok_or(StockError::CorrelationMismatch)?;
                 require(bytes <= max)?;
-            }
-        }
-        if let Some(limit) = request.payload().get("limit") {
-            let limit = super::super::integer::safe_integer(limit)
-                .ok_or(StockError::CorrelationMismatch)?;
-            if let Some(rows) = wire["data"]["rows"].as_array() {
-                require(rows.len() as u64 <= limit)?;
             }
         }
     }
@@ -165,6 +159,47 @@ where
         }
     }
     Ok(())
+}
+
+/// Caller-selected bounds apply to the declared page or feature array only.
+/// Aggregated statistics, nested record payloads and mutation effects have no
+/// corresponding caller-selected count bound. Export/import row counts and
+/// printed artifact bytes remain owner obligations absent from public results.
+fn check_requested_array_bounds(request: &ValidatedRequest, wire: &Value) -> StockResult<()> {
+    let data = &wire["data"];
+    if let Some(page_size) = request.payload().get("pageSize") {
+        let field = match request.operation().output_kind {
+            OutputKind::AtlasRead => "records",
+            OutputKind::HomeboxRead => "resources",
+            OutputKind::History => "entries",
+            _ => return Err(StockError::CorrelationMismatch),
+        };
+        check_array_bound(data, field, page_size)?;
+    }
+    if request.id() == OperationId::HomeboxQueryRead {
+        let field = match request.payload()["view"].as_str() {
+            Some(
+                "asset-lookup"
+                | "statistics-locations"
+                | "statistics-tags"
+                | "maintenance"
+                | "barcode-product",
+            ) => Some("rows"),
+            Some("statistics-purchase-price") => Some("entries"),
+            Some("currency" | "statistics") => None,
+            _ => return Err(StockError::CorrelationMismatch),
+        };
+        if let Some(field) = field {
+            check_array_bound(data, field, &request.payload()["limit"])?;
+        }
+    }
+    Ok(())
+}
+
+fn check_array_bound(data: &Value, field: &str, bound: &Value) -> StockResult<()> {
+    let bound =
+        super::super::integer::safe_integer(bound).ok_or(StockError::CorrelationMismatch)?;
+    require(array(data, field)?.len() as u64 <= bound)
 }
 
 /// Effects can include qualified cascades and reference updates of a different
