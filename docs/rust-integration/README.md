@@ -375,3 +375,13 @@ path. Durable
 consumption remains in SQLite; immutable original bytes are retained. This does
 not implement a background reconciliation worker or qualify interrupted cleanup,
 fault, budget, replay or authority-loss behavior. Those controls remain unrun.
+
+For future concurrency, denial and failure-injection cases, the separate
+regression lane in the root README.md permits only exact reviewed tests in
+isolated disposable synthetic environments with fake/local-only transports.
+It excludes real credentials, live providers, user data, populated production
+restore and deployment, releases no G1–G5, and grants no new secrets or network
+permissions. Other held classes and broad runtime aliases remain held; an
+overlapping case must genuinely fit the exact approved scope and lane safeguards.
+The unrun statements above record coverage, not a blanket prohibition of these
+three classes under that lane. Ordinary CI and historical results are unchanged.

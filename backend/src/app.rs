@@ -14,6 +14,9 @@ pub type Store = s::AtlasStore<
 pub struct Core {
     pub access: Access,
     pub store: Mutex<Store>,
+    /// One process-local owner cache shared by every request and transport.
+    /// A reopened application starts with fresh continuation state.
+    pub atlas_list_pages: d::stock::AtlasListPages,
     pub vault: Arc<crate::media::AssetVault>,
     pub home: d::HomeSummary,
     /// Trusted configured summaries; no labels or membership come from a request.
@@ -65,6 +68,11 @@ pub struct RequestPrincipal {
     sources: RefCell<Vec<a::SourceGrant>>,
     source_capture_sealed: Cell<bool>,
     pub home_choices: Vec<CapturedHome>,
+}
+impl d::stock::AtlasListPrincipal for RequestPrincipal {
+    fn atlas_list_principal(&self) -> &a::Principal {
+        self.principal.principal()
+    }
 }
 impl s::StagedUploadPrincipal for RequestPrincipal {
     fn original_upload_principal(&self) -> &a::Principal {

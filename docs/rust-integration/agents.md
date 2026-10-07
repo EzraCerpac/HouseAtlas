@@ -180,3 +180,13 @@ supplies none of those permissions or proofs.
 Target NAS, live credentials/grants, remote listeners, deployment and
 product/security acceptance remain unreleased. The offline schema bundle still
 produces a large Vite chunk; splitting it remains future work.
+
+For future concurrency, denial and failure-injection cases, the separate
+regression lane in the root README.md permits only exact reviewed tests in
+isolated disposable synthetic environments with fake/local-only transports.
+It excludes real credentials, live providers, user data, populated production
+restore and deployment, releases no G1–G5, and grants no new secrets or network
+permissions. Other held classes and broad runtime aliases remain held; an
+overlapping case must genuinely fit the exact approved scope and lane safeguards.
+The unrun statements above record coverage, not a blanket prohibition of these
+three classes under that lane. Ordinary CI and historical results are unchanged.

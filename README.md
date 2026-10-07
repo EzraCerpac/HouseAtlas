@@ -34,14 +34,41 @@ disposable local stores, opens no socket and calls no provider. The source-backe
 binding example is `unresolved`; it exercises no new source-presence admission.
 
 Ordinary CI uses the same scoped commands, pinned actions/runtime and lockfiles.
-Guard reversal, mutation/omission controls, adversarial, denial, failure injection,
-concurrency and private-intake checks remain stopped and excluded. Healthy
-mutations are ordinary examples, not execution of those control categories.
+Concurrency, denial and failure-injection tests are permitted only in the
+separate regression lane below; they remain excluded from ordinary CI.
+Guard reversal, mutation/omission controls, adversarial and private-intake checks
+remain held. Healthy mutations are ordinary examples, not execution of those
+control categories.
 Retained control files and other module test aliases are outside this lane;
 checking a control file's syntax does not test its behavior. Full security,
 provider/native-route, recovery-fault, target, HTTPS, retention, actual-user/pilot
 and production qualifications remain open. The URL credential-key predicate is
 a heuristic and does not prove arbitrary source URL content credential-free.
+
+A separate regression lane may run only exact reviewed concurrency, denial and
+failure-injection cases in isolated, disposable environments containing synthetic
+data. Use fresh temporary roots and disposable stores, with deterministic fake
+transports or explicit loopback-only peers; disable external transport fallback.
+Use synthetic identities, tokens and grants only. Real credentials, live providers,
+user data, populated production restore and deployment are outside this permission.
+G1–G5 and all other held classes remain unchanged; replay, expiry, revocation and
+crash cases are not blanket released. An overlapping case must genuinely fit the
+exact approved three-class scope and these safeguards; otherwise it remains held.
+
+Before running, implementation owners must review the pinned source, exact named
+cases and entrypoints (including imported helpers), synthetic inputs, temporary
+roots, local endpoints, bounded runtime/resources and cleanup. Use an explicit
+allowlist of those cases, never broad test discovery, aggregate module/runtime
+aliases or wrappers that execute held controls. Keep this lane separate from
+ordinary CI and its commands; adding a CI entrypoint requires its own exact scope
+review. This policy adds no runner, alias, workflow, secrets or network permission.
+Record the exact source pin, command, cases and outcomes; remove disposable state.
+Lane success establishes only the reported synthetic regressions, not full security,
+provider, recovery, target, pilot or production qualification. No newly permitted
+suite is run as part of this policy update; owners add and run cases separately.
+Existing stopped/unrun descriptions for these three classes record ordinary or
+historical coverage; they do not prohibit an exact case satisfying this separate
+lane. Descriptions of other held classes retain their existing force.
 
 The core exports embeddable request/service modules; it provisions no service.
 `config/deployment.example.json` is a typed unfilled template, not runtime
