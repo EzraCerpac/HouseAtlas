@@ -27,10 +27,18 @@ and recovery/evidence packets remain outside Git.
 
 Inspect script bodies before running them. Use only the commands in README.md
 for ordinary verification. Healthy mutations are scoped synthetic examples.
-Stopped guard reversal, mutation/omission controls, adversarial, denial, failure
-injection and concurrency checks remain unrun and excluded from ordinary CI.
-Do not add wrappers or replacements to execute them. Report exact source and
-scope of checks; ordinary success does not certify security or deployment.
+Concurrency, denial and failure-injection tests are allowed only in the separate
+regression lane bounded in README.md: isolated disposable synthetic environments,
+fake/local-only transports, no real credentials, live providers, user data,
+populated production restore or deployment. This permission releases no G1–G5
+and grants no new secrets or network permissions. Ordinary CI remains unchanged.
+Guard reversal, mutation/omission controls, adversarial and private-intake checks
+remain held; replay, expiry, revocation and crash cases are not blanket released.
+A case overlapping a held class must genuinely fit the exact approved three-class
+scope and lane safeguards; otherwise it remains held. Broad suites and runtime
+aliases are not released. Do not add wrappers or replacements to execute held
+checks. Report exact source and scope of checks; ordinary success does not
+certify security or deployment.
 
 web/AGENTS.md governs interface text. Preserve accessible names, scope,
 uncertainty, freshness, access and file availability. Use short functional
