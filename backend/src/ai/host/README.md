@@ -179,7 +179,7 @@ separately support a qualified local companion with configured Origin, Host and
 per-install capability correlation; they create no listener or wake capability.
 Supply `StatusJournal::new` a securely opened private host database; canonical
 path, no-follow/private permissions and retention remain application-owned.
-No Atlas schema or credential storage is created here.
+No Atlas schema is changed. The explicit enrollment owner below creates only its private host table; encrypted credential storage remains in the credential adapter.
 
 ## Verification scope
 
@@ -239,3 +239,80 @@ Official protocol references:
 [registration/sign-in](https://developers.openai.com/siwc/token-sharing-open-source/sign-in),
 [preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations),
 [background cancellation](https://developers.openai.com/api/docs/guides/background).
+
+
+## Original enrollment and credential bridge
+
+`EnrollmentOwner::new(private_connection, actual_access_boundary, journal)` owns
+only private registration configuration and cancellation generations. The same
+Arc must supply HTTP enrollment capture, native registration authority and
+`NativeCredentialAuthority<NativeHostContext>`. `TrustedRegistration` accepts
+configuration from an existing approved enrollment; construction is not approval.
+`install_existing_approval` is an explicit trusted application operation with the
+actual editor/CSRF mutation principal. External approval provenance is a trusted
+input that the integrator must verify; the random local marker only correlates
+an installation and does not establish provider approval or a grant. No HTTP Connect or empty-state fallback
+installs an enrollment, native key, account or grant.
+
+`NativeCredentialAuthority::enroll_initial_record` supplies the complete cleared
+Disconnected record to PR98 `FileCredentialBoundary::enroll_atomic`. The adapter
+uses its existing native key and exclusive lease, authenticates/encrypts the
+record and publishes only an absent file. Current first enrollment requires
+Linux atomic NOREPLACE; unsupported platforms fail closed. No native key lookup
+was executed for this host change. IssuedWebsite configuration still needs an
+explicitly authorized preprovisioned client-ID transition before OAuth begin;
+this host does not invent that identifier or an account registration.
+
+The retained proof owns the actual original AT11 principal, exact binding,
+configuration, approval generation and instance capability. Persistence holds
+AT11 and enrollment SQLite writer fences through a bounded synchronous file
+commit. Stop latches journal cancellation before rotating the durable cancellation
+epoch and creating a restricted stopped capability. The original proof is never
+rebased. SQLite enrollment and encrypted-file commits are separate: a later
+barrier/commit error remains uncertain and cannot authorize an automatic retry,
+rollback claim or enrollment repair.
+
+`mounting-enrollment.patch` proposes only two additive declarations and the HTTP
+EnrollmentPort implementation against root `f3617902`. Root already contains
+credential_boundary and its approved dependency graph. The integrator applies
+and reviews this zero-context proposal (`git apply --unidiff-zero` after exact
+preimage comparison), uses `RequestContext::native` when a credential context
+is HTTP-backed, and supplies the actual API to `http::ai::mounted_router`.
+The host creates no listener or default operational mount. Browser receipt recovery
+also requires trusted `AiReceiptIdentity` from the same actor/workspace/home/
+registration/authority fields; the opaque full scope still includes session and
+both epochs. An omitted receipt identity keeps conservative full-scope isolation.
+
+## Scoped lifecycle corrections
+
+Request status first reads the exact current epoch and otherwise exposes one
+uniquely owned previously cancelled receipt under the same five identity fields.
+That path cannot claim a continuation or dispatch a command. Canonical local
+Stopped receipts preserve usage and release the browser slot; their durable
+journal state remains Unconfirmed about provider completion. A late review is
+retained privately as an observation while Stopped is public. Already completed
+or domain-held outcomes retain their actual evidence. The service returns the
+journal's canonical receipt and preserves PR110's selected-model failure receipt.
+
+Missing action rows use an optional query, allowing Unconfirmed disclosure.
+Successful ManageUsage persists Completed before fetching a fresh display; a
+subsequent snapshot error is returned unchanged and the original action ID can
+still reconcile its completed receipt. Cached access/admission metadata remains
+held or unknown until a successful fresh snapshot supplies it.
+
+Eight explicit status cases, four explicit lifecycle cases and two browser cases
+passed in the isolated synthetic concurrency/denial/failure lane authorized by
+policy PR108. Earlier compiler/readiness/render-timing failures remain recorded
+outside Git. These fixtures are intentionally unmounted and have no ordinary-CI
+or broad-discovery alias. `enrollment_healthy.rs` separately passed actual native
+principal/proof/fence/stop and SQL reopen. `credential_enrollment_healthy.rs` is a
+positive disposable-facade example using actual native authority and PR98 codec,
+lease and filesystem with an injected synthetic key; encrypted enrollment,
+stopped terminal persistence and healthy reopen passed. Public native-key enrollment and the router composition
+are compiler checked. Reconnect uses the exact PR112 source in that composition;
+no reconnect/provider/native-key operational qualification is implied.
+
+Replay, corruption, expiry/revocation, crash, mutation/adversarial and historical
+held controls remain unrun. SIWC implementation GO does not establish account
+eligibility, paid inference or operational runtime approval. Root mount, manifest
+reseal and composed platform CI remain integrator-owned.

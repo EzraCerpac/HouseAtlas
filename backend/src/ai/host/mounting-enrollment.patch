@@ -1,0 +1,14 @@
+--- a/backend/src/ai/host/mod.rs
++++ b/backend/src/ai/host/mod.rs
+@@ -5,0 +6,2 @@
++pub mod credentials;
++pub mod enrollment;
+--- a/backend/src/http/ai.rs
++++ b/backend/src/http/ai.rs
+@@ -24,0 +25,6 @@
++}
++
++impl EnrollmentPort for crate::ai::host::enrollment::EnrollmentOwner {
++    fn capture(&self, original: &access::Principal) -> Result<RegistrationBinding, AiError> {
++        crate::ai::host::enrollment::EnrollmentOwner::capture(self, original)
++    }

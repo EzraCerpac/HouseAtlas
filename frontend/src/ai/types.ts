@@ -130,6 +130,16 @@ export interface AiClient {
   requestStatus(requestId: string, signal: AbortSignal): Promise<RequestStatus>;
 }
 
+/** Stable host-receipt identity across cancellation epochs. Supplied only from
+ * the trusted host binding; it never replaces the full runtime scope key. */
+export interface AiReceiptIdentity {
+  readonly actorId: string;
+  readonly workspaceId: string;
+  readonly homeId: string;
+  readonly registrationId: string;
+  readonly authorityEpoch: string;
+}
+
 export type ConnectionState =
   | { readonly status: 'loading' }
   | { readonly status: 'available'; readonly snapshot: ConnectionSnapshot }

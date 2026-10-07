@@ -2,7 +2,7 @@ import { useId, useState } from 'react';
 import type { FormEvent } from 'react';
 import { cancellationMessage, canInfer, failureMessages, readinessMessage, tokenCount } from './model.js';
 import type {
-  AiClient, AiSessionState, ConnectionAction, ConnectionSnapshot, DomainHeld, RunOutcome, RuntimeRoute, UnresolvedConnectionAction, Usage,
+  AiClient, AiReceiptIdentity, AiSessionState, ConnectionAction, ConnectionSnapshot, DomainHeld, RunOutcome, RuntimeRoute, UnresolvedConnectionAction, Usage,
 } from './types.js';
 import { hasObservedUnconfirmedReceipt, useAiSession, useConnectionActionCapacity } from './useAiSession.js';
 
@@ -11,6 +11,8 @@ export interface AiPanelProps {
   readonly scopeLabel: string;
   /** Host-provided full context/epoch identity; labels are not identities. */
   readonly scopeKey: string;
+  /** Host-provided stable receipt selector; optional legacy callers remain epoch-isolated. */
+  readonly receiptIdentity?: AiReceiptIdentity;
 }
 
 /** Remount the draft when the qualified scope changes. */
@@ -18,8 +20,8 @@ export function AiPanel(props: AiPanelProps) {
   return <AiPanelSession key={props.scopeKey} {...props} />;
 }
 
-function AiPanelSession({ client, scopeLabel, scopeKey }: AiPanelProps) {
-  const session = useAiSession(client, scopeKey);
+function AiPanelSession({ client, scopeLabel, scopeKey, receiptIdentity }: AiPanelProps) {
+  const session = useAiSession(client, scopeKey, receiptIdentity);
   const [prompt, setPrompt] = useState('');
   return <AiPanelView
     state={session.state}

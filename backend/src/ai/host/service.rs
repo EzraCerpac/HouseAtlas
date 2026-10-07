@@ -84,6 +84,11 @@ impl<P: HostPeers, A: HostAuthority<P::Context>> HostApi for AiHost<P, A> {
             self.authority.revalidate(context, &binding)?;
             let disconnect = matches!(&command,HostCommand::Action(request)
                 if matches!(request.command,crate::ai::runtime::ConnectionAction::Disconnect));
+            let receipt_only = disconnect
+                || matches!(
+                    &command,
+                    HostCommand::Status(_) | HostCommand::Cancel(_) | HostCommand::ActionStatus(_)
+                );
             let value = match command {
                 HostCommand::Run(input) => {
                     let active = self.journal.begin(&binding, &input.request_id, None)?;
@@ -129,10 +134,15 @@ impl<P: HostPeers, A: HostAuthority<P::Context>> HostApi for AiHost<P, A> {
                             json!({"reason":unconfirmed.reason,"usage":unconfirmed.usage}),
                         )?;
                     }
-                    self.journal.finish(&binding, &id, result.as_ref().ok())?;
+                    let receipt = self.journal.finish(&binding, &id, result.as_ref().ok())?;
                     self.authority.revalidate(context, &binding)?;
                     match result {
-                        Ok(outcome) => json!(outcome),
+                        Ok(outcome) => match receipt {
+                            crate::ai::runtime::RequestStatus::Finished { outcome, .. } => {
+                                json!(outcome)
+                            }
+                            _ => json!(outcome),
+                        },
                         Err(_) => return Err(AiError::ProviderUnavailable),
                     }
                 }
@@ -192,11 +202,17 @@ impl<P: HostPeers, A: HostAuthority<P::Context>> HostApi for AiHost<P, A> {
                             json!({"reason":unconfirmed.reason,"usage":unconfirmed.usage}),
                         )?;
                     }
-                    self.journal
-                        .finish(&binding, &input.request_id, result.as_ref().ok())?;
+                    let receipt =
+                        self.journal
+                            .finish(&binding, &input.request_id, result.as_ref().ok())?;
                     self.authority.revalidate(context, &binding)?;
                     match result {
-                        Ok(outcome) => json!(outcome),
+                        Ok(outcome) => match receipt {
+                            crate::ai::runtime::RequestStatus::Finished { outcome, .. } => {
+                                json!(outcome)
+                            }
+                            _ => json!(outcome),
+                        },
                         Err(_) => return Err(AiError::ProviderUnavailable),
                     }
                 }
@@ -213,13 +229,22 @@ impl<P: HostPeers, A: HostAuthority<P::Context>> HostApi for AiHost<P, A> {
                             .await?
                     )
                 }
-                HostCommand::Status(id) => json!(self.journal.read(&binding, &id, true)?),
+                HostCommand::Status(id) => {
+                    self.authority
+                        .revalidate_action_receipt(context, &binding)?;
+                    let receipt = match self.journal.read_current_receipt(&binding, &id, true)? {
+                        Some(receipt) => receipt,
+                        None => self
+                            .journal
+                            .read_cancelled_receipt(&binding, &id)?
+                            .ok_or(AiError::DomainUnavailable)?,
+                    };
+                    json!(receipt)
+                }
                 HostCommand::Cancel(id) => {
-                    json!(self.journal.stop(&binding, &id, |continuation| {
-                        self.peers
-                            .continuations()
-                            .retire(context, &id, continuation)
-                    })?)
+                    self.authority
+                        .revalidate_action_receipt(context, &binding)?;
+                    json!(self.cancel_request(context, &binding, &id)?)
                 }
                 HostCommand::Connection => {
                     let model = self.peers.selected_model(context)?;
@@ -257,7 +282,7 @@ impl<P: HostPeers, A: HostAuthority<P::Context>> HostApi for AiHost<P, A> {
                         .await?
                 ),
             };
-            if disconnect {
+            if receipt_only {
                 self.authority
                     .revalidate_action_receipt(context, &binding)?;
             } else {
@@ -271,13 +296,40 @@ impl<C: Sync, P: HostPeers<Context = C>, A: HostAuthority<C>> CancelPort<C> for 
     fn cancel<'a>(&'a self, context: &'a C, id: &'a str) -> PortFuture<'a, CancelReceipt> {
         Box::pin(async move {
             let binding = self.authority.binding(context)?;
-            self.authority.revalidate(context, &binding)?;
-            let receipt = self.journal.stop(&binding, id, |continuation| {
-                self.peers.continuations().retire(context, id, continuation)
-            })?;
-            self.authority.revalidate(context, &binding)?;
+            self.authority
+                .revalidate_action_receipt(context, &binding)?;
+            let receipt = self.cancel_request(context, &binding, id)?;
+            self.authority
+                .revalidate_action_receipt(context, &binding)?;
             Ok(receipt)
         })
+    }
+}
+
+impl<P: HostPeers, A: HostAuthority<P::Context>> AiHost<P, A> {
+    fn cancel_request(
+        &self,
+        context: &P::Context,
+        binding: &crate::ai::oauth::RegistrationBinding,
+        id: &str,
+    ) -> Result<CancelReceipt, AiError> {
+        if self
+            .journal
+            .read_current_receipt(binding, id, false)?
+            .is_some()
+        {
+            // Current continuation retirement retains full dispatch authority.
+            self.authority.revalidate(context, binding)?;
+            self.journal.stop(binding, id, |continuation| {
+                self.peers.continuations().retire(context, id, continuation)
+            })
+        } else {
+            // This is the already latched original cancellation receipt only.
+            // No old continuation is claimed, retired, approved or replayed.
+            self.journal
+                .stop_cancelled_receipt(binding, id)?
+                .ok_or(AiError::DomainUnavailable)
+        }
     }
 }
 

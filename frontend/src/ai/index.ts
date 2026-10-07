@@ -5,7 +5,7 @@ export { useAiSession } from './useAiSession.js';
 export { bindAiLifecyclePort, decodeConnectionActionResult, decodeHumanReviewResult } from './wire.js';
 export type { AiLifecycleWirePort } from './wire.js';
 export type {
-  ActionState, AiClient, AiErrorCode, AiSessionState, CancellationState, CancelReceipt,
+  ActionState, AiClient, AiErrorCode, AiReceiptIdentity, AiSessionState, CancellationState, CancelReceipt,
   ConnectionAction, ConnectionActionRequest, ConnectionActionResult, ConnectionActionState, ConnectionSnapshot, ConnectionState, HumanReviewResult,
   DomainHeld, JsonValue, RequestState, RequestStatus, ReviewChallenge, ReviewInput, ReviewRequired,
   RunOutcome, RuntimeRoute, ToolCall, UnresolvedConnectionAction, Usage,

@@ -2,13 +2,15 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { AiPanelView } from '../AiPanel.js';
 import { failureMessages } from '../model.js';
 import { useAiSession } from '../useAiSession.js';
-import type { AiClient } from '../types.js';
+import type { AiClient, AiReceiptIdentity } from '../types.js';
 
 /** Supplied by the authenticated host; a home label or role is not a scope key. */
 export interface AiHostContext {
   readonly client: AiClient;
   /** Full actor/home/provider registration/session and cancellation epoch identity. */
   readonly scopeKey: string;
+  /** Stable status-receipt identity excluding only the cancellation epoch. */
+  readonly receiptIdentity?: AiReceiptIdentity;
   readonly scopeLabel: string;
 }
 type Session = ReturnType<typeof useAiSession>;
@@ -34,7 +36,7 @@ function BoundHost({ context, children }: {
   readonly context: AiHostContext;
   readonly children: ReactNode;
 }) {
-  const session = useAiSession(context.client, context.scopeKey);
+  const session = useAiSession(context.client, context.scopeKey, context.receiptIdentity);
   const [prompt, setPrompt] = useState('');
   const reconciledReviewCancellation = useRef<string | null>(null);
   const { request, recoveryAction, reviewAction } = session.state;

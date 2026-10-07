@@ -25,16 +25,21 @@ the panel renders every unresolved action's own status, including an earlier
 Disconnect warning while a later Manage usage action is pending or opening.
 Only matching completion clears that action. Connected snapshot facts cannot
 resolve an action. A module-local registry retains at most three unresolved
-actions per exact host scope and 96 across all scopes. It stores only the full
-scope key (at most 4096 characters), action ID, kind and pending/unconfirmed
-status; no client, command payload, connection snapshot or credential is cached.
+actions per exact host receipt identity and 96 across all identities. When the
+host supplies `receiptIdentity` (actor, workspace, home, registration and
+authority epoch), that stable tuple carries receipts across cancellation-epoch
+rotation; otherwise the full scope key keeps legacy isolation. It stores only
+that bounded selector, the original full scope key, action ID, kind and
+pending/unconfirmed status; no client, command payload, connection snapshot or
+credential is cached.
 Disposal aborts the view's observer without deleting submitted action IDs.
 A matching mount restores their visible statuses and reads each original ID
 once through the status port, without replaying an action. Capacity prevents
 new submissions before host I/O and never evicts unresolved work. The registry
-lasts for the loaded browser module, not a page reload. Cancellation-epoch
-rotation does not rebind cached IDs; host-owned action migration remains a
-separate integration boundary. The three runtime candidates
+lasts for the loaded browser module, not a page reload. A supplied stable
+receipt identity lets the current trusted host client reconcile action IDs after
+cancellation-epoch rotation; it does not restore the original host binding. The
+three runtime candidates
 remain explicit: a local
 sign-in helper, an issued website client and a local inference companion.
 Selecting a candidate does not qualify or adopt it. A local companion's computer
@@ -54,8 +59,8 @@ action limits; they never evict older unresolved IDs. The button and hook share
 the same scope/global capacity predicate; mounted panels subscribe to the
 registry using React's `useSyncExternalStore`. Immutable cached snapshots change
 on every registry update and notify mounted sessions and views. Each session
-derives its own current full-scope rows, including when another instance uses
-the same scope; shared pending/unconfirmed action state also derives from these
+derives its own current receipt-identity rows, including when another instance
+uses the same identity; shared pending/unconfirmed action state also derives from these
 rows. A bounded opening flag reports active browser transport to every alias
 and blocks another action until settlement/disposal; it does not confirm a
 provider result. Account facts stay local. Retirement clears
@@ -71,17 +76,21 @@ A submit creates a random UUID and starts one scoped request. Cancellation uses
 a separate typed request while retaining the result transport. Disposal aborts
 stale transport and sends best-effort cancellation without claiming remote end.
 A module-local registry retains at most 32 unresolved request IDs and their
-cancellation metadata across view unmounts. Its exact host-supplied key includes
-the genuine actor, application session, workspace/home, registration and
-cancellation epoch; labels or client object identity cannot substitute for it.
-Keys longer than 4096 characters and a full registry prevent submission before
-host I/O. Unresolved entries are never evicted to make space. Returning under
-the same full key restores only correlation and reads the original request once;
-it does not restore prompts, replay inference or automatically resume review.
+cancellation metadata across view unmounts. When `receiptIdentity` is supplied,
+its actor/workspace/home/registration/authority tuple locates the receipt across
+cancellation-epoch rotation; otherwise the full scope key keeps legacy
+isolation. The original full scope key and request ID remain recorded. Labels
+or client object identity cannot substitute for the tuple. Keys longer than
+4096 characters and a full registry prevent submission before host I/O.
+Unresolved entries are never evicted to make space. A matching host identity
+restores only correlation and reads the original request once through the
+current host client; the host revalidates authority. It does not restore
+prompts, replay inference or automatically resume review.
 The registry stores no client, result payload or credential, and lasts only for
 the loaded browser module, not a page reload or process restart. Backend durable
-status remains canonical. Only an exact matching full key retrieves correlation;
-backend authority checks still govern every request. A currently mounted view
+status remains canonical. Only the exact supplied receipt identity (or, when
+omitted, the exact full scope key) retrieves correlation; backend authority
+checks still govern every request. A currently mounted view
 observes late cancellation acknowledgements for its exact retained entry. That
 observer is removed on disposal; no disposed view/client is cached.
 The required `requestStatus` port recovers the original identifier and its

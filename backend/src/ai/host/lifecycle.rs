@@ -288,6 +288,7 @@ impl<
                 .action_begin(&binding, &request.action_id, json!(&request.command))?;
             // The durable action ID is captured before any OS/provider action.
             let mut disconnected_snapshot = None;
+            let mut manage_usage_completed = false;
             let status = match request.command {
                 ConnectionAction::Connect { route } => {
                     let selection =
@@ -381,16 +382,40 @@ impl<
                 }
                 ConnectionAction::ManageUsage => {
                     self.environment.manage_usage(context).await?;
+                    // Opening the usage-management surface is the complete
+                    // local action. A later live observation may fail, but it
+                    // cannot make that already completed action disappear.
+                    manage_usage_completed = true;
                     ConnectionActionStatus::Completed
                 }
+            };
+            if manage_usage_completed {
+                // Cache the known local completion before any fallible display
+                // observation. The caller can still receive the typed error,
+                // while the original action ID already has a terminal receipt.
+                let mut snapshot = self.environment.cached_display(context);
+                snapshot.permission = crate::ai::InferencePermission::Unknown;
+                snapshot.eligibility = crate::ai::Eligibility::Unknown;
+                snapshot.paid_use_admission = crate::ai::PaidUseAdmission::Held;
+                snapshot.runtime.qualification = crate::ai::RuntimeQualification::Held;
+                snapshot.runtime.availability = crate::ai::RuntimeAvailability::Unknown;
+                snapshot.runtime.checked_at = None;
+                let result = ConnectionActionResult {
+                    action_id: request.action_id.clone(),
+                    status,
+                    snapshot,
+                };
+                self.journal
+                    .action_finish(&binding, &request.action_id, json!(&result))?;
+            }
+            let snapshot = match disconnected_snapshot {
+                Some(snapshot) => snapshot,
+                None => self.environment.snapshot(context, cancel).await?,
             };
             let result = ConnectionActionResult {
                 action_id: request.action_id.clone(),
                 status,
-                snapshot: match disconnected_snapshot {
-                    Some(snapshot) => snapshot,
-                    None => self.environment.snapshot(context, cancel).await?,
-                },
+                snapshot,
             };
             self.journal
                 .action_finish(&binding, &request.action_id, json!(&result))?;
@@ -406,16 +431,26 @@ impl<
         Box::pin(async move {
             cancel.checkpoint()?;
             let binding = self.environment.binding(context)?;
-            self.environment.revalidate(context, &binding)?;
+            // An observed action is a receipt. Its journal key deliberately
+            // excludes cancellation epoch, so disclosure uses the dedicated
+            // receipt proof across intentional disconnect rotation. A missing
+            // receipt still needs full current authority before fresh display.
+            self.environment
+                .revalidate_action_receipt(context, &binding)?;
             match self.journal.action_read(&binding, id)? {
                 Some(value) => {
+                    self.environment
+                        .revalidate_action_receipt(context, &binding)?;
                     serde_json::from_value(value).map_err(|_| AiError::DomainUnavailable)
                 }
-                None => Ok(ConnectionActionResult {
-                    action_id: id.into(),
-                    status: ConnectionActionStatus::Unconfirmed,
-                    snapshot: self.environment.snapshot(context, cancel).await?,
-                }),
+                None => {
+                    self.environment.revalidate(context, &binding)?;
+                    Ok(ConnectionActionResult {
+                        action_id: id.into(),
+                        status: ConnectionActionStatus::Unconfirmed,
+                        snapshot: self.environment.snapshot(context, cancel).await?,
+                    })
+                }
             }
         })
     }
