@@ -146,8 +146,10 @@ published commit `9b13f1e97635a3f531e8c14642cd3c5e94401fef`. It implements
 fence must equal reviewed Network configuration, including partition mode and
 allowlist. The wrapper checks the original generation/cache-epoch precondition
 and reserved candidate ID before consuming the original fence at native
-`publish_prepared_generation`. Storage repeats its registration/baseline checks
-inside the transaction.
+`publish_prepared_generation`. The success transaction validates publication
+against the current immutable source registration and compares the original
+generation/cache epoch. The failure transaction explicitly compares the current
+registration with the full registration captured in the original fence.
 
 `NativeNetworkLease<A>` borrows the storage principal that retains the original
 inventory authority lease. There is no default principal, grant acquisition,
