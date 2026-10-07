@@ -25,6 +25,9 @@ struct State {
     readbacks: usize,
     authorizations: usize,
     events: Vec<&'static str>,
+    generated_entity_id: Option<Uuid>,
+    native_response: Option<Value>,
+    authorized_readback: Option<ReadbackPlan>,
 }
 impl StockContractPort for Peers {
     fn validate_request(&self, wire: &Value) -> Result<StockCommand, StockError> {
@@ -54,11 +57,29 @@ impl StockAccessPort for Peers {
     async fn authorize(
         &self,
         command: &StockCommand,
-        _phase: AuthorityPhase<'_>,
+        phase: AuthorityPhase<'_>,
     ) -> Result<StockAuthority, StockErrorCode> {
         let mut s = self.0.lock().unwrap();
         assert_eq!(command, &s.command);
         s.authorizations += 1;
+        if let AuthorityPhase::Readback(plan) = phase {
+            let operation = s.operation.as_ref().unwrap();
+            assert_eq!(operation.captured_authority, s.authority);
+            if let Some(generated_id) = s.generated_entity_id {
+                let actual = operation.actual_target.as_ref().unwrap();
+                assert_eq!(actual.resource_id, Some(generated_id));
+                assert_eq!(&plan.readback.target, actual);
+                assert_eq!(
+                    plan.readback.path,
+                    format!("/api/v1/entities/{generated_id}")
+                );
+                assert_eq!(command.target.resource_id, None);
+                assert_eq!(command.original_wire["target"].get("resourceId"), None);
+            }
+            s.authorized_readback = Some(plan.readback.clone());
+            s.events.push("authorize-readback");
+            return Ok(s.authority.clone());
+        }
         let event = if s.dispatches == 0
             && s.operation.as_ref().is_some_and(|operation| {
                 operation.outcome.state == OutcomeState::Dispatching
@@ -121,7 +142,9 @@ impl StockActivityPort for Peers {
                 observed_at: TIME.into(),
                 response_digest: None,
                 readback_digest: None,
-                generated_identity_resolved: true,
+                // A fresh reservation has no qualified generated identity yet.
+                // Non-generating dispatch facts establish their existing target.
+                generated_identity_resolved: false,
                 unknown_scope_fence_retained: false,
                 remote_activity: RemoteActivity::not_dispatched(),
                 storage_liability: StorageLiability {
@@ -245,15 +268,49 @@ impl StockDispatchPort for Peers {
         s.events.push("dispatch");
         s.dispatches += 1;
         assert_eq!(authority, &s.authority);
-        assert_eq!(plan.request.method, NativeMethod::Patch);
-        assert_eq!(plan.request.body, NativeBody::Json(json!({"quantity":0})));
-        let mut value = s
-            .preparation
-            .snapshot(&s.command.target)
-            .unwrap()
-            .value
-            .clone();
-        value["quantity"] = json!(0);
+        let mut value = if let Some(generated_id) = s.generated_entity_id {
+            assert_eq!(plan.request.method, NativeMethod::Post);
+            assert_eq!(plan.request.path, "/api/v1/entities");
+            assert_eq!(
+                plan.request.body,
+                NativeBody::Json(s.command.payload.clone())
+            );
+            let body = &s.command.payload;
+            let mut value = s.preparation.snapshots[0].value.clone();
+            value["id"] = json!(generated_id);
+            value["name"] = body["name"].clone();
+            value["description"] = body["description"].clone();
+            value["quantity"] = body["quantity"].clone();
+            value["parent"] = if body["parentId"].is_null() {
+                Value::Null
+            } else {
+                json!({"id":body["parentId"]})
+            };
+            value["entityType"]["id"] = body["entityTypeId"].clone();
+            value["tags"] = json!(
+                body["tagIds"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|id| json!({"id":id}))
+                    .collect::<Vec<_>>()
+            );
+            value["fields"] = json!([]);
+            value["attachments"] = json!([]);
+            value
+        } else {
+            assert_eq!(plan.request.method, NativeMethod::Patch);
+            assert_eq!(plan.request.body, NativeBody::Json(json!({"quantity":0})));
+            s.preparation
+                .snapshot(&s.command.target)
+                .unwrap()
+                .value
+                .clone()
+        };
+        if s.generated_entity_id.is_none() {
+            value["quantity"] = json!(0);
+        }
+        s.native_response = Some(value.clone());
         NativeDispatch::Invoked(DispatchReceipt {
             operation_id: permit.operation_id,
             plan_digest: permit.plan_digest.clone(),
@@ -261,7 +318,7 @@ impl StockDispatchPort for Peers {
             source_instance_id: s.command.target.source_instance_id,
             collection_id: s.command.target.collection_id,
             response: Some(NativeResponse {
-                status: 200,
+                status: plan.success_status,
                 value,
                 body_digest: digest(),
             }),
@@ -274,18 +331,23 @@ impl StockReadbackPort for Peers {
         &self,
         operation: &StoredOperation,
         plan: &ReadbackPlan,
-        _authority: &StockAuthority,
+        authority: &StockAuthority,
     ) -> NativeObservation {
         let mut s = self.0.lock().unwrap();
         s.readbacks += 1;
-        let mut value = s
-            .preparation
-            .snapshot(&s.command.target)
-            .unwrap()
-            .value
-            .clone();
-        value["quantity"] = json!(0);
-        assert_eq!(plan.target, s.command.target);
+        assert_eq!(authority, &s.authority);
+        assert_eq!(s.authorized_readback.as_ref(), Some(plan));
+        assert_eq!(s.events.last(), Some(&"authorize-readback"));
+        s.events.push("readback");
+        let value = s.native_response.as_ref().unwrap().clone();
+        if let Some(generated_id) = s.generated_entity_id {
+            assert_eq!(operation.actual_target.as_ref(), Some(&plan.target));
+            assert_eq!(plan.target.resource_id, Some(generated_id));
+            assert_eq!(plan.path, format!("/api/v1/entities/{generated_id}"));
+            assert_eq!(value["id"], generated_id.to_string());
+        } else {
+            assert_eq!(plan.target, s.command.target);
+        }
         NativeObservation::Present {
             context: operation.command.context.clone(),
             target: plan.target.clone(),
@@ -322,6 +384,7 @@ fn healthy_authority() -> StockAuthority {
 }
 
 fn healthy_peers(command: StockCommand, preparation: Preparation) -> Peers {
+    let generated_entity_id = (command.command_id == "homebox.entity.create").then(|| id(43));
     Peers(Arc::new(Mutex::new(State {
         command,
         preparation,
@@ -331,6 +394,9 @@ fn healthy_peers(command: StockCommand, preparation: Preparation) -> Peers {
         readbacks: 0,
         authorizations: 0,
         events: vec![],
+        generated_entity_id,
+        native_response: None,
+        authorized_readback: None,
     })))
 }
 
@@ -401,11 +467,10 @@ pub(super) fn assert_healthy_observation(
     );
 }
 
-#[test]
-fn healthy_synthetic_stock_dispatch_and_readback() {
+fn assert_healthy_dispatch_and_readback(command_id: &str) {
     let (command, preparation) = super::healthy_examples::healthy_cases()
         .into_iter()
-        .find(|(c, _)| c.command_id == "homebox.entity.quantity.set")
+        .find(|(c, _)| c.command_id == command_id)
         .unwrap();
     let peers = healthy_peers(command.clone(), preparation);
     let writer = StockWriter {
@@ -432,9 +497,34 @@ fn healthy_synthetic_stock_dispatch_and_readback() {
             .windows(3)
             .any(|events| { events == ["admit", "authorize-after-admission", "dispatch"] })
     );
+    assert!(
+        s.events
+            .windows(2)
+            .any(|events| events == ["authorize-readback", "readback"])
+    );
+    if let Some(generated_id) = s.generated_entity_id {
+        let actual = s
+            .operation
+            .as_ref()
+            .unwrap()
+            .actual_target
+            .as_ref()
+            .unwrap();
+        assert_eq!(actual.resource_id, Some(generated_id));
+        assert_eq!(outcome.known_effects[0].target.resource_id, generated_id);
+        assert_eq!(outcome.known_effects[0].effect, Effect::Created);
+        assert_eq!(command.target.resource_id, None);
+    }
     println!("HEALTHY_STOCK_REQUEST={}", command.original_wire);
     println!(
         "HEALTHY_STOCK_OUTCOME={}",
         serde_json::to_string(&*outcome).unwrap()
     );
+}
+
+#[test]
+fn healthy_synthetic_stock_dispatch_and_readback() {
+    for command_id in ["homebox.entity.quantity.set", "homebox.entity.create"] {
+        assert_healthy_dispatch_and_readback(command_id);
+    }
 }

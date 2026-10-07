@@ -315,11 +315,33 @@ where
                 StockErrorCode::UnknownHeld,
             );
         };
+        // Generated response identity is retained separately from immutable
+        // intent. Resolve the exact GET target/path before access checks so
+        // authorization sees the concrete resource that will be read.
+        let mut resolved_plan = plan.clone();
+        if matches!(
+            plan.readback.selector,
+            ReadbackSelector::Whole | ReadbackSelector::RootList | ReadbackSelector::Member { .. }
+        ) {
+            let Some(target) = super::evidence::effective_target(&operation, plan) else {
+                // Unresolved direct/member identity never turns into a name,
+                // asset ID, list scan or placeholder GET. Keep dispatch facts.
+                return self.disclose(response_command, operation).await;
+            };
+            let Ok(id) = target.id() else {
+                return self.disclose(response_command, operation).await;
+            };
+            resolved_plan.readback.target = target;
+            resolved_plan.readback.path = resolved_plan
+                .readback
+                .path
+                .replace("{generatedId}", &id.to_string());
+        }
         // Refresh membership/capability AFTER dispatch and persistence awaits.
         // Failure retains recorded dispatch evidence and performs no GET.
         let authority = match self
             .access
-            .authorize(&operation.command, AuthorityPhase::Readback(plan))
+            .authorize(&operation.command, AuthorityPhase::Readback(&resolved_plan))
             .await
         {
             Ok(authority)
@@ -338,23 +360,9 @@ where
             }
             Err(code) => return error(response_command, Some(operation.operation_id), code),
         };
-        let mut readback = plan.readback.clone();
-        if let Some(target) = &operation.actual_target {
-            readback.target = target.clone();
-            if let Some(id) = target.resource_id {
-                readback.path = readback.path.replace("{generatedId}", &id.to_string());
-            }
-        }
-        // An unresolved generated ID never turns into a name/hash/list guess.
-        if readback.path.contains("{generatedId}")
-            || matches!(plan.generated, GeneratedIdentity::EntityMember { .. })
-                && operation.actual_target.is_none()
-        {
-            return self.disclose(response_command, operation).await;
-        }
         let observation = self
             .readback
-            .readback(&operation, &readback, &authority)
+            .readback(&operation, &resolved_plan.readback, &authority)
             .await;
         if let Some(facts) =
             super::evidence::observation_facts(&self.contracts, &operation, &observation)

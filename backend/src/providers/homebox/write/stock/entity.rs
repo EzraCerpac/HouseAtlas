@@ -75,6 +75,9 @@ pub(super) fn map(
     if command.target.resource_kind != ResourceKind::Entity {
         return Err(StockMappingError::InvalidNativeInput);
     }
+    if operation == "update" {
+        requested_native_values(&command.payload)?;
+    }
     if operation == "create" {
         if command.target.resource_id.is_some() {
             return Err(StockMappingError::InvalidNativeInput);
@@ -374,6 +377,50 @@ pub(super) fn writable_entity(
     let fields = native_fields(required(value, "fields")?)?;
     body.insert("fields".to_owned(), Value::Array(fields));
     Ok(Value::Object(body))
+}
+
+/// Native AssetID is a signed int64; its decoder removes quote/hyphen bytes
+/// before decimal parsing, and its formatter emits an empty string for <=0.
+/// Positive output is zero-padded to at least six digits with a separator
+/// after the first three. Pinned repo/asset_id_type.go, lines 9–60 (SHA256
+/// d23271c5b18e8bd60afa22d169e0e8d7519cc191ced3d9ec2a35598711c25757).
+/// This value is only a writable scalar comparison, never a target identity.
+pub(super) fn native_asset_id(value: &Value) -> Option<i64> {
+    let value = value.as_str()?;
+    if value.is_empty() {
+        return Some(0);
+    }
+    value
+        .chars()
+        .filter(|character| *character != '"' && *character != '-')
+        .collect::<String>()
+        .parse::<i64>()
+        .ok()
+        .map(|value| value.max(0))
+}
+
+fn requested_native_values(payload: &Value) -> Result<(), StockMappingError> {
+    if let Some(asset_id) = payload.get("assetId")
+        && !native_asset_id(asset_id).is_some_and(|value| value > 0)
+    {
+        // A caller's nonempty zero identifier disappears in native output;
+        // an oversized decimal cannot fit the actual stored AssetID type.
+        return Err(StockMappingError::NativeLimitation(
+            "native-asset-id-requires-positive-signed-64-bit-value",
+        ));
+    }
+    for field in ["purchaseDate", "soldDate", "warrantyExpires"] {
+        if payload.get(field).and_then(Value::as_str) == Some("0001-01-01") {
+            // DateFromTime produces Go's zero time for this explicit value;
+            // repo_entities.go lines 1503–1519 clear rather than persist it.
+            // Only caller payload is checked: observed sentinel preservation
+            // and qualified wire-null clear representations remain untouched.
+            return Err(StockMappingError::NativeLimitation(
+                "native-explicit-date-is-unset-sentinel",
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn map_field(

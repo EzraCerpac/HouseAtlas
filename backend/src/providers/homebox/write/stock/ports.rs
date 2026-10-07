@@ -43,6 +43,12 @@ pub enum NativeQualification {
 pub enum AuthorityPhase<'a> {
     Execute,
     Disclose(&'a StockOutcome),
+    /// The generated response identity and GET path have been resolved into
+    /// this plan's concrete GET readback. CompleteImpact/Printer retain their
+    /// collection scope and require approved impact/printer correlation.
+    /// Authorize the exact target/owner or complete approved scope; the original
+    /// command and durable dispatch plan remain unchanged.
+    /// This transient clone is for GET authority, never redispatch or rehashing.
     Readback(&'a NativePlan),
 }
 /// Revalidate actor, source epoch, operation, every target/reference/impact,
@@ -281,6 +287,7 @@ pub struct ImpactObservation {
 /// visit each approved concrete target with its native route and return genuine
 /// completeness evidence. Printer observation needs qualified physical request
 /// correlation; fetching a label/render bytes is not print acknowledgement.
+/// Use the supplied resolved plan, not the operation's immutable dispatch plan.
 pub trait StockReadbackPort {
     fn readback(
         &self,

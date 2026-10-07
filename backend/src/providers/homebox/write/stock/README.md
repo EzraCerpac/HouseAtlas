@@ -47,6 +47,12 @@ parents compare null and the native nil UUID only in that relation field.
 Maintenance decimal costs compare exact numeric values without changing wire
 strings or hashing intent. An omitted entity-type default-template relation
 remains absent in preservation input and readback.
+Entity asset IDs compare the exact native integer value in that scalar field,
+including native padding/hyphen formatting, without changing request spelling
+or resolving resource identity through an asset ID. Explicit zero/out-of-range
+asset IDs and explicit entity/maintenance dates `0001-01-01` are unsupported
+native variants before dispatch. Existing native unset values and qualified
+null-clear transformations remain preservable.
 
 Nine stock forms are explicitly unsupported by the catalog/native API: entity and
 location history/restore-deleted, file replace-bytes/restore-deleted, document-link
@@ -98,6 +104,10 @@ refuse `SyntheticFixture` qualification.
 After asynchronous admission, the writer refreshes that same captured authority
 before dispatch. Refusal persists never-invoked evidence and returns without
 native I/O; access-denial sanitization is independent of persistence success.
+Readback authorization receives a transient plan containing the validated
+generated response target and resolved GET path. The same exact readback is
+passed to the driver; stored intent/plan/digest remain unchanged. Unresolved
+direct or member identities prevent GET, including list-based native routes.
 
 The native preparation owner supplies `StockPreparationPort::prepare`: exact
 fresh providerObservation linkage, complete scoped native snapshots, trustworthy
@@ -141,14 +151,16 @@ The unqualified engineering profile numbers are not production settings.
 
 The external harness imports the actual module with Rust 1.99.0/edition 2024 and
 pins serde=1.0.228, serde_json=1.0.145 and uuid=1.18.1. AT51 owns final manifests.
-Run only the two stock healthy groups by exact name: 69 positive mapping cases
-across all 48 required IDs/native variants, and one fresh acknowledged synthetic
-dispatch/readback. Four positive exact readback examples cover optional type
-relations, root tags, 101 preserved fields and decimal cost spelling. The fresh
-workflow verifies same-authority refresh after admission and before dispatch.
+Run only the two stock healthy groups by exact name: 72 positive mapping cases
+across all 48 required IDs/native variants, and two fresh acknowledged synthetic
+dispatch/readbacks. Seven positive exact readback examples cover optional type
+relations, root tags, 101 preserved fields, decimal cost spelling, native asset
+formatting and supported non-sentinel date boundaries. The fresh workflows
+verify same-authority refresh after admission and before dispatch, plus concrete
+generated-target authorization before GET.
 Shared contracts/access/preparation/ledger/transport remain
 stand-ins in these groups. They open no socket and use no real credentials/data.
-Their emitted 70 wire requests, five wire outcomes and 69 native plans were
+Their emitted 74 wire requests, nine wire outcomes and 72 native plans were
 validated offline against the exact supplied request/outcome schemas and pinned
 Swagger routes/body/form/query/response-status definitions. Swagger x-nullable
 was interpreted for shape validation; it was not treated as native clear proof.

@@ -101,6 +101,16 @@ fn body_tag(payload: &Value, current: Option<&Value>) -> BodyResult<Value> {
 
 fn body_maintenance(payload: &Value, current: Option<&Value>) -> BodyResult<Value> {
     let payload = object(payload)?;
+    // Pinned backend/internal/data/types/date.go (SHA256
+    // 2a3404b7f8af75747ff66f7ba654fa58da176ed7ffbc562642df140efd76fb08)
+    // reconstructs UTC midnight and emits an empty string for the zero date.
+    // Reject only explicit caller dates; an observed native sentinel can be
+    // preserved, and wire-null clears use qualified preparation separately.
+    for field in ["scheduledDate", "completedDate"] {
+        if payload.get(field).and_then(Value::as_str) == Some("0001-01-01") {
+            return Err("native-maintenance-date-sentinel-is-unset");
+        }
+    }
     let mut body = match current {
         Some(current) => preserved(current, MAINTENANCE_FIELDS)?,
         None => Map::new(),

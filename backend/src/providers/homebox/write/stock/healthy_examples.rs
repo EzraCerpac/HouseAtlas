@@ -712,6 +712,31 @@ fn cases() -> Vec<Case> {
         entity_path.clone(),
     );
     add(
+        "homebox.entity.update",
+        target(ResourceKind::Entity, Some(entity_id), None),
+        json!({"assetId":"123"}),
+        NativeMethod::Put,
+        entity_path.clone(),
+    );
+    add(
+        "homebox.entity.update",
+        target(ResourceKind::Entity, Some(entity_id), None),
+        json!({"purchaseDate":"0001-01-02"}),
+        NativeMethod::Put,
+        entity_path.clone(),
+    );
+    add(
+        "homebox.maintenance.schedule",
+        target(
+            ResourceKind::Maintenance,
+            Some(fixture_id(0xa00)),
+            Some(entity_id),
+        ),
+        json!({"scheduledDate":"0001-01-02"}),
+        NativeMethod::Put,
+        format!("/api/v1/maintenance/{}", fixture_id(0xa00)),
+    );
+    add(
         "homebox.entity-type.update",
         target(ResourceKind::EntityType, Some(fixture_id(0x700)), None),
         json!({"name":"Healthy type without a default template"}),
@@ -939,6 +964,48 @@ fn assert_family_values(command: &StockCommand, preparation: &Preparation, plan:
             assert_eq!(native["fields"].as_array().unwrap().len(), 101);
             super::healthy_workflow::assert_healthy_observation(command, preparation, plan, native);
         }
+        "homebox.entity.update" if command.payload["assetId"] == "123" => {
+            let NativeBody::Json(body) = &plan.request.body else {
+                panic!("healthy asset update uses JSON")
+            };
+            assert_eq!(body["assetId"], "123");
+            assert_eq!(command.original_wire["payload"]["assetId"], "123");
+            let mut native = preparation.snapshot(&command.target).unwrap().value.clone();
+            native["assetId"] = json!("000-123");
+            super::healthy_workflow::assert_healthy_observation(command, preparation, plan, native);
+            assert_eq!(command.payload["assetId"], "123");
+        }
+        "homebox.entity.update" if command.payload["purchaseDate"] == "0001-01-02" => {
+            let NativeBody::Json(body) = &plan.request.body else {
+                panic!("healthy boundary date update uses JSON")
+            };
+            assert_eq!(body["purchaseDate"], "0001-01-02");
+            let mut native = preparation.snapshot(&command.target).unwrap().value.clone();
+            native["purchaseDate"] = command.payload["purchaseDate"].clone();
+            super::healthy_workflow::assert_healthy_observation(command, preparation, plan, native);
+            assert_eq!(
+                command.original_wire["payload"]["purchaseDate"],
+                "0001-01-02"
+            );
+        }
+        "homebox.maintenance.schedule" if command.payload["scheduledDate"] == "0001-01-02" => {
+            let NativeBody::Json(body) = &plan.request.body else {
+                panic!("healthy boundary maintenance date uses JSON")
+            };
+            assert_eq!(body["scheduledDate"], "0001-01-02");
+            let mut native = preparation.snapshot(&command.target).unwrap().value.clone();
+            native["scheduledDate"] = command.payload["scheduledDate"].clone();
+            super::healthy_workflow::assert_healthy_observation(
+                command,
+                preparation,
+                plan,
+                json!([native]),
+            );
+            assert_eq!(
+                command.original_wire["payload"]["scheduledDate"],
+                "0001-01-02"
+            );
+        }
         "homebox.maintenance.update" => {
             assert_eq!(command.original_wire["payload"]["cost"], "30.50");
             let mut native = preparation.snapshot(&command.target).unwrap().value.clone();
@@ -1020,6 +1087,6 @@ fn healthy_synthetic_stock_operation_mappings() {
     assert_eq!(command_ids.len(), 49);
     assert_eq!(bulk_actions.len(), 6);
     assert_eq!(print_subjects.len(), 3);
-    assert_eq!(cases.len(), 69);
+    assert_eq!(cases.len(), 72);
     assert_eq!(healthy_cases().len(), cases.len());
 }

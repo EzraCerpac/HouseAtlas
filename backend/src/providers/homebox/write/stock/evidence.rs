@@ -336,7 +336,10 @@ pub(super) fn observation_facts<C: StockContractPort>(
     }
 }
 
-fn effective_target(operation: &StoredOperation, plan: &NativePlan) -> Option<StockTarget> {
+pub(super) fn effective_target(
+    operation: &StoredOperation,
+    plan: &NativePlan,
+) -> Option<StockTarget> {
     let expected = &plan.readback.target;
     let target = match &plan.generated {
         GeneratedIdentity::None => {
@@ -670,6 +673,15 @@ fn native_values_agree(
                     true
                 }
                 (ResourceKind::Maintenance, "cost") => decimal_cost_equal(expected, actual),
+                (ResourceKind::Entity, "assetId") => {
+                    match (
+                        entity::native_asset_id(expected),
+                        entity::native_asset_id(actual),
+                    ) {
+                        (Some(expected), Some(actual)) => expected == actual,
+                        _ => false,
+                    }
+                }
                 _ => semantic_subset(expected, actual, Some(key), members),
             })
     })
