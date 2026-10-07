@@ -187,6 +187,13 @@ resource policy and private no-store responses. Cooperative cancellation does
 not establish hard-deadline or concurrency qualification. Fresh owned upload
 uses the qualified attachment route; HomeBox media transport remains unavailable.
 
+PNG originals retain their validated bytes independently of optional preview
+limits. Only an actual successful bounded renderer produces `safe-rendered`;
+legal originals without that qualification remain `download-only`. Measured
+metadata alone carries no preview qualification. Native upload persistence
+retains the policy from the original immutable Media stage and checks its full
+binding, consumed receipt and asset association.
+
 Mounted MCP is
 `POST /api/atlas/mcp/workspaces/{workspaceId}/homes/{homeId}`. Its cookie/CSRF
 profile uses actual observed POST evidence and genuine AT11 `Action::Mutate`
