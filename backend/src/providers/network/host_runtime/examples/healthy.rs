@@ -100,52 +100,68 @@ async fn main() -> Result<(), Failure> {
             a::Action::Read,
         )?,
     ];
-    let access = OwnedNetworkAccess::new(vec![origin.clone()], a::AccessLimits::default(), policy)?;
-    let password = format!("Disposable-{}", app::new_id()?);
-    access.provision_user(
-        &user,
-        &actor,
-        "synthetic-network-editor",
-        &a::hash_password(&password)?,
-        None,
-    )?;
-    access.set_membership(&user, &scope, a::Role::Editor, true)?;
-    let login_url = format!("{origin}/api/atlas/auth/login");
-    let receipt = access.login(
-        &evidence(&login_url, origin, a::Method::Post, None, None),
-        &serde_json::to_vec(&json!({"username":"synthetic-network-editor", "password":password}))?,
-        "disposable-loopback",
-    )?;
-    let cookie = receipt
-        .set_cookie()
-        .split(';')
-        .next()
-        .ok_or("Missing session cookie")?;
-    let csrf = receipt.info().csrf_token();
-    let configure_url = format!("{origin}/api/atlas/configure");
-    let principal = access.authorize(
-        &evidence(
-            &configure_url,
-            origin,
-            a::Method::Post,
-            Some(cookie),
-            Some(csrf),
-        ),
-        &scope,
-        a::Action::Mutate,
-    )?;
-    // The configured Atlas authorizer is a genuine unrelated AT11 boundary.
-    // Publication must use the per-call original authorizer on this SAME Store;
-    // the configured ReadAuthority grants no ConfigureSource/PublishCache.
-    let default_access = Arc::new(Mutex::new(a::AccessBoundary::in_memory(
-        a::AccessConfig::new(vec![origin.clone()])?,
+    // Root's genuine canonical issuer exists before the Network bridge. Its
+    // original policy, principal and sessions are not recreated by injection.
+    let canonical = Arc::new(Mutex::new(a::AccessBoundary::open(
+        directory_path.join("access.sqlite"),
+        a::AccessConfig::new(vec![origin.clone()])?
+            .with_lifecycle_policy(a::LifecyclePolicy::from_trusted_configuration(policy)),
     )?));
+    let (configure_principal, principal, login_url, read_url) = {
+        let mut issuer = canonical
+            .try_lock()
+            .map_err(|_| "Canonical access unexpectedly locked")?;
+        let password = format!("Disposable-{}", app::new_id()?);
+        issuer.provision_user(
+            &user,
+            &actor,
+            "synthetic-network-editor",
+            &a::hash_password(&password)?,
+            None,
+        )?;
+        issuer.set_membership(&user, &scope, a::Role::Editor, true)?;
+        let login_url = format!("{origin}/api/atlas/auth/login");
+        let receipt = issuer.login(
+            &evidence(&login_url, origin, a::Method::Post, None, None),
+            &serde_json::to_vec(
+                &json!({"username":"synthetic-network-editor", "password":password}),
+            )?,
+            "disposable-loopback",
+        )?;
+        let cookie = receipt
+            .set_cookie()
+            .split(';')
+            .next()
+            .ok_or("Missing session cookie")?;
+        let csrf = receipt.info().csrf_token();
+        let configure_url = format!("{origin}/api/atlas/configure");
+        let configure_principal = issuer.authorize(
+            &evidence(
+                &configure_url,
+                origin,
+                a::Method::Post,
+                Some(cookie),
+                Some(csrf),
+            ),
+            &scope,
+            a::Action::Mutate,
+        )?;
+        let read_url = format!("{origin}/api/atlas/network");
+        let principal = issuer.authorize(
+            &evidence(&read_url, origin, a::Method::Get, Some(cookie), None),
+            &scope,
+            a::Action::Read,
+        )?;
+        (configure_principal, principal, login_url, read_url)
+    };
+    // Store/Core and the bridge share this exact canonical allocation. Held
+    // callbacks must use borrowed authority rather than reenter ReadAuthority.
     let vault = Arc::new(AssetVault::open(&directory_path.join("media"))?);
     let atlas_path = directory_path.join("atlas.sqlite");
     let mut store = Store::open(
         &atlas_path,
         NativeContracts,
-        ReadAuthority(default_access.clone()),
+        ReadAuthority(canonical.clone()),
         NativeMediaRuntime {
             vault: vault.clone(),
             server: ServerRuntime,
@@ -156,39 +172,68 @@ async fn main() -> Result<(), Failure> {
         },
     )?;
     store.initialize_synthetic(&serde_json::from_value(snapshot)?)?;
-    access.configure(&mut store, &principal, &source)?;
-    let read_url = format!("{origin}/api/atlas/network");
-    let principal = access.authorize(
-        &evidence(&read_url, origin, a::Method::Get, Some(cookie), None),
-        &scope,
-        a::Action::Read,
-    )?;
-    let partition = access.partition_grant(&principal, &source.partition())?;
-    let mut grants = Vec::new();
-    for (kind, id) in [
-        (a::SourceKind::NetworkGroup, "group-a"),
-        (a::SourceKind::NetworkDevice, "device-a"),
-        (a::SourceKind::NetworkDevice, "device-b"),
-        (a::SourceKind::NetworkInterface, "interface-a"),
-        (a::SourceKind::NetworkSegment, "segment-a"),
-    ] {
-        grants.push(access.source_grant(
-            &principal,
-            &a::SourceRef {
-                workspace_id: scope.workspace_id.clone(),
-                home_id: scope.home_id.clone(),
-                key: a::SourceKey {
-                    source_instance_id: source.partition().source_instance_id,
-                    collection_id: registration.collection_id.clone(),
-                    source_kind: kind,
-                    external_id: id.into(),
-                },
-            },
-        )?);
+    let home = d::HomeSummary {
+        scope: d::Scope {
+            workspace_id: registration.workspace_id.clone(),
+            home_id: registration.home_id.clone(),
+        },
+        label: "Synthetic Network home".into(),
+    };
+    let core = Arc::new(Mutex::new(Core {
+        access: canonical.clone(),
+        store: Mutex::new(store),
+        vault,
+        homes: vec![home.clone()],
+        home,
+    }));
+    let canonical_from_core = core
+        .try_lock()
+        .map_err(|_| "Core unexpectedly locked")?
+        .access
+        .clone();
+    assert!(Arc::ptr_eq(&canonical_from_core, &canonical));
+    let access = NetworkAccess::from_shared(a::SharedAccess::from_existing(canonical_from_core));
+    assert!(Arc::ptr_eq(access.shared().as_existing(), &canonical));
+    {
+        let mut locked = core.try_lock().map_err(|_| "Core unexpectedly locked")?;
+        access.configure(
+            locked.store.get_mut().map_err(|_| "Store poisoned")?,
+            &configure_principal,
+            &source,
+        )?;
     }
-    let lease = access.retain_original(principal, source.clone(), partition, grants)?;
+    let (partition, grants) = {
+        let issuer = canonical
+            .try_lock()
+            .map_err(|_| "Canonical access unexpectedly locked")?;
+        issuer.revalidate(&principal)?;
+        let partition = issuer.authorize_source_partition(&principal, &source.partition())?;
+        let mut grants = Vec::new();
+        for (kind, id) in [
+            (a::SourceKind::NetworkGroup, "group-a"),
+            (a::SourceKind::NetworkDevice, "device-a"),
+            (a::SourceKind::NetworkDevice, "device-b"),
+            (a::SourceKind::NetworkInterface, "interface-a"),
+            (a::SourceKind::NetworkSegment, "segment-a"),
+        ] {
+            grants.push(issuer.authorize_source(
+                &principal,
+                &a::SourceRef {
+                    workspace_id: scope.workspace_id.clone(),
+                    home_id: scope.home_id.clone(),
+                    key: a::SourceKey {
+                        source_instance_id: source.partition().source_instance_id,
+                        collection_id: registration.collection_id.clone(),
+                        source_kind: kind,
+                        external_id: id.into(),
+                    },
+                },
+            )?);
+        }
+        (partition, grants)
+    };
     let settings = NetworkSettings::new(
-        source,
+        source.clone(),
         origin,
         serde_json::from_str(include_str!(
             "../../../../../../adapters/network/fixtures/link-review.json"
@@ -200,21 +245,25 @@ async fn main() -> Result<(), Failure> {
         &directory_path,
     )?
     .with_reviewed_ca_pem(&ca)?;
+    let accepted = access.bind_accepted_original(
+        principal.clone(),
+        source.clone(),
+        partition.clone(),
+        grants.clone(),
+        &settings.transport(),
+        None,
+    )?;
+    use n::NetworkReadAuthority;
+    let accepted_original =
+        accepted.authorize_inventory(settings.source(), settings.transport().reviewed_origin())?;
+    assert!(Arc::ptr_eq(&accepted_original, accepted.lease()));
+    accepted.revalidate_inventory(
+        &accepted_original,
+        settings.source(),
+        settings.transport().reviewed_origin(),
+    )?;
+    let lease = access.retain_original(principal, source, partition, grants)?;
     let authority = NetworkAuthority::new(lease.clone(), &settings.transport(), None)?;
-    let home = d::HomeSummary {
-        scope: d::Scope {
-            workspace_id: registration.workspace_id.clone(),
-            home_id: registration.home_id.clone(),
-        },
-        label: "Synthetic Network home".into(),
-    };
-    let core = Arc::new(Mutex::new(Core {
-        access: default_access,
-        store: Mutex::new(store),
-        vault,
-        homes: vec![home.clone()],
-        home,
-    }));
     let runtime = HostNetworkRuntime::open(settings)?;
     let outcome = runtime
         .refresh(
@@ -462,6 +511,7 @@ async fn main() -> Result<(), Failure> {
     assert_eq!(generation_references(&source, generation)?.len(), 5);
     assert_eq!(generation.inventory.links.len(), 4);
     assert_eq!(generation.observations.len(), 1);
+    accepted.authorize_generation(&accepted_original, &source, generation)?;
     assert_eq!(generation.retrieved_at, "2026-01-02T12:00:00Z");
     let reopened = n::reopen_sidecar(
         &source,
@@ -474,7 +524,7 @@ async fn main() -> Result<(), Failure> {
     sidecar.close()?;
     drop(core);
     println!(
-        "PASS healthy native Network: verified TLS inventory GET1, genuine AT11 original grants, same-store native publisher, epoch0->1, durable pointer/reopen, schema5; entities5/links4/relations4/observations1; genuine viewer link/observation capture and original-grant same-store rerelease; reads preserve epoch/reservations"
+        "PASS healthy canonical Network: same Core/access/Store issuer, original principal before shared injection, accepted PR36 lease ABI; verified TLS inventory GET1, genuine AT11 original grants, same-store native publisher, epoch0->1, durable pointer/reopen, schema5; entities5/links4/relations4/observations1; genuine viewer link/observation capture and original-grant same-store rerelease; reads preserve epoch/reservations"
     );
     Ok(())
 }

@@ -1,8 +1,9 @@
 //! Closed retained-generation browse. Initial capture and release use the real
 //! AT11 read fence, with durable sidecar loading outside the authority lock.
 use super::{
-    authority::{OwnedNetworkAccess, wrong_scope},
+    authority::{NetworkAccess, wrong_scope},
     disclosure::{GenerationMembership, generation_membership},
+    grant_index::GrantIndex,
 };
 use crate::{
     access as a, config::providers::registry::ConfiguredSource, providers::network as n,
@@ -13,7 +14,7 @@ use std::sync::Arc;
 /// No DTO issuer, raw constructor or grant replacement. Every resource handle
 /// was issued by AT11 with this genuine principal and original member grants.
 pub struct OriginalNetworkDisclosure {
-    pub(super) access: Arc<OwnedNetworkAccess>,
+    pub(super) access: Arc<NetworkAccess>,
     pub(super) principal: a::Principal,
     pub(super) source: Arc<ConfiguredSource>,
     pub(super) partition: a::PartitionGrant,
@@ -37,19 +38,9 @@ impl OriginalNetworkDisclosure {
         self.retained.cache.generation_id.as_deref()
     }
     pub fn revalidate(&self) -> a::AccessResult<()> {
-        let boundary = self.access.lock()?;
-        boundary.revalidate(&self.principal)?;
-        boundary.revalidate_source_partition(&self.partition)?;
-        for grant in &self.entities {
-            boundary.revalidate_source(grant)?;
-        }
-        for grant in &self.links {
-            boundary.revalidate_network_link(grant)?;
-        }
-        for grant in &self.observations {
-            boundary.revalidate_network_observation(grant)?;
-        }
-        Ok(())
+        self.access
+            .lock()?
+            .with_read_authorization(&self.principal, |guard| self.check_guard(guard))
     }
     pub(super) fn check_guard(
         &self,
@@ -72,7 +63,7 @@ impl OriginalNetworkDisclosure {
         Ok(())
     }
     pub(super) fn capture(
-        access: Arc<OwnedNetworkAccess>,
+        access: Arc<NetworkAccess>,
         principal: a::Principal,
         source: Arc<ConfiguredSource>,
         partition: a::PartitionGrant,
@@ -103,10 +94,11 @@ impl OriginalNetworkDisclosure {
         };
         // This only matches authenticated original handles to proven generation
         // members; it never treats a SourceRef selector as a membership issuer.
+        let member_index = GrantIndex::new(&entities);
         let member = |reference: &a::SourceRef| -> Result<&a::SourceGrant, n::NetworkError> {
-            entities
-                .iter()
-                .find(|g| g.reference() == reference)
+            member_index
+                .position(reference)
+                .map(|i| &entities[i])
                 .ok_or_else(wrong_scope)
         };
         for reference in &membership.entities {
@@ -214,7 +206,7 @@ impl s::Authorization for PartitionRead<'_> {
 }
 pub(super) fn read_partition(
     store: &mut Store,
-    access: &OwnedNetworkAccess,
+    access: &NetworkAccess,
     principal: &a::Principal,
     source: &ConfiguredSource,
     partition: &a::PartitionGrant,

@@ -1,36 +1,24 @@
-use super::generation_references;
+use super::{generation_references, grant_index::GrantIndex};
 use crate::{access as a, config::providers::registry::ConfiguredSource, providers::network as n};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, MutexGuard};
 
 const MAX_GRANTS: usize = 10_000;
 
-/// Sole authority database, not a mirror of a disk-backed boundary. It cannot
-/// be replaced or opened from a path. Sessions are deliberately process-local.
-/// Startup/admin methods are trusted host APIs, never provider or HTTP input.
-pub struct OwnedNetworkAccess {
-    pub(super) boundary: Arc<Mutex<a::AccessBoundary>>,
+/// Trusted injection of the existing canonical Access issuer. This adapter
+/// allocates no boundary, policy, session or replacement principal. All clones
+/// and original leases retain the exact SharedAccess handle supplied by Core.
+pub struct NetworkAccess {
+    pub(super) shared: a::SharedAccess,
 }
-impl OwnedNetworkAccess {
-    pub fn new(
-        origins: Vec<String>,
-        limits: a::AccessLimits,
-        rules: Vec<a::LifecycleRule>,
-    ) -> a::AccessResult<Arc<Self>> {
-        if rules.len() > 256 {
-            return Err(a::AccessError::InvalidInput);
-        }
-        let policy = a::LifecyclePolicy::from_trusted_configuration(rules);
-        let config = a::AccessConfig::new(origins)?
-            .with_limits(limits)?
-            .with_lifecycle_policy(policy);
-        Ok(Arc::new(Self {
-            boundary: Arc::new(Mutex::new(a::AccessBoundary::in_memory(config)?)),
-        }))
+impl NetworkAccess {
+    pub fn from_shared(shared: a::SharedAccess) -> Arc<Self> {
+        Arc::new(Self { shared })
+    }
+    pub fn shared(&self) -> &a::SharedAccess {
+        &self.shared
     }
     pub(super) fn lock(&self) -> a::AccessResult<MutexGuard<'_, a::AccessBoundary>> {
-        self.boundary
-            .try_lock()
-            .map_err(|_| a::AccessError::Unavailable)
+        self.shared.try_lock()
     }
     pub fn provision_user(
         &self,
@@ -116,7 +104,7 @@ impl OwnedNetworkAccess {
         {
             return Err(a::AccessError::NotFound);
         }
-        let boundary = self.lock()?;
+        let mut boundary = self.lock()?;
         let lifecycle = boundary.capture_lifecycle(
             &principal,
             source.access_registration(),
@@ -128,9 +116,10 @@ impl OwnedNetworkAccess {
             source,
             lifecycle,
             partition,
+            source_index: GrantIndex::new(&sources),
             sources,
         });
-        lease.check(&boundary)?;
+        lease.check(&mut boundary)?;
         Ok(lease)
     }
 }
@@ -138,27 +127,25 @@ impl OwnedNetworkAccess {
 /// No Serialize/Deserialize/Clone constructor. Complete genuine provenance and
 /// branded grants stay in this original handle throughout the workflow.
 pub struct OriginalNetworkLease {
-    pub(super) access: Arc<OwnedNetworkAccess>,
+    pub(super) access: Arc<NetworkAccess>,
     pub(super) principal: a::Principal,
     pub(super) source: Arc<ConfiguredSource>,
     pub(super) lifecycle: a::LifecycleGrant,
     partition: a::PartitionGrant,
     sources: Vec<a::SourceGrant>,
+    source_index: GrantIndex,
 }
 impl OriginalNetworkLease {
-    pub(super) fn check(&self, boundary: &a::AccessBoundary) -> a::AccessResult<()> {
-        boundary.revalidate(&self.principal)?;
-        boundary.revalidate_lifecycle(
+    pub(super) fn check(&self, boundary: &mut a::AccessBoundary) -> a::AccessResult<()> {
+        // The supplied guard binds EACH retained resource to this exact original
+        // principal before any exported transport callback can use the lease.
+        boundary.with_lifecycle_authorization(
             &self.principal,
             &self.lifecycle,
             self.source.access_registration(),
             a::LifecycleCapability::PublishCache,
-        )?;
-        boundary.revalidate_source_partition(&self.partition)?;
-        for grant in &self.sources {
-            boundary.revalidate_source(grant)?;
-        }
-        Ok(())
+            |guard| self.check_guard(guard),
+        )
     }
     pub(super) fn check_guard(
         &self,
@@ -180,7 +167,7 @@ impl OriginalNetworkLease {
         Ok(())
     }
     pub fn revalidate(&self) -> a::AccessResult<()> {
-        self.check(&*self.access.lock()?)
+        self.check(&mut *self.access.lock()?)
     }
     pub fn source(&self) -> &ConfiguredSource {
         &self.source
@@ -189,7 +176,7 @@ impl OriginalNetworkLease {
         if references.len() > MAX_GRANTS
             || references
                 .iter()
-                .any(|r| !self.sources.iter().any(|g| g.reference() == r))
+                .any(|r| self.source_index.position(r).is_none())
         {
             return Err(a::AccessError::NotFound);
         }
@@ -213,7 +200,7 @@ impl SessionMaterial {
 }
 /// One callback adapter bound to an exact original lease, full registration and
 /// reviewed origin. No authority cache, background mirror, permissive issuer or
-/// blocking lock acquisition. All queries are to the sole private memory DB.
+/// blocking mutex acquisition. Current checks use the injected canonical issuer.
 pub struct NetworkAuthority {
     lease: Arc<OriginalNetworkLease>,
     registration: n::SourceRegistration,

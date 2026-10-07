@@ -1,4 +1,4 @@
-use super::authority::{OriginalNetworkLease, OwnedNetworkAccess};
+use super::authority::{NetworkAccess, OriginalNetworkLease};
 use crate::{
     access as a, app::Store, config::providers::registry::ConfiguredSource,
     providers::network as n, storage as s,
@@ -134,7 +134,7 @@ fn held<T>(
         .map_err(|e: PhaseError| e.0)?;
     output.ok_or_else(conflict)
 }
-impl OwnedNetworkAccess {
+impl NetworkAccess {
     /// Separate trusted ConfigureSource grant. This does not synthesize policy
     /// from registration metadata. Durable registration succeeds first; an AT11
     /// error afterward is returned and can leave only the durable registration.

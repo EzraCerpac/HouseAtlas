@@ -1,5 +1,5 @@
 use super::{
-    NetworkAuthority, OriginalNetworkDisclosure, OriginalNetworkLease, OwnedNetworkAccess,
+    NetworkAccess, NetworkAuthority, OriginalNetworkDisclosure, OriginalNetworkLease,
     PreparedPublication, authority::wrong_scope,
 };
 use crate::{
@@ -67,7 +67,7 @@ impl HostNetworkRuntime {
             return Ok(RefreshResult::AlreadyRunning);
         };
         cancelled(&cancellation)?;
-        let prepared = with_store(core, |store| {
+        let prepared = with_store(core, &lease.access, |store| {
             PreparedPublication::prepare(store, lease.clone(), self.settings.source())
         })?;
         let baseline = prepared.baseline();
@@ -135,7 +135,9 @@ impl HostNetworkRuntime {
                     self.settings.source(),
                     config.reviewed_origin(),
                 )?;
-                RefreshResult::Published(with_store(core, |store| prepared.publish(store, staged))?)
+                RefreshResult::Published(with_store(core, &lease.access, |store| {
+                    prepared.publish(store, staged)
+                })?)
             }
             n::RefreshOutcome::Failed(failure) => {
                 cancelled(&cancellation)?;
@@ -144,15 +146,14 @@ impl HostNetworkRuntime {
                     self.settings.source(),
                     config.reviewed_origin(),
                 )?;
-                RefreshResult::SourceFailure(with_store(core, |store| {
+                RefreshResult::SourceFailure(with_store(core, &lease.access, |store| {
                     prepared.failure(store, failure.error.code)
                 })?)
             }
         };
-        cancelled(&cancellation)?;
-        // Release checks the exact original provenance, not reacquired grants.
-        authority.revalidate_inventory(&lease, self.settings.source(), config.reviewed_origin())?;
-        cancelled(&cancellation)?;
+        // Native publication returned only after the original held authorizer
+        // completed its release checks. Report that committed outcome: a later
+        // cancellation or fresh authority check must not turn it into a timeout.
         Ok(result)
     }
     fn retained(
@@ -188,7 +189,7 @@ impl HostNetworkRuntime {
     pub fn read(
         &self,
         store: &mut Store,
-        access: Arc<OwnedNetworkAccess>,
+        access: Arc<NetworkAccess>,
         principal: crate::access::Principal,
         partition: crate::access::PartitionGrant,
         entities: Vec<crate::access::SourceGrant>,
@@ -251,9 +252,13 @@ impl HostNetworkRuntime {
 }
 fn with_store<T>(
     core: &Arc<Mutex<Core>>,
+    access: &NetworkAccess,
     operation: impl FnOnce(&mut Store) -> s::Result<T>,
 ) -> Result<T> {
     let mut core = core.try_lock().map_err(|_| storage_unavailable())?;
+    if !Arc::ptr_eq(access.shared().as_existing(), &core.access) {
+        return Err(wrong_scope().into());
+    }
     let store = core.store.get_mut().map_err(|_| storage_unavailable())?;
     operation(store).map_err(n::NetworkPublicationError::Storage)
 }

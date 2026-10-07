@@ -1,10 +1,11 @@
 //! Exact callback ABI for accepted PR36 NetworkRuntime.refresh. The factory is
-//! the only constructor, tying its accepted lease to the actual private memory
-//! issuer. A caller cannot substitute a file-backed or mirrored access store.
+//! the only constructor, tying its accepted lease to the injected canonical
+//! issuer without constructing or mirroring an access store.
 use super::{
-    OwnedNetworkAccess, SessionMaterial,
+    NetworkAccess, SessionMaterial,
     authority::{access_error, wrong_scope},
     generation_references,
+    grant_index::GrantIndex,
 };
 use crate::{
     access as a,
@@ -22,10 +23,11 @@ pub struct AcceptedNetworkAuthority {
     registration: n::SourceRegistration,
     origin: String,
     session: Option<SessionMaterial>,
-    // Keep the actual memory authority owner alive, not just a detached proof.
-    _issuer: Arc<OwnedNetworkAccess>,
+    source_index: GrantIndex,
+    // Retain the canonical shared issuer, not just a detached proof.
+    _issuer: Arc<NetworkAccess>,
 }
-impl OwnedNetworkAccess {
+impl NetworkAccess {
     /// Retain original handles directly through the accepted closed authority.
     /// This is the exact PR36 lease, not a replacement principal/DTO/witness.
     #[allow(clippy::too_many_arguments)]
@@ -51,9 +53,10 @@ impl OwnedNetworkAccess {
         if let Some(session) = &session {
             session.header()?;
         }
+        let source_index = GrantIndex::new(&sources);
         let lease = Arc::new(
             ProviderLease::retain_original(
-                &self.boundary,
+                self.shared.as_existing(),
                 &NativeLifecycleAuthority,
                 principal,
                 source,
@@ -67,6 +70,7 @@ impl OwnedNetworkAccess {
             registration,
             origin: config.reviewed_origin().origin(),
             session,
+            source_index,
             _issuer: self.clone(),
         }))
     }
@@ -126,8 +130,15 @@ impl n::NetworkReadAuthority for AcceptedNetworkAuthority {
         }
         self.check(lease)?;
         let references = generation_references(source, generation)?;
-        lease
-            .revalidate_disclosure(&NativeLifecycleAuthority, &references)
-            .map_err(access_error)
+        if references.len() > 10_000
+            || references
+                .iter()
+                .any(|r| self.source_index.position(r).is_none())
+        {
+            return Err(wrong_scope());
+        }
+        // retain_original already bound these immutable handles to its genuine
+        // principal through the accepted owner guard; revalidate the originals.
+        self.check(lease)
     }
 }
