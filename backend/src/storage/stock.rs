@@ -18,6 +18,7 @@ enum Qualification<'a> {
     Direct,
     Staged(&'a crate::media::staged_upload::StagedAssetPlan),
     Derived(&'a AtlasDerivation),
+    DerivedBatch(&'a [Option<AtlasDerivation>]),
 }
 
 pub(super) fn stock_error(error: StockError) -> Error {
@@ -88,6 +89,35 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         )
     }
 
+    /// Execute ordered direct and specialized children in the existing single
+    /// native transaction. Every supplied preimage is checked against its one
+    /// original snapshot; the required authorizer uses the same principal.
+    pub fn execute_derived_stock_batch_json_with_authorization<B, S>(
+        &mut self,
+        authorization: &B,
+        principal: &A::Principal,
+        contracts: &S,
+        raw: &Value,
+        derivations: &[Option<AtlasDerivation>],
+    ) -> Result<StockAtlasCommit>
+    where
+        B: StockAuthorization<Principal = A::Principal>,
+        S: StockContractPort,
+    {
+        let request = ValidatedRequest::parse(contracts, raw.clone()).map_err(stock_error)?;
+        super::super::stock_derivation::validate_batch_derivations(&request, derivations)?;
+        let plan = stock::plan_derived_atlas_batch_commands(&request, derivations, &self.contract)
+            .map_err(stock_error)?;
+        self.execute_stock_plan(
+            authorization,
+            principal,
+            contracts,
+            &request,
+            &plan,
+            Qualification::DerivedBatch(derivations),
+        )
+    }
+
     /// Consumes one authentic stage in the original stock/native transaction.
     /// The per-call principal need not be the persistent read principal type.
     pub fn execute_staged_stock_json_with_authorization<B, S>(
@@ -134,10 +164,11 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         plan: &AtlasCommandPlan,
         qualification: Qualification<'_>,
     ) -> Result<StockAtlasCommit> {
-        let (staged, derivation) = match qualification {
-            Qualification::Direct => (None, None),
-            Qualification::Staged(staged) => (Some(staged), None),
-            Qualification::Derived(derivation) => (None, Some(derivation)),
+        let (staged, derivation, child_derivations) = match qualification {
+            Qualification::Direct => (None, None, None),
+            Qualification::Staged(staged) => (Some(staged), None, None),
+            Qualification::Derived(derivation) => (None, Some(derivation), None),
+            Qualification::DerivedBatch(derivations) => (None, None, Some(derivations)),
         };
         let entries = plan
             .groups()
@@ -163,6 +194,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             plan,
             staged,
             derivation,
+            child_derivations,
             entries: &entries,
             batch: batch.as_ref(),
             commit: None,
@@ -194,6 +226,7 @@ struct StockTransaction<'a, C, B: Authorization, R, S> {
     plan: &'a AtlasCommandPlan,
     staged: Option<&'a crate::media::staged_upload::StagedAssetPlan>,
     derivation: Option<&'a AtlasDerivation>,
+    child_derivations: Option<&'a [Option<AtlasDerivation>]>,
     entries: &'a [MutationEntry],
     batch: Option<&'a BatchMutation>,
     commit: Option<StockAtlasCommit>,
@@ -388,6 +421,20 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
                 derivation,
             )?;
         }
+        if let Some(derivations) = self.child_derivations {
+            super::super::stock_derivation::validate_batch_derivations(self.request, derivations)?;
+            for (child, derivation) in self.request.children().iter().zip(derivations) {
+                if let Some(derivation) = derivation {
+                    super::super::stock_derivation::validate_original(
+                        self.contract,
+                        child,
+                        original,
+                        self.plan.scope(),
+                        derivation,
+                    )?;
+                }
+            }
+        }
         // A single root's guards are its native command guards. Preserve the
         // native transition-then-guards order instead of checking them twice.
         if self.plan.batch_target_id().is_none() {
@@ -481,10 +528,14 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
             groups,
             derivation_format: None,
             derivation: None,
+            child_derivations: None,
             wire: Value::Null,
             children: Vec::new(),
         };
         commit.set_derivation(self.derivation.cloned());
+        if let Some(derivations) = self.child_derivations {
+            commit.set_child_derivations(derivations);
+        }
         let output = self.project(&commit)?;
         commit.wire = output.wire;
         commit.children = output.children;

@@ -62,14 +62,26 @@ pub(crate) fn retained_plan<C: Contract, S: StockContractPort>(
 ) -> Result<(ValidatedRequest, AtlasCommandPlan)> {
     let original =
         ValidatedRequest::parse(stock, commit.original_request.clone()).map_err(incompatible)?;
-    if commit.derivation.is_some() || commit.derivation_format.is_some() {
+    if commit.derivation.is_some()
+        || commit.derivation_format.is_some()
+        || commit.child_derivations.is_some()
+    {
         super::stock_derivation::validate_retained_preimage(commit, stock, native)?;
         if super::upload_repository::load_for_commit(db, native, stock, commit)?.is_some() {
             return Err(repo::incompatible());
         }
-        let derivation = commit.derivation.as_ref().ok_or_else(repo::incompatible)?;
-        let plan = stock::plan_derived_atlas_commands(&original, derivation, native)
-            .map_err(incompatible)?;
+        // validate_retained_preimage has checked mutually exclusive format
+        // carriers. Rebuild only saved data, with no current rows or fresh clock.
+        let plan = match (&commit.derivation, &commit.child_derivations) {
+            (Some(derivation), None) => {
+                stock::plan_derived_atlas_commands(&original, derivation, native)
+            }
+            (None, Some(derivations)) => {
+                stock::plan_derived_atlas_batch_commands(&original, derivations, native)
+            }
+            _ => return Err(repo::incompatible()),
+        }
+        .map_err(incompatible)?;
         return Ok((original, plan));
     }
     let consumed = super::upload_repository::load_for_commit(db, native, stock, commit)?;

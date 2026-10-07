@@ -1,7 +1,8 @@
 //! Durable stock metadata, with authority kept in borrowed required peers.
 use super::*;
 use crate::domain::stock::{
-    ATLAS_DERIVATION_FORMAT, AtlasCommandPlan, AtlasDerivation, OwnerResult,
+    ATLAS_BATCH_DERIVATION_FORMAT, ATLAS_DERIVATION_FORMAT, AtlasCommandPlan, AtlasDerivation,
+    OwnerResult,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -64,6 +65,10 @@ pub struct StockAtlasCommit {
     pub derivation_format: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub derivation: Option<AtlasDerivation>,
+    /// Only atlas-derived-batch/1 uses this ordered child-aligned vector.
+    /// Direct children have None; old direct/staged/single receipts omit it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub child_derivations: Option<Vec<Option<AtlasDerivation>>>,
     pub wire: Value,
     pub children: Vec<Value>,
 }
@@ -71,6 +76,10 @@ impl StockAtlasCommit {
     pub(crate) fn set_derivation(&mut self, derivation: Option<AtlasDerivation>) {
         self.derivation_format = derivation.as_ref().map(|_| ATLAS_DERIVATION_FORMAT.into());
         self.derivation = derivation;
+    }
+    pub(crate) fn set_child_derivations(&mut self, derivations: &[Option<AtlasDerivation>]) {
+        self.derivation_format = Some(ATLAS_BATCH_DERIVATION_FORMAT.into());
+        self.child_derivations = Some(derivations.to_vec());
     }
 }
 impl StockAtlasCommit {
