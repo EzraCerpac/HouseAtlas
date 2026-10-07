@@ -1,9 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app/App";
-import { createAtlasClient } from "./api/client";
+import { SessionApp } from "./app/SessionApp";
+import { createAtlasClient, createAtlasSessionClient } from "./api/client";
 import type { AtlasClient } from "./app/types";
 import "./styles/atlas.css";
+import "./styles/session.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("HouseAtlas root missing");
@@ -12,6 +14,17 @@ if (!root) throw new Error("HouseAtlas root missing");
 const bootstrap = root.dataset.bootstrapUrl;
 const homeTemplate = root.dataset.homeUrlTemplate;
 const signInPath = root.dataset.signInUrl;
+const sessionPath = root.dataset.sessionUrl;
+const loginPath = root.dataset.loginUrl;
+const logoutPath = root.dataset.logoutUrl;
+const sessions =
+  sessionPath && loginPath
+    ? createAtlasSessionClient({
+        session: sessionPath,
+        login: loginPath,
+        ...(logoutPath ? { logout: logoutPath } : {}),
+      })
+    : null;
 const client: AtlasClient =
   bootstrap &&
   homeTemplate?.includes("{workspaceId}") &&
@@ -38,10 +51,14 @@ const signIn =
     : undefined;
 createRoot(root).render(
   <StrictMode>
-    <App
-      client={client}
-      {...(signIn ? { signIn } : {})}
-      accessEvents={window}
-    />
+    {sessions ? (
+      <SessionApp client={client} sessions={sessions} accessEvents={window} />
+    ) : (
+      <App
+        client={client}
+        {...(signIn ? { signIn } : {})}
+        accessEvents={window}
+      />
+    )}
   </StrictMode>,
 );
