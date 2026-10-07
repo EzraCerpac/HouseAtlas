@@ -11,7 +11,7 @@ mod types;
 
 pub use adapter::{HomeBoxQueries, HomeBoxReadOwner};
 pub use cache::cached_entity_page;
-pub use observations::{DecodedReadObservation, DecodedReadOwner};
+pub use observations::{DecodedReadObservation, DecodedReadOwner, TemplateDetailCapture};
 pub use selection::{HomeBoxReadQuery, REQUIRED_READ_OPERATIONS};
 pub use types::*;
 

@@ -210,11 +210,7 @@ pub fn detail_resources(
         let mut resources = Vec::new();
         for raw in rows(&fresh.source, "attachments")? {
             let attachment_id = id(raw)?;
-            let Some(super::super::Attachment::ExternalLink {
-                title,
-                url,
-                ..
-            }) = fresh
+            let Some(super::super::Attachment::ExternalLink { title, url, .. }) = fresh
                 .value
                 .attachments
                 .iter()
