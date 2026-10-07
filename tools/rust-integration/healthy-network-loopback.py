@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One fixture TLS GET and three real root TLS requests. No stopped controls."""
+"""One fixture TLS GET and six real root TLS requests. No stopped controls."""
 import json
 import os
 from pathlib import Path

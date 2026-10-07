@@ -450,6 +450,28 @@ async fn main() -> Result<(), Failure> {
             "Original synthetic source text"
         );
     }
+    // Snapshot-backed routes use the private selector's actual typed AT11 link
+    // path. Projected unresolved ends remain concealed here; the dedicated
+    // cached facet above preserves them using its original raw-member evidence.
+    for path in [
+        format!(
+            "/api/atlas/v1/workspaces/{}/homes/{}/network/relations",
+            registration.workspace_id, registration.home_id
+        ),
+        "/api/atlas/rooms".into(),
+        "/api/atlas/items".into(),
+    ] {
+        let response = client
+            .get(format!("{origin}{path}"))
+            .header("origin", origin)
+            .header("sec-fetch-site", "same-origin")
+            .header("cookie", &viewer_cookie)
+            .send()
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value = serde_json::from_slice(&response.bytes().await?)?;
+        assert!(body.is_object() || body.is_array());
+    }
     let epoch_after: i64 = db.query_row(
         "SELECT epoch FROM cache_epochs WHERE source_instance_id=?1",
         [&registration.source_instance_id],
@@ -468,7 +490,7 @@ async fn main() -> Result<(), Failure> {
         .close()?;
     drop(core);
     println!(
-        "PASS healthy root Network router: one actual TLS inventory GET/native publication; genuine viewer HTTP login; two cached root GETs on same canonical Core/Access/Store, original entity/link/observation disclosure; epoch/reservations unchanged; no provider request from browsing. Root HTTP uses its real TLS loopback listener and actual connection metadata; no browser qualification."
+        "PASS healthy root Network router: one actual TLS inventory GET/native publication; genuine viewer HTTP login; two cached root GETs and three snapshot-backed relation/room/item GETs on same canonical Core/Access/Store; original cached entity/link/observation disclosure; unresolved snapshot endpoints remain concealed; epoch/reservations unchanged; no provider request from browsing. Root HTTP uses its real TLS loopback listener and actual connection metadata; no browser qualification."
     );
     Ok(())
 }
