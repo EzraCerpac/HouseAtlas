@@ -467,7 +467,8 @@ impl Transaction<'_, '_, '_> {
                     !receipt.replayed
                         && receipt.original_request == *graph.plan.original_request()
                         && receipt.request_digest == graph.plan.request_digest()
-                        && receipt.operation_id == graph.request.id().as_str()
+                        && receipt.wire["commandId"] == graph.request.id().as_str()
+                        && receipt.wire["operationId"] == receipt.operation_id
                         && receipt.actor_id == actor.actor_id
                         && receipt.groups.len() == graph.plan.groups().len()
                         && receipt.derivation == graph.derivation
@@ -494,7 +495,14 @@ impl Transaction<'_, '_, '_> {
                         actual.child_index == group.child_index()
                             && actual.original_request == *group.original_request()
                             && actual.request_digest == group.request_digest()
-                            && actual.operation_id == expected_operation.as_str()
+                            && actual.original_request["commandId"] == expected_operation.as_str()
+                            && match group.child_index() {
+                                Some(index) => receipt.children.get(index).is_some_and(|child| {
+                                    child["operationId"] == actual.operation_id
+                                        && child["commandId"] == expected_operation.as_str()
+                                }),
+                                None => actual.operation_id == receipt.operation_id,
+                            }
                             && actual.native_entries == group.native_entries(),
                     )?;
                 }

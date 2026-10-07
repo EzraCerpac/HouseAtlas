@@ -38,12 +38,21 @@ Standalone text/plain stock asset-create now uses same-request actual Media
 staging, the original Access allocation and atomic Store consumption. Its named
 healthy TLS fixture verifies the one committed receipt, linked history and exact
 authenticated download bytes. Generic JSON staged intake, renderer-qualified
-asset review and mixed derived batches remain separate source implementation gaps.
+asset review remain separate consumer implementation gaps. Mixed derived batches
+now have the native Domain/Storage owner implementation and ordered versioned
+retention and the root HTTP consumer through the unchanged original fresh fence.
 Media now provides opaque actual retained-byte renderer proof with exact
-request/preimage/successor revalidation; its example does not prove a Store commit
-or host receipt custody. Four cached HomeBox
+request/preimage/successor revalidation; its example does not prove a Store commit.
+The host now retains the complete original principal allocation
+with the genuine opaque renderer carrier in bounded session-bound custody; the
+same-Store proof consumer remains a distinct source gap. Four cached HomeBox
 entity/location reads are mounted in native stock and HTTP/MCP. The remaining
-HomeBox read families and durable writer host require genuine owner peers.
+HomeBox read families and durable writer host require genuine owner peers. PR119
+adds native-byte observation adapters for thirteen resource forms and seven query
+views. Its 24 positive source dispatches use synthetic authority/graphs and do not
+qualify production intake or new HTTP/MCP mounts. Representation gaps remain in
+stored-file archive facts, template summaries, field identity, calendar/date-time,
+UUID registration and asset/cursor producer correlation.
 Missing product areas include Core-only MCP download admission and download link
 UI, Core-only MCP Network query mounts, complete
 provider setup and UI, trusted AI configuration/startup callers and receipt identity,

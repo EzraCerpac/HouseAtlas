@@ -14,7 +14,8 @@ Preparation derives immutable inputs from the actual authorized Store snapshot.
 Binding create and the new side of remap receive `unresolved` source state;
 neither the requested key nor its cached projection establishes a presence
 witness. Review and restore retain the complete original binding preimage.
-Geometry import time comes from one server clock sample retained in the plan.
+Each geometry command's import time comes from one server clock sample retained in
+its plan, including a separate retained sample for each geometry child in a batch.
 Asset review preserves the original asset envelope and admits only `block` and
 `download-only` with null renderer receipt IDs. `request-preview` remains held
 because the actual renderer-receipt qualification peer is unavailable.

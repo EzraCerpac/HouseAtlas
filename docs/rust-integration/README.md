@@ -234,8 +234,12 @@ and Vite. It runs exactly healthy-contracts, healthy-dependencies,
 healthy-native-semantics and healthy-maintenance-calendar. The separately named
 healthy-agent-stock performs
 genuine in-process MCP tools/list and tools/call over actual access/domain/SQLite;
-its separate temporary specialized helper exercises the bounded derived forms
+its specialized helper exercises the bounded derived forms
 documented in [specialized writes](atlas-specialized-writes.md).
+Run `cargo run --locked -p houseatlas-backend --example healthy-agent-stock`
+for six specialized singles and the positive seven-child mixed derived batch,
+using real Access/Store and normal reopened record/history reads in disposable
+synthetic state. It exercises no replay, live provider or held controls.
 The workflow compiles it on both platforms and runs it only on Linux.
 The separate healthy-homebox-cache-stock example reads four cached entity/location
 forms through the actual native dispatcher and borrowed in-process MCP adapter.
