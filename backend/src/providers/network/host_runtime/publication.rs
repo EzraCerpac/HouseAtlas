@@ -198,6 +198,12 @@ impl NetworkAccess {
             .store
             .get_mut()
             .map_err(|_| storage_access(a::AccessError::Unavailable))?;
+        if !Arc::ptr_eq(
+            self.shared().as_existing(),
+            &store.configured_authorization().0,
+        ) {
+            return Err(conflict());
+        }
         self.configure_in_store(store, principal, source)
     }
     fn configure_in_store(
