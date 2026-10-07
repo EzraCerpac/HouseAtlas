@@ -1,0 +1,1149 @@
+{
+  "synthetic": true,
+  "scope": "Schema/representation examples only; no mutations, dispatch, authority or witness admission",
+  "requests": [
+    {
+      "schemaVersion": 3,
+      "commandId": "atlas.identity.get",
+      "requestId": "00000000-0000-4000-8000-000000060001",
+      "context": {
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002"
+      },
+      "target": {
+        "authority": "atlas",
+        "recordType": "identity",
+        "recordId": "00000000-0000-4000-8000-000000000201"
+      },
+      "payload": {}
+    },
+    {
+      "schemaVersion": 3,
+      "commandId": "atlas.circuit.create",
+      "requestId": "00000000-0000-4000-8000-000000060002",
+      "context": {
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002"
+      },
+      "target": {
+        "authority": "atlas",
+        "recordType": "circuit",
+        "recordId": "00000000-0000-4000-8000-000000000406"
+      },
+      "payload": {
+        "label": null,
+        "panel": null,
+        "evidenceIds": [
+          "00000000-0000-4000-8000-000000000100"
+        ]
+      },
+      "idempotencyKey": "00000000-0000-4000-8000-000000001000",
+      "reason": "Synthetic circuit record, label still unknown",
+      "approvalReceiptId": null,
+      "preconditions": {
+        "target": null,
+        "guards": [
+          {
+            "target": {
+              "authority": "atlas",
+              "recordType": "evidence",
+              "recordId": "00000000-0000-4000-8000-000000000100"
+            },
+            "revision": {
+              "kind": "atlas",
+              "value": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "schemaVersion": 3,
+      "commandId": "atlas.binding.remap",
+      "requestId": "00000000-0000-4000-8000-000000060003",
+      "context": {
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002"
+      },
+      "target": {
+        "authority": "atlas",
+        "recordType": "binding",
+        "recordId": "00000000-0000-4000-8000-000000000301"
+      },
+      "payload": {
+        "oldBindingId": "00000000-0000-4000-8000-000000000301",
+        "newBindingId": "00000000-0000-4000-8000-000000000304",
+        "journalId": "00000000-0000-4000-8000-000000000405",
+        "source": {
+          "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+          "collectionId": "synthetic-collection-a",
+          "sourceKind": "homebox-entity",
+          "externalId": "00000000-0000-4000-8000-000000000504"
+        },
+        "reason": "import-id-remap",
+        "evidenceIds": [
+          "00000000-0000-4000-8000-000000000100"
+        ]
+      },
+      "idempotencyKey": "00000000-0000-4000-8000-000000061003",
+      "reason": "Reviewed synthetic import ID remap",
+      "approvalReceiptId": null,
+      "preconditions": {
+        "target": {
+          "kind": "atlas",
+          "value": 1
+        },
+        "guards": [
+          {
+            "target": {
+              "authority": "atlas",
+              "recordType": "identity",
+              "recordId": "00000000-0000-4000-8000-000000000201"
+            },
+            "revision": {
+              "kind": "atlas",
+              "value": 1
+            }
+          },
+          {
+            "target": {
+              "authority": "atlas",
+              "recordType": "evidence",
+              "recordId": "00000000-0000-4000-8000-000000000100"
+            },
+            "revision": {
+              "kind": "atlas",
+              "value": 1
+            }
+          },
+          {
+            "target": {
+              "authority": "atlas",
+              "recordType": "binding",
+              "recordId": "00000000-0000-4000-8000-000000000301"
+            },
+            "revision": {
+              "kind": "atlas",
+              "value": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "schemaVersion": 3,
+      "commandId": "atlas.batch.execute",
+      "requestId": "00000000-0000-4000-8000-000000060004",
+      "context": {
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002"
+      },
+      "target": {
+        "authority": "atlas",
+        "kind": "batch",
+        "batchId": "00000000-0000-4000-8000-000000061004"
+      },
+      "payload": {
+        "commands": [
+          {
+            "schemaVersion": 3,
+            "commandId": "atlas.circuit.create",
+            "requestId": "00000000-0000-4000-8000-000000060002",
+            "context": {
+              "workspaceId": "00000000-0000-4000-8000-000000000001",
+              "homeId": "00000000-0000-4000-8000-000000000002"
+            },
+            "target": {
+              "authority": "atlas",
+              "recordType": "circuit",
+              "recordId": "00000000-0000-4000-8000-000000000406"
+            },
+            "payload": {
+              "label": null,
+              "panel": null,
+              "evidenceIds": [
+                "00000000-0000-4000-8000-000000000100"
+              ]
+            },
+            "idempotencyKey": "00000000-0000-4000-8000-000000001000",
+            "reason": "Synthetic circuit record, label still unknown",
+            "approvalReceiptId": null,
+            "preconditions": {
+              "target": null,
+              "guards": [
+                {
+                  "target": {
+                    "authority": "atlas",
+                    "recordType": "evidence",
+                    "recordId": "00000000-0000-4000-8000-000000000100"
+                  },
+                  "revision": {
+                    "kind": "atlas",
+                    "value": 1
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "schemaVersion": 3,
+            "commandId": "atlas.binding.remap",
+            "requestId": "00000000-0000-4000-8000-000000060003",
+            "context": {
+              "workspaceId": "00000000-0000-4000-8000-000000000001",
+              "homeId": "00000000-0000-4000-8000-000000000002"
+            },
+            "target": {
+              "authority": "atlas",
+              "recordType": "binding",
+              "recordId": "00000000-0000-4000-8000-000000000301"
+            },
+            "payload": {
+              "oldBindingId": "00000000-0000-4000-8000-000000000301",
+              "newBindingId": "00000000-0000-4000-8000-000000000304",
+              "journalId": "00000000-0000-4000-8000-000000000405",
+              "source": {
+                "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+                "collectionId": "synthetic-collection-a",
+                "sourceKind": "homebox-entity",
+                "externalId": "00000000-0000-4000-8000-000000000504"
+              },
+              "reason": "import-id-remap",
+              "evidenceIds": [
+                "00000000-0000-4000-8000-000000000100"
+              ]
+            },
+            "idempotencyKey": "00000000-0000-4000-8000-000000061003",
+            "reason": "Reviewed synthetic import ID remap",
+            "approvalReceiptId": null,
+            "preconditions": {
+              "target": {
+                "kind": "atlas",
+                "value": 1
+              },
+              "guards": [
+                {
+                  "target": {
+                    "authority": "atlas",
+                    "recordType": "identity",
+                    "recordId": "00000000-0000-4000-8000-000000000201"
+                  },
+                  "revision": {
+                    "kind": "atlas",
+                    "value": 1
+                  }
+                },
+                {
+                  "target": {
+                    "authority": "atlas",
+                    "recordType": "evidence",
+                    "recordId": "00000000-0000-4000-8000-000000000100"
+                  },
+                  "revision": {
+                    "kind": "atlas",
+                    "value": 1
+                  }
+                },
+                {
+                  "target": {
+                    "authority": "atlas",
+                    "recordType": "binding",
+                    "recordId": "00000000-0000-4000-8000-000000000301"
+                  },
+                  "revision": {
+                    "kind": "atlas",
+                    "value": 1
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "idempotencyKey": "00000000-0000-4000-8000-000000061004",
+      "reason": "Reviewed synthetic import ID remap",
+      "approvalReceiptId": null,
+      "preconditions": {
+        "target": null,
+        "guards": []
+      }
+    },
+    {
+      "schemaVersion": 3,
+      "commandId": "homebox.query.read",
+      "requestId": "00000000-0000-4000-8000-000000060005",
+      "context": {
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002"
+      },
+      "target": {
+        "authority": "homebox",
+        "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+        "collectionId": "00000000-0000-4000-8000-000000062001",
+        "resourceKind": "collection"
+      },
+      "payload": {
+        "view": "currency",
+        "limit": 1
+      }
+    },
+    {
+      "schemaVersion": 3,
+      "commandId": "homebox.bulk.execute",
+      "requestId": "00000000-0000-4000-8000-000000060006",
+      "context": {
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002"
+      },
+      "target": {
+        "authority": "homebox",
+        "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+        "collectionId": "00000000-0000-4000-8000-000000062001",
+        "resourceKind": "collection"
+      },
+      "payload": {
+        "action": "create-missing-thumbnails",
+        "impactId": "00000000-0000-4000-8000-000000062002",
+        "impactDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "idempotencyKey": "00000000-0000-4000-8000-000000061006",
+      "reason": "Synthetic schema-only preparation",
+      "approvalReceiptId": null,
+      "preconditions": {
+        "providerObservation": {
+          "kind": "provider-observation",
+          "handle": "00000000-0000-4000-8000-000000062003"
+        },
+        "atlasGuards": []
+      }
+    },
+    {
+      "schemaVersion": 3,
+      "commandId": "network.inventory.get",
+      "requestId": "00000000-0000-4000-8000-000000060007",
+      "context": {
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002"
+      },
+      "target": {
+        "authority": "network",
+        "sourceInstanceId": "00000000-0000-4000-8000-000000000012",
+        "collectionId": "inventory"
+      },
+      "payload": {}
+    }
+  ],
+  "results": [
+    {
+      "wire": {
+        "schemaVersion": 3,
+        "commandId": "atlas.identity.get",
+        "requestId": "00000000-0000-4000-8000-000000060001",
+        "resolvedScope": {
+          "workspaceId": "00000000-0000-4000-8000-000000000001",
+          "homeId": "00000000-0000-4000-8000-000000000002"
+        },
+        "status": "read",
+        "replayed": false,
+        "data": {
+          "records": [
+            {
+              "target": {
+                "authority": "atlas",
+                "recordType": "identity",
+                "recordId": "00000000-0000-4000-8000-000000000201"
+              },
+              "revision": 1,
+              "lifecycle": "active",
+              "payload": {
+                "kind": "item",
+                "evidenceIds": [
+                  "00000000-0000-4000-8000-000000000100"
+                ]
+              }
+            }
+          ],
+          "nextCursor": null,
+          "sourceStatus": "current"
+        }
+      },
+      "children": []
+    },
+    {
+      "wire": {
+        "schemaVersion": 3,
+        "commandId": "atlas.circuit.create",
+        "requestId": "00000000-0000-4000-8000-000000060002",
+        "resolvedScope": {
+          "workspaceId": "00000000-0000-4000-8000-000000000001",
+          "homeId": "00000000-0000-4000-8000-000000000002"
+        },
+        "status": "committed",
+        "replayed": false,
+        "data": {
+          "auditIds": [
+            "00000000-0000-4000-8000-000000010406"
+          ],
+          "records": [
+            {
+              "target": {
+                "authority": "atlas",
+                "recordType": "circuit",
+                "recordId": "00000000-0000-4000-8000-000000000406"
+              },
+              "revision": 1,
+              "lifecycle": "active",
+              "payload": {
+                "label": null,
+                "panel": null,
+                "evidenceIds": [
+                  "00000000-0000-4000-8000-000000000100"
+                ]
+              }
+            }
+          ],
+          "requestDigest": "8e71c0c7729e3969ab2295538c854b3da9f3bd2314752d54dfa13ecf8ac12a7e"
+        },
+        "operationId": "00000000-0000-4000-8000-000000001000"
+      },
+      "children": []
+    },
+    {
+      "wire": {
+        "schemaVersion": 3,
+        "commandId": "atlas.binding.remap",
+        "requestId": "00000000-0000-4000-8000-000000060003",
+        "resolvedScope": {
+          "workspaceId": "00000000-0000-4000-8000-000000000001",
+          "homeId": "00000000-0000-4000-8000-000000000002"
+        },
+        "status": "committed",
+        "replayed": false,
+        "data": {
+          "auditIds": [
+            "00000000-0000-4000-8000-000000010301",
+            "00000000-0000-4000-8000-000000010304",
+            "00000000-0000-4000-8000-000000010405"
+          ],
+          "records": [
+            {
+              "target": {
+                "authority": "atlas",
+                "recordType": "binding",
+                "recordId": "00000000-0000-4000-8000-000000000301"
+              },
+              "revision": 2,
+              "lifecycle": "active",
+              "payload": {
+                "atlasId": "00000000-0000-4000-8000-000000000201",
+                "source": {
+                  "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+                  "collectionId": "synthetic-collection-a",
+                  "sourceKind": "homebox-entity",
+                  "externalId": "00000000-0000-4000-8000-000000000501"
+                },
+                "reviewStatus": "retired",
+                "sourceState": "unresolved",
+                "evidenceIds": [
+                  "00000000-0000-4000-8000-000000000100"
+                ]
+              }
+            },
+            {
+              "target": {
+                "authority": "atlas",
+                "recordType": "binding",
+                "recordId": "00000000-0000-4000-8000-000000000304"
+              },
+              "revision": 1,
+              "lifecycle": "active",
+              "payload": {
+                "atlasId": "00000000-0000-4000-8000-000000000201",
+                "source": {
+                  "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+                  "collectionId": "synthetic-collection-a",
+                  "sourceKind": "homebox-entity",
+                  "externalId": "00000000-0000-4000-8000-000000000504"
+                },
+                "reviewStatus": "accepted",
+                "sourceState": "present",
+                "evidenceIds": [
+                  "00000000-0000-4000-8000-000000000100"
+                ]
+              }
+            },
+            {
+              "target": {
+                "authority": "atlas",
+                "recordType": "reconciliation",
+                "recordId": "00000000-0000-4000-8000-000000000405"
+              },
+              "revision": 1,
+              "lifecycle": "active",
+              "payload": {
+                "atlasId": "00000000-0000-4000-8000-000000000201",
+                "fromBindingId": "00000000-0000-4000-8000-000000000301",
+                "toBindingId": "00000000-0000-4000-8000-000000000304",
+                "reason": "import-id-remap",
+                "evidenceIds": [
+                  "00000000-0000-4000-8000-000000000100"
+                ]
+              }
+            }
+          ],
+          "requestDigest": "fcf3d920bd80f7174b6ea6aa0c049304cbc300bcad4eb1cfee34dc4e96d37090"
+        },
+        "operationId": "00000000-0000-4000-8000-000000061003"
+      },
+      "children": []
+    },
+    {
+      "wire": {
+        "schemaVersion": 3,
+        "commandId": "atlas.batch.execute",
+        "requestId": "00000000-0000-4000-8000-000000060004",
+        "resolvedScope": {
+          "workspaceId": "00000000-0000-4000-8000-000000000001",
+          "homeId": "00000000-0000-4000-8000-000000000002"
+        },
+        "status": "committed",
+        "replayed": false,
+        "data": {
+          "auditIds": [
+            "00000000-0000-4000-8000-000000010406",
+            "00000000-0000-4000-8000-000000010301",
+            "00000000-0000-4000-8000-000000010304",
+            "00000000-0000-4000-8000-000000010405"
+          ],
+          "records": [
+            {
+              "target": {
+                "authority": "atlas",
+                "recordType": "circuit",
+                "recordId": "00000000-0000-4000-8000-000000000406"
+              },
+              "revision": 1,
+              "lifecycle": "active",
+              "payload": {
+                "label": null,
+                "panel": null,
+                "evidenceIds": [
+                  "00000000-0000-4000-8000-000000000100"
+                ]
+              }
+            },
+            {
+              "target": {
+                "authority": "atlas",
+                "recordType": "binding",
+                "recordId": "00000000-0000-4000-8000-000000000301"
+              },
+              "revision": 2,
+              "lifecycle": "active",
+              "payload": {
+                "atlasId": "00000000-0000-4000-8000-000000000201",
+                "source": {
+                  "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+                  "collectionId": "synthetic-collection-a",
+                  "sourceKind": "homebox-entity",
+                  "externalId": "00000000-0000-4000-8000-000000000501"
+                },
+                "reviewStatus": "retired",
+                "sourceState": "unresolved",
+                "evidenceIds": [
+                  "00000000-0000-4000-8000-000000000100"
+                ]
+              }
+            },
+            {
+              "target": {
+                "authority": "atlas",
+                "recordType": "binding",
+                "recordId": "00000000-0000-4000-8000-000000000304"
+              },
+              "revision": 1,
+              "lifecycle": "active",
+              "payload": {
+                "atlasId": "00000000-0000-4000-8000-000000000201",
+                "source": {
+                  "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+                  "collectionId": "synthetic-collection-a",
+                  "sourceKind": "homebox-entity",
+                  "externalId": "00000000-0000-4000-8000-000000000504"
+                },
+                "reviewStatus": "accepted",
+                "sourceState": "present",
+                "evidenceIds": [
+                  "00000000-0000-4000-8000-000000000100"
+                ]
+              }
+            },
+            {
+              "target": {
+                "authority": "atlas",
+                "recordType": "reconciliation",
+                "recordId": "00000000-0000-4000-8000-000000000405"
+              },
+              "revision": 1,
+              "lifecycle": "active",
+              "payload": {
+                "atlasId": "00000000-0000-4000-8000-000000000201",
+                "fromBindingId": "00000000-0000-4000-8000-000000000301",
+                "toBindingId": "00000000-0000-4000-8000-000000000304",
+                "reason": "import-id-remap",
+                "evidenceIds": [
+                  "00000000-0000-4000-8000-000000000100"
+                ]
+              }
+            }
+          ],
+          "requestDigest": "86c6ef69f3e59226ee1749e53d2455712f1b9a000131a011dd58347fba19003c"
+        },
+        "operationId": "00000000-0000-4000-8000-000000061004"
+      },
+      "children": [
+        {
+          "schemaVersion": 3,
+          "commandId": "atlas.circuit.create",
+          "requestId": "00000000-0000-4000-8000-000000060002",
+          "resolvedScope": {
+            "workspaceId": "00000000-0000-4000-8000-000000000001",
+            "homeId": "00000000-0000-4000-8000-000000000002"
+          },
+          "status": "committed",
+          "replayed": false,
+          "data": {
+            "auditIds": [
+              "00000000-0000-4000-8000-000000010406"
+            ],
+            "records": [
+              {
+                "target": {
+                  "authority": "atlas",
+                  "recordType": "circuit",
+                  "recordId": "00000000-0000-4000-8000-000000000406"
+                },
+                "revision": 1,
+                "lifecycle": "active",
+                "payload": {
+                  "label": null,
+                  "panel": null,
+                  "evidenceIds": [
+                    "00000000-0000-4000-8000-000000000100"
+                  ]
+                }
+              }
+            ],
+            "requestDigest": "8e71c0c7729e3969ab2295538c854b3da9f3bd2314752d54dfa13ecf8ac12a7e"
+          },
+          "operationId": "00000000-0000-4000-8000-000000001000"
+        },
+        {
+          "schemaVersion": 3,
+          "commandId": "atlas.binding.remap",
+          "requestId": "00000000-0000-4000-8000-000000060003",
+          "resolvedScope": {
+            "workspaceId": "00000000-0000-4000-8000-000000000001",
+            "homeId": "00000000-0000-4000-8000-000000000002"
+          },
+          "status": "committed",
+          "replayed": false,
+          "data": {
+            "auditIds": [
+              "00000000-0000-4000-8000-000000010301",
+              "00000000-0000-4000-8000-000000010304",
+              "00000000-0000-4000-8000-000000010405"
+            ],
+            "records": [
+              {
+                "target": {
+                  "authority": "atlas",
+                  "recordType": "binding",
+                  "recordId": "00000000-0000-4000-8000-000000000301"
+                },
+                "revision": 2,
+                "lifecycle": "active",
+                "payload": {
+                  "atlasId": "00000000-0000-4000-8000-000000000201",
+                  "source": {
+                    "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+                    "collectionId": "synthetic-collection-a",
+                    "sourceKind": "homebox-entity",
+                    "externalId": "00000000-0000-4000-8000-000000000501"
+                  },
+                  "reviewStatus": "retired",
+                  "sourceState": "unresolved",
+                  "evidenceIds": [
+                    "00000000-0000-4000-8000-000000000100"
+                  ]
+                }
+              },
+              {
+                "target": {
+                  "authority": "atlas",
+                  "recordType": "binding",
+                  "recordId": "00000000-0000-4000-8000-000000000304"
+                },
+                "revision": 1,
+                "lifecycle": "active",
+                "payload": {
+                  "atlasId": "00000000-0000-4000-8000-000000000201",
+                  "source": {
+                    "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+                    "collectionId": "synthetic-collection-a",
+                    "sourceKind": "homebox-entity",
+                    "externalId": "00000000-0000-4000-8000-000000000504"
+                  },
+                  "reviewStatus": "accepted",
+                  "sourceState": "present",
+                  "evidenceIds": [
+                    "00000000-0000-4000-8000-000000000100"
+                  ]
+                }
+              },
+              {
+                "target": {
+                  "authority": "atlas",
+                  "recordType": "reconciliation",
+                  "recordId": "00000000-0000-4000-8000-000000000405"
+                },
+                "revision": 1,
+                "lifecycle": "active",
+                "payload": {
+                  "atlasId": "00000000-0000-4000-8000-000000000201",
+                  "fromBindingId": "00000000-0000-4000-8000-000000000301",
+                  "toBindingId": "00000000-0000-4000-8000-000000000304",
+                  "reason": "import-id-remap",
+                  "evidenceIds": [
+                    "00000000-0000-4000-8000-000000000100"
+                  ]
+                }
+              }
+            ],
+            "requestDigest": "fcf3d920bd80f7174b6ea6aa0c049304cbc300bcad4eb1cfee34dc4e96d37090"
+          },
+          "operationId": "00000000-0000-4000-8000-000000061003"
+        }
+      ]
+    },
+    {
+      "wire": {
+        "schemaVersion": 3,
+        "commandId": "homebox.query.read",
+        "requestId": "00000000-0000-4000-8000-000000060005",
+        "status": "read",
+        "resolvedScope": {
+          "workspaceId": "00000000-0000-4000-8000-000000000001",
+          "homeId": "00000000-0000-4000-8000-000000000002"
+        },
+        "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+        "collectionId": "00000000-0000-4000-8000-000000062001",
+        "retrievedAt": "2026-01-02T12:00:00Z",
+        "data": {
+          "kind": "currency",
+          "currency": {
+            "code": "USD",
+            "decimals": 2,
+            "name": "Synthetic dollar",
+            "symbol": "$",
+            "local": "en-US"
+          }
+        }
+      },
+      "children": []
+    },
+    {
+      "wire": {
+        "schemaVersion": 3,
+        "commandId": "homebox.bulk.execute",
+        "requestId": "00000000-0000-4000-8000-000000060006",
+        "operationId": "00000000-0000-4000-8000-000000061006",
+        "resolvedScope": {
+          "workspaceId": "00000000-0000-4000-8000-000000000001",
+          "homeId": "00000000-0000-4000-8000-000000000002"
+        },
+        "requestDigest": "a6c274d672b8062fdd8468400d8efdcf7932045025ff2dcc3030f980d195acf4",
+        "causalityProven": false,
+        "atomicProviderCAS": false,
+        "nativeEditorRacePossible": true,
+        "knownEffects": [],
+        "observedAt": "2026-01-02T12:00:00Z",
+        "responseDigest": null,
+        "readbackDigest": null,
+        "generatedIdentityResolved": false,
+        "unknownScopeFenceRetained": false,
+        "remoteActivity": {
+          "state": "not-dispatched",
+          "terminationEvidenceDigest": null
+        },
+        "storageLiability": {
+          "accountingComplete": true,
+          "metadataCommitEvidence": "not-dispatched",
+          "byteDisposition": "none",
+          "referenceClosureEvidence": "unassessed",
+          "orphanCandidateId": null,
+          "unresolvedAttempts": 0,
+          "knownBytes": 0,
+          "reservedBytes": 0
+        },
+        "state": "prepared",
+        "verification": "unresolved",
+        "responseSuccess": false,
+        "readbackAgrees": false,
+        "resolutionEvidenceDigest": null,
+        "resolutionActorId": null
+      },
+      "children": []
+    },
+    {
+      "wire": {
+        "schemaVersion": 3,
+        "commandId": "network.inventory.get",
+        "requestId": "00000000-0000-4000-8000-000000060007",
+        "resolvedScope": {
+          "workspaceId": "00000000-0000-4000-8000-000000000001",
+          "homeId": "00000000-0000-4000-8000-000000000002"
+        },
+        "status": "read",
+        "replayed": false,
+        "data": {
+          "capability": "inventory",
+          "relations": [
+            {
+              "schemaVersion": 1,
+              "workspaceId": "00000000-0000-4000-8000-000000000001",
+              "homeId": "00000000-0000-4000-8000-000000000002",
+              "sourceInstanceId": "00000000-0000-4000-8000-000000000012",
+              "collectionId": "inventory",
+              "externalId": "member-a",
+              "kind": "network-segment-membership",
+              "from": {
+                "kind": "device",
+                "id": "device-a",
+                "description": null
+              },
+              "to": {
+                "kind": "segment",
+                "id": "segment-a",
+                "description": null
+              },
+              "medium": "powerline",
+              "sourceRevision": 35,
+              "sourceSnapshotAt": "2026-01-02T12:00:00Z",
+              "retrievedAt": "2026-01-02T12:00:00Z",
+              "vantage": null,
+              "sourceConfidence": "confirmed",
+              "evidenceBasis": "owner-report",
+              "temporalStatus": "current-claim",
+              "factAt": "2025-12-01T00:00:00Z",
+              "notes": "Synthetic fixture; confidence is source-reported, not a fresh survey."
+            },
+            {
+              "schemaVersion": 1,
+              "workspaceId": "00000000-0000-4000-8000-000000000001",
+              "homeId": "00000000-0000-4000-8000-000000000002",
+              "sourceInstanceId": "00000000-0000-4000-8000-000000000012",
+              "collectionId": "inventory",
+              "externalId": "association-a",
+              "kind": "network-association",
+              "from": {
+                "kind": "device",
+                "id": "device-a",
+                "description": null
+              },
+              "to": {
+                "kind": "device",
+                "id": "device-b",
+                "description": null
+              },
+              "medium": "wifi",
+              "sourceRevision": 35,
+              "sourceSnapshotAt": "2026-01-02T12:00:00Z",
+              "retrievedAt": "2026-01-02T12:00:00Z",
+              "vantage": null,
+              "sourceConfidence": "unknown",
+              "evidenceBasis": "owner-report",
+              "temporalStatus": "disputed",
+              "factAt": "2025-12-01T00:00:00Z",
+              "notes": "Synthetic fixture; confidence is source-reported, not a fresh survey."
+            },
+            {
+              "schemaVersion": 1,
+              "workspaceId": "00000000-0000-4000-8000-000000000001",
+              "homeId": "00000000-0000-4000-8000-000000000002",
+              "sourceInstanceId": "00000000-0000-4000-8000-000000000012",
+              "collectionId": "inventory",
+              "externalId": "gap-a",
+              "kind": "network-connection",
+              "from": {
+                "kind": "device",
+                "id": "device-a",
+                "description": null
+              },
+              "to": {
+                "kind": "unresolved",
+                "id": null,
+                "description": "Unknown peer"
+              },
+              "medium": "ethernet",
+              "sourceRevision": 35,
+              "sourceSnapshotAt": "2026-01-02T12:00:00Z",
+              "retrievedAt": "2026-01-02T12:00:00Z",
+              "vantage": null,
+              "sourceConfidence": "unknown",
+              "evidenceBasis": "owner-report",
+              "temporalStatus": "current-claim",
+              "factAt": "2025-12-01T00:00:00Z",
+              "notes": "Synthetic fixture; confidence is source-reported, not a fresh survey."
+            }
+          ],
+          "devices": [
+            {
+              "source": {
+                "sourceInstanceId": "00000000-0000-4000-8000-000000000012",
+                "collectionId": "inventory",
+                "sourceKind": "network-device",
+                "externalId": "device-a"
+              },
+              "label": null,
+              "confidence": null
+            }
+          ],
+          "sourceStatus": "current",
+          "readOnly": true
+        }
+      },
+      "children": []
+    }
+  ],
+  "intentDigests": [
+    "fe33b7f177a10abe2ddd28e1dfc929b77921a3301af5b467031b67088b258593",
+    "8e71c0c7729e3969ab2295538c854b3da9f3bd2314752d54dfa13ecf8ac12a7e",
+    "fcf3d920bd80f7174b6ea6aa0c049304cbc300bcad4eb1cfee34dc4e96d37090",
+    "86c6ef69f3e59226ee1749e53d2455712f1b9a000131a011dd58347fba19003c",
+    "f3b54bc598485415b4ae77a54c23edad130b7dfa4786b81535d667f44f64acf2",
+    "a6c274d672b8062fdd8468400d8efdcf7932045025ff2dcc3030f980d195acf4",
+    "896776179c4f2f60184d2ccf87902217a59c69501c9ce6a879ca69ec999e4dbe"
+  ],
+  "presenceWitnesses": [
+    {
+      "schemaVersion": 1,
+      "semanticAmendmentVersion": "1.1.0",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "bindingRecordId": "00000000-0000-4000-8000-000000000304",
+      "bindingRevision": 1,
+      "auditId": "00000000-0000-4000-8000-000000063001",
+      "mutationId": "00000000-0000-4000-8000-000000063011",
+      "actorId": "00000000-0000-4000-8000-000000063021",
+      "operation": "create",
+      "trigger": "create-present",
+      "source": {
+        "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+        "collectionId": "synthetic-collection-a",
+        "sourceKind": "homebox-entity",
+        "externalId": "00000000-0000-4000-8000-000000000504"
+      },
+      "observedAt": "2026-01-02T12:00:00Z",
+      "admittedAt": "2026-01-02T12:00:01Z",
+      "cache": {
+        "generationId": "00000000-0000-4000-8000-000000063031",
+        "cacheEpoch": 1,
+        "status": "fresh",
+        "lastSuccessfulFetchAt": "2026-01-02T12:00:00Z"
+      },
+      "authority": {
+        "authorityContextVersion": "atlas-mutation-authorization-context/1",
+        "contextId": "00000000-0000-4000-8000-000000063041",
+        "accessPackageVersion": "1.0.0",
+        "accessEpoch": "synthetic-epoch",
+        "sourceRegistrationVersion": 1,
+        "sourceRegistrationSha256": "832502b1709c99a22bf6b902b008b2aea5763f199b0e2d55866227191bc0b63a"
+      },
+      "observation": {
+        "kind": "homebox-entity",
+        "memberSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "memberRetrievedAt": "2026-01-02T12:00:00Z",
+        "sourceUpdatedAt": null
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "semanticAmendmentVersion": "1.1.0",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "bindingRecordId": "00000000-0000-4000-8000-000000000302",
+      "bindingRevision": 1,
+      "auditId": "00000000-0000-4000-8000-000000063002",
+      "mutationId": "00000000-0000-4000-8000-000000063012",
+      "actorId": "00000000-0000-4000-8000-000000063021",
+      "operation": "create",
+      "trigger": "create-present",
+      "source": {
+        "sourceInstanceId": "00000000-0000-4000-8000-000000000012",
+        "collectionId": "inventory",
+        "sourceKind": "network-device",
+        "externalId": "device-a"
+      },
+      "observedAt": "2026-01-02T12:00:00Z",
+      "admittedAt": "2026-01-02T12:00:01Z",
+      "cache": {
+        "generationId": "00000000-0000-4000-8000-000000063032",
+        "cacheEpoch": 1,
+        "status": "fresh",
+        "lastSuccessfulFetchAt": "2026-01-02T12:00:00Z"
+      },
+      "authority": {
+        "authorityContextVersion": "atlas-mutation-authorization-context/1",
+        "contextId": "00000000-0000-4000-8000-000000063041",
+        "accessPackageVersion": "1.0.0",
+        "accessEpoch": "synthetic-epoch",
+        "sourceRegistrationVersion": 1,
+        "sourceRegistrationSha256": "68e8dba853d6f881fcfd836f8cd4e8c2bafad98523ef7c4b7bb270110b5813bb"
+      },
+      "observation": {
+        "kind": "network-inventory",
+        "memberSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "verifiedGenerationSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "generationRetrievedAt": "2026-01-02T12:00:00Z",
+        "sourceSnapshotAt": null
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "semanticAmendmentVersion": "1.1.0",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "bindingRecordId": "00000000-0000-4000-8000-000000000302",
+      "bindingRevision": 1,
+      "auditId": "00000000-0000-4000-8000-000000063003",
+      "mutationId": "00000000-0000-4000-8000-000000063013",
+      "actorId": "00000000-0000-4000-8000-000000063021",
+      "operation": "create",
+      "trigger": "create-present",
+      "source": {
+        "sourceInstanceId": "00000000-0000-4000-8000-000000000012",
+        "collectionId": "inventory",
+        "sourceKind": "network-group",
+        "externalId": "group-a"
+      },
+      "observedAt": "2026-01-02T12:00:00Z",
+      "admittedAt": "2026-01-02T12:00:01Z",
+      "cache": {
+        "generationId": "00000000-0000-4000-8000-000000063033",
+        "cacheEpoch": 1,
+        "status": "fresh",
+        "lastSuccessfulFetchAt": "2026-01-02T12:00:00Z"
+      },
+      "authority": {
+        "authorityContextVersion": "atlas-mutation-authorization-context/1",
+        "contextId": "00000000-0000-4000-8000-000000063041",
+        "accessPackageVersion": "1.0.0",
+        "accessEpoch": "synthetic-epoch",
+        "sourceRegistrationVersion": 1,
+        "sourceRegistrationSha256": "68e8dba853d6f881fcfd836f8cd4e8c2bafad98523ef7c4b7bb270110b5813bb"
+      },
+      "observation": {
+        "kind": "network-inventory",
+        "memberSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "verifiedGenerationSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "generationRetrievedAt": "2026-01-02T12:00:00Z",
+        "sourceSnapshotAt": null
+      }
+    }
+  ],
+  "presenceQualifications": [
+    {
+      "bindingRecordId": "00000000-0000-4000-8000-000000000304",
+      "source": {
+        "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+        "collectionId": "synthetic-collection-a",
+        "sourceKind": "homebox-entity",
+        "externalId": "00000000-0000-4000-8000-000000000504"
+      },
+      "observedAt": "2026-01-02T12:00:00Z",
+      "cache": {
+        "generationId": "00000000-0000-4000-8000-000000063031",
+        "cacheEpoch": 1,
+        "status": "fresh",
+        "lastSuccessfulFetchAt": "2026-01-02T12:00:00Z"
+      },
+      "authority": {
+        "authorityContextVersion": "atlas-mutation-authorization-context/1",
+        "contextId": "00000000-0000-4000-8000-000000063041",
+        "accessPackageVersion": "1.0.0",
+        "accessEpoch": "synthetic-epoch",
+        "sourceRegistrationVersion": 1,
+        "sourceRegistrationSha256": "832502b1709c99a22bf6b902b008b2aea5763f199b0e2d55866227191bc0b63a"
+      },
+      "observation": {
+        "kind": "homebox-entity",
+        "memberSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "memberRetrievedAt": "2026-01-02T12:00:00Z",
+        "sourceUpdatedAt": null
+      }
+    },
+    {
+      "bindingRecordId": "00000000-0000-4000-8000-000000000302",
+      "source": {
+        "sourceInstanceId": "00000000-0000-4000-8000-000000000012",
+        "collectionId": "inventory",
+        "sourceKind": "network-device",
+        "externalId": "device-a"
+      },
+      "observedAt": "2026-01-02T12:00:00Z",
+      "cache": {
+        "generationId": "00000000-0000-4000-8000-000000063032",
+        "cacheEpoch": 1,
+        "status": "fresh",
+        "lastSuccessfulFetchAt": "2026-01-02T12:00:00Z"
+      },
+      "authority": {
+        "authorityContextVersion": "atlas-mutation-authorization-context/1",
+        "contextId": "00000000-0000-4000-8000-000000063041",
+        "accessPackageVersion": "1.0.0",
+        "accessEpoch": "synthetic-epoch",
+        "sourceRegistrationVersion": 1,
+        "sourceRegistrationSha256": "68e8dba853d6f881fcfd836f8cd4e8c2bafad98523ef7c4b7bb270110b5813bb"
+      },
+      "observation": {
+        "kind": "network-inventory",
+        "memberSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "verifiedGenerationSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "generationRetrievedAt": "2026-01-02T12:00:00Z",
+        "sourceSnapshotAt": null
+      }
+    },
+    {
+      "bindingRecordId": "00000000-0000-4000-8000-000000000302",
+      "source": {
+        "sourceInstanceId": "00000000-0000-4000-8000-000000000012",
+        "collectionId": "inventory",
+        "sourceKind": "network-group",
+        "externalId": "group-a"
+      },
+      "observedAt": "2026-01-02T12:00:00Z",
+      "cache": {
+        "generationId": "00000000-0000-4000-8000-000000063033",
+        "cacheEpoch": 1,
+        "status": "fresh",
+        "lastSuccessfulFetchAt": "2026-01-02T12:00:00Z"
+      },
+      "authority": {
+        "authorityContextVersion": "atlas-mutation-authorization-context/1",
+        "contextId": "00000000-0000-4000-8000-000000063041",
+        "accessPackageVersion": "1.0.0",
+        "accessEpoch": "synthetic-epoch",
+        "sourceRegistrationVersion": 1,
+        "sourceRegistrationSha256": "68e8dba853d6f881fcfd836f8cd4e8c2bafad98523ef7c4b7bb270110b5813bb"
+      },
+      "observation": {
+        "kind": "network-inventory",
+        "memberSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "verifiedGenerationSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "generationRetrievedAt": "2026-01-02T12:00:00Z",
+        "sourceSnapshotAt": null
+      }
+    }
+  ]
+}

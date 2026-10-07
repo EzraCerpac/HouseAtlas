@@ -76,6 +76,8 @@ ordered arrays, guards, omission/null and submitted payloads stay in the parent
 intent. No recursive exclusions or wire rewriting occur. Numeric schema bounds
 remain exact within the existing checked processing envelope; digest arithmetic
 uses the published finite JavaScript number model.
+That envelope bounds numeric tokens, decimal shifts and exponent magnitude at
+4096; see [numeric semantics](../../../../docs/rust-baseline/numeric-semantics.md).
 
 Date, date-time and URI formats reuse the reviewed native predicates. Operational
 result clocks additionally require a finite timestamp from the accepted native
@@ -106,3 +108,41 @@ It executes no service mutation, provider, authorization or durable admission.
 Rejection, mutation/omission, adversarial, guard reversal, replay, expiry,
 revocation, fault/crash, concurrency and negative-consumer controls remain unrun.
 Boundary behavior is source-reviewed and unqualified by these valid examples.
+
+The external manifest `/tmp/houseatlas-stock-contracts/Cargo.toml` pins
+serde `=1.0.229` (`derive`), serde_json `=1.0.151` (`arbitrary_precision`,
+`float_roundtrip`, `raw_value`), jsonschema `=0.58.6` (default features disabled,
+`arbitrary-precision`), ryu-js `=1.0.2`, regex `=1.13.1`, sha2 `=0.10.9` and
+url `=2.5.7`. Its library contains only a path declaration for the actual
+repository contracts source. With Rust 1.99.0 and Node 26.10.0 activated:
+
+```sh
+node backend/src/contracts/stock/generate-catalog.mjs --check
+cargo check --locked --offline --manifest-path /tmp/houseatlas-stock-contracts/Cargo.toml --lib --examples
+cargo clippy --locked --offline --manifest-path /tmp/houseatlas-stock-contracts/Cargo.toml --lib --examples -- -D warnings
+cargo run --locked --offline --manifest-path /tmp/houseatlas-stock-contracts/Cargo.toml --example healthy-stock-wire3
+cargo run --locked --offline --manifest-path /tmp/houseatlas-stock-contracts/Cargo.toml --example healthy-native-semantics
+cargo run --locked --offline --manifest-path /tmp/houseatlas-stock-contracts/Cargo.toml --example healthy-contracts
+```
+
+The inspected stock example compiles all 503 validators, checks the complete
+catalog metadata counts, and validates seven explicitly synthetic request/result
+pairs: Atlas identity read, circuit create, binding remap and ordered batch;
+HomeBox currency read and prepared-only bulk outcome; passive Network inventory.
+It checks independent intent digest references, root/child correlation and
+receipt order, omitted versus null fields, ordinary finite UTC time, and three
+HomeBox/device/group witness plus qualification shape round-trips. These are
+representation examples and do not invoke service mutations or admit witnesses.
+`examples/prepare_healthy.py` prepares this explicit fixture from the published
+healthy facts and static synthetic envelopes; its digest reference only covers
+the fixture's small integer numbers and ASCII keys. Native code never calls it
+or a JavaScript validator. The two existing healthy examples verify the carried
+core compatibility and generated DTO round-trips.
+
+The separate timestamp/raw-current semantic peer API is published in
+[draft #17](https://github.com/EzraCerpac/HouseAtlas/pull/17), commit
+`a2f76f9b8b0a3dbd56fbd358a8e80b15490cbb05`. When combining that checkpoint,
+retain this component's `pub(in crate::contracts)` parser visibility for the
+private finite-time re-export. Runtime domain/storage composition and shared
+manifest/lock updates remain with their owners; no hosted compiler run is
+claimed here.
