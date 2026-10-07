@@ -45,6 +45,8 @@ fn evidence<'a>(
 }
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Failure> {
+    // Create private fixture files regardless of the CI runner's inherited mask.
+    rustix::process::umask(rustix::fs::Mode::from_raw_mode(0o077));
     let args: Vec<String> = std::env::args().collect();
     if args.len() != 5 {
         return Err(

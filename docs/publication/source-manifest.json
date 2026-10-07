@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "24d80f0715ee48667f209af8071c77a6b8aea508ca6663779d2b23b5ac2da27a",
+  "sourceDigestSha256": "fcddcfd16cc03eb9bb795481ae1c9581340d2999bf5f6a9929b2f9d931034cae",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -4255,8 +4255,8 @@
     {
       "path": "tools/rust-integration/examples/healthy_network_host.rs",
       "mode": "100644",
-      "bytes": 18366,
-      "sha256": "64438c581e46074d2fea4bc2e6652f066cf848483d1adcc407d9a726e8db62d8",
+      "bytes": 18516,
+      "sha256": "5816062c8dd2e43177f42f448e728687874ca9adac756edae9ce2101de43e125",
       "owner": "core-integration"
     },
     {
