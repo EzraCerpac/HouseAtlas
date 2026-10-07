@@ -153,8 +153,13 @@ pub fn reopen_existing(
     if image_digest(&config.database, budget)? != before {
         return Err(ReopenError::Image);
     }
-    let mut access = AccessBoundary::open(config.access_database.path(), config.access)
+    let mut access = AccessBoundary::open_existing(config.access_database.path(), config.access)
         .map_err(|_| ReopenError::Access)?;
+    checkpoint(budget)?;
+    config
+        .access_database
+        .check()
+        .map_err(|_| ReopenError::Configuration)?;
     // The selected separate access DB is not recovered from the image. Rotate
     // its actual restore epoch and clear sessions/rates with the owner's seam.
     access

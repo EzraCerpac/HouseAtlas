@@ -96,9 +96,10 @@ impl ExistingPath {
 
 /// Existing, closed Atlas image and retained vault plus separately selected
 /// existing, separately provisioned access DB. Construction creates no files,
-/// homes, accounts or grants. AccessBoundary's normal open initializes schema;
-/// the caller must supply provisioned trusted access state until the access
-/// owner supplies a no-initialization existing-state opener.
+/// homes, accounts or grants. The strict access opener validates its compiled
+/// schema and opaque epoch without initialization or session reset. Access
+/// schema compatibility supplies no historical database-instance provenance;
+/// selection of separately provisioned trusted state remains caller-owned.
 /// Home labels and primary-home selection come only from trusted configuration.
 pub struct RecoveryConfig {
     pub(crate) directory: ExistingPath,
