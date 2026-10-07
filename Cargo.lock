@@ -692,6 +692,7 @@ dependencies = [
  "fluent-uri",
  "getrandom 0.3.4",
  "jsonschema",
+ "percent-encoding",
  "regex",
  "reqwest",
  "rusqlite",

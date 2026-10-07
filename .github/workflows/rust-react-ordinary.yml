@@ -104,6 +104,12 @@ jobs:
           HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
           HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
         run: node tools/rust-integration/healthy-human-host-loopback.mjs
+      - name: Real cached Unicode collection read with complete SQLite facts
+        if: runner.os == 'Linux'
+        env:
+          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
+          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+        run: node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs
       - name: Record scope
         # Stock read/write/history runners add four/ten/three healthy requests respectively.
         if: always()
@@ -116,3 +122,4 @@ jobs:
           printf '%s\n' 'The named stock write runner adds only fresh local circuit create and an ordered identity-create batch through the actual original AT11 fence and native atomic stock journal, with frozen record/history readback and read-only durable journal counts.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'The named stock history runner adds three first-page/search reads over genuine stock-owned audits; nonnull cursor continuation is not demonstrated.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'The named native WebMCP runner uses actual document.modelContext discovery and invocation, genuine stock identity get, fresh circuit create, record readback and first audit page, with canonical results committed to React before tool return. No modelContext or stock service stub is installed.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'The separately named Unicode cache runner uses the fixed public opaque-collection profile, actual Viewer authority and one cached-only query GET. It compares both complete projections and original cache metadata with read-only SQLite source/cache/projection rows. No HTTP authentication mutation, editing, MCP, old-path comparison or provider I/O runs in that flow.' >> "$GITHUB_STEP_SUMMARY"

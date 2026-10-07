@@ -15,7 +15,10 @@ export function createEditingClient(schemas: StockSchemaPort, session: () => Atl
   return {
     async loadPlace(source: SourceRef, signal: AbortSignal): Promise<PlaceEditAdmission | null> {
       validate("sourceRef", source);
-      const query = `source=${encodeURIComponent(JSON.stringify(source))}`;
+      const sourceJson = JSON.stringify(source);
+      if (new TextEncoder().encode(sourceJson).byteLength > 2048)
+        throw new TypeError("Place source exceeds the decoded transport bound");
+      const query = `source=${encodeURIComponent(sourceJson)}`;
       if (query.length > 4096) throw new TypeError("Place source exceeds transport bound");
       const path = `/api/atlas/editing/v1/workspaces/${encodeURIComponent(source.workspaceId)}/homes/${encodeURIComponent(source.homeId)}/place`;
       const response = await fetch(`${path}?${query}`, { method: "GET", credentials: "same-origin", cache: "no-store", redirect: "error", signal, headers: { Accept: "application/json" } });

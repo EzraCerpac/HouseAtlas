@@ -25,6 +25,7 @@ scrypt.workspace = true
 sha2.workspace = true
 subtle.workspace = true
 url.workspace = true
+percent-encoding.workspace = true
 time.workspace = true
 serde_jcs.workspace = true
 axum-server.workspace = true

@@ -110,7 +110,15 @@ export function PlaceEditor({
     try {
       const next = await load(controller.signal);
       if (!controller.signal.aborted)
-        setStatus(next ? "" : "Atlas classification is unavailable.");
+        setStatus(
+          !next
+            ? "Atlas classification is unavailable."
+            : next.canReplaceClassification ||
+                (next.attachmentPolicy?.licenses.length &&
+                  client.uploadPlaceEvidence)
+              ? ""
+              : "This Atlas place is read-only for your current access.",
+        );
     } catch {
       if (!controller.signal.aborted)
         setStatus("Atlas classification could not be loaded.");

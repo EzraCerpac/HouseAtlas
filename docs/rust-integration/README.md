@@ -30,7 +30,7 @@ security, operational recovery or target acceptance.
 | Domain direct native semantics/storage, stock query/authority and canonical result bridges | d9e2b59ffef4b7ac2b11705df735b89d8371fdc5 |
 | Jobs/stock boundaries | f35bcdc2d9c24646356bc080bfb1ef157120bcb3 |
 | Media native access/storage/runtime and explicit populated-image peer port | 8eca84173bbbc089cbc20c5edf0c154cd13f6646 |
-| React session shell, stock completion and native1024 classification/attachment forms | 1dd31f4935390b719958612a003d5c8add78c0a7 |
+| React session shell, stock completion, native1024 forms and read-only admission status | 26edb0f0cd77eea3e3b763ff980d96566dfa2660 |
 | Native MCP catalog, original opaque access context and service adapter | 97a1335b1419a4c12b2134fec2195ed68d67ed52 |
 | Browser WebMCP family/schema, session and React acknowledgment boundary | 6832e825c636b7b48eeed8fcb085fe3ca277ead3 |
 | HomeBox full durable-registration read/publication binding | 6109e260bc19ba0d0a857fd15327a49b557c2650 |
@@ -134,7 +134,10 @@ Qualified editing admission is
 It resolves the exact qualified source through the authorized current projection,
 accepted binding and location identity. It returns the real active location
 record and pinned binding, identity and evidence guards. The encoded query is
-limited to 4096 bytes and decoded source JSON to 2048 bytes. Classification uses
+limited to 4096 bytes and decoded source JSON to 2048 UTF-8 bytes; the root client
+checks both before fetching. This disposable transport profile covers a subset
+of the frozen SourceRef string range and does not change that shared schema.
+Classification uses
 `atlas.location-semantics.replace` on the existing stock `POST commands` route,
 preserving the full payload and all references except the selected semantic kind.
 Admission advertises the native reason limit of 1024 Unicode code points; the
@@ -146,6 +149,14 @@ execution.
 
 Cached HomeBox data is mounted at
 `GET /api/atlas/providers/homebox/workspaces/{workspaceId}/homes/{homeId}/sources/{sourceInstanceId}/collections/{collectionId}/cached`.
+An additive route keeps opaque collection data in a query:
+`GET /api/atlas/providers/homebox/workspaces/{workspaceId}/homes/{homeId}/sources/{sourceInstanceId}/cached?collection=...`.
+Use form-query encoding for the exact collection value. The host decodes it once
+as strict UTF-8 after actual Read authorization, with no trimming, normalization
+or path interpretation. The query is bounded at 49163 encoded bytes and 16384
+decoded UTF-8 bytes, then by the frozen 1–4096 Unicode scalar range. HTTP/2
+metadata is bounded at 96 KiB; HTTP/1 retains its existing buffer bound. The
+original path route and global encoded-path policy remain intact.
 The host authorizes the complete requested scope before source-configuration
 lookup. It selects the matching trusted configuration, compares the full durable
 registration, uses the original authorized snapshot and grants, validates native
@@ -154,6 +165,15 @@ and cache metadata without a provider request or freshness update. Native
 navigation remains unqualified; stored unverified links retain their existing
 status. The healthy flow reads two actual cached synthetic entities with zero
 provider calls.
+The explicitly named Unicode cached-read runner uses
+`--fixture-profile opaque-cached-homebox`, a fixed copy of the same public fixture
+whose eight matching source keys use `Synthetic / cache? α + %`. Actual Access
+and SQLite bootstrap and trusted cached configuration receive that same copy.
+It compares the two full cached projections, nested native-link descriptors and
+the complete original cache metadata. This selected healthy case does not
+qualify maximum-size headers or every frozen collection string: trusted cached
+configuration still uses the reader's live-header eligibility check, so
+header-ineligible controls need a separate owner reconciliation.
 
 Owned media is delivered at
 `/api/atlas/media/{workspaceId}/{homeId}/{descriptorDigest}/{preview|download}`.
@@ -207,6 +227,7 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-agent-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-agent-host-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-human-host-loopback.mjs
+    HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs
 
 The source runner checks deterministic generation/history, actual locked Rust
 library/binary/module source, rustfmt, warnings-denied Clippy, strict TypeScript
@@ -215,7 +236,7 @@ healthy-native-semantics. The separately named healthy-agent-stock performs
 genuine in-process MCP tools/list and tools/call over actual access/domain/SQLite;
 the workflow compiles it on both platforms and runs it only on Linux.
 
-Each of the nine browser runners uses fresh Chromium and a disposable TLS
+Each of the ten browser runners uses fresh Chromium and a disposable TLS
 certificate, observes actual SQLite rows read-only, stops gracefully and removes
 scratch state. Core adds real auth, canonical paging/reads, one fresh circuit
 and one ordered two-identity batch with record/history readback. Media adds two

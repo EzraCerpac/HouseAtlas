@@ -66,25 +66,15 @@ pub(in crate::http) fn http_failure(error: HttpFailure) -> Response {
     marked(
         (
             error.status,
-            Json(json!({"jsonrpc":"2.0","id":null,"error":{"code":code,"message":message}})),
+            Json(json!({"jsonrpc":"2.0","error":{"code":code,"message":message}})),
         )
             .into_response(),
     )
 }
 
 fn protocol_response(bytes: Vec<u8>) -> Response {
-    // JSON-RPC requires null when an error has no identifiable request ID.
-    // This changes only protocol framing; owner DTOs and correlated IDs pass
-    // through intact. The owner's unidentified error bodies are small/bounded.
-    let bytes = match serde_json::from_slice::<Value>(&bytes) {
-        Ok(Value::Object(mut reply))
-            if reply.contains_key("error") && !reply.contains_key("id") =>
-        {
-            reply.insert("id".into(), Value::Null);
-            serde_json::to_vec(&reply).unwrap_or(bytes)
-        }
-        _ => bytes,
-    };
+    // MCP 2025-11-25 omits unidentified error IDs. The actual owner retains
+    // known string/integer IDs; preserve its bounded reply bytes unchanged.
     let mut response = bytes.into_response();
     response.headers_mut().insert(
         header::CONTENT_TYPE,

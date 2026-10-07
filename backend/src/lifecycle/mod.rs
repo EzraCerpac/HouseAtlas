@@ -29,7 +29,12 @@ pub type Failure = Box<dyn std::error::Error + Send + Sync>;
 /// The metadata origin is never contacted; cached reads create no provider.
 pub fn cached_homebox_sources()
 -> Result<Vec<crate::config::providers::homebox::TrustedHomeBoxSource>, Failure> {
-    let fixture = fixture()?;
+    cached_homebox_sources_with_profile(crate::config::FixtureProfile::Standard)
+}
+pub fn cached_homebox_sources_with_profile(
+    profile: crate::config::FixtureProfile,
+) -> Result<Vec<crate::config::providers::homebox::TrustedHomeBoxSource>, Failure> {
+    let fixture = fixture_with_profile(profile)?;
     let registration = serde_json::from_value(
         fixture["sources"]
             .as_array()
@@ -48,6 +53,9 @@ pub fn cached_homebox_sources()
     ])
 }
 pub fn fixture() -> Result<Value, Failure> {
+    fixture_with_profile(crate::config::FixtureProfile::Standard)
+}
+pub fn fixture_with_profile(profile: crate::config::FixtureProfile) -> Result<Value, Failure> {
     let mut v: Value = serde_json::from_str(include_str!(
         "../../../packages/contracts/fixtures/plan-free.snapshot.json"
     ))?;
@@ -75,14 +83,44 @@ pub fn fixture() -> Result<Value, Failure> {
         .ok_or("Missing projections")?
         .truncate(2);
     v["networkRelations"] = json!([]);
+    if profile == crate::config::FixtureProfile::OpaqueCachedHomebox {
+        // A fixed public healthy fixture, not caller-selected provider settings.
+        // Change every exact source key before native bootstrap, including the
+        // unverified native-link descriptors; dates and other facts stay intact.
+        fn rebind(value: &mut Value) -> usize {
+            match value {
+                Value::Object(fields) => {
+                    let matched = fields.get("sourceInstanceId")
+                        == Some(&json!("00000000-0000-4000-8000-000000000010"))
+                        && fields.get("collectionId") == Some(&json!("synthetic-collection-a"));
+                    if matched {
+                        fields.insert("collectionId".into(), json!("Synthetic / cache? α + %"));
+                    }
+                    usize::from(matched) + fields.values_mut().map(rebind).sum::<usize>()
+                }
+                Value::Array(values) => values.iter_mut().map(rebind).sum(),
+                _ => 0,
+            }
+        }
+        if rebind(&mut v) != 8 {
+            return Err("Unexpected public fixture source topology".into());
+        }
+    }
     Ok(v)
 }
 pub fn prepare(directory: &Path, origin: &str) -> Result<Core, Failure> {
+    prepare_with_profile(directory, origin, crate::config::FixtureProfile::Standard)
+}
+pub fn prepare_with_profile(
+    directory: &Path,
+    origin: &str,
+    profile: crate::config::FixtureProfile,
+) -> Result<Core, Failure> {
     fs::create_dir(directory)?;
     fs::set_permissions(directory, fs::Permissions::from_mode(0o700))?;
     let canonical_directory = fs::canonicalize(directory)?;
     let directory = canonical_directory.as_path();
-    let fixture = fixture()?;
+    let fixture = fixture_with_profile(profile)?;
     let home = d::HomeSummary {
         scope: d::Scope {
             workspace_id: "00000000-0000-4000-8000-000000000001".into(),
