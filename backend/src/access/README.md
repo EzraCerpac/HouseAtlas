@@ -206,6 +206,58 @@ this example does not qualify the composed recovery host. Actual production
 issuer approval, complete registry and trusted physical database mapping remain
 unconfigured. No production call site is added.
 
+## Shared canonical issuer
+
+`SharedAccess` is a cloneable process-local host bridge over the exact existing
+`Arc<Mutex<AccessBoundary>>` used by Core/MCP. Its public interface is:
+
+```rust
+SharedAccess::from_existing(existing: Arc<Mutex<AccessBoundary>>) -> SharedAccess
+shared.as_existing() -> &Arc<Mutex<AccessBoundary>>
+shared.try_lock() -> AccessResult<MutexGuard<'_, AccessBoundary>>
+```
+
+The constructor moves the supplied Arc into the wrapper. Cloning shares that
+same allocation, mutex, database connection, issuer identity, configuration,
+sessions and versions. It opens no database, creates no policy and recreates no
+principal or grant. Equal configuration on another boundary still describes a
+different issuer. Pass the actual canonical handle; do not create another memory
+boundary to import root-issued principals. There is no global issuer registry,
+fallback, raw database access or private grant constructor.
+
+Root may pass `SharedAccess::from_existing(core.access.clone())` to the Network
+owner's shared-handle constructor. Existing `app::Access` and its `Arc::clone`
+call sites need no type migration. The Network owner keeps this bridge as its
+backing handle and delegates lock acquisition to `try_lock`. Its accepted
+`ProviderLease::retain_original` call can use `shared.as_existing()` to preserve
+the existing exact `&app::Access` ABI and original authority handles. This
+constructor/wiring remains provider/root-owned; no consumer files change here.
+
+Contention and poisoning return sanitized `Unavailable`; the bridge never
+waits for the mutex, clears poison or reopens a substitute issuer. Boundary
+operations still perform synchronous SQLite/filesystem/scrypt work. A shared
+file-backed canonical issuer does not inherit the Network leaf's former
+memory-only callback profile. Owners must reconcile worker scheduling and
+deadline bounds for their selected canonical boundary. Clone the handle into
+the synchronous worker, acquire/drop its guard there, and release it before
+provider I/O or an await. Trusted callers retain the boundary's existing
+administrative APIs; this bridge does not prohibit whole-boundary replacement
+or introduce a replacement/recovery shortcut.
+
+A callback holding the canonical guard must use the supplied held transaction
+authorizer. Calling a persistent authorizer that locks Core.access again would
+reenter the same mutex. Do not use that as a fallback for an actual Store read.
+Original provenance/version and entry/pre-release fence checks stay required.
+
+`shared_healthy.rs` issues the genuine session, principal, partition/entity and
+explicitly approved lifecycle grants through the original Core-shaped handle
+before wrapping it. Both cloned bridges retain the identical Arc and boundary;
+they check those exact original handles, use the exact principal in a held read
+fence and read the original session. A compile-time check verifies automatic
+Clone/Send/Sync. No reset, replacement, contention, poison, concurrency or
+rejection control is exercised. Actual Core/Network/Store composition remains
+owner integration work.
+
 ## Network link and observation disclosure
 
 `NetworkLinkRef` and `NetworkObservationRef` are distinct server-only selectors;
