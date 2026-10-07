@@ -95,6 +95,8 @@ impl s::Authorization for OriginalRead<'_, '_> {
                                 == link.partition().source_instance_id.as_str()
                             && source["key"]["collectionId"] == link.partition().collection_id
                             && source["key"]["externalId"] == link.external_id()
+                            && endpoint_matches(source.get("from"), link.from())
+                            && endpoint_matches(source.get("to"), link.to())
                     })
                     .ok_or_else(|| s::Error::new("checkpoint-error", "Original link missing"))?;
                 assert!(std::ptr::eq(
@@ -124,6 +126,17 @@ impl s::Authorization for OriginalRead<'_, '_> {
             actor_id: principal.actor_id().as_str().into(),
         })
     }
+}
+
+// This healthy fixture has resolved endpoints. Projected unresolved endpoints
+// require the production owner's accepted-generation/raw-member qualification.
+fn endpoint_matches(endpoint: Option<&Value>, original: &a::SourceRef) -> bool {
+    endpoint.is_some_and(|endpoint| {
+        endpoint["id"] == original.key.external_id
+            && serde_json::to_value(original.key.source_kind).is_ok_and(|kind| {
+                kind == format!("network-{}", endpoint["kind"].as_str().unwrap_or_default())
+            })
+    })
 }
 
 fn main() -> CheckResult<()> {
@@ -352,7 +365,7 @@ fn main() -> CheckResult<()> {
         serde_json::to_vec_pretty(&json!({
         "actualAccess":"5e87c6c9152228ac4ae72814c6e6fc8f0ea8d7a2", "cacheEpoch":first.as_ref().map(|v|v.state.cache_epoch),
         "originalPrincipalAndGrantPointers":"preserved", "networkRelations":expected.network_relations.len(),
-        "publicationWrites":0,"reservedIds":0,"authorizedReopen":"pass","authorizationCalls":*calls.borrow(),
+        "publicationWrites":0,"reservedIds":0,"authorizedReopen":"pass","cachedEndpointBinding":"both cached endpoint kinds/IDs match original typed link","authorizationCalls":*calls.borrow(),
         "scope":"actual AT11 read fence and typed link grants; native shapes plus published offline semantic oracle; synthetic raw relation membership fixture",
         "deferred":"actual Network sidecar generation validation/HTTP host wiring; historical held controls"}))?,
     )?;

@@ -174,7 +174,10 @@ carrier grants neither disclosure nor accepted-generation membership.
 configured-authority snapshot engine and uses the supplied original fence.
 The engine retains per-partition concealment semantics and revalidates successful
 source checks before returning. Link rows now request their private qualified
-`key.sourceKind: "network-link"` selector with the actual link ID. Endpoints
+`key.sourceKind: "network-link"` selector with the actual link ID and exact
+cached `from`/`to` endpoint objects at the selector's top level. A read adapter
+must compare this binding to the original typed link, in addition to checking
+the independent entity grants; ID-only revalidation is insufficient. Endpoints
 retain their actual entity kinds. Frozen public `SourceKind` is unchanged.
 Network must resolve this private selector through its original genuine typed
 link grant, including both raw endpoints and accepted-generation membership;
@@ -944,3 +947,23 @@ unchanged. Media's exact `png = "=0.18.1"` dependency is pinned in that external
 harness. Root owns canonical manifest/lock and host composition. Ordinary
 success exercises healthy cuts; no spliced journal, rejection, duplicate
 pointer or other held control is executed.
+
+The carry-forward Storage correction selects a currently due Jobs candidate
+before applying the native activity interlock, so empty/completed/future-only
+queues retain their existing Idle result. Queue registration validates the
+reciprocal profile6 physical deployment/configuration/owner in its IMMEDIATE
+transaction before inserting immutable registry or alias rows. Matching
+identities may register metadata while a hold remains; registration does not
+claim the physical resource.
+
+Native admission's Jobs hold lookup first resolves the registered deployment by
+the unique physical ID, then selects unresolved summary candidates through the
+existing `queue_due(deployment_id,physical_database_id,...)` index prefix.
+Only canonical zero accounting and an inactive summary qualify the fast
+exclusion; matching candidates retain full strict Rust row decoding and the
+unchanged hold predicate. Decimal u64 values are compared as canonical text,
+without SQLite numeric conversion. Recovery independently validates all
+retained Jobs rows. This avoids lifetime-history full decoding and extra
+per-row queries, while SQLite still evaluates summaries within the selected
+physical identity's history; it makes no constant-time claim and adds no schema
+or checksum change.
