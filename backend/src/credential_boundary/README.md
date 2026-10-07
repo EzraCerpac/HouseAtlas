@@ -20,16 +20,20 @@ only an absent record for the actual original authority and returns its held
 lease. Initial binding/host must match exactly; state is Disconnected and
 revocation NotRequested, with no issued client ID, identity, credentials, pending
 authorization or checkpoint. App name must contain non-whitespace text. Native
-key availability is required; no key is provisioned. First publication uses atomic Linux NOREPLACE, so even a racing
-file appearance is preserved without replacement. Metadata initializes only
+key availability is required; no key is provisioned. First publication uses
+atomic Linux NOREPLACE, so even a racing file appearance is preserved without replacement. Metadata initializes only
 after the fenced commit succeeds. The original host owns the trusted startup
 registration configuration and enrollment permission. First enrollment currently
 requires no issued client ID for either registration kind. An IssuedWebsite
 record cannot begin OAuth until the original host supplies the preprovisioned
 public client ID through an explicitly authorized metadata transition; active
 authenticated load/persist permits that None-to-Some transition and then freezes
-the value. This host transition is an unresolved integration requirement, and
-this adapter does not invent or provision a client. LocalPublicClient uses the
+the value. New public client IDs must match the core ASCII alphanumeric/underscore/hyphen rule, be 1-200 bytes and exclude the dynamic
+client marker. A known subject must remain present and unchanged across every
+persisted record, including terminal bookkeeping; clearing it cannot discard
+the account anchor. A stopped lease may not introduce client/identity metadata.
+This host transition is an unresolved integration requirement, and this adapter
+does not invent or provision a client. LocalPublicClient uses the
 core dynamic-client path.
 Missing or corrupt ciphertext is preserved; ordinary persistence requires a
 successful authenticated load and its exact ciphertext preimage.
@@ -130,13 +134,16 @@ Healthy success does not qualify OS service behavior, deployment or paid use.
 Policy commit `8f4065a3ee831df0b30d14f597c25a7bbcc7f212` permits exact reviewed
 synthetic concurrency/denial/failure cases outside ordinary CI. The explicit
 allowlist in `enrollment_regression.rs` is `empty-enrollment`,
-`existing-enrollment-denied`, `racing-enrollment`, and
-`blank-app-enrollment-denied`, and `blank-host-construction-denied`. The blank-host
+`existing-enrollment-denied`, `racing-enrollment`,
+`blank-app-enrollment-denied`, `blank-host-construction-denied`,
+`invalid-issued-client-transition-denied`, and `known-subject-clear-denied`. The
+metadata cases use only fixed synthetic public identifiers; they assert denied
+writes preserve ciphertext and metadata after reopen. The blank-host
 case checks constructor rejection before directory acquisition and then enrolls
-and reopens a valid LocalPublicClient record. The blank-app denial occurs before key/authority
-or file acquisition and then proves a valid enrollment remains possible. Owners
-review the pinned source and all imported helpers before execution. Each case uses a fresh private
-temporary root, a fixed synthetic key and synthetic authority; no native lookup,
+and reopens a valid LocalPublicClient record. The blank-app denial occurs before
+key/authority or file acquisition and then proves a valid enrollment remains possible. Owners
+review the pinned source and all imported helpers before execution. Each case
+uses a fresh private temporary root, a fixed synthetic key and synthetic authority; no native lookup,
 network socket, provider, real credential, user data or deployment is involved.
 The racing case starts two independent adapters for the same registration, holds
 the successful lease until both attempts finish, and checks a single intact

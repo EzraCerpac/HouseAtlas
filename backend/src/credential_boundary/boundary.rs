@@ -36,6 +36,15 @@ fn valid_field(value: &str) -> bool {
     !value.is_empty() && value.len() <= MAX_SELECTOR
 }
 
+fn valid_issued_client(value: &str) -> bool {
+    value != "dynamic_agent_client"
+        && !value.is_empty()
+        && value.len() <= 200
+        && value
+            .bytes()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == b'_' || ch == b'-')
+}
+
 fn stable_identity(a: &RegistrationBinding, b: &RegistrationBinding) -> bool {
     a.registration_id == b.registration_id
         && a.actor_id == b.actor_id
@@ -123,16 +132,23 @@ impl LoadedMeta {
             && self.kind == record.kind
             && self.app_name == record.app_name
             && self.host_id == record.stable_host_id
-            && self
-                .issued_client_id
-                .as_ref()
-                .is_none_or(|id| record.issued_client_id.as_ref() == Some(id))
-            && self.subject.as_ref().is_none_or(|subject| {
-                record
+            && match self.issued_client_id.as_ref() {
+                Some(id) => record.issued_client_id.as_ref() == Some(id),
+                None => record
+                    .issued_client_id
+                    .as_deref()
+                    .is_none_or(|id| !stopped && valid_issued_client(id)),
+            }
+            && match self.subject.as_ref() {
+                Some(subject) => record
                     .identity
                     .as_ref()
-                    .is_none_or(|identity| identity.subject == *subject)
-            })
+                    .is_some_and(|identity| identity.subject == *subject),
+                None => record
+                    .identity
+                    .as_ref()
+                    .is_none_or(|identity| !stopped && !identity.subject.is_empty()),
+            }
     }
 
     fn allows_stopped_material(&self, next: &MaterialFingerprints) -> bool {

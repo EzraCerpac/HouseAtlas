@@ -27,6 +27,7 @@ use ai::{
     oauth::{
         ClientAuthentication, CredentialBoundary, LifecycleState, RefreshCheckpoint,
         RegistrationBinding, RegistrationKind, RegistrationRecord, RevocationState,
+        VerifiedIdentity,
     },
 };
 use authority::CredentialAuthority;
@@ -47,12 +48,14 @@ const KEY_BYTES: [u8; 32] = [
     0x31, 0x42, 0x53, 0x64, 0x75, 0x86, 0x97, 0xa8, 0xb9, 0xca, 0xdb, 0xec, 0xfd, 0x0e, 0x1f, 0x20,
     0x30, 0x41, 0x52, 0x63, 0x74, 0x85, 0x96, 0xa7, 0xb8, 0xc9, 0xda, 0xeb, 0xfc, 0x0d, 0x1e, 0x2f,
 ];
-const CASES: [&str; 5] = [
+const CASES: [&str; 7] = [
     "empty-enrollment",
     "existing-enrollment-denied",
     "racing-enrollment",
     "blank-app-enrollment-denied",
     "blank-host-construction-denied",
+    "invalid-issued-client-transition-denied",
+    "known-subject-clear-denied",
 ];
 
 fn binding() -> RegistrationBinding {
@@ -467,6 +470,113 @@ async fn blank_host_construction_denied() -> Result<(), AiError> {
     Ok(())
 }
 
+async fn invalid_issued_client_transition_denied() -> Result<(), AiError> {
+    let directory = tempfile::Builder::new()
+        .prefix("houseatlas-enrollment-regression-")
+        .tempdir()
+        .map_err(|_| AiError::DomainUnavailable)?;
+    let b = binding();
+    let authority = Arc::new(SyntheticAuthority::new(b.clone()));
+    let store = adapter(directory.path(), Arc::clone(&authority), &b)?;
+    let initial = initial_record("Synthetic configured website");
+    let mut lease = store.enroll_atomic(&b, &b, &initial).await?;
+    let mut candidate = store.load(&lease).await?;
+    let (name, _) = boundary::record_location(HOST_ID, &b)?;
+    let ciphertext_path = directory.path().join(format!("{name}.bin"));
+    let before = std::fs::read(&ciphertext_path).map_err(|_| AiError::DomainUnavailable)?;
+
+    let invalid_ids = [
+        String::new(),
+        "dynamic_agent_client".to_owned(),
+        "A".repeat(201),
+        "client.with.dot".to_owned(),
+    ];
+    for client_id in &invalid_ids {
+        candidate.issued_client_id = Some(client_id.clone());
+        assert_eq!(
+            store.persist_atomic(&mut lease, &candidate).await,
+            Err(AiError::DomainUnavailable),
+            "invalid synthetic configured client ID must be rejected"
+        );
+        let current = std::fs::read(&ciphertext_path).map_err(|_| AiError::DomainUnavailable)?;
+        assert_eq!(
+            current, before,
+            "denied metadata transition preserves ciphertext"
+        );
+    }
+
+    candidate.issued_client_id = Some("syntheticClient981".into());
+    store.persist_atomic(&mut lease, &candidate).await?;
+    let expected = record::encode(&candidate)?;
+    drop(lease);
+
+    let reopened = adapter(directory.path(), authority, &b)?;
+    let lease = reopened.acquire(&b, &b).await?;
+    let loaded = reopened.load(&lease).await?;
+    assert_eq!(
+        loaded.issued_client_id.as_deref(),
+        Some("syntheticClient981")
+    );
+    let actual = record::encode(&loaded)?;
+    assert_eq!(
+        expected.expose_for_encryption(),
+        actual.expose_for_encryption()
+    );
+    Ok(())
+}
+
+async fn known_subject_clear_denied() -> Result<(), AiError> {
+    let directory = tempfile::Builder::new()
+        .prefix("houseatlas-enrollment-regression-")
+        .tempdir()
+        .map_err(|_| AiError::DomainUnavailable)?;
+    let b = binding();
+    let authority = Arc::new(SyntheticAuthority::new(b.clone()));
+    let store = adapter(directory.path(), Arc::clone(&authority), &b)?;
+    let initial = initial_record("Synthetic subject retention");
+    let mut lease = store.enroll_atomic(&b, &b, &initial).await?;
+    let mut candidate = store.load(&lease).await?;
+    candidate.issued_client_id = Some("syntheticClient981".into());
+    candidate.identity = Some(VerifiedIdentity {
+        subject: "synthetic-subject-A".into(),
+        name: None,
+        email: None,
+    });
+    store.persist_atomic(&mut lease, &candidate).await?;
+
+    let (name, _) = boundary::record_location(HOST_ID, &b)?;
+    let ciphertext_path = directory.path().join(format!("{name}.bin"));
+    let before = std::fs::read(&ciphertext_path).map_err(|_| AiError::DomainUnavailable)?;
+    candidate.identity = None;
+    assert_eq!(
+        store.persist_atomic(&mut lease, &candidate).await,
+        Err(AiError::DomainUnavailable),
+        "a previously known subject cannot be cleared"
+    );
+    let after = std::fs::read(&ciphertext_path).map_err(|_| AiError::DomainUnavailable)?;
+    assert_eq!(
+        before, after,
+        "denied subject clearing preserves ciphertext"
+    );
+    drop(lease);
+
+    let reopened = adapter(directory.path(), authority, &b)?;
+    let lease = reopened.acquire(&b, &b).await?;
+    let loaded = reopened.load(&lease).await?;
+    let identity = loaded
+        .identity
+        .as_ref()
+        .expect("known subject remains present");
+    assert_eq!(identity.subject, "synthetic-subject-A");
+    assert!(identity.name.is_none());
+    assert!(identity.email.is_none());
+    assert_eq!(
+        loaded.issued_client_id.as_deref(),
+        Some("syntheticClient981")
+    );
+    Ok(())
+}
+
 fn assert_initial_shape(record: &RegistrationRecord) {
     assert_eq!(record.state, LifecycleState::Disconnected);
     assert_eq!(record.revocation, RevocationState::NotRequested);
@@ -579,6 +689,8 @@ enum Case {
     Racing,
     BlankDenied,
     BlankHostDenied,
+    InvalidClientTransition,
+    SubjectClear,
 }
 
 fn select_case() -> Result<Case, AiError> {
@@ -592,6 +704,8 @@ fn select_case() -> Result<Case, AiError> {
         "racing-enrollment" => Ok(Case::Racing),
         "blank-app-enrollment-denied" => Ok(Case::BlankDenied),
         "blank-host-construction-denied" => Ok(Case::BlankHostDenied),
+        "invalid-issued-client-transition-denied" => Ok(Case::InvalidClientTransition),
+        "known-subject-clear-denied" => Ok(Case::SubjectClear),
         _ => Err(AiError::InvalidInput),
     }
 }
@@ -612,6 +726,8 @@ async fn main() -> Result<(), AiError> {
             Case::Racing => racing_enrollment().await,
             Case::BlankDenied => blank_app_enrollment_denied().await,
             Case::BlankHostDenied => blank_host_construction_denied().await,
+            Case::InvalidClientTransition => invalid_issued_client_transition_denied().await,
+            Case::SubjectClear => known_subject_clear_denied().await,
         }
     })
     .await
