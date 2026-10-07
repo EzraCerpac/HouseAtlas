@@ -92,17 +92,26 @@ pub struct OriginalNetworkCapture {
     body: Vec<u8>,
     body_sha256: String,
 }
+struct OriginalCaptureContext<'a> {
+    registration: &'a SourceRegistration,
+    source_attestation: &'a SourceScope,
+    generation_id: &'a str,
+    attempted_at: &'a str,
+    retrieved_at: &'a str,
+    source_snapshot_at: Option<&'a str>,
+    limits: Limits,
+}
 impl OriginalNetworkCapture {
-    fn from_response(
-        registration: &SourceRegistration,
-        source_attestation: &SourceScope,
-        generation_id: &str,
-        attempted_at: &str,
-        retrieved_at: &str,
-        source_snapshot_at: Option<&str>,
-        limits: Limits,
-        body: Vec<u8>,
-    ) -> Result<Self> {
+    fn from_response(context: OriginalCaptureContext<'_>, body: Vec<u8>) -> Result<Self> {
+        let OriginalCaptureContext {
+            registration,
+            source_attestation,
+            generation_id,
+            attempted_at,
+            retrieved_at,
+            source_snapshot_at,
+            limits,
+        } = context;
         guard(body.len() <= limits.max_response_bytes && body.len() <= 10 * 1024 * 1024)?;
         let body_sha256 = format!("{:x}", Sha256::digest(&body));
         Ok(Self {
@@ -282,13 +291,15 @@ impl NetworkProvider {
         // consumes their semantic content. A projected-row digest is not a
         // substitute for this original immutable-body digest.
         let original_capture = OriginalNetworkCapture::from_response(
-            &self.registration,
-            source,
-            generation_id,
-            attempted_at,
-            &fetched_at,
-            response.source_snapshot_at.as_deref(),
-            self.limits,
+            OriginalCaptureContext {
+                registration: &self.registration,
+                source_attestation: source,
+                generation_id,
+                attempted_at,
+                retrieved_at: &fetched_at,
+                source_snapshot_at: response.source_snapshot_at.as_deref(),
+                limits: self.limits,
+            },
             response.body,
         )?;
         let generation = project_capture(
