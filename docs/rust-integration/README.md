@@ -228,16 +228,18 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-agent-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-agent-host-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-human-host-loopback.mjs
+    HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-upload-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs
 
 The source runner checks deterministic generation/history, actual locked Rust
 library/binary/module source, rustfmt, warnings-denied Clippy, strict TypeScript
-and Vite. It runs exactly healthy-contracts, healthy-dependencies and
-healthy-native-semantics. The separately named healthy-agent-stock performs
+and Vite. It runs exactly healthy-contracts, healthy-dependencies,
+healthy-native-semantics and healthy-maintenance-calendar. The separately named
+healthy-agent-stock performs
 genuine in-process MCP tools/list and tools/call over actual access/domain/SQLite;
 the workflow compiles it on both platforms and runs it only on Linux.
 
-Each of the ten browser runners uses fresh Chromium and a disposable TLS
+Each of the eleven browser runners uses fresh Chromium and a disposable TLS
 certificate, observes actual SQLite rows read-only, stops gracefully and removes
 scratch state. Core adds real auth, canonical paging/reads, one fresh circuit
 and one ordered two-identity batch with record/history readback. Media adds two
@@ -268,6 +270,11 @@ refresh, reloads the real admission and saved revision, and verifies the same
 linked audit through native WebMCP, mounted MCP and read-only SQLite. HomeBox
 `canEdit` remains false before and after. Its cached read preserves the original
 source facts, cache dates and generation. No upload or provider I/O occurs.
+The separately named upload runner submits two fresh actual React attachment
+intents for one small generated PNG and checks native SQLite receipts, one
+original asset and consumption, the exact original asset revision guard,
+unchanged original provenance and zero pending stages. It performs no retry,
+replay, expiry, recovery or failure control.
 Private evidence packets, fingerprints and optional screenshots remain outside Git.
 
 The workflow selects exact PR-head/main-push source on Linux and macOS, retains
@@ -275,41 +282,6 @@ locked source checks and the central publication file/mode/digest/ownership
 allowlist, and configures Linux execution of the named healthy flows. Current
 candidate CI status is reported separately. macOS source compilation supplies
 no target NAS build/runtime or operational qualification.
-
-## Optional cached Network host composition
-
-The optional native Network mount reads through the original Core, canonical
-Access allocation and existing Store. Its cached-only GET is scoped by workspace,
-home, source instance and an opaque collection selector. Fresh native partition
-and entity grants feed the retained generation disclosure; serialization is
-followed by the owner's same-store rerelease and original-authority check.
-Trusted configuration supplies the binding, and the default service has none.
-Browsing supplies no refresh, transport, lifecycle policy or provider credential.
-
-The current development composition includes the original Access shared issuer,
-registered-cache and borrowed snapshot Storage APIs, the genuine Domain offline
-recovery leaf required by that Access source, and the nested Network module.
-Storage's optional activity schema is compiled; the default disposable host
-still opens schema 5, with no activity dispatch or offline recovery mount.
-Existing SQL migrations and schema checksums remain intact.
-
-`healthy-network-root-router` is an explicitly declared healthy example. The
-inspected Python driver creates one disposable CA/end-entity certificate and a
-loopback inventory fixture. The example makes one verified TLS inventory GET,
-publishes through the actual native Store, starts the real root TLS listener,
-logs in a genuine viewer, then makes two cached GETs. Native entities, links,
-relations, observation text and distinct fact/retrieval dates are preserved;
-cache epochs and generation reservations stay unchanged during browsing. Its
-listener supplies actual connection metadata; no transport extension is mocked.
-The native runtime binds read and disclosure to the exact owning Core and its
-current original issuer. This healthy flow passed and is separately named in
-Linux CI. It supplies no Network browser/UI, live-provider, rejection, revocation,
-concurrency, recovery or deployment qualification.
-
-```sh
-cargo build --locked -p houseatlas-backend --example healthy-network-root-router
-python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"
-```
 
 ## Explicit remaining areas
 
@@ -321,12 +293,12 @@ but no real configuration, credential release, filtered provider read or refresh
 has been mounted/executed in this disposable host. The cached route does not
 create those permissions or qualify freshness.
 
-Network host settings, retained facet, phased publication and the optional
-cached-only mount compile with reqwest 0.13.5 and Rustls platform verification.
-The runtime uses the canonical original issuer and complete retained-generation
-resource grants. Its owning Store/Access identity correction and one root healthy
-TLS flow are integrated; exact-candidate review and CI remain required. No actual Network UI, source setup or provider refresh
-is enabled in the default host, and no runner calls a real provider.
+Network host settings, retained facet and phased publication source compile.
+Its required whole-collection disclosure membership/credential authority and
+actual runtime remain unbound. The Network owner documents reqwest 0.12/WebPKI
+roots while the host pins reqwest 0.13.5 with Rustls platform verification.
+This TLS profile discrepancy still requires owner reconciliation before combined
+transport acceptance. No runner makes an actual provider request.
 
 Provider stock preparation, original whole-collection approval, verified
 route/build binding, durable operation activity/liability and qualified physical
