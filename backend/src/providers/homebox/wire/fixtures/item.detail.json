@@ -1,0 +1,93 @@
+{
+  "id": "00000000-0000-4000-8000-000000000002",
+  "assetId": "0",
+  "name": "Synthetic entity 2",
+  "description": "Source-derived example",
+  "quantity": 1.5,
+  "insured": false,
+  "archived": true,
+  "createdAt": "2026-01-02T03:04:05.1200+02:00",
+  "updatedAt": "2026-01-02T03:04:05.1200+02:00",
+  "purchasePrice": 0,
+  "tags": [],
+  "soldDate": "",
+  "entityType": {
+    "id": "00000000-0000-4000-8000-000000000102",
+    "name": "Tool",
+    "isLocation": false,
+    "icon": "",
+    "description": "",
+    "createdAt": "2026-01-02T03:04:05.1200+02:00",
+    "updatedAt": "2026-01-02T03:04:05.1200+02:00",
+    "defaultTemplateId": "00000000-0000-4000-8000-000000000000"
+  },
+  "parent": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "assetId": "0",
+    "name": "Synthetic entity 1",
+    "description": "Source-derived example",
+    "quantity": 1.5,
+    "insured": false,
+    "archived": true,
+    "createdAt": "2026-01-02T03:04:05.1200+02:00",
+    "updatedAt": "2026-01-02T03:04:05.1200+02:00",
+    "purchasePrice": 0,
+    "tags": [],
+    "soldDate": "",
+    "entityType": {
+      "id": "00000000-0000-4000-8000-000000000101",
+      "name": "Arbitrary container",
+      "isLocation": true,
+      "icon": "",
+      "description": "",
+      "createdAt": "2026-01-02T03:04:05.1200+02:00",
+      "updatedAt": "2026-01-02T03:04:05.1200+02:00",
+      "defaultTemplateId": "00000000-0000-4000-8000-000000000000"
+    }
+  },
+  "syncChildEntityLocations": false,
+  "serialNumber": "",
+  "modelNumber": "",
+  "manufacturer": "",
+  "lifetimeWarranty": false,
+  "warrantyExpires": "",
+  "warrantyDetails": "",
+  "purchaseDate": "",
+  "purchaseFrom": "",
+  "soldTo": "",
+  "soldPrice": 0,
+  "soldNotes": "",
+  "notes": "",
+  "attachments": [
+    {
+      "id": "00000000-0000-4000-8000-000000000201",
+      "createdAt": "2026-01-02T03:04:05.1200+02:00",
+      "updatedAt": "2026-01-02T03:04:05.1200+02:00",
+      "type": "manual",
+      "primary": false,
+      "path": "private/blob-key.pdf",
+      "title": "Manual",
+      "mimeType": "application/pdf"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000202",
+      "createdAt": "2026-01-02T03:04:05.1200+02:00",
+      "updatedAt": "2026-01-02T03:04:05.1200+02:00",
+      "type": "attachment",
+      "primary": false,
+      "path": "https://example.invalid/manual?q=%2f",
+      "title": "Reference",
+      "mimeType": "link/url"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000203",
+      "createdAt": "2026-01-02T03:04:05.1200+02:00",
+      "updatedAt": "2026-01-02T03:04:05.1200+02:00",
+      "type": "attachment",
+      "primary": false,
+      "path": "opaque/storage-key",
+      "title": "Unknown content type"
+    }
+  ],
+  "fields": null
+}
