@@ -271,15 +271,31 @@ pub(super) fn qualify_original_preview(
     content_type: ContentType,
     budget: &WorkBudget,
 ) -> MediaResult<PreviewPolicy> {
+    Ok(
+        if render_original_preview(bytes, content_type, budget)?.is_some() {
+            PreviewPolicy::SafeRendered
+        } else {
+            PreviewPolicy::DownloadOnly
+        },
+    )
+}
+
+/// Retain the actual stripped renderer output for owner-created review proofs.
+/// Optional qualification and existing upload preparation share this one path.
+pub(super) fn render_original_preview(
+    bytes: &[u8],
+    content_type: ContentType,
+    budget: &WorkBudget,
+) -> MediaResult<Option<Vec<u8>>> {
     budget.check()?;
     if content_type != ContentType::Png || !preview_rows_fit(&inspect_png(bytes, budget)?) {
-        return Ok(PreviewPolicy::DownloadOnly);
+        return Ok(None);
     }
     let rendered = render_png(bytes, budget);
     budget.check()?;
     match rendered {
-        Ok(_) => Ok(PreviewPolicy::SafeRendered),
-        Err(MediaError::TooLarge | MediaError::Unsupported) => Ok(PreviewPolicy::DownloadOnly),
+        Ok(output) => Ok(Some(output)),
+        Err(MediaError::TooLarge | MediaError::Unsupported) => Ok(None),
         Err(error) => Err(error),
     }
 }
