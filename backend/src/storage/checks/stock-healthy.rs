@@ -304,7 +304,7 @@ fn main() -> CheckResult<()> {
     assert_eq!(semantics.counts.borrow().get("guards"), Some(&4));
     assert_eq!(semantics.counts.borrow().get("final"), Some(&4));
     let evidence = json!({"format":"houseatlas-stock-healthy-check/1","outcome":"accepted",
-        "nativeSemanticPeer":"e8 public pure Rust peer","domainPeer":"298 public stock owner mapper",
+        "nativeSemanticPeer":"a2f76f9b8b0a3dbd56fbd358a8e80b15490cbb05","domainPeer":"298bcb2a0da2f80efbd6cfd070f734d6e68fd70c",
         "stockContractPeer":"fde9586f41c32924543fe7066fb0481b02744b8c",
         "scope":"Fresh synthetic create/replace, ordered two-child create batch, two history pages, matching search, persistence reopen",
         "actualEntryPoints":["execute_stock_json_with_authorization","stock_history_json_with_authorization"],

@@ -68,6 +68,46 @@ fn receipt_key(audit: &Audit) -> ReceiptKey {
     )
 }
 
+fn validate_adjacent_transition<C: Contract>(
+    contract: &C,
+    prior: &Record,
+    result: &MutationResult,
+) -> Result<()> {
+    contract.validate_result(result, Prior::Record(prior))?;
+    if matches!(
+        result.audit.operation,
+        Operation::Tombstone | Operation::Restore
+    ) {
+        require(
+            contract.canonical_json(&prior.payload)?
+                == contract.canonical_json(&result.record.payload)?,
+        )?;
+    }
+    // This projection checks only facts retained in the adjacent outcomes.
+    // It is not the original command, and supplies no historical guard proof
+    // or receipt-hash input. Reuse the required native transition peer for
+    // immutable fields and append-only replacement rules.
+    let projection = Mutation {
+        schema_version: 1,
+        mutation_id: result.audit.mutation_id.clone(),
+        operation: result.audit.operation,
+        expected_revision: result.audit.previous_revision,
+        reason: result.audit.reason.clone(),
+        guards: Vec::new(),
+        value: (result.audit.operation == Operation::Replace).then(|| RecordValue {
+            record_type: result.record.record_type,
+            payload: result.record.payload.clone(),
+        }),
+    };
+    let target = ScopedTarget::new(&result.record.scope(), &result.record.reference());
+    require(
+        contract
+            .assert_transition(Some(prior), &projection, &target)
+            .map_err(|_| incompatible())?
+            == result.record.revision,
+    )
+}
+
 pub(super) fn validate_connection<C: Contract>(
     db: &Connection,
     contract: &C,
@@ -394,7 +434,7 @@ fn validate_history<C: Contract>(
             audit_sequence.insert(audit.audit_id.clone(), seq);
             let key = record_key(&result.record);
             if let Some(prior) = last.get(&key) {
-                contract.validate_result(result, Prior::Record(&prior.record))?;
+                validate_adjacent_transition(contract, &prior.record, result)?;
             } else if audit.operation == Operation::Create {
                 contract.validate_result(result, Prior::Missing)?;
             }

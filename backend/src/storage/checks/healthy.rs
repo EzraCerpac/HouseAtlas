@@ -334,7 +334,7 @@ fn main() -> CheckResult<()> {
     assert_eq!(oracle.counts.borrow().get("transition"), Some(&9));
     assert_eq!(oracle.counts.borrow().get("guards"), Some(&9));
     assert_eq!(oracle.counts.borrow().get("final"), Some(&9));
-    let evidence = json!({"lineage":lineage,"databaseVersion":1,"sqliteVersion":rusqlite::version(),"auditRows":count("audits")?,
+    let evidence = json!({"lineage":lineage,"databaseVersion":DATABASE_VERSION,"sqliteVersion":rusqlite::version(),"auditRows":count("audits")?,
         "receiptRows":count("receipts")?,"batchReceiptRows":count("batch_receipts")?,"bindingReservations":count("binding_reservations")?,
         "contextsCompared":captured.len(),"storedAuthorizerContexts":contexts.borrow().len(),"borrowedAuthorizerContexts":per_call_contexts.borrow().len(),
         "borrowedAuthorizerPhases":per_call_contexts.borrow().iter().map(|context| context.phase).collect::<Vec<_>>(),

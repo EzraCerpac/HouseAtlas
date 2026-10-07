@@ -140,7 +140,7 @@ fn main() -> CheckResult<()> {
         &root,
         "packages/contracts/fixtures/create-circuit.mutation.json",
     )?;
-    let circuit = store.execute(&principal, &scope, &target, &command)?;
+    store.execute(&principal, &scope, &target, &command)?;
     let batch = BatchMutation {
         schema_version: 1,
         batch_id: id(95_010),
@@ -173,8 +173,75 @@ fn main() -> CheckResult<()> {
         ],
     };
     let committed = store.execute_batch(&principal, &scope, &batch)?;
+    let item_target = reference(RecordType::Identity, 95_012);
+    for (target, first_id, value) in [
+        (
+            &target,
+            95_015,
+            RecordValue {
+                record_type: RecordType::Circuit,
+                payload: json!({"label":"Synthetic circuit label","panel":null,"evidenceIds":[id(100)]}),
+            },
+        ),
+        (
+            &item_target,
+            95_018,
+            RecordValue {
+                record_type: RecordType::Identity,
+                payload: json!({"kind":"item","evidenceIds":[id(100)]}),
+            },
+        ),
+    ] {
+        let replaced = store.execute(
+            &principal,
+            &scope,
+            target,
+            &healthy_command(first_id, Operation::Replace, Some(1), Some(value)),
+        )?;
+        let tombstoned = store.execute(
+            &principal,
+            &scope,
+            target,
+            &healthy_command(first_id + 1, Operation::Tombstone, Some(2), None),
+        )?;
+        let restored = store.execute(
+            &principal,
+            &scope,
+            target,
+            &healthy_command(first_id + 2, Operation::Restore, Some(3), None),
+        )?;
+        assert_eq!(replaced.record.revision, 2);
+        assert_eq!(tombstoned.record.lifecycle, Lifecycle::Tombstoned);
+        assert_eq!(restored.record.revision, 4);
+        assert_eq!(restored.record.lifecycle, Lifecycle::Active);
+        assert_eq!(replaced.record.payload, tombstoned.record.payload);
+        assert_eq!(tombstoned.record.payload, restored.record.payload);
+    }
     let expected_snapshot = store.read_snapshot(&principal, &scope)?;
+    let expected_circuit = store.read_record(&principal, &scope, &target)?;
     let expected_history = store.history(&principal, &scope, &target)?;
+    let expected_item_history = store.history(&principal, &scope, &item_target)?;
+    for history in [&expected_history, &expected_item_history] {
+        assert_eq!(
+            history
+                .iter()
+                .map(|audit| audit.operation)
+                .collect::<Vec<_>>(),
+            vec![
+                Operation::Create,
+                Operation::Replace,
+                Operation::Tombstone,
+                Operation::Restore
+            ]
+        );
+        assert_eq!(
+            history
+                .iter()
+                .map(|audit| audit.result_revision)
+                .collect::<Vec<_>>(),
+            vec![1, 2, 3, 4]
+        );
+    }
     let mut authorization_checks = 0_usize;
     let mut check = || {
         authorization_checks += 1;
@@ -199,8 +266,8 @@ fn main() -> CheckResult<()> {
     let source_rows = all_rows(&live)?;
     let image_rows = all_rows(&image_path)?;
     assert_eq!(source_rows, image_rows); // Every persisted row, including other-home rows.
-    assert_eq!(image_rows["audits"].len(), 3);
-    assert_eq!(image_rows["receipts"].len(), 3);
+    assert_eq!(image_rows["audits"].len(), 9);
+    assert_eq!(image_rows["receipts"].len(), 9);
     assert_eq!(image_rows["batch_receipts"].len(), 1);
     let mut reopened = AtlasStore::open(
         &image_path,
@@ -215,16 +282,27 @@ fn main() -> CheckResult<()> {
     );
     assert_eq!(
         reopened.read_record(&principal, &scope, &target)?,
-        circuit.record
+        expected_circuit
     );
     assert_eq!(
         reopened.history(&principal, &scope, &target)?,
         expected_history
     );
+    assert_eq!(
+        reopened.history(&principal, &scope, &item_target)?,
+        expected_item_history
+    );
     for result in committed.results {
+        let expected_record = expected_snapshot
+            .records
+            .iter()
+            .find(|record| {
+                record.scope() == scope && record.reference() == result.record.reference()
+            })
+            .ok_or("expected batch target is missing")?;
         assert_eq!(
-            reopened.read_record(&principal, &scope, &result.record.reference())?,
-            result.record
+            &reopened.read_record(&principal, &scope, &result.record.reference())?,
+            expected_record
         );
     }
     reopened.close()?;
@@ -232,7 +310,13 @@ fn main() -> CheckResult<()> {
         directory.join("evidence.json"),
         serde_json::to_vec_pretty(&json!({
             "scope":"accepted synthetic native capture/validation/native reopen; no stock journal or physical originals",
+            "databaseVersion":DATABASE_VERSION,
             "image":image,"authorizationChecks":authorization_checks,
+            "committedNativeCommands":9,"adjacentRetainedTransitions":6,
+            "healthyChains":["circuit: create/replace/tombstone/restore", "item identity: create/replace/tombstone/restore, immutable kind preserved"],
+            "nativeSemanticCalls":*semantics.counts.borrow(),
+            "nativeSemanticPeer":"a2f76f9b8b0a3dbd56fbd358a8e80b15490cbb05",
+            "nativeSchemaPeer":"d3bdb7ccacb94a83d7409b70dbc30a4a3204395f",
             "tableCounts":image_rows.iter().map(|(name,rows)|(name.clone(),rows.len())).collect::<BTreeMap<_,_>>(),
             "allPersistedRowsEqual":true,"nativeReopenEqual":true,
         }))?,

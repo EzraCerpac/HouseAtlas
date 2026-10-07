@@ -321,8 +321,6 @@ provider call or held control runs in that checkpoint. Binding presence triggers
 derive from actual original/candidate records through the domain predicate and
 remain held until atomic witness qualification exists.
 
-## Remaining integration and qualification
-
 ## Native recovery images
 
 `backup_recovery_to(&mut self, destination, check)` uses this store's owned
@@ -337,7 +335,13 @@ The deadline is cooperative between SQLite/contract calls.
 Validation compares exact migration checksums, metadata and actual schema
 catalog, integrity/FKs, every native body and SQL key, full unredacted graph,
 binding reservations, asset manifests, cache generations/epochs, receipt/audit
-chains and ordered batch linkage. Original native command/guard envelopes are
+chains and ordered batch linkage.
+Adjacent retained versions also preserve tombstone/restore canonical payloads
+and pass the required native transition peer's immutable-field and append-only
+replacement rules. That check derives a transition projection from actual
+retained outcomes; it supplies no original command or historical guard proof.
+The first noncreate audit can follow an unaudited seed with no retained preimage.
+Original native command/guard envelopes are
 absent from v1 receipts, so their hashes cannot honestly be reconstructed; hash
 syntax and persisted key/result/audit linkage are checked. These requested
 native-only signatures lack a stock schema peer and fail closed on a nonempty
@@ -346,6 +350,8 @@ stock journal. Full stock recovery requires an explicit stock-aware companion.
 authority/runtime for capture, read-only validation, all-row equality and native
 reopen. No JS oracle, corruption/crash control or physical-original qualification
 runs in this checkpoint. Root reconciliation must enable rusqlite `backup`.
+
+## Remaining integration and qualification
 
 The full native semantic Contract and branded Authorization/Runtime peers remain
 required before application integration. AT51 must reconcile carriers/dependencies
