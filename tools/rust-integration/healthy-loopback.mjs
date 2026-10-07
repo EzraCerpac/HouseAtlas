@@ -131,10 +131,11 @@ try {
   console.log(JSON.stringify(evidence, null, 2));
 } finally {
   if (cdp && browser?.exitCode === null) await cdp.send('Browser.close').catch(() => {});
+  if (browser?.exitCode === null) await until(() => browser.exitCode !== null, 'ordinary Chromium shutdown', 10000);
   if (service?.exitCode === null) {
     service.kill('SIGINT');
     await until(() => service.exitCode !== null, 'graceful Rust shutdown', 10000);
     assert.equal(service.exitCode, 0, 'Graceful ordinary shutdown');
   }
-  rmSync(scratch, { recursive: true, force: true });
+  rmSync(scratch, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
 }

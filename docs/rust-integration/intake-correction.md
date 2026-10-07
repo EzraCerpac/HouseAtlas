@@ -32,6 +32,11 @@ The healthy core runner now checks that every observed URL remains on loopback
 after all session/login/logout, canonical reads, fresh circuit create and atomic
 identity batch flows. Existing successful assertions remain intact.
 
+The ordinary runners await Chromium's actual exit after successful browser
+closure before removing their scratch profile. Removal uses three bounded
+100-millisecond retries for transient profile-directory cleanup. This changes
+ordinary lifecycle cleanup and adds no requests or control scenarios.
+
 Verification is actual locked Rust/TS source compilation, rustfmt, warnings-denied
 Clippy, the three named healthy examples and inspected successful loopback flows.
 No slow-body, saturation, rate-denial, rejection, replay, expiry, revocation,
