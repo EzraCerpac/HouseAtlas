@@ -1,0 +1,132 @@
+--- a/frontend/src/app/App.tsx
++++ b/frontend/src/app/App.tsx
+@@ -21,6 +21,8 @@
+ import { text } from "./copy";
+ import type { SessionSettings } from "./session";
+ import type { AtlasEditingClient } from "./editing";
++import { AiHost, AiActivityStatus } from "../ai/host/index.js";
++import type { AiViewResolver } from "../ai/host/index.js";
+ 
+ export interface AtlasAppProps {
+   client: AtlasClient;
+@@ -33,6 +35,7 @@
+   /** Reports only the committed authorized scope, or unavailable context. */
+   onScopeCommit?: (scope: Scope | null) => void;
+   editing?: AtlasEditingClient;
++  resolveAi?: AiViewResolver;
+ }
+ export const accessEventName = "atlas-access-invalidated";
+ export function App({
+@@ -43,6 +46,7 @@
+   session,
+   onScopeCommit,
+   editing,
++  resolveAi,
+ }: AtlasAppProps) {
+   const [view, setView] = useState<AtlasView>(
+     initialView ?? { status: "loading" },
+@@ -241,6 +245,7 @@
+       ? ""
+       : text(view.status === "unavailable" ? "viewUnavailable" : view.status);
+   return (
++    <AiHost context={view.status === "ready" ? resolveAi?.(view.scope, view.homeLabel) ?? null : null}>
+     <div ref={root} onClick={onClick}>
+       <a className="skip" href="#page-heading">
+         {text("skip")}
+@@ -324,6 +329,7 @@
+                     {text("networkDenied")}
+                   </p>
+                 )}
++                {route.page !== "settings" && <AiActivityStatus />}
+                 <AtlasPage
+                   view={view}
+                   route={route}
+@@ -341,6 +347,7 @@
+         )}
+       </RouteContext.Provider>
+     </div>
++    </AiHost>
+   );
+ }
+ function Shell({
+--- a/frontend/src/app/pages.tsx
++++ b/frontend/src/app/pages.tsx
+@@ -30,6 +30,7 @@
+ import type { SessionSettings } from "./session";
+ import type { AtlasEditingClient } from "./editing";
+ import { PlaceEditor } from "./PlaceEditor";
++import { AiSettingsSection } from "../ai/host/index.js";
+ 
+ export interface PageProps {
+   view: ReadyView;
+@@ -94,6 +95,7 @@
+               )}
+             </div>
+           </section>
++          <AiSettingsSection />
+           {session && (
+             <section className="setting">
+               <div className="setting-text">
+--- a/frontend/src/app/SessionApp.tsx
++++ b/frontend/src/app/SessionApp.tsx
+@@ -12,6 +12,7 @@
+ import type { AtlasClient } from "./types";
+ import type { Scope } from "../api/generated/contracts.js";
+ import type { AtlasEditingClient } from "./editing";
++import type { AiApplicationPort } from "../ai/host/index.js";
+ import type {
+   AtlasCredentials,
+   AtlasSessionClient,
+@@ -33,6 +34,7 @@
+   accessEvents?: EventTarget;
+   stock?: StockApplicationPorts;
+   editing?: AtlasEditingClient;
++  ai?: AiApplicationPort;
+ }
+ /** Optional application-auth shell. It does not provision accounts, grant home
+  * membership or authorize a source. Protected browsing is still owned by App. */
+@@ -42,6 +44,7 @@
+   accessEvents,
+   stock,
+   editing,
++  ai,
+ }: SessionAppProps) {
+   const [state, setState] = useState<SessionState>({ status: "loading" });
+   const generation = useRef(0),
+@@ -122,6 +125,7 @@
+         {...(accessEvents ? { accessEvents } : {})}
+         {...(onScopeCommit ? { onScopeCommit } : {})}
+         {...(editing ? { editing } : {})}
++        {...(ai ? { resolveAi: (scope: Scope, label: string) => ai.resolve(state.info, scope, label) } : {})}
+       />
+     );
+     return stock ? (
+--- a/frontend/integration/main.tsx
++++ b/frontend/integration/main.tsx
+@@ -11,6 +11,9 @@
+ import "../src/styles/atlas.css";
+ import "../src/styles/session.css";
+ import "../src/styles/stock.css";
++import "../src/ai/ai.css";
++import "../src/ai/host/host.css";
++import type { AiApplicationPort } from "../src/ai/host/index.js";
+ 
+ const element = document.getElementById("root");
+ if (!element) throw new Error("HouseAtlas root missing");
+@@ -59,7 +62,7 @@
+   bootstrap: root.dataset.bootstrapUrl ?? "/api/atlas/view",
+   home: scope => `/api/atlas/homes/${encodeURIComponent(scope.workspaceId)}/${encodeURIComponent(scope.homeId)}/view`,
+ });
+-function HostApplication() {
++export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
+   const [admission, setAdmission] = useState<StockAdmission | null>(null);
+   const client = useMemo<AtlasClient>(() => {
+     let generation = 0;
+@@ -97,6 +100,6 @@
+   }, []);
+   // Keep the concrete editing port stable through view/catalog refreshes.
+   // Each place admission and command obtains the actual request authority.
+-  return <SessionApp client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission }} />;
++  return <SessionApp client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission }} {...(ai ? { ai } : {})} />;
+ }
+ createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);
