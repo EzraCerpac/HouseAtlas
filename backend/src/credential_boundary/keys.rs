@@ -12,6 +12,7 @@ const LOOKUP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 pub(crate) struct SecretKey(Zeroizing<Vec<u8>>);
 
 impl SecretKey {
+    #[cfg(any(target_os = "linux", test))]
     pub(crate) fn new(bytes: Vec<u8>) -> Result<Self, AiError> {
         let bytes = Zeroizing::new(bytes);
         if bytes.len() != 32 {
