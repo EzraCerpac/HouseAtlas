@@ -124,6 +124,14 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
         {
             return Err(stale());
         }
+        // Expiry can precede a first completion. After a persisted finish,
+        // later observations use reconciliation instead of finishing again.
+        if retained_outcomes(&tx, &job)?
+            .iter()
+            .any(|outcome| outcome.kind == "finish")
+        {
+            return Err(stale());
+        }
         check_finish_evidence(report, evidence)?;
         if matches!(report.remote_activity, RemoteActivity::Invoked(_)) && journal.is_none() {
             return Err(invalid());
