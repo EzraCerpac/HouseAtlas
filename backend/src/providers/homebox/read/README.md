@@ -105,6 +105,18 @@ reserved by failure publication. No failure is published automatically, and no
 unfenced status fallback or production authority is supplied. The host remains
 responsible for its original branded grants and authority context.
 
+The same-store per-call bindings are additive:
+`prepare_publication_with_authorization(store, &B, &original_principal)`,
+`StagedPublication::commit_with_authorization(store, &B)` and
+`FailedPublication::commit_failure_with_authorization(store, &B)`. They delegate to
+AT07's exact `_with_authorization` APIs; selected B is borrowed for that synchronous
+call and uses the unchanged connection, contract, runtime and issuer. Configured A
+is not replaced, and its Principal type need not equal B::Principal. The original
+B principal is retained privately through fetch and either consuming result.
+Registration/quarantine/proposal checks share the direct paths' private helpers.
+No private fence extraction, second handle or authority implementation is added.
+The host supplies its reviewed current original-grant B at each phase.
+
 The failure handoff and native consuming call are compiled but unexecuted in the
 ordinary evidence. Only successful prepared fetch/publication paths are exercised.
 Store errors expose only a fixed publication failure.
@@ -132,20 +144,25 @@ to empty and require explicitly verified scope-matched route configuration.
 
 The external host harness compiles actual read-only published source snapshots:
 
-- AT07 consuming failure/registration receipt: `9b13f1e97635a3f531e8c14642cd3c5e94401fef`.
-- AT51 generated contracts: `07576e6be463dd481b49071071c66dec144b1e0c`.
-- AT11 canonical-ID types: `4967dd2d38c5749be35aa7e44728c4d691246730`.
+- AT07 same-store per-call cache/failure APIs: `e11c17a175eb73980c31b0b3f71d90dbbf816899`.
+- Actual supporting contracts/domain/jobs/access types and embedded resources:
+  accepted root `52d6dce6b283b577d43083fb36bbea485303924f`.
 - AT52 native read-contract adapter: `46047d0193fbce720bba7a1d209b5428c51dba94`.
 
 No peer source/ancestry is copied into this branch. The host harness uses the actual
 native frozen schema/graph and SQLite implementation, with synthetic authority,
-clock and provider transport. Its URL predicate is an exact function excerpt from
-AT36 projection.rs at `64da6ea293dbb7fd7798105e92e7c4a65be7262f`, satisfying the read-contract graph dependency.
+clock and provider transport. The full actual domain/jobs modules compile the
+storage owner's stock/queue type
+requirements; no fabricated stock/queue peer is supplied or executed. The embedded
+resource catalog and native semantics use the accepted root's regex/ryu-js pins.
+The external full-peer harness enables the existing rusqlite `backup` feature.
+These are existing peer requirements, not new reader dependencies.
 
 The reviewed host leaves ConfigureSource/PublishCache unavailable. Production
 needs AT52/AT11's current original branded source-authority adapter and a credential
-provider bound to approved server configuration. Borrowed per-call provider
-authorization on the same store remains AT07/root host integration. No permissive replacement is
+provider bound to approved server configuration. The borrowed storage APIs are
+bound here; the actual original-grant
+provider authority B remains root/access host integration. No permissive replacement is
 supplied. Publication futures impose no extra Send/Sync bounds on those borrowed
 handles; the shared host must reconcile their execution context.
 
@@ -183,7 +200,12 @@ reads published rows/cache, preserves six seeded Atlas records, checks epochs
 0 → 1 → 2, reconstructs retained metadata,
 and confirm a filtered view leaves SQLite unchanged. Another healthy example binds
 an empty cache to the complete durable reviewed allowlist, then fetches through a
-matching reader whose allowlist order differs. Authority/runtime are synthetic.
+matching reader whose allowlist order differs. Another positive example uses one issuing connection and a borrowed fixture
+authorizer whose principal type differs from configured store authority. It checks
+unchanged original principal identity at all four authorization calls, exact
+publication/readback, and the configured authorizer's continued use for reads.
+Failure per-call handoff is type-checked only; no failure operation is invoked.
+Authority/runtime remain explicit synthetic fixtures.
 Emitted snapshots pass published shape/semantic validation as additional evidence;
 no JavaScript oracle is used in the Rust publication path. Legacy broad aggregates,
 stopped rejection/guard-reversal/mutation/adversarial/fault/crash/concurrency/negative

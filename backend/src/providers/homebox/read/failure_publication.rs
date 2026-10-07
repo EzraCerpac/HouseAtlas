@@ -42,6 +42,34 @@ impl<'a, P> FailedPublication<'a, P> {
         self,
         store: &mut AtlasStore<C, A, R>,
     ) -> Result<storage::CacheStatus, PublishError> {
+        let failure = self.failure_values()?;
+        store
+            .record_prepared_cache_failure(self.principal, self.fence, &failure)
+            .map_err(|_| PublishError::StoreRejected)
+    }
+    /// Explicit same-store call with the host's current borrowed authority.
+    /// No principal substitution, private fence extraction or unfenced fallback.
+    pub fn commit_failure_with_authorization<
+        C: Contract,
+        A: Authorization,
+        R: Runtime,
+        B: Authorization<Principal = P>,
+    >(
+        self,
+        store: &mut AtlasStore<C, A, R>,
+        authorization: &B,
+    ) -> Result<storage::CacheStatus, PublishError> {
+        let failure = self.failure_values()?;
+        store
+            .record_prepared_cache_failure_with_authorization(
+                authorization,
+                self.principal,
+                self.fence,
+                &failure,
+            )
+            .map_err(|_| PublishError::StoreRejected)
+    }
+    fn failure_values(&self) -> Result<storage::CacheFailure, PublishError> {
         // Invalid retained state yields no writable cache proposal in the reader.
         let status = match self.failure.cache.as_deref().map(|cache| cache.status) {
             Some(CacheState::Error) => storage::FailureStatus::Error,
@@ -59,12 +87,9 @@ impl<'a, P> FailedPublication<'a, P> {
             ErrorCode::Transport => storage::FailureCode::Transport,
             ErrorCode::Upstream => storage::FailureCode::Upstream,
         };
-        let failure = storage::CacheFailure {
+        Ok(storage::CacheFailure {
             code,
             status: Some(status),
-        };
-        store
-            .record_prepared_cache_failure(self.principal, self.fence, &failure)
-            .map_err(|_| PublishError::StoreRejected)
+        })
     }
 }
