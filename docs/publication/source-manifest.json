@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "46ddc88d78c387e8ec2378d138a8c417df861bce1d50d552665e21b0c140ebac",
+  "sourceDigestSha256": "294b35c57cf3651c1c78154076aef3e47c759419a36436e489ae53372a8c0fba",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2681,8 +2681,8 @@
     {
       "path": "backend/src/providers/network/archive.rs",
       "mode": "100644",
-      "bytes": 33817,
-      "sha256": "a8a5c97290e16c9eea006a303db7fb37726d196eb52084ad1d338d082056f693",
+      "bytes": 34657,
+      "sha256": "b90d566a59bfd59d76d4608784bfced680d8e458fb20d0966f31e2f4da6e003e",
       "owner": "network"
     },
     {
