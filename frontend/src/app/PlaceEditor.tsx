@@ -39,6 +39,8 @@ function ReasonField({ busy }: { busy: boolean }) {
       <span>Reason (maximum 1024 characters)</span>
       <input
         name="reason"
+        aria-label="Reason"
+        aria-description="Maximum 1024 characters."
         required
         disabled={busy}
         onInput={(event) => validateReason(event.currentTarget)}
