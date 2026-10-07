@@ -60,14 +60,18 @@ fn supported(request: &st::ValidatedRequest) -> st::StockResult<()> {
 enum UploadPlan<'a, 'u> {
     Staged(&'a st::StagedAtlasCommandPlan<'u>),
     Existing(&'a st::ExistingAssetAttachmentPlan<'u>),
-    Review(&'a s::VerifiedAssetReviewPlan<'u>, &'a m::WorkBudget),
+    Review(
+        &'a s::VerifiedAssetReviewPlan<'u>,
+        &'a m::WorkBudget,
+        &'a s::AssetReviewCommitObservation,
+    ),
 }
 impl<'a, 'u> UploadPlan<'a, 'u> {
     fn plan(self) -> &'a st::AtlasCommandPlan {
         match self {
             Self::Staged(plan) => plan.plan(),
             Self::Existing(plan) => plan.plan(),
-            Self::Review(plan, _) => plan.plan(),
+            Self::Review(plan, _, _) => plan.plan(),
         }
     }
 }
@@ -346,7 +350,7 @@ impl<'p> st::StockPreparerPort<RequestPrincipal, Witness<'p>> for Preparer<'_, '
         require(std::ptr::eq(p, w.principal) && w.raw == *request.raw())?;
         supported_profile(request, self.1)?;
         let original = snapshot(self.0, p, request)?;
-        if let Some(UploadPlan::Review(plan, _)) = self.1 {
+        if let Some(UploadPlan::Review(plan, _, _)) = self.1 {
             let st::AtlasDerivation::AssetReview {
                 original: pinned, ..
             } = plan.derivation()
@@ -356,12 +360,12 @@ impl<'p> st::StockPreparerPort<RequestPrincipal, Witness<'p>> for Preparer<'_, '
             require(original.records.iter().any(|row| row == pinned))?;
         }
         let derivation = match self.1 {
-            Some(UploadPlan::Review(plan, _)) => Some(plan.derivation().clone()),
+            Some(UploadPlan::Review(plan, _, _)) => Some(plan.derivation().clone()),
             Some(_) => None,
             None => derive(request, &original)?,
         };
         let review_facts = match self.1 {
-            Some(UploadPlan::Review(plan, _)) => {
+            Some(UploadPlan::Review(plan, _, _)) => {
                 Some(serde_json::to_value(plan.retained_facts()).map_err(|_| unavailable())?)
             }
             _ => None,
@@ -655,8 +659,9 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
                         prepared.request().raw(),
                         upload.staged(),
                     )
-                } else if let Some(UploadPlan::Review(plan, budget)) = self.upload {
-                    let peers = s::AssetReviewCommitPeers::new(plan, guard, budget);
+                } else if let Some(UploadPlan::Review(plan, budget, observation)) = self.upload {
+                    let peers =
+                        s::AssetReviewCommitPeers::new(plan, guard, budget).observing(observation);
                     store.execute_verified_asset_review_stock_json_with_authorization(
                         &authorization,
                         p,
@@ -806,6 +811,7 @@ pub(super) fn execute_verified_asset_review(
     raw: Value,
     plan: &s::VerifiedAssetReviewPlan<'_>,
     budget: &m::WorkBudget,
+    observation: &s::AssetReviewCommitObservation,
     contracts: &st::NativeStockContract,
 ) -> st::StockResult<st::OwnerResult> {
     let request = st::ValidatedRequest::parse(contracts, raw.clone())?;
@@ -820,7 +826,7 @@ pub(super) fn execute_verified_asset_review(
         p,
         raw,
         contracts,
-        Some(UploadPlan::Review(plan, budget)),
+        Some(UploadPlan::Review(plan, budget, observation)),
     )
 }
 fn execute_profile(

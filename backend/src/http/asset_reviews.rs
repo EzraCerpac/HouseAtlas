@@ -102,6 +102,11 @@ fn execute_validated(
             .take(&access, current, scope, asset_id, receipt_id)?
     };
     let TakenReview {
+        issued,
+        binding,
+        scope: retained_scope,
+        asset_id: retained_asset_id,
+        actor_id,
         original,
         pinned,
         rendered,
@@ -131,30 +136,52 @@ fn execute_validated(
             .prepare_verified_asset_review(&original, contracts, request.raw(), &pinned, &bound)
             .map_err(|_| unavailable())?
     };
-    let result = match super::stock_mutations::execute_verified_asset_review(
-        core,
-        &original,
-        request.raw().clone(),
-        &plan,
-        &budget,
-        contracts,
-    ) {
-        Ok(result) => result,
-        Err(error) => return super::agents::command_error(error, request.request_id()),
-    };
-    {
-        let access = core.access.lock().map_err(|_| unavailable())?;
-        original.release(&access).map_err(access_error)?;
-        current.release(&access).map_err(access_error)?;
-        let native_scope = crate::app::access_scope(scope).map_err(access_error)?;
-        access
-            .authorize_storage(&original.principal, &native_scope, a::Capability::Mutate)
-            .map_err(access_error)?;
-        access
-            .authorize_storage(&current.principal, &native_scope, a::Capability::Mutate)
-            .map_err(access_error)?;
+    let observation = s::AssetReviewCommitObservation::new();
+    let mut http_released = false;
+    let released = (|| -> HttpResult {
+        let result = match super::stock_mutations::execute_verified_asset_review(
+            core,
+            &original,
+            request.raw().clone(),
+            &plan,
+            &budget,
+            &observation,
+            contracts,
+        ) {
+            Ok(result) => result,
+            Err(error) => return super::agents::command_error(error, request.request_id()),
+        };
+        {
+            let access = core.access.lock().map_err(|_| unavailable())?;
+            original.release(&access).map_err(access_error)?;
+            current.release(&access).map_err(access_error)?;
+            let native_scope = crate::app::access_scope(scope).map_err(access_error)?;
+            access
+                .authorize_storage(&original.principal, &native_scope, a::Capability::Mutate)
+                .map_err(access_error)?;
+            access
+                .authorize_storage(&current.principal, &native_scope, a::Capability::Mutate)
+                .map_err(access_error)?;
+        }
+        http_released = true;
+        Ok(json_response(result.wire))
+    })();
+    if let Some((commit, store_qualified)) = observation.take() {
+        host.asset_reviews
+            .lock()
+            .map_err(|_| unavailable())?
+            .record(Disposition {
+                issued,
+                binding,
+                scope: retained_scope,
+                asset_id: retained_asset_id,
+                actor_id,
+                commit,
+                store_qualified,
+                http_released,
+            })?;
     }
-    Ok(json_response(result.wire))
+    released
 }
 
 struct Entry {
@@ -171,29 +198,56 @@ struct Entry {
 /// The original allocation and opaque Media carrier move together into the
 /// eventual same-Store consumer. No principal or proof can be rebuilt from data.
 pub(super) struct TakenReview {
+    issued: Instant,
+    binding: [u8; 32],
+    scope: d::Scope,
+    asset_id: String,
+    actor_id: String,
     pub original: Box<RequestPrincipal>,
     pub pinned: s::AssetReviewOriginal,
     pub rendered: RenderedAssetReview,
 }
 
+// Private durable data. This is not an authorization token or a response
+// receipt; withheld outcomes require separately designed fresh reconciliation.
+#[allow(dead_code)]
+struct Disposition {
+    issued: Instant,
+    binding: [u8; 32],
+    scope: d::Scope,
+    asset_id: String,
+    actor_id: String,
+    commit: s::StockAtlasCommit,
+    store_qualified: bool,
+    http_released: bool,
+}
+
 #[derive(Default)]
 pub(crate) struct ReviewRegistry {
     entries: VecDeque<Entry>,
+    dispositions: VecDeque<Disposition>,
 }
 impl ReviewRegistry {
     fn prune(&mut self) {
         let now = Instant::now();
         self.entries
             .retain(|entry| now.duration_since(entry.issued) < RECEIPT_TTL);
+        self.dispositions
+            .retain(|entry| now.duration_since(entry.issued) < RECEIPT_TTL);
     }
     fn room(&mut self, binding: &[u8; 32]) -> bool {
         self.prune();
-        self.entries.len() < MAX_RECEIPTS
+        self.entries.len() + self.dispositions.len() < MAX_RECEIPTS
             && self
                 .entries
                 .iter()
                 .filter(|entry| &entry.binding == binding)
                 .count()
+                + self
+                    .dispositions
+                    .iter()
+                    .filter(|entry| &entry.binding == binding)
+                    .count()
                 < MAX_PER_SESSION
     }
     fn insert(&mut self, entry: Entry) -> Result<(), super::HttpFailure> {
@@ -201,6 +255,13 @@ impl ReviewRegistry {
             return Err(failure(StatusCode::TOO_MANY_REQUESTS));
         }
         self.entries.push_back(entry);
+        Ok(())
+    }
+    fn record(&mut self, disposition: Disposition) -> Result<(), super::HttpFailure> {
+        if !self.room(&disposition.binding) {
+            return Err(unavailable());
+        }
+        self.dispositions.push_back(disposition);
         Ok(())
     }
 
@@ -260,6 +321,11 @@ impl ReviewRegistry {
         }
         let entry = self.entries.remove(index).ok_or_else(unavailable)?;
         Ok(TakenReview {
+            issued: entry.issued,
+            binding: entry.binding,
+            scope: entry.scope,
+            asset_id: entry.asset_id,
+            actor_id: entry.actor_id,
             original: entry.original,
             pinned: entry.pinned,
             rendered: entry.rendered,

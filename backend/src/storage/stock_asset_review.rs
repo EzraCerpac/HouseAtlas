@@ -154,6 +154,9 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             bound.plan(),
             super::stock::Qualification::VerifiedReview(&peers),
         )?;
+        if let Some(observation) = peers.observation {
+            observation.committed(&commit);
+        }
         let result = commit
             .groups
             .first()
@@ -204,6 +207,9 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             )
             .map_err(media_error)?;
         tx.commit()?;
+        if let Some(observation) = peers.observation {
+            observation.store_qualified();
+        }
         Ok(commit)
     }
 }

@@ -2,7 +2,7 @@
 use super::*;
 use crate::{access, domain::stock, media};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{cell::RefCell, sync::Arc};
 
 pub const ATLAS_VERIFIED_ASSET_REVIEW_FORMAT: &str = "atlas-verified-asset-review/1";
 
@@ -44,6 +44,28 @@ pub struct AssetReviewCommitPeers<'a, 'g> {
     pub(super) bound: &'a VerifiedAssetReviewPlan<'a>,
     pub(super) guard: &'a access::TransactionAuthorization<'g>,
     pub(super) budget: &'a media::WorkBudget,
+    pub(super) observation: Option<&'a AssetReviewCommitObservation>,
+}
+/// Request-local data observation. A durable receipt is captured only after the
+/// SQL commit; Store qualification is marked after its postcommit release.
+/// Neither state grants disclosure or a retry.
+#[derive(Default)]
+pub struct AssetReviewCommitObservation(RefCell<Option<(StockAtlasCommit, bool)>>);
+impl AssetReviewCommitObservation {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn take(&self) -> Option<(StockAtlasCommit, bool)> {
+        self.0.borrow_mut().take()
+    }
+    pub(super) fn committed(&self, commit: &StockAtlasCommit) {
+        self.0.replace(Some((commit.clone(), false)));
+    }
+    pub(super) fn store_qualified(&self) {
+        if let Some((_, qualified)) = self.0.borrow_mut().as_mut() {
+            *qualified = true;
+        }
+    }
 }
 impl<'a, 'g> AssetReviewCommitPeers<'a, 'g> {
     pub fn new(
@@ -55,7 +77,12 @@ impl<'a, 'g> AssetReviewCommitPeers<'a, 'g> {
             bound,
             guard,
             budget,
+            observation: None,
         }
+    }
+    pub fn observing(mut self, observation: &'a AssetReviewCommitObservation) -> Self {
+        self.observation = Some(observation);
+        self
     }
 }
 
