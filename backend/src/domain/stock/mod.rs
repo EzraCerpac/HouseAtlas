@@ -15,6 +15,7 @@ mod ports;
 mod request;
 mod result;
 mod service;
+mod staged_atlas_commands;
 
 pub use atlas_commands::*;
 pub use atlas_reads::*;
@@ -29,6 +30,7 @@ pub use ports::*;
 pub use request::*;
 pub use result::*;
 pub use service::*;
+pub use staged_atlas_commands::*;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StockError {

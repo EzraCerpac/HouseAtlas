@@ -84,6 +84,16 @@ pub fn plan_atlas_commands(
     request: &ValidatedRequest,
     contracts: &impl Contract,
 ) -> StockResult<AtlasCommandPlan> {
+    plan_atlas_commands_with(request, contracts, |child, index| {
+        map_group(child, index, contracts)
+    })
+}
+
+pub(super) fn plan_atlas_commands_with(
+    request: &ValidatedRequest,
+    contracts: &impl Contract,
+    map: impl Fn(&ValidatedRequest, Option<usize>) -> StockResult<AtlasCommandGroup>,
+) -> StockResult<AtlasCommandPlan> {
     require_atlas_write(request)?;
     check_reason(request.raw())?;
     let scope = decode(contracts, "scope", request.raw()["context"].clone())?;
@@ -99,7 +109,7 @@ pub fn plan_atlas_commands(
                 if child.context() != request.context() {
                     return Err(StockError::InvalidContract);
                 }
-                map_group(child, Some(index), contracts)
+                map(child, Some(index))
             })
             .collect::<StockResult<Vec<_>>>()?;
         require_unique_batch_entries(&groups)?;
@@ -117,7 +127,7 @@ pub fn plan_atlas_commands(
         )?;
         (Some(batch_id), groups)
     } else {
-        (None, vec![map_group(request, None, contracts)?])
+        (None, vec![map(request, None)?])
     };
     Ok(AtlasCommandPlan {
         original_request: request.raw().clone(),
@@ -130,13 +140,29 @@ pub fn plan_atlas_commands(
     })
 }
 
-fn map_group(
+pub(super) fn map_group(
     request: &ValidatedRequest,
     child_index: Option<usize>,
     contracts: &impl Contract,
 ) -> StockResult<AtlasCommandGroup> {
-    require_atlas_write(request)?;
     let operation = native_operation(request.id())?;
+    map_group_with_payload(
+        request,
+        child_index,
+        contracts,
+        operation,
+        request.payload(),
+    )
+}
+
+pub(super) fn map_group_with_payload(
+    request: &ValidatedRequest,
+    child_index: Option<usize>,
+    contracts: &impl Contract,
+    operation: Operation,
+    payload: &Value,
+) -> StockResult<AtlasCommandGroup> {
+    require_atlas_write(request)?;
     check_reason(request.raw())?;
     let target = decode(
         contracts,
@@ -163,7 +189,7 @@ fn map_group(
         "guards": guards});
     if matches!(operation, Operation::Create | Operation::Replace) {
         mutation["value"] = json!({"recordType": request.target()["recordType"],
-            "payload": request.payload()});
+            "payload": payload});
     }
     let command = decode(contracts, "mutation", mutation)?;
     Ok(AtlasCommandGroup {
