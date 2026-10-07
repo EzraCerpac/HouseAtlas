@@ -4,16 +4,20 @@
 //! a drained Core and exclusively owns/serializes source and destination paths.
 //! Image integrity provides neither authenticity nor an operational gate.
 use crate::{
-    app::Core,
-    config::recovery::RecoveryConfig,
+    app::{Core, ReadAuthority, ServerRuntime},
+    config::recovery::{RecoveryConfig, RecoveryPeers},
+    domain::stock::NativeStockContract,
+    http::contracts::NativeContracts,
     media::{
         self, MediaResult, WorkBudget,
-        native::NativeMediaStorage,
+        native::{NativeMediaRuntime, NativeMediaStorage},
+        native_recovery::NativeMediaRecovery,
         recovery::{
             RecoveryDatabasePort, RecoveryManifest, RecoveryProfile, RestoredRecovery,
             VerifiedRecovery,
         },
     },
+    storage::{QueueDiscovery, QueueRecoveryEvidence},
 };
 use std::path::Path;
 
@@ -73,8 +77,7 @@ impl RecoveryHost {
     }
     /// Revalidates the selected closed existing state with the original store,
     /// consumes that store, then rebuilds real contracts/access/runtime/vault.
-    /// A cold opener without an original Core needs a storage-owned detached
-    /// validator and no-create/no-migrate opener; neither exists in this peer.
+    /// Uses storage's strict existing-state opener, without creation/migration.
     pub fn reopen(
         self,
         config: RecoveryConfig,
@@ -82,4 +85,92 @@ impl RecoveryHost {
     ) -> Result<Core, super::reopen::ReopenError> {
         super::reopen::reopen_existing(self.core, config, budget)
     }
+}
+
+/// Required-peer populated recovery. The actual owner handles and complete
+/// registry remain borrowed for this host's lifetime; no native-only fallback.
+/// Image validity grants no queue resume, dispatch or reconciliation authority.
+pub struct PopulatedRecoveryHost<'a, D, E> {
+    core: Core,
+    peers: RecoveryPeers<'a, D, E>,
+}
+impl<'a, D: QueueDiscovery, E: QueueRecoveryEvidence> PopulatedRecoveryHost<'a, D, E> {
+    pub fn new(core: Core, peers: RecoveryPeers<'a, D, E>) -> Self {
+        Self { core, peers }
+    }
+    pub fn into_core(self) -> Core {
+        self.core
+    }
+    pub fn profile(&self) -> RecoveryProfile {
+        NativeMediaRecovery::new(&self.core.store, self.peers.storage()).recovery_profile()
+    }
+    pub fn capture(
+        &mut self,
+        destination: &Path,
+        budget: &WorkBudget,
+    ) -> MediaResult<RecoveryManifest> {
+        media::recovery::capture_recovery(
+            &NativeMediaRecovery::new(&self.core.store, self.peers.storage()),
+            &self.core.vault,
+            destination,
+            budget,
+        )
+    }
+    pub fn validate(&self, bundle: &Path, budget: &WorkBudget) -> MediaResult<VerifiedRecovery> {
+        validate_closed(bundle, &self.peers, budget)
+    }
+    /// Preserves the complete native image and retained Atlas originals. Access,
+    /// sessions/credentials/config, HomeBox originals and Network sidecars are
+    /// excluded. Queued external media proofs require the evidence owner's
+    /// availability contract; committed originals are not a substitute.
+    pub fn restore(
+        &self,
+        bundle: &Path,
+        destination: &Path,
+        budget: &WorkBudget,
+    ) -> MediaResult<RestoredRecovery> {
+        restore_closed(bundle, destination, &self.peers, budget)
+    }
+    pub fn reopen(
+        self,
+        config: RecoveryConfig,
+        budget: &WorkBudget,
+    ) -> Result<Core, super::reopen::ReopenError> {
+        super::reopen::reopen_with_peers(self.core, config, &self.peers, budget)
+    }
+}
+
+/// Detached verification retains the same actual owner peers at every image
+/// validation stage and needs no spare source database or reconstructed principal.
+pub fn validate_closed<D: QueueDiscovery, E: QueueRecoveryEvidence>(
+    bundle: &Path,
+    peers: &RecoveryPeers<'_, D, E>,
+    budget: &WorkBudget,
+) -> MediaResult<VerifiedRecovery> {
+    let port = NativeMediaRecovery::<
+        NativeContracts,
+        ReadAuthority,
+        NativeMediaRuntime<ServerRuntime>,
+        NativeStockContract,
+        D,
+        E,
+    >::validator(&NativeContracts, peers.storage());
+    media::recovery::verify_recovery(&port, bundle, budget)
+}
+
+pub fn restore_closed<D: QueueDiscovery, E: QueueRecoveryEvidence>(
+    bundle: &Path,
+    destination: &Path,
+    peers: &RecoveryPeers<'_, D, E>,
+    budget: &WorkBudget,
+) -> MediaResult<RestoredRecovery> {
+    let port = NativeMediaRecovery::<
+        NativeContracts,
+        ReadAuthority,
+        NativeMediaRuntime<ServerRuntime>,
+        NativeStockContract,
+        D,
+        E,
+    >::validator(&NativeContracts, peers.storage());
+    media::recovery::restore_recovery(&port, bundle, destination, budget)
 }

@@ -6,7 +6,10 @@
 use crate::{
     access::AccessConfig,
     app::access_scope,
-    domain::{HomeSummary, Scope},
+    domain::{HomeSummary, Scope, stock::NativeStockContract},
+    jobs::QueueConfig,
+    media::recovery::{DatabaseMember, MAX_DATABASE, RestoredRecovery},
+    storage::{QueueDiscovery, QueueRecoveryEvidence, RecoveryValidationPeers},
 };
 use rustix::fs::{Mode, OFlags, open};
 use std::{
@@ -111,6 +114,7 @@ pub struct RecoveryConfig {
     pub(crate) access: AccessConfig,
     pub(crate) homes: Vec<HomeSummary>,
     pub(crate) home: HomeSummary,
+    pub(crate) expected_database: Option<DatabaseMember>,
 }
 impl RecoveryConfig {
     pub fn existing(
@@ -152,7 +156,38 @@ impl RecoveryConfig {
             access,
             homes,
             home,
+            expected_database: None,
         })
+    }
+    /// Bind the selected restored paths to the media result's declared image
+    /// bytes. The result is integrity evidence, never authenticity or authority.
+    pub fn restored(
+        restored: &RestoredRecovery,
+        access_database: &Path,
+        access: AccessConfig,
+        homes: Vec<HomeSummary>,
+        primary: &Scope,
+    ) -> Result<Self> {
+        let directory = restored
+            .database_path
+            .parent()
+            .ok_or(InvalidRecoveryConfig)?;
+        let mut config = Self::existing(directory, access_database, access, homes, primary)?;
+        let member = &restored.manifest.database;
+        if config.database.path() != restored.database_path
+            || config.vault.path() != restored.vault_root
+            || member.file != "atlas.sqlite"
+            || member.byte_size > MAX_DATABASE as u64
+            || member.sha256.len() != 64
+            || !member
+                .sha256
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return Err(InvalidRecoveryConfig);
+        }
+        config.expected_database = Some(member.clone());
+        Ok(config)
     }
     pub(crate) fn check(&self) -> Result<()> {
         for path in [
@@ -166,5 +201,44 @@ impl RecoveryConfig {
             path.check()?;
         }
         Ok(())
+    }
+}
+
+/// Independently trusted offline owners, retained across capture/validation and
+/// strict opening. Supply EVERY physical queue, including empty registrations;
+/// storage checks exact registry/configuration/alias equality against the image.
+/// Neither the registry nor its configuration digests are derived from the DB.
+/// The native stock port validates the exact embedded resource paths/hashes.
+///
+/// Discovery/evidence must qualify actual original enqueue derivation and codec
+/// facts, fail unavailable proofs, and confer no recovered dispatch authority.
+/// Callbacks run under storage's lock/read transaction: no storage reentry or
+/// opposing access/vault lock order. Source-close handoff requires peers that do
+/// not retain source Core access/vault clones; no source authority is refreshed.
+pub struct RecoveryPeers<'a, D, E> {
+    stock: NativeStockContract,
+    queues: &'a [QueueConfig],
+    discovery: &'a D,
+    evidence: &'a E,
+}
+impl<'a, D: QueueDiscovery, E: QueueRecoveryEvidence> RecoveryPeers<'a, D, E> {
+    pub fn new(queues: &'a [QueueConfig], discovery: &'a D, evidence: &'a E) -> Result<Self> {
+        for queue in queues {
+            queue.validate().map_err(|_| InvalidRecoveryConfig)?;
+        }
+        Ok(Self {
+            stock: NativeStockContract::new().map_err(|_| InvalidRecoveryConfig)?,
+            queues,
+            discovery,
+            evidence,
+        })
+    }
+    pub(crate) fn storage(&self) -> RecoveryValidationPeers<'_, NativeStockContract, D, E> {
+        RecoveryValidationPeers {
+            stock: &self.stock,
+            queues: self.queues,
+            discovery: self.discovery,
+            evidence: self.evidence,
+        }
     }
 }
