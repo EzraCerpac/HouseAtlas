@@ -85,7 +85,27 @@ try {
     if (result.exceptionDetails) console.error(JSON.stringify({healthyException:result.exceptionDetails.exception?.description ?? result.exceptionDetails.text,responses,runtimeErrors}));
     assert(!result.exceptionDetails, 'Healthy browser evaluation'); return result.result.value;
   };
+  // Open the retained native Atlas surface through Lantern's visible controls.
+  const openAtlasTools = async () => {
+    await until(async () => await evaluate(`(() => {
+      const button = [...document.querySelectorAll('nav[aria-label="Sections"] button')]
+        .find(button => button.textContent?.trim() === 'Changes' && button.getClientRects().length);
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`), 'Visible Changes navigation');
+    await until(async () => await evaluate("document.querySelector('main#main h1')?.textContent === 'Changes'"), 'Changes view');
+    await until(async () => await evaluate(`(() => {
+      const button = [...document.querySelectorAll('main#main button')]
+        .find(button => button.textContent?.trim() === 'Atlas tools' && button.getClientRects().length);
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`), 'Visible Atlas tools action');
+    await until(async () => await evaluate("Boolean(document.querySelector('[role=region][aria-label=\"Atlas tools\"]:not([hidden])'))"), 'Visible Atlas tools region');
+  };
   await send('Page.navigate', { url: origin });
+  await openAtlasTools();
   try {
     await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'React authorized home rendering');
   } catch (error) {
@@ -114,6 +134,7 @@ try {
   await until(async()=>await evaluate("Boolean(document.getElementById('atlas-username'))"),'Ordinary successful logout form');
   await evaluate(`document.getElementById('atlas-username').value=${JSON.stringify(editorLogin.username)};document.getElementById('atlas-password').value=${JSON.stringify(editorLogin.password)};document.querySelector('.session-form').requestSubmit()`);
   await until(async()=> (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'),'Actual editor React session');
+  await openAtlasTools();
   await until(async()=> (await evaluate("document.modelContext.getTools().then(t=>t.some(x=>x.name==='atlas_records'))")), 'Actual editor registration');
   const createdRequest={schemaVersion:3,commandId:'atlas.circuit.create',requestId:U(1601),context:view.scope,target:{authority:'atlas',recordType:'circuit',recordId:U(960)},payload:{label:null,panel:null,evidenceIds:[U(100)]},idempotencyKey:U(1602),reason:'Healthy disposable agent circuit',preconditions:{target:null,guards:[{target:{authority:'atlas',recordType:'evidence',recordId:U(100)},revision:{kind:'atlas',value:1}}]},approvalReceiptId:null};
   const created=await invoke(createdRequest);

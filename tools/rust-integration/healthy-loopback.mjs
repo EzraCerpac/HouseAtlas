@@ -113,7 +113,27 @@ try {
     const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
     assert(!result.exceptionDetails, 'Healthy browser evaluation'); return result.result.value;
   };
+  // Open the retained native Atlas surface through Lantern's visible controls.
+  const openAtlasTools = async () => {
+    await until(async () => await evaluate(`(() => {
+      const button = [...document.querySelectorAll('nav[aria-label="Sections"] button')]
+        .find(button => button.textContent?.trim() === 'Changes' && button.getClientRects().length);
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`), 'Visible Changes navigation');
+    await until(async () => await evaluate("document.querySelector('main#main h1')?.textContent === 'Changes'"), 'Changes view');
+    await until(async () => await evaluate(`(() => {
+      const button = [...document.querySelectorAll('main#main button')]
+        .find(button => button.textContent?.trim() === 'Atlas tools' && button.getClientRects().length);
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`), 'Visible Atlas tools action');
+    await until(async () => await evaluate("Boolean(document.querySelector('[role=region][aria-label=\"Atlas tools\"]:not([hidden])'))"), 'Visible Atlas tools region');
+  };
   await send('Page.navigate', { url: origin });
+  await openAtlasTools();
   try {
     await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'React authorized home rendering');
   } catch (error) {
