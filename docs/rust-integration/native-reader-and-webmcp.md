@@ -53,10 +53,13 @@ pin and history integrity check to that exact schema; integrity remains enabled.
 Only maintenance scheduled/completed dates gain a Gregorian date alternative.
 Original timestamp spelling and nulls remain valid. The explicit healthy
 calendar example is the fourth explicit healthy native example in source CI.
-The existing React maintenance formatter also treats any parseable date as a
-timestamp and prints a time/UTC suffix; its original owner must render native
-calendar dates as dates before presenting them through the stock reader slice.
-No fabricated midnight or timezone is an acceptable display adaptation.
+The exact original UI successor `4279a0ed4f75d95e0080c17d00dd0e1757623904`
+now renders the accepted calendar-date spelling directly. Timestamp formatting
+remains unchanged; no midnight or timezone is invented. The integration also
+composes corrected MCP head `3e707617a7bac1a0f581d7a6d6ddeb26b623b4a3`,
+including its exact lifecycle-owner successor
+`fd1dc2b29388646c7b40a2b25acdc3b3849dcfcd`. The root reseals the union file set
+rather than accepting either parent's stale manifest rows.
 
 Provider activation, real credentials/grants, navigation qualification and target
 build/tenant evidence remain absent. Provider writes are disabled. Stopped
@@ -68,5 +71,5 @@ Local ordinary checks used Node 26.10.0 and locked dependencies. An initial
 verification attempt used the ambient Node 24 runtime and stopped at the exact
 runtime assertion; the corrected pinned-runtime invocation passed. No runtime
 check or integrity assertion was relaxed. The Vite bundle retains the existing
-large-chunk warning. PR56 retains owner lifecycle finding 4206132156; its
-corrected root transport flows are healthy evidence, not cancellation coverage.
+large-chunk warning. The owner lifecycle correction addresses finding 4206132156 by source;
+its healthy transport flows remain separate from unrun cancellation controls.

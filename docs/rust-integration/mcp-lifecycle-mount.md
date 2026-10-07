@@ -83,3 +83,13 @@ No credential/source activation, provider call, remote listener, NAS, inference
 spend, deployment or operational gate occurs. Rejection, replay, expiry,
 revocation, guard/mutation controls, fault/crash, denial and concurrency tests
 remain stopped. Healthy success does not qualify those behaviors.
+
+## Pending read cancellation successor
+
+The exact owner patch `fd1dc2b29388646c7b40a2b25acdc3b3849dcfcd` replaces
+only lifecycle control. A matching cancellation is retained before native read
+classification and becomes effective when the actual service confirms a read.
+Write/initialize execution remains uncancelled. Root rotation publication and
+correlated transport completion remain unchanged. New cancellation/concurrency
+controls are not run; the actual healthy login/rotation/read flow is checked
+separately from that source correction.

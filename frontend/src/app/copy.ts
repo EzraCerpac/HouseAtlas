@@ -150,6 +150,7 @@ export function text(key: MessageKey, ...args: (string | number)[]): string {
   );
 }
 export function formatDate(value: string | null | undefined): string {
+  if (value && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value)) return value;
   if (!value || !Number.isFinite(Date.parse(value))) return text("unknown");
   return (
     new Intl.DateTimeFormat("en-GB", {
