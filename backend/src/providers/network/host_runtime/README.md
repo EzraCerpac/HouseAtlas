@@ -130,9 +130,14 @@ is best-effort and emitted after releasing the access mutex; diagnostic I/O
 failure cannot replace the committed result. Errors before native success still
 propagate. Preparation retains ordinary entry/exit checks. A publication receipt
 grants no browse permission; disclosure revalidates its own original grants.
-Cancellation remains checked before consuming publication; a later cancellation
-cannot replace the committed outcome. Cancellation/fault/expiry races are
-statically reviewed only; held control campaigns remain unrun.
+Cancellation remains checked before durable generation staging and before
+failure-status publication. Once staging succeeds, late request cancellation
+does not abandon the immutable row: the same original authority and fence
+continue to consuming native publication, with all current-authority and
+precommit checks preserved. A later cancellation cannot replace the committed
+outcome. Authority/storage failures still propagate; this does not add cleanup,
+retry, bypass or retention semantics for those failures. Cancellation/fault/expiry
+races are statically reviewed only; held control campaigns remain unrun.
 
 Use one normal verified client and the existing root lock:
 
@@ -260,3 +265,15 @@ must replace its raw-Store configuration block with
 `access.configure(&core, &configure_principal, &source)?;` outside any held Core
 guard. That file and full root checks remain integrator-owned. No parent module
 declaration change is required for this successor.
+
+Staged-generation cancellation correction: the request-cancellation exit after
+durable staging is removed. Actual current root integration code and this
+runtime were compared at the preimage before editing. Locked library/named
+example Clippy and build, scoped formatting/diff/source audit and one inspected
+healthy TLS/native publication run verify the scoped successor. No late-cancel
+probe, quota-exhaustion campaign or other held control was executed; cancellation
+correctness here is static review against the actual durable-stage and native
+publication APIs. Current root already adopts the owning-Core configuration
+caller; this correction changes no public API or parent declaration. Root's
+separate snapshot unresolved-endpoint preservation
+finding is not corrected or qualified by this runtime change.
