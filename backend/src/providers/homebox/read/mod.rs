@@ -6,6 +6,7 @@ mod failure_publication;
 mod http_transport;
 mod navigation;
 mod publication;
+pub mod query;
 mod retained;
 mod stock;
 mod types;
