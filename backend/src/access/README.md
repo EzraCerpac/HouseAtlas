@@ -158,6 +158,54 @@ compiles against a thin external adapter. The host adapter, original request
 grant handoff, scoped methods on the actual store, and access-side quarantine
 orchestration remain consumer-owned integration inputs.
 
+## Offline recovery discovery
+
+`OfflineRecoveryAuthority::default()` is disabled. An explicitly approved trusted
+administrative startup path may construct the separate issuer:
+
+```rust
+// Synthetic example only; the owner must independently approve this operation.
+let approval = OfflineRecoveryApproval::discovery_validation(deployment_id, queues)?;
+let authority = OfflineRecoveryAuthority::from_trusted_administrative_approval(approval);
+let grant = authority.capture_discovery(queues)?;
+```
+
+The approval is a trusted host assertion, not administrator authentication. It
+permits only offline discovery/validation over that exact deployment and COMPLETE
+ordered `QueueConfig` registry, including empty queues. Construction reuses the
+domain's `TrustedQueueRegistry::new` structural checks and requires every queue
+to belong to the approved deployment. Revalidation compares every configuration
+field, physical identity/digest, dispatcher, retry/admission setting and ordered
+alias. It requires full requested registration membership. No subsets, sorting,
+normalization, actor IDs or restored image can issue or widen this permission.
+
+`RecoveryDiscoveryGrant` privately retains its independently allocated issuer
+and immutable approval. The handle has no constructor, serialization, clone,
+debug output or raw database access. Matching metadata on a different issuer
+cannot recreate its identity. Neither issuer nor grant depends on a browser
+session, restore epoch, `AccessBoundary` instance, SQL connection, vault or lock.
+Keep the SAME issuer/grant alive outside the old `Core` throughout source close,
+strict reopen and the host's explicit session reset. Recreating an issuer
+requires a new grant even when its configuration is equal.
+
+The concrete authority directly implements the existing
+`domain::queue_recovery::RecoveryDiscoveryAuthority`, with
+`type Grant = RecoveryDiscoveryGrant`. Supply it and the grant to the existing
+`QueueRecoveryBindings`; no new authority port or adapter is required. Inherent
+`revalidate_discovery(grant, queues, registration)` returns `AccessResult<()>`;
+the trait maps failures to sanitized `owner-unavailable` storage errors. Checks
+perform metadata work only and can run under the existing storage read lock.
+Discovery approval supplies no dispatch, resume, reconciliation, mutation or
+read-disclosure authority, nor original enqueue/media/native evidence.
+
+`recovery_healthy.rs` exercises explicit synthetic approval for two disposable
+queue configurations through both the inherent API and exact existing trait.
+No access persistence is changed, and no reset/invalidation/denial/race control
+is executed. Session-reset independence is established by the source structure;
+this example does not qualify the composed recovery host. Actual production
+issuer approval, complete registry and trusted physical database mapping remain
+unconfigured. No production call site is added.
+
 ## Dependencies for AT51
 
 Direct dependency versions proposed for the shared application manifest:
@@ -175,6 +223,10 @@ url = "=2.5.7"
 ```
 
 AT51 owns application manifests/locks and the shared contract import paths.
+Offline recovery additionally uses the existing `crate::jobs` queue types,
+`crate::domain::queue_recovery` trait/registry and `crate::storage` error type;
+the embedding monolith supplies those accepted modules. No new dependency or
+duplicate queue model is introduced.
 The small serde types mirror frozen `scope`, `sourceKey`,
 `sourceRef`, `sourceRegistration` spellings and reject unknown fields.
 Canonical IDs preserve lowercase UUID spelling, and opaque collection/external
