@@ -14,6 +14,16 @@ const COSTS: [&str; 7] = [
     "-0.00",
 ];
 
+fn costs() -> Vec<String> {
+    let mut tokens: Vec<_> = COSTS.iter().map(|token| (*token).to_owned()).collect();
+    // Accepted limits from the actual contract processing envelope. No
+    // unsupported-token/rejection or failure-publication control runs here.
+    tokens.push(format!("0.{}", "1".repeat(4094))); // 4096 token bytes.
+    tokens.push("1e-4096".into()); // Explicit exponent magnitude 4096.
+    tokens.push("0.1e-4095".into()); // exponent - fraction digits = -4096.
+    tokens
+}
+
 fn uuid(n: u64) -> Uuid {
     Uuid::parse(&format!("00000000-0000-4000-8000-{n:012}")).unwrap()
 }
@@ -51,7 +61,7 @@ impl Transport for StockFixture {
                 serde_json::from_slice(include_bytes!("../wire/fixtures/maintenance.json"))
                     .unwrap();
             Value::Array(
-                COSTS
+                costs()
                     .iter()
                     .enumerate()
                     .map(|(i, cost)| {
@@ -107,7 +117,8 @@ async fn healthy_stock_cost_tokens_survive_projection_contract_and_previous_gene
     .unwrap();
     let generation = reader.fetch_generation(None, uuid(99)).await.unwrap();
     let projection = &generation.entities()[0];
-    assert_eq!(projection.maintenance.len(), COSTS.len());
+    let tokens = costs();
+    assert_eq!(projection.maintenance.len(), tokens.len());
     let serialized = serde_json::to_vec(projection).unwrap();
     // The actual frozen projection decoder/encoder also retains numeric tokens.
     let contract =
@@ -119,17 +130,17 @@ async fn healthy_stock_cost_tokens_survive_projection_contract_and_previous_gene
     // native contract validation. No persisted observation is invented here.
     retained_projection.maintenance =
         serde_json::from_value(encoded["maintenance"].clone()).unwrap();
-    for (i, token) in COSTS.iter().enumerate() {
+    for (i, token) in tokens.iter().enumerate() {
         assert_eq!(
             projection.maintenance[i].cost.as_ref().unwrap().as_str(),
-            *token
+            token
         );
         assert_eq!(
             encoded["maintenance"][i]["cost"]
                 .as_number()
                 .unwrap()
                 .as_str(),
-            *token
+            token
         );
         assert_eq!(
             retained_projection.maintenance[i].cost,

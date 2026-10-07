@@ -10,8 +10,12 @@ configuration/identity/release metadata. Stage privately and publish a complete
 manifest atomically only after integrity, scope and compatibility checks.
 Protect the trusted manifest; byte hashes alone do not authenticate provenance.
 
-The core-owned bundle covers Atlas DB/media and Network sidecar. Access DB,
-sessions, credentials, server settings and provider originals are excluded.
+The legacy JavaScript recovery bundle covers Atlas DB/media and Network
+sidecar. Native Rust recovery bundles Atlas database images and retained owned
+originals; it excludes Network source state. Current native persistence uses
+profile5, future stock activity uses profile6, and legacy JavaScript uses schema3.
+Access DB, sessions, credentials, server settings and provider originals are
+excluded.
 Supply current authority/configuration separately after restore. Provider backup
 is a separate source-owner operation. Restore into fresh isolated state and
 verify IDs/reservations/relations, bytes/modes, compatible schema and current

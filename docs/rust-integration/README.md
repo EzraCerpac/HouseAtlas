@@ -343,9 +343,11 @@ reset-surviving recovery authority, retained original enqueue/attempt provenance
 queued media/liability proof and retained native evidence codecs remain unbound.
 Committed owned-original availability cannot substitute for queued media proof.
 Successful image validation would not grant resume, dispatch or reconciliation
-authority. Historical schema2 evidence does not qualify current schema4 or
-populated stock/queue recovery. No modified-image probe, surrogate validator,
-JavaScript database migration or adoption is supplied.
+authority. Historical schema2 evidence does not qualify current native Rust
+profile5 or future profile6 stock activity recovery. Profiles1–4 are not upgraded
+by the strict native opener. Legacy JavaScript persistence uses schema3. No
+modified-image probe, surrogate validator, JavaScript database migration or
+adoption is supplied.
 
 Other missing product areas include atomic presence witness admission/recovery,
 trusted real source setup/refresh, actual Network facets, qualified source-native
@@ -364,10 +366,42 @@ unrun. The jobs checkpoint contains replay and is not executed. No broad test
 alias, remote listener, provider/NAS call, live login/grant, deployment or
 security/recovery/target/product acceptance is supplied by this composition.
 
-The native HomeBox reader retains maintenance cost decimal/exponent tokens in
-`serde_json::Number`, including the existing null/unknown state, instead of
-replacing them with the finite-check float. This preserves intake and projection
-serialization. SQLite's native RFC8785 canonical persistence still uses the
-JavaScript finite-number model and may round these amounts; this composition
-does not claim durable arbitrary decimal fidelity or recover previously rounded
-observations. Owned numeric examples remain unrun by root integration.
+The multipart route preserves the owner-qualified committed receipt when stage
+metadata retirement fails. Retirement still requires the strict SQLite consumed
+upload loader and original mutation fence; the host never reconstructs cleanup
+permission. It independently revalidates original principal and source grants
+before releasing the canonical result, without diagnostic I/O on the receipt
+path. Durable
+consumption remains in SQLite; immutable original bytes are retained. This does
+not implement a background reconciliation worker or qualify interrupted cleanup,
+fault, budget, replay or authority-loss behavior. Those controls remain unrun.
+
+The native HomeBox reader adopts the original numeric successor
+`4c25452ea78aebd63ec7c6d7e21fee79ecb27020` after the original numeric input
+`6f84ac6af32e2ba408f7b92d362999f1e9c08c3f`. Runtime and checkpoint files retain exact owner bytes. The prior
+sanitized reader README remains unchanged; this central note adapts the
+successor's technical documentation without replacing that retained exclusion.
+Maintenance costs retain decimal/exponent tokens in `serde_json::Number`,
+including null/unknown, rather than replacing them with the finite-check float.
+Maintenance validation now uses the actual contract `JsonNumber` deserializer
+for the lexical processing envelope: at most 4096 token bytes, explicit decimal
+exponent magnitude at most 4096, and exponent minus fraction-digit magnitude
+at most 4096. The same validation covers retained projections before staging.
+The existing finite admission rule is preserved. This supplies no distinct
+provider numeric policy. Owned numeric checkpoints remain UNRUN under
+`cfg(test)`; accepted-limit runtime behavior is not qualified by this composition.
+SQLite native RFC8785 canonical persistence still uses the JavaScript finite
+number model and may round amounts. Durable arbitrary decimal fidelity and
+recovery of previously rounded observations remain unqualified; PR43 stays open.
+
+This successor composes accepted main
+`7f75ecaa288e410ed625d95b53f0162c7d1d4186`, tree
+`b0a44cde66b04b1b128324a6b0aee625b3be5877`. Actual locked Rust source,
+rustfmt, warnings-denied Clippy, the four named healthy native examples,
+strict TypeScript and Vite build passed. The existing inspected cached Unicode
+healthy flow passed with 17 loopback GETs and one cached query read, preserving
+complete projection/cache facts. Read-only SQLite observation found six records,
+two projections, zero audits and one session. This existing cached flow does
+not fetch numeric amounts from a provider or qualify numeric persistence.
+No provider, stopped control, `cargo test` or owned `cfg(test)` execution occurred.
+The exact source publication allowlist is resealed without changing its verifier.

@@ -1,6 +1,6 @@
 {
   "format": "houseatlas-publication-source/1",
-  "status": "development-native-homebox-decimal-reader-composition-review-required",
+  "status": "development-native-attachment-receipt-review-composition-review-required",
   "self": {
     "path": "docs/publication/source-manifest.json",
     "mode": "100644",
@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "eccd83cc85683c9fc20f1a7db52ce7e05dd23e88e08ad9594b898e34cbc703b3",
+  "sourceDigestSha256": "cd6f78baa4e4ba3ef330f141d80987613e35724def932f5e753e95229c7b6efa",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -286,15 +286,15 @@
     {
       "path": "backend/src/access/README.md",
       "mode": "100644",
-      "bytes": 13050,
-      "sha256": "2fc5537c80c4c32b61db25734584253f88e8a4257541ec9fb24faf06ddd2ba34",
+      "bytes": 14593,
+      "sha256": "5deee197d27cd3c79ed9a87243323b29e6259a9f9802b901a9cb320df6abadc1",
       "owner": "access"
     },
     {
       "path": "backend/src/access/boundary.rs",
       "mode": "100644",
-      "bytes": 24934,
-      "sha256": "2d8a5176236a44a63125693125a10236f55228ba005b1423578bf98fc3b8f628",
+      "bytes": 25684,
+      "sha256": "294eef48f5f70624bd0bcf87c78cbf9c4d2158da87f5b198e87ec1734c426abc",
       "owner": "access"
     },
     {
@@ -321,8 +321,8 @@
     {
       "path": "backend/src/access/healthy.rs",
       "mode": "100644",
-      "bytes": 17756,
-      "sha256": "b5ef5b96d63b0d6e66f78dc999fae0cdf72a8a29855a82c31567857b65cc8d1b",
+      "bytes": 20136,
+      "sha256": "3cfe93c1e0025bd3333d6748cd750246c860d8beedeb29c83802680fb560b16d",
       "owner": "access"
     },
     {
@@ -1098,8 +1098,8 @@
     {
       "path": "backend/src/http/upload.rs",
       "mode": "100644",
-      "bytes": 10506,
-      "sha256": "8e13c9b21d58e5ad8b48bbc1a87e4500d27b45480d316497466e0e3bc61b35b3",
+      "bytes": 11263,
+      "sha256": "3b949e205e4cae4c0130d75ace90272544cd4ce8d0d58486a25b03f9a8b6af01",
       "owner": "core-integration"
     },
     {
@@ -1406,8 +1406,8 @@
     {
       "path": "backend/src/providers/homebox/read/decode.rs",
       "mode": "100644",
-      "bytes": 14662,
-      "sha256": "a299ec356c27ef6f7b7afc06d082ecd03f587acb74c7a8ac8978afe835db2970",
+      "bytes": 14986,
+      "sha256": "7da2351a5db1b3635df7229d9603a29d0158de352c649d20b3dd093e3d55e7af",
       "owner": "homebox"
     },
     {
@@ -1462,8 +1462,8 @@
     {
       "path": "backend/src/providers/homebox/read/numeric_healthy.rs",
       "mode": "100644",
-      "bytes": 6052,
-      "sha256": "974d86afe75e869234ea4ddbdb943f10f01b35a130e6f10a4e802a56882ac82d",
+      "bytes": 6578,
+      "sha256": "9c128854f3b5a5f674b7b989614d8093dbd2f62bc065c5678d0490fa5c4d4461",
       "owner": "homebox"
     },
     {
@@ -2610,8 +2610,8 @@
     {
       "path": "docs/operations/recovery-and-rollback.md",
       "mode": "100644",
-      "bytes": 1510,
-      "sha256": "29d7701df4fbcccd38abe9838ed77605cfcb3bde302c05f8379e0b25b65891d7",
+      "bytes": 1756,
+      "sha256": "2f7543cda851fd24fa742c2ce0a3e1afde9244036738f86b1a2450284df688ef",
       "owner": "operations-policy"
     },
     {
@@ -2673,8 +2673,15 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 25557,
-      "sha256": "7d5015c8c7d739cb368028c9cd3260a3d6573d902b4d3873a8f9153b03a9b21a",
+      "bytes": 27909,
+      "sha256": "2aff2907d83481d9f01f2c7654e1929d09020dcdc2fab8f409386e4284d6b5ea",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/rust-integration/access-session-binding.md",
+      "mode": "100644",
+      "bytes": 3027,
+      "sha256": "8d71f1135e984602e8c09f10d86de3e21ac4d6483f007f196e3d6b5b0f4193e4",
       "owner": "core-integration"
     },
     {

@@ -87,6 +87,78 @@ fn cookie(receipt: &SessionReceipt) -> &str {
 }
 
 #[test]
+fn healthy_authenticated_session_binding_checkpoint() {
+    let (mut boundary, _) = setup();
+    let other_scope = Scope {
+        workspace_id: id(1),
+        home_id: id(3),
+    };
+    boundary
+        .set_membership(&id(4), &other_scope, Role::Viewer, true)
+        .unwrap();
+    let session = login(&mut boundary, "synthetic-viewer");
+    let original = boundary
+        .authorize(
+            &request(Method::Get, Some(cookie(&session)), None),
+            &scope(),
+            Action::Read,
+        )
+        .unwrap();
+    let binding = boundary.authenticated_session_binding(&original).unwrap();
+    let cookies = [
+        format!("theme=light; {}; locale=en", cookie(&session)),
+        format!("locale=en; theme=light; {}", cookie(&session)),
+    ];
+    // Every handle comes from a genuine normalized request for the same session.
+    for selected_scope in [&scope(), &other_scope] {
+        for action in [Action::Read, Action::History] {
+            for header in &cookies {
+                let principal = boundary
+                    .authorize(
+                        &request(Method::Get, Some(header), None),
+                        selected_scope,
+                        action,
+                    )
+                    .unwrap();
+                assert_eq!(
+                    boundary.authenticated_session_binding(&principal).unwrap(),
+                    binding
+                );
+                assert!(std::ptr::eq(
+                    boundary.revalidate(&principal).unwrap(),
+                    &principal
+                ));
+            }
+        }
+    }
+    // An independent login without a previous cookie keeps both sessions valid.
+    let independent_session = login(&mut boundary, "synthetic-viewer");
+    let independent = boundary
+        .authorize(
+            &request(Method::Get, Some(cookie(&independent_session)), None),
+            &scope(),
+            Action::Read,
+        )
+        .unwrap();
+    assert_ne!(
+        boundary
+            .authenticated_session_binding(&independent)
+            .unwrap(),
+        binding
+    );
+    assert_eq!(
+        boundary.authenticated_session_binding(&original).unwrap(),
+        binding
+    );
+    for principal in [&original, &independent] {
+        assert!(std::ptr::eq(
+            boundary.revalidate(principal).unwrap(),
+            principal
+        ));
+    }
+}
+
+#[test]
 fn healthy_configured_lifecycle_checkpoint() {
     let registration = SourceRegistration {
         workspace_id: id(1),
