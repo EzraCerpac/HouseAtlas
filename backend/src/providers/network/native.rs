@@ -49,6 +49,23 @@ where
         self.store
             .record_prepared_cache_failure(lease.storage_principal(), fence, &failure)
     }
+    /// Publish the attempt time already captured by the original provider read.
+    /// The native transaction validates it with the same fence and lease.
+    pub fn record_prepared_cache_failure_at<L: NativeNetworkLease<A>>(
+        &mut self,
+        fence: storage::CachePublicationFence,
+        code: ErrorCode,
+        lease: &L,
+        attempted_at: &str,
+    ) -> storage::Result<storage::CacheStatus> {
+        let failure = failure_input(&fence, code)?;
+        self.store.record_prepared_cache_failure_at(
+            lease.storage_principal(),
+            fence,
+            &failure,
+            attempted_at,
+        )
+    }
     /// Consume the retained failed-read proposal with its original fence and
     /// original lease. Storage repeats the baseline comparisons IN its write
     /// transaction; checking these local carriers is never a CAS substitute.
@@ -140,6 +157,24 @@ where
             fence,
             &failure,
         )
+    }
+    /// Preserve the captured attempt time through the original call authority.
+    pub fn record_prepared_cache_failure_at<L: NativeNetworkLease<B>>(
+        &mut self,
+        fence: storage::CachePublicationFence,
+        code: ErrorCode,
+        lease: &L,
+        attempted_at: &str,
+    ) -> storage::Result<storage::CacheStatus> {
+        let failure = failure_input(&fence, code)?;
+        self.store
+            .record_prepared_cache_failure_at_with_authorization(
+                self.authorization,
+                lease.storage_principal(),
+                fence,
+                &failure,
+                attempted_at,
+            )
     }
     pub fn publish_pending_failure<L: NativeNetworkLease<B>>(
         &mut self,

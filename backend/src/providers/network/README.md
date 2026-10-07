@@ -196,6 +196,17 @@ metadata/rows, advances the epoch and does not reserve the unused candidate ID.
 The generic controller still returns pending failures; a native host explicitly
 consumes them through this bound method. No stale baseline is reread or rebased.
 
+Both configured and borrowed native publishers also expose
+`record_prepared_cache_failure_at(fence, code, lease, attempted_at)` to preserve
+the provider attempt time already captured in `failure.error.at`. They reuse
+the original Network failure conversion and delegate to the actual Storage
+`record_prepared_cache_failure_at` / `_at_with_authorization` methods published
+at `e5fec02e68369d6c01507c96eebd8bcb2bcdc993`. The original fence, lease principal
+and borrowed authorizer remain the native transaction inputs. Storage validates
+the supplied timestamp and preserves it in `lastAttemptAt` and `error.at`.
+This additive path is compiler checked against that published Storage source;
+failure and clock-change controls remain deferred.
+
 Use `NativeNetworkPublisher` only in synchronous prepare/commit phases. Release
 its store borrow before provider GETs, retain the original fence/lease, and
 recreate the wrapper over the SAME open store at commit. `stage_complete_generation`
