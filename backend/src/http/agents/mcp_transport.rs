@@ -457,7 +457,7 @@ fn handle(
     revalidate(&auth.access, &auth.original)?;
     let session = runtime
         .block_on(mcp::bind_owned_lifecycle(
-            host.core.clone(),
+            mcp::McpStockContext::from_host(host),
             identity.clone(),
         ))
         .map_err(port_failure)?;
