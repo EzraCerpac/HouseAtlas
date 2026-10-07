@@ -135,13 +135,13 @@ export function AiPanelView({
       {selectedRoute === 'issued-website-client' && <p>A registered server callback and supported credential placement require qualification.</p>}
       {selectedRoute === 'local-inference-companion' && <p>The selected computer must be available for inference. Phone relay remains unqualified.</p>}
       <div className="ha-ai__actions">
-        <button type="button" disabled={selectedRoute === 'unset' || busy || connectionBusy || pendingKinds.length > 0}
+        <button type="button" disabled={selectedRoute === 'unset' || busy || connectionBusy || pendingKinds.length > 0 || disconnectCapacityExhausted}
           onClick={() => { if (selectedRoute !== 'unset') onConnectionAction({ action: 'connect', route: selectedRoute }); }}>Connect</button>
-        <button type="button" disabled={busy || connectionBusy || pendingKinds.length > 0 || state.connection.status !== 'available'}
+        <button type="button" disabled={busy || connectionBusy || pendingKinds.length > 0 || disconnectCapacityExhausted || state.connection.status !== 'available'}
           onClick={() => onConnectionAction({ action: 'consent' })}>Review inference consent</button>
         <button type="button" disabled={connectionBusy || disconnectPending || disconnectCapacityExhausted || state.connection.status !== 'available'}
           onClick={() => onConnectionAction({ action: 'disconnect' })}>Disconnect</button>
-        <button type="button" disabled={connectionBusy || pendingKinds.includes('manage-usage') || state.connection.status !== 'available'}
+        <button type="button" disabled={connectionBusy || pendingKinds.includes('manage-usage') || disconnectCapacityExhausted || state.connection.status !== 'available'}
           onClick={() => onConnectionAction({ action: 'manage-usage' })}>Manage usage</button>
       </div>
       {disconnectCapacityExhausted && <p role="status">Disconnect retry capacity is full.</p>}

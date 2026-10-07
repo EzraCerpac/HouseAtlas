@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c12f221c9fbae0e6ad5040237067df0a5c681212a6578214031ac5f55b4a2f51",
+  "sourceDigestSha256": "2900a20316aecda7e71d7f0d262883ab5dabc405968de282a78f95c00b2295f0",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2933,8 +2933,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 25791,
-      "sha256": "916a0a0210ab9b2b947064f8be52feb84bcdd6555db19baaba8dbd6180d7c942",
+      "bytes": 24126,
+      "sha256": "8ab26b7e3ba47191163fd32712f418ef55d76fcbd734b8c8546922b246095291",
       "owner": "core-integration"
     },
     {
@@ -2954,8 +2954,8 @@
     {
       "path": "docs/rust-integration/ai-host-integration.md",
       "mode": "100644",
-      "bytes": 7234,
-      "sha256": "f5ba494e2b9cd7b7298050584676b2361914ae9c848f2eb6e9f1dd7de0eaa3ce",
+      "bytes": 2961,
+      "sha256": "fc8ebf56837d0188701e7903c60b56cc35b09f7d91c68430e982e476e702f233",
       "owner": "core-integration"
     },
     {
@@ -3178,15 +3178,15 @@
     {
       "path": "frontend/src/ai/AiPanel.tsx",
       "mode": "100644",
-      "bytes": 16582,
-      "sha256": "31ce7baeeff132cdbd55a9c21f8763b547d26f12e928a77bbb55883d5fe048d2",
+      "bytes": 16675,
+      "sha256": "5349098ac9eb141ef71e5ef54064ed3f63e57161a3c19906ca584e0aad4e947a",
       "owner": "ai"
     },
     {
       "path": "frontend/src/ai/README.md",
       "mode": "100644",
-      "bytes": 9522,
-      "sha256": "9c74250fa4d2bc75d979a62c8b76f68b10046f8d1dc11dfed9a734cf82170fd4",
+      "bytes": 10121,
+      "sha256": "fa6d7830329cbd51c8c6e50c16b3b3ededcedf08cac800f03fc1f7d70b89658a",
       "owner": "ai"
     },
     {
@@ -3213,8 +3213,8 @@
     {
       "path": "frontend/src/ai/host/README.md",
       "mode": "100644",
-      "bytes": 12630,
-      "sha256": "28cce0a841342bf034897b363ec71624670cc663a5cda0d1c2a987c410229846",
+      "bytes": 14206,
+      "sha256": "e122983132758679bd4880dfad1769cea7c4ae7cdcbbe5eb38dda09802d89581",
       "owner": "ai"
     },
     {
@@ -3269,8 +3269,8 @@
     {
       "path": "frontend/src/ai/host/operation-receipts.healthy.tsx",
       "mode": "100644",
-      "bytes": 6997,
-      "sha256": "db778d0b8ed327327df95bee04049fdbcc58342bf0353371737e3819a689d798",
+      "bytes": 13482,
+      "sha256": "9d92497b3d306401bc31b238463c0c1c25c562fe3aeb9f93dad5aa40cd538a8f",
       "owner": "ai"
     },
     {
@@ -3304,8 +3304,8 @@
     {
       "path": "frontend/src/ai/useAiSession.ts",
       "mode": "100644",
-      "bytes": 25241,
-      "sha256": "9b686a07fc75ffb7b8e35ea0602a3e4e081b0e96e3908447e503a4fb82ae798b",
+      "bytes": 29226,
+      "sha256": "e1bd5042cd780e26294df17c8443d76966da0305871ff53681e303dbdd798513",
       "owner": "ai"
     },
     {

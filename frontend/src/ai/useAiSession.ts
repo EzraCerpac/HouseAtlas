@@ -34,6 +34,8 @@ interface PendingRun {
 
 interface PendingConnectionAction extends UnresolvedConnectionAction {
   readonly scopeKey: string;
+  /** Active browser opening call; never a provider completion claim. */
+  readonly opening: boolean;
 }
 
 // Bounded correlation only: no client, command payload, snapshot or observer.
@@ -41,29 +43,34 @@ interface PendingConnectionAction extends UnresolvedConnectionAction {
 const pendingConnectionActions = new Map<string, PendingConnectionAction>();
 const MAX_RETAINED_CONNECTION_ACTIONS = 96;
 
-// Mounted views observe only the count. React removes these subscriptions on
+// Mounted views observe registry changes. React removes these subscriptions on
 // disposal; the persistent correlation rows retain no observer or view/client.
 const actionCapacitySubscribers = new Set<() => void>();
+const emptyActionCapacitySnapshot: Readonly<{ globalCount: number }> = Object.freeze({ globalCount: 0 });
+let currentActionCapacitySnapshot = emptyActionCapacitySnapshot;
 function subscribeActionCapacity(changed: () => void): () => void {
   actionCapacitySubscribers.add(changed);
   return () => { actionCapacitySubscribers.delete(changed); };
 }
-function actionCapacitySnapshot(): number { return pendingConnectionActions.size; }
+function actionCapacitySnapshot(): Readonly<{ globalCount: number }> { return currentActionCapacitySnapshot; }
 // Server rendering/hydration starts with an empty browser-only registry.
-function serverActionCapacitySnapshot(): number { return 0; }
-function notifyActionCapacity(previousCount: number): void {
-  if (previousCount !== pendingConnectionActions.size)
-    for (const changed of [...actionCapacitySubscribers]) changed();
+function serverActionCapacitySnapshot(): Readonly<{ globalCount: number }> { return emptyActionCapacitySnapshot; }
+function notifyActionCapacity(): void {
+  // A new immutable snapshot also reports same-size metadata changes. Session
+  // hooks re-render and derive their own full-scope rows from the registry.
+  currentActionCapacitySnapshot = Object.freeze({ globalCount: pendingConnectionActions.size });
+  for (const changed of [...actionCapacitySubscribers]) changed();
 }
 function recordConnectionAction(actionId: string, action: PendingConnectionAction): void {
-  const previousCount = pendingConnectionActions.size;
   pendingConnectionActions.set(actionId, action);
-  notifyActionCapacity(previousCount);
+  notifyActionCapacity();
 }
 function retireConnectionAction(actionId: string): void {
-  const previousCount = pendingConnectionActions.size;
-  pendingConnectionActions.delete(actionId);
-  notifyActionCapacity(previousCount);
+  if (pendingConnectionActions.delete(actionId)) notifyActionCapacity();
+}
+function finishOpeningConnectionAction(actionId: string): void {
+  const current = pendingConnectionActions.get(actionId);
+  if (current?.opening) recordConnectionAction(actionId, { ...current, opening: false });
 }
 
 interface ScopedState {
@@ -88,7 +95,7 @@ export function hasConnectionActionCapacity(unresolvedCount: number, globalCount
 
 /** Keep every mounted panel current when a different scope changes capacity. */
 export function useConnectionActionCapacity(unresolvedCount: number): boolean {
-  const globalCount = useSyncExternalStore(subscribeActionCapacity, actionCapacitySnapshot, serverActionCapacitySnapshot);
+  const { globalCount } = useSyncExternalStore(subscribeActionCapacity, actionCapacitySnapshot, serverActionCapacitySnapshot);
   return hasConnectionActionCapacity(unresolvedCount, globalCount);
 }
 
@@ -96,8 +103,8 @@ function retainedConnectionState(
   actions: Iterable<PendingConnectionAction>, scope: Scope, fallback: ConnectionActionState,
 ): ConnectionActionState {
   let latest: PendingConnectionAction | null = null;
-  for (const action of actions) if (action.scopeKey === scope.key) latest = action;
-  return latest === null ? fallback : { status: latest.status, action: latest.action, actionId: latest.actionId };
+  for (const action of actions) if (action.scopeKey === scope.key && !latest?.opening) latest = action;
+  return latest === null ? fallback : { status: latest.opening ? 'working' : latest.status, action: latest.action, actionId: latest.actionId };
 }
 
 function retainRequest(scopeKey: string, requestId: string): RetainedRequest | null {
@@ -136,16 +143,32 @@ async function cancelRetainedRequest(scope: Scope, retained: RetainedRequest): P
  * application session, workspace/home, registration and cancellation epoch.
  * Labels and client object identity cannot replace that complete key. */
 export function useAiSession(client: AiClient, scopeKey: string) {
+  // Keep materialized per-scope action rows current when another instance
+  // changes this same registry, including same-size status updates.
+  useSyncExternalStore(subscribeActionCapacity, actionCapacitySnapshot, serverActionCapacitySnapshot);
   const scope = useMemo<Scope>(() => ({ client, key: scopeKey }), [client, scopeKey]);
   const activeScope = useRef<Scope | null>(null);
   const connectionController = useRef<AbortController | null>(null);
   const actionController = useRef<AbortController | null>(null);
+  const openingActionId = useRef<string | null>(null);
   const reviewController = useRef<AbortController | null>(null);
   const recoveryController = useRef<AbortController | null>(null);
   const pendingRun = useRef<PendingRun | null>(null);
   const requestObserver = useRef<{ readonly retained: RetainedRequest; readonly changed: () => void } | null>(null);
   const [scopedState, setScopedState] = useState<ScopedState>(() => ({ scope, state: initialState() }));
-  const state = scopedState.scope === scope ? scopedState.state : initialState();
+  const localState = scopedState.scope === scope ? scopedState.state : initialState();
+  // Shared correlation is authoritative for action progress in every alias.
+  // Opening transport and failed admission remain local; account facts never
+  // propagate through this metadata registry. A retired row cannot leave a
+  // cached pending/unconfirmed state in a different mounted session.
+  const fallbackAction = localState.connectionAction.status === 'pending'
+    || localState.connectionAction.status === 'unconfirmed'
+    ? { status: 'idle' as const, action: localState.connectionAction.action, actionId: localState.connectionAction.actionId }
+    : localState.connectionAction;
+  const state: AiSessionState = { ...localState, connectionAction:
+    actionController.current !== null && localState.connectionAction.status === 'working'
+      ? localState.connectionAction
+      : retainedConnectionState(pendingConnectionActions.values(), scope, fallbackAction) };
 
   const update = useCallback((change: (previous: AiSessionState) => AiSessionState) => {
     if (activeScope.current !== scope) return;
@@ -190,11 +213,20 @@ export function useAiSession(client: AiClient, scopeKey: string) {
       const retained = [...pendingConnectionActions.values()].filter(action => action.scopeKey === scope.key);
       for (const pending of retained) {
         if (!current()) return;
+        // An alias may read current account facts while another browser call is
+        // opening, but it must not turn that in-flight reservation into a
+        // retryable receipt. Reconcile its ID after the opening call settles.
+        if (pending.opening) continue;
         try {
           const result = await scope.client.connectionActionStatus(pending.actionId, controller.signal);
           if (!current()) return;
-          if (pendingConnectionActions.get(pending.actionId) !== pending) continue;
+          const latest = pendingConnectionActions.get(pending.actionId);
+          if (!latest || latest.scopeKey !== scope.key) continue;
           if (result.actionId !== pending.actionId) throw new Error('Unexpected connection action status');
+          // Matching completion retires any metadata revision. A stale
+          // nonterminal observation cannot replace a newer row or resurrect a
+          // row already retired by another observer.
+          if (result.status !== 'completed' && latest !== pending) continue;
           if (result.status === 'completed') retireConnectionAction(pending.actionId);
           else recordConnectionAction(pending.actionId, { ...pending, status: result.status });
           // Each workflow is correlated separately from current connection facts.
@@ -300,6 +332,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
     if (activeScope.current !== scope || actionController.current !== null
       || (pendingRun.current !== null && input.action !== 'manage-usage' && input.action !== 'disconnect')) return;
     const retained = [...pendingConnectionActions.values()].filter(action => action.scopeKey === scope.key);
+    if (retained.some(action => action.opening)) return;
     if (scope.key.length === 0 || scope.key.length > MAX_SCOPE_KEY_LENGTH
       || !hasConnectionActionCapacity(retained.length)) {
       // Keep every unresolved row; admission failure is visible separately
@@ -329,34 +362,52 @@ export function useAiSession(client: AiClient, scopeKey: string) {
       return;
     }
     const controller = new AbortController();
-    const pending: PendingConnectionAction = { scopeKey: scope.key, actionId, action: input.action, status: 'unconfirmed' };
+    const pending: PendingConnectionAction = { scopeKey: scope.key, actionId, action: input.action, status: 'unconfirmed', opening: true };
     actionController.current = controller;
+    openingActionId.current = actionId;
     // Retain every submitted workflow, including a lost response, until its own completion.
     recordConnectionAction(actionId, pending);
     update(previous => ({ ...previous,
       connection: input.action === 'disconnect' ? { status: 'loading' } : previous.connection,
       connectionAction: { status: 'working', action: input.action, actionId } }));
+    let superseded = false;
     try {
       const result = await scope.client.connectionAction({ actionId, command: input }, controller.signal);
-      if (actionController.current !== controller || controller.signal.aborted || activeScope.current !== scope
-        || pendingConnectionActions.get(actionId) !== pending) return;
+      if (actionController.current !== controller || controller.signal.aborted || activeScope.current !== scope) return;
+      const latest = pendingConnectionActions.get(actionId);
+      if (!latest || latest.scopeKey !== scope.key) { superseded = true; return; }
       if (result.actionId !== actionId) throw new Error('Unexpected connection action result');
+      if (latest !== pending && result.status !== 'completed') { superseded = true; return; }
       if (result.status === 'completed') retireConnectionAction(actionId);
-      else recordConnectionAction(actionId, { ...pending, status: result.status });
+      else recordConnectionAction(actionId, { ...pending, status: result.status, opening: false });
       update(previous => ({ ...previous, connection: { status: 'available', snapshot: result.snapshot },
         connectionAction: retainedConnectionState(pendingConnectionActions.values(), scope,
           { status: 'idle', action: input.action, actionId }) }));
     } catch {
-      if (actionController.current !== controller || controller.signal.aborted || activeScope.current !== scope
-        || pendingConnectionActions.get(actionId) !== pending) return;
+      if (actionController.current !== controller || controller.signal.aborted || activeScope.current !== scope) return;
+      if (pendingConnectionActions.get(actionId) !== pending) { superseded = true; return; }
       update(previous => ({ ...previous,
         connection: input.action === 'disconnect' ? { status: 'unavailable' } : previous.connection,
         connectionAction: retainedConnectionState(pendingConnectionActions.values(), scope,
           { status: 'unconfirmed', action: input.action, actionId }) }));
     } finally {
-      if (actionController.current === controller) actionController.current = null;
+      if (openingActionId.current === actionId) {
+        openingActionId.current = null;
+        finishOpeningConnectionAction(actionId);
+      }
+      if (actionController.current === controller) {
+        actionController.current = null;
+        // The opening call may finish after another observer changed or retired
+        // its receipt. Clear local progress without inventing completion/account
+        // facts, then read the existing authority again when superseded.
+        update(previous => previous.connectionAction.status === 'working'
+          && previous.connectionAction.actionId === actionId ? { ...previous,
+            connectionAction: retainedConnectionState(pendingConnectionActions.values(), scope,
+              { status: 'idle', action: input.action, actionId }) } : previous);
+        if (superseded && activeScope.current === scope && !controller.signal.aborted) void refresh();
+      }
     }
-  }, [scope, cancel, update]);
+  }, [scope, cancel, update, refresh]);
 
   const review = useCallback(async () => {
     const pending = pendingRun.current;
@@ -448,6 +499,11 @@ export function useAiSession(client: AiClient, scopeKey: string) {
         ref.current?.abort();
         ref.current = null;
       }
+      // Transport disposal releases only browser opening metadata. The unknown
+      // workflow remains retained under its original ID for host reconciliation.
+      const opening = openingActionId.current;
+      openingActionId.current = null;
+      if (opening !== null) finishOpeningConnectionAction(opening);
       const pending = pendingRun.current;
       if (pending?.scope !== scope) return;
       pendingRun.current = null;

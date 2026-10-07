@@ -19,27 +19,13 @@ starts from that exact reviewed tree. Current composition inputs are below.
 Development composition and ordinary healthy evidence do not establish product,
 security, operational recovery or target acceptance.
 
-## Exact module inputs
+## Module composition
 
-| Namespace | Exact input |
-| --- | --- |
-| Baseline generation/protocol, retained from main | 07576e6be463dd481b49071071c66dec144b1e0c |
-| Access, original-grant transaction revalidation and explicit lifecycle policy | 4a0cd4da563a32d26677755a608180c960765353 |
-| Combined native core/stock contracts and raw-current/timestamp peer exports | 49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c |
-| Storage fresh schema5, actual atomic upload consumption and checked retained projection | e23a1c959119b1f64061d51555be5f45cf48e3e5 |
-| Domain direct native semantics/storage, stock bridges and live/retained upload factories | 8a568fb6ccef5b0fa575b18d6181dcc524d4db99 |
-| Jobs/stock boundaries | f35bcdc2d9c24646356bc080bfb1ef157120bcb3 |
-| Media native access/storage/runtime, genuine original-principal upload stages and populated-image peer port | f0d6b10f00bb93fc1c1dd4eb3ae66ee1fbe3f873 |
-| React session shell, stock completion, native1024 forms and read-only admission status | 26edb0f0cd77eea3e3b763ff980d96566dfa2660 |
-| Native MCP catalog, original opaque access context and service adapter | 97a1335b1419a4c12b2134fec2195ed68d67ed52 |
-| Browser WebMCP family/schema, session and React acknowledgment boundary | 6832e825c636b7b48eeed8fcb085fe3ca277ead3 |
-| HomeBox full durable-registration read/publication binding | 6109e260bc19ba0d0a857fd15327a49b557c2650 |
-| HomeBox native stock command component | c784be5776b614f8f0bb225fcb5355ecb9e90e0d |
-| Network bounded HTTPS read and original borrowed publication authorizer | 37025316d419d9bf6dd3568cbcc883ee32fa6180 |
-| Root HomeBox configuration/read/closed-refresh host leaves | 2adca95c3a51f5f514e1f245a1a3e22f53929d81 |
-| Root original lifecycle authority and closed HomeBox publication | fd9a44ba2178b9d642e3dc88aab53665056b473b |
-| Root Network configuration/read/publication host leaves | 529ecbcaf6e308b658a7f05fecc3214379fc707a |
-| Root offline recovery configuration/capture/validate/restore/strict-reopen leaves | 66df612d4d90b2f631277a78047bef7c20f26daf |
+The service compiles the actual Access, Contracts, Domain, Storage, Jobs, Media,
+React, MCP, WebMCP, HomeBox and Network modules. The publication manifest records
+tracked source ownership and exact file digests. Original development input
+mapping, before/after receipts and evidence remain in the private coordinator
+ledger outside this repository.
 
 Feature runtime and fixture sources retain exact owner bytes. Four owner
 READMEs have the parent's authorized privacy-only adaptations: Domain, Storage,
