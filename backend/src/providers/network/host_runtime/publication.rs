@@ -175,17 +175,8 @@ fn held_consuming(
     );
     drop(boundary);
     if let Some(receipt) = committed {
-        if let Err(PhaseError(error)) = access_completion {
-            // Best-effort sanitized settlement evidence, outside authority lock.
-            // Neither an Access error nor a diagnostic write error masks COMMIT.
-            let _ = std::io::Write::write_fmt(
-                &mut std::io::stderr(),
-                format_args!(
-                    "Network cache committed; Access finalization failed ({})\n",
-                    error.code,
-                ),
-            );
-        }
+        // No diagnostic I/O on the committed-return path. A stalled stderr
+        // pipe cannot hold the owning Core or hide the definite Store receipt.
         return Ok(receipt);
     }
     access_completion.map_err(|e: PhaseError| e.0)?;
