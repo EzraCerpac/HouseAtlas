@@ -108,6 +108,10 @@ impl Usage {
 pub enum RunOutcome {
     Completed {
         text: String,
+        /// Ordered, deduplicated dispatch correlations retained on success.
+        /// Historical stored outcomes missing this field retain an empty list.
+        #[serde(rename = "operationIds", default)]
+        operation_ids: Vec<String>,
         usage: Usage,
     },
     ReviewRequired {

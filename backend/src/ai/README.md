@@ -41,6 +41,10 @@ held operation, and its state/usage remain unchanged. Earlier effects therefore
 remain correlated even when a later step stops domain processing. Historical
 stored outcomes without the new field deserialize with an empty collection;
 new browser DTOs require the coordinated decoder/type/display adaptation.
+Successful `Completed` outcomes likewise preserve all recorded `operationIds`,
+including prior resumed dispatches, in original deduplicated order. Historical
+stored completions missing the field deserialize with an empty collection; new
+browser DTOs require atomic type/strict-decoder/display/fixture adaptation.
 
 `ResponsesRequest` uses the public endpoint, explicit complete history,
 `store:false`, `stream:true`, namespaced functions and unchanged shared schemas.
@@ -72,6 +76,10 @@ checkpoint. `verify_received_exchange` and explicit `refresh` can verify it
 using its original receipt time without exchanging a code or refreshing again;
 activation revalidates the original binding and preserves identity matching.
 A new authorization launch cannot overwrite an unresolved checkpoint.
+It also refuses a new begin while a pending authorization is unexpired at the
+trusted operational clock, retaining the original state/nonce/PKCE, callback and
+purpose under the same exclusive registration lease. This performs no launch,
+fresh security generation or credential persistence for that denied begin.
 An explicit authorization begin can adopt the trusted operation's current
 cancellation epoch after older credentials/checkpoints have been cleared. It
 persists only that record field and the new attempt under the same active,
