@@ -2,6 +2,7 @@
 mod admission;
 pub mod agents;
 pub mod ai;
+pub(crate) mod asset_reviews;
 mod auth;
 pub mod contracts;
 mod editing;
@@ -59,6 +60,7 @@ pub struct Host {
     // Same native Access owner; immutable configured scopes copied at startup.
     mcp_access: crate::app::Access,
     mcp_scopes: Arc<Vec<d::Scope>>,
+    pub(crate) asset_reviews: Arc<Mutex<asset_reviews::ReviewRegistry>>,
 }
 impl Host {
     pub fn new(
@@ -70,6 +72,7 @@ impl Host {
         Ok(Self {
             mcp_access: core.access.clone(),
             mcp_scopes: Arc::new(core.homes.iter().map(|home| home.scope.clone()).collect()),
+            asset_reviews: Arc::new(Mutex::new(asset_reviews::ReviewRegistry::default())),
             core: Arc::new(Mutex::new(core)),
             origin,
             files,
@@ -599,6 +602,7 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/invoke", get(agents::invoke).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/commands", post(stock_mutations::command))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/assets", post(upload_asset::command))
+        .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/assets/{asset_id}/review-proof", post(asset_reviews::issue))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}", get(stock_reads::list).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}", get(stock_reads::record).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}/history", get(stock_reads::history).head(auth::session_head).fallback(auth::session_head))
