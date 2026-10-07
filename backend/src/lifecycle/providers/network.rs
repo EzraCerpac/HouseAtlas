@@ -176,6 +176,17 @@ impl NetworkRuntime {
         {
             return Err(network_error(n::ErrorCode::InvalidSchema).into());
         }
+        if baseline.cache.as_ref().is_some_and(|cache| {
+            cache.status == n::CacheStatus::AccessRevoked
+                || cache.error.as_ref().is_some_and(|error| {
+                    matches!(error.code, n::ErrorCode::Auth | n::ErrorCode::WrongScope)
+                })
+        }) {
+            return Err(n::NetworkPublicationError::Storage(s::Error::new(
+                "guard-conflict",
+                "Network cache is quarantined",
+            )));
+        }
         let cache = baseline
             .cache
             .unwrap_or_else(|| n::RetainedState::empty(self.settings.source().scope.clone()).cache);
