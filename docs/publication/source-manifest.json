@@ -1,6 +1,6 @@
 {
   "format": "houseatlas-publication-source/1",
-  "status": "development-native-agent-correction-exact-candidate-review-required",
+  "status": "development-native-agent-browser-observation-exact-candidate-review-required",
   "self": {
     "path": "docs/publication/source-manifest.json",
     "mode": "100644",
@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "6828e5834a1bdd0490c93c0edf2f0650259037a3b2092c70ae54c1054d7aef94",
+  "sourceDigestSha256": "c4ced2699cee3de25a382c53fd0f38e90f59f2180181e72361a219da5d54b8ca",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -3408,8 +3408,8 @@
     {
       "path": "tools/rust-integration/healthy-loopback.mjs",
       "mode": "100644",
-      "bytes": 11893,
-      "sha256": "3d958e5ba4add9a937c75b923c5a5d9badd360b4755aff4b0bffc4e67bc95fca",
+      "bytes": 13634,
+      "sha256": "763af2b29ca26414fd423f75e09671bc4c2e8e465dcdfd933933a825300fc46e",
       "owner": "core-integration"
     },
     {
