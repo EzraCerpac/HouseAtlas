@@ -2,8 +2,8 @@
 
 This local continuation composes the exact published AI source
 `edca73b09f879f167f7f2e258e534b734919290d`, Rust host successor PR65
-`849685e693f5df107847cf8527403c9493a2afe7`, and React host PR42
-`8ea0ebaf3a53740b5080ca4f6a80559582eeec8d` over identity-corrected upload PR52
+`849685e693f5df107847cf8527403c9493a2afe7`, and React host successor PR67
+`07c7f2c45747dcb4f6aa99dd34f7681942cca74b` over identity-corrected upload PR52
 `fa7c43621b6c6fa40d0199e795648bad804634a6`, tree
 `86be04724059facc9e52e8a5732d3cad94b3aad1`.
 The donor and both host namespaces retain exact owner bytes, except the
@@ -69,15 +69,19 @@ Official SIWC/Responses implementation choice remains accepted. This limitation
 is about concrete peers, not a request to choose another provider or authorize
 live tokens/inference.
 
-PR42's exact `frontend/src/ai/host/mounting.patch` changes three UI-owned files:
-`App.tsx`, `pages.tsx` and `SessionApp.tsx`. It places the AI provider above page
-navigation and the settings panel inside Settings. Those files are preserved
-until their original owner publishes the proposed mount. The root main-entry
-proposal can then pass the real `AiApplicationPort` with a stable client and
-full actor/session/home/registration/cancellation-epoch scope key. No render-time
-side effect, browser-generated registration or default synthetic client is used.
-The composed UI libraries typecheck but are not in the current application
-bundle or demonstrated as a mounted AI panel.
+The exact published UI mount proposal is now applied to App, Settings pages,
+SessionApp and the root browser entrypoint. The parent explicitly released this
+owner proposal for composition with the UI successor. The actual AiHost and
+settings/status components are compiled into the application bundle. The root
+HostApplication accepts an optional genuine AiApplicationPort; the current
+binary supplies none, so the mounted Settings section reports unavailable and
+creates no fabricated client, registration, token or inference admission. A
+future supplied port must preserve the full actor/session/home/registration/
+cancellation-epoch scope key and stable client, with no render-time side effect.
+
+The original UI successor confirms idle review cancellation by reading the
+persisted terminal status once, retaining usage and clearing that review. Its
+new explicit browser example is compiled, not executed by this integration.
 
 ## Verification and limits
 
@@ -97,5 +101,12 @@ Compiler success does not qualify actual AI/browser/credential/runtime behavior.
 The original host owner corrected terminal review cancellation, durable action
 receipt polling after epoch rotation, and final authority checks on authenticated
 success and error responses. Root applied its exact mount proposal. New error
-paths and cancellation controls remain static-only here. The React owner's final
-terminal-outcome/standalone-report successor remains pending before publication.
+paths and cancellation controls remain static-only here. The exact UI terminal-outcome/standalone-report successor is now included.
+
+The final owner composition passes locked Rust source/explicit-example checks,
+rustfmt, strict Clippy, strict TypeScript and Vite (145 actual bundle modules).
+The inspected real browser classification runner also checks the actual Settings
+AI section in its unconfigured state, then completes the ordinary native stock
+classification/MCP read/history flow: 30 HTTP requests with real SQLite linkage.
+No AI request, lifecycle action, model selection or credential peer is exercised.
+The separate host cancellation/protocol examples remain compiled only.

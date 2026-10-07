@@ -1,6 +1,6 @@
 {
   "format": "houseatlas-publication-source/1",
-  "status": "development-ai-host-source-native-app-authority-unmounted-review-required",
+  "status": "development-ai-native-authority-optional-ui-runtime-unconfigured-review-required",
   "self": {
     "path": "docs/publication/source-manifest.json",
     "mode": "100644",
@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "05cb5d6bf34217313458d719e184bed1f0976de5c5658e5ce4f35eba5b7df28f",
+  "sourceDigestSha256": "97ecb0e0495ed63ccdf54cab0ea71ea0bfba5f9f4889f3b23813b9b433056d41",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2604,8 +2604,8 @@
     {
       "path": "docs/rust-integration/ai-host-integration.md",
       "mode": "100644",
-      "bytes": 6374,
-      "sha256": "ee2a8821100613a9f9874e2871dfd8ebba3eaee717102ba1723a687f0ff83563",
+      "bytes": 7158,
+      "sha256": "19d2a00cb8957bf6d589a2bdfbc65be8d7a58a4489fd3185a14eabcbd3a3eec0",
       "owner": "core-integration"
     },
     {
@@ -2758,8 +2758,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 5200,
-      "sha256": "3929c17eb8a4ea45dfb03d7ac3232e9a316d1061ddf72c76eead52b7c9abe27f",
+      "bytes": 5401,
+      "sha256": "0fa64ad6145f2f5ae8b038ca92eefa9d87ec4914f91372231442aaf9df449a3a",
       "owner": "core-integration"
     },
     {
@@ -2828,15 +2828,15 @@
     {
       "path": "frontend/src/ai/host/AiHost.tsx",
       "mode": "100644",
-      "bytes": 4113,
-      "sha256": "524e7f80e419b04f95030a23063dc4c631500d502d95331878834754fff8f951",
+      "bytes": 4994,
+      "sha256": "94fa025e5973b10095867d698ce96bcbdcb9e553cd54e7df2952a1474671c2f7",
       "owner": "ai"
     },
     {
       "path": "frontend/src/ai/host/README.md",
       "mode": "100644",
-      "bytes": 10456,
-      "sha256": "42dbb6e17be49994602033a7ca7f3d0428aa03997a0b29e5ddc75c378e7a5eeb",
+      "bytes": 10676,
+      "sha256": "998e77373e1b6a4d9f9c2a2b4be7fcd2818ba85e7182cbeb9fece6167d79a654",
       "owner": "ai"
     },
     {
@@ -2886,6 +2886,13 @@
       "mode": "100644",
       "bytes": 4853,
       "sha256": "38328909a99cbb76da254481691b6d3532f8309d7021dc2b8e404ac6dff1fe03",
+      "owner": "ai"
+    },
+    {
+      "path": "frontend/src/ai/host/review-cancellation.healthy.tsx",
+      "mode": "100644",
+      "bytes": 6940,
+      "sha256": "f415b5160b2272bedffef1f5f7f2cd5c8dbf3f5376e54d55133a8bafc91c8364",
       "owner": "ai"
     },
     {
@@ -2940,8 +2947,8 @@
     {
       "path": "frontend/src/app/App.tsx",
       "mode": "100644",
-      "bytes": 15080,
-      "sha256": "799e31e750d72666f3b393c07a3e2cdc219cffff35d9b9790e8224026600ce11",
+      "bytes": 15432,
+      "sha256": "352498e142d095d86d04569afd507e5f3b6e502291ffa262f0dae61bb0b7cf7a",
       "owner": "web"
     },
     {
@@ -2961,8 +2968,8 @@
     {
       "path": "frontend/src/app/SessionApp.tsx",
       "mode": "100644",
-      "bytes": 8346,
-      "sha256": "bd1867a2ce0cc66083afbc98ba192571240d34eacbfc5161b721822ad8eb8016",
+      "bytes": 8550,
+      "sha256": "d46ee45ba8e18a603114407a63da286d0b882787d8074b918ac85d82d30e2041",
       "owner": "web"
     },
     {
@@ -3031,8 +3038,8 @@
     {
       "path": "frontend/src/app/pages.tsx",
       "mode": "100644",
-      "bytes": 17317,
-      "sha256": "81373dcc141dbd2f4fc8f8a6f1ea0f1e2d248d62cc1ae1a214d2607c8934513d",
+      "bytes": 17406,
+      "sha256": "afaaa0d4d7d70df9fd6dd0856bb14e972011476bb967f5bde70e9d6a5d950c3b",
       "owner": "web"
     },
     {
@@ -4025,8 +4032,8 @@
     {
       "path": "tools/rust-integration/healthy-agent-host-loopback.mjs",
       "mode": "100644",
-      "bytes": 29879,
-      "sha256": "bc70152b65d5ef421687dc82c2ff5a431ea2561b30aa28bc08c07aff0b40bb57",
+      "bytes": 30125,
+      "sha256": "9cdd6ca244b27d79b10725918d7de50cb38b6f06adc5e6d62c49d8059e0d79dd",
       "owner": "core-integration"
     },
     {

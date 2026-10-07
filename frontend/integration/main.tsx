@@ -11,6 +11,9 @@ import type { AtlasSessionClient, AtlasSessionInfo } from "../src/app/session";
 import "../src/styles/atlas.css";
 import "../src/styles/session.css";
 import "../src/styles/stock.css";
+import "../src/ai/ai.css";
+import "../src/ai/host/host.css";
+import type { AiApplicationPort } from "../src/ai/host/index.js";
 
 const element = document.getElementById("root");
 if (!element) throw new Error("HouseAtlas root missing");
@@ -59,7 +62,7 @@ const nativeClient = createAtlasClient({
   bootstrap: root.dataset.bootstrapUrl ?? "/api/atlas/view",
   home: scope => `/api/atlas/homes/${encodeURIComponent(scope.workspaceId)}/${encodeURIComponent(scope.homeId)}/view`,
 });
-function HostApplication() {
+export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
   const [admission, setAdmission] = useState<StockAdmission | null>(null);
   const client = useMemo<AtlasClient>(() => {
     let generation = 0;
@@ -97,6 +100,6 @@ function HostApplication() {
   }, []);
   // Keep the concrete editing port stable through view/catalog refreshes.
   // Each place admission and command obtains the actual request authority.
-  return <SessionApp client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission }} />;
+  return <SessionApp client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission }} {...(ai ? { ai } : {})} />;
 }
 createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);

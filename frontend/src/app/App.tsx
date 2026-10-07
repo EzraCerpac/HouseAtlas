@@ -21,6 +21,8 @@ import { AtlasPage } from "./pages";
 import { text } from "./copy";
 import type { SessionSettings } from "./session";
 import type { AtlasEditingClient } from "./editing";
+import { AiHost, AiActivityStatus } from "../ai/host/index.js";
+import type { AiViewResolver } from "../ai/host/index.js";
 
 export interface AtlasAppProps {
   client: AtlasClient;
@@ -33,6 +35,7 @@ export interface AtlasAppProps {
   /** Reports only the committed authorized scope, or unavailable context. */
   onScopeCommit?: (scope: Scope | null) => void;
   editing?: AtlasEditingClient;
+  resolveAi?: AiViewResolver;
 }
 export const accessEventName = "atlas-access-invalidated";
 export function App({
@@ -43,6 +46,7 @@ export function App({
   session,
   onScopeCommit,
   editing,
+  resolveAi,
 }: AtlasAppProps) {
   const [view, setView] = useState<AtlasView>(
     initialView ?? { status: "loading" },
@@ -241,6 +245,7 @@ export function App({
       ? ""
       : text(view.status === "unavailable" ? "viewUnavailable" : view.status);
   return (
+    <AiHost context={view.status === "ready" ? resolveAi?.(view.scope, view.homeLabel) ?? null : null}>
     <div ref={root} onClick={onClick}>
       <a className="skip" href="#page-heading">
         {text("skip")}
@@ -324,6 +329,7 @@ export function App({
                     {text("networkDenied")}
                   </p>
                 )}
+                {route.page !== "settings" && <AiActivityStatus />}
                 <AtlasPage
                   view={view}
                   route={route}
@@ -341,6 +347,7 @@ export function App({
         )}
       </RouteContext.Provider>
     </div>
+    </AiHost>
   );
 }
 function Shell({
