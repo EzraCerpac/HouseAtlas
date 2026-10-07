@@ -585,12 +585,34 @@ impl s::StockActivityRecoveryEvidence for OriginalEvidence {
         Ok(())
     }
 }
+struct CompleteOriginalEvidence<'a> {
+    primary: &'a OriginalEvidence,
+    queued: Option<&'a OriginalEvidence>,
+}
+impl CompleteOriginalEvidence<'_> {
+    fn owner(&self, command: &n::StockCommand) -> s::Result<&OriginalEvidence> {
+        std::iter::once(self.primary)
+            .chain(self.queued)
+            .find(|owner| &owner.0.0.command == command)
+            .ok_or_else(super::unavailable)
+    }
+}
+impl s::StockActivityRecoveryEvidence for CompleteOriginalEvidence<'_> {
+    fn validate_record(&self, record: &s::RetainedStockActivity) -> s::Result<()> {
+        self.owner(&record.original().command)?
+            .validate_record(record)
+    }
+    fn validate_event(&self, frame: s::StockActivityRecoveryEvent<'_>) -> s::Result<()> {
+        self.owner(&frame.original.command)?.validate_event(frame)
+    }
+}
 #[test]
 fn healthy_profile6_native_capture_and_event_cuts() -> Result<(), Box<dyn std::error::Error>> {
     composition(false)
 }
 #[test]
-fn healthy_profile6_authorized_archive_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
+fn healthy_profile6_configured_producer_archive_roundtrip() -> Result<(), Box<dyn std::error::Error>>
+{
     composition(true)
 }
 fn composition(archive_roundtrip: bool) -> Result<(), Box<dyn std::error::Error>> {
@@ -764,6 +786,31 @@ fn composition(archive_roundtrip: bool) -> Result<(), Box<dyn std::error::Error>
     let n::StockReservation::Reserved(reserved) = reservation else {
         panic!("fresh reservation");
     };
+    let archive_limit = 256 * 1024;
+    let mut archive_packets = Vec::new();
+    let reserved_producer = if archive_roundtrip {
+        let producer = activity
+            .retain_producer(reserved.operation_id)
+            .map_err(|e| format!("reserved producer: {e:?}"))?;
+        assert!(std::ptr::eq(producer.original(), Arc::as_ptr(&original)));
+        let packet =
+            NativeActivityArchivePacket::encode_producer(&contracts, &producer, archive_limit)?;
+        assert_eq!(packet.cut().operation(), &*reserved);
+        assert_eq!(packet.cut().events().len(), 1);
+        assert!(!packet.cut().body_accepted() && !packet.cut().physical_hold());
+        assert!(packet.cut().permit().is_none() && packet.cut().native_events().is_empty());
+        // Positive exact-bound success, not an overflow/denial probe.
+        let exact = NativeActivityArchivePacket::encode_producer(
+            &contracts,
+            &producer,
+            packet.bytes().len(),
+        )?;
+        assert_eq!(exact.bytes(), packet.bytes());
+        archive_packets.push(sync_packet(directory.path(), "reserve.json", &packet)?);
+        Some(producer)
+    } else {
+        None
+    };
     let preflight = peers.preflight();
     let plan = n::map_stock(&command, &preflight.preparation).map_err(|e| format!("map: {e:?}"))?;
     let plan_digest = digest(&serde_json::to_value(&plan)?);
@@ -779,17 +826,19 @@ fn composition(archive_roundtrip: bool) -> Result<(), Box<dyn std::error::Error>
     else {
         panic!("fresh admission");
     };
-    let producer = activity
-        .retain_producer(admitted.operation_id)
-        .map_err(|e| format!("producer: {e:?}"))?;
+    let producer = if let Some(prior) = &reserved_producer {
+        activity.retain_producer_successor(prior)
+    } else {
+        activity.retain_producer(admitted.operation_id)
+    }
+    .map_err(|e| format!("producer: {e:?}"))?;
     assert!(std::ptr::eq(producer.original(), Arc::as_ptr(&original)));
     let mut retained = RetainedNativeStockActivity::bind_admitted(&contracts, producer, &capture)?;
     // Original live producer and complete pre-I/O cut remain independently held.
     // This test has no production durable archive or native driver.
     assert_eq!(retained.producer().record().operation(), &*admitted);
-    let mut archive_packets = Vec::new();
     if archive_roundtrip {
-        let packet = NativeActivityArchivePacket::encode(&contracts, &retained)?;
+        let packet = NativeActivityArchivePacket::encode(&contracts, &retained, archive_limit)?;
         assert_eq!(packet.cut().events().len(), 2);
         assert!(packet.cut().native_events().is_empty());
         archive_packets.push(sync_packet(directory.path(), "before-io.json", &packet)?);
@@ -808,7 +857,7 @@ fn composition(archive_roundtrip: bool) -> Result<(), Box<dyn std::error::Error>
     assert_eq!(retained.native_events()[0].dispatch(), Some(&raw_dispatch));
     assert_eq!(retained.native_events()[0].before(), &*admitted);
     if archive_roundtrip {
-        let packet = NativeActivityArchivePacket::encode(&contracts, &retained)?;
+        let packet = NativeActivityArchivePacket::encode(&contracts, &retained, archive_limit)?;
         assert_eq!(packet.cut().events().len(), 3);
         assert_eq!(packet.cut().native_events().len(), 1);
         archive_packets.push(sync_packet(
@@ -848,11 +897,14 @@ fn composition(archive_roundtrip: bool) -> Result<(), Box<dyn std::error::Error>
     assert!(!observed.outcome.causality_proven && !observed.outcome.atomic_provider_cas);
     assert!(!observed.outcome.unknown_scope_fence_retained);
     if archive_roundtrip {
-        let packet = NativeActivityArchivePacket::encode(&contracts, &retained)?;
+        let packet = NativeActivityArchivePacket::encode(&contracts, &retained, archive_limit)?;
         assert_eq!(
             packet.cut().native_events()[1].authority(),
             &readback_authority
         );
+        let exact =
+            NativeActivityArchivePacket::encode(&contracts, &retained, packet.bytes().len())?;
+        assert_eq!(exact.bytes(), packet.bytes());
         archive_packets.push(sync_packet(
             directory.path(),
             "after-observation.json",
@@ -860,6 +912,64 @@ fn composition(archive_roundtrip: bool) -> Result<(), Box<dyn std::error::Error>
         )?);
     }
     let archive = RetainedNativeStockActivityArchive::new(vec![retained.seal(&contracts)?])?;
+    // A fresh sequential queued reservation produces metadata only. There is
+    // no second admission, concurrent operation, I/O, replay or held probe.
+    let queued_peers = if archive_roundtrip {
+        let mut queued_wire = command.original_wire.clone();
+        queued_wire["requestId"] = json!(id(120));
+        queued_wire["idempotencyKey"] = json!(id(121));
+        let queued_command = n::StockContractPort::validate_request(&contracts, &queued_wire)
+            .map_err(|e| format!("queued request: {e:?}"))?;
+        let queued_peers = Peers(Arc::new(Fixture {
+            access: access.clone(),
+            original: original.clone(),
+            validation: wire::StockValidation::new()?,
+            command: queued_command.clone(),
+            authority: authority.clone(),
+            registration: activity_registration.clone(),
+            snapshot: peers.0.snapshot.clone(),
+            response: peers.0.response.clone(),
+            dispatches: AtomicUsize::new(0),
+            readbacks: AtomicUsize::new(0),
+            policy_checks: AtomicUsize::new(0),
+        }));
+        let queued_session = s::StockActivitySession::new(
+            store.clone(),
+            access.clone(),
+            original.clone(),
+            Arc::new(queued_peers.clone()),
+            Arc::new(NativeWriterContracts::new()?),
+            activity_registration.clone(),
+            queued_command.clone(),
+            authority.clone(),
+        )
+        .map_err(|e| format!("queued session: {e:?}"))?;
+        let queued = ready(queued_session.reserve(&queued_command, &authority))
+            .map_err(|e| format!("queued reserve: {e:?}"))?;
+        let n::StockReservation::Queued(queued) = queued else {
+            panic!("fresh waiting metadata");
+        };
+        let producer = queued_session
+            .retain_producer(queued.operation_id)
+            .map_err(|e| format!("queued producer: {e:?}"))?;
+        assert!(std::ptr::eq(producer.original(), Arc::as_ptr(&original)));
+        let packet =
+            NativeActivityArchivePacket::encode_producer(&contracts, &producer, archive_limit)?;
+        assert_eq!(packet.cut().operation(), &*queued);
+        assert_eq!(packet.cut().events().len(), 1);
+        assert_eq!(
+            packet.cut().operation().outcome.state,
+            n::OutcomeState::Queued
+        );
+        assert!(!packet.cut().body_accepted() && !packet.cut().physical_hold());
+        assert!(packet.cut().permit().is_none() && packet.cut().native_events().is_empty());
+        archive_packets.push(sync_packet(directory.path(), "queued.json", &packet)?);
+        assert_eq!(queued_peers.0.dispatches.load(Ordering::SeqCst), 0);
+        assert_eq!(queued_peers.0.readbacks.load(Ordering::SeqCst), 0);
+        Some(queued_peers)
+    } else {
+        None
+    };
     let original_evidence = OriginalEvidence(peers.clone());
     let evidence = HomeboxStockActivityEvidence::new(&contracts, &archive, &original_evidence);
     let record = archive.retained(observed.operation_id)?.producer().record();
@@ -922,32 +1032,47 @@ fn composition(archive_roundtrip: bool) -> Result<(), Box<dyn std::error::Error>
         })
         .collect::<Result<Vec<_>, std::io::Error>>()?;
     if archive_roundtrip {
-        assert_eq!(restored_records.len(), 3);
-        assert_eq!(restored_records[0].cut().events().len(), 2);
+        assert_eq!(restored_records.len(), 5);
+        assert_eq!(restored_records[0].cut().events().len(), 1);
         assert!(restored_records[0].cut().native_events().is_empty());
-        assert_eq!(restored_records[1].cut().events().len(), 3);
+        assert_eq!(restored_records[1].cut().events().len(), 2);
+        assert_eq!(restored_records[2].cut().events().len(), 3);
         assert!(
-            restored_records[1]
+            restored_records[2]
                 .cut()
                 .operation()
                 .outcome
                 .readback_digest
                 .is_none()
         );
-        assert_eq!(restored_records[2].cut().events().len(), 4);
+        assert_eq!(restored_records[3].cut().events().len(), 4);
         assert_eq!(
-            restored_records[2].cut().native_events()[1].authority(),
+            restored_records[3].cut().native_events()[1].authority(),
             &readback_authority
+        );
+        assert_eq!(
+            restored_records[4].cut().operation().outcome.state,
+            n::OutcomeState::Queued
+        );
+        assert!(
+            archive_packets
+                .iter()
+                .all(|(_, bytes)| bytes.len() <= archive_limit)
         );
     }
     // Earlier snapshots are healthy roundtrips, not multiple current versions
     // of the same operation in the recovery archive.
-    let current = restored_records.into_iter().last().into_iter().collect();
+    let current = restored_records.into_iter().skip(3).collect();
     let restored_archive = RestoredNativeActivityArchive::new(current)?;
+    let queued_evidence = queued_peers.map(OriginalEvidence);
+    let complete_original_evidence = CompleteOriginalEvidence {
+        primary: &original_evidence,
+        queued: queued_evidence.as_ref(),
+    };
     let restored_evidence = HomeboxRestoredStockActivityEvidence::new(
         &contracts,
         &restored_archive,
-        &original_evidence,
+        &complete_original_evidence,
     );
     let selected: &dyn s::StockActivityRecoveryEvidence = if archive_roundtrip {
         &restored_evidence
@@ -988,7 +1113,7 @@ fn composition(archive_roundtrip: bool) -> Result<(), Box<dyn std::error::Error>
     );
     if archive_roundtrip {
         println!(
-            "archive /4: three fresh synced authorized cut packets, genuine pre-I/O producer association, closed lossless decode via original storage codecs, refreshed GET authority retained, restored evidence qualifies four own prefixes; no producer restored and no execution resumed"
+            "archive /4: five fresh synced packets include genuine reserve and queued producers plus admitted/native cuts; configured 256 KiB limit and positive exact-byte bounds; original storage codecs and refreshed GET authority retained; five own-prefix image events, no producer restored or execution resumed"
         );
     }
     Ok(())

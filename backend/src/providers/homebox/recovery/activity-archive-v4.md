@@ -8,11 +8,27 @@ PR78's exact `/3` source remains immutable; this is its explicit successor.
 
 ## Dispatcher and archive backend contract
 
-After genuine original-session producer retention and `bind_admitted`, encode
-without sealing the capture:
+Before admission, encode the genuine original-session reserve/queued producer:
 
 ```rust
-let packet = NativeActivityArchivePacket::encode(&contracts, &retained)?;
+let producer = session.retain_producer(operation_id)?;
+let packet = NativeActivityArchivePacket::encode_producer(
+    &contracts, &producer, max_frame_bytes,
+)?;
+archive_backend.authorize_and_write_exact(original, packet.bytes())?;
+```
+
+`encode_producer` accepts only actual pre-admission reserve/queued cuts, with no
+permit, accepted body, physical hold or captured native result. It borrows the
+sealed original-session producer; no admitted carrier or recovered producer is
+manufactured. The original authority backend must authorize this complete
+historical cut and its destination just as it does the admitted cut.
+
+After genuine admission, original-session successor retention and `bind_admitted`,
+encode without sealing the capture:
+
+```rust
+let packet = NativeActivityArchivePacket::encode(&contracts, &retained, max_frame_bytes)?;
 archive_backend.authorize_and_write_exact(original, packet.bytes())?;
 // First native I/O may proceed only after authorized durable storage succeeds.
 ```
@@ -30,7 +46,7 @@ then encode and durably archive that complete cut before further I/O:
 ```rust
 let next = session.retain_producer_successor(retained.producer())?;
 retained.retain_successor(&contracts, next)?;
-let packet = NativeActivityArchivePacket::encode(&contracts, &retained)?;
+let packet = NativeActivityArchivePacket::encode(&contracts, &retained, max_frame_bytes)?;
 archive_backend.authorize_and_write_exact(original, packet.bytes())?;
 ```
 
@@ -39,7 +55,15 @@ complete sealed record and every captured raw native result. It does not close
 capture; `seal` remains the separate final in-memory archive operation. A packet
 cannot encode pending/in-flight/unqualified results. The explicit format is
 `houseatlas-homebox-stock-activity-archive/4`; limits are 16 MiB and 256 events.
-Output writing is capped during serialization. This archive contains private
+Both encoding methods require the caller's explicit `max_frame_bytes`; the
+actual limit is its minimum with the 16 MiB codec ceiling. A nonallocating pass
+bounds borrowed variable-size source data before validation, peer String codecs
+or native row conversions allocate. The encoder streams individual original
+codec strings/events/native rows into an output writer enforcing that same cap
+on every write; it never constructs a complete unbounded output row first.
+Zero capacity cannot encode a packet. Encoding smaller than the required frame
+returns an error without a partial packet. These refusal paths are source logic,
+not runtime-qualified held controls. This archive contains private
 native/preflight/media metadata and belongs only at its authorized destination.
 
 The packet carries the exact accepted registration, original/final operations,
@@ -154,14 +178,17 @@ native-prefix validation use the same compatibility rule, without minting
 access/source/dispatcher permission from metadata.
 
 The sole new healthy selection is
-`providers::homebox::recovery::healthy_activity_v3::healthy_profile6_authorized_archive_roundtrip`.
+`providers::homebox::recovery::healthy_activity_v3::healthy_profile6_configured_producer_archive_roundtrip`.
 It uses actual AT11/AT51, SQLite profile6 and accepted native data/evidence codecs,
 with inspected synthetic original authority, positive zero media and archive/
-administrative peers. Three freshly produced pre-I/O/dispatch/observation packets
+administrative peers. Five freshly produced reserve/admission/dispatch/observation/queued packets
 are written with create-new mode 0600, file sync and directory sync, read unchanged,
 and decoded against independently retained synthetic original archive receipts.
-A healthy refreshed authority is preserved. Only the current final cut is placed
-in the restored archive; its four own-prefix image events qualify through the
+A healthy refreshed authority is preserved. The configured limit is 256 KiB;
+producer and admitted encoders also succeed at their exact positive byte bound.
+The queued reservation is fresh sequential metadata under the existing unproven
+physical hold, with no second admission, native I/O or concurrency/control probe. Only the current final native cut and independent queued cut are placed
+in the restored archive; their five own-prefix image events qualify through the
 actual restored evidence adapter. Closed-image bytes remain unchanged, confirmed
 effects retain false causal/provider-CAS claims and the unproven physical hold.
 
@@ -171,3 +198,11 @@ control, restore/reopen, recovered execution or real provider/account/credential
 grant/deployment/money action runs. File sync success is not a crash qualification.
 Private input manifests, source archives, actual packets and validation logs stay
 outside Git; no optional repeated hosted CI or manual reviewer is requested.
+
+
+The original `ea510dbc0f796d79122c48edbf8ddab4cc679d0e` implementation and its
+verified one-commit bundle remain preserved outside the resumed delta. This
+successor explicitly completes PR78 comments 6040104469 and 6040972234 rather
+than asking the dispatcher to serialize pre-admission data or enforce the only
+encoding bound after allocation. Final compilation and selected healthy evidence
+are recorded against the exact resumed source outside Git.

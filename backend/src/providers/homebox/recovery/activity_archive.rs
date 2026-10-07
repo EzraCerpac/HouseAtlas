@@ -1,6 +1,6 @@
 //! Bounded original-owner persistence. Decoded data never revives a producer.
 use super::{
-    NativeWriterContracts,
+    NativeWriterContracts, activity_archive_encoding,
     activity_archive_rows::*,
     activity_capture::*,
     activity_validation::{self, ActivityEventView},
@@ -33,21 +33,60 @@ impl NativeActivityArchivePacket {
     pub fn encode<P: s::StockActivityPrincipal>(
         contracts: &NativeWriterContracts,
         retained: &RetainedNativeStockActivity<P>,
+        max_frame_bytes: usize,
     ) -> s::Result<Self> {
         retained.archive_ready()?;
-        let record = retained.producer().record();
-        if record.events().len() > MAX_NATIVE_ACTIVITY_ARCHIVE_EVENTS
-            || retained.native_events().len() > MAX_NATIVE_ACTIVITY_ARCHIVE_EVENTS
+        Self::encode_source(
+            contracts,
+            retained.producer(),
+            retained.native_events(),
+            max_frame_bytes,
+        )
+    }
+    /// Encode genuine original-session waiting metadata before admission.
+    /// Neither a native capture nor an invocation permit is fabricated.
+    pub fn encode_producer<P: s::StockActivityPrincipal>(
+        contracts: &NativeWriterContracts,
+        producer: &s::StockActivityProducer<P>,
+        max_frame_bytes: usize,
+    ) -> s::Result<Self> {
+        let record = producer.record();
+        if record.permit().is_some()
+            || record.body_accepted()
+            || record.physical_hold()
+            || record.events().iter().any(|event| {
+                !matches!(
+                    event.facts(),
+                    s::StockActivityEventFacts::Reserve | s::StockActivityEventFacts::Queued
+                )
+            })
+            || !matches!(
+                record.operation().outcome.state,
+                n::OutcomeState::Prepared | n::OutcomeState::Queued
+            )
         {
             return Err(incompatible());
         }
-        activity_validation::validate_prefix(
-            contracts,
-            record,
-            record.events(),
-            retained.native_events(),
-        )?;
-        let principal = retained.producer().original().original_activity_principal();
+        Self::encode_source(contracts, producer, &[], max_frame_bytes)
+    }
+    fn encode_source<P: s::StockActivityPrincipal>(
+        contracts: &NativeWriterContracts,
+        producer: &s::StockActivityProducer<P>,
+        native: &[RetainedStockNativeEvent],
+        max_frame_bytes: usize,
+    ) -> s::Result<Self> {
+        let record = producer.record();
+        if record.events().len() > MAX_NATIVE_ACTIVITY_ARCHIVE_EVENTS
+            || native.len() > MAX_NATIVE_ACTIVITY_ARCHIVE_EVENTS
+        {
+            return Err(incompatible());
+        }
+        let limit = max_frame_bytes.min(MAX_NATIVE_ACTIVITY_ARCHIVE_BYTES);
+        // Bound borrowed variable data before peer encoders or validation clone
+        // it. The actual output is then streamed through the same caller limit.
+        activity_archive_encoding::check_source_size(record, native, limit)?;
+        activity_validation::validate_prefix(contracts, record, record.events(), native)?;
+        let principal = producer.original().original_activity_principal();
         if principal.actor_id().as_str() != record.original().actor_id.to_string()
             || principal.scope().workspace_id.as_str()
                 != record.original().command.context.workspace_id.to_string()
@@ -56,41 +95,14 @@ impl NativeActivityArchivePacket {
         {
             return Err(incompatible());
         }
-        let row = PacketRow {
-            format: ACTIVITY_NATIVE_ARCHIVE_CODEC_V4.into(),
-            writer_commit: super::WRITER_COMMIT.into(),
-            storage_commit: ACTIVITY_ARCHIVE_STORAGE_COMMIT.into(),
-            registration: record.registration().into(),
-            original: peer::encode_operation(record.original())?,
-            operation: peer::encode_operation(record.operation())?,
-            permit: record.permit().map(peer::encode_permit).transpose()?,
-            body_accepted: record.body_accepted(),
-            physical_hold: record.physical_hold(),
-            events: record
-                .events()
-                .iter()
-                .map(|v| {
-                    Ok(EventRow {
-                        sequence: v.sequence(),
-                        operation: peer::encode_operation(v.operation())?,
-                        facts: FactRow::encode(v.facts())?,
-                    })
-                })
-                .collect::<s::Result<_>>()?,
-            native: retained
-                .native_events()
-                .iter()
-                .map(NativeRow::encode)
-                .collect::<s::Result<_>>()?,
-        };
-        let bytes = encode_bounded(&row)?;
+        let bytes = activity_archive_encoding::encode_record(record, native, limit)?;
         let cut = decode_data(contracts, &bytes)?;
         // Accepted peer codecs are exact-roundtrip checked as well as the outer
         // closed packet. Compare every typed field against the actual source.
-        if !cut.matches_record(record) || cut.native.len() != retained.native_events().len() {
+        if !cut.matches_record(record) || cut.native.len() != native.len() {
             return Err(incompatible());
         }
-        for (restored, original) in cut.native.iter().zip(retained.native_events()) {
+        for (restored, original) in cut.native.iter().zip(native) {
             if NativeRow::encode(restored)? != NativeRow::encode(original)? {
                 return Err(incompatible());
             }
@@ -339,28 +351,4 @@ impl<'a, A: NativeActivityArchiveReadAuthorization> RestoredNativeActivityArchiv
             .find(|r| r.cut.operation.operation_id == operation_id)
             .ok_or_else(unavailable)
     }
-}
-
-fn encode_bounded(row: &PacketRow) -> s::Result<Vec<u8>> {
-    struct Bounded(Vec<u8>);
-    impl std::io::Write for Bounded {
-        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-            if self
-                .0
-                .len()
-                .checked_add(bytes.len())
-                .is_none_or(|size| size > MAX_NATIVE_ACTIVITY_ARCHIVE_BYTES)
-            {
-                return Err(std::io::Error::other("native activity archive limit"));
-            }
-            self.0.extend_from_slice(bytes);
-            Ok(bytes.len())
-        }
-        fn flush(&mut self) -> std::io::Result<()> {
-            Ok(())
-        }
-    }
-    let mut buffer = Bounded(Vec::new());
-    serde_json::to_writer(&mut buffer, row).map_err(|_| incompatible())?;
-    Ok(buffer.0)
 }

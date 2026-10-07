@@ -1,6 +1,7 @@
 //! Retained accepted stock-writer facts, never recovery or invocation authority.
 mod activity_adapter;
 mod activity_archive;
+mod activity_archive_encoding;
 mod activity_archive_rows;
 mod activity_capture;
 mod activity_restored_adapter;
