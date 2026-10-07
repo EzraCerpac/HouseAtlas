@@ -2,11 +2,12 @@
 //! Resolution, measured-byte verification and authorization stay with owners.
 
 use super::{
-    AtlasCommandPlan, OperationId, StockError, StockResult, ValidatedRequest, canonical_digest,
-    plan_atlas_commands,
+    AtlasCommandPlan, MeasuredAttachmentOriginal, OperationId, StockError, StockResult,
+    ValidatedRequest, canonical_digest, plan_atlas_commands,
 };
 use crate::{
-    media::{types::Scope as MediaScope, vault::PreparedOriginal},
+    access::Principal,
+    media::types::{AssetPurpose, Scope as MediaScope},
     storage::{Contract, ExistingOriginalAsset, Lifecycle, Record, RecordType},
 };
 use serde_json::{Value, json};
@@ -15,7 +16,7 @@ use serde_json::{Value, json};
 /// measured original. Neither carrier grants attachment authority.
 pub struct ExistingAssetAttachmentPlan<'a> {
     asset: &'a ExistingOriginalAsset,
-    measured: &'a PreparedOriginal,
+    measured: &'a MeasuredAttachmentOriginal,
     plan: AtlasCommandPlan,
 }
 
@@ -24,7 +25,7 @@ impl ExistingAssetAttachmentPlan<'_> {
         self.asset
     }
 
-    pub fn measured(&self) -> &PreparedOriginal {
+    pub fn measured(&self) -> &MeasuredAttachmentOriginal {
         self.measured
     }
 
@@ -40,11 +41,21 @@ impl ExistingAssetAttachmentPlan<'_> {
 /// or asset provenance update is emitted. The native owner rechecks all guards,
 /// current availability, graph membership, audits and result authorization.
 pub fn plan_existing_asset_attachment<'a>(
+    principal: &Principal,
     root: &ValidatedRequest,
     asset: &'a ExistingOriginalAsset,
-    measured: &'a PreparedOriginal,
+    measured: &'a MeasuredAttachmentOriginal,
     native: &impl Contract,
 ) -> StockResult<ExistingAssetAttachmentPlan<'a>> {
+    if !std::ptr::eq(principal, measured.original_principal().principal())
+        || principal.scope().workspace_id.as_str() != root.context().workspace_id
+        || principal.scope().home_id.as_str() != root.context().home_id
+        || root.raw()["requestId"] != measured.request_id()
+        || root.raw()["idempotencyKey"] != measured.idempotency_key()
+    {
+        return Err(StockError::AuthorityChanged);
+    }
+    let prepared = measured.prepared();
     let record = asset.record();
     native
         .validate_shape(
@@ -63,7 +74,7 @@ pub fn plan_existing_asset_attachment<'a>(
         home_id: root.context().home_id.clone(),
     };
     let key = scope
-        .storage_key(&measured.identity.sha256)
+        .storage_key(&prepared.identity.sha256)
         .map_err(|_| StockError::InvalidContract)?;
     if record.record_type != RecordType::Asset
         || record.lifecycle != Lifecycle::Active
@@ -71,19 +82,14 @@ pub fn plan_existing_asset_attachment<'a>(
         || record.home_id != scope.home_id
         || record.payload["owner"] != "atlas"
         || record.payload["availability"] != "available"
-        || !matches!(
-            record.payload["purpose"].as_str(),
-            Some("evidence-original" | "geometry-original")
-        )
-        || !measured.purpose.is_original()
-        || record.payload["purpose"]
-            != serde_json::to_value(measured.purpose).map_err(|_| StockError::OwnerUnavailable)?
-        || measured.storage_key != key
+        || record.payload["purpose"] != "evidence-original"
+        || prepared.purpose != AssetPurpose::EvidenceOriginal
+        || prepared.storage_key != key
         || record.payload["storageKey"] != key
-        || record.payload["sha256"] != measured.identity.sha256
+        || record.payload["sha256"] != prepared.identity.sha256
         || canonical_digest(&record.payload["byteSize"])?
-            != canonical_digest(&json!(measured.identity.byte_size))?
-        || record.payload["contentType"] != measured.content_type.as_str()
+            != canonical_digest(&json!(prepared.identity.byte_size))?
+        || record.payload["contentType"] != prepared.content_type.as_str()
     {
         return Err(StockError::CorrelationMismatch);
     }

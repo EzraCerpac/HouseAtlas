@@ -121,8 +121,12 @@ pub(super) async fn command(
             let mut access = core.access.lock().map_err(|_| unavailable())?;
             principal.release(&access).map_err(access_error)?;
             access.with_mutation_authorization::<super::HttpFailure>(principal.principal.principal(), |guard| {
-                measured = Some(stages.prepare_original_for_resolution(
-                    guard, principal.principal.retained(), &admission,
+                measured = Some(st::measure_attachment_original(
+                    st::AttachmentIntakeIdentity {
+                        request_id: &input.metadata.request_id,
+                        idempotency_key: &input.metadata.idempotency_key,
+                    },
+                    &stages, guard, principal.principal.retained(), &admission,
                     &mut input.bytes.as_slice(), &budget).map_err(media_error)?);
                 Ok(())
             })?;
@@ -134,7 +138,7 @@ pub(super) async fn command(
         };
         let existing = core.store.lock().map_err(|_| unavailable())?
             .resolve_original_asset_with_authorization(
-                &crate::app::ReadAuthority(core.access.clone()), &principal, &store_scope, &measured)
+                &crate::app::ReadAuthority(core.access.clone()), &principal, &store_scope, measured.prepared())
             .map_err(|error| stock_reads::http_error(st::StockError::Domain(crate::app::storage_error(error))))?;
         if let Some(asset) = existing {
             let plan = upload_batch::plan_existing_upload_batch(

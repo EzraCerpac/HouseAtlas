@@ -559,7 +559,7 @@ pub(super) fn execute_existing(
     selection: &super::qualified_upload_plan::ResolvedPlace<'_, '_>,
     raw: Value,
     asset: &s::ExistingOriginalAsset,
-    measured: &crate::media::vault::PreparedOriginal,
+    measured: &crate::domain::stock::MeasuredAttachmentOriginal,
     contracts: &st::NativeStockContract,
 ) -> st::StockResult<st::OwnerResult> {
     let request = st::ValidatedRequest::parse(contracts, raw.clone())?;
