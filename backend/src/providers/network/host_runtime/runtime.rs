@@ -172,7 +172,7 @@ impl HostNetworkRuntime {
                     let projected = n::stage_complete_generation(
                         self.settings.source(),
                         *proposal,
-                        &mut sidecar,
+                        &mut *sidecar,
                     );
                     let projected = match projected {
                         Ok(staged) => staged,
