@@ -42,6 +42,9 @@ fn execute_qualified(
     }
     if request.is_mutation() {
         super::super::stock_mutations::execute_raw(core, principal, raw, &contracts)
+    } else if super::super::providers::homebox_stock::CACHED_READ_OPERATIONS.contains(&request.id())
+    {
+        super::super::providers::homebox_stock::execute(core, principal, raw)
     } else {
         super::super::stock_reads::execute_raw_qualified(core, principal, raw, &contracts, handles)
     }

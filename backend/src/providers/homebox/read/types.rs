@@ -332,6 +332,13 @@ impl PreviousGeneration {
             quarantine,
         }
     }
+    /// Validates retained state for a scoped read; grants no authority or refresh.
+    pub fn from_retained(
+        state: crate::storage::CachePublicationState,
+        scope: &SourceScope,
+    ) -> Result<Self, super::PublishError> {
+        super::retained::previous(state, scope)
+    }
     pub fn cache(&self) -> &CacheStatus {
         &self.cache
     }

@@ -3,7 +3,7 @@ use crate::{access, contracts::stock as wire};
 
 pub fn reads() -> Vec<wire::OperationId> {
     use wire::OperationId::*;
-    vec![
+    let mut reads = vec![
         AtlasIdentityList,
         AtlasBindingList,
         AtlasEvidenceList,
@@ -34,7 +34,13 @@ pub fn reads() -> Vec<wire::OperationId> {
         AtlasGeometryHistory,
         AtlasAssetHistory,
         AtlasReconciliationHistory,
-    ]
+    ];
+    reads.extend(
+        super::super::providers::homebox_stock::CACHED_READ_OPERATIONS
+            .iter()
+            .filter_map(|id| wire::OperationId::parse(id.as_str())),
+    );
+    reads
 }
 pub fn admitted(principal: &access::Principal) -> Vec<wire::OperationId> {
     let mut operations = reads();
