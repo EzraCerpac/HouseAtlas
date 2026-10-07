@@ -14,8 +14,9 @@ use rusqlite::Connection;
 use serde_json::Value;
 use std::collections::BTreeSet;
 
-enum Qualification<'a> {
+pub(super) enum Qualification<'a, 'g> {
     Direct,
+    VerifiedReview(&'a AssetReviewCommitPeers<'a, 'g>),
     Staged(&'a crate::media::staged_upload::StagedAssetPlan),
     Derived(&'a AtlasDerivation),
     DerivedBatch(&'a [Option<AtlasDerivation>]),
@@ -155,20 +156,21 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         )
     }
 
-    fn execute_stock_plan<B: StockAuthorization, S: StockContractPort>(
+    pub(super) fn execute_stock_plan<B: StockAuthorization, S: StockContractPort>(
         &mut self,
         authorization: &B,
         principal: &B::Principal,
         contracts: &S,
         request: &ValidatedRequest,
         plan: &AtlasCommandPlan,
-        qualification: Qualification<'_>,
+        qualification: Qualification<'_, '_>,
     ) -> Result<StockAtlasCommit> {
-        let (staged, derivation, child_derivations) = match qualification {
-            Qualification::Direct => (None, None, None),
-            Qualification::Staged(staged) => (Some(staged), None, None),
-            Qualification::Derived(derivation) => (None, Some(derivation), None),
-            Qualification::DerivedBatch(derivations) => (None, None, Some(derivations)),
+        let (staged, derivation, child_derivations, review) = match qualification {
+            Qualification::Direct => (None, None, None, None),
+            Qualification::VerifiedReview(peers) => (None, None, None, Some(peers)),
+            Qualification::Staged(staged) => (Some(staged), None, None, None),
+            Qualification::Derived(derivation) => (None, Some(derivation), None, None),
+            Qualification::DerivedBatch(derivations) => (None, None, Some(derivations), None),
         };
         let entries = plan
             .groups()
@@ -195,6 +197,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             staged,
             derivation,
             child_derivations,
+            review,
             entries: &entries,
             batch: batch.as_ref(),
             commit: None,
@@ -216,7 +219,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         extension.commit.ok_or_else(stock_repo::incompatible)
     }
 }
-struct StockTransaction<'a, C, B: Authorization, R, S> {
+struct StockTransaction<'a, 'g, C, B: Authorization, R, S> {
     contract: &'a C,
     authorization: &'a B,
     principal: &'a B::Principal,
@@ -227,12 +230,13 @@ struct StockTransaction<'a, C, B: Authorization, R, S> {
     staged: Option<&'a crate::media::staged_upload::StagedAssetPlan>,
     derivation: Option<&'a AtlasDerivation>,
     child_derivations: Option<&'a [Option<AtlasDerivation>]>,
+    review: Option<&'a AssetReviewCommitPeers<'a, 'g>>,
     entries: &'a [MutationEntry],
     batch: Option<&'a BatchMutation>,
     commit: Option<StockAtlasCommit>,
 }
 impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort>
-    StockTransaction<'_, C, B, R, S>
+    StockTransaction<'_, '_, C, B, R, S>
 {
     fn project(&self, commit: &StockAtlasCommit) -> Result<stock::OwnerResult> {
         super::super::stock_projection::project(
@@ -257,7 +261,7 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort>
     }
 }
 impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> CommandExtension
-    for StockTransaction<'_, C, B, R, S>
+    for StockTransaction<'_, '_, C, B, R, S>
 {
     fn stock(&self) -> bool {
         true
@@ -270,6 +274,18 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
         replay: Option<&Replay>,
         actor: &VerifiedActor,
     ) -> Result<()> {
+        if self.review.is_some() {
+            if matches!(
+                facts.phase,
+                MutationPhase::Replay | MutationPhase::ReplayPrecommit
+            ) || replay.is_some()
+            {
+                return Err(Error::new(
+                    "upstream-unavailable",
+                    "Renderer review replay is held",
+                ));
+            }
+        }
         let extra = self
             .plan
             .root_guards()
@@ -301,6 +317,11 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
                 "Verified stock principal changed during transaction",
             ));
         }
+        if let Some(review) = self.review
+            && facts.phase == MutationPhase::Precommit
+        {
+            review.validate_original(self.contract, original)?;
+        }
         Ok(())
     }
     fn admit(
@@ -328,6 +349,12 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
         if let Some((id, ordinal)) =
             stock_repo::key(db, scope, &actor.actor_id, self.plan.root_idempotency_key())?
         {
+            if self.review.is_some() {
+                return Err(Error::new(
+                    "upstream-unavailable",
+                    "Renderer review replay is held",
+                ));
+            }
             if ordinal.is_some() {
                 return Err(stock_repo::conflict());
             }
@@ -335,6 +362,12 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
                 return Err(stock_repo::incompatible());
             }
             let mut commit = stock_repo::load(db, self.contract, scope, &actor.actor_id, &id)?;
+            if commit.asset_review.is_some() {
+                return Err(Error::new(
+                    "upstream-unavailable",
+                    "Renderer review replay is held",
+                ));
+            }
             if commit.request_digest != self.plan.request_digest() {
                 return Err(stock_repo::conflict());
             }
@@ -412,6 +445,9 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
         Ok(None)
     }
     fn validate_original(&self, original: &Snapshot) -> Result<()> {
+        if let Some(review) = self.review {
+            review.validate_original(self.contract, original)?;
+        }
         if let Some(derivation) = self.derivation {
             super::super::stock_derivation::validate_original(
                 self.contract,
@@ -529,12 +565,25 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
             derivation_format: None,
             derivation: None,
             child_derivations: None,
+            asset_review: None,
             wire: Value::Null,
             children: Vec::new(),
         };
         commit.set_derivation(self.derivation.cloned());
         if let Some(derivations) = self.child_derivations {
             commit.set_child_derivations(derivations);
+        }
+        if let Some(review) = self.review {
+            commit.derivation_format = Some(ATLAS_VERIFIED_ASSET_REVIEW_FORMAT.into());
+            commit.derivation = Some(review.bound.derivation().clone());
+            commit.asset_review = Some(review.bound.retained_facts().clone());
+        }
+        if self.review.is_some() {
+            super::super::stock_derivation::validate_retained_preimage(
+                &commit,
+                self.contracts,
+                self.contract,
+            )?;
         }
         let output = self.project(&commit)?;
         commit.wire = output.wire;
