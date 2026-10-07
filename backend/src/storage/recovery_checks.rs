@@ -242,6 +242,14 @@ pub(super) fn validate_connection<C: Contract>(
     check: Check<'_>,
 ) -> Result<RecoveryImage> {
     let image = validate_core(db, contract, check)?;
+    // This compatibility API has no independent Media evidence owner. Full
+    // peers are required for inline policy, including assets without uploads.
+    if image.assets.iter().any(safe_rendered) {
+        return Err(Error::new(
+            "owner-unavailable",
+            "Media policy recovery requires its independent evidence peer",
+        ));
+    }
     // These exact AT12 signatures have no required StockContractPort. Do not
     // certify nonempty stock envelopes/wire/cursor state using native C alone.
     // Native-only upgraded v2 databases legitimately have an empty journal.
@@ -267,6 +275,23 @@ pub(super) fn validate_connection<C: Contract>(
     Ok(image)
 }
 
+fn safe_rendered(asset: &Record) -> bool {
+    asset.payload["previewPolicy"] == "safe-rendered"
+}
+
+fn validate_media_policies<E: QueueRecoveryEvidence>(
+    image: &RecoveryImage,
+    evidence: &E,
+    check: Check<'_>,
+) -> Result<()> {
+    for asset in image.assets.iter().filter(|asset| safe_rendered(asset)) {
+        check()?;
+        evidence.validate_media_policy(MediaPolicyRecoveryFrame::Asset(asset))?;
+        check()?;
+    }
+    Ok(())
+}
+
 pub(super) fn validate_connection_with_peers<
     C: Contract,
     S: crate::domain::stock::StockContractPort,
@@ -279,7 +304,14 @@ pub(super) fn validate_connection_with_peers<
     check: Check<'_>,
 ) -> Result<RecoveryImage> {
     let image = validate_core(db, contract, check)?;
-    super::super::super::stock_recovery::validate(db, contract, peers.stock, check)?;
+    super::super::super::stock_recovery::validate(
+        db,
+        contract,
+        peers.stock,
+        peers.evidence,
+        check,
+    )?;
+    validate_media_policies(&image, peers.evidence, check)?;
     check()?;
     super::super::super::queue::validate_recovery_queues(
         db,
@@ -309,7 +341,8 @@ pub(super) fn validate_connection_with_activity_peers<
     check: Check<'_>,
 ) -> Result<RecoveryImage> {
     let image = validate_core_profile(db, contract, check, true)?;
-    super::super::super::stock_recovery::validate(db, contract, base.stock, check)?;
+    super::super::super::stock_recovery::validate(db, contract, base.stock, base.evidence, check)?;
+    validate_media_policies(&image, base.evidence, check)?;
     check()?;
     // Independent Jobs rows keep their own registry, codecs and original claims.
     // They are never used as native activity producer/attempt evidence.

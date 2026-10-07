@@ -83,11 +83,15 @@ fn guard(record_type: &str, record: &str) -> Value {
 #[derive(Clone)]
 struct ServerIds(Rc<Cell<u32>>);
 
-// This independently configured fixture has no Jobs lane. Exhaustive image
-// validation checks that the registry is empty; these evidence ports cannot
-// qualify any job, attempt, grant or resumed invocation.
-struct NoQueueEvidence;
-impl s::QueueDiscovery for NoQueueEvidence {
+// Independent original Media object and commit, kept before any image exists.
+// It qualifies this one original render only. The configured Jobs lane is empty;
+// these ports cannot qualify any job, grant or resumed invocation.
+struct OriginalMediaEvidence<'a> {
+    stage: &'a m::staged_upload::StagedAssetPlan,
+    commit: &'a s::StockAtlasCommit,
+    policy_checks: Cell<usize>,
+}
+impl s::QueueDiscovery for OriginalMediaEvidence<'_> {
     fn authorize_discovery(&self, _: &j::QueueRegistration) -> s::Result<()> {
         Err(s::Error::new(
             "owner-unavailable",
@@ -107,7 +111,7 @@ impl s::QueueDiscovery for NoQueueEvidence {
         ))
     }
 }
-impl s::QueueRecoveryEvidence for NoQueueEvidence {
+impl s::QueueRecoveryEvidence for OriginalMediaEvidence<'_> {
     fn validate_attempt(
         &self,
         _: &j::QueueConfig,
@@ -117,6 +121,57 @@ impl s::QueueRecoveryEvidence for NoQueueEvidence {
             "owner-unavailable",
             "No Jobs owner in upload fixture",
         ))
+    }
+    fn validate_media_policy(&self, frame: s::MediaPolicyRecoveryFrame<'_>) -> s::Result<()> {
+        let principal = self.stage.original_principal().principal();
+        let expected = serde_json::to_value(self.stage.payload())?;
+        let matches = match frame {
+            s::MediaPolicyRecoveryFrame::Asset(asset) => {
+                asset.record_type == s::RecordType::Asset
+                    && asset.record_id == self.stage.asset_id()
+                    && asset.workspace_id == principal.scope().workspace_id.as_str()
+                    && asset.home_id == principal.scope().home_id.as_str()
+                    && [
+                        "owner",
+                        "purpose",
+                        "storageKey",
+                        "sha256",
+                        "byteSize",
+                        "contentType",
+                        "previewPolicy",
+                    ]
+                    .iter()
+                    .all(|field| asset.payload[field] == expected[field])
+            }
+            s::MediaPolicyRecoveryFrame::Upload(upload) => {
+                let group = self.commit.groups.first().ok_or_else(|| {
+                    s::Error::new("owner-unavailable", "Original native upload commit missing")
+                })?;
+                let native = group.native_results.first().ok_or_else(|| {
+                    s::Error::new("owner-unavailable", "Original native upload result missing")
+                })?;
+                upload.binding_digest() == self.stage.binding_digest()
+                    && upload.asset_id() == self.stage.asset_id()
+                    && upload.actor_id() == principal.actor_id().as_str()
+                    && upload.scope().workspace_id == principal.scope().workspace_id.as_str()
+                    && upload.scope().home_id == principal.scope().home_id.as_str()
+                    && upload.asset_request() == self.stage.request().raw()
+                    && upload.staged() == self.stage.staged()
+                    && upload.asset_payload() == &expected
+                    && upload.root_operation_id() == self.commit.operation_id
+                    && upload.group_ordinal() == 0
+                    && upload.group_operation_id() == group.operation_id
+                    && upload.asset_audit_id() == native.audit.audit_id
+            }
+        };
+        if self.stage.payload().preview_policy != PreviewPolicy::SafeRendered || !matches {
+            return Err(s::Error::new(
+                "owner-unavailable",
+                "Original Media qualification missing",
+            ));
+        }
+        self.policy_checks.set(self.policy_checks.get() + 1);
+        Ok(())
     }
 }
 impl s::Runtime for ServerIds {
@@ -799,10 +854,11 @@ fn main() -> Check {
             staged.binding_digest().to_owned(),
             commit,
             validated_asset.intent_digest().to_owned(),
+            staged,
         ));
         Ok(())
     })?;
-    let (receipt, binding_digest, commit, asset_digest) =
+    let (receipt, binding_digest, commit, asset_digest, original_stage) =
         saved.ok_or("Committed upload missing")?;
 
     // Observe committed artifacts only after the writer has closed. The one
@@ -1017,12 +1073,16 @@ fn main() -> Check {
     assert!(snapshot.records.iter().any(|row| row.record_id == id(200)
         && row.revision == 2
         && row.payload["evidenceIds"] == json!([id(100), id(200_020)])));
-    let no_queue = NoQueueEvidence;
+    let media_evidence = OriginalMediaEvidence {
+        stage: &original_stage,
+        commit: &commit,
+        policy_checks: Cell::new(0),
+    };
     let peers = s::RecoveryValidationPeers {
         stock: &schemas,
         queues: &[],
-        discovery: &no_queue,
-        evidence: &no_queue,
+        discovery: &media_evidence,
+        evidence: &media_evidence,
     };
     let mut check = || Ok(());
     let image_path = output.join("recovery.sqlite");
@@ -1069,6 +1129,10 @@ fn main() -> Check {
     );
     assert_eq!(restored_consumed.root_operation_id(), commit.operation_id);
     restored.close()?;
+    assert_eq!(
+        media_evidence.policy_checks.get() > 0,
+        preview_policy == PreviewPolicy::SafeRendered
+    );
     fs::write(
         output.join("healthy-evidence.json"),
         serde_json::to_vec_pretty(&json!({
@@ -1088,6 +1152,8 @@ fn main() -> Check {
             "reopen": "ordinary-original-authorized-reads-pass",
             "fullRecovery": "native-stock-upload-closure-read-only-image-strict-profile5-reopen-pass",
             "recoveryQueueScope": "independent-empty-registry-evidence-unavailable-no-job-callback",
+            "mediaPolicyChecks": media_evidence.policy_checks.get(),
+            "mediaPolicyEvidence": "independent-original-opaque-Media-stage-and-native-commit-only",
             "committedConsumptionLookup":"strict-native-stock-audit-links-pass",
             "existingOriginalResolution":{"assetId":existing.asset_id(),"revision":existing.revision(),"scope":existing.scope(),"provenance":"preserved","retainedBytes":"independently-verified"},
             "heldControls": "deferred-and-unrun"

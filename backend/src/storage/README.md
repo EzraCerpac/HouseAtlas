@@ -1026,3 +1026,25 @@ registry is empty; its fixture evidence ports return unavailable and are not
 called. The wide download-only original requests no preview. Its
 graph authorization is the same explicit synthetic fixture; these examples
 qualify neither production renderer evidence nor stopped controls.
+
+Complete recovery additionally requires independent Media qualification for
+every retained `SafeRendered` asset and original `SafeRendered` upload binding.
+`QueueRecoveryEvidence::validate_media_policy(MediaPolicyRecoveryFrame<'_>)`
+receives borrowed `Asset(&Record)` or `Upload(&ConsumedUpload)` data to match
+against actual original renderer/stage evidence held outside the image. This
+extends the existing full-image native/media codec peer without new generics or
+SQL. Its default returns `owner-unavailable`; it never infers qualification from
+MIME, hashes, correlated receipts or image consistency. The current asset and
+historical upload are both checked, so changing one to download-only cannot
+bypass the other's requirement. Native-only image APIs have no such evidence
+peer and refuse inline-policy certification; full peers are required. Data and
+stored policy are never downgraded or rewritten. Original archived proof that
+is missing stays unavailable.
+
+The rendered-PNG healthy example retains its actual opaque immutable Media
+stage and native commit before any image exists. Those original objects qualify
+both policy frames during backup, detached validation and strict reopening.
+This is independent same-process original evidence, not an authenticated
+production archive/reload implementation. The text and valid wide PNG retain
+download-only policy and invoke no renderer-policy qualifier. No absent-proof,
+policy splice/reversal or other held control is run.

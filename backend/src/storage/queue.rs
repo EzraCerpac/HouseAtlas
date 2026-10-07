@@ -292,6 +292,19 @@ pub struct QueueRecoveryAttempt<'a> {
 pub trait QueueRecoveryEvidence {
     fn validate_attempt(&self, config: &QueueConfig, frame: QueueRecoveryAttempt<'_>)
     -> Result<()>;
+    /// Full-image Media policy qualification, independent of Jobs membership.
+    /// Match actual original renderer/stage provenance to the exact asset or
+    /// original upload binding. Image rows, MIME, hashes, correlated native
+    /// receipts and mirrored DTOs cannot establish renderer qualification.
+    /// Called only for SafeRendered claims, under the same read transaction;
+    /// do not reenter Storage, call a provider or revive grants. Original Media
+    /// evidence owners must fail closed for unknown/missing archived evidence.
+    fn validate_media_policy(&self, _: super::MediaPolicyRecoveryFrame<'_>) -> Result<()> {
+        Err(Error::new(
+            "owner-unavailable",
+            "Independent Media policy evidence is required",
+        ))
+    }
 }
 #[derive(Clone, Debug)]
 pub struct QueueOriginalIntent {
