@@ -1,5 +1,6 @@
 import { StrictMode, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { LanternHost } from "../src/lantern/Host";
 import { SessionApp } from "../src/app/SessionApp";
 import type { StockAdmission } from "../src/app/StockApplication";
 import type { AtlasClient, AtlasView } from "../src/app/types";
@@ -100,6 +101,6 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
   }, []);
   // Keep the concrete editing port stable through view/catalog refreshes.
   // Each place admission and command obtains the actual request authority.
-  return <SessionApp client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission }} {...(ai ? { ai } : {})} />;
+  return <div className="lantern-integration"><SessionApp renderContent={(view, content, actions) => view.status === "ready" ? <LanternHost view={view} actions={actions} nativeContent={content} /> : content} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission }} {...(ai ? { ai } : {})} /></div>;
 }
 createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);

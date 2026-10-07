@@ -25,6 +25,14 @@ import type { AtlasEditingClient } from "./editing";
 import { AiHost, AiActivityStatus } from "../ai/host/index.js";
 import type { AiViewResolver } from "../ai/host/index.js";
 
+export interface AtlasContentActions {
+  reload: () => Promise<boolean>;
+  switchHome: (scope: Scope) => void;
+  busy: boolean;
+  notice: string;
+  session?: SessionSettings;
+  editing?: AtlasEditingClient;
+}
 export interface AtlasAppProps {
   client: AtlasClient;
   /** Optional already authorized server view; never a raw source snapshot. */
@@ -37,7 +45,7 @@ export interface AtlasAppProps {
   onScopeCommit?: (scope: Scope | null) => void;
   editing?: AtlasEditingClient;
   /** Wrap content with its current authorized view during the same render. */
-  renderContent?: (view: AtlasView, content: ReactNode) => ReactNode;
+  renderContent?: (view: AtlasView, content: ReactNode, actions: AtlasContentActions) => ReactNode;
   resolveAi?: AiViewResolver;
 }
 export const accessEventName = "atlas-access-invalidated";
@@ -359,7 +367,7 @@ export function App({
           : null
       }
     >
-      {renderContent ? renderContent(view, content) : content}
+      {renderContent ? renderContent(view, content, { reload: () => read(view.status === "ready" ? view.scope : undefined), switchHome, busy, notice, ...(session ? { session } : {}), ...(editing ? { editing } : {}) }) : content}
     </AiHost>
   );
 }

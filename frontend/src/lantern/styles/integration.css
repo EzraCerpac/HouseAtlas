@@ -1,0 +1,24 @@
+/* Adapter states inherit Lantern materials; original authored layout stays intact. */
+.lantern-host .source-details { padding: 0 24px 24px; }
+.lantern-host code, .lantern-host .url { overflow-wrap: anywhere; word-break: break-word; }
+.lantern-host .authorized-preview { max-width: 100%; max-height: 65vh; object-fit: contain; }
+.lantern-host .source-details .place-editor { margin-top: 20px; }
+.lantern-host .source-details input, .lantern-host .source-details select, .lantern-host .source-details textarea { max-width: 100%; }
+.lantern-integration .lantern-reload-notice { position: fixed; bottom: 72px; left: 24px; max-width: calc(100vw - 48px); padding: 12px; background: #fcfbf8; z-index: 70; }
+.lantern-integration .stock-completion { position: fixed; left: 24px; bottom: 24px; max-width: calc(100vw - 48px); max-height: 45vh; overflow: auto; z-index: 90; }
+.lantern-integration .native-actions-panel { position: fixed; inset: 10px; z-index: 85; overflow: auto; background: #fcfbf8; padding: 24px; box-shadow: 0 40px 90px -30px rgba(30,38,56,.45); }
+.lantern-integration .native-actions-panel[hidden] { display: none; }
+.lantern-integration .native-actions-panel > button { position: sticky; top: 0; z-index: 1; }
+
+/* Source home/cache labels have unbounded lengths; keep all shell controls reachable. */
+.lantern-host .topbar > button { flex-shrink: 0; }
+.lantern-host .topbar .house-btn { min-width: 0; flex-shrink: 1; max-width: 240px; }
+.lantern-host .house-name { overflow: hidden; text-overflow: ellipsis; }
+.lantern-host .topbar .search-trigger { min-width: 44px; flex-shrink: 1; }
+.lantern-host .topbar .sync-chip { min-width: 32px; max-width: 260px; flex-shrink: 1; }
+.lantern-host .sync-text { overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 759px) {
+  .lantern-host .topbar .house-btn { max-width: 128px; }
+}
+
+.lantern-host .sources dd code { display: block; margin-top: 4px; }

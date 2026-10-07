@@ -35,6 +35,7 @@ export interface SessionAppProps {
   stock?: StockApplicationPorts;
   editing?: AtlasEditingClient;
   ai?: AiApplicationPort;
+  renderContent?: AtlasAppProps["renderContent"];
 }
 /** Optional application-auth shell. It does not provision accounts, grant home
  * membership or authorize a source. Protected browsing is still owned by App. */
@@ -45,6 +46,7 @@ export function SessionApp({
   stock,
   editing,
   ai,
+  renderContent,
 }: SessionAppProps) {
   const [state, setState] = useState<SessionState>({ status: "loading" });
   const generation = useRef(0),
@@ -123,17 +125,17 @@ export function SessionApp({
           ...(sessions.signOut ? { signOut: () => void signOut() } : {}),
         }}
         {...(accessEvents ? { accessEvents } : {})}
-        {...(stock
+        {...((stock || renderContent)
           ? ({
-              renderContent: (view, content) => (
+              renderContent: (view, content, actions) => stock ? (
                 <StockApplication
                   session={state.info}
                   ports={stock}
                   view={view}
                 >
-                  {content}
+                  {renderContent ? renderContent(view, content, actions) : content}
                 </StockApplication>
-              ),
+              ) : renderContent!(view, content, actions),
             } satisfies Pick<AtlasAppProps, "renderContent">)
           : {})}
         {...(editing ? { editing } : {})}
