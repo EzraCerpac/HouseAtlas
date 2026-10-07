@@ -1,6 +1,6 @@
 {
   "format": "houseatlas-publication-source/1",
-  "status": "development-browser-diagnostic-exact-candidate-review-required",
+  "status": "development-browser-read-diagnostic-exact-candidate-review-required",
   "self": {
     "path": "docs/publication/source-manifest.json",
     "mode": "100644",
@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "292c13aebd4e943886c8f4f72cefa40cce6ec6d4303f934b7b8a7ce7a930f072",
+  "sourceDigestSha256": "cdd018f35e2a27b3198f595066d5beffde2e21bc07e0800e90cac4a993c91a87",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -36,6 +36,13 @@
       "mode": "100644",
       "bytes": 1217,
       "sha256": "7ad9e0c60ef68c2db67fe50ac61836fb8a2da0dfd51e535ff997a9386b4bebd4",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".github/workflows/rust-browser-read-diagnostic.yml",
+      "mode": "100644",
+      "bytes": 2214,
+      "sha256": "8c8bdd1456fd12d3635c6a4308d61dfb21404e9ec169f0a673988683992ff89d",
       "owner": "core-integration"
     },
     {
@@ -3431,6 +3438,13 @@
       "mode": "100644",
       "bytes": 25002,
       "sha256": "ad75abd29ee9ea52321cb04ab7fa1576dafd21b8d2edec416d2da54f64bb613d",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/rust-integration/healthy-read-startup-diagnostic.mjs",
+      "mode": "100644",
+      "bytes": 13634,
+      "sha256": "763af2b29ca26414fd423f75e09671bc4c2e8e465dcdfd933933a825300fc46e",
       "owner": "core-integration"
     },
     {
