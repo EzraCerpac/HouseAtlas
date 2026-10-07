@@ -5,7 +5,7 @@ use serde_json::Value;
 
 /// Deserialized only after actual frozen request validation. Cursor spelling,
 /// omission and query text remain unchanged in the original prepared request.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ListQuery {
     pub cursor: Option<String>,
@@ -26,7 +26,7 @@ pub enum QueryView {
     Maintenance,
     BarcodeProduct,
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FeatureQuery {
     Export {
         format: String,
@@ -71,7 +71,7 @@ impl FeatureQuery {
         matches!(self, Self::Label { .. }).then_some(("print", "false"))
     }
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ReadSelection {
     Resources {
         operation: OperationId,

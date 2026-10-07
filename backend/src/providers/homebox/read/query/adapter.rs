@@ -86,7 +86,7 @@ fn scope_matches(
     }
     Ok(())
 }
-fn envelope(
+pub(super) fn envelope(
     request: &st::ValidatedRequest,
     query: &HomeBoxReadQuery,
     read: HomeBoxReadResult,
