@@ -23,9 +23,16 @@ bounded, and never included in DTOs or errors.
 The client accepts HTTP/1 JSON with identity content encoding. Connect, read-idle,
 and total time limits are bounded by trusted configuration; total time is at
 most 60 seconds and body bytes at most 10 MiB. Each chunk is checked before
-copying into the retained buffer. An explicit cancellation token or dropped
-refresh future drops the in-flight application future; no detached refresh
-publishes later. Real target DNS/TLS/cancellation qualification remains deferred.
+copying into the retained buffer. One monotonic absolute deadline is checked
+before and after synchronous authority callbacks, including the callback after
+EOF, and again before returning the transport result. Tokio's wait uses that
+same deadline. Authority callbacks must be bounded/nonblocking: no file/network
+I/O or unbounded lock waits. Synchronous callbacks cannot be preempted; an expired
+callback result is rejected when it returns. An explicit cancellation token or
+dropped refresh future drops the in-flight application future; no detached
+refresh publishes later. Physical DNS termination and real target TLS/cancellation
+qualification remain deferred. A 401/403 inventory status is classified as Auth
+before Location/redirect response checks; no redirect is followed.
 The component opens no application listener and performs no login, snapshot,
 ARP, collector demand, diagnostics or upstream writes.
 `project_capture` validates a complete inventory and revision-pinned `LinkReview`
@@ -73,6 +80,7 @@ rollback and concurrent behavior are coded but their stopped controls are unrun.
 | Original current authority | `NetworkReadAuthority` and its opaque associated `Lease` |
 | Durable immutable rows | `DurableNetworkSidecar`, native `SqliteNetworkSidecar`, opaque `DurableNetworkReceipt` |
 | Consuming host publication | `refresh_network`, `NetworkCachePublisher<Lease>`, `NetworkPublicationFence`, `StagedNetworkPublication<Receipt>` |
+| Retained failure proposal | `NetworkPublicationOutcome<Receipt, Fence, Lease>::SourceFailure(PendingNetworkFailure)`; no metadata write |
 
 Preparation makes one GET and creates a complete proposal without changing
 `prior` or publishing a cache pointer. The proposal includes the expected prior
@@ -121,8 +129,11 @@ projects and authorizes a complete generation, durably stages it, and consumes
 the original fence plus a sealed staged proposal at publication. Scope,
 reserved generation ID, baseline generation ID and cache epoch must agree.
 Cache epoch is distinct from access-registry authority epoch. No reread/rebase
-replaces the original CAS witness. A sanitized source-failure port retains prior
-rows; no partial generation crosses the complete-publication boundary.
+replaces the original CAS witness. Source failure returns a sealed
+`PendingNetworkFailure` containing sanitized failure/internal retention, the
+original baseline generation/cache-epoch precondition, original fence and
+original authority lease. It writes no cache metadata. No partial generation
+crosses the complete-publication boundary.
 
 The AT07 seam was inspected at immutable peer commit
 `3b14f0362aa2161d51b99d71e7d52d50f27f07de`. Host mapping is narrow:
@@ -135,15 +146,25 @@ The AT07 seam was inspected at immutable peer commit
   `publish_prepared_generation(principal, original_fence, cache, [], relations)`.
   Revalidate the same original access lease inside the host authorization/commit
   boundary; the sidecar receipt is proof of staging, never authority.
-- Map source failure to AT07's original-scope sanitized failure write, retaining
-  previous success metadata/rows and advancing cache epoch. Drop the obsolete
-  fetch fence; never convert failure retention to a complete publication.
+- Keep `PendingNetworkFailure` until AT07 supplies a fenced failure transaction.
+  Proposed peer API: `record_prepared_cache_failure(principal, original_fence,
+  failure)`. The transaction must validate issuer/partition, revalidate the same
+  original authority lease, compare both original generation ID and cache epoch,
+  then retain previous success metadata/rows while advancing the epoch. Consume
+  the original fence without rereading/rebasing the fetch baseline.
+- Do not map a failed refresh to existing `record_cache_failure`, which lacks
+  the fetch baseline predicate. `PendingNetworkFailure::into_parts()` transfers
+  the original fence, precondition, sanitized failure and original lease to the
+  future host adapter. Until that actual fenced transaction exists, the proposal
+  remains pending; it never changes a newer authoritative cache.
 
 The healthy example implements this publisher port as a synthetic peer and
 checks the native sidecar row is committed before the consuming call. The actual
 AT07 transaction adapter, AT11 authority adapter, AT52 router/configuration and
 source-partition coalescing are still host integration inputs. The controller
-is coded; those peers are not silently supplied by permissive defaults.
+is coded; those peers are not silently supplied by permissive defaults. Fenced
+failure publication is an explicit missing AT07 input, not a fallback to its
+unfenced write.
 
 Lane-local Serde models mirror published Network projections, `sourceRegistration`,
 `cacheStatus` and `networkRelation`. They remain conversion boundaries for shared
@@ -202,8 +223,12 @@ JS comparison uses the actual published projector, facet builder, canonical
 serializer and schema validators: complete state, reopened state, fresh/stale
 facets, sidecar canonical bytes and digest match exactly, and the relations join
 a valid synthetic frozen snapshot. The numeric and Unicode observation example
-also checks ECMAScript scalar rendering and UTF-16 key order. The native TLS/SQLite example is healthy synthetic execution; the
-published-JS comparisons cover the decoder's supported published shape. Neither
+also checks ECMAScript scalar rendering and UTF-16 key order. The native TLS/SQLite example at preserved checkpoint
+`f52f14db07edad3aeb98c96e9ad0182f6169cc9b` is healthy synthetic execution; the
+published-JS comparisons cover the decoder's supported published shape. The
+subsequent static-review correction uses compiler-only verification of actual
+source and all healthy targets; it adds or executes no auth, failure, deadline,
+negative or network probes. Neither
 qualifies a real target's native wire format, host authorization/atomic publication,
 or durable recovery under faults. No legacy broad aggregate, stopped control,
 live provider, grant/credential acquisition or deployment is used.

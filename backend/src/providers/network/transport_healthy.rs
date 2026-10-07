@@ -151,17 +151,6 @@ impl NetworkCachePublisher<HealthyLease> for HealthyPublisher {
         self.published += 1;
         Ok(state.cache)
     }
-    fn record_cache_failure(
-        &mut self,
-        _fence: HealthyFence,
-        _code: ErrorCode,
-        _lease: &HealthyLease,
-    ) -> std::result::Result<CacheMetadata, NetworkError> {
-        // This peer is not exercised by these positive examples.
-        Err(NetworkError {
-            code: ErrorCode::Upstream,
-        })
-    }
 }
 struct TempDirectory(PathBuf);
 impl TempDirectory {

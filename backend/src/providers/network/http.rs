@@ -8,7 +8,12 @@ use reqwest::{
         HeaderValue, LOCATION,
     },
 };
-use std::{future::Future, pin::Pin, sync::Arc, time::Duration};
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tokio_util::sync::CancellationToken;
 
 #[derive(Clone)]
@@ -72,6 +77,9 @@ impl ExistingNetworkSession {
 }
 /// The lease is the original current-authority handle, distinct from SQLite's
 /// cache epoch/fence. No permissive default, serialization or grant acquisition.
+/// Callbacks must be bounded and nonblocking: no network/file I/O or unbounded
+/// lock waits. Synchronous callbacks cannot be preempted by Tokio timers; the
+/// transport checks its absolute deadline before and after each callback.
 pub trait NetworkReadAuthority: Send + Sync {
     type Lease: Send + Sync;
     fn authorize_inventory(
@@ -192,37 +200,61 @@ impl<A: NetworkReadAuthority> HttpInventoryTransport<A> {
             cancellation,
         })
     }
-    async fn read_once(&self, limits: Limits) -> Result<InventoryResponse> {
-        self.authority.revalidate_inventory(
-            &self.lease,
-            &self.config.source,
-            &self.config.origin,
-        )?;
+    fn check_deadline(&self, deadline: Instant) -> Result<()> {
+        if self.cancellation.is_cancelled() || Instant::now() >= deadline {
+            return Err(NetworkError::new(ErrorCode::Timeout));
+        }
+        Ok(())
+    }
+    fn checked_authority<T>(
+        &self,
+        deadline: Instant,
+        callback: impl FnOnce() -> Result<T>,
+    ) -> Result<T> {
+        self.check_deadline(deadline)?;
+        let result = callback();
+        self.check_deadline(deadline)?;
+        result
+    }
+    fn revalidate(&self, deadline: Instant) -> Result<()> {
+        self.checked_authority(deadline, || {
+            self.authority.revalidate_inventory(
+                &self.lease,
+                &self.config.source,
+                &self.config.origin,
+            )
+        })
+    }
+    async fn read_once(&self, limits: Limits, deadline: Instant) -> Result<InventoryResponse> {
+        self.revalidate(deadline)?;
         let mut request = self
             .client
             .get(self.config.origin.endpoint.clone())
             .header(ACCEPT, "application/json")
             .header(ACCEPT_ENCODING, "identity")
             .timeout(Duration::from_millis(limits.request_timeout_ms));
-        if let Some(session) = self.authority.existing_session(&self.lease)? {
+        if let Some(session) =
+            self.checked_authority(deadline, || self.authority.existing_session(&self.lease))?
+        {
             request = match session.kind {
                 SessionKind::Cookie => request.header(COOKIE, session.value),
                 SessionKind::Authorization => request.header(AUTHORIZATION, session.value),
             };
         }
         let mut response = request.send().await.map_err(transport_error)?;
-        self.authority.revalidate_inventory(
-            &self.lease,
-            &self.config.source,
-            &self.config.origin,
-        )?;
+        self.revalidate(deadline)?;
+        let status = response.status().as_u16();
+        // An inventory authorization failure remains Auth even when a provider
+        // supplies a login Location header. No redirect is followed.
+        if matches!(status, 401 | 403) {
+            return Err(NetworkError::new(ErrorCode::Auth));
+        }
         if response.url() != &self.config.origin.endpoint
             || response.headers().contains_key(LOCATION)
             || response.status().is_redirection()
         {
             return Err(NetworkError::new(ErrorCode::Upstream));
         }
-        let status = response.status().as_u16();
         if status != 200 {
             return Ok(self.response(status, Vec::new()));
         }
@@ -250,21 +282,13 @@ impl<A: NetworkReadAuthority> HttpInventoryTransport<A> {
         }
         let mut body = Vec::new();
         while let Some(chunk) = response.chunk().await.map_err(transport_error)? {
-            self.authority.revalidate_inventory(
-                &self.lease,
-                &self.config.source,
-                &self.config.origin,
-            )?;
+            self.revalidate(deadline)?;
             if chunk.len() > limits.max_response_bytes.saturating_sub(body.len()) {
                 return Err(NetworkError::new(ErrorCode::SizeLimit));
             }
             body.extend_from_slice(&chunk);
         }
-        self.authority.revalidate_inventory(
-            &self.lease,
-            &self.config.source,
-            &self.config.origin,
-        )?;
+        self.revalidate(deadline)?;
         Ok(self.response(status, body))
     }
     fn response(&self, status: u16, body: Vec<u8>) -> InventoryResponse {
@@ -296,11 +320,16 @@ impl<A: NetworkReadAuthority> InventoryTransport for HttpInventoryTransport<A> {
                     .request_timeout_ms
                     .min(self.config.limits.request_timeout_ms),
             };
-            tokio::select! { biased;
+            let deadline = Instant::now() + Duration::from_millis(limits.request_timeout_ms);
+            let result = tokio::select! { biased;
                 _ = self.cancellation.cancelled() => Err(NetworkError::new(ErrorCode::Timeout)),
-                result = tokio::time::timeout(Duration::from_millis(limits.request_timeout_ms), self.read_once(limits)) =>
+                result = tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), self.read_once(limits, deadline)) =>
                     result.map_err(|_| NetworkError::new(ErrorCode::Timeout))?,
-            }
+            };
+            // A timer cannot interrupt a synchronous callback in a poll. Reject
+            // any result that finishes after the original absolute deadline.
+            self.check_deadline(deadline)?;
+            result
         })
     }
 }

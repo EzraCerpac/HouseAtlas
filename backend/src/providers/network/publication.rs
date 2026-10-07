@@ -70,14 +70,6 @@ pub trait NetworkCachePublisher<L> {
         staged: StagedNetworkPublication<R>,
         lease: &L,
     ) -> std::result::Result<Self::Receipt, Self::Error>;
-    /// Delegate to AT07's sanitized source failure write for the original scope;
-    /// consume/drop this obsolete fetch fence. Never publish partial row arrays.
-    fn record_cache_failure(
-        &mut self,
-        fence: Self::Fence,
-        code: ErrorCode,
-        lease: &L,
-    ) -> std::result::Result<Self::Receipt, Self::Error>;
 }
 pub trait DurableNetworkSidecar {
     type Receipt;
@@ -86,9 +78,32 @@ pub trait DurableNetworkSidecar {
     fn stage(&mut self, source: &SourceRegistration, row: &SidecarRow) -> Result<Self::Receipt>;
     fn load(&self, source: &SourceRegistration, generation_id: &str) -> Result<SidecarRow>;
 }
-pub enum NetworkPublicationOutcome<R> {
+/// Retains a failed fetch and its ORIGINAL CAS fence and authority lease.
+/// No metadata write is performed until an actual host transaction compares
+/// the original partition/generation/cacheEpoch and consumes the original fence.
+/// Do not map this to AT07's existing unfenced record_cache_failure method.
+pub struct PendingNetworkFailure<F, L> {
+    failure: RefreshFailure,
+    precondition: PublicationPrecondition,
+    fence: F,
+    lease: Arc<L>,
+}
+impl<F, L> PendingNetworkFailure<F, L> {
+    pub fn failure(&self) -> &RefreshFailure {
+        &self.failure
+    }
+    pub fn precondition(&self) -> &PublicationPrecondition {
+        &self.precondition
+    }
+    /// Host-only consuming handoff to a fenced failure transaction. The state
+    /// is internal retention, never a public DTO or complete generation proof.
+    pub fn into_parts(self) -> (F, PublicationPrecondition, RefreshFailure, Arc<L>) {
+        (self.fence, self.precondition, self.failure, self.lease)
+    }
+}
+pub enum NetworkPublicationOutcome<R, F, L> {
     Published(R),
-    SourceFailure { error: NetworkError, receipt: R },
+    SourceFailure(Box<PendingNetworkFailure<F, L>>),
 }
 pub enum NetworkPublicationError<E> {
     Network(NetworkError),
@@ -109,7 +124,10 @@ pub async fn refresh_network<A, P, S, C>(
     sidecar: &mut S,
     cancellation: CancellationToken,
     clock: C,
-) -> std::result::Result<NetworkPublicationOutcome<P::Receipt>, NetworkPublicationError<P::Error>>
+) -> std::result::Result<
+    NetworkPublicationOutcome<P::Receipt, P::Fence, A::Lease>,
+    NetworkPublicationError<P::Error>,
+>
 where
     A: NetworkReadAuthority,
     P: NetworkCachePublisher<A::Lease>,
@@ -224,13 +242,21 @@ where
             Ok(NetworkPublicationOutcome::Published(receipt))
         }
         RefreshOutcome::Failed(failure) => {
-            let receipt = publisher
-                .record_cache_failure(fence, failure.error.code, lease.as_ref())
-                .map_err(NetworkPublicationError::Storage)?;
-            Ok(NetworkPublicationOutcome::SourceFailure {
-                error: failure.error,
-                receipt,
-            })
+            // The reviewed AT07 failure write has no fetch baseline predicate.
+            // Keep the original fence/lease and sanitized proposal for a future
+            // consuming, fenced host transaction; never write metadata here.
+            let precondition = PublicationPrecondition {
+                expected_generation_id: fence.baseline_generation_id().map(str::to_owned),
+                expected_cache_epoch: fence.baseline_cache_epoch(),
+            };
+            Ok(NetworkPublicationOutcome::SourceFailure(Box::new(
+                PendingNetworkFailure {
+                    failure: *failure,
+                    precondition,
+                    fence,
+                    lease,
+                },
+            )))
         }
     }
 }
