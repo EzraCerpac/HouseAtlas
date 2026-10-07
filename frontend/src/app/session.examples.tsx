@@ -27,6 +27,10 @@ export async function runHealthySessionExamples(
   const initialSession = new Promise<null>((resolve) => {
     completeSession = () => resolve(null);
   });
+  let completeHome: (() => void) | undefined;
+  const initialHome = new Promise<typeof view>((resolve) => {
+    completeHome = () => resolve(view);
+  });
   const sessions: AtlasSessionClient = {
     session: async () => initialSession,
     signIn: async (credentials) => {
@@ -52,7 +56,7 @@ export async function runHealthySessionExamples(
     await act(async () =>
       root.render(
         <SessionApp
-          client={{ load: async () => view, loadHome: async () => view }}
+          client={{ load: async () => initialHome, loadHome: async () => view }}
           sessions={sessions}
         />,
       ),
@@ -96,11 +100,24 @@ export async function runHealthySessionExamples(
       ),
     );
     assert(
+      Array.from(container.querySelectorAll("button")).some(
+        (button) => button.textContent === "Sign out",
+      ),
+      "Authenticated home loading retains the configured session action",
+    );
+    assert(
+      !container.querySelector("select") &&
+        !container.textContent?.includes(view.homeLabel),
+      "Home loading exposes no house content or choices",
+    );
+    assert(completeHome, "Ordinary authorized home completion available");
+    await act(async () => completeHome?.());
+    assert(
       container.querySelector("h1")?.textContent === "Home",
       "Successful fake sign-in opens authorized home",
     );
     checks.push(
-      "successful typed sign-in, cleared password field and authorized home read",
+      "successful sign-in, private home loading with uninvoked Sign out, and authorized home read",
     );
     await act(async () => {
       window.history.replaceState(null, "", "#settings");

@@ -1,4 +1,5 @@
 //! Loopback TLS routes and browser DTO projection. No source/provider transport.
+mod admission;
 mod auth;
 pub mod contracts;
 mod headers;
@@ -35,6 +36,7 @@ pub struct Host {
     pub files: Arc<BTreeMap<String, (String, Vec<u8>)>>,
     response_ids: Arc<ResponseIds>,
     pages: Arc<Mutex<pages::Pages>>,
+    admission: Arc<admission::Admission>,
 }
 impl Host {
     pub fn new(
@@ -48,6 +50,7 @@ impl Host {
             files,
             response_ids: Arc::new(ResponseIds::new()?),
             pages: Arc::new(Mutex::new(pages::Pages::default())),
+            admission: Arc::new(admission::Admission::default()),
         })
     }
 }
@@ -92,10 +95,18 @@ fn domain_error(error: d::DomainError) -> HttpFailure {
 }
 async fn response_adapter(State(host): State<Host>, mut request: Request, next: Next) -> Response {
     let request_id = host.response_ids.next();
-    let checked = CheckedHeaders::read(request.headers(), request.version()).and_then(|headers| {
-        headers.check_authority(&host.origin, request.uri())?;
-        Ok(headers)
+    let admitted = host.admission.admit();
+    let checked = admitted.as_ref().map_err(Clone::clone).and_then(|permit| {
+        let headers =
+            CheckedHeaders::read(request.headers(), request.version()).map_err(access_error)?;
+        headers
+            .check_authority(&host.origin, request.uri())
+            .map_err(access_error)?;
+        Ok(headers.with_admission(permit.clone()))
     });
+    // Keep admission through response construction even when route extraction
+    // drops request extensions; blocking closures retain their separate clones.
+    let _admitted = admitted;
     let mut response = if request.uri().path().contains('%') {
         failure(StatusCode::FORBIDDEN).into_response()
     } else {
@@ -104,7 +115,7 @@ async fn response_adapter(State(host): State<Host>, mut request: Request, next: 
                 request.extensions_mut().insert(headers);
                 next.run(request).await
             }
-            Err(error) => access_error(error).into_response(),
+            Err(error) => error.into_response(),
         }
     };
     if response.status().is_client_error() || response.status().is_server_error() {
@@ -289,6 +300,7 @@ async fn current(
     method: Method,
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
         authorized_read(
             &host,
             &headers,
@@ -314,6 +326,7 @@ async fn scoped(
     method: Method,
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
         authorized_read(
             &host,
             &headers,
@@ -341,6 +354,7 @@ async fn rooms(
     method: Method,
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
         authorized_read(
             &host,
             &headers,
@@ -364,6 +378,7 @@ async fn items(
     method: Method,
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
         authorized_read(
             &host,
             &headers,
@@ -387,6 +402,7 @@ async fn homes(
     method: Method,
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
         let core = host
             .core
             .lock()

@@ -17,7 +17,7 @@ references; the running Rust service invokes no JavaScript semantic oracle.
 | Native semantics and documentation clarification | 003f9d6ae91418c793361894d47be0f8b258455c |
 | Storage native dispatcher and borrowed per-call authorizer | 45e1e38e97a8e41536b4b6195449076d602589c0 |
 | Domain and jobs, retained from main | 25813f1222c60379850da37b7bf7e97e0e2750db |
-| React session shell and scoped-view corrections | a63f58529123e894b7c8709622c3c265cfb53b7c |
+| React session shell, scoped view and non-ready Sign out correction | 0ddd0bf42a91d6ccf179dbd5bdb6735459d28f0c |
 | HomeBox bounded HTTPS read and consuming publication proposal | 4db61b430797d528d4645c9958013a03af21ace3 |
 | HomeBox native stock command component | c784be5776b614f8f0bb225fcb5355ecb9e90e0d |
 | Network bounded HTTPS read and pending-failure proposal correction | 8b5f45531aef396e431a04e317ba60a29a54b513 |
@@ -83,6 +83,10 @@ captured with the same mutation principal, then those original handles and the
 independently computed native closure are revalidated at storage phases. Revision
 errors use authorized transaction facts. Newly asserted source-presence claims
 remain held; there is no replacement witness or source admission policy.
+
+The narrow [HTTP intake correction](intake-correction.md) adds bounded router
+admission, pre-body login Origin/rate checks and full-body collection deadlines.
+It retains the exact feature inputs above.
 
 ## Ordinary verification
 

@@ -39,6 +39,7 @@ pub(super) async fn record(
 ) -> HttpResult {
     no_query(&uri)?;
     tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
         authorized_read(
             &host,
             &headers,
@@ -82,6 +83,7 @@ pub(super) async fn history(
 ) -> HttpResult {
     no_query(&uri)?;
     tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
         authorized_read(
             &host,
             &headers,
@@ -128,6 +130,7 @@ async fn list(
     collection: &'static str,
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
         authorized_read(
             &host,
             &headers,

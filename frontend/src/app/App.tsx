@@ -255,6 +255,11 @@ export function App({
                     {text("signIn")}
                   </button>
                 )}
+                {session?.signOut && (
+                  <button type="button" onClick={session.signOut}>
+                    Sign out
+                  </button>
+                )}
               </div>
             </div>
           </main>

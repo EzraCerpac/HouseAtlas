@@ -13,7 +13,6 @@ use crate::{
     storage as s,
 };
 use axum::{
-    body::to_bytes,
     extract::{Path, Request, State},
     http::StatusCode,
 };
@@ -425,14 +424,16 @@ async fn command(
     let method = request.method().clone();
     let capture_host = host.clone();
     let capture_scope = scope.clone();
+    let capture_checked = checked.clone();
     let principal = tokio::task::spawn_blocking(move || {
+        let _admitted = capture_checked.admission_permit()?;
         let core = capture_host
             .core
             .lock()
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
         let url = format!("{}{}", capture_host.origin, uri.path());
-        let observed =
-            evidence(&capture_host.origin, &checked, &uri, &url, &method).map_err(access_error)?;
+        let observed = evidence(&capture_host.origin, &capture_checked, &uri, &url, &method)
+            .map_err(access_error)?;
         let principal = core
             .access
             .lock()
@@ -447,10 +448,11 @@ async fn command(
     .await
     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))??;
     intake::metadata(&request, 1_048_576)?;
-    let bytes = to_bytes(request.into_body(), 1_048_576)
-        .await
-        .map_err(|_| failure(StatusCode::PAYLOAD_TOO_LARGE))?;
+    let bytes = super::admission::body(request.into_body(), 1_048_576).await?;
     tokio::task::spawn_blocking(move || {
+        // Keep the admitted work slot through the actual transaction even when
+        // the HTTP caller cancels its await. No unbounded replacement work.
+        let _admitted = checked.admission_permit()?;
         let wire = intake::json(&bytes)?;
         let mut core = host
             .core
