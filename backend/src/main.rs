@@ -101,12 +101,12 @@ async fn run() -> Result<(), lifecycle::Failure> {
         }
     });
     let mut server = axum_server::from_tcp_rustls(listener, tls)?;
-    // The full cached query selector fits alongside ordinary browser headers.
-    // HTTP/1 keeps its existing larger buffer; this is a bounded HTTP/2 limit.
+    // Bound HTTP/2 metadata while permitting the complete SourceRef query range
+    // with ordinary browser headers. HTTP/1 keeps its existing larger buffer.
     server
         .http_builder()
         .http2()
-        .max_header_list_size(96 * 1024);
+        .max_header_list_size(256 * 1024);
     server
         .handle(handle)
         .serve(router(host).into_make_service_with_connect_info::<std::net::SocketAddr>())

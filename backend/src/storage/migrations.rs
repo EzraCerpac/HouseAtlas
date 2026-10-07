@@ -56,7 +56,7 @@ pub(crate) fn validate(connection: &Connection) -> Result<()> {
     Ok(())
 }
 
-pub const DATABASE_VERSION: u32 = 4;
+pub const DATABASE_VERSION: u32 = 5;
 pub const DATABASE_LINEAGE: &str = "houseatlas-rust-storage/1";
 const MIGRATIONS: &[(u32, &str)] = &[
     (1, include_str!("../../migrations/0001_rust_core.sql")),
@@ -65,6 +65,10 @@ const MIGRATIONS: &[(u32, &str)] = &[
     (
         4,
         include_str!("../../migrations/0004_stock_history_lookup.sql"),
+    ),
+    (
+        5,
+        include_str!("../../migrations/0005_upload_consumption.sql"),
     ),
 ];
 
@@ -81,7 +85,9 @@ pub(crate) fn migrate(connection: &mut Connection) -> Result<()> {
         )
     };
     let version: u32 = tx.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-    if version > DATABASE_VERSION {
+    // Schema 5 is a fresh profile. Preserve older checkpoints unchanged and
+    // refuse upgrading any existing schema-1..4 user database.
+    if version != 0 && version != DATABASE_VERSION {
         return Err(incompatible());
     }
     if version == 0 {

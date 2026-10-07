@@ -37,6 +37,7 @@ impl<C: Contract> Contract for NativeContract<C> {
             "recordRef" => checked::<schema::RecordRef>(value),
             "snapshot" => checked::<schema::Snapshot>(value),
             "record" => checked::<schema::Record>(value),
+            "assetPayload" => checked::<schema::AssetPayload>(value),
             "audit" => checked::<schema::Audit>(value),
             "guard" => checked::<schema::Guard>(value),
             "mutation" => checked::<schema::Mutation>(value),
