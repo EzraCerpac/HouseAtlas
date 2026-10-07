@@ -54,6 +54,12 @@ effects observe the new view, rather than waiting for passive effect cleanup.
 Registration status uses the same input identity; a replacement view reports
 inactive until its own handle publishes availability instead of inheriting the
 previous catalog's registered status.
+Registration lifecycle uses layout effects. Cleanup retires the prior handle
+and registration signal before replacement child layouts or paint; setup keeps
+the adapter's queued registration and independent execution lifetime. This
+addresses PR100 discussion4210160105 as well as displayed availability.
+The healthy sequential example observes an empty synthetic registry in that
+first child layout. Invocation races/negative consumers remain held and unrun.
 Both boundaries subscribe to the existing session state/revision through
 `useSyncExternalStore`; changing a revision on a stable port also changes the
 view identity. A host that publishes its facade in a parent layout effect must

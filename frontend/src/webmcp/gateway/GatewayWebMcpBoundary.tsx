@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import { detectModelContext } from "../browser.js";
 import type { RegistrationStatus } from "../ports.js";
 import { useCommittedResult, useSessionViewToken, type RenderIdentity } from "../useCommittedResult.js";
@@ -34,7 +34,9 @@ export function GatewayWebMcpBoundary(props: GatewayWebMcpBoundaryProps) {
   const [observed, setObserved] = useState<{ readonly view: object; readonly status: RegistrationStatus }>(
     () => ({ view, status: { state: "inactive" } }));
   const registration: RegistrationStatus = observed.view === view ? observed.status : { state: "inactive" };
-  useEffect(() => {
+  // Retire the prior registration in layout cleanup, before new child layouts
+  // can observe/use that availability. Domain work keeps its own cancellation.
+  useLayoutEffect(() => {
     const port = activate();
     const modelContext = explicitContext ? suppliedContext
       : detectModelContext(typeof document === "undefined" ? undefined : document);

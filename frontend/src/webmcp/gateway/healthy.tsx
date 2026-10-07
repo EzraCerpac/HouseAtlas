@@ -137,6 +137,7 @@ export async function runGatewayHealthyReact(container: HTMLElement): Promise<re
   let firstReplacementCommitObserved = false;
   function ReplacementHostView({ beforePublication }: { readonly beforePublication?: string }) {
     useLayoutEffect(() => {
+      check(tools.size === 0, "Previous registrations retire before the replacement child layout");
       check(!container.querySelector("[data-gateway-tool]") && !container.querySelector("a[download]"),
         "First replacement layout commit contains no prior result or link");
       check(container.querySelector('[aria-label="Gateway tools"]')?.textContent === "inactive",

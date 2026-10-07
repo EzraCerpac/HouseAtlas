@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import { detectModelContext } from "./browser.js";
 import { mountStockWebMcp, type StockCompletion, type StockMountOptions } from "./stock.js";
 import type { RegistrationStatus } from "./ports.js";
@@ -27,7 +27,9 @@ export function StockWebMcpBoundary(props: StockWebMcpBoundaryProps): ReactNode 
   const [observed, setObserved] = useState<{ readonly view: object; readonly status: RegistrationStatus }>(
     () => ({ view, status: { state: "inactive" } }));
   const registration: RegistrationStatus = observed.view === view ? observed.status : { state: "inactive" };
-  useEffect(() => {
+  // Layout cleanup retires the prior browser registrations before replacement
+  // child layouts/paint; unregistering still does not reverse domain execution.
+  useLayoutEffect(() => {
     const visible = activate();
     const modelContext = explicitContext ? suppliedContext
       : detectModelContext(typeof document === "undefined" ? undefined : document);
