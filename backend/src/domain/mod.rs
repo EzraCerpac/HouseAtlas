@@ -13,6 +13,7 @@ mod ports;
 mod presence;
 mod projection;
 mod queries;
+pub mod queue_recovery;
 pub mod stock;
 
 #[cfg(test)]
