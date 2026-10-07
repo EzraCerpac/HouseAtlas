@@ -103,8 +103,16 @@ original ID. Opening/pending disconnects and existing retention capacity still
 bound admission. The button uses the hook's same scope/global capacity predicate
 and subscribes to registry updates, including changes from another mounted
 instance of the same or a different scope. Session hooks also subscribe and
-derive their current full-scope rows on each update. Disposal removes those
-observers; correlation rows retain no view/client.
+derive their current full-scope rows and pending/unconfirmed action state on
+each update, including same-size status changes and retirement. A private
+opening flag propagates active browser transport to aliases and blocks another
+same-scope action; it does not establish a retryable host receipt. Settlement
+or disposal clears that flag while retaining unresolved original IDs. Account
+facts stay local. Status reconciliation skips active opening rows. Disposal removes those observers;
+correlation rows retain no view/client. Every new connection action uses the
+same capacity predicate. Matching completion retires revised metadata; stale
+nonterminal observations cannot replace a newer row or restore a retired one.
+Superseded opening transport clears local progress and reads current authority.
 It displays a full-capacity limitation. Refresh reads receipts; it never
 resubmits a disconnect.
 
@@ -205,8 +213,19 @@ browser correlation IDs are rebound; no remote revocation or held-step execution
 is simulated. The existing six sequential browser groups and these two receipt
 groups passed in Chromium 151.0.7922.173 with no runtime exception. The Rust peer
 serializes the actual library DTOs; it supplies no credential or provider adapter.
-Strict TypeScript checking and the production build also passed. Capacity,
-negative/omitted DTO, concurrency and all held controls remain unexecuted.
+`runHealthyAliasPanelsExample(container)` adds three independent hook/panel
+instances. Two share an exact full synthetic scope; the third has the same
+display label and another full key. Two sequential Manage usage lifecycles
+observe shared opening progress/disabled controls, then propagate
+pending/unconfirmed status, retirement and state across
+both aliases, while the third remains untouched. Each status read uses the
+original action ID; the second workflow uses a fresh ID. Only one scope row
+exists at a time, with two submissions and four reads. A small state projection
+also verifies the returned session state, beyond rendered rows. All ten groups
+pass with zero runtime exceptions. Strict TypeScript checking and the
+production build also pass. Capacity exhaustion, negative/omitted DTO,
+overlapping opening/status calls, concurrency and all held controls remain
+unexecuted; superseded-call cleanup is source inspected only.
 
 No live login/inference/provider/account operation, new credential/grant,
 spending or deployment occurs. Historical stopped rejection/replay/expiry/

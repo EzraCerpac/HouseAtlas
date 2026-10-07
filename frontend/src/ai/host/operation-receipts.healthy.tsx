@@ -7,9 +7,118 @@ import { bindAiHostPort } from './client.js';
 import { decodeRequestStatus, decodeRunOutcome } from './decode.js';
 import { decodeConnectionActionResult } from '../wire.js';
 import { createHealthyAiHostFixture } from './healthy.examples.js';
+import { AiPanelView } from '../AiPanel.js';
+import { useAiSession } from '../useAiSession.js';
+import type { AiClient } from '../types.js';
 
 function assert(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
+}
+
+// Each probe owns an independent real session hook and panel. The small output
+// verifies state propagation as well as rendered rows, without sharing a host
+// context or treating shared action metadata as current account authority.
+function AliasPanel({ client, scopeKey, name }: { client: AiClient; scopeKey: string; name: string }) {
+  const session = useAiSession(client, scopeKey);
+  return <div data-alias={name}>
+    <output data-action-state={session.state.connectionAction.status}>{session.state.connectionAction.status}</output>
+    <AiPanelView state={session.state} scopeLabel="Synthetic alias home" prompt="" onPromptChange={() => {}}
+      onSubmit={() => {}} onCancel={() => {}} onReview={() => {}} onRecover={() => {}}
+      onRefresh={() => { void session.refresh(); }}
+      onConnectionAction={input => { void session.connectionAction(input); }}
+      unresolvedConnectionActions={session.unresolvedConnectionActions} />
+  </div>;
+}
+
+/** Sequential, under-budget positive lifecycle only. No overlapping opening
+ * call/status lookup, capacity exhaustion, real account or provider operation. */
+export async function runHealthyAliasPanelsExample(container: HTMLElement) {
+  const base = createHealthyAiHostFixture('completed').client;
+  const snapshot = await base.connection(new AbortController().signal);
+  const actionIds: string[] = [], lookups: string[] = [];
+  let observed: 'pending' | 'unconfirmed' | 'completed' = 'pending';
+  const client = bindAiHostPort({
+    connection: async () => snapshot,
+    async connectionAction(input) {
+      assert(input.command.action === 'manage-usage', 'Side-effect-free synthetic usage projection');
+      actionIds.push(input.actionId);
+      await until(() => aliasesMatch('working', 0), 'Opening progress in both aliases');
+      for (const name of ['A1', 'A2']) {
+        assert(button(name, 'Disconnect').disabled && button(name, 'Manage usage').disabled
+          && button(name, 'Refresh status').disabled, 'Shared opening controls');
+      }
+      isolated();
+      return { actionId: input.actionId, status: 'pending', snapshot };
+    },
+    async connectionActionStatus(actionId) {
+      assert(actionIds.includes(actionId), 'Original alias workflow identifier');
+      lookups.push(actionId);
+      return { actionId, status: observed, snapshot };
+    },
+    run: (input, signal) => base.run(input, signal),
+    cancel: requestId => base.cancel(requestId),
+    requestStatus: (requestId, signal) => base.requestStatus(requestId, signal),
+    openReview: (input, signal) => base.openReview(input, signal),
+    resume: (input, signal) => base.resume(input, signal),
+  });
+  const scope = `synthetic/actor/session/workspace/home/registration/epoch/${crypto.randomUUID()}`;
+  const root = createRoot(container);
+  const panel = (name: string) => {
+    const value = container.querySelector<HTMLElement>(`[data-alias="${name}"]`);
+    assert(value, `Mounted ${name}`); return value;
+  };
+  const rows = (name: string) => panel(name).querySelectorAll('[aria-label="Unresolved connection actions"] li');
+  const state = (name: string) => panel(name).querySelector('output')?.getAttribute('data-action-state');
+  function button(name: string, action: string) {
+    const value = [...panel(name).querySelectorAll('button')].find(item => item.textContent === action);
+    assert(value, `Alias action ${name}/${action}`); return value;
+  }
+  function click(name: string, action: string) {
+    const value = button(name, action); assert(!value.disabled, `Available ${name}/${action}`);
+    flushSync(() => value.click());
+  }
+  const aliasesMatch = (status: 'working' | 'pending' | 'unconfirmed' | 'idle', count: number) =>
+    ['A1', 'A2'].every(name => state(name) === status && rows(name).length === count);
+  function isolated() {
+    assert(state('B') === 'idle' && rows('B').length === 0 && !button('B', 'Manage usage').disabled,
+      'Same display label never crosses different full scope');
+  }
+  try {
+    flushSync(() => root.render(<>
+      <AliasPanel client={client} scopeKey={scope} name="A1" />
+      <AliasPanel client={client} scopeKey={scope} name="A2" />
+      <AliasPanel client={client} scopeKey={`${scope}/other-home`} name="B" />
+    </>));
+    await until(() => ['A1', 'A2', 'B'].every(name => !button(name, 'Manage usage').disabled), 'Three ready independent sessions');
+    // Repeat fully reconciled transitions; at most one shared row exists.
+    for (let cycle = 0; cycle < 2; cycle++) {
+      observed = 'pending';
+      click('A1', 'Manage usage');
+      await until(() => aliasesMatch('pending', 1), 'Pending state/row in both aliases');
+      for (const name of ['A1', 'A2']) {
+        assert(rows(name)[0]?.textContent?.includes('Manage usage is pending.'), 'Pending display');
+        assert(button(name, 'Manage usage').disabled, 'Duplicate pending action blocked in both aliases');
+      }
+      isolated();
+      observed = 'unconfirmed';
+      click('A2', 'Refresh status');
+      await until(() => aliasesMatch('unconfirmed', 1), 'Same-size metadata/state update in both aliases');
+      for (const name of ['A1', 'A2']) assert(rows(name)[0]?.textContent?.includes('Manage usage is unconfirmed.'), 'Unconfirmed display');
+      isolated();
+      observed = 'completed';
+      click('A1', 'Refresh status');
+      await until(() => aliasesMatch('idle', 0) && ['A1', 'A2'].every(name => !button(name, 'Manage usage').disabled),
+        'Retirement clears state/rows and restores both alias controls');
+      isolated();
+    }
+    assert(actionIds.length === 2 && actionIds[0] !== actionIds[1], 'Repeated fresh explicit workflows');
+    assert(JSON.stringify(lookups) === JSON.stringify([actionIds[0], actionIds[0], actionIds[1], actionIds[1]]),
+      'Only original-ID reads, no action replay');
+    return { groups: ['three independent sessions; same-scope insertion/status/retirement; different-scope isolation',
+      'two sequential under-budget cycles; shared state and rows; original-ID reads; fresh explicit IDs'],
+    actions: actionIds.length, statusLookups: lookups.length, maximumScopeRows: 1,
+    scope: 'Synthetic decoded ports and actual React sessions/panels; same visible labels, distinct full keys. No capacity exhaustion, overlapping calls, provider or held controls.' };
+  } finally { flushSync(() => root.unmount()); }
 }
 async function until(check: () => boolean, message: string) {
   const deadline = Date.now() + 5000;

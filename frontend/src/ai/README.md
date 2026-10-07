@@ -51,8 +51,14 @@ the same scope/global capacity predicate; mounted panels subscribe to the
 registry using React's `useSyncExternalStore`. Immutable cached snapshots change
 on every registry update and notify mounted sessions and views. Each session
 derives its own current full-scope rows, including when another instance uses
-the same scope; disposal removes its subscription. A full capacity disables
-Disconnect and displays its limitation.
+the same scope; shared pending/unconfirmed action state also derives from these
+rows. A bounded opening flag reports active browser transport to every alias
+and blocks another action until settlement/disposal; it does not confirm a
+provider result. Account facts stay local. Retirement clears
+stale action state in every alias. A full capacity disables new connection
+actions and displays the disconnect retry limitation. A superseded opening call
+clears its own progress and reads current host authority; it cannot resurrect
+a retired receipt or infer current account facts from shared metadata.
 An unavailable connection
 requires current host status before another action. No automatic retry or remote
 revocation confirmation is inferred.
