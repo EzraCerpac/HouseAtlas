@@ -56,14 +56,22 @@ The reader independently bounds aggregate generation bytes/time, pages and size.
 Client diagnostics and URLs are discarded. The scope receipt identifies configured
 source binding; it does not prove provider tenant enforcement. A credential-free
 plain HTTP constructor exists only in test builds and requires a literal loopback
-IP. This component activates no production source.
+IP. This component activates no production source. Default DNS may leave blocking
+resolver work running after timeout: deadlines bound awaited results and response
+ownership, not physical termination of operating-system DNS work. That remains
+transport qualification.
 
 ## Actual consuming SQLite publication fence
 
 `reader.prepare_publication(store, principal)` calls AT07's actual
-`AtlasStore::prepare_cache_publication` before GETs. `PreparedGeneration::fetch`
+`AtlasStore::prepare_cache_publication` before GETs. The store-owned fence also captures the full durable
+registration;
+preparation compares owner, partition mode and the complete reviewed allowlist
+alongside every scope component. `PreparedGeneration::fetch`
 consumes captured state and the store-issued `CachePublicationFence`, passing its
-selected ID into the full reader. `StagedPublication::commit` consumes the same
+selected ID into the full reader. It repeats the complete registration comparison
+on the consuming reader before GETs, allowing equivalent allowlist ordering but
+never different coverage. `StagedPublication::commit` consumes the same
 fence and calls `publish_prepared_generation` with the opaque complete generation.
 The original borrowed principal survives preparation, GET and commit. No principal
 replacement, raw row construction, cloned fence or filtered publication is exposed.
@@ -105,7 +113,7 @@ to empty and require explicitly verified scope-matched route configuration.
 
 The external host harness compiles actual read-only published source snapshots:
 
-- AT07 storage: `3b14f0362aa2161d51b99d71e7d52d50f27f07de`.
+- AT07 storage/registration receipt: `364ba7d3f382814da43913fe86e262834a7d1ecc`.
 - AT51 generated contracts: `07576e6be463dd481b49071071c66dec144b1e0c`.
 - AT11 canonical-ID types: `4967dd2d38c5749be35aa7e44728c4d691246730`.
 - AT52 native read-contract adapter: `46047d0193fbce720bba7a1d209b5428c51dba94`.
@@ -153,7 +161,9 @@ completes eight successful chunked GETs without credentials, and closes it. The
 external SQLite example uses consuming fences for two successful generations,
 reads published rows/cache, preserves six seeded Atlas records, checks epochs
 0 → 1 → 2, reconstructs retained metadata,
-and confirms a filtered view leaves SQLite unchanged. Authority/runtime are synthetic.
+and confirm a filtered view leaves SQLite unchanged. Another healthy example binds
+an empty cache to the complete durable reviewed allowlist, then fetches through a
+matching reader whose allowlist order differs. Authority/runtime are synthetic.
 Emitted snapshots pass published shape/semantic validation as additional evidence;
 no JavaScript oracle is used in the Rust publication path. Legacy broad aggregates,
 stopped rejection/guard-reversal/mutation/adversarial/fault/crash/concurrency/negative

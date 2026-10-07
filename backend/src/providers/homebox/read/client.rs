@@ -10,7 +10,8 @@ use std::{
 use tokio::time::{Instant, timeout_at};
 
 /// Owned chunks prevent later producer buffer reuse from changing accepted bytes.
-/// Dropping a pending future/body must cancel the underlying driver operation.
+/// Dropping a pending future/body abandons its result and response ownership.
+/// Physical cancellation of resolver work remains driver qualification.
 pub trait Body: Send {
     fn next_chunk(&mut self) -> impl Future<Output = Result<Option<Vec<u8>>, ReadError>> + Send;
 }
@@ -145,6 +146,9 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
     }
     pub fn scope(&self) -> &SourceScope {
         &self.scope
+    }
+    pub(super) fn registration(&self) -> &SourceRegistration {
+        &self.registration
     }
     fn authorized(&self, id: &Uuid) -> bool {
         self.registration.partition_mode == PartitionMode::ExclusiveHome
