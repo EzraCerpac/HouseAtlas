@@ -211,7 +211,10 @@ pub(super) async fn command(
         })();
         if retirement.is_err() {
             // Fixed diagnostic only: no token, receipt, actor, path or error data.
-            eprintln!("Committed upload metadata retirement remains pending");
+            let _ = std::io::Write::write_all(
+                &mut std::io::stderr().lock(),
+                b"Committed upload metadata retirement remains pending\n",
+            );
         }
         // Output release remains mandatory even if maintenance failed. Never
         // use a cleanup error to waive the original principal/source checks.
