@@ -1,6 +1,6 @@
 {
   "format": "houseatlas-publication-source/1",
-  "status": "development-native-host-corrections-exact-candidate-review-required",
+  "status": "development-native-mcp-lifecycle-mounted-exact-candidate-review-required",
   "self": {
     "path": "docs/publication/source-manifest.json",
     "mode": "100644",
@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "2cdafe3a15b0218a9755619a1565954ffc21c3d181d99ba753945ccb43f63103",
+  "sourceDigestSha256": "c9dbcfa61de89d1ecc8aaa4a5ba211d3221f12a44dbfb5e547af1e4d0d6f99bf",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -244,8 +244,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 1479,
-      "sha256": "cab85a15822337c8c29619363e7fee7efa2af012fa836c1ebf7c6ab0f0907527",
+      "bytes": 1572,
+      "sha256": "db6d541e3d05791dc1bd602642c4adfc67129712cd703d25b99604cf509c028b",
       "owner": "core-integration"
     },
     {
@@ -874,15 +874,15 @@
     {
       "path": "backend/src/http/agents/mcp.rs",
       "mode": "100644",
-      "bytes": 5230,
-      "sha256": "8421186267ee01db5539fa9924a9297cde0eca69df6f790c9b8a794cad873c9e",
+      "bytes": 4250,
+      "sha256": "da3bf8ee484378c9e24d8445723d60423b56d6eaa508d2b02a4b6548fedcd7a7",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/http/agents/mcp_transport.rs",
       "mode": "100644",
-      "bytes": 21541,
-      "sha256": "b1c55a851c7dec436489a6ddc2513a9d2e40f722bb56705bbaad3cd3516b6ced",
+      "bytes": 25783,
+      "sha256": "0424726a734ae4ffd0a43a9c012bef57210b9a40b5deaf6e2bcec91d0b23f5cf",
       "owner": "core-integration"
     },
     {
@@ -902,8 +902,8 @@
     {
       "path": "backend/src/http/auth.rs",
       "mode": "100644",
-      "bytes": 7863,
-      "sha256": "9f7af963829bc1535fd7b011524b04c6e7c3070a18d5dc60ecb133b5feae3400",
+      "bytes": 8204,
+      "sha256": "09d65fb1e9f47dabcdd8d0d9a139f38ac91e5133752a01ac43b92254f67bc436",
       "owner": "core-integration"
     },
     {
@@ -944,8 +944,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 20510,
-      "sha256": "f8df9cb6f8422b418d2804dc8a8e9448449bd2ca0124fc375758676cfc6e0175",
+      "bytes": 20801,
+      "sha256": "8aa85fbaf9aebc0c401eaae2cd9bfedbd507278fb0cf115dd5aabd835bf28998",
       "owner": "core-integration"
     },
     {
@@ -1950,10 +1950,52 @@
       "owner": "mcp"
     },
     {
+      "path": "backend/src/transports/mcp/lifecycle/control.rs",
+      "mode": "100644",
+      "bytes": 6439,
+      "sha256": "34fe92eac20ffc7cf3bb9739f8830a099a83b23bf51088a0a2e74977005a8aa6",
+      "owner": "mcp"
+    },
+    {
+      "path": "backend/src/transports/mcp/lifecycle/healthy.rs",
+      "mode": "100644",
+      "bytes": 9176,
+      "sha256": "bf2cc33efc6097adbbaa20152929ee96974f1871ca2faf5ac6f3c8006ae69d5c",
+      "owner": "mcp"
+    },
+    {
+      "path": "backend/src/transports/mcp/lifecycle/identity.rs",
+      "mode": "100644",
+      "bytes": 4838,
+      "sha256": "237e29d1f25b72a7407cc06516f9d8eb141a52c22aff0f38834f5bfd4baacf68",
+      "owner": "mcp"
+    },
+    {
+      "path": "backend/src/transports/mcp/lifecycle/mod.rs",
+      "mode": "100644",
+      "bytes": 404,
+      "sha256": "cb20d68f8be84143cc9bd731031fe6c220f3924798723406aec4480691fc6951",
+      "owner": "mcp"
+    },
+    {
+      "path": "backend/src/transports/mcp/lifecycle/mount_adapter.rs",
+      "mode": "100644",
+      "bytes": 1074,
+      "sha256": "f6e74e3a3373e2d64face21e3d70cd36dfcf54886b2b7aa24874718ac3e0edd8",
+      "owner": "mcp"
+    },
+    {
+      "path": "backend/src/transports/mcp/lifecycle/session.rs",
+      "mode": "100644",
+      "bytes": 7187,
+      "sha256": "830c06e3896ff719fda5e43c6f0211db18ab6507319dd65fdc6c50fa207e7822",
+      "owner": "mcp"
+    },
+    {
       "path": "backend/src/transports/mcp/mod.rs",
       "mode": "100644",
-      "bytes": 1149,
-      "sha256": "f763c9a2cd3eaa5d098b10b369620e8f70ed1569a8b41770b122093cea4cc8d7",
+      "bytes": 1169,
+      "sha256": "264eaac2b1375b273865bb6c86e8cc3c92e9b683afaa02875a002f46871ee6e8",
       "owner": "mcp"
     },
     {
@@ -2332,6 +2374,13 @@
       "mode": "100644",
       "bytes": 2744,
       "sha256": "33c3ace1366017ed45571aa0da6f3b869d4af210f03ddaaa5dc76b504e9bb4d8",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/rust-integration/mcp-lifecycle-mount.md",
+      "mode": "100644",
+      "bytes": 5985,
+      "sha256": "83134811b72e0f113a89c6debd12f60f4cb59be34adb66633db07319bbd05f50",
       "owner": "core-integration"
     },
     {
@@ -3620,6 +3669,13 @@
       "mode": "100644",
       "bytes": 13634,
       "sha256": "763af2b29ca26414fd423f75e09671bc4c2e8e465dcdfd933933a825300fc46e",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/rust-integration/healthy-mcp-lifecycle-loopback.mjs",
+      "mode": "100644",
+      "bytes": 8965,
+      "sha256": "925089b656003e62a102f86fd22eda4dd9807f7f435c6ed4a744bc752e90578b",
       "owner": "core-integration"
     },
     {

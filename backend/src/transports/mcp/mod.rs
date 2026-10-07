@@ -32,3 +32,5 @@ mod healthy_examples;
 
 #[cfg(test)]
 mod healthy_native;
+
+pub mod lifecycle;
