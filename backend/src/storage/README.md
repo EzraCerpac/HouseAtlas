@@ -979,9 +979,14 @@ Global native recovery replay uses the same physical/logical/liability prefix
 predicate at reservation and admission cuts. A `Prepared` reservation requires
 no earlier native hold at its sequence. An initially `Queued` cut must have a
 replayed native hold or an independently retained Jobs occupancy witness.
+Later `Queued` events require an earlier pending reservation on the same
+physical database, a replayed native hold, or independently retained Jobs
+occupancy at that exact event. Admission uses the same pending-reservation FIFO
+predicate; a later outcome cannot supply an earlier waiting cause.
 The required `StockActivityRecoveryEvidence::queued_reservation_jobs` method
 qualifies the actual historical physical/logical/liability hold at that exact
-native producer/reservation cut and returns its original `jobs::LeasedJob` as
+native producer/reservation or later queued-event cut and returns its original
+`jobs::LeasedJob` as
 matching data. Storage verifies the physical deployment/configuration/owner,
 the strictly loaded retained job, original request/scope/byte-reservation fields
 and byte-exact immutable leased attempt in the already validated Jobs image.
@@ -997,3 +1002,21 @@ called on its Prepared-only reserve history. Cross-lane queued cuts are not
 qualified by that fixture. These changes are verified by source review, actual
 compilation and existing ordinary healthy examples; no retained reservation
 replay, metadata fault, omitted-lane or spliced-history control is executed.
+
+Upload persistence validates measured original identity and provenance while
+preserving preview qualification from the genuine immutable Media bound stage.
+Measured metadata does not establish rendering. The retained binding allows
+`DownloadOnly`, or `SafeRendered` with PNG content, and remains matched in full
+to canonical binding bytes/digest, the consumed stock receipt, asset audit and
+current asset association. Request input or MIME alone never supplies policy.
+No binding format or SQL migration changes. The ordinary `upload-healthy`
+binary accepts an optional second argument `rendered-png` or
+`download-only-png`; each performs one successful staged upload/atomic commit,
+strict consumed lookup, original reuse and authorized reopen in its own fresh
+output directory. Each also validates a standalone read-only image through
+the complete native/stock/upload validators and strictly reopens a separate
+copy, preserving bound payload and consumed association. The independent Jobs
+registry is empty; its fixture evidence ports return unavailable and are not
+called. The wide download-only original requests no preview. Its
+graph authorization is the same explicit synthetic fixture; these examples
+qualify neither production renderer evidence nor stopped controls.

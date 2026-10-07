@@ -56,7 +56,7 @@ use std::{
 const MAX_METADATA_BYTES: usize = 1_048_576;
 
 /// Exact immutable cross-lane reference only. Independent activity evidence
-/// must already qualify occupancy at the native reservation; current/final
+/// must already qualify occupancy at the native queued cut; current/final
 /// Jobs state is deliberately not substituted for that historical observation.
 pub(crate) fn validate_reservation_occupancy(
     db: &Connection,

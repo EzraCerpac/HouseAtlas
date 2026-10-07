@@ -39,9 +39,10 @@ pub trait StockActivityRecoveryEvidence {
     fn validate_record(&self, record: &RetainedStockActivity) -> Result<()>;
     fn validate_event(&self, event: StockActivityRecoveryEvent<'_>) -> Result<()>;
     /// Qualify an independently retained cross-lane occupancy cut at this exact
-    /// initially Queued reservation, including its original native producer,
-    /// physical identity and Jobs owner/attempt. Return the original leased
-    /// attempt whose physical/logical/liability hold was actually observed.
+    /// initially Queued reservation or later Queued event, including its
+    /// original native producer, physical identity and Jobs owner/attempt.
+    /// Return the original leased attempt whose physical/logical/liability hold
+    /// was actually observed.
     /// A lease DTO, final Jobs state, clocks or mirrored image are not proof of
     /// occupancy then. Missing external correlation/evidence must fail closed.
     /// Storage checks that this exact immutable attempt and its registry/job
@@ -50,7 +51,7 @@ pub trait StockActivityRecoveryEvidence {
     fn queued_reservation_jobs(
         &self,
         registration: &StockActivityRegistration,
-        reservation: &RetainedStockActivityEvent,
+        queued_cut: &RetainedStockActivityEvent,
     ) -> Result<crate::jobs::LeasedJob>;
 }
 /// Outcome-local cut. Later response/readback/end or liability facts are not
@@ -219,10 +220,10 @@ pub(crate) fn validate<
     }
     require(held == owners)?;
     let mut jobs_occupancy =
-        |record: &RetainedStockActivity, reservation: &RetainedStockActivityEvent| -> Result<()> {
+        |record: &RetainedStockActivity, queued_cut: &RetainedStockActivityEvent| -> Result<()> {
             let attempt = peers
                 .evidence
-                .queued_reservation_jobs(record.registration(), reservation)?;
+                .queued_reservation_jobs(record.registration(), queued_cut)?;
             crate::storage::queue::validate_reservation_occupancy(
                 db,
                 &attempt,
