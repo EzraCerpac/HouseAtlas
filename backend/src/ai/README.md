@@ -72,6 +72,15 @@ checkpoint. `verify_received_exchange` and explicit `refresh` can verify it
 using its original receipt time without exchanging a code or refreshing again;
 activation revalidates the original binding and preserves identity matching.
 A new authorization launch cannot overwrite an unresolved checkpoint.
+An explicit authorization begin can adopt the trusted operation's current
+cancellation epoch after older credentials/checkpoints have been cleared. It
+persists only that record field and the new attempt under the same active,
+revalidated original lease; registration, actor, workspace, home and authority
+epoch cannot change. Beginning authorization does not activate old credentials:
+a cancellation change with retained credentials stays held. Account/client
+mapping, stable host and existing revocation evidence are preserved. Same-epoch
+authorization can still retain the current session. A stopped lease never adopts
+a new epoch; host proof/stop/fence and first-record enrollment remain peer inputs.
 Disconnect stops local use and distinguishes confirmed from unconfirmed
 revocation. For a pending exchange it attempts revocation of both renewable
 sessions when older credentials also exist. Unconfirmed renewable exchange

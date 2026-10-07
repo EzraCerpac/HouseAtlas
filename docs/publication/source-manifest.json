@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d149c84d93dd52b89ffca3ce0d2924c606151262fff90ace21d08999e73d713f",
+  "sourceDigestSha256": "7d740a0b7949b1db5e71595ee6382ef09e54e98b269e9263c12bdda979ced981",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -70,8 +70,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 2287,
-      "sha256": "e1f83c7c5c667af697f5305a439e4363a35275a5ff6874a023ec26241701429d",
+      "bytes": 2887,
+      "sha256": "f6072cf238c0ff1c61d0e88041c5da119615ec723154f77ca7178e48f1dab54e",
       "owner": "core-integration"
     },
     {
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 3430,
-      "sha256": "7d9a45682677a3018707bda404009be606a79eea5e0b5b7e0bbe57cff572b313",
+      "bytes": 5380,
+      "sha256": "1839ab7a42697d37ff2f432a5cd55743bd781e1c36712087a6383474982da1fb",
       "owner": "core-integration"
     },
     {
@@ -371,8 +371,8 @@
     {
       "path": "backend/src/ai/README.md",
       "mode": "100644",
-      "bytes": 11115,
-      "sha256": "03207d751f70b20fd27bc63e9ed608f67a9fda94c3bfdee013fa0bf8deee875f",
+      "bytes": 11819,
+      "sha256": "0f6d980cbba3c7125ab54178baf788287cadfd0274015d28f1298e3358ff147d",
       "owner": "ai"
     },
     {
@@ -525,8 +525,8 @@
     {
       "path": "backend/src/ai/oauth.rs",
       "mode": "100644",
-      "bytes": 62726,
-      "sha256": "46b866048732a11394dc2f86310d61b5092c0eaa4d538305dfbe41e376d338b7",
+      "bytes": 72364,
+      "sha256": "ed08b453985613e7ca94c8b3df78c50c9cebdd363b6d849e29f5f350c384f469",
       "owner": "ai"
     },
     {
@@ -2982,8 +2982,8 @@
     {
       "path": "docs/operations/qualification-and-rollout.md",
       "mode": "100644",
-      "bytes": 1067,
-      "sha256": "942799b8ab8bcf5816b98ee63228d6e582836f017391d800a7e073e091e2ccb3",
+      "bytes": 1552,
+      "sha256": "20dd5366613f50429a1ba823b584970161ba412b686b076071fab465712eb31d",
       "owner": "operations-policy"
     },
     {
@@ -2996,8 +2996,8 @@
     {
       "path": "docs/operations/scenario-validation.md",
       "mode": "100644",
-      "bytes": 1382,
-      "sha256": "fcd93c8961f1872d4979c4a8faa4b755c5940518619a3d01c57820c47de0e73b",
+      "bytes": 1817,
+      "sha256": "8fd371ebf340a02f99908b4ab99b5a67480fad4650df6cc7bc146f50b59876ed",
       "owner": "operations-policy"
     },
     {
@@ -3052,8 +3052,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 24126,
-      "sha256": "8ab26b7e3ba47191163fd32712f418ef55d76fcbd734b8c8546922b246095291",
+      "bytes": 24827,
+      "sha256": "a4d6f753a8c4e3bddbdb099153b045b146dba5d8a37e98c60e51855039b66896",
       "owner": "core-integration"
     },
     {
@@ -3066,8 +3066,8 @@
     {
       "path": "docs/rust-integration/agents.md",
       "mode": "100644",
-      "bytes": 11485,
-      "sha256": "e6d6a5482967668f28bddc2760052e26b8620956131698c747d2992ea1168693",
+      "bytes": 12186,
+      "sha256": "019b7676e0ed86ae513723da09b424413348aab161c1c1b0a10c621a285f24d2",
       "owner": "core-integration"
     },
     {
@@ -3087,8 +3087,8 @@
     {
       "path": "docs/rust-integration/credential-platform.md",
       "mode": "100644",
-      "bytes": 1846,
-      "sha256": "9961b3432406085d8654ad3ea2d65709ea3fccd028171c54128a0438a6ba9a6f",
+      "bytes": 1977,
+      "sha256": "7fb8564d34194e7fc4c97f7cb7d27e79f84aa86f19edf32a55df6c3b044a25c4",
       "owner": "core-integration"
     },
     {

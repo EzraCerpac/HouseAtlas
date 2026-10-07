@@ -19,8 +19,9 @@ are zeroized on Drop; complete process-memory erasure is not established.
 
 Source composition does not provision keys or credentials, call an OS service,
 enroll an initial registration or mount an operational AI host. Original host
-proof, stop-use and final epoch fence, first-record trusted enrollment, core
-trusted reconnect binding and genuine runtime/model/catalog adapters remain
-integration inputs. Default Settings remains unavailable. Owner-side synthetic
+proof, stop-use and final epoch fence, first-record trusted enrollment and
+genuine runtime/model/catalog adapters remain integration inputs. The core
+trusted reconnect transition now persists the captured cancellation binding
+under the original lease, after retained credentials/checkpoints are cleared. Default Settings remains unavailable. Owner-side synthetic
 key/authority persistence fixtures are separate from composed-root runtime proof;
 ordinary source compilation executes none of those credential fixtures.
