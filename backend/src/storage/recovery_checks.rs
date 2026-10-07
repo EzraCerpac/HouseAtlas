@@ -199,7 +199,21 @@ fn validate_core_profile<C: Contract>(
         ),
     ] {
         each(db, sql, check, |row, _| {
-            let value: Value = native(contract, name, &row.get::<_, String>(5)?)?;
+            let body: String = row.get(5)?;
+            let value: Value = if homebox {
+                let value = serde_json::from_str(&body)?;
+                contract.validate_shape(name, &value)?;
+                // Exact-number projection bodies and previously published JCS
+                // bodies both retain their strict encoding/key/graph checks.
+                // Legacy rounding cannot be reversed or inferred on reopen.
+                require(
+                    cache_repo::projection_json(&value)? == body
+                        || contract.canonical_json(&value)? == body,
+                )?;
+                value
+            } else {
+                native(contract, name, &body)?
+            };
             let source = if homebox { &value["source"] } else { &value };
             let key = (
                 repo::string(&value, "workspaceId")?.to_owned(),

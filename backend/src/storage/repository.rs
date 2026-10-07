@@ -192,7 +192,7 @@ pub(crate) fn bootstrap<C: Contract, R: Runtime>(
         }
     }
     for projection in &snapshot.homebox_entities {
-        cache_repo::write_homebox(db, contract, projection)?;
+        cache_repo::write_homebox(db, projection)?;
     }
     for relation in &snapshot.network_relations {
         cache_repo::write_network(db, contract, relation)?;

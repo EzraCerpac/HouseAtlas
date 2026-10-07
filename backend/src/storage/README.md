@@ -981,6 +981,18 @@ current disclosure authority, but invokes neither metadata getter. A missing
 reservation borrows the original runtime from that already locked Store; no
 second Store acquisition or lookup/allocation gap is introduced.
 
+For a new reservation, the original producer-set mutex is acquired with
+`try_lock` before metadata allocation or SQL insertion, after the durable
+existing-result lookup. The lock travels with the result through the original
+transaction. An internal unit-returning commit callback records membership
+immediately after successful SQL commit and drops that already held mutex
+before later live-fence/disclosure checks. Contention or rollback creates no
+membership; a committed operation keeps original-session eligibility even if
+post-commit disclosure fails. Existing rows never acquire producer eligibility
+from IDs or reconstructed data. Public APIs and original retention authority
+checks are unchanged. Concurrency, rollback/fault and retry controls remain
+deferred; ordinary source/retention checks do not qualify those campaigns.
+
 Global native recovery replay uses the same physical/logical/liability prefix
 predicate at reservation and admission cuts. A `Prepared` reservation requires
 no earlier native hold at its sequence. An initially `Queued` cut must have a
@@ -1048,3 +1060,26 @@ This is independent same-process original evidence, not an authenticated
 production archive/reload implementation. The text and valid wide PNG retain
 download-only policy and invoke no renderer-policy qualifier. No absent-proof,
 policy splice/reversal or other held control is run.
+
+HomeBox projection bodies now use exact-number JSON serialization instead of
+the mutation contract's RFC 8785 number conversion. Reader-qualified JSON
+numbers, including maintenance costs beyond binary64 precision and tiny
+decimals, retain their tokens through bootstrap, generation publication, SQL
+reads and reopen. This private projection encoding is not a mutation digest,
+receipt, audit or authorization proof; those contracts remain unchanged.
+Strict recovery still validates shape, SQL/source keys and the complete graph.
+It accepts the exact projection encoding or the previously published canonical
+encoding, without migrating or rewriting an existing image. Already-rounded
+legacy amounts cannot be reconstructed.
+
+`checks/projection-numbers-healthy.rs` is a separate ordinary offline checkpoint
+for an external harness mounting actual Reader92, native root contracts and
+Storage. Its synthetic transport supplies seven stock decimal cost tokens. The
+actual reader prepares and consumes the original Store publication fence; the
+checkpoint compares every token in SQL, authorized reads, ordinary reopen,
+strict read-only backup validation and strict image reopen. Actual Reader
+retained-generation reconstruction is checked on the reopened Store. An
+untouched pre-change healthy canonical database is also validated read-only.
+The fixture principal/transport/clock are synthetic; there is no provider,
+listener, production authorization or held-control qualification. Root owns
+the final Reader/Storage composition and shared manifest integration.
