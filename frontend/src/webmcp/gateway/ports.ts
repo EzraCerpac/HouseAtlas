@@ -30,7 +30,8 @@ export interface GatewayToolBinding {
 export interface GatewayDownload {
   /** Host-issued same-origin path, with no URL construction in this lane. */
   readonly href: string;
-  readonly filename: string;
+  /** Null leaves naming to the owner's Content-Disposition/browser behavior. */
+  readonly filename: string | null;
   readonly mediaType: string;
   readonly label: string;
 }

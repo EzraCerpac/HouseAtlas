@@ -17,21 +17,27 @@ export function useCommittedResult<T>() {
   const tickets = useRef(new Set<CommitTicket<T>>());
   const activation = useRef<symbol | null>(null);
   const activate = useMemo(() => {
-    const invalidate = () => {
-      activation.current = null;
+    const clearPending = (reason: DOMException) => {
       for (const ticket of tickets.current) {
         ticket.signal.removeEventListener("abort", ticket.abort);
-        ticket.reject(new DOMException("Result view is unmounted", "InvalidStateError"));
+        ticket.reject(reason);
       }
       tickets.current.clear();
       setValue(null);
+    };
+    const invalidate = () => {
+      activation.current = null;
+      clearPending(new DOMException("Result view is unmounted", "InvalidStateError"));
     };
     return () => {
       invalidate();
       const lease = Symbol("result activation");
       activation.current = lease;
       return {
-        clear() { if (activation.current === lease) setValue(null); },
+        clear() {
+          if (activation.current === lease)
+            clearPending(new DOMException("Result view was cleared before acknowledgement", "InvalidStateError"));
+        },
         deactivate() { if (activation.current === lease) invalidate(); },
         commit(next: T, signal: AbortSignal): Promise<void> {
           signal.throwIfAborted();

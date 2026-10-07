@@ -30,7 +30,10 @@ export function StockWebMcpBoundary(props: StockWebMcpBoundaryProps): ReactNode 
     const onStatus = (): void => {
       const status = handle.getStatus();
       setRegistration(status);
-      if (status.state !== "registered") visible.clear();
+      // A partial registration failure removes tool availability, while calls
+      // already underway still need their canonical result to reach the view.
+      if (status.state !== "registered" && !(status.state === "failed" && status.phase === "registration"))
+        visible.clear();
     };
     const unsubscribe = handle.subscribeStatus(onStatus);
     onStatus();

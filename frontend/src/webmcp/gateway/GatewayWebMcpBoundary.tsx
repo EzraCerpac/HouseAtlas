@@ -16,7 +16,7 @@ export function GatewayResult({ completion }: { readonly completion: GatewayComp
   return <section aria-label="Gateway result" data-gateway-tool={completion.toolName}>
     <h2>{completion.toolName}</h2>
     <pre role="status" aria-live="polite">{JSON.stringify(completion.result, null, 2)}</pre>
-    {completion.download && <a href={completion.download.href} download={completion.download.filename}
+    {completion.download && <a href={completion.download.href} download={completion.download.filename ?? ""}
       type={completion.download.mediaType}>{completion.download.label}</a>}
   </section>;
 }
@@ -38,7 +38,10 @@ export function GatewayWebMcpBoundary(props: GatewayWebMcpBoundaryProps) {
     const onStatus = () => {
       const status = handle.getStatus();
       setRegistration(status);
-      if (status.state !== "registered") port.clear();
+      // Registration cleanup does not cancel domain execution. Preserve its
+      // queued/completed result when only later tool registration failed.
+      if (status.state !== "registered" && !(status.state === "failed" && status.phase === "registration"))
+        port.clear();
     };
     const unsubscribe = handle.subscribeStatus(onStatus);
     onStatus();
