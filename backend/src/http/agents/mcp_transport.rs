@@ -1,7 +1,7 @@
 //! Bounded JSON Streamable HTTP, with actual AT11 POST authority on every POST.
 //! This application-specific cookie/CSRF profile is Editor-only and read-only.
 //! It does not advertise OAuth, SSE, server requests, or a new access grant.
-use super::mcp::{self, OwnedAdapter};
+use super::mcp::{self, OwnedLifecycle};
 use crate::{
     access as a,
     app::Access,
@@ -18,6 +18,7 @@ use axum::{
     http::{HeaderMap, HeaderValue, Method, StatusCode, header},
     response::{IntoResponse, Response},
 };
+use native::lifecycle::{AuthenticatedIdentity, ConfirmedRotation, Delivery, SessionControl};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
@@ -88,8 +89,7 @@ fn accepted() -> Response {
 }
 
 struct Entry {
-    adapter: OwnedAdapter,
-    session: native::Session<native::NativeContext>,
+    session: OwnedLifecycle,
     original: a::Principal,
     scope: d::Scope,
     cookie_binding: [u8; 32],
@@ -107,22 +107,42 @@ impl Drop for Entry {
 #[derive(Default)]
 pub(crate) struct TransportSessions {
     entries: BTreeMap<String, Arc<Mutex<Entry>>>,
+    controls: BTreeMap<String, ControlEntry>,
+}
+
+// Immutable registry metadata and a separate control handle permit cancellation
+// without entering the serialized owner/session lock or waiting on native work.
+#[derive(Clone)]
+struct ControlEntry {
+    control: SessionControl,
+    scope: d::Scope,
+    cookie_binding: [u8; 32],
 }
 
 impl TransportSessions {
     fn prune(&mut self, now: Instant) {
-        self.entries.retain(|_, entry| match entry.try_lock() {
-            Ok(mut entry) => {
-                let keep = entry.session.state() != native::SessionState::Closed
-                    && now.saturating_duration_since(entry.last_used) < SESSION_IDLE;
-                if !keep {
-                    entry.session.close();
-                }
-                keep
+        let controls = &self.controls;
+        self.entries.retain(|id, entry| {
+            if controls
+                .get(id)
+                .is_none_or(|entry| entry.control.is_closed())
+            {
+                return false;
             }
-            Err(TryLockError::WouldBlock) => true,
-            Err(TryLockError::Poisoned(_)) => false,
+            match entry.try_lock() {
+                Ok(mut entry) => {
+                    let keep = entry.session.state() != native::SessionState::Closed
+                        && now.saturating_duration_since(entry.last_used) < SESSION_IDLE;
+                    if !keep {
+                        entry.session.close();
+                    }
+                    keep
+                }
+                Err(TryLockError::WouldBlock) => true,
+                Err(TryLockError::Poisoned(_)) => false,
+            }
         });
+        self.controls.retain(|id, _| self.entries.contains_key(id));
     }
 
     fn insert(&mut self, id: String, entry: Entry) -> Result<(), HttpFailure> {
@@ -150,12 +170,35 @@ impl TransportSessions {
         if count >= MAX_PER_COOKIE {
             return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
         }
+        self.controls.insert(
+            id.clone(),
+            ControlEntry {
+                control: entry.session.control(),
+                scope: entry.scope.clone(),
+                cookie_binding: entry.cookie_binding,
+            },
+        );
         self.entries.insert(id, Arc::new(Mutex::new(entry)));
         Ok(())
+    }
+
+    pub(crate) fn on_rotation(&mut self, event: &ConfirmedRotation) {
+        for entry in self.controls.values() {
+            entry.control.on_rotation(event);
+        }
+        self.prune(Instant::now());
+    }
+
+    fn remove(&mut self, id: &str) {
+        if let Some(entry) = self.controls.remove(id) {
+            entry.control.close();
+        }
+        self.entries.remove(id);
     }
 }
 
 struct Authenticated {
+    identity: Option<AuthenticatedIdentity>,
     original: a::Principal,
     access: Access,
     cookie_binding: [u8; 32],
@@ -287,7 +330,49 @@ fn handle(
         return Err(failure(StatusCode::BAD_REQUEST));
     }
 
+    let identity = auth
+        .identity
+        .as_ref()
+        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
     if let Some(id) = meta.session_id {
+        if envelope.get("method").and_then(Value::as_str) == Some("notifications/cancelled")
+            && !envelope.contains_key("id")
+        {
+            let registered = {
+                let mut sessions = host
+                    .mcp
+                    .lock()
+                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+                sessions.prune(Instant::now());
+                sessions
+                    .controls
+                    .get(&id)
+                    .cloned()
+                    .ok_or_else(|| failure(StatusCode::NOT_FOUND))?
+            };
+            if registered.scope != scope
+                || !bool::from(
+                    registered
+                        .cookie_binding
+                        .as_slice()
+                        .ct_eq(auth.cookie_binding.as_slice()),
+                )
+            {
+                return Err(failure(StatusCode::FORBIDDEN));
+            }
+            registered
+                .control
+                .notification(identity, bytes)
+                .map_err(port_failure)?;
+            if registered.control.is_closed() {
+                host.mcp
+                    .lock()
+                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
+                    .remove(&id);
+                return Err(failure(StatusCode::NOT_FOUND));
+            }
+            return Ok(accepted());
+        }
         let shared = {
             let mut sessions = host
                 .mcp
@@ -322,11 +407,10 @@ fn handle(
             if entry.session.state() == native::SessionState::Closed {
                 return Err(failure(StatusCode::NOT_FOUND));
             }
-            let Entry {
-                adapter, session, ..
-            } = &mut *entry;
-            let reply = runtime.block_on(adapter.handle(session, bytes));
-            let closed = session.state() == native::SessionState::Closed;
+            let reply = runtime
+                .block_on(entry.session.handle(identity, bytes))
+                .map_err(port_failure)?;
+            let closed = entry.session.state() == native::SessionState::Closed;
             entry.last_used = Instant::now();
             revalidate(&auth.access, &entry.original)?;
             (reply, closed)
@@ -335,13 +419,14 @@ fn handle(
             host.mcp
                 .lock()
                 .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
-                .entries
                 .remove(&id);
         }
         return match reply {
-            Some(bytes) => Ok(protocol_response(bytes)),
-            None if !closed => Ok(accepted()),
-            None => Err(failure(StatusCode::NOT_FOUND)),
+            Delivery::Reply(bytes) => Ok(protocol_response(bytes)),
+            Delivery::Accepted if !closed => Ok(accepted()),
+            // This is an empty HTTP completion, never a JSON-RPC/tool result.
+            Delivery::Cancelled if !closed => Ok(marked(StatusCode::NO_CONTENT.into_response())),
+            _ => Err(failure(StatusCode::NOT_FOUND)),
         };
     }
 
@@ -351,20 +436,25 @@ fn handle(
         return Err(failure(StatusCode::BAD_REQUEST));
     }
     revalidate(&auth.access, &auth.original)?;
-    let (adapter, session) = runtime
-        .block_on(mcp::bind_owned(host.core.clone(), auth.original.clone()))
+    let session = runtime
+        .block_on(mcp::bind_owned_lifecycle(
+            host.core.clone(),
+            identity.clone(),
+        ))
         .map_err(port_failure)?;
     let mut entry = Entry {
-        adapter,
         session,
         original: auth.original,
         scope,
         cookie_binding: auth.cookie_binding,
         last_used: Instant::now(),
     };
-    let reply = runtime
-        .block_on(entry.adapter.handle(&mut entry.session, bytes))
-        .ok_or_else(|| failure(StatusCode::BAD_REQUEST))?;
+    let Delivery::Reply(reply) = runtime
+        .block_on(entry.session.handle(identity, bytes))
+        .map_err(port_failure)?
+    else {
+        return Err(failure(StatusCode::BAD_REQUEST));
+    };
     revalidate(&auth.access, &entry.original)?;
     if entry.session.state() != native::SessionState::AwaitingInitialized {
         // Preserve the owner's JSON-RPC request error; do not publish a session
@@ -400,27 +490,25 @@ async fn post_inner(host: Host, scope: d::Scope, request: Request) -> HttpResult
     let capture_scope = scope.clone();
     let auth = tokio::task::spawn_blocking(move || {
         let _admitted = capture_checked.admission_permit()?;
-        let core = capture_host
-            .core
-            .lock()
-            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
         let url = format!("{}{}", capture_host.origin, uri.path());
         let observed = evidence(&capture_host.origin, &capture_checked, &uri, &url, &method)
             .map_err(access_error)?;
         // Preserve observed Method::Post. AT11 checks actual Origin + Cookie +
         // current CSRF and Editor membership; no fake GET or DTO principal.
-        let original = core
-            .access
-            .lock()
-            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
-            .authorize(&observed, &selected, a::Action::Mutate)
-            .map_err(access_error)?;
-        if !core.homes.iter().any(|home| home.scope == capture_scope) {
+        let identity = AuthenticatedIdentity::authenticate_post(
+            capture_host.mcp_access.clone(),
+            &observed,
+            &selected,
+        )
+        .map_err(access_error)?;
+        let original = identity.original().clone();
+        if !capture_host.mcp_scopes.contains(&capture_scope) {
             return Err(failure(StatusCode::NOT_FOUND));
         }
         Ok(Authenticated {
+            identity: Some(identity),
             original,
-            access: core.access.clone(),
+            access: capture_host.mcp_access.clone(),
             cookie_binding: cookie_binding(&capture_checked)?,
         })
     })
@@ -523,6 +611,7 @@ async fn unsupported_inner(host: Host, scope: d::Scope, request: Request) -> Htt
                 return Err(failure(StatusCode::NOT_FOUND));
             }
             Authenticated {
+                identity: None,
                 original,
                 access: core.access.clone(),
                 cookie_binding: cookie_binding(&checked)?,

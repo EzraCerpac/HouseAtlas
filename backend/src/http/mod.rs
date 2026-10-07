@@ -46,6 +46,9 @@ pub struct Host {
     pages: Arc<Mutex<pages::Pages>>,
     admission: Arc<admission::Admission>,
     mcp: Arc<Mutex<agents::mcp_transport::TransportSessions>>,
+    // Same native Access owner; immutable configured scopes copied at startup.
+    mcp_access: crate::app::Access,
+    mcp_scopes: Arc<Vec<d::Scope>>,
 }
 impl Host {
     pub fn new(
@@ -55,6 +58,8 @@ impl Host {
         homebox_cache_sources: Vec<crate::config::providers::homebox::TrustedHomeBoxSource>,
     ) -> crate::storage::Result<Self> {
         Ok(Self {
+            mcp_access: core.access.clone(),
+            mcp_scopes: Arc::new(core.homes.iter().map(|home| home.scope.clone()).collect()),
             core: Arc::new(Mutex::new(core)),
             origin,
             files,

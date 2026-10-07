@@ -66,3 +66,7 @@ path = "src/contracts/semantics/examples/healthy.rs"
 [[example]]
 name = "healthy-agent-stock"
 path = "../tools/rust-integration/examples/healthy_agent_stock.rs"
+
+[[example]]
+name = "healthy-mcp-lifecycle"
+path = "src/transports/mcp/lifecycle/healthy.rs"
