@@ -24,3 +24,17 @@ pub(crate) fn target(operation: &StoredOperation) -> Option<StockTarget> {
 pub(crate) fn invalid_request(request_id: uuid::Uuid) -> StockError {
     StockError::new(request_id, None, StockErrorCode::InvalidArgument)
 }
+
+pub(crate) fn readback_plan(operation: &StoredOperation) -> Option<ReadbackPlan> {
+    let mut readback = operation.plan.as_ref()?.readback.clone();
+    if matches!(
+        readback.selector,
+        ReadbackSelector::Whole | ReadbackSelector::RootList | ReadbackSelector::Member { .. }
+    ) {
+        readback.target = target(operation)?;
+        readback.path = readback
+            .path
+            .replace("{generatedId}", &readback.target.id().ok()?.to_string());
+    }
+    Some(readback)
+}
