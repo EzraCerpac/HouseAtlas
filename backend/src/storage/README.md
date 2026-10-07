@@ -77,6 +77,14 @@ require matching staged-byte SHA-256 and byte size; storage opens no media path.
 Public operations are `open`, `initialize_synthetic`, `execute`, `execute_batch`,
 `execute_json`, `execute_batch_json`, `read_record`, `history`,
 `read_asset_manifest`, `read_snapshot`, `database_version`, and consuming `close`.
+`execute_json_with_authorization` and `execute_batch_json_with_authorization`
+accept a synchronous borrowed peer `B: Authorization<Principal = A::Principal>`.
+They use the same private connection and command engine as the default methods.
+The supplied peer handles intake, validate, candidate and precommit, or intake,
+replay and replay-precommit; no phase falls back to the stored authorizer.
+The caller's peer retains its original authority handles across phases; it is
+neither cloned nor stored after return. These methods open no second connection
+and expose no SQL handle, future or transaction callback.
 Use the JSON entrypoints for untrusted parsed commands; the ingress parser must
 first reject duplicate keys and enforce request limits. Typed command entrypoints
 are for server-constructed or already validated carriers. `history` returns the
