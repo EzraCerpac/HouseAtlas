@@ -340,6 +340,7 @@ impl<Conn, Infer, Catalog, Meter, Store> AiRunner<'_, Conn, Infer, Catalog, Mete
                 }
                 return Ok(RunOutcome::Completed {
                     text,
+                    operation_ids: operation_ids.clone(),
                     usage: *usage,
                 });
             }

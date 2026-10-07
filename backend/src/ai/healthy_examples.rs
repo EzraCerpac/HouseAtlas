@@ -266,6 +266,7 @@ fn healthy_published_reads_and_explicit_history() {
         result,
         RunOutcome::Completed {
             text: "Recorded circuit history; label remains unknown.".into(),
+            operation_ids: vec![],
             usage: Usage {
                 input_tokens: Some(24),
                 output_tokens: Some(14),
@@ -522,5 +523,206 @@ fn healthy_domain_operation_correlation_dto() {
     assert_eq!(
         serde_json::from_value::<RunOutcome>(wire).expect("healthy DTO round trip"),
         outcome
+    );
+}
+
+#[test]
+fn healthy_completed_resumed_dispatch_correlations() {
+    use super::runner::AiCheckpoint;
+    use std::collections::HashSet;
+
+    struct ReviewedCatalog;
+    impl DomainCatalog<SyntheticContext> for ReviewedCatalog {
+        type Prepared = ToolCall;
+        fn tools(&self, _: &SyntheticContext) -> Result<Vec<ToolDescriptor>, AiError> {
+            Ok(vec![ToolDescriptor {
+                name: "syntheticReviewed".into(),
+                description: "Synthetic reviewed observation".into(),
+                parameters: json!({"type":"object","properties":{},"additionalProperties":false}),
+            }])
+        }
+        fn prepare(&self, _: &SyntheticContext, call: &ToolCall) -> Result<ToolCall, AiError> {
+            Ok(call.clone())
+        }
+        fn effect(&self, _: &ToolCall) -> ToolEffect {
+            ToolEffect::RequiresReview
+        }
+        fn review<'a>(
+            &'a self,
+            _: &'a SyntheticContext,
+            _: &'a ToolCall,
+            _: &'a Cancellation,
+        ) -> PortFuture<'a, Option<ReviewChallenge>> {
+            Box::pin(async { Ok(None) })
+        }
+        fn execute_read<'a>(
+            &'a self,
+            _: &'a SyntheticContext,
+            _: &'a ToolCall,
+            _: &'a Cancellation,
+        ) -> PortFuture<'a, Value> {
+            Box::pin(async { panic!("healthy fixture only resumes reviewed observations") })
+        }
+        fn execute_reviewed<'a>(
+            &'a self,
+            _: &'a SyntheticContext,
+            call: &'a ToolCall,
+            _: &'a Cancellation,
+        ) -> PortFuture<'a, DomainDispatch> {
+            Box::pin(async move {
+                Ok(DomainDispatch {
+                    state: if call.call_id == "synthetic-call-c" {
+                        DomainDispatchState::Observed
+                    } else {
+                        DomainDispatchState::Resolved
+                    },
+                    operation_id: Some(format!("synthetic-operation-{}", call.call_id)),
+                    value: json!({"recorded":true}),
+                })
+            })
+        }
+    }
+    struct FinalAnswer;
+    impl InferencePort<SyntheticContext> for FinalAnswer {
+        fn infer<'a>(
+            &'a self,
+            _: &'a SyntheticContext,
+            id: &'a str,
+            request: &'a ResponsesRequest,
+            _: &'a Cancellation,
+        ) -> PortFuture<'a, InferenceOutcome> {
+            Box::pin(async move {
+                assert_eq!(id, "synthetic-completed-correlations");
+                let wire = serde_json::to_value(request).unwrap();
+                assert_eq!(
+                    wire["input"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .filter(|v| v["type"] == "function_call_output")
+                        .count(),
+                    2
+                );
+                Ok(InferenceOutcome::Completed {
+                    output: vec![
+                        json!({"type":"message","role":"assistant","phase":"final_answer","content":[{"type":"output_text","text":"Synthetic reviewed work is recorded."}]}),
+                    ],
+                    usage: Usage {
+                        input_tokens: Some(3),
+                        output_tokens: Some(5),
+                        total_tokens: Some(8),
+                    },
+                })
+            })
+        }
+    }
+    struct Store(Mutex<Option<AiCheckpoint<ToolCall>>>);
+    impl ReviewContinuationPort<SyntheticContext, ToolCall> for Store {
+        fn retain<'a>(
+            &'a self,
+            _: &'a SyntheticContext,
+            _: AiCheckpoint<ToolCall>,
+            _: &'a Cancellation,
+        ) -> PortFuture<'a, String> {
+            Box::pin(async { panic!("original synthetic checkpoint is already retained") })
+        }
+        fn claim<'a>(
+            &'a self,
+            _: &'a SyntheticContext,
+            continuation: &'a str,
+            request: &'a str,
+            _: &'a Cancellation,
+        ) -> PortFuture<'a, AiCheckpoint<ToolCall>> {
+            Box::pin(async move {
+                assert_eq!(continuation, "synthetic-trusted-review");
+                assert_eq!(request, "synthetic-completed-correlations");
+                Ok(self
+                    .0
+                    .lock()
+                    .unwrap()
+                    .take()
+                    .expect("one original checkpoint"))
+            })
+        }
+    }
+    struct Meter(Mutex<Vec<String>>);
+    impl UsagePort<SyntheticContext> for Meter {
+        fn observed(&self, _: &SyntheticContext, _: &str, _: Usage) {}
+        fn provider_failed(&self, _: &SyntheticContext, _: &str, _: &ProviderDiagnostic) {}
+        fn domain_observed(
+            &self,
+            _: &SyntheticContext,
+            id: &str,
+            dispatch: &DomainDispatch,
+        ) -> Result<(), AiError> {
+            assert_eq!(id, "synthetic-completed-correlations");
+            self.0
+                .lock()
+                .unwrap()
+                .push(dispatch.operation_id.clone().unwrap());
+            Ok(())
+        }
+    }
+    // Trusted continuation/catalog/inference are explicitly stubbed. Actual
+    // runner resume/dispatch/usage/Completed projection executes; no real grant,
+    // write, approval, provider, replay or held step is performed by these peers.
+    let calls = ["synthetic-call-c", "synthetic-call-d"].map(|id| ToolCall {
+        call_id: id.into(),
+        name: "syntheticReviewed".into(),
+        arguments: json!({}),
+    });
+    let prior = vec![
+        "synthetic-earlier-a".to_owned(),
+        "synthetic-earlier-b".to_owned(),
+    ];
+    let store = Store(Mutex::new(Some(AiCheckpoint {
+        request_id: "synthetic-completed-correlations".into(), model: "synthetic-selected-model".into(),
+        history: calls.iter().map(|c| json!({"type":"function_call","namespace":"houseatlas","call_id":c.call_id,"name":c.name,"arguments":"{}"})).collect(),
+        pending: calls.iter().map(|c| (c.clone(), c.clone())).collect(),
+        seen_calls: calls.iter().map(|c| c.call_id.clone()).collect::<HashSet<_>>(), next_round: 1,
+        usage: Usage { input_tokens: Some(12), output_tokens: Some(7), total_tokens: Some(19) },
+        operation_ids: prior.clone(), limits: RunLimits::default(),
+    })));
+    let meter = Meter(Mutex::new(vec![]));
+    let runner = AiRunner {
+        connection: &HealthyConnection,
+        inference: &FinalAnswer,
+        catalog: &ReviewedCatalog,
+        usage: &meter,
+        continuations: &store,
+    };
+    let context = SyntheticContext {
+        workspace: "synthetic-workspace".into(),
+        home: "synthetic-home".into(),
+    };
+    let outcome = ready(runner.resume(
+        &context,
+        "synthetic-completed-correlations",
+        "synthetic-trusted-review",
+        &Cancellation::default(),
+    ))
+    .expect("healthy actual runner completion");
+    let mut expected = prior;
+    expected.extend(meter.0.lock().unwrap().iter().cloned());
+    assert_eq!(expected.len(), 4);
+    assert_eq!(
+        outcome,
+        RunOutcome::Completed {
+            text: "Synthetic reviewed work is recorded.".into(),
+            operation_ids: expected.clone(),
+            usage: Usage {
+                input_tokens: Some(15),
+                output_tokens: Some(12),
+                total_tokens: Some(27)
+            }
+        }
+    );
+    let wire = serde_json::to_value(&outcome).unwrap();
+    assert_eq!(wire["operationIds"], json!(expected));
+    assert_eq!(serde_json::from_value::<RunOutcome>(wire).unwrap(), outcome);
+    let old: RunOutcome = serde_json::from_value(json!({"status":"completed","text":"Historical completion","usage":{"inputTokens":null,"outputTokens":null,"totalTokens":null}})).unwrap();
+    assert_eq!(
+        serde_json::to_value(old).unwrap()["operationIds"],
+        json!([])
     );
 }

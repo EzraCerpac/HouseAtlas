@@ -397,6 +397,16 @@ impl<S: SecurityPort, P: OAuthProviderPort, B> OAuthLifecycle<'_, S, P, B> {
             return Err(AiError::ConnectionUnavailable);
         }
         let now = finite_time(self.credentials.now_ms()?)?;
+        if record
+            .pending_authorization
+            .as_ref()
+            .is_some_and(|attempt| now < attempt.expires_at_ms)
+        {
+            // This exclusive registration lease protects the original live
+            // attempt across aliases. A second launch must not consume its
+            // state/nonce/PKCE or replace its callback and purpose.
+            return Err(AiError::ConnectionUnavailable);
+        }
         let (redirect_uri, callback_host, authentication) = match (&record.kind, callback) {
             (
                 RegistrationKind::LocalPublicClient,
@@ -1559,6 +1569,161 @@ mod healthy_examples {
         // paid-use admission are still required. No inference is invoked here.
     }
 
+    // Invoked only by the exact separate denial entrypoint, never a healthy
+    // test or aggregate. All peers complete synchronously with synthetic data.
+    pub(super) fn check_live_authorization_begin_refusal() {
+        struct CountSecurity(AtomicUsize);
+        impl SecurityPort for CountSecurity {
+            fn fresh<'a>(&'a self) -> PortFuture<'a, FreshAuthorization> {
+                self.0.fetch_add(1, Ordering::Relaxed);
+                SyntheticSecurity.fresh()
+            }
+            fn state_matches(&self, expected: &ProtectedValue, returned: &str) -> bool {
+                SyntheticSecurity.state_matches(expected, returned)
+            }
+            fn validate_website_callback(&self, uri: &str, host: &str) -> Result<(), AiError> {
+                SyntheticSecurity.validate_website_callback(uri, host)
+            }
+            fn verify_identity<'a>(
+                &'a self,
+                token: &'a ProtectedValue,
+                requirements: IdentityRequirements<'a>,
+            ) -> PortFuture<'a, IdentityValidation> {
+                SyntheticSecurity.verify_identity(token, requirements)
+            }
+        }
+        struct CountBoundary {
+            inner: SyntheticBoundary,
+            persists: AtomicUsize,
+        }
+        impl CredentialBoundary<()> for CountBoundary {
+            type Lease = ();
+            fn acquire<'a>(&'a self, c: &'a (), b: &'a RegistrationBinding) -> PortFuture<'a, ()> {
+                self.inner.acquire(c, b)
+            }
+            fn load<'a>(&'a self, l: &'a ()) -> PortFuture<'a, RegistrationRecord> {
+                self.inner.load(l)
+            }
+            fn persist_atomic<'a>(
+                &'a self,
+                l: &'a mut (),
+                r: &'a RegistrationRecord,
+            ) -> PortFuture<'a, ()> {
+                self.persists.fetch_add(1, Ordering::Relaxed);
+                self.inner.persist_atomic(l, r)
+            }
+            fn revalidate<'a>(
+                &'a self,
+                c: &'a (),
+                l: &'a (),
+                b: &'a RegistrationBinding,
+            ) -> PortFuture<'a, ()> {
+                self.inner.revalidate(c, l, b)
+            }
+            fn stop_use<'a>(&'a self, l: &'a mut ()) -> PortFuture<'a, ()> {
+                self.inner.stop_use(l)
+            }
+            fn now_ms(&self) -> Result<u64, AiError> {
+                self.inner.now_ms()
+            }
+        }
+        let storage = CountBoundary {
+            inner: SyntheticBoundary(Mutex::new(empty_registration())),
+            persists: AtomicUsize::new(0),
+        };
+        let security = CountSecurity(AtomicUsize::new(0));
+        let provider = provider(true);
+        let lifecycle = OAuthLifecycle {
+            security: &security,
+            provider: &provider,
+            credentials: &storage,
+        };
+        let original = ready(lifecycle.begin(
+            &(),
+            &binding(),
+            CallbackSelection::AvailableLoopbackPort(NonZeroU16::new(55431).unwrap()),
+            SignInPurpose::EnablePlanUse,
+        ))
+        .expect("synthetic original launch");
+        let before = duplicate_record(&storage.inner.0.lock().unwrap());
+        let denied = ready(lifecycle.begin(
+            &(),
+            &binding(),
+            CallbackSelection::AvailableLoopbackPort(NonZeroU16::new(55432).unwrap()),
+            SignInPurpose::Identity,
+        ));
+        assert!(matches!(denied, Err(AiError::ConnectionUnavailable)));
+        assert_eq!(
+            security.0.load(Ordering::Relaxed),
+            1,
+            "no second fresh material"
+        );
+        assert_eq!(
+            storage.persists.load(Ordering::Relaxed),
+            1,
+            "no second persistence"
+        );
+        assert_eq!(provider.exchanges.load(Ordering::Relaxed), 0);
+        assert_eq!(provider.refreshes.load(Ordering::Relaxed), 0);
+        {
+            let after = storage.inner.0.lock().unwrap();
+            assert_eq!(after.binding, before.binding);
+            let first = before.pending_authorization.as_ref().unwrap();
+            let kept = after.pending_authorization.as_ref().unwrap();
+            assert_eq!(kept.binding, first.binding);
+            assert_eq!(kept.redirect_uri, first.redirect_uri);
+            assert_eq!(kept.callback_host, first.callback_host);
+            assert_eq!(kept.client_id, first.client_id);
+            assert_eq!(kept.purpose, first.purpose);
+            assert_eq!(kept.authentication, first.authentication);
+            assert_eq!(kept.expires_at_ms, first.expires_at_ms);
+            assert_eq!(kept.material.s256_challenge, first.material.s256_challenge);
+            for (a, b) in [
+                (&kept.material.state, &first.material.state),
+                (&kept.material.nonce, &first.material.nonce),
+                (&kept.material.verifier, &first.material.verifier),
+            ] {
+                assert_eq!(
+                    a.expose_in_trusted_boundary(),
+                    b.expose_in_trusted_boundary()
+                );
+            }
+            assert_eq!(
+                authorization_url(&after, kept),
+                original.trusted_authorization_url()
+            );
+        }
+        // A first ordinary callback still consumes the original attempt once;
+        // this is not an authorization-code replay or expiry/revocation case.
+        let receipt = ready(lifecycle.complete(
+            &(),
+            &binding(),
+            CallbackRequest {
+                method: "GET".into(),
+                host: "127.0.0.1:55431".into(),
+                redirect_uri: CALLBACK.into(),
+                parameters: vec![
+                    ("state".into(), STATE.into()),
+                    ("code".into(), "opaque-synthetic-code".into()),
+                    ("client_id".into(), CLIENT.into()),
+                ],
+            },
+        ))
+        .expect("original callback remains valid");
+        assert_eq!(receipt.state, LifecycleState::Connected);
+        assert_eq!(provider.exchanges.load(Ordering::Relaxed), 1);
+        assert_eq!(provider.refreshes.load(Ordering::Relaxed), 0);
+        assert!(
+            storage
+                .inner
+                .0
+                .lock()
+                .unwrap()
+                .pending_authorization
+                .is_none()
+        );
+    }
+
     // Positive cleared-record reconnect peer. The binding stands in for the
     // opaque original host proof; this is not a credential/authority adapter.
     struct ReconnectBoundary {
@@ -1813,3 +1978,8 @@ mod healthy_examples {
         );
     }
 }
+
+// Exact denial entrypoint is separate from healthy examples and ordinary CI.
+#[cfg(test)]
+#[path = "oauth_begin_denial_checks.rs"]
+mod begin_denial_checks;
