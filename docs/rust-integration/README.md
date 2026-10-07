@@ -369,8 +369,9 @@ security/recovery/target/product acceptance is supplied by this composition.
 The multipart route preserves the owner-qualified committed receipt when stage
 metadata retirement fails. Retirement still requires the strict SQLite consumed
 upload loader and original mutation fence; the host never reconstructs cleanup
-permission. It emits a fixed diagnostic and independently revalidates original
-principal and source grants before releasing the canonical result. Durable
+permission. It independently revalidates original principal and source grants
+before releasing the canonical result, without diagnostic I/O on the receipt
+path. Durable
 consumption remains in SQLite; immutable original bytes are retained. This does
 not implement a background reconciliation worker or qualify interrupted cleanup,
 fault, budget, replay or authority-loss behavior. Those controls remain unrun.

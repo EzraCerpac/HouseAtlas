@@ -192,7 +192,7 @@ pub(super) async fn command(
         // Metadata retirement cannot turn that commit into an unconfirmed write.
         // It still requires the real SQLite consumption carrier and original
         // mutation authority; failure leaves retirement for later maintenance.
-        let retirement = (|| -> Result<(), super::HttpFailure> {
+        let _retirement = (|| -> Result<(), super::HttpFailure> {
             let consumed = core.store.lock().map_err(|_| unavailable())?
                 .committed_upload_with_authorization(
                     &crate::app::ReadAuthority(core.access.clone()), &principal, &schemas,
@@ -209,13 +209,8 @@ pub(super) async fn command(
             principal.release(&access).map_err(access_error)?;
             Ok(())
         })();
-        if retirement.is_err() {
-            // Fixed diagnostic only: no token, receipt, actor, path or error data.
-            let _ = std::io::Write::write_all(
-                &mut std::io::stderr().lock(),
-                b"Committed upload metadata retirement remains pending\n",
-            );
-        }
+        // No diagnostic I/O runs here: reporting maintenance cannot panic or
+        // block the committed receipt. SQLite retains the consumption proof.
         // Output release remains mandatory even if maintenance failed. Never
         // use a cleanup error to waive the original principal/source checks.
         let access = core.access.lock().map_err(|_| unavailable())?;
