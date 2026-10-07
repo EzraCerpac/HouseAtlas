@@ -104,12 +104,26 @@ impl NetworkCachePublisher<HealthyLease> for HealthyPublisher {
     ) -> std::result::Result<PreparedNetworkCache<HealthyFence>, NetworkError> {
         assert_eq!(lease.marker, 1);
         self.prepared += 1;
+        // Ordinary published seed rows do not imply a retained inventory
+        // generation before its first cache pointer. Exercise this healthy case.
+        let snapshot: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../packages/contracts/fixtures/plan-free.snapshot.json"
+        ))
+        .unwrap();
+        let rows: Vec<NetworkRelation> =
+            serde_json::from_value(snapshot["networkRelations"].clone()).unwrap();
+        let rows: Vec<_> = rows
+            .into_iter()
+            .filter(|row| row.scope == source.scope)
+            .collect();
+        assert!(!rows.is_empty());
+
         Ok(PreparedNetworkCache {
             baseline: NetworkCacheBaseline {
                 cache: None,
                 cache_epoch: 7,
                 homebox_entities: Vec::new(),
-                network_relations: Vec::new(),
+                network_relations: rows,
             },
             fence: HealthyFence {
                 source: source.scope.clone(),

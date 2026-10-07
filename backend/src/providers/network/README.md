@@ -134,7 +134,10 @@ replaces the original CAS witness. Source failure returns a sealed
 `PendingNetworkFailure` containing sanitized failure/internal retention, the
 original baseline generation/cache-epoch precondition, original fence and
 original authority lease. It writes no cache metadata. No partial generation
-crosses the complete-publication boundary.
+crosses the complete-publication boundary. Published snapshots may contain
+seeded Network relation rows before the first successful cache pointer. Those
+rows remain native storage projections; with no pointer, the provider has no
+retained inventory generation, matching the published sidecar's behavior.
 
 `native.rs` binds directly to AT07's `AtlasStore<C, A, R>` at immutable
 published commit `9b13f1e97635a3f531e8c14642cd3c5e94401fef`. It implements
@@ -173,7 +176,9 @@ Authorize source/generation separately before staging and inside publication.
 The existing async controller remains useful for injectable publisher ports;
 the phased native binding lets Atlas browsing continue during provider work.
 
-The external native healthy executable compiles actual Network code, this
+The external native healthy executable uses the unchanged published
+`plan-free.snapshot.json`, including its seeded Network relations before a cache
+pointer exists. It compiles actual Network code, this
 exact AT07 source, and native AT51 contract types at
 `6b3029cbbcf1462ecdeecc62a56c24f66e034057`. Its offline published semantic/JCS
 oracle, authorization/runtime/principal and injected inventory are explicit

@@ -192,16 +192,15 @@ where
             )?
         }
         Some(cache) => {
-            guard(baseline.network_relations.is_empty())?;
+            // Published snapshots may seed source relations before the first
+            // complete sidecar generation. They are retained by native storage,
+            // but do not establish an inventory generation without its pointer.
             RetainedState {
                 cache: cache.clone(),
                 generation: None,
             }
         }
-        None => {
-            guard(baseline.network_relations.is_empty())?;
-            RetainedState::empty(source.scope.clone())
-        }
+        None => RetainedState::empty(source.scope.clone()),
     };
     validate_state(&source, &prior, Some(provider.link_review()))?;
     let generation_id = fence.reserved_generation_id().to_owned();
