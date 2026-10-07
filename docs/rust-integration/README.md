@@ -293,14 +293,23 @@ Storage's optional activity schema is compiled; the default disposable host
 still opens schema 5, with no activity dispatch or offline recovery mount.
 Existing SQL migrations and schema checksums remain intact.
 
-`healthy-network-root-router` is an explicitly declared, compiled-only example.
-Its planned ordinary flow is one disposable verified TLS inventory GET and
-native publication, a genuine viewer login through the root router, and two
-cached root-router reads with unchanged cache epochs and reservations. Root
-router calls in this example are in-process HTTP requests. It supplies no browser
-or root-listener transport evidence. The native runtime's owning Store/Access
-identity correction is still pending; this flow has not executed and the mount
-is not accepted. No new runtime flow is enabled in CI by declaring the example.
+`healthy-network-root-router` is an explicitly declared healthy example. The
+inspected Python driver creates one disposable CA/end-entity certificate and a
+loopback inventory fixture. The example makes one verified TLS inventory GET,
+publishes through the actual native Store, starts the real root TLS listener,
+logs in a genuine viewer, then makes two cached GETs. Native entities, links,
+relations, observation text and distinct fact/retrieval dates are preserved;
+cache epochs and generation reservations stay unchanged during browsing. Its
+listener supplies actual connection metadata; no transport extension is mocked.
+The native runtime binds read and disclosure to the exact owning Core and its
+current original issuer. This healthy flow passed and is separately named in
+Linux CI. It supplies no Network browser/UI, live-provider, rejection, revocation,
+concurrency, recovery or deployment qualification.
+
+```sh
+cargo build --locked -p houseatlas-backend --example healthy-network-root-router
+python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"
+```
 
 ## Explicit remaining areas
 
@@ -315,8 +324,8 @@ create those permissions or qualify freshness.
 Network host settings, retained facet, phased publication and the optional
 cached-only mount compile with reqwest 0.13.5 and Rustls platform verification.
 The runtime uses the canonical original issuer and complete retained-generation
-resource grants. Its owning Store/Access identity correction and root healthy
-execution remain pending. No actual Network UI, source setup or provider refresh
+resource grants. Its owning Store/Access identity correction and one root healthy
+TLS flow are integrated; exact-candidate review and CI remain required. No actual Network UI, source setup or provider refresh
 is enabled in the default host, and no runner calls a real provider.
 
 Provider stock preparation, original whole-collection approval, verified

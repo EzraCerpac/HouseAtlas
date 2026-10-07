@@ -1,10 +1,7 @@
 //! One healthy loopback upstream GET, actual native publication and two cached
-//! root-router reads. Router calls are in-process HTTP requests, not a browser
-//! or root listener proof. No stopped-control branch is included.
-use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
-};
+//! root-router reads through a real disposable TLS listener. No browser or
+//! stopped-control branch is included.
+use axum::http::StatusCode;
 use houseatlas_backend::{
     access as a,
     app::{self, Core, ReadAuthority, ServerRuntime, Store},
@@ -21,10 +18,11 @@ use houseatlas_backend::{
 use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
+    net::{SocketAddr, TcpListener},
     sync::{Arc, Mutex},
+    time::Duration,
 };
 use tokio_util::sync::CancellationToken;
-use tower::ServiceExt;
 
 type Failure = Box<dyn std::error::Error + Send + Sync>;
 fn evidence<'a>(
@@ -48,19 +46,25 @@ fn evidence<'a>(
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Failure> {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() != 3 {
-        return Err("Expected disposable loopback origin and certificate path".into());
+    if args.len() != 5 {
+        return Err(
+            "Expected disposable upstream origin, CA, server certificate and key paths".into(),
+        );
     }
-    let origin = &args[1];
-    let parsed = url::Url::parse(origin)?;
+    let upstream_origin = &args[1];
+    let parsed = url::Url::parse(upstream_origin)?;
     if parsed.scheme() != "https"
         || parsed.host_str() != Some("127.0.0.1")
         || parsed.port().is_none()
-        || parsed.origin().ascii_serialization() != *origin
+        || parsed.origin().ascii_serialization() != *upstream_origin
     {
         return Err("Fixture requires canonical IPv4 loopback HTTPS".into());
     }
     let ca = std::fs::read(&args[2])?;
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    listener.set_nonblocking(true)?;
+    let origin = &format!("https://{}", listener.local_addr()?);
+    let tls = axum_server::tls_rustls::RustlsConfig::from_pem_file(&args[3], &args[4]).await?;
     let directory = tempfile::tempdir()?;
     let directory_path = std::fs::canonicalize(directory.path())?;
     let mut snapshot: Value = serde_json::from_str(include_str!(
@@ -205,7 +209,7 @@ async fn main() -> Result<(), Failure> {
     assert!(Arc::ptr_eq(&canonical_from_core, &canonical));
     let settings = NetworkSettings::new(
         source.clone(),
-        origin,
+        upstream_origin,
         serde_json::from_str(include_str!(
             "../../../adapters/network/fixtures/link-review.json"
         ))?,
@@ -361,21 +365,30 @@ async fn main() -> Result<(), Failure> {
         None,
     )?;
     access.set_membership(&viewer, &scope, a::Role::Viewer, true)?;
-    let router = http::router(host);
-    let response = router
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/api/atlas/auth/login")
-                .header("host", parsed.authority())
-                .header("origin", origin)
-                .header("sec-fetch-site", "same-origin")
-                .header("content-type", "application/json")
-                .body(Body::from(serde_json::to_vec(&json!({
-                    "username": "synthetic-network-viewer", "password": viewer_password,
-                }))?))?,
-        )
+    let handle = axum_server::Handle::new();
+    let server = tokio::spawn(
+        axum_server::from_tcp_rustls(listener, tls)?
+            .handle(handle.clone())
+            .serve(http::router(host).into_make_service_with_connect_info::<SocketAddr>()),
+    );
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .https_only(true)
+        .redirect(reqwest::redirect::Policy::none())
+        .retry(reqwest::retry::never())
+        .connect_timeout(Duration::from_secs(2))
+        .timeout(Duration::from_secs(10))
+        .add_root_certificate(reqwest::Certificate::from_pem(&ca)?)
+        .build()?;
+    let response = client
+        .post(format!("{origin}/api/atlas/auth/login"))
+        .header("origin", origin)
+        .header("sec-fetch-site", "same-origin")
+        .header("content-type", "application/json")
+        .body(serde_json::to_vec(
+            &json!({"username": "synthetic-network-viewer", "password": viewer_password}),
+        )?)
+        .send()
         .await?;
     assert_eq!(response.status(), StatusCode::OK);
     let viewer_cookie = response
@@ -387,7 +400,7 @@ async fn main() -> Result<(), Failure> {
         .next()
         .ok_or("Missing viewer cookie")?
         .to_owned();
-    let _: Value = serde_json::from_slice(&to_bytes(response.into_body(), 128 * 1024).await?)?;
+    let _: Value = serde_json::from_slice(&response.bytes().await?)?;
     let collection: String =
         url::form_urlencoded::byte_serialize(registration.collection_id.as_bytes()).collect();
     let path = format!(
@@ -395,23 +408,16 @@ async fn main() -> Result<(), Failure> {
         registration.workspace_id, registration.home_id, registration.source_instance_id,
     );
     for _ in 0..2 {
-        let response = router
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("GET")
-                    .uri(&path)
-                    .header("host", parsed.authority())
-                    .header("origin", origin)
-                    .header("sec-fetch-site", "same-origin")
-                    .header("cookie", &viewer_cookie)
-                    .body(Body::empty())?,
-            )
+        let response = client
+            .get(format!("{origin}{path}"))
+            .header("origin", origin)
+            .header("sec-fetch-site", "same-origin")
+            .header("cookie", &viewer_cookie)
+            .send()
             .await?;
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()["cache-control"], "private, no-store");
-        let facet: Value =
-            serde_json::from_slice(&to_bytes(response.into_body(), 1024 * 1024).await?)?;
+        let facet: Value = serde_json::from_slice(&response.bytes().await?)?;
         assert_eq!(facet["workspaceId"], registration.workspace_id);
         assert_eq!(facet["homeId"], registration.home_id);
         assert_eq!(facet["sourceInstanceId"], registration.source_instance_id);
@@ -459,13 +465,15 @@ async fn main() -> Result<(), Failure> {
     assert_eq!(epoch_after, epoch);
     assert_eq!(reservations_after, reservations);
     drop(db);
-    drop(router);
+    drop(client);
+    handle.graceful_shutdown(Some(Duration::from_secs(2)));
+    tokio::time::timeout(Duration::from_secs(10), server).await???;
     Arc::try_unwrap(runtime)
         .map_err(|_| "Runtime unexpectedly retained")?
         .close()?;
     drop(core);
     println!(
-        "PASS healthy root Network router: one actual TLS inventory GET/native publication; genuine viewer HTTP login; two cached root GETs on same canonical Core/Access/Store, original entity/link/observation disclosure; epoch/reservations unchanged; no provider request from browsing. Root router is in-process, no browser or root listener qualification."
+        "PASS healthy root Network router: one actual TLS inventory GET/native publication; genuine viewer HTTP login; two cached root GETs on same canonical Core/Access/Store, original entity/link/observation disclosure; epoch/reservations unchanged; no provider request from browsing. Root HTTP uses its real TLS loopback listener and actual connection metadata; no browser qualification."
     );
     Ok(())
 }

@@ -4,7 +4,7 @@ Concrete AT11 callbacks, PR36 callback ABI, same-store native publication and
 original-authority browse disclosure. This is development code and local
 synthetic evidence, not live provider qualification. The sole integration leaf is
 `backend/src/providers/network/host_runtime/mod.rs`. Root mounts the accepted
-peers and adds `pub mod host_runtime;` to Network; manifests, locks, routers,
+peers and adopts the Network owner's `pub mod host_runtime;` declaration; manifests, locks, routers,
 shared schemas and integrity declarations remain integrator-owned.
 
 ## Required owner interfaces
@@ -38,25 +38,31 @@ generation and digest are checked before consuming publication. PR36 quarantine
 ordering precedes retained loading, credentials, transport and sidecar stage.
 Final release checks the same original principal and grants.
 
-`HostNetworkRuntime::read(&mut app::Store, access, original_principal,
+`HostNetworkRuntime::read(&Arc<Mutex<app::Core>>, access, original_principal,
 original_partition_grant, original_entity_grants, now)` performs a genuine
 ReadCache partition read under AT11's actual read transaction. It requires the
-exact stored registration selector, complete scope and original handles. The
-sidecar is loaded outside the access lock and checked by the actual Network
+exact stored registration selector, complete scope and original handles. Before
+any access/database read, it borrows the owning Core and checks that the injected
+SharedAccess is its canonical access allocation. Store is borrowed exclusively
+from that Core for the entire synchronous read/capture/release call. The sidecar
+is loaded outside the access lock and checked by the actual Network
 reopen/projector against the native cache pointer, digest and exact relations.
 The generation's whole typed entity closure is matched to original grants.
 Actual AT11 captures raw link grants and observation grants; these matching
 selectors are data, never a substitute membership issuer.
 
 The read returns a facet and opaque `OriginalNetworkDisclosure`. Release via
-`HostNetworkRuntime::disclose(the_same_store, &original_disclosure, now)` enters
-AT11's read fence, checks every original principal/partition/entity/link/
-observation handle, invokes the actual borrowed native read on that application
+`HostNetworkRuntime::disclose(&owning_core, &original_disclosure, now)` checks
+the lease's weak reference to its exact original Core and that Core's current
+canonical issuer before any Store read, then enters AT11's read fence and checks
+every original principal/partition/entity/link/observation handle, invokes the actual borrowed native read on that application
 Store, compares the complete `RegisteredCacheRead` with the captured baseline,
 then builds and releases the facet after original-authority revalidation. The
 comparison includes full registration, integer epoch, pointer/status/timestamps
-and retained rows. The caller retains the same application Store across these
-phases. A stale baseline requires a new request; release never refreshes grants,
+and retained rows. Raw Store injection is not exposed by either public browse
+entrypoint. The private in-Store release is used while the validated Core borrow
+is already held; it never reenters the public Core-locking method. A stale
+baseline requires a new request; release never refreshes grants,
 changes registrations, reserves IDs or sends HTTP.
 
 Raw links retain both original endpoints, including reversed normalized links
@@ -82,7 +88,10 @@ canonical allocation/mutex/private issuer and complete existing state.
 `as_existing` preserves the accepted `&app::Access` ABI for ProviderLease capture;
 `try_lock` supplies typed current-authority operations without waiting, clearing
 poison, fallback or a peer. Refresh verifies pointer identity against Core.access
-when entering each native Store phase. Existing root principals and original
+when entering each native Store phase, including browse/disclosure. Original
+disclosure handles additionally retain their owning Core identity. Call the public
+Core-taking methods after releasing caller-owned Core/Store/access guards;
+the methods acquire their own nonblocking Core borrow. Existing root principals and original
 resource handles are moved into leases; no session rehoming or policy synthesis
 occurs. The wrapper's trusted admin/auth methods delegate to that same issuer;
 no authentication/admin route is installed here.
@@ -208,3 +217,18 @@ the unchanged other peer namespaces to the external receipt; root lock stayed
 identical. Principal-mixing, maximum-size, cancellation-race, mutex contention
 and other held controls were not executed. The corresponding code corrections
 are static review plus ordinary healthy evidence, not control qualification.
+
+Owning-Core browse successor evidence: actual Storage API union and the actual
+Network-owner parent declaration compile with the unchanged accepted peers.
+Locked offline warnings-denied Clippy/library+named example, build, scoped
+rustfmt/diff checks and one fresh healthy TLS run passed. Initial browse obtains
+Store only from its checked canonical Core; original-grant rerelease through an
+Arc alias of that exact Core returned the identical facet without epoch or
+generation-reservation changes. Genuine viewer/link/observation and all prior
+healthy publication/reopen assertions remain checked. The exercised Store uses
+the union's default schema-5 profile; optional profile-6/upload/recovery behavior
+is compiled but unexercised here. The external byte receipt matched 66 Storage
+files/six SQL migrations, 18 access and the unchanged other accepted peer bodies,
+with the parent module taken exactly from its owner's published correction.
+Root module/manifest adoption is still integrator work. Cross-Core, issuer
+substitution, revocation, contention and all other held controls were not run.

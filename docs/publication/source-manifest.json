@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c59e42f216e6ae0e555c928e3981312aee42639578f145f96b5f70b8e6ce6146",
+  "sourceDigestSha256": "24d80f0715ee48667f209af8071c77a6b8aea508ca6663779d2b23b5ac2da27a",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -34,8 +34,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 12425,
-      "sha256": "033621e5a1c62413170a00af2c2c2c235f1c06f0adda33ecdff7128cb170bcdf",
+      "bytes": 13209,
+      "sha256": "c00298b52d893311591c9471516b66eed3b65b6207030c6823ded79cf5bdb95c",
       "owner": "core-integration"
     },
     {
@@ -1140,8 +1140,8 @@
     {
       "path": "backend/src/http/providers/network_host.rs",
       "mode": "100644",
-      "bytes": 4883,
-      "sha256": "2f816b1e2fb2f22e4485624d1fa0bca2677737504b10302839af773a0f7ad83f",
+      "bytes": 4997,
+      "sha256": "fde799548a43c713962abbf607f2d457e6e95f9f858a31af2e02e07488cbdedd",
       "owner": "core-integration"
     },
     {
@@ -1875,8 +1875,8 @@
     {
       "path": "backend/src/providers/network/host_runtime/README.md",
       "mode": "100644",
-      "bytes": 12730,
-      "sha256": "60ec9494dfe3f9e70f7419e08425c717b420c3f263857e06461fcded123d449c",
+      "bytes": 14615,
+      "sha256": "8bf93bfc29f5c79fe66f5c6c33a54adcba61d078960e2521ad176e2cfaaf7cd9",
       "owner": "network"
     },
     {
@@ -1917,8 +1917,8 @@
     {
       "path": "backend/src/providers/network/host_runtime/examples/healthy.rs",
       "mode": "100644",
-      "bytes": 19894,
-      "sha256": "0602f56082ab6f5d4f618e39b100093288b321678f21668ed74c1032c4cb419a",
+      "bytes": 19612,
+      "sha256": "f247451cd7b315faa48cc7b27203d751d97f4afa54dbb8db8a307a1816500222",
       "owner": "network"
     },
     {
@@ -1945,15 +1945,15 @@
     {
       "path": "backend/src/providers/network/host_runtime/reads.rs",
       "mode": "100644",
-      "bytes": 11073,
-      "sha256": "33a644bc4a9397c7c0ad67d0292302f9ad6ccc9d1f2c1ca42f03182689490e98",
+      "bytes": 11654,
+      "sha256": "81b4a5885d1bd02f15398ea02569b5cf7d1b940e9177c442144deb24ee92feae",
       "owner": "network"
     },
     {
       "path": "backend/src/providers/network/host_runtime/runtime.rs",
       "mode": "100644",
-      "bytes": 11256,
-      "sha256": "0a69f3bc8e4a299e7e4e8ad227a5bcb721299781cffda980706402e366acda50",
+      "bytes": 12720,
+      "sha256": "9071a16a4f88898a46b0b5a8f069f5bae010ee07c6d04364d89f284a12929728",
       "owner": "network"
     },
     {
@@ -2904,8 +2904,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 25662,
-      "sha256": "6f0831fe4a0bd7c57227b271dbfca99a4a1b6300edc471e6874f24512b1db4cc",
+      "bytes": 26213,
+      "sha256": "0bbd9543ee6e98a2fb979722538190dbf52ecb5c2d7708efcdc6998e188cc614",
       "owner": "core-integration"
     },
     {
@@ -4255,8 +4255,8 @@
     {
       "path": "tools/rust-integration/examples/healthy_network_host.rs",
       "mode": "100644",
-      "bytes": 17814,
-      "sha256": "508aeb64b90ec214a4c0dbc00ff7e715af54757eb0f0ee8c7505c82f40cb4ded",
+      "bytes": 18366,
+      "sha256": "64438c581e46074d2fea4bc2e6652f066cf848483d1adcc407d9a726e8db62d8",
       "owner": "core-integration"
     },
     {
@@ -4313,6 +4313,13 @@
       "mode": "100644",
       "bytes": 25002,
       "sha256": "ad75abd29ee9ea52321cb04ab7fa1576dafd21b8d2edec416d2da54f64bb613d",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/rust-integration/healthy-network-loopback.py",
+      "mode": "100644",
+      "bytes": 4782,
+      "sha256": "f48bd535c876e2c8033189346420623634ea196051e7e4b582d689d79631283f",
       "owner": "core-integration"
     },
     {

@@ -54,7 +54,7 @@ pub(in crate::http) async fn cached(
         if collection.is_empty() || collection.chars().count() > 4096 {
             return Err(failure(StatusCode::UNPROCESSABLE_ENTITY));
         }
-        let mut core = host.core.lock().map_err(|_| unavailable())?;
+        let core = host.core.lock().map_err(|_| unavailable())?;
         let url = format!(
             "{}{}",
             host.origin,
@@ -97,12 +97,14 @@ pub(in crate::http) async fn cached(
             .map(|reference| binding.access().source_grant(&principal, reference))
             .collect::<a::AccessResult<Vec<_>>>()
             .map_err(access_error)?;
+        // Native read/disclose borrow the exact owning Core themselves. Retain
+        // the original grants, and release this earlier borrow before entry.
+        drop(core);
         let now = ServerRuntime.now().map_err(|_| unavailable())?;
-        let store = core.store.get_mut().map_err(|_| unavailable())?;
         let (facet, original) = binding
             .runtime()
             .read(
-                store,
+                &host.core,
                 binding.access().clone(),
                 principal,
                 partition,
@@ -113,7 +115,7 @@ pub(in crate::http) async fn cached(
         let value = serde_json::to_value(&facet).map_err(|_| unavailable())?;
         let released = binding
             .runtime()
-            .disclose(store, &original, &now)
+            .disclose(&host.core, &original, &now)
             .map_err(native_error)?;
         if released != facet {
             return Err(unavailable());
