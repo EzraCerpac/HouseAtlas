@@ -137,6 +137,19 @@ for native/stock/upload/Jobs separate. Image validation cannot create a producer
 brand or authorize recovered invocation. Genuine original opaque identity and
 permission provenance stay with their original owners, not inside decoded DTOs.
 
+Both in-memory and restored adapters implement the required
+`queued_reservation_jobs(registration, queued_cut) -> Result<jobs::LeasedJob>`
+on that actual Storage trait. They require an initially Queued Reserve or later
+Queued event, exact registration/event correspondence and a validated own
+historical prefix before calling the mandatory original evidence owner. The
+restored adapter reauthenticates the original archive binding first. That owner
+must independently correlate the original producer/history, physical identity
+and actually observed Jobs occupancy at this exact cut, returning its original
+retained attempt. No image-derived occupancy, final Jobs state, public lease DTO
+or success default is supplied. Storage independently checks the returned
+immutable attempt and registry/job closure in the already validated image.
+This callback grants no recovery, disclosure or dispatch authority.
+
 ## Required integrator declarations and exact source
 
 The owned `activity_storage_bridge.rs` calls original accepted data encoders and
@@ -161,13 +174,14 @@ constructor, live producer constructor, SQL or copied storage codec is exposed.
 This exact seam was sent to the original Storage owner and parent handoff.
 
 Final source composition pins original-owner Storage71
-`2befc971bd8b5590ab6b139b1163fbcd82256c66`, actual writer
+`48e856068f8351b9256ef7912fc93619c259e79f`, actual writer
 `c784be5776b614f8f0bb225fcb5355ecb9e90e0d`, main dependencies/media/schema/lock
 `87ad201140edb7b3afdb4396095a320c2926eafe`, and original-owner corrected domain
-`fd72542686112e594d9a6f63b4782a62b5d9e6ef`. The original Storage6e54/8a171a sources
-and earlier codec inputs remain separately retained outside Git. The codec,
-baseline, retention and recovery blobs are identical between Storage6e54 and
-2befc97; the final composition uses the original owner's reservation corrections.
+`fd72542686112e594d9a6f63b4782a62b5d9e6ef`. The original Storage6e54/8a171a/2befc971 sources and earlier codec inputs
+remain separately retained outside Git. The codec, baseline and retention blobs
+are unchanged from 2befc971; recovery now requires the queued Jobs callback.
+The archive source marker selects 48e8560 explicitly. Earlier packets and their
+source-specific validation records are preserved, not relabeled as this input.
 
 ## PR78 review and selected healthy evidence
 
@@ -195,7 +209,11 @@ and decoded against independently retained synthetic original archive receipts.
 A healthy refreshed authority is preserved. The configured limit is 256 KiB;
 producer and admitted encoders also succeed at their exact positive byte bound.
 The queued reservation is fresh sequential metadata under the existing unproven
-physical hold, with no second admission, native I/O or concurrency/control probe. Only the current final native cut and independent queued cut are placed
+physical hold, with no second admission, native I/O or concurrency/control probe.
+Storage does not invoke the cross-lane Jobs callback for this native-held cut;
+that callback is compiled and source-inspected only. The fixture original owner
+returns unavailable if asked for unretained Jobs occupancy, never a fabricated
+lease or default success. Only the current final native cut and independent queued cut are placed
 in the restored archive; their five own-prefix image events qualify through the
 actual restored evidence adapter. Closed-image bytes remain unchanged, confirmed
 effects retain false causal/provider-CAS claims and the unproven physical hold.

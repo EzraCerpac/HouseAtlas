@@ -114,4 +114,37 @@ impl<P: s::StockActivityPrincipal, E: s::StockActivityRecoveryEvidence>
         // liabilities, response/readback/end facts never enter the callback.
         self.original_evidence.validate_event(frame)
     }
+    fn queued_reservation_jobs(
+        &self,
+        registration: &s::StockActivityRegistration,
+        queued_cut: &s::RetainedStockActivityEvent,
+    ) -> s::Result<crate::jobs::LeasedJob> {
+        activity_validation::require_queued_cut(registration, queued_cut)?;
+        let retained = self.archive.retained(queued_cut.operation().operation_id)?;
+        let record = retained.producer.record();
+        let index = record
+            .events()
+            .iter()
+            .position(|event| event.sequence() == queued_cut.sequence())
+            .ok_or_else(unavailable)?;
+        let count = index.checked_add(1).ok_or_else(incompatible)?;
+        let prefix = record.events().get(..count).ok_or_else(incompatible)?;
+        // validate_event checks exact archive equality and only this historical
+        // native prefix, then obtains original native/media qualification.
+        self.validate_event(s::StockActivityRecoveryEvent {
+            registration,
+            original: record.original(),
+            event: queued_cut,
+            previous: index.checked_sub(1).map(|i| &record.events()[i]),
+            prefix,
+            permit: None,
+            body_accepted: false,
+            physical_hold: false,
+        })?;
+        // Only the independent original owner can correlate this exact queued
+        // cut with its actually retained Jobs attempt. Storage checks immutable
+        // image closure separately; no DTO/image/final-state proof is invented.
+        self.original_evidence
+            .queued_reservation_jobs(registration, queued_cut)
+    }
 }

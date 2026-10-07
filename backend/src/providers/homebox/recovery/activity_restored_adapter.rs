@@ -94,4 +94,35 @@ impl<A: NativeActivityArchiveReadAuthorization, E: s::StockActivityRecoveryEvide
         // Original effect/media qualification sees only its own historical cut.
         self.original_evidence.validate_event(frame)
     }
+    fn queued_reservation_jobs(
+        &self,
+        registration: &s::StockActivityRegistration,
+        queued_cut: &s::RetainedStockActivityEvent,
+    ) -> s::Result<crate::jobs::LeasedJob> {
+        activity_validation::require_queued_cut(registration, queued_cut)?;
+        let archived = self.archive.retained(queued_cut.operation().operation_id)?;
+        archived.revalidate(self.contracts)?;
+        let cut = archived.cut();
+        let index = cut
+            .events()
+            .iter()
+            .position(|event| event.sequence() == queued_cut.sequence())
+            .ok_or_else(unavailable)?;
+        let count = index.checked_add(1).ok_or_else(incompatible)?;
+        let prefix = cut.events().get(..count).ok_or_else(incompatible)?;
+        if registration != cut.registration() || !cut.matches_event(index, queued_cut) {
+            return Err(incompatible());
+        }
+        activity_validation::validate_event_prefix(
+            self.contracts,
+            registration,
+            prefix,
+            &cut.native,
+        )?;
+        // The independent owner must qualify original native producer/history
+        // and Jobs occupancy at this cut. No sealed event/lease/authority is
+        // reconstructed from decoded data; Storage checks Jobs image closure.
+        self.original_evidence
+            .queued_reservation_jobs(registration, queued_cut)
+    }
 }

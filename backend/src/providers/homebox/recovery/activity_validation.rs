@@ -5,6 +5,21 @@ use n::StockContractPort;
 fn require(value: bool) -> s::Result<()> {
     if value { Ok(()) } else { Err(incompatible()) }
 }
+pub(super) fn require_queued_cut(
+    registration: &s::StockActivityRegistration,
+    event: &s::RetainedStockActivityEvent,
+) -> s::Result<()> {
+    let operation = event.operation();
+    require(
+        operation.outcome.state == n::OutcomeState::Queued
+            && operation.plan.is_none()
+            && operation.captured_authority.physical_binding == registration.physical_binding
+            && matches!(
+                event.facts(),
+                s::StockActivityEventFacts::Reserve | s::StockActivityEventFacts::Queued
+            ),
+    )
+}
 pub(super) fn validate_prefix(
     contracts: &NativeWriterContracts,
     record: &s::RetainedStockActivity,

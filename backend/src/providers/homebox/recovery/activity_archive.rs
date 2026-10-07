@@ -10,7 +10,7 @@ use crate::{providers::homebox::write::stock as n, storage as s};
 use s::retained_native_codec_bridge as peer;
 
 pub const ACTIVITY_NATIVE_ARCHIVE_CODEC_V4: &str = "houseatlas-homebox-stock-activity-archive/4";
-pub const ACTIVITY_ARCHIVE_STORAGE_COMMIT: &str = "2befc971bd8b5590ab6b139b1163fbcd82256c66";
+pub const ACTIVITY_ARCHIVE_STORAGE_COMMIT: &str = "48e856068f8351b9256ef7912fc93619c259e79f";
 pub const MAX_NATIVE_ACTIVITY_ARCHIVE_BYTES: usize = 16 * 1024 * 1024;
 pub const MAX_NATIVE_ACTIVITY_ARCHIVE_EVENTS: usize = 256;
 

@@ -514,6 +514,16 @@ impl n::StockReadbackPort for Peers {
 
 struct OriginalEvidence(Peers);
 impl s::StockActivityRecoveryEvidence for OriginalEvidence {
+    fn queued_reservation_jobs(
+        &self,
+        _: &s::StockActivityRegistration,
+        _: &s::RetainedStockActivityEvent,
+    ) -> s::Result<crate::jobs::LeasedJob> {
+        // This healthy fixture's sequential queue is explained by its earlier
+        // proven native hold. It has no independently retained Jobs occupancy.
+        // Missing cross-lane proof is unavailable, never default success.
+        Err(super::unavailable())
+    }
     fn validate_record(&self, record: &s::RetainedStockActivity) -> s::Result<()> {
         assert_eq!(record.registration(), &self.0.0.registration);
         assert_eq!(record.original().command, self.0.0.command);
@@ -598,6 +608,14 @@ impl CompleteOriginalEvidence<'_> {
     }
 }
 impl s::StockActivityRecoveryEvidence for CompleteOriginalEvidence<'_> {
+    fn queued_reservation_jobs(
+        &self,
+        registration: &s::StockActivityRegistration,
+        queued_cut: &s::RetainedStockActivityEvent,
+    ) -> s::Result<crate::jobs::LeasedJob> {
+        self.owner(&queued_cut.operation().command)?
+            .queued_reservation_jobs(registration, queued_cut)
+    }
     fn validate_record(&self, record: &s::RetainedStockActivity) -> s::Result<()> {
         self.owner(&record.original().command)?
             .validate_record(record)
@@ -1170,6 +1188,13 @@ impl super::NativeActivityArchiveReadAuthorization for SyntheticArchiveOwner {
 }
 struct SelectedEvidence<'a>(&'a dyn s::StockActivityRecoveryEvidence);
 impl s::StockActivityRecoveryEvidence for SelectedEvidence<'_> {
+    fn queued_reservation_jobs(
+        &self,
+        registration: &s::StockActivityRegistration,
+        queued_cut: &s::RetainedStockActivityEvent,
+    ) -> s::Result<crate::jobs::LeasedJob> {
+        self.0.queued_reservation_jobs(registration, queued_cut)
+    }
     fn validate_record(&self, record: &s::RetainedStockActivity) -> s::Result<()> {
         self.0.validate_record(record)
     }
