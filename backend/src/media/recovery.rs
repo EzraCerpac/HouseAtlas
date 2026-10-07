@@ -14,12 +14,16 @@ use super::types::{
 use super::{AssetVault, MAX_BYTES, MediaError, MediaResult, WorkBudget};
 
 pub const CONTRACT_VERSION: &str = "1.0.0";
+/// Published JavaScript storage schema; native Rust storage has its own profile.
 pub const DATABASE_SCHEMA: u32 = 3;
+pub const NATIVE_DATABASE_SCHEMA: u32 = 1;
+pub const NATIVE_DATABASE_LINEAGE: &str = "houseatlas-rust-storage/1";
 pub const MAX_DATABASE: usize = 64 * 1024 * 1024;
 pub const MAX_MANIFEST: usize = 16 * 1024 * 1024;
 pub const MAX_TOTAL: usize = 256 * 1024 * 1024;
 pub const MAX_ASSETS: usize = 10_000;
 const FORMAT: &str = "houseatlas-owned-recovery/1";
+const NATIVE_FORMAT: &str = "houseatlas-rust-owned-recovery/1";
 const CAPTURE_METHOD: &str = "sqlite-backup-and-retained-immutable-originals";
 const EXCLUSIONS: [&str; 5] = [
     "HomeBox originals",
@@ -29,10 +33,58 @@ const EXCLUSIONS: [&str; 5] = [
     "Network source state",
 ];
 
+/// Selected by the trusted storage adapter, never inferred from a bundle.
+/// A profile names an identity; it implements no migration or witness lineage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RecoveryProfile {
+    LegacyJsV1,
+    NativeRustV1,
+}
+
+impl RecoveryProfile {
+    pub const fn format(self) -> &'static str {
+        match self {
+            Self::LegacyJsV1 => FORMAT,
+            Self::NativeRustV1 => NATIVE_FORMAT,
+        }
+    }
+
+    pub const fn contract_version(self) -> &'static str {
+        CONTRACT_VERSION
+    }
+
+    pub const fn database_schema(self) -> u32 {
+        match self {
+            Self::LegacyJsV1 => DATABASE_SCHEMA,
+            Self::NativeRustV1 => NATIVE_DATABASE_SCHEMA,
+        }
+    }
+
+    pub const fn database_lineage(self) -> Option<&'static str> {
+        match self {
+            Self::LegacyJsV1 => None,
+            Self::NativeRustV1 => Some(NATIVE_DATABASE_LINEAGE),
+        }
+    }
+
+    fn matches_metadata(self, contract_version: &str, schema: u32, lineage: Option<&str>) -> bool {
+        contract_version == self.contract_version()
+            && schema == self.database_schema()
+            && lineage == self.database_lineage()
+    }
+}
+
 /// The peer must check ACTUAL stored contract/schema/migration SQL hashes,
 /// integrity/foreign keys, the frozen snapshot graph and exact one-to-one asset
 /// manifest agreement. Reading assets alone does not implement this port.
 pub trait RecoveryDatabasePort {
+    /// Native adapters explicitly select NativeRustV1. The compatibility
+    /// default preserves the published JavaScript recovery format/schema 3.
+    /// Selection never substitutes for validating the actual database metadata.
+    fn recovery_profile(&self) -> RecoveryProfile {
+        RecoveryProfile::LegacyJsV1
+    }
+
     /// Use SQLite's backup API, normalize the closed copied DB to standalone
     /// DELETE journal mode, and leave one private regular file at destination.
     /// Do not hash/copy a hot raw SQLite file as a substitute for backup.
@@ -48,6 +100,9 @@ pub trait RecoveryDatabasePort {
 pub struct ValidatedDatabase {
     pub contract_version: String,
     pub database_schema: u32,
+    /// Actual validated storage lineage, not a value invented from the profile.
+    /// Legacy databases have none; native databases require the exact identity.
+    pub database_lineage: Option<String>,
     pub assets: Vec<AssetRecord>,
 }
 
@@ -124,10 +179,25 @@ pub struct RecoveryManifest {
     pub format: String,
     pub contract_version: String,
     pub database_schema: u32,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "present_database_lineage"
+    )]
+    pub database_lineage: Option<String>,
     pub database: DatabaseMember,
     pub assets: Vec<RecoveryAsset>,
     pub exclusions: Vec<String>,
     pub capture_method: String,
+}
+
+// Omitted lineage preserves the legacy wire shape. A present value must be a
+// string; null cannot masquerade as omission in a legacy or native bundle.
+fn present_database_lineage<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    String::deserialize(deserializer).map(Some)
 }
 
 pub struct VerifiedRecovery {
@@ -143,30 +213,34 @@ pub struct RestoredRecovery {
 
 fn database_assets<P: RecoveryDatabasePort>(
     port: &P,
+    profile: RecoveryProfile,
     bundle: &PrivateDir,
     budget: &WorkBudget,
-) -> MediaResult<(Vec<AssetRecord>, Vec<u8>)> {
+) -> MediaResult<(ValidatedDatabase, Vec<u8>)> {
     let bytes = bundle.read("atlas.sqlite", MAX_DATABASE, budget)?;
     if !bytes.starts_with(b"SQLite format 3\0") {
         return Err(MediaError::Unavailable);
     }
-    let validated = port.validate_recovery_database(&bundle.path.join("atlas.sqlite"), budget)?;
+    let mut validated =
+        port.validate_recovery_database(&bundle.path.join("atlas.sqlite"), budget)?;
     bundle.check()?;
     // Bind the storage validation to the same closed image hashed by media.
     if bundle.read("atlas.sqlite", MAX_DATABASE, budget)? != bytes {
         return Err(MediaError::Unavailable);
     }
-    if validated.contract_version != CONTRACT_VERSION
-        || validated.database_schema != DATABASE_SCHEMA
-    {
+    if !profile.matches_metadata(
+        &validated.contract_version,
+        validated.database_schema,
+        validated.database_lineage.as_deref(),
+    ) {
         return Err(MediaError::Unavailable);
     }
     if validated.assets.len() > MAX_ASSETS {
         return Err(MediaError::TooLarge);
     }
-    let mut assets = validated.assets;
+    let assets = &mut validated.assets;
     let mut identities = BTreeSet::new();
-    for record in &assets {
+    for record in assets.iter() {
         budget.check()?;
         record.validate()?;
         if !identities.insert((record.workspace_id.clone(), record.record_id.clone())) {
@@ -180,7 +254,7 @@ fn database_assets<P: RecoveryDatabasePort>(
             &b.record_id,
         ))
     });
-    Ok((assets, bytes))
+    Ok((validated, bytes))
 }
 
 pub fn capture_recovery<P: RecoveryDatabasePort>(
@@ -190,16 +264,17 @@ pub fn capture_recovery<P: RecoveryDatabasePort>(
     budget: &WorkBudget,
 ) -> MediaResult<RecoveryManifest> {
     budget.check()?;
+    let profile = port.recovery_profile();
     let (parent, name) = destination_parent(destination)?;
     let staged = parent.temporary(".atlas-capture-")?;
     port.backup_to(&staged.directory.path.join("atlas.sqlite"), budget)?;
     staged.directory.check()?;
     staged.directory.sync_member("atlas.sqlite")?;
-    let (assets, database) = database_assets(port, &staged.directory, budget)?;
+    let (validated, database) = database_assets(port, profile, &staged.directory, budget)?;
     let originals = staged.directory.child("originals", true)?;
     let mut total = database.len();
-    let mut entries = Vec::with_capacity(assets.len());
-    for (index, record) in assets.iter().enumerate() {
+    let mut entries = Vec::with_capacity(validated.assets.len());
+    for (index, record) in validated.assets.iter().enumerate() {
         budget.check()?;
         let payload = &record.payload;
         let has_owned_key = payload.storage_key == record.scope().storage_key(&payload.sha256)?;
@@ -223,9 +298,10 @@ pub fn capture_recovery<P: RecoveryDatabasePort>(
         entries.push(RecoveryAsset::from_record(record, blob));
     }
     let manifest = RecoveryManifest {
-        format: FORMAT.to_owned(),
-        contract_version: CONTRACT_VERSION.to_owned(),
-        database_schema: DATABASE_SCHEMA,
+        format: profile.format().to_owned(),
+        contract_version: validated.contract_version,
+        database_schema: validated.database_schema,
+        database_lineage: validated.database_lineage,
         database: DatabaseMember {
             file: "atlas.sqlite".to_owned(),
             sha256: sha256(&database),
@@ -246,7 +322,7 @@ pub fn capture_recovery<P: RecoveryDatabasePort>(
         .write_new("manifest.json", &json, Mode::from_raw_mode(0o600))?;
     originals.sync()?;
     staged.directory.sync()?;
-    verify_directory(port, &staged.directory, budget)?;
+    verify_directory(port, profile, &staged.directory, budget)?;
     budget.check()?;
     staged.publish(&name)?;
     Ok(manifest)
@@ -257,12 +333,14 @@ pub fn verify_recovery<P: RecoveryDatabasePort>(
     bundle: &Path,
     budget: &WorkBudget,
 ) -> MediaResult<VerifiedRecovery> {
+    let profile = port.recovery_profile();
     let bundle = PrivateDir::open(bundle, false)?;
-    verify_directory(port, &bundle, budget)
+    verify_directory(port, profile, &bundle, budget)
 }
 
 fn verify_directory<P: RecoveryDatabasePort>(
     port: &P,
+    profile: RecoveryProfile,
     bundle: &PrivateDir,
     budget: &WorkBudget,
 ) -> MediaResult<VerifiedRecovery> {
@@ -270,9 +348,12 @@ fn verify_directory<P: RecoveryDatabasePort>(
     let manifest: RecoveryManifest =
         serde_json::from_slice(&bundle.read("manifest.json", MAX_MANIFEST, budget)?)
             .map_err(|_| MediaError::Unavailable)?;
-    if manifest.format != FORMAT
-        || manifest.contract_version != CONTRACT_VERSION
-        || manifest.database_schema != DATABASE_SCHEMA
+    if manifest.format != profile.format()
+        || !profile.matches_metadata(
+            &manifest.contract_version,
+            manifest.database_schema,
+            manifest.database_lineage.as_deref(),
+        )
         || manifest.database.file != "atlas.sqlite"
         || manifest.capture_method != CAPTURE_METHOD
         || manifest.exclusions != EXCLUSIONS
@@ -280,7 +361,8 @@ fn verify_directory<P: RecoveryDatabasePort>(
     {
         return Err(MediaError::Unavailable);
     }
-    let (assets, bytes) = database_assets(port, bundle, budget)?;
+    let (validated, bytes) = database_assets(port, profile, bundle, budget)?;
+    let assets = validated.assets;
     if manifest.database.sha256 != sha256(&bytes)
         || manifest.database.byte_size != bytes.len() as u64
         || assets.len() != manifest.assets.len()
@@ -328,9 +410,10 @@ pub fn restore_recovery<P: RecoveryDatabasePort>(
     destination: &Path,
     budget: &WorkBudget,
 ) -> MediaResult<RestoredRecovery> {
+    let profile = port.recovery_profile();
     let (parent, name) = destination_parent(destination)?;
     let bundle = PrivateDir::open(bundle, false)?;
-    let verified = verify_directory(port, &bundle, budget)?;
+    let verified = verify_directory(port, profile, &bundle, budget)?;
     let staged = parent.temporary(".atlas-restore-")?;
     let database = bundle.read("atlas.sqlite", MAX_DATABASE, budget)?;
     if sha256(&database) != verified.manifest.database.sha256 {
@@ -347,7 +430,7 @@ pub fn restore_recovery<P: RecoveryDatabasePort>(
             vault.restore_retained(record, &originals.read(member, MAX_BYTES, budget)?, budget)?;
         }
     }
-    database_assets(port, &staged.directory, budget)?;
+    database_assets(port, profile, &staged.directory, budget)?;
     vault.sync_retained_hierarchy()?;
     staged.directory.sync()?;
     budget.check()?;

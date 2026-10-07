@@ -26,22 +26,22 @@ use super::types::{
 use super::vault::AvailableAssetVerifier;
 use super::{AssetVault, Cancellation, MediaError, MediaResult, WorkBudget};
 
-fn budget() -> WorkBudget {
+pub(super) fn budget() -> WorkBudget {
     WorkBudget::new(Duration::from_secs(10), Cancellation::default()).unwrap()
 }
 
-fn u(n: u32) -> String {
+pub(super) fn u(n: u32) -> String {
     format!("00000000-0000-4000-8000-{n:012}")
 }
 
-fn scope() -> Scope {
+pub(super) fn scope() -> Scope {
     Scope {
         workspace_id: u(1),
         home_id: u(2),
     }
 }
 
-fn record(id: u32, payload: AssetPayload) -> AssetRecord {
+pub(super) fn record(id: u32, payload: AssetPayload) -> AssetRecord {
     AssetRecord {
         schema_version: 1,
         record_type: AssetRecordType::Asset,
@@ -57,7 +57,7 @@ fn record(id: u32, payload: AssetPayload) -> AssetRecord {
     }
 }
 
-fn license() -> SourceLicense {
+pub(super) fn license() -> SourceLicense {
     SourceLicense {
         status: LicenseStatus::Unknown,
         reference: None,
@@ -66,7 +66,7 @@ fn license() -> SourceLicense {
 
 // Independent positive fixture encoder. Filtered bytes are calculated from
 // expected pixel rows; production's renderer is never used to create input.
-fn png_fixture(rgba: bool, filter: u8) -> (Vec<u8>, Vec<u8>) {
+pub(super) fn png_fixture(rgba: bool, filter: u8) -> (Vec<u8>, Vec<u8>) {
     let bpp = if rgba { 4 } else { 3 };
     let stride = 2 * bpp;
     let pixels: Vec<u8> = (0..2 * stride).map(|i| ((i + 1) * 7) as u8).collect();
@@ -276,6 +276,7 @@ impl RecoveryDatabasePort for PublicFixtureDatabase {
             database_schema: value["databaseSchema"]
                 .as_u64()
                 .ok_or(MediaError::Unavailable)? as u32,
+            database_lineage: None,
             assets,
         })
     }
