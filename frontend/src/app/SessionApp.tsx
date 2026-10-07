@@ -10,7 +10,6 @@ import {
 import { App, type AtlasAppProps } from "./App";
 import { BrandMark, Heading } from "./components";
 import type { AtlasClient } from "./types";
-import type { Scope } from "../api/generated/contracts.js";
 import type { AtlasEditingClient } from "./editing";
 import type { AiApplicationPort } from "../ai/host/index.js";
 import type {
