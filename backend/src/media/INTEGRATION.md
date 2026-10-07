@@ -66,8 +66,8 @@ enforced before `read_info()` or preview row allocation. Both the source row
 `ceil(width * source_samples * bit_depth / 8) + 1` and normalized RGBA pixel row
 `width * 4` must fit. Preview compression writes split at 64 KiB. This is an
 optional rendering capability, not an original admission/availability policy.
-Preview failure does not mutate retained records or availability. Existing
-`SafeRendered` requires successful renderer qualification at original admission;
+Preview failure does not mutate retained records or availability. New
+`SafeRendered` qualification requires successful rendering at original admission;
 it cannot be inferred from MIME or original-format validation. A later preview
 operation remains subject to its own budget and output limit. Decoder allocation limit is
 256 MiB; application preview frame/row buffers are additional. Cancellation is
