@@ -113,7 +113,8 @@ root manifest, generated contract or migration schema.
 Additional operations are `register_source`, `register_source_json`,
 `read_cache_for_publication`, `prepare_cache_publication`,
 `publish_prepared_generation`, `replace_cache_generation`,
-`replace_cache_generation_json`, and `record_cache_failure`. Source registration
+`replace_cache_generation_json`, `record_prepared_cache_failure`, and legacy
+`record_cache_failure`. Source registration
 is immutable and scope-checked, validates the complete candidate graph, and creates
 the partition epoch atomically. Configuration uses `ConfigureSource`; publication
 state and writes use `PublishCache`, with trusted source selectors and identical
@@ -143,9 +144,14 @@ opaque authority epoch/handle. The raw trusted publication envelope retains the
 published integer epoch representation. No adapter may reread a newer epoch or
 rebase a completed fetch.
 
-`record_cache_failure` records sanitized metadata and advances the partition
-epoch while retaining its successful generation and projection rows. Revoked
-status is sticky until a complete fresh publication succeeds. Cache writes do
+`record_prepared_cache_failure` consumes the original issuing-store fence and
+compares its full durable registration, baseline generation and cache epoch in
+the failure write transaction before recording sanitized metadata. It advances
+the partition epoch while retaining the successful generation and projection
+rows, and does not reserve the selected candidate generation UUID. Native source
+adapters use this fenced path; `record_cache_failure` remains a legacy unfenced
+entry point. Revoked status is sticky until a complete fresh publication succeeds.
+Cache writes do
 not create Atlas record audits or mutation receipts. Empty complete generations
 clear only projection rows and retain records and binding reservations. All
 these writes use the same connection and fixed internal SQL as bootstrap; no
@@ -255,10 +261,10 @@ results/history/snapshot, exact callback counts, lineage and SQLite version.
 
 The cache executable successfully publishes four complete synthetic generations,
 including an empty HomeBox generation, a newly registered empty source and a
-Network relation-only generation. One successful synthetic timeout-status write
-retains prior rows; it involves no transport or injected fault. It verifies
+Network relation-only generation. Two successful synthetic timeout-status writes
+retain prior rows without transport or injected faults. The executable verifies
 fractional/offset timestamp ordering with unchanged source dates, partition epochs
-3/1/1, five permanently retained generation IDs, fourteen retained records,
+3/1/2, five permanently retained generation IDs, fourteen retained records,
 three retained binding reservations, zero Atlas audits/receipts and healthy
 reopen. It uses no actual HomeBox/Network peer, authorization grant or source
 access. Successful examples do not qualify rejection or concurrent publication.
