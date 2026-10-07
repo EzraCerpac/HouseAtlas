@@ -131,6 +131,37 @@ and depth 64. RawValue distinguishes actual JSON containers from arbitrary-preci
 Serde numeric maps. AT51 classifies integral lexical tokens before checked u64
 conversion; `.0`/exponent integer spellings remain accepted.
 
+Native maintenance costs adopt the wire bridge's exact `serde_json::Number`
+into `Maintenance.cost: Option<serde_json::Number>`. The workspace's existing
+arbitrary-precision JSON feature preserves decimal/exponent tokens through
+typed decoding and serialized cache-publication inputs. Retained-state decoding
+preserves the numeric tokens supplied by Storage. The finite
+admission check does not replace the stored number with its `f64` approximation;
+large integers, long fractions and underflowing exponents retain their amount.
+Normalized synthetic unknown costs remain null. Consumers should serialize the
+number directly rather than convert it to a float or a string. No wire API or
+contract/schema change is required; prior cache amounts already rounded by an
+older reader cannot be recovered without a new source observation.
+
+Maintenance validation reuses the actual contract `JsonNumber` deserializer for
+its lexical processing envelope: at most 4,096 token bytes, explicit decimal
+exponent magnitude at most 4,096, and exponent-minus-fraction-digit magnitude
+at most 4,096. Unsupported spellings fail reader validation before a complete
+generation is staged; they cannot first surface as a Store publication error.
+The same check runs when validating retained projections. Accepted numbers keep
+their exact tokens and the existing finite admission rule; no bound is copied
+into a separate provider policy. Ordinary positive examples cover the accepted
+token/exponent/decimal-shift limits; over-limit rejection controls remain unrun.
+
+Durable amount preservation additionally needs Storage/contract-owner
+reconciliation: `cache_repository::write_homebox` currently calls
+`repository::json`, which uses the native contract's RFC 8785 `canonical_json`.
+That canonicalizer intentionally applies the JavaScript `f64` model and can round
+an exact decimal before storing the projection body. This reader correction does
+not alter the published digest semantics or Storage's persistence codec. Its
+positive examples exercise native intake, projection serialization, the frozen
+contract codec and retained typed fields, not a SQLite persistence roundtrip.
+
 Identical repeated rows collapse; conflicts, count drift, list/detail changes and
 parent cycles abort staging. These guards are coded but rejection/fault/race controls
 remain deferred. Offset pages remain nontransactional upstream reads. UUID spelling
@@ -190,6 +221,11 @@ cargo clippy --manifest-path "$AT08_HARNESS/Cargo.toml" --locked --all-targets -
 cargo test --manifest-path "$AT08_HARNESS/Cargo.toml" --locked homebox_read::healthy -- --test-threads=1
 cargo test --manifest-path "$AT08_HARNESS/Cargo.toml" --locked --test healthy_publication -- --test-threads=1
 ```
+
+The exact-cost examples are registered as `homebox_read::healthy_numeric`, so
+the documented `homebox_read::healthy` filter also selects both numeric tests.
+The source filename remains `numeric_healthy.rs` for the existing publication
+row; the test-only module name changes no production reader API.
 
 Eleven reader examples cover synthetic metadata, pagination, views, empty/minimal
 generations, provenance, allowlists, freshness, native navigation, integral spellings

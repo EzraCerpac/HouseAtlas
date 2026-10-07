@@ -216,7 +216,9 @@ pub struct Maintenance {
     pub description: String,
     pub scheduled_date: Option<crate::providers::homebox::wire::MaintenanceDate>,
     pub completed_date: Option<crate::providers::homebox::wire::MaintenanceDate>,
-    pub cost: Option<f64>,
+    /// Keep the bridge's exact decimal token through publication and retention.
+    /// The workspace enables serde_json's arbitrary_precision feature.
+    pub cost: Option<serde_json::Number>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

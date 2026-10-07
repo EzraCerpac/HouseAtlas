@@ -29,3 +29,6 @@ pub const CONSISTENCY: &str = "non-transactional-offset-pages";
 mod healthy;
 #[cfg(test)]
 mod healthy_http;
+#[cfg(test)]
+#[path = "numeric_healthy.rs"]
+mod healthy_numeric;
