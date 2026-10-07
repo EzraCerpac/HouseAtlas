@@ -1722,6 +1722,11 @@ mod healthy_examples {
         let mut record = empty_registration();
         record.state = LifecycleState::Connected;
         record.issued_client_id = Some(CLIENT.into());
+        record.identity = Some(VerifiedIdentity {
+            subject: "synthetic-verified-subject".into(),
+            name: Some("Synthetic account".into()),
+            email: None,
+        });
         record.credentials = Some(saved_tokens(token_reply(true), vec![]));
         let storage = SyntheticBoundary(Mutex::new(record));
         let provider = provider(true);
