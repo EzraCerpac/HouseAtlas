@@ -283,7 +283,7 @@ fn healthy_native_owned_media_records_and_history() {
     let captured_path = root.join("native-bundle");
     let manifest = capture_recovery(&adapter, &vault, &captured_path, &budget()).unwrap();
     assert_eq!(manifest.format, "houseatlas-rust-owned-recovery/1");
-    assert_eq!(manifest.database_schema, 2);
+    assert_eq!(manifest.database_schema, s::DATABASE_VERSION);
     assert_eq!(manifest.contract_version, s::CONTRACT_VERSION);
     assert_eq!(
         manifest.database_lineage.as_deref(),
@@ -388,6 +388,7 @@ fn healthy_native_owned_media_records_and_history() {
         .unwrap();
     assert_eq!(restored_original.body, png);
     println!(
-        "healthy native Rust storage + actual AT11 login/principals/fenced single+batch mutation; SafeRendered PNG download/preview HEAD and DownloadOnly text download; actual native schema2 owned backup, read-only image validation, capture/verify/restore with missing original and retained tombstones; closed database/audit/receipt bytes, originals, scoped graph and ordered history preserved; stock journals EMPTY ONLY; actual native semantic/JCS/timestamp peers"
+        "healthy native Rust storage + actual AT11 login/principals/fenced single+batch mutation; SafeRendered PNG download/preview HEAD and DownloadOnly text download; actual native schema{} owned backup, read-only image validation, capture/verify/restore with missing original and retained tombstones; closed database/audit/receipt bytes, originals, scoped graph and ordered history preserved; stock journals EMPTY, queue state ABSENT; actual native semantic/JCS/timestamp peers",
+        manifest.database_schema
     );
 }
