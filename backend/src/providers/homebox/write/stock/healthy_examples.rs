@@ -736,6 +736,28 @@ fn cases() -> Vec<Case> {
         NativeMethod::Put,
         format!("/api/v1/maintenance/{}", fixture_id(0xa00)),
     );
+    for (name, cost) in [
+        ("Healthy small decimal cost", Some("0.0000001")),
+        ("Healthy name-only maintenance with exponent cost", None),
+        ("Healthy large decimal cost", Some("12000000000")),
+        ("Healthy signed decimal cost", Some("-0.0000001")),
+    ] {
+        let mut payload = json!({"name":name});
+        if let Some(cost) = cost {
+            payload["cost"] = json!(cost);
+        }
+        add(
+            "homebox.maintenance.update",
+            target(
+                ResourceKind::Maintenance,
+                Some(fixture_id(0xa00)),
+                Some(entity_id),
+            ),
+            payload,
+            NativeMethod::Put,
+            format!("/api/v1/maintenance/{}", fixture_id(0xa00)),
+        );
+    }
     add(
         "homebox.entity-type.update",
         target(ResourceKind::EntityType, Some(fixture_id(0x700)), None),
@@ -780,6 +802,20 @@ fn cases() -> Vec<Case> {
         })
         .collect::<Vec<_>>();
     cases.last_mut().unwrap().preparation.snapshots[0].value["fields"] = json!(existing_fields);
+    let preserved_exponent = cases
+        .iter_mut()
+        .find(|case| {
+            case.command.payload["name"] == "Healthy name-only maintenance with exponent cost"
+        })
+        .unwrap();
+    let preserved_target = preserved_exponent.command.target.clone();
+    preserved_exponent
+        .preparation
+        .snapshots
+        .iter_mut()
+        .find(|snapshot| snapshot.target == preserved_target)
+        .unwrap()
+        .value["cost"] = json!("1e-7");
     cases
 }
 
@@ -1007,20 +1043,43 @@ fn assert_family_values(command: &StockCommand, preparation: &Preparation, plan:
             );
         }
         "homebox.maintenance.update" => {
-            assert_eq!(command.original_wire["payload"]["cost"], "30.50");
+            let (wire_cost, native_cost) = match command.payload["name"].as_str().unwrap() {
+                "Healthy revised maintenance" => (Some("30.50"), "30.5"),
+                "Healthy small decimal cost" => (Some("0.0000001"), "1e-7"),
+                "Healthy name-only maintenance with exponent cost" => (None, "1e-7"),
+                "Healthy large decimal cost" => (Some("12000000000"), "1.2E+10"),
+                "Healthy signed decimal cost" => (Some("-0.0000001"), "-1e-7"),
+                _ => panic!("healthy maintenance update has a named cost fixture"),
+            };
+            let NativeBody::Json(body) = &plan.request.body else {
+                panic!("healthy maintenance update uses JSON")
+            };
+            let cost_before = command.payload.get("cost").cloned();
+            if let Some(wire_cost) = wire_cost {
+                assert_eq!(command.original_wire["payload"]["cost"], wire_cost);
+                assert_eq!(body["cost"], wire_cost);
+            } else {
+                assert_eq!(command.original_wire["payload"].get("cost"), None);
+                assert_eq!(body["cost"], "1e-7");
+                assert_eq!(plan.readback.expected["cost"], "1e-7");
+            }
             let mut native = preparation.snapshot(&command.target).unwrap().value.clone();
             native
                 .as_object_mut()
                 .unwrap()
                 .extend(command.payload.as_object().unwrap().clone());
-            native["cost"] = json!("30.5");
+            native["cost"] = json!(native_cost);
             super::healthy_workflow::assert_healthy_observation(
                 command,
                 preparation,
                 plan,
                 json!([native]),
             );
-            assert_eq!(command.payload["cost"], "30.50");
+            assert_eq!(command.payload.get("cost").cloned(), cost_before);
+            assert_eq!(
+                command.original_wire["payload"].get("cost").cloned(),
+                cost_before
+            );
         }
         _ => {}
     }
@@ -1087,6 +1146,6 @@ fn healthy_synthetic_stock_operation_mappings() {
     assert_eq!(command_ids.len(), 49);
     assert_eq!(bulk_actions.len(), 6);
     assert_eq!(print_subjects.len(), 3);
-    assert_eq!(cases.len(), 72);
+    assert_eq!(cases.len(), 76);
     assert_eq!(healthy_cases().len(), cases.len());
 }

@@ -719,16 +719,30 @@ fn decimal_cost_equal(expected: &Value, actual: &Value) -> bool {
     }
 }
 
-/// Compare finite decimal notation exactly using borrowed digit slices. This
-/// mirrors the native decimal value without parsing floats, rounding, changing
-/// intent, or extending the rule to unrelated strings or JSON numbers.
-fn decimal_parts(value: &str) -> Option<(bool, &str, &str)> {
+/// Exact base-ten value with a bounded coefficient and symbolic exponent. The
+/// 4096-byte comparison limit is an evidence bound, not a native database or
+/// wire-schema limit. No exponent is expanded and intent is never rewritten.
+fn decimal_parts(value: &str) -> Option<(bool, String, i64)> {
+    if value.len() > 4096 {
+        return None;
+    }
     let negative = value.starts_with('-');
-    let unsigned = if negative { &value[1..] } else { value };
-    let (whole, fraction) = match unsigned.split_once('.') {
+    let unsigned = if negative || value.starts_with('+') {
+        &value[1..]
+    } else {
+        value
+    };
+    let (mantissa, exponent) = match unsigned.find(['e', 'E']) {
+        Some(index) => (
+            &unsigned[..index],
+            unsigned[index + 1..].parse::<i64>().ok()?,
+        ),
+        None => (unsigned, 0),
+    };
+    let (whole, fraction) = match mantissa.split_once('.') {
         Some((whole, fraction)) if !fraction.is_empty() => (whole, fraction),
         Some(_) => return None,
-        None => (unsigned, ""),
+        None => (mantissa, ""),
     };
     if whole.is_empty()
         || !whole.bytes().all(|byte| byte.is_ascii_digit())
@@ -736,12 +750,25 @@ fn decimal_parts(value: &str) -> Option<(bool, &str, &str)> {
     {
         return None;
     }
-    let whole = whole.trim_start_matches('0');
-    let fraction = fraction.trim_end_matches('0');
+    let mut digits = String::with_capacity(whole.len() + fraction.len());
+    digits.push_str(whole);
+    digits.push_str(fraction);
+    let significant = digits.trim_start_matches('0');
+    if significant.is_empty() {
+        // Syntax and the explicit exponent were validated before signed zero
+        // becomes the unique zero representation.
+        return Some((false, String::new(), 0));
+    }
+    let coefficient = significant.trim_end_matches('0');
+    let trailing_zeros = i64::try_from(significant.len() - coefficient.len()).ok()?;
+    let fraction_digits = i64::try_from(fraction.len()).ok()?;
+    // Combine the small offsets before applying them to the explicit exponent,
+    // so cancelling offsets do not cause an unnecessary intermediate overflow.
+    let offset = trailing_zeros.checked_sub(fraction_digits)?;
     Some((
-        negative && (!whole.is_empty() || !fraction.is_empty()),
-        whole,
-        fraction,
+        negative,
+        coefficient.to_owned(),
+        exponent.checked_add(offset)?,
     ))
 }
 

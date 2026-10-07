@@ -45,7 +45,10 @@ Existing ID-bearing native fields are compared by exact identity without the
 Anonymous generated template rows retain bounded aggregate matching. Root tag
 parents compare null and the native nil UUID only in that relation field.
 Maintenance decimal costs compare exact numeric values without changing wire
-strings or hashing intent. An omitted entity-type default-template relation
+strings or hashing intent. Comparison accepts fixed and exponent notation using
+a normalized signed coefficient and checked exponent, with each native string
+bounded to 4096 bytes. It uses no float, rounding or power-of-ten expansion.
+An omitted entity-type default-template relation
 remains absent in preservation input and readback.
 Entity asset IDs compare the exact native integer value in that scalar field,
 including native padding/hyphen formatting, without changing request spelling
@@ -151,16 +154,17 @@ The unqualified engineering profile numbers are not production settings.
 
 The external harness imports the actual module with Rust 1.99.0/edition 2024 and
 pins serde=1.0.228, serde_json=1.0.145 and uuid=1.18.1. AT51 owns final manifests.
-Run only the two stock healthy groups by exact name: 72 positive mapping cases
+Run only the two stock healthy groups by exact name: 76 positive mapping cases
 across all 48 required IDs/native variants, and two fresh acknowledged synthetic
-dispatch/readbacks. Seven positive exact readback examples cover optional type
+dispatch/readbacks. Eleven positive exact readback examples cover optional type
 relations, root tags, 101 preserved fields, decimal cost spelling, native asset
-formatting and supported non-sentinel date boundaries. The fresh workflows
+formatting, supported non-sentinel date boundaries, and fixed/native exponent
+cost forms including a preserved unchanged exponent spelling. The fresh workflows
 verify same-authority refresh after admission and before dispatch, plus concrete
 generated-target authorization before GET.
 Shared contracts/access/preparation/ledger/transport remain
 stand-ins in these groups. They open no socket and use no real credentials/data.
-Their emitted 74 wire requests, nine wire outcomes and 72 native plans were
+Their emitted 78 wire requests, thirteen wire outcomes and 76 native plans were
 validated offline against the exact supplied request/outcome schemas and pinned
 Swagger routes/body/form/query/response-status definitions. Swagger x-nullable
 was interpreted for shape validation; it was not treated as native clear proof.
