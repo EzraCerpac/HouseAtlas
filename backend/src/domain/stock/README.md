@@ -76,6 +76,14 @@ decoding handles accepted decimal/exponent budgets. Public artifact bytes are
 checked against `maxBytes`; staged import/export `maxRows` and printed bytes
 still require the actual owner's measurements before effects or delivery.
 
+Shared `stockError` results are classified and validated against
+`#/$defs/stockError` before an operation's success-only schema. They retain
+request-ID correlation, current output authority and an empty child-envelope
+requirement, including for batch roots. Successful batches require committed
+success children and retain their ordered record/audit flattening. The domain
+ordering correction is source/compiler qualified only; no error-input probe
+is run or implied by successful ordinary examples.
+
 Invoked native outcomes retain only `active`, `end-unproven` or `ended-proven`
 activity. A `not-dispatched` outcome must be a never-invoked state with empty
 effects and no success. Artifact outputs keep bounded download handles,
@@ -218,9 +226,21 @@ immutable prepared request across native callbacks and outer stock release.
 Full `StockAuthorityPort` capture/disclosure and complete graph facts remain
 host inputs; there is no default authority or production endpoint here.
 
+Retained native entries and complete batch child envelopes use the native
+owner's canonical JSON policy. Numeric spellings such as `1` and `1.0` retain
+their original carriers and intent digests while comparing equivalently; every
+field and array position still participates. Current prepared-request/plan
+identity and stored root/child provenance checks remain exact.
+`examples/canonical_numbers_healthy.rs` supplies ordinary valid single/batch
+evidence-create inputs with those numeric spellings. This follow-up compiles
+the example only; it runs no storage, authority, replay or control probe.
+
 Frozen record reads still invoke the native store's A, while stock history and
 commands invoke borrowed B. A mutex-backed A cannot be reentered from B's held
-access fence. New presence admission and provider dispatch remain held pending
-real atomic witness/queue owners. See `../README.md` for exact pins and the fresh
+access fence. AT07's later supplied checkpoint
+`a0e23b5bbb477e45ab4651f2bf73cf3842f7fbc6` provides durable queue storage and
+native database schema 3. Atomic presence admission, actual authority/provider
+bindings and complete recovery remain host integration duties; provider
+dispatch remains held. See `../README.md` for the earlier pins and fresh
 storage example; older compiler/runtime intervals above retain their original
 scope and are not proof of these new bindings.

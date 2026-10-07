@@ -331,9 +331,15 @@ impl<'a, 'tx, 'p, W, G, F: GraphAuthorization<W, G>> NativeStockAuthority<'a, 't
             for (retained, planned) in commit.groups.iter().zip(plan.groups()) {
                 if retained.child_index != planned.child_index()
                     || retained.request_digest != planned.request_digest()
-                    || retained.native_entries != planned.native_entries()
+                    || !canonical_equal(
+                        retained.native_entries.as_slice(),
+                        planned.native_entries(),
+                    )?
                     || (planned.child_index().is_some()
-                        && retained.original_request != *planned.original_request())
+                        && !canonical_equal(
+                            &retained.original_request,
+                            planned.original_request(),
+                        )?)
                 {
                     return Err(denied());
                 }
@@ -451,6 +457,16 @@ impl<W, G, F: GraphAuthorization<W, G>> d::AccessPort<a::Principal>
         };
         check().map_err(d::native_storage::native_error)
     }
+}
+
+// Use the native owner's policy for complete retained carriers. Numeric JSON
+// spellings may differ; array order, omitted/null fields and all metadata stay
+// part of the comparison. Neither caller's original value is normalized.
+fn canonical_equal<T: serde::Serialize + ?Sized>(retained: &T, planned: &T) -> s::Result<bool> {
+    let native = d::native_semantics::NativeSemantics::native();
+    let retained = s::Contract::canonical_json(&native, &serde_json::to_value(retained)?)?;
+    let planned = s::Contract::canonical_json(&native, &serde_json::to_value(planned)?)?;
+    Ok(retained == planned)
 }
 
 fn denied() -> s::Error {

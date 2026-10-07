@@ -5,6 +5,11 @@ use super::{
 };
 use serde_json::{Value, json};
 
+enum OutputArm {
+    Success,
+    Error,
+}
+
 /// Validate the declared output schema plus correlations schema cannot express.
 /// The same current-authority release checks apply to retained owner receipts.
 pub fn validate_result<P, C, A>(
@@ -19,7 +24,7 @@ where
     A: StockAuthorityPort<P>,
 {
     let request = prepared.request();
-    check_wire(
+    let arm = check_wire(
         principal,
         prepared,
         request,
@@ -27,7 +32,7 @@ where
         contracts,
         authority,
     )?;
-    if request.id() != OperationId::AtlasBatchExecute {
+    if matches!(arm, OutputArm::Error) || request.id() != OperationId::AtlasBatchExecute {
         require(result.children.is_empty())?;
         return Ok(());
     }
@@ -35,7 +40,10 @@ where
     let mut records = Vec::new();
     let mut audits = Vec::new();
     for (child, wire) in request.children().iter().zip(&result.children) {
-        check_wire(principal, prepared, child, wire, contracts, authority)?;
+        require(matches!(
+            check_wire(principal, prepared, child, wire, contracts, authority)?,
+            OutputArm::Success
+        ))?;
         records.extend(array(&wire["data"], "records")?.iter().cloned());
         audits.extend(array(&wire["data"], "auditIds")?.iter().cloned());
     }
@@ -52,17 +60,20 @@ fn check_wire<P, C, A>(
     wire: &Value,
     contracts: &C,
     authority: &A,
-) -> StockResult<()>
+) -> StockResult<OutputArm>
 where
     C: StockContractPort,
     A: StockAuthorityPort<P>,
 {
+    // The shared error arm is separate from success-only operation schemas.
+    if wire.get("code").is_some() && wire.get("commandId").is_none() {
+        contracts.validate("#/$defs/stockError", wire)?;
+        require(wire["requestId"] == request.request_id())?;
+        authority.authorize_result(principal, prepared, request, wire)?;
+        return Ok(OutputArm::Error);
+    }
     contracts.validate(request.operation().output_schema, wire)?;
     require(wire["requestId"] == request.request_id())?;
-    // Some native output arms include a closed stockError before dispatch.
-    if wire.get("code").is_some() && wire.get("commandId").is_none() {
-        return authority.authorize_result(principal, prepared, request, wire);
-    }
     require(wire["commandId"] == request.id().as_str())?;
     let context =
         serde_json::to_value(request.context()).map_err(|_| StockError::InvalidContract)?;
@@ -114,7 +125,7 @@ where
     }
     authority.authorize_result(principal, prepared, request, wire)?;
     if request.id() == OperationId::AtlasBatchExecute {
-        return Ok(());
+        return Ok(OutputArm::Success);
     }
     let data = &wire["data"];
     if let Some(target) = data.get("target") {
@@ -158,7 +169,7 @@ where
             release_effect(principal, prepared, request, effect, authority)?;
         }
     }
-    Ok(())
+    Ok(OutputArm::Success)
 }
 
 /// Caller-selected bounds apply to the declared page or feature array only.
