@@ -23,7 +23,7 @@ The ordinary workflows also run on dev pushes; cache publication stays on main.
 
 Missing product areas include the remaining flat Atlas writes and download
 admission, stock HomeBox operation mounts, stock Network query mounts, complete
-provider setup and UI, actual AI credential-host proof/fencing/enrollment callers,
+provider setup and UI, trusted AI configuration/startup callers and receipt identity,
 and composed populated recovery. Saved Network queries require lock-per-phase
 orchestration around the original runtime, plus original grants captured before
 source capture is sealed. Calling that runtime inside the current locked stock
@@ -36,3 +36,13 @@ review cleanup pass.
 Retained owner regression sources are not added to ordinary test aggregates.
 The stopped controls, live credentials/providers, remote listeners, production
 restore and deployment remain outside this development composition.
+
+The later original AI successor supplies a native enrollment owner, retained
+credential proof/stop/persistence fence bridge, and cancellation-aware durable
+request/action receipts. Root declarations and the HTTP enrollment adapter use
+those actual modules. Explicit issued-website client initialization comes from
+the original credential boundary under the original active lease. These APIs
+provide no pre-existing approval, native data key, configured registration,
+inference permission or provider activation. Trusted startup remains responsible
+for external approval provenance and supplying the actual receipt identity.
+The default disposable service does not enroll AI accounts or read native keys.
