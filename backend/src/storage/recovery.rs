@@ -133,7 +133,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         let closed = copy.close().map_err(|(_, error)| Error::from(error));
         prepared?;
         closed?;
-        self.validate_recovery_image_bounded(destination, deadline, check)
+        Self::validate_recovery_image_bounded(&self.contract, destination, deadline, check)
     }
 
     pub fn validate_recovery_image(
@@ -141,15 +141,96 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         database: &Path,
         check: &mut dyn FnMut() -> Result<()>,
     ) -> Result<RecoveryImage> {
-        self.validate_recovery_image_bounded(
+        Self::validate_recovery_image_bounded(
+            &self.contract,
             database,
             Instant::now() + Duration::from_secs(30),
             check,
         )
     }
 
+    /// Detached read-only validation. Requires no source store, creates no
+    /// selected database, and performs no migration. Metadata is not authority.
+    pub fn validate_existing_recovery_image(
+        database: &Path,
+        contract: &C,
+        check: &mut dyn FnMut() -> Result<()>,
+    ) -> Result<RecoveryImage> {
+        Self::validate_recovery_image_bounded(
+            contract,
+            database,
+            Instant::now() + Duration::from_secs(30),
+            check,
+        )
+    }
+
+    /// Open an already closed, validated current-lineage image without CREATE
+    /// or migration. Revalidates the same handle before enabling runtime WAL.
+    /// The caller supplies fresh trusted authority/runtime and exclusively owns
+    /// the selected path throughout; retained metadata supplies no grants.
+    pub fn open_existing_recovery_image(
+        database: &Path,
+        contract: C,
+        authorization: A,
+        runtime: R,
+        options: super::StoreOptions,
+        expected: &RecoveryImage,
+        check: &mut dyn FnMut() -> Result<()>,
+    ) -> Result<Self> {
+        if options.allow_synthetic_bootstrap || options.busy_timeout_ms > 60_000 {
+            return Err(Error::new(
+                "invalid-contract",
+                "Existing storage options are incompatible",
+            ));
+        }
+        let deadline = Instant::now() + Duration::from_secs(30);
+        checkpoint(deadline, check)?;
+        standalone_header(database)?;
+        // No SQLITE_OPEN_CREATE. Validation uses this same existing handle.
+        let mut db = Connection::open_with_flags(
+            database,
+            OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?;
+        let prepared = (|| -> Result<()> {
+            db.busy_timeout(Duration::ZERO)?;
+            db.pragma_update(None, "query_only", true)?;
+            let tx = db.transaction()?;
+            let mode: String = tx.query_row("PRAGMA journal_mode", [], |row| row.get(0))?;
+            if mode != "delete" {
+                return Err(checks::incompatible());
+            }
+            let mut progress = || checkpoint(deadline, check);
+            let actual = checks::validate_connection(&tx, &contract, &mut progress)?;
+            if &actual != expected {
+                return Err(checks::incompatible());
+            }
+            tx.commit()?;
+            checkpoint(deadline, check)?;
+            db.pragma_update(None, "query_only", false)?;
+            db.busy_timeout(Duration::from_millis(options.busy_timeout_ms))?;
+            db.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;")?;
+            let mode: String = db.query_row("PRAGMA journal_mode=WAL", [], |row| row.get(0))?;
+            if mode != "wal" {
+                return Err(unavailable());
+            }
+            checkpoint(deadline, check)
+        })();
+        if let Err(error) = prepared {
+            db.close().map_err(|(_, error)| Error::from(error))?;
+            return Err(error);
+        }
+        Ok(Self {
+            db,
+            instance: std::sync::Arc::new(()),
+            contract,
+            authorization,
+            runtime,
+            options,
+        })
+    }
+
     fn validate_recovery_image_bounded(
-        &self,
+        contract: &C,
         database: &Path,
         deadline: Instant,
         check: &mut dyn FnMut() -> Result<()>,
@@ -170,7 +251,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                 return Err(checks::incompatible());
             }
             let mut progress = || checkpoint(deadline, check);
-            let result = checks::validate_connection(&tx, &self.contract, &mut progress)?;
+            let result = checks::validate_connection(&tx, contract, &mut progress)?;
             tx.commit()?; // Ends read transaction; query_only prevents writes.
             Ok(result)
         })();

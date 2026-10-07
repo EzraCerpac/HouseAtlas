@@ -357,6 +357,23 @@ asset records. Media owns physical originals, image hashes, sync and publication
 The required check callback is an authority/progress check and receives no SQL.
 The deadline is cooperative between SQLite/contract calls.
 
+`AtlasStore::validate_existing_recovery_image(database, &contract, check)` is
+detached read-only validation and needs no original store. The caller uses its
+concrete `AtlasStore<C,A,R>` type. `open_existing_recovery_image(database,
+contract, authorization, runtime, options, &expected, check)` uses READ_WRITE
+without CREATE, rejects synthetic bootstrap, and never calls the migration
+engine. It validates the selected current-lineage image on that same connection
+with query-only enabled, compares every returned metadata/asset field to the
+expected image, rechecks the external authority, then enables normal FK/FULL/WAL
+runtime mode and creates a fresh store instance token. The ordinary constructor
+is unchanged. Runtime authorization still requires newly supplied original
+principal/witness handles; no image metadata is an authority grant.
+Expected metadata does not authenticate every database byte: the media/host
+owner must retain its independently verified image digest and exclusively owned
+path binding throughout. These ports support closed standalone images, not a
+hot-WAL restart. This checkpoint is source/compiler review only; no existing
+foreign database or initialization/migration control is executed.
+
 Validation compares exact migration checksums, metadata and actual schema
 catalog, integrity/FKs, every native body and SQL key, full unredacted graph,
 binding reservations, asset manifests, cache generations/epochs, receipt/audit
