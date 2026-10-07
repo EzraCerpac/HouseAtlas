@@ -328,6 +328,37 @@ export async function runHealthyEditing(
       document.activeElement === button("Edit Atlas place"),
       "Close restores opener focus after commit",
     );
+    await act(async () =>
+      root.render(
+        <App
+          initialView={currentView}
+          editing={{
+            ...editing,
+            loadPlace: async () => ({
+              record,
+              guards: supplied.guards,
+              canReplaceClassification: false,
+            }),
+          }}
+          client={{
+            load: async () => currentView,
+            loadHome: async () => currentView,
+          }}
+        />,
+      ),
+    );
+    await act(async () => button("Edit Atlas place").click());
+    const viewer = container.querySelector<HTMLElement>(
+      '[aria-label="Atlas place editing"]',
+    );
+    check(
+      viewer?.querySelector('[role="status"]')?.textContent ===
+        "This Atlas place is read-only for your current access." &&
+        viewer.querySelector("h2") === document.activeElement &&
+        viewer.querySelectorAll("form").length === 0,
+      "Valid Viewer admission explains read-only state with heading focus",
+    );
+    checks.push("valid Viewer admission: focused read-only limitation");
   } finally {
     await act(async () => root.unmount());
   }
