@@ -15,6 +15,7 @@ pub mod native_recovery;
 mod platform_fs;
 mod private_fs;
 pub mod recovery;
+pub mod review;
 pub mod service;
 pub mod staged_upload;
 pub mod types;
