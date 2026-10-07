@@ -35,6 +35,9 @@ impl<C: Contract> Contract for NativeContract<C> {
         match name {
             "scope" => checked::<schema::Scope>(value),
             "recordRef" => checked::<schema::RecordRef>(value),
+            "snapshot" => checked::<schema::Snapshot>(value),
+            "record" => checked::<schema::Record>(value),
+            "audit" => checked::<schema::Audit>(value),
             "mutation" => checked::<schema::Mutation>(value),
             "batchMutation" => checked::<schema::BatchMutation>(value),
             "batchResult" => checked::<schema::BatchResult>(value),

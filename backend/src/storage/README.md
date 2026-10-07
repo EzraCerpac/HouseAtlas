@@ -45,14 +45,15 @@ projection rows remain exact JSON data, validated by the contract peer.
 
 `NativeContract<C>` composes `crate::contracts` at published AT51 checkpoint
 `6b3029cbbcf1462ecdeecc62a56c24f66e034057` with a required semantic peer `C`.
-It dispatches all nine storage shape names to the generated native DTOs via
+It dispatches the storage input shapes and the native domain bridge's
+`snapshot`, `record` and `audit` output shapes to generated native DTOs via
 `contracts::decode<T>`, and validates snapshot/result shapes before delegation.
 Shared numeric processing errors retain AT51's static explanation under the
 existing `invalid-contract` storage error code; no input tokens are exposed.
 It implements no graph, transition, guard, final-command, result-correlation,
-JCS or timestamp fallback. AT52 must supply these remaining methods through
-the unchanged storage `Contract` trait. Root manifests/generated types remain
-owned by their maintainers. This native composition follows PR7's separately
+JCS or timestamp fallback. AT51 owns these pure semantic methods; AT52 composes
+the peer through the unchanged storage `Contract` trait. Root manifests and
+generated types remain owned by their maintainers. This composition follows PR7's separately
 reviewed numeric correction `816ba441ba1076eae426f69ac8b7c5177745ab53`;
 its changes remain within the storage namespace.
 
@@ -197,6 +198,8 @@ arbitrary HomeBox types, explicit nullable type flags, unknowns and original dat
 remain unchanged. It exercises room/item atomic create, item replace/tombstone/
 restore, a circuit create, ordered binding retirement/create/journal, scoped
 queries, empty seeded history, retained tombstone read, and healthy reopen.
+It also validates the final committed snapshot, restored item and four ordered
+item audits through the exact native output shape names used by the domain bridge.
 
 An external Cargo harness named `houseatlas-at07-checkpoint` has these dependencies,
 `src/lib.rs` containing the following, and a `healthy` binary pointing to the
