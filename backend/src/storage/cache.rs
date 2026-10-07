@@ -203,16 +203,17 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             .record_prepared_cache_failure_at(principal, fence, failure, attempted_at)
     }
 
-    fn cache_transaction(&mut self) -> CacheTransaction<'_, C, A, R> {
+    pub(super) fn cache_transaction(&mut self) -> CacheTransaction<'_, C, A, R> {
         CacheTransaction {
             db: &mut self.db,
             contract: &self.contract,
             authorization: &self.authorization,
             runtime: &self.runtime,
             instance: &self.instance,
+            pins: &mut self.cache_pins,
         }
     }
-    fn cache_transaction_with_authorization<'a, B: Authorization>(
+    pub(super) fn cache_transaction_with_authorization<'a, B: Authorization>(
         &'a mut self,
         authorization: &'a B,
     ) -> CacheTransaction<'a, C, B, R> {
@@ -222,17 +223,19 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             authorization,
             runtime: &self.runtime,
             instance: &self.instance,
+            pins: &mut self.cache_pins,
         }
     }
 }
 
 /// One private transaction engine shared by configured and borrowed authority.
-struct CacheTransaction<'a, C, A, R> {
+pub(super) struct CacheTransaction<'a, C, A, R> {
     db: &'a mut Connection,
     contract: &'a C,
     authorization: &'a A,
     runtime: &'a R,
     instance: &'a Arc<()>,
+    pins: &'a mut super::cache_custody::CachePinRegistry,
 }
 impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
     fn read_cache_partition(
@@ -456,6 +459,9 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
             &input,
             &actor,
         )?;
+        // Conservatively retain this issued candidate even if commit returns an
+        // ambiguous error or its owner later abandons the provider attempt.
+        self.pins.reserve(&fence)?;
         tx.commit()?;
         Ok(PreparedCachePublication { state, fence })
     }
@@ -467,6 +473,23 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
         &mut self,
         principal: &A::Principal,
         fence: CachePublicationFence,
+        cache: &CacheStatus,
+        homebox_entities: &[Value],
+        network_relations: &[Value],
+    ) -> Result<CacheStatus> {
+        self.publish_prepared_generation_ref(
+            principal,
+            &fence,
+            cache,
+            homebox_entities,
+            network_relations,
+        )
+    }
+
+    pub(super) fn publish_prepared_generation_ref(
+        &mut self,
+        principal: &A::Principal,
+        fence: &CachePublicationFence,
         cache: &CacheStatus,
         homebox_entities: &[Value],
         network_relations: &[Value],
@@ -492,7 +515,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
                 expected_generation_id: fence.baseline_generation_id.clone(),
                 expected_cache_epoch: fence.baseline_cache_epoch.value(),
             },
-            Some(&fence),
+            Some(fence),
         )
     }
 

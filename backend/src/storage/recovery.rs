@@ -354,6 +354,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         Self {
             db,
             instance: std::sync::Arc::new(()),
+            cache_pins: super::cache_custody::CachePinRegistry::default(),
             contract,
             authorization,
             runtime,
