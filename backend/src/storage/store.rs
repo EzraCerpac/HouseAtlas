@@ -1,6 +1,9 @@
 use super::{migrations, repository as repo, *};
 #[path = "cache.rs"]
 mod cache;
+#[path = "cache_custody.rs"]
+mod cache_custody;
+pub use cache_custody::*;
 #[path = "commands.rs"]
 mod commands;
 #[path = "recovery.rs"]
@@ -40,6 +43,7 @@ impl Default for StoreOptions {
 pub struct AtlasStore<C, A, R> {
     pub(super) db: Connection,
     instance: Arc<()>,
+    cache_pins: cache_custody::CachePinRegistry,
     contract: C,
     authorization: A,
     pub(super) runtime: R,
@@ -71,6 +75,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         Ok(Self {
             db,
             instance: Arc::new(()),
+            cache_pins: cache_custody::CachePinRegistry::default(),
             contract,
             authorization,
             runtime,

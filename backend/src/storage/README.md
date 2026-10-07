@@ -104,6 +104,57 @@ unrun in this lane. No receipt expiry/deletion API exists.
 
 ## Source and cache publication continuation
 
+`cache_custody.rs` adds publication outcomes that retain original ownership.
+The configured and borrowed `publish_prepared_generation_with_custody` paths
+return the original fence on error. The staged variants acquire the original
+reference owner's guard, verify the actual Native staged receipt under that
+lock, and return the original staged object on both success and error. They
+reuse the existing SQL graph, registration, epoch/CAS and precommit validation.
+No error outcome asserts that publication definitely did not commit.
+
+`guard_cache_residency` combines an IMMEDIATE transaction on this same Store
+connection with a borrowed original Native/catalog/recovery guard. Its bounded
+inventory includes every SQL generation reservation, current pointer, Store
+issued candidate, and mandatory original peer reference. Enumeration errors
+are sticky; missing original catalogs or incomplete enumeration must fail
+closed. The 10,000-entry bound counts references conservatively, including
+repeated reasons for a generation. Store candidate pins remain for the process
+lifetime, including abandoned, ambiguous and successful attempts. Filling this
+bound produces backpressure; it never evicts a retained row. Reopen reconstructs
+SQL history and requires the original peer to enumerate every immutable native
+stage and external reference; process-local pins alone are insufficient.
+
+Before transport or staging, call `admit_before_transport` with the original
+fence and next native-body upper bound. This returns the original Native
+capacity reservation while Store and peer pins are held. The peer must reserve
+segment/catalog overhead and concurrent admissions and enforce its token during
+actual staging. Development defaults are 16 MiB active segment, 256 MiB total
+protected capacity, 10 MiB native row and 10,000 protected references. Storage
+enforces the row request/count boundary; actual immutable segment rotation and
+byte accounting are Native/catalog responsibilities, with no permissive default.
+
+`guard_unpublished_candidate` retains the exact original fence and staged
+object and verifies Store identity, full registration, partition, generation
+and native immutable-body digest. Under the same live pins it checks all SQL
+history/current pointers, requires the original peer's definite unpublished
+disposition, and excludes disclosure/recovery/archive/ambiguous references.
+Its release consumes the absence proof and returns the original fence, staged
+object, reference guard and SQL result even on release error. A returned fence
+alone carries no unpublished proof. No guard authorizes deletion or retention
+release. Recovery must verify original immutable bytes and transfer custody
+through the still-held original reference guard before changing residency.
+Access must retain its original authenticated grants separately through final
+disclosure; none of this inventory or custody metadata supplies a grant.
+
+The explicitly named `checks/cache-custody-healthy.rs` checkpoint uses actual
+Native complete proposals, staged receipts, immutable SQLite sidecar bytes and
+native Store contracts. It exercises configured and borrowed publication,
+healthy admission, complete synthetic reference reasons and an unpublished
+candidate. Its fresh synthetic reference/admission adapter is fixture-only;
+production Native catalog, rotation, Recovery and Access implementations remain
+required integration inputs. The checkpoint is not included in ordinary CI or
+broad aggregates and contains no held failure/denial/deletion/replay controls.
+
 The first record checkpoint remains commit
 `d4a94d230da3f098eefaa846bf73f389f9d9965e` in draft PR #7. The source/cache
 continuation is its append-only child
