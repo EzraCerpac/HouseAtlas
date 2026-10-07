@@ -10,9 +10,11 @@ pub type PortFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, PortError>> +
 pub struct PublicToolFailure {
     pub code: &'static str,
     pub message: &'static str,
-    /// Optional canonical public error DTO, already validated and sanitized by
-    /// its owner. Preserves authorized revision/request metadata without the
-    /// protocol adapter duplicating or fabricating the application error schema.
+    /// Some only for a canonical public error DTO already owner-validated against
+    /// the advertised output schema and the complete originating request/scope
+    /// and ordered child correlations, with disclosure authorized. Preserves
+    /// authorized metadata; the adapter does not fabricate an error envelope.
+    /// Generic code/message failures use None and render as text-only isError.
     pub data: Option<JsonObject>,
 }
 
