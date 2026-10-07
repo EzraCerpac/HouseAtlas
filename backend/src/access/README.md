@@ -56,6 +56,29 @@ Source registration replacement preserves existing enabled state by default,
 checks immutable ownership and disjoint partitions in one access transaction.
 Ordinary principals have no configure-source or publish-cache capability.
 
+The transaction guard also accepts retained grants acquired using its original
+mutation principal:
+
+```rust
+TransactionAuthorization::revalidate_source<'g>(
+    &self, original: &'g SourceGrant,
+) -> AccessResult<&'g SourceGrant>;
+TransactionAuthorization::revalidate_source_partition<'g>(
+    &self, original: &'g PartitionGrant,
+) -> AccessResult<&'g PartitionGrant>;
+```
+
+These checks read through the held access transaction and compare the captured
+source version and complete private principal provenance, including issuance
+action. They check current source ownership and entity allowlists while keeping
+partition metadata authority separate. Success returns the exact original
+borrowed handle; revalidation creates no replacement grant and opens no second
+transaction. It validates authority at that point, not after the guard releases.
+The access handles have no domain mutation contextId: AT07/AT51 still own binding
+the retained grant set to the immutable mutation context and phase. An equal
+clone preserves the same access capability; actor/scope DTO equality alone does
+not establish ownership.
+
 `AccessBoundary::{login,session_info,rotate_session,logout}` verify exact
 configured HTTPS origins and the actual request evidence. The host cookie is
 Secure, HttpOnly, SameSite=Strict and Path=/; unsafe calls require POST, Origin

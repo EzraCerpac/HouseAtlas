@@ -105,23 +105,12 @@ impl AccessBoundary {
         &self,
         grant: &'g PartitionGrant,
     ) -> AccessResult<&'g PartitionGrant> {
-        let fresh = self
-            .current()
-            .partition_grant(&grant.principal, &grant.partition)?;
-        if fresh.version != grant.version {
-            return Err(AccessError::NotFound);
-        }
-        Ok(grant)
+        self.current()
+            .revalidate_source_partition(&grant.principal, grant)
     }
 
     pub fn revalidate_source<'g>(&self, grant: &'g SourceGrant) -> AccessResult<&'g SourceGrant> {
-        let fresh = self
-            .current()
-            .source_grant(&grant.principal, &grant.reference)?;
-        if fresh.version != grant.version {
-            return Err(AccessError::NotFound);
-        }
-        Ok(grant)
+        self.current().revalidate_source(&grant.principal, grant)
     }
 }
 
@@ -132,13 +121,7 @@ impl CurrentAuthority<'_> {
         partition: &SourcePartition,
     ) -> AccessResult<PartitionGrant> {
         self.revalidate(principal)?;
-        partition.validate().map_err(|_| AccessError::NotFound)?;
-        if partition.scope() != principal.scope {
-            return Err(AccessError::NotFound);
-        }
-        let row = store::source(self.db, partition)?
-            .filter(|s| s.enabled)
-            .ok_or(AccessError::NotFound)?;
+        let row = self.checked_partition(principal, partition)?;
         Ok(PartitionGrant {
             principal: principal.clone(),
             partition: partition.clone(),
@@ -152,14 +135,88 @@ impl CurrentAuthority<'_> {
         reference: &SourceRef,
     ) -> AccessResult<SourceGrant> {
         self.revalidate(principal)?;
-        reference.validate().map_err(|_| AccessError::NotFound)?;
-        let partition = reference.partition();
+        let row = self.checked_source(principal, reference)?;
+        Ok(SourceGrant {
+            principal: principal.clone(),
+            reference: reference.clone(),
+            version: row.version,
+        })
+    }
+
+    pub(super) fn revalidate_source_partition<'g>(
+        &self,
+        principal: &Principal,
+        original: &'g PartitionGrant,
+    ) -> AccessResult<&'g PartitionGrant> {
+        self.check_grant_principal(principal, &original.principal)?;
+        let row = self.checked_partition(principal, &original.partition)?;
+        if row.version != original.version {
+            return Err(AccessError::NotFound);
+        }
+        Ok(original)
+    }
+
+    pub(super) fn revalidate_source<'g>(
+        &self,
+        principal: &Principal,
+        original: &'g SourceGrant,
+    ) -> AccessResult<&'g SourceGrant> {
+        self.check_grant_principal(principal, &original.principal)?;
+        let row = self.checked_source(principal, &original.reference)?;
+        if row.version != original.version {
+            return Err(AccessError::NotFound);
+        }
+        Ok(original)
+    }
+
+    fn check_grant_principal(
+        &self,
+        principal: &Principal,
+        captured: &Principal,
+    ) -> AccessResult<()> {
+        self.revalidate(principal)?;
+        if captured.instance != *self.instance {
+            return Err(AccessError::Unauthenticated);
+        }
+        // A shared actor/scope DTO is insufficient: the retained handle must
+        // belong to the guard's original session, membership and issuance action.
+        // Cloning a valid capability retains this complete private provenance.
+        if captured.instance != principal.instance
+            || captured.token_hash != principal.token_hash
+            || captured.origin != principal.origin
+            || captured.user_id != principal.user_id
+            || captured.actor_id != principal.actor_id
+            || captured.scope != principal.scope
+            || captured.role != principal.role
+            || captured.membership_version != principal.membership_version
+            || captured.action != principal.action
+        {
+            return Err(AccessError::Forbidden);
+        }
+        Ok(())
+    }
+
+    fn checked_partition(
+        &self,
+        principal: &Principal,
+        partition: &SourcePartition,
+    ) -> AccessResult<store::Source> {
+        partition.validate().map_err(|_| AccessError::NotFound)?;
         if partition.scope() != principal.scope {
             return Err(AccessError::NotFound);
         }
-        let row = store::source(self.db, &partition)?
+        store::source(self.db, partition)?
             .filter(|s| s.enabled)
-            .ok_or(AccessError::NotFound)?;
+            .ok_or(AccessError::NotFound)
+    }
+
+    fn checked_source(
+        &self,
+        principal: &Principal,
+        reference: &SourceRef,
+    ) -> AccessResult<store::Source> {
+        reference.validate().map_err(|_| AccessError::NotFound)?;
+        let row = self.checked_partition(principal, &reference.partition())?;
         if row.registration.owner != reference.key.source_kind.owner()
             || (row.registration.partition_mode == PartitionMode::ReviewedEntityAllowlist
                 && !row
@@ -169,10 +226,6 @@ impl CurrentAuthority<'_> {
         {
             return Err(AccessError::NotFound);
         }
-        Ok(SourceGrant {
-            principal: principal.clone(),
-            reference: reference.clone(),
-            version: row.version,
-        })
+        Ok(row)
     }
 }

@@ -1,4 +1,4 @@
-name: Rust React ordinary slice
+name: Rust React ordinary core
 on:
   pull_request:
     branches: [main]
@@ -51,9 +51,15 @@ jobs:
           HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
           HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
         run: node tools/rust-integration/healthy-loopback.mjs
+      - name: Real disposable auth reads and fresh local writes
+        if: runner.os == 'Linux'
+        env:
+          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
+          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+        run: node tools/rust-integration/healthy-core-loopback.mjs
       - name: Record scope
         if: always()
         run: |
-          printf '%s\n' 'Actual locked Rust/TS source compilation and two named healthy examples; Linux additionally runs actual SQLite/access/domain/React loopback TLS reads.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'Actual locked Rust/TS source compilation and three named healthy examples; Linux additionally runs actual SQLite/access/domain/React loopback TLS reads, session/login/logout, fresh circuit create and atomic local identity batch.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'macOS source compilation is separate from target NAS build/runtime qualification and supplies no target release.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'All stopped rejection, guards, replay, expiry, revocation, fault, crash, concurrency and provider controls remain unrun.' >> "$GITHUB_STEP_SUMMARY"

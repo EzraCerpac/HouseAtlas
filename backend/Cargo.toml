@@ -28,6 +28,13 @@ url.workspace = true
 time.workspace = true
 serde_jcs.workspace = true
 axum-server.workspace = true
+ryu-js.workspace = true
+regex.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+fluent-uri.workspace = true
+reqwest.workspace = true
+tokio-util.workspace = true
 
 [dev-dependencies]
 tower.workspace = true
@@ -46,3 +53,7 @@ path = "../tools/rust-baseline/examples/healthy_contracts.rs"
 [[example]]
 name = "healthy-dependencies"
 path = "../tools/rust-baseline/examples/healthy_dependencies.rs"
+
+[[example]]
+name = "healthy-native-semantics"
+path = "src/contracts/semantics/examples/healthy.rs"

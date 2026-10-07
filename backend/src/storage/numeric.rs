@@ -5,12 +5,19 @@ use serde::{Deserialize, Deserializer, de::Error};
 use serde_json::Value;
 
 pub(crate) fn safe_integer(value: &Value) -> Option<u64> {
-    let number = value.as_number()?;
+    value.as_number()?;
+    // Reuse AT51's checked lexical envelope and exact integral classification
+    // before the bounded conversion. Retained fractional/underflow tokens must
+    // not acquire integer meaning through an f64 conversion.
+    let integer: crate::contracts::JsonInteger = serde_json::from_value(value.clone()).ok()?;
+    let number = integer.as_number();
     if let Some(integer) = number.as_u64() {
         return (integer <= MAX_REVISION).then_some(integer);
     }
-    if number.as_i64().is_some() {
-        return None;
+    if let Some(integer) = number.as_i64() {
+        return u64::try_from(integer)
+            .ok()
+            .filter(|integer| *integer <= MAX_REVISION);
     }
     let number = number.as_f64()?;
     (number.is_finite() && number >= 0.0 && number <= MAX_REVISION as f64 && number.fract() == 0.0)

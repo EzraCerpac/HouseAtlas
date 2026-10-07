@@ -103,7 +103,7 @@ fn main() -> CheckResult<()> {
     let initial: Snapshot = load(&root, "plan-free.snapshot.json")?;
     let mut store = AtlasStore::open(
         &path,
-        oracle.clone(),
+        oracle.storage_contract(),
         authorization.clone(),
         runtime.clone(),
         StoreOptions {
@@ -276,7 +276,7 @@ fn main() -> CheckResult<()> {
     store.close()?;
     let mut reopened = AtlasStore::open(
         &path,
-        oracle.clone(),
+        oracle.storage_contract(),
         authorization,
         runtime,
         StoreOptions::default(),
@@ -326,7 +326,7 @@ fn main() -> CheckResult<()> {
         "sourceRows":count("sources")?,"epochRows":count("cache_epochs")?,"reservedGenerations":count("cache_generations")?,
         "completePublications":4,"successfulSyntheticStatusPublications":1,"homeboxEpoch":empty.cache_epoch,"newSourceEpoch":new_state.cache_epoch,"networkEpoch":network_state.cache_epoch,
         "contractCalls":*oracle.counts.borrow(),"trustedAuthorizationCalls":*log,"retainedFailure":failure,"finalSnapshot":after,
-        "peerScope":"pure published contract oracle; synthetic authorization/runtime; no actual HomeBox/Network peer or source access",
+        "peerScope":"AT51 native shapes/numeric types; offline published semantic/JCS oracle; synthetic authorization/runtime; no actual HomeBox/Network peer or source access",
         "deferred":"rejection, replay, quarantine/denial, fault/crash/concurrency, native peer integration, witness schemas"}))?,
     )?;
     println!(

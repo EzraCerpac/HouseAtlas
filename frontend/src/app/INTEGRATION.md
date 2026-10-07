@@ -50,11 +50,67 @@ old house while loading the destination.
 - `data-home-url-template`: authorized saved-view GET route containing both
   `{workspaceId}` and `{homeId}`; substituted values are encoded.
 - `data-sign-in-url`: optional same-origin sign-in handoff.
+- `data-session-url` and `data-login-url`: together enable `SessionApp` using
+  explicitly mounted application-session GET and login POST routes.
+- `data-logout-url`: optional logout POST route, enabling Sign out in Settings.
 
 `index.html` intentionally supplies none of these unresolved routes. Missing
 configuration displays the unavailable state. It never substitutes fixtures.
-Actual Rust route names, envelope generation, session cookie lifecycle and
-sign-in are peer integration work, not implemented or certified by AT10.
+Rust envelope generation, route mounting and session cookie lifecycle remain
+host integration work. The optional React session flow is implemented against
+the published application-auth contract; no unmounted action is enabled.
+
+### Application session port
+
+`SessionApp({ client, sessions, accessEvents? })` loads the application session,
+renders a focused username/password form when signed out, then mounts `App`
+after successful sign-in. The existing `App` keeps responsibility for authorized
+home reads and its explicit expired/revoked/denied states. Session UI state keeps
+only expiry; it does not retain actor IDs or CSRF tokens. Password input is
+cleared before awaiting login. Nothing persists credentials or private views.
+Settings shows expiry with the browser's time zone and optional Sign out.
+
+`session.ts` declares the published exact success DTO
+`{schemaVersion:1, actorId:string, csrfToken:string, expiresAt:RFC3339}` and ports:
+
+```ts
+session(signal: AbortSignal): Promise<AtlasSessionInfo | null>;
+signIn(credentials: {username: string; password: string}, signal: AbortSignal): Promise<AtlasSessionInfo>;
+signOut?: (signal: AbortSignal) => Promise<void>;
+```
+
+`createAtlasSessionClient({session, login, logout?}, transport?)` uses only
+configured same-origin routes. The published canonical routes are GET
+`/api/atlas/auth/session`, POST `/api/atlas/auth/login` with exactly
+`{username,password}`, and POST `/api/atlas/auth/logout`. Session GET 401 means
+signed out. A configured logout obtains a current nonce through session GET,
+then sends `X-Atlas-CSRF` and expects `{schemaVersion:1,signedOut:true}`.
+This follows published `server/src/router.mjs` / `packages/access/src/index.mjs` and
+`server/browser/host.mjs`; logout behavior is coded but unqualified here.
+Login/logout failures remain generic and never expose response bodies.
+
+AT52's host as inspected at `fde9586f41c32924543fe7066fb0481b02744b8c`
+matches the published session GET DTO and mounts homes/view reads, but has not
+mounted login/logout. AT10 requested exact action/response confirmation and
+root configuration on integration PR #13; enabling these routes remains with
+AT52. No shared host, contracts, manifests or other feature islands changed.
+
+### Documented core coverage audit
+
+| Published requirement                                                               | AT10 source                                                                  | Remaining host input                                                                               |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Application sign-in/session (`server/browser/host.mjs`)                             | `SessionApp`, typed session client, Settings expiry                          | Mounted login/logout, exact response confirmation, secure cookie transport, configured root routes |
+| Authorized house selection (`web/README.md`)                                        | Settings selector, scoped load, old-house removal during switch              | Authorized `{workspaceId,homeId,label}` choices and prepared view                                  |
+| Rooms, arbitrary places, items, documents, maintenance and search (`web/README.md`) | `pages.tsx`, qualified ancestry, source statuses, document focus and indexes | Authorized prepared entries and source metadata                                                    |
+| Reviewed aliases, mobility and native navigation (`web/README.md`, `AGENTS.md`)     | Existing alias search, placement qualifiers and verified native links        | Reviewed hints and independently verified native capabilities                                      |
+| Session-scoped media (`web/README.md`)                                              | Safe issued previews plus format/access fallbacks                            | Scoped media routes and issued `mediaHref`                                                         |
+
+The public web contract excludes a duplicate inventory/domain mutation editor.
+Account/source provisioning has no approved browser route in the core/access
+contracts. Stock Wire3 tool catalogs define command authority and approvals,
+not an Atlas bindings/placement editing screen or agreed browser endpoint.
+AT10 requested the exact adopted screen requirement/action DTO if one is
+intended. No speculative setup, binding, placement or grant controls were added.
 
 ## Behavior and design
 
@@ -121,6 +177,12 @@ maintenance/downloads; document search/focus; archive visibility; Settings
 house switch/title; returning home/passive reload; verified native links;
 and typed bootstrap/scoped GET decoding with a fake transport.
 
+`session.examples.tsx` exports `runHealthySessionExamples(container, view)`:
+four additional healthy groups cover ordinary signed-out form/focus, successful
+fake sign-in and password clearing, Settings expiry/house selection with an
+uninvoked optional logout, and successful fake canonical session GET/login POST.
+No actual account, cookie, grant, denial or logout action is exercised.
+
 `runPublishedVariantExamples(container, suppliedViews)` adds five healthy
 groups using schema-validated published synthetic snapshots: `site`/`other`
 semantics with generic Place presentation and native `view` links; `archived`
@@ -145,3 +207,8 @@ mobile captures. The temporary synthetic fixture server binds only loopback;
 the recorded page requests are its HTML and issued synthetic PNG capability.
 No page errors or provider calls were observed. Browser transport setup and
 screenshots remain external harness evidence, not application server scaffolding.
+
+The session continuation also captures desktop/390px Sign in and Settings,
+performs ordinary successful sign-in through a fake typed port, and selects and
+returns between two authorized synthetic homes. This uses the same isolated
+loopback browser harness and does not run the Rust host or any live auth route.

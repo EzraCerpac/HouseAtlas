@@ -6,7 +6,7 @@ use super::super::{
     *,
 };
 use super::{AtlasStore, authorize, shape};
-use rusqlite::TransactionBehavior;
+use rusqlite::{Connection, TransactionBehavior};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
@@ -18,8 +18,100 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         target: &RecordRef,
         command: &Mutation,
     ) -> Result<MutationResult> {
-        shape(&self.contract, "recordRef", target)?;
-        shape(&self.contract, "mutation", command)?;
+        self.commands().execute(principal, scope, target, command)
+    }
+    /// Validate raw JSON before constructing the typed command carrier.
+    /// The ingress parser must already have rejected duplicate object keys.
+    pub fn execute_json(
+        &mut self,
+        principal: &A::Principal,
+        scope: &Scope,
+        target: &RecordRef,
+        command: &Value,
+    ) -> Result<MutationResult> {
+        self.commands()
+            .execute_json(principal, scope, target, command)
+    }
+    pub fn execute_batch_json(
+        &mut self,
+        principal: &A::Principal,
+        scope: &Scope,
+        batch: &Value,
+    ) -> Result<BatchResult> {
+        self.commands().execute_batch_json(principal, scope, batch)
+    }
+    pub fn execute_batch(
+        &mut self,
+        principal: &A::Principal,
+        scope: &Scope,
+        batch: &BatchMutation,
+    ) -> Result<BatchResult> {
+        self.commands().execute_batch(principal, scope, batch)
+    }
+
+    /// Use one synchronous, borrowed authorizer for every transaction phase.
+    /// It may retain the original authority handles across those phases.
+    pub fn execute_json_with_authorization<B: Authorization<Principal = A::Principal>>(
+        &mut self,
+        authorization: &B,
+        principal: &A::Principal,
+        scope: &Scope,
+        target: &RecordRef,
+        command: &Value,
+    ) -> Result<MutationResult> {
+        self.commands_with_authorization(authorization)
+            .execute_json(principal, scope, target, command)
+    }
+    pub fn execute_batch_json_with_authorization<B: Authorization<Principal = A::Principal>>(
+        &mut self,
+        authorization: &B,
+        principal: &A::Principal,
+        scope: &Scope,
+        batch: &Value,
+    ) -> Result<BatchResult> {
+        self.commands_with_authorization(authorization)
+            .execute_batch_json(principal, scope, batch)
+    }
+
+    fn commands(&mut self) -> CommandTransaction<'_, C, A, R> {
+        CommandTransaction {
+            db: &mut self.db,
+            contract: &self.contract,
+            authorization: &self.authorization,
+            runtime: &self.runtime,
+        }
+    }
+    fn commands_with_authorization<'a, B: Authorization<Principal = A::Principal>>(
+        &'a mut self,
+        authorization: &'a B,
+    ) -> CommandTransaction<'a, C, B, R> {
+        CommandTransaction {
+            db: &mut self.db,
+            contract: &self.contract,
+            authorization,
+            runtime: &self.runtime,
+        }
+    }
+}
+
+/// A borrowed view of the store's private connection and required peers.
+/// Default and per-call authorization share exactly this transaction engine.
+struct CommandTransaction<'a, C, A, R> {
+    db: &'a mut Connection,
+    contract: &'a C,
+    authorization: &'a A,
+    runtime: &'a R,
+}
+impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> {
+    fn execute(
+        &mut self,
+        principal: &A::Principal,
+        scope: &Scope,
+        target: &RecordRef,
+        command: &Mutation,
+    ) -> Result<MutationResult> {
+        shape(self.contract, "recordRef", target)?;
+        shape(self.contract, "mutation", command)?;
         self.execute_entries(
             principal,
             scope,
@@ -37,7 +129,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
     }
     /// Validate the complete raw command before constructing its typed carrier.
     /// The HTTP parser must already have rejected duplicate object keys.
-    pub fn execute_json(
+    fn execute_json(
         &mut self,
         principal: &A::Principal,
         scope: &Scope,
@@ -52,7 +144,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             &serde_json::from_value(command.clone())?,
         )
     }
-    pub fn execute_batch_json(
+    fn execute_batch_json(
         &mut self,
         principal: &A::Principal,
         scope: &Scope,
@@ -61,13 +153,13 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         self.contract.validate_shape("batchMutation", batch)?;
         self.execute_batch(principal, scope, &serde_json::from_value(batch.clone())?)
     }
-    pub fn execute_batch(
+    fn execute_batch(
         &mut self,
         principal: &A::Principal,
         scope: &Scope,
         batch: &BatchMutation,
     ) -> Result<BatchResult> {
-        shape(&self.contract, "batchMutation", batch)?;
+        shape(self.contract, "batchMutation", batch)?;
         let results = self.execute_entries(principal, scope, &batch.commands, Some(batch))?;
         let result = BatchResult {
             schema_version: 1,
@@ -75,7 +167,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             replayed: results.iter().all(|r| r.replayed),
             results,
         };
-        shape(&self.contract, "batchResult", &result)?;
+        shape(self.contract, "batchResult", &result)?;
         Ok(result)
     }
 
@@ -86,7 +178,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         entries: &[MutationEntry],
         batch: Option<&BatchMutation>,
     ) -> Result<Vec<MutationResult>> {
-        shape(&self.contract, "scope", scope)?;
+        shape(self.contract, "scope", scope)?;
         if entries.is_empty() || entries.len() > 100 {
             return Err(Error::new(
                 "invalid-contract",
@@ -100,7 +192,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         let partitions = repo::cache_partitions(&tx, scope)?;
         let context_id = self.runtime.new_id()?;
         shape(
-            &self.contract,
+            self.contract,
             "recordRef",
             &RecordRef {
                 record_type: RecordType::Identity,
@@ -110,7 +202,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         let targets: Vec<_> = entries.iter().map(|e| e.target.clone()).collect();
         let context = |phase, candidate: Option<&Snapshot>, replay: Option<&Replay>| {
             context::build(
-                &self.contract,
+                self.contract,
                 ContextInput {
                     context_id: &context_id,
                     phase,
@@ -127,8 +219,8 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         // Auth always precedes receipt lookup and CAS/precondition disclosure.
         let intake = context(MutationPhase::Intake, None, None)?;
         let actor = authorize(
-            &self.contract,
-            &self.authorization,
+            self.contract,
+            self.authorization,
             principal,
             AuthorizationRequest {
                 scope,
@@ -145,8 +237,8 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
          -> Result<()> {
             let facts = context(phase, candidate, replay)?;
             let verified = authorize(
-                &self.contract,
-                &self.authorization,
+                self.contract,
+                self.authorization,
                 principal,
                 AuthorizationRequest {
                     scope,
@@ -183,7 +275,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                     .as_object_mut()
                     .ok_or(Error::new("invalid-contract", "Batch envelope is required"))?
                     .insert("scope".into(), serde_json::to_value(scope)?);
-                repo::digest(&self.contract, &value)
+                repo::digest(self.contract, &value)
             })
             .transpose()?;
         let replay_results = |mut results: Vec<MutationResult>| -> Result<Vec<MutationResult>> {
@@ -247,7 +339,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             tx.commit()?;
             return Ok(result);
         }
-        let hashes = entries.iter().map(|e| repo::digest(&self.contract,&json!({
+        let hashes = entries.iter().map(|e| repo::digest(self.contract,&json!({
             "target":ScopedTarget::new(scope,&e.target),"command":e.command,"batchId":batch.map(|b| &b.batch_id),"batchHash":batch_hash }))).collect::<Result<Vec<_>>>()?;
         let receipts = entries
             .iter()
@@ -360,9 +452,9 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                 reason: entry.command.reason.clone(),
                 mutation_id: entry.command.mutation_id.clone(),
                 before_digest: current
-                    .map(|r| repo::digest(&self.contract, r))
+                    .map(|r| repo::digest(self.contract, r))
                     .transpose()?,
-                after_digest: repo::digest(&self.contract, &record)?,
+                after_digest: repo::digest(self.contract, &record)?,
             };
             let result = MutationResult {
                 schema_version: 1,
@@ -399,15 +491,15 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         for ((result, entry), hash) in results.iter().zip(entries).zip(&hashes) {
             repo::write_record(
                 &tx,
-                &self.contract,
-                &self.runtime,
+                self.contract,
+                self.runtime,
                 &result.record,
                 original
                     .records
                     .iter()
                     .find(|r| r.matches(scope, &entry.target)),
             )?;
-            repo::write_audit(&tx, &self.contract, &result.audit)?;
+            repo::write_audit(&tx, self.contract, &result.audit)?;
             repo::write_receipt(
                 &tx,
                 ReceiptKind::Command,
@@ -415,7 +507,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                 &actor.actor_id,
                 &entry.command.mutation_id,
                 hash,
-                &repo::json(&self.contract, result)?,
+                &repo::json(self.contract, result)?,
             )?;
         }
         if let Some(batch) = batch {
@@ -428,7 +520,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                 batch_hash
                     .as_deref()
                     .ok_or(Error::new("schema-incompatible", "Batch digest is missing"))?,
-                &repo::json(&self.contract, &results)?,
+                &repo::json(self.contract, &results)?,
             )?;
         }
         revalidate(MutationPhase::Precommit, Some(&candidate), None)?;

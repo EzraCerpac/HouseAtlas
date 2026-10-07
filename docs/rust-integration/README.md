@@ -1,93 +1,90 @@
-# Rust React first slice
+# Native Rust React core continuation
 
-This development composition starts from published base
-9f7561d99e09a680ec5282ca0c8aed4e10c6cbc9. It runs the actual Rust HTTP
-binary, bundled SQLite, access sessions, authorized domain room/item queries
-and compiled React UI. Local composition supplies no module acceptance or
-main merge.
+The first read slice landed through PR14 at main
+`e9de66477c04c43eb74a29d932b22322115e33d5`, tree
+`442de62b76aee515cfe1b56c37faccc77a337382`. This isolated development
+continuation adds actual session/login/logout, frozen canonical reads and
+fresh local Atlas single/batch writes. Composition does not accept unfinished
+modules or authorize another main merge. Existing JavaScript sources remain
+references; the running Rust service invokes no JavaScript semantic oracle.
 
-Pinned module inputs:
+## Exact module inputs
 
-| Module | Exact head |
+| Namespace | Exact input |
 | --- | --- |
-| Baseline accepted code and protocol handoff | 07576e6be463dd481b49071071c66dec144b1e0c |
-| Access | 3f83d8f35f2cc1948b5d361badfc77948745676d |
-| Domain and jobs correction | 25813f1222c60379850da37b7bf7e97e0e2750db |
-| Storage continuation and numeric correction | 816ba441ba1076eae426f69ac8b7c5177745ab53 |
-| React read-error correction | 0f250a94d09386744aba124d8b6823f1e374b6eb |
+| Baseline generation/protocol, retained from main | 07576e6be463dd481b49071071c66dec144b1e0c |
+| Access, including original-grant revalidation inside held fence | 4967dd2d38c5749be35aa7e44728c4d691246730 |
+| Native semantics and documentation clarification | 003f9d6ae91418c793361894d47be0f8b258455c |
+| Storage native dispatcher and borrowed per-call authorizer | 45e1e38e97a8e41536b4b6195449076d602589c0 |
+| Domain and jobs, retained from main | 25813f1222c60379850da37b7bf7e97e0e2750db |
+| React session shell and scoped-view corrections | a63f58529123e894b7c8709622c3c265cfb53b7c |
+| HomeBox bounded HTTPS read and consuming publication proposal | 4db61b430797d528d4645c9958013a03af21ace3 |
+| HomeBox native stock command component | c784be5776b614f8f0bb225fcb5355ecb9e90e0d |
+| Network bounded HTTPS read and pending-failure proposal correction | 8b5f45531aef396e431a04e317ba60a29a54b513 |
 
-Feature namespaces retain their owner bytes. Integration owns manifests,
-locks, module declarations, app/config/http/lifecycle/main, source checks
-and publication integrity reconciliation. Existing JS sources remain references
-and keep their existing ordinary verification lane; the Rust application invokes
-no JS contract oracle, synthetic principal or fake read facade.
+Feature namespaces retain exact owner bytes. The generated frontend contract
+file remains the baseline file because the React input does not carry it.
+Integration owns root manifests/locks/module declarations, app/config/http/
+lifecycle/main, narrow checks and central publication integrity. No feature
+namespace correction is made here. HomeBox, Network and stock code compile as
+library components; their provider operations are not mounted or executed.
 
-## Runtime
+## Actual running core
 
-The binary accepts explicit disposable settings only. It binds IPv4 loopback
-with actual TLS, verifies request Host against the bound origin, and passes the
-actual method, URL and headers to access. No forwarded scheme is trusted.
-The response/header corrections are described in [read-corrections.md](read-corrections.md).
-They are a separate candidate above the immutable first-slice checkpoint.
+The binary accepts explicit disposable settings, creates private scratch state
+under `/tmp` and binds TLS only to IPv4 loopback. It checks actual request
+origin/authority and headers, derives the login client key from the connection
+IP, bounds actual body streams, and passes original opaque authority to domain
+and storage. All responses retain the private no-store/header adapter documented
+in [read-corrections.md](read-corrections.md).
 
-The frontend HTML receives the route attributes already defined by the UI
-host contract; the UI-owned source and index remain unchanged. Vite builds
-the actual application and bundles React.
+The root HTML supplies the React owner's session/login/logout and scoped-view
+host attributes. Real React renders Home, Rooms & places, room/item details,
+Settings, successful sign-out and successful sign-in. HomeBox edit capability,
+media URLs and navigation links remain absent where no capability is issued.
+The UI still has product placeholders and does not expose record editing forms.
 
-Offline fixture setup creates a new directory under /tmp, provisions one
-disposable viewer through the real access API, issues a real salted-scrypt
-verified session and persists only its normal session digests. It supplies no
-HTTP login/provisioning route or real account, grant, provider credential or
-deployment configuration. A private mode-0600 smoke receipt transfers the
-issued Secure/HttpOnly/Strict cookie to the disposable browser. Both access
-and record databases reopen before the first HTTP read.
+The fixture provisions disposable viewer/editor users through real access APIs
+with random passwords and salted scrypt verifiers. A mode-0600 scratch receipt
+transfers credentials to the inspected healthy browser script; credentials,
+cookies and CSRF never enter Git or emitted evidence. Both actual databases
+reopen before HTTP. Initial state contains six published synthetic records,
+two HomeBox projections and one cache in one home. No real source, account,
+grant, media or household configuration is supplied.
 
-The fixture is a copy of the published plan-free example narrowed to one
-HomeBox partition, six records, two projections and one cache. Its copied
-accepted location annotation explicitly becomes room; no name or tree-depth
-inference is used. The item stays unplaced. Original fixtures are unchanged.
-Original source/retrieval dates remain intact and the actual clock makes old
-cache information stale.
+GET browser extensions are `/api/atlas/view`, `/rooms`, `/items`, `/homes`,
+`/auth/session`, and `/homes/{workspaceId}/{homeId}/view`, under `/api/atlas`.
+POST `/api/atlas/auth/login` and `/logout` use the actual access boundary.
+Canonical routes under
+`/api/atlas/v1/workspaces/{workspaceId}/homes/{homeId}` include GET `view`,
+`records`, `homebox/entities`, `network/relations`,
+`records/{recordType}/{recordId}` and its `history`; POST the record's
+`mutations` endpoint or the home's `mutations` endpoint executes real commands.
+The frozen history response stays a bare ordered audit array.
 
-Read requests use the actual opaque access principal. Storage checks the home,
-source partition and each entity. The request retains branded partition/entity
-grants and domain release revalidates those same handles with the session and
-membership. Reads execute synchronously inside blocking tasks and storage
-transactions. They perform no source refresh, collector demand or provider call.
+Pagination uses bounded opaque process-local cursors tied to the actual session,
+actor, home, collection, page size and complete authorized snapshot digest. Each
+page captures and releases its own original grants. It does not retain the first
+page's authorization epoch across future requests. Only successful continuation
+is demonstrated; stopped expiry/revocation/replay/concurrency controls remain unrun.
 
-Native contract validation supports the restricted HomeBox identity/evidence/
-binding/location-semantics graph, including scoped references, permanent IDs,
-source partition disjointness, evidence supersession, accepted classifications,
-binding reservations, explicit entity kinds, qualified parentage, cache generation
-dates and native route scope. The generated DTO peer performs checked numeric
-preprocessing and frozen JSON Schema validation before typed decoding.
-Unsupported graph families fail validation; command and asset peers return unavailable.
-No mutation or media route is mounted. RFC 8785 serialization uses pinned
-serde_jcs 0.2.0.
+NativeContracts delegates schema, full graph, transition, guards, final candidate,
+result and JCS semantics to the exact shared owner. Write intake checks canonical
+raw routes, original mutation authority and CSRF before bounded JSON body parsing.
+The parser preserves literal object keys, rejects duplicate decoded keys and uses
+the reference root-depth-zero limit of 64. Numeric values avoid f64 rounding;
+serde may normalize equivalent numeric token spelling before canonicalization.
 
-The domain and frontend wire proposals differ. Integration maps the qualified
-domain SourceRef to React's compact four-part source-key string. The corrected
-React successor accepts site/other/archived and native view intent. Aliases and
-Network lists are absent in this restricted graph, mobility stays unknown,
-and media URLs remain null because no capability is issued. Home choices contain
-only workspaceId, homeId and label after real authorization.
-
-The storage source/cache continuation compiles with a native RFC 3339 timestamp
-adapter at millisecond precision; graph ordering uses the same milliseconds.
-Leap-second spellings remain unorderable. ConfigureSource and PublishCache remain
-unavailable from the read authority. No registration, cache publication or
-witness operation is executed, and the wider timestamp profile is unqualified.
-
-Actual GET routes are /api/atlas/view, /api/atlas/rooms, /api/atlas/items,
-/api/atlas/homes, /api/atlas/auth/session and
-/api/atlas/homes/{workspace_id}/{home_id}/view. Responses use no-store.
-These extensions implement this development slice and do not rewrite the
-published canonical OpenAPI/history contract.
+Actual domain Commands call the actual SQLite command engine with a borrowed
+per-call authorizer inside the access transaction fence. Source grants are
+captured with the same mutation principal, then those original handles and the
+independently computed native closure are revalidated at storage phases. Revision
+errors use authorized transaction facts. Newly asserted source-presence claims
+remain held; there is no replacement witness or source admission policy.
 
 ## Ordinary verification
 
-Inspect the named script bodies first. Use Rust 1.99.0 with rustfmt/clippy,
-Node 26.10.0 and npm 11.19.1:
+Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
 
     npm ci --ignore-scripts --no-audit --no-fund
     npm ci --prefix packages/contracts --ignore-scripts --no-audit --no-fund
@@ -96,71 +93,67 @@ Node 26.10.0 and npm 11.19.1:
     npm run verify:publication
     node tools/rust-integration/check-source.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-loopback.mjs
+    HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-core-loopback.mjs
 
-check-source compiles the actual library, binary, modules and strict TS React
-source, runs rustfmt/Clippy with warnings denied, and runs only the two named
-baseline examples. healthy-loopback creates disposable TLS files, uses a real
-Chromium browser over a debugging pipe, injects the actual issued session cookie,
-reads five authorized endpoints and the scoped view sequentially, displays room/
-item details, inspects real SQLite row counts read-only, then gracefully stops
-the server and deletes disposable state. Optional HOUSEATLAS_SCREENSHOT and
-HOUSEATLAS_EVIDENCE outputs must stay outside the source checkout.
+The source runner checks deterministic generation/history, actual locked Rust
+library/binary/module source, rustfmt and Clippy, strict TypeScript and Vite. It
+runs exactly healthy-contracts, healthy-dependencies and healthy-native-semantics.
+The two browser runners use real Chromium with a disposable certificate, inspect
+actual SQLite rows read-only, stop gracefully and delete scratch state. The core
+runner adds real auth, eight canonical page/read requests, a fresh circuit create
+and one fresh two-identity batch with successful record/history readback. Each
+command is submitted once. See [core-continuation.md](core-continuation.md).
+Optional screenshot/evidence outputs belong outside the source checkout.
 
-The strict publication verifier still checks the full file allowlist, modes,
-digests, ownership and unchanged unconfigured deployment template. New CI
-compiles exact PR-head source on Linux and macOS; Linux additionally runs the
-same positive loopback smoke. macOS CI compilation is distinct from the
-target NAS macOS build/runtime and operational qualification.
+CI checks exact PR-head source on Linux and macOS. Linux additionally runs both
+named positive loopback scripts. The full file allowlist, modes, digests, owners
+and unconfigured deployment template remain verified. macOS source compilation
+is separate from target NAS build/runtime and operational qualification.
 
-## Remaining work
+## Explicit remaining areas
 
-Paired serde_json arbitrary_precision and jsonschema arbitrary-precision
-features are selected, plus float_roundtrip and raw_value for the object-preserving
-generated decoder.
-Generated numeric tokens use the baseline's bounded checked preprocessing;
-its numeric/object-preserving correction has bounded ordinary review acceptance.
-JavaScript numbers, storage/domain fixed integer carriers and ECMAScript
-canonicalization still have the disclosed limits in
-../rust-baseline/numeric-semantics.md. Full unbounded-number fidelity is
-unqualified. No large-number or negative-consumer probe is run here.
-The object-preserving decoder relies on serde_json's RawValue protocol. Additional
-generic Serde flatten/untagged wrappers are unsupported unless separately adapted;
-the host invokes direct generated DTO decoding. No user keys are reserved as a
-workaround. Wider cross-peer open-extra compatibility remains unqualified.
-The consumed storage successor includes its owner's schema-valid integer-spelling
-correction and has bounded ordinary review acceptance. Domain cache/projection
-schemaVersion and attachment byteSize carriers still reject some schema-valid
-integral decimal/exponent spellings; that owner correction remains open. This
-finite fixture uses ordinary integer spellings and does not qualify wider
-DTO/domain/Network compatibility. Canonical JSON retains original input
-values; the typed validation adapter does not replace them with decoded DTOs.
+The shared source-event timestamp parser has no public storage port yet;
+NativeContracts returns typed unavailable instead of inventing another parser.
+ConfigureSource and PublishCache have no trusted host authority binding. HomeBox
+needs full durable registration access; Network needs the AT07 consuming failure
+CAS. No old unfenced failure publication method is used.
 
-The baseline handoff adds only two documentation files above accepted source
-6b3029cbbcf1462ecdeecc62a56c24f66e034057; it changes no application code.
+The Network owner documents reqwest 0.12/WebPKI roots, while the shared host pins
+reqwest 0.13.5 with Rustls platform verification for HomeBox. Both compile; that
+TLS profile discrepancy requires owner reconciliation before combined transport
+acceptance. No actual provider request has been made by these runners.
 
-Sanitized stock.2 wire3/catalog/provider-policy and source-presence
-witness/qualification inputs are durably adopted under
-[contracts/stock-wire3](../../contracts/stock-wire3/README.md). All supplied
-application-content digests were verified, and the frozen Atlas schema remains
-byte-identical. The adoption records repository file digests and an offline
-resource map, without private transfer ledgers, task allocation or original
-repository ancestry. Contract identities, all 164 command/result arms and
-normative authority/qualification rules remain intact. Wider specifications
-are available; shared generation and feature implementation remain with their
-owners. Static adoption executes no new runtime capability or behavioral check.
+Stock preparation, captured whole-collection authority, verified route/binding,
+durable operation activity/liability/approval/remote-end state and qualified
+physical dispatch/readback remain unbound. StockTarget requires a UUID collection;
+the legacy fixture's string collection ID is not normalized into one. Atlas
+mutation receipts and the older synchronous jobs queue do not replace stock
+activity or prove remote termination.
 
-Missing product implementation includes native mutation/guard/result validation,
-atomic presence witness admission and recovery, trusted cache publication,
-HomeBox command preparation and durable exclusive dispatch, Network projection,
-actual immutable media, aliases/mobility/navigation modules, agent/MCP/AI
-transports, full auth/home generated DTOs, recovery/export tooling and complete
-product routes. This slice supplies no JS database migration/adoption. Presence
-admission remains held. The provided specifications do not enable provider,
-AI, source credentials, real grants, paid usage or deployment.
+Storage validates its outer batch envelope after its transaction commits; this
+owner correction is pending. Its error carrier lacks currentRevision; the root
+adapter retains authorized Validate-phase precondition errors in a request-local
+slot. The access fence and Atlas commit are two databases with an ordering
+mechanism, not a distributed atomic commit or crash-recovery qualification.
 
-Stopped guard reversal, omission/mutation controls, adversarial/rejection,
-replay, expiry, revocation, failure injection, crash and concurrency checks
-remain unrun. In particular the jobs SQLite checkpoint exercises replay and
-is not executed, despite its healthy filename. No broad Cargo/npm test alias
-is added. Source and positive-flow results do not establish security, provider,
-power-loss, target, recovery, actual-user/pilot or production acceptance.
+Generated untagged mutation decoding can reject schema-admitted integers above
+u64 within u128. Domain cache/projection schemaVersion and attachment size have
+wider integral decimal/exponent limits. Full numeric fidelity remains unqualified;
+no large-number or stopped negative-consumer probe is run.
+
+Missing product areas include atomic presence witness admission/recovery, trusted
+source setup and refresh, actual Network data/facet in the service, source-native
+links and stock editing, immutable media delivery, backup/image validation and
+recovery/export, aliases/mobility/navigation extensions, geometry import, agent/
+MCP/WebMCP/AI transports, complete generated host DTOs, record editing UI and full
+product routes. Media's unpublished policy correction is not mounted. There is
+no JavaScript database migration/adoption or demonstrated alternate home yet.
+Sanitized stock wire3 and presence specifications remain adopted under
+[contracts/stock-wire3](../../contracts/stock-wire3/README.md); specifications do
+not activate credentials, providers, grants, paid usage or deployment.
+
+All stopped guard reversal, omission/mutation, adversarial/rejection, replay,
+expiry, revocation, injected fault, crash and concurrency checks remain unrun.
+The jobs checkpoint contains replay and is not executed. No broad test alias,
+remote listener, provider/NAS call, live login/grant, deployment or security/
+recovery/target/product acceptance is supplied by this development composition.

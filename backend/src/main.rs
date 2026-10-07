@@ -43,7 +43,7 @@ fn frontend(directory: &Path) -> Result<BTreeMap<String, (String, Vec<u8>)>, lif
                 if html.matches("id=\"root\"").count() != 1 {
                     return Err("Expected one React root".into());
                 }
-                bytes = html.replace("id=\"root\"", "id=\"root\" data-bootstrap-url=\"/api/atlas/view\" data-home-url-template=\"/api/atlas/homes/{workspaceId}/{homeId}/view\"").into_bytes();
+                bytes = html.replace("id=\"root\"", "id=\"root\" data-bootstrap-url=\"/api/atlas/view\" data-home-url-template=\"/api/atlas/homes/{workspaceId}/{homeId}/view\" data-session-url=\"/api/atlas/auth/session\" data-login-url=\"/api/atlas/auth/login\" data-logout-url=\"/api/atlas/auth/logout\"").into_bytes();
             }
             files.insert(key, (kind.into(), bytes));
         }
@@ -87,7 +87,7 @@ async fn main() -> Result<(), lifecycle::Failure> {
     });
     axum_server::from_tcp_rustls(listener, tls)?
         .handle(handle)
-        .serve(router(host).into_make_service())
+        .serve(router(host).into_make_service_with_connect_info::<std::net::SocketAddr>())
         .await?;
     Ok(())
 }

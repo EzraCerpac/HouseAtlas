@@ -91,6 +91,9 @@ impl Oracle {
     pub(crate) fn canonical<T: Serialize>(&self, value: &T) -> Result<String> {
         self.canonical_json(&serde_json::to_value(value)?)
     }
+    pub(crate) fn storage_contract(&self) -> NativeContract<Self> {
+        NativeContract::new(self.clone())
+    }
     pub(crate) fn digest(&self, value: &Value) -> Result<String> {
         self.call("digest", json!({"value":value}))?
             .as_str()

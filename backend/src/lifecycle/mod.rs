@@ -3,7 +3,7 @@ use crate::{
     access as a,
     app::{Access, Core, ReadAuthority, ServerRuntime, Store},
     domain as d,
-    http::contracts::ReadContracts,
+    http::contracts::NativeContracts,
     storage as s,
 };
 use serde_json::{Value, json};
@@ -63,8 +63,9 @@ pub fn prepare(directory: &Path, origin: &str) -> Result<Core, Failure> {
         a::AccessBoundary::open(&access_path, a::AccessConfig::new(vec![origin.into()])?)?;
     let user = a::CanonicalId::parse("00000000-0000-4000-8000-000000000004")?;
     let actor = a::CanonicalId::parse("00000000-0000-4000-8000-000000000005")?;
-    // Disposable synthetic provisioning and local API call only. No login route,
-    // remote account, persistent real grant or source credential is supplied.
+    // Disposable synthetic provisioning only. Passwords remain in the private
+    // scratch receipt for the inspected healthy browser/HTTP flow; no real
+    // account, persistent grant or provider credential is supplied.
     let password = format!("Disposable-{}", crate::app::new_id()?);
     access.provision_user(
         &user,
@@ -74,6 +75,17 @@ pub fn prepare(directory: &Path, origin: &str) -> Result<Core, Failure> {
         None,
     )?;
     access.set_membership(&user, &scope, a::Role::Viewer, true)?;
+    let editor_user = a::CanonicalId::parse("00000000-0000-4000-8000-000000000006")?;
+    let editor_actor = a::CanonicalId::parse("00000000-0000-4000-8000-000000000007")?;
+    let editor_password = format!("Disposable-{}", crate::app::new_id()?);
+    access.provision_user(
+        &editor_user,
+        &editor_actor,
+        "synthetic-editor",
+        &a::hash_password(&editor_password)?,
+        None,
+    )?;
+    access.set_membership(&editor_user, &scope, a::Role::Editor, true)?;
     for source in fixture["sources"].as_array().ok_or("Missing sources")? {
         access.put_source(&serde_json::from_value(source.clone())?, None)?;
     }
@@ -104,7 +116,9 @@ pub fn prepare(directory: &Path, origin: &str) -> Result<Core, Failure> {
         .mode(0o600)
         .open(directory.join("smoke-session.json"))?;
     receipt_file.write_all(&serde_json::to_vec(
-        &json!({"origin":origin,"cookie":cookie}),
+        &json!({"origin":origin,"cookie":cookie,
+            "login":{"username":"synthetic-viewer","password":password},
+            "editorLogin":{"username":"synthetic-editor","password":editor_password}}),
     )?)?;
     receipt_file.sync_all()?;
     drop(receipt);
@@ -118,7 +132,7 @@ pub fn prepare(directory: &Path, origin: &str) -> Result<Core, Failure> {
     let path = directory.join("atlas.sqlite");
     let mut store = Store::open(
         &path,
-        ReadContracts,
+        NativeContracts,
         ReadAuthority(Arc::clone(&access)),
         ServerRuntime,
         s::StoreOptions {
@@ -130,7 +144,7 @@ pub fn prepare(directory: &Path, origin: &str) -> Result<Core, Failure> {
     store.close()?;
     let store = Store::open(
         &path,
-        ReadContracts,
+        NativeContracts,
         ReadAuthority(Arc::clone(&access)),
         ServerRuntime,
         s::StoreOptions::default(),
@@ -138,6 +152,7 @@ pub fn prepare(directory: &Path, origin: &str) -> Result<Core, Failure> {
     Ok(Core {
         access,
         store,
+        homes: vec![home.clone()],
         home,
     })
 }

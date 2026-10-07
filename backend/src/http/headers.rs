@@ -12,7 +12,7 @@ pub(super) struct CheckedHeaders {
     pub authorization: Option<String>,
     pub csrf: Option<String>,
 }
-fn single(headers: &HeaderMap, name: &str) -> AccessResult<Option<String>> {
+pub(super) fn single(headers: &HeaderMap, name: &str) -> AccessResult<Option<String>> {
     let mut values = headers.get_all(name).iter();
     let value = values.next();
     if values.next().is_some() {
