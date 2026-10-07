@@ -27,7 +27,12 @@ export function mountGatewayWebMcp(options: GatewayMountOptions): WebMcpHandle {
       toolsFor(session) {
         const names = options.sessions.getContext(session).toolNames;
         return [...bindings.values()].filter(binding => names.includes(binding.tool.name))
-          .map(binding => ({ ...binding.tool,
+          .map(binding => ({
+            name: binding.tool.name,
+            ...(binding.tool.title === undefined ? {} : { title: binding.tool.title }),
+            description: binding.tool.description,
+            inputSchema: binding.tool.inputSchema,
+            annotations: binding.tool.annotations,
             parseInput(input: unknown) {
               admittedBinding(binding.tool.name, session);
               return structuredClone(binding.tool.parseInput(input));

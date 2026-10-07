@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import fixture from "../../../../backend/src/contracts/stock/examples/healthy.json";
 import { createStockSchemas } from "../../../integration/stock-schemas.js";
 import { stockCatalog, stockInputSchema } from "../stock-schema.js";
-import type { CatalogTool, JsonObject, JsonValue, ModelContextPort, RegisteredBrowserTool } from "../ports.js";
+import type { CatalogTool, JsonObject, JsonValue, ModelContextPort, RegisteredBrowserTool, ToolAnnotations } from "../ports.js";
 import { GatewayWebMcpBoundary } from "./GatewayWebMcpBoundary.js";
 import type { GatewayDownloadPort, GatewaySessionPort, GatewayToolBinding } from "./ports.js";
 
@@ -34,17 +34,23 @@ export async function runGatewayHealthyReact(container: HTMLElement): Promise<re
   };
   const events: string[] = [];
   const calls: JsonObject[] = [];
-  const definition = (name: string): CatalogTool => ({
-    name, description: "Read the healthy synthetic fixture through an injected service.",
-    inputSchema: stockInputSchema([operation.inputSchema]),
-    annotations: { readOnlyHint: true, untrustedContentHint: true, consequentialHint: false },
-    parseInput(value) {
+  // A valid structural catalog peer can expose metadata through getters. The
+  // browser adapter must retain those fields rather than spread own properties.
+  class HealthyCatalogTool implements CatalogTool {
+    constructor(readonly name: string) {}
+    get title() { return "Read healthy fixture"; }
+    get description() { return "Read the healthy synthetic fixture through an injected service."; }
+    get inputSchema() { return stockInputSchema([operation.inputSchema]); }
+    get annotations(): ToolAnnotations {
+      return { readOnlyHint: true, untrustedContentHint: true, consequentialHint: false };
+    }
+    parseInput(value: unknown): JsonObject {
       schemas.validate(operation.inputSchema, value);
       return value as JsonObject;
-    },
-  });
+    }
+  }
   const bindings: GatewayToolBinding[] = ["fixture_gateway_read", "fixture_gateway_download", "fixture_not_admitted"]
-    .map(name => ({ tool: definition(name),
+    .map(name => ({ tool: new HealthyCatalogTool(name),
       service: { async execute(input, context) {
         check(context.applicationSession === applicationSession, "Original session reaches the actual host port");
         check(JSON.stringify(context.scope) === JSON.stringify(request.context), "Selected scope reaches host unchanged");
@@ -77,6 +83,10 @@ export async function runGatewayHealthyReact(container: HTMLElement): Promise<re
   check(container.querySelector('[aria-label="Gateway tools"]')?.textContent === "registered", "Real React registration state");
   check([...tools.keys()].join(",") === "fixture_gateway_read,fixture_gateway_download", "Only actual admitted-and-bound peers register");
   for (const tool of tools.values()) {
+    check(tool.title === "Read healthy fixture" && tool.description === bindings[0]!.tool.description,
+      "Getter-backed shared catalog metadata is preserved");
+    check(tool.annotations.readOnlyHint && tool.annotations.untrustedContentHint && !tool.annotations.consequentialHint,
+      "Owner annotations are preserved");
     check(JSON.stringify(tool.inputSchema) === JSON.stringify(stockInputSchema([operation.inputSchema])), "Owner schema is unchanged");
     check(!JSON.stringify(tool).includes(applicationSession.csrfToken), "Public metadata omits application credentials");
   }
