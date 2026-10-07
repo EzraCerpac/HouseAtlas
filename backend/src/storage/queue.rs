@@ -55,6 +55,60 @@ use std::{
 
 const MAX_METADATA_BYTES: usize = 1_048_576;
 
+/// Exact immutable cross-lane reference only. Independent activity evidence
+/// must already qualify occupancy at the native reservation; current/final
+/// Jobs state is deliberately not substituted for that historical observation.
+pub(crate) fn validate_reservation_occupancy(
+    db: &Connection,
+    attempt: &LeasedJob,
+    binding: &crate::providers::homebox::write::stock::PhysicalBinding,
+    owner: uuid::Uuid,
+) -> Result<()> {
+    let identity = &attempt.lease.physical_identity;
+    if identity.deployment_id != binding.deployment_id.to_string()
+        || identity.physical_database_id != binding.physical_database_id.to_string()
+        || identity.configuration_digest.as_hex() != binding.configuration_digest.as_str()
+        || attempt.lease.owner_id != owner.to_string()
+        || attempt.lease.fence == 0
+        || attempt.attempt == 0
+    {
+        return Err(bad());
+    }
+    let registration: (String, String, String) = db.query_row(
+        "SELECT deployment_id,configuration_digest,owner_id FROM queue_physical WHERE physical_database_id=?1",
+        [&identity.physical_database_id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    ).map_err(|_| bad())?;
+    if registration
+        != (
+            identity.deployment_id.clone(),
+            identity.configuration_digest.as_hex().into(),
+            attempt.lease.owner_id.clone(),
+        )
+    {
+        return Err(bad());
+    }
+    let row = load(db, &attempt.lease.job_id.0)?;
+    if row.deployment != identity.deployment_id
+        || row.physical != identity.physical_database_id
+        || row.request != attempt.request
+        || row.scope != attempt.canonical_scope
+        || row.request.pending_byte_liability != attempt.pending_byte_liability
+    {
+        return Err(bad());
+    }
+    let retained: String = db
+        .query_row(
+            "SELECT original_leased_job_json FROM queue_attempts WHERE job_id=?1 AND fence=?2",
+            params![attempt.lease.job_id.0, decimal(attempt.lease.fence)],
+            |row| row.get(0),
+        )
+        .map_err(|_| bad())?;
+    if retained != encoded(&leased_value(attempt))? {
+        return Err(bad());
+    }
+    Ok(())
+}
+
 fn bad() -> Error {
     Error::new("schema-incompatible", "Stored queue value is incompatible")
 }

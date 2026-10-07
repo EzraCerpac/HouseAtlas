@@ -38,6 +38,20 @@ pub trait StockActivityRecoveryDiscovery {
 pub trait StockActivityRecoveryEvidence {
     fn validate_record(&self, record: &RetainedStockActivity) -> Result<()>;
     fn validate_event(&self, event: StockActivityRecoveryEvent<'_>) -> Result<()>;
+    /// Qualify an independently retained cross-lane occupancy cut at this exact
+    /// initially Queued reservation, including its original native producer,
+    /// physical identity and Jobs owner/attempt. Return the original leased
+    /// attempt whose physical/logical/liability hold was actually observed.
+    /// A lease DTO, final Jobs state, clocks or mirrored image are not proof of
+    /// occupancy then. Missing external correlation/evidence must fail closed.
+    /// Storage checks that this exact immutable attempt and its registry/job
+    /// closure survive in the already validated image. This is cross-lane match
+    /// data only, never native producer/attempt evidence. No grants are revived.
+    fn queued_reservation_jobs(
+        &self,
+        registration: &StockActivityRegistration,
+        reservation: &RetainedStockActivityEvent,
+    ) -> Result<crate::jobs::LeasedJob>;
 }
 /// Outcome-local cut. Later response/readback/end or liability facts are not
 /// supplied here and cannot qualify this earlier event. Identity/authority
@@ -204,7 +218,19 @@ pub(crate) fn validate<
         require(owners.insert(physical_uuid, id_uuid).is_none())?;
     }
     require(held == owners)?;
-    require(super::replay::validate(&records, check)? == owners)?;
+    let mut jobs_occupancy =
+        |record: &RetainedStockActivity, reservation: &RetainedStockActivityEvent| -> Result<()> {
+            let attempt = peers
+                .evidence
+                .queued_reservation_jobs(record.registration(), reservation)?;
+            crate::storage::queue::validate_reservation_occupancy(
+                db,
+                &attempt,
+                &record.registration().physical_binding,
+                record.registration().owner_id,
+            )
+        };
+    require(super::replay::validate(&records, &mut jobs_occupancy, check)? == owners)?;
     // Match both live admission directions, including holds retained after a
     // physical pointer is released. Jobs performs its own strict row decoding.
     for physical in &physical_ids {

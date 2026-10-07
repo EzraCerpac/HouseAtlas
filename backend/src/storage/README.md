@@ -977,8 +977,23 @@ second Store acquisition or lookup/allocation gap is introduced.
 
 Global native recovery replay uses the same physical/logical/liability prefix
 predicate at reservation and admission cuts. A `Prepared` reservation requires
-no earlier native hold at its sequence. `Queued` remains valid with a native or
-independently qualified Jobs hold; Jobs has no shared native event sequence, so
-its historical occupancy is not invented. These changes are verified by source
-review, actual compilation and existing ordinary healthy examples; no retained
-reservation replay, metadata fault or spliced-history control is executed.
+no earlier native hold at its sequence. An initially `Queued` cut must have a
+replayed native hold or an independently retained Jobs occupancy witness.
+The required `StockActivityRecoveryEvidence::queued_reservation_jobs` method
+qualifies the actual historical physical/logical/liability hold at that exact
+native producer/reservation cut and returns its original `jobs::LeasedJob` as
+matching data. Storage verifies the physical deployment/configuration/owner,
+the strictly loaded retained job, original request/scope/byte-reservation fields
+and byte-exact immutable leased attempt in the already validated Jobs image.
+Missing registry/job/attempt closure cannot be substituted by native producer
+equality or its own Queued state. Final Jobs state and timestamps do not qualify
+the earlier hold; the owner must supply independent original correlation and
+return unavailable when absent. Jobs has no shared native event sequence, so
+its historical occupancy is not invented or reconstructed from a lease DTO.
+This is one new mandatory recovery-evidence method with no permissive default;
+runtime/producer interfaces and SQL remain unchanged. The ordinary fixture has
+no Jobs lane and explicitly returns unavailable from this method, which is not
+called on its Prepared-only reserve history. Cross-lane queued cuts are not
+qualified by that fixture. These changes are verified by source review, actual
+compilation and existing ordinary healthy examples; no retained reservation
+replay, metadata fault, omitted-lane or spliced-history control is executed.
