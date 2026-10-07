@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { canInfer } from './model.js';
 import type {
-  AiClient, AiSessionState, CancellationState, ConnectionAction, ConnectionActionState, RequestState, RunOutcome, UnresolvedConnectionAction,
+  AiClient, AiReceiptIdentity, AiSessionState, CancellationState, ConnectionAction, ConnectionActionState, RequestState, RunOutcome, UnresolvedConnectionAction,
 } from './types.js';
 
 interface Scope {
   readonly client: AiClient;
   /** Exact genuine host actor/session/workspace/home/registration/epoch key. */
   readonly key: string;
+  /** Stable actor/workspace/home/registration/authority receipt identity. */
+  readonly receiptKey: string;
 }
 
 interface RetainedRequest {
   readonly requestId: string;
+  readonly originalScopeKey: string;
   cancellation: CancellationState;
 }
 
@@ -20,6 +23,7 @@ interface RetainedRequest {
 // Unknown work is not evicted to admit another submission.
 const MAX_RETAINED_REQUESTS = 32;
 const MAX_SCOPE_KEY_LENGTH = 4096;
+const MAX_RECEIPT_KEY_LENGTH = MAX_SCOPE_KEY_LENGTH + 16;
 const retainedRequests = new Map<string, RetainedRequest>();
 // At most one currently mounted observer per retained request. Disposal removes
 // its callback; request correlation itself never retains a disposed view/client.
@@ -34,12 +38,14 @@ interface PendingRun {
 
 interface PendingConnectionAction extends UnresolvedConnectionAction {
   readonly scopeKey: string;
+  readonly receiptKey: string;
   /** Active browser opening call; never a provider completion claim. */
   readonly opening: boolean;
 }
 
 // Bounded correlation only: no client, command payload, snapshot or observer.
-// Exact authenticated scope keys keep actions isolated across navigation.
+// The host-supplied receipt selector carries IDs across epoch rotation; each
+// action retains its original full runtime scope key.
 const pendingConnectionActions = new Map<string, PendingConnectionAction>();
 const MAX_RETAINED_CONNECTION_ACTIONS = 96;
 
@@ -57,7 +63,7 @@ function actionCapacitySnapshot(): Readonly<{ globalCount: number }> { return cu
 function serverActionCapacitySnapshot(): Readonly<{ globalCount: number }> { return emptyActionCapacitySnapshot; }
 function notifyActionCapacity(): void {
   // A new immutable snapshot also reports same-size metadata changes. Session
-  // hooks re-render and derive their own full-scope rows from the registry.
+  // hooks re-render and derive their own receipt-identity rows from the registry.
   currentActionCapacitySnapshot = Object.freeze({ globalCount: pendingConnectionActions.size });
   for (const changed of [...actionCapacitySubscribers]) changed();
 }
@@ -108,15 +114,16 @@ function retainedConnectionState(
   actions: Iterable<PendingConnectionAction>, scope: Scope, fallback: ConnectionActionState,
 ): ConnectionActionState {
   let latest: PendingConnectionAction | null = null;
-  for (const action of actions) if (action.scopeKey === scope.key && !latest?.opening) latest = action;
+  for (const action of actions) if (action.receiptKey === scope.receiptKey && !latest?.opening) latest = action;
   return latest === null ? fallback : { status: latest.opening ? 'working' : latest.status, action: latest.action, actionId: latest.actionId };
 }
 
-function retainRequest(scopeKey: string, requestId: string): RetainedRequest | null {
-  if (scopeKey.length === 0 || scopeKey.length > MAX_SCOPE_KEY_LENGTH
-    || retainedRequests.has(scopeKey) || retainedRequests.size >= MAX_RETAINED_REQUESTS) return null;
-  const retained: RetainedRequest = { requestId, cancellation: { status: 'idle' } };
-  retainedRequests.set(scopeKey, retained);
+function retainRequest(receiptKey: string, scopeKey: string, requestId: string): RetainedRequest | null {
+  if (receiptKey.length === 0 || receiptKey.length > MAX_RECEIPT_KEY_LENGTH
+    || scopeKey.length === 0 || scopeKey.length > MAX_SCOPE_KEY_LENGTH
+    || retainedRequests.has(receiptKey) || retainedRequests.size >= MAX_RETAINED_REQUESTS) return null;
+  const retained: RetainedRequest = { requestId, originalScopeKey: scopeKey, cancellation: { status: 'idle' } };
+  retainedRequests.set(receiptKey, retained);
   return retained;
 }
 
@@ -125,7 +132,7 @@ function cancellationRecorded(retained: RetainedRequest): boolean {
 }
 
 async function cancelRetainedRequest(scope: Scope, retained: RetainedRequest): Promise<void> {
-  const current = () => retainedRequests.get(scope.key) === retained;
+  const current = () => retainedRequests.get(scope.receiptKey) === retained;
   if (!current() || cancellationRecorded(retained)) return;
   const observe = (cancellation: CancellationState) => {
     if (!current()) return;
@@ -144,14 +151,26 @@ async function cancelRetainedRequest(scope: Scope, retained: RetainedRequest): P
   }
 }
 
-/** scopeKey comes from the genuine authenticated host and includes actor,
- * application session, workspace/home, registration and cancellation epoch.
- * Labels and client object identity cannot replace that complete key. */
-export function useAiSession(client: AiClient, scopeKey: string) {
-  // Keep materialized per-scope action rows current when another instance
+function makeReceiptKey(scopeKey: string, identity?: AiReceiptIdentity): string {
+  // Older direct consumers retain full-epoch isolation. The explicit identity
+  // is a host-supplied receipt lookup selector, never an authorization token.
+  if (!identity) return `scope:${scopeKey}`;
+  const fields = [identity.actorId, identity.workspaceId, identity.homeId, identity.registrationId, identity.authorityEpoch];
+  if (fields.some(value => typeof value !== 'string' || value.length === 0)) return `scope:${scopeKey}`;
+  const key = `receipt:${JSON.stringify(fields)}`;
+  return key.length <= MAX_SCOPE_KEY_LENGTH ? key : `scope:${scopeKey}`;
+}
+
+/** scopeKey remains the full current runtime/cancellation scope. receiptIdentity
+ * is supplied by the trusted host to correlate status only across cancellation
+ * epoch rotations; labels and client identity cannot substitute for it. */
+export function useAiSession(client: AiClient, scopeKey: string, receiptIdentity?: AiReceiptIdentity) {
+  // Keep materialized receipt-identity rows current when another instance
   // changes this same registry, including same-size status updates.
   useSyncExternalStore(subscribeActionCapacity, actionCapacitySnapshot, serverActionCapacitySnapshot);
-  const scope = useMemo<Scope>(() => ({ client, key: scopeKey }), [client, scopeKey]);
+  const scope = useMemo<Scope>(() => ({ client, key: scopeKey, receiptKey: makeReceiptKey(scopeKey, receiptIdentity) }),
+    [client, scopeKey, receiptIdentity?.actorId, receiptIdentity?.workspaceId, receiptIdentity?.homeId,
+      receiptIdentity?.registrationId, receiptIdentity?.authorityEpoch]);
   const activeScope = useRef<Scope | null>(null);
   const connectionController = useRef<AbortController | null>(null);
   const actionController = useRef<AbortController | null>(null);
@@ -190,7 +209,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
     unwatchRequest();
     const changed = () => {
       if (activeScope.current !== scope || pendingRun.current !== pending
-        || retainedRequests.get(scope.key) !== pending.retained) return;
+        || retainedRequests.get(scope.receiptKey) !== pending.retained) return;
       update(previous => 'cancellation' in previous.request && previous.request.requestId === pending.requestId
         ? { ...previous, request: { ...previous.request, cancellation: pending.retained.cancellation } } : previous);
     };
@@ -215,7 +234,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
         if (!current()) return;
         update(previous => ({ ...previous, connection: { status: 'unavailable' } }));
       }
-      const retained = [...pendingConnectionActions.values()].filter(action => action.scopeKey === scope.key);
+      const retained = [...pendingConnectionActions.values()].filter(action => action.receiptKey === scope.receiptKey);
       for (const pending of retained) {
         if (!current()) return;
         // An alias may read current account facts while another browser call is
@@ -226,7 +245,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
           const result = await scope.client.connectionActionStatus(pending.actionId, controller.signal);
           if (!current()) return;
           const latest = pendingConnectionActions.get(pending.actionId);
-          if (!latest || latest.scopeKey !== scope.key) continue;
+          if (!latest || latest.receiptKey !== scope.receiptKey) continue;
           if (result.actionId !== pending.actionId) throw new Error('Unexpected connection action status');
           // Matching completion retires any metadata revision. A stale
           // nonterminal observation cannot replace a newer row or resurrect a
@@ -257,7 +276,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
 
   const acceptOutcome = useCallback((pending: PendingRun, outcome: RunOutcome) => {
     if (pendingRun.current !== pending || activeScope.current !== scope
-      || retainedRequests.get(scope.key) !== pending.retained) return;
+      || retainedRequests.get(scope.receiptKey) !== pending.retained) return;
     recoveryController.current?.abort();
     recoveryController.current = null;
     if (outcome.status === 'completed' || outcome.status === 'cancelled' || outcome.status === 'failed'
@@ -269,7 +288,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
       // not confirm upstream completion or change the durable host journal.
       unwatchRequest();
       requestObservers.delete(pending.retained);
-      retainedRequests.delete(scope.key);
+      retainedRequests.delete(scope.receiptKey);
       pendingRun.current = null;
     }
     update(previous => {
@@ -312,7 +331,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
     }
     // Reserve correlation before any host submission; capacity never causes
     // an already submitted request to be forgotten or an old one to be evicted.
-    const retained = retainRequest(scope.key, requestId);
+    const retained = retainRequest(scope.receiptKey, scope.key, requestId);
     if (retained === null) {
       update(previous => ({ ...previous, request: { status: 'start-unavailable' } }));
       return;
@@ -337,9 +356,10 @@ export function useAiSession(client: AiClient, scopeKey: string) {
   const connectionAction = useCallback(async (input: ConnectionAction) => {
     if (activeScope.current !== scope || actionController.current !== null
       || (pendingRun.current !== null && input.action !== 'manage-usage' && input.action !== 'disconnect')) return;
-    const retained = [...pendingConnectionActions.values()].filter(action => action.scopeKey === scope.key);
+    const retained = [...pendingConnectionActions.values()].filter(action => action.receiptKey === scope.receiptKey);
     if (retained.some(action => action.opening)) return;
     if (scope.key.length === 0 || scope.key.length > MAX_SCOPE_KEY_LENGTH
+      || scope.receiptKey.length === 0 || scope.receiptKey.length > MAX_RECEIPT_KEY_LENGTH
       || !hasConnectionActionCapacity(retained.length)) {
       // Keep every unresolved row; admission failure is visible separately
       // from their status and cannot submit or evict a workflow.
@@ -368,7 +388,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
       return;
     }
     const controller = new AbortController();
-    const pending: PendingConnectionAction = { scopeKey: scope.key, actionId, action: input.action, status: 'unconfirmed', hostStatus: null, opening: true };
+    const pending: PendingConnectionAction = { scopeKey: scope.key, receiptKey: scope.receiptKey, actionId, action: input.action, status: 'unconfirmed', hostStatus: null, opening: true };
     actionController.current = controller;
     openingActionId.current = actionId;
     // Retain every submitted workflow, including a lost response, until its own completion.
@@ -381,7 +401,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
       const result = await scope.client.connectionAction({ actionId, command: input }, controller.signal);
       if (actionController.current !== controller || controller.signal.aborted || activeScope.current !== scope) return;
       const latest = pendingConnectionActions.get(actionId);
-      if (!latest || latest.scopeKey !== scope.key) { superseded = true; return; }
+      if (!latest || latest.receiptKey !== scope.receiptKey) { superseded = true; return; }
       if (result.actionId !== actionId) throw new Error('Unexpected connection action result');
       if (latest !== pending && result.status !== 'completed') { superseded = true; return; }
       if (result.status === 'completed') retireConnectionAction(actionId);
@@ -448,7 +468,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
 
   const recover = useCallback(async () => {
     const pending = pendingRun.current;
-    if (activeScope.current !== scope || pending?.scope !== scope || retainedRequests.get(scope.key) !== pending.retained || recoveryController.current !== null
+    if (activeScope.current !== scope || pending?.scope !== scope || retainedRequests.get(scope.receiptKey) !== pending.retained || recoveryController.current !== null
       || reviewController.current !== null) return;
     const controller = new AbortController();
     recoveryController.current = controller;
@@ -456,7 +476,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
     try {
       const result = await scope.client.requestStatus(pending.requestId, controller.signal);
       if (recoveryController.current !== controller || controller.signal.aborted || pendingRun.current !== pending
-        || activeScope.current !== scope || retainedRequests.get(scope.key) !== pending.retained) return;
+        || activeScope.current !== scope || retainedRequests.get(scope.receiptKey) !== pending.retained) return;
       if (result.requestId !== pending.requestId) throw new Error('Unexpected request status');
       if (result.status === 'finished') {
         pending.controller.abort();
@@ -471,7 +491,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
       update(previous => ({ ...previous, recoveryAction: { status: result.status === 'unconfirmed' ? 'unconfirmed' : 'idle' } }));
     } catch {
       if (recoveryController.current !== controller || controller.signal.aborted || pendingRun.current !== pending
-        || activeScope.current !== scope || retainedRequests.get(scope.key) !== pending.retained) return;
+        || activeScope.current !== scope || retainedRequests.get(scope.receiptKey) !== pending.retained) return;
       update(previous => ({ ...previous, recoveryAction: { status: 'unavailable' } }));
     } finally {
       if (recoveryController.current === controller) recoveryController.current = null;
@@ -480,7 +500,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
 
   useEffect(() => {
     activeScope.current = scope;
-    const retained = retainedRequests.get(scope.key);
+    const retained = retainedRequests.get(scope.receiptKey);
     if (retained) {
       const pending: PendingRun = { scope, requestId: retained.requestId, retained, controller: new AbortController() };
       pendingRun.current = pending;
@@ -521,7 +541,7 @@ export function useAiSession(client: AiClient, scopeKey: string) {
   }, [scope, refresh, recover, watchRequest, unwatchRequest]);
 
   const unresolvedConnectionActions: readonly UnresolvedConnectionAction[] = [...pendingConnectionActions.values()]
-    .filter(action => action.scopeKey === scope.key).map(({ actionId, action, status, hostStatus }) => ({ actionId, action, status, hostStatus }));
+    .filter(action => action.receiptKey === scope.receiptKey).map(({ actionId, action, status, hostStatus }) => ({ actionId, action, status, hostStatus }));
   const pendingConnectionKinds = unresolvedConnectionActions.map(action => action.action);
   return { state, refresh, submit, cancel, connectionAction, review, recover, pendingConnectionKinds, unresolvedConnectionActions };
 }

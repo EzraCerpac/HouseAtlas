@@ -48,6 +48,17 @@ committed authorized context invokes shared cleanup. Transport abort and
 best-effort cancellation do not establish remote termination. Those invalidation
 paths are retained code, not newly qualified controls.
 
+When supplied, `receiptIdentity` is the explicit stable tuple
+`{actorId, workspaceId, homeId, registrationId, authorityEpoch}` from that same
+trusted binding. It excludes only the cancellation epoch. The full `scopeKey`
+continues to bind runtime, dispatch and cancellation. The stable tuple lets the
+browser keep bounded action/request identifiers visible and reconcile their
+original status after cancellation rotates; every read uses the current trusted
+host client and original identifier. It does not restore prompts or credentials,
+replay actions, resume inference, or authorize work. Omitting it preserves the
+older full-scope isolation behavior. Do not construct it from `scopeKey`, labels,
+or browser role.
+
 Connection facts come only from trusted connection/action DTOs. Null binding
 shows “AI host is unavailable.” The CSS uses the existing Settings geometry and
 HouseAtlas colour/type tokens. All interface copy is English.
@@ -103,7 +114,7 @@ original ID. Opening/pending disconnects and existing retention capacity still
 bound admission. The button uses the hook's same scope/global capacity predicate
 and subscribes to registry updates, including changes from another mounted
 instance of the same or a different scope. Session hooks also subscribe and
-derive their current full-scope rows and pending/unconfirmed action state on
+derive their current receipt-identity rows and pending/unconfirmed action state on
 each update, including same-size status changes and retirement. A private
 opening flag propagates active browser transport to aliases and blocks another
 same-scope action; it does not establish a retryable host receipt. Settlement
