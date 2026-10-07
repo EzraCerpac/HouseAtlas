@@ -438,13 +438,9 @@ function Detail({
       )}
       <RecordStatus entry={entry} />
       {cache && <CacheState cache={cache} inline />}
-      {place &&
-        view.canEdit &&
-        !entry.entity.archived &&
-        editing &&
-        refresh && (
-          <PlaceEditor entry={entry} client={editing} refresh={refresh} />
-        )}
+      {place && !entry.entity.archived && editing && refresh && (
+        <PlaceEditor entry={entry} client={editing} refresh={refresh} />
+      )}
       {view.canEdit && (
         <div className="actions">
           {edit ? (

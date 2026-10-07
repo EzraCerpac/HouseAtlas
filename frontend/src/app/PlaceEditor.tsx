@@ -18,6 +18,34 @@ const kinds: readonly LocationSemanticsPayloadSemanticKind[] = [
   "room",
   "other",
 ];
+const maximumReasonCodePoints = 1024;
+function validateReason(field: HTMLInputElement) {
+  field.setCustomValidity(
+    Array.from(field.value).length > maximumReasonCodePoints
+      ? "Use at most 1024 characters for the reason."
+      : "",
+  );
+}
+function readReason(form: HTMLFormElement) {
+  const field = form.querySelector<HTMLInputElement>('input[name="reason"]');
+  if (!field) return null;
+  validateReason(field);
+  if (!field.reportValidity()) return null;
+  return field.value.trim() || null;
+}
+function ReasonField({ busy }: { busy: boolean }) {
+  return (
+    <label>
+      <span>Reason (maximum 1024 characters)</span>
+      <input
+        name="reason"
+        required
+        disabled={busy}
+        onInput={(event) => validateReason(event.currentTarget)}
+      />
+    </label>
+  );
+}
 export function PlaceEditor({
   entry,
   client,
@@ -153,9 +181,7 @@ export function PlaceEditor({
   const replace = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (busy || !admission?.canReplaceClassification) return;
-    const reason = String(
-      new FormData(event.currentTarget).get("reason") ?? "",
-    ).trim();
+    const reason = readReason(event.currentTarget);
     if (!reason) return;
     const requestId = crypto.randomUUID(),
       record = admission.record;
@@ -197,6 +223,8 @@ export function PlaceEditor({
     event.preventDefault();
     if (busy || !admission?.attachmentPolicy || !client.uploadPlaceEvidence)
       return;
+    const reason = readReason(event.currentTarget);
+    if (!reason) return;
     const fields = new FormData(event.currentTarget),
       file = fields.get("file");
     const policy = admission.attachmentPolicy,
@@ -205,14 +233,12 @@ export function PlaceEditor({
       typeof licenseValue === "string" && licenseValue !== ""
         ? policy.licenses[Number(licenseValue)]
         : undefined;
-    const statement = String(fields.get("statement") ?? "").trim(),
-      reason = String(fields.get("reason") ?? "").trim();
+    const statement = String(fields.get("statement") ?? "").trim();
     if (
       !(file instanceof File) ||
       !file.size ||
       !license ||
       !statement ||
-      !reason ||
       file.size > policy.maximumBytes ||
       !policy.contentTypes.includes(file.type)
     ) {
@@ -289,10 +315,7 @@ export function PlaceEditor({
                 ))}
               </select>
             </label>
-            <label>
-              <span>Reason</span>
-              <input name="reason" required maxLength={4096} disabled={busy} />
-            </label>
+            <ReasonField busy={busy} />
             <button type="submit" disabled={busy}>
               Save classification
             </button>
@@ -347,10 +370,7 @@ export function PlaceEditor({
                 ))}
               </select>
             </label>
-            <label>
-              <span>Reason</span>
-              <input name="reason" required maxLength={4096} disabled={busy} />
-            </label>
+            <ReasonField busy={busy} />
             <button type="submit" disabled={busy}>
               Upload attachment
             </button>

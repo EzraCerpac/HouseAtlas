@@ -32,8 +32,18 @@ export async function runHealthyEditing(
     ) => StockResultEnvelope;
   },
 ) {
-  const view = decodeAtlasView(supplied.view);
-  check(view.status === "ready", "Healthy authorized view");
+  const decoded = decodeAtlasView(supplied.view);
+  check(decoded.status === "ready", "Healthy authorized view");
+  // Passive provider edit availability is independent of Atlas host admission.
+  const view = { ...decoded, canEdit: false };
+  const classificationPrefix = "Correct Atlas classification: ",
+    attachmentPrefix = "Attach example evidence: ";
+  const classificationReason =
+      classificationPrefix +
+      "🏠".repeat(1024 - Array.from(classificationPrefix).length),
+    attachmentReason =
+      attachmentPrefix +
+      "🏠".repeat(1024 - Array.from(attachmentPrefix).length);
   const place = view.entries.find(
     (entry) => entry.entity.name === "Display cabinet",
   );
@@ -78,6 +88,12 @@ export async function runHealthyEditing(
       return admission();
     },
     replacePlace: async (request: StockRequestEnvelope) => {
+      check(
+        request["reason"] === classificationReason &&
+          Array.from(classificationReason).length === 1024 &&
+          classificationReason.length > 1024,
+        "Native 1024-codepoint classification reason is unchanged",
+      );
       supplied.validate(
         "#/$defs/request_atlas_location_semantics_replace",
         request,
@@ -137,7 +153,8 @@ export async function runHealthyEditing(
         intent.file.name === "example.txt" &&
           intent.file.type === "text/plain" &&
           intent.statement === "Synthetic owner note" &&
-          intent.reason === "Attach example evidence" &&
+          intent.reason === attachmentReason &&
+          Array.from(attachmentReason).length === 1024 &&
           intent.sourceLicense.status === "permitted",
         "Explicit file/evidence/licence/reason intent",
       );
@@ -207,6 +224,10 @@ export async function runHealthyEditing(
       'form[aria-label="Place classification"]',
     );
     check(form, "Classification form");
+    check(
+      form.textContent?.includes("Reason (maximum 1024 characters)"),
+      "Native reason limit displayed on host-admitted local form",
+    );
     const select = form.querySelector<HTMLSelectElement>("select");
     check(select, "Classification selector");
     await act(async () => {
@@ -215,7 +236,9 @@ export async function runHealthyEditing(
     });
     const reason = form.querySelector<HTMLInputElement>('[name="reason"]');
     check(reason, "Reason");
-    reason.value = "Correct Atlas classification";
+    reason.value = classificationReason;
+    reason.dispatchEvent(new Event("input", { bubbles: true }));
+    check(reason.validity.valid, "Valid codepoint-length reason");
     await act(async () =>
       form.dispatchEvent(
         new Event("submit", { bubbles: true, cancelable: true }),
@@ -244,7 +267,7 @@ export async function runHealthyEditing(
       "Fresh admission resets licence choice after normal policy reorder",
     );
     checks.push(
-      "classification submit: canonical wire3, guards, immutable fields, busy state and fresh view/admission",
+      "host-admitted local classification with passive provider: canonical wire3, unchanged 1024-codepoint reason, guards, busy and refresh",
     );
     const upload = section.querySelector<HTMLFormElement>(
       'form[aria-label="Atlas attachment"]',
@@ -267,7 +290,9 @@ export async function runHealthyEditing(
         license = upload.querySelector<HTMLSelectElement>('[name="license"]');
       check(statement && reasonInput && license, "Attachment fields");
       statement.value = "Synthetic owner note";
-      reasonInput.value = "Attach example evidence";
+      reasonInput.value = attachmentReason;
+      reasonInput.dispatchEvent(new Event("input", { bubbles: true }));
+      check(reasonInput.validity.valid, "Valid attachment codepoint reason");
       await act(async () => {
         license.value = "1";
         license.dispatchEvent(new Event("change", { bubbles: true }));
@@ -294,7 +319,7 @@ export async function runHealthyEditing(
       "Canonical attachment receipt remains visible",
     );
     checks.push(
-      "owned attachment intent: file/licence/evidence, fresh guards, host receipt and canonical refresh",
+      "owned attachment intent: unchanged 1024-codepoint reason, file/licence/evidence, fresh guards, host receipt and refresh",
     );
     const close = button("Close");
     close.focus();

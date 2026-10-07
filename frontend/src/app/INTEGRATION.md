@@ -78,8 +78,9 @@ no additional sign-out transport or provider operation is introduced.
 ### Atlas place editing and evidence attachment ports
 
 `App.editing` / `SessionApp.editing` optionally supply `AtlasEditingClient`.
-An active place detail offers Edit Atlas place only when this host port is
-configured and the view has its editor hint. The hint grants no authority:
+An active place detail offers Edit Atlas place when this host port is configured,
+independently of the passive provider's `view.canEdit` hint. Local forms require
+the host's actual returned admission, not browser or provider permissions:
 `loadPlace(SourceRef, signal)` must authorize the exact qualified source and
 return its current generated `LocationSemanticsRecord`, complete generated
 reference `Guard[]`, explicit replacement capability and optional attachment
@@ -119,16 +120,19 @@ added. Frozen payloads contain no alias/mobility write fields or commands, so th
 controls were not invented. Geometry, wiring, inventory CRUD and other unsupported
 actions remain outside this increment. This does not complete all editing flows.
 
-Review identified a native mutation reason limit of 1024 while the wire3 request
-schema and current forms allow 4096. Root must reconcile/advertise the admitted
-native limit before enabling the bridge, or explicitly change its supported
-contract. Preserve the full submitted reason; never silently truncate it to fit.
+Native classification and attachment reason fields display and enforce 1024
+Unicode code points using input custom validity and an explicit submit check.
+They do not use HTML's UTF-16 `maxLength` or truncate submitted text. The broader
+wire3 request schema remains unchanged at 4096; root enforces its admitted native
+limit independently. Evidence-statement limits are unchanged.
 
 `editing.examples.tsx` adds two ordinary React form groups with typed fake host
 ports: classification envelope/shared schema/current guards/preserved fields/busy
-state/canonical refresh; and explicit owned-file/licence/evidence intent/fresh
+state/canonical refresh with passive provider `canEdit=false`; and explicit
+owned-file/licence/evidence intent/fresh
 revision/canonical batch receipt/refreshed admission. jsdom's file-picker gap is
-handled only by an external synthetic FormData field shim. No HTTP upload, vault,
+handled only by an external synthetic FormData field shim. Both forms submit valid
+1024-codepoint astral-text reasons unchanged. No HTTP upload, vault,
 actual domain transaction or real grant is exercised. Failure/race qualification
 remains unrun.
 
