@@ -27,14 +27,22 @@ import {
   placement,
 } from "./components";
 import type { Entry, ReadyView, Scope } from "./types";
+import type { SessionSettings } from "./session";
 
 export interface PageProps {
   view: ReadyView;
   route: Route;
   busy: boolean;
   switchHome: (scope: Scope) => void;
+  session?: SessionSettings;
 }
-export function AtlasPage({ view, route, busy, switchHome }: PageProps) {
+export function AtlasPage({
+  view,
+  route,
+  busy,
+  switchHome,
+  session,
+}: PageProps) {
   const entries = visibleEntries(view, route.archived),
     places = entries.filter((p) => p.kind === "place");
   const caches = view.caches.filter((c) => c.owner === "homebox");
@@ -80,6 +88,31 @@ export function AtlasPage({ view, route, busy, switchHome }: PageProps) {
               )}
             </div>
           </section>
+          {session && (
+            <section className="setting">
+              <div className="setting-text">
+                <h2>Session</h2>
+                <p className="muted">
+                  Expires{" "}
+                  <time dateTime={session.expiresAt}>
+                    {new Date(session.expiresAt).toLocaleString("en-GB", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      timeZoneName: "short",
+                    })}
+                  </time>
+                </p>
+              </div>
+              {session.signOut && (
+                <button type="button" onClick={session.signOut}>
+                  Sign out
+                </button>
+              )}
+            </section>
+          )}
         </div>
       </>
     );

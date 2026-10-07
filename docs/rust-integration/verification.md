@@ -1,6 +1,7 @@
-# First slice verification
+# Historical first read slice verification
 
-The local ordinary lane passed with Rust/cargo 1.99.0, Node 26.10.0,
+This records the first read-slice checkpoint, before the native core continuation
+described in core-continuation.md. The local ordinary lane passed with Rust/cargo 1.99.0, Node 26.10.0,
 npm 11.19.1, bundled application SQLite 3.53.2 and Chrome 151.0.7922.173.
 The checked-in runner names its source and coverage explicitly.
 

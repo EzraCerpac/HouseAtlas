@@ -1,0 +1,170 @@
+# AT08 Rust HomeBox reads
+
+This embeddable component descends only from published HouseAtlas baseline
+`9f7561d99e09a680ec5282ca0c8aed4e10c6cbc9`. AT08 edits only this namespace;
+root manifests, locks, generated contracts and peer sources remain owner-managed.
+There are no provider writes, embedded credentials, media downloads or HTTP server.
+
+## Host dependencies and interfaces
+
+The continuation's external compiler harness uses edition 2024 with these pins:
+
+```toml
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = { version = "=1.0.151", features = ["arbitrary_precision", "float_roundtrip", "raw_value"] }
+chrono = { version = "=0.4.42", default-features = false, features = ["std"] }
+url = "=2.5.7"
+fluent-uri = { version = "=0.4.1", default-features = false }
+tokio = { version = "=1.53.2", features = ["time", "rt", "macros", "net", "io-util"] }
+reqwest = { version = "=0.13.5", default-features = false, features = ["rustls"] }
+```
+
+AT51/52 should reconcile these in the shared manifest and expose this module.
+`HomeBoxReader::new(registration, transport, clock, limits, navigation)` freezes
+server-provided scope/registration. `Transport::get(GetRequest)` accepts only a
+fixed relative GET path, repeated query pairs, full partition, tenant and monotonic
+deadline. `Body::next_chunk` transfers owned byte vectors. No browser URL override,
+arbitrary header or write operation is exposed. Clock timestamps retain spelling.
+
+`fetch_generation(previous, server_generation_id)` returns an opaque
+`CompleteGeneration` or sanitized `FailedRead`. Complete results expose cache,
+projections, unresolved missing external IDs, stats and retained quarantine.
+Missing entities never delete Atlas identities or prove upstream deletion.
+A successful empty collection is a complete fresh generation.
+
+`fetch_view(parent_ids)` returns a separate `FilteredView` with only projections
+and stats. It has no generation, complete cache or publication method; successful
+filtered reads never freshen the complete cache. Auth/scope failures propose
+quarantine; unrelated failures preserve quarantine. Failure proposals retain
+prior successful generation/timestamps and contain fixed messages, no response data.
+`cache_freshness` is pure and confers no cached-access authority.
+
+## Concrete bounded HTTP transport
+
+`SourceEndpoint::https(origin, scope)` accepts a trusted configured HTTPS origin
+and full partition. `HttpTransport::new` uses reqwest with normal Rustls platform
+certificate verification. Redirects, retries, environment proxies and automatic
+decompression are explicitly disabled. Requests send the configured `X-Tenant`,
+JSON Accept and identity encoding. `CredentialProvider::read_authorization` is a
+host-owned cancellable port for current original grants and configured credentials.
+The opaque sensitive `AuthorizationHeader` exposes no Debug, serialization or
+content accessor. Production GETs require a credential header.
+
+The body bounds declared/observed response bytes and every await by the request
+deadline, dropping the response on timeout/error/limit or when its owner is dropped.
+The reader independently bounds aggregate generation bytes/time, pages and size.
+Client diagnostics and URLs are discarded. The scope receipt identifies configured
+source binding; it does not prove provider tenant enforcement. A credential-free
+plain HTTP constructor exists only in test builds and requires a literal loopback
+IP. This component activates no production source. Default DNS may leave blocking
+resolver work running after timeout: deadlines bound awaited results and response
+ownership, not physical termination of operating-system DNS work. That remains
+transport qualification.
+
+## Actual consuming SQLite publication fence
+
+`reader.prepare_publication(store, principal)` calls AT07's actual
+`AtlasStore::prepare_cache_publication` before GETs. The store-owned fence also captures the full durable
+registration;
+preparation compares owner, partition mode and the complete reviewed allowlist
+alongside every scope component. `PreparedGeneration::fetch`
+consumes captured state and the store-issued `CachePublicationFence`, passing its
+selected ID into the full reader. It repeats the complete registration comparison
+on the consuming reader before GETs, allowing equivalent allowlist ordering but
+never different coverage. `StagedPublication::commit` consumes the same
+fence and calls `publish_prepared_generation` with the opaque complete generation.
+The original borrowed principal survives preparation, GET and commit. No principal
+replacement, raw row construction, cloned fence or filtered publication is exposed.
+
+AT07 binds its fence to the issuing store, full partition, baseline generation,
+cache epoch and selected ID. Its immediate transaction reauthorizes, validates
+schema/final graph, checks baselines/time ordering, replaces projections/cache,
+permanently reserves the ID on successful commit, advances epoch, and revalidates
+the actor. Preparation selects the ID; it does not permanently reserve it before
+GETs. The storage fence does not replace current access-registry authority.
+
+Retained rows pass actual `crate::contracts::decode` validation before reconstruction;
+the reader repeats scope/allowlist/graph checks before GETs. Ordinary refresh
+refuses retained quarantine and cannot reenable a source. Administrative revalidation
+needs a separate qualified path. Failed reads remain proposals: the reviewed store
+has no consuming failure-fence/CAS API, so this adapter does not persist failure
+metadata automatically. Store errors expose only a fixed publication failure.
+
+## Decoder and provenance
+
+Lists use `/api/v1/entities`, explicit `isLocation=true/false`,
+`includeArchived=true`, bounded offset pages, and repeated `parentIds` for views.
+Detail and maintenance decode the pinned normalized synthetic dialect. JSON parsing
+checks UTF-8, duplicate keys including extras, finite numbers, escaped surrogates
+and depth 64. RawValue distinguishes actual JSON containers from arbitrary-precision
+Serde numeric maps. AT51 classifies integral lexical tokens before checked u64
+conversion; `.0`/exponent integer spellings remain accepted.
+
+Identical repeated rows collapse; conflicts, count drift, list/detail changes and
+parent cycles abort staging. These guards are coded but rejection/fault/race controls
+remain deferred. Offset pages remain nontransactional upstream reads. UUID spelling
+normalizes; opaque collection spelling, source dates/offsets, retrieval dates,
+arbitrary container types, null parents/types and explicit unknowns survive.
+External HTTP(S) URI references retain their exact validated spelling. Stored-file
+proxy references are withheld pending media authorization. Native links default
+to empty and require explicitly verified scope-matched route configuration.
+
+## Reviewed peers and remaining integration
+
+The external host harness compiles actual read-only published source snapshots:
+
+- AT07 storage/registration receipt: `364ba7d3f382814da43913fe86e262834a7d1ecc`.
+- AT51 generated contracts: `07576e6be463dd481b49071071c66dec144b1e0c`.
+- AT11 canonical-ID types: `4967dd2d38c5749be35aa7e44728c4d691246730`.
+- AT52 native read-contract adapter: `46047d0193fbce720bba7a1d209b5428c51dba94`.
+
+No peer source/ancestry is copied into this branch. The host harness uses the actual
+native frozen schema/graph and SQLite implementation, with synthetic authority,
+clock and provider transport. Its URL predicate is an exact function excerpt from
+AT36 projection.rs at `64da6ea293dbb7fd7798105e92e7c4a65be7262f`, satisfying the read-contract graph dependency.
+
+The reviewed host leaves ConfigureSource/PublishCache unavailable. Production
+needs AT52/AT11's current original branded source-authority adapter and a credential
+provider bound to approved server configuration. No permissive replacement is
+supplied. Publication futures impose no extra Send/Sync bounds on those borrowed
+handles; the shared host must reconcile their execution context.
+
+The published fixture catalog marks actual detail/maintenance/attachment wire
+unqualified. Exact missing inputs are sanitized healthy responses plus matching
+HomeBox version/build/API evidence: location/item list pages including archived
+rows; an entity detail with null metadata and stored-file/external-link attachments;
+and maintenance with schedules/completions/cost. Capture method/path, pagination,
+status/content type/encoding and tenant semantics, sanitizing headers. Therefore
+this decoder still implements `atlas-normalized-synthetic-v1` with reference version
+`v0.26.2`; it does not demonstrate native wire compatibility. TLS handshakes, actual
+credential retrieval, tenant enforcement and native routes need separate authorized
+qualification. Published Atlas/history schemas remain unchanged.
+
+## Scoped healthy verification
+
+Activate the retained pinned runtime. The external host harness imports this actual
+module plus exact reviewed peers. `AT08_HARNESS` names that external directory:
+
+```sh
+rustfmt --edition 2024 --check backend/src/providers/homebox/read/mod.rs
+cargo check --manifest-path "$AT08_HARNESS/Cargo.toml" --locked
+cargo build --manifest-path "$AT08_HARNESS/Cargo.toml" --locked
+cargo clippy --manifest-path "$AT08_HARNESS/Cargo.toml" --locked --all-targets -- -D warnings
+cargo test --manifest-path "$AT08_HARNESS/Cargo.toml" --locked homebox_read::healthy -- --test-threads=1
+cargo test --manifest-path "$AT08_HARNESS/Cargo.toml" --locked --test healthy_publication -- --test-threads=1
+```
+
+Eleven reader examples cover synthetic metadata, pagination, views, empty/minimal
+generations, provenance, allowlists, freshness, native navigation, integral spellings
+and valid URI representation. The HTTP example opens one ephemeral loopback listener,
+completes eight successful chunked GETs without credentials, and closes it. The
+external SQLite example uses consuming fences for two successful generations,
+reads published rows/cache, preserves six seeded Atlas records, checks epochs
+0 → 1 → 2, reconstructs retained metadata,
+and confirm a filtered view leaves SQLite unchanged. Another healthy example binds
+an empty cache to the complete durable reviewed allowlist, then fetches through a
+matching reader whose allowlist order differs. Authority/runtime are synthetic.
+Emitted snapshots pass published shape/semantic validation as additional evidence;
+no JavaScript oracle is used in the Rust publication path. Legacy broad aggregates,
+stopped rejection/guard-reversal/mutation/adversarial/fault/crash/concurrency/negative
+controls remain unrun. Ordinary success does not qualify deployment or security.

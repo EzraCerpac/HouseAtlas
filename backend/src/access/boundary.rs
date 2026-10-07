@@ -9,8 +9,9 @@ use subtle::ConstantTimeEq;
 use url::Url;
 
 use super::{
-    AccessError, AccessResult, Action, CanonicalId, Capability, Method, PasswordVerifier,
-    Principal, RequestEvidence, Role, SESSION_COOKIE, Scope, SessionInfo, SessionReceipt,
+    AccessError, AccessResult, Action, CanonicalId, Capability, Method, PartitionGrant,
+    PasswordVerifier, Principal, RequestEvidence, Role, SESSION_COOKIE, Scope, SessionInfo,
+    SessionReceipt, SourceGrant,
     credentials::{digest, hex, nonce, random_bytes, verify_password},
     store::{self, Session, Store, User},
     types::RestoreEpoch,
@@ -542,6 +543,25 @@ impl TransactionAuthorization<'_> {
 
     pub fn authorize(&self, scope: &Scope, capability: Capability<'_>) -> AccessResult<&Principal> {
         self.authority.authorize(self.principal, scope, capability)
+    }
+
+    /// Recheck a retained entity grant through this guard's held access
+    /// transaction. Success returns the original handle without reissuing it.
+    pub fn revalidate_source<'g>(
+        &self,
+        original: &'g SourceGrant,
+    ) -> AccessResult<&'g SourceGrant> {
+        self.authority.revalidate_source(self.principal, original)
+    }
+
+    /// Recheck retained partition metadata authority, including empty
+    /// generations, without replacing the original handle or opening a fence.
+    pub fn revalidate_source_partition<'g>(
+        &self,
+        original: &'g PartitionGrant,
+    ) -> AccessResult<&'g PartitionGrant> {
+        self.authority
+            .revalidate_source_partition(self.principal, original)
     }
 }
 

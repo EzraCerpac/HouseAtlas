@@ -10,6 +10,23 @@ use std::{
     rc::Rc,
 };
 use support::*;
+
+// Distinct non-cloneable borrowed peer; its authority remains synthetic.
+struct BorrowedAuthorization<'a> {
+    inner: &'a SyntheticAuthorization,
+}
+impl Authorization for BorrowedAuthorization<'_> {
+    type Principal = VerifiedActor;
+    fn authorize(
+        &self,
+        principal: &VerifiedActor,
+        request: AuthorizationRequest<'_>,
+    ) -> Result<VerifiedActor> {
+        assert_eq!(request.capability, Capability::Mutate);
+        assert!(request.mutation.is_some());
+        self.inner.authorize(principal, request)
+    }
+}
 fn main() -> CheckResult<()> {
     let root = PathBuf::from(std::env::var("HOUSEATLAS_ROOT")?);
     let directory = PathBuf::from(
@@ -43,14 +60,14 @@ fn main() -> CheckResult<()> {
     };
     let mut store = AtlasStore::open(
         &path,
-        oracle.clone(),
+        oracle.storage_contract(),
         authorization.clone(),
         runtime.clone(),
         options,
     )?;
     let initial: Snapshot = load(&root, "plan-free.snapshot.json")?;
     store.initialize_synthetic(&initial)?;
-    assert_eq!(store.database_version(), 1);
+    assert_eq!(store.database_version(), DATABASE_VERSION);
     let room = store.read_record(&principal, &scope, &reference(RecordType::Identity, 200))?;
     let item = store.read_record(&principal, &scope, &reference(RecordType::Identity, 201))?;
     assert_eq!(room.payload["kind"], "location");
@@ -100,17 +117,36 @@ fn main() -> CheckResult<()> {
             },
         ],
     };
-    let created = store.execute_batch(&principal, &scope, &room_item_batch)?;
+    let per_call_contexts = Rc::new(RefCell::new(vec![]));
+    let per_call_authorization = SyntheticAuthorization {
+        oracle: oracle.clone(),
+        contexts: per_call_contexts.clone(),
+    };
+    let borrowed_authorization = BorrowedAuthorization {
+        inner: &per_call_authorization,
+    };
+    let stored_authorizer_before = contexts.borrow().len();
+    let created = store.execute_batch_json_with_authorization(
+        &borrowed_authorization,
+        &principal,
+        &scope,
+        &serde_json::to_value(&room_item_batch)?,
+    )?;
+    assert_eq!(contexts.borrow().len(), stored_authorizer_before);
+    assert_eq!(per_call_contexts.borrow().len(), 4);
     assert_eq!(created.results.len(), 2);
     assert!(!created.replayed);
     let replacement = healthy_command(13_003, Operation::Replace, Some(1), Some(item_value));
-    let replaced = store.execute_json(
+    let replaced = store.execute_json_with_authorization(
+        &borrowed_authorization,
         &principal,
         &scope,
         &item_target,
         &serde_json::to_value(&replacement)?,
     )?;
     assert_eq!(replaced.record.revision, 2);
+    assert_eq!(contexts.borrow().len(), stored_authorizer_before);
+    assert_eq!(per_call_contexts.borrow().len(), 8);
     let tombstone = healthy_command(13_004, Operation::Tombstone, Some(2), None);
     let retired = store.execute(&principal, &scope, &item_target, &tombstone)?;
     assert_eq!(retired.record.lifecycle, Lifecycle::Tombstoned);
@@ -166,10 +202,21 @@ fn main() -> CheckResult<()> {
     );
     let final_snapshot = store.read_snapshot(&principal, &scope)?;
     oracle.validate_snapshot(&final_snapshot)?;
+    // The native domain bridge validates these frozen public output names.
+    // Exercise generated schemas against actual committed storage outputs.
+    let native_contract = oracle.storage_contract();
+    native_contract.validate_shape("snapshot", &serde_json::to_value(&final_snapshot)?)?;
+    native_contract.validate_shape("record", &serde_json::to_value(&restored.record)?)?;
+    for audit in &history {
+        native_contract.validate_shape("audit", &serde_json::to_value(audit)?)?;
+    }
+    assert_eq!(circuit_command.guards.len(), 1);
+    native_contract.validate_shape("guard", &serde_json::to_value(&circuit_command.guards[0])?)?;
+    native_contract.validate_shape("mutationResult", &serde_json::to_value(&circuit)?)?;
     store.close()?;
     let mut reopened = AtlasStore::open(
         &path,
-        oracle.clone(),
+        oracle.storage_contract(),
         authorization,
         runtime,
         StoreOptions::default(),
@@ -261,7 +308,14 @@ fn main() -> CheckResult<()> {
         |r| r.get(0),
     )?;
     assert_eq!(lineage, DATABASE_LINEAGE);
-    let captured = contexts.borrow();
+    assert_eq!(contexts.borrow().len(), 16);
+    assert_eq!(per_call_contexts.borrow().len(), 8);
+    let captured: Vec<_> = contexts
+        .borrow()
+        .iter()
+        .chain(per_call_contexts.borrow().iter())
+        .cloned()
+        .collect();
     assert_eq!(captured.len(), 24);
     for phases in captured.as_chunks::<4>().0 {
         assert_eq!(
@@ -280,11 +334,15 @@ fn main() -> CheckResult<()> {
     assert_eq!(oracle.counts.borrow().get("transition"), Some(&9));
     assert_eq!(oracle.counts.borrow().get("guards"), Some(&9));
     assert_eq!(oracle.counts.borrow().get("final"), Some(&9));
-    let evidence = json!({"lineage":lineage,"databaseVersion":1,"sqliteVersion":rusqlite::version(),"auditRows":count("audits")?,
+    let evidence = json!({"lineage":lineage,"databaseVersion":DATABASE_VERSION,"sqliteVersion":rusqlite::version(),"auditRows":count("audits")?,
         "receiptRows":count("receipts")?,"batchReceiptRows":count("batch_receipts")?,"bindingReservations":count("binding_reservations")?,
-        "contextsCompared":captured.len(),"contractCalls":*oracle.counts.borrow(),"circuit":circuit,"roomItemBatch":created,
+        "contextsCompared":captured.len(),"storedAuthorizerContexts":contexts.borrow().len(),"borrowedAuthorizerContexts":per_call_contexts.borrow().len(),
+        "borrowedAuthorizerPhases":per_call_contexts.borrow().iter().map(|context| context.phase).collect::<Vec<_>>(),
+        "nativeInputShapes":{"guard":1},
+        "nativeOutputShapes":{"snapshot":1,"record":1,"audit":history.len(),"mutationResult":1},
+        "contractCalls":*oracle.counts.borrow(),"circuit":circuit,"roomItemBatch":created,
         "restoredItem":restored,"itemHistory":history,"remap":remapped,"snapshot":final_snapshot,
-        "peerScope":"published pure contract oracle and synthetic authorization/runtime only","deferred":"replay/rejection/fault/crash/concurrency and native peer integration"});
+        "peerScope":"AT51 native shapes/numeric types; offline published semantic/JCS oracle; synthetic authorization/runtime","deferred":"replay/rejection/fault/crash/concurrency and full native semantic/access/runtime peer integration"});
     fs::write(
         directory.join("evidence.json"),
         serde_json::to_vec_pretty(&evidence)?,

@@ -1,0 +1,84 @@
+{
+  "source": "Published healthy synthetic fixtures; no held controls",
+  "snapshotDigests": {
+    "plan-free.snapshot.json": "f87f94b70e02a8ae59faa04d8c0585b74f5ad38d2d57de7dafa458e3cb4cfbed",
+    "optional-geometry.snapshot.json": "8d16db19d5dcef6a38752e28358b6e24962a58b76579c5d2b9af45a22c703dae",
+    "import-remap.snapshot.json": "43da8de9fa3354481a647ba2db77293ac497dc56d7591ee122632a026a341fcc"
+  },
+  "createTransition": {
+    "nextRevision": 1
+  },
+  "createMutationDigest": "91e36deec2fb2dc66066b6db0bc2304e51efe8880921f4b4e86b864eee338553",
+  "batchDigest": "412f76c236b78fdf4ef11906c5d9fdba944955581803584b15c65dad6fd73f03",
+  "batchTransitions": [
+    {
+      "nextRevision": 2
+    },
+    {
+      "nextRevision": 1
+    },
+    {
+      "nextRevision": 1
+    }
+  ],
+  "batchMutationDigests": [
+    "4f07518f0705cee77335e92439ea35d74ec306d16a3ecd72970d9513ed3e2f71",
+    "7eb706565549ab0b264993f4cd043f46c03515948d0ae4f6b655b5ac4f8b87ee",
+    "3d8f6412b7ac581b6b38258ddb9d83da6d6f1a3a035e096466856e2c3ab82102"
+  ],
+  "closure": {
+    "recordRefs": [
+      {
+        "recordType": "binding",
+        "recordId": "00000000-0000-4000-8000-000000000301"
+      },
+      {
+        "recordType": "binding",
+        "recordId": "00000000-0000-4000-8000-000000000304"
+      },
+      {
+        "recordType": "evidence",
+        "recordId": "00000000-0000-4000-8000-000000000100"
+      },
+      {
+        "recordType": "identity",
+        "recordId": "00000000-0000-4000-8000-000000000201"
+      },
+      {
+        "recordType": "reconciliation",
+        "recordId": "00000000-0000-4000-8000-000000000405"
+      }
+    ],
+    "missingRecordRefs": [],
+    "sourceRefs": [
+      {
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002",
+        "key": {
+          "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+          "collectionId": "synthetic-collection-a",
+          "sourceKind": "homebox-entity",
+          "externalId": "00000000-0000-4000-8000-000000000501"
+        }
+      },
+      {
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002",
+        "key": {
+          "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+          "collectionId": "synthetic-collection-a",
+          "sourceKind": "homebox-entity",
+          "externalId": "00000000-0000-4000-8000-000000000504"
+        }
+      }
+    ],
+    "sourcePartitions": [
+      {
+        "workspaceId": "00000000-0000-4000-8000-000000000001",
+        "homeId": "00000000-0000-4000-8000-000000000002",
+        "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+        "collectionId": "synthetic-collection-a"
+      }
+    ]
+  }
+}

@@ -39,7 +39,7 @@ pub enum CurrentAttachment {
         attachment_id: String,
         title: String,
         content_type: Option<String>,
-        byte_size: Option<u64>,
+        byte_size: Option<crate::contracts::JsonInteger>,
         download_href: Option<String>,
         preview_href: Option<String>,
     },
@@ -351,7 +351,7 @@ fn project_attachment(
                 attachment_id: attachment_id.clone(),
                 title: title.clone(),
                 content_type: content_type.clone(),
-                byte_size: *byte_size,
+                byte_size: byte_size.clone(),
                 download_href,
                 preview_href,
             }

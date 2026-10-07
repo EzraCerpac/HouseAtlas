@@ -19,6 +19,7 @@ import {
 import { BrandMark, Heading, RouteContext, AtlasLink } from "./components";
 import { AtlasPage } from "./pages";
 import { text } from "./copy";
+import type { SessionSettings } from "./session";
 
 export interface AtlasAppProps {
   client: AtlasClient;
@@ -27,6 +28,7 @@ export interface AtlasAppProps {
   signIn?: () => void;
   /** Allows a host session lifecycle to immediately remove private UI. */
   accessEvents?: EventTarget;
+  session?: SessionSettings;
 }
 export const accessEventName = "atlas-access-invalidated";
 export function App({
@@ -34,6 +36,7 @@ export function App({
   initialView,
   signIn,
   accessEvents,
+  session,
 }: AtlasAppProps) {
   const [view, setView] = useState<AtlasView>(
     initialView ?? { status: "loading" },
@@ -252,6 +255,11 @@ export function App({
                     {text("signIn")}
                   </button>
                 )}
+                {session?.signOut && (
+                  <button type="button" onClick={session.signOut}>
+                    Sign out
+                  </button>
+                )}
               </div>
             </div>
           </main>
@@ -305,6 +313,7 @@ export function App({
                   route={route}
                   busy={busy}
                   switchHome={switchHome}
+                  {...(session ? { session } : {})}
                 />
               </main>
               <HouseIndex view={view} route={route} />

@@ -192,11 +192,17 @@ impl CacheEpoch {
 pub struct CachePublicationFence {
     pub(super) issuer: Arc<()>,
     pub(super) partition: SourcePartition,
+    pub(super) registration: SourceRegistration,
     pub(super) baseline_generation_id: Option<String>,
     pub(super) baseline_cache_epoch: CacheEpoch,
     pub(super) reserved_generation_id: String,
 }
 impl CachePublicationFence {
+    /// Full validated durable registration captured in the pre-fetch read.
+    /// This metadata is not an authorization grant.
+    pub fn registration(&self) -> &SourceRegistration {
+        &self.registration
+    }
     pub fn partition(&self) -> &SourcePartition {
         &self.partition
     }

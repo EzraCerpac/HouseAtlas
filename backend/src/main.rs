@@ -43,7 +43,7 @@ fn frontend(directory: &Path) -> Result<BTreeMap<String, (String, Vec<u8>)>, lif
                 if html.matches("id=\"root\"").count() != 1 {
                     return Err("Expected one React root".into());
                 }
-                bytes = html.replace("id=\"root\"", "id=\"root\" data-bootstrap-url=\"/api/atlas/view\" data-home-url-template=\"/api/atlas/homes/{workspaceId}/{homeId}/view\"").into_bytes();
+                bytes = html.replace("id=\"root\"", "id=\"root\" data-bootstrap-url=\"/api/atlas/view\" data-home-url-template=\"/api/atlas/homes/{workspaceId}/{homeId}/view\" data-session-url=\"/api/atlas/auth/session\" data-login-url=\"/api/atlas/auth/login\" data-logout-url=\"/api/atlas/auth/logout\"").into_bytes();
             }
             files.insert(key, (kind.into(), bytes));
         }
@@ -56,8 +56,15 @@ fn frontend(directory: &Path) -> Result<BTreeMap<String, (String, Vec<u8>)>, lif
     }
     Ok(files)
 }
+fn main() -> Result<(), lifecycle::Failure> {
+    // This binary creates only explicitly configured private disposable state.
+    // Establish the file-creation policy before starting runtime worker threads.
+    rustix::process::umask(rustix::fs::Mode::from_raw_mode(0o077));
+    run()
+}
+
 #[tokio::main]
-async fn main() -> Result<(), lifecycle::Failure> {
+async fn run() -> Result<(), lifecycle::Failure> {
     let config = Config::from_args().map_err(|e| format!("HouseAtlas settings: {e}"))?;
     let files = Arc::new(frontend(&config.frontend)?);
     let tls =
@@ -70,7 +77,11 @@ async fn main() -> Result<(), lifecycle::Failure> {
     let setup_origin = origin.clone();
     let core = tokio::task::spawn_blocking(move || lifecycle::prepare(&directory, &setup_origin))
         .await??;
-    let database_version = core.store.database_version();
+    let database_version = core
+        .store
+        .lock()
+        .map_err(|_| "Storage unavailable")?
+        .database_version();
     let host = Host::new(core, origin.clone(), files)?;
     println!(
         "SQLite {} / record database schema {}",
@@ -87,7 +98,7 @@ async fn main() -> Result<(), lifecycle::Failure> {
     });
     axum_server::from_tcp_rustls(listener, tls)?
         .handle(handle)
-        .serve(router(host).into_make_service())
+        .serve(router(host).into_make_service_with_connect_info::<std::net::SocketAddr>())
         .await?;
     Ok(())
 }

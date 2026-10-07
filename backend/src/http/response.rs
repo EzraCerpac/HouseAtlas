@@ -61,6 +61,7 @@ impl HttpFailure {
                 StatusCode::METHOD_NOT_ALLOWED
                 | StatusCode::BAD_REQUEST
                 | StatusCode::PAYLOAD_TOO_LARGE
+                | StatusCode::UNSUPPORTED_MEDIA_TYPE
                 | StatusCode::UNPROCESSABLE_ENTITY => c::ApiErrorCode::InvalidContract,
                 _ => c::ApiErrorCode::UpstreamUnavailable,
             },

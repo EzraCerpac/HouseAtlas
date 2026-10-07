@@ -1,5 +1,5 @@
-//! Success-only source/cache checkpoint. The timeout below is a successfully
-//! persisted synthetic status; no transport, denial, fault or failure injection
+//! Success-only source/cache checkpoint. The timeouts below are successfully
+//! persisted synthetic statuses; no transport, denial, fault or failure injection
 //! is performed. All rejection/replay/crash/concurrency controls stay unrun.
 #[allow(dead_code)]
 mod support;
@@ -103,7 +103,7 @@ fn main() -> CheckResult<()> {
     let initial: Snapshot = load(&root, "plan-free.snapshot.json")?;
     let mut store = AtlasStore::open(
         &path,
-        oracle.clone(),
+        oracle.storage_contract(),
         authorization.clone(),
         runtime.clone(),
         StoreOptions {
@@ -130,6 +130,18 @@ fn main() -> CheckResult<()> {
         prepared.state().cache_epoch
     );
     assert_eq!(prepared.fence().partition(), &homebox);
+    let durable_registration: SourceRegistration = serde_json::from_value(
+        initial
+            .sources
+            .iter()
+            .find(|source| {
+                source["sourceInstanceId"] == homebox.source_instance_id
+                    && source["collectionId"] == homebox.collection_id
+            })
+            .expect("synthetic registered source")
+            .clone(),
+    )?;
+    assert_eq!(prepared.fence().registration(), &durable_registration);
     assert!(!prepared.state().homebox_entities.is_empty());
     let mut projections = prepared.state().homebox_entities.clone();
     for projection in &mut projections {
@@ -158,10 +170,15 @@ fn main() -> CheckResult<()> {
         assert_eq!(old["sourceUpdatedAt"], new["sourceUpdatedAt"]);
         assert_eq!(old["entity"], new["entity"]);
     }
-    let failure = store.record_cache_failure(
+    let failure_prepared = store.prepare_cache_publication(&principal, &scope, &homebox)?;
+    assert_eq!(failure_prepared.fence().baseline_cache_epoch().value(), 1);
+    assert_eq!(
+        failure_prepared.fence().baseline_generation_id(),
+        published.generation_id.as_deref()
+    );
+    let failure = store.record_prepared_cache_failure(
         &principal,
-        &scope,
-        &homebox,
+        failure_prepared.into_parts().1,
         &CacheFailure {
             code: FailureCode::Timeout,
             status: None,
@@ -246,6 +263,29 @@ fn main() -> CheckResult<()> {
     assert!(network_prepared.state().cache.is_none());
     assert_eq!(network_prepared.state().cache_epoch, 0);
     assert!(!network_prepared.state().network_relations.is_empty());
+    let retained_network_relations = network_prepared.state().network_relations.clone();
+    let network_failure = store.record_prepared_cache_failure(
+        &principal,
+        network_prepared.into_parts().1,
+        &CacheFailure {
+            code: FailureCode::Timeout,
+            status: None,
+        },
+    )?;
+    assert_eq!(network_failure.status, CacheState::Error);
+    assert!(network_failure.generation_id.is_none());
+    let network_prepared = store.prepare_cache_publication(&principal, &scope, &network)?;
+    assert_eq!(
+        network_prepared.state().cache,
+        Some(network_failure.clone())
+    );
+    assert_eq!(network_prepared.state().cache_epoch, 1);
+    assert_eq!(network_prepared.fence().baseline_cache_epoch().value(), 1);
+    assert!(network_prepared.fence().baseline_generation_id().is_none());
+    assert_eq!(
+        network_prepared.state().network_relations,
+        retained_network_relations
+    );
     let relations = network_prepared.state().network_relations.clone();
     let network_cache = fresh(
         &network,
@@ -260,7 +300,7 @@ fn main() -> CheckResult<()> {
         &relations,
     )?;
     let network_state = store.read_cache_for_publication(&principal, &scope, &network)?;
-    assert_eq!(network_state.cache_epoch, 1);
+    assert_eq!(network_state.cache_epoch, 2);
     assert_eq!(network_state.network_relations, relations);
     let after = store.read_snapshot(&principal, &scope)?;
     assert_eq!(after.records, before.records);
@@ -276,7 +316,7 @@ fn main() -> CheckResult<()> {
     store.close()?;
     let mut reopened = AtlasStore::open(
         &path,
-        oracle.clone(),
+        oracle.storage_contract(),
         authorization,
         runtime,
         StoreOptions::default(),
@@ -324,13 +364,13 @@ fn main() -> CheckResult<()> {
         serde_json::to_vec_pretty(&json!({
         "lineage":DATABASE_LINEAGE,"sqliteVersion":rusqlite::version(),"recordRows":count("records")?,"bindingReservations":count("binding_reservations")?,
         "sourceRows":count("sources")?,"epochRows":count("cache_epochs")?,"reservedGenerations":count("cache_generations")?,
-        "completePublications":4,"successfulSyntheticStatusPublications":1,"homeboxEpoch":empty.cache_epoch,"newSourceEpoch":new_state.cache_epoch,"networkEpoch":network_state.cache_epoch,
-        "contractCalls":*oracle.counts.borrow(),"trustedAuthorizationCalls":*log,"retainedFailure":failure,"finalSnapshot":after,
-        "peerScope":"pure published contract oracle; synthetic authorization/runtime; no actual HomeBox/Network peer or source access",
+        "completePublications":4,"successfulSyntheticStatusPublications":2,"homeboxEpoch":empty.cache_epoch,"newSourceEpoch":new_state.cache_epoch,"networkEpoch":network_state.cache_epoch,
+        "contractCalls":*oracle.counts.borrow(),"trustedAuthorizationCalls":*log,"retainedFailure":failure,"networkFailure":network_failure,"finalSnapshot":after,
+        "peerScope":"AT51 native shapes/numeric types; offline published semantic/JCS oracle; synthetic authorization/runtime; no actual HomeBox/Network peer or source access",
         "deferred":"rejection, replay, quarantine/denial, fault/crash/concurrency, native peer integration, witness schemas"}))?,
     )?;
     println!(
-        "healthy cache checkpoint: 4 complete publications; 1 successful synthetic timeout-status publication; durable epochs 3/1/1; 5 generation reservations; records/bindings retained; healthy reopen"
+        "healthy cache checkpoint: 4 complete publications; 2 successful synthetic timeout-status publications; durable epochs 3/1/2; 5 generation reservations; records/bindings retained; healthy reopen"
     );
     println!("evidence: {}", directory.join("evidence.json").display());
     Ok(())

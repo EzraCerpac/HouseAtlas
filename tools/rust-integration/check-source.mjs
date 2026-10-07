@@ -1,4 +1,4 @@
-// Actual source compilation and two explicitly named healthy baseline examples.
+// Actual source compilation and three explicitly named healthy native examples.
 // No cargo test aggregate, checkpoint oracle, jobs replay, or stopped control.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -12,6 +12,7 @@ const run = (command, args) => {
   assert.equal(r.status, 0, command + ' ' + args.join(' '));
 };
 run('node', ['tools/rust-baseline/generate-contracts.mjs', '--check']);
+run('node', ['backend/src/contracts/stock/generate-catalog.mjs', '--check']);
 run('node', ['tools/rust-baseline/check-contracts.mjs']);
 run('node', ['packages/contracts/history/check-history.mjs']);
 run('cargo', ['fmt', '--all', '--check']);
@@ -19,7 +20,8 @@ run('cargo', ['check', '--locked', '-p', 'houseatlas-backend', '--lib', '--bins'
 run('cargo', ['clippy', '--locked', '-p', 'houseatlas-backend', '--lib', '--bins', '--examples', '--', '-D', 'warnings']);
 run('cargo', ['run', '--locked', '-p', 'houseatlas-backend', '--example', 'healthy-contracts']);
 run('cargo', ['run', '--locked', '-p', 'houseatlas-backend', '--example', 'healthy-dependencies']);
+run('cargo', ['run', '--locked', '-p', 'houseatlas-backend', '--example', 'healthy-native-semantics']);
 run('cargo', ['build', '--locked', '-p', 'houseatlas-backend', '--bin', 'houseatlas']);
 run('npm', ['--prefix', 'frontend', 'run', 'typecheck']);
 run('npm', ['--prefix', 'frontend', 'run', 'build']);
-console.log('PASS actual Rust library/binary/module source, strict TS React app, and two named healthy baseline examples');
+console.log('PASS actual Rust library/binary/module source, strict TS React app, and three named healthy native examples');

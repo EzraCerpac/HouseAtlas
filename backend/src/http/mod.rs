@@ -1,10 +1,19 @@
 //! Loopback TLS routes and browser DTO projection. No source/provider transport.
+mod admission;
+mod auth;
 pub mod contracts;
 mod headers;
+mod intake;
+mod media;
+mod mutations;
+mod pages;
+mod reads;
 mod response;
+mod stock_mutations;
+mod stock_reads;
 use crate::{
     access as a,
-    app::{Core, HomeAuthority, Reads, RequestPrincipal},
+    app::{Core, HomeAuthority, Reads, RequestPrincipal, capture_homes},
     domain as d,
 };
 use axum::{
@@ -13,7 +22,7 @@ use axum::{
     http::{Method, StatusCode, Uri, header},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
 };
 use headers::CheckedHeaders;
 use response::{HttpFailure, ResponseIds, private_headers};
@@ -29,6 +38,8 @@ pub struct Host {
     pub origin: String,
     pub files: Arc<BTreeMap<String, (String, Vec<u8>)>>,
     response_ids: Arc<ResponseIds>,
+    pages: Arc<Mutex<pages::Pages>>,
+    admission: Arc<admission::Admission>,
 }
 impl Host {
     pub fn new(
@@ -41,6 +52,8 @@ impl Host {
             origin,
             files,
             response_ids: Arc::new(ResponseIds::new()?),
+            pages: Arc::new(Mutex::new(pages::Pages::default())),
+            admission: Arc::new(admission::Admission::default()),
         })
     }
 }
@@ -85,16 +98,28 @@ fn domain_error(error: d::DomainError) -> HttpFailure {
 }
 async fn response_adapter(State(host): State<Host>, mut request: Request, next: Next) -> Response {
     let request_id = host.response_ids.next();
-    let checked = CheckedHeaders::read(request.headers(), request.version()).and_then(|headers| {
-        headers.check_authority(&host.origin, request.uri())?;
-        Ok(headers)
+    let admitted = host.admission.admit();
+    let checked = admitted.as_ref().map_err(Clone::clone).and_then(|permit| {
+        let headers =
+            CheckedHeaders::read(request.headers(), request.version()).map_err(access_error)?;
+        headers
+            .check_authority(&host.origin, request.uri())
+            .map_err(access_error)?;
+        Ok(headers.with_admission(permit.clone()))
     });
-    let mut response = match checked {
-        Ok(headers) => {
-            request.extensions_mut().insert(headers);
-            next.run(request).await
+    // Keep admission through response construction even when route extraction
+    // drops request extensions; blocking closures retain their separate clones.
+    let _admitted = admitted;
+    let mut response = if request.uri().path().contains('%') {
+        failure(StatusCode::FORBIDDEN).into_response()
+    } else {
+        match checked {
+            Ok(headers) => {
+                request.extensions_mut().insert(headers);
+                next.run(request).await
+            }
+            Err(error) => error.into_response(),
         }
-        Err(error) => access_error(error).into_response(),
     };
     if response.status().is_client_error() || response.status().is_server_error() {
         let error = response
@@ -135,46 +160,99 @@ fn evidence<'a>(
         csrf: headers.csrf.as_deref(),
     })
 }
-fn prepared_view(
+fn authorized_read<T>(
     host: &Host,
     headers: &CheckedHeaders,
     uri: &Uri,
     method: &Method,
     scope: Option<d::Scope>,
-) -> Result<d::CurrentOutput, HttpFailure> {
+    include_home_choices: bool,
+    operation: impl FnOnce(&mut Core, &RequestPrincipal, &d::HomeSummary) -> Result<T, HttpFailure>,
+) -> Result<T, HttpFailure> {
+    // Caller-selected scope syntax has the same 404 contract on every read
+    // route, before any session or data lookup. Trusted configured scopes are
+    // still checked by the access boundary in capture_homes.
+    if let Some(scope) = &scope {
+        crate::app::access_scope(scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
+    }
     let mut core = host
         .core
         .lock()
         .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-    let scope = scope.unwrap_or_else(|| core.home.scope.clone());
     let url = format!(
         "{}{}",
         host.origin,
         uri.path_and_query().map_or("/", |p| p.as_str())
     );
     let request = evidence(&host.origin, headers, uri, &url, method).map_err(access_error)?;
-    let principal = core
+    let mut choices = {
+        let mut access = core
+            .access
+            .lock()
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        if include_home_choices || scope.is_none() {
+            capture_homes(&mut access, &request, &core.homes).map_err(access_error)?
+        } else {
+            let scope = scope
+                .as_ref()
+                .ok_or_else(|| failure(StatusCode::NOT_FOUND))?;
+            let principal = access
+                .authorize(
+                    &request,
+                    &crate::app::access_scope(scope).map_err(|_| failure(StatusCode::NOT_FOUND))?,
+                    a::Action::Read,
+                )
+                .map_err(access_error)?;
+            let summary = core
+                .homes
+                .iter()
+                .find(|home| home.scope == *scope)
+                .cloned()
+                .ok_or_else(|| failure(StatusCode::NOT_FOUND))?;
+            vec![crate::app::CapturedHome { summary, principal }]
+        }
+    };
+    let selected = match scope {
+        Some(scope) => choices
+            .iter()
+            .position(|choice| choice.summary.scope == scope),
+        None => choices
+            .iter()
+            .position(|choice| choice.summary.scope == core.home.scope)
+            .or_else(|| (!choices.is_empty()).then_some(0)),
+    }
+    .ok_or_else(|| failure(StatusCode::NOT_FOUND))?;
+    let selected = choices.remove(selected);
+    let mut principal = RequestPrincipal::new(selected.principal);
+    principal.home_choices = choices;
+    let result = operation(&mut core, &principal, &selected.summary)?;
+    let access = core
         .access
         .lock()
-        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
-        .authorize(
-            &request,
-            &crate::app::access_scope(&scope).map_err(|_| failure(StatusCode::NOT_FOUND))?,
-            a::Action::Read,
-        )
-        .map_err(access_error)?;
-    let authority = HomeAuthority {
-        access: Arc::clone(&core.access),
-        home: core.home.clone(),
-    };
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    principal.release(&access).map_err(access_error)?;
+    Ok(result)
+}
+fn query_view(
+    core: &mut Core,
+    principal: &RequestPrincipal,
+    home: &d::HomeSummary,
+) -> Result<d::CurrentOutput, HttpFailure> {
     let mut queries = d::Queries {
-        store: Reads(&mut core.store),
-        access: authority,
+        store: Reads(
+            core.store
+                .get_mut()
+                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
+        ),
+        access: HomeAuthority {
+            access: Arc::clone(&core.access),
+            home: home.clone(),
+        },
     };
     queries
         .current(
-            &RequestPrincipal::new(principal),
-            &scope,
+            principal,
+            &home.scope,
             &crate::app::now().map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
             &[],
         )
@@ -229,9 +307,20 @@ async fn current(
     method: Method,
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
-        Ok(json_response(browser_view(prepared_view(
-            &host, &headers, &uri, &method, None,
-        )?)?))
+        let _admitted = headers.admission_permit()?;
+        authorized_read(
+            &host,
+            &headers,
+            &uri,
+            &method,
+            None,
+            true,
+            |core, principal, home| {
+                Ok(json_response(browser_view(query_view(
+                    core, principal, home,
+                )?)?))
+            },
+        )
     })
     .await
     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
@@ -244,7 +333,8 @@ async fn scoped(
     method: Method,
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
-        Ok(json_response(browser_view(prepared_view(
+        let _admitted = headers.admission_permit()?;
+        authorized_read(
             &host,
             &headers,
             &uri,
@@ -253,7 +343,13 @@ async fn scoped(
                 workspace_id,
                 home_id,
             }),
-        )?)?))
+            true,
+            |core, principal, home| {
+                Ok(json_response(browser_view(query_view(
+                    core, principal, home,
+                )?)?))
+            },
+        )
     })
     .await
     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
@@ -265,8 +361,19 @@ async fn rooms(
     method: Method,
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
-        let view = prepared_view(&host, &headers, &uri, &method, None)?;
-        Ok(json_response(browser_entries(view.rooms(false))?))
+        let _admitted = headers.admission_permit()?;
+        authorized_read(
+            &host,
+            &headers,
+            &uri,
+            &method,
+            None,
+            true,
+            |core, principal, home| {
+                let view = query_view(core, principal, home)?;
+                Ok(json_response(browser_entries(view.rooms(false))?))
+            },
+        )
     })
     .await
     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
@@ -278,8 +385,19 @@ async fn items(
     method: Method,
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
-        let view = prepared_view(&host, &headers, &uri, &method, None)?;
-        Ok(json_response(browser_entries(view.items(false))?))
+        let _admitted = headers.admission_permit()?;
+        authorized_read(
+            &host,
+            &headers,
+            &uri,
+            &method,
+            None,
+            true,
+            |core, principal, home| {
+                let view = query_view(core, principal, home)?;
+                Ok(json_response(browser_entries(view.items(false))?))
+            },
+        )
     })
     .await
     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
@@ -291,35 +409,45 @@ async fn homes(
     method: Method,
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
-        let view = prepared_view(&host, &headers, &uri, &method, None)?;
-        Ok(json_response(
-            serde_json::to_value(view.homes)
-                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
-        ))
+        let _admitted = headers.admission_permit()?;
+        let core = host
+            .core
+            .lock()
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        let url = format!(
+            "{}{}",
+            host.origin,
+            uri.path_and_query().map_or("/", |p| p.as_str())
+        );
+        let observed =
+            evidence(&host.origin, &headers, &uri, &url, &method).map_err(access_error)?;
+        let choices = {
+            let mut access = core
+                .access
+                .lock()
+                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+            capture_homes(&mut access, &observed, &core.homes).map_err(access_error)?
+        };
+        let response = json_response(
+            serde_json::to_value(
+                choices
+                    .iter()
+                    .map(|choice| &choice.summary)
+                    .collect::<Vec<_>>(),
+            )
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
+        );
+        let access = core
+            .access
+            .lock()
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        for choice in &choices {
+            access.revalidate(&choice.principal).map_err(access_error)?;
+        }
+        Ok(response)
     })
     .await
     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
-}
-async fn session(
-    State(host): State<Host>,
-    Extension(headers): Extension<CheckedHeaders>,
-    uri: Uri,
-    method: Method,
-) -> HttpResult {
-    tokio::task::spawn_blocking(move || {
-        let core = host.core.lock().map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-        let url = format!("{}{}", host.origin, uri.path_and_query().map_or("/", |p| p.as_str()));
-        let info = core.access.lock().map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?.session_info(&evidence(&host.origin, &headers, &uri, &url, &method).map_err(access_error)?).map_err(access_error)?;
-        let expires = time::OffsetDateTime::from_unix_timestamp_nanos(i128::from(info.expires_at_ms()) * 1_000_000).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?.format(&time::format_description::well_known::Rfc3339).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-        Ok(json_response(json!({"schemaVersion":1,"actorId":info.actor_id(),"csrfToken":info.csrf_token(),"expiresAt":expires})))
-    }).await.map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
-}
-async fn session_method_not_allowed() -> Response {
-    let mut response = failure(StatusCode::METHOD_NOT_ALLOWED).into_response();
-    response
-        .headers_mut()
-        .insert(header::ALLOW, axum::http::HeaderValue::from_static("GET"));
-    response
 }
 async fn static_file(State(host): State<Host>, uri: Uri) -> HttpResult {
     if uri.path() == "/favicon.ico" {
@@ -344,6 +472,10 @@ async fn static_file(State(host): State<Host>, uri: Uri) -> HttpResult {
 }
 pub fn router(host: Host) -> Router {
     Router::new()
+        .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/commands", post(stock_mutations::command))
+        .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}", get(stock_reads::record).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}/history", get(stock_reads::history).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/media/{workspace_id}/{home_id}/{digest}/{mode}", get(media::deliver).fallback(media::other))
         .route("/api/atlas/view", get(current))
         .route(
             "/api/atlas/homes/{workspace_id}/{home_id}/view",
@@ -352,12 +484,23 @@ pub fn router(host: Host) -> Router {
         .route("/api/atlas/rooms", get(rooms))
         .route("/api/atlas/items", get(items))
         .route("/api/atlas/homes", get(homes))
+        .route("/api/atlas/auth/login", post(auth::login))
         .route(
             "/api/atlas/auth/session",
-            get(session)
-                .head(session_method_not_allowed)
-                .fallback(session_method_not_allowed),
+            get(auth::session)
+                .head(auth::session_head)
+                .fallback(auth::session_head),
         )
+        .route("/api/atlas/auth/rotate", post(auth::rotate))
+        .route("/api/atlas/auth/logout", post(auth::logout))
+        .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}/mutations", post(mutations::single))
+        .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/mutations", post(mutations::batch))
+        .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/view", get(reads::view).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/records", get(reads::records).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/homebox/entities", get(reads::homebox).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/network/relations", get(reads::network).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}", get(reads::record).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}/history", get(reads::history).head(auth::session_head).fallback(auth::session_head))
         .fallback(get(static_file))
         .layer(middleware::from_fn_with_state(
             host.clone(),

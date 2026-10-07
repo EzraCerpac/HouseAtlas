@@ -1,0 +1,31 @@
+/* Application session controls use the published enamel tokens and fields. */
+.session-form {
+  display: grid;
+  gap: 18px;
+  max-width: 440px;
+  margin-top: 20px;
+}
+.session-form label span {
+  display: block;
+  font-family: var(--sign);
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+.session-form input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1.5px solid var(--field);
+  border-radius: 9px;
+  background: var(--enamel);
+}
+.session-form button {
+  justify-self: start;
+}
+.session-error:empty {
+  display: none;
+}
+.session-error {
+  margin: 0;
+  color: var(--ochre-ink);
+}

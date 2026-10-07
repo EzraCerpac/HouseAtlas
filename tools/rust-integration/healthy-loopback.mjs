@@ -130,11 +130,18 @@ try {
   if (process.env.HOUSEATLAS_EVIDENCE) writeFileSync(process.env.HOUSEATLAS_EVIDENCE, JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));
 } finally {
-  if (cdp && browser?.exitCode === null) await cdp.send('Browser.close').catch(() => {});
-  if (service?.exitCode === null) {
-    service.kill('SIGINT');
-    await until(() => service.exitCode !== null, 'graceful Rust shutdown', 10000);
-    assert.equal(service.exitCode, 0, 'Graceful ordinary shutdown');
+  try {
+    if (cdp && browser?.exitCode === null) await cdp.send('Browser.close').catch(() => {});
+    if (browser?.exitCode === null) await until(() => browser.exitCode !== null, 'ordinary Chromium shutdown', 10000);
+  } finally {
+    try {
+      if (service?.exitCode === null) {
+        service.kill('SIGINT');
+        await until(() => service.exitCode !== null, 'graceful Rust shutdown', 10000);
+        assert.equal(service.exitCode, 0, 'Graceful ordinary shutdown');
+      }
+    } finally {
+      rmSync(scratch, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+    }
   }
-  rmSync(scratch, { recursive: true, force: true });
 }

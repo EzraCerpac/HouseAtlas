@@ -28,15 +28,34 @@ revisions remain required. The same conversion compares asset `byteSize` with
 trusted byte proofs, including typed commands whose JSON payload contains
 `16.0`. These conversions do not rewrite payloads or change JCS/digest semantics;
 revision minima and schema-version constants remain mandatory Contract checks.
-AT51 must enable serde_json's `float_roundtrip` feature for correctly rounded
-decimal/exponent parsing before constructing these carriers or a `Value`.
-Default parsing rounds the accepted `9007199254740991.0` boundary down by one;
-storage cannot recover precision already lost by an ingress parser. This feature
-does not supply RFC 8785 serialization; that remains the Contract peer's job.
+Accepted signed-zero spellings retain zero meaning for nonnegative epochs.
+Native composition reuses AT51's `JsonInteger` checked lexical envelope and
+exact integral classification before the bounded conversion. This also covers
+storage-only epoch envelopes. The selected native build requires paired
+serde_json `arbitrary_precision` and jsonschema `arbitrary-precision` features.
+The shared native ingress parser additionally requires serde_json `raw_value`.
+`float_roundtrip` is retained for correctly rounded floating parsing when used;
+an already rounded ingress `Value` cannot recover its original precision.
+Neither feature supplies RFC 8785 serialization; that remains the Contract
+peer's job. No historically lossy parse/digest is reinterpreted by this patch.
 The local carriers in `types.rs` preserve published wire names and schema 1;
 they are a narrow storage port pending reconciliation with AT51's generated
 types, not a replacement schema generation pipeline. Payloads and source/cache
 projection rows remain exact JSON data, validated by the contract peer.
+
+`NativeContract<C>` composes `crate::contracts` at published AT51 checkpoint
+`6b3029cbbcf1462ecdeecc62a56c24f66e034057` with a required semantic peer `C`.
+It dispatches the storage input shapes, including the stock mapper's `guard`,
+and `snapshot`, `record`, `audit` and `mutationResult` output shapes to native DTOs via
+`contracts::decode<T>`, and validates snapshot/result shapes before delegation.
+Shared numeric processing errors retain AT51's static explanation under the
+existing `invalid-contract` storage error code; no input tokens are exposed.
+It implements no graph, transition, guard, final-command, result-correlation,
+JCS or timestamp fallback. AT51 owns these pure semantic methods; AT52 composes
+the peer through the unchanged storage `Contract` trait. Root manifests and
+generated types remain owned by their maintainers. This composition follows PR7's separately
+reviewed numeric correction `816ba441ba1076eae426f69ac8b7c5177745ab53`;
+its changes remain within the storage namespace.
 
 `Authorization` supplies a server-owned principal type and synchronously returns
 verified scope/actor claims. There is no default allow adapter. Mutation requests
@@ -59,6 +78,14 @@ require matching staged-byte SHA-256 and byte size; storage opens no media path.
 Public operations are `open`, `initialize_synthetic`, `execute`, `execute_batch`,
 `execute_json`, `execute_batch_json`, `read_record`, `history`,
 `read_asset_manifest`, `read_snapshot`, `database_version`, and consuming `close`.
+`execute_json_with_authorization` and `execute_batch_json_with_authorization`
+accept a synchronous borrowed peer `B: Authorization<Principal = A::Principal>`.
+They use the same private connection and command engine as the default methods.
+The supplied peer handles intake, validate, candidate and precommit, or intake,
+replay and replay-precommit; no phase falls back to the stored authorizer.
+The caller's peer retains its original authority handles across phases; it is
+neither cloned nor stored after return. These methods open no second connection
+and expose no SQL handle, future or transaction callback.
 Use the JSON entrypoints for untrusted parsed commands; the ingress parser must
 first reject duplicate keys and enforce request limits. Typed command entrypoints
 are for server-constructed or already validated carriers. `history` returns the
@@ -86,7 +113,8 @@ root manifest, generated contract or migration schema.
 Additional operations are `register_source`, `register_source_json`,
 `read_cache_for_publication`, `prepare_cache_publication`,
 `publish_prepared_generation`, `replace_cache_generation`,
-`replace_cache_generation_json`, and `record_cache_failure`. Source registration
+`replace_cache_generation_json`, `record_prepared_cache_failure`, and legacy
+`record_cache_failure`. Source registration
 is immutable and scope-checked, validates the complete candidate graph, and creates
 the partition epoch atomically. Configuration uses `ConfigureSource`; publication
 state and writes use `PublishCache`, with trusted source selectors and identical
@@ -116,9 +144,14 @@ opaque authority epoch/handle. The raw trusted publication envelope retains the
 published integer epoch representation. No adapter may reread a newer epoch or
 rebase a completed fetch.
 
-`record_cache_failure` records sanitized metadata and advances the partition
-epoch while retaining its successful generation and projection rows. Revoked
-status is sticky until a complete fresh publication succeeds. Cache writes do
+`record_prepared_cache_failure` consumes the original issuing-store fence and
+compares its full durable registration, baseline generation and cache epoch in
+the failure write transaction before recording sanitized metadata. It advances
+the partition epoch while retaining the successful generation and projection
+rows, and does not reserve the selected candidate generation UUID. Native source
+adapters use this fenced path; `record_cache_failure` remains a legacy unfenced
+entry point. Revoked status is sticky until a complete fresh publication succeeds.
+Cache writes do
 not create Atlas record audits or mutation receipts. Empty complete generations
 clear only projection rows and retain records and binding reservations. All
 these writes use the same connection and fixed internal SQL as bootstrap; no
@@ -126,11 +159,15 @@ second service framework or raw database handle is exposed.
 
 ## Database and dependencies
 
-The new lineage is `houseatlas-rust-storage/1`, database version 1, distinct from
+The new lineage is `houseatlas-rust-storage/1`, database version 2, distinct from
 published JS database version 3 and record schema 1. `0001_rust_core.sql` starts
 from an empty database, including published durable receipts/reservations/epochs
 in its initial schema. Its own checksum ledger and lineage/contract metadata are
-verified on reopen. Unrecognized databases with existing schema objects,
+verified as an exact ordered prefix before an additive Rust-only upgrade.
+`0002_stock_intents.sql` retains first-admitted stock envelopes, permanent
+scope/actor key ownership, ordered operation groups, native receipt/audit links
+and opaque history cursors. It does not backfill native-only receipts.
+Unrecognized databases with existing schema objects,
 altered history, other lineages and future versions are refused. There is no
 JS import/adoption/downgrade path. WAL,
 synchronous FULL, foreign keys and a configurable 0–60000 ms busy timeout are set
@@ -141,8 +178,9 @@ Proposed pinned direct dependencies for AT51:
 
 ```toml
 rusqlite = { version = "=0.40.2", features = ["bundled"] }
-serde = { version = "=1.0.228", features = ["derive"] }
-serde_json = { version = "=1.0.149", features = ["float_roundtrip"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = { version = "=1.0.151", features = ["arbitrary_precision", "float_roundtrip", "raw_value"] }
+jsonschema = { version = "=0.58.6", default-features = false, features = ["arbitrary-precision"] }
 sha2 = "=0.10.9"
 ```
 
@@ -153,8 +191,10 @@ to the checkout; the resulting bundled SQLite is 3.53.2 through
 ## Healthy checkpoint
 
 `checks/healthy.rs` compiles and executes the actual Rust storage source using a
-fresh disposable file database. `checks/oracle.mjs` supplies the exact published
-pure contract functions over child-process stdin/stdout; it opens no listener
+fresh disposable file database. All three executables now compose actual AT51
+native shapes/numeric classification with the check-only semantic peer.
+`checks/oracle.mjs` supplies the exact published graph/transition/JCS functions
+over child-process stdin/stdout; it opens no listener
 and invokes no tests or providers. The checkpoint compares every Rust mutation
 context with the published extractor. Authorization/time/IDs are explicit
 synthetic peers, and no available asset is staged. This oracle is a temporary
@@ -168,12 +208,18 @@ arbitrary HomeBox types, explicit nullable type flags, unknowns and original dat
 remain unchanged. It exercises room/item atomic create, item replace/tombstone/
 restore, a circuit create, ordered binding retirement/create/journal, scoped
 queries, empty seeded history, retained tombstone read, and healthy reopen.
+It also validates the final committed snapshot, restored item, four ordered
+item audits and committed circuit result through the exact native output shape
+names used by the domain and service bridges. The circuit's original evidence
+guard exercises the stock mapper's explicit `guard` shape dispatch.
 
 An external Cargo harness named `houseatlas-at07-checkpoint` has these dependencies,
 `src/lib.rs` containing the following, and a `healthy` binary pointing to the
 checked-in checkpoint source:
 
 ```rust
+#[path = "/tmp/houseatlas-at07-native-composition/peer/backend/src/contracts/mod.rs"]
+pub mod contracts;
 #[path = "/workspace/HouseAtlas/backend/src/storage/mod.rs"]
 pub mod storage;
 ```
@@ -201,13 +247,13 @@ After inspecting the check files, run only this scoped new lane:
 
 ```sh
 source /workspace/.houseatlas-setup/rust-react-sqlite/activate.sh
-cargo fmt --check --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml
-cargo check --locked --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml
-cargo clippy --locked --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml --all-targets -- -D warnings
+cargo fmt --check --manifest-path /tmp/houseatlas-at07-native-composition/Cargo.toml
+cargo check --locked --manifest-path /tmp/houseatlas-at07-native-composition/Cargo.toml
+cargo clippy --locked --manifest-path /tmp/houseatlas-at07-native-composition/Cargo.toml --all-targets -- -D warnings
 node --check backend/src/storage/checks/oracle.mjs
-HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml --bin healthy -- /tmp/houseatlas-at07-checkpoint-1
-HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml --bin cache-healthy -- /tmp/houseatlas-at07-cache-checkpoint-1
-HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-harness/Cargo.toml --bin numeric-healthy -- /tmp/houseatlas-at07-numeric-checkpoint-1
+HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-native-composition/Cargo.toml --bin healthy -- /tmp/houseatlas-at07-native-record-1
+HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-native-composition/Cargo.toml --bin cache-healthy -- /tmp/houseatlas-at07-native-cache-1
+HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-native-composition/Cargo.toml --bin numeric-healthy -- /tmp/houseatlas-at07-native-numeric-1
 ```
 
 The output directory must be fresh. The successful run records 9 committed
@@ -219,10 +265,10 @@ results/history/snapshot, exact callback counts, lineage and SQLite version.
 
 The cache executable successfully publishes four complete synthetic generations,
 including an empty HomeBox generation, a newly registered empty source and a
-Network relation-only generation. One successful synthetic timeout-status write
-retains prior rows; it involves no transport or injected fault. It verifies
+Network relation-only generation. Two successful synthetic timeout-status writes
+retain prior rows without transport or injected faults. The executable verifies
 fractional/offset timestamp ordering with unchanged source dates, partition epochs
-3/1/1, five permanently retained generation IDs, fourteen retained records,
+3/1/2, five permanently retained generation IDs, fourteen retained records,
 three retained binding reservations, zero Atlas audits/receipts and healthy
 reopen. It uses no actual HomeBox/Network peer, authorization grant or source
 access. Successful examples do not qualify rejection or concurrent publication.
@@ -238,15 +284,83 @@ serde JSON distinguishes integer and floating representations internally.
 No negative input or held control is executed; the synthetic bytes do not
 qualify real staged-media/filesystem integration.
 
+## Stock intent transactions and history
+
+`execute_stock_json_with_authorization` requires the exact stock schema peer and
+one borrowed `StockAuthorization` for the original principal. The published
+domain planner and commit mapper supply accepted carriers and result schemas.
+Stock intake precedes receipt lookup. Native and stock authority checks run at
+each phase on the same transaction and captured original graph. Separate batch
+root guards extend stock closure without changing child guards/native contexts.
+Final graph and per-command checks still precede every write.
+
+Single commands retain one server operation UUID. Batches retain a root UUID
+and ordered child UUIDs. Key ownership spans root and child roles under
+workspace/home/actor; a native-only receipt cannot be promoted to a stock
+receipt. Retained envelopes, intent digests, actual native results and audit
+links commit together. Replay code validates those rows and original native
+digests, then renews only allowed root correlation fields in the returned
+projection. It never reconstructs old outcomes from current records. Replay
+behavior has not been executed as qualification.
+
+`stock_history_json_with_authorization` uses actual audit sequence order and a
+fixed watermark. Cursors are opaque server UUIDs stored with the actor, scope,
+target and exact query. Every page reauthorizes history and output. All relevant
+audits must have original stock linkage before filtering/paging; unavailable
+native prehistory is not silently omitted. `q` is a literal case-sensitive
+substring of original command ID or committed state. Both `includeArchived`
+values preserve historical tombstones and bind the continuation query.
+
+`checks/stock-healthy.rs` executes fresh create/replace/ordered batch commands,
+two history pages, matching search and reopened durable rows. Its schema peer
+uses the actual published native stock validator and embedded offline wire3/Atlas
+resources. Its graph/JCS/result/raw-transition/timestamp peer invokes the
+published Rust semantic functions directly. Authority/runtime are synthetic.
+No JS oracle,
+provider call or held control runs in that checkpoint. Binding presence triggers
+derive from actual original/candidate records through the domain predicate and
+remain held until atomic witness qualification exists.
+
+## Native recovery images
+
+`backup_recovery_to(&mut self, destination, check)` uses this store's owned
+connection and SQLite backup API. It reserves an absent private staging file,
+copies in bounded page steps, closes a standalone DELETE-journal image and
+calls `validate_recovery_image(&self, database, check)` on read-only bytes.
+`RecoveryImage` returns exact contract/lineage/schema metadata and all retained
+asset records. Media owns physical originals, image hashes, sync and publication.
+The required check callback is an authority/progress check and receives no SQL.
+The deadline is cooperative between SQLite/contract calls.
+
+Validation compares exact migration checksums, metadata and actual schema
+catalog, integrity/FKs, every native body and SQL key, full unredacted graph,
+binding reservations, asset manifests, cache generations/epochs, receipt/audit
+chains and ordered batch linkage.
+Adjacent retained versions also preserve tombstone/restore canonical payloads
+and pass the required native transition peer's immutable-field and append-only
+replacement rules. That check derives a transition projection from actual
+retained outcomes; it supplies no original command or historical guard proof.
+The first noncreate audit can follow an unaudited seed with no retained preimage.
+Original native command/guard envelopes are
+absent from v1 receipts, so their hashes cannot honestly be reconstructed; hash
+syntax and persisted key/result/audit linkage are checked. These requested
+native-only signatures lack a stock schema peer and fail closed on a nonempty
+stock journal. Full stock recovery requires an explicit stock-aware companion.
+`checks/recovery-healthy.rs` uses actual Rust native semantics and synthetic
+authority/runtime for capture, read-only validation, all-row equality and native
+reopen. No JS oracle, corruption/crash control or physical-original qualification
+runs in this checkpoint. Root reconciliation must enable rusqlite `backup`.
+
 ## Remaining integration and qualification
 
-Native Rust Contract and branded Authorization/Runtime peers are required before
-application integration. AT51 must reconcile carriers/dependencies and connect
-the crate module; this lane does not change its manifests or generated types.
+The full native semantic Contract and branded Authorization/Runtime peers remain
+required before application integration. AT51 must reconcile carriers/dependencies
+and connect the crate module; this lane does not change its manifests or generated types.
 The HomeBox service owner must reconcile its expanded publication fence and
 opaque complete generation with the store's consuming fence; a native compiled
-cross-owner adapter has not been exercised. Durable Network sidecars and sanitized
-wire3/generation/epoch witness schemas are absent from the published inputs.
+cross-owner adapter has not been exercised in this storage lane. Durable Network
+sidecars and atomic source-presence witness persistence remain unimplemented.
+Sanitized wire3/presence schemas are available as published inputs.
 No storage context, projection or caller source-state claim grants new provider
 presence admission.
 

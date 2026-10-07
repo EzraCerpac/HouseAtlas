@@ -1,4 +1,4 @@
-name: Rust React ordinary slice
+name: Rust React ordinary core
 on:
   pull_request:
     branches: [main]
@@ -51,9 +51,42 @@ jobs:
           HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
           HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
         run: node tools/rust-integration/healthy-loopback.mjs
+      - name: Real disposable auth reads and fresh local writes
+        if: runner.os == 'Linux'
+        env:
+          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
+          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+        run: node tools/rust-integration/healthy-core-loopback.mjs
+      - name: Real disposable owned media commits and GET HEAD delivery
+        if: runner.os == 'Linux'
+        env:
+          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
+          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+        run: node tools/rust-integration/healthy-media-loopback.mjs
+      - name: Real disposable native stock circuit and asset reads
+        if: runner.os == 'Linux'
+        env:
+          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
+          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+        run: node tools/rust-integration/healthy-stock-loopback.mjs
+      - name: Real disposable fresh stock circuit and atomic identity batch
+        if: runner.os == 'Linux'
+        env:
+          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
+          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+        run: node tools/rust-integration/healthy-stock-write-loopback.mjs
+      - name: Real disposable native stock audit first pages and search
+        if: runner.os == 'Linux'
+        env:
+          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
+          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+        run: node tools/rust-integration/healthy-stock-history-loopback.mjs
       - name: Record scope
+        # Stock read/write/history runners add four/ten/three healthy requests respectively.
         if: always()
         run: |
-          printf '%s\n' 'Actual locked Rust/TS source compilation and two named healthy examples; Linux additionally runs actual SQLite/access/domain/React loopback TLS reads.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'Actual locked Rust/TS source compilation and three named healthy examples; Linux additionally runs actual SQLite/access/domain/React loopback TLS reads, session/login/logout, fresh circuit create, atomic local identity batch, fresh owned PNG/text commits, actual download GET/HEAD and safe-rendered PNG preview; genuine native stock circuit/asset reads compared with actual frozen SQLite rows.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'macOS source compilation is separate from target NAS build/runtime qualification and supplies no target release.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'All stopped rejection, guards, replay, expiry, revocation, fault, crash, concurrency and provider controls remain unrun.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'The named stock write runner adds only fresh local circuit create and an ordered identity-create batch through the actual original AT11 fence and native atomic stock journal, with frozen record/history readback and read-only durable journal counts.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'The named stock history runner adds three first-page/search reads over genuine stock-owned audits; nonnull cursor continuation is not demonstrated.' >> "$GITHUB_STEP_SUMMARY"
