@@ -53,6 +53,47 @@ where
             credentials: &self.credentials,
         }
     }
+    /// Only these synchronous prerequisites precede OAuth begin/credential or
+    /// launch work. A known failure ends this local workflow, not authentication
+    /// or provider processing; later ambiguous lifecycle failures stay held.
+    fn prepare_launch<C>(
+        &self,
+        context: &C,
+        binding: &RegistrationBinding,
+        action_id: &str,
+        route: Option<RuntimeRoute>,
+    ) -> Result<CallbackSelection, AiError>
+    where
+        E: LifecycleEnvironment<C>,
+    {
+        let selection = (|| {
+            if let Some(route) = route {
+                self.environment.select_candidate(context, route)?;
+            }
+            self.environment.callback_selection(context)
+        })();
+        if let Err(reason) = selection {
+            // Preserve cached identity/configuration only. Neither failure nor
+            // the terminal workflow receipt supplies fresh inference authority.
+            let mut snapshot = self.environment.cached_display(context);
+            snapshot.permission = crate::ai::InferencePermission::Unknown;
+            snapshot.eligibility = crate::ai::Eligibility::Unknown;
+            snapshot.paid_use_admission = crate::ai::PaidUseAdmission::Held;
+            snapshot.runtime.qualification = crate::ai::RuntimeQualification::Held;
+            snapshot.runtime.availability = crate::ai::RuntimeAvailability::Unknown;
+            snapshot.runtime.checked_at = None;
+            let result = ConnectionActionResult {
+                action_id: action_id.into(),
+                status: ConnectionActionStatus::Completed,
+                snapshot,
+            };
+            self.journal
+                .action_prelaunch_failure(binding, action_id, json!(&result), reason)?;
+        }
+        // Preserve the original typed failure on the action call. An original-ID
+        // status read can subsequently retire its known terminal workflow.
+        selection
+    }
     /// Called only by the trusted callback host retaining query duplicates and
     /// the exact actual callback URI. This is deliberately absent from HTTP IPC.
     pub async fn complete<C>(
@@ -249,15 +290,11 @@ impl<
             let mut disconnected_snapshot = None;
             let status = match request.command {
                 ConnectionAction::Connect { route } => {
-                    self.environment.select_candidate(context, route)?;
+                    let selection =
+                        self.prepare_launch(context, &binding, &request.action_id, Some(route))?;
                     let launch = self
                         .lifecycle()
-                        .begin(
-                            context,
-                            &binding,
-                            self.environment.callback_selection(context)?,
-                            SignInPurpose::Identity,
-                        )
+                        .begin(context, &binding, selection, SignInPurpose::Identity)
                         .await?;
                     let launch_url = url::Url::parse(launch.trusted_authorization_url())
                         .map_err(|_| AiError::InvalidInput)?;
@@ -287,14 +324,11 @@ impl<
                     ConnectionActionStatus::Pending
                 }
                 ConnectionAction::Consent => {
+                    let selection =
+                        self.prepare_launch(context, &binding, &request.action_id, None)?;
                     let launch = self
                         .lifecycle()
-                        .begin(
-                            context,
-                            &binding,
-                            self.environment.callback_selection(context)?,
-                            SignInPurpose::EnablePlanUse,
-                        )
+                        .begin(context, &binding, selection, SignInPurpose::EnablePlanUse)
                         .await?;
                     let launch_url = url::Url::parse(launch.trusted_authorization_url())
                         .map_err(|_| AiError::InvalidInput)?;

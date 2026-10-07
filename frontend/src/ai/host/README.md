@@ -108,7 +108,12 @@ each update, including same-size status changes and retirement. A private
 opening flag propagates active browser transport to aliases and blocks another
 same-scope action; it does not establish a retryable host receipt. Settlement
 or disposal clears that flag while retaining unresolved original IDs. Account
-facts stay local. Status reconciliation skips active opening rows. Disposal removes those observers;
+facts stay local. Clearing browser opening progress does not acknowledge host
+completion: the separate last accepted `hostStatus` remains null/pending until
+the host actually supplies an unconfirmed receipt. UI and hook share that
+observed-receipt retry predicate. An original-ID read can reconcile a lost
+response without replay; a failed read preserves the last observed status.
+Status reconciliation skips active opening rows. Disposal removes those observers;
 correlation rows retain no view/client. Every new connection action uses the
 same capacity predicate. Matching completion retires revised metadata; stale
 nonterminal observations cannot replace a newer row or restore a retired one.
@@ -226,6 +231,18 @@ pass with zero runtime exceptions. Strict TypeScript checking and the
 production build also pass. Capacity exhaustion, negative/omitted DTO,
 overlapping opening/status calls, concurrency and all held controls remain
 unexecuted; superseded-call cleanup is source inspected only.
+
+`runFocusedTerminalWorkflowChecks(container, peerJson, prelaunchPeerJson)` is
+separate explicit validation requested for PR54 findings4210200212/4210200228.
+A returned Rust Stopped DTO releases the local active slot and retains the
+stopped/provider-unconfirmed display and usage; a fresh explicit request uses
+another ID. It does not interrupt provider I/O or confirm provider completion.
+A synthetic Connect rejection is reconciled using the actual Rust host's
+persisted prelaunch-failure receipt, with two explicit fresh IDs and two
+original-ID reads. The terminal workflow DTO grants no inference/runtime
+authority. These two narrow checks extend the ten healthy groups; historical
+failure, rejection/replay, expiry/revocation and concurrency controls outside
+these explicitly requested paths remain held.
 
 No live login/inference/provider/account operation, new credential/grant,
 spending or deployment occurs. Historical stopped rejection/replay/expiry/

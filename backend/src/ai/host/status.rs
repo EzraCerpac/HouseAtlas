@@ -327,6 +327,52 @@ impl StatusJournal {
         }
         Ok(())
     }
+    /// Known synchronous failure before OAuth begin/launch. Keep the original
+    /// command and typed cause as private evidence, atomically with the terminal
+    /// workflow receipt. This does not confirm provider/credential outcomes.
+    pub(crate) fn action_prelaunch_failure(
+        &self,
+        binding: &RegistrationBinding,
+        id: &str,
+        result: Value,
+        reason: AiError,
+    ) -> Result<(), AiError> {
+        let mut db = self.db()?;
+        let transaction = db.transaction().map_err(db_error)?;
+        let scope = action_scope_key(binding)?;
+        let command: String = transaction
+            .query_row(
+                "SELECT payload FROM ai_host_status WHERE scope=?1 AND id=?2
+                 AND kind='action' AND state='unconfirmed'",
+                params![scope, id],
+                |row| row.get(0),
+            )
+            .map_err(db_error)?;
+        let command: Value =
+            serde_json::from_str(&command).map_err(|_| AiError::DomainUnavailable)?;
+        transaction
+            .execute(
+                "INSERT INTO ai_host_observation(scope,id,category,payload) VALUES(?1,?2,?3,?4)",
+                params![
+                    scope_key(binding)?,
+                    id,
+                    "action-prelaunch-failure",
+                    json!({"command": command, "reason": reason}).to_string()
+                ],
+            )
+            .map_err(db_error)?;
+        let changed = transaction
+            .execute(
+                "UPDATE ai_host_status SET state='observed',payload=?3
+             WHERE scope=?1 AND id=?2 AND kind='action' AND state='unconfirmed'",
+                params![scope, id, result.to_string()],
+            )
+            .map_err(db_error)?;
+        if changed != 1 {
+            return Err(AiError::DomainUnavailable);
+        }
+        transaction.commit().map_err(db_error)
+    }
     pub(crate) fn correlate_launch(
         &self,
         binding: &RegistrationBinding,

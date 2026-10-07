@@ -156,13 +156,13 @@ export interface UnresolvedConnectionAction {
   readonly actionId: string;
   readonly action: ConnectionAction['action'];
   readonly status: 'pending' | 'unconfirmed';
+  /** Last accepted host receipt; local transport failure is not an observation. */
+  readonly hostStatus: 'pending' | 'unconfirmed' | null;
 }
 
 export type RequestState =
   | { readonly status: 'idle' }
   | { readonly status: 'running' | 'unconfirmed'; readonly requestId: string; readonly cancellation: CancellationState }
-  | { readonly status: 'unconfirmed'; readonly requestId: string; readonly cancellation: CancellationState;
-      readonly outcome: Extract<RunOutcome, { readonly status: 'stopped' }> }
   | { readonly status: 'awaiting-review'; readonly requestId: string; readonly outcome: ReviewRequired; readonly cancellation: CancellationState }
   | { readonly status: 'domain-held'; readonly requestId: string; readonly outcome: DomainHeld; readonly cancellation: CancellationState }
   | { readonly status: 'finished'; readonly requestId: string; readonly outcome: RunOutcome }

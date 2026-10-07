@@ -42,8 +42,11 @@ examples containing synthetic authority peers are compilation inputs only.
 
 Source checks do not qualify an operational AI slice. Genuine enrollment,
 encrypted credentials, model/catalog, canonical continuation and trusted human
-approval remain missing. Current backend admission source findings and exact
-integrated review also remain pending. No AI request, OS credential call, live
+approval remain missing. Admission is durably recorded before model selection. A selection failure retains
+the original request correlation, typed reason and unknown usage. Prelaunch
+selection failures retain terminal lifecycle receipts; local Stopped outcomes
+release the browser slot while preserving provider uncertainty. Exact integrated
+review remains pending. No AI request, OS credential call, live
 account/provider/NAS, remote listener, spend, credential/grant provisioning or
 deployment occurs. All stopped negative/rejection, guard mutation, replay,
 expiry/revocation, denial, fault/crash and concurrency controls remain unrun.

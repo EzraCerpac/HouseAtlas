@@ -94,6 +94,34 @@ writes status, observed usage and diagnostics in a dedicated supplied SQLite
 connection. Unknown usage remains null. Storage failure in infallible usage
 callbacks latches cancellation before another tool can prepare.
 
+A returned `Stopped` ends local processing, even though the durable request
+remains unconfirmed about provider completion. The browser releases that local
+inference slot while retaining the returned usage, request ID and uncertainty.
+The host does not fabricate provider completion or change this journal state.
+
+Candidate selection and callback selection are known synchronous prerequisites
+before OAuth begin, credential acquisition or launch. If either fails, the host
+atomically journals the original command/typed cause and a terminal local
+workflow receipt under the original action ID, then returns the original typed
+error. An original-ID status read can retire that failed workflow. Its
+`Completed` status means only local workflow closure; cached identity display
+is preserved but eligibility, permission, paid-use admission and runtime
+qualification/readiness remain held. Later OAuth-begin/launch uncertainty is
+not reclassified by this correction.
+
+`prelaunch_failure_checks.rs` contains the explicitly requested candidate and
+callback selection failure checks. It is an unmounted external test target,
+outside ordinary healthy CI. A disposable manifest uses this exact source file
+with `houseatlas-backend` as a path dependency and the already-approved Tokio,
+rusqlite, serde_json and tempfile versions. Run the target locked/offline with
+`--test-threads=1`. Its failing synchronous synthetic selectors invoke no
+security, credential, provider, launch, snapshot-I/O or inference port. Two fresh
+IDs per check yield terminal original-ID receipts with held admission; SQLite
+reopen preserves receipts and original input/cause. Optional
+`HOUSEATLAS_FOCUSED_PEER_OUTPUT` exports credential-free synthetic DTOs to an
+explicit private folder for the focused browser check. Other held controls
+remain unexecuted.
+
 `NativeHostContext`, `NativeHostAuthority` and `NativeReadStock` reuse the original
 opaque AT11 principal, native schemas and shared stock catalog/service. Explicit
 read admissions exclude providers and mutations. Reviewed writes still require

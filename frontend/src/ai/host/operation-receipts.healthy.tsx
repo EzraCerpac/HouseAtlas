@@ -1,8 +1,9 @@
-/** Positive Rust DTO/browser composition only. Account and transport peers are
- * synthetic; no held-step dispatch, remote revocation or failure injection. */
+/** Rust DTO/browser composition with synthetic peers. Focused terminal-stop and
+ * prelaunch failure checks below are explicitly requested; other held controls
+ * remain unrun. No held-step dispatch, remote revocation or provider operation. */
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { AiHost, AiSettingsSection } from './AiHost.js';
+import { AiHost, AiSettingsSection, AiActivityStatus } from './AiHost.js';
 import { bindAiHostPort } from './client.js';
 import { decodeRequestStatus, decodeRunOutcome } from './decode.js';
 import { decodeConnectionActionResult } from '../wire.js';
@@ -21,7 +22,8 @@ function assert(value: unknown, message: string): asserts value {
 function AliasPanel({ client, scopeKey, name }: { client: AiClient; scopeKey: string; name: string }) {
   const session = useAiSession(client, scopeKey);
   return <div data-alias={name}>
-    <output data-action-state={session.state.connectionAction.status}>{session.state.connectionAction.status}</output>
+    <output data-action-state={session.state.connectionAction.status}
+      data-host-status={session.unresolvedConnectionActions[0]?.hostStatus ?? 'none'}>{session.state.connectionAction.status}</output>
     <AiPanelView state={session.state} scopeLabel="Synthetic alias home" prompt="" onPromptChange={() => {}}
       onSubmit={() => {}} onCancel={() => {}} onReview={() => {}} onRecover={() => {}}
       onRefresh={() => { void session.refresh(); }}
@@ -97,13 +99,17 @@ export async function runHealthyAliasPanelsExample(container: HTMLElement) {
       await until(() => aliasesMatch('pending', 1), 'Pending state/row in both aliases');
       for (const name of ['A1', 'A2']) {
         assert(rows(name)[0]?.textContent?.includes('Manage usage is pending.'), 'Pending display');
+        assert(panel(name).querySelector('output')?.getAttribute('data-host-status') === 'pending', 'Accepted pending host receipt');
         assert(button(name, 'Manage usage').disabled, 'Duplicate pending action blocked in both aliases');
       }
       isolated();
       observed = 'unconfirmed';
       click('A2', 'Refresh status');
       await until(() => aliasesMatch('unconfirmed', 1), 'Same-size metadata/state update in both aliases');
-      for (const name of ['A1', 'A2']) assert(rows(name)[0]?.textContent?.includes('Manage usage is unconfirmed.'), 'Unconfirmed display');
+      for (const name of ['A1', 'A2']) {
+        assert(rows(name)[0]?.textContent?.includes('Manage usage is unconfirmed.'), 'Unconfirmed display');
+        assert(panel(name).querySelector('output')?.getAttribute('data-host-status') === 'unconfirmed', 'Accepted unconfirmed host receipt');
+      }
       isolated();
       observed = 'completed';
       click('A1', 'Refresh status');
@@ -214,4 +220,94 @@ export async function runHealthyOperationReceiptsExample(container: HTMLElement,
   } finally {
     flushSync(() => root.unmount());
   }
+}
+
+/** Explicitly requested narrow checks: a supplied canonical local Stopped DTO,
+ * then prelaunch selection rejection followed by its real persisted receipt.
+ * Neither check interrupts provider I/O or probes other held failure paths. */
+export async function runFocusedTerminalWorkflowChecks(container: HTMLElement, peer: unknown, prelaunchPeer: unknown) {
+  assert(peer !== null && typeof peer === 'object' && 'stopped' in peer, 'Actual Rust Stopped DTO');
+  const stopped = decodeRunOutcome(peer.stopped);
+  assert(stopped.status === 'stopped', 'Local terminal stop with upstream uncertainty');
+  assert(prelaunchPeer !== null && typeof prelaunchPeer === 'object' && 'result' in prelaunchPeer
+    && 'reason' in prelaunchPeer && prelaunchPeer.reason === 'connection-unavailable', 'Actual prelaunch failure receipt/cause');
+  const terminalAction = decodeConnectionActionResult(prelaunchPeer.result);
+  assert(terminalAction.status === 'completed' && terminalAction.snapshot.paidUseAdmission === 'held'
+    && terminalAction.snapshot.permission === 'unknown' && terminalAction.snapshot.runtime.qualification === 'held',
+  'Terminal local action supplies no inference/runtime authority');
+  const base = createHealthyAiHostFixture('completed').client;
+  const requests: string[] = [], actions: string[] = [], lookups: string[] = [];
+  let cancellations = 0, requestLookups = 0;
+  const client = bindAiHostPort({
+    connection: signal => actions.length === 0 ? base.connection(signal) : Promise.resolve(terminalAction.snapshot),
+    async connectionAction(input) {
+      assert(input.command.action === 'connect' && input.command.route === 'local-sign-in-helper', 'Explicit candidate selection');
+      actions.push(input.actionId);
+      throw new Error('Synthetic prelaunch selection failed before any launch');
+    },
+    async connectionActionStatus(actionId) {
+      assert(actions.includes(actionId), 'Original failed prelaunch ID');
+      lookups.push(actionId); return { ...terminalAction, actionId };
+    },
+    async run(input) {
+      requests.push(input.requestId);
+      return requests.length === 1 ? peer.stopped
+        : { status: 'completed', text: 'Fresh request after local stopped result', usage: stopped.usage };
+    },
+    async cancel(requestId) { cancellations++; return base.cancel(requestId); },
+    async requestStatus(requestId, signal) { requestLookups++; return base.requestStatus(requestId, signal); },
+    openReview: (input, signal) => base.openReview(input, signal),
+    resume: (input, signal) => base.resume(input, signal),
+  });
+  const root = createRoot(container);
+  const includes = (text: string) => container.textContent?.includes(text) === true;
+  const button = (name: string) => {
+    const value = [...container.querySelectorAll('button')].find(item => item.textContent === name);
+    assert(value, `Focused action ${name}`); return value;
+  };
+  const click = (name: string) => {
+    const value = button(name); assert(!value.disabled, `Available focused action ${name}`);
+    flushSync(() => value.click());
+  };
+  try {
+    flushSync(() => root.render(<AiHost context={{ client, scopeKey: `synthetic-focused/${crypto.randomUUID()}`,
+      scopeLabel: 'Synthetic focused home' }}><AiSettingsSection /><AiActivityStatus /></AiHost>));
+    await until(() => includes('Synthetic account'), 'Focused synthetic connection');
+    const field = container.querySelector('textarea');
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+    assert(field && setter, 'Focused prompt input');
+    flushSync(() => { setter.call(field, 'Synthetic local-stop result'); field.dispatchEvent(new Event('input', { bubbles: true })); });
+    click('Run');
+    await until(() => includes('AI local processing stopped. Provider completion is unconfirmed.'), 'Finished local-stop activity');
+    assert(includes('Local processing stopped. Provider completion is unconfirmed.') && !button('Run').disabled,
+      'Local slot released while provider uncertainty remains displayed');
+    assert(![...container.querySelectorAll('button')].some(item => item.textContent === 'Cancel request'
+      || item.textContent === 'Refresh request status'), 'No permanently active stopped controls');
+    const labels = { 'Input tokens': 'inputTokens', 'Output tokens': 'outputTokens', 'Total tokens': 'totalTokens' } as const;
+    for (const label of container.querySelectorAll('.ha-ai__result dt')) {
+      const key = Object.entries(labels).find(([name]) => name === label.textContent)?.[1];
+      if (key) assert(label.nextElementSibling?.textContent === (stopped.usage[key] === null
+        ? 'Unknown' : stopped.usage[key].toLocaleString('en-US')), `Stopped preserves ${key}`);
+    }
+    assert(Number(requests.length) === 1 && cancellations === 0 && requestLookups === 0, 'No automatic replay/cancel/recovery');
+    click('Run');
+    await until(() => includes('Fresh request after local stopped result'), 'Fresh explicit request admitted');
+    assert(requests.length === 2 && requests[0] !== requests[1], 'Stopped frees the slot without reusing request ID');
+    const selection = container.querySelector('select');
+    assert(selection, 'Candidate selection');
+    flushSync(() => { selection.value = 'local-sign-in-helper'; selection.dispatchEvent(new Event('change', { bubbles: true })); });
+    for (let cycle = 0; cycle < 2; cycle++) {
+      click('Connect');
+      await until(() => includes('Connect is unconfirmed.'), 'Lost error-channel response retains original ID');
+      click('Refresh status');
+      await until(() => !includes('Connect is unconfirmed.') && !button('Connect').disabled, 'Known terminal prelaunch failure retires correlation');
+    }
+    assert(actions.length === 2 && actions[0] !== actions[1]
+      && JSON.stringify(actions) === JSON.stringify(lookups), 'Two explicit fresh actions and original-ID reads only');
+    return { groups: ['canonical local Stopped preserves usage/provider uncertainty; active slot released; fresh explicit request',
+      'actual persisted prelaunch failure receipt; two original-ID reconciliations; fresh explicit Connect IDs; admission held'],
+    stoppedUsage: stopped.usage, requestCount: requests.length, prelaunchActions: actions.length, actionLookups: lookups.length,
+    cancellations, requestLookups,
+    scope: 'Explicitly requested seeded Stopped and synthetic prelaunch rejection checks; actual Rust receipt/decoder/hook/panel/activity. No provider interruption, credential/grant, launch, inference or other held controls.' };
+  } finally { flushSync(() => root.unmount()); }
 }

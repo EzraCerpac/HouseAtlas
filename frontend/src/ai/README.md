@@ -45,7 +45,11 @@ Disconnect immediately disables inference while retaining any operation for
 reconciliation. An observed unconfirmed disconnect permits a new explicit
 Disconnect action with a fresh ID, while its original unconfirmed receipt remains
 visible and queryable. A pending or opening disconnect still blocks another
-submission. Retries use the existing three-per-scope and 96-total unresolved
+submission. A local failed/aborted opening call also stays blocked until an
+original-ID status read supplies an unconfirmed host receipt. The last accepted
+host status is stored separately from local transport uncertainty; failed
+status reads cannot turn observed pending into retryable unconfirmed work.
+Retries use the existing three-per-scope and 96-total unresolved
 action limits; they never evict older unresolved IDs. The button and hook share
 the same scope/global capacity predicate; mounted panels subscribe to the
 registry using React's `useSyncExternalStore`. Immutable cached snapshots change
@@ -84,12 +88,14 @@ The required `requestStatus` port recovers the original identifier and its
 server-owned outcome; it never replays the command. A trusted `confirmed`
 cancellation receipt remains an acknowledgement until canonical status supplies
 the outcome and its usage; the panel constructs no cancelled result or counts.
-Accepted completed, cancelled, failed and terminal domain-held outcomes retire
+Accepted completed, cancelled, failed, returned local-stopped and terminal domain-held outcomes retire
 matching request correlation. The displayed domain-held result retains its
 usage, operation IDs and uncertainty while freeing the inference request slot;
-it does not complete or release any domain operation. Local stopped and
-review-required outcomes remain retained. Local stop preserves its observed
-usage and visible uncertainty.
+it does not complete or release any domain operation. A returned local-stopped
+outcome also frees the browser inference slot while preserving its original
+usage, request ID and visible provider uncertainty. It does not confirm upstream
+completion or alter the host's durable unconfirmed status. Transport rejection
+without a returned outcome and review-required outcomes remain retained.
 Accepting an authoritative request outcome clears obsolete recovery progress
 and aborts its stale lookup. Known domain-held operations retain the host's
 ordered `operationIds`, nullable current `operationId`, and prepared, queued,
@@ -133,6 +139,15 @@ The actual compiled hook's action request also deserialized using the Rust
 `ConnectionActionRequest` DTO, checking the other direction of the wire binding.
 Only valid examples ran; no negative-decoder, revocation or concurrency probes
 were executed.
+
+The explicitly requested terminal-stop/prelaunch correction additionally checks
+a Rust-serde Stopped result, preserved known/unknown usage and provider
+uncertainty, removed active controls and a fresh explicit request ID. The
+prelaunch failure browser check supplies the actual host's persisted terminal
+receipt after a synthetic selection rejection; original-ID reads retire each
+row and two explicit Connect attempts use different IDs. Inference/runtime
+admission stays held. No provider interruption, launch, credential/grant or
+other stopped failure/replay controls are exercised.
 
 Connection decisions follow the supplied AI policy and official references:
 <https://developers.openai.com/siwc/ui-ux-guidelines>,
