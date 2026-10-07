@@ -459,7 +459,11 @@ fn run(root: &Path, out: &Path, name: &str, extra_circuits: bool) -> Check<Value
             .find(|r| r.record_type == s::RecordType::Circuit)
             .unwrap()
             .clone();
-        for (n, lifecycle) in [(410, s::Lifecycle::Active), (411, s::Lifecycle::Tombstoned)] {
+        for (n, lifecycle) in [
+            (410, s::Lifecycle::Active),
+            (411, s::Lifecycle::Tombstoned),
+            (412, s::Lifecycle::Active),
+        ] {
             let mut extra = circuit.clone();
             extra.record_id = id(n);
             extra.last_audit_id = id(10_000 + n);
@@ -520,7 +524,7 @@ fn run(root: &Path, out: &Path, name: &str, extra_circuits: bool) -> Check<Value
         captured: &captured,
         store: &store,
         native: &native,
-        pages: st::AtlasListPages::default(),
+        pages: st::AtlasListPages::with_capacity(2)?,
         binding: st::AtlasListBinding::capture(&access, &principal, &cookie)?,
         released_rows: Cell::new(0),
         released_results: Cell::new(0),
@@ -570,6 +574,15 @@ fn run(root: &Path, out: &Path, name: &str, extra_circuits: bool) -> Check<Value
         assert_eq!(first["data"]["records"][0]["target"]["recordId"], id(401));
         let cursor = first["data"]["nextCursor"].as_str().unwrap();
         assert_eq!(cursor.len(), 43);
+        // Fill the cache with a second ordinary first-page continuation. The
+        // oldest cursor above must survive successor insertion and release.
+        let filler = query(
+            &authority,
+            "circuit",
+            221_010,
+            json!({"cursor":null,"pageSize":1.0,"includeArchived":false}),
+        )?;
+        assert!(filler["data"]["nextCursor"].is_string());
         let second = query(
             &authority,
             "circuit",
@@ -577,14 +590,22 @@ fn run(root: &Path, out: &Path, name: &str, extra_circuits: bool) -> Check<Value
             json!({"cursor":cursor,"pageSize":1e0,"includeArchived":false}),
         )?;
         assert_eq!(second["data"]["records"][0]["target"]["recordId"], id(410));
-        assert_eq!(second["data"]["nextCursor"], Value::Null);
+        let next = second["data"]["nextCursor"].as_str().unwrap();
+        let third = query(
+            &authority,
+            "circuit",
+            221_011,
+            json!({"cursor":next,"pageSize":1.0,"includeArchived":false}),
+        )?;
+        assert_eq!(third["data"]["records"][0]["target"]["recordId"], id(412));
+        assert_eq!(third["data"]["nextCursor"], Value::Null);
         let archived = query(
             &authority,
             "circuit",
             221_002,
             json!({"cursor":null,"pageSize":100,"includeArchived":true}),
         )?;
-        assert_eq!(archived["data"]["records"].as_array().unwrap().len(), 3);
+        assert_eq!(archived["data"]["records"].as_array().unwrap().len(), 4);
         assert_eq!(archived["data"]["records"][2]["lifecycle"], "tombstoned");
         let search = query(
             &authority,
@@ -594,7 +615,7 @@ fn run(root: &Path, out: &Path, name: &str, extra_circuits: bool) -> Check<Value
         )?;
         assert_eq!(search["data"]["records"].as_array().unwrap().len(), 1);
         assert_eq!(search["data"]["records"][0]["target"]["recordId"], id(410));
-        extra = vec![first, second, archived, search];
+        extra = vec![first, filler, second, third, archived, search];
     }
     assert_eq!(authority.released_results.get(), lists.len() + extra.len());
     let proof = json!({"fixture":name,"lists":lists,"extraPositivePages":extra,

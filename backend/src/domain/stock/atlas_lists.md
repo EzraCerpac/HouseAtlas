@@ -33,7 +33,11 @@ list queries without this explicitly supplied session/cursor peer.
 
 Tokens contain 32 random bytes encoded base64url, not source data. State is local
 to the process, holds at most 1000 cursors, expires after five minutes and evicts
-oldest first. Continuations bind actor, authenticated session, scope, operation,
+the oldest cursor other than the predecessor consumed by the current request.
+`with_capacity` permits a trusted host to choose 2–1000 slots; the default is
+1000. Preserving the predecessor allows ordinary output authorization to
+recompute a continuation when insertion needs eviction at capacity.
+Continuations bind actor, authenticated session, scope, operation,
 page size, exact includeArchived/q query and the full authorized snapshot. No
 record/cursor persistence or recovery schema is added. Stock output authorization
 can recompute the same request's exact result: the next token is reused only for

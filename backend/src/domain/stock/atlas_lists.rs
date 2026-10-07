@@ -51,10 +51,34 @@ struct Cursor {
 }
 /// Share one instance across request adapters and authenticated transports.
 /// As with frozen read pages: at most 1000 cursors, five-minute lifetime, oldest
-/// eviction, no persistence across restart, no source data inside the token.
-#[derive(Clone, Default)]
-pub struct AtlasListPages(Arc<Mutex<VecDeque<Cursor>>>);
+/// unconsumed-cursor eviction, no persistence across restart, no source data
+/// inside the token. Insertion preserves the current request's predecessor.
+#[derive(Clone)]
+pub struct AtlasListPages {
+    cursors: Arc<Mutex<VecDeque<Cursor>>>,
+    capacity: usize,
+}
+impl Default for AtlasListPages {
+    fn default() -> Self {
+        Self {
+            cursors: Arc::default(),
+            capacity: 1000,
+        }
+    }
+}
 impl AtlasListPages {
+    /// A host may choose a smaller bounded cache. Two slots retain the consumed
+    /// predecessor and its successor throughout ordinary result recomputation.
+    pub fn with_capacity(capacity: usize) -> StockResult<Self> {
+        if !(2..=1000).contains(&capacity) {
+            return Err(StockError::InvalidContract);
+        }
+        Ok(Self {
+            cursors: Arc::default(),
+            capacity,
+        })
+    }
+
     pub(super) fn page(
         &self,
         binding: &AtlasListBinding,
@@ -83,7 +107,10 @@ impl AtlasListPages {
             "query":query,"snapshot":snapshot,
         }))?;
         let now = Instant::now();
-        let mut cursors = self.0.lock().map_err(|_| StockError::OwnerUnavailable)?;
+        let mut cursors = self
+            .cursors
+            .lock()
+            .map_err(|_| StockError::OwnerUnavailable)?;
         cursors.retain(|cursor| cursor.expires > now);
         let offset = match &request.payload()["cursor"] {
             Value::Null => 0,
@@ -117,8 +144,13 @@ impl AtlasListPages {
                 if cursors.iter().any(|cursor| cursor.token == token) {
                     return Err(StockError::OwnerUnavailable);
                 }
-                while cursors.len() >= 1000 {
-                    cursors.pop_front();
+                while cursors.len() >= self.capacity {
+                    let consumed = request.payload()["cursor"].as_str();
+                    let oldest = cursors
+                        .iter()
+                        .position(|cursor| Some(cursor.token.as_str()) != consumed)
+                        .ok_or(StockError::OwnerUnavailable)?;
+                    cursors.remove(oldest);
                 }
                 cursors.push_back(Cursor {
                     token: token.clone(),
