@@ -48,7 +48,7 @@ const KEY_BYTES: [u8; 32] = [
     0x31, 0x42, 0x53, 0x64, 0x75, 0x86, 0x97, 0xa8, 0xb9, 0xca, 0xdb, 0xec, 0xfd, 0x0e, 0x1f, 0x20,
     0x30, 0x41, 0x52, 0x63, 0x74, 0x85, 0x96, 0xa7, 0xb8, 0xc9, 0xda, 0xeb, 0xfc, 0x0d, 0x1e, 0x2f,
 ];
-const CASES: [&str; 7] = [
+const CASES: [&str; 8] = [
     "empty-enrollment",
     "existing-enrollment-denied",
     "racing-enrollment",
@@ -56,6 +56,7 @@ const CASES: [&str; 7] = [
     "blank-host-construction-denied",
     "invalid-issued-client-transition-denied",
     "known-subject-clear-denied",
+    "configured-website-client-initialization",
 ];
 
 fn binding() -> RegistrationBinding {
@@ -577,6 +578,58 @@ async fn known_subject_clear_denied() -> Result<(), AiError> {
     Ok(())
 }
 
+async fn configured_website_client_initialization() -> Result<(), AiError> {
+    let directory = tempfile::Builder::new()
+        .prefix("houseatlas-enrollment-regression-")
+        .tempdir()
+        .map_err(|_| AiError::DomainUnavailable)?;
+    let b = binding();
+    let authority = Arc::new(SyntheticAuthority::new(b.clone()));
+    let store = adapter(directory.path(), Arc::clone(&authority), &b)?;
+    let initial = initial_record("Synthetic configured website client");
+    let mut lease = store.enroll_atomic(&b, &b, &initial).await?;
+
+    store
+        .initialize_website_client(&b, &mut lease, "syntheticClient981")
+        .await?;
+    let initialized = store.load(&lease).await?;
+    let mut expected = initial_record("Synthetic configured website client");
+    expected.issued_client_id = Some("syntheticClient981".into());
+    let expected_bytes = record::encode(&expected)?;
+    let initialized_bytes = record::encode(&initialized)?;
+    assert_eq!(
+        expected_bytes.expose_for_encryption(),
+        initialized_bytes.expose_for_encryption()
+    );
+    assert!(initialized.identity.is_none());
+    assert!(initialized.credentials.is_none());
+    assert!(initialized.pending_authorization.is_none());
+    assert!(matches!(
+        initialized.refresh_checkpoint,
+        RefreshCheckpoint::None
+    ));
+    assert_eq!(initialized.state, LifecycleState::Disconnected);
+    assert_eq!(initialized.revocation, RevocationState::NotRequested);
+    drop(lease);
+
+    let reopened = adapter(directory.path(), authority, &b)?;
+    let lease = reopened.acquire(&b, &b).await?;
+    let loaded = reopened.load(&lease).await?;
+    assert_eq!(
+        loaded.issued_client_id.as_deref(),
+        Some("syntheticClient981")
+    );
+    assert!(loaded.identity.is_none());
+    assert!(loaded.credentials.is_none());
+    assert!(loaded.pending_authorization.is_none());
+    let loaded_bytes = record::encode(&loaded)?;
+    assert_eq!(
+        expected_bytes.expose_for_encryption(),
+        loaded_bytes.expose_for_encryption()
+    );
+    Ok(())
+}
+
 fn assert_initial_shape(record: &RegistrationRecord) {
     assert_eq!(record.state, LifecycleState::Disconnected);
     assert_eq!(record.revocation, RevocationState::NotRequested);
@@ -691,6 +744,7 @@ enum Case {
     BlankHostDenied,
     InvalidClientTransition,
     SubjectClear,
+    WebsiteClientInitialization,
 }
 
 fn select_case() -> Result<Case, AiError> {
@@ -706,6 +760,7 @@ fn select_case() -> Result<Case, AiError> {
         "blank-host-construction-denied" => Ok(Case::BlankHostDenied),
         "invalid-issued-client-transition-denied" => Ok(Case::InvalidClientTransition),
         "known-subject-clear-denied" => Ok(Case::SubjectClear),
+        "configured-website-client-initialization" => Ok(Case::WebsiteClientInitialization),
         _ => Err(AiError::InvalidInput),
     }
 }
@@ -718,6 +773,10 @@ async fn main() -> Result<(), AiError> {
         FileCredentialBoundary::<RegistrationBinding, SyntheticAuthority>::new_existing;
     let _native_enrollment =
         FileCredentialBoundary::<RegistrationBinding, SyntheticAuthority>::enroll_atomic;
+    let _native_website_client_initialization = FileCredentialBoundary::<
+        RegistrationBinding,
+        SyntheticAuthority,
+    >::initialize_website_client;
     let selected = select_case()?;
     tokio::time::timeout(Duration::from_secs(10), async move {
         match selected {
@@ -728,6 +787,7 @@ async fn main() -> Result<(), AiError> {
             Case::BlankHostDenied => blank_host_construction_denied().await,
             Case::InvalidClientTransition => invalid_issued_client_transition_denied().await,
             Case::SubjectClear => known_subject_clear_denied().await,
+            Case::WebsiteClientInitialization => configured_website_client_initialization().await,
         }
     })
     .await
