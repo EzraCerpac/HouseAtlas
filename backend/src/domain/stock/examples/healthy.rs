@@ -1,41 +1,8 @@
-//! Synthetic consumer only: Python offline exact-schema validator plus injected
+//! Synthetic consumer only: native offline exact-schema validator plus injected
 //! graph/authority/query/command peers. No provider IO, storage, replay or controls.
 use houseatlas_at36_stock_harness::*;
 use serde_json::{Value, json};
-use std::{
-    cell::Cell,
-    io::Write,
-    process::{Command, Stdio},
-};
-
-struct OfflineContracts;
-impl StockContractPort for OfflineContracts {
-    fn validate(&self, schema_ref: &str, value: &Value) -> StockResult<()> {
-        let checker =
-            std::env::var("STOCK_SCHEMA_CHECKER").map_err(|_| StockError::OwnerUnavailable)?;
-        let mut child = Command::new("python3")
-            .arg(checker)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::null())
-            .spawn()
-            .map_err(|_| StockError::OwnerUnavailable)?;
-        child
-            .stdin
-            .take()
-            .ok_or(StockError::OwnerUnavailable)?
-            .write_all(&serde_json::to_vec(&json!({"schemaRef":schema_ref,"value":value})).unwrap())
-            .map_err(|_| StockError::OwnerUnavailable)?;
-        if child
-            .wait()
-            .map_err(|_| StockError::OwnerUnavailable)?
-            .success()
-        {
-            Ok(())
-        } else {
-            Err(StockError::InvalidContract)
-        }
-    }
-}
+use std::cell::Cell;
 
 struct SyntheticAuthority {
     revalidations: Cell<u32>,
@@ -180,7 +147,7 @@ fn create(n: usize) -> Value {
         "idempotencyKey":id(n+200),"reason":"Synthetic healthy example","preconditions":{"target":null,"guards":[]},"approvalReceiptId":null})
 }
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let contracts = OfflineContracts;
+    let contracts = NativeStockContract::new()?;
     let authority = SyntheticAuthority {
         revalidations: Cell::new(0),
         disclosures: Cell::new(0),

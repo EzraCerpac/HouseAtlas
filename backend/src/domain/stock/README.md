@@ -25,9 +25,11 @@ safe-integer bounds, required/nullability/closed-property and union constraints.
 SHA256 conventions. It excludes only the root `requestId`, root
 `approvalReceiptId` and, for a HomeBox root target, renewable
 `preconditions.providerObservation`. Every ordered child request ID and all
-child values stay inside the parent digest. `operational_time` parses finite
-RFC3339 times; the preparation/storage owner must use it or equivalent parsed
-finite times for observation/approval/admission/expiry comparisons.
+child values stay inside the parent digest. `operational_time` uses finite
+owner-parsed millisecond timestamps in the published date-time domain. It
+preserves original strings and the existing `InvalidClock` category; the
+preparation/storage owner must use those same finite values for observation,
+approval, admission and expiry comparisons.
 
 `prepare` captures the server principal's immutable current authority, resolves
 the owner's complete original/candidate/final/reference/impact graph, authorizes
@@ -83,10 +85,11 @@ not create provider CAS, upstream idempotency or causality proof.
 The mandatory injected interfaces are `StockContractPort`,
 `StockAuthorityPort<P>` with associated `Witness`/`Graph`,
 `StockPreparerPort<P,W>`, `StockQueryPort<P,W,G>` and
-`StockCommandPort<P,W,G>`. Production AT51 schema validation, AT07 transaction
-storage, AT11 current authority and provider/media queue adapters are integration
-inputs. The routing/preparation/result/digest behavior is coded here; these
-production peers are not supplied or qualified by this component. Atlas-local
+`StockCommandPort<P,W,G>`. `NativeStockContract` supplies the genuine AT51
+offline schema port. AT07 transaction storage, AT11 current authority and
+provider/media queue adapters remain integration inputs. The routing,
+preparation, result and digest behavior is coded here; those execution peers
+are not supplied or qualified by this component. Atlas-local
 atomic CAS/final graph/witness/receipt persistence is the transaction owner's
 obligation. New source-presence admission remains held pending that reviewed
 composition; frozen record/audit schemas remain unchanged.
@@ -133,13 +136,41 @@ snapshot/record/audit/guard/mutationResult mappings. A separate five-shape
 accepted consumer passed the actual native generated decoder; it supplies no
 semantic graph, storage, authority, receipt or provider execution. Exact
 peer/manifest/lock and pure-shape proof are recorded in `../README.md`.
-The newer `native_semantics::NativeSemantics` binds available AT51 Rust semantics
-and requires genuine raw-current transition/timestamp peers with no defaults.
-Six pure methods are exercised; complete native/stock execution is still
-unqualified. See `../README.md` for its exact current compiler pins and ordering.
+`native_semantics::NativeSemantics::native()` now binds the genuine PR17
+raw-current transition and timestamp exports directly. The prior six-method
+proof is historical; complete native/stock execution remains unqualified.
+See `../README.md` for exact peer pins, proof scope and ordering.
 
-`examples/healthy.rs` is an isolated synthetic consumer using an external
-offline Python draft2020-12 validator against the exact stock/Atlas schemas.
+`NativeStockContract` wraps PR18's actual `contracts::stock::StockValidation`.
+Its fallible constructor initializes the embedded offline resources; every
+`StockContractPort::validate` call delegates the exact schema reference/value.
+The domain retains its existing `ValidatedRequest::parse` decision order on
+the host-admitted `Value`; no additional bytes/envelope intake is introduced.
+Lexical/body limits and duplicate-key rejection remain the HTTP parser owner's
+obligation. PR18's native bytes parser replaces duplicate object keys and its
+envelope helper has separate correlation decisions; neither is substituted
+for this domain boundary.
+Setup errors become `OwnerUnavailable`; contract/unknown-schema errors
+become `InvalidContract`, and correlation errors become `CorrelationMismatch`.
+Owner diagnostic strings do not cross this port. Authority witnesses, approval,
+presence admission, storage and dispatch remain separate owner responsibilities.
+
+Exact corrected PR18 source is `ece8f43fc726dc90857b316e7379e809b774853b`.
+Its predecessor `d3bdb7ccacb94a83d7409b70dbc30a4a3204395f` remains a
+historical development pin. The owner's response-error classification correction
+has passed independent ordinary review at the newer pin.
+It requires private semantic imports absent from the exact PR17 snapshot.
+Development composition therefore retains PR18's unchanged semantic internals
+and adds the two exact PR17 public function bodies to `semantics/mod.rs` in a
+separate external candidate. That reconciliation is AT51-owned and is not a
+published combined peer or a repository change in this lane. The root dependency
+and allowlist updates remain integrator-owned. Native schema/catalogue review
+does not qualify executed operations, current authority, freshness or durable
+atomic presence-witness admission.
+
+`examples/healthy.rs` is an isolated synthetic consumer using this native
+offline draft2020-12 validator against the exact stock/Atlas schemas. Its earlier
+Python-validator proof remains historical evidence for the captured old source.
 Graph/authority/query/command peers are explicitly synthetic. Its actual
 healthy scope is one Atlas create, one Atlas read, a two-child ordered Atlas
 batch, one HomeBox zero-quantity preparation, one collection maintenance query

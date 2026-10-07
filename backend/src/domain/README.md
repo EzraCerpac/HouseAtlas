@@ -416,3 +416,55 @@ All then-owned Rust, harness, peer and lock bytes remained unchanged. That
 scoped proof predates the native stock port; its captured `runtime-root-source`
 is required to reproduce it against PR17 alone. The queue target was compiled
 only. No SQLite, authority, provider, queue, JavaScript or held controls ran.
+
+## Native stock schema development composition
+
+`stock::NativeStockContract` binds the genuine offline `StockValidation` port
+with fallible initialization and exact schema/value delegation. Existing
+`ValidatedRequest::parse` consumes the host-admitted `Value` in its original
+decision order; HTTP lexical/body/duplicate-key admission remains separate.
+`stock::operational_time` now returns `StockResult<i64>` owner milliseconds,
+retaining `InvalidClock` and original timestamp strings. Existing result
+validation call sites retain their order. Downstream clock users must compare
+these milliseconds; no calendar conversion introduces another accepted-range
+or precision restriction.
+
+Current development manifest:
+`/tmp/houseatlas-at36-native-stock-accepted-owner-tx1ijbkt/Cargo.toml`, SHA-256
+`7e71236ecbe7da1d608364dc123787d92b2bfde3c209877c4e3994d16922ced3`;
+lock SHA-256
+`3fcfec85a52b896b88e387a68057c34c60aafc3fec74a098bb721230547e686d`.
+Dependency versions/features are exactly those above. Exact accepted AT51
+stock base is `ece8f43fc726dc90857b316e7379e809b774853b`, with the same
+AT07/AT11 pins above. Its native contracts need private exports retained from
+that stock snapshot. Development composition adds only the two exact PR17
+public functions in external `semantics/mod.rs`; patch SHA-256
+`c85be23cd99de4225db9bed30390ffb69750c696d9bb0b23086464636d8fba8d`.
+This AT51-owned reconciliation is a proposed single-file union, not a published
+combined peer or a contracts edit in this lane. Root manifests, dependency
+allowlists and owner reconciliation remain integrator work.
+
+Locked/offline check, warning-strict Clippy and build passed against actual
+root domain/jobs. The actual stock example then passed its same six healthy
+cases through the native validator with synthetic authority/graph/owners.
+Two literal accepted clocks checked compact-offset and submillisecond forms
+against owner integer-millisecond goldens. All captured source remained
+unchanged. Proof
+`/tmp/houseatlas-at36-native-stock-accepted-owner-tx1ijbkt/checks-evidence.json`,
+SHA-256 `ab37bcfbfa93a03c4ce1d2e949262200ba04c02d6d40026bce0439651c229c35`.
+This healthy interval records its precise dirty worktree, not a clean committed
+HEAD. The separate final compiler-only proof is saved alongside the handoff.
+
+```sh
+source /workspace/.houseatlas-setup/rust-react-sqlite/activate.sh
+cargo check --manifest-path /tmp/houseatlas-at36-native-stock-accepted-owner-tx1ijbkt/Cargo.toml --locked --offline --lib --bins
+cargo clippy --manifest-path /tmp/houseatlas-at36-native-stock-accepted-owner-tx1ijbkt/Cargo.toml --locked --offline --lib --bins -- -D warnings
+cargo build --manifest-path /tmp/houseatlas-at36-native-stock-accepted-owner-tx1ijbkt/Cargo.toml --locked --offline --lib --bins
+```
+
+The queue target remains compiled only; the build commands above execute no
+examples. Presence helpers validate shape only. Actual current authority,
+freshness, atomic original-witness persistence, stock transactions and restart
+admission remain owner duties. Neither catalogue/schema coverage nor these
+healthy cases establish complete executed operations. Held controls remain
+unrun.

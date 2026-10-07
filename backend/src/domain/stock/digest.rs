@@ -75,8 +75,7 @@ pub fn request_digest(request: &Value) -> StockResult<String> {
     canonical_digest(&intent)
 }
 
-/// Finite parsed operational time, never a comparison of RFC3339 strings.
-pub fn operational_time(value: &str) -> StockResult<time::OffsetDateTime> {
-    time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
-        .map_err(|_| StockError::InvalidClock)
+/// Finite owner-parsed milliseconds, never a comparison of timestamp strings.
+pub fn operational_time(value: &str) -> StockResult<i64> {
+    crate::contracts::semantics::timestamp_millis(value).ok_or(StockError::InvalidClock)
 }
