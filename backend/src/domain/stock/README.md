@@ -118,9 +118,10 @@ and candidate correlation, exact output schemas and ordered public flattening.
 It creates no IDs, timestamps, receipt persistence or authority. Original
 preimages and complete final graph proof remain native transaction obligations;
 the mapper does not reconstruct them from newer reads. AT07's actual atomic
-stock commit carrier and scoped executor are still required to bind this pure
-projection to execution. Current stock dispatch must authorize the output and
-revalidate its captured principal before release.
+stock commit carrier and atomic stock executor are still required to bind this
+pure projection to execution. Current stock dispatch must authorize the output and
+revalidate its captured principal before release. Frozen scoped JSON execution
+is available through `NativeScopedCommands`; it does not retain stock receipts.
 
 The current composed compiler harness includes real published storage/access/
 contract source snapshots and the current AT36 modules. Root manifests/locks
@@ -138,6 +139,8 @@ No provider call or durable storage is exercised; no held replay, denial,
 guard, mutation-control, adversarial, expiry, revocation, crash, failure or
 concurrency qualification is claimed.
 
-External compiler harness pins: serde1.0.228, serde_json1.0.145, time0.3.44
-(`parsing`), serde_jcs0.1.0 (scalar ECMAScript float formatting only),
-sha2 0.10.9. Root dependencies, locks and generated contracts remain AT51-owned.
+Historical synthetic compiler harness pins: serde1.0.228, serde_json1.0.145,
+time0.3.44 (`parsing`), serde_jcs0.1.0 (scalar ECMAScript float formatting only),
+sha2 0.10.9. These describe the earlier synthetic checkpoint. See
+`../README.md` for the exact scoped-command compiler peer/manifest pins.
+Root dependencies, locks and generated contracts remain AT51-owned.

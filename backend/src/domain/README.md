@@ -111,7 +111,8 @@ they change. The storage snapshot must use the same captured authority. Home
 and media capabilities are trusted adapter results, never browser inputs.
 Current-output release compares the initial/final home decisions and performs
 the required captured-policy revalidation. The access fixture's revalidator is
-an explicit stub; production source-policy/version checks await AT11.
+an explicit stub. Production host composition must use AT11's published captured
+principal/version checks and original-grant revalidation on the live guard.
 The HTTP owner must enforce duplicate-key/body limits before passing parsed
 JSON, map error categories, and implement the frozen list envelopes/opaque
 cursor policy. Wire3 owner adapters separately produce public Atlas record,
@@ -123,12 +124,14 @@ conflict revisions, so adapters can preserve the published 401/409/412/428
 classification. Canonical HomeBox list assembly must also retain the published
 unsafe-external-URL rejection behavior; browser projection alone uses null URLs.
 
-## Dependencies and scoped evidence
+## Historical dependencies and scoped evidence
 
-Current external compiler manifest:
+The historical standalone wire3 compiler manifest was
 `/tmp/houseatlas-at36-wire3-harness/Cargo.toml`. The original domain harness and
-checkpoint evidence are preserved separately. No repository manifest/lock was
-created. Verified with Rust 1.99.0. Direct production dependency pins:
+checkpoint evidence are preserved separately. These pins describe the earlier
+synthetic checks, not the current composed source or production qualification.
+AT36 introduced no repository manifest/lock; AT51 owns those files. Historical
+external dependency pins, verified with Rust 1.99.0:
 
 ```toml
 serde = { version = "=1.0.228", features = ["derive"] }
@@ -182,7 +185,7 @@ No HTTP writer or provider credential path exists. HomeBox wire3 collection IDs
 require canonical UUIDs; the earlier frozen fixture's opaque collection string
 is not passed unchanged as a wire3 example.
 
-The new composed compiler harness is
+The historical wire3 compiler harness was
 `/tmp/houseatlas-at36-wire3-harness/Cargo.toml`; it includes the stock dependency
 pins above and compiles the synthetic SQLite consumer using
 `rusqlite = { version = "=0.40.2", features = ["bundled"] }`.
@@ -209,42 +212,74 @@ the private store does not expose that instance for this bridge to inspect.
 pure native contract policy; HTTP lexical and size admission remains AT51/52-owned.
 
 This composes the frozen storage APIs, not stock wire3 execution or durable
-provider admission. AT52's published `ReadContracts` and `ReadAuthority` still
-reject mutations. A future command-capable host must keep the original principal
+provider admission. At the inspected AT52 checkpoint
+`fde9586f41c32924543fe7066fb0481b02744b8c`, `ReadContracts` and `ReadAuthority`
+reject mutations. A command-capable host must keep the original principal
 and source grants current under the access transaction fence throughout all
 AT07 phases; it must retain the new-presence hold. No route is mounted here.
 
-The compiler-only native harness is
-`/tmp/houseatlas-at36-native-adapter-harness/Cargo.toml`. It imports exact published
-AT07 `da3f607ee56ee7bcb836ed868bb1b10fdbcbb7f6`, AT11
-`3f83d8f35f2cc1948b5d361badfc77948745676d`, and AT51
-`358ec380a82d6c9e9aac4ca039c0ab8a381cf011` sources. Its direct dependencies are
-pinned to the published integration workspace
-`a5d456c43ac59acfc0c4f8aceafb08bae6df0ac0`; JSON preserves arbitrary precision
-and schema retrieval is disabled. The external harness owns its own lock. The
-older standalone wire3 harness remains evidence for the published checkpoint;
-current source needs the native storage module in the composed crate.
+At AT36 checkpoint `64da6ea293dbb7fd7798105e92e7c4a65be7262f`, the external
+manifest `/tmp/houseatlas-at36-scoped-native-compiler-moanglpb/Cargo.toml` compiled
+the owned domain/jobs source against exact published AT07
+`3b14f0362aa2161d51b99d71e7d52d50f27f07de`, AT11
+`4967dd2d38c5749be35aa7e44728c4d691246730`, and AT51
+`07576e6be463dd481b49071071c66dec144b1e0c`. These are reproducible compiler
+inputs, not production qualification or proposed root-manifest changes.
+
+The composed manifest pins serde1.0.229 (`derive`), serde_json1.0.151
+(`arbitrary_precision`, `float_roundtrip`, `raw_value`), serde_jcs0.2.0,
+sha2 0.10.9, time0.3.44 (`parsing`, `formatting`), url2.5.7,
+rusqlite0.40.2 (`bundled`, no defaults), jsonschema0.58.6
+(`arbitrary-precision`, no defaults), base64 0.22.1, getrandom0.3.4,
+scrypt0.11.0 (no defaults), and subtle2.6.1. Its task-owned `Cargo.lock` SHA-256
+is `ab69fa1b93535caddc2884551e32b862259465e8f10bd8255733aca0fef7ea58`.
+Schema retrieval is disabled. Check, warning-strict Clippy and build passed
+with unchanged Rust-source fingerprints; final frozen-source proof:
+`/tmp/houseatlas-at36-scoped-command-final-checks/checks.json`, SHA-256
+`dfe4f34e76450735dfcc5838f8cd09e955d8df2ff38a5ebace42909413c774b7`.
+Earlier concurrent peer checks are retained separately and are not that proof.
+The SQLite queue driver is compiled only. Older standalone/native bridge
+harnesses retain their historical inputs and do not compile current scoped
+source without the newer peer methods and contract numeric carriers.
 
 ```sh
 source /workspace/.houseatlas-setup/rust-react-sqlite/activate.sh
-cargo check --manifest-path /tmp/houseatlas-at36-native-adapter-harness/Cargo.toml --locked --lib
-cargo clippy --manifest-path /tmp/houseatlas-at36-native-adapter-harness/Cargo.toml --locked --lib -- -D warnings
-cargo build --manifest-path /tmp/houseatlas-at36-native-adapter-harness/Cargo.toml --locked --lib
+cargo check --manifest-path /tmp/houseatlas-at36-scoped-native-compiler-moanglpb/Cargo.toml --locked --offline --lib --bins
+cargo clippy --manifest-path /tmp/houseatlas-at36-scoped-native-compiler-moanglpb/Cargo.toml --locked --offline --lib --bins -- -D warnings
+cargo build --manifest-path /tmp/houseatlas-at36-scoped-native-compiler-moanglpb/Cargo.toml --locked --offline --lib --bins
 ```
 
-Next owner seams are concrete:
+AT07's scoped frozen JSON methods and AT11's original `SourceGrant`/
+`PartitionGrant` guard revalidation are delivered at those pins. Remaining
+owner seams are concrete:
 
-* AT07: synchronous per-operation authorizer override on the same store
-  connection, retaining every Intake/Validate/Candidate/Precommit/Replay check;
-  typed durable stock-envelope and atomic queue/witness repository operations.
-* AT11: original `SourceGrant` and `PartitionGrant` revalidation on the existing
-  `TransactionAuthorization` guard, plus genuinely qualified registration/access
-  facts needed by queue and witness admission. Freshly reacquired grants cannot
-  replace the original handles.
+* AT07: exact named shape mappings below, typed durable stock-envelope and
+  atomic queue/witness repository operations.
+* AT11/host: genuinely qualified registration/access facts needed by queue and
+  witness admission. Freshly reacquired grants cannot replace original handles.
 * AT52: compose the scoped authorizer inside `with_mutation_authorization` and
-  mount through its existing blocking owner. Do not reenter the same access
-  mutex, reopen the store, manufacture epochs or interpret frozen receipts as
-  durable stock/provider receipts.
+  bind both storage authorization and domain access to the same live guard and
+  original principal/grants, with exact mutation context/phase/closure checks.
+  The callback returns `Result<(), E>`; capture owned output locally and release
+  it only after the fence succeeds. This does not establish cross-store atomic
+  rollback. No access-mutex reentry, reopened store, manufactured epochs or
+  relabeled frozen stock/provider receipts supplies this composition.
+
+At the inspected AT07 pin, `NativeContract::validate_shape` has a closed match
+that lacks these names. The storage owner must add existing typed AT51
+decode/validation for each name and retain its unknown-shape error:
+
+| Shape name | AT51 generated type | Required domain caller |
+| --- | --- | --- |
+| `snapshot` | `contracts::Snapshot` | `NativeStorage::snapshot` |
+| `record` | `contracts::AtlasRecord` (`Record` alias) | `NativeStorage::record` |
+| `audit` | `contracts::Audit` | `NativeStorage::history` |
+| `guard` | `contracts::Guard` | `plan_atlas_commands` |
+| `mutationResult` | `contracts::MutationResult` | `map_atlas_commit` |
+
+Direct `validate_snapshot`/`validate_result` semantic delegation does not replace
+these named shape checks. Domain validation remains mandatory; unknown-name
+success or permissive fallback does not resolve this compatibility requirement.
 
 The native bridge is compiled and statically reviewed, with no native runtime
 exercise or additional held controls. It cannot enable new source presence;
