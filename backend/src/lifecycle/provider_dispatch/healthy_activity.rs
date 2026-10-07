@@ -31,6 +31,13 @@ fn digest(value: &Value) -> n::Digest {
     n::Digest::parse(contracts::semantics::canonical_digest(value).expect("finite synthetic JSON"))
         .expect("canonical SHA-256")
 }
+// Inspect the actual Storage codec string in the peer-owned packet. This is
+// fixture-only JSON inspection, not a serializer or restored producer factory.
+fn operation_payload(value: &Value) -> Value {
+    let encoded: Value = serde_json::from_str(value.as_str().expect("storage codec string"))
+        .expect("actual operation JSON");
+    encoded["payload"].clone()
+}
 fn request<'a>(cookie: Option<&'a str>, csrf: Option<&'a str>) -> a::RequestEvidence<'a> {
     a::RequestEvidence {
         method: a::Method::Post,
@@ -90,6 +97,8 @@ impl s::StockActivityPrincipal for Original {
 #[derive(Clone)]
 struct Peers(Arc<Fixture>);
 struct Fixture {
+    archive: std::path::PathBuf,
+    archive_destination: super::super::archive::ArchiveDestination,
     access: Arc<Mutex<a::AccessBoundary>>,
     original: Arc<Original>,
     validation: wire::StockValidation,
@@ -350,6 +359,78 @@ impl s::StockActivityAuthorization<Original> for Peers {
         })
     }
 }
+impl s::StockActivityRetentionAuthorization<Original> for Peers {
+    fn authorize_retention(
+        &self,
+        original: &Original,
+        registration: &s::StockActivityRegistration,
+        guard: Option<&a::TransactionAuthorization<'_>>,
+        phase: s::StockActivityPhase,
+        record: &s::RetainedStockActivity,
+    ) -> Result<(), n::StockPortFault> {
+        <Self as s::StockActivityAuthorization<Original>>::authorize(
+            self,
+            original,
+            registration,
+            guard,
+            phase,
+            s::StockActivityAction::Disclose(record.operation()),
+        )?;
+        if record.registration() != &self.0.registration
+            || record.original().command != self.0.command
+        {
+            return Err(n::StockPortFault::EvidenceConflict);
+        }
+        for event in record.events() {
+            if let s::StockActivityEventFacts::Admit(admission) = event.facts()
+                && admission.preflight != self.preflight()
+            {
+                return Err(n::StockPortFault::EvidenceConflict);
+            }
+            if event.operation().command != self.0.command {
+                return Err(n::StockPortFault::EvidenceConflict);
+            }
+        }
+        Ok(())
+    }
+}
+impl NativeArchiveAuthorization<Original> for Peers {
+    fn authorize_archive(
+        &self,
+        destination: &super::super::archive::ArchiveDestination,
+        producer: &s::StockActivityProducer<Original>,
+        native: Option<&codec::RetainedNativeStockActivity<Original>>,
+    ) -> Result<(), n::StockPortFault> {
+        if !std::ptr::eq(producer.original(), Arc::as_ptr(&self.0.original))
+            || producer.record().registration() != &self.0.registration
+            || producer.record().original().command != self.0.command
+            || destination != &self.0.archive_destination
+        {
+            return Err(n::StockPortFault::EvidenceConflict);
+        }
+        self.current(None)?;
+        for event in native.map(|n| n.native_events()).unwrap_or(&[]) {
+            if event.before().command != self.0.command || event.authority() != &self.0.authority {
+                return Err(n::StockPortFault::EvidenceConflict);
+            }
+            if let Some(receipt) = event.receipt()
+                && !receipt
+                    .response
+                    .as_ref()
+                    .is_some_and(|r| r.value == self.0.response)
+            {
+                return Err(n::StockPortFault::EvidenceConflict);
+            }
+            if let Some(observation) = event.observation()
+                && !matches!(observation,n::NativeObservation::Present{value,observed_at,complete:true,..}
+                    if value==&self.0.response && observed_at==TIME)
+            {
+                return Err(n::StockPortFault::EvidenceConflict);
+            }
+        }
+        Ok(())
+    }
+}
 impl n::StockDispatchPort for Peers {
     async fn dispatch(
         &self,
@@ -357,6 +438,25 @@ impl n::StockDispatchPort for Peers {
         plan: &n::NativePlan,
         authority: &n::StockAuthority,
     ) -> n::NativeDispatch {
+        // Actual durable admission frame must exist BEFORE this genuine
+        // producer seam is entered. No native I/O is simulated before it.
+        let frame: Value = serde_json::from_slice(
+            &std::fs::read(
+                self.0
+                    .archive
+                    .join(format!("{}.2.producer.json", permit.operation_id)),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            operation_payload(&frame["operation"])["activityVersion"],
+            "2"
+        );
+        assert_eq!(frame["bodyAccepted"], true);
+        assert_eq!(frame["physicalHold"], true);
+        assert_eq!(frame["events"].as_array().unwrap().len(), 2);
+        assert!(frame["native"].as_array().unwrap().is_empty());
         assert_eq!(authority, &self.0.authority);
         assert_eq!(
             permit.physical_binding,
@@ -393,6 +493,27 @@ impl n::StockReadbackPort for Peers {
         plan: &n::ReadbackPlan,
         authority: &n::StockAuthority,
     ) -> n::NativeObservation {
+        let frame: Value = serde_json::from_slice(
+            &std::fs::read(
+                self.0
+                    .archive
+                    .join(format!("{}.3.producer.json", operation.operation_id)),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            operation_payload(&frame["operation"])["activityVersion"],
+            "3"
+        );
+        assert_eq!(
+            operation_payload(&frame["native"][0]["before"])["activityVersion"],
+            "2"
+        );
+        assert_eq!(
+            frame["native"][0]["raw"]["result"]["receipt"]["response"]["value"],
+            self.0.response
+        );
         assert_eq!(authority, &self.0.authority);
         assert_eq!(operation.command, self.0.command);
         assert_eq!(plan.target, self.0.command.target);
@@ -415,6 +536,17 @@ fn healthy_fresh_stock_activity() -> Check<()> {
     let directory = tempfile::tempdir()?;
     let root = directory.path();
     let database = root.join("stock.sqlite");
+    let archive_path = root.join("original-archive");
+    std::fs::create_dir(&archive_path)?;
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(&archive_path, std::fs::Permissions::from_mode(0o700))?;
+    let archive = PrivateStockArchive::open(
+        crate::config::provider_dispatch::archive::TrustedStockArchiveConfig::new(
+            archive_path.clone(),
+            16 * 1024 * 1024,
+        )?,
+    )
+    .map_err(|e| format!("archive:{e:?}"))?;
     let scope: a::Scope = serde_json::from_value(json!({"workspaceId":id(1),"homeId":id(2)}))?;
     let registration: a::SourceRegistration = serde_json::from_value(json!({
         "workspaceId":id(1),"homeId":id(2),"sourceInstanceId":id(10),
@@ -541,6 +673,8 @@ fn healthy_fresh_stock_activity() -> Check<()> {
     let mut response = snapshot.clone();
     response["quantity"] = json!(0);
     let peers = Peers(Arc::new(Fixture {
+        archive: archive_path.clone(),
+        archive_destination: archive.destination().clone(),
         access: access.clone(),
         original: original.clone(),
         validation,
@@ -600,10 +734,11 @@ fn healthy_fresh_stock_activity() -> Check<()> {
         store.clone(),
         access.clone(),
         TrustedDispatcherConfig::new(queue).unwrap(),
+        archive.clone(),
     )
     .map_err(|e| format!("host:{e:?}"))?;
     let contracts = Arc::new(peers.clone());
-    let activity = host
+    let session = host
         .activity(
             OriginalStockBinding {
                 original: original.clone(),
@@ -615,6 +750,15 @@ fn healthy_fresh_stock_activity() -> Check<()> {
             activity_registration,
         )
         .map_err(|e| format!("host original session:{e:?}"))?;
+    let retention = Retention::new(
+        archive,
+        Arc::new(peers.clone()),
+        host.native_contracts.clone(),
+    );
+    let activity = RetainingActivity {
+        session,
+        retention: retention.clone(),
+    };
     // Use only the test's synthetic dispatch peer. The production bind's actual
     // HttpDispatcher specialization is compiled but is not invoked here.
     let mut bound = BoundStock {
@@ -623,12 +767,13 @@ fn healthy_fresh_stock_activity() -> Check<()> {
             access: peers.clone(),
             preparation: peers.clone(),
             activity,
-            dispatch: peers.clone(),
-            readback: peers.clone(),
+            dispatch: retention.capture.dispatch_port(peers.clone()),
+            readback: retention.capture.readback_port(peers.clone()),
         },
         command: command.clone(),
         actor_id: authority.actor_id,
         deployment: PhantomData,
+        retention,
     };
     let outcome = match ready(bound.execute()) {
         n::StockResult::Outcome(outcome) => *outcome,
@@ -654,7 +799,67 @@ fn healthy_fresh_stock_activity() -> Check<()> {
     assert_eq!(loaded.activity_version, 4);
     assert_eq!(loaded.command.original_wire, raw);
     assert_eq!(loaded.command.request_digest, command.request_digest);
-    drop(bound);
+    let record = bound
+        .retained_record()
+        .map_err(|e| format!("retained record:{e:?}"))?;
+    assert_eq!(record.operation(), &loaded);
+    assert_eq!(record.events().len(), 4);
+    let receipts = bound
+        .archive_receipts()
+        .map_err(|e| format!("archive receipts:{e:?}"))?;
+    assert_eq!(receipts.len(), 4);
+    assert_eq!(std::fs::read_dir(&archive_path)?.count(), 4);
+    for receipt in &receipts {
+        let path = archive_path.join(receipt.name());
+        use std::os::unix::fs::MetadataExt;
+        let metadata = std::fs::metadata(&path)?;
+        assert_eq!(metadata.mode() & 0o777, 0o600);
+        assert_eq!(metadata.uid(), rustix::process::geteuid().as_raw());
+        let bytes = std::fs::read(path)?;
+        use sha2::{Digest as _, Sha256};
+        assert_eq!(format!("{:x}", Sha256::digest(&bytes)), receipt.sha256());
+        let saved: Value = serde_json::from_slice(&bytes)?;
+        assert_eq!(saved["format"], codec::ACTIVITY_NATIVE_ARCHIVE_CODEC_V4);
+        assert_eq!(
+            saved["storageCommit"],
+            codec::ACTIVITY_ARCHIVE_STORAGE_COMMIT
+        );
+        assert_eq!(saved["writerCommit"], codec::WRITER_COMMIT);
+    }
+    let final_frame: Value = serde_json::from_slice(&std::fs::read(
+        archive_path.join(format!("{}.4.producer.json", outcome.operation_id)),
+    )?)?;
+    assert_eq!(
+        operation_payload(&final_frame["original"])["command"]["original_wire"],
+        raw
+    );
+    assert_eq!(final_frame["native"][1]["raw"]["result"]["value"], response);
+    assert_eq!(
+        operation_payload(&final_frame["native"][1]["before"])["activityVersion"],
+        "3"
+    );
+    assert_eq!(final_frame["physicalHold"], true);
+    assert_eq!(final_frame["native"][0]["sequence"], "3");
+    assert_eq!(final_frame["native"][1]["sequence"], "4");
+    let native_archive = bound
+        .into_retained_native()
+        .map_err(|e| format!("native archive:{e:?}"))?;
+    assert!(std::ptr::eq(
+        native_archive.producer().original(),
+        Arc::as_ptr(&original)
+    ));
+    assert_eq!(native_archive.native_events().len(), 2);
+    assert_eq!(native_archive.native_events()[0].sequence(), 3);
+    assert_eq!(native_archive.native_events()[1].sequence(), 4);
+    assert_eq!(
+        native_archive.native_events()[0].codec(),
+        codec::ACTIVITY_DISPATCH_CODEC_V3
+    );
+    assert_eq!(
+        native_archive.native_events()[1].codec(),
+        codec::ACTIVITY_OBSERVATION_CODEC_V3
+    );
+    assert_eq!(native_archive.producer().record(), &record);
     drop(host);
     drop(store);
     let db = rusqlite::Connection::open_with_flags(

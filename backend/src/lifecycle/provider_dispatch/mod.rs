@@ -6,9 +6,12 @@ use crate::{
     jobs::{self, native_homebox::*},
     storage::{self, AtlasStore, Authorization, Contract, QueueAuthorization, Runtime},
 };
+pub mod archive;
+pub mod capture;
 pub mod durable_stock;
 #[cfg(test)]
 mod healthy;
+mod retention;
 pub mod stock_http;
 
 /// Own this once in the deployment host. A mutable borrow serializes all local

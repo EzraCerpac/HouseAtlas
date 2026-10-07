@@ -1,10 +1,15 @@
 //! Concrete host composition of published AT07 activity and stock HTTP peers.
 //! No new activity store, authority policy, queue engine or epoch translation.
 use super::TrustedDispatcherConfig;
+use super::{
+    archive::PrivateStockArchive,
+    capture::NativeArchiveAuthorization,
+    retention::{RetainingActivity, Retention},
+};
 use crate::{
     access,
     config::provider_dispatch::stock_http::TrustedStockHttpConfig,
-    providers::homebox::{write::stock as native, write_transport as transport},
+    providers::homebox::{recovery as codec, write::stock as native, write_transport as transport},
     storage,
 };
 use serde_json::Value;
@@ -63,6 +68,8 @@ pub struct DurableStockHost<C, A, R> {
     store: Arc<Mutex<storage::AtlasStore<C, A, R>>>,
     access: Arc<Mutex<access::AccessBoundary>>,
     queue: TrustedDispatcherConfig,
+    archive: Arc<PrivateStockArchive>,
+    native_contracts: Arc<codec::NativeWriterContracts>,
 }
 
 impl<C: storage::Contract + Send, A: storage::Authorization + Send, R: storage::Runtime + Send>
@@ -74,18 +81,25 @@ impl<C: storage::Contract + Send, A: storage::Authorization + Send, R: storage::
         store: Arc<Mutex<storage::AtlasStore<C, A, R>>>,
         access: Arc<Mutex<access::AccessBoundary>>,
         queue: TrustedDispatcherConfig,
+        archive: Arc<PrivateStockArchive>,
     ) -> Result<Self, HostError> {
         let version = store
-            .lock()
+            .try_lock()
             .map_err(|_| HostError::Activity(native::StockPortFault::Unavailable))?
             .database_version();
         if version != storage::STOCK_ACTIVITY_DATABASE_VERSION {
             return Err(HostError::Profile6Required);
         }
+        let native_contracts = Arc::new(
+            codec::NativeWriterContracts::new()
+                .map_err(|_| HostError::Activity(native::StockPortFault::ContentConflict))?,
+        );
         Ok(Self {
             store,
             access,
             queue,
+            archive,
+            native_contracts,
         })
     }
 
@@ -103,12 +117,12 @@ impl<C: storage::Contract + Send, A: storage::Authorization + Send, R: storage::
     ) -> Result<BoundStockHttp<'h, C, A, R, P, G, S, X, F, H, B>, HostError>
     where
         P: storage::StockActivityPrincipal,
-        G: storage::StockActivityAuthorization<P>,
+        G: NativeArchiveAuthorization<P>,
         S: native::StockContractPort + Send + Sync,
         X: native::StockAccessPort,
         F: native::StockPreparationPort,
         H: transport::DispatchResources,
-        B: native::StockReadbackPort,
+        B: native::StockReadbackPort + Sync,
     {
         config
             .check_queue(&self.queue)
@@ -124,23 +138,32 @@ impl<C: storage::Contract + Send, A: storage::Authorization + Send, R: storage::
         let command = binding.command.clone();
         let actor_id = binding.captured_authority.actor_id;
         let contracts = SharedContracts(Arc::clone(&binding.contracts));
+        let retention = Retention::new(
+            Arc::clone(&self.archive),
+            Arc::clone(&binding.authorization),
+            Arc::clone(&self.native_contracts),
+        );
         // HttpDispatcher construction performs no request or credential lookup.
         let dispatch = config
             .into_http(io.resources)
             .map_err(HostError::Transport)?;
-        let activity = self.activity(binding, registration)?;
+        let activity = RetainingActivity {
+            session: self.activity(binding, registration)?,
+            retention: retention.clone(),
+        };
         Ok(BoundStockHttp {
             writer: native::StockWriter {
                 contracts,
                 access: io.access,
                 preparation: io.preparation,
                 activity,
-                dispatch,
-                readback: io.readback,
+                dispatch: retention.capture.dispatch_port(dispatch),
+                readback: retention.capture.readback_port(io.readback),
             },
             command,
             actor_id,
             deployment: PhantomData,
+            retention,
         })
     }
 
@@ -151,7 +174,7 @@ impl<C: storage::Contract + Send, A: storage::Authorization + Send, R: storage::
     ) -> Result<storage::StockActivitySession<C, A, R, P, G, S>, HostError>
     where
         P: storage::StockActivityPrincipal,
-        G: storage::StockActivityAuthorization<P>,
+        G: NativeArchiveAuthorization<P>,
         S: native::StockContractPort + Send + Sync,
     {
         let queue = &self.queue.queue().registration;
@@ -217,18 +240,19 @@ type DurableWriter<C, A, R, P, G, S, X, F, D, B> = native::StockWriter<
     SharedContracts<S>,
     X,
     F,
-    storage::StockActivitySession<C, A, R, P, G, S>,
-    D,
-    B,
+    RetainingActivity<C, A, R, P, G, S>,
+    codec::CapturingStockDispatch<D>,
+    codec::CapturingStockReadback<B>,
 >;
 
 /// Private fields prevent construction without the original-host binding.
 /// Production bind returns the concrete HTTP specialization above.
-pub struct BoundStock<'h, C, A, R, P, G, S, X, F, D, B> {
+pub struct BoundStock<'h, C, A, R, P: storage::StockActivityPrincipal, G, S, X, F, D, B> {
     writer: DurableWriter<C, A, R, P, G, S, X, F, D, B>,
     command: native::StockCommand,
     actor_id: Uuid,
     deployment: PhantomData<&'h mut DurableStockHost<C, A, R>>,
+    retention: Arc<Retention<P, G>>,
 }
 
 impl<C, A, R, P, G, S, X, F, D, B> BoundStock<'_, C, A, R, P, G, S, X, F, D, B>
@@ -237,16 +261,20 @@ where
     A: storage::Authorization + Send,
     R: storage::Runtime + Send,
     P: storage::StockActivityPrincipal,
-    G: storage::StockActivityAuthorization<P>,
+    G: NativeArchiveAuthorization<P>,
     S: native::StockContractPort + Send + Sync,
     X: native::StockAccessPort,
     F: native::StockPreparationPort,
-    D: native::StockDispatchPort,
-    B: native::StockReadbackPort,
+    D: native::StockDispatchPort + Sync,
+    B: native::StockReadbackPort + Sync,
 {
     /// Execute only the original command validated when this session was bound.
     pub async fn execute(&mut self) -> native::StockResult {
-        self.writer.execute(&self.command.original_wire).await
+        if self.retention.ready().is_err() {
+            return self.retention_error();
+        }
+        let result = self.writer.execute(&self.command.original_wire).await;
+        self.finish(result)
     }
 
     /// Get a sealed current original-owner carrier for never-invoked metadata.
@@ -255,7 +283,7 @@ where
         &self,
         operation_id: Uuid,
     ) -> Result<storage::QueuedStockActivity, native::StockPortFault> {
-        self.writer.activity.queued_handoff(operation_id)
+        self.writer.activity.session.queued_handoff(operation_id)
     }
 
     /// Revalidate the same session's sealed carrier immediately before using
@@ -264,8 +292,10 @@ where
         &mut self,
         handoff: &storage::QueuedStockActivity,
     ) -> Result<native::StockResult, native::StockPortFault> {
-        let operation = self.writer.activity.retain_handoff(handoff)?;
-        Ok(self.writer.run_reserved(operation).await)
+        self.retention.ready()?;
+        let operation = self.writer.activity.session.retain_handoff(handoff)?;
+        let result = self.writer.run_reserved(operation).await;
+        Ok(self.finish(result))
     }
 
     /// Original-authority journal lookup; this cannot reconcile or release holds.
@@ -278,5 +308,55 @@ where
             .activity
             .load(&self.command, self.actor_id, operation_id)
             .await
+    }
+
+    /// Genuine original-owner objects for the native codec owner. These APIs
+    /// issue no invocation, recovery, principal or disclosure authority.
+    pub fn retained_record(
+        &self,
+    ) -> Result<storage::RetainedStockActivity, native::StockPortFault> {
+        self.retention.record()
+    }
+    /// Consume only live retained data; closes codec capture without releasing
+    /// physical activity. No SQL store enters the original codec archive.
+    pub fn into_retained_native(
+        self,
+    ) -> Result<codec::ArchivedNativeStockActivity<P>, native::StockPortFault> {
+        self.retention.seal()
+    }
+    pub fn archive_receipts(
+        &self,
+    ) -> Result<Vec<super::archive::ArchiveReceipt>, native::StockPortFault> {
+        self.retention.receipts()
+    }
+    fn finish(&self, result: native::StockResult) -> native::StockResult {
+        if self.retention.ready().is_ok() {
+            return result;
+        }
+        // Preserve the accepted writer's access-denial sanitization even when
+        // its preceding fact commit could not be independently retained.
+        if let native::StockResult::Error(error) = &result
+            && matches!(
+                error.code,
+                native::StockErrorCode::CapabilityDenied | native::StockErrorCode::Unauthenticated
+            )
+        {
+            return result;
+        }
+        self.retention_error()
+    }
+    fn retention_error(&self) -> native::StockResult {
+        native::StockResult::Error(native::StockError {
+            schema_version: 3,
+            request_id: self.command.request_id,
+            code: native::StockErrorCode::UnknownHeld,
+            message:
+                "Independent producer retention is unavailable; inspect the retained operation."
+                    .into(),
+            retry: native::RetryAdvice::None,
+            // The current disclosure fence can be the reason retention failed.
+            // Do not reveal an earlier cut's ID without that authorization.
+            operation_id: None,
+        })
     }
 }

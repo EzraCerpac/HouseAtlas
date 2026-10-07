@@ -1,7 +1,7 @@
 """Compile exact peer composition and run only two inspected fresh fixtures.
 
-The harness manifest, lock and build output live outside the repository. Copy
-the accepted lock's package graph verbatim, adding only the harness package.
+The harness manifest, lock and build output live outside the repository. Retain
+the accepted lock graph, adding the harness and Media63's exact PNG dependency.
 Run after activating the repository's pinned Rust environment. No downloads,
 provider calls, broad test alias, stopped controls or source mutations occur.
 """
@@ -17,11 +17,23 @@ import tomllib
 
 BASE_INPUT = "19310b10dcfc34424233496854c014000f44acbf"
 PEER_INPUTS = [
-    ("ef3117c43e5d2cf1d53e71ea436b1594d6743e3d", ["backend/src/storage", "backend/migrations"]),
-    ("8a568fb6ccef5b0fa575b18d6181dcc524d4db99", ["backend/src/domain", "backend/src/jobs"]),
-    ("f0d6b10f00bb93fc1c1dd4eb3ae66ee1fbe3f873", ["backend/src/media"]),
-    ("4a0cd4da563a32d26677755a608180c960765353", ["backend/src/access"]),
+    ("2befc971bd8b5590ab6b139b1163fbcd82256c66", ["backend/src/storage", "backend/migrations"]),
+    ("c25c1a0316ef5e12b61560f00371d839085aefb5", ["backend/src/domain"]),
+    ("8a568fb6ccef5b0fa575b18d6181dcc524d4db99", ["backend/src/jobs"]),
+    ("ea8ef14e05795334b3d79ae9c95c0a456f8b0308", ["backend/src/media"]),
+    ("5e87c6c9152228ac4ae72814c6e6fc8f0ea8d7a2", ["backend/src/access"]),
     ("72349292ec6c51a0e6a5d36985e094d05166bd53", ["backend/src/providers/homebox/write_transport"]),
+    ("1d202f4e61726db9fa49cadbb2f8bf6900551d5f", ["backend/src/providers/homebox/recovery"]),
+]
+PNG_PACKAGES = [
+    {"name":"fdeflate","version":"0.3.7",
+     "source":"registry+https://github.com/rust-lang/crates.io-index",
+     "checksum":"1e6853b52649d4ac5c0bd02320cddc5ba956bdb407c4b75a2c6b75bf51500f8c",
+     "dependencies":["simd-adler32"]},
+    {"name":"png","version":"0.18.1",
+     "source":"registry+https://github.com/rust-lang/crates.io-index",
+     "checksum":"60769b8b31b2a9f263dae2776c37b1b28ae246943cf719eb6946a1db05128a61",
+     "dependencies":["bitflags","crc32fast","fdeflate","flate2","miniz_oxide"]},
 ]
 
 
@@ -73,10 +85,30 @@ def verify():
         for namespace in ["config", "lifecycle"]:
             path = Path("backend/src") / namespace / "provider_dispatch"
             shutil.copytree(root / path, source / path, dirs_exist_ok=True)
+        # The accepted Access recovery adapter imports this separately published
+        # Domain leaf. Mount only its exact bytes/declaration in scratch.
+        extract(root, source, "fd72542686112e594d9a6f63b4782a62b5d9e6ef", ["backend/src/domain/queue_recovery"])
+        with (source / "backend/src/domain/mod.rs").open("a") as module:
+            module.write("\npub mod queue_recovery;\n")
+        # Exact codec-owner bridge is mounted inside the original stock module
+        # solely in scratch, exposing its accepted private reducer functions.
+        with (source / "backend/src/providers/homebox/write/stock/mod.rs").open("a") as module:
+            module.write('\n#[path="../../recovery/stock_bridge.rs"] pub mod retained_bridge;\n')
+        # The codec-owner byte bridge uses only exact private data codecs. Its
+        # declarations/reexport are scratch-only; no producer factory is added.
+        with (source / "backend/src/storage/stock_activity/mod.rs").open("a") as module:
+            module.write('\n#[path="../../providers/homebox/recovery/activity_storage_bridge.rs"] pub(crate) mod retained_native_codec_bridge;\n')
+        with (source / "backend/src/storage/mod.rs").open("a") as module:
+            module.write('\npub(crate) use stock_activity::retained_native_codec_bridge;\n')
         if (source / "Cargo.toml").read_text() != manifest or (
             source / "Cargo.lock"
         ).read_text() != lock_text:
             raise RuntimeError("Checkout manifests differ from exact remapped base")
+        # Media63 requires png=0.18.1. This external-only dependency adaptation
+        # preserves repository manifests and every original locked package.
+        backend_manifest=source / "backend/Cargo.toml"
+        backend_manifest.write_text(backend_manifest.read_text().replace(
+            "[dev-dependencies]", 'png = "=0.18.1"\n\n[dev-dependencies]', 1))
         # Disposable root declarations only. Peer cfg(test) runners, app/router
         # and recovery workflows are neither mounted nor executed. Original
         # manifests/dependency lock and peer runtime source remain exact.
@@ -84,7 +116,7 @@ def verify():
             "pub mod access; pub mod contracts; pub mod domain; pub mod jobs;\n"
             "pub mod media; pub mod storage; pub mod providers {\n"
             "pub mod network; pub mod homebox {pub mod read; pub mod write;"
-            "pub mod write_transport;}}\n"
+            "pub mod write_transport;pub mod recovery;}}\n"
             "pub mod config {pub mod provider_dispatch;}\n"
             "pub mod lifecycle {pub mod provider_dispatch;}\n"
         )
@@ -116,14 +148,17 @@ def verify():
                         str(harness / "Cargo.toml")], check=True, env=env,
                        stdout=subprocess.DEVNULL)
         normalized = tomllib.loads((harness / "Cargo.lock").read_text())
+        added=[p for p in normalized["package"] if p["name"] in {"png","fdeflate"}]
+        if added != PNG_PACKAGES:
+            raise RuntimeError("External PNG source graph differs from exact pinned packages")
         retained = [p for p in normalized["package"]
-                    if p["name"] != "houseatlas-provider-dispatch-check"]
+                    if p["name"] not in {"houseatlas-provider-dispatch-check","png","fdeflate"}]
         # The backend is now a dependency: its dev-only tower edge is omitted.
         # Tower itself remains the exact locked package via the harness. All
         # other package facts, dependencies, versions and checksums must match.
         expected = [dict(p) for p in lock["package"]]
         expected_backend = next(p for p in expected if p["name"] == "houseatlas-backend")
-        expected_backend["dependencies"] = [d for d in backend["dependencies"] if d != "tower"]
+        expected_backend["dependencies"] = sorted([d for d in backend["dependencies"] if d != "tower"]+["png"])
         if retained != expected:
             raise RuntimeError("External harness changed accepted dependency graph")
         subprocess.run(["rustfmt", "--edition", "2024", "--check",

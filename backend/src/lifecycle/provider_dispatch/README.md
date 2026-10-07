@@ -1,158 +1,231 @@
 # Durable provider dispatcher hosts
 
-This namespace composes the actual native Jobs queue and the published AT07
-async stock activity leaf. It adds no scheduler, recovery scan, policy engine,
-substitute database or grant reconstruction. Root mounts, manifests, router,
-shared schemas and host service registration remain integrator-owned.
+These namespaces compose actual native Jobs/SQL and profile-6 stock activity.
+Root module declarations, manifests, router, shared schemas and application
+store ownership remain integrator-owned. There is no scheduler, startup scan,
+recovered dispatch, policy engine or Jobs-to-native lease/epoch conversion.
 
-## Native Jobs host
+## Native Jobs path
 
 `ProviderDispatcher::new(store, transport, trusted_config)` owns an accepted
 `AtlasStore`, synchronous `PreparedTransport` and Jobs registration.
-`bind(original_binding, authority, |journal| owner)` constructs the actual SQL
-`QueueSession`, `WriteQueue` and `NativeHomeBoxWriter` with shared native store
-and journal handles. The binding borrows the original `ValidatedRequest`,
-principal and witness. The owner must journal exact bytes, run final
-`authorize_dispatch` and correlate response/readback evidence through the
-provided handle. `enqueue`, `snapshot` and explicit `dispatch_next` delegate
-to the accepted Jobs semantics. `into_parts` returns ownership for shutdown;
-it does not release a physical slot or liability.
+`bind(original_binding, authority, |journal| owner)` builds the actual SQL
+`QueueSession`, `WriteQueue` and `NativeHomeBoxWriter`. It retains original
+request/principal/witness references and shares genuine store/journal handles.
+The owner journals exact prepared bytes, performs final `authorize_dispatch`
+and correlates response/readback evidence through the supplied handle.
+`enqueue`, `snapshot` and explicit `dispatch_next` use the existing semantics.
+Transactions and RefCell borrows end before transport invocation. `into_parts`
+returns ownership for shutdown without freeing remote activity or liability.
+Every provider-writing alias must use the deployment's same physical queue.
 
-Every configured provider-writing alias must enter the deployment's one
-canonical physical queue. Supply the canonical Atlas connection and complete
-registration. SQL transactions and RefCell borrows end before synchronous I/O.
-Do not hold an outer application database mutex during that invocation.
+## Durable async host and archive
 
-## Concrete durable async stock host
+Provision an independent private archive directory outside the recoverable SQL
+image. Pass its absolute canonical path and an explicit frame-byte limit to
+`TrustedStockArchiveConfig::new`, then `PrivateStockArchive::open`. The existing
+directory must be owned by the current effective user with mode 0700. Opening
+creates no path. The original retention policy must qualify this exact trusted
+server destination; a path or checksum is not authentication or disclosure
+permission. No credentials or opaque principal/grant handles enter its files.
 
-`DurableStockHost::new(store_arc, access_arc, trusted_queue_config)` takes the
-actual `Arc<Mutex<AtlasStore<C,A,R>>>` and original
-`Arc<Mutex<AccessBoundary>>`. It requires the storage owner's already-open,
-fresh, opt-in profile 6. It never opens, upgrades or migrates a database.
-Default profile 5 remains unchanged. Profile-6 recovery is unavailable.
+`DurableStockHost::new(store_arc, access_arc, trusted_queue_config, archive_arc)`
+requires the canonical original `Arc<Mutex<AtlasStore<C,A,R>>>`, original access
+boundary and already-open fresh opt-in profile 6. It never opens, upgrades,
+replaces or migrates a database. Default profile 5 remains unchanged. Root must
+coordinate these same original store handles; a second database connection is
+not an equivalent live activity composition.
 
-Call its mutable `bind(original_binding, original_io, stock_http_config)`:
+Its mutable `bind(original_binding, original_io, stock_http_config)` retains:
 
-- `OriginalStockBinding` retains `Arc<P>` implementing the actual
-  `StockActivityPrincipal`, its original opaque AT11 principal/source/partition
-  handles, `Arc<G>` implementing mandatory `StockActivityAuthorization<P>`,
-  shared actual contracts, the original validated `StockCommand` and captured
-  `StockAuthority`.
-- `OriginalStockIo` supplies the actual access, preparation, transport resource
-  and readback peers. These must retain the same original binding and trusted
-  server-held route/graph/observation/approval/staging/evidence inputs.
-- `TrustedStockHttpConfig::new(&queue, https_origin, DispatchBinding, Limits)`
-  checks the complete source partition, physical deployment/database/digest
-  and owner against the queue. The real `SourceEndpoint::https` checks endpoint
-  and qualified registry facts. Explicit source/dispatcher epochs pass directly
-  to `StockActivityRegistration`; no Jobs lease fence conversion exists.
+- `OriginalStockBinding`: original `Arc<P>` with actual opaque AT11 principal,
+  source and partition handles; original validated command/captured authority;
+  shared contracts; and mandatory `Arc<G>`.
+- `G: NativeArchiveAuthorization<P>` extends the actual Storage71
+  `StockActivityRetentionAuthorization<P>`/`StockActivityAuthorization<P>`.
+  The storage callback qualifies the complete historical/preflight cut at
+  entry/precommit/release. The additional mandatory
+  native callback receives the actual opened archive directory's canonical
+  path, device, inode and owner, the genuine producer and its native carrier.
+  It qualifies every actual raw native field and that destination.
+  There is no permissive default. Callbacks must avoid storage/state reentry
+  and perform no provider I/O; server archive evidence and user disclosure are
+  independent responsibilities.
+- Actual access, preparation, HTTP resource and readback peers retaining that
+  original binding, with genuine routes, graphs, observation, approval,
+  staging/liability, credential and source-epoch evidence.
+- `TrustedStockHttpConfig`: exact qualified HTTPS endpoint, explicit request/
+  response/time limits and `DispatchBinding`. Complete partition, deployment,
+  physical database/configuration digest and owner must match the queue. Stock
+  source/dispatcher epochs pass unchanged to `StockActivityRegistration`.
 
-The returned `BoundStockHttp` contains the real
-`StockWriter<SharedContracts<S>,X,F,StockActivitySession<C,A,R,P,G,S>,HttpDispatcher<H>,B>`.
-The contracts forwarding wrapper preserves the same shared schema peer used
-by the durable session. Construction performs no request or credential lookup.
-An exclusive host borrow lasts through the bound workflow. Database and access
-guards end within the accepted synchronous session operations before network
-awaits. Own one host per deployment; bypass paths are not mounted by this leaf.
-The storage leaf also enforces reciprocal Jobs/stock interlocks in the physical
-database. Its conservative cross-lane logical/liability holds are preserved.
+The returned bound writer uses the actual AT07 `StockActivitySession`, actual
+`StockWriter`, concrete `HttpDispatcher`, and actual codec78
+`CapturingStockDispatch`/`CapturingStockReadback`. The exclusive host borrow
+serializes the workflow. No SQL/access/codec/data mutex guard crosses a network
+await. The published storage leaf retains reciprocal Jobs/native physical
+interlocks and distinct logical/remote/liability state.
 
-`execute(&mut self)` uses only the original command's exact JSON value.
-`snapshot(operation_id)` performs the original-authority journal lookup.
-`queued_handoff(operation_id)` returns the storage owner's actual sealed,
-in-memory, never-invoked carrier; `run_queued(&carrier)` revalidates that same
-session's handoff before calling the existing writer. No raw `StoredOperation`
-is accepted by this concrete host, and no database scan reconstructs authority.
-Handoff/recovered dispatch qualification remains held and was not exercised.
-The earlier generic `stock_http::StockHttpDispatcher` remains a peer-supplied
-constructor; use `durable_stock::DurableStockHost` for this concrete composition.
+The activity decorator captures and durably archives each newly reserved cut.
+After genuine admission it calls the same session's producer/successor method,
+then actual codec `/3` `RetainedNativeStockActivity::bind_admitted`. Complete
+admission/preflight/permit/approval/liability and original event prefix are
+archived **before admission returns the permit to the writer**, hence before
+provider I/O. A retention error stops the workflow; the host supplies no retry,
+replacement grant, physical release or recovery authority.
+The accepted writer's sanitized authentication/capability errors remain intact.
+Other retention errors return `UnknownHeld` with no retry or operation ID; an
+earlier retained cut is not a current disclosure authorization.
 
-Admission, deduplication, FIFO, permit journaling, exact plan/evidence/approval,
-byte accounting and durable evidence retention use AT07's implementation.
-The mandatory authorization peer must qualify authentic server-held I/O evidence
-independently of current disclosure authority. There is no permissive fallback.
-Remote-end, logical outcome and retained liability remain distinct. The concrete
-HTTP driver returns `EndUnproven` for invoked requests; the activity leaf has no
-later termination-proof API. Observation success cannot free the physical slot.
+The original codec wrappers capture actual `NativeDispatch`/`DispatchReceipt`
+and `NativeObservation` before returning them for native fact reduction. After
+SQL fact commit the decorator captures the same original successor and calls
+`retain_successor`; the peer verifies exactly one new event and recomputes its
+own native facts against the genuine prior cut. The complete successor and its
+raw native events are then archived before further I/O. Later response/readback/
+end/liability cannot qualify an earlier frame. The source driver's actual
+`NativeResponse` carries decoded bounded value and original body digest; no
+original source bytes are fabricated from a JSON reencoding.
 
-## Exact source inputs
+Before admission, the genuine producer is encoded with actual codec88
+`NativeActivityArchivePacket::encode_producer`. Admitted and successor carriers
+use its `encode` without sealing capture. Both receive the exact configured
+`max_frame_bytes`; the peer bounds borrowed source data before allocation and
+streams output under that limit and its independent 16 MiB/256-event ceiling.
+This archive contains the peer's explicit
+`houseatlas-homebox-stock-activity-archive/4` format and `/3` native results.
+The packet checks the genuine original principal's actor/scope and the complete
+source record, native correlations and exact typed roundtrip. The dispatcher
+performs the mandatory original destination/full-field authorization and the
+actual durable write; encoding issues no storage or invocation permission.
 
-The continuation starts at the identity-remapped
-`19310b10dcfc34424233496854c014000f44acbf`; the original integration input was
-`7e742505fd360901a3976a993774a4bbdf7e2eaf`. Existing native writer bytes remain
-the accepted `c784be5776b614f8f0bb225fcb5355ecb9e90e0d`. The earlier Jobs/store
-path used storage `2643eced79c5a581f72cc53634659d93da323cfb`, domain
-`d9e2b59ffef4b7ac2b11705df735b89d8371fdc5` and Jobs
-`f35bcdc2d9c24646356bc080bfb1ef157120bcb3`.
+The concrete file archive accepts exact codec-owner bytes and writes them to a
+newly created 0600 file under an anchored directory descriptor, syncs the file, publishes an
+immutable hard link, removes only its temporary name and syncs the directory.
+Existing complete frames must match exact bytes; none are overwritten or
+pruned. Filenames use original operation UUID and activity version. Complete
+original wire/native number tokens, source clocks, registration/epochs,
+preflight, plan, permit, every exact event sequence/prefix and typed raw native
+fields are retained by the codec-owned encoder. Its native carrier selection is
+the peer's explicit `houseatlas-homebox-stock-activity-native/3`. This leaf does
+not define a second serializer or reconstruct raw source bytes. File digests
+are archive integrity receipts, separate from original native request/response
+digests. No file loader
+here can recreate a producer, principal, source grant or invocation permission.
+Crash/durability/containment controls remain unqualified; only ordinary healthy
+filesystem operations were exercised.
 
-The disposable verification now consumes these exact published peer trees:
+`execute` uses only the bound original JSON. `snapshot` reads through the
+original session. `queued_handoff`/`run_queued` retain the actual sealed
+never-invoked owner handoff; they are compiled but not exercised. `retained_record`
+and `archive_receipts` reauthorize complete retained output. Consuming
+`into_retained_native` returns actual `ArchivedNativeStockActivity<P>` through
+codec `seal`, preserving the genuine original pointer while closing capture;
+it frees no physical hold and retains no SQL store. Root/recovery can pass it
+to actual `RetainedNativeStockActivityArchive` and `HomeboxStockActivityEvidence`
+with mandatory independent original/media provenance and offline discovery.
+No image restore/reopen/recovered execution is mounted or run by this leaf.
+The earlier generic `stock_http` constructor remains for peer-supplied callers;
+this deployment path uses `DurableStockHost`.
 
-| Namespace | Published source |
+## Exact source composition
+
+This continuation is based on preserved dispatcher62
+`5690f8d10569b2c7418ba3dc8fb314f9ad793588`, whose remapped base is
+`19310b10dcfc34424233496854c014000f44acbf`. Original integration was
+`7e742505fd360901a3976a993774a4bbdf7e2eaf`. Native writer bytes remain exact
+accepted `c784be5776b614f8f0bb225fcb5355ecb9e90e0d`.
+
+| External namespace | Exact tested input |
 | --- | --- |
-| Storage and migrations, including async activity | `ef3117c43e5d2cf1d53e71ea436b1594d6743e3d` |
-| Domain and Jobs, including staged consumption APIs | `8a568fb6ccef5b0fa575b18d6181dcc524d4db99` |
-| Media | `f0d6b10f00bb93fc1c1dd4eb3ae66ee1fbe3f873` |
-| Access | `4a0cd4da563a32d26677755a608180c960765353` |
+| Storage71 and migrations | `2befc971bd8b5590ab6b139b1163fbcd82256c66` |
+| Actual native activity/archive codec88 | `1d202f4e61726db9fa49cadbb2f8bf6900551d5f` |
+| Domain70 | `c25c1a0316ef5e12b61560f00371d839085aefb5` |
+| Jobs | `8a568fb6ccef5b0fa575b18d6181dcc524d4db99` |
+| Separate original-owner Domain queue recovery | `fd72542686112e594d9a6f63b4782a62b5d9e6ef` |
+| Media63 | `ea8ef14e05795334b3d79ae9c95c0a456f8b0308` |
+| Access | `5e87c6c9152228ac4ae72814c6e6fc8f0ea8d7a2` |
 | Concrete write transport | `72349292ec6c51a0e6a5d36985e094d05166bd53` |
 
-The remapped transport namespace is byte-identical to the previously inspected
-`c36bb0bc19bb631d815ab4bb44fa3514ebeac0b7`. Access is byte-identical to the
-remapped base. Contracts and writer remain the base's accepted source. Peer
-namespaces are copied by exact Git object into disposable external storage;
-no peer changes or their commit ancestry enter this scoped checkout. The
-verifier requires these objects already fetched read-only. This is explicit
-source adoption for compilation, not live or integrator mounting acceptance.
+Earlier inputs remain in Git: storage2643/default jobs, stock activity29a37d8,
+mutex-cycle successoref3117c, domain d9 and staged8a, media f0, access4a, and
+transport c36 (byte-identical to remapped72349292). No peer ancestry is merged
+into this branch. Peer runtime bytes are extracted from exact published Git
+objects into disposable external storage, with current owned namespace bytes.
+Source adoption for compilation is separate from shared integration acceptance.
+Codec88 is the exact direct successor chain of preserved codec78
+`12e8482af75ecd49531832dee81b87a5298baffb`, via
+`ea510dbc0f796d79122c48edbf8ddab4cc679d0e`. Its two published byte methods
+support genuine waiting producers and explicit caller limits. It also carries
+the original owner's source fixes for ambiguous capture never claiming positive
+never-invoked evidence and retaining compatible refreshed readback authority.
+Those stopped controls are not executed here.
+The requested Storage71 `8a171a18d7d035d4fce5818442c1f654a340683e` remains
+preserved. The inspected `6e54c2dbf29485ac7d44fac418430652d39f46bc` and then
+`2befc971bd8b5590ab6b139b1163fbcd82256c66` carry queue guard/order and fresh
+metadata/replay occupancy corrections. The producer/data-codec API bytes and
+all SQL migration bytes are unchanged across those successors.
 
-Storage is PR55's exact current ready head, the direct successor of sealed
-`29a37d8de35d5930a396fce3b06bdb901ba5421a`. Its inspected mutex-cycle correction
-uses `try_lock` for both activity transaction and runtime ID/time store access.
-Contention returns `Unavailable` without permit, retry or physical release;
-the genuine evidence policy must still avoid storage reentry. The original
-sealed evidence packet and profile SQL remain unchanged. These source facts
-do not qualify concurrency or contention; those controls remain held.
+## Inspected ordinary verification
 
-## Local evidence
+Activate the saved pinned Rust environment, inspect `verify-local.py`, then run
+`python3 -B backend/src/lifecycle/provider_dispatch/verify-local.py`.
+The disposable source composition mounts only the needed modules and the exact
+codec-owner stock evidence bridge and original storage data-codec bridge;
+checkout declarations and peer bodies stay
+unchanged. It retains the accepted root manifest/lock. Media63's required
+`png=0.18.1` dependency is added only to the external backend manifest. The
+external lock admits only the check package, exact PNG0.18.1 and fdeflate0.3.7
+with pinned checksums/dependencies; every original locked package/version/
+checksum/edge is checked, except backend's dev-only Tower edge and the explicit
+PNG edge. Required dependencies must be cached; compilation is offline/locked.
+Root must separately reconcile the production manifest dependency.
+It must mount `activity_storage_bridge.rs` inside `storage::stock_activity` as
+`retained_native_codec_bridge` and reexport that module at storage root. The
+bridge wraps only original private data codecs and pure baseline checking;
+no private producer factory or live store is exposed. These declarations are
+added solely to scratch by this verifier.
 
-Inspect `verify-local.py`, activate the saved pinned Rust environment, then run
-`python3 -B backend/src/lifecycle/provider_dispatch/verify-local.py`. It creates
-an external source composition with temporary root declarations, preserving
-the accepted manifest and lock. It adds one external check package. Every
-locked version, checksum and package edge is compared before compilation; only
-the backend's dev-only Tower edge is omitted when used as a dependency, while
-the locked Tower package remains in the check package. Cargo uses
-`--offline --locked`. The checkout's root declarations/manifests are untouched.
+Rustfmt and strict Clippy check the namespaces; exactly two healthy tests run:
 
-Rustfmt and Clippy (`-D warnings`) check these namespaces. The helper selects
-exactly two inspected fresh fixtures:
+- `healthy_fresh_native_dispatch`: one fresh Jobs/SQL/native mapper/synthetic
+  transport invocation and durable receipt in profile 5; exact original JSON
+  and one attempt/journal/evidence/outcome are inspected. Physical hold remains.
+- `healthy_fresh_stock_activity`: actual fresh AT11 handles, SQLite profile 6,
+  native mapper/writer, this host decorator and actual codec88 capture/byte APIs,
+  with synthetic policy/dispatch/readback. The dispatch seam checks the complete
+  synced admission file first; the readback seam checks the synced dispatch
+  successor first. Four immutable private archive frames are read back with
+  exact hashes/JSON/prefixes/native objects. Actual sealed codec events use own
+  sequences 3 and 4 and the same original `P` pointer. SQL retains one operation,
+  four events and `ConfirmedObserved` while `EndUnproven` keeps the physical slot.
 
-- `healthy_fresh_native_dispatch` uses a fresh profile-5 SQLite database,
-  genuine Jobs/store/native writer composition, synthetic original authority,
-  the real stock quantity mapper, one enqueue, one transport invocation and
-  one durable receipt. SQL inspection verifies original JSON and exactly one
-  attempt/journal/evidence/outcome with the physical slot retained.
-- `healthy_fresh_stock_activity` adapts the published storage leaf's ordinary
-  helpers. A fresh disposable AT11 boundary supplies real typed original
-  handles. A fresh profile-6 database runs this host's actual SQL activity
-  session, native writer, mapper and synthetic dispatch/readback peers. SQL
-  inspection verifies exact original wire/intent, one operation, four journal
-  events and `ConfirmedObserved` while `EndUnproven` keeps the physical slot.
+The production HTTP specialization is compiled, never invoked. Peer tests,
+listeners, providers/accounts, production credentials/grants, deployment and
+inference are not run. Recovery and handoff execution, rejection/replay/expiry/
+revocation/guard reversal/mutation/omission/adversarial/denial/fault/crash/
+concurrency controls and broad aggregates stay held. Ordinary success supplies
+no security, crash recovery, deployment or live qualification.
 
-The production HTTP specialization is compiled, not invoked. Both fixtures
-use explicit synthetic policy/qualification facts. Peer test runners are not
-mounted or run. There is no HTTP request, socket, real account/provider,
-production credential creation, deployment or inference. Replay, recovered dispatch,
-rejection, faults, crashes, concurrency, corruption, expiry, revocation and
-adversarial controls remain held. No later positive termination proof is
-manufactured, and these checks do not establish production qualification.
+## Explicit owner dependencies
 
-## Remaining trusted host inputs
+The integrator supplies same-original canonical store/access ownership, complete
+physical aliases/owner/epochs, Jobs policy/clocks/native owner, qualified build/
+routes/origin and explicit limits, original handles/commands, real preparation/
+resource/readback peers, and complete archive/native/provenance/media policies.
+The archive's lifetime, capacity, backup/protection and original destination
+qualification are trusted host settings. No production settings are inferred.
 
-The integrator must supply the canonical fresh-profile store/access handles,
-complete physical alias/owner registration and Jobs admission/retry/lease
-settings; genuine captured principals/grants/witnesses and original commands;
-qualified build/routes/epochs and HTTPS origin; explicit body/response/time
-limits; original-authority access/preparation/readback peers; server-qualified
-activity policy with human approval, graph/observation/byte reservation and
-evidence verification; resource callbacks providing only existing authorized
-credentials and admitted stage bytes; and trusted clocks/native owner for the
-synchronous Jobs path. Compile success supplies none of these live facts.
+Storage71 may commit reserve then refuse release and return only StockPortFault,
+without its committed operation ID. The dispatcher cannot capture that unknown
+cut by a scan or reconstructed authority. For known IDs it attempts successor
+capture even when a fact method returns an error, but live original retention
+can itself refuse after an original-fence/revocation/disclosure change. A
+storage-owned committed-result/archive callback or independent genuine evidence
+retention seam is required to complete those error paths. This source limitation
+was reported immediately on PR71; no held campaign was executed. SQL facts and
+physical holds are retained, further I/O stops, and no full postcommit/error-path
+archive qualification is claimed. Codec unsupported rejection/missing raw or
+unavailable-observation evidence remains unavailable; no substitute proof is
+introduced. Independent offline native/media provenance and administrative
+registry/discovery remain with their original owners.
