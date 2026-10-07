@@ -74,7 +74,7 @@ export interface DomainHeld {
 }
 
 export type RunOutcome =
-  | { readonly status: 'completed'; readonly text: string; readonly usage: Usage }
+  | { readonly status: 'completed'; readonly text: string; readonly operationIds: readonly string[]; readonly usage: Usage }
   | ReviewRequired
   | DomainHeld
   | { readonly status: 'cancelled'; readonly usage: Usage }

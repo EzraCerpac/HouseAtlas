@@ -49,7 +49,7 @@ export async function runHealthyReviewCancellationExample(container: HTMLElement
         };
         return waiting;
       }
-      return { status: 'completed', text: 'Fresh synthetic request after review cancellation', usage: persisted.usage };
+      return { status: 'completed', text: 'Fresh synthetic request after review cancellation', operationIds: [], usage: persisted.usage };
     },
     async cancel(requestId) {
       assert(requestId === waitingId, 'Cancel original browser request');
@@ -68,7 +68,7 @@ export async function runHealthyReviewCancellationExample(container: HTMLElement
     },
     async resume(input) {
       calls.push({ kind: 'resume', requestId: input.requestId });
-      return { status: 'completed', text: 'Synthetic resume', usage: persisted.usage };
+      return { status: 'completed', text: 'Synthetic resume', operationIds: [], usage: persisted.usage };
     },
   });
   const root = createRoot(container);

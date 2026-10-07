@@ -72,8 +72,8 @@ export function decodeRunOutcome(value: unknown): RunOutcome {
   const status = choice(value.status, ['completed', 'review-required', 'domain-held', 'cancelled', 'stopped', 'failed']);
   switch (status) {
     case 'completed': {
-      const row = object(value, ['status', 'text', 'usage']);
-      return { status, text: text(row['text']), usage: usage(row['usage']) };
+      const row = object(value, ['status', 'text', 'operationIds', 'usage']);
+      return { status, text: text(row['text']), operationIds: array(row['operationIds'], text), usage: usage(row['usage']) };
     }
     case 'review-required': {
       const row = object(value, ['status', 'continuationId', 'calls', 'reviews', 'usage']);

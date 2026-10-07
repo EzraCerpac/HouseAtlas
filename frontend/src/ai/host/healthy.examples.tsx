@@ -87,13 +87,13 @@ export function createHealthyAiHostFixture(mode: Mode) {
           finish = outcome => resolve(response(outcome));
         });
         if (mode === 'terminal-display') return response({ status: 'failed', reason: 'domain-unavailable', operationIds: [U(30)], usage: unknownUsage });
-        return response({ status: 'completed', text: 'Canonical synthetic response <em>plain text</em>', usage });
+        return response({ status: 'completed', text: 'Canonical synthetic response <em>plain text</em>', operationIds: [], usage });
       }
       if (input === '/synthetic/review' || input === '/synthetic/resume') {
         assert(body?.['requestId'] === requestId && body['continuationId'] === review.continuationId, 'Retained review identity');
         assert(Object.keys(body).sort().join(',') === 'continuationId,requestId', 'No approval receipt or mutated arguments');
         if (input === '/synthetic/review') return response({ status: ++reviewCount === 1 ? 'pending' : 'ready-to-resume' });
-        return response({ status: 'completed', text: 'Canonical reviewed response', usage });
+        return response({ status: 'completed', text: 'Canonical reviewed response', operationIds: [], usage });
       }
       if (input.startsWith('/synthetic/cancel/')) {
         assert(body?.['requestId'] === requestId, 'Cancellation ID');
@@ -101,7 +101,7 @@ export function createHealthyAiHostFixture(mode: Mode) {
       }
       if (input.startsWith('/synthetic/status/')) {
         assert(input === `/synthetic/status/${requestId}`, 'Status is for original request');
-        return response({ requestId, status: 'finished', outcome: { status: 'completed', text: 'Canonical status response', usage } });
+        return response({ requestId, status: 'finished', outcome: { status: 'completed', text: 'Canonical status response', operationIds: [], usage } });
       }
       throw new Error('Unexpected healthy fixture route');
     },
@@ -110,7 +110,7 @@ export function createHealthyAiHostFixture(mode: Mode) {
     client, observed,
     confirmConnection() { snapshot = ready; },
     finishCancelled() { assert(finish, 'Synthetic result retained'); finish({ status: 'cancelled', usage }); },
-    finishStatusTransport() { assert(finish, 'Synthetic result retained'); finish({ status: 'completed', text: 'Canonical status response', usage }); },
+    finishStatusTransport() { assert(finish, 'Synthetic result retained'); finish({ status: 'completed', text: 'Canonical status response', operationIds: [], usage }); },
   };
 }
 
