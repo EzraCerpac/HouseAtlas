@@ -72,6 +72,22 @@ the canonical text/structured content and actual durable audit linkage. Native
 request evidence is constructed for the access API in this example; it proves
 no MCP HTTP listener.
 
+## Narrow owner corrections
+
+Generic MCP tool failures without an owner-validated output DTO now render a
+text-only `isError: true` result and omit `structuredContent`. Validated canonical
+owner errors retain their existing schema, request/scope correlation and final
+access release checks. This correction is inspected source only; no error flow
+has been executed.
+
+The storage composition retains its existing schema4 owner interval and adopts
+only the exact `queue_finish.rs` correction. Inside the original transaction it
+checks the retained outcomes for the exact job and attempt before any completion
+write. A first late completion remains supported; later observations use the
+existing reconciliation entrypoint. No queue finish, repeated finish, expiry or
+reconciliation flow has been executed in this slice. The thirteen other paths
+from the later storage interval are outside this narrow candidate.
+
 ## Verification boundary and missing areas
 
 The source runner executes three existing inspected healthy examples explicitly.

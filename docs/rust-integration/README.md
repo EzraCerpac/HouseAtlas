@@ -19,12 +19,12 @@ references; the running Rust service invokes no JavaScript semantic oracle.
 | Baseline generation/protocol, retained from main | 07576e6be463dd481b49071071c66dec144b1e0c |
 | Access, including original-grant revalidation inside held fence | 4967dd2d38c5749be35aa7e44728c4d691246730 |
 | Combined native core/stock contracts and raw-current/timestamp peer exports | 49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c |
-| Storage schema4, bounded immutable stock audit lookup and native queue source | 8b0507b21c1fbaabfd62020516015f885220af30 |
+| Storage schema4, bounded immutable stock audit lookup and native queue source | 8b0507b21c1fbaabfd62020516015f885220af30; only queue_finish.rs from 2643eced79c5a581f72cc53634659d93da323cfb |
 | Domain direct native semantics/storage, stock query/authority and canonical result bridges | d9e2b59ffef4b7ac2b11705df735b89d8371fdc5 |
 | Jobs/stock boundaries | f35bcdc2d9c24646356bc080bfb1ef157120bcb3 |
 | Media native access/storage/runtime, preview policy and native schema-2 recovery port | 80194a0e0f098cef85d71db602a78ae52db6bcad |
 | React session shell, exact stock scope/admission and visible completion | 967f2bb59640c73276949dae53386b72377f6519 |
-| Native MCP catalog, original opaque access context and service adapter | 1ba74b8e2feefd027b6afeff349dcc74187f1da9 |
+| Native MCP catalog, original opaque access context and service adapter | 97a1335b1419a4c12b2134fec2195ed68d67ed52 |
 | Browser WebMCP family/schema, session and React acknowledgment boundary | 6832e825c636b7b48eeed8fcb085fe3ca277ead3 |
 | HomeBox full durable-registration read/publication binding | 5ccbe1863728676cb8a8d51023f68a20121a8c18 |
 | HomeBox native stock command component | c784be5776b614f8f0bb225fcb5355ecb9e90e0d |

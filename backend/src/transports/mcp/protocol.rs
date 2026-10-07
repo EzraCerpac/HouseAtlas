@@ -95,14 +95,21 @@ impl ToolResult {
     }
 
     pub(crate) fn failure(failure: super::PublicToolFailure) -> Self {
-        let data = failure.data.map(Value::Object).unwrap_or_else(|| {
-            serde_json::json!({
-                "code": failure.code, "message": failure.message
-            })
-        });
-        let mut result = Self::json(data);
-        result.is_error = true;
-        result
+        match failure.data {
+            Some(data) => {
+                let mut result = Self::json(Value::Object(data));
+                result.is_error = true;
+                result
+            }
+            None => Self {
+                content: vec![TextContent::new(format!(
+                    "{}: {}",
+                    failure.code, failure.message
+                ))],
+                structured_content: None,
+                is_error: true,
+            },
+        }
     }
 }
 

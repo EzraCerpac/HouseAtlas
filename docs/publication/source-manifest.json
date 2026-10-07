@@ -1,6 +1,6 @@
 {
   "format": "houseatlas-publication-source/1",
-  "status": "development-native-agent-composition-exact-candidate-review-required",
+  "status": "development-native-agent-correction-exact-candidate-review-required",
   "self": {
     "path": "docs/publication/source-manifest.json",
     "mode": "100644",
@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b99b37f47a3b66eadebaa57f0d580e5ed81d610fc81c4d0ff3f819a4a7a0b9f1",
+  "sourceDigestSha256": "6828e5834a1bdd0490c93c0edf2f0650259037a3b2092c70ae54c1054d7aef94",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -1616,8 +1616,8 @@
     {
       "path": "backend/src/storage/queue_finish.rs",
       "mode": "100644",
-      "bytes": 7571,
-      "sha256": "53ffbbc14de39f34939f8adb90be43789d487e0b2a7a9a02153e26e701e16af7",
+      "bytes": 7891,
+      "sha256": "1ffc41b40b42c4c1e75fd78b5b20f1314706b4cf08258001b018d865ce66b37e",
       "owner": "storage"
     },
     {
@@ -1770,8 +1770,8 @@
     {
       "path": "backend/src/transports/mcp/README.md",
       "mode": "100644",
-      "bytes": 9014,
-      "sha256": "d8512b909748575b0b0346e9bcc9cb5e3c07b678ad2c10231e7c95e1eb785038",
+      "bytes": 9296,
+      "sha256": "03d145efd038f9f07691113905ffa033eab36bc87158164ec5a801129bbfdc27",
       "owner": "mcp"
     },
     {
@@ -1833,15 +1833,15 @@
     {
       "path": "backend/src/transports/mcp/ports.rs",
       "mode": "100644",
-      "bytes": 4279,
-      "sha256": "6de728fefe77fb4fa05918857a7e60ccee15bdc322cef3a87fd6e966dbbcbe00",
+      "bytes": 4439,
+      "sha256": "88dd1d908cbfd803bfc317b37f7fa4c6f786dc4a641f3687676590c984cc311f",
       "owner": "mcp"
     },
     {
       "path": "backend/src/transports/mcp/protocol.rs",
       "mode": "100644",
-      "bytes": 10510,
-      "sha256": "a77bae480ce3a25e636539f07a817bebd5ecd910323064e8e6c782f176eacf7f",
+      "bytes": 10708,
+      "sha256": "b7c0c0ecad16d4f62320cf3d74d9cc16bf2125f8a6cd21257a165e4bd2468ef5",
       "owner": "mcp"
     },
     {
@@ -2148,15 +2148,15 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 17339,
-      "sha256": "6f3097fb50b7288a5fab0ca6227b1ed4befde3d19d321f1afc022956eb5b464f",
+      "bytes": 17407,
+      "sha256": "5d70c6b8bddaf13aed3ff0709d8c3c5c9e1c890d529f1120b0db0c731f2e1434",
       "owner": "core-integration"
     },
     {
       "path": "docs/rust-integration/agents.md",
       "mode": "100644",
-      "bytes": 6522,
-      "sha256": "6d7bd7b5d60b97cda54ca1e62bf8d6fd575ea7daf0efcde015a0d04c904443c3",
+      "bytes": 7432,
+      "sha256": "b5924f3aca2174309bc1c535c0f3d8e432b6ee261544fe02c2954af3c0dd1d3f",
       "owner": "core-integration"
     },
     {

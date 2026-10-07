@@ -79,9 +79,12 @@ Parameter extraction copies already decoded argument/capability maps directly
 instead of re-deserializing arbitrary application values.
 
 Public errors use static categories; raw database/access/provider errors never
-become public messages. Success and public tool errors receive current principal
-release checks. Annotations never establish authority. No negative/error branch
-qualification is claimed.
+become public messages. Generic failures without an owner DTO are text-only
+`isError: true` results and omit structuredContent. Structured errors require an
+owner-validated public DTO matching the advertised output schema, complete request/
+scope and ordered child correlation, with disclosure authorized. Success and
+public tool errors receive current principal release checks. Annotations never
+establish authority. No negative/error branch qualification is claimed.
 
 AT51 owns module mounting, manifests and lockfiles. Exact shared pins used here:
 `serde = 1.0.229`, `serde_json = 1.0.151` with `arbitrary_precision`,
