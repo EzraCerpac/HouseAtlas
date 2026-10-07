@@ -210,12 +210,7 @@ pub fn detail_resources(
         let mut resources = Vec::new();
         for raw in rows(&fresh.source, "attachments")? {
             let attachment_id = id(raw)?;
-            let Some(super::super::Attachment::ExternalLink {
-                title,
-                url,
-                archived,
-                ..
-            }) = fresh
+            let Some(super::super::Attachment::ExternalLink { title, url, .. }) = fresh
                 .value
                 .attachments
                 .iter()
@@ -225,6 +220,16 @@ pub fn detail_resources(
             };
             if get && requested != Some(attachment_id) {
                 continue;
+            }
+            // The legacy decoder's false is a presentation convention, not
+            // native archival evidence. Frozen wire3 can represent only false,
+            // so require that exact fact in the original attachment bytes.
+            let archived = raw
+                .get("archived")
+                .and_then(Value::as_bool)
+                .ok_or(st::StockError::OwnerUnavailable)?;
+            if archived {
+                return Err(st::StockError::OwnerUnavailable);
             }
             let attachment_type = raw
                 .get("type")

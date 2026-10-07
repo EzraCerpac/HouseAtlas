@@ -210,6 +210,11 @@ enum Source<'a> {
     Detail(&'a wire::Decoded<wire::Detail>),
     Maintenance(&'a wire::Decoded<wire::MaintenanceLog>),
     Native(&'a [u8]),
+    TemplateList {
+        original: &'a [u8],
+        details: &'a [TemplateDetailCapture<'a>],
+        retrieved_at: &'a Timestamp,
+    },
 }
 fn run(
     raw: Value,
@@ -217,6 +222,8 @@ fn run(
     expected: Vec<StockTarget>,
     edges: Vec<(StockTarget, StockTarget)>,
 ) -> Value {
+    let empty_template_list =
+        matches!(&source, Source::TemplateList { details, .. } if details.is_empty());
     let principal = Principal;
     let graph = Graph {
         original: raw.clone(),
@@ -266,6 +273,34 @@ fn run(
             SourceStatus::Stale,
             wire::DecodeLimits::default(),
         ),
+        Source::TemplateList {
+            original,
+            details,
+            retrieved_at,
+        } => {
+            let observation = DecodedReadObservation::from_template_list(
+                &contracts,
+                prepared.request(),
+                &scope(),
+                original,
+                retrieved_at,
+                SourceStatus::Stale,
+                details,
+                wire::DecodeLimits::default(),
+            )
+            .unwrap();
+            assert_eq!(observation.original_bytes(), original);
+            assert_eq!(observation.template_list_retrieved_at(), Some(retrieved_at));
+            assert_eq!(observation.captured_template_details().len(), details.len());
+            for retained in observation.captured_template_details() {
+                let captured = details
+                    .iter()
+                    .find(|detail| detail.request.raw() == retained.original_request())
+                    .unwrap();
+                assert_eq!(retained.original_bytes(), captured.original);
+            }
+            Ok(observation)
+        }
     }
     .unwrap();
     assert_eq!(observation.original_request(), &raw);
@@ -307,16 +342,109 @@ fn run(
     .wire;
     assert_eq!(authority.released.get(), 1);
     assert_eq!(prepared.request().raw(), &raw);
-    assert_eq!(
-        output["retrievedAt"]
-            .as_str()
-            .or_else(|| output["data"]["resources"][0]["retrievedAt"].as_str()),
-        Some(at().as_str())
-    );
+    if empty_template_list {
+        assert!(output["data"]["resources"].as_array().unwrap().is_empty());
+    } else {
+        assert_eq!(
+            output["retrievedAt"]
+                .as_str()
+                .or_else(|| output["data"]["resources"][0]["retrievedAt"].as_str()),
+            Some(at().as_str())
+        );
+    }
     output
 }
 fn bytes(v: &Value) -> Vec<u8> {
     serde_json::to_vec(v).unwrap()
+}
+
+#[test]
+fn healthy_captured_native_template_list_details() {
+    let contracts = st::NativeStockContract::new().unwrap();
+    let source_scope = scope();
+    let first_at = at();
+    let second_at = Timestamp::parse("2026-10-07T12:34:57.00300+02:00").unwrap();
+    let list_at = Timestamp::parse("2026-10-07T12:35:01.0100+02:00").unwrap();
+    let created = "2026-01-02T03:04:05.1200+02:00";
+    let updated = "2026-10-01T11:22:33.00400+02:00";
+    let first = json!({"id":id(80),"name":"Source details","description":"Exact native summary","createdAt":created,"updatedAt":updated,
+        "fields":[{"id":id(82),"name":"When","type":"time","timeValue":created}],
+        "defaultLocation":{"id":id(81),"name":"Source location"},"defaultTags":[{"id":id(60),"name":"Source tag"}],
+        "includePurchaseFields":true,"includeSoldFields":false,"includeWarrantyFields":true,
+        "defaultQuantity":serde_json::from_str::<Value>("1.2300e+2").unwrap()});
+    let second = json!({"id":id(90),"name":"No custom fields","description":"","createdAt":created,"updatedAt":updated,"fields":[]});
+    let summaries = json!([
+        {"id":id(80),"name":"Source details","description":"Exact native summary","createdAt":created,"updatedAt":updated},
+        {"id":id(90),"name":"No custom fields","description":"","createdAt":created,"updatedAt":updated}
+    ]);
+    let list_bytes = bytes(&summaries);
+    let first_bytes = bytes(&first);
+    let second_bytes = bytes(&second);
+    let first_request =
+        st::ValidatedRequest::parse(&contracts, request(Op::HomeboxTemplateGet, Some(80), None))
+            .unwrap();
+    let second_request =
+        st::ValidatedRequest::parse(&contracts, request(Op::HomeboxTemplateGet, Some(90), None))
+            .unwrap();
+    // Capture order differs from native list order; membership is correlated by
+    // actual original UUID and shared facts, never by array position.
+    let details = [
+        TemplateDetailCapture {
+            request: &second_request,
+            scope: &source_scope,
+            original: &second_bytes,
+            retrieved_at: &second_at,
+            status: SourceStatus::Stale,
+        },
+        TemplateDetailCapture {
+            request: &first_request,
+            scope: &source_scope,
+            original: &first_bytes,
+            retrieved_at: &first_at,
+            status: SourceStatus::Stale,
+        },
+    ];
+    let graph = vec![
+        target(HomeboxResourceKind::Template, 80, None),
+        target(HomeboxResourceKind::Template, 90, None),
+        target(HomeboxResourceKind::Entity, 81, None),
+        target(HomeboxResourceKind::Tag, 60, None),
+    ];
+    let output = run(
+        request(Op::HomeboxTemplateList, None, None),
+        Source::TemplateList {
+            original: &list_bytes,
+            details: &details,
+            retrieved_at: &list_at,
+        },
+        graph,
+        vec![],
+    );
+    let rows = output["data"]["resources"].as_array().unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0]["target"]["resourceId"], id(80));
+    assert_eq!(rows[1]["target"]["resourceId"], id(90));
+    assert_eq!(rows[0]["data"]["fields"][0]["value"]["value"], created);
+    assert_eq!(rows[0]["data"]["defaultQuantity"].to_string(), "1.2300e+2");
+    assert_eq!(rows[0]["data"]["defaultLocation"]["resourceId"], id(81));
+    assert_eq!(rows[1]["data"]["description"], "");
+    assert!(rows[1]["data"]["fields"].as_array().unwrap().is_empty());
+    assert!(rows[1]["data"].get("defaultLocation").is_none());
+    assert_eq!(rows[0]["retrievedAt"], first_at.as_str());
+    assert_eq!(rows[1]["retrievedAt"], second_at.as_str());
+    assert_eq!(output["data"]["sourceStatus"], "stale");
+    assert_eq!(output["data"]["nextCursor"], Value::Null);
+    let empty = run(
+        request(Op::HomeboxTemplateList, None, None),
+        Source::TemplateList {
+            original: b"[]",
+            details: &[],
+            retrieved_at: &list_at,
+        },
+        vec![],
+        vec![],
+    );
+    assert!(empty["data"]["resources"].as_array().unwrap().is_empty());
 }
 
 #[test]
@@ -338,10 +466,8 @@ fn healthy_decoded_detail_and_maintenance_resources() {
     let fields = (61..=64)
         .map(|n| target(HomeboxResourceKind::Field, n, Some(5)))
         .collect::<Vec<_>>();
-    let link = target(HomeboxResourceKind::Attachment, 202, Some(5));
     let mut graph = vec![entity.clone(), target(HomeboxResourceKind::Tag, 60, None)];
     graph.extend(fields.clone());
-    graph.push(link.clone());
     let mut lookup = request(Op::HomeboxQueryRead, None, None);
     lookup["payload"] = json!({"view":"asset-lookup","assetId":"00012","limit":10});
     let mut lookup_graph = graph.clone();
@@ -385,27 +511,8 @@ fn healthy_decoded_detail_and_maintenance_resources() {
         );
         assert_eq!(got["data"]["resources"][0]["target"]["resourceId"], id(n));
     }
-    let links = run(
-        request(Op::HomeboxDocumentLinkList, None, Some(5)),
-        Source::Detail(&decoded),
-        graph.clone(),
-        vec![],
-    );
-    assert_eq!(
-        links["data"]["resources"][0]["data"]["storage"],
-        "external-link"
-    );
-    assert_eq!(
-        links["data"]["resources"][0]["data"]["url"],
-        "https://example.invalid/manual?q=%2f"
-    );
-    let got = run(
-        request(Op::HomeboxDocumentLinkGet, Some(202), Some(5)),
-        Source::Detail(&decoded),
-        graph,
-        vec![],
-    );
-    assert_eq!(got["data"]["resources"][0]["target"]["resourceId"], id(202));
+    // Native ItemAttachment has no archived fact. Do not fabricate a false
+    // fixture property to qualify frozen document-link list/get results.
     assert_eq!(decoded.original, original);
 
     let maintenance = json!([{"id":id(71),"name":"Check","description":"Calendar","completedDate":"","scheduledDate":"2026-02-01","cost":"12.50","itemID":id(5),"itemName":"Item"}]);
