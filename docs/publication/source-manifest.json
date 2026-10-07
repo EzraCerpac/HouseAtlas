@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "9fff2031f3f0cc363aed69a04f71767bc2ed0b8fd8b3f14f8454b3b188972675",
+  "sourceDigestSha256": "18b1d9b23cc7f3b7dc74af20450a914a71b05ef20d955d130e0396ab2bd281c5",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2212,8 +2212,8 @@
     {
       "path": "backend/src/providers/homebox/read/query/README.md",
       "mode": "100644",
-      "bytes": 16671,
-      "sha256": "cdc1a4be0efb84d84cf0307efea4935b972994eee99741f7246abb6138b01514",
+      "bytes": 19222,
+      "sha256": "91dc2385ef94fa019713fb962b23ff3df22d0ce95e0c8d6df3dfd35b738e772b",
       "owner": "homebox"
     },
     {
@@ -2233,8 +2233,8 @@
     {
       "path": "backend/src/providers/homebox/read/query/detail.rs",
       "mode": "100644",
-      "bytes": 12133,
-      "sha256": "9258e1a0bda796edc7a2d5469dc256e320b94676803fe4b01f1756fadf1c9a9f",
+      "bytes": 12546,
+      "sha256": "792e4ed3caaca933f18750d6431b08013594c6707353124d11ff6be04866e31c",
       "owner": "homebox"
     },
     {
@@ -2247,8 +2247,8 @@
     {
       "path": "backend/src/providers/homebox/read/query/mod.rs",
       "mode": "100644",
-      "bytes": 587,
-      "sha256": "ffcc33e879da764f40fdd15e58806019c534bdaa9136fca96394734994504221",
+      "bytes": 610,
+      "sha256": "0113c6bd961379f5b4bc409c9c3c4165860499b691f0e66645ae6a895dbd55b5",
       "owner": "homebox"
     },
     {
@@ -2268,15 +2268,15 @@
     {
       "path": "backend/src/providers/homebox/read/query/observations.rs",
       "mode": "100644",
-      "bytes": 14136,
-      "sha256": "83b39891f8dd0266fc395fffda524c5a782b642f6bc17e09ed9f0f024b676bcb",
+      "bytes": 20775,
+      "sha256": "25b867488fd8648b7cbf6b4ca2a8377fde9db2ee0d7dcf7a92db7f4de31a4e23",
       "owner": "homebox"
     },
     {
       "path": "backend/src/providers/homebox/read/query/observations_healthy.rs",
       "mode": "100644",
-      "bytes": 20594,
-      "sha256": "944919c3c0e10b2d7ea5c56cd50b9843c2bc21ca85e03190bed08c01582621ec",
+      "bytes": 25605,
+      "sha256": "7f7cd9f182b700b9c4b8d5a93a50ca0fe53598aaf5755cb0a518e95a633e3b63",
       "owner": "homebox"
     },
     {
@@ -4046,8 +4046,8 @@
     {
       "path": "docs/rust-integration/dev-composition.md",
       "mode": "100644",
-      "bytes": 7576,
-      "sha256": "4e075d7a15f9173c5d8bf2ffe3df7bf708fb45e4117b51307e3f6a40ccc82b19",
+      "bytes": 7668,
+      "sha256": "bc824a00990bf1f3ae9dea0e4dcde94a256dc076b11fe6e3b847307eed9cf7df",
       "owner": "core-integration"
     },
     {
@@ -6139,8 +6139,8 @@
     {
       "path": "tools/rust-integration/healthy-stock-write-loopback.mjs",
       "mode": "100644",
-      "bytes": 41076,
-      "sha256": "69fc0ff4d0c0380688384ee9a08e5f942282bb2a5d893cfa29f145cbfe97780b",
+      "bytes": 41282,
+      "sha256": "5e312f51d355aa13707bb3a9d53dfd89b000fe2140f31bba16dec4048e84a0f7",
       "owner": "core-integration"
     },
     {

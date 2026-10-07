@@ -48,10 +48,12 @@ with the genuine opaque renderer carrier in bounded session-bound custody; the
 same-Store proof consumer remains a distinct source gap. Four cached HomeBox
 entity/location reads are mounted in native stock and HTTP/MCP. The remaining
 HomeBox read families and durable writer host require genuine owner peers. PR119
-adds native-byte observation adapters for thirteen resource forms and seven query
-views. Its 24 positive source dispatches use synthetic authority/graphs and do not
+adds native-byte observation adapters, followed by an archive-fact correction and
+a bounded captured-template join. The corrected source covers twelve resource
+forms and seven query views in 24 positive dispatches. These use synthetic
+authority/graphs and do not
 qualify production intake or new HTTP/MCP mounts. Representation gaps remain in
-stored-file archive facts, template summaries, field identity, calendar/date-time,
+stored-file/document-link archive facts, field identity, calendar/date-time,
 UUID registration and asset/cursor producer correlation.
 Missing product areas include Core-only MCP download admission and download link
 UI, Core-only MCP Network query mounts, complete

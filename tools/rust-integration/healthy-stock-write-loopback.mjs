@@ -79,7 +79,7 @@ try {
   assert.equal(contextCookie.success, true, 'Ordinary additional cookie retains actual session authority');
   const evaluate = async expression => {
     const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-    assert(!result.exceptionDetails, 'Healthy browser evaluation'); return result.result.value;
+    assert(!result.exceptionDetails, 'Healthy browser evaluation: ' + (result.exceptionDetails?.exception?.description ?? '')); return result.result.value;
   };
   // Open the retained native Atlas surface through Lantern's visible controls.
   const openAtlasTools = async () => {
@@ -322,6 +322,7 @@ try {
     const direct=command('identity',923,1204,1304,{kind:'item',evidenceIds:[U(100)]});
     const unresolvedSource={sourceInstanceId:U(10),collectionId:'synthetic-collection-a',sourceKind:'homebox-entity',externalId:U(599)};
     const derivedBinding=command('binding',926,1208,1308,{atlasId:U(200),source:unresolvedSource,reviewStatus:'proposed',evidenceIds:[U(100)]});
+    derivedBinding.preconditions.guards.push({target:{authority:'atlas',recordType:'identity',recordId:U(200)},revision:{kind:'atlas',value:1}});
     const mixedChildren=[command('identity',924,1205,1305,{kind:'item',evidenceIds:[U(100)]}),command('circuit',925,1206,1306,{label:null,panel:null,evidenceIds:[U(100)]}),derivedBinding];
     const mixed={...batch,requestId:U(1207),target:{authority:'atlas',kind:'batch',batchId:U(1401)},payload:{commands:mixedChildren},idempotencyKey:U(1307),reason:'Healthy disposable ordered mixed native stock batch'};
     const third=await call(endpoint,direct,nextSession.csrfToken);
