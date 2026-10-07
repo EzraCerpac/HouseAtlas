@@ -1,6 +1,6 @@
 {
   "format": "houseatlas-publication-source/1",
-  "status": "development-native-attachment-receipt-review-composition-review-required",
+  "status": "development-ui-receipt-layout-composition-review-required",
   "self": {
     "path": "docs/publication/source-manifest.json",
     "mode": "100644",
@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d8c43ceac46464ee1cdcfa5dd59a044cb0c40899b6dde9b303527e301c314a6d",
+  "sourceDigestSha256": "c4df9e979284f49897c49036d2faefde022103b4d1f01859ae6be784d4286fc4",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2652,8 +2652,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 24478,
-      "sha256": "bb466e5433c1b23ca8c3fcb9a07f98acd2bb93c1b2510bedbe7c026aff105cb1",
+      "bytes": 24583,
+      "sha256": "c2547e958a4523a40e349691b71586cd2b758eb4e196d211d8ab5b0b2093e3ce",
       "owner": "core-integration"
     },
     {
@@ -2904,8 +2904,8 @@
     {
       "path": "frontend/src/app/PlaceEditor.tsx",
       "mode": "100644",
-      "bytes": 12979,
-      "sha256": "556bb8211cf9c8f2b1453a69d1d9cd7d2bcbbe889ccb9cc88560f4c7ea5af42d",
+      "bytes": 13007,
+      "sha256": "ca8fc04d441a7393cc590f0ec18fb81ee4d9a4fe41dd84323650658922dfba44",
       "owner": "web"
     },
     {
@@ -3037,8 +3037,8 @@
     {
       "path": "frontend/src/styles/stock.css",
       "mode": "100644",
-      "bytes": 329,
-      "sha256": "56c70915f1ee2fb118176a7a135ec7bb95ed49f7951c9bb4c99829e16c64ed2d",
+      "bytes": 425,
+      "sha256": "f413831f30a51d12443583795110b91e5d51925b6fa640f111871dfaa51ef15a",
       "owner": "web"
     },
     {
@@ -4087,8 +4087,8 @@
     {
       "path": "tools/rust-integration/healthy-upload-loopback.mjs",
       "mode": "100644",
-      "bytes": 51807,
-      "sha256": "8263ee49a2fe3b7f60f1b58c9dad05c1176ff10fac3e7d318ab04a78d3ac3124",
+      "bytes": 53230,
+      "sha256": "2b9f3f150ca57b9cb55a78cef78429638610d679434c3282f65a24996e385cfd",
       "owner": "core-integration"
     },
     {
