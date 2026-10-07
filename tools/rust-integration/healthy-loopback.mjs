@@ -97,6 +97,8 @@ try {
   assert.equal(api[4].body.schemaVersion, 1); assert.equal(typeof api[4].body.expiresAt, 'string');
   const room = view.entries.find(e => e.semanticKind === 'room'), item = view.entries.find(e => e.kind === 'item');
   assert(room && item, 'Explicit reviewed room and actual saved item');
+  assert.deepEqual(api[1].body, [room], 'Authorized rooms use the same browser entry projection');
+  assert.deepEqual(api[2].body, [item], 'Authorized items use the same browser entry projection');
   assert.equal(item.entity.parent, null); assert.equal(item.mobility, 'unknown');
   assert(view.entries.every(e => e.nativeLinks.length === 0 && e.networkRelations.length === 0), 'No unissued capabilities');
   assert(item.attachments.filter(a => a.kind === 'stored-file').every(a => a.downloadHref === null && a.previewHref === null));

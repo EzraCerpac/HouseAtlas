@@ -20,7 +20,7 @@
     "web"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "fba2760a40967cf09197bfc5263e843a0cf66fcfd3a7b98ca2797fc5f1bb0fc0",
+  "sourceDigestSha256": "c11148b93bd2cf28c718ac2b73b1171be23cec82dded0008b9381ea5075b5e35",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -445,8 +445,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 12059,
-      "sha256": "61feeb870ebc36c785a9bb243b99c97c2641c08673a07141b46ef18d3f15fa9b",
+      "bytes": 12667,
+      "sha256": "eb48e0cbfb0e05b2706868a6883fd31a0316cc9d5487377cca03dd6c815b0841",
       "owner": "core-integration"
     },
     {
@@ -964,8 +964,8 @@
       "path": "docs/rust-integration/read-corrections.md",
       "mode": "100644",
       "owner": "core-integration",
-      "bytes": 2512,
-      "sha256": "0800fdbb6f36d886ce2996fbd30eda3ae8463ffbf241e24a54a42498423dd664"
+      "bytes": 3393,
+      "sha256": "cf9f1d5303ade4c7318d4d419ded75a9bd87e2ba4181445f7accf217be877447"
     },
     {
       "path": "docs/rust-integration/verification.md",
@@ -1999,8 +1999,8 @@
     {
       "path": "tools/rust-integration/healthy-loopback.mjs",
       "mode": "100644",
-      "bytes": 11460,
-      "sha256": "a3ff0ca71369e9909cc5e8621554868beeab11a74e3cb6440950fc08b0cc2105",
+      "bytes": 11658,
+      "sha256": "02cc89cbd1ffa935f72bff8bd9d4fee5411ed7aad2c3d854a55a6b41417d2fa9",
       "owner": "core-integration"
     },
     {

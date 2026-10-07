@@ -38,3 +38,16 @@ malformed-header, rejection, exploit, replay, expiry, revocation, fault, crash o
 concurrency request is issued. No negative aggregate or hidden control is added.
 These source corrections and positive results do not qualify wider security,
 provider, recovery, target or production behavior.
+
+The ready-for-review checkpoint 46047d0193fbce720bba7a1d209b5428c51dba94
+received three further HTTP adapter corrections before landing. Session HEAD
+and other unsupported session methods return 405 with Allow: GET without
+calling the CSRF-rotating access GET method. Axum calculates representation
+Content-Length and suppresses HEAD bodies after the canonical response layer.
+Caller-selected malformed scope IDs
+map to the established 404 boundary, without changing internal access parsing.
+Rooms and items now reuse the same compact source-key and explicit extension
+field projection as bootstrap/scoped browser views. Their ordinary successful
+GET results are compared with the corresponding entries from the real view.
+No rejected method or malformed selector request is exercised; those fixes
+receive source review only. Broader core adapters remain a separate continuation.

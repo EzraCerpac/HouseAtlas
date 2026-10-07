@@ -159,7 +159,7 @@ fn prepared_view(
         .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
         .authorize(
             &request,
-            &crate::app::access_scope(&scope).map_err(access_error)?,
+            &crate::app::access_scope(&scope).map_err(|_| failure(StatusCode::NOT_FOUND))?,
             a::Action::Read,
         )
         .map_err(access_error)?;
@@ -188,22 +188,36 @@ fn browser_view(view: d::CurrentOutput) -> Result<Value, HttpFailure> {
         .as_array_mut()
         .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?
     {
-        entry["key"] = Value::String(
-            json!([
-                entry["source"]["sourceInstanceId"],
-                entry["source"]["collectionId"],
-                entry["source"]["sourceKind"],
-                entry["source"]["externalId"]
-            ])
-            .to_string(),
-        );
-        entry["aliases"] = json!([]);
-        entry["mobility"] = json!("unknown");
-        entry["networkBound"] = json!(false);
-        entry["networkStates"] = json!([]);
-        entry["networkRelations"] = json!([]);
+        browser_entry(entry);
     }
     Ok(v)
+}
+fn browser_entry(entry: &mut Value) {
+    entry["key"] = Value::String(
+        json!([
+            entry["source"]["sourceInstanceId"],
+            entry["source"]["collectionId"],
+            entry["source"]["sourceKind"],
+            entry["source"]["externalId"]
+        ])
+        .to_string(),
+    );
+    entry["aliases"] = json!([]);
+    entry["mobility"] = json!("unknown");
+    entry["networkBound"] = json!(false);
+    entry["networkStates"] = json!([]);
+    entry["networkRelations"] = json!([]);
+}
+fn browser_entries(entries: Vec<&d::CurrentEntry>) -> Result<Value, HttpFailure> {
+    let mut values =
+        serde_json::to_value(entries).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    for entry in values
+        .as_array_mut()
+        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?
+    {
+        browser_entry(entry);
+    }
+    Ok(values)
 }
 fn json_response(v: Value) -> Response {
     Json(v).into_response()
@@ -252,10 +266,7 @@ async fn rooms(
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
         let view = prepared_view(&host, &headers, &uri, &method, None)?;
-        Ok(json_response(
-            serde_json::to_value(view.rooms(false))
-                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
-        ))
+        Ok(json_response(browser_entries(view.rooms(false))?))
     })
     .await
     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
@@ -268,10 +279,7 @@ async fn items(
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
         let view = prepared_view(&host, &headers, &uri, &method, None)?;
-        Ok(json_response(
-            serde_json::to_value(view.items(false))
-                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
-        ))
+        Ok(json_response(browser_entries(view.items(false))?))
     })
     .await
     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
@@ -306,6 +314,13 @@ async fn session(
         Ok(json_response(json!({"schemaVersion":1,"actorId":info.actor_id(),"csrfToken":info.csrf_token(),"expiresAt":expires})))
     }).await.map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
 }
+async fn session_method_not_allowed() -> Response {
+    let mut response = failure(StatusCode::METHOD_NOT_ALLOWED).into_response();
+    response
+        .headers_mut()
+        .insert(header::ALLOW, axum::http::HeaderValue::from_static("GET"));
+    response
+}
 async fn static_file(State(host): State<Host>, uri: Uri) -> HttpResult {
     if uri.path() == "/favicon.ico" {
         return Ok(StatusCode::NO_CONTENT.into_response());
@@ -337,7 +352,12 @@ pub fn router(host: Host) -> Router {
         .route("/api/atlas/rooms", get(rooms))
         .route("/api/atlas/items", get(items))
         .route("/api/atlas/homes", get(homes))
-        .route("/api/atlas/auth/session", get(session))
+        .route(
+            "/api/atlas/auth/session",
+            get(session)
+                .head(session_method_not_allowed)
+                .fallback(session_method_not_allowed),
+        )
         .fallback(get(static_file))
         .layer(middleware::from_fn_with_state(
             host.clone(),
