@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0dbf88f930f706c36ae82ee75e8ddd6724f6faf3ccff95a36a4efea969f97817",
+  "sourceDigestSha256": "a995fd0809134f16b1bf81d42cce66195999a2bea6e2a1d99b30d9f424008c07",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -371,8 +371,8 @@
     {
       "path": "backend/src/ai/README.md",
       "mode": "100644",
-      "bytes": 8767,
-      "sha256": "ebd200a96fda63a42d6b23b02d790d6e83389dcb64ac75ac50e29c20ab4476f0",
+      "bytes": 9075,
+      "sha256": "0ae643875107505a4232a1b1058194768a09953c03aeefc987c5a275294921d5",
       "owner": "ai"
     },
     {
@@ -518,8 +518,8 @@
     {
       "path": "backend/src/ai/runner.rs",
       "mode": "100644",
-      "bytes": 15377,
-      "sha256": "d08dca9b65ce7547100bccac59ce86779e6345b1c57d1a361878a3b4ef88e691",
+      "bytes": 15692,
+      "sha256": "1b3e17da80a4b0e036ad0c6365144c601580323b29679a4a611cf7037b3265eb",
       "owner": "ai"
     },
     {
@@ -3066,8 +3066,8 @@
     {
       "path": "frontend/src/ai/README.md",
       "mode": "100644",
-      "bytes": 6445,
-      "sha256": "3e8529b8939b3b2dad7c065f9811800d4bf9b31e3593d7cbd97dbdf753dddb53",
+      "bytes": 7762,
+      "sha256": "9f5894f085677d5ab60a4a90d17f588b21c1d5f2aab5f5fe9e8f70c5827139e0",
       "owner": "ai"
     },
     {
@@ -3171,15 +3171,15 @@
     {
       "path": "frontend/src/ai/types.ts",
       "mode": "100644",
-      "bytes": 6852,
-      "sha256": "4731fd155847e7029d7bbf176517fd77e540d8e48d3ea2f8a88cedafccb5d1a3",
+      "bytes": 7038,
+      "sha256": "561e2c2222ebd5cb792b8c855ac087896abd4f7267d954ea03ed2bc199723cd6",
       "owner": "ai"
     },
     {
       "path": "frontend/src/ai/useAiSession.ts",
       "mode": "100644",
-      "bytes": 18545,
-      "sha256": "f2acf38288e24696ac7adf28b276f5b3e07979cb1093890f7eba56cbf2f1e443",
+      "bytes": 22289,
+      "sha256": "ff06420046f39f3d7a2706fbd166634c6deaf1c68ca682514fe15635f37d8078",
       "owner": "ai"
     },
     {
