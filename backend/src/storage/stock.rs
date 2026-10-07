@@ -274,17 +274,16 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
         replay: Option<&Replay>,
         actor: &VerifiedActor,
     ) -> Result<()> {
-        if self.review.is_some() {
-            if matches!(
+        if self.review.is_some()
+            && (matches!(
                 facts.phase,
                 MutationPhase::Replay | MutationPhase::ReplayPrecommit
-            ) || replay.is_some()
-            {
-                return Err(Error::new(
-                    "upstream-unavailable",
-                    "Renderer review replay is held",
-                ));
-            }
+            ) || replay.is_some())
+        {
+            return Err(Error::new(
+                "upstream-unavailable",
+                "Renderer review replay is held",
+            ));
         }
         let extra = self
             .plan
