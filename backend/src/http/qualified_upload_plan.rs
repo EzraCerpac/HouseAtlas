@@ -401,7 +401,7 @@ pub fn qualify_existing<'u>(
     selection: &ResolvedPlace<'_, '_>,
     root: &st::ValidatedRequest,
     asset: &'u s::ExistingOriginalAsset,
-    measured: &'u crate::media::vault::PreparedOriginal,
+    measured: &'u crate::domain::stock::MeasuredAttachmentOriginal,
 ) -> st::StockResult<st::ExistingAssetAttachmentPlan<'u>> {
     let children = root.children();
     if !std::ptr::eq(principal, selection.principal)
@@ -432,10 +432,16 @@ pub fn qualify_existing<'u>(
         || children[1].payload() != &selection.identity_payload_with_evidence(evidence_id)?
         || children[1].raw()["preconditions"]["target"]
             != json!({"kind":"atlas","value":selection.identity.revision})
-        || measured.purpose != crate::media::types::AssetPurpose::EvidenceOriginal
-        || measured.content_type.as_str() != selection.metadata.content_type
+        || measured.prepared().purpose != crate::media::types::AssetPurpose::EvidenceOriginal
+        || measured.prepared().content_type.as_str() != selection.metadata.content_type
     {
         return Err(changed());
     }
-    st::plan_existing_asset_attachment(root, asset, measured, &NativeContracts)
+    st::plan_existing_asset_attachment(
+        principal.principal.principal(),
+        root,
+        asset,
+        measured,
+        &NativeContracts,
+    )
 }

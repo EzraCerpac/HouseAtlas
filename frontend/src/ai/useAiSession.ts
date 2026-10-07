@@ -33,8 +33,13 @@ interface PendingRun {
 }
 
 interface PendingConnectionAction extends UnresolvedConnectionAction {
-  readonly scope: Scope;
+  readonly scopeKey: string;
 }
+
+// Bounded correlation only: no client, command payload, snapshot or observer.
+// Exact authenticated scope keys keep actions isolated across navigation.
+const pendingConnectionActions = new Map<string, PendingConnectionAction>();
+const MAX_RETAINED_CONNECTION_ACTIONS = 96;
 
 interface ScopedState {
   readonly scope: Scope;
@@ -54,7 +59,7 @@ function retainedConnectionState(
   actions: Iterable<PendingConnectionAction>, scope: Scope, fallback: ConnectionActionState,
 ): ConnectionActionState {
   let latest: PendingConnectionAction | null = null;
-  for (const action of actions) if (action.scope === scope) latest = action;
+  for (const action of actions) if (action.scopeKey === scope.key) latest = action;
   return latest === null ? fallback : { status: latest.status, action: latest.action, actionId: latest.actionId };
 }
 
@@ -102,7 +107,6 @@ export function useAiSession(client: AiClient, scopeKey: string) {
   const recoveryController = useRef<AbortController | null>(null);
   const pendingRun = useRef<PendingRun | null>(null);
   const requestObserver = useRef<{ readonly retained: RetainedRequest; readonly changed: () => void } | null>(null);
-  const pendingConnectionActions = useRef(new Map<string, PendingConnectionAction>());
   const [scopedState, setScopedState] = useState<ScopedState>(() => ({ scope, state: initialState() }));
   const state = scopedState.scope === scope ? scopedState.state : initialState();
 
@@ -146,29 +150,29 @@ export function useAiSession(client: AiClient, scopeKey: string) {
         if (!current()) return;
         update(previous => ({ ...previous, connection: { status: 'unavailable' } }));
       }
-      const retained = [...pendingConnectionActions.current.values()].filter(action => action.scope === scope);
+      const retained = [...pendingConnectionActions.values()].filter(action => action.scopeKey === scope.key);
       for (const pending of retained) {
         if (!current()) return;
         try {
           const result = await scope.client.connectionActionStatus(pending.actionId, controller.signal);
           if (!current()) return;
-          if (pendingConnectionActions.current.get(pending.actionId) !== pending) continue;
+          if (pendingConnectionActions.get(pending.actionId) !== pending) continue;
           if (result.actionId !== pending.actionId) throw new Error('Unexpected connection action status');
-          if (result.status === 'completed') pendingConnectionActions.current.delete(pending.actionId);
-          else pendingConnectionActions.current.set(pending.actionId, { ...pending, status: result.status });
+          if (result.status === 'completed') pendingConnectionActions.delete(pending.actionId);
+          else pendingConnectionActions.set(pending.actionId, { ...pending, status: result.status });
           // Each workflow is correlated separately from current connection facts.
           update(previous => ({ ...previous, connectionAction: retainedConnectionState(
-            pendingConnectionActions.current.values(), scope,
+            pendingConnectionActions.values(), scope,
             result.status === 'completed'
               ? { status: 'idle', action: pending.action, actionId: pending.actionId }
               : previous.connectionAction,
           ) }));
         } catch {
           if (!current()) return;
-          if (pendingConnectionActions.current.get(pending.actionId) !== pending) continue;
-          pendingConnectionActions.current.set(pending.actionId, { ...pending, status: 'unconfirmed' });
+          if (pendingConnectionActions.get(pending.actionId) !== pending) continue;
+          pendingConnectionActions.set(pending.actionId, { ...pending, status: 'unconfirmed' });
           update(previous => ({ ...previous, connectionAction: retainedConnectionState(
-            pendingConnectionActions.current.values(), scope, previous.connectionAction,
+            pendingConnectionActions.values(), scope, previous.connectionAction,
           ) }));
         }
       }
@@ -182,7 +186,10 @@ export function useAiSession(client: AiClient, scopeKey: string) {
       || retainedRequests.get(scope.key) !== pending.retained) return;
     recoveryController.current?.abort();
     recoveryController.current = null;
-    if (outcome.status === 'completed' || outcome.status === 'cancelled' || outcome.status === 'failed') {
+    if (outcome.status === 'completed' || outcome.status === 'cancelled' || outcome.status === 'failed'
+      || outcome.status === 'domain-held') {
+      // DomainHeld is a canonical terminal request result. Its domain operation
+      // stays held and visible; it does not occupy the inference request slot.
       unwatchRequest();
       requestObservers.delete(pending.retained);
       retainedRequests.delete(scope.key);
@@ -255,48 +262,57 @@ export function useAiSession(client: AiClient, scopeKey: string) {
   const connectionAction = useCallback(async (input: ConnectionAction) => {
     if (activeScope.current !== scope || actionController.current !== null
       || (pendingRun.current !== null && input.action !== 'manage-usage' && input.action !== 'disconnect')) return;
-    const retained = [...pendingConnectionActions.current.values()].filter(action => action.scope === scope);
-    if (pendingConnectionActions.current.size >= MAX_UNRESOLVED_CONNECTION_ACTIONS
-      || retained.some(action => action.action === input.action)
+    const retained = [...pendingConnectionActions.values()].filter(action => action.scopeKey === scope.key);
+    if (scope.key.length === 0 || scope.key.length > MAX_SCOPE_KEY_LENGTH
+      || retained.length >= MAX_UNRESOLVED_CONNECTION_ACTIONS
+      || pendingConnectionActions.size >= MAX_RETAINED_CONNECTION_ACTIONS) {
+      // Keep every unresolved row; admission failure is visible separately
+      // from their status and cannot submit or evict a workflow.
+      update(previous => ({ ...previous,
+        connection: input.action === 'disconnect' ? { status: 'unavailable' } : previous.connection,
+        connectionAction: { status: 'unavailable', action: input.action, actionId: null } }));
+      return;
+    }
+    if (retained.some(action => action.action === input.action)
       || ((input.action === 'connect' || input.action === 'consent') && retained.length > 0)) return;
     connectionController.current?.abort();
     if (input.action === 'disconnect') void cancel();
     let actionId: string;
     try {
       actionId = globalThis.crypto.randomUUID();
-      if (pendingConnectionActions.current.has(actionId)) throw new Error('Duplicate connection action identifier');
+      if (pendingConnectionActions.has(actionId)) throw new Error('Duplicate connection action identifier');
     }
     catch {
       update(previous => ({ ...previous,
         connection: input.action === 'disconnect' ? { status: 'unavailable' } : previous.connection,
-        connectionAction: retainedConnectionState(pendingConnectionActions.current.values(), scope,
+        connectionAction: retainedConnectionState(pendingConnectionActions.values(), scope,
           { status: 'unavailable', action: input.action, actionId: null }) }));
       return;
     }
     const controller = new AbortController();
-    const pending: PendingConnectionAction = { scope, actionId, action: input.action, status: 'unconfirmed' };
+    const pending: PendingConnectionAction = { scopeKey: scope.key, actionId, action: input.action, status: 'unconfirmed' };
     actionController.current = controller;
     // Retain every submitted workflow, including a lost response, until its own completion.
-    pendingConnectionActions.current.set(actionId, pending);
+    pendingConnectionActions.set(actionId, pending);
     update(previous => ({ ...previous,
       connection: input.action === 'disconnect' ? { status: 'loading' } : previous.connection,
       connectionAction: { status: 'working', action: input.action, actionId } }));
     try {
       const result = await scope.client.connectionAction({ actionId, command: input }, controller.signal);
       if (actionController.current !== controller || controller.signal.aborted || activeScope.current !== scope
-        || pendingConnectionActions.current.get(actionId) !== pending) return;
+        || pendingConnectionActions.get(actionId) !== pending) return;
       if (result.actionId !== actionId) throw new Error('Unexpected connection action result');
-      if (result.status === 'completed') pendingConnectionActions.current.delete(actionId);
-      else pendingConnectionActions.current.set(actionId, { ...pending, status: result.status });
+      if (result.status === 'completed') pendingConnectionActions.delete(actionId);
+      else pendingConnectionActions.set(actionId, { ...pending, status: result.status });
       update(previous => ({ ...previous, connection: { status: 'available', snapshot: result.snapshot },
-        connectionAction: retainedConnectionState(pendingConnectionActions.current.values(), scope,
+        connectionAction: retainedConnectionState(pendingConnectionActions.values(), scope,
           { status: 'idle', action: input.action, actionId }) }));
     } catch {
       if (actionController.current !== controller || controller.signal.aborted || activeScope.current !== scope
-        || pendingConnectionActions.current.get(actionId) !== pending) return;
+        || pendingConnectionActions.get(actionId) !== pending) return;
       update(previous => ({ ...previous,
         connection: input.action === 'disconnect' ? { status: 'unavailable' } : previous.connection,
-        connectionAction: retainedConnectionState(pendingConnectionActions.current.values(), scope,
+        connectionAction: retainedConnectionState(pendingConnectionActions.values(), scope,
           { status: 'unconfirmed', action: input.action, actionId }) }));
     } finally {
       if (actionController.current === controller) actionController.current = null;
@@ -373,7 +389,8 @@ export function useAiSession(client: AiClient, scopeKey: string) {
       const pending: PendingRun = { scope, requestId: retained.requestId, retained, controller: new AbortController() };
       pendingRun.current = pending;
       watchRequest(pending);
-      setScopedState({ scope, state: { ...initialState(), request: {
+      setScopedState({ scope, state: { ...initialState(), connectionAction: retainedConnectionState(
+        pendingConnectionActions.values(), scope, initialState().connectionAction), request: {
         status: 'unconfirmed', requestId: retained.requestId, cancellation: retained.cancellation,
       } } });
       // Reattach only this exact genuine host scope. Read the original request
@@ -381,7 +398,8 @@ export function useAiSession(client: AiClient, scopeKey: string) {
       void recover();
     } else {
       pendingRun.current = null;
-      setScopedState({ scope, state: initialState() });
+      setScopedState({ scope, state: { ...initialState(), connectionAction: retainedConnectionState(
+        pendingConnectionActions.values(), scope, initialState().connectionAction) } });
     }
     void refresh();
     return () => {
@@ -390,9 +408,6 @@ export function useAiSession(client: AiClient, scopeKey: string) {
       for (const ref of [connectionController, actionController, reviewController, recoveryController]) {
         ref.current?.abort();
         ref.current = null;
-      }
-      for (const [actionId, action] of pendingConnectionActions.current) {
-        if (action.scope === scope) pendingConnectionActions.current.delete(actionId);
       }
       const pending = pendingRun.current;
       if (pending?.scope !== scope) return;
@@ -404,8 +419,8 @@ export function useAiSession(client: AiClient, scopeKey: string) {
     };
   }, [scope, refresh, recover, watchRequest, unwatchRequest]);
 
-  const unresolvedConnectionActions: readonly UnresolvedConnectionAction[] = [...pendingConnectionActions.current.values()]
-    .filter(action => action.scope === scope).map(({ actionId, action, status }) => ({ actionId, action, status }));
+  const unresolvedConnectionActions: readonly UnresolvedConnectionAction[] = [...pendingConnectionActions.values()]
+    .filter(action => action.scopeKey === scope.key).map(({ actionId, action, status }) => ({ actionId, action, status }));
   const pendingConnectionKinds = unresolvedConnectionActions.map(action => action.action);
   return { state, refresh, submit, cancel, connectionAction, review, recover, pendingConnectionKinds, unresolvedConnectionActions };
 }

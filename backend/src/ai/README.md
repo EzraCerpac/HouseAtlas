@@ -57,8 +57,20 @@ callback-issued client retention, identity/audience/nonce validation and granted
 direct scope. Website identity support remains distinct from plan-use access.
 Per-registration leases, authority/cancellation binding, persisted refresh
 invocation/rotation checkpoints and atomic encrypted writes prevent orchestration
-from blindly replaying consumed refresh tokens. Disconnect stops local use,
-clears local credentials and distinguishes confirmed from unconfirmed revocation.
+from blindly replaying consumed refresh tokens. `RefreshCheckpoint::ExchangeReceived`
+also retains the received token reply, original nonce, issued client and exact
+binding before identity verification. It is non-active encrypted material, not
+an inference credential. Temporary verification unavailability preserves this
+checkpoint. `verify_received_exchange` and explicit `refresh` can verify it
+using its original receipt time without exchanging a code or refreshing again;
+activation revalidates the original binding and preserves identity matching.
+A new authorization launch cannot overwrite an unresolved checkpoint.
+Disconnect stops local use and distinguishes confirmed from unconfirmed
+revocation. For a pending exchange it attempts revocation of both renewable
+sessions when older credentials also exist. Unconfirmed renewable exchange
+material remains encrypted and non-active for a later explicit disconnect;
+confirmed cleanup clears it. No renewable token is invented for direct-only
+or website identity replies.
 No cryptography, encryption, live exchange or server transfer route is fabricated.
 
 Cancellation requests and terminal confirmation remain separate. Usage counts
@@ -80,6 +92,10 @@ and shared command service. It must validate all result resources before
 returning them to this adapter and retain physical-operation uncertainty/fences.
 These concrete peers are not implemented or qualified here. The exact contract
 inputs are available; their shared application binding is integration work.
+The credential adapter must atomically encode/decode the new private checkpoint
+variant. The host action journal must observe explicit verification completion
+and terminalize the original connection action; no journal, callback route or
+automatic verification polling is added in this original-module correction.
 
 Only existing `serde = =1.0.229` (`derive`) and `serde_json = =1.0.151` are needed.
 Ports use standard futures; no runtime/service framework or SQLite API is added.
@@ -96,6 +112,10 @@ Rust-serde lifecycle projections, and chunked completed tool-capable SSE. Direct
 scope alone requires access credentials; renewable credentials are required for
 offline access or refresh exchange. Empty repeated disconnects and issue receipts
 preserve existing revocation status; revocation probes remain held.
+An additional healthy received-exchange fixture verifies its persisted identity
+with the original nonce/client and activates credentials without any provider
+exchange or refresh call. Unavailable verification, revocation, scope-unmount
+and terminal-domain-held probes remain source-reviewed deferred qualification.
 An external healthy binding check consumed the Rust projections through the
 production TypeScript lifecycle adapter and deserialized an actual TypeScript
 hook action request using the Rust request DTO. Both directions passed.

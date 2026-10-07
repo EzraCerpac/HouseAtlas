@@ -27,7 +27,7 @@ impl StatusJournal {
     /// Supply a dedicated, securely opened private SQLite database. The host
     /// does not choose a path, migrate the Atlas schema or store credentials.
     /// Its caller owns canonical-path/no-follow/permission and retention policy.
-    pub fn new(connection: Connection) -> Result<Self, AiError> {
+    pub fn new(mut connection: Connection) -> Result<Self, AiError> {
         connection.execute_batch("PRAGMA synchronous=FULL;
             CREATE TABLE IF NOT EXISTS ai_host_status (
               scope TEXT NOT NULL, id TEXT NOT NULL, kind TEXT NOT NULL,
@@ -37,6 +37,7 @@ impl StatusJournal {
               sequence INTEGER PRIMARY KEY AUTOINCREMENT,
               scope TEXT NOT NULL, id TEXT NOT NULL, category TEXT NOT NULL, payload TEXT NOT NULL);")
             .map_err(db_error)?;
+        migrate_action_scopes(&mut connection)?;
         Ok(Self {
             db: Arc::new(Mutex::new(connection)),
             active: Arc::default(),
@@ -138,6 +139,16 @@ impl StatusJournal {
         let (state, payload): (String, Option<String>) = self.db()?.query_row(
             "SELECT state,payload FROM ai_host_status WHERE scope=?1 AND id=?2 AND kind='request'",
             params![scope,id], |r| Ok((r.get(0)?,r.get(1)?))).map_err(db_error)?;
+        // Persisted outcomes are authoritative even while the completed
+        // caller still retains its guard during response release. In particular
+        // ReviewRequired and DomainHeld must not be hidden by Running.
+        if state == "finished" {
+            return Ok(RequestStatus::Finished {
+                request_id: id.into(),
+                outcome: serde_json::from_str(&payload.ok_or(AiError::DomainUnavailable)?)
+                    .map_err(|_| AiError::DomainUnavailable)?,
+            });
+        }
         if include_active
             && self
                 .active
@@ -149,17 +160,9 @@ impl StatusJournal {
                 request_id: id.into(),
             });
         }
-        if state == "finished" {
-            Ok(RequestStatus::Finished {
-                request_id: id.into(),
-                outcome: serde_json::from_str(&payload.ok_or(AiError::DomainUnavailable)?)
-                    .map_err(|_| AiError::DomainUnavailable)?,
-            })
-        } else {
-            Ok(RequestStatus::Unconfirmed {
-                request_id: id.into(),
-            })
-        }
+        Ok(RequestStatus::Unconfirmed {
+            request_id: id.into(),
+        })
     }
     pub(crate) fn stop(
         &self,
@@ -174,16 +177,15 @@ impl StatusJournal {
         let (state,payload):(String,Option<String>)=self.db()?.query_row(
             "SELECT state,payload FROM ai_host_status WHERE scope=?1 AND id=?2 AND kind='request'",
             params![scope,id],|r|Ok((r.get(0)?,r.get(1)?))).map_err(db_error)?;
-        let waiting =
-            if state == "finished" && !active.contains_key(&(scope.clone(), id.to_owned())) {
-                payload
-                    .as_deref()
-                    .map(serde_json::from_str::<RunOutcome>)
-                    .transpose()
-                    .map_err(|_| AiError::DomainUnavailable)?
-            } else {
-                None
-            };
+        let waiting = if state == "finished" {
+            payload
+                .as_deref()
+                .map(serde_json::from_str::<RunOutcome>)
+                .transpose()
+                .map_err(|_| AiError::DomainUnavailable)?
+        } else {
+            None
+        };
         let status = if let Some(RunOutcome::ReviewRequired {
             continuation_id,
             usage,
@@ -203,6 +205,11 @@ impl StatusJournal {
                 .map_err(db_error)?;
             if changed != 1 {
                 return Err(AiError::DomainUnavailable);
+            }
+            // The finished payload proves that the runner has yielded its
+            // checkpoint. A lingering guard cannot keep it claimable.
+            if let Some(cancel) = active.get(&(scope, id.to_owned())) {
+                cancel.request();
             }
             CancelStatus::Confirmed
         } else if state == "finished" {
@@ -307,13 +314,17 @@ impl StatusJournal {
         id: &str,
         result: Value,
     ) -> Result<(), AiError> {
-        self.db()?
+        let changed = self
+            .db()?
             .execute(
                 "UPDATE ai_host_status SET state='observed',payload=?3
             WHERE scope=?1 AND id=?2 AND kind='action'",
                 params![action_scope_key(binding)?, id, result.to_string()],
             )
             .map_err(db_error)?;
+        if changed != 1 {
+            return Err(AiError::DomainUnavailable);
+        }
         Ok(())
     }
     pub(crate) fn correlate_launch(
@@ -328,6 +339,57 @@ impl StatusJournal {
             "authorization-state-digest",
             json!({"digest":digest}),
         )
+    }
+    pub(crate) fn correlate_nonce(
+        &self,
+        binding: &RegistrationBinding,
+        id: &str,
+        digest: &str,
+    ) -> Result<(), AiError> {
+        self.append(
+            binding,
+            id,
+            "authorization-nonce-digest",
+            json!({"digest":digest}),
+        )
+    }
+    pub(crate) fn nonce_action(
+        &self,
+        binding: &RegistrationBinding,
+        digest: &str,
+    ) -> Result<String, AiError> {
+        let db = self.db()?;
+        let mut statement = db
+            .prepare(
+                "SELECT DISTINCT id FROM ai_host_observation
+            WHERE scope=?1 AND category='authorization-nonce-digest' AND payload=?2",
+            )
+            .map_err(db_error)?;
+        let mut rows = statement
+            .query(params![
+                scope_key(binding)?,
+                json!({"digest":digest}).to_string()
+            ])
+            .map_err(db_error)?;
+        let id: String = rows
+            .next()
+            .map_err(db_error)?
+            .ok_or(AiError::DomainUnavailable)?
+            .get(0)
+            .map_err(db_error)?;
+        if rows.next().map_err(db_error)?.is_some() {
+            return Err(AiError::DomainUnavailable);
+        }
+        if !valid_id(&id) {
+            return Err(AiError::DomainUnavailable);
+        }
+        db.query_row(
+            "SELECT 1 FROM ai_host_status WHERE scope=?1 AND id=?2 AND kind='action'",
+            params![action_scope_key(binding)?, id],
+            |_| Ok(()),
+        )
+        .map_err(db_error)?;
+        Ok(id)
     }
     pub(crate) fn check_launch(
         &self,
@@ -362,6 +424,58 @@ impl StatusJournal {
         }
     }
 }
+/// Upgrade only the dedicated host action correlation keys. Payload, state,
+/// cancellation flags and all request/observation rows remain unchanged. The
+/// single transaction rolls back on any ambiguous/colliding legacy identity;
+/// it never chooses one receipt, merges actions or replays their side effects.
+fn migrate_action_scopes(connection: &mut Connection) -> Result<(), AiError> {
+    let transaction = connection.transaction().map_err(db_error)?;
+    let migrations = {
+        let mut statement = transaction
+            .prepare("SELECT scope,id FROM ai_host_status WHERE kind='action'")
+            .map_err(db_error)?;
+        let mut rows = statement.query([]).map_err(db_error)?;
+        let mut migrations = Vec::new();
+        while let Some(row) = rows.next().map_err(db_error)? {
+            let previous: String = row.get(0).map_err(db_error)?;
+            let id: String = row.get(1).map_err(db_error)?;
+            let fields: Vec<String> =
+                serde_json::from_str(&previous).map_err(|_| AiError::DomainUnavailable)?;
+            match fields.len() {
+                5 => {}
+                6 => {
+                    let current = serde_json::to_string(&fields[..5])
+                        .map_err(|_| AiError::DomainUnavailable)?;
+                    migrations.push((previous, current, id));
+                }
+                _ => return Err(AiError::DomainUnavailable),
+            }
+        }
+        migrations
+    };
+    for (previous, current, id) in migrations {
+        let changed = transaction
+            .execute(
+                "UPDATE ai_host_status SET scope=?1 WHERE scope=?2 AND id=?3 AND kind='action'",
+                params![current, previous, id],
+            )
+            .map_err(db_error)?;
+        if changed != 1 {
+            return Err(AiError::DomainUnavailable);
+        }
+        // Keep the original six-field correlation as upgrade provenance in the
+        // same transaction; migration does not erase its cancellation epoch.
+        transaction
+            .execute(
+                "INSERT INTO ai_host_observation(scope,id,category,payload)
+             VALUES(?1,?2,'action-scope-upgraded',?3)",
+                params![previous, id, json!({"receiptScope":current}).to_string()],
+            )
+            .map_err(db_error)?;
+    }
+    transaction.commit().map_err(db_error)
+}
+
 fn db_error(_: rusqlite::Error) -> AiError {
     AiError::DomainUnavailable
 }

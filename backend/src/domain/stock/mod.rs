@@ -1,10 +1,12 @@
 //! Stock wire3 request preparation, closed routing and result release.
 //! All transports share this synchronous domain boundary. Storage, schema,
-//! authority and provider queue owners are injected; this module opens no IO.
+//! authority and provider queue owners are injected; intake measurement delegates
+//! to the actual Media owner.
 
 mod atlas_commands;
 mod atlas_reads;
 mod atlas_results;
+mod attachment_measurement;
 mod catalog;
 mod digest;
 mod existing_asset_attachment;
@@ -22,6 +24,7 @@ mod staged_atlas_commands;
 pub use atlas_commands::*;
 pub use atlas_reads::*;
 pub use atlas_results::*;
+pub use attachment_measurement::*;
 pub use catalog::*;
 pub use digest::*;
 pub use existing_asset_attachment::*;

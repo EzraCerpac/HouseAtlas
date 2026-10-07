@@ -26,12 +26,52 @@ It journals action correlation before side effects and keeps launch URLs,
 callback codes and tokens inside the trusted credential host. Disconnect requests
 local stop, then uses the lifecycle's durable credential retirement and existing
 revocation semantics. Its response conservatively clears authorization,
-permission, eligibility, paid-use and runtime availability from the previously
-authorized snapshot; it claims no remote termination. The action receipt key
+permission, eligibility, paid-use and runtime availability from the cached,
+credential-free display returned by `LifecycleEnvironment::cached_display`.
+That required port is synchronous and infallible, accepts the original context
+only for receipt display, and performs no provider/runtime observation or
+credential acquisition. It is called after local stop-use and the host receipt
+authority proof. A fallible `snapshot` observation never gates disconnect; no
+remote termination is inferred. The action receipt key
 retains actor/workspace/home/registration/authority epoch and excludes only the
 cancellation epoch, so a new current binding can poll that receipt. Request,
-continuation and launch keys retain both epochs. Existing action rows written
-with the former key are not migrated or replayed by this change.
+continuation and launch keys retain both epochs. `StatusJournal::new` upgrades
+existing six-field action keys to the five-field receipt scope in one SQLite
+transaction before exposing the journal. Payloads, states, cancellation flags,
+request rows and existing observations are preserved. Each upgraded action's
+original six-field key is retained in an upgrade observation in that same
+transaction. Ambiguous identities/collisions
+fail the transaction without choosing a receipt or merging actions; their manual
+reconciliation remains application-owned. Completion requires exactly one
+updated action row, so a missing correlation cannot silently report success.
+Opening/upgrading the journal performs no action or callback replay.
+
+The trusted callback host calls `LifecycleHost::complete` with the original
+launch/action correlation. Launches now journal the original nonce digest as
+well as the state digest; completion backfills nonce correlation for an older
+pending launch before its code can be consumed. Explicit host
+`verify_received_exchange(context)` and the received-exchange branch of
+`refresh(context)` recover that exact action from the retained original nonce.
+A delegating credential boundary checks the same binding/nonce again under the
+actual operation lease before the shared lifecycle verifies/activates anything.
+No nested lease, code re-exchange, refresh grant or browser-provided action ID is
+used for verification. The action is completed through the existing journal with
+an infallible cached display, so unavailable fresh observation cannot orphan a
+successfully verified workflow. Such receipts retain unknown permission,
+eligibility and runtime availability and held paid use; current connection facts
+remain a separate authority. Missing historical nonce/action correlation
+requires trusted reconciliation; it is never guessed.
+
+`checkpoint::encode`/`decode` implement a bounded, versioned private checkpoint
+codec for all four variants, including the received exchange's original binding,
+issued client, protected nonce and full raw token reply. `CheckpointPlaintext`
+intentionally has no Debug, Display, Clone or Serialize implementation and is
+exposed only for the encrypted credential adapter. This is plaintext encoding,
+not encryption or activation authority. The root must authenticate/decrypt before
+decoding and atomically encrypt the complete same-registration record, preserving
+its previous credentials and checkpoint together. The codec supplies no path,
+OS encryption, ciphertext authentication, zeroization qualification or plaintext
+fallback. It must never be wired into HTTP/model/browser DTOs or diagnostics.
 
 `AiHost` runs and resumes the shared runner using server-selected model settings
 and the original catalog, continuation and separate human review owners.
@@ -41,9 +81,13 @@ process-local registry. It binds both epochs, checks expiry and the existing
 model JSON. Retained handles cannot be restored from journal metadata after a
 restart; deliberate reconciliation remains necessary.
 
-Cancelling an idle `ReviewRequired` request retires those retained handles and
-persists a terminal `Cancelled` outcome with the original usage. Its receipt is
-`Confirmed` because no run is active. Cancellation of an executing request
+Cancelling a persisted `ReviewRequired` request retires those retained handles
+and persists a terminal `Cancelled` outcome with the original usage, even if
+the completed caller still retains its `ActiveRun` guard during response release.
+Its receipt is `Confirmed` because the runner has yielded its checkpoint.
+Finished journal outcomes take precedence over the active map during status
+reads; a lingering guard cannot conceal a review, cancellation or terminal
+domain-held result as `Running`. Cancellation of an executing request
 requests its existing stop flag and remains `Requested`; dropping HTTP processing
 proves no remote end. Polls never replay inference or domain work. The journal
 writes status, observed usage and diagnostics in a dedicated supplied SQLite
@@ -87,11 +131,13 @@ from the same enrollment owner and revalidate that current full binding. It
 cannot authorize credentials, inference, continuation claims or dispatch.
 The new trait methods conservatively default to full revalidation.
 
-`mounting.patch` contains only the exact additive changes proposed for the
-integrator-owned `backend/src/http/ai.rs`: the receipt release and authority
-methods plus `ReceiptEnrollment<R>`. The sole integrator must apply it and use the
-same wrapped enrollment owner for `NativeHostAuthority` and the lifecycle
-`HostAuthority` receipt proof as well as the app mount. Wrapping the HTTP gate
+The checked-in integrator-owned `backend/src/http/ai.rs` contains receipt release
+and authority methods plus `ReceiptEnrollment<R>`. `mounting.patch` retains the
+additive adapter proposal already incorporated there; do not reapply it to this
+tree. The composition must still use the same wrapped enrollment owner for
+`NativeHostAuthority` and the lifecycle `HostAuthority` receipt proof as well as
+the app mount. Runtime implementations must also supply `cached_display`
+from existing cached/configured credential-free metadata. Wrapping the HTTP gate
 alone cannot repair a stricter lifecycle or service proof. The wrapper delegates
 normal operations to the original owner and validates a newly captured full
 binding for receipt disclosure. No root file is changed by this namespace.
@@ -117,7 +163,7 @@ cargo check --locked -p houseatlas-backend --lib --bins --examples
 cargo clippy --locked -p houseatlas-backend --lib --bins --examples -- -D warnings
 ```
 
-The source runner compiles examples and separately runs its three existing
+The source runner compiles examples and separately runs its four named
 healthy core examples. It does not run the AI example. Inspect `healthy.rs`, then
 run the explicitly scoped positive fixture when authorized:
 
@@ -133,14 +179,26 @@ Its local review dismissal starts from a seeded synthetic waiting row and an
 actual retained checkpoint, retires that checkpoint and persists cancelled
 status with unchanged usage. Its no-token disconnect executes the actual local
 lifecycle with synthetic epoch rotation and retrieves the same persisted receipt
-under the new binding, including after a healthy reopen. Provider revocation,
-callback exchange, refresh, approval, mutations and native stock dispatch are not
-executed. Successful requests also count ordinary and disconnect release proofs.
+under the new binding, including after a healthy reopen. Its display counter
+proves cached display is collected after local stop and its observation count
+proves disconnect invokes no fresh snapshot. Positive legacy receipt and pending
+rows are upgraded during reopen, retain their original payload/state/flags, and
+are polled under the current binding. Provider revocation,
+callback exchange, refresh grants, approval, mutations and native stock dispatch
+are not executed. A separate positive received-checkpoint fixture exercises the
+actual private codec and host refresh-to-verification branch with a synthetic
+identity verifier and serialized synthetic credential lease. It completes the
+original action with identity-only scope, retains the validated synthetic session,
+keeps paid inference held, and calls no exchange/refresh/revocation provider port.
+It does not simulate verification failure, lost replies, replay or corruption. Successful requests also count ordinary and disconnect release proofs.
 Optional `HOUSEATLAS_AI_HEALTHY_JSON` output is synthetic and belongs outside Git.
 
-The receipt adapter proposal is compiled only in a private disposable integrated
-copy until the integrator applies it. Error-path release is inspected structurally;
-no rejected/malformed/body-limit/fault inputs are executed. This evidence does
+The integrated adapter and host are covered by compiler checks. Error-path
+release, the finished-review interval with a lingering guard, pending callback
+completion/backfill, checkpoint-change/correlation rejection, and migration
+collision/failure behavior are inspected structurally.
+The healthy fixture does not reproduce that concurrency interval or execute
+callback/token exchange or rejected/malformed/body-limit/fault inputs. This evidence does
 not qualify a live browser/native credential host, OS encryption, identity
 verification, durable domain queue, hard memory/deadline bounds or concurrency.
 No real account, credential/grant, paid inference, provider access, deployment,
