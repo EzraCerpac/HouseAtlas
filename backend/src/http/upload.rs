@@ -188,21 +188,32 @@ pub(super) async fn command(
         let raw = plan.plan().original_request().clone();
         let result = stock_mutations::execute_staged(&core, &principal, &selection, raw, &staged, &schemas)
             .map_err(stock_reads::http_error)?;
-        // Only the actual committed-consumption loader can authorize metadata
-        // retirement. A successful response or guessed token is insufficient.
-        let consumed = core.store.lock().map_err(|_| unavailable())?
-            .committed_upload_with_authorization(
-                &crate::app::ReadAuthority(core.access.clone()), &principal, &schemas,
-                &store_scope, &staged.staged().upload_token)
-            .map_err(|error| stock_reads::http_error(st::StockError::Domain(crate::app::storage_error(error))))?
-            .ok_or_else(unavailable)?;
-        let mut access = core.access.lock().map_err(|_| unavailable())?;
-        principal.release(&access).map_err(access_error)?;
-        access.with_mutation_authorization::<super::HttpFailure>(principal.principal.principal(), |guard| {
-            stages.cleanup_consumed(guard, principal.principal.retained(), &consumed, &budget)
-                .map_err(media_error)?;
+        // The owner has already committed and qualified this canonical result.
+        // Metadata retirement cannot turn that commit into an unconfirmed write.
+        // It still requires the real SQLite consumption carrier and original
+        // mutation authority; failure leaves retirement for later maintenance.
+        let _retirement = (|| -> Result<(), super::HttpFailure> {
+            let consumed = core.store.lock().map_err(|_| unavailable())?
+                .committed_upload_with_authorization(
+                    &crate::app::ReadAuthority(core.access.clone()), &principal, &schemas,
+                    &store_scope, &staged.staged().upload_token)
+                .map_err(|error| stock_reads::http_error(st::StockError::Domain(crate::app::storage_error(error))))?
+                .ok_or_else(unavailable)?;
+            let mut access = core.access.lock().map_err(|_| unavailable())?;
+            principal.release(&access).map_err(access_error)?;
+            access.with_mutation_authorization::<super::HttpFailure>(principal.principal.principal(), |guard| {
+                stages.cleanup_consumed(guard, principal.principal.retained(), &consumed, &budget)
+                    .map_err(media_error)?;
+                Ok(())
+            })?;
+            principal.release(&access).map_err(access_error)?;
             Ok(())
-        })?;
+        })();
+        // No diagnostic I/O runs here: reporting maintenance cannot panic or
+        // block the committed receipt. SQLite retains the consumption proof.
+        // Output release remains mandatory even if maintenance failed. Never
+        // use a cleanup error to waive the original principal/source checks.
+        let access = core.access.lock().map_err(|_| unavailable())?;
         principal.release(&access).map_err(access_error)?;
         Ok(json_response(result.wire))
     }).await.map_err(|_| unavailable())?

@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "4874a424e9a786d6c0e792dc026577145046202a57e50e25a3376b099939bdf0",
+  "sourceDigestSha256": "d23f51adf39a88c47504dc800b918845e138eecef7f75001632997dbf0290c27",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -1189,8 +1189,8 @@
     {
       "path": "backend/src/http/upload.rs",
       "mode": "100644",
-      "bytes": 10506,
-      "sha256": "8e13c9b21d58e5ad8b48bbc1a87e4500d27b45480d316497466e0e3bc61b35b3",
+      "bytes": 11263,
+      "sha256": "3b949e205e4cae4c0130d75ace90272544cd4ce8d0d58486a25b03f9a8b6af01",
       "owner": "core-integration"
     },
     {
@@ -2855,8 +2855,8 @@
     {
       "path": "docs/operations/recovery-and-rollback.md",
       "mode": "100644",
-      "bytes": 1510,
-      "sha256": "29d7701df4fbcccd38abe9838ed77605cfcb3bde302c05f8379e0b25b65891d7",
+      "bytes": 1756,
+      "sha256": "2f7543cda851fd24fa742c2ce0a3e1afde9244036738f86b1a2450284df688ef",
       "owner": "operations-policy"
     },
     {
@@ -2918,8 +2918,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 28360,
-      "sha256": "d2f3afb4a6db4c3be72d2b9b77bb14e5669c326048f5b46d68540076c2367a02",
+      "bytes": 29134,
+      "sha256": "1c51a2c7e135f581ebbb2f6d7e96b8c445cd7ee13e079b5e964c5c7e351bca6e",
       "owner": "core-integration"
     },
     {
