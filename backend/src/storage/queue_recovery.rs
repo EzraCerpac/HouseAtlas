@@ -125,7 +125,32 @@ fn remote_progresses(prior: &RemoteActivity, next: &RemoteActivity) -> bool {
     }
 }
 
+// Match live aggregate_liability: start at the first actual fact, maximize
+// within this attempt, then add only populated completed-attempt aggregates.
+fn liability_through_attempt(
+    completed: Option<&StorageLiability>,
+    cut: &[(String, StorageLiability)],
+) -> Result<Option<StorageLiability>> {
+    let mut facts = cut.iter().map(|(_, value)| value);
+    let current = facts.next().cloned().map(|mut maximum| {
+        for value in facts {
+            attempt_max(&mut maximum, value);
+        }
+        maximum
+    });
+    match (completed, current) {
+        (Some(previous), Some(current)) => {
+            let mut total = previous.clone();
+            liability_sum(&mut total, &current)?;
+            Ok(Some(total))
+        }
+        (Some(previous), None) => Ok(Some(previous.clone())),
+        (None, current) => Ok(current),
+    }
+}
+
 struct AttemptHistory<'a> {
+    completed_liability: Option<&'a StorageLiability>,
     attempt: &'a LeasedJob,
     journal: Option<&'a JournalEvidenceView>,
     steps: &'a [QueueStepEvidence],
@@ -140,6 +165,7 @@ fn validate_attempt_history(
     check: &mut dyn FnMut() -> Result<()>,
 ) -> Result<()> {
     let AttemptHistory {
+        completed_liability,
         attempt,
         journal,
         steps,
@@ -226,7 +252,11 @@ fn validate_attempt_history(
             {
                 return Err(bad());
             }
-        } else if outcome.liabilities.len() != origins.len() {
+        } else if outcome.liabilities.len() != origins.len()
+            || liability_through_attempt(completed_liability, &outcome.liabilities)?
+                .unwrap_or_else(zero_liability)
+                != outcome.report.storage_liability
+        {
             return Err(bad());
         }
         if outcome.kind == "reconcile" {
@@ -465,6 +495,7 @@ fn validate_queue(
             return Err(bad());
         }
         let mut latest = None;
+        let mut completed_liability = None;
         let mut last_reconciliation = None;
         let mut last_outcome_at = row.created;
         for (index, (fence_text, body)) in attempts.into_iter().enumerate() {
@@ -516,6 +547,7 @@ fn validate_queue(
             validate_attempt_history(
                 &row,
                 AttemptHistory {
+                    completed_liability: completed_liability.as_ref(),
                     attempt: &attempt,
                     journal: journal.as_ref(),
                     steps: &steps,
@@ -561,6 +593,8 @@ fn validate_queue(
                 )?;
                 check()?;
             }
+            completed_liability =
+                liability_through_attempt(completed_liability.as_ref(), &liability_events)?;
             latest = Some((attempt, journal, steps));
         }
         if row.reconciliation != last_reconciliation {
