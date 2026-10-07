@@ -220,6 +220,13 @@ pub(super) fn validate_connection<C: Contract>(
             "Stock recovery requires its exact schema and cursor validation peer",
         ));
     }
+    let queue_present: bool = db.query_row("SELECT EXISTS(SELECT 1 FROM queue_physical UNION ALL SELECT 1 FROM queue_aliases UNION ALL SELECT 1 FROM queue_jobs UNION ALL SELECT 1 FROM queue_attempts UNION ALL SELECT 1 FROM queue_journal UNION ALL SELECT 1 FROM queue_evidence UNION ALL SELECT 1 FROM queue_liability_evidence UNION ALL SELECT 1 FROM queue_outcomes)", [], |row| row.get(0))?;
+    if queue_present {
+        return Err(Error::new(
+            "schema-incompatible",
+            "Queue recovery requires its complete intent, evidence and registration validation peer",
+        ));
+    }
     check()?;
     Ok(RecoveryImage {
         contract_version: CONTRACT_VERSION.into(),

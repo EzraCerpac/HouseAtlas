@@ -11,6 +11,7 @@ mod migrations;
 mod native;
 mod numeric;
 mod ports;
+mod queue;
 mod repository;
 mod stock_projection;
 mod stock_repository;
@@ -24,6 +25,12 @@ pub use migrations::{DATABASE_LINEAGE, DATABASE_VERSION};
 pub use native::NativeContract;
 pub use ports::{
     AssetProof, Authorization, AuthorizationRequest, Capability, Contract, Prior, Runtime,
+};
+pub use queue::{
+    JournalEvidenceView, NativeJournalReceipt, PreparedNativeIntent, QueueAction,
+    QueueAuthorization, QueueDiscovery, QueueEvidenceInbox, QueueHandles, QueueJournalHandle,
+    QueueJournalPort, QueueOriginalIntent, QueuePhase, QueueSession, QueueSessionBinding,
+    QueueStepEvidence, QueueStoreHandle, StepKind,
 };
 pub use stock_types::*;
 pub use store::{AtlasStore, RecoveryImage, StoreOptions};

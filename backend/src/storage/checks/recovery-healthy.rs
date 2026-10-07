@@ -18,7 +18,7 @@ use support::*;
 
 // Constant storage-owned table names for check evidence only. This is not an
 // application SQL/connection/callback interface.
-const TABLES: [&str; 19] = [
+const TABLES: [&str; 27] = [
     "atlas_rust_migrations",
     "atlas_rust_metadata",
     "records",
@@ -38,6 +38,14 @@ const TABLES: [&str; 19] = [
     "stock_keys",
     "stock_audit_links",
     "stock_history_cursors",
+    "queue_physical",
+    "queue_aliases",
+    "queue_jobs",
+    "queue_attempts",
+    "queue_journal",
+    "queue_evidence",
+    "queue_liability_evidence",
+    "queue_outcomes",
 ];
 fn all_rows(path: &Path) -> CheckResult<BTreeMap<String, Vec<Vec<Value>>>> {
     let db = Connection::open_with_flags(
@@ -96,6 +104,7 @@ fn healthy_command(
 
 fn main() -> CheckResult<()> {
     let root = PathBuf::from(std::env::var("HOUSEATLAS_ROOT")?);
+    let contract_peer = std::env::var("HOUSEATLAS_CONTRACT_PEER")?;
     let directory = PathBuf::from(
         std::env::args()
             .nth(1)
@@ -315,8 +324,7 @@ fn main() -> CheckResult<()> {
             "committedNativeCommands":9,"adjacentRetainedTransitions":6,
             "healthyChains":["circuit: create/replace/tombstone/restore", "item identity: create/replace/tombstone/restore, immutable kind preserved"],
             "nativeSemanticCalls":*semantics.counts.borrow(),
-            "nativeSemanticPeer":"a2f76f9b8b0a3dbd56fbd358a8e80b15490cbb05",
-            "nativeSchemaPeer":"d3bdb7ccacb94a83d7409b70dbc30a4a3204395f",
+            "nativeContractPeer":contract_peer,
             "tableCounts":image_rows.iter().map(|(name,rows)|(name.clone(),rows.len())).collect::<BTreeMap<_,_>>(),
             "allPersistedRowsEqual":true,"nativeReopenEqual":true,
         }))?,
