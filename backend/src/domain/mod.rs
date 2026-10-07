@@ -7,6 +7,7 @@
 mod commands;
 mod integer;
 mod model;
+pub mod native_semantics;
 pub mod native_storage;
 mod ports;
 mod presence;

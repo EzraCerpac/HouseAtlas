@@ -218,7 +218,8 @@ reject mutations. A command-capable host must keep the original principal
 and source grants current under the access transaction fence throughout all
 AT07 phases; it must retain the new-presence hold. No route is mounted here.
 
-At AT36 checkpoint `64da6ea293dbb7fd7798105e92e7c4a65be7262f`, the external
+Historical compiler checkpoint: at AT36
+`64da6ea293dbb7fd7798105e92e7c4a65be7262f`, the external
 manifest `/tmp/houseatlas-at36-scoped-native-compiler-moanglpb/Cargo.toml` compiled
 the owned domain/jobs source against exact published AT07
 `3b14f0362aa2161d51b99d71e7d52d50f27f07de`, AT11
@@ -249,7 +250,7 @@ cargo clippy --manifest-path /tmp/houseatlas-at36-scoped-native-compiler-moanglp
 cargo build --manifest-path /tmp/houseatlas-at36-scoped-native-compiler-moanglpb/Cargo.toml --locked --offline --lib --bins
 ```
 
-The newer shape-compatible composition uses external manifest
+The subsequent historical shape-compatible composition uses external manifest
 `/tmp/houseatlas-at36-fixed-native-composed-6t9pdcxd/Cargo.toml` with exact AT07
 `45e1e38e97a8e41536b4b6195449076d602589c0` and the same AT11/AT51 pins,
 dependency versions/features and lock hash above. Locked/offline library and
@@ -308,3 +309,78 @@ The native bridge is compiled and statically reviewed. The five pure shape
 calls above exercise generated decoding only; native mutation execution and
 additional held controls remain unrun. It cannot enable new source presence;
 atomic witness persistence and candidate/precommit rechecks remain required.
+
+## Native Rust semantic composition
+
+`native_semantics::NativeSemantics` is a thin development binding of AT07's
+`Contract` to published AT51 semantic functions. Wrap it in the actual
+`storage::NativeContract`; its shape method reuses that closed typed matcher.
+Snapshot, guards, final create decisions, results and canonical JSON call the
+real Rust semantic functions. It supplies no authorization, SQL connection,
+provider transport, source-presence admission or default semantic peer.
+
+Its constructor requires two typed functions, both still unavailable as public
+exports at AT51 semantics `e8ee351152c15a619ea805b1ce32d8ae76a12957`:
+
+```rust
+NativeSemantics::new(
+    timestamp_millis: fn(&str) -> storage::Result<Option<i64>>,
+    transition_from_value: fn(
+        Option<&serde_json::Value>,
+        &contracts::Mutation,
+        &contracts::semantics::MutationTarget,
+    ) -> Result<contracts::semantics::Transition, contracts::semantics::SemanticError>,
+)
+```
+
+Proposed AT51 exports are `timestamp_millis(&str) -> Option<i64>` forwarding
+its existing private parser, and `assert_transition_from_value` with the second
+signature above. The host wraps the actual parser's optional result in `Ok`.
+The raw-current entry point must use the owner's original target/command/current
+processing order. Generated `AtlasRecord` has typed payloads; converting the
+current record first can preempt scoped-existence or create-existing decisions.
+This binding retains current as raw detached JSON until that required function.
+It copies no parser, error decision or transition rule and has no defaults.
+
+Standalone guard/reference calls require a shape-validated current. Guards
+explicitly validate it here; AT07 calls transition first in actual transactions.
+The owner validates the complete final graph before ordered final create
+decisions and retains each original preimage. Result priors preserve
+unspecified/absent/record distinctions. Actual AT07 execution supplies previously
+checked priors; standalone malformed-prior conversion/error ordering remains
+unqualified. Semantic error categories are retained with the static sanitized
+message required by AT07's error carrier.
+
+The byte-identical adapter, SHA-256
+`b75aac8eec9595b985692bb884936b857167b204bc1524c982a2dfb26e8a1bf6`, passed
+external source check, warning-strict Clippy, build and accepted pure examples.
+Six available adapter methods ran, plus the genuine typed create precondition
+function with absent current. Canonical bytes matched a literal golden. Both
+missing-peer call counters stayed zero; their example stubs return explicit
+errors. No store, authority, queue, provider, JavaScript or held controls ran.
+Exact source/fixture/check evidence:
+`/tmp/houseatlas-at36-semantics-inspection-_91defwl/semantic-composition-evidence.json`,
+SHA-256 `e4d9751ddca02995899800d374a091aaf6720371aee84fbf6190116a0da11da0`.
+
+Current root-source compiler manifest:
+`/tmp/houseatlas-at36-semantics-final-8je86aqp/Cargo.toml`, with actual AT07
+`45e1e38e97a8e41536b4b6195449076d602589c0`, AT11
+`4967dd2d38c5749be35aa7e44728c4d691246730` and AT51 semantics
+`e8ee351152c15a619ea805b1ce32d8ae76a12957`. It retains the exact versions and
+features above and adds `ryu-js =1.0.2` and `regex =1.13.1`. Its lock SHA-256 is
+`6c403b6d843c4942a8fc6110b82210e016ec11af2fb34660047d49fc5ef27270`.
+The library includes actual root domain/jobs source and compiler-only bindings
+of this type to `NativeStorage` and `NativeScopedCommands`. The queue driver is
+compiled only. Prior manifests/commands above require their captured historical
+source; their older AT51 snapshots cannot compile this new semantic module.
+
+```sh
+source /workspace/.houseatlas-setup/rust-react-sqlite/activate.sh
+cargo check --manifest-path /tmp/houseatlas-at36-semantics-final-8je86aqp/Cargo.toml --locked --offline --lib --bins
+cargo clippy --manifest-path /tmp/houseatlas-at36-semantics-final-8je86aqp/Cargo.toml --locked --offline --lib --bins -- -D warnings
+cargo build --manifest-path /tmp/houseatlas-at36-semantics-final-8je86aqp/Cargo.toml --locked --offline --lib --bins
+```
+
+The two genuine owner exports and atomic stock/authority/presence/recovery
+composition remain required. This adapter does not mount a production path or
+turn partial pure checks into native execution qualification.

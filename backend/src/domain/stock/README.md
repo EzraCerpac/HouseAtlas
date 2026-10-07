@@ -133,6 +133,10 @@ snapshot/record/audit/guard/mutationResult mappings. A separate five-shape
 accepted consumer passed the actual native generated decoder; it supplies no
 semantic graph, storage, authority, receipt or provider execution. Exact
 peer/manifest/lock and pure-shape proof are recorded in `../README.md`.
+The newer `native_semantics::NativeSemantics` binds available AT51 Rust semantics
+and requires genuine raw-current transition/timestamp peers with no defaults.
+Six pure methods are exercised; complete native/stock execution is still
+unqualified. See `../README.md` for its exact current compiler pins and ordering.
 
 `examples/healthy.rs` is an isolated synthetic consumer using an external
 offline Python draft2020-12 validator against the exact stock/Atlas schemas.
