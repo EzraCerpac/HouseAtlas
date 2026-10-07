@@ -40,8 +40,10 @@ SystemTime and rejects values outside the finite positive safe-integer range.
 The key is freshly read for each encryption, decryption and revalidation call;
 only its SHA-256 fingerprint is retained in the lease. Linux lookup requires
 exact HouseAtlas/application-purpose/registration attributes, exactly one
-unlocked item and no locked matches, a 32-byte key, and a five-second async
-bound. It uses DH-encrypted Secret Service transport, never an unlock, prompt,
+unlocked item and no locked matches, an unlocked default collection distinct
+from the session collection, and the same unique item in that default collection.
+Missing aliases or foreign/session-only matches remain unavailable. A 32-byte
+key and a five-second async bound are required. It uses DH-encrypted Secret Service transport, never an unlock, prompt,
 creation or deletion API. Missing, locked, ambiguous, changed or inaccessible
 keys remain unavailable without cached-key, plaintext or mock fallback. Every
 non-Linux target returns unavailable.

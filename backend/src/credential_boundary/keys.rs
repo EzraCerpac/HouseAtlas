@@ -74,19 +74,38 @@ async fn linux_load(id: &str) -> Result<SecretKey, AiError> {
     let service = SecretService::connect(EncryptionType::Dh)
         .await
         .map_err(|_| UNAVAILABLE)?;
+    let default = service
+        .get_default_collection()
+        .await
+        .map_err(|_| UNAVAILABLE)?;
+    let session = service
+        .get_collection_by_alias("session")
+        .await
+        .map_err(|_| UNAVAILABLE)?;
+    if default.collection_path == session.collection_path {
+        return Err(UNAVAILABLE);
+    }
+    default.ensure_unlocked().await.map_err(|_| UNAVAILABLE)?;
     let attributes = HashMap::from([
         ("application", "HouseAtlas"),
         ("purpose", "ai-credential-data-key-v1"),
         ("registration", id),
     ]);
     let mut matches = service
-        .search_items(attributes)
+        .search_items(attributes.clone())
         .await
         .map_err(|_| UNAVAILABLE)?;
     if !matches.locked.is_empty() || matches.unlocked.len() != 1 {
         return Err(UNAVAILABLE);
     }
     let item = matches.unlocked.pop().ok_or(UNAVAILABLE)?;
+    let default_matches = default
+        .search_items(attributes)
+        .await
+        .map_err(|_| UNAVAILABLE)?;
+    if default_matches.len() != 1 || default_matches[0].item_path != item.item_path {
+        return Err(UNAVAILABLE);
+    }
     item.ensure_unlocked().await.map_err(|_| UNAVAILABLE)?;
     let attributes = item.get_attributes().await.map_err(|_| UNAVAILABLE)?;
     if attributes.get("application").map(String::as_str) != Some("HouseAtlas")
