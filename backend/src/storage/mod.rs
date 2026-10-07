@@ -12,8 +12,8 @@ mod native;
 mod numeric;
 mod ports;
 mod repository;
-mod stock_repository;
 mod stock_projection;
+mod stock_repository;
 mod stock_types;
 mod store;
 mod types;
@@ -26,5 +26,5 @@ pub use ports::{
     AssetProof, Authorization, AuthorizationRequest, Capability, Contract, Prior, Runtime,
 };
 pub use stock_types::*;
-pub use store::{AtlasStore, StoreOptions};
+pub use store::{AtlasStore, RecoveryImage, StoreOptions};
 pub use types::*;

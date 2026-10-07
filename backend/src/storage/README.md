@@ -323,6 +323,30 @@ remain held until atomic witness qualification exists.
 
 ## Remaining integration and qualification
 
+## Native recovery images
+
+`backup_recovery_to(&mut self, destination, check)` uses this store's owned
+connection and SQLite backup API. It reserves an absent private staging file,
+copies in bounded page steps, closes a standalone DELETE-journal image and
+calls `validate_recovery_image(&self, database, check)` on read-only bytes.
+`RecoveryImage` returns exact contract/lineage/schema metadata and all retained
+asset records. Media owns physical originals, image hashes, sync and publication.
+The required check callback is an authority/progress check and receives no SQL.
+The deadline is cooperative between SQLite/contract calls.
+
+Validation compares exact migration checksums, metadata and actual schema
+catalog, integrity/FKs, every native body and SQL key, full unredacted graph,
+binding reservations, asset manifests, cache generations/epochs, receipt/audit
+chains and ordered batch linkage. Original native command/guard envelopes are
+absent from v1 receipts, so their hashes cannot honestly be reconstructed; hash
+syntax and persisted key/result/audit linkage are checked. These requested
+native-only signatures lack a stock schema peer and fail closed on a nonempty
+stock journal. Full stock recovery requires an explicit stock-aware companion.
+`checks/recovery-healthy.rs` uses actual Rust native semantics and synthetic
+authority/runtime for capture, read-only validation, all-row equality and native
+reopen. No JS oracle, corruption/crash control or physical-original qualification
+runs in this checkpoint. Root reconciliation must enable rusqlite `backup`.
+
 The full native semantic Contract and branded Authorization/Runtime peers remain
 required before application integration. AT51 must reconcile carriers/dependencies
 and connect the crate module; this lane does not change its manifests or generated types.
