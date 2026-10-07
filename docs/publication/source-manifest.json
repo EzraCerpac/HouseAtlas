@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "2085893750c9d3b62457b5f2d4a0acfa33ef81d7acb777d4363eb62028adf61a",
+  "sourceDigestSha256": "e548ee3cc9c082d6bdd2fe09508c9169275da70e99d8dcdc7911e217880ac670",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -3759,8 +3759,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 30524,
-      "sha256": "962147fd2f2877639515e8abb49d31f3eaa8cfc3b7a315b48aaa796241aeaf9a",
+      "bytes": 30651,
+      "sha256": "d2ca3fb5f00db67241f9065b7df3dc9d600a352f01b74ebfd5e71eeb61612f4e",
       "owner": "core-integration"
     },
     {

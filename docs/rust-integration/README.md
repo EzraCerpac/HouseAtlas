@@ -213,6 +213,7 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     node tools/rust-integration/check-source.mjs
     cargo run --locked -p houseatlas-backend --example healthy-agent-stock
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-loopback.mjs
+    HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-atlas-lists-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-core-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-media-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-stock-loopback.mjs
@@ -232,7 +233,7 @@ healthy-agent-stock performs
 genuine in-process MCP tools/list and tools/call over actual access/domain/SQLite;
 the workflow compiles it on both platforms and runs it only on Linux.
 
-Each of the eleven browser runners uses fresh Chromium and a disposable TLS
+Each of the twelve browser runners uses fresh Chromium and a disposable TLS
 certificate, observes actual SQLite rows read-only, stops gracefully and removes
 scratch state. Core adds real auth, canonical paging/reads, one fresh circuit
 and one ordered two-identity batch with record/history readback. Media adds two
@@ -272,7 +273,7 @@ It performs no retry,
 replay, expiry, recovery or failure control.
 Private evidence packets, fingerprints and optional screenshots remain outside Git.
 
-The workflow selects exact PR-head/main-push source on Linux and macOS, retains
+The workflow selects exact PR-head/main-or-dev-push source on Linux and macOS, retains
 locked source checks and the central publication file/mode/digest/ownership
 allowlist, and configures Linux execution of the named healthy flows. Current
 candidate CI status is reported separately. macOS source compilation supplies
