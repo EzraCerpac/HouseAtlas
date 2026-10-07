@@ -1,5 +1,4 @@
-//! External composition candidate only. Timestamp parsing and raw-current
-//! transition admission are required owner functions, presently unavailable.
+//! Thin binding to the published native semantic contract owner.
 //! This module supplies neither a fallback nor authority, storage or transport.
 
 use crate::{contracts as schema, storage};
@@ -22,6 +21,15 @@ pub struct NativeSemantics {
 }
 
 impl NativeSemantics {
+    /// Bind the actual native timestamp and raw-current transition functions.
+    /// This constructor opens no IO and creates no authority or transaction.
+    pub const fn native() -> Self {
+        Self {
+            timestamp_millis: native_timestamp_millis,
+            transition_from_value: semantics::assert_transition_from_value,
+        }
+    }
+
     /// Both functions must be the actual reviewed contract-owner functions.
     /// No constructor default, refresh, alternate parser or rejection shim is
     /// provided. Supplying arbitrary functions does not qualify this component.
@@ -34,6 +42,10 @@ impl NativeSemantics {
             transition_from_value,
         }
     }
+}
+
+fn native_timestamp_millis(value: &str) -> storage::Result<Option<i64>> {
+    Ok(semantics::timestamp_millis(value))
 }
 
 impl Contract for NativeSemantics {

@@ -319,8 +319,11 @@ Snapshot, guards, final create decisions, results and canonical JSON call the
 real Rust semantic functions. It supplies no authorization, SQL connection,
 provider transport, source-presence admission or default semantic peer.
 
-Its constructor requires two typed functions, both still unavailable as public
-exports at AT51 semantics `e8ee351152c15a619ea805b1ce32d8ae76a12957`:
+AT51 semantic peer `a2f76f9b8b0a3dbd56fbd358a8e80b15490cbb05`
+publishes both previously required functions. `NativeSemantics::native()` binds
+them directly; the timestamp adapter only wraps the owner's `Option<i64>` in
+AT07's `Result`. It creates no clock, parser, default or authority. The explicit
+injected constructor is retained for hosts and synthetic consumers:
 
 ```rust
 NativeSemantics::new(
@@ -333,11 +336,11 @@ NativeSemantics::new(
 )
 ```
 
-Proposed AT51 exports are `timestamp_millis(&str) -> Option<i64>` forwarding
-its existing private parser, and `assert_transition_from_value` with the second
-signature above. The host wraps the actual parser's optional result in `Ok`.
-The raw-current entry point must use the owner's original target/command/current
-processing order. Generated `AtlasRecord` has typed payloads; converting the
+The actual AT51 exports are `timestamp_millis(&str) -> Option<i64>` using its
+published format predicate and existing parser, and `assert_transition_from_value`
+with the second signature above. The raw-current entry point preserves the
+owner's original target/command/current processing order. Generated
+`AtlasRecord` has typed payloads; converting the
 current record first can preempt scoped-existence or create-existing decisions.
 This binding retains current as raw detached JSON until that required function.
 It copies no parser, error decision or transition rule and has no defaults.
@@ -351,7 +354,7 @@ checked priors; standalone malformed-prior conversion/error ordering remains
 unqualified. Semantic error categories are retained with the static sanitized
 message required by AT07's error carrier.
 
-The byte-identical adapter, SHA-256
+The historical injected adapter at `f35bcdc2d9c24646356bc080bfb1ef157120bcb3`, SHA-256
 `b75aac8eec9595b985692bb884936b857167b204bc1524c982a2dfb26e8a1bf6`, passed
 external source check, warning-strict Clippy, build and accepted pure examples.
 Six available adapter methods ran, plus the genuine typed create precondition
@@ -362,7 +365,7 @@ Exact source/fixture/check evidence:
 `/tmp/houseatlas-at36-semantics-inspection-_91defwl/semantic-composition-evidence.json`,
 SHA-256 `e4d9751ddca02995899800d374a091aaf6720371aee84fbf6190116a0da11da0`.
 
-Current root-source compiler manifest:
+Historical root-source compiler manifest for that checkpoint:
 `/tmp/houseatlas-at36-semantics-final-8je86aqp/Cargo.toml`, with actual AT07
 `45e1e38e97a8e41536b4b6195449076d602589c0`, AT11
 `4967dd2d38c5749be35aa7e44728c4d691246730` and AT51 semantics
@@ -381,6 +384,35 @@ cargo clippy --manifest-path /tmp/houseatlas-at36-semantics-final-8je86aqp/Cargo
 cargo build --manifest-path /tmp/houseatlas-at36-semantics-final-8je86aqp/Cargo.toml --locked --offline --lib --bins
 ```
 
-The two genuine owner exports and atomic stock/authority/presence/recovery
-composition remain required. This adapter does not mount a production path or
-turn partial pure checks into native execution qualification.
+The two owner exports are now supplied at the PR17 pin above. Atomic
+stock/authority/presence/recovery composition remains required. This adapter
+does not mount a production path or turn pure checks into native execution
+qualification. The historical manifests above require their captured source;
+they do not compile the later direct native constructor.
+
+## Genuine PR17 semantic binding proof
+
+The direct constructor above passed check, warning-strict Clippy, build and one
+accepted pure consumer against exact AT51
+`a2f76f9b8b0a3dbd56fbd358a8e80b15490cbb05`, AT07
+`45e1e38e97a8e41536b4b6195449076d602589c0` and AT11
+`4967dd2d38c5749be35aa7e44728c4d691246730`. All eight `Contract` methods
+were exercised through genuine `NativeContract` and `NativeSemantics::native()`.
+Published create/import-remap fixtures gave revisions `1` and `[2, 1, 1]`,
+retained original priors, validated current shapes before standalone guards,
+and validated the complete final graph before ordered final decisions. Owner
+timestamp `1767355200000` and a literal canonical JSON golden matched.
+
+Harness `/tmp/houseatlas-at36-native-peer-api-buizmrmn/Cargo.toml` uses the
+same exact dependency versions/features above. Manifest SHA-256:
+`83e385546c96c69f9dfb8ec707d14681dbe13741aa04723dc423a8832cec508d`;
+lock SHA-256:
+`2f47c267839053a3075e2fdc2a77563305322da24c4ac73ea241e8a0aac593f2`.
+Bridge SHA-256:
+`8847b4c877a7d5cc08fc5122654723c61d7473e17c9d26a53b379c87491522ae`.
+Exact proof `/tmp/houseatlas-at36-native-peer-api-buizmrmn/native-peer-positive-evidence.json`,
+SHA-256 `7c43074759b710a759410a0d243bac246eeeeaf80459eee7748b3e15e37e5733`.
+All then-owned Rust, harness, peer and lock bytes remained unchanged. That
+scoped proof predates the native stock port; its captured `runtime-root-source`
+is required to reproduce it against PR17 alone. The queue target was compiled
+only. No SQLite, authority, provider, queue, JavaScript or held controls ran.
