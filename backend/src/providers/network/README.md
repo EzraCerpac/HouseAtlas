@@ -186,7 +186,8 @@ executed. Actual AT11 handle binding and host wiring remain integration work.
 
 For failures, `NativeNetworkPublisher::publish_pending_failure` consumes the
 pending proposal's original fence, baseline precondition and original lease,
-then calls the actual `record_prepared_cache_failure(principal, fence, failure)`.
+retains the original cache error's `at`, then calls the timestamp-preserving
+native write. The retained cache code and `lastAttemptAt` must match that error.
 The sibling `record_prepared_cache_failure(fence, code, lease)` supports explicit
 server-owned sanitized status publication through that same native transaction.
 Both require a Network-owned original registration; neither calls legacy
@@ -198,7 +199,7 @@ consumes them through this bound method. No stale baseline is reread or rebased.
 
 Both configured and borrowed native publishers also expose
 `record_prepared_cache_failure_at(fence, code, lease, attempted_at)` to preserve
-the provider attempt time already captured in `failure.error.at`. They reuse
+the provider attempt time already captured in the retained cache error. They reuse
 the original Network failure conversion and delegate to the actual Storage
 `record_prepared_cache_failure_at` / `_at_with_authorization` methods published
 at `e5fec02e68369d6c01507c96eebd8bcb2bcdc993`. The original fence, lease principal

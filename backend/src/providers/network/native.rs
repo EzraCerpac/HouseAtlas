@@ -73,8 +73,8 @@ where
         &mut self,
         pending: PendingNetworkFailure<storage::CachePublicationFence, L>,
     ) -> storage::Result<storage::CacheStatus> {
-        let (fence, code, lease) = pending_input(pending)?;
-        self.record_prepared_cache_failure(fence, code, lease.as_ref())
+        let (fence, code, lease, attempted_at) = pending_input(pending)?;
+        self.record_prepared_cache_failure_at(fence, code, lease.as_ref(), &attempted_at)
     }
 }
 impl NetworkPublicationFence for storage::CachePublicationFence {
@@ -180,8 +180,8 @@ where
         &mut self,
         pending: PendingNetworkFailure<storage::CachePublicationFence, L>,
     ) -> storage::Result<storage::CacheStatus> {
-        let (fence, code, lease) = pending_input(pending)?;
-        self.record_prepared_cache_failure(fence, code, lease.as_ref())
+        let (fence, code, lease, attempted_at) = pending_input(pending)?;
+        self.record_prepared_cache_failure_at(fence, code, lease.as_ref(), &attempted_at)
     }
 }
 impl<C, A, R, B, L> NetworkCachePublisher<L> for BorrowedNativeNetworkPublisher<'_, '_, C, A, R, B>
@@ -276,11 +276,16 @@ fn failure_input(
 }
 fn pending_input<L>(
     pending: PendingNetworkFailure<storage::CachePublicationFence, L>,
-) -> storage::Result<(storage::CachePublicationFence, ErrorCode, Arc<L>)> {
+) -> storage::Result<(storage::CachePublicationFence, ErrorCode, Arc<L>, String)> {
     let (fence, expected, failure, lease) = pending.into_parts();
     matches_precondition(&fence, &expected)?;
     ensure(failure.state.cache.scope == NetworkPublicationFence::partition(&fence))?;
-    Ok((fence, failure.error.code, lease))
+    let cache_error = failure.state.cache.error.ok_or_else(conflict)?;
+    ensure(
+        cache_error.code == failure.error.code
+            && failure.state.cache.last_attempt_at.as_deref() == Some(cache_error.at.as_str()),
+    )?;
+    Ok((fence, failure.error.code, lease, cache_error.at))
 }
 fn matches_precondition(
     fence: &storage::CachePublicationFence,
