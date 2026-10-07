@@ -248,14 +248,7 @@ async fn main() -> Result<(), Failure> {
     let runtime = binding.runtime().clone();
     let host = host.with_network_bindings(vec![binding])?;
     assert!(Arc::ptr_eq(access.shared().as_existing(), &canonical));
-    {
-        let mut locked = core.try_lock().map_err(|_| "Core unexpectedly locked")?;
-        access.configure(
-            locked.store.get_mut().map_err(|_| "Store poisoned")?,
-            &configure_principal,
-            &source,
-        )?;
-    }
+    access.configure(&core, &configure_principal, &source)?;
     let (partition, grants) = {
         let issuer = canonical
             .try_lock()

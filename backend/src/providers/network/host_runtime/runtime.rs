@@ -151,9 +151,9 @@ impl HostNetworkRuntime {
                 })?)
             }
         };
-        // Native publication returned only after the original held authorizer
-        // completed its release checks. Report that committed outcome: a later
-        // cancellation or fresh authority check must not turn it into a timeout.
+        // Native Store checked the original authorizer immediately before COMMIT.
+        // Report its committed receipt even if subsequent Access finalization or
+        // cancellation fails; disclosure still requires its own original grants.
         Ok(result)
     }
     fn retained(

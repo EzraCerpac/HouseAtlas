@@ -142,6 +142,12 @@ jobs:
           HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
           HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
         run: node tools/rust-integration/healthy-human-host-loopback.mjs
+      - name: Real React fresh attachment and existing-original reuse
+        if: runner.os == 'Linux'
+        env:
+          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
+          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+        run: node tools/rust-integration/healthy-upload-loopback.mjs
       - name: Real cached Unicode collection read with complete SQLite facts
         if: runner.os == 'Linux'
         env:
@@ -174,6 +180,7 @@ jobs:
         if: always()
         run: |
           printf '%s\n' 'Actual locked Rust/TS source compilation and four named healthy examples; Linux additionally runs the explicitly named genuine in-process MCP stock get/history after a fresh native circuit commit, actual SQLite/access/domain/React loopback TLS reads, session/login/logout, fresh circuit create, atomic local identity batch, fresh owned PNG/text commits, actual download GET/HEAD and safe-rendered PNG preview; genuine native stock circuit/asset reads compared with actual frozen SQLite rows.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'The separately named upload runner submits two fresh React attachment intents for one generated PNG, verifies the existing-original plan and unchanged original provenance, exact asset revision guard, canonical receipts and actual SQLite rows, with one original consumption and zero pending stages. It is not replay, fault or cleanup-failure qualification.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'macOS source compilation is separate from target NAS build/runtime qualification and supplies no target release.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'All stopped rejection, guards, replay, expiry, revocation, fault, crash, concurrency and provider controls remain unrun.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'The separate host runner performs one authorized cached HomeBox read with the original full projections, dates and generation preserved; one fresh native WebMCP location classification replacement with full references and canonical React completion; actual record/admission readback; mounted MCP HTTP initialization/discovery/get/first audit page; and read-only SQLite reason observation. It does not submit the human form.' >> "$GITHUB_STEP_SUMMARY"

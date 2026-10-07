@@ -258,8 +258,12 @@ fn read_snapshot<C: Contract, B: Authorization>(
         let partition = repo::partition(relation)?;
         let base = json!({"sourceInstanceId":partition.source_instance_id,"collectionId":partition.collection_id,
                 "sourceKind":"network-link","externalId":relation["externalId"]});
-        let mut refs =
-            vec![json!({"workspaceId":scope.workspace_id,"homeId":scope.home_id,"key":base})];
+        // Private selector retains the exact cached endpoint binding. Entity
+        // grants alone cannot qualify a reused link ID with different ends.
+        let mut refs = vec![
+            json!({"workspaceId":scope.workspace_id,"homeId":scope.home_id,
+            "key":base,"from":relation["from"],"to":relation["to"]}),
+        ];
         for endpoint in [&relation["from"], &relation["to"]] {
             if endpoint["kind"] != "unresolved" {
                 let mut key = base.clone();
