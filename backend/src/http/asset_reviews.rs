@@ -5,8 +5,8 @@ use super::{
 };
 use crate::{
     access as a,
-    app::RequestPrincipal,
-    domain as d,
+    app::{Core, RequestPrincipal},
+    domain::{self as d, stock as st},
     http::contracts::NativeContracts,
     media::{self as m, review::RenderedAssetReview},
     storage as s,
@@ -32,7 +32,94 @@ fn media_error(error: m::MediaError) -> super::HttpFailure {
     failure(StatusCode::from_u16(error.status()).unwrap_or(StatusCode::SERVICE_UNAVAILABLE))
 }
 
-#[allow(dead_code)] // Fields are consumed by take when the commit adapter mounts it.
+/// The command route has already issued a fresh Mutate principal from the
+/// actual POST/CSRF request and parsed the native stock envelope. This path
+/// consumes only the original Box and same-Store pin found by the selector.
+pub(super) fn execute(
+    host: &Host,
+    core: &Core,
+    current: &RequestPrincipal,
+    request: &st::ValidatedRequest,
+    contracts: &st::NativeStockContract,
+    scope: &d::Scope,
+) -> HttpResult {
+    if request.id() != st::OperationId::AtlasAssetReview
+        || request.payload()["treatment"] != "request-preview"
+        || !request.children().is_empty()
+        || request.context().workspace_id != scope.workspace_id
+        || request.context().home_id != scope.home_id
+    {
+        return Err(failure(StatusCode::UNPROCESSABLE_ENTITY));
+    }
+    let asset_id = request.target()["recordId"]
+        .as_str()
+        .ok_or_else(|| failure(StatusCode::UNPROCESSABLE_ENTITY))?;
+    let receipt_id = request.payload()["rendererReceiptId"]
+        .as_str()
+        .ok_or_else(|| failure(StatusCode::UNPROCESSABLE_ENTITY))?;
+    let taken = {
+        let access = core.access.lock().map_err(|_| unavailable())?;
+        host.asset_reviews
+            .lock()
+            .map_err(|_| unavailable())?
+            .take(&access, current, scope, asset_id, receipt_id)?
+    };
+    let TakenReview {
+        original,
+        pinned,
+        rendered,
+    } = taken;
+    let budget = m::WorkBudget::new(Duration::from_secs(10), m::Cancellation::default())
+        .map_err(media_error)?;
+    let bound = {
+        let mut access = core.access.lock().map_err(|_| unavailable())?;
+        original.release(&access).map_err(access_error)?;
+        let mut proof = None;
+        access.with_mutation_authorization::<super::HttpFailure>(
+            original.principal.principal(),
+            |guard| {
+                proof = Some(
+                    rendered
+                        .bind_request(guard, original.principal.retained(), request, &budget)
+                        .map_err(media_error)?,
+                );
+                Ok(())
+            },
+        )?;
+        proof.ok_or_else(unavailable)?
+    };
+    let plan = {
+        let store = core.store.lock().map_err(|_| unavailable())?;
+        store
+            .prepare_verified_asset_review(&original, contracts, request.raw(), &pinned, &bound)
+            .map_err(|_| unavailable())?
+    };
+    let result = match super::stock_mutations::execute_verified_asset_review(
+        core,
+        &original,
+        request.raw().clone(),
+        &plan,
+        &budget,
+        contracts,
+    ) {
+        Ok(result) => result,
+        Err(error) => return super::agents::command_error(error, request.request_id()),
+    };
+    {
+        let access = core.access.lock().map_err(|_| unavailable())?;
+        original.release(&access).map_err(access_error)?;
+        current.release(&access).map_err(access_error)?;
+        let native_scope = crate::app::access_scope(scope).map_err(access_error)?;
+        access
+            .authorize_storage(&original.principal, &native_scope, a::Capability::Mutate)
+            .map_err(access_error)?;
+        access
+            .authorize_storage(&current.principal, &native_scope, a::Capability::Mutate)
+            .map_err(access_error)?;
+    }
+    Ok(json_response(result.wire))
+}
+
 struct Entry {
     issued: Instant,
     binding: [u8; 32],
@@ -40,14 +127,15 @@ struct Entry {
     asset_id: String,
     actor_id: String,
     original: Box<RequestPrincipal>,
+    pinned: s::AssetReviewOriginal,
     rendered: RenderedAssetReview,
 }
 
 /// The original allocation and opaque Media carrier move together into the
 /// eventual same-Store consumer. No principal or proof can be rebuilt from data.
-#[allow(dead_code)] // Connected by the same-Store proof consumer in the next integration step.
 pub(super) struct TakenReview {
     pub original: Box<RequestPrincipal>,
+    pub pinned: s::AssetReviewOriginal,
     pub rendered: RenderedAssetReview,
 }
 
@@ -82,7 +170,6 @@ impl ReviewRegistry {
     /// Call only after freshly authorizing this POST as Mutate against the same
     /// Access owner. Failed validation leaves the receipt untouched; expiry
     /// and successful take remove it. The ID only locates the candidate.
-    #[allow(dead_code)] // Connected by the same-Store proof consumer in the next integration step.
     pub(super) fn take(
         &mut self,
         access: &a::AccessBoundary,
@@ -137,6 +224,7 @@ impl ReviewRegistry {
         let entry = self.entries.remove(index).ok_or_else(unavailable)?;
         Ok(TakenReview {
             original: entry.original,
+            pinned: entry.pinned,
             rendered: entry.rendered,
         })
     }
@@ -217,6 +305,24 @@ pub(super) async fn issue(
                     && row.home_id == scope.home_id
             })
             .ok_or_else(|| failure(StatusCode::NOT_FOUND))?;
+        let pinned = {
+            let target = s::RecordRef {
+                record_type: s::RecordType::Asset,
+                record_id: asset_id.clone(),
+            };
+            let mut store = core.store.lock().map_err(|_| unavailable())?;
+            store
+                .capture_asset_review_original(
+                    &*original,
+                    original.principal.retained(),
+                    &storage_scope,
+                    &target,
+                )
+                .map_err(|_| unavailable())?
+        };
+        if pinned.record() != current {
+            return Err(failure(StatusCode::CONFLICT));
+        }
         stock_reads::capture_graph(&core.access, &original, &snapshot)
             .map_err(stock_reads::http_error)?;
         budget.check().map_err(media_error)?;
@@ -281,6 +387,7 @@ pub(super) async fn issue(
             asset_id,
             actor_id,
             original,
+            pinned,
             rendered,
         };
         host.asset_reviews
