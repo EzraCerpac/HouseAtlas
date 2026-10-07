@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "e5d7ef55175765ace252c38cc93c8ddd3a484e298b103d589cc9365f27e276d6",
+  "sourceDigestSha256": "739fb9258c13000b34da0f1cd03bc9534d6d0547eef8cd0e766d898c0197cba8",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -448,8 +448,15 @@
     {
       "path": "backend/src/ai/host/README.md",
       "mode": "100644",
-      "bytes": 20886,
-      "sha256": "18b7ffe19534c4b45afad4dff0387c631caffea327c1c908c4b7033ff2d3bb6a",
+      "bytes": 21935,
+      "sha256": "17f6c813855f710be4a5064df3de7e218725379a10e4eea69cbe1baae7000c30",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/host/action_receipt_checks.rs",
+      "mode": "100644",
+      "bytes": 4125,
+      "sha256": "b3bdba9bba28c6aa376550a49c2dbaef4d6f9da6338f9400150d79c04a6a48f1",
       "owner": "ai"
     },
     {
@@ -525,8 +532,8 @@
     {
       "path": "backend/src/ai/host/lifecycle.rs",
       "mode": "100644",
-      "bytes": 26653,
-      "sha256": "e0d6e06d5754842ba2c0b090d573e28c7088104edabfdba4051c9f70d149cadd",
+      "bytes": 26604,
+      "sha256": "7c1f034725e43f2d6447499d2b00e04b6b41dae0f1fdeaac452168e6a7f5b1e6",
       "owner": "ai"
     },
     {
@@ -588,8 +595,8 @@
     {
       "path": "backend/src/ai/host/status.rs",
       "mode": "100644",
-      "bytes": 35198,
-      "sha256": "0532cc063ae3d06751a4f638b09f96afba29b5e228726b2b3917489ea70b6fc6",
+      "bytes": 36864,
+      "sha256": "8ca00cdc8f90fc294366cdba8cfee45701b375940697eca0774d9c4762a688d3",
       "owner": "ai"
     },
     {
