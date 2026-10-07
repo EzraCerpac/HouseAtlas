@@ -75,6 +75,58 @@ The non-ready access panel also exposes the configured Sign out action while
 withholding house content and choices. `SessionApp` continues to own that action;
 no additional sign-out transport or provider operation is introduced.
 
+### Atlas place editing and evidence attachment ports
+
+`App.editing` / `SessionApp.editing` optionally supply `AtlasEditingClient`.
+An active place detail offers Edit Atlas place only when this host port is
+configured and the view has its editor hint. The hint grants no authority:
+`loadPlace(SourceRef, signal)` must authorize the exact qualified source and
+return its current generated `LocationSemanticsRecord`, complete generated
+reference `Guard[]`, explicit replacement capability and optional attachment
+policy. No HomeBox name, inventory, maintenance or attachment record is edited.
+
+The classification form edits only generated `semanticKind`: unclassified,
+site, building, floor, room or other. It preserves `atlasId`, review status and
+evidence IDs. Save sends the entire canonical wire3
+`atlas.location-semantics.replace` envelope to `replacePlace(request, signal)`,
+with caller request ID/idempotency key, reason, current target revision and every
+reference guard. Canonical result correlation includes request, command and scope.
+
+The optional Upload attachment form accepts only the host's allowed MIME/byte
+policy and approved licence choices. It requires explicit file, evidence
+statement, licence and reason. Proposed `uploadPlaceEvidence(intent, signal)`
+receives the selected scope/location record/revision/guards and caller IDs plus
+the user File. Root must use its trusted `prepareOriginal(evidence-original)`
+seam, derive every digest/storage/availability fact, create a new immutable
+evidence reference and Atlas-owned asset, and atomically attach that evidence
+through guarded location-semantics replacement. Its response is the canonical
+committed `atlas.batch.execute` result. This is a proposed root composite method,
+not a new agent command/schema or implemented upload service. Evidence replacement
+is immutable/unsupported; HomeBox originals must never be relabelled as owned.
+
+Forms show busy state, retain the canonical receipt and report complete only
+after canonical scoped view refresh and fresh record/admission load. `App`'s
+existing read helper now returns whether a matching ready view was loaded;
+its previous rendering behavior remains. No optimistic source data is written.
+The UI reuses existing actions, settings and session-form styles; no CSS changes.
+
+Exact host requirements were proposed on integration PR #20. As inspected at
+`52d6dce6b283b577d43083fb36bbea485303924f`, its v3 HTTP command bridge admits
+circuit.create / identity.create batches, and owned media has no upload route.
+Root must explicitly implement/admit classification replacement and the composite
+upload before configuring these ports. No guessed URLs or HTTP implementation is
+added. Frozen payloads contain no alias/mobility write fields or commands, so those
+controls were not invented. Geometry, wiring, inventory CRUD and other unsupported
+actions remain outside this increment. This does not complete all editing flows.
+
+`editing.examples.tsx` adds two ordinary React form groups with typed fake host
+ports: classification envelope/shared schema/current guards/preserved fields/busy
+state/canonical refresh; and explicit owned-file/licence/evidence intent/fresh
+revision/canonical batch receipt/refreshed admission. jsdom's file-picker gap is
+handled only by an external synthetic FormData field shim. No HTTP upload, vault,
+actual domain transaction or real grant is exercised. Failure/race qualification
+remains unrun.
+
 ### Optional stock context and committed result adapter
 
 `SessionApp.stock?: StockApplicationPorts` opts into the exact PR #21 mount,

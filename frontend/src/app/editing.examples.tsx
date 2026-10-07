@@ -1,0 +1,279 @@
+/** Healthy synthetic user forms only. Host ports are fakes; no HTTP, vault,
+ * domain transaction, provider, denial, failure or race probe is run. */
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { App } from "./App";
+import { decodeAtlasView } from "./decode";
+import { routeHref } from "./model";
+import type {
+  Guard,
+  LocationSemanticsRecord,
+} from "../api/generated/contracts.js";
+import type {
+  StockRequestEnvelope,
+  StockResultEnvelope,
+} from "../webmcp/stock.js";
+import type { AtlasEditingClient, PlaceEditAdmission } from "./editing";
+function check(value: unknown, message: string): asserts value {
+  if (!value) throw new Error(message);
+}
+export async function runHealthyEditing(
+  container: HTMLElement,
+  supplied: {
+    view: unknown;
+    record: LocationSemanticsRecord;
+    guards: readonly Guard[];
+    validate: (ref: string, value: unknown) => void;
+    makeReceipt: (
+      commandId: string,
+      requestId: string,
+      operationId: string,
+      record: LocationSemanticsRecord,
+    ) => StockResultEnvelope;
+  },
+) {
+  const view = decodeAtlasView(supplied.view);
+  check(view.status === "ready", "Healthy authorized view");
+  const place = view.entries.find(
+    (entry) => entry.entity.name === "Display cabinet",
+  );
+  check(place, "Published mapped Atlas place");
+  let record = structuredClone(supplied.record),
+    reads = 0,
+    refreshes = 0;
+  let currentView = view;
+  const order: string[] = [];
+  let completeSave: (() => void) | undefined;
+  const saveCompletion = new Promise<void>((resolve) => {
+    completeSave = resolve;
+  });
+  const admission = (): PlaceEditAdmission => ({
+    record,
+    guards: supplied.guards,
+    canReplaceClassification: true,
+    attachmentPolicy: {
+      contentTypes: ["text/plain"],
+      maximumBytes: 1024,
+      licenses: [
+        {
+          label: "Synthetic permitted licence",
+          value: { status: "permitted", reference: null },
+        },
+      ],
+    },
+  });
+  const editing: AtlasEditingClient = {
+    loadPlace: async (source) => {
+      check(
+        source.key.externalId === place.entity.id,
+        "Qualified source maps to current host record",
+      );
+      reads++;
+      return admission();
+    },
+    replacePlace: async (request: StockRequestEnvelope) => {
+      supplied.validate(
+        "#/$defs/request_atlas_location_semantics_replace",
+        request,
+      );
+      check(
+        request["preconditions"] &&
+          JSON.stringify(request["preconditions"]) ===
+            JSON.stringify({
+              target: { kind: "atlas", value: record.revision },
+              guards: supplied.guards.map((guard) => ({
+                target: { authority: "atlas", ...guard.record },
+                revision: { kind: "atlas", value: guard.expectedRevision },
+              })),
+            }),
+        "Current target and complete reference guards",
+      );
+      check(
+        request.payload["atlasId"] === record.payload.atlasId &&
+          request.payload["reviewStatus"] === record.payload.reviewStatus &&
+          JSON.stringify(request.payload["evidenceIds"]) ===
+            JSON.stringify(record.payload.evidenceIds),
+        "Only classification changes",
+      );
+      order.push("replace");
+      await saveCompletion;
+      record = {
+        ...record,
+        revision: record.revision + 1,
+        payload: { ...record.payload, semanticKind: "site" },
+      };
+      currentView = {
+        ...view,
+        entries: view.entries.map((entry) =>
+          entry.key === place.key ? { ...entry, semanticKind: "site" } : entry,
+        ),
+      };
+      const result = supplied.makeReceipt(
+        request.commandId,
+        request.requestId,
+        String(request["idempotencyKey"]),
+        record,
+      );
+      supplied.validate(
+        "#/$defs/result_atlas_location_semantics_replace",
+        result,
+      );
+      return result;
+    },
+    uploadPlaceEvidence: async (intent) => {
+      check(
+        intent.expectedRevision === record.revision &&
+          intent.recordId === record.recordId &&
+          intent.guards === supplied.guards,
+        "Attachment uses fresh target and exact guards",
+      );
+      check(
+        intent.file.name === "example.txt" &&
+          intent.file.type === "text/plain" &&
+          intent.statement === "Synthetic owner note" &&
+          intent.reason === "Attach example evidence" &&
+          intent.sourceLicense.status === "permitted",
+        "Explicit file/evidence/licence/reason intent",
+      );
+      check(
+        !("storageKey" in intent) && !("sha256" in intent),
+        "Browser supplies no server storage proof",
+      );
+      order.push("upload");
+      record = { ...record, revision: record.revision + 1 };
+      const result = supplied.makeReceipt(
+        "atlas.batch.execute",
+        intent.requestId,
+        intent.idempotencyKey,
+        record,
+      );
+      supplied.validate("#/$defs/result_atlas_batch_execute", result);
+      return result;
+    },
+  };
+  const root = createRoot(container),
+    checks: string[] = [];
+  const button = (name: string) => {
+    const b = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent === name,
+    );
+    check(b, `Control ${name}`);
+    return b;
+  };
+  try {
+    window.history.replaceState(null, "", routeHref("place", place.key));
+    await act(async () =>
+      root.render(
+        <App
+          initialView={view}
+          editing={editing}
+          client={{
+            load: async () => currentView,
+            loadHome: async () => {
+              refreshes++;
+              order.push("refresh");
+              return currentView;
+            },
+          }}
+        />,
+      ),
+    );
+    await act(async () => button("Edit Atlas place").click());
+    const section = container.querySelector<HTMLElement>(
+      '[aria-label="Atlas place editing"]',
+    );
+    check(
+      section && section.querySelector("h2") === document.activeElement,
+      "Scoped editor and heading focus",
+    );
+    const form = section.querySelector<HTMLFormElement>(
+      'form[aria-label="Place classification"]',
+    );
+    check(form, "Classification form");
+    const select = form.querySelector<HTMLSelectElement>("select");
+    check(select, "Classification selector");
+    await act(async () => {
+      select.value = "site";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    const reason = form.querySelector<HTMLInputElement>('[name="reason"]');
+    check(reason, "Reason");
+    reason.value = "Correct Atlas classification";
+    await act(async () =>
+      form.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true }),
+      ),
+    );
+    check(
+      button("Save classification").disabled &&
+        section.getAttribute("aria-busy") === "true",
+      "Explicit submit exposes busy state",
+    );
+    check(completeSave, "Healthy completion available");
+    await act(async () => completeSave?.());
+    check(
+      section.textContent?.includes("Saved. Information refreshed.") &&
+        reads === 2 &&
+        refreshes === 1 &&
+        JSON.stringify(order) === JSON.stringify(["replace", "refresh"]),
+      "Save then canonical view and admission refresh",
+    );
+    check(
+      form.querySelector<HTMLSelectElement>("select")?.value === "site",
+      "Fresh canonical classification retained",
+    );
+    checks.push(
+      "classification submit: canonical wire3, guards, immutable fields, busy state and fresh view/admission",
+    );
+    const upload = section.querySelector<HTMLFormElement>(
+      'form[aria-label="Atlas attachment"]',
+    );
+    check(upload, "Host-enabled attachment form");
+    const file = new File(["example evidence"], "example.txt", {
+      type: "text/plain",
+    });
+    // jsdom has no native picker; submit the same ordinary FormData fields.
+    const NativeFormData = globalThis.FormData;
+    globalThis.FormData = class extends NativeFormData {
+      override get(name: string) {
+        return name === "file" ? file : super.get(name);
+      }
+    };
+    try {
+      const statement =
+          upload.querySelector<HTMLInputElement>('[name="statement"]'),
+        reasonInput = upload.querySelector<HTMLInputElement>('[name="reason"]'),
+        license = upload.querySelector<HTMLSelectElement>('[name="license"]');
+      check(statement && reasonInput && license, "Attachment fields");
+      statement.value = "Synthetic owner note";
+      reasonInput.value = "Attach example evidence";
+      license.value = "0";
+      await act(async () =>
+        upload.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        ),
+      );
+    } finally {
+      globalThis.FormData = NativeFormData;
+    }
+    check(
+      Number(refreshes) === 2 &&
+        Number(reads) === 3 &&
+        JSON.stringify(order) ===
+          JSON.stringify(["replace", "refresh", "upload", "refresh"]),
+      "Upload then canonical refresh and new revision admission",
+    );
+    check(
+      section
+        .querySelector("details pre")
+        ?.textContent?.includes("atlas.batch.execute"),
+      "Canonical attachment receipt remains visible",
+    );
+    checks.push(
+      "owned attachment intent: file/licence/evidence, fresh guards, host receipt and canonical refresh",
+    );
+  } finally {
+    await act(async () => root.unmount());
+  }
+  return checks;
+}
