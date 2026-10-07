@@ -96,15 +96,9 @@ impl HostNetworkRuntime {
         let prior = self.retained(&cache, &baseline.network_relations)?;
         cancelled(&cancellation)?;
         authority.revalidate_inventory(&lease, self.settings.source(), config.reviewed_origin())?;
-        let transport = n::HttpInventoryTransport::new(
-            config.clone(),
-            authority.clone(),
-            Arc::new(lease.clone()),
-            cancellation.clone(),
-        )?;
-        let mut provider = self.settings.provider()?;
         // Obtain the original Store fence and Native admission before transport.
-        // Store is locked before the canonical Network catalog owner.
+        // Store is locked before the canonical Network catalog owner. Producer
+        // and transport construction are also deferred until this succeeds.
         let reservation = with_store(core, &lease.access, |store| {
             let mut references = n::NetworkCacheReferences::new(
                 &self.sidecar,
@@ -114,6 +108,25 @@ impl HostNetworkRuntime {
             );
             prepared.admit_before_transport(store, &mut references)
         })?;
+        let transport = match n::HttpInventoryTransport::new(
+            config.clone(),
+            authority.clone(),
+            Arc::new(lease.clone()),
+            cancellation.clone(),
+        ) {
+            Ok(transport) => transport,
+            Err(error) => {
+                self.cancel_archive_reservation(reservation)?;
+                return Err(error.into());
+            }
+        };
+        let mut provider = match self.settings.provider() {
+            Ok(provider) => provider,
+            Err(error) => {
+                self.cancel_archive_reservation(reservation)?;
+                return Err(error.into());
+            }
+        };
         let fetched = provider
             .prepare_refresh(
                 &prior,
