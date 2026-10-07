@@ -145,8 +145,13 @@ impl TransportSessions {
         self.controls.retain(|id, _| self.entries.contains_key(id));
     }
 
-    fn insert(&mut self, id: String, entry: Entry) -> Result<(), HttpFailure> {
+    fn insert(&mut self, id: String, entry: Entry, access: &Access) -> Result<(), HttpFailure> {
         self.prune(Instant::now());
+        // The caller holds the registry lock through this original-authority
+        // check and insertion. A prior rotation fails revalidation; a later
+        // confirmed rotation must obtain this same lock and sees the inserted
+        // control. Rotation never holds Access while waiting for the registry.
+        revalidate(access, &entry.original)?;
         if self.entries.len() >= MAX_SESSIONS || self.entries.contains_key(&id) {
             return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
         }
@@ -424,8 +429,22 @@ fn handle(
         return match reply {
             Delivery::Reply(bytes) => Ok(protocol_response(bytes)),
             Delivery::Accepted if !closed => Ok(accepted()),
-            // This is an empty HTTP completion, never a JSON-RPC/tool result.
-            Delivery::Cancelled if !closed => Ok(marked(StatusCode::NO_CONTENT.into_response())),
+            Delivery::Cancelled if !closed => {
+                // The native owner accepted this request ID and cancelled its
+                // read. JSON-only 2025 Streamable HTTP still needs a correlated
+                // response to terminate the original POST, as in the official
+                // SDK's legacy REQUEST_CANCELLED profile. No tool result or
+                // synchronous owner rollback is invented.
+                let request_id = envelope
+                    .get("id")
+                    .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+                let bytes = serde_json::to_vec(&json!({
+                    "jsonrpc":"2.0", "id":request_id,
+                    "error":{"code":-32800,"message":"Request cancelled"}
+                }))
+                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+                Ok(protocol_response(bytes))
+            }
             _ => Err(failure(StatusCode::NOT_FOUND)),
         };
     }
@@ -467,7 +486,7 @@ fn handle(
     host.mcp
         .lock()
         .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
-        .insert(id, entry)?;
+        .insert(id, entry, &auth.access)?;
     let mut response = protocol_response(reply);
     response.headers_mut().insert("mcp-session-id", header_id);
     Ok(response)

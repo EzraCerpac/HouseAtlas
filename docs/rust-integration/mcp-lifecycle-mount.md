@@ -2,13 +2,13 @@
 
 This continuation starts at corrected main
 `ba20a24deedd780e4ddd00bc7446aa484257970a`, tree
-`b6a2dadee4f16a83beb5c9635a93a74700ed32f8`. It copies the seven exact MCP
-lifecycle source/proposal files from the public scoped branch head
-`288f0cc011a0a3a97b5dfe97ddd36210de9bc5ac`. The input's historical README and
-validation report remain external references; this document describes the
-integrated tree and its actual checks.
-The owner proposal is applied only to the root HTTP service and the shared
-module declaration. Formatting of those root edits follows the existing Rust
+`b6a2dadee4f16a83beb5c9635a93a74700ed32f8`. It copies the six exact MCP
+lifecycle Rust source files from the public scoped branch head
+`288f0cc011a0a3a97b5dfe97ddd36210de9bc5ac`. The input's historical README,
+validation report and superseded mount proposal remain external references;
+this document describes the integrated tree and its actual checks.
+The root applies the owner mount and the two HTTP review corrections to the
+root HTTP service and shared module declaration. Formatting follows the existing Rust
 formatter; feature source remains unchanged. Cargo.lock and both workflows are
 unchanged. The healthy lifecycle example is explicitly compiled and can be run
 by name; it is not added to an aggregate test or ordinary runtime runner.
@@ -23,10 +23,20 @@ The existing three read/history families and transport bounds remain in force.
 Each serialized session has a separate private control handle. Confirmed Access
 rotation closes matching controls after the real native rotation commits and
 after releasing Access/Core locks. The response retains the actual rotation
-receipt. Subsequent healthy use initializes a fresh MCP session using the real
-new issuance. Cancellation intake and empty transport completion are implemented
-through the supplied owner controls; cancellation and concurrency behavior have
-not been exercised. Synchronous owner work remains alive through completion.
+receipt. Registry insertion revalidates the original principal while holding
+the same registry lock used by rotation delivery. A rotation committed before
+that check prevents publication; one committed after the check must observe
+the inserted control when its confirmed event acquires the registry lock.
+Rotation releases Access before waiting for the registry.
+
+Subsequent healthy use initializes a fresh MCP session using the real new
+issuance. Cancellation intake uses the supplied owner controls. For the pinned
+JSON-only 2025 transport, a genuine cancelled-request disposition terminates
+the original POST with its unchanged request ID and a `-32800` JSON-RPC error.
+This follows the [2025 transport response requirement](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
+and the [official SDK's legacy cancellation completion](https://py.sdk.modelcontextprotocol.io/migration/#cancelled-requests-are-no-longer-answered).
+It creates no tool result or rollback. Cancellation and concurrency behavior
+have not been exercised. Synchronous owner work remains alive through completion.
 
 ## Ordinary evidence
 
