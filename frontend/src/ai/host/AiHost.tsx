@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AiPanelView } from '../AiPanel.js';
 import { failureMessages } from '../model.js';
 import { useAiSession } from '../useAiSession.js';
@@ -36,6 +36,19 @@ function BoundHost({ context, children }: {
 }) {
   const session = useAiSession(context.client, context.scopeKey);
   const [prompt, setPrompt] = useState('');
+  const reconciledReviewCancellation = useRef<string | null>(null);
+  const { request, recoveryAction, reviewAction } = session.state;
+  useEffect(() => {
+    if (request.status !== 'awaiting-review' || request.cancellation.status !== 'received'
+      || request.cancellation.receipt.status !== 'confirmed'
+      || request.cancellation.receipt.requestId !== request.requestId
+      || recoveryAction.status === 'working' || reviewAction.status === 'working'
+      || reconciledReviewCancellation.current === request.requestId) return;
+    // The host persisted the terminal dismissal and its original usage. Read it
+    // once through the existing hook; an acknowledgement cannot replace it.
+    reconciledReviewCancellation.current = request.requestId;
+    void session.recover();
+  }, [request, recoveryAction.status, reviewAction.status, session.recover]);
   return <HostContext.Provider value={{ session, scopeLabel: context.scopeLabel, prompt, setPrompt }}>
     {children}
   </HostContext.Provider>;
