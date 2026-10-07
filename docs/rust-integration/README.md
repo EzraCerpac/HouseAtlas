@@ -187,6 +187,13 @@ resource policy and private no-store responses. Cooperative cancellation does
 not establish hard-deadline or concurrency qualification. Fresh owned upload
 uses the qualified attachment route; HomeBox media transport remains unavailable.
 
+PNG originals retain their validated bytes independently of optional preview
+limits. Only an actual successful bounded renderer produces `safe-rendered`;
+legal originals without that qualification remain `download-only`. Measured
+metadata alone carries no preview qualification. Native upload persistence
+retains the policy from the original immutable Media stage and checks its full
+binding, consumed receipt and asset association.
+
 Mounted MCP is
 `POST /api/atlas/mcp/workspaces/{workspaceId}/homes/{homeId}`. Its cookie/CSRF
 profile uses actual observed POST evidence and genuine AT11 `Action::Mutate`
@@ -273,7 +280,9 @@ source facts, cache dates and generation. No upload or provider I/O occurs.
 The separately named upload runner submits two fresh actual React attachment
 intents for one small generated PNG and checks native SQLite receipts, one
 original asset and consumption, the exact original asset revision guard,
-unchanged original provenance and zero pending stages. It performs no retry,
+unchanged original provenance and zero pending stages. Both expanded canonical
+receipts retain their complete JSON within 390px phone and 1280px desktop views.
+It performs no retry,
 replay, expiry, recovery or failure control.
 Private evidence packets, fingerprints and optional screenshots remain outside Git.
 
@@ -334,9 +343,11 @@ reset-surviving recovery authority, retained original enqueue/attempt provenance
 queued media/liability proof and retained native evidence codecs remain unbound.
 Committed owned-original availability cannot substitute for queued media proof.
 Successful image validation would not grant resume, dispatch or reconciliation
-authority. Historical schema2 evidence does not qualify current schema4 or
-populated stock/queue recovery. No modified-image probe, surrogate validator,
-JavaScript database migration or adoption is supplied.
+authority. Historical schema2 evidence does not qualify current native Rust
+profile5 or future profile6 stock activity recovery. Profiles1–4 are not upgraded
+by the strict native opener. Legacy JavaScript persistence uses schema3. No
+modified-image probe, surrogate validator, JavaScript database migration or
+adoption is supplied.
 
 Other missing product areas include atomic presence witness admission/recovery,
 trusted real source setup/refresh, actual Network facets, qualified source-native
@@ -354,3 +365,13 @@ replay, expiry, revocation, injected fault, crash and concurrency checks remain
 unrun. The jobs checkpoint contains replay and is not executed. No broad test
 alias, remote listener, provider/NAS call, live login/grant, deployment or
 security/recovery/target/product acceptance is supplied by this composition.
+
+The multipart route preserves the owner-qualified committed receipt when stage
+metadata retirement fails. Retirement still requires the strict SQLite consumed
+upload loader and original mutation fence; the host never reconstructs cleanup
+permission. It independently revalidates original principal and source grants
+before releasing the canonical result, without diagnostic I/O on the receipt
+path. Durable
+consumption remains in SQLite; immutable original bytes are retained. This does
+not implement a background reconciliation worker or qualify interrupted cleanup,
+fault, budget, replay or authority-loss behavior. Those controls remain unrun.

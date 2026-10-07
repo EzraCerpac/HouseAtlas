@@ -10,6 +10,7 @@ use crate::media::types::is_digest;
 use crate::media::vault::RetainedUsage;
 
 const LIFETIME_FORMAT: &str = "houseatlas-pending-upload-lifetime/1";
+const RESERVATION_LIFETIME_FILE: &str = "reservation-lifetime.json";
 
 #[derive(Clone, Debug)]
 pub struct UploadLimits {
@@ -84,8 +85,8 @@ impl<R: s::Runtime> NativeUploadStages<'_, R> {
             return Err(MediaError::TooLarge);
         }
         let reservation = self.directory.temporary(".upload-")?;
-        self.write_lifetime(&reservation.directory)?;
-        let prepared = self.vault.prepare_upload_original(
+        self.write_reservation_lifetime(&reservation.directory)?;
+        let prepared = self.vault.prepare_upload_original_measured(
             &scope,
             admission.purpose,
             admission.content_type,
@@ -112,7 +113,23 @@ impl<R: s::Runtime> NativeUploadStages<'_, R> {
             .map_err(|_| MediaError::Unavailable)
     }
 
-    pub(super) fn write_lifetime(&self, directory: &PrivateDir) -> MediaResult<()> {
+    pub(super) fn write_reservation_lifetime(&self, directory: &PrivateDir) -> MediaResult<()> {
+        self.write_lifetime(directory, RESERVATION_LIFETIME_FILE)
+    }
+
+    /// Processing uses its own durable reservation. The published pending
+    /// window begins only after measured bytes and stage metadata are complete.
+    pub(super) fn complete_lifetime(
+        &self,
+        directory: &PrivateDir,
+        budget: &WorkBudget,
+    ) -> MediaResult<()> {
+        budget.check()?;
+        self.write_lifetime(directory, "lifetime.json")?;
+        directory.remove_file(RESERVATION_LIFETIME_FILE, budget)
+    }
+
+    fn write_lifetime(&self, directory: &PrivateDir, member: &str) -> MediaResult<()> {
         let created_at = self.now()?;
         let expires_at = created_at
             .checked_add(
@@ -121,7 +138,7 @@ impl<R: s::Runtime> NativeUploadStages<'_, R> {
             )
             .ok_or(MediaError::InvalidInput)?;
         directory.write_new(
-            "lifetime.json",
+            member,
             &checked_bytes(
                 &Lifetime {
                     format: LIFETIME_FORMAT.into(),
@@ -137,19 +154,15 @@ impl<R: s::Runtime> NativeUploadStages<'_, R> {
     fn lifetime(
         &self,
         directory: &PrivateDir,
+        member: &str,
         budget: &WorkBudget,
     ) -> MediaResult<Option<Lifetime>> {
-        if !directory
-            .members()?
-            .iter()
-            .any(|name| name == "lifetime.json")
-        {
+        if !directory.members()?.iter().any(|name| name == member) {
             // Earlier receipt format has no expiry policy; never invent one.
             return Ok(None);
         }
-        let lease: Lifetime =
-            serde_json::from_slice(&directory.read("lifetime.json", 1024, budget)?)
-                .map_err(|_| MediaError::Unavailable)?;
+        let lease: Lifetime = serde_json::from_slice(&directory.read(member, 1024, budget)?)
+            .map_err(|_| MediaError::Unavailable)?;
         if lease.format != LIFETIME_FORMAT
             || lease.expires_at <= lease.created_at
             || lease
@@ -168,12 +181,12 @@ impl<R: s::Runtime> NativeUploadStages<'_, R> {
         budget: &WorkBudget,
     ) -> MediaResult<()> {
         let lease = self
-            .lifetime(directory, budget)?
+            .lifetime(directory, "lifetime.json", budget)?
             .ok_or(MediaError::Unavailable)?;
         if self.now()? >= lease.expires_at {
             return Err(MediaError::Unavailable);
         }
-        Ok(())
+        budget.check()
     }
 
     /// Every top-level reservation/receipt counts, including old and interrupted
@@ -194,8 +207,10 @@ impl<R: s::Runtime> NativeUploadStages<'_, R> {
     ) -> MediaResult<()> {
         let members = directory.members()?;
         if members.iter().any(|name| {
-            !matches!(name.as_str(), "stage.json" | "lifetime.json" | "plan")
-                && !name.starts_with(".plan-")
+            !matches!(
+                name.as_str(),
+                "stage.json" | "lifetime.json" | RESERVATION_LIFETIME_FILE | "plan"
+            ) && !name.starts_with(".plan-")
         }) {
             return Err(MediaError::Unavailable);
         }
@@ -218,6 +233,9 @@ impl<R: s::Runtime> NativeUploadStages<'_, R> {
         }
         if members.iter().any(|name| name == "lifetime.json") {
             directory.remove_file("lifetime.json", budget)?;
+        }
+        if members.iter().any(|name| name == RESERVATION_LIFETIME_FILE) {
+            directory.remove_file(RESERVATION_LIFETIME_FILE, budget)?;
         }
         self.directory.remove_empty_child(key, budget)?;
         self.vault.sync_retained_hierarchy()
@@ -255,8 +273,17 @@ impl<R: s::Runtime> NativeUploadStages<'_, R> {
             {
                 continue;
             }
+            // A scratch reservation can coexist with completed metadata if
+            // publication was interrupted. Never restart its processing lease.
+            let lifetime_file = if key.starts_with(".upload-")
+                && members.iter().any(|name| name == RESERVATION_LIFETIME_FILE)
+            {
+                RESERVATION_LIFETIME_FILE
+            } else {
+                "lifetime.json"
+            };
             if self
-                .lifetime(&directory, budget)?
+                .lifetime(&directory, lifetime_file, budget)?
                 .is_some_and(|lease| now >= lease.expires_at)
             {
                 self.remove_metadata(&key, &directory, budget)?;

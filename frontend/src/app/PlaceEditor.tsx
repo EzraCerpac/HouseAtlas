@@ -388,7 +388,7 @@ export function PlaceEditor({
         </div>
       )}
       {receipt && (
-        <details>
+        <details className="command-receipt">
           <summary>Command receipt</summary>
           <pre>{JSON.stringify(receipt, null, 2)}</pre>
         </details>

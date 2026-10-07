@@ -271,7 +271,7 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
         // The durable reservation precedes blob installation. Interrupted
         // reservations and immutable originals remain charged after reopen.
         let pending = self.directory.temporary(".upload-")?;
-        self.write_lifetime(&pending.directory)?;
+        self.write_reservation_lifetime(&pending.directory)?;
         let prepared = self.vault.prepare_upload_original(
             &scope,
             admission.purpose,
@@ -309,9 +309,13 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
             Mode::from_raw_mode(0o400),
         )?;
         authorize(guard, original, budget)?;
+        self.complete_lifetime(&pending.directory, budget)?;
         pending.publish(&key)?;
         self.vault.sync_retained_hierarchy()?;
         authorize(guard, original, budget)?;
+        // Slow publication barriers cannot return a receipt already expired.
+        // Published metadata remains charged and eligible for ordinary expiry.
+        self.require_live(&self.directory.child(&key, false)?, budget)?;
         originals.insert(key, original.clone());
         Ok(UploadReceipt {
             request_id: record.request_id,

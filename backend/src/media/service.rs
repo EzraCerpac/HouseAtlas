@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use serde::{Deserialize, Serialize};
 
-use super::content::validate_content;
+use super::content::{validate_content, validate_original_content};
 use super::types::{
     AssetPayload, AssetRecord, Availability, ContentType, Lifecycle, PreviewPolicy, Scope, is_uuid,
 };
@@ -180,10 +180,13 @@ impl<'a, S, A> MediaService<'a, S, A> {
             return Err(MediaError::NotFound);
         }
         let original = self.vault.read_retained(&initial, budget)?;
-        let rendered = validate_content(&original, metadata.content_type, budget)?;
         let bytes = match mode {
-            DeliveryMode::Download => original,
-            DeliveryMode::Preview => rendered.ok_or(MediaError::Unsupported)?,
+            DeliveryMode::Download => {
+                validate_original_content(&original, metadata.content_type, budget)?;
+                original
+            }
+            DeliveryMode::Preview => validate_content(&original, metadata.content_type, budget)?
+                .ok_or(MediaError::Unsupported)?,
         };
         // All byte work finishes before current authoritative reads and grant
         // revalidation. The synchronous router must emit immediately on return.
