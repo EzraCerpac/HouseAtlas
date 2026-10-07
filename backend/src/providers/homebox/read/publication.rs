@@ -38,12 +38,19 @@ pub struct StagedPublication<'a, P> {
     fence: storage::CachePublicationFence,
     generation: CompleteGeneration,
 }
-#[derive(Debug)]
-pub enum RefreshError {
+pub enum RefreshError<'a, P> {
     Publication(PublishError),
-    Read(Box<FailedRead>),
+    Read(Box<FailedPublication<'a, P>>),
 }
-impl fmt::Display for RefreshError {
+impl<P> fmt::Debug for RefreshError<'_, P> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Publication(error) => f.debug_tuple("Publication").field(error).finish(),
+            Self::Read(error) => f.debug_tuple("Read").field(error).finish(),
+        }
+    }
+}
+impl<P> fmt::Display for RefreshError<'_, P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Publication(error) => fmt::Display::fmt(error, f),
@@ -51,7 +58,7 @@ impl fmt::Display for RefreshError {
         }
     }
 }
-impl std::error::Error for RefreshError {}
+impl<P> std::error::Error for RefreshError<'_, P> {}
 impl<T: Transport, K: Clock> HomeBoxReader<T, K> {
     pub fn prepare_publication<'a, C: Contract, A: Authorization, R: Runtime>(
         &self,
@@ -89,7 +96,7 @@ impl<'a, P> PreparedGeneration<'a, P> {
     pub async fn fetch<T: Transport, K: Clock>(
         self,
         reader: &mut HomeBoxReader<T, K>,
-    ) -> Result<StagedPublication<'a, P>, RefreshError> {
+    ) -> Result<StagedPublication<'a, P>, RefreshError<'a, P>> {
         let partition = self.fence.partition();
         let scope = reader.scope();
         if partition.workspace_id != scope.workspace_id.as_str()
@@ -112,10 +119,16 @@ impl<'a, P> PreparedGeneration<'a, P> {
         }
         let id = Uuid::parse(self.fence.reserved_generation_id())
             .map_err(|_| RefreshError::Publication(PublishError::InvalidRetainedState))?;
-        let generation = reader
-            .fetch_generation(Some(&self.previous), id)
-            .await
-            .map_err(|error| RefreshError::Read(Box::new(error)))?;
+        let generation = match reader.fetch_generation(Some(&self.previous), id).await {
+            Ok(generation) => generation,
+            Err(failure) => {
+                return Err(RefreshError::Read(Box::new(FailedPublication {
+                    principal: self.principal,
+                    fence: self.fence,
+                    failure,
+                })));
+            }
+        };
         Ok(StagedPublication {
             principal: self.principal,
             fence: self.fence,
