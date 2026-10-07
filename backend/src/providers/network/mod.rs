@@ -3,6 +3,7 @@
 mod adapter;
 mod durable;
 mod facet;
+pub mod host_runtime;
 mod http;
 mod json;
 mod model;
