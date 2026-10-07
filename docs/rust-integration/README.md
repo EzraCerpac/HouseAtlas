@@ -48,6 +48,15 @@ IP, bounds actual body streams, and passes original opaque authority to domain
 and storage. All responses retain the private no-store/header adapter documented
 in [read-corrections.md](read-corrections.md).
 
+The disposable binary establishes creation mask `0077` before starting runtime
+worker threads, so owner-created temporary staging retains private modes without
+depending on the launcher's mask. After creating the private disposable directory,
+the host supplies its actual canonical directory identity to media and SQLite.
+This accommodates system-level temporary-root aliases while preserving the
+owners' canonical-path, inode, no-follow, private-mode and durability checks.
+Media startup errors identify only the fixture phase and public error category;
+they include no credentials or paths.
+
 The root HTML supplies the React owner's session/login/logout and scoped-view
 host attributes. Real React renders Home, Rooms & places, room/item details,
 Settings, successful sign-out and successful sign-in. HomeBox edit capability,

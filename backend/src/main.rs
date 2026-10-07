@@ -56,8 +56,15 @@ fn frontend(directory: &Path) -> Result<BTreeMap<String, (String, Vec<u8>)>, lif
     }
     Ok(files)
 }
+fn main() -> Result<(), lifecycle::Failure> {
+    // This binary creates only explicitly configured private disposable state.
+    // Establish the file-creation policy before starting runtime worker threads.
+    rustix::process::umask(rustix::fs::Mode::from_raw_mode(0o077));
+    run()
+}
+
 #[tokio::main]
-async fn main() -> Result<(), lifecycle::Failure> {
+async fn run() -> Result<(), lifecycle::Failure> {
     let config = Config::from_args().map_err(|e| format!("HouseAtlas settings: {e}"))?;
     let files = Arc::new(frontend(&config.frontend)?);
     let tls =

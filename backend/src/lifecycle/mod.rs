@@ -49,6 +49,8 @@ pub fn fixture() -> Result<Value, Failure> {
 pub fn prepare(directory: &Path, origin: &str) -> Result<Core, Failure> {
     fs::create_dir(directory)?;
     fs::set_permissions(directory, fs::Permissions::from_mode(0o700))?;
+    let canonical_directory = fs::canonicalize(directory)?;
+    let directory = canonical_directory.as_path();
     let fixture = fixture()?;
     let home = d::HomeSummary {
         scope: d::Scope {
@@ -58,7 +60,14 @@ pub fn prepare(directory: &Path, origin: &str) -> Result<Core, Failure> {
         label: "Synthetic home".into(),
     };
     let scope = crate::app::access_scope(&home.scope)?;
-    let vault = Arc::new(crate::media::AssetVault::open(&directory.join("media"))?);
+    // Supply the actual trusted directory identity to the media owner. Hosted
+    // temporary roots can have a system-level alias; the owner's strict
+    // canonical-path, inode and private-mode checks remain unchanged.
+    let vault_root = directory.join("media");
+    let vault = Arc::new(
+        crate::media::AssetVault::open(&vault_root)
+            .map_err(|error| format!("Disposable media vault initialization failed: {error}"))?,
+    );
     let media_scope = crate::media::types::Scope {
         workspace_id: home.scope.workspace_id.clone(),
         home_id: home.scope.home_id.clone(),
@@ -86,13 +95,15 @@ pub fn prepare(directory: &Path, origin: &str) -> Result<Core, Failure> {
             std::time::Duration::from_secs(10),
             crate::media::Cancellation::default(),
         )?;
-        let prepared = vault.prepare_original(
-            &media_scope,
-            crate::media::types::AssetPurpose::EvidenceOriginal,
-            content_type,
-            &mut bytes.as_slice(),
-            &budget,
-        )?;
+        let prepared = vault
+            .prepare_original(
+                &media_scope,
+                crate::media::types::AssetPurpose::EvidenceOriginal,
+                content_type,
+                &mut bytes.as_slice(),
+                &budget,
+            )
+            .map_err(|error| format!("Disposable original preparation failed: {error}"))?;
         let payload = prepared.with_provenance(
             crate::media::types::SourceLicense {
                 status: crate::media::types::LicenseStatus::Unknown,
