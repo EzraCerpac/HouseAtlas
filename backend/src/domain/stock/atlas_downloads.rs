@@ -362,6 +362,27 @@ fn media_error(error: MediaError) -> StockError {
     match error {
         MediaError::Unauthenticated | MediaError::Forbidden => StockError::CapabilityDenied,
         MediaError::Conflict => StockError::AuthorityChanged,
+        MediaError::NotFound => StockError::Domain(crate::domain::DomainError::NotFound),
         _ => StockError::OwnerUnavailable,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Pure owner-error conversion: no storage, authority or media work runs.
+    #[test]
+    fn media_absence_preserves_not_found() {
+        assert_eq!(MediaError::NotFound.status(), 404);
+        assert_eq!(
+            media_error(MediaError::NotFound),
+            StockError::Domain(crate::domain::DomainError::NotFound)
+        );
+        assert_eq!(MediaError::Unavailable.status(), 503);
+        assert_eq!(
+            media_error(MediaError::Unavailable),
+            StockError::OwnerUnavailable
+        );
     }
 }
