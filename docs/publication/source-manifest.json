@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "739fb9258c13000b34da0f1cd03bc9534d6d0547eef8cd0e766d898c0197cba8",
+  "sourceDigestSha256": "4139f12afcce99287082c247801b69e3181467bf0bade5cfccf2688a7d4d0f5d",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2891,15 +2891,22 @@
     {
       "path": "backend/src/storage/README.md",
       "mode": "100644",
-      "bytes": 75069,
-      "sha256": "a67acdcd00ed0b8000940dfd5a0939feb69907cee6351827469519f3951b6f66",
+      "bytes": 78616,
+      "sha256": "4ebb233d1b4454f42e4c8bef118879eebb0c3883d5579b42c1e8aa7d62fc52a2",
       "owner": "storage"
     },
     {
       "path": "backend/src/storage/cache.rs",
       "mode": "100644",
-      "bytes": 33485,
-      "sha256": "860805b7cff3f756ccad6adaa90a02533b7a7cdb9e53f57f125ebd494a6321ec",
+      "bytes": 34311,
+      "sha256": "509223fcb00cf0ad6336f7a03f0a406b240dfe67c271f9fba8a4f923aec1389a",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/cache_custody.rs",
+      "mode": "100644",
+      "bytes": 25656,
+      "sha256": "6af316c133c343948ab009ccbfdc4bc065d2ba5e49f118838885d0b905c6e3e7",
       "owner": "storage"
     },
     {
@@ -2921,6 +2928,13 @@
       "mode": "100644",
       "bytes": 9099,
       "sha256": "cf5b211cc3e189368fa0f1f66c7e160e6f4e6a214108b4347eca489f74b4d13b",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/checks/cache-custody-healthy.rs",
+      "mode": "100644",
+      "bytes": 15637,
+      "sha256": "81e015ec24495bd0a2635aab38dc4528268b7d7d8f4b72b1af7202e63d6ed4f0",
       "owner": "storage"
     },
     {
@@ -3073,8 +3087,8 @@
     {
       "path": "backend/src/storage/mod.rs",
       "mode": "100644",
-      "bytes": 1628,
-      "sha256": "c71623f75ba716667bfcd7defdaca02e87b7d6c4216a107d619a43f29159ff90",
+      "bytes": 1563,
+      "sha256": "6f5e322fa0a71fbf9ae19d800e32985ba682d462e82941953595728ed00f5681",
       "owner": "storage"
     },
     {
@@ -3206,8 +3220,8 @@
     {
       "path": "backend/src/storage/recovery.rs",
       "mode": "100644",
-      "bytes": 18424,
-      "sha256": "aba3c91fa2bffe55a17c7e966993fe9cc0e2c5bb044256908ff73e6c6668bf79",
+      "bytes": 18499,
+      "sha256": "006cedcb99b85ec3494e921d96aa0d4c54b1064a81cd46f085d797aa6a841f38",
       "owner": "storage"
     },
     {
@@ -3339,8 +3353,8 @@
     {
       "path": "backend/src/storage/store.rs",
       "mode": "100644",
-      "bytes": 14234,
-      "sha256": "1abeafb7c3b73f8cf15376fb8fe634ff289fb2315d7c3ec9d756a6afbfc95cbe",
+      "bytes": 14425,
+      "sha256": "ca38b09d95677e30ede8cf700c534212e13da80f41bbf94af62c0b510560139e",
       "owner": "storage"
     },
     {
