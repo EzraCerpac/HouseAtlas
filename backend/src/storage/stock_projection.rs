@@ -65,6 +65,7 @@ pub(crate) fn retained_plan<C: Contract, S: StockContractPort>(
     if commit.derivation.is_some()
         || commit.derivation_format.is_some()
         || commit.child_derivations.is_some()
+        || commit.asset_review.is_some()
     {
         super::stock_derivation::validate_retained_preimage(commit, stock, native)?;
         if super::upload_repository::load_for_commit(db, native, stock, commit)?.is_some() {

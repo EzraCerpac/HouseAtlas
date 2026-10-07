@@ -11,7 +11,7 @@ use crate::{
     contracts::{AssetPayloadPreviewPolicy, BindingPayloadSourceState},
     domain::{self as d, stock as st},
     http::contracts::NativeContracts,
-    storage as s,
+    media as m, storage as s,
 };
 use axum::{
     extract::{Path, Request, State},
@@ -60,12 +60,14 @@ fn supported(request: &st::ValidatedRequest) -> st::StockResult<()> {
 enum UploadPlan<'a, 'u> {
     Staged(&'a st::StagedAtlasCommandPlan<'u>),
     Existing(&'a st::ExistingAssetAttachmentPlan<'u>),
+    Review(&'a s::VerifiedAssetReviewPlan<'u>, &'a m::WorkBudget),
 }
 impl<'a, 'u> UploadPlan<'a, 'u> {
     fn plan(self) -> &'a st::AtlasCommandPlan {
         match self {
             Self::Staged(plan) => plan.plan(),
             Self::Existing(plan) => plan.plan(),
+            Self::Review(plan, _) => plan.plan(),
         }
     }
 }
@@ -86,6 +88,7 @@ struct Graph {
     request: st::ValidatedRequest,
     derivation: Option<st::AtlasDerivation>,
     child_derivations: Option<Vec<Option<st::AtlasDerivation>>>,
+    review_facts: Option<Value>,
 }
 
 // Derivation is owner data from the same authorized snapshot, never client
@@ -343,10 +346,25 @@ impl<'p> st::StockPreparerPort<RequestPrincipal, Witness<'p>> for Preparer<'_, '
         require(std::ptr::eq(p, w.principal) && w.raw == *request.raw())?;
         supported_profile(request, self.1)?;
         let original = snapshot(self.0, p, request)?;
-        let derivation = if self.1.is_none() {
-            derive(request, &original)?
-        } else {
-            None
+        if let Some(UploadPlan::Review(plan, _)) = self.1 {
+            let st::AtlasDerivation::AssetReview {
+                original: pinned, ..
+            } = plan.derivation()
+            else {
+                return Err(changed());
+            };
+            require(original.records.iter().any(|row| row == pinned))?;
+        }
+        let derivation = match self.1 {
+            Some(UploadPlan::Review(plan, _)) => Some(plan.derivation().clone()),
+            Some(_) => None,
+            None => derive(request, &original)?,
+        };
+        let review_facts = match self.1 {
+            Some(UploadPlan::Review(plan, _)) => {
+                Some(serde_json::to_value(plan.retained_facts()).map_err(|_| unavailable())?)
+            }
+            _ => None,
         };
         let child_derivations =
             if self.1.is_none() && request.id() == st::OperationId::AtlasBatchExecute {
@@ -376,6 +394,7 @@ impl<'p> st::StockPreparerPort<RequestPrincipal, Witness<'p>> for Preparer<'_, '
             original,
             derivation,
             child_derivations,
+            review_facts,
             request: request.clone(),
         })
     }
@@ -473,11 +492,21 @@ impl Transaction<'_, '_, '_> {
                         && receipt.groups.len() == graph.plan.groups().len()
                         && receipt.derivation == graph.derivation
                         && receipt.child_derivations == graph.child_derivations
+                        && serde_json::to_value(&receipt.asset_review)
+                            .map_err(|_| unavailable())?
+                            == graph.review_facts.clone().unwrap_or(Value::Null)
                         && receipt.derivation_format.as_deref()
-                            == match (&graph.derivation, &graph.child_derivations) {
-                                (Some(_), None) => Some(st::ATLAS_DERIVATION_FORMAT),
-                                (None, Some(_)) => Some(st::ATLAS_BATCH_DERIVATION_FORMAT),
-                                (None, None) => None,
+                            == match (
+                                &graph.derivation,
+                                &graph.child_derivations,
+                                &graph.review_facts,
+                            ) {
+                                (Some(_), None, Some(_)) => {
+                                    Some(s::ATLAS_VERIFIED_ASSET_REVIEW_FORMAT)
+                                }
+                                (Some(_), None, None) => Some(st::ATLAS_DERIVATION_FORMAT),
+                                (None, Some(_), None) => Some(st::ATLAS_BATCH_DERIVATION_FORMAT),
+                                (None, None, None) => None,
                                 _ => return Err(changed()),
                             },
                 )?;
@@ -626,6 +655,15 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
                         prepared.request().raw(),
                         upload.staged(),
                     )
+                } else if let Some(UploadPlan::Review(plan, budget)) = self.upload {
+                    let peers = s::AssetReviewCommitPeers::new(plan, guard, budget);
+                    store.execute_verified_asset_review_stock_json_with_authorization(
+                        &authorization,
+                        p,
+                        &self.contracts,
+                        prepared.request().raw(),
+                        peers,
+                    )
                 } else if let Some(vector) = &graph.child_derivations {
                     store.execute_derived_stock_batch_json_with_authorization(
                         &authorization,
@@ -760,6 +798,31 @@ pub(super) fn execute_existing(
         Some(UploadPlan::Existing(&qualified)),
     )
 }
+/// The opaque Store pin and Media proof remain borrowed by this exact original
+/// request allocation throughout native Candidate/Precommit and release.
+pub(super) fn execute_verified_asset_review(
+    core: &Core,
+    p: &RequestPrincipal,
+    raw: Value,
+    plan: &s::VerifiedAssetReviewPlan<'_>,
+    budget: &m::WorkBudget,
+    contracts: &st::NativeStockContract,
+) -> st::StockResult<st::OwnerResult> {
+    let request = st::ValidatedRequest::parse(contracts, raw.clone())?;
+    require(
+        request.id() == st::OperationId::AtlasAssetReview
+            && request.payload()["treatment"] == "request-preview"
+            && request.children().is_empty()
+            && request.raw() == plan.plan().original_request(),
+    )?;
+    execute_profile(
+        core,
+        p,
+        raw,
+        contracts,
+        Some(UploadPlan::Review(plan, budget)),
+    )
+}
 fn execute_profile(
     core: &Core,
     p: &RequestPrincipal,
@@ -854,6 +917,13 @@ pub(super) async fn command(
             || request.context().home_id != scope.home_id
         {
             return Err(failure(StatusCode::FORBIDDEN));
+        }
+        if request.id() == st::OperationId::AtlasAssetReview
+            && request.payload()["treatment"] == "request-preview"
+        {
+            return super::asset_reviews::execute(
+                &host, &core, &principal, &request, &contracts, &scope,
+            );
         }
         super::agents::command_response(&core, &principal, raw)
     })

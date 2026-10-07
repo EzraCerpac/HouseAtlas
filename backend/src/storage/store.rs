@@ -10,6 +10,8 @@ mod commands;
 mod recovery;
 #[path = "stock.rs"]
 mod stock;
+#[path = "stock_asset_review.rs"]
+mod stock_asset_review;
 #[path = "stock_history.rs"]
 mod stock_history;
 #[path = "upload_queries.rs"]
