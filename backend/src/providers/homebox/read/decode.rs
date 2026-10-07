@@ -243,7 +243,15 @@ pub(super) fn validate_attachment(a: &Attachment) -> Result<(), ReadError> {
 pub(super) fn validate_maintenance(m: &Maintenance) -> Result<(), ReadError> {
     text(&m.name, 0, 16384)?;
     text(&m.description, 0, 16384)?;
-    optional_number(m.cost)
+    // Retain the existing finite-number admission rule, without replacing the
+    // stored decimal by the rounded/underflowed f64 used for that check.
+    if m.cost
+        .as_ref()
+        .is_some_and(|n| n.as_f64().is_none_or(|n| !n.is_finite()))
+    {
+        return Err(invalid());
+    }
+    Ok(())
 }
 fn attachments(value: Value) -> Result<Vec<Attachment>, ReadError> {
     let mut result = BTreeMap::new();

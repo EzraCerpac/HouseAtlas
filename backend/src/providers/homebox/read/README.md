@@ -131,6 +131,17 @@ and depth 64. RawValue distinguishes actual JSON containers from arbitrary-preci
 Serde numeric maps. AT51 classifies integral lexical tokens before checked u64
 conversion; `.0`/exponent integer spellings remain accepted.
 
+Native maintenance costs adopt the wire bridge's exact `serde_json::Number`
+into `Maintenance.cost: Option<serde_json::Number>`. The workspace's existing
+arbitrary-precision JSON feature preserves decimal/exponent tokens through
+typed decoding, cache publication and retained-state reconstruction. The finite
+admission check does not replace the stored number with its `f64` approximation;
+large integers, long fractions and underflowing exponents retain their amount.
+Normalized synthetic unknown costs remain null. Consumers should serialize the
+number directly rather than convert it to a float or a string. No wire API or
+contract/schema change is required; prior cache amounts already rounded by an
+older reader cannot be recovered without a new source observation.
+
 Identical repeated rows collapse; conflicts, count drift, list/detail changes and
 parent cycles abort staging. These guards are coded but rejection/fault/race controls
 remain deferred. Offset pages remain nontransactional upstream reads. UUID spelling
