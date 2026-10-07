@@ -47,6 +47,31 @@ persisted session, user/version, membership/version/role, restore epoch, origin,
 absolute/idle expiry and monotonic timestamps, returning the same borrowed
 principal. Handles from a different boundary instance cannot be used.
 
+```rust
+AccessBoundary::authenticated_session_binding(
+    &self, original: &Principal,
+) -> AccessResult<[u8; 32]>;
+```
+
+This seam first calls `self.revalidate(original)?` with all existing current
+session, epoch, user, membership, role and issuer checks unchanged. It then
+returns SHA-256 of the exact concatenation
+`b"HouseAtlas.Access.authenticated_session_binding.v1\0"`, the 32-byte Access
+boundary instance, and the private session token digest's 64 lowercase hex
+bytes. Fixed-width instance and digest fields make the preimage unambiguous;
+the digest remains private and the cookie is never returned. No adapter text,
+scope, action, unrelated cookies, nonce, renewal, write or policy enters this
+derivation. Reissued principals for the same active session within one boundary
+have the same binding across scopes, actions and cookie ordering. Independent
+valid session credentials have distinct bindings.
+
+The result is an opaque correlation equality key, never authority or durable
+identity. It is process-instance/session bound, changes with rotation or a new
+login, and does not survive boundary reopen. Consumers must obtain fresh
+request authorization and revalidation on each request; a stored binding
+cannot authorize a later request. Existing revalidation APIs still return the
+exact original borrowed handles.
+
 `Capability` covers `Read`, `ReadHistory`, `ReadAssetManifest`, `Mutate`,
 `ReadCacheEntity(&SourceRef)` and `ReadCachePartition(&SourcePartition)`.
 Partition metadata and entity authority are separate checks; empty generations
@@ -351,11 +376,14 @@ the router supplies requestId and null currentRevision.
 
 ## Healthy checkpoints
 
-`healthy.rs` contains four positive synthetic checkpoints: viewer
+`healthy.rs` contains five positive synthetic checkpoints: viewer
 login/read/history/manifest and session-info/rotation/logout; editor
 CSRF-issued principal and current source/empty-partition checks around a real
 disposable SQLite commit; file-backed session persistence/strict reopen/mode;
-and explicitly configured lifecycle registration/publication with retained grants.
+explicitly configured lifecycle registration/publication with retained grants;
+and authenticated session binding across repeated Read/History issuance,
+synthetic scopes, unrelated cookie entries/reordering and two simultaneously
+valid independent sessions, with original borrowed handles preserved.
 Identities, origin and clock reuse `packages/access/test/fixtures.mjs`.
 The empty recorded history fixture is reused directly from
 `packages/contracts/history/fixtures/empty.audit-array.json`; it remains a

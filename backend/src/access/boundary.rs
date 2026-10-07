@@ -5,6 +5,7 @@ use std::{
 
 use rusqlite::{Connection, TransactionBehavior, params};
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use url::Url;
 
@@ -304,6 +305,19 @@ impl AccessBoundary {
 
     pub fn revalidate<'p>(&self, principal: &'p Principal) -> AccessResult<&'p Principal> {
         self.current().revalidate(principal)
+    }
+
+    /// Opaque equality key for this boundary instance and authenticated session.
+    /// This supplies no authority or durable identity; revalidate each request.
+    /// Rotation or a new login changes the session and therefore the binding.
+    pub fn authenticated_session_binding(&self, original: &Principal) -> AccessResult<[u8; 32]> {
+        self.revalidate(original)?;
+        let mut binding = Sha256::new();
+        binding.update(b"HouseAtlas.Access.authenticated_session_binding.v1\0");
+        binding.update(self.instance);
+        // The private digest is exactly 64 lowercase hex bytes, never cookie text.
+        binding.update(original.token_hash.as_bytes());
+        Ok(binding.finalize().into())
     }
 
     pub fn assert_mutation<'p>(&self, principal: &'p Principal) -> AccessResult<&'p Principal> {
