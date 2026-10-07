@@ -41,3 +41,6 @@ pub fn map_stock(
     }
     Err(StockMappingError::UnsupportedOperation)
 }
+
+#[path = "../../recovery/stock_bridge.rs"]
+pub(crate) mod retained_bridge;

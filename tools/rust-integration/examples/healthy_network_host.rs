@@ -192,6 +192,7 @@ async fn main() -> Result<(), Failure> {
     };
     let host = Host::new(
         Core {
+            atlas_list_pages: houseatlas_backend::domain::stock::AtlasListPages::default(),
             access: canonical.clone(),
             store: Mutex::new(store),
             vault,

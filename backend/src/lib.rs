@@ -19,7 +19,9 @@ pub mod providers {
     pub mod network;
     pub mod homebox {
         pub mod read;
+        pub mod recovery;
         pub mod wire;
         pub mod write;
+        pub mod write_transport;
     }
 }

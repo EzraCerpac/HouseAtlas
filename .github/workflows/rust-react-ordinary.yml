@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
+    branches: [main, dev]
 permissions:
   contents: read
 # Cancel superseded candidates for one PR; every main/release event keeps its own group.

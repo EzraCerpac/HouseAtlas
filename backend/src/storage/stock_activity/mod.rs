@@ -405,3 +405,6 @@ impl From<access::AccessError> for AuthorityFailure {
         Self(StockPortFault::EvidenceConflict)
     }
 }
+
+#[path = "../../providers/homebox/recovery/activity_storage_bridge.rs"]
+pub(crate) mod retained_native_codec_bridge;

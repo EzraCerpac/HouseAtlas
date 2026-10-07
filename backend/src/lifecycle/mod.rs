@@ -1,4 +1,5 @@
 //! Minimum healthy fixture setup through the actual module APIs.
+pub mod provider_dispatch;
 pub mod providers {
     pub mod authority;
     pub mod homebox_refresh;

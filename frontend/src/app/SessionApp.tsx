@@ -1,3 +1,4 @@
+import type { Scope } from "../api/generated/contracts.js";
 import {
   useCallback,
   useEffect,

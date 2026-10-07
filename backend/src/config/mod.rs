@@ -5,6 +5,7 @@ pub mod providers {
     pub mod network_host;
     pub mod registry;
 }
+pub mod provider_dispatch;
 pub mod recovery;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum FixtureProfile {

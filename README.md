@@ -85,3 +85,9 @@ SQLite sessions and persistence, authorized room/item reads and a compiled React
 UI. Read [docs/rust-integration/README.md](docs/rust-integration/README.md) for its
 explicit disposable settings, exact ordinary commands and remaining product
 areas. Its positive browser smoke is separate from all stopped controls.
+
+The `dev` branch combines development PRs before review and CI. Its assembled
+source is provisional. The integration writer resolves overlaps, records donor
+heads and tracks review corrections. The same ordinary workflows run on dev
+pushes; cache publication remains restricted to verified main pushes. Main
+acceptance still requires review of the exact candidate and passing CI.
