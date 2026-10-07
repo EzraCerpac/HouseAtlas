@@ -1,9 +1,9 @@
-//! Incremental pinned-codec decoding. Its whole-row filter/transform work is
+//! Incremental optional-preview pixel decoding. Its whole-row filter/transform work is
 //! bounded before codec allocation; every input feed and returned row checks
 //! the same operation budget. This supplies no hard preemption guarantee.
 use std::io::{self, BufRead, Cursor, Read, Seek, SeekFrom};
 
-use super::{MAX_PIXELS, MAX_PNG_DECODE_ROW_BYTES};
+use super::{MAX_PIXELS, MAX_PNG_PREVIEW_ROW_BYTES};
 use crate::media::{MediaError, MediaResult, WorkBudget};
 
 const INPUT_FEED_BYTES: usize = 4096;
@@ -97,7 +97,7 @@ pub(super) fn decode(
     let size = reader.output_buffer_size().ok_or(MediaError::TooLarge)?;
     if line_size != width.checked_mul(channels).ok_or(MediaError::TooLarge)?
         || size != line_size.checked_mul(height).ok_or(MediaError::TooLarge)?
-        || line_size > MAX_PNG_DECODE_ROW_BYTES
+        || line_size > MAX_PNG_PREVIEW_ROW_BYTES
         || size > (MAX_PIXELS as usize) * 4
     {
         return Err(MediaError::TooLarge);
@@ -108,7 +108,7 @@ pub(super) fn decode(
         .map_err(|_| MediaError::TooLarge)?;
     while pixels.len() < size {
         budget.check()?;
-        pixels.resize((pixels.len() + MAX_PNG_DECODE_ROW_BYTES).min(size), 0);
+        pixels.resize((pixels.len() + MAX_PNG_PREVIEW_ROW_BYTES).min(size), 0);
     }
     let interlaced = reader.info().interlaced;
     let mut ordinary_rows = 0usize;

@@ -5,7 +5,7 @@ use std::sync::Mutex;
 
 use rustix::fs::{AtFlags, Mode, linkat};
 
-use super::content::validate_content;
+use super::content::validate_original_content;
 use super::private_fs::PrivateDir;
 use super::types::{
     AssetOwner, AssetPayload, AssetPurpose, AssetRecord, Availability, BlobIdentity, ContentType,
@@ -188,7 +188,7 @@ impl AssetVault {
             if bytes.len() as u64 != identity.byte_size || sha256(&bytes) != identity.sha256 {
                 return Err(MediaError::Unavailable);
             }
-            validate_content(&bytes, prepared.content_type, budget)?;
+            validate_original_content(&bytes, prepared.content_type, budget)?;
             self.sync_retained_member(directory, &member, budget)?;
             Ok(BlobIdentity {
                 sha256: sha256(&bytes),
@@ -413,7 +413,7 @@ impl AssetVault {
         if bytes.len() < policy.minimum_bytes {
             return Err(MediaError::InvalidInput);
         }
-        validate_content(&bytes, content_type, budget)?;
+        validate_original_content(&bytes, content_type, budget)?;
         if let Some(limits) = policy.limits {
             self.enforce_upload_capacity(scope, &bytes, limits, budget)?;
         }
@@ -465,7 +465,7 @@ impl AssetVault {
         {
             return Err(MediaError::Unavailable);
         }
-        validate_content(bytes, ContentType::parse(&payload.content_type)?, budget)?;
+        validate_original_content(bytes, ContentType::parse(&payload.content_type)?, budget)?;
         self.install(&record.scope(), bytes, budget)?;
         Ok(())
     }
@@ -479,7 +479,7 @@ impl AvailableAssetVerifier for AssetVault {
     ) -> MediaResult<BlobIdentity> {
         let bytes = self.read_retained(record, budget)?;
         let content_type = ContentType::parse(&record.payload.content_type)?;
-        validate_content(&bytes, content_type, budget)?;
+        validate_original_content(&bytes, content_type, budget)?;
         if record.payload.preview_policy == PreviewPolicy::SafeRendered
             && content_type != ContentType::Png
         {

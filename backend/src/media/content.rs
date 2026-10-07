@@ -1,4 +1,4 @@
-//! Bounded standard static PNG decoding and stripped RGBA preview encoding;
+//! Bounded original PNG validation and optional stripped RGBA preview encoding;
 //! PDF and UTF-8 text are originals
 //! for download only. This validates framing, not PDF document safety.
 use std::io::Write;
@@ -11,12 +11,14 @@ use super::{MAX_BYTES, MediaError, MediaResult, WorkBudget};
 const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
 const MAX_PIXELS: u64 = 25_000_000;
 
-/// Bound source/filter and expanded RGBA rows before the codec allocates.
-/// Its public incremental API still filters/transforms each row synchronously.
-pub const MAX_PNG_DECODE_ROW_BYTES: usize = 64 * 1024;
+/// Optional preview capability, never an original admission/availability limit.
+/// The pixel codec synchronously filters/transforms each preview row.
+pub const MAX_PNG_PREVIEW_ROW_BYTES: usize = 64 * 1024;
 
 #[path = "png_decode.rs"]
 mod png_decode;
+#[path = "png_original.rs"]
+mod png_original;
 
 pub fn validate_content(
     bytes: &[u8],
@@ -62,7 +64,22 @@ pub fn validate_content(
     }
 }
 
-pub fn render_png(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Vec<u8>> {
+/// Original format validation is independent of optional preview rendering.
+/// PNG inflation validates the declared raster in bounded windows, including
+/// wide originals, without materializing/transformation of pixel rows.
+pub fn validate_original_content(
+    bytes: &[u8],
+    content_type: ContentType,
+    budget: &WorkBudget,
+) -> MediaResult<()> {
+    budget.check()?;
+    match content_type {
+        ContentType::Png => png_original::validate(bytes, &inspect_png(bytes, budget)?, budget),
+        _ => validate_content(bytes, content_type, budget).map(|_| ()),
+    }
+}
+
+fn inspect_png(bytes: &[u8], budget: &WorkBudget) -> MediaResult<[u8; 13]> {
     if bytes.len() > MAX_BYTES {
         return Err(MediaError::TooLarge);
     }
@@ -131,18 +148,6 @@ pub fn render_png(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Vec<u8>> {
                 {
                     return Err(MediaError::Unsupported);
                 }
-                let samples = match h[9] {
-                    0 | 3 => 1u64,
-                    2 => 3,
-                    4 => 2,
-                    _ => 4,
-                };
-                let source_row = (u64::from(width) * samples * u64::from(h[8])).div_ceil(8) + 1;
-                if source_row > MAX_PNG_DECODE_ROW_BYTES as u64
-                    || u64::from(width) * 4 > MAX_PNG_DECODE_ROW_BYTES as u64
-                {
-                    return Err(MediaError::TooLarge);
-                }
                 header = Some(h);
             }
             b"IDAT" => {
@@ -178,12 +183,29 @@ pub fn render_png(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Vec<u8>> {
     if !ended {
         return Err(MediaError::Unsupported);
     }
-    let header = header.ok_or(MediaError::Unsupported)?;
+    header.ok_or(MediaError::Unsupported)
+}
+
+pub fn render_png(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Vec<u8>> {
+    let header = inspect_png(bytes, budget)?;
     let width = u32::from_be_bytes(
         header[..4]
             .try_into()
             .map_err(|_| MediaError::Unsupported)?,
-    ) as usize;
+    );
+    let samples = match header[9] {
+        0 | 3 => 1u64,
+        2 => 3,
+        4 => 2,
+        _ => 4,
+    };
+    let source_row = (u64::from(width) * samples * u64::from(header[8])).div_ceil(8) + 1;
+    if source_row > MAX_PNG_PREVIEW_ROW_BYTES as u64
+        || u64::from(width) * 4 > MAX_PNG_PREVIEW_ROW_BYTES as u64
+    {
+        return Err(MediaError::TooLarge);
+    }
+    let width = width as usize;
     let height = u32::from_be_bytes(
         header[4..8]
             .try_into()

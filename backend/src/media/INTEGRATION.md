@@ -15,7 +15,7 @@ owner validates method, canonical descriptors, query/fragment policy and access
 before invoking these typed operations, and maps errors to private responses.
 It must emit immediately after final authorization revalidation.
 
-## PR63 findings: bounded successor on landed main
+## PR63 findings and PR76 original-compatibility correction
 
 This successor starts from actual landed main
 `87ad201140edb7b3afdb4396095a320c2926eafe`; its sole ancestry root remains
@@ -60,32 +60,74 @@ exact total transformed byte accounting. No whole-frame decoder call remains
 in the production path and no replacement codec/filter/deinterlace framework
 is introduced.
 
-The codec still synchronously filters/transforms a whole row. To bound that
-step, `content::MAX_PNG_DECODE_ROW_BYTES` is 64 KiB, enforced before
-`read_info()` or codec row allocation. Both the source row
-`ceil(width * source_samples * bit_depth / 8) + 1` and the normalized RGBA pixel
-row `width * 4` must fit. The preview filter byte is additional; its compressor
-writes still split at 64 KiB. Existing 10 MiB input/output, 25-million-pixel,
-static-only, sample/transparency and metadata-stripping rules remain. Decoder
-allocation limit is 256 MiB; application frame/row buffers are additional.
-Cancellation is cooperative between bounded calls, with no hard latency,
-preemption or allocation-success guarantee.
+The codec still synchronously filters/transforms a whole **preview** row. To
+bound that optional operation, `content::MAX_PNG_PREVIEW_ROW_BYTES` is 64 KiB,
+enforced before `read_info()` or preview row allocation. Both the source row
+`ceil(width * source_samples * bit_depth / 8) + 1` and normalized RGBA pixel row
+`width * 4` must fit. Preview compression writes split at 64 KiB. This is an
+optional rendering capability, not an original admission/availability policy.
+Preview failure does not mutate retained records or availability. Existing
+`SafeRendered` metadata permits attempting the renderer; it is not a guarantee
+that every optional rendering operation completes. Decoder allocation limit is
+256 MiB; application preview frame/row buffers are additional. Cancellation is
+cooperative between bounded calls, with no hard latency, preemption or
+allocation-success guarantee.
 
-**Root owner need before merge:** the decoded-row bound intentionally narrows
-accepted dimensions. For example, RGBA8 source rows allow width 16,383 and
-RGBA16 width 8,191. Previously retained wider PNGs were accepted by older source;
-this successor can report them too large during preview or byte validation,
-including availability/recovery verification. Root must assess compatibility
-and the bounded policy before adopting this source. It changes no retained
-bytes, reservation, asset identity, licence, evidence or migration and supplies
-no fabricated compatibility result. No peer API change is required. Combined
-root review/validation and normal merge remain with root.
+**PR76 compatibility correction:** the preserved first PR76 packet at
+`2bbdabb1b8038469e9a962efa44e9822340859a3` applied the preview row limit to
+original validation as well. This was a genuine compatibility regression.
+This appended correction splits `content::validate_original_content(...) ->
+MediaResult<()>` from optional rendering. All four vault original operations
+(preparation, prepared verification, retained availability verification and
+restore) plus original GET/HEAD downloads use this original validator. The
+recovery capture/verification paths retain their existing identity checks;
+restore reaches the corrected vault validator. No record, retained byte,
+identity, revision, availability, preview policy, licence, evidence, migration,
+stage serialization or storage/access peer API is rewritten.
+
+`png_original.rs` uses the pinned public `StreamingDecoder`, `UnfilterRegion`
+and `UnfilterBuf` APIs to inflate bounded windows without allocating or
+transforming a pixel row. It checks the declared packed raster layout, filters
+0..4, per-pass packed padding and actual Adam7 rows. Legal filters are total byte
+transforms and palette expansion is total after a required palette; this
+validator returns no rendered-pixel authority. Shared inspection preserves
+strict chunk framing/CRC, dimensions, sample families, static-only policy,
+10 MiB input and 25-million-pixel limits without a new width restriction.
+Each update feeds at most 4 KiB and appends at most 8 KiB; a 40 KiB raster window
+preserves the codec's immutable 32 KiB lookback. This is the raster window,
+not a total memory bound: recognized metadata allocations remain bounded by
+the existing input cap, and original bytes are already retained in memory.
+Text/ICC parsing stays disabled. Budget checks bracket every update and
+preserve budget failures as `Unavailable` before translating codec errors.
+
+Completion follows the pinned Reader's actual behavior, including its
+separate frame-byte accounting for zero-width Adam7 passes: the declared
+raster must be present, and either the Reader frame budget is exhausted or
+its mutable-byte watermark covers the final real row. Only then are remaining
+IDAT/chunks scanned without a raster sink, as the old Reader does. This keeps
+the codec's existing trailing-data/checksum/benign-metadata policy rather than
+introducing a stricter original validator. It is source-based compatibility
+reasoning plus the named healthy examples, not a claim of exhaustive malformed
+input equivalence. No stopped controls were executed.
+
+Root owns combined integration, optional-preview presentation and normal merge.
+The original compatibility policy blocker in the first packet is corrected in
+this source; no new dependency, peer interface or width-admission decision is
+required. The original PR76 packet and preceding evidence remain preserved.
 
 Selected ordinary positive examples are the four exact cases under
 `media::healthy_review_examples::`: unchanged standard sample/transparency and
 independent Adam7 known-pixel checks; durable quota/reopen/shared bytes/unbound
 expiry; fresh completed-stage lifetime followed by successful genuine binding;
-and many-row plus accepted RGBA8/16 row-bound PNGs. The lifetime case advances
+and many-row plus accepted RGBA8/16 row-bound previews. A fifth exact positive
+case, `media::healthy_examples::healthy_wide_original_identity_availability_restore_and_download`,
+uses fresh 20,000x2 RGBA8/16 originals accepted by the prior public codec and
+checks real vault preparation, prepared proof, retained availability, restore,
+raw identity, GET original bytes and HEAD original length. Its delivery
+storage/access ports are explicit synthetic stubs; this is not a new SQL,
+full recovery-bundle or production qualification claim. Independently framed
+20,003x3 and 1x1 packed Adam7 originals and all RGB/RGBA filters are also
+validated. No oversized-preview rejection is invoked. The lifetime case advances
 a synthetic server clock by two seconds during a successful body read with a
 one-second configured pending lifetime, then verifies a new completed lease
 and binds successfully under the actual original AT11 guard. It performs no

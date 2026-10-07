@@ -46,6 +46,7 @@ fn fixture(
             .write_image_data(pixels)
             .unwrap();
     }
+    content::validate_original_content(&bytes, ContentType::Png, &budget()).unwrap();
     bytes
 }
 
@@ -182,6 +183,7 @@ fn healthy_standard_png_variants_render_known_pixels() {
     chunk(b"IHDR", &[0, 0, 0, 5, 0, 0, 0, 5, 8, 2, 0, 0, 1]);
     chunk(b"IDAT", &compressed.finish().unwrap());
     chunk(b"IEND", &[]);
+    content::validate_original_content(&original, ContentType::Png, &budget()).unwrap();
     let expected: Vec<u8> = (0..5)
         .flat_map(|y| (0..5).flat_map(move |x| [x * 20, y * 30, 100, 255]))
         .collect();
