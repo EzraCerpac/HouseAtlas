@@ -4,6 +4,16 @@ use crate::{access, contracts::stock as wire};
 pub fn reads() -> Vec<wire::OperationId> {
     use wire::OperationId::*;
     vec![
+        AtlasIdentityList,
+        AtlasBindingList,
+        AtlasEvidenceList,
+        AtlasLocationSemanticsList,
+        AtlasCircuitList,
+        AtlasValveList,
+        AtlasRelationList,
+        AtlasGeometryList,
+        AtlasAssetList,
+        AtlasReconciliationList,
         AtlasIdentityGet,
         AtlasBindingGet,
         AtlasEvidenceGet,

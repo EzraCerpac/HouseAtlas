@@ -32,6 +32,8 @@ struct Authority<'p, 'store> {
     principal: &'p RequestPrincipal,
     access: &'store Access,
     store: &'store Mutex<Store>,
+    list_pages: &'store st::AtlasListPages,
+    list_binding: st::AtlasListBinding<'p>,
 }
 fn unavailable() -> st::StockError {
     st::StockError::OwnerUnavailable
@@ -68,7 +70,9 @@ fn digest(snapshot: &s::Snapshot) -> st::StockResult<String> {
 fn read_operation(request: &st::ValidatedRequest) -> st::StockResult<()> {
     if request.is_mutation()
         || request.operation().authority != st::Authority::Atlas
-        || !(request.id().as_str().ends_with(".get") || request.id().as_str().ends_with(".history"))
+        || !(request.id().as_str().ends_with(".get")
+            || request.id().as_str().ends_with(".history")
+            || st::atlas_list_record_type(request.id()).is_some())
     {
         return Err(unavailable());
     }
@@ -288,15 +292,13 @@ impl<'p> st::StockAuthorityPort<RequestPrincipal> for Authority<'p, '_> {
             return self.revalidate(p, prepared.witness(), request);
         }
         let expected = st::StockQueryPort::query(
-            &mut st::AtlasReads::new(
-                LockedReads {
-                    store: self.store,
-                    access: self.access,
-                    witness: prepared.witness(),
-                    request,
-                },
-                st::NativeStockContract::new()?,
-            ),
+            &mut NativeQueries {
+                store: self.store,
+                access: self.access,
+                contracts: st::NativeStockContract::new()?,
+                list_pages: self.list_pages,
+                list_binding: self.list_binding.clone(),
+            },
             p,
             prepared,
         )?;
@@ -311,26 +313,54 @@ impl<'p> st::StockAuthorityPort<RequestPrincipal> for Authority<'p, '_> {
         prepared: &st::PreparedRequest<Self::Witness, Graph>,
         request: &st::ValidatedRequest,
         target: &Value,
-        _row: &Value,
+        row: &Value,
         purpose: st::DisclosurePurpose,
     ) -> st::StockResult<()> {
         self.revalidate(p, prepared.witness(), request)?;
-        if purpose != st::DisclosurePurpose::ExactTarget || target != request.target() {
+        let list_kind = st::atlas_list_record_type(request.id());
+        if let Some(kind) = list_kind {
+            if purpose != st::DisclosurePurpose::ScopedPage
+                || target["authority"] != "atlas"
+                || target["recordType"] != request.target()["recordType"]
+                || serde_json::to_value(kind).map_err(|_| changed())? != target["recordType"]
+            {
+                return Err(changed());
+            }
+        } else if purpose != st::DisclosurePurpose::ExactTarget || target != request.target() {
             return Err(changed());
         }
-        if !prepared.graph().0.records.iter().any(|record| {
-            record.scope()
-                == s::Scope {
-                    workspace_id: request.context().workspace_id.clone(),
-                    home_id: request.context().home_id.clone(),
-                }
-                && target["recordId"] == record.record_id
-                && serde_json::to_value(record.record_type)
-                    .is_ok_and(|kind| target["recordType"] == kind)
-        }) {
-            return Err(changed());
+        let record = prepared
+            .graph()
+            .0
+            .records
+            .iter()
+            .find(|record| {
+                record.scope()
+                    == s::Scope {
+                        workspace_id: request.context().workspace_id.clone(),
+                        home_id: request.context().home_id.clone(),
+                    }
+                    && target["recordId"] == record.record_id
+                    && serde_json::to_value(record.record_type)
+                        .is_ok_and(|kind| target["recordType"] == kind)
+            })
+            .ok_or_else(changed)?;
+        if list_kind.is_some() {
+            let mut payload = record.payload.clone();
+            if record.record_type == s::RecordType::Asset {
+                payload
+                    .as_object_mut()
+                    .ok_or_else(changed)?
+                    .remove("storageKey");
+            }
+            if *row
+                != json!({"target":target,"revision":record.revision,
+                "lifecycle":record.lifecycle,"payload":payload})
+            {
+                return Err(changed());
+            }
         }
-        Ok(())
+        self.revalidate(p, prepared.witness(), request)
     }
 }
 struct Preparer<'a>(&'a Mutex<Store>);
@@ -356,11 +386,24 @@ struct LockedReads<'a, 'p> {
 }
 impl d::ReadPort<RequestPrincipal> for LockedReads<'_, '_> {
     fn snapshot(&mut self, p: &RequestPrincipal, scope: &d::Scope) -> d::DomainResult<d::Snapshot> {
+        if !std::ptr::eq(p, self.witness.principal) || *scope != self::scope(self.request) {
+            return Err(d::DomainError::Forbidden);
+        }
         let mut store = self
             .store
             .lock()
             .map_err(|_| d::DomainError::UpstreamUnavailable)?;
-        Reads(&mut store).snapshot(p, scope)
+        let current = Reads(&mut store).snapshot(p, scope)?;
+        if st::atlas_list_record_type(self.request.id()).is_some() {
+            let original = self.witness.graph.get().ok_or(d::DomainError::Forbidden)?;
+            if serde_json::to_value(&current).map_err(|_| d::DomainError::UpstreamUnavailable)?
+                != serde_json::to_value(original)
+                    .map_err(|_| d::DomainError::UpstreamUnavailable)?
+            {
+                return Err(d::DomainError::Forbidden);
+            }
+        }
+        Ok(current)
     }
     fn record(
         &mut self,
@@ -549,12 +592,14 @@ impl s::StockAuthorization for HistoryAuthorization<'_, '_> {
         Ok(actor)
     }
 }
-struct NativeQueries<'a> {
+struct NativeQueries<'a, 'p> {
     store: &'a Mutex<Store>,
     access: &'a Access,
     contracts: st::NativeStockContract,
+    list_pages: &'a st::AtlasListPages,
+    list_binding: st::AtlasListBinding<'p>,
 }
-impl<'p> st::StockQueryPort<RequestPrincipal, Witness<'p>, Graph> for NativeQueries<'_> {
+impl<'p> st::StockQueryPort<RequestPrincipal, Witness<'p>, Graph> for NativeQueries<'_, '_> {
     fn query(
         &mut self,
         p: &RequestPrincipal,
@@ -569,7 +614,8 @@ impl<'p> st::StockQueryPort<RequestPrincipal, Witness<'p>, Graph> for NativeQuer
                     request: prepared.request(),
                 },
                 self.contracts.clone(),
-            ),
+            )
+            .with_list_pages(self.list_pages.clone(), self.list_binding.clone(), p),
             p,
             prepared,
         )
@@ -622,10 +668,17 @@ pub(super) fn execute_raw(
     raw: Value,
     contracts: &st::NativeStockContract,
 ) -> st::StockResult<st::OwnerResult> {
+    let list_binding = {
+        let access = core.access.lock().map_err(|_| unavailable())?;
+        p.release(&access).map_err(|_| changed())?;
+        st::AtlasListBinding::capture(&access, p.principal.principal())?
+    };
     let authority = Authority {
         principal: p,
         access: &core.access,
         store: &core.store,
+        list_pages: &core.atlas_list_pages,
+        list_binding: list_binding.clone(),
     };
     let prepared = st::prepare(p, raw, contracts, &authority, &mut Preparer(&core.store))?;
     // Compose the actual SQLite read owner without admitting downloads. The
@@ -635,6 +688,8 @@ pub(super) fn execute_raw(
             store: &core.store,
             access: &core.access,
             contracts: contracts.clone(),
+            list_pages: &core.atlas_list_pages,
+            list_binding,
         },
         crate::transports::mcp::UnavailableAssetDownloads,
     )?;
@@ -654,6 +709,74 @@ pub(super) fn http_error(error: st::StockError) -> super::HttpFailure {
         st::StockError::AuthorityChanged => domain_error(d::DomainError::Forbidden),
         _ => failure(StatusCode::SERVICE_UNAVAILABLE),
     }
+}
+fn list_payload(uri: &Uri) -> Result<Value, super::HttpFailure> {
+    let invalid = || failure(StatusCode::UNPROCESSABLE_ENTITY);
+    let mut payload = json!({"pageSize":50,"cursor":null,"includeArchived":false});
+    let Some(query) = uri.query() else {
+        return Ok(payload);
+    };
+    // Bound transport intake before decoding. Owner validation remains the
+    // authority for the exact stock query and its Unicode scalar limits.
+    if query.len() > 16_384 {
+        return Err(failure(StatusCode::PAYLOAD_TOO_LARGE));
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    for field in query.split('&') {
+        let (name, encoded) = field.split_once('=').ok_or_else(invalid)?;
+        if !matches!(name, "pageSize" | "cursor" | "includeArchived" | "q") || !seen.insert(name) {
+            return Err(invalid());
+        }
+        let bytes = encoded.as_bytes();
+        for (index, byte) in bytes.iter().enumerate() {
+            if *byte == b'%'
+                && !bytes
+                    .get(index + 1..index + 3)
+                    .is_some_and(|pair| pair.iter().all(u8::is_ascii_hexdigit))
+            {
+                return Err(invalid());
+            }
+        }
+        let encoded = encoded.replace('+', " ");
+        let value = percent_encoding::percent_decode_str(&encoded)
+            .decode_utf8()
+            .map_err(|_| invalid())?;
+        payload[name] = match name {
+            "pageSize" => json!(value.parse::<u64>().map_err(|_| invalid())?),
+            "includeArchived" => match value.as_ref() {
+                "true" => Value::Bool(true),
+                "false" => Value::Bool(false),
+                _ => return Err(invalid()),
+            },
+            _ => Value::String(value.into_owned()),
+        };
+    }
+    Ok(payload)
+}
+pub(super) async fn list(
+    State(host): State<Host>,
+    Path((workspace_id, home_id, kind)): Path<(String, String, String)>,
+    Extension(headers): Extension<CheckedHeaders>,
+    uri: Uri,
+    method: Method,
+) -> HttpResult {
+    tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
+        authorized_read(&host, &headers, &uri, &method,
+            Some(d::Scope { workspace_id, home_id }), false, |core, p, home| {
+                let contracts = st::NativeStockContract::new().map_err(http_error)?;
+                let raw = json!({"schemaVersion":3,"commandId":format!("atlas.{kind}.list"),
+                    "requestId":crate::app::new_id().map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
+                    "context":home.scope,"target":{"authority":"atlas","recordType":kind},
+                    "payload":list_payload(&uri)?});
+                let request = st::ValidatedRequest::parse(&contracts, raw.clone()).map_err(http_error)?;
+                if st::atlas_list_record_type(request.id()).is_none() {
+                    return Err(failure(StatusCode::UNPROCESSABLE_ENTITY));
+                }
+                let result = execute_raw(core, p, raw, &contracts).map_err(http_error)?;
+                Ok(json_response(result.wire))
+            })
+    }).await.map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
 }
 pub(super) async fn record(
     State(host): State<Host>,
