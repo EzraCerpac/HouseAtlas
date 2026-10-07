@@ -20,7 +20,8 @@ Storage additionally supplies its immutable
 actual configured `app::ReadAuthority.0` allocation as well as `Core.access`;
 public Core construction alone cannot establish that those issuers match.
 Its additive `record_prepared_cache_failure_at_with_authorization` transaction
-also accepts the provider's original pre-request attempt timestamp under the
+and the original Network publisher's `record_prepared_cache_failure_at` method
+also accept the provider's original pre-request attempt timestamp under the
 same issuing-Store publication fence and borrowed original authorizer.
 
 The external compiler also mounts accepted media, staged domain/stock,
@@ -44,13 +45,14 @@ Its callback lease is exactly
 `adapter.lease().clone()` to unchanged PR36 `NetworkRuntime::refresh`.
 
 `HostNetworkRuntime::refresh` is the closed native publication entrypoint. It
-uses actual `app::Core` and its existing `app::Store`. Preparation and successful
-publication delegate to `NativeNetworkPublisher::new(the_same_store)` with a
-private borrowed authorizer inside the genuine original AT11 lifecycle
-transaction. Failure publication uses that Store's actual additive
-`record_prepared_cache_failure_at_with_authorization` with the same original
-fence, lease and borrowed authorizer. The original Network-owner check,
-sanitized native code conversion and default failure status are retained.
+uses actual `app::Core` and its existing `app::Store`. Preparation, successful
+publication and failure delegate to `NativeNetworkPublisher::new(the_same_store)`
+with a private borrowed authorizer inside the genuine original AT11 lifecycle
+transaction. Failure uses its actual `record_prepared_cache_failure_at` method,
+which delegates to that Store's additive captured-time transaction with the
+same original fence, lease and borrowed authorizer. The original publisher's
+Network-owner check, sanitized native code conversion and default failure
+status are retained without a host-side conversion or replacement writer.
 The provider's captured `cache.error.at` must match its `last_attempt_at`; that
 exact original string passes to durable failure metadata without replacement
 by the commit-time clock. Original per-call/precommit checks, quarantine and

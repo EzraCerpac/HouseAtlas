@@ -84,29 +84,24 @@ impl PreparedPublication {
         failure: &n::RefreshFailure,
     ) -> s::Result<s::CacheStatus> {
         let error = failure.state.cache.error.as_ref().ok_or_else(conflict)?;
-        if self.prepared.fence.registration().owner != s::SourceOwner::Network
-            || error.code != failure.error.code
+        if error.code != failure.error.code
             || failure.state.cache.last_attempt_at.as_deref() != Some(error.at.as_str())
         {
             return Err(conflict());
         }
-        // Keep the native publisher's Network-owner/code/status checks while
-        // using Storage's actual additive captured-time failure transaction.
         // The provider captured this exact string BEFORE its inventory GET;
-        // neither the host nor Store's commit clock replaces or reformats it.
-        let input = s::CacheFailure {
-            code: serde_json::from_value(serde_json::to_value(failure.error.code)?)?,
-            status: None,
-        };
+        // the actual native publisher carries it to Storage's captured-time
+        // transaction without replacement or reformatting by the commit clock.
         let lease = self.lease;
         held_consuming(&lease, |authorization| {
-            store.record_prepared_cache_failure_at_with_authorization(
-                authorization,
-                lease.as_ref(),
-                self.prepared.fence,
-                &input,
-                &error.at,
-            )
+            n::NativeNetworkPublisher::new(store)
+                .with_authorization(authorization)
+                .record_prepared_cache_failure_at(
+                    self.prepared.fence,
+                    failure.error.code,
+                    lease.as_ref(),
+                    &error.at,
+                )
         })
     }
 }
