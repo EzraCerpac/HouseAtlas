@@ -3,13 +3,7 @@ use houseatlas_backend::{
     http::{Host, router},
     lifecycle,
 };
-use std::{
-    collections::BTreeMap,
-    fs,
-    net::TcpListener,
-    path::Path,
-    sync::{Arc, Mutex},
-};
+use std::{collections::BTreeMap, fs, net::TcpListener, path::Path, sync::Arc};
 
 fn frontend(directory: &Path) -> Result<BTreeMap<String, (String, Vec<u8>)>, lifecycle::Failure> {
     fn walk(
@@ -76,17 +70,14 @@ async fn main() -> Result<(), lifecycle::Failure> {
     let setup_origin = origin.clone();
     let core = tokio::task::spawn_blocking(move || lifecycle::prepare(&directory, &setup_origin))
         .await??;
+    let database_version = core.store.database_version();
+    let host = Host::new(core, origin.clone(), files)?;
     println!(
         "SQLite {} / record database schema {}",
         rusqlite::version(),
-        core.store.database_version()
+        database_version
     );
     println!("HouseAtlas disposable read slice listening at {origin}");
-    let host = Host {
-        core: Arc::new(Mutex::new(core)),
-        origin,
-        files,
-    };
     let handle = axum_server::Handle::new();
     let shutdown = handle.clone();
     tokio::spawn(async move {

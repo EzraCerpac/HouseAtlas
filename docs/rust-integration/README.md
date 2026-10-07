@@ -14,7 +14,7 @@ Pinned module inputs:
 | Access | 3f83d8f35f2cc1948b5d361badfc77948745676d |
 | Domain and jobs correction | 25813f1222c60379850da37b7bf7e97e0e2750db |
 | Storage continuation and numeric correction | 816ba441ba1076eae426f69ac8b7c5177745ab53 |
-| Corrected React | f491bf1bc2c8ac2af2f004f9aac99b9368dda7d6 |
+| React read-error correction | 0f250a94d09386744aba124d8b6823f1e374b6eb |
 
 Feature namespaces retain their owner bytes. Integration owns manifests,
 locks, module declarations, app/config/http/lifecycle/main, source checks
@@ -27,6 +27,9 @@ no JS contract oracle, synthetic principal or fake read facade.
 The binary accepts explicit disposable settings only. It binds IPv4 loopback
 with actual TLS, verifies request Host against the bound origin, and passes the
 actual method, URL and headers to access. No forwarded scheme is trusted.
+The response/header corrections are described in [read-corrections.md](read-corrections.md).
+They are a separate candidate above the immutable first-slice checkpoint.
+
 The frontend HTML receives the route attributes already defined by the UI
 host contract; the UI-owned source and index remain unchanged. Vite builds
 the actual application and bundles React.
