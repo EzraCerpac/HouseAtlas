@@ -199,6 +199,12 @@ capture, fenced reread comparisons and final owned-output release.
 
 ## Database and dependencies
 
+`AtlasStore::configured_authorization(&self) -> &A` borrows the original
+configured authorizer for composition identity checks. It performs no SQL,
+callback or lock acquisition and supplies no read/mutation/disclosure approval.
+Callers must compare the actual original owner allocation and retain the normal
+current-authority checks for each Store phase.
+
 The new lineage is `houseatlas-rust-storage/1`, database version 5, distinct from
 published JS database version 3 and record schema 1. `0001_rust_core.sql` starts
 from an empty database, including published durable receipts/reservations/epochs
