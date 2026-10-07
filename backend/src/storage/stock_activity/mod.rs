@@ -183,6 +183,12 @@ impl<
         Ok(value)
     }
     fn transact<T>(&self, f: impl FnOnce(&Connection) -> PortResult<T>) -> PortResult<T> {
+        self.transact_with_runtime(|db, _| f(db))
+    }
+    fn transact_with_runtime<T>(
+        &self,
+        f: impl FnOnce(&Connection, &R) -> PortResult<T>,
+    ) -> PortResult<T> {
         // A live call retains the access fence before entering here, while an
         // evidence policy may consult access with the store already borrowed.
         // Never wait for the store mutex: contention returns Unavailable and
@@ -195,17 +201,23 @@ impl<
         if !store.options.stock_activity_profile {
             return Err(StockPortFault::Unavailable);
         }
-        let tx = store
-            .db
+        let AtlasStore { db, runtime, .. } = &mut *store;
+        let tx = db
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(unavailable)?;
-        let result = f(&tx)?;
+        let result = f(&tx, runtime)?;
         tx.commit().map_err(unavailable)?;
         Ok(result)
     }
     fn transact_live<T>(
         &self,
         f: impl FnOnce(&Connection, &access::TransactionAuthorization<'_>) -> PortResult<T>,
+    ) -> PortResult<T> {
+        self.transact_live_with_runtime(|db, guard, _| f(db, guard))
+    }
+    fn transact_live_with_runtime<T>(
+        &self,
+        f: impl FnOnce(&Connection, &access::TransactionAuthorization<'_>, &R) -> PortResult<T>,
     ) -> PortResult<T> {
         let mut boundary = self
             .access
@@ -220,8 +232,8 @@ impl<
                     guard
                         .revalidate_source_partition(self.original.original_activity_partition())?;
                     output = Some(
-                        self.transact(|db| {
-                            let result = f(db, guard)?;
+                        self.transact_with_runtime(|db, runtime| {
+                            let result = f(db, guard, runtime)?;
                             guard
                                 .revalidate_source(self.original.original_activity_source())
                                 .map_err(evidence)?;

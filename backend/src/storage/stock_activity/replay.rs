@@ -21,6 +21,19 @@ struct Cut<'a> {
     body_accepted: bool,
 }
 
+fn occupied(cuts: &BTreeMap<Uuid, Cut<'_>>, active: &BTreeMap<Uuid, Uuid>, physical: Uuid) -> bool {
+    active.contains_key(&physical)
+        || cuts.values().any(|cut| {
+            cut.operation
+                .captured_authority
+                .physical_binding
+                .physical_database_id
+                == physical
+                && (cut.operation.outcome.unknown_scope_fence_retained
+                    || repository::liability_hold(&cut.operation.outcome.storage_liability))
+        })
+}
+
 /// Return exact physical owners after replay, never reconstructed authority.
 pub(super) fn validate(
     records: &[RetainedStockActivity],
@@ -40,6 +53,12 @@ pub(super) fn validate(
         let id = event.operation().operation_id;
         let physical = record.registration().physical_binding.physical_database_id;
         if matches!(event.facts(), StockActivityEventFacts::Reserve) {
+            // Live baseline::fresh can produce Prepared only without a hold.
+            // A Queued cut may instead reflect Jobs occupancy: its separate
+            // journal supplies no shared native sequence to reconstruct here.
+            if event.operation().outcome.state == OutcomeState::Prepared {
+                require(!occupied(&cuts, &active, physical))?;
+            }
             require(
                 cuts.insert(
                     id,
@@ -69,7 +88,7 @@ pub(super) fn validate(
                             OutcomeState::Prepared | OutcomeState::Queued
                         ),
                 )?;
-                require(!active.contains_key(&physical))?;
+                require(!occupied(&cuts, &active, physical))?;
                 // Match live FIFO and logical/liability exclusion using only
                 // outcomes already present at this cut, never later readbacks.
                 for cut in cuts.values().filter(|cut| {
@@ -79,12 +98,6 @@ pub(super) fn validate(
                         .physical_database_id
                         == physical
                 }) {
-                    require(
-                        !cut.operation.outcome.unknown_scope_fence_retained
-                            && !repository::liability_hold(
-                                &cut.operation.outcome.storage_liability,
-                            ),
-                    )?;
                     require(
                         !(cut.reserve_sequence < prior.reserve_sequence
                             && !cut.body_accepted
