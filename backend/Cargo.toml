@@ -92,3 +92,7 @@ path = "src/contracts/examples/healthy-maintenance-calendar.rs"
 [[example]]
 name = "healthy-network-root-router"
 path = "../tools/rust-integration/examples/healthy_network_host.rs"
+
+[[example]]
+name = "healthy-homebox-cache-stock"
+path = "src/http/providers/homebox_stock_healthy.rs"

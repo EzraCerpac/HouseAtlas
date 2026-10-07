@@ -24,7 +24,7 @@ The ordinary workflows also run on dev pushes; cache publication stays on main.
 The HTTP host also mounts the actual managed Atlas download issuer and
 authenticated scoped GET/HEAD redemption, sharing one native handle cache.
 See [stock-downloads.md](stock-downloads.md) for the original-principal boundary
-and the separate unmounted MCP/link UI.
+and the shared mounted MCP issuer. Download link UI remains separate.
 
 The root also admits the Domain owner’s closed 31-form direct-write map and
 nonempty batches whose ordered children all map. Original-principal preparation,
@@ -35,8 +35,11 @@ and identity-only/mixed batches; the other mapped forms remain runtime-unqualifi
 Six specialized single Atlas writes now reuse the original derived planner and
 same-Store native transaction; see [specialized writes](atlas-specialized-writes.md).
 Standalone stock staged asset-create intake, renderer-qualified asset review and
-mixed derived batches remain held. Missing product areas include Core-only MCP download
-admission and download link UI, stock HomeBox operation mounts, Core-only MCP Network query mounts, complete
+mixed derived batches remain source implementation gaps. Four cached HomeBox
+entity/location reads are mounted in native stock and HTTP/MCP. The remaining
+HomeBox read families and durable writer host require genuine owner peers.
+Missing product areas include Core-only MCP download admission and download link
+UI, Core-only MCP Network query mounts, complete
 provider setup and UI, trusted AI configuration/startup callers and receipt identity,
 and composed populated recovery. The HTTP saved Network query adapter now uses
 lock-per-phase orchestration around the original runtime, with configured member
@@ -75,4 +78,5 @@ the actual response body in a bounded immutable segment and durable catalog,
 reopens and verifies the original bytes, and couples that receipt to the projected
 generation before publication. See [network-archive-custody.md](network-archive-custody.md).
 The three saved stock query forms are mounted in HTTP only for scopes with an
-actual configured Network binding. They never refresh or construct a provider.
+actual configured Network binding. Mounted MCP shares those bindings and exact
+original read/disclosure runtime. They never refresh or construct a provider.

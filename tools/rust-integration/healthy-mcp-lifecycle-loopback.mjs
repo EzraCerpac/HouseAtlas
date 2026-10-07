@@ -103,7 +103,7 @@ try {
     assert.equal(ready.status, 202); assert.equal(ready.text, '');
     const listed = await post({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
     assert.equal(listed.status, 200); assert.equal(listed.body.id, 1);
-    assert.deepEqual(listed.body.result.tools.map(tool => tool.name).sort(), ['atlas_bindings', 'atlas_media_geometry', 'atlas_records']);
+    assert.deepEqual(listed.body.result.tools.map(tool => tool.name).sort(), ['atlas_bindings', 'atlas_media_geometry', 'atlas_records', 'homebox_entities_locations']);
     assert(listed.body.result.tools.every(tool => tool.annotations.readOnlyHint === true));
     const request = { schemaVersion: 3, commandId: 'atlas.identity.get', requestId: canonicalId, context: scope, target: { authority: 'atlas', recordType: 'identity', recordId: U(200) }, payload: {} };
     const read = await post({ jsonrpc: '2.0', id: label + '-read', method: 'tools/call', params: { name: 'atlas_records', arguments: request } });

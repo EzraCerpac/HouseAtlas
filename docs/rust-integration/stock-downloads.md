@@ -24,8 +24,10 @@ the existing admission and ten-second cancellation/budget bounds.
 
 The owner retains at most 1000 five-minute process-local handles. Restart loses
 them; no recovery, retention release or expiry control is qualified here.
-HTTP advertises 31 reads; Core-only MCP remains at 30 and has no download owner.
-Its host lifecycle/redemption integration remains required. The original UI
+HTTP advertises 35 reads. Mounted MCP now uses that same host-owned handle
+manager and original download owner; issuance delegates to the existing stock
+executor and authenticated HTTP GET/HEAD remains redemption. Core-only MCP
+remains at 34 and has no download owner. The original UI
 owner still needs to bind download links; displayed metadata is not a byte
 transfer receipt or a completed user download.
 

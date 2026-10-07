@@ -70,7 +70,7 @@ try {
   const version = await cdp.send('Browser.getVersion');
   // Both inspected release IDLs take DOMString input_arguments. A browser
   // version change requires source inspection before this ordinary flow runs.
-  assert(['Chrome/151.0.7922.173', 'Chrome/154.0.8037.57', 'Chrome/154.0.8037.97'].includes(version.product), 'Inspected native WebMCP browser version');
+  assert(['Chrome/151.0.7922.173', 'Chrome/154.0.8037.57', 'Chrome/154.0.8037.97', 'Chrome/154.0.8037.98'].includes(version.product), 'Inspected native WebMCP browser version');
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params) => cdp.send(method, params, sessionId);
@@ -120,8 +120,9 @@ try {
     if(filtered.data.records.length!==1||filtered.data.records[0].payload.kind!=='item')throw new Error('Literal case-insensitive filter');
     return {admission,collections,invokes,first,filtered};
   })()`);
-  assert.equal(result.admission.commandIds.length,31,'HTTP viewer admits 30 Atlas lists/records/history plus managed download');
-  assert(result.admission.commandIds.every(id=>!id.startsWith('homebox.')&&!id.startsWith('network.')));
+  assert.equal(result.admission.commandIds.length,35,'HTTP viewer admits 30 Atlas reads, four cached HomeBox reads and managed download');
+  assert.deepEqual(result.admission.commandIds.filter(id=>id.startsWith('homebox.')).sort(), ['homebox.entity.get','homebox.entity.list','homebox.location.get','homebox.location.list']);
+  assert(result.admission.commandIds.every(id=>!id.startsWith('network.')));
   assert.equal(result.collections.reduce((sum,item)=>sum+item.wire.data.records.length,0),6);
   const native=await evaluate("({modelContext:typeof document.modelContext,registerTool:typeof document.modelContext?.registerTool,getTools:typeof document.modelContext?.getTools,executeTool:typeof document.modelContext?.executeTool})");
   assert.equal(native.getTools,'function','Actual document WebMCP discovery');

@@ -212,12 +212,14 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     npm run verify:publication
     node tools/rust-integration/check-source.mjs
     cargo run --locked -p houseatlas-backend --example healthy-agent-stock
+    cargo run --locked -p houseatlas-backend --example healthy-homebox-cache-stock
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-atlas-lists-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-core-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-media-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-stock-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-stock-write-loopback.mjs
+    HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-standalone-asset-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-stock-history-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-agent-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-agent-host-loopback.mjs
@@ -234,6 +236,16 @@ genuine in-process MCP tools/list and tools/call over actual access/domain/SQLit
 its separate temporary specialized helper exercises the bounded derived forms
 documented in [specialized writes](atlas-specialized-writes.md).
 The workflow compiles it on both platforms and runs it only on Linux.
+The separate healthy-homebox-cache-stock example reads four cached entity/location
+forms through the actual native dispatcher and borrowed in-process MCP adapter.
+Its private fixture clone uses UUID collection IDs required by wire3; the actual
+opaque source-ID compatibility gap remains unresolved. It opens no listener and
+performs no provider I/O.
+
+The separate standalone-asset runner uses no browser. It performs one actual
+editor HTTP login and fresh text/plain, unknown-license, download-only asset
+commit on disposable TLS/Access/SQLite, then compares record/history/audit and
+actual authenticated download bytes. It executes no held controls.
 
 Each of the twelve browser runners uses fresh Chromium and a disposable TLS
 certificate, observes actual SQLite rows read-only, stops gracefully and removes

@@ -34,7 +34,12 @@ partition and member grants before sealing source capture, releases Core around
 the original runtime read, retains its original disclosure lease in the witness,
 and recomputes the exact wire result under current authority before final release.
 No independent issuer, Store, constructed facet or provider request supplies
-this path. The Core-only MCP catalog remains unchanged and Network WebMCP
+this path. Mounted MCP now reuses that same adapter outside the Core lock, with
+its catalog scoped to the authenticated identity and actual configured binding.
+A separate genuine Editor/current-CSRF session initializes, discovers and reads
+all three forms; each canonical text/structured result matches the HTTP source
+data. The extended named fixture makes seventeen root requests and still only
+one inventory GET. The Core-only MCP catalog remains unchanged and Network WebMCP
 browser execution is unqualified. Unresolved snapshot
 endpoints remain concealed. Populated recovery, unpublished disposition, legacy
 archive migration and capacity exhaustion are unqualified. No negative, fault,

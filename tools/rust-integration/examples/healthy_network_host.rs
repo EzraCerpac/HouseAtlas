@@ -119,7 +119,7 @@ async fn main() -> Result<(), Failure> {
         a::AccessConfig::new(vec![origin.clone()])?
             .with_lifecycle_policy(a::LifecyclePolicy::from_trusted_configuration(policy)),
     )?));
-    let (configure_principal, principal) = {
+    let (configure_principal, principal, editor_login) = {
         let mut issuer = canonical
             .try_lock()
             .map_err(|_| "Canonical access unexpectedly locked")?;
@@ -133,11 +133,10 @@ async fn main() -> Result<(), Failure> {
         )?;
         issuer.set_membership(&user, &scope, a::Role::Editor, true)?;
         let login_url = format!("{origin}/api/atlas/auth/login");
+        let editor_login = json!({"username":"synthetic-network-editor", "password":password});
         let receipt = issuer.login(
             &evidence(&login_url, origin, a::Method::Post, None, None),
-            &serde_json::to_vec(
-                &json!({"username":"synthetic-network-editor", "password":password}),
-            )?,
+            &serde_json::to_vec(&editor_login)?,
             "disposable-loopback",
         )?;
         let cookie = receipt
@@ -164,7 +163,7 @@ async fn main() -> Result<(), Failure> {
             &scope,
             a::Action::Read,
         )?;
-        (configure_principal, principal)
+        (configure_principal, principal, editor_login)
     };
     // Store/Core and the bridge share this exact canonical allocation. Held
     // callbacks must use borrowed authority rather than reenter ReadAuthority.
@@ -507,6 +506,7 @@ async fn main() -> Result<(), Failure> {
     assert_eq!(response.status(), StatusCode::OK);
     let admitted: Value = serde_json::from_slice(&response.bytes().await?)?;
     let contracts = d::stock::NativeStockContract::new()?;
+    let mut saved_queries = Vec::new();
     for support in &n::SAVED_NETWORK_QUERY_SUPPORT {
         assert!(
             admitted["commandIds"]
@@ -563,6 +563,120 @@ async fn main() -> Result<(), Failure> {
                 .len(),
             expected
         );
+        saved_queries.push((support.agent_operation, request, wire["data"].clone()));
+    }
+    // Mounted MCP uses a fresh genuine Editor POST identity and current CSRF.
+    // It delegates to the same saved-query owner, with no additional inventory GET.
+    let response = client
+        .post(format!("{origin}/api/atlas/auth/login"))
+        .header("origin", origin)
+        .header("sec-fetch-site", "same-origin")
+        .header("content-type", "application/json")
+        .body(serde_json::to_vec(&editor_login)?)
+        .send()
+        .await?;
+    drop(editor_login);
+    assert_eq!(response.status(), StatusCode::OK);
+    let editor_cookie = response
+        .headers()
+        .get("set-cookie")
+        .ok_or("Missing genuine editor session")?
+        .to_str()?
+        .split(';')
+        .next()
+        .ok_or("Missing editor cookie")?
+        .to_owned();
+    let session: Value = serde_json::from_slice(&response.bytes().await?)?;
+    let csrf = session["csrfToken"]
+        .as_str()
+        .ok_or("Missing current CSRF")?;
+    let mcp_url = format!(
+        "{origin}/api/atlas/mcp/workspaces/{}/homes/{}",
+        registration.workspace_id, registration.home_id
+    );
+    let (initialized, mcp_session) = mcp_post(
+        &client,
+        &mcp_url,
+        origin,
+        &editor_cookie,
+        csrf,
+        None,
+        json!({"jsonrpc":"2.0","id":"network-initialize","method":"initialize",
+            "params":{"protocolVersion":"2025-11-25","capabilities":{},
+            "clientInfo":{"name":"HouseAtlas healthy Network MCP","version":"0.1.0"}}}),
+    )
+    .await?;
+    assert_eq!(initialized["result"]["protocolVersion"], "2025-11-25");
+    let mcp_session = mcp_session.ok_or("Missing mounted MCP session")?;
+    mcp_post(
+        &client,
+        &mcp_url,
+        origin,
+        &editor_cookie,
+        csrf,
+        Some(&mcp_session),
+        json!({"jsonrpc":"2.0","method":"notifications/initialized"}),
+    )
+    .await?;
+    let (listed, _) = mcp_post(
+        &client,
+        &mcp_url,
+        origin,
+        &editor_cookie,
+        csrf,
+        Some(&mcp_session),
+        json!({"jsonrpc":"2.0","id":"network-list","method":"tools/list","params":{}}),
+    )
+    .await?;
+    let tools = listed["result"]["tools"]
+        .as_array()
+        .ok_or("Missing MCP tools")?;
+    for (operation, mut request, expected_data) in saved_queries {
+        let family =
+            houseatlas_backend::transports::mcp::OperationMapping::for_operation(operation)
+                .map_err(|_| "Missing Network family")?
+                .family()
+                .as_str();
+        assert!(
+            tools
+                .iter()
+                .any(|tool| tool["name"] == family && tool["annotations"]["readOnlyHint"] == true)
+        );
+        request["requestId"] = json!(app::new_id()?);
+        let (reply, _) = mcp_post(
+            &client,
+            &mcp_url,
+            origin,
+            &editor_cookie,
+            csrf,
+            Some(&mcp_session),
+            json!({"jsonrpc":"2.0","id":request["requestId"],"method":"tools/call",
+            "params":{"name":family,"arguments":request}}),
+        )
+        .await?;
+        let result = &reply["result"];
+        assert_eq!(result["isError"], false);
+        let wire = &result["structuredContent"];
+        let text: Value = serde_json::from_str(
+            result["content"][0]["text"]
+                .as_str()
+                .ok_or("Missing MCP text")?,
+        )?;
+        assert_eq!(&text, wire);
+        assert_eq!(wire["commandId"], request["commandId"]);
+        assert_eq!(wire["requestId"], request["requestId"]);
+        assert_eq!(wire["resolvedScope"], request["context"]);
+        assert_eq!(wire["status"], "read");
+        assert_eq!(wire["data"], expected_data);
+        let validator = houseatlas_backend::contracts::stock::StockValidation::new()?;
+        let validated =
+            houseatlas_backend::contracts::stock::StockRequest::parse(&validator, request)?;
+        houseatlas_backend::contracts::stock::StockResponse::parse(
+            &validator,
+            &validated,
+            wire.clone(),
+            &[],
+        )?;
     }
     // Snapshot-backed routes use the private selector's actual typed AT11 link
     // path. Projected unresolved ends remain concealed here; the dedicated
@@ -604,7 +718,53 @@ async fn main() -> Result<(), Failure> {
         .close()?;
     drop(core);
     println!(
-        "PASS healthy root Network router: one actual TLS inventory GET/custody-aware native publication; immutable Native archive reopen matches original response bytes/hash and exact registration/generation, one sealed row/no active reservation/permanent ID retained; genuine viewer HTTP login; scoped stock admission and all three genuine saved stock query forms; two cached root GETs and three snapshot-backed relation/room/item GETs on same canonical Core/Access/Store; original cached entity/link/observation disclosure; unresolved snapshot endpoints remain concealed; epoch/reservations unchanged; no provider request from browsing. Ten actual Root TLS requests; no browser qualification."
+        "PASS healthy root Network router: one actual TLS inventory GET/custody-aware native publication; immutable Native archive reopen matches original response bytes/hash and exact registration/generation; genuine viewer HTTP saved queries and cached reads; genuine editor/current-CSRF mounted MCP initialization, discovery and all three saved queries with exact canonical HTTP data; original issuer/disclosure and unchanged epochs/reservations; unresolved snapshot endpoints remain concealed. Seventeen actual Root TLS requests; no browser qualification or held controls."
     );
     Ok(())
+}
+
+async fn mcp_post(
+    client: &reqwest::Client,
+    url: &str,
+    origin: &str,
+    cookie: &str,
+    csrf: &str,
+    session: Option<&str>,
+    message: Value,
+) -> Result<(Value, Option<String>), Failure> {
+    let mut builder = client
+        .post(url)
+        .header("origin", origin)
+        .header("sec-fetch-site", "same-origin")
+        .header("cookie", cookie)
+        .header("x-atlas-csrf", csrf)
+        .header("accept", "application/json, text/event-stream")
+        .header("content-type", "application/json")
+        .header("mcp-protocol-version", "2025-11-25")
+        .body(serde_json::to_vec(&message)?);
+    if let Some(session) = session {
+        builder = builder.header("mcp-session-id", session);
+    }
+    let response = builder.send().await?;
+    let session = response
+        .headers()
+        .get("mcp-session-id")
+        .map(|value| value.to_str().map(String::from))
+        .transpose()?;
+    let expected = if message.get("id").is_some() {
+        StatusCode::OK
+    } else {
+        StatusCode::ACCEPTED
+    };
+    assert_eq!(response.status(), expected);
+    let bytes = response.bytes().await?;
+    if expected == StatusCode::ACCEPTED {
+        assert!(bytes.is_empty());
+        return Ok((Value::Null, session));
+    }
+    let value: Value = serde_json::from_slice(&bytes)?;
+    assert_eq!(value["id"], message["id"]);
+    assert_eq!(value["jsonrpc"], "2.0");
+    assert!(value.get("error").is_none());
+    Ok((value, session))
 }

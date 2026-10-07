@@ -310,8 +310,8 @@ try {
     return {results,admission,intents:[single,batch,direct,mixed],receipts:[first,second,third,fourth],records:[firstRecord,...records,directRecord,...mixedRecords],histories:[firstHistory,...histories,directHistory,...mixedHistories]};
   })()`);
   assert.equal(stockWrites.results.length,19);
-  assert.equal(stockWrites.admission.commandIds.length,69);
-  assert.equal(new Set(stockWrites.admission.commandIds).size,69);
+  assert.equal(stockWrites.admission.commandIds.length,73);
+  assert.equal(new Set(stockWrites.admission.commandIds).size,73);
   const derived=['binding.create','binding.review','binding.restore','binding.remap','geometry.create','asset.review'];
   assert(derived.every(id=>stockWrites.admission.commandIds.includes('atlas.'+id)), 'Bounded single derived forms are advertised');
   assert(!stockWrites.admission.commandIds.includes('atlas.asset.create'), 'Standalone asset creation still requires genuine staged Media intake');

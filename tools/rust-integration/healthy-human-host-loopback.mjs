@@ -80,7 +80,7 @@ try {
   const version = await cdp.send('Browser.getVersion');
   // Both inspected release IDLs take DOMString input_arguments. A browser
   // version change requires source inspection before this ordinary flow runs.
-  assert(['Chrome/151.0.7922.173', 'Chrome/154.0.8037.57', 'Chrome/154.0.8037.97'].includes(version.product), 'Inspected native WebMCP browser version');
+  assert(['Chrome/151.0.7922.173', 'Chrome/154.0.8037.57', 'Chrome/154.0.8037.97', 'Chrome/154.0.8037.98'].includes(version.product), 'Inspected native WebMCP browser version');
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params) => cdp.send(method, params, sessionId);
@@ -296,7 +296,7 @@ try {
   assert.deepEqual(initializeResult.serverInfo, { name: 'HouseAtlas', version: '0.1.0' });
   assert.equal(rpc.ready.status, 202); assert.equal(rpc.ready.empty, true); assert.equal(rpc.ready.body, null);
   const listed = assertRpc(rpc.listed, 'healthy-host-list');
-  assert.deepEqual(listed.tools.map(tool => tool.name).sort(), ['atlas_bindings', 'atlas_media_geometry', 'atlas_records']);
+  assert.deepEqual(listed.tools.map(tool => tool.name).sort(), ['atlas_bindings', 'atlas_media_geometry', 'atlas_records', 'homebox_entities_locations']);
   assert(listed.tools.every(tool => tool.annotations?.readOnlyHint === true));
   assert.equal(listed.nextCursor, undefined);
   const assertCanonicalCall = (response, id, request) => {
