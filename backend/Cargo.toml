@@ -61,3 +61,7 @@ path = "../tools/rust-baseline/examples/healthy_dependencies.rs"
 [[example]]
 name = "healthy-native-semantics"
 path = "src/contracts/semantics/examples/healthy.rs"
+
+[[example]]
+name = "healthy-agent-stock"
+path = "../tools/rust-integration/examples/healthy_agent_stock.rs"

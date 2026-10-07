@@ -1,10 +1,11 @@
-# Native Rust React core and owned-media continuation
+# Native Rust React core and agent continuation
 
 The first read slice landed through PR14 at main
 `e9de66477c04c43eb74a29d932b22322115e33d5`, tree
 `442de62b76aee515cfe1b56c37faccc77a337382`. This isolated development
-continuation adds actual session/login/logout, frozen canonical reads and
-fresh local Atlas single/batch writes and native owned-original delivery.
+continuation adds actual session/login/logout, frozen canonical reads,
+fresh local Atlas single/batch writes, native owned-original delivery and
+genuine MCP/WebMCP stock reads with a bounded browser circuit write.
 The separate PR16 core checkpoint remains pinned at
 `915d9baae6710d23e29f34da488df1de493a2c0c`, tree
 `f50c85c046f24690bdd10126c5dd277a6f495b2b`. Composition does not accept unfinished
@@ -18,19 +19,23 @@ references; the running Rust service invokes no JavaScript semantic oracle.
 | Baseline generation/protocol, retained from main | 07576e6be463dd481b49071071c66dec144b1e0c |
 | Access, including original-grant revalidation inside held fence | 4967dd2d38c5749be35aa7e44728c4d691246730 |
 | Combined native core/stock contracts and raw-current/timestamp peer exports | 49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c |
-| Storage native dispatcher, stock transactions, precommit batch envelope and recovery transition source fix | 9425ffc54e45d4ee779f3282e8dc29414676c7ad |
-| Domain direct native semantics/storage and stock schema bridges | f51bc7962b491faa1cc563f2ec0f737c471e4e26 |
+| Storage schema4, bounded immutable stock audit lookup and native queue source | 8b0507b21c1fbaabfd62020516015f885220af30; only queue_finish.rs from 2643eced79c5a581f72cc53634659d93da323cfb |
+| Domain direct native semantics/storage, stock query/authority and canonical result bridges | d9e2b59ffef4b7ac2b11705df735b89d8371fdc5 |
 | Jobs/stock boundaries | f35bcdc2d9c24646356bc080bfb1ef157120bcb3 |
 | Media native access/storage/runtime, preview policy and native schema-2 recovery port | 80194a0e0f098cef85d71db602a78ae52db6bcad |
-| React session shell, scoped-view corrections and configured Sign out | 0ddd0bf42a91d6ccf179dbd5bdb6735459d28f0c |
+| React session shell, exact stock scope/admission and visible completion | 967f2bb59640c73276949dae53386b72377f6519 |
+| Native MCP catalog, original opaque access context and service adapter | 97a1335b1419a4c12b2134fec2195ed68d67ed52 |
+| Browser WebMCP family/schema, session and React acknowledgment boundary | 6832e825c636b7b48eeed8fcb085fe3ca277ead3 |
 | HomeBox full durable-registration read/publication binding | 5ccbe1863728676cb8a8d51023f68a20121a8c18 |
 | HomeBox native stock command component | c784be5776b614f8f0bb225fcb5355ecb9e90e0d |
 | Network bounded HTTPS read and native fenced publisher; README-only clarification above be62191 | cf08025ed5b38ec3a8ded7db92db140493232a7a |
 
-Feature runtime and fixture sources retain exact owner bytes. Domain's README
-has the parent's approved privacy-only adaptation: private per-run paths and
-evidence fingerprints stay in external provenance, while public API, dependency,
-limitation and technical scope remain intact. Other owner documentation remains exact.
+Feature runtime and fixture sources retain exact owner bytes. Domain, MCP and
+WebMCP READMEs have the parent's approved privacy-only adaptations: private
+external harness paths and evidence fingerprints stay in external provenance,
+while public pins, API, dependency, limitation and technical scope remain intact.
+Exact before/after line receipts are retained outside Git. Other owner
+documentation remains exact.
 The generated frontend contract
 file remains the baseline file because the React input does not carry it.
 Integration owns root manifests/locks/module declarations, app/config/http/
@@ -127,6 +132,8 @@ authority/snapshot binding are documented in [stock-reads.md](stock-reads.md).
 The bounded fresh native stock transaction binding is documented in
 [stock-writes.md](stock-writes.md).
 Native audit search/paging is documented in [stock-history.md](stock-history.md).
+The genuine native agent binding and its bounded checks are documented in
+[agents.md](agents.md).
 
 ## Ordinary verification
 
@@ -138,17 +145,22 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     export CARGO_TARGET_DIR=/tmp/houseatlas-at52-target
     npm run verify:publication
     node tools/rust-integration/check-source.mjs
+    cargo run --locked -p houseatlas-backend --example healthy-agent-stock
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-core-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-media-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-stock-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-stock-write-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-stock-history-loopback.mjs
+    HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-agent-loopback.mjs
 
 The source runner checks deterministic generation/history, actual locked Rust
 library/binary/module source, rustfmt and Clippy, strict TypeScript and Vite. It
 runs exactly healthy-contracts, healthy-dependencies and healthy-native-semantics.
-The six browser runners each use fresh real Chromium with a disposable certificate, inspect
+The separately named healthy-agent-stock performs genuine in-process MCP
+tools/list and tools/call over the actual access/domain/SQLite composition;
+CI compiles it on both platforms and executes it only on Linux.
+The seven browser runners each use fresh real Chromium with a disposable certificate, inspect
 actual SQLite rows read-only, stop gracefully and delete scratch state. The core
 runner adds real auth, eight canonical page/read requests, a fresh circuit create
 and one fresh two-identity batch with successful record/history readback. Each
@@ -166,9 +178,12 @@ record/history pairs and read-only stock journal counts. Each root is sent once.
 The stock history runner adds three actual native first-page/search reads over
 those stock-owned audits. Each target has one event; nonnull cursor continuation
 is not demonstrated.
+The native WebMCP runner discovers actual browser tools, reads an identity,
+creates one fresh circuit, reads it back and reads its first stock audit page.
+Caller IDs and canonical visible results are checked before tool completion.
 Optional screenshot/evidence outputs belong outside the source checkout.
 
-CI checks exact PR-head source on Linux and macOS. Linux additionally runs all six
+CI checks exact PR-head and main-push source on Linux and macOS. Linux additionally runs all seven
 explicitly named positive loopback scripts. The full file allowlist, modes, digests, owners
 and unconfigured deployment template remain verified. macOS source compilation
 is separate from target NAS build/runtime and operational qualification.
@@ -215,11 +230,12 @@ no large-number or stopped negative-consumer probe is run.
 Missing product areas include atomic presence witness admission/recovery, trusted
 source setup and refresh, actual Network data/facet in the service, source-native
 links and stock editing, HomeBox media/uploading, backup/image validation and
-recovery/export, aliases/mobility/navigation extensions, geometry import, agent/
-MCP/WebMCP/AI transports, complete generated host DTOs, record editing UI and full
+recovery/export, aliases/mobility/navigation extensions, geometry import, mounted
+MCP listeners and AI clients, complete generated host DTOs, record editing UI and full
 product routes. Native recovery remains unmounted. Media now derives its native
-profile from the compiled storage schema2 implementation and calls actual
-native backup/image-validation ports. The native-only image validator refuses
+profile from the compiled storage schema4 implementation and calls actual
+native backup/image-validation ports. Historical healthy recovery evidence used
+schema2; it does not qualify schema4 recovery. The native-only image validator refuses
 nonempty stock journals pending a stock-aware companion. The published owner
 source fix adds adjacent tombstone/restore payload-preservation and native
 immutable/append-only transition checks. The parent independently accepted the

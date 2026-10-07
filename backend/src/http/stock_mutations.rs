@@ -1,12 +1,12 @@
 //! Fresh local stock commands through the actual native atomic owner and AT11 fence.
 use super::{
-    CheckedHeaders, Host, HttpResult, access_error, evidence, failure, intake, json_response,
+    CheckedHeaders, Host, HttpResult, access_error, evidence, failure, intake,
     mutations::{self, MutateAuthority, WriteFailure},
     stock_reads::{capture_graph, http_error, snapshot},
 };
 use crate::{
     access as a,
-    app::{Access, RequestPrincipal, Store},
+    app::{Access, Core, RequestPrincipal, Store},
     contracts::semantics as sem,
     domain::{self as d, stock as st},
     http::contracts::NativeContracts,
@@ -490,6 +490,31 @@ impl<W, G> st::StockQueryPort<RequestPrincipal, W, G> for QueriesUnavailable {
         Err(unavailable())
     }
 }
+pub(super) fn execute_raw(
+    core: &Core,
+    p: &RequestPrincipal,
+    raw: Value,
+    contracts: &st::NativeStockContract,
+) -> st::StockResult<st::OwnerResult> {
+    let authority = Authority {
+        principal: p,
+        access: &core.access,
+        store: &core.store,
+    };
+    let prepared = st::prepare(p, raw, contracts, &authority, &mut Preparer(&core.store))?;
+    st::dispatch(
+        p,
+        prepared,
+        contracts,
+        &authority,
+        &mut QueriesUnavailable,
+        &mut Commands {
+            store: &core.store,
+            access: &core.access,
+            contracts: contracts.clone(),
+        },
+    )
+}
 pub(super) async fn command(
     State(host): State<Host>,
     Path((workspace_id, home_id)): Path<(String, String)>,
@@ -551,33 +576,7 @@ pub(super) async fn command(
         {
             return Err(failure(StatusCode::FORBIDDEN));
         }
-        let authority = Authority {
-            principal: &principal,
-            access: &core.access,
-            store: &core.store,
-        };
-        let prepared = st::prepare(
-            &principal,
-            raw,
-            &contracts,
-            &authority,
-            &mut Preparer(&core.store),
-        )
-        .map_err(http_error)?;
-        let result = st::dispatch(
-            &principal,
-            prepared,
-            &contracts,
-            &authority,
-            &mut QueriesUnavailable,
-            &mut Commands {
-                store: &core.store,
-                access: &core.access,
-                contracts: contracts.clone(),
-            },
-        )
-        .map_err(http_error)?;
-        Ok(json_response(result.wire))
+        super::agents::command_response(&core, &principal, raw)
     })
     .await
     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?

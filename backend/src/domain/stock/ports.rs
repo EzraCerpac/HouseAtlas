@@ -100,6 +100,18 @@ pub trait StockQueryPort<P, W, G> {
     ) -> StockResult<OwnerResult>;
 }
 
+/// Durable stock history belongs to the native storage owner. Its returned
+/// events retain their original command/intent/audit linkage and opaque cursor.
+/// No reconstruction from current records or frozen bare audits is permitted.
+pub trait StockHistoryPort<P> {
+    fn stock_history<S: StockContractPort>(
+        &mut self,
+        principal: &P,
+        contracts: &S,
+        request: &ValidatedRequest,
+    ) -> StockResult<OwnerResult>;
+}
+
 pub trait StockCommandPort<P, W, G> {
     /// Atlas: one atomic owner transaction preserves raw root and ordered
     /// child IDs/keys/targets/guards/payloads; validates full final graph and

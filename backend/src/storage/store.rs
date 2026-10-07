@@ -33,7 +33,7 @@ impl Default for StoreOptions {
 /// One connection and one writer; exclusive &mut self prevents nested calls.
 /// No public connection, arbitrary SQL, receipt deletion or migration API.
 pub struct AtlasStore<C, A, R> {
-    db: Connection,
+    pub(super) db: Connection,
     instance: Arc<()>,
     contract: C,
     authorization: A,

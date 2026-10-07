@@ -59,7 +59,19 @@ pub(crate) fn load<C: Contract>(
     {
         return Err(incompatible());
     }
-    let rows=db.prepare("SELECT ordinal,child_index,operation_id,idempotency_key,request_digest,original_json,entries_json FROM stock_groups WHERE root_operation_id=?1 ORDER BY ordinal")?.query_map([id],|r|Ok((r.get::<_,i64>(0)?,r.get::<_,Option<i64>>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?,r.get::<_,String>(4)?,r.get::<_,String>(5)?,r.get::<_,String>(6)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
+    let expected_links = commit.groups.iter().try_fold(0_usize, |total, group| {
+        total
+            .checked_add(group.native_entries.len())
+            .ok_or_else(incompatible)
+    })?;
+    if commit.groups.is_empty()
+        || commit.groups.len() > 100
+        || expected_links == 0
+        || expected_links > 100
+    {
+        return Err(incompatible());
+    }
+    let rows=db.prepare("SELECT ordinal,child_index,operation_id,idempotency_key,request_digest,original_json,entries_json FROM stock_groups WHERE root_operation_id=?1 ORDER BY ordinal LIMIT 101")?.query_map([id],|r|Ok((r.get::<_,i64>(0)?,r.get::<_,Option<i64>>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?,r.get::<_,String>(4)?,r.get::<_,String>(5)?,r.get::<_,String>(6)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
     if rows.len() != commit.groups.len() || rows.is_empty() {
         return Err(incompatible());
     }
@@ -76,21 +88,16 @@ pub(crate) fn load<C: Contract>(
         }
     }
     expected_keys.sort();
-    let actual_keys=db.prepare("SELECT idempotency_key,group_ordinal FROM stock_keys WHERE workspace_id=?1 AND home_id=?2 AND actor_id=?3 AND root_operation_id=?4 ORDER BY idempotency_key")?.query_map(params![scope.workspace_id,scope.home_id,actor,id],|r|Ok((r.get::<_,String>(0)?,r.get::<_,Option<i64>>(1)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
+    let actual_keys=db.prepare("SELECT idempotency_key,group_ordinal FROM stock_keys WHERE workspace_id=?1 AND home_id=?2 AND actor_id=?3 AND root_operation_id=?4 ORDER BY idempotency_key LIMIT 102")?.query_map(params![scope.workspace_id,scope.home_id,actor,id],|r|Ok((r.get::<_,String>(0)?,r.get::<_,Option<i64>>(1)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
     if actual_keys != expected_keys {
         return Err(incompatible());
     }
     let link_count: i64 = db.query_row(
-        "SELECT COUNT(*) FROM stock_audit_links WHERE root_operation_id=?1",
+        "SELECT COUNT(*) FROM (SELECT 1 FROM stock_audit_links WHERE root_operation_id=?1 LIMIT 101)",
         [id],
         |r| r.get(0),
     )?;
-    let expected_links = commit
-        .groups
-        .iter()
-        .map(|g| g.native_entries.len())
-        .sum::<usize>();
-    if expected_links == 0 || expected_links > 100 || link_count != expected_links as i64 {
+    if link_count != expected_links as i64 {
         return Err(incompatible());
     }
     let batch_id = commit.original_request["target"]["batchId"].as_str();

@@ -1,4 +1,5 @@
-// One positive read slice with the actual compiled Rust and React app.
+// The unchanged ordinary read slice with startup-only Chrome observations.
+// Browser stderr is retained only before any page, cookie or authentication work.
 // No rejection/replay/expiry/revocation/fault/crash/concurrency control or provider.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
@@ -27,9 +28,19 @@ assert.equal(openssl.status, 0, 'Disposable certificate creation');
 let service, browser, cdp, serviceOutput = '', serviceError = '';
 const observedUrls = [], responses = [], runtimeErrors = [];
 class Pipe {
-  next = 0; pending = new Map(); buffer = Buffer.alloc(0);
+  next = 0; pending = new Map(); buffer = Buffer.alloc(0); stopped = null;
   constructor(process) {
     this.process = process;
+    const stopped = error => {
+      this.stopped ??= error;
+      for (const entry of this.pending.values()) { clearTimeout(entry.timer); entry.reject(this.stopped); }
+      this.pending.clear();
+    };
+    process.on('error', stopped);
+    process.on('exit', (code, signal) => stopped(new Error('Chrome exited: code=' + code + ' signal=' + signal)));
+    process.stdio[3].on('error', stopped);
+    process.stdio[4].on('error', stopped);
+    process.stdio[4].on('end', () => stopped(new Error('Chrome CDP output ended')));
     process.stdio[4].on('data', bytes => {
       this.buffer = Buffer.concat([this.buffer, bytes]);
       let end;
@@ -48,6 +59,7 @@ class Pipe {
     });
   }
   send(method, params = {}, sessionId) {
+    if (this.stopped) return Promise.reject(this.stopped);
     const id = ++this.next;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('CDP timeout: ' + method)); }, 15000);
@@ -65,9 +77,29 @@ try {
   }, 'actual Rust TLS listener', 30000);
   const { origin, cookie } = JSON.parse(readFileSync(join(data, 'smoke-session.json')));
   assert.match(origin, /^https:\/\/127\.0\.0\.1:\d+$/);
-  browser = spawn(chromium, ['--headless=new', '--no-sandbox', '--disable-gpu', '--remote-debugging-pipe', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-features=MediaRouter,OptimizationHints', '--ignore-certificate-errors', '--user-data-dir=' + join(scratch, 'browser'), 'about:blank'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
+  browser = spawn(chromium, ['--headless=new', '--no-sandbox', '--disable-gpu', '--remote-debugging-pipe', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-features=MediaRouter,OptimizationHints', '--ignore-certificate-errors', '--user-data-dir=' + join(scratch, 'browser'), 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] });
+  const startupStarted = performance.now();
+  let startupFinished = false, startupStderr = Buffer.alloc(0), startupStderrTruncated = false;
+  browser.stderr.on('error', () => {});
+  browser.stderr.on('data', chunk => {
+    if (startupFinished) return;
+    const available = 65536 - startupStderr.length;
+    if (chunk.length > available) startupStderrTruncated = true;
+    startupStderr = Buffer.concat([startupStderr, chunk.subarray(0, available)]);
+  });
   cdp = new Pipe(browser);
-  const version = await cdp.send('Browser.getVersion');
+  let version;
+  try {
+    version = await cdp.send('Browser.getVersion');
+    console.log(JSON.stringify({ startupOnly: true, product: version.product, milliseconds: Math.round(performance.now() - startupStarted) }));
+  } catch (error) {
+    console.error(JSON.stringify({ startupOnly: true, beforeAnyPageOrCookie: true,
+      milliseconds: Math.round(performance.now() - startupStarted), message: error.message,
+      exitCode: browser.exitCode, signalCode: browser.signalCode,
+      stderr: startupStderr.toString('utf8').replaceAll(scratch, '<disposable-profile>'), startupStderrTruncated }));
+    throw error;
+  } finally { startupFinished = true; }
+
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params) => cdp.send(method, params, sessionId);

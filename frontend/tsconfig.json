@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2023",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
@@ -15,14 +19,37 @@
     "isolatedModules": true,
     "resolveJsonModule": true,
     "noEmit": true,
-    "types": ["node", "react", "react-dom"],
+    "types": [
+      "node",
+      "react",
+      "react-dom"
+    ],
     "paths": {
-      "react": ["./node_modules/@types/react/index.d.ts"],
-      "react/*": ["./node_modules/@types/react/*"],
-      "react-dom": ["./node_modules/@types/react-dom/index.d.ts"],
-      "react-dom/*": ["./node_modules/@types/react-dom/*"]
+      "react": [
+        "./node_modules/@types/react/index.d.ts"
+      ],
+      "react/*": [
+        "./node_modules/@types/react/*"
+      ],
+      "react-dom": [
+        "./node_modules/@types/react-dom/index.d.ts"
+      ],
+      "react-dom/*": [
+        "./node_modules/@types/react-dom/*"
+      ]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "../tools/rust-baseline/**/*.ts", "../tools/rust-baseline/**/*.tsx", "vite.config.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "../tools/rust-baseline/**/*.ts",
+    "../tools/rust-baseline/**/*.tsx",
+    "vite.config.ts",
+    "integration/**/*.ts",
+    "integration/**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

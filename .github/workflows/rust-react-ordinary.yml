@@ -2,6 +2,8 @@ name: Rust React ordinary core
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
 permissions:
   contents: read
 jobs:
@@ -13,12 +15,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     env:
-      SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
           fetch-tags: false
           persist-credentials: false
@@ -45,6 +47,9 @@ jobs:
         run: npm run verify:publication
       - name: Compile actual Rust and React source and named healthy examples
         run: node tools/rust-integration/check-source.mjs
+      - name: Genuine native MCP stock get and audit page after fresh circuit commit
+        if: runner.os == 'Linux'
+        run: cargo run --locked -p houseatlas-backend --example healthy-agent-stock
       - name: Real disposable loopback TLS browser read slice
         if: runner.os == 'Linux'
         env:
@@ -81,12 +86,19 @@ jobs:
           HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
           HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
         run: node tools/rust-integration/healthy-stock-history-loopback.mjs
+      - name: Real native browser WebMCP stock read fresh create and audit page
+        if: runner.os == 'Linux'
+        env:
+          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
+          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+        run: node tools/rust-integration/healthy-agent-loopback.mjs
       - name: Record scope
         # Stock read/write/history runners add four/ten/three healthy requests respectively.
         if: always()
         run: |
-          printf '%s\n' 'Actual locked Rust/TS source compilation and three named healthy examples; Linux additionally runs actual SQLite/access/domain/React loopback TLS reads, session/login/logout, fresh circuit create, atomic local identity batch, fresh owned PNG/text commits, actual download GET/HEAD and safe-rendered PNG preview; genuine native stock circuit/asset reads compared with actual frozen SQLite rows.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'Actual locked Rust/TS source compilation and three named healthy examples; Linux additionally runs the explicitly named genuine in-process MCP stock get/history after a fresh native circuit commit, actual SQLite/access/domain/React loopback TLS reads, session/login/logout, fresh circuit create, atomic local identity batch, fresh owned PNG/text commits, actual download GET/HEAD and safe-rendered PNG preview; genuine native stock circuit/asset reads compared with actual frozen SQLite rows.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'macOS source compilation is separate from target NAS build/runtime qualification and supplies no target release.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'All stopped rejection, guards, replay, expiry, revocation, fault, crash, concurrency and provider controls remain unrun.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'The named stock write runner adds only fresh local circuit create and an ordered identity-create batch through the actual original AT11 fence and native atomic stock journal, with frozen record/history readback and read-only durable journal counts.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'The named stock history runner adds three first-page/search reads over genuine stock-owned audits; nonnull cursor continuation is not demonstrated.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'The named native WebMCP runner uses actual document.modelContext discovery and invocation, genuine stock identity get, fresh circuit create, record readback and first audit page, with canonical results committed to React before tool return. No modelContext or stock service stub is installed.' >> "$GITHUB_STEP_SUMMARY"

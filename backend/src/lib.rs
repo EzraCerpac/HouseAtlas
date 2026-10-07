@@ -10,6 +10,9 @@ pub mod jobs;
 pub mod lifecycle;
 pub mod media;
 pub mod storage;
+pub mod transports {
+    pub mod mcp;
+}
 pub mod providers {
     pub mod network;
     pub mod homebox {

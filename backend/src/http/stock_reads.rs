@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     access as a,
-    app::{Access, ReadAuthority, Reads, RequestPrincipal, Store},
+    app::{Access, Core, ReadAuthority, Reads, RequestPrincipal, Store},
     contracts as c,
     domain::{self as d, stock as st},
     storage as s,
@@ -288,7 +288,15 @@ impl<'p> st::StockAuthorityPort<RequestPrincipal> for Authority<'p, '_> {
             return self.revalidate(p, prepared.witness(), request);
         }
         let expected = st::StockQueryPort::query(
-            &mut st::AtlasReads::new(LockedReads(self.store), st::NativeStockContract::new()?),
+            &mut st::AtlasReads::new(
+                LockedReads {
+                    store: self.store,
+                    access: self.access,
+                    witness: prepared.witness(),
+                    request,
+                },
+                st::NativeStockContract::new()?,
+            ),
             p,
             prepared,
         )?;
@@ -340,11 +348,16 @@ impl<'p> st::StockPreparerPort<RequestPrincipal, Witness<'p>> for Preparer<'_> {
         snapshot(self.0, p, request).map(Graph)
     }
 }
-struct LockedReads<'a>(&'a Mutex<Store>);
-impl d::ReadPort<RequestPrincipal> for LockedReads<'_> {
+struct LockedReads<'a, 'p> {
+    store: &'a Mutex<Store>,
+    access: &'a Access,
+    witness: &'a Witness<'p>,
+    request: &'a st::ValidatedRequest,
+}
+impl d::ReadPort<RequestPrincipal> for LockedReads<'_, '_> {
     fn snapshot(&mut self, p: &RequestPrincipal, scope: &d::Scope) -> d::DomainResult<d::Snapshot> {
         let mut store = self
-            .0
+            .store
             .lock()
             .map_err(|_| d::DomainError::UpstreamUnavailable)?;
         Reads(&mut store).snapshot(p, scope)
@@ -356,7 +369,7 @@ impl d::ReadPort<RequestPrincipal> for LockedReads<'_> {
         target: &d::RecordRef,
     ) -> d::DomainResult<d::Record> {
         let mut store = self
-            .0
+            .store
             .lock()
             .map_err(|_| d::DomainError::UpstreamUnavailable)?;
         Reads(&mut store).record(p, scope, target)
@@ -368,7 +381,7 @@ impl d::ReadPort<RequestPrincipal> for LockedReads<'_> {
         target: &d::RecordRef,
     ) -> d::DomainResult<Vec<d::Audit>> {
         let mut store = self
-            .0
+            .store
             .lock()
             .map_err(|_| d::DomainError::UpstreamUnavailable)?;
         Reads(&mut store).history(p, scope, target)
@@ -392,8 +405,23 @@ struct HistoryAuthorization<'a, 'p> {
     target: s::RecordRef,
     read_calls: Cell<u8>,
     phase: Cell<u8>,
+    audits: OnceCell<Vec<s::Audit>>,
 }
 impl HistoryAuthorization<'_, '_> {
+    fn expected_calls(&self) -> u8 {
+        // Storage rechecks after the read transaction, and additionally around
+        // inserting a continuation cursor. Retain each exact output frame.
+        if self
+            .witness
+            .history
+            .get()
+            .is_some_and(|result| result["data"]["nextCursor"].is_string())
+        {
+            5
+        } else {
+            3
+        }
+    }
     fn actor(&self, p: &RequestPrincipal) -> s::Result<s::VerifiedActor> {
         self.verify(
             p,
@@ -438,7 +466,12 @@ impl s::Authorization for HistoryAuthorization<'_, '_> {
     ) -> s::Result<s::VerifiedActor> {
         let actor = self.verify(p, request)?;
         let calls = self.read_calls.get();
-        if calls >= 2 {
+        let limit = if self.phase.get() == 2 {
+            self.expected_calls()
+        } else {
+            2
+        };
+        if calls >= limit {
             return Err(s::Error::new(
                 "unavailable",
                 "Stock history callback changed",
@@ -495,8 +528,17 @@ impl s::StockAuthorization for HistoryAuthorization<'_, '_> {
                     .history
                     .set(result.wire.clone())
                     .map_err(|_| s::Error::new("unavailable", "Stock history output changed"))?;
+                self.audits
+                    .set(frame.audits.to_vec())
+                    .map_err(|_| s::Error::new("unavailable", "Stock history audits changed"))?;
                 self.phase.set(2);
             }
+            Some(result)
+                if self.phase.get() == 2
+                    && (3..=self.expected_calls()).contains(&self.read_calls.get())
+                    && result.children.is_empty()
+                    && self.witness.history.get() == Some(&result.wire)
+                    && self.audits.get().map(Vec::as_slice) == Some(frame.audits) => {}
             _ => {
                 return Err(s::Error::new(
                     "unavailable",
@@ -518,48 +560,86 @@ impl<'p> st::StockQueryPort<RequestPrincipal, Witness<'p>, Graph> for NativeQuer
         p: &RequestPrincipal,
         prepared: &st::PreparedRequest<Witness<'p>, Graph>,
     ) -> st::StockResult<st::OwnerResult> {
-        if !prepared.request().id().as_str().ends_with(".history") {
-            return st::StockQueryPort::query(
-                &mut st::AtlasReads::new(LockedReads(self.store), self.contracts.clone()),
-                p,
-                prepared,
-            );
+        st::StockQueryPort::query(
+            &mut st::AtlasReads::new(
+                LockedReads {
+                    store: self.store,
+                    access: self.access,
+                    witness: prepared.witness(),
+                    request: prepared.request(),
+                },
+                self.contracts.clone(),
+            ),
+            p,
+            prepared,
+        )
+    }
+}
+impl st::StockHistoryPort<RequestPrincipal> for LockedReads<'_, '_> {
+    fn stock_history<C: st::StockContractPort>(
+        &mut self,
+        p: &RequestPrincipal,
+        contracts: &C,
+        request: &st::ValidatedRequest,
+    ) -> st::StockResult<st::OwnerResult> {
+        if request.raw() != self.request.raw() || !std::ptr::eq(p, self.witness.principal) {
+            return Err(changed());
         }
-        let request = prepared.request();
         let scope = serde_json::from_value(
             serde_json::to_value(request.context()).map_err(|_| unavailable())?,
         )
         .map_err(|_| unavailable())?;
         let target=serde_json::from_value(json!({"recordType":request.target()["recordType"],"recordId":request.target()["recordId"]})).map_err(|_|unavailable())?;
         let authorization = HistoryAuthorization {
-            witness: prepared.witness(),
+            witness: self.witness,
             access: self.access,
             request,
             scope,
             target,
             read_calls: Cell::new(0),
             phase: Cell::new(0),
+            audits: OnceCell::new(),
         };
         let mut store = self.store.lock().map_err(|_| unavailable())?;
         let result = store
-            .stock_history_json_with_authorization(
-                &authorization,
-                p,
-                &self.contracts,
-                request.raw(),
-            )
+            .stock_history_json_with_authorization(&authorization, p, contracts, request.raw())
             .map_err(|e| st::StockError::Domain(crate::app::storage_error(e)))?;
-        if authorization.read_calls.get() != 2
+        if authorization.read_calls.get() != authorization.expected_calls()
             || authorization.phase.get() != 2
             || !result.children.is_empty()
-            || prepared.witness().history.get() != Some(&result.wire)
+            || self.witness.history.get() != Some(&result.wire)
         {
             return Err(changed());
         }
         // Mark only after the actual cursor/history transaction has committed.
-        prepared.witness().history_committed.set(true);
+        self.witness.history_committed.set(true);
         Ok(result)
     }
+}
+pub(super) fn execute_raw(
+    core: &Core,
+    p: &RequestPrincipal,
+    raw: Value,
+    contracts: &st::NativeStockContract,
+) -> st::StockResult<st::OwnerResult> {
+    let authority = Authority {
+        principal: p,
+        access: &core.access,
+        store: &core.store,
+    };
+    let prepared = st::prepare(p, raw, contracts, &authority, &mut Preparer(&core.store))?;
+    st::dispatch(
+        p,
+        prepared,
+        contracts,
+        &authority,
+        &mut NativeQueries {
+            store: &core.store,
+            access: &core.access,
+            contracts: contracts.clone(),
+        },
+        &mut CommandsUnavailable,
+    )
 }
 pub(super) fn http_error(error: st::StockError) -> super::HttpFailure {
     match error {
@@ -590,9 +670,7 @@ pub(super) async fn record(
         authorized_read(&host,&headers,&uri,&method,Some(d::Scope{workspace_id,home_id}),false,|core,p,home| {
             let contracts=st::NativeStockContract::new().map_err(http_error)?;
             let raw=json!({"schemaVersion":3,"commandId":format!("atlas.{kind}.get"),"requestId":crate::app::new_id().map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,"context":home.scope,"target":{"authority":"atlas","recordType":kind,"recordId":id},"payload":{}});
-            let authority=Authority{principal:p,access:&core.access,store:&core.store};
-            let prepared=st::prepare(p,raw,&contracts,&authority,&mut Preparer(&core.store)).map_err(http_error)?;
-            let result=st::dispatch(p,prepared,&contracts,&authority,&mut NativeQueries{store:&core.store,access:&core.access,contracts:contracts.clone()},&mut CommandsUnavailable).map_err(http_error)?;
+            let result=execute_raw(core,p,raw,&contracts).map_err(http_error)?;
             Ok(json_response(result.wire))
         })
     }).await.map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
@@ -629,9 +707,7 @@ pub(super) async fn history(
             let mut payload=json!({"pageSize":query.page_size,"cursor":query.cursor,"includeArchived":false});
             if let Some(q)=query.q {payload["q"]=Value::String(q);}
             let raw=json!({"schemaVersion":3,"commandId":format!("atlas.{kind}.history"),"requestId":crate::app::new_id().map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE))?,"context":home.scope,"target":{"authority":"atlas","recordType":kind,"recordId":id},"payload":payload});
-            let authority=Authority{principal:p,access:&core.access,store:&core.store};
-            let prepared=st::prepare(p,raw,&contracts,&authority,&mut Preparer(&core.store)).map_err(http_error)?;
-            let result=st::dispatch(p,prepared,&contracts,&authority,&mut NativeQueries{store:&core.store,access:&core.access,contracts:contracts.clone()},&mut CommandsUnavailable).map_err(http_error)?;
+            let result=execute_raw(core,p,raw,&contracts).map_err(http_error)?;
             Ok(json_response(result.wire))
         })
     }).await.map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE))?

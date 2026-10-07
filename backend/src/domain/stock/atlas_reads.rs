@@ -5,16 +5,13 @@
 //! its full current output-disclosure and captured-authority release checks.
 //! No source state, grant, media availability or request provenance is minted.
 //!
-//! All ten Atlas record-get forms are mapped. Empty first-page history is mapped
-//! only from an actual empty native audit sequence. Frozen audits contain no
-//! original stock command ID/intent digest, and native ReadPort has no opaque
-//! paging policy; nonempty, cursored or filtered stock history stays unavailable
-//! until those exact durable inputs exist. Lists and byte downloads are outside
-//! this owner. This module supplies no mock success or guessed pagination.
+//! All ten Atlas record-get forms and all ten stock history forms are mapped.
+//! Required stock history delegates paging, search and durable event provenance
+//! to its actual owner. Lists and byte downloads are outside this owner.
 
 use super::{
-    OperationId, OwnerResult, PreparedRequest, StockContractPort, StockError, StockQueryPort,
-    StockResult,
+    OperationId, OwnerResult, PreparedRequest, StockContractPort, StockError, StockHistoryPort,
+    StockQueryPort, StockResult,
 };
 use crate::{
     contracts,
@@ -43,7 +40,7 @@ impl<R, C> AtlasReads<R, C> {
 
 impl<P, W, G, R, C> StockQueryPort<P, W, G> for AtlasReads<R, C>
 where
-    R: ReadPort<P>,
+    R: ReadPort<P> + StockHistoryPort<P>,
     C: StockContractPort,
 {
     fn query(
@@ -91,32 +88,14 @@ where
                 json!({"records":[public],"nextCursor":null,"sourceStatus":"current"})
             }
             ReadMode::History => {
-                // No guessed cursor decoding, search semantics or truncation.
-                if request.payload()["cursor"] != Value::Null
-                    || request.payload().get("q").is_some()
-                {
-                    return Err(StockError::OwnerUnavailable);
-                }
-                let audits = self
+                let output = self
                     .reads
-                    .history(principal, &scope, &target)
-                    .map_err(StockError::Domain)?;
-                for audit in &audits {
-                    validate_frozen::<contracts::Audit>(audit)?;
-                    if audit.scope != scope || audit.record != target {
-                        return Err(StockError::CorrelationMismatch);
-                    }
-                }
-                if !audits.is_empty() {
-                    // audit.afterDigest is a record digest; native receipt
-                    // payload_hash is a frozen-command digest. Neither is the
-                    // required original stock intent digest. Do not substitute.
-                    return Err(StockError::OwnerUnavailable);
-                }
-                // An actual empty sequence needs neither fabricated event
-                // metadata nor an invented continuation cursor. includeArchived
-                // cannot alter an empty sequence; no audit entries are hidden.
-                json!({"entries":[],"nextCursor":null,"completeness":"atlas-owned-audit"})
+                    .stock_history(principal, &self.contracts, request)?;
+                // Retain the actual owner envelope, command IDs, original intent
+                // digests, audit IDs, order, completeness and opaque cursor.
+                self.contracts
+                    .validate(request.operation().output_schema, &output.wire)?;
+                return Ok(output);
             }
         };
         let wire = json!({
