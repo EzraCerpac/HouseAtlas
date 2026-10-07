@@ -76,10 +76,14 @@ replacement grant, physical release or recovery authority.
 The accepted writer's sanitized authentication/capability errors remain intact.
 Other retention errors return `UnknownHeld` with no retry or operation ID; an
 earlier retained cut is not a current disclosure authorization.
-Calls after a sticky failure still run the actual current access peer before
-returning retention state. Compatible original actor/physical binding is required;
-access refusal returns its sanitized code with no operation ID or retry. The
-retention latch remains set and no native I/O is attempted.
+Calls after a sticky failure still run the actual current Execute access check,
+load the current original SQL operation and authorize
+`AuthorityPhase::Disclose(&operation.outcome)` before returning retention state.
+The same checks apply when the current call first encounters retention failure.
+Compatible original actor/physical binding is required at both access phases;
+access refusal returns its sanitized code with no operation ID or retry. When no
+genuine ID or current readable outcome is available, the response is sanitized
+`CapabilityDenied`. The retention latch stays set and no native I/O is attempted.
 
 The original codec wrappers capture actual `NativeDispatch`/`DispatchReceipt`
 and `NativeObservation` before returning them for native fact reduction. After

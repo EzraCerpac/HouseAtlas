@@ -277,7 +277,7 @@ where
             return self.sticky_retention_error().await;
         }
         let result = self.writer.execute(&self.command.original_wire).await;
-        self.finish(result)
+        self.finish(result).await
     }
 
     /// Get a sealed current original-owner carrier for never-invoked metadata.
@@ -300,7 +300,7 @@ where
         }
         let operation = self.writer.activity.session.retain_handoff(handoff)?;
         let result = self.writer.run_reserved(operation).await;
-        Ok(self.finish(result))
+        Ok(self.finish(result).await)
     }
 
     /// Original-authority journal lookup; this cannot reconcile or release holds.
@@ -334,7 +334,7 @@ where
     ) -> Result<Vec<super::archive::ArchiveReceipt>, native::StockPortFault> {
         self.retention.receipts()
     }
-    fn finish(&self, result: native::StockResult) -> native::StockResult {
+    async fn finish(&self, result: native::StockResult) -> native::StockResult {
         if self.retention.ready().is_ok() {
             return result;
         }
@@ -348,7 +348,7 @@ where
         {
             return result;
         }
-        self.retention_error()
+        self.sticky_retention_error().await
     }
     async fn sticky_retention_error(&self) -> native::StockResult {
         // Run the actual current access peer even though this binding's
@@ -363,11 +363,44 @@ where
                 if current.actor_id == self.actor_id
                     && current.physical_binding == self.physical_binding =>
             {
-                return self.retention_error();
+                // Read the current accepted SQL operation, not an older cut
+                // whose outcome may precede the commit that failed retention.
+                // With no genuine ID/current readable outcome, disclose no
+                // retention-specific state. Neither load nor access invokes I/O.
+                let Some(id) = self.retention.operation_id() else {
+                    return self.disclosure_error(native::StockErrorCode::CapabilityDenied);
+                };
+                let Ok(operation) = self.snapshot(id).await else {
+                    return self.disclosure_error(native::StockErrorCode::CapabilityDenied);
+                };
+                match self
+                    .writer
+                    .access
+                    .authorize(
+                        &operation.command,
+                        native::AuthorityPhase::Disclose(&operation.outcome),
+                    )
+                    .await
+                {
+                    Ok(disclosure)
+                        if operation.actor_id == self.actor_id
+                            && operation.captured_authority.physical_binding
+                                == self.physical_binding
+                            && disclosure.actor_id == self.actor_id
+                            && disclosure.physical_binding == self.physical_binding =>
+                    {
+                        return self.retention_error();
+                    }
+                    Ok(_) => native::StockErrorCode::CapabilityDenied,
+                    Err(code) => code,
+                }
             }
             Ok(_) => native::StockErrorCode::CapabilityDenied,
             Err(code) => code,
         };
+        self.disclosure_error(code)
+    }
+    fn disclosure_error(&self, code: native::StockErrorCode) -> native::StockResult {
         native::StockResult::Error(native::StockError {
             schema_version: 3,
             request_id: self.command.request_id,
