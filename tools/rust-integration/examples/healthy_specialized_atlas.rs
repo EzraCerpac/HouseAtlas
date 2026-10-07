@@ -20,6 +20,8 @@ use std::{
 
 #[path = "healthy_mixed_derived_atlas.rs"]
 mod healthy_mixed_derived_atlas;
+#[path = "healthy_verified_asset_review.rs"]
+mod healthy_verified_asset_review;
 
 const ORIGIN: &str = "https://atlas.synthetic.invalid";
 fn id(n: u32) -> String {
@@ -256,6 +258,7 @@ pub fn healthy() -> Result<(), Failure> {
             }
         }
     }
+    healthy_verified_asset_review::seed_existing(&core, &directory, &mut published)?;
     let database = directory.join("specialized-atlas.sqlite");
     let store_access = Arc::clone(&core.access);
     let store_vault = Arc::clone(&core.vault);
@@ -435,6 +438,7 @@ pub fn healthy() -> Result<(), Failure> {
     )?;
     assert_eq!(batch_tombstone["data"]["records"][0]["revision"], 4);
     let mixed = healthy_mixed_derived_atlas::healthy(&core, &cookie, &csrf)?;
+    let verified_review = healthy_verified_asset_review::healthy(&core, &cookie, &csrf)?;
 
     // Explicitly close and reopen the same specialized SQLite file before
     // querying the stock owner. The original session remains in actual Access.
@@ -579,6 +583,45 @@ pub fn healthy() -> Result<(), Failure> {
     assert_eq!(mixed_outputs, 9);
     println!(
         "PASS healthy mixed derived Atlas batch: seven ordered children, nine native entries/audits, genuine Access guard; nine reopened record/history pairs"
+    );
+    let reviewed = &verified_review.groups[0].native_results[0];
+    let got = read(
+        &core,
+        &cookie,
+        &validator,
+        "atlas.asset.get",
+        target("asset", 950),
+        json!({}),
+        301,
+    )?;
+    assert_eq!(
+        got["data"]["records"][0],
+        verified_review.wire["data"]["records"][0]
+    );
+    let history = read(
+        &core,
+        &cookie,
+        &validator,
+        "atlas.asset.history",
+        target("asset", 950),
+        json!({"pageSize":20,"cursor":null,"includeArchived":false,"q":"atlas.asset.review"}),
+        302,
+    )?;
+    let events = history["data"]["entries"]
+        .as_array()
+        .ok_or("Missing verified review history")?;
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0]["eventId"], reviewed.audit.audit_id);
+    assert_eq!(events[0]["commandId"], "atlas.asset.review");
+    assert_eq!(events[0]["actorId"], verified_review.actor_id);
+    assert_eq!(events[0]["requestDigest"], verified_review.request_digest);
+    assert_eq!(
+        events[0]["beforeDigest"],
+        json!(reviewed.audit.before_digest)
+    );
+    assert_eq!(events[0]["afterDigest"], json!(reviewed.audit.after_digest));
+    println!(
+        "PASS healthy verified asset review: actual retained PNG render, original Store pin and Access guard, durable linked successor release; reopened record/history data"
     );
     drop(core);
     scratch.close()?;

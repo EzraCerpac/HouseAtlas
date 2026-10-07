@@ -5,21 +5,20 @@
 
 use houseatlas_backend::{
     access as a,
-    app::{Core, RequestPrincipal},
+    app::Core,
     contracts::stock as wire,
     domain::stock as st,
-    http::contracts::NativeContracts,
     lifecycle::Failure,
     media::{
         Cancellation, WorkBudget,
-        types::{AssetPurpose, ContentType, LicenseStatus, Scope, SourceLicense},
+        types::{AssetPurpose, ContentType, LicenseStatus, PreviewPolicy, Scope, SourceLicense},
     },
     storage as s,
 };
 use serde_json::{Value, json};
 use std::{cell::RefCell, io::Cursor, path::Path, time::Duration};
 
-use super::{guard, id, principal, target};
+use super::{id, principal, target};
 
 fn budget() -> Result<WorkBudget, s::Error> {
     WorkBudget::new(Duration::from_secs(10), Cancellation::default())
@@ -54,7 +53,7 @@ pub fn seed_existing(core: &Core, directory: &Path, published: &mut Value) -> Re
         &mut Cursor::new(&bytes),
         &budget()?,
     )?;
-    let payload = prepared.with_provenance(
+    let mut payload = prepared.with_provenance(
         SourceLicense {
             status: LicenseStatus::Unknown,
             reference: None,
@@ -64,6 +63,11 @@ pub fn seed_existing(core: &Core, directory: &Path, published: &mut Value) -> Re
     if serde_json::to_value(&payload)? != media["payload"] {
         return Err("Measured retained asset metadata differs from lifecycle seed".into());
     }
+    // Restrict only synthetic initial policy so this case demonstrates the
+    // genuine proof-qualified transition. Measured immutable bytes, purpose
+    // and availability remain exactly those supplied by the owner vault.
+    payload.preview_policy = PreviewPolicy::DownloadOnly;
+    payload.validate()?;
     let records = published["records"]
         .as_array_mut()
         .ok_or("Missing fixture records")?;
@@ -170,14 +174,14 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
             "payload": {
                 "treatment": "request-preview",
                 "rendererReceiptId": rendered.receipt_id(),
-                "evidenceIds": []
+                "evidenceIds": [id(100)]
             },
             "idempotencyKey": id(12002),
             "reason": "Fresh opaque renderer review of the retained synthetic original",
             "approvalReceiptId": null,
             "preconditions": {
                 "target": {"kind":"atlas","value":1},
-                "guards": []
+                "guards": [super::guard("evidence", 100, original.records.iter().find(|record| record.record_id == id(100)).ok_or("Original evidence unavailable")?.revision)]
             }
         });
         let typed_request = wire::StockRequest::parse(&validator, raw.clone())?;
@@ -314,7 +318,7 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
         assert_eq!(commit.derivation.as_ref(), Some(bound.derivation()));
         assert_eq!(
             commit.derivation_format.as_deref(),
-            Some(st::ATLAS_DERIVATION_FORMAT)
+            Some(s::ATLAS_VERIFIED_ASSET_REVIEW_FORMAT)
         );
         *committed.borrow_mut() = Some(commit);
         Ok(())
@@ -335,6 +339,7 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
             .records
             .iter()
             .find(|record| record.record_id == id(600))
+            .cloned()
     };
     assert_eq!(unchanged_asset(&post), unchanged_asset(&original));
     let reviewed_after = post
