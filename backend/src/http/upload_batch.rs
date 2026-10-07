@@ -128,7 +128,7 @@ pub fn plan_existing_upload_batch<'u>(
     selection: &ResolvedPlace<'_, '_>,
     metadata: &UploadMetadata,
     asset: &'u crate::storage::ExistingOriginalAsset,
-    measured: &'u crate::media::vault::PreparedOriginal,
+    measured: &'u crate::domain::stock::MeasuredAttachmentOriginal,
     inputs: &FreshUploadInputs,
 ) -> st::StockResult<st::ExistingAssetAttachmentPlan<'u>> {
     if !std::ptr::eq(selection.metadata(), metadata) {

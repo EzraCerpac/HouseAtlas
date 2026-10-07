@@ -228,16 +228,18 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-agent-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-agent-host-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-human-host-loopback.mjs
+    HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-upload-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs
 
 The source runner checks deterministic generation/history, actual locked Rust
 library/binary/module source, rustfmt, warnings-denied Clippy, strict TypeScript
-and Vite. It runs exactly healthy-contracts, healthy-dependencies and
-healthy-native-semantics. The separately named healthy-agent-stock performs
+and Vite. It runs exactly healthy-contracts, healthy-dependencies,
+healthy-native-semantics and healthy-maintenance-calendar. The separately named
+healthy-agent-stock performs
 genuine in-process MCP tools/list and tools/call over actual access/domain/SQLite;
 the workflow compiles it on both platforms and runs it only on Linux.
 
-Each of the ten browser runners uses fresh Chromium and a disposable TLS
+Each of the eleven browser runners uses fresh Chromium and a disposable TLS
 certificate, observes actual SQLite rows read-only, stops gracefully and removes
 scratch state. Core adds real auth, canonical paging/reads, one fresh circuit
 and one ordered two-identity batch with record/history readback. Media adds two
@@ -268,6 +270,11 @@ refresh, reloads the real admission and saved revision, and verifies the same
 linked audit through native WebMCP, mounted MCP and read-only SQLite. HomeBox
 `canEdit` remains false before and after. Its cached read preserves the original
 source facts, cache dates and generation. No upload or provider I/O occurs.
+The separately named upload runner submits two fresh actual React attachment
+intents for one small generated PNG and checks native SQLite receipts, one
+original asset and consumption, the exact original asset revision guard,
+unchanged original provenance and zero pending stages. It performs no retry,
+replay, expiry, recovery or failure control.
 Private evidence packets, fingerprints and optional screenshots remain outside Git.
 
 The workflow selects exact PR-head/main-push source on Linux and macOS, retains
