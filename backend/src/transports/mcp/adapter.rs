@@ -218,9 +218,7 @@ where
             if session.state != SessionState::New {
                 return protocol::error(Some(id), -32600, "MCP session already initialized");
             }
-            let Ok(params) =
-                serde_json::from_value::<InitializeParams>(Value::Object(message.params.clone()))
-            else {
+            let Some(params) = InitializeParams::parse(&message.params) else {
                 return invalid();
             };
             // With one supported revision, an unsupported request negotiates
@@ -247,9 +245,7 @@ where
         }
         match message.method.as_str() {
             "tools/list" => {
-                let Ok(params) =
-                    serde_json::from_value::<ListParams>(Value::Object(message.params.clone()))
-                else {
+                let Some(params) = ListParams::parse(&message.params) else {
                     return invalid();
                 };
                 self.list(session, id, params.cursor.as_deref()).await
@@ -259,9 +255,7 @@ where
                 if message.params.contains_key("task") {
                     return invalid();
                 }
-                let Ok(params) =
-                    serde_json::from_value::<CallParams>(Value::Object(message.params.clone()))
-                else {
+                let Some(params) = CallParams::parse(&message.params) else {
                     return invalid();
                 };
                 self.call(session, id, params).await

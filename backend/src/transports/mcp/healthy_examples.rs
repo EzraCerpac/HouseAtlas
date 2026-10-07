@@ -31,6 +31,30 @@ const HISTORY_SCHEMA: &str =
 fn fixture(bytes: &str) -> Value {
     serde_json::from_str(bytes).unwrap()
 }
+
+#[test]
+fn healthy_native_json_numbers_and_literal_object_keys() {
+    let message = super::protocol::decode(br#"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"synthetic","arguments":{"integer":9007199254740991,"decimal":1.2500,"exponent":1e+2,"literal":{"$serde_json::private::Number":"ordinary application string"}}}}"#).unwrap_or_else(|_| panic!("healthy JSON decodes"));
+    let args = &message.params["arguments"];
+    let call = super::protocol::CallParams::parse(&message.params).unwrap();
+    assert_eq!(Value::Object(call.arguments), *args);
+    assert!(args["integer"].is_number());
+    assert!(args["decimal"].is_number());
+    assert!(args["exponent"].is_number());
+    assert_eq!(args["decimal"].to_string(), "1.2500");
+    assert_eq!(args["exponent"].to_string(), "1e+2");
+    assert_eq!(
+        args["literal"]["$serde_json::private::Number"],
+        "ordinary application string"
+    );
+    let initialize = super::protocol::decode(br#"{"jsonrpc":"2.0","id":8,"method":"initialize","params":{"protocolVersion":"2025-11-25","clientInfo":{"name":"healthy","version":"1"},"capabilities":{"literal":{"$serde_json::private::Number":"7"},"rawLiteral":{"$serde_json::private::RawValue":"ordinary application string"}}}}"#)
+        .unwrap_or_else(|_| panic!("healthy initialize decodes"));
+    let params = super::protocol::InitializeParams::parse(&initialize.params).unwrap();
+    assert_eq!(
+        Value::Object(params.capabilities),
+        initialize.params["capabilities"]
+    );
+}
 fn object(value: Value) -> JsonObject {
     value.as_object().unwrap().clone()
 }

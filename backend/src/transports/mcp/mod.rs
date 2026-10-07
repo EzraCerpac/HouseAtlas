@@ -5,8 +5,17 @@
 //! implementation is included. See `README.md` for the integration contract.
 
 mod adapter;
+mod native_catalog;
+mod native_context;
+mod native_schemas;
+mod native_service;
 mod ports;
 mod protocol;
+
+pub use native_catalog::{NativeCatalog, NativeOperation, NativeOutput};
+pub use native_context::{NativeContext, NativePrincipal, NativePrincipalPort, NativeRequirement};
+pub use native_schemas::NativeSchemas;
+pub use native_service::{NativeStockService, UnavailableCommands};
 
 pub use adapter::{AdapterConfig, ConfigError, McpAdapter, Session, SessionState};
 pub use ports::{
@@ -20,3 +29,6 @@ pub use protocol::{
 
 #[cfg(test)]
 mod healthy_examples;
+
+#[cfg(test)]
+mod healthy_native;

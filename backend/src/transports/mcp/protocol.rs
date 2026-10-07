@@ -2,7 +2,7 @@ use std::fmt;
 
 use serde::{
     Deserialize, Serialize,
-    de::{self, MapAccess, SeqAccess, Visitor},
+    de::{self, MapAccess, Visitor},
 };
 use serde_json::{Map, Value};
 
@@ -106,66 +106,70 @@ impl ToolResult {
     }
 }
 
-/// Preserve the canonical contract's syntactic duplicate-key rule before any
-/// MCP/domain value becomes a map. serde_json::Value otherwise keeps the last
-/// occurrence, which canonical peers could no longer detect. No domain policy
-/// is implemented here. serde_json's default nesting bound still applies.
+/// Decode JSON syntax without serde_json's private arbitrary-precision map
+/// representation. Actual number tokens remain Numbers; literal similarly named
+/// object keys remain object keys. Duplicate keys and nesting are checked before
+/// a domain value becomes a map.
 struct UniqueValue(Value);
 
 impl<'de> Deserialize<'de> for UniqueValue {
     fn deserialize<D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct UniqueVisitor;
-        impl<'de> Visitor<'de> for UniqueVisitor {
-            type Value = UniqueValue;
+        let raw = <&serde_json::value::RawValue>::deserialize(deserializer)?;
+        parse_unique(raw, 0).map(Self).map_err(de::Error::custom)
+    }
+}
 
+struct RawObject<'a>(Vec<(String, &'a serde_json::value::RawValue)>);
+impl<'de> Deserialize<'de> for RawObject<'de> {
+    fn deserialize<D: de::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct ObjectVisitor;
+        impl<'de> Visitor<'de> for ObjectVisitor {
+            type Value = RawObject<'de>;
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("JSON with unique object keys")
-            }
-            fn visit_bool<E: de::Error>(self, value: bool) -> Result<Self::Value, E> {
-                Ok(UniqueValue(Value::Bool(value)))
-            }
-            fn visit_i64<E: de::Error>(self, value: i64) -> Result<Self::Value, E> {
-                Ok(UniqueValue(value.into()))
-            }
-            fn visit_u64<E: de::Error>(self, value: u64) -> Result<Self::Value, E> {
-                Ok(UniqueValue(value.into()))
-            }
-            fn visit_f64<E: de::Error>(self, value: f64) -> Result<Self::Value, E> {
-                serde_json::Number::from_f64(value)
-                    .map(|number| UniqueValue(Value::Number(number)))
-                    .ok_or_else(|| E::custom("Invalid JSON number"))
-            }
-            fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
-                Ok(UniqueValue(Value::String(value.into())))
-            }
-            fn visit_string<E: de::Error>(self, value: String) -> Result<Self::Value, E> {
-                Ok(UniqueValue(Value::String(value)))
-            }
-            fn visit_unit<E: de::Error>(self) -> Result<Self::Value, E> {
-                Ok(UniqueValue(Value::Null))
-            }
-            fn visit_seq<S: SeqAccess<'de>>(
-                self,
-                mut sequence: S,
-            ) -> Result<Self::Value, S::Error> {
-                let mut values = Vec::new();
-                while let Some(value) = sequence.next_element::<UniqueValue>()? {
-                    values.push(value.0);
-                }
-                Ok(UniqueValue(Value::Array(values)))
+                formatter.write_str("JSON object")
             }
             fn visit_map<M: MapAccess<'de>>(self, mut object: M) -> Result<Self::Value, M::Error> {
-                let mut values = Map::new();
-                while let Some(key) = object.next_key::<String>()? {
-                    if values.contains_key(&key) {
-                        return Err(de::Error::custom("Duplicate JSON key"));
-                    }
-                    values.insert(key, object.next_value::<UniqueValue>()?.0);
+                let mut fields = Vec::new();
+                while let Some(entry) = object.next_entry()? {
+                    fields.push(entry);
                 }
-                Ok(UniqueValue(Value::Object(values)))
+                Ok(RawObject(fields))
             }
         }
-        deserializer.deserialize_any(UniqueVisitor)
+        deserializer.deserialize_map(ObjectVisitor)
+    }
+}
+
+fn parse_unique(
+    raw: &serde_json::value::RawValue,
+    depth: usize,
+) -> Result<Value, serde_json::Error> {
+    if depth >= 128 {
+        return Err(de::Error::custom("JSON nesting limit"));
+    }
+    let json = raw.get().trim();
+    match json.as_bytes().first() {
+        Some(b'{') => {
+            let RawObject(fields) = serde_json::from_str(json)?;
+            let mut object = Map::new();
+            for (key, value) in fields {
+                if object.contains_key(&key) {
+                    return Err(de::Error::custom("Duplicate JSON key"));
+                }
+                object.insert(key, parse_unique(value, depth + 1)?);
+            }
+            Ok(Value::Object(object))
+        }
+        Some(b'[') => {
+            let items: Vec<&serde_json::value::RawValue> = serde_json::from_str(json)?;
+            items
+                .into_iter()
+                .map(|item| parse_unique(item, depth + 1))
+                .collect::<Result<Vec<_>, _>>()
+                .map(Value::Array)
+        }
+        Some(b'-' | b'0'..=b'9') => serde_json::from_str(json).map(Value::Number),
+        _ => serde_json::from_str(json),
     }
 }
 
@@ -249,24 +253,58 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<Message, ProtocolError> {
     Ok(Message { id, method, params })
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct InitializeParams {
     pub protocol_version: String,
     pub capabilities: JsonObject,
     pub client_info: Implementation,
 }
 
-#[derive(Deserialize)]
 pub(crate) struct ListParams {
     pub cursor: Option<String>,
 }
 
-#[derive(Deserialize)]
 pub(crate) struct CallParams {
     pub name: String,
-    #[serde(default)]
     pub arguments: JsonObject,
+}
+
+impl InitializeParams {
+    pub fn parse(params: &JsonObject) -> Option<Self> {
+        let client = params.get("clientInfo")?.as_object()?;
+        Some(Self {
+            protocol_version: params.get("protocolVersion")?.as_str()?.into(),
+            capabilities: params.get("capabilities")?.as_object()?.clone(),
+            client_info: Implementation {
+                name: client.get("name")?.as_str()?.into(),
+                version: client.get("version")?.as_str()?.into(),
+            },
+        })
+    }
+}
+
+impl ListParams {
+    pub fn parse(params: &JsonObject) -> Option<Self> {
+        let cursor = match params.get("cursor") {
+            None | Some(Value::Null) => None,
+            Some(Value::String(cursor)) => Some(cursor.clone()),
+            _ => return None,
+        };
+        Some(Self { cursor })
+    }
+}
+
+impl CallParams {
+    pub fn parse(params: &JsonObject) -> Option<Self> {
+        let arguments = match params.get("arguments") {
+            None => JsonObject::new(),
+            Some(Value::Object(arguments)) => arguments.clone(),
+            _ => return None,
+        };
+        Some(Self {
+            name: params.get("name")?.as_str()?.into(),
+            arguments,
+        })
+    }
 }
 
 pub(crate) fn result(id: &RequestId, result: Value) -> Value {

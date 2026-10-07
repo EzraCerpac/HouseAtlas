@@ -1,175 +1,141 @@
-# HouseAtlas MCP adapter — AT38
+# HouseAtlas MCP adapter — AT38 native successor
 
-This component implements an embeddable tools-only MCP protocol boundary. It is
-source for the Rust modular monolith, not a separate crate, service framework or
-mounted transport. The only source namespace changed is
-`backend/src/transports/mcp/`. The checkout/branch is `codex/rust-at38`, based on
-published `EzraCerpac/HouseAtlas` commit
-`9f7561d99e09a680ec5282ca0c8aed4e10c6cbc9`.
+Only `backend/src/transports/mcp/**` is owned here. This successor preserves
+accepted head `55f06176af789077720fd291dd2427466c7e3ae3` and the sole publication
+root `9f7561d99e09a680ec5282ca0c8aed4e10c6cbc9`. It opens no listener and supplies
+no HTTP/OAuth mount, bearer authentication, provider client or domain framework.
 
-## Implemented protocol behavior
+## Native bindings
 
-`McpAdapter::open(trusted_context)` creates a serialized session.
-`handle(&mut session, complete_json_bytes).await` returns optional response bytes;
-notifications return no response. The host owns actual framing and IO.
+`NativeContext::from_principal(access::Principal)` accepts an already issued,
+opaque AT11 principal. `NativePrincipalPort::new(Arc<Mutex<AccessBoundary>>)`
+revalidates that original authority, checks the catalog's exact scope/capability,
+and preserves the same handle. Context identity is retained through Arc handles;
+read issuance is never promoted into mutation issuance. All mutex guards finish
+before futures are returned. The host must supply an access-owned authenticated
+principal seam: current AT11 read issuance accepts actual GET/HEAD evidence and
+rejects bearer headers. Relabeling an MCP POST as GET is not such a seam.
 
-The implemented protocol revision is explicitly `2025-11-25`. Initialization
-selects that supported revision, records client implementation/capabilities as
-untrusted descriptive data, and advertises only `tools: {}`. A subsequent
-`notifications/initialized` transitions to ready. Ping returns an empty result.
-Ready sessions map `tools/list` and `tools/call` through the ports below. The host
-calls `Session::close()` on transport shutdown. MCP defines no shutdown method.
-See the primary [lifecycle specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle)
-and [tool messages](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).
+`NativeSchemas::from_bytes(agent, atlas)` admits the exact published schema
+resources by SHA-256, canonical IDs and draft2020-12 dialect. `schema(family_ref)`
+produces object-root MCP descriptors with only their transitive local `$defs`.
+Schema-valued keywords are traversed; const/default/enum/example payloads are
+preserved. No schema URLs or files are fetched by production code. AT51 supplies:
 
-The adapter parses one message object, accepts string/integer request IDs,
-tracks used IDs for the session, and bounds message bytes, response bytes,
-request count and retained ID bytes. Duplicate JSON keys are detected recursively
-before constructing a JSON map; canonical peers therefore never receive a
-silently overwritten command. Default serde_json nesting bounds apply. Defaults
-are 64 KiB input, 1 MiB output, 4,096 requests and 1 MiB retained ID text. The host
-reconnects when the request/ID bound is reached. `AdapterConfig` validates enough
-response capacity for a maximum-size request ID and server information.
-An oversized message closes the session before parsing or peer dispatch and
-returns no response bytes, preserving notification semantics without parsing
-beyond the configured bound. The host ends the closed connection. This behavior
-was reviewed statically; no oversized-input probe was executed.
+- `contracts/stock-wire3/agent/agent.schema.json`: SHA-256
+  `314ee5f5effca941b3be92cb5cc37150aa17a3ab5dd8646255cebc74767b602d`
+- `packages/contracts/schemas/atlas.schema.json`: SHA-256
+  `ef00707b251051da4157598833d4c91d15d01b73eebfa049daf8c52a2ff23806`
 
-Request/call shape failures map to JSON-RPC errors. Canonical public tool failures
-map to `isError: true`; peer failures use static public messages. An optional
-owner-sanitized error object preserves canonical public metadata unchanged.
-Raw provider/database/authentication error text is never accepted from a peer
-error conversion. Revalidation happens after awaited execution and before
-returning protected success or public tool failure content. None of the coded
-rejection or error paths has been qualified by negative controls in this lane.
+`NativeCatalog::with_admitted_operations(&schemas, &principal, ids)` selects
+published stock families containing host-admitted operations. The host's qualified
+owner composition supplies this admission scoped to the given principal; published capability disposition alone
+never enables a route. The family descriptor retains its exact published union,
+while `prepare` separately checks the selected family and the root plus every
+ordered child command against host admission. The full stock envelope is passed as tools/call arguments without an
+extra request wrapper. All ten family schemas are supported. Listing returns one
+page; no cursor is issued. Hosts must keep selected descriptors within their
+configured response bound. Read hints describe only admitted commands. The catalog retains the opaque
+context handle and rejects use with another context; AT11 revalidates its current
+authority before discovery and release. It cannot infer admission from roles.
 
-Text results and structured results contain the same serialized object.
-Object application DTOs remain intact. A bare history array is kept unchanged
-inside an MCP-only `{"data": [...]}` object because `structuredContent` requires
-an object. This does not change the canonical service result or the HTTP history
-sidecar. The catalog output schema must describe this MCP wrapper; array order,
-nulls, unknowns, provenance, revisions and receipts are preserved.
+Requests use the real shared `StockRequest` validator and domain
+`ValidatedRequest`, preserving exact intent, omissions, explicit nulls, numeric
+values and ordered children. Scope/capability requirements are typed native
+values. `NativeOperation` and `NativeOutput` have private fields; callers cannot
+construct an unchecked request or unreleased output. Rendering calls the shared
+`StockResponse` validator, retains the exact envelope and correlated children,
+and maps the owner's Error kind to MCP isError. Domain dispatch must already
+have discharged authority and disclosure obligations before rendering.
 
-## Typed integration proposal
+`NativeStockService::new(authority, preparer, queries, commands)` calls the real
+domain stock `prepare` and `dispatch` functions. Required peers are the published
+`StockAuthorityPort<access::Principal>`, `StockPreparerPort`, `StockQueryPort` and
+`StockCommandPort`. Witnesses/graphs remain the owner's types; the original
+principal and unmodified wire reach them. The synchronous owner mutex introduces
+no async runtime or second service architecture. `UnavailableCommands` explicitly
+returns the domain OwnerUnavailable category. It cannot make a mock stock commit.
+The host must supply mutation fencing inside its actual command owner and avoid
+reentering a held access fence.
 
-`ports.rs` supplies three narrow generic ports. Their concrete types and all
-domain/access rules belong to the canonical Rust peers:
+Remaining owner inputs: complete original stock authority witnesses and
+resolved/prepared graphs, current full result disclosure, durable root/child
+stock intent metadata and atomic receipt/admission composition, provider queue
+qualification, nonempty stock-history metadata and opaque history paging. Native
+frozen-command execution does not provide these stock write guarantees. They
+remain unavailable until their owners supply them.
 
-| Port | Responsibilities |
+## Protocol and dependency reconciliation
+
+MCP revision is `2025-11-25`; tools-only initialize/initialized, ping, list and
+call use a host-framed serialized session. The host closes the session on IO
+shutdown. Notifications emit no response. Oversized messages close/drop before
+parsing or peer dispatch, preserving the accepted P2 correction. Defaults are
+64 KiB input, 1 MiB output, 4,096 requests and 1 MiB retained request-ID text.
+Request IDs, request shape, duplicate keys and nesting are bounded syntactically.
+The RawValue decoder preserves arbitrary-precision number tokens separately from
+literal object keys, including serde's similarly named internal number key.
+Parameter extraction copies already decoded argument/capability maps directly
+instead of re-deserializing arbitrary application values.
+
+Public errors use static categories; raw database/access/provider errors never
+become public messages. Success and public tool errors receive current principal
+release checks. Annotations never establish authority. No negative/error branch
+qualification is claimed.
+
+AT51 owns module mounting, manifests and lockfiles. Exact shared pins used here:
+`serde = 1.0.229`, `serde_json = 1.0.151` with `arbitrary_precision`,
+`float_roundtrip`, `raw_value`, and `sha2 = 0.10.9`. Existing peer compilation also
+requires `jsonschema = 0.58.6` without network/default features and with
+`arbitrary-precision`, `regex = 1.13.1`, `ryu-js = 0.2.2`, and
+`rusqlite = 0.40.2` with `bundled` and `backup`. Other access/storage dependencies
+are the peers' existing pins. No root manifest or lockfile changes are included.
+
+## Exact healthy verification
+
+External harness `/tmp/houseatlas-at38-native-harness` imports actual repository
+MCP source plus untouched published source exports:
+
+| Peer | Commit |
 | --- | --- |
-| `PrincipalPort` | `Context`, opaque nonserializable `Principal`, and typed `Requirement`; resolve a catalog principal, authorize the requirement from the trusted context, and revalidate current authority. |
-| `CatalogPort<Principal>` | List currently authorized descriptors/pages; map a declared tool name plus argument object to `PreparedOperation<Operation, Requirement>`; render the canonical `Output` DTO. |
-| `ServicePort<Principal, Operation>` | Execute the typed operation under its freshly authorized action-bound principal, returning the catalog's exact `Output` type. |
+| Shared contracts | `49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c` |
+| Domain/native bridge | `f51bc7962b491faa1cc563f2ec0f737c471e4e26` |
+| Access | `4967dd2d38c5749be35aa7e44728c4d691246730` |
+| Storage | `9425ffc54e45d4ee779f3282e8dc29414676c7ad` |
+| Core read composition | `915d9baae6710d23e29f34da488df1de493a2c0c` |
 
-Every call resolves a fresh catalog principal, prepares an operation, asks the
-access peer to authorize its typed scope/action requirement, executes under the
-new action-bound principal, renders the result, and revalidates before release.
-The adapter does not promote the catalog/read principal into mutation authority.
-The catalog must resolve calls against its authorized surface even if the client
-has never listed tools. Discovery cursor creation, validation and principal/scope
-binding belong to the catalog peer.
+All peer ancestry roots were checked against the sole public base. No peers were
+merged into this scoped branch. Rust/Cargo 1.99.0 compile source directly. The
+harness's Clippy allowances cover imported peer modules only; warnings are denied
+for MCP. Task cache and lockfile stay outside the repository.
 
-`Context` is fixed when a host opens the session. No principal, actor, session,
-grant or authentication authority comes from clientInfo, capabilities, `_meta`,
-tool arguments or annotations. Canonical service/access/storage peers enforce
-current scope/action/source authority, domain validation, record existence,
-transaction fencing, guards, revisions, receipts, audits and source-presence
-holds. Principals have no Clone/Serialize bound and are never cached by the
-adapter. Annotations are descriptive hints only.
-
-These boundaries follow the published
-[future agent command constraints](../../../../docs/coordination/agent-write-amendment-proposal.md),
-[opaque principal rules](../../../../packages/access/README.md), and
-[history contract](../../../../docs/contracts/history/http-history.v1.1.0.md).
-The legacy JS implementation is behavior reference; the adapter does not invoke
-or copy its service/storage framework.
-
-Proposed application catalog names mirror the seven published HTTP operations:
-`atlas_get_record`, `atlas_list_records`, `atlas_list_homebox_entities`,
-`atlas_list_network_relations`, `atlas_record_history`, `atlas_mutate_record`,
-`atlas_mutate_batch`. Production names/schema definitions are supplied by the
-catalog owner. The adapter is generic over operations and does not hardcode this
-domain list. Three names appear only in synthetic peer examples.
-
-AT51 can mount the module with `pub mod mcp;` in its owned transports module and
-provide these dependencies in its owned manifest:
-
-```toml
-serde = { version = "=1.0.228", features = ["derive"] }
-serde_json = "=1.0.145"
-```
-
-No async runtime dependency is needed by this component. `PortFuture` uses
-standard boxed Send futures; the host supplies its selected runtime. Any shared
-pin changes need AT51 reconciliation. This lane does not edit manifests, locks,
-generated contracts, router scaffolding or migrations.
-
-## Exact verification scope
-
-An external task-owned compiler harness resides at
-`/tmp/houseatlas-at38-harness`. Its `lib.rs` imports the real repository module by
-absolute path and forbids unsafe code; it does not substitute adapter source.
-It has the exact dependencies above and an external lockfile. Compilation uses
-Rust `1.99.0 (b940084d7 2026-09-28)` / Cargo `1.99.0 (5f94df478 2026-08-27)`.
-The first dependency resolution downloaded public crates.io packages; all
-subsequent verification uses the locked offline task cache. Runtime setup lives
-outside the source checkout in `/workspace/.houseatlas-setup/rust-react-sqlite`.
-
-The inspected, authorized scoped commands are:
+Inspected scoped commands:
 
 ```sh
 source /workspace/.houseatlas-setup/rust-react-sqlite/activate.sh
 rustfmt --edition 2024 --check backend/src/transports/mcp/mod.rs
-CARGO_HOME=/tmp/houseatlas-at38-cargo cargo check --manifest-path /tmp/houseatlas-at38-harness/Cargo.toml --locked --offline
-CARGO_HOME=/tmp/houseatlas-at38-cargo cargo clippy --manifest-path /tmp/houseatlas-at38-harness/Cargo.toml --locked --offline --lib -- -D warnings
-CARGO_HOME=/tmp/houseatlas-at38-cargo cargo test --manifest-path /tmp/houseatlas-at38-harness/Cargo.toml --locked --offline --lib mcp::healthy_examples:: -- --test-threads=1
+CARGO_HOME=/tmp/houseatlas-at38-cargo cargo check --manifest-path /tmp/houseatlas-at38-native-harness/Cargo.toml --locked --offline
+CARGO_HOME=/tmp/houseatlas-at38-cargo cargo clippy --manifest-path /tmp/houseatlas-at38-native-harness/Cargo.toml --locked --offline --lib -- -D warnings
+CARGO_HOME=/tmp/houseatlas-at38-cargo HOUSEATLAS_AT38_SHARED_SOURCE=/tmp/houseatlas-at38-native-peers/shared cargo test --manifest-path /tmp/houseatlas-at38-native-harness/Cargo.toml --locked --offline --lib mcp::healthy_ -- --test-threads=1
 ```
 
-`healthy_examples.rs` contains exactly four healthy groups: lifecycle/ping/host
-close, paginated discovery under a freshly resolved principal, record plus
-mutation fixture mapping under distinct action requirements, and empty/recorded/
-tombstone history forwarding in the supplied order. The peer types are explicitly
-synthetic. The fixture service returns existing published JSON; it implements no
-mutation or access evaluation and does not open a store. Canonical schemas are
-read unchanged for the synthetic catalog descriptors, with a local history item
-reference adapted to the MCP wrapper. No schema-validation execution is claimed.
+Five `healthy_examples` groups cover existing lifecycle/discovery/fixture calls/
+ordered fixture history plus genuine number-token and literal-key preservation.
+Their application peers remain explicitly stubbed; their mutation response is a
+published fixture, not executed persistence.
 
-Fixtures read directly from the published tree:
+`healthy_native_catalog_context_and_core_reads` builds all 20 family descriptors
+entirely offline, checks descriptor byte bounds, validates native stock read/
+history envelopes and current original-principal handling, and exercises actual
+SQLite bootstrap → NativeStorage → domain Queries → native core access for a
+published source-free evidence record and its actual empty audits. Private
+synthetic session material stays in disposable memory and is not emitted in
+source evidence. Exact payload/DTO preservation and correlated stock
+representations are checked against native schemas. No fake stock authority,
+preparer or NativeOutput release is constructed. Thus native read/core behavior
+is exercised, while complete MCP stock execution awaits the owner seams above.
 
-- `packages/contracts/schemas/atlas.schema.json`
-- `packages/contracts/fixtures/create-circuit.mutation.json`
-- `packages/contracts/fixtures/create-circuit.result.json`
-- `packages/contracts/history/http-history.v1.1.0.schema.json`
-- `packages/contracts/history/fixtures/empty.audit-array.json`
-- `packages/contracts/history/fixtures/recorded.audit-array.json`
-- `packages/contracts/history/fixtures/tombstone.audit-array.json`
-
-Compilation, lint and these healthy examples establish only this component's
-source compatibility and mapping behavior with stubbed peers. Guard reversal,
-mutation/omission controls, adversarial, fault, crash, concurrency, denial and
-negative-consumer checks remain deferred and unrun. No legacy broad aggregate
-was executed.
-
-## Integration inputs and remaining work
-
-This public base has no generated Rust domain DTOs, accepted MCP catalog, trusted
-transport context/principal implementation or shared backend scaffold. Those
-exact inputs are required for integration and intentionally remain peers:
-
-- AT51's canonical Rust operation/result and authorization-requirement types.
-- AT11's opaque context/principal and current authorization/revalidation wiring.
-- The catalog owner's approved tool names, self-contained schemas, current
-  visibility rules, page bounds and discovery cursors.
-- AT51's selected protocol revision, dependency pins and module mount.
-
-The host also owns admission, audience/route/origin checks, transport deadlines,
-framing and a safe service-owned policy for uncertain/cancelled mutations. This
-adapter handles messages sequentially; await an in-flight write to completion.
-It advertises no task execution, list-change notifications, resources, prompts,
-subscriptions, sampling, progress or streaming capability. Host lifecycle and
-deferred qualification are required before exposing a transport.
-
-Implementation and scoped checks used no socket/listener, live OAuth grant,
-credential, provider call, deployment or private data/history. Subsequent review
-delivery is limited to the parent-authorized branch-only push and draft PR.
-No merge, deployment or live acceptance is authorized by that review delivery.
+No listeners, endpoints, live OAuth grants, provider calls, private data,
+deployment, merge, stopped rejection/guard-reversal/mutation-omission/adversarial/
+fault/crash/concurrency/denial/negative-consumer controls or legacy broad test
+aggregates are run. Healthy success does not qualify those deferred controls.

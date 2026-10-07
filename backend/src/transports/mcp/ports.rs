@@ -39,8 +39,9 @@ pub trait PrincipalPort: Send + Sync {
     /// A catalog/read principal. This alone must never authorize a mutation.
     fn resolve<'a>(&'a self, context: &'a Self::Context) -> PortFuture<'a, Self::Principal>;
 
-    /// Mint an action-bound principal from the host context and the canonical
-    /// requirement. It must not promote or copy the earlier catalog principal.
+    /// Establish action authority through the access owner from the host context
+    /// and canonical requirement. An already issued opaque handle may be retained
+    /// after that owner's checks; a read handle must never be promoted to write.
     fn authorize<'a>(
         &'a self,
         context: &'a Self::Context,
