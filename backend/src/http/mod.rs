@@ -1,5 +1,6 @@
 //! Loopback TLS routes and browser DTO projection. No source/provider transport.
 mod admission;
+pub mod agents;
 mod auth;
 pub mod contracts;
 mod headers;
@@ -121,7 +122,9 @@ async fn response_adapter(State(host): State<Host>, mut request: Request, next: 
             Err(error) => error.into_response(),
         }
     };
-    if response.status().is_client_error() || response.status().is_server_error() {
+    if (response.status().is_client_error() || response.status().is_server_error())
+        && !agents::is_stock_response(&response)
+    {
         let error = response
             .extensions()
             .get::<HttpFailure>()
@@ -472,6 +475,8 @@ async fn static_file(State(host): State<Host>, uri: Uri) -> HttpResult {
 }
 pub fn router(host: Host) -> Router {
     Router::new()
+        .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/admission", get(agents::admission).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/invoke", get(agents::invoke).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/commands", post(stock_mutations::command))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}", get(stock_reads::record).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}/history", get(stock_reads::history).head(auth::session_head).fallback(auth::session_head))

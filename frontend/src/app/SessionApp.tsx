@@ -10,17 +10,27 @@ import {
 import { App } from "./App";
 import { BrandMark, Heading } from "./components";
 import type { AtlasClient } from "./types";
-import type { AtlasCredentials, AtlasSessionClient } from "./session";
+import type { Scope } from "../api/generated/contracts.js";
+import type {
+  AtlasCredentials,
+  AtlasSessionClient,
+  AtlasSessionInfo,
+} from "./session";
+import {
+  StockApplication,
+  type StockApplicationPorts,
+} from "./StockApplication";
 
 type SessionState =
   | { status: "loading" }
   | { status: "signed-out" }
-  | { status: "authenticated"; expiresAt: string }
+  | { status: "authenticated"; info: AtlasSessionInfo }
   | { status: "unavailable"; action: "load" | "sign-out" };
 export interface SessionAppProps {
   client: AtlasClient;
   sessions: AtlasSessionClient;
   accessEvents?: EventTarget;
+  stock?: StockApplicationPorts;
 }
 /** Optional application-auth shell. It does not provision accounts, grant home
  * membership or authorize a source. Protected browsing is still owned by App. */
@@ -28,6 +38,7 @@ export function SessionApp({
   client,
   sessions,
   accessEvents,
+  stock,
 }: SessionAppProps) {
   const [state, setState] = useState<SessionState>({ status: "loading" });
   const generation = useRef(0),
@@ -45,9 +56,7 @@ export function SessionApp({
       const info = await sessions.session(controller.signal);
       if (!controller.signal.aborted && attempt === generation.current)
         setState(
-          info
-            ? { status: "authenticated", expiresAt: info.expiresAt }
-            : { status: "signed-out" },
+          info ? { status: "authenticated", info } : { status: "signed-out" },
         );
     } catch {
       if (!controller.signal.aborted && attempt === generation.current)
@@ -61,6 +70,13 @@ export function SessionApp({
       active.current?.abort();
     };
   }, [load]);
+  useEffect(
+    () =>
+      sessions.subscribe?.(() => {
+        void load();
+      }),
+    [sessions, load],
+  );
   useLayoutEffect(() => {
     if (state.status !== "authenticated") {
       document.title = "HouseAtlas";
@@ -71,7 +87,7 @@ export function SessionApp({
     const attempt = ++generation.current;
     const info = await sessions.signIn(credentials, signal);
     if (!signal.aborted && attempt === generation.current)
-      setState({ status: "authenticated", expiresAt: info.expiresAt });
+      setState({ status: "authenticated", info });
   };
   const showSignIn = () => {
     generation.current++;
@@ -91,18 +107,27 @@ export function SessionApp({
         setState({ status: "unavailable", action: "sign-out" });
     }
   };
-  if (state.status === "authenticated")
-    return (
+  if (state.status === "authenticated") {
+    const renderApp = (onScopeCommit?: (scope: Scope | null) => void) => (
       <App
         client={client}
         signIn={showSignIn}
         session={{
-          expiresAt: state.expiresAt,
+          expiresAt: state.info.expiresAt,
           ...(sessions.signOut ? { signOut: () => void signOut() } : {}),
         }}
         {...(accessEvents ? { accessEvents } : {})}
+        {...(onScopeCommit ? { onScopeCommit } : {})}
       />
     );
+    return stock ? (
+      <StockApplication session={state.info} ports={stock}>
+        {renderApp}
+      </StockApplication>
+    ) : (
+      renderApp()
+    );
+  }
   if (state.status === "signed-out") return <SignInForm signIn={signIn} />;
   return (
     <SessionPanel

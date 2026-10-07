@@ -29,6 +29,8 @@ export interface AtlasAppProps {
   /** Allows a host session lifecycle to immediately remove private UI. */
   accessEvents?: EventTarget;
   session?: SessionSettings;
+  /** Reports only the committed authorized scope, or unavailable context. */
+  onScopeCommit?: (scope: Scope | null) => void;
 }
 export const accessEventName = "atlas-access-invalidated";
 export function App({
@@ -37,6 +39,7 @@ export function App({
   signIn,
   accessEvents,
   session,
+  onScopeCommit,
 }: AtlasAppProps) {
   const [view, setView] = useState<AtlasView>(
     initialView ?? { status: "loading" },
@@ -52,6 +55,9 @@ export function App({
   const remembered = useRef(new Map<string, string>());
   const currentView = useRef(view);
   currentView.current = view;
+  useLayoutEffect(() => {
+    onScopeCommit?.(view.status === "ready" ? view.scope : null);
+  }, [view, onScopeCommit]);
 
   const read = useCallback(
     async (scope?: Scope, changeHome = false) => {

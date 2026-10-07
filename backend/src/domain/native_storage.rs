@@ -6,8 +6,9 @@
 //! stays unavailable. A command-capable host must retain the original principal
 //! and grants under its transaction authority fence across every storage phase,
 //! and reject new presence triggers until atomic witness composition exists.
-//! The stock wire3 owner still needs its durable envelope/admission composition.
-//! This bridge does not turn a frozen receipt into a durable stock intent receipt,
+//! Stock wire3 uses stock::NativeAtlasCommands and stock::NativeStockReads,
+//! which bind AT07's separate durable stock APIs. This frozen bridge does not
+//! turn a frozen receipt into a durable stock intent receipt,
 //! issue a provider invocation or enable new presence admission.
 
 use super::{

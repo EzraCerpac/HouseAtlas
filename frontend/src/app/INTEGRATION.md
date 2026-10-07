@@ -66,12 +66,62 @@ the published application-auth contract; no unmounted action is enabled.
 renders a focused username/password form when signed out, then mounts `App`
 after successful sign-in. The existing `App` keeps responsibility for authorized
 home reads and its explicit expired/revoked/denied states. Session UI state keeps
-only expiry; it does not retain actor IDs or CSRF tokens. Password input is
+the existing application-session DTO transiently for the optional typed host
+dispatch handoff. Only expiry is rendered; actor IDs and CSRF are not tool
+metadata or completion output. Password input is
 cleared before awaiting login. Nothing persists credentials or private views.
 Settings shows expiry with the browser's time zone and optional Sign out.
 The non-ready access panel also exposes the configured Sign out action while
 withholding house content and choices. `SessionApp` continues to own that action;
-no additional client port or provider operation is introduced.
+no additional sign-out transport or provider operation is introduced.
+
+### Optional stock context and committed result adapter
+
+`SessionApp.stock?: StockApplicationPorts` opts into the exact PR #21 mount,
+pinned at `6832e825c636b7b48eeed8fcb085fe3ca277ead3`. It supplies root-owned
+`schemas`, envelope-preserving `service`, and controlled `admission`:
+
+```ts
+{scope: Scope; commandIds: readonly string[]; revision: string} | null
+```
+
+`Scope` is imported from AT51's generated contracts. Admission is host metadata,
+never inferred from the catalog, `canEdit`, labels or browser input. Keep ports
+stable and replace admission metadata/revision when host availability changes.
+The current committed ready scope must match admission before registration is
+active. `App.onScopeCommit(scope | null)` reports its committed scope in a layout
+effect; unavailable context has no house metadata. The stable `StockSessionPort`
+facade derives session/scope/commands from these React inputs and publishes
+non-secret local revisions. It is neither a principal nor a persistent auth store.
+Logout/unmount clears that facade; availability, scope, session and admission
+changes revise it. Optional `AtlasSessionClient.subscribe(changed)` lets the
+root notify rotation and re-read the existing canonical session GET. The default
+transport implements no rotation notifications; root must supply that binding.
+
+`StockApplication` reuses PR #21's `StockWebMcpBoundary`. `StockCompletionView`
+renders the entire canonical result as React text in that boundary's child
+subtree, preserving request IDs, status, receipts, outcomes, fields and ordering.
+The peer's layout effect owns completion acknowledgement. No unrelated refresh
+is substituted. A UI error boundary unmounts the peer boundary on render failure
+and leaves ordinary App/session actions available; that path is unqualified.
+The added `stock.css` uses the existing enamel tokens; published CSS is unchanged.
+
+This adds no default mount or guessed endpoint to `main.tsx`. AT52 must supply
+admission delivery/revision and an envelope-preserving dispatch port that verifies
+actual cookie authority, Origin/CSRF and application rules. AT51/root must supply
+the shared offline schema validator. Those ports remain unconfigured here.
+The UI owns no catalog/schema copy, generated DTO, grant or service implementation.
+
+Healthy checks compile actual owned source together with read-only peer/generated
+and shared JSON copies pinned to PR #21 in the external harness. Four additional
+React groups use the published native stock fixture's first two requests and
+unchanged canonical `results[].wire`: context/catalog mounting, identity read,
+circuit receipt rendering, and unmount. Dispatch only returns fixed fixtures;
+no domain mutation occurs. Canonical output is asserted in the actual DOM before
+execution resolves. Shared Ajv 8.20.0/ajv-formats 3.0.1 validate offline; these are
+external harness dependencies, not application-manifest changes. The compiler
+adds `resolveJsonModule` for those existing peer imports. Failure/rotation,
+denial/revocation and concurrency qualification remain unrun.
 
 `session.ts` declares the published exact success DTO
 `{schemaVersion:1, actorId:string, csrfToken:string, expiresAt:RFC3339}` and ports:

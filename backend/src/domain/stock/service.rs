@@ -63,13 +63,36 @@ where
     Q: StockQueryPort<P, A::Witness, A::Graph>,
     M: StockCommandPort<P, A::Witness, A::Graph>,
 {
+    dispatch_prepared(
+        principal, &prepared, contracts, authority, queries, commands,
+    )
+}
+
+/// Borrow the same prepared value retained by a scoped native authorizer.
+/// This preserves its original witness/graph without cloning or rebasing them;
+/// result disclosure and final captured-authority checks are identical to the
+/// consuming dispatch boundary.
+pub fn dispatch_prepared<P, C, A, Q, M>(
+    principal: &P,
+    prepared: &PreparedRequest<A::Witness, A::Graph>,
+    contracts: &C,
+    authority: &A,
+    queries: &mut Q,
+    commands: &mut M,
+) -> StockResult<OwnerResult>
+where
+    C: StockContractPort,
+    A: StockAuthorityPort<P>,
+    Q: StockQueryPort<P, A::Witness, A::Graph>,
+    M: StockCommandPort<P, A::Witness, A::Graph>,
+{
     authority.revalidate(principal, prepared.witness(), prepared.request())?;
     let result = if prepared.request().is_mutation() {
-        commands.execute(principal, &prepared)?
+        commands.execute(principal, prepared)?
     } else {
-        queries.query(principal, &prepared)?
+        queries.query(principal, prepared)?
     };
-    validate_result(principal, &prepared, &result, contracts, authority)?;
+    validate_result(principal, prepared, &result, contracts, authority)?;
     authority.revalidate(principal, prepared.witness(), prepared.request())?;
     Ok(result)
 }

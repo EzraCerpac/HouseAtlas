@@ -1,0 +1,174 @@
+//! Private queue journal operations.
+use super::*;
+
+impl<C, A: Authorization, R, Q: QueueAuthorization<Principal = A::Principal>>
+    QueueSession<'_, C, A, R, Q>
+{
+    pub fn evidence_inbox(&self) -> QueueEvidenceInbox {
+        self.inbox.clone()
+    }
+    /// Recheck current original authority immediately before the native owner
+    /// creates a qualified invocation. This does not invoke the provider.
+    pub fn authorize_dispatch(
+        &mut self,
+        job: &LeasedJob,
+        now: Timestamp,
+    ) -> Result<NativeJournalReceipt> {
+        authorize_session(
+            self.authority,
+            self.principal,
+            self.witness,
+            self.original,
+            self.receipt,
+            QueuePhase::Entry,
+            QueueAction::Lease(&job.lease),
+        )?;
+        let tx = self.store.db.transaction()?;
+        let row = validate_job(&tx, &self.config, job)?;
+        matches_original(self.receipt, self.original, &row, &self.config)?;
+        if row.status != JobStatus::Running || now >= job.lease.expires_at {
+            return Err(stale());
+        }
+        let journal = load_journal_view(&tx, job)?.ok_or_else(invalid)?;
+        authorize_session(
+            self.authority,
+            self.principal,
+            self.witness,
+            self.original,
+            self.receipt,
+            QueuePhase::Precommit,
+            QueueAction::Dispatch {
+                job,
+                journal: &journal,
+                now,
+            },
+        )?;
+        tx.commit()?;
+        authorize_session(
+            self.authority,
+            self.principal,
+            self.witness,
+            self.original,
+            self.receipt,
+            QueuePhase::Release,
+            QueueAction::Dispatch {
+                job,
+                journal: &journal,
+                now,
+            },
+        )?;
+        Ok(NativeJournalReceipt {
+            native_payload_digest: journal.native_payload_digest,
+            journal_evidence_digest: journal.journal_evidence_digest,
+        })
+    }
+    pub fn commit_native(
+        &mut self,
+        job: &LeasedJob,
+        prepared: &PreparedNativeIntent,
+    ) -> Result<NativeJournalReceipt> {
+        if prepared.codec.is_empty()
+            || prepared.codec.len() > 128
+            || prepared.native_payload.is_empty()
+            || prepared.native_payload.len() > MAX_METADATA_BYTES
+            || prepared.prepared_media_evidence.len() > MAX_METADATA_BYTES
+        {
+            return Err(invalid());
+        }
+        authorize_session(
+            self.authority,
+            self.principal,
+            self.witness,
+            self.original,
+            self.receipt,
+            QueuePhase::Entry,
+            QueueAction::Journal(job, prepared),
+        )?;
+        let tx = self
+            .store
+            .db
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let row = validate_job(&tx, &self.config, job)?;
+        matches_original(self.receipt, self.original, &row, &self.config)?;
+        validate_prepared_liability(job, &prepared.storage_liability)?;
+        if row.status != JobStatus::Running {
+            return Err(stale());
+        }
+        let native = digest(&prepared.native_payload);
+        let media = digest(&prepared.prepared_media_evidence);
+        let journal = journal_digest(
+            job,
+            &prepared.codec,
+            &native,
+            &media,
+            &prepared.storage_liability,
+        )?;
+        type JournalRow = (String, String, String, String, String, Vec<u8>, Vec<u8>);
+        let existing:Option<JournalRow>=tx.query_row(
+            "SELECT native_codec,native_payload_digest,prepared_media_digest,prepared_liability_json,journal_evidence_digest,native_payload,prepared_media FROM queue_journal WHERE job_id=?1 AND fence=?2",
+            params![job.lease.job_id.0,decimal(job.lease.fence)],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?))).optional()?;
+        let new_journal = existing.is_none();
+        if let Some((codec, n, m, l, j, np, pm)) = existing {
+            if (codec, n, m, l, j, np, pm)
+                != (
+                    prepared.codec.clone(),
+                    native.clone(),
+                    media.clone(),
+                    encoded(&liability_value(&prepared.storage_liability))?,
+                    journal.clone(),
+                    prepared.native_payload.clone(),
+                    prepared.prepared_media_evidence.clone(),
+                )
+            {
+                return Err(conflict());
+            }
+        } else {
+            tx.execute(
+                "INSERT INTO queue_journal VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+                params![
+                    job.lease.job_id.0,
+                    decimal(job.lease.fence),
+                    prepared.codec,
+                    prepared.native_payload,
+                    native,
+                    prepared.prepared_media_evidence,
+                    media,
+                    encoded(&liability_value(&prepared.storage_liability))?,
+                    journal
+                ],
+            )?;
+        }
+        if new_journal {
+            append_liability(
+                &tx,
+                &row,
+                job.lease.fence,
+                "journal",
+                &prepared.storage_liability,
+            )?;
+        }
+        authorize_session(
+            self.authority,
+            self.principal,
+            self.witness,
+            self.original,
+            self.receipt,
+            QueuePhase::Precommit,
+            QueueAction::Journal(job, prepared),
+        )?;
+        tx.commit()?;
+        authorize_session(
+            self.authority,
+            self.principal,
+            self.witness,
+            self.original,
+            self.receipt,
+            QueuePhase::Release,
+            QueueAction::Journal(job, prepared),
+        )?;
+        Ok(NativeJournalReceipt {
+            native_payload_digest: Digest::from_hex(native).map_err(|_| bad())?,
+            journal_evidence_digest: Digest::from_hex(journal).map_err(|_| bad())?,
+        })
+    }
+}

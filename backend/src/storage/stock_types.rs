@@ -15,6 +15,8 @@ pub struct StockHistoryFrame<'a> {
     pub request: &'a Value,
     pub scope: &'a Scope,
     pub target: &'a RecordRef,
+    /// Validated page and at most one lookahead audit; never the full history.
+    /// Intake is empty. Authority remains bound to the original principal/target.
     pub audits: &'a [Audit],
     pub result: Option<&'a OwnerResult>,
 }

@@ -11,6 +11,8 @@ export interface AtlasCredentials {
   password: string;
 }
 export interface AtlasSessionClient {
+  /** Host rotation/change notification; re-read the canonical session route. */
+  subscribe?: (changed: () => void) => () => void;
   session(signal: AbortSignal): Promise<AtlasSessionInfo | null>;
   signIn(
     credentials: AtlasCredentials,

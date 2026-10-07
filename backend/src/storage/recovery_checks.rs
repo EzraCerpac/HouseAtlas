@@ -220,6 +220,17 @@ pub(super) fn validate_connection<C: Contract>(
             "Stock recovery requires its exact schema and cursor validation peer",
         ));
     }
+    // Native-only images contain one NULL-command lookup per immutable audit.
+    // Check the derived index exhaustively here, rather than on history pages.
+    let lookup_incompatible: bool = db.query_row("SELECT EXISTS(SELECT seq,workspace_id,home_id,record_id,audit_id,command_id FROM stock_history_lookup EXCEPT SELECT seq,workspace_id,home_id,record_id,audit_id,NULL FROM audits) OR EXISTS(SELECT seq,workspace_id,home_id,record_id,audit_id,NULL FROM audits EXCEPT SELECT seq,workspace_id,home_id,record_id,audit_id,command_id FROM stock_history_lookup)", [], |row| row.get(0))?;
+    require(!lookup_incompatible)?;
+    let queue_present: bool = db.query_row("SELECT EXISTS(SELECT 1 FROM queue_physical UNION ALL SELECT 1 FROM queue_aliases UNION ALL SELECT 1 FROM queue_jobs UNION ALL SELECT 1 FROM queue_attempts UNION ALL SELECT 1 FROM queue_journal UNION ALL SELECT 1 FROM queue_evidence UNION ALL SELECT 1 FROM queue_liability_evidence UNION ALL SELECT 1 FROM queue_outcomes)", [], |row| row.get(0))?;
+    if queue_present {
+        return Err(Error::new(
+            "schema-incompatible",
+            "Queue recovery requires its complete intent, evidence and registration validation peer",
+        ));
+    }
     check()?;
     Ok(RecoveryImage {
         contract_version: CONTRACT_VERSION.into(),

@@ -159,7 +159,7 @@ second service framework or raw database handle is exposed.
 
 ## Database and dependencies
 
-The new lineage is `houseatlas-rust-storage/1`, database version 2, distinct from
+The new lineage is `houseatlas-rust-storage/1`, database version 4, distinct from
 published JS database version 3 and record schema 1. `0001_rust_core.sql` starts
 from an empty database, including published durable receipts/reservations/epochs
 in its initial schema. Its own checksum ledger and lineage/contract metadata are
@@ -177,7 +177,7 @@ disposable synthetic store; it creates no audit prehistory.
 Proposed pinned direct dependencies for AT51:
 
 ```toml
-rusqlite = { version = "=0.40.2", features = ["bundled"] }
+rusqlite = { version = "=0.40.2", features = ["bundled", "backup"] }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.151", features = ["arbitrary_precision", "float_roundtrip", "raw_value"] }
 jsonschema = { version = "=0.58.6", default-features = false, features = ["arbitrary-precision"] }
@@ -305,11 +305,36 @@ behavior has not been executed as qualification.
 
 `stock_history_json_with_authorization` uses actual audit sequence order and a
 fixed watermark. Cursors are opaque server UUIDs stored with the actor, scope,
-target and exact query. Every page reauthorizes history and output. All relevant
-audits must have original stock linkage before filtering/paging; unavailable
-native prehistory is not silently omitted. `q` is a literal case-sensitive
-substring of original command ID or committed state. Both `includeArchived`
-values preserve historical tombstones and bind the continuation query.
+target and exact query. Every page reauthorizes history and output. Migration 4
+adds a derived `stock_history_lookup`, populated once from existing immutable
+audits and maintained atomically by audit/link insert triggers. Its partial
+unlinked index checks every target audit before the watermark, including search
+nonmatches; unavailable native prehistory is not silently omitted.
+
+History reads use a deferred WAL snapshot. They retrieve and validate at most
+`pageSize + 1` audit bodies and their complete retained roots, deduplicating root
+validation within the page. Root groups, keys and linkage reads are capped at
+their accepted maximum plus one, with an index for keys by root. Only a needed
+continuation cursor takes a separate short IMMEDIATE transaction, after bounded
+validation finishes; the original authority is checked again before commit and
+output release. Immutable rows and the fixed watermark preserve the read facts
+across that gap. No read-to-write upgrade or automatic retry is introduced.
+
+`q` keeps literal case-sensitive substring semantics over original command IDs
+and the committed state. The finite published domain operation catalogue supplies
+matching IDs; each uses the target/command/sequence index with a bounded limit,
+then sequences are merged before audit hydration. Sparse search therefore does
+not scan arbitrary nonmatching history or change full-page/cursor behavior.
+Both `includeArchived` values preserve historical tombstones and bind the query.
+
+The bounded reader uses validated immutable persistence for unreturned envelopes
+instead of exhaustively revalidating the entire history on every request. Page
+and lookahead roots still receive the same receipt/hash/audit/projection checks.
+`StockHistoryFrame.audits` now means those bounded validated inputs, not all
+target audits. Complete recovery validation must verify derived lookup equality
+and the retained catalogue/stock inputs; native-only recovery checks its NULL
+lookup rows against every already validated native audit. Populated stock/queue
+full-image recovery remains unsupported pending its complete qualified peer.
 
 `checks/stock-healthy.rs` executes fresh create/replace/ordered batch commands,
 two history pages, matching search and reopened durable rows. Its schema peer
@@ -344,12 +369,92 @@ The first noncreate audit can follow an unaudited seed with no retained preimage
 Original native command/guard envelopes are
 absent from v1 receipts, so their hashes cannot honestly be reconstructed; hash
 syntax and persisted key/result/audit linkage are checked. These requested
-native-only signatures lack a stock schema peer and fail closed on a nonempty
-stock journal. Full stock recovery requires an explicit stock-aware companion.
+native-only signatures lack stock/queue evidence peers and fail closed on a
+nonempty stock journal or any registered queue state. Full recovery requires an
+explicit companion that enumerates and validates every retained registration,
+stock intent and qualified evidence codec. A per-registration queue scan does
+not certify a complete recovery image.
 `checks/recovery-healthy.rs` uses actual Rust native semantics and synthetic
 authority/runtime for capture, read-only validation, all-row equality and native
 reopen. No JS oracle, corruption/crash control or physical-original qualification
 runs in this checkpoint. Root reconciliation must enable rusqlite `backup`.
+
+## Durable native write queue
+
+Schema version 3 adds eight queue tables to the existing Rust lineage. Versions
+1 and 2 retain their original SQL. This is an additive Rust schema checkpoint;
+no legacy or live database is imported. `AtlasStore::queue_session` accepts a
+`QueueSessionBinding` borrowing the original typed principal, witness, stock
+request and receipt. Required `QueueAuthorization` callbacks check current
+authority at entry, precommit and release. No bearer grant, principal or witness
+is serialized. The immutable stock request remains data, without authority.
+
+`QueueSession` implements the existing seven-method `jobs::QueueStore` port.
+`into_handles()` returns a store handle and a narrow `QueueJournalPort` handle
+sharing that session. Each synchronous handle borrow ends with its single SQL
+operation. The existing `WriteQueue` and `NativeHomeBoxWriter` therefore claim,
+journal, reauthorize, perform prepared transport I/O, and finish through the
+same Atlas connection while transport runs outside SQL transactions. These
+process-local handles are not `Send`; a host owns its synchronous dispatcher.
+No alternate service framework, raw SQL port or provider transport is added.
+
+Receipts permanently bind workspace/home/actor/mutation identity and the first
+complete queue intent. Digest-equivalent enqueue replay retains the first stock
+envelope and requires authorization of that retained original. Later worker
+operations require its exact original envelope and original witness. Discovery
+returns the retained FIFO intent only after required current discovery checks;
+the owner reparses it with the stock schema peer and supplies the original
+authority handles separately. A session cannot expire another receipt's waiter
+or lease. An earlier waiter without its original witness remains held until its
+owner can address it; this is an explicit capability/liveness limit.
+
+Physical identity and complete registration/configuration remain immutable.
+Admission reuses the native jobs policy inside the same IMMEDIATE transaction
+that reserves the one physical slot and advances its checked fence. Counters,
+timestamps and bytes retain the full `u64` domain as canonical decimal text.
+Each attempt retains its full original lease. Claim, prepared journal and finish
+liability events have distinct origins; maxima within an attempt and checked
+sums across attempts conserve retained liabilities. All orphan references stay
+in immutable events, although the current jobs summary exposes only its first
+orphan identifier. This component performs no byte cleanup or automatic release.
+
+The journal stores exact prepared native bytes, codec, qualified media evidence,
+digests and liability. A request without a media reservation cannot journal
+positive or incomplete media accounting. Its optional prepared evidence may
+describe a qualified no-media preparation; it is not staged provider data.
+Finish atomically stores actual step bytes, immutable full outcome, state and
+liability. Every outcome binds the exact evidence/liability event cut available
+at commit, so later steps cannot qualify an earlier outcome. Evidence envelopes
+bind the exact leased job and journal digest. Response/readback, positive
+no-effect and remote-end references require matching retained evidence.
+
+The owner must qualify opaque provider/media evidence and the original approval,
+graph, source grant and result disclosure through the mandatory authorization
+ports. `authorize_dispatch(job, now)` rechecks current original authority and
+lease before invocation; its returned digests are journal data. The native owner
+must use the dispatcher authorization phase before constructing/invoking its
+qualified operation. A lease or journal receipt supplies no provider authority.
+Logical effect resolution preserves remote activity and liabilities; only
+separately qualified positive end evidence releases a matching physical slot.
+Per-value metadata and step payloads have a 1 MiB engineering bound; codecs have
+a 128-byte bound. These are explicit internal storage limits.
+
+`checks/queue-healthy.rs` runs fresh enqueue, original-intent discovery after
+reopen, native dispatch, observed success and a second reopen, then scans the
+retained queue. It uses the actual published contracts `49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c`
+and domain/jobs `f51bc7962b491faa1cc563f2ec0f737c471e4e26` with synthetic
+authority, clock, prepared transport and evidence bytes. The external compiler
+harness pins rusqlite 0.40.2 (bundled/backup), serde 1.0.229, serde_json 1.0.151
+(arbitrary_precision/float_roundtrip/raw_value), jsonschema 0.58.6
+(arbitrary-precision), sha2 0.10.9, serde_jcs 0.1.0, time 0.3.44, url 2.5.7,
+ryu-js 1.0.2 and regex 1.13.1. Root manifests and locks remain owner-controlled.
+The healthy executables record the supplied exact peer labels through
+`HOUSEATLAS_CONTRACT_PEER` and, for queue, `HOUSEATLAS_DOMAIN_PEER`.
+
+The queue example exercises no held replay, retry, expiry, fault or concurrency
+control. Production grant/witness adapters, prepared provider/media evidence
+qualification, host wiring and full stock/queue recovery-image composition
+remain required. Successful synthetic dispatch does not qualify those peers.
 
 ## Remaining integration and qualification
 

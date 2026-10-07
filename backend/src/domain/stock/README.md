@@ -76,6 +76,14 @@ decoding handles accepted decimal/exponent budgets. Public artifact bytes are
 checked against `maxBytes`; staged import/export `maxRows` and printed bytes
 still require the actual owner's measurements before effects or delivery.
 
+Shared `stockError` results are classified and validated against
+`#/$defs/stockError` before an operation's success-only schema. They retain
+request-ID correlation, current output authority and an empty child-envelope
+requirement, including for batch roots. Successful batches require committed
+success children and retain their ordered record/audit flattening. The domain
+ordering correction is source/compiler qualified only; no error-input probe
+is run or implied by successful ordinary examples.
+
 Invoked native outcomes retain only `active`, `end-unproven` or `ended-proven`
 activity. A `not-dispatched` outcome must be a never-invoked state with empty
 effects and no success. Artifact outputs keep bounded download handles,
@@ -86,10 +94,11 @@ The mandatory injected interfaces are `StockContractPort`,
 `StockAuthorityPort<P>` with associated `Witness`/`Graph`,
 `StockPreparerPort<P,W>`, `StockQueryPort<P,W,G>` and
 `StockCommandPort<P,W,G>`. `NativeStockContract` supplies the genuine AT51
-offline schema port. AT07 transaction storage, AT11 current authority and
-provider/media queue adapters remain integration inputs. The routing,
-preparation, result and digest behavior is coded here; those execution peers
-are not supplied or qualified by this component. Atlas-local
+offline schema port. AT07 transaction storage and AT11 current authority are published owner inputs
+with concrete bindings below. Provider/media queue adapters and complete stock
+graph authority remain integration inputs. Routing, preparation, result and
+digest behavior is coded here; peer implementation and scoped examples do not
+qualify production execution. Atlas-local
 atomic CAS/final graph/witness/receipt persistence is the transaction owner's
 obligation. New source-presence admission remains held pending that reviewed
 composition; frozen record/audit schemas remain unchanged.
@@ -98,9 +107,12 @@ composition; frozen record/audit schemas remain unchanged.
 forms over the existing real `ReadPort<P>`/`NativeStorage`. It retains the original
 principal and canonical payload, validates frozen and exact stock shapes, checks
 scope/target correlation and omits private asset `storageKey`. Output remains
-subject to stock authority disclosure/revalidation. Only an actually empty,
-unfiltered first-page audit sequence can map to stock history; nonempty history
-requires durable original stock command/digest linkage and real opaque paging.
+subject to stock authority disclosure/revalidation. Its required
+`StockHistoryPort<P>` now delegates all ten history forms to the real stock
+history owner, preserving original command/digest/audit linkage and opaque
+paging/search results. `NativeStockReads` implements that port through AT07
+`stock_history_json_with_authorization`. Frozen bare audits are never converted
+into stock events.
 Lists and byte downloads remain owner work. No concrete current stock authority
 composition or production endpoint is enabled by this mapper.
 
@@ -120,9 +132,10 @@ checks original intent, verified durable actor, ordered groups, native command
 and candidate correlation, exact output schemas and ordered public flattening.
 It creates no IDs, timestamps, receipt persistence or authority. Original
 preimages and complete final graph proof remain native transaction obligations;
-the mapper does not reconstruct them from newer reads. AT07's actual atomic
-stock commit carrier and atomic stock executor are still required to bind this
-pure projection to execution. Current stock dispatch must authorize the output and
+the mapper does not reconstruct them from newer reads. AT07 now supplies the
+actual `StockAtlasCommit` carrier and atomic stock executor at `d5161c6` below.
+`NativeAtlasCommands` returns that call's `owner_result()` unchanged. Current
+stock dispatch must authorize the output and
 revalidate its captured principal before release. Frozen scoped JSON execution
 is available through `NativeScopedCommands`; it does not retain stock receipts.
 
@@ -194,3 +207,40 @@ time0.3.44 (`parsing`), serde_jcs0.1.0 (scalar ECMAScript float formatting only)
 sha2 0.10.9. These describe the earlier synthetic checkpoint. See
 `../README.md` for the exact scoped-command compiler peer/manifest pins.
 Root dependencies, locks and generated contracts remain AT51-owned.
+
+## Delivered native owner bindings
+
+`NativeAtlasCommands::from_store(store, authorization, stock_contracts)` binds
+AT07 `d5161c6f86217cddb57113f952576d7f33fa1381`'s actual atomic stock
+executor. It preserves the prepared raw request and original principal and returns
+the durable stock commit's owner result. `NativeStockReads::from_store(store,
+native_contracts, authorization)` supplies `StockHistoryPort` through AT07's
+actual authorized paging/search API; `AtlasReads` preserves that owner envelope.
+No current record or frozen bare audit is used to infer original stock intent.
+
+`NativeStockAuthority` uses actual AT11 original principal/grant revalidation
+and a required `GraphAuthorization` for full original-witness/graph/output
+checks. Its sealed `CapturedAccess` is initial-only, and its mutation context
+borrows the actual transaction guard. `dispatch_prepared` retains this same
+immutable prepared request across native callbacks and outer stock release.
+Full `StockAuthorityPort` capture/disclosure and complete graph facts remain
+host inputs; there is no default authority or production endpoint here.
+
+Retained native entries and complete batch child envelopes use the native
+owner's canonical JSON policy. Numeric spellings such as `1` and `1.0` retain
+their original carriers and intent digests while comparing equivalently; every
+field and array position still participates. Current prepared-request/plan
+identity and stored root/child provenance checks remain exact.
+`examples/canonical_numbers_healthy.rs` supplies ordinary valid single/batch
+evidence-create inputs with those numeric spellings. This follow-up compiles
+the example only; it runs no storage, authority, replay or control probe.
+
+Frozen record reads still invoke the native store's A, while stock history and
+commands invoke borrowed B. A mutex-backed A cannot be reentered from B's held
+access fence. AT07's later supplied checkpoint
+`a0e23b5bbb477e45ab4651f2bf73cf3842f7fbc6` provides durable queue storage and
+native database schema 3. Atomic presence admission, actual authority/provider
+bindings and complete recovery remain host integration duties; provider
+dispatch remains held. See `../README.md` for the earlier pins and fresh
+storage example; older compiler/runtime intervals above retain their original
+scope and are not proof of these new bindings.
