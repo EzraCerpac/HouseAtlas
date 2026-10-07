@@ -143,6 +143,16 @@ number directly rather than convert it to a float or a string. No wire API or
 contract/schema change is required; prior cache amounts already rounded by an
 older reader cannot be recovered without a new source observation.
 
+Maintenance validation reuses the actual contract `JsonNumber` deserializer for
+its lexical processing envelope: at most 4,096 token bytes, explicit decimal
+exponent magnitude at most 4,096, and exponent-minus-fraction-digit magnitude
+at most 4,096. Unsupported spellings fail reader validation before a complete
+generation is staged; they cannot first surface as a Store publication error.
+The same check runs when validating retained projections. Accepted numbers keep
+their exact tokens and the existing finite admission rule; no bound is copied
+into a separate provider policy. Ordinary positive examples cover the accepted
+token/exponent/decimal-shift limits; over-limit rejection controls remain unrun.
+
 Durable amount preservation additionally needs Storage/contract-owner
 reconciliation: `cache_repository::write_homebox` currently calls
 `repository::json`, which uses the native contract's RFC 8785 `canonical_json`.
