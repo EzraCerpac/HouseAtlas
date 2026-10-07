@@ -9,7 +9,7 @@ use crate::media::{
     Cancellation, MediaError, WorkBudget,
     service::{
         DeliveryMode, MediaAccessPort, MediaResponse, MediaService, MediaStoragePort,
-        OwnedDescriptor, ReadMethod,
+        OwnedDescriptor, ReadMethod, StoredAsset,
     },
     types::{AssetRecord, Availability, Lifecycle, Scope},
 };
@@ -110,19 +110,7 @@ impl<'a, S, A, E, C> NativeAtlasAssetDownloads<'a, S, A, E, C> {
             .storage
             .read_owned_asset(p, scope, asset_id)
             .map_err(media_error)?;
-        let record = stored.record;
-        record.validate().map_err(media_error)?;
-        if record.scope() != *scope
-            || record.record_id != asset_id
-            || record.lifecycle != Lifecycle::Active
-            || record.payload.availability != Availability::Available
-            || !record.payload.purpose.is_original()
-            || stored.manifest != record.payload
-            || record.payload.byte_size > crate::media::MAX_BYTES as u64
-        {
-            return Err(StockError::CorrelationMismatch);
-        }
-        Ok(record)
+        validate_current_asset(stored, scope, asset_id)
     }
 
     /// The root output authorizer checks the actual registered handle through
@@ -343,6 +331,31 @@ where
     }
 }
 
+// Classify only after the existing authorized storage read. Owner-data
+// inconsistencies are distinct from ordinary download eligibility failures.
+fn validate_current_asset(
+    stored: StoredAsset,
+    scope: &Scope,
+    asset_id: &str,
+) -> StockResult<AssetRecord> {
+    let record = stored.record;
+    record.validate().map_err(media_error)?;
+    if record.scope() != *scope
+        || record.record_id != asset_id
+        || stored.manifest != record.payload
+        || record.payload.byte_size > crate::media::MAX_BYTES as u64
+    {
+        return Err(StockError::CorrelationMismatch);
+    }
+    if record.lifecycle != Lifecycle::Active
+        || record.payload.availability != Availability::Available
+        || !record.payload.purpose.is_original()
+    {
+        return Err(StockError::Domain(crate::domain::DomainError::NotFound));
+    }
+    Ok(record)
+}
+
 fn token() -> StockResult<String> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes).map_err(|_| StockError::OwnerUnavailable)?;
@@ -384,5 +397,93 @@ mod tests {
             media_error(MediaError::Unavailable),
             StockError::OwnerUnavailable
         );
+    }
+
+    fn stored_asset() -> StoredAsset {
+        let record: AssetRecord = serde_json::from_value(json!({
+            "schemaVersion":1,"recordType":"asset",
+            "recordId":"00000000-0000-4000-8000-000000000600",
+            "workspaceId":"00000000-0000-4000-8000-000000000001",
+            "homeId":"00000000-0000-4000-8000-000000000002",
+            "revision":1,"lifecycle":"active",
+            "createdAt":"2026-02-01T12:00:00Z","updatedAt":"2026-02-01T12:00:00Z",
+            "lastAuditId":"00000000-0000-4000-8000-000000010600",
+            "payload":{"owner":"atlas","purpose":"evidence-original",
+                "storageKey":"synthetic/original-600","sha256":"a".repeat(64),
+                "byteSize":42,"contentType":"text/plain",
+                "sourceLicense":{"status":"unknown","reference":null},
+                "availability":"available","previewPolicy":"download-only",
+                "evidenceIds":["00000000-0000-4000-8000-000000000100"]}
+        }))
+        .expect("valid synthetic Media record");
+        StoredAsset {
+            manifest: record.payload.clone(),
+            record,
+        }
+    }
+
+    // Pure record classification, not a storage/authorization failure control.
+    #[test]
+    fn download_eligibility_preserves_not_found() {
+        use crate::media::types::AssetPurpose;
+        let original = stored_asset();
+        let scope = original.record.scope();
+        let id = original.record.record_id.clone();
+        assert_eq!(
+            validate_current_asset(stored_asset(), &scope, &id),
+            Ok(original.record)
+        );
+        for (lifecycle, availability, purpose) in [
+            (
+                Lifecycle::Tombstoned,
+                Availability::Available,
+                AssetPurpose::EvidenceOriginal,
+            ),
+            (
+                Lifecycle::Active,
+                Availability::Missing,
+                AssetPurpose::EvidenceOriginal,
+            ),
+            (
+                Lifecycle::Active,
+                Availability::Available,
+                AssetPurpose::DerivedPreview,
+            ),
+        ] {
+            let mut stored = stored_asset();
+            stored.record.lifecycle = lifecycle;
+            stored.record.payload.availability = availability;
+            stored.record.payload.purpose = purpose;
+            stored.manifest = stored.record.payload.clone();
+            assert_eq!(
+                validate_current_asset(stored, &scope, &id),
+                Err(StockError::Domain(crate::domain::DomainError::NotFound))
+            );
+        }
+    }
+
+    #[test]
+    fn inconsistent_owner_data_keeps_correlation_error() {
+        let original = stored_asset();
+        let scope = original.record.scope();
+        let id = original.record.record_id;
+        for mismatch in 0..4 {
+            let mut stored = stored_asset();
+            match mismatch {
+                0 => stored.record.home_id = "00000000-0000-4000-8000-000000000003".into(),
+                1 => stored.record.record_id = "00000000-0000-4000-8000-000000000601".into(),
+                2 => stored.manifest.byte_size += 1,
+                _ => {
+                    stored.record.payload.byte_size = crate::media::MAX_BYTES as u64 + 1;
+                    stored.manifest = stored.record.payload.clone();
+                }
+            }
+            // Ineligibility must not erase a genuine owner inconsistency.
+            stored.record.lifecycle = Lifecycle::Tombstoned;
+            assert_eq!(
+                validate_current_asset(stored, &scope, &id),
+                Err(StockError::CorrelationMismatch)
+            );
+        }
     }
 }
