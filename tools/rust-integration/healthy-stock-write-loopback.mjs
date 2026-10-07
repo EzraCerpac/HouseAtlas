@@ -298,7 +298,7 @@ try {
     assert.equal(row.wire.commandId,'atlas.'+row.expected.target.recordType+'.get');
     assert.deepEqual(row.wire.data.records,[row.expected]);assert.equal(row.wire.data.nextCursor,null);assert.equal(row.wire.data.sourceStatus,'current');
   }
-  // Fresh circuit and identity singles plus identity-only and mixed batches.
+  // Fresh circuit and identity singles plus identity-only and a mixed derived batch.
   // All inputs are the healthy owner's public fixtures with real retained guards.
   const stockWrites = await evaluate(`(async () => {
     const prefix=${JSON.stringify(prefix)}, scope=${JSON.stringify(view.scope)}, results=[];
@@ -320,7 +320,9 @@ try {
     for(const child of children){const path=prefix+'/records/identity/'+child.target.recordId;records.push(await call(path));histories.push(await call(path+'/history'));}
     const admission=await call('/api/atlas/stock/v3/workspaces/'+scope.workspaceId+'/homes/'+scope.homeId+'/admission');
     const direct=command('identity',923,1204,1304,{kind:'item',evidenceIds:[U(100)]});
-    const mixedChildren=[command('identity',924,1205,1305,{kind:'item',evidenceIds:[U(100)]}),command('circuit',925,1206,1306,{label:null,panel:null,evidenceIds:[U(100)]})];
+    const unresolvedSource={sourceInstanceId:U(10),collectionId:'synthetic-collection-a',sourceKind:'homebox-entity',externalId:U(599)};
+    const derivedBinding=command('binding',926,1208,1308,{atlasId:U(200),source:unresolvedSource,reviewStatus:'proposed',evidenceIds:[U(100)]});
+    const mixedChildren=[command('identity',924,1205,1305,{kind:'item',evidenceIds:[U(100)]}),command('circuit',925,1206,1306,{label:null,panel:null,evidenceIds:[U(100)]}),derivedBinding];
     const mixed={...batch,requestId:U(1207),target:{authority:'atlas',kind:'batch',batchId:U(1401)},payload:{commands:mixedChildren},idempotencyKey:U(1307),reason:'Healthy disposable ordered mixed native stock batch'};
     const third=await call(endpoint,direct,nextSession.csrfToken);
     const directPath=prefix+'/records/identity/'+U(923);
@@ -328,13 +330,17 @@ try {
     const fourth=await call(endpoint,mixed,nextSession.csrfToken);
     const mixedRecords=[],mixedHistories=[];
     for(const child of mixedChildren){const path=prefix+'/records/'+child.target.recordType+'/'+child.target.recordId;mixedRecords.push(await call(path));mixedHistories.push(await call(path+'/history'));}
-    return {results,admission,intents:[single,batch,direct,mixed],receipts:[first,second,third,fourth],records:[firstRecord,...records,directRecord,...mixedRecords],histories:[firstHistory,...histories,directHistory,...mixedHistories]};
+    const canonical=value=>Array.isArray(value)?'['+value.map(canonical).join(',')+']':value!==null&&typeof value==='object'
+      ?'{'+Object.keys(value).sort().map(key=>JSON.stringify(key)+':'+canonical(value[key])).join(',')+'}':JSON.stringify(value);
+    const measured=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(canonical(mixedRecords.at(-1))));
+    const bindingDigest=Array.from(new Uint8Array(measured),byte=>byte.toString(16).padStart(2,'0')).join('');
+    return {results,admission,intents:[single,batch,direct,mixed],receipts:[first,second,third,fourth],records:[firstRecord,...records,directRecord,...mixedRecords],histories:[firstHistory,...histories,directHistory,...mixedHistories],bindingDigest};
   })()`);
-  assert.equal(stockWrites.results.length,19);
+  assert.equal(stockWrites.results.length,21);
   assert.equal(stockWrites.admission.commandIds.length,73);
   assert.equal(new Set(stockWrites.admission.commandIds).size,73);
   const derived=['binding.create','binding.review','binding.restore','binding.remap','geometry.create','asset.review'];
-  assert(derived.every(id=>stockWrites.admission.commandIds.includes('atlas.'+id)), 'Bounded single derived forms are advertised');
+  assert(derived.every(id=>stockWrites.admission.commandIds.includes('atlas.'+id)), 'Bounded derived forms are advertised');
   assert(!stockWrites.admission.commandIds.includes('atlas.asset.create'), 'Standalone asset creation still requires genuine staged Media intake');
   const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
   for(const [index,receipt] of stockWrites.receipts.entries()){
@@ -352,10 +358,18 @@ try {
   for(const [index,row] of receiptRows.entries()){
     const record=stockWrites.records[index],history=stockWrites.histories[index];
     assert.deepEqual(row,{target:intents[index].target,revision:record.revision,lifecycle:record.lifecycle,payload:record.payload});
-    assert.deepEqual(row.payload,intents[index].payload);assert.equal(record.recordId,intents[index].target.recordId);
+    const expectedPayload=intents[index].commandId==='atlas.binding.create'
+      ? {...intents[index].payload,sourceState:'unresolved'} : intents[index].payload;
+    assert.deepEqual(row.payload,expectedPayload);assert.equal(record.recordId,intents[index].target.recordId);
     assert.equal(record.revision,1);assert.equal(history.length,1);assert.equal(history[0].actorId,writes.actorId);
     assert.equal(history[0].auditId,auditIds[index]);assert.equal(history[0].resultRevision,1);
   }
+  const binding=stockWrites.records.at(-1), bindingHistory=stockWrites.histories.at(-1);
+  assert.equal(binding.recordType,'binding');assert.equal(binding.payload.sourceState,'unresolved');
+  assert.equal(binding.payload.reviewStatus,'proposed');assert.equal(binding.payload.source.externalId,'00000000-0000-4000-8000-000000000599');
+  assert.equal(bindingHistory[0].record.recordId,binding.recordId);
+  assert.equal(bindingHistory[0].beforeDigest,null);assert.equal(bindingHistory[0].afterDigest,stockWrites.bindingDigest);
+  assert.equal(binding.lastAuditId,bindingHistory[0].auditId);
   assert(observedUrls.every(url=>url.startsWith(origin+'/')), 'All ordinary core/media/stock requests stay on loopback');
   assert(responses.every(r=>r.status===200 || (r.status===204 && r.url===origin+'/favicon.ico')), 'All observed core flows remain successful ordinary responses');
   assert.equal(runtimeErrors.length,0);
@@ -368,8 +382,8 @@ try {
     "print(json.dumps({'records':count(root/'atlas.sqlite','records'),'projections':count(root/'atlas.sqlite','projections'),'audits':count(root/'atlas.sqlite','audits'),'receipts':count(root/'atlas.sqlite','receipts'),'batchReceipts':count(root/'atlas.sqlite','batch_receipts'),'assetManifests':count(root/'atlas.sqlite','asset_manifests'),'stockOperations':count(root/'atlas.sqlite','stock_operations'),'stockGroups':count(root/'atlas.sqlite','stock_groups'),'stockKeys':count(root/'atlas.sqlite','stock_keys'),'stockAuditLinks':count(root/'atlas.sqlite','stock_audit_links'),'stockHistoryCursors':count(root/'atlas.sqlite','stock_history_cursors'),'sessions':count(root/'access.sqlite','access_sessions')}))"
   ].join('\n');
   const rows = spawnSync('python3', ['-c', sql, data], { encoding: 'utf8' });
-  assert.equal(rows.status, 0); assert.deepEqual(JSON.parse(rows.stdout), {records:17,projections:2,audits:11,receipts:11,batchReceipts:3,assetManifests:2,stockOperations:4,stockGroups:6,stockKeys:8,stockAuditLinks:6,stockHistoryCursors:0,sessions:1});
-  const evidence = { rust:serviceOutput.trim(), browser:version.product, apiReads:api.map(({path,status})=>({path,status})), coreReads, writes, media, stockDownloads, stockWrites, stock:stock.map(row=>({path:row.path,status:row.status,frozenStatus:row.frozenStatus,commandId:row.wire.commandId,revision:row.expected.revision,matchesFrozen:true})), authResponses:responses.filter(r=>r.url.startsWith(origin+'/api/atlas/auth/')).map(r=>({path:new URL(r.url).pathname,status:r.status})), scopedRead:result.status, rooms:1, items:1, persisted:JSON.parse(rows.stdout), observedRequests:observedUrls.length, scope:'Actual native schema/graph/JCS, Rust/SQLite/access/domain/React positive loopback TLS session/login/logout, canonical paged reads, fresh circuit create, atomic local identity batch, native owned PNG/text availability and actual GET/HEAD download plus safe PNG preview, and genuine stock circuit/asset reads compared with actual frozen SQLite rows. Fresh stock circuit and identity singles plus identity-only and mixed circuit/identity batches use the actual original AT11 fence and native atomic stock journal. Genuine stock PNG/text handles issue through native WebMCP/HTTP and redeem current originals with GET/HEAD. Native issued metadata is visible before return; the download link UI remains unbound. The editor HTTP catalog has 31 reads, 31 direct writes and one restricted batch arm; this flow qualifies only the exercised creates, not all mapped forms. No rejected request, stopped control, replay, stock history request, recovery or external provider.' };
+  assert.equal(rows.status, 0); assert.deepEqual(JSON.parse(rows.stdout), {records:18,projections:2,audits:12,receipts:12,batchReceipts:3,assetManifests:2,stockOperations:4,stockGroups:7,stockKeys:9,stockAuditLinks:7,stockHistoryCursors:0,sessions:1});
+  const evidence = { rust:serviceOutput.trim(), browser:version.product, apiReads:api.map(({path,status})=>({path,status})), coreReads, writes, media, stockDownloads, stockWrites, stock:stock.map(row=>({path:row.path,status:row.status,frozenStatus:row.frozenStatus,commandId:row.wire.commandId,revision:row.expected.revision,matchesFrozen:true})), authResponses:responses.filter(r=>r.url.startsWith(origin+'/api/atlas/auth/')).map(r=>({path:new URL(r.url).pathname,status:r.status})), scopedRead:result.status, rooms:1, items:1, persisted:JSON.parse(rows.stdout), observedRequests:observedUrls.length, scope:'Actual native schema/graph/JCS, Rust/SQLite/access/domain/React positive loopback TLS session/login/logout, canonical paged reads, fresh circuit create, atomic local identity batch, native owned PNG/text availability and actual GET/HEAD download plus safe PNG preview, and genuine stock circuit/asset reads compared with actual frozen SQLite rows. Fresh stock circuit and identity singles plus identity-only and mixed circuit/identity/unresolved binding batches use the actual original AT11 fence and native atomic stock journal. The mixed derived binding has a genuine configured same-scope source partition, no source-presence assertion, and a measured canonical record digest linked to its native history. Genuine stock PNG/text handles issue through native WebMCP/HTTP and redeem current originals with GET/HEAD. Native issued metadata is visible before return; the download link UI remains unbound. The editor HTTP catalog advertises 73 stock operations, including six specialized mappings; this flow qualifies only the exercised creates. No rejected request, stopped control, replay, stock history request, recovery or external provider.' };
   if (process.env.HOUSEATLAS_EVIDENCE) writeFileSync(process.env.HOUSEATLAS_EVIDENCE, JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));
 } finally {
