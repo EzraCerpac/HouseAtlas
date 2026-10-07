@@ -1,0 +1,107 @@
+{
+  "referenceRelease": "v0.26.2",
+  "referenceSourceCommit": "e01dd737238a3fa7e1a6454b37de6c6fc88c86e4",
+  "observedTargetVersion": null,
+  "providerQualified": false,
+  "meaning": "Official source/schema research. Digests qualify inspected reference bytes, never target access, deployed behavior, TLS, tenant enforcement or native-route permission.",
+  "files": [
+    {
+      "path": "backend/app/api/static/docs/swagger.json",
+      "url": "https://raw.githubusercontent.com/sysadminsmedia/homebox/e01dd737238a3fa7e1a6454b37de6c6fc88c86e4/backend/app/api/static/docs/swagger.json",
+      "bytes": 216647,
+      "sha256": "5da7752182cb6172db0550cbd799ee340836d3dba8ceaff7c6ed12976f9e3493"
+    },
+    {
+      "path": "backend/app/api/handlers/v1/v1_ctrl_entities.go",
+      "url": "https://raw.githubusercontent.com/sysadminsmedia/homebox/e01dd737238a3fa7e1a6454b37de6c6fc88c86e4/backend/app/api/handlers/v1/v1_ctrl_entities.go",
+      "bytes": 19776,
+      "sha256": "4e8064b6dd63fdbdd65e466a470aaef44838d7e23fb10ba3fe0764a2a65d29d4"
+    },
+    {
+      "path": "backend/app/api/handlers/v1/v1_ctrl_maint_entry.go",
+      "url": "https://raw.githubusercontent.com/sysadminsmedia/homebox/e01dd737238a3fa7e1a6454b37de6c6fc88c86e4/backend/app/api/handlers/v1/v1_ctrl_maint_entry.go",
+      "bytes": 1777,
+      "sha256": "70d015f0b88c76f21b1deab8038e95c90c0f68a48cbd3fd87f191ec19d496020"
+    },
+    {
+      "path": "backend/internal/data/repo/repo_entities.go",
+      "url": "https://raw.githubusercontent.com/sysadminsmedia/homebox/e01dd737238a3fa7e1a6454b37de6c6fc88c86e4/backend/internal/data/repo/repo_entities.go",
+      "bytes": 87660,
+      "sha256": "56758719661cf36f2799879656519589a7a89b5dcc66341f1abcb7a43cf353d8"
+    },
+    {
+      "path": "backend/internal/data/repo/repo_entity_types.go",
+      "url": "https://raw.githubusercontent.com/sysadminsmedia/homebox/e01dd737238a3fa7e1a6454b37de6c6fc88c86e4/backend/internal/data/repo/repo_entity_types.go",
+      "bytes": 5866,
+      "sha256": "7fba8c05d01c5677d8b22051203f095349ed45e49002f4eb838c8c5933150906"
+    },
+    {
+      "path": "backend/internal/data/repo/repo_item_attachments.go",
+      "url": "https://raw.githubusercontent.com/sysadminsmedia/homebox/e01dd737238a3fa7e1a6454b37de6c6fc88c86e4/backend/internal/data/repo/repo_item_attachments.go",
+      "bytes": 30526,
+      "sha256": "32933019f370fc8a5dfc0fd7dfbe3173917d1c000ca64af7a9903cdafad3cfda"
+    },
+    {
+      "path": "backend/internal/data/repo/repo_maintenance_entry.go",
+      "url": "https://raw.githubusercontent.com/sysadminsmedia/homebox/e01dd737238a3fa7e1a6454b37de6c6fc88c86e4/backend/internal/data/repo/repo_maintenance_entry.go",
+      "bytes": 6530,
+      "sha256": "87b27c33a14cff9bb8274f97f4ae02278dcc400b5c78786bd7c9f3484c2088a8"
+    },
+    {
+      "path": "backend/internal/data/repo/repo_maintenance.go",
+      "url": "https://raw.githubusercontent.com/sysadminsmedia/homebox/e01dd737238a3fa7e1a6454b37de6c6fc88c86e4/backend/internal/data/repo/repo_maintenance.go",
+      "bytes": 2232,
+      "sha256": "be676306a1da412d543a2ecd0a0d0d3566691b83dde4dbe64bdadc2cc5b7d296"
+    },
+    {
+      "path": "backend/internal/data/repo/pagination.go",
+      "url": "https://raw.githubusercontent.com/sysadminsmedia/homebox/e01dd737238a3fa7e1a6454b37de6c6fc88c86e4/backend/internal/data/repo/pagination.go",
+      "bytes": 564,
+      "sha256": "60d9ad54c7904186798dede37ea1d0daca67302d7965398c65390822a5592b75"
+    },
+    {
+      "path": "backend/internal/data/types/date.go",
+      "url": "https://raw.githubusercontent.com/sysadminsmedia/homebox/e01dd737238a3fa7e1a6454b37de6c6fc88c86e4/backend/internal/data/types/date.go",
+      "bytes": 2244,
+      "sha256": "2a3404b7f8af75747ff66f7ba654fa58da176ed7ffbc562642df140efd76fb08"
+    },
+    {
+      "path": "frontend/pages/item/[id]/index.vue",
+      "url": "https://raw.githubusercontent.com/sysadminsmedia/homebox/e01dd737238a3fa7e1a6454b37de6c6fc88c86e4/frontend/pages/item/[id]/index.vue",
+      "bytes": 26856,
+      "sha256": "0ad6c9ccb30e3d6108f326c85d37634176bdeee44d0b41d006df6bc73e2d6e22"
+    },
+    {
+      "path": "frontend/pages/item/[id]/index/edit.vue",
+      "url": "https://raw.githubusercontent.com/sysadminsmedia/homebox/e01dd737238a3fa7e1a6454b37de6c6fc88c86e4/frontend/pages/item/[id]/index/edit.vue",
+      "bytes": 34591,
+      "sha256": "9fc2877e76171601eb8b1149ce4144b89c1ad6850c16211549cec3bc12b4f2a4"
+    },
+    {
+      "path": "frontend/pages/item/[id]/index/maintenance.vue",
+      "url": "https://raw.githubusercontent.com/sysadminsmedia/homebox/e01dd737238a3fa7e1a6454b37de6c6fc88c86e4/frontend/pages/item/[id]/index/maintenance.vue",
+      "bytes": 451,
+      "sha256": "b013c997a2374a0d08e0187d61105f5bb873d04d46495abbff0d51a69d955960"
+    },
+    {
+      "path": "frontend/pages/location/[id]/index.vue",
+      "url": "https://raw.githubusercontent.com/sysadminsmedia/homebox/e01dd737238a3fa7e1a6454b37de6c6fc88c86e4/frontend/pages/location/[id]/index.vue",
+      "bytes": 228,
+      "sha256": "34f2dad6d384962e958d3e7d9f5aa60ca11b1dbc01a628503b23d4cdd6b65539"
+    },
+    {
+      "path": "frontend/pages/location/[id]/index/edit.vue",
+      "url": "https://raw.githubusercontent.com/sysadminsmedia/homebox/e01dd737238a3fa7e1a6454b37de6c6fc88c86e4/frontend/pages/location/[id]/index/edit.vue",
+      "bytes": 19661,
+      "sha256": "a250763e8c62197d0f69a417a5f95a2933fff53e5e1b7a78dcc40d9bf7d150f1"
+    },
+    {
+      "path": "frontend/pages/location/[id]/index/index.vue",
+      "url": "https://raw.githubusercontent.com/sysadminsmedia/homebox/e01dd737238a3fa7e1a6454b37de6c6fc88c86e4/frontend/pages/location/[id]/index/index.vue",
+      "bytes": 12202,
+      "sha256": "cc2de1b9f39273014af0cd7be28d627036cdc1580943da0c818e59cc037b591f"
+    }
+  ],
+  "releaseTagCommit": "e01dd737238a3fa7e1a6454b37de6c6fc88c86e4",
+  "releaseTagReceipt": "https://api.github.com/repos/sysadminsmedia/homebox/git/ref/tags/v0.26.2"
+}

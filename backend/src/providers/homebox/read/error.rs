@@ -20,7 +20,7 @@ impl ErrorCode {
             Self::Timeout => "HomeBox read exceeded its time limit.",
             Self::Auth => "HomeBox access was denied; cached access requires scope revalidation.",
             Self::WrongScope => "HomeBox response does not match the registered source partition.",
-            Self::InvalidSchema => "HomeBox metadata failed the pinned synthetic contract.",
+            Self::InvalidSchema => "HomeBox metadata failed the pinned wire contract.",
             Self::Pagination => {
                 "HomeBox pagination did not complete consistently within its limits."
             }

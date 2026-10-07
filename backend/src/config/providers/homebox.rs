@@ -26,6 +26,8 @@ pub struct TrustedHomeBoxSource {
     reader_registration: read::SourceRegistration,
     limits: read::Limits,
     navigation: Option<read::NativeNavigation>,
+    stock_navigation: Option<read::StockNavigation>,
+    stock_dialect: bool,
 }
 impl TrustedHomeBoxSource {
     pub fn new(
@@ -93,7 +95,45 @@ impl TrustedHomeBoxSource {
             reader_registration,
             limits,
             navigation,
+            stock_navigation: None,
+            stock_dialect: false,
         })
+    }
+
+    /// Trusted server selection of the pinned stock wire contract. This creates
+    /// no source grant, credential, installed-build qualification or native link.
+    pub fn new_stock(
+        origin: &str,
+        registration: storage::SourceRegistration,
+        limits: read::Limits,
+        navigation: Option<read::StockNavigation>,
+    ) -> Result<Self, ConfigError> {
+        let mut configured = Self::new(origin, registration, limits, None)?;
+        if let Some(navigation) = &navigation {
+            for native in [&navigation.locations, &navigation.items]
+                .into_iter()
+                .flatten()
+            {
+                let endpoint = read::SourceEndpoint::https(&native.origin, native.scope.clone())
+                    .map_err(|_| ConfigError::InvalidNavigation)?;
+                if endpoint.scope() != &configured.scope()
+                    || endpoint.origin().origin().ascii_serialization() != configured.origin
+                {
+                    return Err(ConfigError::InvalidNavigation);
+                }
+            }
+        }
+        configured.stock_navigation = navigation;
+        configured.stock_dialect = true;
+        Ok(configured)
+    }
+
+    pub fn metadata_dialect(&self) -> &'static str {
+        if self.stock_dialect {
+            crate::providers::homebox::wire::DIALECT
+        } else {
+            read::METADATA_DIALECT
+        }
     }
 
     pub fn registration(&self) -> &storage::SourceRegistration {
@@ -124,13 +164,23 @@ impl TrustedHomeBoxSource {
     ) -> Result<read::HomeBoxReader<read::HttpTransport<P>, K>, ConfigError> {
         let transport = read::HttpTransport::new(self.endpoint()?, credentials, self.limits)
             .map_err(|_| ConfigError::InvalidEndpoint)?;
-        read::HomeBoxReader::new(
-            self.reader_registration.clone(),
-            transport,
-            clock,
-            self.limits,
-            self.navigation.clone(),
-        )
+        if self.stock_dialect {
+            read::HomeBoxReader::new_stock(
+                self.reader_registration.clone(),
+                transport,
+                clock,
+                self.limits,
+                self.stock_navigation.clone(),
+            )
+        } else {
+            read::HomeBoxReader::new(
+                self.reader_registration.clone(),
+                transport,
+                clock,
+                self.limits,
+                self.navigation.clone(),
+            )
+        }
         .map_err(|_| ConfigError::InvalidNavigation)
     }
 }
