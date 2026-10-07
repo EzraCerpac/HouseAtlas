@@ -67,6 +67,7 @@ fn main() -> Result<(), lifecycle::Failure> {
 async fn run() -> Result<(), lifecycle::Failure> {
     let config = Config::from_args().map_err(|e| format!("HouseAtlas settings: {e}"))?;
     let files = Arc::new(frontend(&config.frontend)?);
+    let homebox_cache_sources = lifecycle::cached_homebox_sources()?;
     let tls =
         axum_server::tls_rustls::RustlsConfig::from_pem_file(&config.cert, &config.key).await?;
     let listener = TcpListener::bind(config.listen)?;
@@ -82,7 +83,7 @@ async fn run() -> Result<(), lifecycle::Failure> {
         .lock()
         .map_err(|_| "Storage unavailable")?
         .database_version();
-    let host = Host::new(core, origin.clone(), files)?;
+    let host = Host::new(core, origin.clone(), files, homebox_cache_sources)?;
     println!(
         "SQLite {} / record database schema {}",
         rusqlite::version(),

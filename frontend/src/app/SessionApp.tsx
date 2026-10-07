@@ -11,6 +11,7 @@ import { App } from "./App";
 import { BrandMark, Heading } from "./components";
 import type { AtlasClient } from "./types";
 import type { Scope } from "../api/generated/contracts.js";
+import type { AtlasEditingClient } from "./editing";
 import type {
   AtlasCredentials,
   AtlasSessionClient,
@@ -31,6 +32,7 @@ export interface SessionAppProps {
   sessions: AtlasSessionClient;
   accessEvents?: EventTarget;
   stock?: StockApplicationPorts;
+  editing?: AtlasEditingClient;
 }
 /** Optional application-auth shell. It does not provision accounts, grant home
  * membership or authorize a source. Protected browsing is still owned by App. */
@@ -39,6 +41,7 @@ export function SessionApp({
   sessions,
   accessEvents,
   stock,
+  editing,
 }: SessionAppProps) {
   const [state, setState] = useState<SessionState>({ status: "loading" });
   const generation = useRef(0),
@@ -118,6 +121,7 @@ export function SessionApp({
         }}
         {...(accessEvents ? { accessEvents } : {})}
         {...(onScopeCommit ? { onScopeCommit } : {})}
+        {...(editing ? { editing } : {})}
       />
     );
     return stock ? (

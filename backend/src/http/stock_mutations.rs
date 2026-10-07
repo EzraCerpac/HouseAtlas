@@ -38,7 +38,7 @@ fn require(value: bool) -> st::StockResult<()> {
 fn supported(request: &st::ValidatedRequest) -> st::StockResult<()> {
     use st::OperationId as O;
     match request.id() {
-        O::AtlasCircuitCreate => Ok(()),
+        O::AtlasCircuitCreate | O::AtlasLocationSemanticsReplace => Ok(()),
         O::AtlasBatchExecute
             if !request.children().is_empty()
                 && request

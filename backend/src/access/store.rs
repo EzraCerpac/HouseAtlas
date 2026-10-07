@@ -80,6 +80,12 @@ impl Store {
         Self::initialize(db)
     }
 
+    pub(super) fn open_existing(path: &Path) -> AccessResult<Self> {
+        Ok(Self {
+            db: super::existing::open(path)?,
+        })
+    }
+
     fn initialize(mut db: Connection) -> AccessResult<Self> {
         db.pragma_update(None, "foreign_keys", true)?;
         db.busy_timeout(Duration::from_millis(5000))?;

@@ -1,4 +1,13 @@
 //! Minimum healthy fixture setup through the actual module APIs.
+pub mod providers {
+    pub mod authority;
+    pub mod homebox_refresh;
+    pub mod network;
+}
+pub mod recovery {
+    pub mod host;
+    pub mod reopen;
+}
 use crate::{
     access as a,
     app::{Access, Core, ReadAuthority, ServerRuntime, Store},
@@ -16,6 +25,28 @@ use std::{
 };
 
 pub type Failure = Box<dyn std::error::Error + Send + Sync>;
+/// Trusted settings for the same public disposable fixture used by prepare.
+/// The metadata origin is never contacted; cached reads create no provider.
+pub fn cached_homebox_sources()
+-> Result<Vec<crate::config::providers::homebox::TrustedHomeBoxSource>, Failure> {
+    let fixture = fixture()?;
+    let registration = serde_json::from_value(
+        fixture["sources"]
+            .as_array()
+            .ok_or("Missing fixture registrations")?
+            .first()
+            .ok_or("Missing fixture HomeBox registration")?
+            .clone(),
+    )?;
+    Ok(vec![
+        crate::config::providers::homebox::TrustedHomeBoxSource::new(
+            "https://homebox.example.invalid",
+            registration,
+            crate::providers::homebox::read::Limits::default(),
+            None,
+        )?,
+    ])
+}
 pub fn fixture() -> Result<Value, Failure> {
     let mut v: Value = serde_json::from_str(include_str!(
         "../../../packages/contracts/fixtures/plan-free.snapshot.json"
@@ -181,7 +212,7 @@ pub fn prepare(directory: &Path, origin: &str) -> Result<Core, Failure> {
     drop(access);
     // Reopen both real databases before any HTTP read. No fixture facade caches
     // the snapshot, principal or session for the running application.
-    let access: Access = Arc::new(Mutex::new(a::AccessBoundary::open(
+    let access: Access = Arc::new(Mutex::new(a::AccessBoundary::open_existing(
         &access_path,
         a::AccessConfig::new(vec![origin.into()])?,
     )?));

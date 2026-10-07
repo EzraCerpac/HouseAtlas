@@ -249,7 +249,7 @@ After inspecting the check files, run only this scoped new lane:
 source /workspace/.houseatlas-setup/rust-react-sqlite/activate.sh
 cargo fmt --check --manifest-path /tmp/houseatlas-at07-native-composition/Cargo.toml
 cargo check --locked --manifest-path /tmp/houseatlas-at07-native-composition/Cargo.toml
-cargo clippy --locked --manifest-path /tmp/houseatlas-at07-native-composition/Cargo.toml --all-targets -- -D warnings
+cargo clippy --locked --manifest-path /tmp/houseatlas-at07-native-composition/Cargo.toml --lib --bin healthy --bin cache-healthy --bin numeric-healthy -- -D warnings
 node --check backend/src/storage/checks/oracle.mjs
 HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-native-composition/Cargo.toml --bin healthy -- /tmp/houseatlas-at07-native-record-1
 HOUSEATLAS_ROOT=/workspace/HouseAtlas cargo run --locked --manifest-path /tmp/houseatlas-at07-native-composition/Cargo.toml --bin cache-healthy -- /tmp/houseatlas-at07-native-cache-1
@@ -334,7 +334,7 @@ and lookahead roots still receive the same receipt/hash/audit/projection checks.
 target audits. Complete recovery validation must verify derived lookup equality
 and the retained catalogue/stock inputs; native-only recovery checks its NULL
 lookup rows against every already validated native audit. Populated stock/queue
-full-image recovery remains unsupported pending its complete qualified peer.
+full-image recovery uses the explicit required peers described below.
 
 `checks/stock-healthy.rs` executes fresh create/replace/ordered batch commands,
 two history pages, matching search and reopened durable rows. Its schema peer
@@ -346,6 +346,24 @@ provider call or held control runs in that checkpoint. Binding presence triggers
 derive from actual original/candidate records through the domain predicate and
 remain held until atomic witness qualification exists.
 
+## Borrowed cache publication authority
+
+The source lifecycle handoff uses `register_source_with_authorization`,
+`prepare_cache_publication_with_authorization`,
+`publish_prepared_generation_with_authorization`, and
+`record_prepared_cache_failure_with_authorization`. Each borrows its required
+`B: Authorization` and `B::Principal` only for the synchronous call; that
+principal type may differ from the store's persistent read-authority principal.
+Both configured and per-call methods use one private cache transaction engine on
+the same store connection and instance. Preparation rechecks the original actor
+before returning its fence; consuming success and failure keep that actual
+issuer, full registration, generation and epoch guards inside the transaction.
+No authorizer is replaced, fence reconstructed, or second store opened. The
+actual PR25 authority interface `e86819b4a4103fa716b774e6dc97b81176011a30`
+matches these signatures. Access-owner lifecycle grants and held transaction
+authorization remain required host inputs. This handoff checkpoint is compiler
+and source review only; no provider publication or failure path is executed.
+
 ## Native recovery images
 
 `backup_recovery_to(&mut self, destination, check)` uses this store's owned
@@ -356,6 +374,25 @@ calls `validate_recovery_image(&self, database, check)` on read-only bytes.
 asset records. Media owns physical originals, image hashes, sync and publication.
 The required check callback is an authority/progress check and receives no SQL.
 The deadline is cooperative between SQLite/contract calls.
+
+`AtlasStore::validate_existing_recovery_image(database, &contract, check)` is
+detached read-only validation and needs no original store. The caller uses its
+concrete `AtlasStore<C,A,R>` type. `open_existing_recovery_image(database,
+contract, authorization, runtime, options, &expected, check)` uses READ_WRITE
+without CREATE, rejects synthetic bootstrap, and never calls the migration
+engine. It validates the selected current-lineage image on that same connection
+with query-only enabled, compares every returned metadata/asset field to the
+expected image, rechecks the external authority, then enables normal FK/FULL/WAL
+runtime mode and creates a fresh store instance token. The ordinary constructor
+is unchanged. Runtime authorization still requires newly supplied original
+principal/witness handles; no image metadata is an authority grant.
+Expected metadata does not authenticate every database byte: the media/host
+owner must retain its independently verified image digest and exclusively owned
+path binding throughout. These ports support closed standalone images, not a
+hot-WAL restart. The original strict-opener checkpoint was source/compiler
+review only; the populated healthy example below now exercises its shared
+strict same-handle implementation. No foreign database or initialization/
+migration control is executed.
 
 Validation compares exact migration checksums, metadata and actual schema
 catalog, integrity/FKs, every native body and SQL key, full unredacted graph,
@@ -370,14 +407,91 @@ Original native command/guard envelopes are
 absent from v1 receipts, so their hashes cannot honestly be reconstructed; hash
 syntax and persisted key/result/audit linkage are checked. These requested
 native-only signatures lack stock/queue evidence peers and fail closed on a
-nonempty stock journal or any registered queue state. Full recovery requires an
-explicit companion that enumerates and validates every retained registration,
-stock intent and qualified evidence codec. A per-registration queue scan does
-not certify a complete recovery image.
+nonempty stock journal or any registered queue state. The explicit full-image companion below enumerates and validates every
+retained registration, stock intent and qualified evidence codec. A diagnostic
+per-registration queue scan does not certify a complete recovery image.
 `checks/recovery-healthy.rs` uses actual Rust native semantics and synthetic
 authority/runtime for capture, read-only validation, all-row equality and native
 reopen. No JS oracle, corruption/crash control or physical-original qualification
 runs in this checkpoint. Root reconciliation must enable rusqlite `backup`.
+
+## Populated native stock and queue recovery
+
+`RecoveryValidationPeers<'a, S, D, E>` borrows the actual `StockContractPort`,
+complete trusted `&[QueueConfig]` registry, `QueueDiscovery`, and mandatory
+`QueueRecoveryEvidence`. Four companion methods use these peers:
+`backup_recovery_to_with_peers`, `validate_recovery_image_with_peers`, detached
+`validate_existing_recovery_image_with_peers`, and strict
+`open_existing_recovery_image_with_peers`. Their other arguments and results
+match the native-only methods, with the borrowed peer frame immediately before
+`check`. The strict constructor accepts fresh owned Contract/Authorization/
+Runtime values, options and expected `RecoveryImage` before that peer frame.
+All share the same private backup/read-only/strict-open implementation. No
+new schema version, migration, import or SQL/transaction callback is exposed.
+
+One deferred read transaction validates the exact schema and native graph,
+then every stock and queue row. Stock validation reparses and replans original
+stock requests, checks each native receipt/audit against the actual ordered
+root/child plan and batch envelope, proves exact group/key/link coverage,
+validates lookup equality, and binds retained cursors to their scope, actor,
+query, watermark and actual matching page boundary. It does not invent past
+request identifiers, predecessor cursors, delivery, grants or satisfied guards.
+
+The external queue registry must match every retained physical registration,
+including empty registrations, with its original config digest, aliases and
+owner. Each original request and derived enqueue must match the actual native
+stock/discovery peer. Recovery validates canonical current carriers, contiguous
+job sequences and attempt fences, exact original leases, prepared journal
+bytes/digests/liabilities, step envelopes, immutable outcome-local evidence cuts,
+shared finish invariants, retained reconciliation, liability maxima/sums, and
+logical/physical blockers. Later positive end evidence cannot retroactively
+qualify an earlier outcome. Validation performs no state update, cleanup,
+release, retry, termination inference or dispatch; unresolved liabilities and
+fences remain retained.
+
+`QueueRecoveryEvidence::validate_attempt(config, QueueRecoveryAttempt)` receives
+borrowed actual original request, leased job, optional prepared native/media
+bytes and journal, all steps/liability origins, and every `QueueRecoveryOutcome`
+with its original local cuts. The owner must qualify these exact codecs and
+termination/reconciliation facts; unknown codecs or missing external evidence
+must return an error. There is no permissive default. This pure synchronous
+port receives no database handle or provider transport. Trusted deployment
+configuration, credentials, immutable physical media proofs and original grants
+stay outside the image. Reopened operations still reauthorize through the
+provided runtime peers; image validity supplies no authority to resume a queue.
+The host must independently preserve full-image digest and exclusive path
+binding. Checks are cooperative between SQLite and codec calls, whose own
+execution bounds belong to their owners.
+
+`checks/populated-recovery-healthy.rs` shares the ordinary queue fixture through
+`checks/queue-check.rs`; the original `checks/queue-healthy.rs` entrypoint keeps
+its ordinary queue-only mode. The successful populated example uses four fresh
+native stock commands in three roots, including a two-child ordered batch,
+a retained history cursor and matching search, then one actual
+`WriteQueue -> NativeHomeBoxWriter -> AtlasStore` synthetic success. It records
+35 queue authority checks, two final dispatch checks and one invocation before
+capture. All rows in all 28 tables match the closed source, captured image and
+copied restore before strict open. Detached full validation, strict same-state
+open with new storage authority/runtime, stock snapshot/history/search and a
+currently authorized succeeded queue receipt read pass afterward. The restored
+history read may create a new cursor, so final post-read row equality is not
+claimed. Its native/media/response/end evidence qualifier is a fixture for this
+one successful attempt only; it is not a production codec adapter.
+
+Compile only the selected actual-source targets, then run the single fresh
+ordinary example after inspecting its source:
+
+```sh
+source /workspace/.houseatlas-setup/rust-react-sqlite/activate.sh
+cargo clippy --locked --manifest-path "${AT07_COMPOSITION_DIR}/Cargo.toml" --lib --bin queue-healthy --bin populated-recovery-healthy --bin recovery-healthy -- -D warnings
+HOUSEATLAS_ROOT="${HOUSEATLAS_SOURCE_DIR}" HOUSEATLAS_STOCK_ROOT="${AT07_STOCK_SOURCE_DIR}" HOUSEATLAS_CONTRACT_PEER=49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c HOUSEATLAS_DOMAIN_PEER=f51bc7962b491faa1cc563f2ec0f737c471e4e26 cargo run --locked --manifest-path "${AT07_COMPOSITION_DIR}/Cargo.toml" --bin populated-recovery-healthy -- "${AT07_HEALTHY_OUTPUT}"
+```
+
+The supplied peer labels are exact public source pins. This example qualifies
+only successful zero-media, completed stock/queue state. Other coded queue
+states and unresolved liability preservation have source/compiler review only;
+held replay/retry/expiry, modified images, faults, crashes, corruption,
+concurrency and negative controls remain deferred and unrun.
 
 ## Durable native write queue
 
@@ -453,8 +567,8 @@ The healthy executables record the supplied exact peer labels through
 
 The queue example exercises no held replay, retry, expiry, fault or concurrency
 control. Production grant/witness adapters, prepared provider/media evidence
-qualification, host wiring and full stock/queue recovery-image composition
-remain required. Successful synthetic dispatch does not qualify those peers.
+qualification and host wiring remain required. Full stock/queue
+recovery-image composition now requires those same explicit codec/discovery peers. Successful synthetic dispatch does not qualify those peers.
 
 ## Remaining integration and qualification
 

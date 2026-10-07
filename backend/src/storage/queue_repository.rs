@@ -163,11 +163,28 @@ pub(super) fn load(db: &Connection, id: &str) -> Result<StoredJob> {
     if encoded(&scope_value(&scope))? != scope_json {
         return Err(bad());
     }
-    let reconciliation_json: Option<String> = db.query_row(
-        "SELECT reconciliation_json FROM queue_jobs WHERE job_id=?1",
+    let (reconciliation_json, codec_version): (Option<String>, i64) = db.query_row(
+        "SELECT reconciliation_json,codec_version FROM queue_jobs WHERE job_id=?1",
         [id],
-        |r| r.get(0),
+        |r| Ok((r.get(0)?, r.get(1)?)),
     )?;
+    let retained_applied = applied_json
+        .as_deref()
+        .map(|value| applied(&decoded(value)?))
+        .transpose()?;
+    let retained_liability = liability(&decoded(&liability_json)?)?;
+    let retained_reconciliation = reconciliation_json.as_deref().map(decoded).transpose()?;
+    if codec_version != 1
+        || retained_applied
+            .as_ref()
+            .map(|value| encoded(&applied_value(value)))
+            .transpose()?
+            != applied_json
+        || encoded(&liability_value(&retained_liability))? != liability_json
+        || retained_reconciliation.as_ref().map(encoded).transpose()? != reconciliation_json
+    {
+        return Err(bad());
+    }
     if attempts < 0
         || attempts > u32::MAX as i64
         || !matches!(body, 0 | 1)
@@ -194,13 +211,10 @@ pub(super) fn load(db: &Connection, id: &str) -> Result<StoredJob> {
         body_accepted: body == 1,
         remote: activity(&activity_name, termination)?,
         logical: logical == 1,
-        applied: applied_json
-            .as_deref()
-            .map(|v| applied(&decoded(v)?))
-            .transpose()?,
+        applied: retained_applied,
         failure: failure_json.as_deref().map(failure).transpose()?,
-        liability: liability(&decoded(&liability_json)?)?,
-        reconciliation: reconciliation_json.as_deref().map(decoded).transpose()?,
+        liability: retained_liability,
+        reconciliation: retained_reconciliation,
     })
 }
 pub(super) fn all_ids(db: &Connection, c: &QueueConfig) -> Result<Vec<String>> {

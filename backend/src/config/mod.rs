@@ -1,4 +1,10 @@
 //! Explicit disposable loopback settings; no deployment settings are inferred.
+pub mod providers {
+    pub mod homebox;
+    pub mod network;
+    pub mod registry;
+}
+pub mod recovery;
 use std::{
     net::{Ipv4Addr, SocketAddr},
     path::PathBuf,

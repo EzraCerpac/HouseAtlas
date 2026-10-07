@@ -3,10 +3,11 @@
 use super::*;
 use crate::storage;
 use serde::{Serialize, de::DeserializeOwned};
+use std::sync::Arc;
 
 /// Borrow the principal that retains this ORIGINAL inventory authority lease.
 /// Host implementations must not reacquire authority or discard branded handles.
-/// AtlasStore's authorizer revalidates it inside each transaction at precommit.
+/// The selected authorizer revalidates it inside each transaction at precommit.
 pub trait NativeNetworkLease<A: storage::Authorization> {
     fn storage_principal(&self) -> &A::Principal;
 }
@@ -25,19 +26,26 @@ where
     pub fn new(store: &'s mut storage::AtlasStore<C, A, R>) -> Self {
         Self { store }
     }
+    /// Keep the same open store and borrow the original call authorizer. Its
+    /// principal type may differ from the store's configured authorizer.
+    pub fn with_authorization<B: storage::Authorization>(
+        self,
+        authorization: &B,
+    ) -> BorrowedNativeNetworkPublisher<'s, '_, C, A, R, B> {
+        BorrowedNativeNetworkPublisher {
+            store: self.store,
+            authorization,
+        }
+    }
     /// Explicit valid status publication with the original issuing-store fence.
-    /// This calls ONLY the fenced AT07 method published at 9b13f1e97635a3f531e8c14642cd3c5e94401fef.
+    /// This consumes the actual AT07 fence inside its native transaction.
     pub fn record_prepared_cache_failure<L: NativeNetworkLease<A>>(
         &mut self,
         fence: storage::CachePublicationFence,
         code: ErrorCode,
         lease: &L,
     ) -> storage::Result<storage::CacheStatus> {
-        ensure(fence.registration().owner == storage::SourceOwner::Network)?;
-        let failure = storage::CacheFailure {
-            code: convert(&code)?,
-            status: None,
-        };
+        let failure = failure_input(&fence, code)?;
         self.store
             .record_prepared_cache_failure(lease.storage_principal(), fence, &failure)
     }
@@ -48,10 +56,8 @@ where
         &mut self,
         pending: PendingNetworkFailure<storage::CachePublicationFence, L>,
     ) -> storage::Result<storage::CacheStatus> {
-        let (fence, expected, failure, lease) = pending.into_parts();
-        matches_precondition(&fence, &expected)?;
-        ensure(failure.state.cache.scope == NetworkPublicationFence::partition(&fence))?;
-        self.record_prepared_cache_failure(fence, failure.error.code, lease.as_ref())
+        let (fence, code, lease) = pending_input(pending)?;
+        self.record_prepared_cache_failure(fence, code, lease.as_ref())
     }
 }
 impl NetworkPublicationFence for storage::CachePublicationFence {
@@ -89,23 +95,13 @@ where
         source: &SourceRegistration,
         lease: &L,
     ) -> storage::Result<PreparedNetworkCache<Self::Fence>> {
-        super::projection::validate_registration(source).map_err(|_| {
-            storage::Error::new("invalid-contract", "Network source registration is invalid")
-        })?;
-        let registration: storage::SourceRegistration = convert(source)?;
-        let (state, fence) = self
-            .store
-            .prepare_cache_publication(
-                lease.storage_principal(),
-                &registration.scope(),
-                &registration.partition(),
-            )?
-            .into_parts();
-        ensure(fence.registration() == &registration)?;
-        Ok(PreparedNetworkCache {
-            baseline: convert(&state)?,
-            fence,
-        })
+        let registration = registration_input(source)?;
+        let prepared = self.store.prepare_cache_publication(
+            lease.storage_principal(),
+            &registration.scope(),
+            &registration.partition(),
+        )?;
+        prepared_output(&registration, prepared)
     }
     fn publish_prepared_generation<S>(
         &mut self,
@@ -113,24 +109,143 @@ where
         staged: StagedNetworkPublication<S>,
         lease: &L,
     ) -> storage::Result<Self::Receipt> {
-        ensure(fence.registration().owner == storage::SourceOwner::Network)?;
-        let (proposal, _durable_receipt) = staged.into_parts();
-        matches_precondition(&fence, proposal.precondition())?;
-        ensure(
-            proposal.state().cache.scope == NetworkPublicationFence::partition(&fence)
-                && proposal.state().cache.generation_id.as_deref()
-                    == Some(fence.reserved_generation_id()),
-        )?;
-        let generation = proposal.state().generation.as_ref().ok_or_else(conflict)?;
-        let cache: storage::CacheStatus = convert(&proposal.state().cache)?;
-        let rows = generation
-            .network_relations
-            .iter()
-            .map(serde_json::to_value)
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+        let (cache, rows) = publication_input(&fence, staged)?;
         self.store
             .publish_prepared_generation(lease.storage_principal(), fence, &cache, &[], &rows)
     }
+}
+/// Same-store adapter whose every cache transaction uses one borrowed call
+/// authorizer. No clone, fallback, second connection or replacement fence.
+pub struct BorrowedNativeNetworkPublisher<'s, 'b, C, A, R, B> {
+    store: &'s mut storage::AtlasStore<C, A, R>,
+    authorization: &'b B,
+}
+impl<C, A, R, B> BorrowedNativeNetworkPublisher<'_, '_, C, A, R, B>
+where
+    C: storage::Contract,
+    A: storage::Authorization,
+    R: storage::Runtime,
+    B: storage::Authorization,
+{
+    pub fn record_prepared_cache_failure<L: NativeNetworkLease<B>>(
+        &mut self,
+        fence: storage::CachePublicationFence,
+        code: ErrorCode,
+        lease: &L,
+    ) -> storage::Result<storage::CacheStatus> {
+        let failure = failure_input(&fence, code)?;
+        self.store.record_prepared_cache_failure_with_authorization(
+            self.authorization,
+            lease.storage_principal(),
+            fence,
+            &failure,
+        )
+    }
+    pub fn publish_pending_failure<L: NativeNetworkLease<B>>(
+        &mut self,
+        pending: PendingNetworkFailure<storage::CachePublicationFence, L>,
+    ) -> storage::Result<storage::CacheStatus> {
+        let (fence, code, lease) = pending_input(pending)?;
+        self.record_prepared_cache_failure(fence, code, lease.as_ref())
+    }
+}
+impl<C, A, R, B, L> NetworkCachePublisher<L> for BorrowedNativeNetworkPublisher<'_, '_, C, A, R, B>
+where
+    C: storage::Contract,
+    A: storage::Authorization,
+    R: storage::Runtime,
+    B: storage::Authorization,
+    L: NativeNetworkLease<B>,
+{
+    type Fence = storage::CachePublicationFence;
+    type Receipt = storage::CacheStatus;
+    type Error = storage::Error;
+    fn prepare_cache_publication(
+        &mut self,
+        source: &SourceRegistration,
+        lease: &L,
+    ) -> storage::Result<PreparedNetworkCache<Self::Fence>> {
+        let registration = registration_input(source)?;
+        let prepared = self.store.prepare_cache_publication_with_authorization(
+            self.authorization,
+            lease.storage_principal(),
+            &registration.scope(),
+            &registration.partition(),
+        )?;
+        prepared_output(&registration, prepared)
+    }
+    fn publish_prepared_generation<S>(
+        &mut self,
+        fence: Self::Fence,
+        staged: StagedNetworkPublication<S>,
+        lease: &L,
+    ) -> storage::Result<Self::Receipt> {
+        let (cache, rows) = publication_input(&fence, staged)?;
+        self.store.publish_prepared_generation_with_authorization(
+            self.authorization,
+            lease.storage_principal(),
+            fence,
+            &cache,
+            &[],
+            &rows,
+        )
+    }
+}
+fn registration_input(source: &SourceRegistration) -> storage::Result<storage::SourceRegistration> {
+    super::projection::validate_registration(source).map_err(|_| {
+        storage::Error::new("invalid-contract", "Network source registration is invalid")
+    })?;
+    convert(source)
+}
+fn prepared_output(
+    registration: &storage::SourceRegistration,
+    prepared: storage::PreparedCachePublication,
+) -> storage::Result<PreparedNetworkCache<storage::CachePublicationFence>> {
+    let (state, fence) = prepared.into_parts();
+    ensure(fence.registration() == registration)?;
+    Ok(PreparedNetworkCache {
+        baseline: convert(&state)?,
+        fence,
+    })
+}
+fn publication_input<S>(
+    fence: &storage::CachePublicationFence,
+    staged: StagedNetworkPublication<S>,
+) -> storage::Result<(storage::CacheStatus, Vec<serde_json::Value>)> {
+    ensure(fence.registration().owner == storage::SourceOwner::Network)?;
+    let (proposal, _durable_receipt) = staged.into_parts();
+    matches_precondition(fence, proposal.precondition())?;
+    ensure(
+        proposal.state().cache.scope == NetworkPublicationFence::partition(fence)
+            && proposal.state().cache.generation_id.as_deref()
+                == Some(fence.reserved_generation_id()),
+    )?;
+    let generation = proposal.state().generation.as_ref().ok_or_else(conflict)?;
+    let cache = convert(&proposal.state().cache)?;
+    let rows = generation
+        .network_relations
+        .iter()
+        .map(serde_json::to_value)
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    Ok((cache, rows))
+}
+fn failure_input(
+    fence: &storage::CachePublicationFence,
+    code: ErrorCode,
+) -> storage::Result<storage::CacheFailure> {
+    ensure(fence.registration().owner == storage::SourceOwner::Network)?;
+    Ok(storage::CacheFailure {
+        code: convert(&code)?,
+        status: None,
+    })
+}
+fn pending_input<L>(
+    pending: PendingNetworkFailure<storage::CachePublicationFence, L>,
+) -> storage::Result<(storage::CachePublicationFence, ErrorCode, Arc<L>)> {
+    let (fence, expected, failure, lease) = pending.into_parts();
+    matches_precondition(&fence, &expected)?;
+    ensure(failure.state.cache.scope == NetworkPublicationFence::partition(&fence))?;
+    Ok((fence, failure.error.code, lease))
 }
 fn matches_precondition(
     fence: &storage::CachePublicationFence,

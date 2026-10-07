@@ -257,17 +257,25 @@ impl<'a, C, A, R> NativeMediaStorage<'a, C, A, R> {
     }
 }
 
-fn recovery_checkpoint(budget: &WorkBudget) -> s::Result<()> {
+pub(super) fn recovery_checkpoint(budget: &WorkBudget) -> s::Result<()> {
     budget
         .check()
         .map_err(|_| s::Error::new("storage-unavailable", "Recovery operation budget exhausted"))
 }
 
-fn project_recovery_image(
-    image: s::RecoveryImage,
+pub(super) fn native_recovery_profile() -> RecoveryProfile {
+    RecoveryProfile::NativeRustV1 {
+        contract_version: s::CONTRACT_VERSION,
+        database_schema: s::DATABASE_VERSION,
+        database_lineage: s::DATABASE_LINEAGE,
+    }
+}
+
+pub(super) fn check_recovery_image(
+    image: &s::RecoveryImage,
     profile: RecoveryProfile,
     budget: &WorkBudget,
-) -> MediaResult<ValidatedDatabase> {
+) -> MediaResult<()> {
     budget.check()?;
     if !profile.matches_metadata(
         &image.contract_version,
@@ -279,6 +287,15 @@ fn project_recovery_image(
     if image.assets.len() > MAX_ASSETS {
         return Err(MediaError::TooLarge);
     }
+    Ok(())
+}
+
+pub(super) fn project_recovery_image(
+    image: s::RecoveryImage,
+    profile: RecoveryProfile,
+    budget: &WorkBudget,
+) -> MediaResult<ValidatedDatabase> {
+    check_recovery_image(&image, profile, budget)?;
     let mut assets = Vec::with_capacity(image.assets.len());
     for record in &image.assets {
         budget.check()?;
@@ -304,11 +321,7 @@ where
     R: s::Runtime,
 {
     fn recovery_profile(&self) -> RecoveryProfile {
-        RecoveryProfile::NativeRustV1 {
-            contract_version: s::CONTRACT_VERSION,
-            database_schema: s::DATABASE_VERSION,
-            database_lineage: s::DATABASE_LINEAGE,
-        }
+        native_recovery_profile()
     }
 
     fn backup_to(&self, destination: &Path, budget: &WorkBudget) -> MediaResult<()> {

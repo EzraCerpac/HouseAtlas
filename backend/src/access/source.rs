@@ -1,4 +1,4 @@
-use rusqlite::{TransactionBehavior, params};
+use rusqlite::{Connection, TransactionBehavior, params};
 
 use super::{
     AccessBoundary, AccessError, AccessResult, PartitionGrant, PartitionMode, Principal,
@@ -14,51 +14,11 @@ impl AccessBoundary {
         enabled: Option<bool>,
     ) -> AccessResult<()> {
         registration.validate()?;
-        let partition = registration.partition();
         let tx = self
             .store
             .db
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let existing = store::source(&tx, &partition)?;
-        let enabled = enabled.unwrap_or_else(|| existing.is_none_or(|s| s.enabled));
-        {
-            let mut query = tx.prepare("SELECT registration FROM access_sources")?;
-            let rows = query.query_map([], |row| row.get::<_, String>(0))?;
-            for row in rows {
-                let other: SourceRegistration =
-                    serde_json::from_str(&row?).map_err(|_| AccessError::Unavailable)?;
-                other.validate().map_err(|_| AccessError::Unavailable)?;
-                if other.workspace_id != registration.workspace_id
-                    || other.source_instance_id != registration.source_instance_id
-                    || other.collection_id != registration.collection_id
-                {
-                    continue;
-                }
-                if other.owner != registration.owner {
-                    return Err(AccessError::InvalidInput);
-                }
-                if other.home_id == registration.home_id {
-                    continue;
-                }
-                if other.partition_mode == PartitionMode::ExclusiveHome
-                    || registration.partition_mode == PartitionMode::ExclusiveHome
-                    || other
-                        .allowed_external_ids
-                        .iter()
-                        .any(|id| registration.allowed_external_ids.contains(id))
-                {
-                    return Err(AccessError::InvalidInput);
-                }
-            }
-        }
-        let encoded = serde_json::to_string(registration).map_err(|_| AccessError::InvalidInput)?;
-        tx.execute(
-            "INSERT INTO access_sources VALUES(?1,?2,?3,?4,?5,?6,1)
-             ON CONFLICT(workspace_id,home_id,instance_id,collection_id)
-             DO UPDATE SET registration=excluded.registration,enabled=excluded.enabled,version=access_sources.version+1",
-            params![registration.workspace_id.as_str(), registration.home_id.as_str(),
-                registration.source_instance_id.as_str(), registration.collection_id, encoded, enabled],
-        )?;
+        write_source(&tx, registration, enabled)?;
         tx.commit()?;
         Ok(())
     }
@@ -112,6 +72,58 @@ impl AccessBoundary {
     pub fn revalidate_source<'g>(&self, grant: &'g SourceGrant) -> AccessResult<&'g SourceGrant> {
         self.current().revalidate_source(&grant.principal, grant)
     }
+}
+
+/// Caller owns the access write transaction. Used by both trusted provisioning
+/// and the separately authorized ConfigureSource operation without reentry.
+pub(super) fn write_source(
+    db: &Connection,
+    registration: &SourceRegistration,
+    enabled: Option<bool>,
+) -> AccessResult<()> {
+    registration.validate()?;
+    let partition = registration.partition();
+    let existing = store::source(db, &partition)?;
+    let enabled = enabled.unwrap_or_else(|| existing.is_none_or(|s| s.enabled));
+    {
+        let mut query = db.prepare("SELECT registration FROM access_sources")?;
+        let rows = query.query_map([], |row| row.get::<_, String>(0))?;
+        for row in rows {
+            let other: SourceRegistration =
+                serde_json::from_str(&row?).map_err(|_| AccessError::Unavailable)?;
+            other.validate().map_err(|_| AccessError::Unavailable)?;
+            if other.workspace_id != registration.workspace_id
+                || other.source_instance_id != registration.source_instance_id
+                || other.collection_id != registration.collection_id
+            {
+                continue;
+            }
+            if other.owner != registration.owner {
+                return Err(AccessError::InvalidInput);
+            }
+            if other.home_id == registration.home_id {
+                continue;
+            }
+            if other.partition_mode == PartitionMode::ExclusiveHome
+                || registration.partition_mode == PartitionMode::ExclusiveHome
+                || other
+                    .allowed_external_ids
+                    .iter()
+                    .any(|id| registration.allowed_external_ids.contains(id))
+            {
+                return Err(AccessError::InvalidInput);
+            }
+        }
+    }
+    let encoded = serde_json::to_string(registration).map_err(|_| AccessError::InvalidInput)?;
+    db.execute(
+            "INSERT INTO access_sources VALUES(?1,?2,?3,?4,?5,?6,1)
+             ON CONFLICT(workspace_id,home_id,instance_id,collection_id)
+             DO UPDATE SET registration=excluded.registration,enabled=excluded.enabled,version=access_sources.version+1",
+            params![registration.workspace_id.as_str(), registration.home_id.as_str(),
+                registration.source_instance_id.as_str(), registration.collection_id, encoded, enabled],
+        )?;
+    Ok(())
 }
 
 impl CurrentAuthority<'_> {
@@ -169,7 +181,7 @@ impl CurrentAuthority<'_> {
         Ok(original)
     }
 
-    fn check_grant_principal(
+    pub(super) fn check_grant_principal(
         &self,
         principal: &Principal,
         captured: &Principal,

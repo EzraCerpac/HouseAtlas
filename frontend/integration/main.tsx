@@ -6,6 +6,8 @@ import type { AtlasClient, AtlasView } from "../src/app/types";
 import { createAtlasClient, createAtlasSessionClient } from "../src/api/client";
 import { createStockSchemas } from "./stock-schemas";
 import { createStockDispatch } from "./stock-dispatch";
+import { createEditingClient } from "./editing-client";
+import type { AtlasSessionClient, AtlasSessionInfo } from "../src/app/session";
 import "../src/styles/atlas.css";
 import "../src/styles/session.css";
 import "../src/styles/stock.css";
@@ -24,13 +26,35 @@ const nativeSessions = createAtlasSessionClient({
   login: root.dataset.loginUrl ?? "/api/atlas/auth/login",
   logout: root.dataset.logoutUrl ?? "/api/atlas/auth/logout",
 });
-const sessions = {
-  ...nativeSessions,
+let currentSession: AtlasSessionInfo | null = null;
+let sessionGeneration = 0;
+const nativeSignOut = nativeSessions.signOut;
+const sessions: AtlasSessionClient = {
+  async session(signal) {
+    const generation = ++sessionGeneration;
+    currentSession = null;
+    const value = await nativeSessions.session(signal);
+    if (!signal.aborted && generation === sessionGeneration) currentSession = value;
+    return value;
+  },
+  async signIn(credentials, signal) {
+    const generation = ++sessionGeneration;
+    currentSession = null;
+    const value = await nativeSessions.signIn(credentials, signal);
+    if (!signal.aborted && generation === sessionGeneration) currentSession = value;
+    return value;
+  },
+  ...(nativeSignOut ? { async signOut(signal: AbortSignal) {
+    ++sessionGeneration;
+    currentSession = null;
+    await nativeSignOut(signal);
+  } } : {}),
   subscribe(changed: () => void) {
     events.addEventListener("changed", changed);
     return () => events.removeEventListener("changed", changed);
   },
 };
+const editing = createEditingClient(schemas, () => currentSession);
 const nativeClient = createAtlasClient({
   bootstrap: root.dataset.bootstrapUrl ?? "/api/atlas/view",
   home: scope => `/api/atlas/homes/${encodeURIComponent(scope.workspaceId)}/${encodeURIComponent(scope.homeId)}/view`,
@@ -71,6 +95,8 @@ function HostApplication() {
       loadHome: (scope, signal) => load(s => nativeClient.loadHome(scope, s), signal),
     };
   }, []);
-  return <SessionApp client={client} sessions={sessions} accessEvents={window} stock={{ schemas, service, admission }} />;
+  // Keep the concrete editing port stable through view/catalog refreshes.
+  // Each place admission and command obtains the actual request authority.
+  return <SessionApp client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission }} />;
 }
 createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);

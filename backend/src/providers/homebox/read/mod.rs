@@ -2,6 +2,7 @@
 mod client;
 mod decode;
 mod error;
+mod failure_publication;
 mod http_transport;
 mod navigation;
 mod publication;
@@ -10,6 +11,7 @@ mod types;
 
 pub use client::{Body, Clock, GetRequest, GetResponse, HomeBoxReader, Limits, Transport};
 pub use error::{ErrorCode, ReadError};
+pub use failure_publication::FailedPublication;
 pub use http_transport::{
     AuthorizationHeader, CredentialProvider, HttpBody, HttpTransport, SourceEndpoint,
 };

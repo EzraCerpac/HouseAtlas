@@ -92,6 +92,18 @@ jobs:
           HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
           HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
         run: node tools/rust-integration/healthy-agent-loopback.mjs
+      - name: Real cached HomeBox read native WebMCP classification and mounted MCP audit
+        if: runner.os == 'Linux'
+        env:
+          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
+          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+        run: node tools/rust-integration/healthy-agent-host-loopback.mjs
+      - name: Real React human classification cached read and mounted MCP audit
+        if: runner.os == 'Linux'
+        env:
+          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
+          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+        run: node tools/rust-integration/healthy-human-host-loopback.mjs
       - name: Record scope
         # Stock read/write/history runners add four/ten/three healthy requests respectively.
         if: always()
@@ -99,6 +111,8 @@ jobs:
           printf '%s\n' 'Actual locked Rust/TS source compilation and three named healthy examples; Linux additionally runs the explicitly named genuine in-process MCP stock get/history after a fresh native circuit commit, actual SQLite/access/domain/React loopback TLS reads, session/login/logout, fresh circuit create, atomic local identity batch, fresh owned PNG/text commits, actual download GET/HEAD and safe-rendered PNG preview; genuine native stock circuit/asset reads compared with actual frozen SQLite rows.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'macOS source compilation is separate from target NAS build/runtime qualification and supplies no target release.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'All stopped rejection, guards, replay, expiry, revocation, fault, crash, concurrency and provider controls remain unrun.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'The separate host runner performs one authorized cached HomeBox read with the original full projections, dates and generation preserved; one fresh native WebMCP location classification replacement with full references and canonical React completion; actual record/admission readback; mounted MCP HTTP initialization/discovery/get/first audit page; and read-only SQLite reason observation. It does not submit the human form.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'The separately named human host runner uses a fresh disposable fixture and one actual React classification form submission through the real editing HTTP port. It preserves HomeBox canEdit=false, the full short reason, original source/evidence/identity references and guards, then checks canonical receipt retention through view refresh and genuine native/MCP readback. Upload, provider refresh/network I/O and populated recovery runtime remain outside both host flows.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'The named stock write runner adds only fresh local circuit create and an ordered identity-create batch through the actual original AT11 fence and native atomic stock journal, with frozen record/history readback and read-only durable journal counts.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'The named stock history runner adds three first-page/search reads over genuine stock-owned audits; nonnull cursor continuation is not demonstrated.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'The named native WebMCP runner uses actual document.modelContext discovery and invocation, genuine stock identity get, fresh circuit create, record readback and first audit page, with canonical results committed to React before tool return. No modelContext or stock service stub is installed.' >> "$GITHUB_STEP_SUMMARY"
