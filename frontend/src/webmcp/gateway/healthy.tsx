@@ -1,5 +1,5 @@
 /** Healthy injected gateway peers only. No export job or byte transfer runs. */
-import { act } from "react";
+import { act, useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 import fixture from "../../../../backend/src/contracts/stock/examples/healthy.json";
 import { createStockSchemas } from "../../../integration/stock-schemas.js";
@@ -120,10 +120,20 @@ export async function runGatewayHealthyReact(container: HTMLElement): Promise<re
     "Healthy service, owner validation, download resolution and return ordering");
   // All earlier executions have finished. Exercise a normal sequential host
   // remount, not the held pending-call/race or obsolete-consumer controls.
+  let firstReplacementCommitObserved = false;
+  function ReplacementHostView() {
+    useLayoutEffect(() => {
+      check(!container.querySelector("[data-gateway-tool]") && !container.querySelector("a[download]"),
+        "First replacement layout commit contains no prior result or link");
+      firstReplacementCommitObserved = true;
+    }, []);
+    return <p>Healthy replacement host view</p>;
+  }
   await act(async () => {
     root.render(<GatewayWebMcpBoundary modelContext={modelContext} sessions={sessions}
-      bindings={[...bindings]} downloads={downloads}><p>Healthy host view</p></GatewayWebMcpBoundary>);
+      bindings={[...bindings]} downloads={downloads}><ReplacementHostView /></GatewayWebMcpBoundary>);
   });
+  check(firstReplacementCommitObserved, "New host's first actual layout commit was observed");
   check([...tools.keys()].length === 2 && !container.querySelector("[data-gateway-tool]"), "New activation starts with current registrations and no old result");
   let nextExecution!: Promise<JsonValue>;
   await act(async () => {

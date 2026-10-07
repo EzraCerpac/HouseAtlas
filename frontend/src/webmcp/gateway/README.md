@@ -19,12 +19,19 @@ subscribers on login, rotation, scope or capability changes. Replacing bindings
 requires a remount; keep all port objects stable between those changes.
 
 `GatewayDownloadPort.resolve(name, input, result, context)` returns either null
-or `GatewayDownload {href, filename, mediaType, label}` from actual host-issued
+or `GatewayDownload {href, filename: string | null, mediaType, label}` from actual host-issued
 availability. The adapter accepts a same-origin absolute path; it constructs
 no download URL and retrieves no bytes. The resolver owns current authorization,
 expiry and the association with the confirmed result. Rendering the link is an
 available user action, not a completed byte transfer. The canonical tool output
 is unchanged; download metadata is separate presentation state.
+AT38's codec at `ef09ee02cadd711c8f69603095ecfddd8645abf1` retains canonical
+`atlas.asset.download` metadata (`downloadToken`, `sha256`, `byteSize`,
+`contentType`, `disposition`). It contains no redemption path or filename.
+The browser port preserves that complete wire result; its resolver must supply
+the actual authorized path and may report a null filename. Null uses an empty
+HTML download attribute, leaving naming to the owner's response/browser.
+These codec mappings alone do not admit or activate download execution.
 
 ```tsx
 import { GatewayWebMcpBoundary } from "./GatewayWebMcpBoundary.js";
@@ -41,6 +48,13 @@ and gateway use `useCommittedResult` for the same acknowledgement lifecycle.
 Each effect activation receives its own commit lease; a service call started
 under an earlier mount cannot commit after the boundary reactivates. This is
 coded and compiled; its delayed-call race qualification remains held and unrun.
+Result state is keyed to the actual session/service/catalog/model-context inputs.
+A replacement render omits the prior result and link before descendant layout
+effects observe the new view, rather than waiting for passive effect cleanup.
+Registration-only failure keeps already-running calls' result presentation;
+an explicit view clear settles discarded acknowledgement tickets with a view
+error. Neither action reverses domain work. Partial-registration failure/race
+qualification remains held and unrun.
 The host must unmount the boundary if its enclosing view fails to render. One
 document owner coordinates disjoint tool names across stock, gateway and AI;
 this component does not take over those other registrations.

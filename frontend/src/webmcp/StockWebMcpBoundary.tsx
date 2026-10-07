@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { detectModelContext } from "./browser.js";
 import { mountStockWebMcp, type StockCompletion, type StockMountOptions } from "./stock.js";
 import type { RegistrationStatus } from "./ports.js";
@@ -19,9 +19,10 @@ export type StockWebMcpBoundaryProps = Omit<StockMountOptions, "visible" | "mode
 export function StockWebMcpBoundary(props: StockWebMcpBoundaryProps): ReactNode {
   const { sessions, schemas, service, children } = props;
   const [registration, setRegistration] = useState<RegistrationStatus>({ state: "inactive" });
-  const { value: completion, activate } = useCommittedResult<StockCompletion>();
   const explicitContext = Object.hasOwn(props, "modelContext");
   const suppliedContext = props.modelContext;
+  const view = useMemo(() => ({}), [sessions, schemas, service, explicitContext, suppliedContext]);
+  const { value: completion, activate } = useCommittedResult<StockCompletion>(view);
   useEffect(() => {
     const visible = activate();
     const modelContext = explicitContext ? suppliedContext
@@ -30,7 +31,10 @@ export function StockWebMcpBoundary(props: StockWebMcpBoundaryProps): ReactNode 
     const onStatus = (): void => {
       const status = handle.getStatus();
       setRegistration(status);
-      if (status.state !== "registered") visible.clear();
+      // A partial registration failure removes tool availability, while calls
+      // already underway still need their canonical result to reach the view.
+      if (status.state !== "registered" && !(status.state === "failed" && status.phase === "registration"))
+        visible.clear();
     };
     const unsubscribe = handle.subscribeStatus(onStatus);
     onStatus();

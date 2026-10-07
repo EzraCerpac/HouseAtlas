@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "7ce2329809abbc689c9e8c90fce4b5a5e08492794656386328afcdabf3795f58",
+  "sourceDigestSha256": "cd3e63cd7b01a539746e7225b08d3120b3a77b39e64e924be1138fc9d795a7c5",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -286,15 +286,15 @@
     {
       "path": "backend/src/access/README.md",
       "mode": "100644",
-      "bytes": 13050,
-      "sha256": "2fc5537c80c4c32b61db25734584253f88e8a4257541ec9fb24faf06ddd2ba34",
+      "bytes": 14593,
+      "sha256": "5deee197d27cd3c79ed9a87243323b29e6259a9f9802b901a9cb320df6abadc1",
       "owner": "access"
     },
     {
       "path": "backend/src/access/boundary.rs",
       "mode": "100644",
-      "bytes": 24934,
-      "sha256": "2d8a5176236a44a63125693125a10236f55228ba005b1423578bf98fc3b8f628",
+      "bytes": 25684,
+      "sha256": "294eef48f5f70624bd0bcf87c78cbf9c4d2158da87f5b198e87ec1734c426abc",
       "owner": "access"
     },
     {
@@ -321,8 +321,8 @@
     {
       "path": "backend/src/access/healthy.rs",
       "mode": "100644",
-      "bytes": 17756,
-      "sha256": "b5ef5b96d63b0d6e66f78dc999fae0cdf72a8a29855a82c31567857b65cc8d1b",
+      "bytes": 20136,
+      "sha256": "3cfe93c1e0025bd3333d6748cd750246c860d8beedeb29c83802680fb560b16d",
       "owner": "access"
     },
     {
@@ -2671,6 +2671,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/rust-integration/access-session-binding.md",
+      "mode": "100644",
+      "bytes": 3027,
+      "sha256": "8d71f1135e984602e8c09f10d86de3e21ac4d6483f007f196e3d6b5b0f4193e4",
+      "owner": "core-integration"
+    },
+    {
       "path": "docs/rust-integration/agents.md",
       "mode": "100644",
       "bytes": 11485,
@@ -2771,8 +2778,8 @@
     {
       "path": "docs/rust-integration/webmcp-gateway-source.md",
       "mode": "100644",
-      "bytes": 2964,
-      "sha256": "302c5225841d1e351cae730344e49ca173d9ef4c3e95781b7f3cb097cfb94b60",
+      "bytes": 3353,
+      "sha256": "c0af876ef7e839f440d230584dc887e27bdb9d0cb01b6925e74adc3b19b16a67",
       "owner": "core-integration"
     },
     {
@@ -3072,8 +3079,8 @@
     {
       "path": "frontend/src/webmcp/StockWebMcpBoundary.tsx",
       "mode": "100644",
-      "bytes": 2120,
-      "sha256": "4c76107fb8e0d6914b1236ba21984ba5ab7b542060e2f63ff344408a44d4b81e",
+      "bytes": 2466,
+      "sha256": "7be88c1a8db7e097652761c78fca1f77c99972a8f3bf798bc3c37f945a30ae81",
       "owner": "webmcp"
     },
     {
@@ -3128,22 +3135,22 @@
     {
       "path": "frontend/src/webmcp/gateway/GatewayWebMcpBoundary.tsx",
       "mode": "100644",
-      "bytes": 2633,
-      "sha256": "5864f7e8877f8170b34d622b22afe075ed781afb9ca07074b6bfea3303b80f51",
+      "bytes": 2982,
+      "sha256": "f647a7f5095a3b7706388c10e13063b37c2f331acbf87730a5c3cb48e8d2077c",
       "owner": "webmcp"
     },
     {
       "path": "frontend/src/webmcp/gateway/README.md",
       "mode": "100644",
-      "bytes": 4448,
-      "sha256": "732c4e82c110194fe3de7ad5160e12691f64109c3b1d26a179b2ba086b02f7e6",
+      "bytes": 5496,
+      "sha256": "b77c0e3e33f9ef19d33cf545792e3332aba947388083c2278255f414e69852cf",
       "owner": "webmcp"
     },
     {
       "path": "frontend/src/webmcp/gateway/healthy.tsx",
       "mode": "100644",
-      "bytes": 8719,
-      "sha256": "1f76cfa2887066affe86cefb6a6dea091e0b00dd5f7e4efb712fcfb3256bae30",
+      "bytes": 9230,
+      "sha256": "4a063115694f977f5710c97a97444d067ef92c46a8c40eab36245ece1990bab6",
       "owner": "webmcp"
     },
     {
@@ -3163,8 +3170,8 @@
     {
       "path": "frontend/src/webmcp/gateway/ports.ts",
       "mode": "100644",
-      "bytes": 2643,
-      "sha256": "b9bc27be4d04bbd25f3f91d49087399d4cc7cb285c9dd01ed8055bd455fc90cc",
+      "bytes": 2731,
+      "sha256": "d9b0e3dfa399f5c2e5f6042164250ca1f9d5602ff2dad6468515a7a97a344c7b",
       "owner": "webmcp"
     },
     {
@@ -3219,8 +3226,8 @@
     {
       "path": "frontend/src/webmcp/useCommittedResult.ts",
       "mode": "100644",
-      "bytes": 2980,
-      "sha256": "05438836d85b5253e4ff0471d77825565de03c76323efea22502adf7a246e1ea",
+      "bytes": 3817,
+      "sha256": "fbcc72c361df48a844280462ca309a89ba67f6e1e47a80c31b0220cbe9d33bd1",
       "owner": "webmcp"
     },
     {

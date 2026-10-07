@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { detectModelContext } from "../browser.js";
 import type { RegistrationStatus } from "../ports.js";
 import { useCommittedResult } from "../useCommittedResult.js";
@@ -16,7 +16,7 @@ export function GatewayResult({ completion }: { readonly completion: GatewayComp
   return <section aria-label="Gateway result" data-gateway-tool={completion.toolName}>
     <h2>{completion.toolName}</h2>
     <pre role="status" aria-live="polite">{JSON.stringify(completion.result, null, 2)}</pre>
-    {completion.download && <a href={completion.download.href} download={completion.download.filename}
+    {completion.download && <a href={completion.download.href} download={completion.download.filename ?? ""}
       type={completion.download.mediaType}>{completion.download.label}</a>}
   </section>;
 }
@@ -25,10 +25,11 @@ export function GatewayResult({ completion }: { readonly completion: GatewayComp
  * result/link after React commits; it does not wait for the user to download. */
 export function GatewayWebMcpBoundary(props: GatewayWebMcpBoundaryProps) {
   const { sessions, bindings, downloads, children } = props;
-  const { value: completion, activate } = useCommittedResult<GatewayCompletion>();
   const [registration, setRegistration] = useState<RegistrationStatus>({ state: "inactive" });
   const explicitContext = Object.hasOwn(props, "modelContext");
   const suppliedContext = props.modelContext;
+  const view = useMemo(() => ({}), [sessions, bindings, downloads, explicitContext, suppliedContext]);
+  const { value: completion, activate } = useCommittedResult<GatewayCompletion>(view);
   useEffect(() => {
     const port = activate();
     const modelContext = explicitContext ? suppliedContext
@@ -38,7 +39,10 @@ export function GatewayWebMcpBoundary(props: GatewayWebMcpBoundaryProps) {
     const onStatus = () => {
       const status = handle.getStatus();
       setRegistration(status);
-      if (status.state !== "registered") port.clear();
+      // Registration cleanup does not cancel domain execution. Preserve its
+      // queued/completed result when only later tool registration failed.
+      if (status.state !== "registered" && !(status.state === "failed" && status.phase === "registration"))
+        port.clear();
     };
     const unsubscribe = handle.subscribeStatus(onStatus);
     onStatus();

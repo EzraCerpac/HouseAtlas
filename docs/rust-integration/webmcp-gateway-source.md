@@ -1,9 +1,9 @@
 # WebMCP gateway source candidate
 
 This candidate adopts all 23 regular files in `frontend/src/webmcp/**` byte for
-byte from `1e7c80db31a25b42ab2c5d30ce1d450db4b8b70c`. Its base is accepted main
-`49ba00d59259365e4979e6d654f19f5f0ccd1135`, tree
-`16ab0c70c55a191e5ce7bfde6addefd3dd4810d7`. The explicit publication manifest
+byte from `68079b0c0c3b606d26956710702c54be01298ea3`. Its base is accepted main
+`7f75ecaa288e410ed625d95b53f0162c7d1d4186`, tree
+`b0a44cde66b04b1b128324a6b0aee625b3be5877`. The explicit publication manifest
 includes the seven new gateway/commit-acknowledgement leaves. No owner namespace
 adaptation, dependency change or backend admission change is included.
 
@@ -40,7 +40,12 @@ read/history and mounted MCP paths. Its evidence remains outside Git.
 All stopped negative, replay, expiry, revocation, fault, concurrency and
 adversarial controls remain unrun. No provider or remote listener is enabled.
 
-This is a source-composition checkpoint. Final acceptance remains held for the
-original WebMCP owner's reported stale-display P1 disposition or an exact
-corrected successor. This integration does not alter feature namespace bytes to
-resolve that issue, and ordinary successful checks do not clear that hold.
+This remains a source-composition checkpoint. The exact original-owner successor
+keys completion state to current session/service/catalog/model-context inputs,
+masking prior result/link state during replacement rendering before descendant
+layout effects. It also preserves underway completion after registration-only
+failure, settles discarded acknowledgement tickets on explicit clear, and allows
+a null owner filename. These six changed owner leaves supersede the earlier
+stale-display source. No feature namespace edits are made by integration.
+Delayed-call races, partial-registration failure and stopped controls remain
+unqualified; ordinary checks do not establish gateway/download runtime.
