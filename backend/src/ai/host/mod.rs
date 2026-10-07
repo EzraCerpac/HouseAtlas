@@ -1,6 +1,7 @@
 //! In-app host binding for the exact accepted AT42 component.
 //! Construction installs no listener, account, approval, credential or live task.
 pub mod bridge;
+pub mod checkpoint;
 pub mod continuation;
 pub mod http;
 pub mod lifecycle;
@@ -9,6 +10,7 @@ pub mod native;
 pub mod service;
 pub mod status;
 pub mod transport;
+mod verification;
 
 use crate::ai::{AiError, oauth::RegistrationBinding};
 

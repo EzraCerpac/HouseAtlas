@@ -27,7 +27,7 @@ callback codes and tokens inside the trusted credential host. Disconnect request
 local stop, then uses the lifecycle's durable credential retirement and existing
 revocation semantics. Its response conservatively clears authorization,
 permission, eligibility, paid-use and runtime availability from the cached,
-credential-free display returned by `LifecycleEnvironment::disconnect_display`.
+credential-free display returned by `LifecycleEnvironment::cached_display`.
 That required port is synchronous and infallible, accepts the original context
 only for receipt display, and performs no provider/runtime observation or
 credential acquisition. It is called after local stop-use and the host receipt
@@ -45,6 +45,33 @@ fail the transaction without choosing a receipt or merging actions; their manual
 reconciliation remains application-owned. Completion requires exactly one
 updated action row, so a missing correlation cannot silently report success.
 Opening/upgrading the journal performs no action or callback replay.
+
+The trusted callback host calls `LifecycleHost::complete` with the original
+launch/action correlation. Launches now journal the original nonce digest as
+well as the state digest; completion backfills nonce correlation for an older
+pending launch before its code can be consumed. Explicit host
+`verify_received_exchange(context)` and the received-exchange branch of
+`refresh(context)` recover that exact action from the retained original nonce.
+A delegating credential boundary checks the same binding/nonce again under the
+actual operation lease before the shared lifecycle verifies/activates anything.
+No nested lease, code re-exchange, refresh grant or browser-provided action ID is
+used for verification. The action is completed through the existing journal with
+an infallible cached display, so unavailable fresh observation cannot orphan a
+successfully verified workflow. Such receipts retain unknown permission,
+eligibility and runtime availability and held paid use; current connection facts
+remain a separate authority. Missing historical nonce/action correlation
+requires trusted reconciliation; it is never guessed.
+
+`checkpoint::encode`/`decode` implement a bounded, versioned private checkpoint
+codec for all four variants, including the received exchange's original binding,
+issued client, protected nonce and full raw token reply. `CheckpointPlaintext`
+intentionally has no Debug, Display, Clone or Serialize implementation and is
+exposed only for the encrypted credential adapter. This is plaintext encoding,
+not encryption or activation authority. The root must authenticate/decrypt before
+decoding and atomically encrypt the complete same-registration record, preserving
+its previous credentials and checkpoint together. The codec supplies no path,
+OS encryption, ciphertext authentication, zeroization qualification or plaintext
+fallback. It must never be wired into HTTP/model/browser DTOs or diagnostics.
 
 `AiHost` runs and resumes the shared runner using server-selected model settings
 and the original catalog, continuation and separate human review owners.
@@ -109,7 +136,7 @@ and authority methods plus `ReceiptEnrollment<R>`. `mounting.patch` retains the
 additive adapter proposal already incorporated there; do not reapply it to this
 tree. The composition must still use the same wrapped enrollment owner for
 `NativeHostAuthority` and the lifecycle `HostAuthority` receipt proof as well as
-the app mount. Runtime implementations must also supply `disconnect_display`
+the app mount. Runtime implementations must also supply `cached_display`
 from existing cached/configured credential-free metadata. Wrapping the HTTP gate
 alone cannot repair a stricter lifecycle or service proof. The wrapper delegates
 normal operations to the original owner and validates a newly captured full
@@ -157,13 +184,19 @@ proves cached display is collected after local stop and its observation count
 proves disconnect invokes no fresh snapshot. Positive legacy receipt and pending
 rows are upgraded during reopen, retain their original payload/state/flags, and
 are polled under the current binding. Provider revocation,
-callback exchange, refresh, approval, mutations and native stock dispatch are not
-executed. Successful requests also count ordinary and disconnect release proofs.
+callback exchange, refresh grants, approval, mutations and native stock dispatch
+are not executed. A separate positive received-checkpoint fixture exercises the
+actual private codec and host refresh-to-verification branch with a synthetic
+identity verifier and serialized synthetic credential lease. It completes the
+original action with identity-only scope, retains the validated synthetic session,
+keeps paid inference held, and calls no exchange/refresh/revocation provider port.
+It does not simulate verification failure, lost replies, replay or corruption. Successful requests also count ordinary and disconnect release proofs.
 Optional `HOUSEATLAS_AI_HEALTHY_JSON` output is synthetic and belongs outside Git.
 
 The integrated adapter and host are covered by compiler checks. Error-path
 release, the finished-review interval with a lingering guard, pending callback
-completion, and migration collision/failure behavior are inspected structurally.
+completion/backfill, checkpoint-change/correlation rejection, and migration
+collision/failure behavior are inspected structurally.
 The healthy fixture does not reproduce that concurrency interval or execute
 callback/token exchange or rejected/malformed/body-limit/fault inputs. This evidence does
 not qualify a live browser/native credential host, OS encryption, identity

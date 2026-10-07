@@ -23,10 +23,10 @@ pub trait LifecycleEnvironment<C>: HostAuthority<C> {
     /// verifier/state/code/token material must never enter browser IPC or logs.
     fn launch<'a>(&'a self, context: &'a C, launch: AuthorizationLaunch) -> PortFuture<'a, ()>;
     fn manage_usage<'a>(&'a self, context: &'a C) -> PortFuture<'a, ()>;
-    /// Cached credential-free display/configuration only, after local stop-use.
+    /// Cached credential-free display/configuration only, after lifecycle work.
     /// Infallible and synchronous: no provider/runtime I/O, credential lease,
     /// new grant or fresh observation. The host clears admission/readiness.
-    fn disconnect_display(&self, context: &C) -> ConnectionSnapshot;
+    fn cached_display(&self, context: &C) -> ConnectionSnapshot;
     fn snapshot<'a>(
         &'a self,
         context: &'a C,
@@ -74,10 +74,118 @@ where
         }
         self.journal
             .check_launch(binding, action_id, &state_digest(state))?;
+        // Backfill nonce correlation for a pending launch created by an older
+        // host, before its callback can consume the code. Drop the original
+        // lease before the shared lifecycle acquires its operation lease.
+        {
+            let lease = self.credentials.acquire(context, binding).await?;
+            self.credentials
+                .revalidate(context, &lease, binding)
+                .await?;
+            let record = self.credentials.load(&lease).await?;
+            let attempt = record
+                .pending_authorization
+                .as_ref()
+                .ok_or(AiError::InvalidInput)?;
+            if &attempt.binding != binding {
+                return Err(AiError::ConnectionUnavailable);
+            }
+            self.journal.correlate_nonce(
+                binding,
+                action_id,
+                &state_digest(attempt.material.nonce.expose_in_trusted_boundary()),
+            )?;
+        }
         let receipt = self
             .lifecycle()
             .complete(context, binding, callback)
             .await?;
+        self.finish_receipt(context, binding, action_id, &receipt)?;
+        Ok(receipt)
+    }
+    /// Explicit host refresh; the accepted durable rotation checkpoints decide
+    /// reuse/uncertainty. No inference, automatic replay or live refresh starts.
+    pub async fn refresh<C>(&self, context: &C) -> Result<LifecycleReceipt, AiError>
+    where
+        B: CredentialBoundary<C>,
+        E: LifecycleEnvironment<C>,
+    {
+        let binding = self.environment.binding(context)?;
+        self.environment.revalidate(context, &binding)?;
+        let verification = {
+            let lease = self.credentials.acquire(context, &binding).await?;
+            self.credentials
+                .revalidate(context, &lease, &binding)
+                .await?;
+            let record = self.credentials.load(&lease).await?;
+            matches!(
+                &record.refresh_checkpoint,
+                oauth::RefreshCheckpoint::ExchangeReceived { .. }
+            )
+        };
+        if verification {
+            self.verify_received_exchange(context).await
+        } else {
+            self.lifecycle().refresh(context, &binding).await
+        }
+    }
+    /// Trusted credential-host continuation only. Uses the durable original
+    /// launch nonce to recover its exact action ID, and verifies the retained
+    /// exchange without sending another code or refresh grant. Not an HTTP DTO.
+    pub async fn verify_received_exchange<C>(
+        &self,
+        context: &C,
+    ) -> Result<LifecycleReceipt, AiError>
+    where
+        B: CredentialBoundary<C>,
+        E: LifecycleEnvironment<C>,
+    {
+        let binding = self.environment.binding(context)?;
+        self.environment.revalidate(context, &binding)?;
+        let digest = {
+            let lease = self.credentials.acquire(context, &binding).await?;
+            self.credentials
+                .revalidate(context, &lease, &binding)
+                .await?;
+            let record = self.credentials.load(&lease).await?;
+            match &record.refresh_checkpoint {
+                oauth::RefreshCheckpoint::ExchangeReceived {
+                    binding: captured,
+                    nonce,
+                    ..
+                } if captured == &binding => state_digest(nonce.expose_in_trusted_boundary()),
+                _ => return Err(AiError::ConnectionUnavailable),
+            }
+        };
+        let id = self.journal.nonce_action(&binding, &digest)?;
+        // Reacquisition is checked against that exact checkpoint under the
+        // existing serialized credential lease; no nested lease or rebasing.
+        let bound = super::verification::BoundExchange {
+            inner: &self.credentials,
+            binding: &binding,
+            nonce_digest: &digest,
+        };
+        let receipt = OAuthLifecycle {
+            security: &self.security,
+            provider: &self.provider,
+            credentials: &bound,
+        }
+        .verify_received_exchange(context, &binding)
+        .await?;
+        self.finish_receipt(context, &binding, &id, &receipt)?;
+        Ok(receipt)
+    }
+    fn finish_receipt<C>(
+        &self,
+        context: &C,
+        binding: &RegistrationBinding,
+        id: &str,
+        receipt: &LifecycleReceipt,
+    ) -> Result<(), AiError>
+    where
+        E: LifecycleEnvironment<C>,
+    {
+        self.environment.revalidate(context, binding)?;
         let status = if matches!(
             receipt.issue,
             Some(
@@ -92,28 +200,28 @@ where
         } else {
             ConnectionActionStatus::Completed
         };
-        let result = ConnectionActionResult {
-            action_id: action_id.into(),
-            status,
-            snapshot: self
-                .environment
-                .snapshot(context, &Cancellation::default())
-                .await?,
+        let mut snapshot = self.environment.cached_display(context);
+        snapshot.authorization = if matches!(
+            receipt.state,
+            oauth::LifecycleState::Connected | oauth::LifecycleState::PlanUseDisabled
+        ) {
+            crate::ai::AuthorizationState::Connected
+        } else {
+            crate::ai::AuthorizationState::SignInRequired
         };
-        self.journal
-            .action_finish(binding, action_id, json!(&result))?;
-        Ok(receipt)
-    }
-    /// Explicit host refresh; the accepted durable rotation checkpoints decide
-    /// reuse/uncertainty. No inference, automatic replay or live refresh starts.
-    pub async fn refresh<C>(&self, context: &C) -> Result<LifecycleReceipt, AiError>
-    where
-        B: CredentialBoundary<C>,
-        E: LifecycleEnvironment<C>,
-    {
-        let binding = self.environment.binding(context)?;
-        self.environment.revalidate(context, &binding)?;
-        self.lifecycle().refresh(context, &binding).await
+        // A workflow receipt is not a fresh paid-use/runtime/model observation.
+        snapshot.permission = crate::ai::InferencePermission::Unknown;
+        snapshot.eligibility = crate::ai::Eligibility::Unknown;
+        snapshot.paid_use_admission = crate::ai::PaidUseAdmission::Held;
+        snapshot.runtime.availability = crate::ai::RuntimeAvailability::Unknown;
+        snapshot.runtime.checked_at = None;
+        let result = ConnectionActionResult {
+            action_id: id.into(),
+            status,
+            snapshot,
+        };
+        self.journal.action_finish(binding, id, json!(&result))?;
+        self.environment.revalidate(context, binding)
     }
 }
 impl<
@@ -164,6 +272,17 @@ impl<
                         &request.action_id,
                         &state_digest(&state),
                     )?;
+                    let nonce = launch_url
+                        .query_pairs()
+                        .find(|(key, _)| key == "nonce")
+                        .ok_or(AiError::InvalidInput)?
+                        .1
+                        .into_owned();
+                    self.journal.correlate_nonce(
+                        &binding,
+                        &request.action_id,
+                        &state_digest(&nonce),
+                    )?;
                     self.environment.launch(context, launch).await?;
                     ConnectionActionStatus::Pending
                 }
@@ -190,6 +309,17 @@ impl<
                         &request.action_id,
                         &state_digest(&state),
                     )?;
+                    let nonce = launch_url
+                        .query_pairs()
+                        .find(|(key, _)| key == "nonce")
+                        .ok_or(AiError::InvalidInput)?
+                        .1
+                        .into_owned();
+                    self.journal.correlate_nonce(
+                        &binding,
+                        &request.action_id,
+                        &state_digest(&nonce),
+                    )?;
                     self.environment.launch(context, launch).await?;
                     ConnectionActionStatus::Pending
                 }
@@ -199,7 +329,7 @@ impl<
                     self.environment
                         .revalidate_action_receipt(context, &binding)?;
                     // Display collection cannot prevent or precede local stop.
-                    let mut snapshot = self.environment.disconnect_display(context);
+                    let mut snapshot = self.environment.cached_display(context);
                     // Only local credential-use facts are cleared. Preserve the
                     // previously authorized display; infer no remote revocation.
                     snapshot.authorization = crate::ai::AuthorizationState::SignInRequired;
@@ -428,7 +558,7 @@ where
     }
 }
 
-fn state_digest(state: &str) -> String {
+pub(super) fn state_digest(state: &str) -> String {
     use sha2::{Digest, Sha256};
     format!("{:x}", Sha256::digest(state.as_bytes()))
 }

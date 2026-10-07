@@ -340,6 +340,57 @@ impl StatusJournal {
             json!({"digest":digest}),
         )
     }
+    pub(crate) fn correlate_nonce(
+        &self,
+        binding: &RegistrationBinding,
+        id: &str,
+        digest: &str,
+    ) -> Result<(), AiError> {
+        self.append(
+            binding,
+            id,
+            "authorization-nonce-digest",
+            json!({"digest":digest}),
+        )
+    }
+    pub(crate) fn nonce_action(
+        &self,
+        binding: &RegistrationBinding,
+        digest: &str,
+    ) -> Result<String, AiError> {
+        let db = self.db()?;
+        let mut statement = db
+            .prepare(
+                "SELECT DISTINCT id FROM ai_host_observation
+            WHERE scope=?1 AND category='authorization-nonce-digest' AND payload=?2",
+            )
+            .map_err(db_error)?;
+        let mut rows = statement
+            .query(params![
+                scope_key(binding)?,
+                json!({"digest":digest}).to_string()
+            ])
+            .map_err(db_error)?;
+        let id: String = rows
+            .next()
+            .map_err(db_error)?
+            .ok_or(AiError::DomainUnavailable)?
+            .get(0)
+            .map_err(db_error)?;
+        if rows.next().map_err(db_error)?.is_some() {
+            return Err(AiError::DomainUnavailable);
+        }
+        if !valid_id(&id) {
+            return Err(AiError::DomainUnavailable);
+        }
+        db.query_row(
+            "SELECT 1 FROM ai_host_status WHERE scope=?1 AND id=?2 AND kind='action'",
+            params![action_scope_key(binding)?, id],
+            |_| Ok(()),
+        )
+        .map_err(db_error)?;
+        Ok(id)
+    }
     pub(crate) fn check_launch(
         &self,
         binding: &RegistrationBinding,

@@ -1,6 +1,8 @@
 //! Healthy disposable protocol example. All account/security/encryption and
 //! enrollment peers below are explicit synthetic stubs. No live account/token,
 //! service/inference, reviewed write or stopped control is exercised.
+#[path = "healthy_verification.rs"]
+mod healthy_verification;
 use axum::http::request::Parts;
 use houseatlas_backend::ai::{
     self, AiError, Cancellation, ConnectionPort, ConnectionSnapshot, DomainCatalog, PortFuture,
@@ -45,6 +47,7 @@ struct Synthetic {
     retired_handles: Arc<AtomicUsize>,
     observations: Arc<AtomicUsize>,
     disconnect_displays: Arc<AtomicUsize>,
+    expect_stopped_display: bool,
 }
 impl Synthetic {
     fn current_binding(&self) -> RegistrationBinding {
@@ -431,10 +434,12 @@ impl LifecycleEnvironment<()> for Synthetic {
     fn manage_usage<'a>(&'a self, _: &'a ()) -> PortFuture<'a, ()> {
         Box::pin(async { Err(AiError::ConnectionUnavailable) })
     }
-    fn disconnect_display(&self, _: &()) -> ConnectionSnapshot {
+    fn cached_display(&self, _: &()) -> ConnectionSnapshot {
         // Local retirement has already happened. This is cached fixture display
         // only, with no asynchronous observation or credential acquisition.
-        assert!(self.rotated.load(Ordering::SeqCst));
+        if self.expect_stopped_display {
+            assert!(self.rotated.load(Ordering::SeqCst));
+        }
         self.disconnect_displays.fetch_add(1, Ordering::SeqCst);
         snapshot(false)
     }
@@ -550,7 +555,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let private = tempfile::tempdir()?;
     let db_path = private.path().join("host.sqlite");
     let journal = StatusJournal::new(Connection::open(&db_path)?)?;
-    let synthetic = Synthetic::default();
+    let synthetic = Synthetic {
+        expect_stopped_display: true,
+        ..Synthetic::default()
+    };
     let provider = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))?;
     let target = HttpTarget::SyntheticLoopback(SocketAddrV4::new(
         Ipv4Addr::LOCALHOST,
@@ -940,15 +948,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         pending_poll.snapshot.paid_use_admission,
         ai::PaidUseAdmission::Held
     );
+    let verification = healthy_verification::run(private.path()).await?;
     if let Some(path) = std::env::var_os("HOUSEATLAS_AI_HEALTHY_JSON") {
         std::fs::write(
             path,
             serde_json::to_vec(&json!({"connection":observed_connection,
-            "action":action,"disconnect":disconnected,"legacyReceipt":legacy_receipt,"legacyPending":pending_poll,"dismissal":dismissal,"dismissedStatus":dismissed,"run":completed,"requestStatus":retained,"models":models}))?,
+            "action":action,"verification":verification,"disconnect":disconnected,"legacyReceipt":legacy_receipt,"legacyPending":pending_poll,"dismissal":dismissal,"dismissedStatus":dismissed,"run":completed,"requestStatus":retained,"models":models}))?,
         )?;
     }
     println!(
-        "healthy: actual loopback models/Responses HTTP, mounted router/run/status, durable usage/reopen, pending OAuth begin, local review dismissal, no-token disconnect/epoch-stable receipt without fresh observation, and legacy action-key upgrade/polling; account/crypto/encryption peers synthetic; no paid inference or stopped controls"
+        "healthy: actual loopback models/Responses HTTP, mounted router/run/status, durable usage/reopen, pending OAuth begin, local review dismissal, no-token disconnect/epoch-stable receipt without fresh observation, legacy action-key upgrade/polling, and retained exchange verification/private codec/original action completion; account/crypto/encryption peers synthetic; no paid inference or stopped controls"
     );
     Ok(())
 }
