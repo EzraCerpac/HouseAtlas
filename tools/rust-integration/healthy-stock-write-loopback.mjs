@@ -228,6 +228,66 @@ try {
   const png=media.assets.find(a=>a.type==='image/png'),text=media.assets.find(a=>a.type==='text/plain');
   assert.equal(png.previewPolicy,'safe-rendered');assert.equal(text.previewPolicy,'download-only');assert.equal(text.preview,null);
   assert.deepEqual(png.preview.signature,[137,80,78,71,13,10,26,10]);assert.deepEqual(png.preview.kinds,['IHDR','IDAT','IEND']);assert.equal(png.preview.length,png.preview.actualLength);assert.equal(png.preview.type,'image/png');assert.equal(png.preview.disposition,'inline; filename="preview.png"');assert.equal(png.preview.csp,"default-src 'none'; sandbox");
+  // Review the existing PNG through the actual server-held renderer proof.
+  // Receipt facts are observed data; only the HTTP owner retains the original
+  // Access allocation, vault proof and same-Store consumer through commit.
+  const assetReview=await evaluate(`(async()=>{
+    const scope=${JSON.stringify(view.scope)}, prefix=${JSON.stringify(prefix)}, results=[];
+    const original=${JSON.stringify(preparedMedia.find(row=>row.payload.contentType==='image/png'))};
+    const U=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
+    const stockPrefix='/api/atlas/stock/v3/workspaces/'+scope.workspaceId+'/homes/'+scope.homeId;
+    const targetPath=prefix+'/records/asset/'+original.assetId;
+    const json=async(path,method='GET',body,csrf)=>{
+      const response=await fetch(path,{method,credentials:'same-origin',cache:'no-store',redirect:'error',headers:method==='POST'?{'x-atlas-csrf':csrf,...(body?{'content-type':'application/json'}:{})}:{},...(body?{body:JSON.stringify(body)}:{})});
+      results.push({path,status:response.status});const value=await response.json();
+      if(response.status!==200)throw new Error('Ordinary existing PNG renderer review failed');return value;
+    };
+    const canonical=value=>Array.isArray(value)?'['+value.map(canonical).join(',')+']':value!==null&&typeof value==='object'
+      ?'{'+Object.keys(value).sort().map(key=>JSON.stringify(key)+':'+canonical(value[key])).join(',')+'}':JSON.stringify(value);
+    const sha=async bytes=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),byte=>byte.toString(16).padStart(2,'0')).join('');
+    const digest=value=>sha(new TextEncoder().encode(canonical(value)));
+    const before=await json(targetPath), session=await json('/api/atlas/auth/session');
+    const proof=await json(stockPrefix+'/assets/'+original.assetId+'/review-proof','POST',undefined,session.csrfToken);
+    const request={schemaVersion:3,commandId:'atlas.asset.review',requestId:U(1600),context:scope,
+      target:{authority:'atlas',recordType:'asset',recordId:original.assetId},
+      payload:{treatment:'request-preview',rendererReceiptId:proof.receipt.receiptId,evidenceIds:[U(100)]},
+      idempotencyKey:U(1601),reason:'Healthy disposable existing PNG renderer review',
+      preconditions:{target:{kind:'atlas',value:1},guards:[{target:{authority:'atlas',recordType:'evidence',recordId:U(100)},revision:{kind:'atlas',value:1}}]},approvalReceiptId:null};
+    const wire=await json(stockPrefix+'/commands','POST',request,session.csrfToken);
+    const record=await json(targetPath), history=await json(targetPath+'/history');
+    const descriptor=JSON.stringify({assetId:original.assetId,kind:'atlas-asset'});
+    const previewPath='/api/atlas/media/'+scope.workspaceId+'/'+scope.homeId+'/'+await sha(new TextEncoder().encode(descriptor))+'/preview';
+    const response=await fetch(previewPath,{credentials:'same-origin',cache:'no-store',redirect:'error'});
+    results.push({path:previewPath,status:response.status});if(response.status!==200)throw new Error('Ordinary reviewed PNG preview failed');
+    const bytes=new Uint8Array(await response.arrayBuffer()), data=new DataView(bytes.buffer),kinds=[];let pos=8;
+    while(pos<bytes.length){const size=data.getUint32(pos);kinds.push(String.fromCharCode(...bytes.slice(pos+4,pos+8)));pos+=size+12;}
+    const preview={sha256:await sha(bytes),byteSize:bytes.length,signature:Array.from(bytes.slice(0,8)),kinds,width:data.getUint32(16),height:data.getUint32(20),bitDepth:bytes[24],colorType:bytes[25],contentType:response.headers.get('content-type'),cache:response.headers.get('cache-control'),disposition:response.headers.get('content-disposition')};
+    const originalBytes=Uint8Array.from(atob(original.originalBase64),c=>c.charCodeAt(0));
+    return {results,proof,request,wire,before,record,history,preview,originalSha256:await sha(originalBytes),originalByteSize:originalBytes.length,beforeDigest:await digest(before),afterDigest:await digest(record),requestDigest:await digest(request)};
+  })()`);
+  assert.equal(assetReview.results.length,7);
+  const reviewFacts=assetReview.proof.receipt,reviewWire=assetReview.wire,reviewRecord=assetReview.record;
+  assert.equal(reviewFacts.format,'houseatlas-existing-asset-renderer-review/1');assert.equal(reviewFacts.renderer,'houseatlas-stripped-rgba8-png/1');
+  assert.match(reviewFacts.receiptId,/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.deepEqual(reviewFacts.scope,view.scope);assert.equal(reviewFacts.assetId,assetReview.request.target.recordId);assert.equal(reviewFacts.revision,1);assert.equal(reviewFacts.actorId,writes.actorId);
+  assert.equal(reviewFacts.originalRecordDigest,assetReview.beforeDigest);assert.equal(reviewFacts.originalSha256,assetReview.originalSha256);assert.equal(reviewFacts.originalByteSize,assetReview.originalByteSize);
+  assert.equal(reviewFacts.originalSha256,assetReview.before.payload.sha256);assert.equal(reviewFacts.originalByteSize,assetReview.before.payload.byteSize);
+  assert.equal(reviewFacts.renderedSha256,assetReview.preview.sha256);assert.equal(reviewFacts.renderedByteSize,assetReview.preview.byteSize);
+  assert.deepEqual(assetReview.preview.signature,[137,80,78,71,13,10,26,10]);assert.deepEqual(assetReview.preview.kinds,['IHDR','IDAT','IEND']);
+  assert.equal(assetReview.preview.width,2);assert.equal(assetReview.preview.height,1);assert.equal(assetReview.preview.bitDepth,8);assert.equal(assetReview.preview.colorType,6);
+  assert.equal(assetReview.preview.contentType,'image/png');assert.equal(assetReview.preview.cache,'private, no-store');assert.equal(assetReview.preview.disposition,'inline; filename="preview.png"');
+  assert.equal(reviewWire.schemaVersion,3);assert.equal(reviewWire.commandId,assetReview.request.commandId);assert.equal(reviewWire.requestId,assetReview.request.requestId);
+  assert.deepEqual(reviewWire.resolvedScope,view.scope);assert.equal(reviewWire.status,'committed');assert.equal(reviewWire.replayed,false);
+  assert.match(reviewWire.operationId,/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);assert.equal(reviewWire.data.requestDigest,assetReview.requestDigest);
+  assert.equal(assetReview.before.revision,1);assert.equal(reviewRecord.revision,2);assert.equal(reviewRecord.lifecycle,'active');
+  assert.equal(reviewRecord.recordId,assetReview.before.recordId);assert.equal(reviewRecord.recordType,'asset');assert.equal(reviewRecord.workspaceId,assetReview.before.workspaceId);assert.equal(reviewRecord.homeId,assetReview.before.homeId);assert.equal(reviewRecord.createdAt,assetReview.before.createdAt);
+  assert.deepEqual(reviewRecord.payload,{...assetReview.before.payload,previewPolicy:'safe-rendered',evidenceIds:assetReview.request.payload.evidenceIds},'Original byte attributes, storage custody and provenance survive review');
+  const reviewPayload={...reviewRecord.payload};delete reviewPayload.storageKey;
+  assert.deepEqual(reviewWire.data.records,[{target:assetReview.request.target,revision:2,lifecycle:reviewRecord.lifecycle,payload:reviewPayload}]);
+  assert.equal(assetReview.history.length,2);
+  const reviewAudit=assetReview.history.at(-1);
+  assert.deepEqual(reviewWire.data.auditIds,[reviewAudit.auditId]);assert.equal(reviewRecord.lastAuditId,reviewAudit.auditId);assert.equal(reviewAudit.actorId,writes.actorId);assert.equal(reviewAudit.resultRevision,2);
+  assert.deepEqual(reviewAudit.record,{recordType:'asset',recordId:reviewRecord.recordId});assert.equal(reviewAudit.beforeDigest,assetReview.beforeDigest);assert.equal(reviewAudit.afterDigest,assetReview.afterDigest);
   // Issue genuine stock handles, then redeem current authorized original bytes.
   // PNG issuance uses real native WebMCP and observes React before tool return;
   // text issuance uses the exact HTTP stock envelope. No shim or provider.
@@ -383,8 +443,27 @@ try {
     "print(json.dumps({'records':count(root/'atlas.sqlite','records'),'projections':count(root/'atlas.sqlite','projections'),'audits':count(root/'atlas.sqlite','audits'),'receipts':count(root/'atlas.sqlite','receipts'),'batchReceipts':count(root/'atlas.sqlite','batch_receipts'),'assetManifests':count(root/'atlas.sqlite','asset_manifests'),'stockOperations':count(root/'atlas.sqlite','stock_operations'),'stockGroups':count(root/'atlas.sqlite','stock_groups'),'stockKeys':count(root/'atlas.sqlite','stock_keys'),'stockAuditLinks':count(root/'atlas.sqlite','stock_audit_links'),'stockHistoryCursors':count(root/'atlas.sqlite','stock_history_cursors'),'sessions':count(root/'access.sqlite','access_sessions')}))"
   ].join('\n');
   const rows = spawnSync('python3', ['-c', sql, data], { encoding: 'utf8' });
-  assert.equal(rows.status, 0); assert.deepEqual(JSON.parse(rows.stdout), {records:18,projections:2,audits:12,receipts:12,batchReceipts:3,assetManifests:2,stockOperations:4,stockGroups:7,stockKeys:9,stockAuditLinks:7,stockHistoryCursors:0,sessions:1});
-  const evidence = { rust:serviceOutput.trim(), browser:version.product, apiReads:api.map(({path,status})=>({path,status})), coreReads, writes, media, stockDownloads, stockWrites, stock:stock.map(row=>({path:row.path,status:row.status,frozenStatus:row.frozenStatus,commandId:row.wire.commandId,revision:row.expected.revision,matchesFrozen:true})), authResponses:responses.filter(r=>r.url.startsWith(origin+'/api/atlas/auth/')).map(r=>({path:new URL(r.url).pathname,status:r.status})), scopedRead:result.status, rooms:1, items:1, persisted:JSON.parse(rows.stdout), observedRequests:observedUrls.length, scope:'Actual native schema/graph/JCS, Rust/SQLite/access/domain/React positive loopback TLS session/login/logout, canonical paged reads, fresh circuit create, atomic local identity batch, native owned PNG/text availability and actual GET/HEAD download plus safe PNG preview, and genuine stock circuit/asset reads compared with actual frozen SQLite rows. Fresh stock circuit and identity singles plus identity-only and mixed circuit/identity/unresolved binding batches use the actual original AT11 fence and native atomic stock journal. The mixed derived binding has a genuine configured same-scope source partition, no source-presence assertion, and a measured canonical record digest linked to its native history. Genuine stock PNG/text handles issue through native WebMCP/HTTP and redeem current originals with GET/HEAD. Native issued metadata is visible before return; the download link UI remains unbound. The editor HTTP catalog advertises 73 stock operations, including six specialized mappings; this flow qualifies only the exercised creates. No rejected request, stopped control, replay, stock history request, recovery or external provider.' };
+  assert.equal(rows.status, 0); assert.deepEqual(JSON.parse(rows.stdout), {records:18,projections:2,audits:13,receipts:13,batchReceipts:3,assetManifests:2,stockOperations:5,stockGroups:8,stockKeys:10,stockAuditLinks:8,stockHistoryCursors:0,sessions:1});
+  // Inspect the committed receipt/linkage using only a read-only SQLite URI.
+  const reviewSql=[
+    'import sqlite3,json,sys', 'from pathlib import Path',
+    "db=sqlite3.connect((Path(sys.argv[1])/'atlas.sqlite').as_uri()+'?mode=ro',uri=True)",
+    'try:',
+    " rows=db.execute('SELECT o.original_json,o.commit_json,o.request_digest,g.request_digest,l.command_id,l.request_digest,l.event_json,a.body,r.body,r.payload_hash,l.payload_hash,h.command_id,k.idempotency_key FROM stock_operations o JOIN stock_groups g ON g.root_operation_id=o.operation_id JOIN stock_audit_links l ON l.root_operation_id=o.operation_id AND l.group_ordinal=g.ordinal JOIN audits a ON a.audit_id=l.audit_id AND a.workspace_id=l.workspace_id AND a.home_id=l.home_id AND json_extract(a.body,\"$.actorId\")=l.actor_id AND json_extract(a.body,\"$.mutationId\")=l.mutation_id JOIN receipts r ON r.workspace_id=l.workspace_id AND r.home_id=l.home_id AND r.actor_id=l.actor_id AND r.mutation_id=l.mutation_id JOIN stock_history_lookup h ON h.seq=a.seq AND h.audit_id=a.audit_id JOIN stock_keys k ON k.root_operation_id=o.operation_id AND k.idempotency_key=o.idempotency_key WHERE o.operation_id=? AND o.workspace_id=? AND o.home_id=? AND o.actor_id=?',sys.argv[2:6]).fetchall()",
+    " print(json.dumps([dict(zip(['original','commit','operationDigest','groupDigest','commandId','linkDigest','event','audit','nativeReceipt','receiptHash','linkHash','historyCommandId','idempotencyKey'],[json.loads(v) if i in [0,1,6,7,8] else v for i,v in enumerate(row)])) for row in rows]))",
+    'finally: db.close()'
+  ].join('\n');
+  const journalRows=spawnSync('python3',['-c',reviewSql,data,reviewWire.operationId,view.scope.workspaceId,view.scope.homeId,writes.actorId],{encoding:'utf8'});
+  assert.equal(journalRows.status,0);
+  const reviewJournal=JSON.parse(journalRows.stdout);assert.equal(reviewJournal.length,1);
+  const linkedReview=reviewJournal[0];
+  assert.deepEqual(linkedReview.original,assetReview.request);assert.deepEqual(linkedReview.commit.originalRequest,assetReview.request);assert.deepEqual(linkedReview.commit.wire,reviewWire);
+  assert.equal(linkedReview.commit.replayed,false);assert.equal(linkedReview.commit.operationId,reviewWire.operationId);assert.equal(linkedReview.commit.actorId,writes.actorId);
+  for(const digest of [linkedReview.operationDigest,linkedReview.groupDigest,linkedReview.linkDigest,linkedReview.commit.requestDigest])assert.equal(digest,assetReview.requestDigest);
+  assert.equal(linkedReview.commandId,'atlas.asset.review');assert.equal(linkedReview.historyCommandId,'atlas.asset.review');assert.equal(linkedReview.idempotencyKey,assetReview.request.idempotencyKey);
+  assert.equal(linkedReview.receiptHash,linkedReview.linkHash);assert.deepEqual(linkedReview.audit,reviewAudit);assert.deepEqual(linkedReview.nativeReceipt.record,reviewRecord);assert.deepEqual(linkedReview.nativeReceipt.audit,reviewAudit);assert.equal(linkedReview.nativeReceipt.replayed,false);
+  assert.deepEqual(linkedReview.event,{eventId:reviewAudit.auditId,commandId:'atlas.asset.review',at:reviewAudit.at,actorId:writes.actorId,requestDigest:assetReview.requestDigest,state:'committed',target:assetReview.request.target,beforeDigest:assetReview.beforeDigest,afterDigest:assetReview.afterDigest});
+  const evidence = { rust:serviceOutput.trim(), browser:version.product, apiReads:api.map(({path,status})=>({path,status})), coreReads, writes, media, assetReview, reviewJournal, stockDownloads, stockWrites, stock:stock.map(row=>({path:row.path,status:row.status,frozenStatus:row.frozenStatus,commandId:row.wire.commandId,revision:row.expected.revision,matchesFrozen:true})), authResponses:responses.filter(r=>r.url.startsWith(origin+'/api/atlas/auth/')).map(r=>({path:new URL(r.url).pathname,status:r.status})), scopedRead:result.status, rooms:1, items:1, persisted:JSON.parse(rows.stdout), observedRequests:observedUrls.length, scope:'Actual native schema/graph/JCS, Rust/SQLite/access/domain/React positive loopback TLS session/login/logout, canonical paged reads, fresh circuit create, atomic local identity batch, native owned PNG/text availability and actual GET/HEAD download plus safe PNG preview, and genuine stock circuit/asset reads compared with actual frozen SQLite rows. Fresh stock circuit and identity singles plus identity-only and mixed circuit/identity/unresolved binding batches use the actual original AT11 fence and native atomic stock journal. The mixed derived binding has a genuine configured same-scope source partition, no source-presence assertion, and a measured canonical record digest linked to its native history. Genuine stock PNG/text handles issue through native WebMCP/HTTP and redeem current originals with GET/HEAD. Native issued metadata is visible before return; the download link UI remains unbound. The editor HTTP catalog advertises 73 stock operations, including six specialized mappings; this flow qualifies only the exercised creates and one existing PNG request-preview review. The review uses actual Media-measured renderer receipt facts and the server-held original Access allocation and same-Store consumer; the fixture supplies no proof carrier. Revision 2 preserves original byte attributes/provenance, matches the frozen record, and links its measured record/request digests to the native audit and read-only SQLite stock journal. No rejected request, stopped control, replay, stock history request, recovery or external provider.' };
   if (process.env.HOUSEATLAS_EVIDENCE) writeFileSync(process.env.HOUSEATLAS_EVIDENCE, JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));
 } finally {
