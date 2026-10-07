@@ -429,7 +429,7 @@ validation call sites retain their order. Downstream clock users must compare
 these milliseconds; no calendar conversion introduces another accepted-range
 or precision restriction.
 
-Current development manifest:
+Historical development manifest for the `f01bbb8` candidate checkpoint:
 `/tmp/houseatlas-at36-native-stock-accepted-owner-tx1ijbkt/Cargo.toml`, SHA-256
 `7e71236ecbe7da1d608364dc123787d92b2bfde3c209877c4e3994d16922ced3`;
 lock SHA-256
@@ -440,9 +440,11 @@ AT07/AT11 pins above. Its native contracts need private exports retained from
 that stock snapshot. Development composition adds only the two exact PR17
 public functions in external `semantics/mod.rs`; patch SHA-256
 `c85be23cd99de4225db9bed30390ffb69750c696d9bb0b23086464636d8fba8d`.
-This AT51-owned reconciliation is a proposed single-file union, not a published
-combined peer or a contracts edit in this lane. Root manifests, dependency
-allowlists and owner reconciliation remain integrator work.
+That interval used an explicit AT51-owned union candidate. It is preserved as
+historical evidence; the owner subsequently published the combined bytes at
+`49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c`, tree
+`eb886fd1ddc4adfe5065f4308f56933796b70142`. No contracts edit is made in
+this lane. Root manifests and dependency allowlists remain integrator work.
 
 Locked/offline check, warning-strict Clippy and build passed against actual
 root domain/jobs. The actual stock example then passed its same six healthy
@@ -468,3 +470,45 @@ freshness, atomic original-witness persistence, stock transactions and restart
 admission remain owner duties. Neither catalogue/schema coverage nor these
 healthy cases establish complete executed operations. Held controls remain
 unrun.
+
+## Published native core and stock composition
+
+Current combined AT51 peer is
+`49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c`, tree
+`eb886fd1ddc4adfe5065f4308f56933796b70142`, independently accepted
+within ordinary scope. AT07 remains
+`45e1e38e97a8e41536b4b6195449076d602589c0`; AT11 remains
+`4967dd2d38c5749be35aa7e44728c4d691246730`.
+The actual published contracts import directly from the captured peer tree;
+no owner overlay, copied export patch or substitute adapter is mounted.
+
+Current manifest
+`/tmp/houseatlas-at36-native-published-combined-n0a8q0a7/Cargo.toml`
+retains SHA-256
+`7e71236ecbe7da1d608364dc123787d92b2bfde3c209877c4e3994d16922ced3`
+and lock SHA-256
+`3fcfec85a52b896b88e387a68057c34c60aafc3fec74a098bb721230547e686d`.
+Exact dependency versions/features remain those above. Check, warning-strict
+Clippy and build passed against actual root domain/jobs with this published
+peer. Proof `checks-evidence.json` alongside that manifest has SHA-256
+`02ff350932e2dd2d64903725d6e95fc1819c4ae4d1996cbc6ba4bafd3f5a5f48`;
+it records its precise source interval and two existing README edits.
+
+All 76 captured owner contract/resource/package files exactly match the
+previous tested union. Comparison `compiled-owner-closure-comparison.json`
+alongside that manifest has SHA-256
+`ff4f9c1a733cd835abcd1d206209ff0fe2052dd6a8883cd2b6d8862f193ca1cc`.
+All 31 current owned Rust files also match the actual stock/clock healthy
+proof above. Those positive results are retained without runtime repetition;
+the previously separate semantic proof remains preserved. The published
+owner resolves the historical reconciliation dependency. Root dependency and
+allowlist changes remain integrator-owned; actual authority, freshness,
+atomic stock/witness transactions, restart and provider/queue runtime remain
+separate duties. Held controls remain unrun.
+
+```sh
+source /workspace/.houseatlas-setup/rust-react-sqlite/activate.sh
+cargo check --manifest-path /tmp/houseatlas-at36-native-published-combined-n0a8q0a7/Cargo.toml --locked --offline --lib --bins
+cargo clippy --manifest-path /tmp/houseatlas-at36-native-published-combined-n0a8q0a7/Cargo.toml --locked --offline --lib --bins -- -D warnings
+cargo build --manifest-path /tmp/houseatlas-at36-native-published-combined-n0a8q0a7/Cargo.toml --locked --offline --lib --bins
+```

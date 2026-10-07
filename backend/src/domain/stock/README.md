@@ -155,18 +155,28 @@ become `InvalidContract`, and correlation errors become `CorrelationMismatch`.
 Owner diagnostic strings do not cross this port. Authority witnesses, approval,
 presence admission, storage and dispatch remain separate owner responsibilities.
 
-Exact corrected PR18 source is `ece8f43fc726dc90857b316e7379e809b774853b`.
-Its predecessor `d3bdb7ccacb94a83d7409b70dbc30a4a3204395f` remains a
-historical development pin. The owner's response-error classification correction
-has passed independent ordinary review at the newer pin.
-It requires private semantic imports absent from the exact PR17 snapshot.
-Development composition therefore retains PR18's unchanged semantic internals
-and adds the two exact PR17 public function bodies to `semantics/mod.rs` in a
-separate external candidate. That reconciliation is AT51-owned and is not a
-published combined peer or a repository change in this lane. The root dependency
-and allowlist updates remain integrator-owned. Native schema/catalogue review
-does not qualify executed operations, current authority, freshness or durable
-atomic presence-witness admission.
+Current published combined PR18 source is
+`49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c`, tree
+`eb886fd1ddc4adfe5065f4308f56933796b70142`. Its corrected stock base
+`ece8f43fc726dc90857b316e7379e809b774853b` and predecessor
+`d3bdb7ccacb94a83d7409b70dbc30a4a3204395f` remain historical pins.
+The response-error classification correction passed independent ordinary
+review at `ece8f43`. The combined owner commit adds only the exact accepted
+PR17 public function block while retaining stock's private semantic imports.
+The previous external candidate remains historical evidence. This lane edits
+no contracts files; the root dependency and allowlist updates remain
+integrator-owned. Native schema/catalogue review does not qualify executed
+operations, current authority, freshness or durable atomic presence-witness
+admission.
+
+The combined owner above is independently accepted within ordinary scope.
+The current compiler harness imports that exact published tree directly and
+passes check, warning-strict Clippy and build without peer edits. All 76
+captured contract/resource/package files match the previously tested union,
+and current owned Rust matches the actual stock/clock healthy proof; those
+runtime positives are retained without repetition. See `../README.md` for
+exact current manifest, comparison and compiler proof pins. The historical
+reconciliation dependency is closed; runtime duties remain as described above.
 
 `examples/healthy.rs` is an isolated synthetic consumer using this native
 offline draft2020-12 validator against the exact stock/Atlas schemas. Its earlier
