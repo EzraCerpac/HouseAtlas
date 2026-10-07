@@ -6,7 +6,7 @@
  import type { AtlasEditingClient } from "./editing";
 +import { AiHost, AiActivityStatus } from "../ai/host/index.js";
 +import type { AiViewResolver } from "../ai/host/index.js";
- 
+
  export interface AtlasAppProps {
    client: AtlasClient;
 @@ -33,6 +35,7 @@
@@ -56,7 +56,7 @@
  import type { AtlasEditingClient } from "./editing";
  import { PlaceEditor } from "./PlaceEditor";
 +import { AiSettingsSection } from "../ai/host/index.js";
- 
+
  export interface PageProps {
    view: ReadyView;
 @@ -94,6 +95,7 @@
@@ -110,7 +110,7 @@
 +import "../src/ai/ai.css";
 +import "../src/ai/host/host.css";
 +import type { AiApplicationPort } from "../src/ai/host/index.js";
- 
+
  const element = document.getElementById("root");
  if (!element) throw new Error("HouseAtlas root missing");
 @@ -59,7 +62,7 @@
