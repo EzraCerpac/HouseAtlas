@@ -35,13 +35,14 @@ impl NativeActivityArchivePacket {
         retained: &RetainedNativeStockActivity<P>,
         max_frame_bytes: usize,
     ) -> s::Result<Self> {
-        retained.archive_ready()?;
-        Self::encode_source(
-            contracts,
-            retained.producer(),
-            retained.native_events(),
-            max_frame_bytes,
-        )
+        retained.with_archive_ready(|| {
+            Self::encode_source(
+                contracts,
+                retained.producer(),
+                retained.native_events(),
+                max_frame_bytes,
+            )
+        })
     }
     /// Encode genuine original-session waiting metadata before admission.
     /// Neither a native capture nor an invocation permit is fabricated.

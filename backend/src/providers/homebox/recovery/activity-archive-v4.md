@@ -50,8 +50,12 @@ let packet = NativeActivityArchivePacket::encode(&contracts, &retained, max_fram
 archive_backend.authorize_and_write_exact(original, packet.bytes())?;
 ```
 
-The encoder checks quiescent capture, the genuine producer's actor/scope, the
-complete sealed record and every captured raw native result. It does not close
+The encoder holds the original capture mutex from its quiescent-state check
+through complete validation, serialization and final exact source comparison.
+The capture's `begin()` cannot start inner I/O during encoding. This addresses
+PR88 discussion 4209603558 in source; the concurrency control remains unrun.
+The encoder checks the genuine producer's actor/scope, the complete sealed
+record and every captured raw native result. It does not close
 capture; `seal` remains the separate final in-memory archive operation. A packet
 cannot encode pending/in-flight/unqualified results. The explicit format is
 `houseatlas-homebox-stock-activity-archive/4`; limits are 16 MiB and 256 events.

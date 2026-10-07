@@ -273,7 +273,10 @@ impl<P: s::StockActivityPrincipal> RetainedNativeStockActivity<P> {
             native: vec![],
         })
     }
-    pub(super) fn archive_ready(&self) -> s::Result<()> {
+    pub(super) fn with_archive_ready<T>(
+        &self,
+        encode: impl FnOnce() -> s::Result<T>,
+    ) -> s::Result<T> {
         let state = self.capture.0.try_lock().map_err(|_| unavailable())?;
         if state.closed
             || state.in_flight
@@ -282,7 +285,12 @@ impl<P: s::StockActivityPrincipal> RetainedNativeStockActivity<P> {
         {
             return Err(unavailable());
         }
-        Ok(())
+        // Keep the original capture reserved through validation, serialization
+        // and final source comparison. begin() cannot start inner I/O while
+        // this guard is held; no state/authority is handed to the encoder.
+        let result = encode();
+        drop(state);
+        result
     }
     pub fn producer(&self) -> &s::StockActivityProducer<P> {
         &self.producer
