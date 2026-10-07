@@ -307,3 +307,17 @@ with this leaf. Mismatched issuer, Core contention, cancellation/quota and other
 held controls were not executed; these corrections have static review and
 normal healthy evidence. Source-manifest adoption, configured review/CI and final
 integration disposition remain the integrator's responsibility.
+
+Refresh arbitration is shared by the exact Core allocation and complete accepted
+source partition, using a private process-local weak registry. Different runtime
+objects sharing that Core/partition obtain the same nonblocking flight mutex
+before native preparation and retain it through transport and publication.
+Registry bookkeeping grants no authority, performs no file I/O and holds no
+Core/Store/access mutex; it removes expired weak entries and caps active entries
+at 10,000. The refresh's retained Core/flight handles prevent address reuse while
+a flight is active. Registry contention/poison/capacity errors precede provider
+work; an already held source flight returns the existing `AlreadyRunning` result.
+This does not replace native issuing-Store/registration/epoch/pointer CAS or
+coordinate distinct processes/independently opened native Stores. Multiple-runtime
+overlap, capacity and other concurrency controls remain held; compilation and
+one normal healthy refresh provide scoped development evidence only.

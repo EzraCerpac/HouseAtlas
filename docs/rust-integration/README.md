@@ -407,8 +407,10 @@ security/recovery/target/product acceptance is supplied by this composition.
 
 The optional Network runtime compares its original Access allocation with both
 Core and the Store's configured authorizer. Core/Store is acquired before
-immutable generation staging. Multiple runtime instances still have separate
-refresh locks; shared-source serialization remains an original-owner review hold.
+immutable generation staging. Multiple runtime instances share a bounded
+process-local refresh lock keyed by the original Core handle and source partition.
+This is scheduling only; it supplies no authority or cross-process arbitration.
+Concurrency controls remain unrun.
 The snapshot adapter still needs genuine retained raw-generation qualification
 for unresolved ends while Core/Store are borrowed. Actual healthy snapshot GETs
 prove response shape, without proving preservation of authorized relationships.
