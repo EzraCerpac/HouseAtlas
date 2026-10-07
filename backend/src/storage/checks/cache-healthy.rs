@@ -130,6 +130,18 @@ fn main() -> CheckResult<()> {
         prepared.state().cache_epoch
     );
     assert_eq!(prepared.fence().partition(), &homebox);
+    let durable_registration: SourceRegistration = serde_json::from_value(
+        initial
+            .sources
+            .iter()
+            .find(|source| {
+                source["sourceInstanceId"] == homebox.source_instance_id
+                    && source["collectionId"] == homebox.collection_id
+            })
+            .expect("synthetic registered source")
+            .clone(),
+    )?;
+    assert_eq!(prepared.fence().registration(), &durable_registration);
     assert!(!prepared.state().homebox_entities.is_empty());
     let mut projections = prepared.state().homebox_entities.clone();
     for projection in &mut projections {

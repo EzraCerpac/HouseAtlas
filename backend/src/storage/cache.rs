@@ -122,6 +122,8 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             return Err(Error::new("not-found", "Source unavailable"));
         }
         let state = cache_repo::publication_state(&tx, partition)?;
+        let registration = cache_repo::source(&tx, partition)?;
+        shape(&self.contract, "sourceRegistration", &registration)?;
         let reserved_generation_id = self.runtime.new_id()?;
         shape(
             &self.contract,
@@ -140,6 +142,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         let fence = CachePublicationFence {
             issuer: self.instance.clone(),
             partition: partition.clone(),
+            registration,
             baseline_generation_id: state.cache.as_ref().and_then(|c| c.generation_id.clone()),
             baseline_cache_epoch: CacheEpoch(state.cache_epoch),
             reserved_generation_id,
