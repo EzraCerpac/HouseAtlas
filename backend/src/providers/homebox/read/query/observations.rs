@@ -8,6 +8,17 @@ use crate::{
     providers::homebox::wire,
 };
 use serde_json::Value;
+use std::collections::BTreeMap;
+
+/// Already captured native template GET facts. Validated request shape is not
+/// access or endpoint qualification; those remain the actual source owner's job.
+pub struct TemplateDetailCapture<'a> {
+    pub request: &'a st::ValidatedRequest,
+    pub scope: &'a SourceScope,
+    pub original: &'a [u8],
+    pub retrieved_at: &'a Timestamp,
+    pub status: SourceStatus,
+}
 
 /// An immutable projection of bounded native response bytes. The source owner
 /// supplies its captured partition and retrieval metadata, never request scope
@@ -22,9 +33,131 @@ pub struct DecodedReadObservation {
     references: Vec<StockTarget>,
     ordered_path: Option<Vec<StockTarget>>,
     parent_relations: Vec<(StockTarget, StockTarget)>,
+    template_details: Vec<DecodedReadObservation>,
+    template_list_retrieved_at: Option<Timestamp>,
 }
 
 impl DecodedReadObservation {
+    /// Join a complete bounded native summary list with its actual captured
+    /// per-ID details. No details are fetched, synthesized or borrowed from an
+    /// unrelated list. Matching revision strings is correlation, not an atomic
+    /// snapshot or freshness guarantee; the original graph owner still decides
+    /// access, complete output disclosure and source qualification.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_template_list<C: StockContractPort>(
+        contracts: &C,
+        request: &st::ValidatedRequest,
+        captured_scope: &SourceScope,
+        original: &[u8],
+        retrieved_at: &Timestamp,
+        status: SourceStatus,
+        details: &[TemplateDetailCapture<'_>],
+        limits: wire::DecodeLimits,
+    ) -> st::StockResult<Self> {
+        let query = scoped(request, captured_scope)?;
+        let ReadSelection::Resources {
+            operation: st::OperationId::HomeboxTemplateList,
+            page: Some(page),
+        } = query.selection()
+        else {
+            return Err(st::StockError::OwnerUnavailable);
+        };
+        if page.cursor.is_some()
+            || page.q.is_some()
+            || !page.include_archived
+            || details.len() > 100
+        {
+            return Err(st::StockError::OwnerUnavailable);
+        }
+        // The byte budget applies to the entire retained capture, in addition
+        // to the existing per-document parser/depth/entry/text limits.
+        let total_bytes = details.iter().try_fold(original.len(), |total, detail| {
+            total.checked_add(detail.original.len())
+        });
+        if total_bytes.is_none_or(|total| total > limits.max_response_bytes) {
+            return Err(st::StockError::OwnerUnavailable);
+        }
+        let source = wire::parse_observation(original, limits)
+            .map_err(|_| st::StockError::InvalidContract)?;
+        let summaries = source.as_array().ok_or(st::StockError::InvalidContract)?;
+        if summaries.len() != details.len()
+            || summaries.len() > page.page_size as usize
+            || summaries.len() > 100
+        {
+            return Err(st::StockError::OwnerUnavailable);
+        }
+        let mut by_id = BTreeMap::new();
+        for detail in details {
+            let detail_query = scoped(detail.request, detail.scope)?;
+            if detail.request.id() != st::OperationId::HomeboxTemplateGet
+                || detail_query.scope() != query.scope()
+                || detail.status != status
+            {
+                return Err(st::StockError::CorrelationMismatch);
+            }
+            let id = detail.request.target()["resourceId"]
+                .as_str()
+                .ok_or(st::StockError::InvalidContract)?;
+            if by_id.insert(id, detail).is_some() {
+                return Err(st::StockError::InvalidContract);
+            }
+        }
+        let mut resources = Vec::with_capacity(summaries.len());
+        let mut retained = Vec::with_capacity(summaries.len());
+        for summary in summaries {
+            let id = summary["id"]
+                .as_str()
+                .ok_or(st::StockError::InvalidContract)?;
+            let detail = by_id.remove(id).ok_or(st::StockError::OwnerUnavailable)?;
+            let observation = Self::from_native(
+                contracts,
+                detail.request,
+                detail.scope,
+                detail.original,
+                detail.retrieved_at,
+                detail.status,
+                limits,
+            )?;
+            // These are the actual five EntityTemplateSummary properties in
+            // the pinned native schema, also present in EntityTemplateOut.
+            for key in ["id", "name", "description", "createdAt", "updatedAt"] {
+                let value = summary
+                    .get(key)
+                    .and_then(Value::as_str)
+                    .ok_or(st::StockError::OwnerUnavailable)?;
+                if observation.decoded.source.get(key).and_then(Value::as_str) != Some(value) {
+                    return Err(st::StockError::CorrelationMismatch);
+                }
+                if matches!(key, "createdAt" | "updatedAt") {
+                    Timestamp::parse(value).map_err(|_| st::StockError::InvalidContract)?;
+                }
+            }
+            let HomeBoxReadResult::Resources(detail_page) = &observation.decoded.value else {
+                return Err(st::StockError::InvalidContract);
+            };
+            if detail_page.resources.len() != 1 {
+                return Err(st::StockError::InvalidContract);
+            }
+            resources.push(detail_page.resources[0].clone());
+            retained.push(observation);
+        }
+        if !by_id.is_empty() {
+            return Err(st::StockError::CorrelationMismatch);
+        }
+        let result = HomeBoxReadResult::Resources(ResourcePage {
+            scope: query.scope().clone(),
+            resources,
+            next_cursor: None,
+            source_status: status,
+        });
+        let mut observation = Self::finish(contracts, request, &query, result, original, &source)?;
+        // Retain every original detail byte document/request/status/retrieval;
+        // the list's original bytes and source are separately retained above.
+        observation.template_details = retained;
+        observation.template_list_retrieved_at = Some(retrieved_at.clone());
+        Ok(observation)
+    }
+
     pub fn from_detail<C: StockContractPort>(
         contracts: &C,
         request: &st::ValidatedRequest,
@@ -177,6 +310,8 @@ impl DecodedReadObservation {
             references,
             ordered_path,
             parent_relations,
+            template_details: Vec::new(),
+            template_list_retrieved_at: None,
         })
     }
 
@@ -188,6 +323,19 @@ impl DecodedReadObservation {
     }
     pub fn original_request(&self) -> &Value {
         &self.request
+    }
+    /// Original native capture bytes, including unknown source properties.
+    pub fn original_bytes(&self) -> &[u8] {
+        &self.decoded.original
+    }
+    /// Complete original detail captures, in native summary order. Their own
+    /// requests and bytes are retained; they supply no independent authority.
+    pub fn captured_template_details(&self) -> &[DecodedReadObservation] {
+        &self.template_details
+    }
+    /// Original summary-list retrieval time, distinct from each detail's time.
+    pub fn template_list_retrieved_at(&self) -> Option<&Timestamp> {
+        self.template_list_retrieved_at.as_ref()
     }
     /// Original native path order, with the requested resource once at the end.
     /// Order alone proves no ancestor relation: the actual graph owner must

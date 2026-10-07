@@ -147,9 +147,11 @@ facts. Native resource/query input reuses the existing bounded duplicate-key-awa
 parser with aggregate entry/text limits. The full frozen operation output is
 validated using the existing `HomeBoxQueries` envelope before capture is retained.
 
-Supported resource forms are entity tags, field list/get, document-link list/get,
+Supported baseline resource forms are entity tags, field list/get,
 maintenance list/get, tag list/get, entity-type list, template get, entity path and
-location tree (13 forms). Metadata query views are currency, statistics, location
+location tree (11 direct forms). A separately captured complete template list
+can also be joined with its captured native per-ID details (12 forms total).
+Metadata query views are currency, statistics, location
 and tag statistics, purchase-price statistics, barcode product, and an asset lookup
 whose original asset spelling exactly matches a captured decoded entity detail
 (seven views). Native aliases need qualified source-owner correlation; no local
@@ -189,12 +191,38 @@ invented cursor and refuse cursor/q selections that their source captures cannot
 represent. They return unavailable rather than truncate data exceeding the selected
 page/limit. A real cursor producer remains necessary for larger or searched views.
 
+`from_template_list` accepts actual captured `/v1/templates` summaries plus
+`TemplateDetailCapture` values for the corresponding `/v1/templates/{id}`
+responses. The pinned `repo.EntityTemplateSummary` and `repo.EntityTemplateOut`
+schemas share `id`, `name`, `description`, `createdAt` and `updatedAt`. All five
+facts must be present and match exactly, with every summary ID represented once
+and no extra/duplicate details. Full resource data comes only from each detail's
+original bytes through the existing template-get decoder/projection. Summary
+order, original list and detail requests/bytes, per-detail retrieval timestamps
+and the distinct list retrieval timestamp are retained. The requested row bound
+and a total capture byte budget apply without truncation. Source scopes and
+statuses must match; mixed statuses remain unavailable. Only the unfiltered
+`includeArchived: true` selection without cursor/q is supported because the
+native template endpoint supplies no archive filter or archive fact. An observed
+empty array with no details is a supported empty list; a summary is never made
+into an empty-fields detail. Matching native timestamps does not establish an
+atomic snapshot, freshness or source/endpoint qualification. These captures
+still require the actual original owner graph and disclosure authorization.
+
 Concrete representation blockers remain:
 
+* Document-link list/get requires an observed native `archived: false`. Native
+  `ItemAttachment` has no such property; the legacy decoder's presentation false
+  is not source evidence. These forms remain unavailable for nonempty baseline
+  link observations pending source/contract reconciliation. No false property is
+  added to the baseline positive fixture. Any actual `archived` extension still
+  requires the source owner to qualify its source version and field meaning;
+  this adapter establishes neither from JSON presence.
 * Stored-file list/get requires `archived: boolean`, which the native stored-file
   source and decoded type do not establish. No fabricated `false` is emitted.
-* Native template list contains summaries without the required fields. A source
-  producer must capture full details, or the contract owner must reconcile that arm.
+* Summary-only native template lists still lack required fields. The source owner
+  must capture each actual full detail before using `from_template_list`; no
+  provider calls or source producer are implemented here.
 * Native field-name/value responses are anonymous string arrays; the frozen result
   expects identity-bearing entity resource rows. Their ownership/correlation
   mapping is not present, and no entity ID is invented.
@@ -212,9 +240,9 @@ with their respective original owners. Existing cached four-form application
 mounts remain unchanged. Source adapter coverage does not qualify application
 producer intake, Access graph policies, provider deployment or live capability.
 
-Three separate ordinary positive source tests in `observations_healthy.rs` run
+Four separate ordinary positive source tests in `observations_healthy.rs` run
 through actual `NativeStockContract`, `prepare`, `HomeBoxQueries` and
-`dispatch_prepared`. They cover 24 positive dispatches across the 13 resource
+`dispatch_prepared`. They cover 24 positive dispatches across the 12 resource
 forms and seven query views, including all four custom-field representations,
 actual nested source tree edges, a synthetic independently captured ancestor
 chain, template references, original calendar/cost spelling and exact numeric
@@ -226,6 +254,14 @@ Run only these exact cases with the existing source harness and `--exact
 * `providers::homebox::read::query::observations_healthy::healthy_decoded_detail_and_maintenance_resources`
 * `providers::homebox::read::query::observations_healthy::healthy_decoded_native_resource_graphs`
 * `providers::homebox::read::query::observations_healthy::healthy_decoded_native_query_metadata`
+* `providers::homebox::read::query::observations_healthy::healthy_captured_native_template_list_details`
+
+The template-list positive case joins two source-shaped summaries/details in
+different capture order, verifies original byte retention, exact numeric/time
+spelling, qualified references, per-detail retrieval times and observed empty
+fields, and separately dispatches an observed empty native list. It supplies no
+archived property to the native attachment fixture and claims no positive
+document-link archival evidence.
 
 ## Ordinary positive verification
 
