@@ -3,6 +3,7 @@
 //! authority and provider queue owners are injected; this module opens no IO.
 
 mod atlas_commands;
+mod atlas_lists;
 mod atlas_reads;
 mod atlas_results;
 mod catalog;
@@ -20,6 +21,7 @@ mod service;
 mod staged_atlas_commands;
 
 pub use atlas_commands::*;
+pub use atlas_lists::*;
 pub use atlas_reads::*;
 pub use atlas_results::*;
 pub use catalog::*;

@@ -113,8 +113,11 @@ history owner, preserving original command/digest/audit linkage and opaque
 paging/search results. `NativeStockReads` implements that port through AT07
 `stock_history_json_with_authorization`. Frozen bare audits are never converted
 into stock events.
-Lists and byte downloads remain owner work. No concrete current stock authority
-composition or production endpoint is enabled by this mapper.
+The ten catalog list forms now use the same scoped snapshot peer with the
+explicit host-shared `AtlasListPages` and authenticated `AtlasListBinding`. See
+[atlas_lists.md](atlas_lists.md) for pagination/search semantics, exact authority
+obligations and the minimal root HTTP/MCP/WebMCP adoption proposal. Byte downloads
+remain owner work. No production endpoint is enabled by this mapper.
 
 `plan_atlas_commands` builds immutable, lossless native plans for 31 direct Atlas
 write forms and ordered batches. Root and child envelopes/digests, child order,
