@@ -129,3 +129,9 @@ pub(super) fn command_response(
         Err(error) => errors::response(error, id),
     }
 }
+
+/// Keep specialized root adapters on the same validated, sanitized wire3 error
+/// boundary as the ordinary command dispatcher.
+pub(super) fn command_error(error: st::StockError, request_id: &str) -> HttpResult {
+    errors::response(error, request_id)
+}
