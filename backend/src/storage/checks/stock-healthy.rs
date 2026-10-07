@@ -315,8 +315,8 @@ fn main() -> CheckResult<()> {
         "historyAuthorizationFrames":*authorization.history_frames.borrow(),"schemaResources":schemas.resources,
         "created":created,"replaced":replaced,"batch":batched,"historyFirst":first.wire,"historySecond":second.wire,"historySearch":searched.wire,
         "finalSnapshot":final_snapshot,"databaseLineage":DATABASE_LINEAGE,"sqliteVersion":rusqlite::version(),
-        "schemaProfile":"Exact offline Draft202012 resources and required arm references; formats enabled, unknown formats fail; no defaults or HTTP/file retrieval; ordinary format values only",
-        "deferred":"Production authority/runtime/service composition, format-boundary parity, timestamp ordering, presence/provider qualification, replay/negative/fault/race controls"});
+        "schemaProfile":"Actual native StockValidation from PR18; embedded exact offline Draft202012 closure and Ajv-compatible native formats; no defaults or HTTP/file retrieval",
+        "contractsPeers":{"stock":"d3bdb7ccacb94a83d7409b70dbc30a4a3204395f","semantics":"a2f76f9b8b0a3dbd56fbd358a8e80b15490cbb05"},"deferred":"Production authority/runtime/service composition, independent peer review completion, format-boundary qualification, presence/provider qualification, replay/negative/fault/race controls"});
     fs::write(
         output.join("evidence.json"),
         serde_json::to_vec_pretty(&evidence)?,

@@ -255,6 +255,11 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
         Ok(None)
     }
     fn validate_original(&self, original: &Snapshot) -> Result<()> {
+        // A single root's guards are its native command guards. Preserve the
+        // native transition-then-guards order instead of checking them twice.
+        if self.plan.batch_target_id().is_none() {
+            return Ok(());
+        }
         let mut seen = BTreeSet::new();
         for guard in self.plan.root_guards() {
             if !seen.insert((guard.record.record_type.as_str(), &guard.record.record_id)) {

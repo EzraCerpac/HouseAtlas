@@ -1,5 +1,5 @@
 //! Check-only exact schemas and pure Rust semantics with synthetic authority.
-//! No transport, real grants, timestamp fallback or held controls are supplied.
+//! No transport, real grants or held controls are supplied.
 use houseatlas_at07_checkpoint::{contracts as native, domain::stock, storage::*};
 use native::semantics as sem;
 use serde::{Serialize, de::DeserializeOwned};
@@ -65,8 +65,8 @@ impl Contract for PureRustSemantics {
         route: &ScopedTarget,
     ) -> Result<u64> {
         self.count("transition");
-        let current = current.map(decoded::<native::AtlasRecord>).transpose()?;
-        semantic(sem::assert_transition(
+        let current = current.map(serde_json::to_value).transpose()?;
+        semantic(sem::assert_transition_from_value(
             current.as_ref(),
             &decoded(command)?,
             &target(route)?,
@@ -139,22 +139,15 @@ impl Contract for PureRustSemantics {
         self.count("canonical");
         semantic(sem::canonical_json(value))
     }
-    fn timestamp_millis(&self, _: &str) -> Result<Option<i64>> {
+    fn timestamp_millis(&self, value: &str) -> Result<Option<i64>> {
         self.count("timestamp");
-        Err(Error::new(
-            "schema-incompatible",
-            "Exact native timestamp ordering is unavailable in this stock-only check",
-        ))
+        Ok(sem::timestamp_millis(value))
     }
 }
 
-/// All published resource bytes are checked against their exact offline map.
-/// Stock formats use jsonschema built-ins for the ordinary fixture values;
-/// this check does not establish Ajv boundary-format parity.
+/// Actual published native offline stock schema port; no local validator copy.
 pub(crate) struct OfflineStockSchemas {
-    registry: jsonschema::Registry<'static>,
-    definitions: Value,
-    validators: RefCell<BTreeMap<String, jsonschema::Validator>>,
+    native: native::stock::StockValidation,
     pub(crate) calls: RefCell<BTreeMap<String, usize>>,
     pub(crate) resources: Value,
 }
@@ -162,75 +155,39 @@ impl OfflineStockSchemas {
     pub(crate) fn load(root: &Path) -> CheckResult<Self> {
         let map: Value = load(root, "contracts/stock-wire3/resource-map.json")?;
         assert_eq!(map["networkResolution"], false);
-        let mut registry = jsonschema::Registry::new();
-        let mut definitions = None;
         for resource in map["resources"]
             .as_array()
             .ok_or("Resource map entries missing")?
         {
-            let relative = resource["path"].as_str().ok_or("Resource path missing")?;
-            let path = root.join(relative);
-            let bytes = fs::read(&path)?;
+            let bytes =
+                fs::read(root.join(resource["path"].as_str().ok_or("Resource path missing")?))?;
             assert_eq!(
                 format!("{:x}", Sha256::digest(&bytes)),
                 resource["sha256"]
                     .as_str()
                     .ok_or("Resource digest missing")?
             );
-            let schema: Value = serde_json::from_slice(&bytes)?;
-            let file_uri =
-                url::Url::from_file_path(&path).map_err(|_| "Absolute schema path required")?;
-            registry = registry.add(file_uri.as_str(), schema.clone())?;
-            if let Some(uri) = resource["uri"].as_str() {
-                assert_eq!(schema["$id"], uri);
-                registry = registry.add(uri, schema.clone())?;
-                if uri == "urn:houseatlas:agent:stock:3" {
-                    definitions = Some(schema["$defs"].clone());
-                }
-            }
         }
         Ok(Self {
-            registry: registry.prepare()?,
-            definitions: definitions.ok_or("Agent definitions missing")?,
-            validators: RefCell::new(BTreeMap::new()),
+            native: native::stock::StockValidation::new()?,
             calls: RefCell::new(BTreeMap::new()),
             resources: map,
         })
     }
 }
 impl stock::StockContractPort for OfflineStockSchemas {
-    fn validate(&self, schema_ref: &str, value: &Value) -> stock::StockResult<()> {
-        let key = schema_ref
-            .strip_prefix("#/$defs/")
-            .ok_or(stock::StockError::OwnerUnavailable)?;
-        if self.definitions.get(key).is_none() {
-            return Err(stock::StockError::OwnerUnavailable);
-        }
-        let mut validators = self.validators.borrow_mut();
-        if let std::collections::btree_map::Entry::Vacant(entry) =
-            validators.entry(schema_ref.into())
-        {
-            let schema = json!({"$schema":"https://json-schema.org/draft/2020-12/schema",
-                "$ref":format!("urn:houseatlas:agent:stock:3{schema_ref}")});
-            let validator = jsonschema::options()
-                .with_draft(jsonschema::Draft::Draft202012)
-                .should_validate_formats(true)
-                .should_ignore_unknown_formats(false)
-                .with_registry(&self.registry)
-                .build(&schema)
-                .map_err(|_| stock::StockError::OwnerUnavailable)?;
-            entry.insert(validator);
-        }
-        *self
-            .calls
-            .borrow_mut()
-            .entry(schema_ref.into())
-            .or_default() += 1;
-        validators
-            .get(schema_ref)
-            .ok_or(stock::StockError::OwnerUnavailable)?
-            .validate(value)
-            .map_err(|_| stock::StockError::InvalidContract)
+    fn validate(&self, name: &str, value: &Value) -> stock::StockResult<()> {
+        *self.calls.borrow_mut().entry(name.into()).or_default() += 1;
+        self.native
+            .validate(name, value)
+            .map_err(|error| match error {
+                native::stock::StockError::InvalidContract(_) => stock::StockError::InvalidContract,
+                native::stock::StockError::Correlation(_) => stock::StockError::CorrelationMismatch,
+                native::stock::StockError::Setup(_)
+                | native::stock::StockError::UnknownSchema(_) => {
+                    stock::StockError::OwnerUnavailable
+                }
+            })
     }
 }
 

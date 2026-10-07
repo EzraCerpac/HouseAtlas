@@ -313,9 +313,10 @@ values preserve historical tombstones and bind the continuation query.
 
 `checks/stock-healthy.rs` executes fresh create/replace/ordered batch commands,
 two history pages, matching search and reopened durable rows. Its schema peer
-uses exact published offline wire3/Atlas resources. Its graph/JCS/result peer
-invokes reviewed Rust semantics directly. Authority/runtime are synthetic;
-the unused required cache timestamp port errors explicitly. No JS oracle,
+uses the actual published native stock validator and embedded offline wire3/Atlas
+resources. Its graph/JCS/result/raw-transition/timestamp peer invokes the
+published Rust semantic functions directly. Authority/runtime are synthetic.
+No JS oracle,
 provider call or held control runs in that checkpoint. Binding presence triggers
 derive from actual original/candidate records through the domain predicate and
 remain held until atomic witness qualification exists.
