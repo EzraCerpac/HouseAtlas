@@ -1,5 +1,5 @@
 //! Typed configuration consumption of the sibling async HTTP transport.
-//! Matching a registration is not a jobs-to-stock activity/permit adapter.
+//! Stock registration preserves genuine epochs without Jobs permit conversion.
 use super::TrustedDispatcherConfig;
 use crate::providers::homebox::write_transport::{
     DispatchBinding, DispatchResources, HttpDispatcher, Limits, SourceEndpoint, TransportFault,
@@ -15,14 +15,24 @@ pub struct TrustedStockHttpConfig {
 impl TrustedStockHttpConfig {
     /// Check that the transport's complete partition, physical configuration
     /// and owner identify the same registered deployment queue. This does not
-    /// translate a jobs lease into a stock permit or claim durable stock
-    /// activity coverage. The activity owner must supply that accepted mapping.
+    /// translate a jobs lease into a stock permit. The concrete activity leaf
+    /// consumes the stock registration's original epochs directly.
     pub fn new(
         queue: &TrustedDispatcherConfig,
         origin: &str,
         binding: DispatchBinding,
         limits: Limits,
     ) -> Result<Self, TransportFault> {
+        Self::check_registration(queue, &binding)?;
+        // The transport owns HTTPS and qualified registry validation.
+        let endpoint = SourceEndpoint::https(origin, binding)?;
+        Ok(Self { endpoint, limits })
+    }
+
+    fn check_registration(
+        queue: &TrustedDispatcherConfig,
+        binding: &DispatchBinding,
+    ) -> Result<(), TransportFault> {
         let registration = &queue.queue().registration;
         let physical = &binding.physical_binding;
         if registration.identity.deployment_id != physical.deployment_id.to_string()
@@ -41,10 +51,26 @@ impl TrustedStockHttpConfig {
         {
             return Err(TransportFault::Binding);
         }
-        // The accepted transport validates HTTPS and genuine qualified binding;
-        // this host never converts a source pin or fixture into qualification.
-        let endpoint = SourceEndpoint::https(origin, binding)?;
-        Ok(Self { endpoint, limits })
+        Ok(())
+    }
+
+    /// Recheck the configured transport against the consuming deployment host,
+    /// including a config constructed by another host. No authority is minted.
+    pub fn check_queue(&self, queue: &TrustedDispatcherConfig) -> Result<(), TransportFault> {
+        Self::check_registration(queue, self.binding())
+    }
+
+    /// Preserve the exact stock owner's registry epochs. The published activity
+    /// leaf consumes these directly; no synchronous jobs fence conversion exists.
+    pub fn activity_registration(&self) -> crate::storage::StockActivityRegistration {
+        let binding = self.binding();
+        crate::storage::StockActivityRegistration {
+            physical_binding: binding.physical_binding.clone(),
+            owner_id: binding.owner_id,
+            dispatcher_epoch: binding.dispatcher_epoch,
+            source_epoch: binding.source_epoch,
+            qualification: binding.qualification.clone(),
+        }
     }
 
     pub fn binding(&self) -> &DispatchBinding {

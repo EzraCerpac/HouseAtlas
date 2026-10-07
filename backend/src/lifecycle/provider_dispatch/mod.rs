@@ -1,11 +1,12 @@
 //! Single-process host for the accepted native jobs/AT07 queue protocol.
 //! SQL transactions and RefCell borrows end before synchronous transport I/O.
-//! This is not an implementation of async stock.2 StockActivityPort.
+//! durable_stock additionally composes the published async StockActivityPort.
 pub use crate::config::provider_dispatch::TrustedDispatcherConfig;
 use crate::{
     jobs::{self, native_homebox::*},
     storage::{self, AtlasStore, Authorization, Contract, QueueAuthorization, Runtime},
 };
+pub mod durable_stock;
 #[cfg(test)]
 mod healthy;
 pub mod stock_http;

@@ -499,7 +499,7 @@ fn healthy_fresh_native_dispatch() {
     let path = directory.path().join("atlas.sqlite");
     let store = AtlasStore::open(
         &path,
-        crate::http::contracts::NativeContracts,
+        storage::NativeContract::new(crate::domain::native_semantics::NativeSemantics::native()),
         FixtureAuthorization,
         FixtureRuntime(Cell::new(90000)),
         StoreOptions::default(),
