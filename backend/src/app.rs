@@ -23,6 +23,24 @@ pub struct CapturedHome {
     pub summary: d::HomeSummary,
     pub principal: a::Principal,
 }
+/// One actual AT11 issuance shared with native media without copying its handle.
+/// Cloning the retained wrapper preserves the exact inner principal allocation.
+#[derive(Clone)]
+pub struct OriginalPrincipal(crate::media::native::RetainedPrincipal);
+impl OriginalPrincipal {
+    pub fn principal(&self) -> &a::Principal {
+        self.0.principal()
+    }
+    pub fn retained(&self) -> &crate::media::native::RetainedPrincipal {
+        &self.0
+    }
+}
+impl std::ops::Deref for OriginalPrincipal {
+    type Target = a::Principal;
+    fn deref(&self) -> &Self::Target {
+        self.principal()
+    }
+}
 pub fn capture_homes(
     access: &mut a::AccessBoundary,
     request: &a::RequestEvidence<'_>,
@@ -42,16 +60,24 @@ pub fn capture_homes(
     Ok(homes)
 }
 pub struct RequestPrincipal {
-    pub principal: a::Principal,
+    pub principal: OriginalPrincipal,
     partitions: RefCell<Vec<a::PartitionGrant>>,
     sources: RefCell<Vec<a::SourceGrant>>,
     source_capture_sealed: Cell<bool>,
     pub home_choices: Vec<CapturedHome>,
 }
+impl s::StagedUploadPrincipal for RequestPrincipal {
+    fn original_upload_principal(&self) -> &a::Principal {
+        self.principal.principal()
+    }
+}
 impl RequestPrincipal {
     pub fn new(principal: a::Principal) -> Self {
+        Self::from_retained(crate::media::native::RetainedPrincipal::new(principal))
+    }
+    pub fn from_retained(principal: crate::media::native::RetainedPrincipal) -> Self {
         Self {
-            principal,
+            principal: OriginalPrincipal(principal),
             partitions: RefCell::new(Vec::new()),
             sources: RefCell::new(Vec::new()),
             source_capture_sealed: Cell::new(false),
@@ -146,7 +172,7 @@ impl RequestPrincipal {
     ) -> a::AccessResult<()> {
         // The guard is bound to this actual opaque principal; no reconstructed
         // actor/scope or replacement handle can stand in for it.
-        if !std::ptr::eq(guard.principal(), &self.principal) {
+        if !std::ptr::eq(guard.principal(), self.principal.principal()) {
             return Err(a::AccessError::Unavailable);
         }
         guard.revalidate()?;

@@ -7,6 +7,7 @@ mod atlas_reads;
 mod atlas_results;
 mod catalog;
 mod digest;
+mod existing_asset_attachment;
 mod native_atlas_commands;
 mod native_authority;
 mod native_contract;
@@ -14,13 +15,16 @@ mod native_reads;
 mod ports;
 mod request;
 mod result;
+mod retained_staged_atlas_commands;
 mod service;
+mod staged_atlas_commands;
 
 pub use atlas_commands::*;
 pub use atlas_reads::*;
 pub use atlas_results::*;
 pub use catalog::*;
 pub use digest::*;
+pub use existing_asset_attachment::*;
 pub use native_atlas_commands::*;
 pub use native_authority::*;
 pub use native_contract::*;
@@ -28,7 +32,9 @@ pub use native_reads::*;
 pub use ports::*;
 pub use request::*;
 pub use result::*;
+pub use retained_staged_atlas_commands::*;
 pub use service::*;
+pub use staged_atlas_commands::*;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StockError {

@@ -31,7 +31,7 @@ fn active<'a>(
             && record.target.record_id == id
     })
 }
-fn admission(
+pub(super) fn admission(
     core: &mut crate::app::Core,
     p: &crate::app::RequestPrincipal,
     home: &d::HomeSummary,
@@ -117,9 +117,12 @@ fn admission(
     for guard in &guards {
         validate::<contracts::Guard>(guard)?;
     }
-    Ok(
-        json!({"record":value,"guards":guards,"canReplaceClassification":p.principal.role() == access::Role::Editor,"maximumReasonCodePoints":1024}),
-    )
+    let editor = p.principal.role() == access::Role::Editor;
+    let mut result = json!({"record":value,"guards":guards,"canReplaceClassification":editor,"maximumReasonCodePoints":1024});
+    if editor {
+        result["attachmentPolicy"] = super::upload::policy();
+    }
+    Ok(result)
 }
 pub(super) async fn place(
     State(host): State<Host>,
@@ -141,19 +144,12 @@ pub(super) async fn place(
             }),
             false,
             |core, p, home| {
-                let query = uri
-                    .query()
-                    .ok_or_else(|| failure(StatusCode::UNPROCESSABLE_ENTITY))?;
-                if query.len() > 4096 {
-                    return Err(failure(StatusCode::PAYLOAD_TOO_LARGE));
-                }
-                let mut fields = url::form_urlencoded::parse(query.as_bytes());
-                let (name, bytes) = fields
-                    .next()
-                    .ok_or_else(|| failure(StatusCode::UNPROCESSABLE_ENTITY))?;
-                if name != "source" || fields.next().is_some() || bytes.len() > 2048 {
-                    return Err(failure(StatusCode::UNPROCESSABLE_ENTITY));
-                }
+                let bytes = super::query::one_utf8(
+                    &uri,
+                    "source",
+                    super::query::SOURCE_QUERY_BYTES,
+                    super::query::SOURCE_JSON_BYTES,
+                )?;
                 let raw = intake::json(bytes.as_bytes())?;
                 validate::<contracts::SourceRef>(&raw)
                     .map_err(|_| failure(StatusCode::UNPROCESSABLE_ENTITY))?;

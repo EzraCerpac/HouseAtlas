@@ -3,8 +3,11 @@ import type { SourceRef } from "../src/api/generated/contracts.js";
 import type { AtlasEditingClient, PlaceEditAdmission } from "../src/app/editing.js";
 import type { AtlasSessionInfo } from "../src/app/session.js";
 import type { StockRequestEnvelope, StockResultEnvelope, StockSchemaPort } from "../src/webmcp/stock.js";
+import { createUploadPlaceEvidence, readAttachmentPolicy } from "./upload-place-evidence-client.js";
 
 export const maximumReasonCodePoints = 1024;
+const maximumSourceJsonBytes = 64 * 1024;
+const maximumSourceQueryBytes = 3 * maximumSourceJsonBytes + "source=".length;
 /** Retain the full submitted reason. This native profile never clips text. */
 export function assertNativeReason(reason: unknown): asserts reason is string {
   if (typeof reason !== "string" || !reason.trim() || Array.from(reason).length > maximumReasonCodePoints)
@@ -16,10 +19,10 @@ export function createEditingClient(schemas: StockSchemaPort, session: () => Atl
     async loadPlace(source: SourceRef, signal: AbortSignal): Promise<PlaceEditAdmission | null> {
       validate("sourceRef", source);
       const sourceJson = JSON.stringify(source);
-      if (new TextEncoder().encode(sourceJson).byteLength > 2048)
+      if (new TextEncoder().encode(sourceJson).byteLength > maximumSourceJsonBytes)
         throw new TypeError("Place source exceeds the decoded transport bound");
       const query = `source=${encodeURIComponent(sourceJson)}`;
-      if (query.length > 4096) throw new TypeError("Place source exceeds transport bound");
+      if (query.length > maximumSourceQueryBytes) throw new TypeError("Place source exceeds transport bound");
       const path = `/api/atlas/editing/v1/workspaces/${encodeURIComponent(source.workspaceId)}/homes/${encodeURIComponent(source.homeId)}/place`;
       const response = await fetch(`${path}?${query}`, { method: "GET", credentials: "same-origin", cache: "no-store", redirect: "error", signal, headers: { Accept: "application/json" } });
       if (!response.ok) throw new Error("Place admission could not complete");
@@ -32,8 +35,11 @@ export function createEditingClient(schemas: StockSchemaPort, session: () => Atl
       for (const guard of value.guards) validate("guard", guard);
       const admission = value as unknown as PlaceEditAdmission;
       if (admission.record.workspaceId !== source.workspaceId || admission.record.homeId !== source.homeId || admission.record.lifecycle !== "active") throw new TypeError("Place admission scope differs");
-      return { record: admission.record, guards: admission.guards, canReplaceClassification: admission.canReplaceClassification };
+      const attachmentPolicy = readAttachmentPolicy(value.attachmentPolicy, schemas);
+      return { record: admission.record, guards: admission.guards, canReplaceClassification: admission.canReplaceClassification,
+        ...(attachmentPolicy === undefined ? {} : { attachmentPolicy }) };
     },
+    uploadPlaceEvidence: createUploadPlaceEvidence(schemas, session),
     async replacePlace(request: StockRequestEnvelope, signal: AbortSignal): Promise<StockResultEnvelope> {
       schemas.validate("#/$defs/request_atlas_location_semantics_replace", request);
       assertNativeReason(request["reason"]);

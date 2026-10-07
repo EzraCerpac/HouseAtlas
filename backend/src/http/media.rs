@@ -26,7 +26,7 @@ impl MediaStoragePort<RetainedPrincipal> for OwnedStore<'_> {
         asset_id: &str,
     ) -> m::MediaResult<StoredAsset> {
         // Clone the actual private AT11 capability; no DTO or fresh issuance.
-        let request = RequestPrincipal::new(principal.principal().clone());
+        let request = RequestPrincipal::from_retained(principal.clone());
         NativeMediaStorage::new(self.0).read_owned_asset(&request, scope, asset_id)
     }
 }
@@ -90,7 +90,7 @@ pub(super) async fn deliver(
         if !core.homes.iter().any(|home| home.scope == scope) {
             return Err(failure(StatusCode::NOT_FOUND));
         }
-        let request = RequestPrincipal::new(principal.principal().clone());
+        let request = RequestPrincipal::from_retained(principal.clone());
         let selected = storage::Scope {
             workspace_id: scope.workspace_id,
             home_id: scope.home_id,

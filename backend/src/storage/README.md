@@ -159,11 +159,13 @@ second service framework or raw database handle is exposed.
 
 ## Database and dependencies
 
-The new lineage is `houseatlas-rust-storage/1`, database version 4, distinct from
+The new lineage is `houseatlas-rust-storage/1`, database version 5, distinct from
 published JS database version 3 and record schema 1. `0001_rust_core.sql` starts
 from an empty database, including published durable receipts/reservations/epochs
 in its initial schema. Its own checksum ledger and lineage/contract metadata are
-verified as an exact ordered prefix before an additive Rust-only upgrade.
+verified exactly. Schema 5 is an explicitly fresh database profile: existing
+Rust schema-1..4 databases are refused without modification. Their historical
+checkpoint packets remain unchanged. No existing user-data migration is added.
 `0002_stock_intents.sql` retains first-admitted stock envelopes, permanent
 scope/actor key ownership, ordered operation groups, native receipt/audit links
 and opaque history cursors. It does not backfill native-only receipts.
@@ -470,7 +472,7 @@ native stock commands in three roots, including a two-child ordered batch,
 a retained history cursor and matching search, then one actual
 `WriteQueue -> NativeHomeBoxWriter -> AtlasStore` synthetic success. It records
 35 queue authority checks, two final dispatch checks and one invocation before
-capture. All rows in all 28 tables match the closed source, captured image and
+capture. In the preserved schema-4 checkpoint, all rows in all 28 tables match the closed source, captured image and
 copied restore before strict open. Detached full validation, strict same-state
 open with new storage authority/runtime, stock snapshot/history/search and a
 currently authorized succeeded queue receipt read pass afterward. The restored
@@ -483,8 +485,8 @@ ordinary example after inspecting its source:
 
 ```sh
 source /workspace/.houseatlas-setup/rust-react-sqlite/activate.sh
-cargo clippy --locked --manifest-path "${AT07_COMPOSITION_DIR}/Cargo.toml" --lib --bin queue-healthy --bin populated-recovery-healthy --bin recovery-healthy -- -D warnings
-HOUSEATLAS_ROOT="${HOUSEATLAS_SOURCE_DIR}" HOUSEATLAS_STOCK_ROOT="${AT07_STOCK_SOURCE_DIR}" HOUSEATLAS_CONTRACT_PEER=49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c HOUSEATLAS_DOMAIN_PEER=f51bc7962b491faa1cc563f2ec0f737c471e4e26 cargo run --locked --manifest-path "${AT07_COMPOSITION_DIR}/Cargo.toml" --bin populated-recovery-healthy -- "${AT07_HEALTHY_OUTPUT}"
+cargo clippy --locked --manifest-path /tmp/houseatlas-at07-native-queue-composition/Cargo.toml --lib --bin queue-healthy --bin populated-recovery-healthy --bin recovery-healthy -- -D warnings
+HOUSEATLAS_ROOT=/workspace/HouseAtlas HOUSEATLAS_STOCK_ROOT=/tmp/houseatlas-at07-native-queue-peer49 HOUSEATLAS_CONTRACT_PEER=49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c HOUSEATLAS_DOMAIN_PEER=f51bc7962b491faa1cc563f2ec0f737c471e4e26 cargo run --locked --manifest-path /tmp/houseatlas-at07-native-queue-composition/Cargo.toml --bin populated-recovery-healthy -- /tmp/houseatlas-at07-populated-recovery-healthy-1
 ```
 
 The supplied peer labels are exact public source pins. This example qualifies
@@ -569,6 +571,115 @@ The queue example exercises no held replay, retry, expiry, fault or concurrency
 control. Production grant/witness adapters, prepared provider/media evidence
 qualification and host wiring remain required. Full stock/queue
 recovery-image composition now requires those same explicit codec/discovery peers. Successful synthetic dispatch does not qualify those peers.
+
+## Atomic staged uploads: fresh schema 5
+
+`execute_staged_stock_json_with_authorization<B, S>` accepts the original
+`&B::Principal` and an actual sealed `media::staged_upload::StagedAssetPlan`.
+`B: StockAuthorization` and `B::Principal: StagedUploadPrincipal` are independent
+of the store's persistent read principal. The host's existing `RequestPrincipal`
+implements `original_upload_principal()` by borrowing its genuine retained
+`access::Principal`. Storage requires pointer identity with the media plan;
+the unchanged host wrapper reaches every native and stock authorization callback.
+The built-in implementation also accepts a genuine access principal directly.
+No decoded principal, copied grant, rebuilt fence or alternate authority is used.
+
+The private transaction extension checks original native and stock intake
+authority before looking up an upload token or stock receipt. Its unique
+consumption insert follows native records/revisions/audits/manifests/receipts
+and stock root/groups/audit links/keys in the same existing IMMEDIATE transaction,
+before the engine's final original-authority revalidation and sole commit.
+Native final-graph, per-command transition, revision and guard validation remain
+in the original command engine. The actual native media runtime verifies
+immutable measured bytes and durability when persisting the available asset.
+An earlier receipt without an associated consumption cannot consume a token.
+
+`0005_upload_consumption.sql` adds one insert-only `upload_consumptions` table
+to the fresh profile, with unique token, root and asset associations and
+foreign keys to the actual created asset, creation audit and stock group/root.
+It retains the exact version-1 media binding, asset child envelope and intent
+digest, actor/scope, complete stock root envelope, ordinal and creation links.
+The private strict loader validates those canonical facts against actual
+stock/native receipts and current immutable asset/manifest identity. Later
+permitted lifecycle, availability and provenance updates need not equal the
+creation payload. `ConsumedUpload` has no public constructor or deserializer;
+its borrowed facts qualify retained planning and supply no live upload authority.
+Stock history/recovery use this checked resolver; full stock recovery scans
+every consumption row and all uploaded roots. Native-only recovery refuses
+this stock-associated state. Healthy all-table comparison sources now enumerate
+29 tables; their earlier 28-table evidence remains the schema-4 checkpoint.
+
+The external composition uses actual media
+`f0d6b10f00bb93fc1c1dd4eb3ae66ee1fbe3f873`, access
+`4a0cd4da563a32d26677755a608180c960765353`, contracts
+`49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c` and domain/jobs
+`d9e2b59ffef4b7ac2b11705df735b89d8371fdc5`. The completed ordinary example
+uses a separately labeled external qualified domain proposal against d9;
+it is not evidence of composition with later published owner code. The accepted
+live planner is now published separately at
+`acb7c4d6ef7fea7ee7d3f22ee5f0208bc1fb36ce`. Its live factory and read-only
+`plan()`/`staged()` accessors fit this storage caller. The required retained
+factory is absent from that exact peer: actual-source library compilation stops
+at `stock::plan_retained_staged_atlas_commands`. No substitute or permissive
+fallback is supplied in the actual composition. Qualified factories borrow the
+authentic stage or checked consumed facts, keep the unqualified asset mapper
+held and preserve original envelopes.
+For upload batches they accept the asset, related evidence creates and one
+optional final guarded `atlas.identity.replace` with native `kind: "location"`
+and a newly created evidence reference. This is the actual published place
+representation; no new `atlas.place.replace` catalog entry is introduced.
+The domain owner must publish the agreed retained factory before shared
+composition can compile and be exercised with actual peers.
+Storage pins the inspected private media binding/1 codec; an immutable public
+owner codec would remove duplicated format interpretation.
+
+`checks/upload-healthy.rs` is the scoped fresh ordinary composition. It uses
+the actual AT11 login/principal/transaction fence, f0 vault and immutable stages,
+native measured byte proof, qualified domain proposal and original stock/native
+transaction. Its graph authorization is explicitly an exact synthetic fixture,
+not a production graph peer. Host principal/multipart wiring and the production
+graph/approval/witness peers remain original-owner integration dependencies.
+The upload harness uses pinned dependencies above plus the actual peers' pinned
+requirements, including serde_jcs 0.2.0; it lives outside root manifests/locks.
+No staged authority is reconstructed from persisted rows or after owner loss.
+Pending stage expiry, restart reconciliation, byte cleanup and replay/fault
+qualification remain deferred.
+
+### Committed stage lookup and existing original resolution
+
+The upload-resolution continuation adds two read-only methods on the original
+open store. `committed_upload_with_authorization` takes the original per-call
+`Authorization` principal, actual `StockContractPort`, exact scope and token.
+It returns `Option<ConsumedUpload>` only after validating the persisted binding,
+complete native/stock receipt and audit links, retained stock projection and
+current original asset-manifest/history authority. A missing row gives no cleanup
+permission. Media owns durable staging quota and removal; maintenance after the
+original authority is lost needs a separately qualified owner API.
+
+`resolve_original_asset_with_authorization` takes that same original authority,
+scope and measured `PreparedOriginal`. Its sealed `ExistingOriginalAsset` exposes
+the existing record, ID, revision, payload, scope and target. Exact scoped content
+identity, original purpose, active available state and independently measured
+retained bytes must agree. Existing provenance is returned unchanged. The method
+does not create an alias, consume a stage or authorize an attachment. Domain must
+bind the returned ID/revision and revalidate references and guards inside its
+normal mutation transaction; unique scoped storage keys remain enforced.
+
+These methods also accept an authorizer borrowing the original held AT11 fence,
+so a host need not reacquire the access mutex or invent a principal. They use a
+single read transaction on the original connection and recheck original authority
+before returning. No migration or database profile changes.
+
+The scoped ordinary upload-resolution example compiles actual contracts
+`49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c`, domain/jobs
+`8a568fb6ccef5b0fa575b18d6181dcc524d4db99`, access
+`4a0cd4da563a32d26677755a608180c960765353` and media
+`f0d6b10f00bb93fc1c1dd4eb3ae66ee1fbe3f873`. After the ordinary atomic upload
+and authorized reopen, it checks genuine committed consumption and resolves the
+same original ID/revision, full provenance and measured bytes. This supersedes
+the earlier external-proposal composition limitation for this example. A second
+HTTP attachment and durable staging cleanup still require the Media/Domain
+owners' integration and are not exercised by this read-only storage example.
 
 ## Remaining integration and qualification
 

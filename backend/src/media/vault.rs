@@ -30,6 +30,17 @@ pub struct PreparedOriginal {
     pub content_type: ContentType,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RetainedUsage {
+    pub originals: usize,
+    pub bytes: u64,
+}
+
+struct PreparationPolicy<'a> {
+    minimum_bytes: usize,
+    limits: Option<&'a super::staged_upload::UploadLimits>,
+}
+
 impl PreparedOriginal {
     /// The caller supplies real provenance; preparation invents no license or
     /// evidence references and does not commit an asset record to SQLite.
@@ -94,6 +105,96 @@ impl AssetVault {
         self.root.check()?;
         self.blobs.check()?;
         self.staging.check()
+    }
+
+    /// Pending upload receipts belong to this vault, not an independent DB.
+    /// Recovery exports committed originals; it does not export these receipts.
+    pub(super) fn upload_directory(&self) -> MediaResult<PrivateDir> {
+        self.check_hierarchy()?;
+        self.root.child("uploads", true)
+    }
+
+    /// Durable accounting includes committed and abandoned originals. Pending
+    /// receipt cleanup never makes retained bytes disappear from this quota.
+    pub fn retained_usage(&self, budget: &WorkBudget) -> MediaResult<RetainedUsage> {
+        self.check_hierarchy()?;
+        let mut usage = RetainedUsage::default();
+        for partition in self.blobs.members()? {
+            budget.check()?;
+            if !is_digest(&partition) {
+                return Err(MediaError::Unavailable);
+            }
+            let directory = self.blobs.child(&partition, false)?;
+            for member in directory.members()? {
+                budget.check()?;
+                let digest = member
+                    .strip_suffix(".blob")
+                    .ok_or(MediaError::Unavailable)?;
+                if !is_digest(digest) {
+                    return Err(MediaError::Unavailable);
+                }
+                usage.originals = usage.originals.checked_add(1).ok_or(MediaError::TooLarge)?;
+                usage.bytes = usage
+                    .bytes
+                    .checked_add(directory.member_size(&member)?)
+                    .ok_or(MediaError::TooLarge)?;
+            }
+        }
+        // A prior interrupted install can leave a private byte copy before
+        // link publication. Charge it too, even if it shares an inode with an
+        // installed blob; conservative path accounting bounds retained state.
+        for name in self.staging.members()? {
+            budget.check()?;
+            if !name.starts_with("original-") {
+                return Err(MediaError::Unavailable);
+            }
+            let scratch = self.staging.child(&name, false)?;
+            let members = scratch.members()?;
+            if members.iter().any(|member| member != "bytes") {
+                return Err(MediaError::Unavailable);
+            }
+            usage.originals = usage.originals.checked_add(1).ok_or(MediaError::TooLarge)?;
+            if !members.is_empty() {
+                usage.bytes = usage
+                    .bytes
+                    .checked_add(scratch.member_size("bytes")?)
+                    .ok_or(MediaError::TooLarge)?;
+            }
+        }
+        self.check_hierarchy()?;
+        Ok(usage)
+    }
+
+    /// Reopen and prove actual prepared bytes without inventing an asset record,
+    /// audit ID or timestamp before the storage transaction creates them.
+    pub(super) fn verify_prepared_original(
+        &self,
+        scope: &Scope,
+        prepared: &PreparedOriginal,
+        budget: &WorkBudget,
+    ) -> MediaResult<BlobIdentity> {
+        scope.validate()?;
+        let identity = &prepared.identity;
+        if !prepared.purpose.is_original()
+            || prepared.storage_key != scope.storage_key(&identity.sha256)?
+            || identity.byte_size == 0
+            || identity.byte_size > MAX_BYTES as u64
+        {
+            return Err(MediaError::Unavailable);
+        }
+        self.with_scope(scope, false, |directory| {
+            let member = format!("{}.blob", identity.sha256);
+            let bytes = directory.read(&member, MAX_BYTES, budget)?;
+            if bytes.len() as u64 != identity.byte_size || sha256(&bytes) != identity.sha256 {
+                return Err(MediaError::Unavailable);
+            }
+            validate_content(&bytes, prepared.content_type, budget)?;
+            self.sync_retained_member(directory, &member, budget)?;
+            Ok(BlobIdentity {
+                sha256: sha256(&bytes),
+                byte_size: bytes.len() as u64,
+            })
+        })
     }
 
     /// Bottom-up barrier for a complete restored vault, including empty dirs.
@@ -206,6 +307,87 @@ impl AssetVault {
         body: &mut impl Read,
         budget: &WorkBudget,
     ) -> MediaResult<PreparedOriginal> {
+        self.prepare_original_with_minimum(
+            scope,
+            purpose,
+            content_type,
+            body,
+            budget,
+            PreparationPolicy {
+                minimum_bytes: 0,
+                limits: None,
+            },
+        )
+    }
+
+    pub(super) fn prepare_upload_original(
+        &self,
+        scope: &Scope,
+        purpose: AssetPurpose,
+        content_type: ContentType,
+        body: &mut impl Read,
+        budget: &WorkBudget,
+        limits: &super::staged_upload::UploadLimits,
+    ) -> MediaResult<PreparedOriginal> {
+        self.prepare_original_with_minimum(
+            scope,
+            purpose,
+            content_type,
+            body,
+            budget,
+            PreparationPolicy {
+                minimum_bytes: 1,
+                limits: Some(limits),
+            },
+        )
+    }
+
+    fn enforce_upload_capacity(
+        &self,
+        scope: &Scope,
+        bytes: &[u8],
+        limits: &super::staged_upload::UploadLimits,
+        budget: &WorkBudget,
+    ) -> MediaResult<()> {
+        let usage = self.retained_usage(budget)?;
+        if usage.originals > limits.max_retained_originals
+            || usage.bytes > limits.max_retained_bytes
+        {
+            return Err(MediaError::TooLarge);
+        }
+        scope.validate()?;
+        let present = self.with_scope(scope, true, |directory| {
+            match directory.require_absent(&format!("{}.blob", sha256(bytes))) {
+                Ok(()) => Ok(false),
+                Err(MediaError::Conflict) => Ok(true),
+                Err(error) => Err(error),
+            }
+        })?;
+        // Reserve the maximum byte paths install can retain on an uncertain
+        // return: its private copy plus a newly linked original, when new.
+        let paths = if present { 1 } else { 2 };
+        if usage
+            .originals
+            .checked_add(paths)
+            .is_none_or(|count| count > limits.max_retained_originals)
+            || (bytes.len() as u64)
+                .checked_mul(paths as u64)
+                .is_none_or(|size| size > limits.max_retained_bytes.saturating_sub(usage.bytes))
+        {
+            return Err(MediaError::TooLarge);
+        }
+        Ok(())
+    }
+
+    fn prepare_original_with_minimum(
+        &self,
+        scope: &Scope,
+        purpose: AssetPurpose,
+        content_type: ContentType,
+        body: &mut impl Read,
+        budget: &WorkBudget,
+        policy: PreparationPolicy<'_>,
+    ) -> MediaResult<PreparedOriginal> {
         scope.validate()?;
         if !purpose.is_original() {
             return Err(MediaError::InvalidInput);
@@ -228,7 +410,13 @@ impl AssetVault {
             }
             bytes.extend_from_slice(&chunk[..n]);
         }
+        if bytes.len() < policy.minimum_bytes {
+            return Err(MediaError::InvalidInput);
+        }
         validate_content(&bytes, content_type, budget)?;
+        if let Some(limits) = policy.limits {
+            self.enforce_upload_capacity(scope, &bytes, limits, budget)?;
+        }
         let prepared = self.install(scope, &bytes, budget)?;
         budget.check()?;
         Ok(PreparedOriginal {

@@ -20,6 +20,8 @@ mod stock_repository;
 mod stock_types;
 mod store;
 mod types;
+mod upload_repository;
+mod upload_types;
 
 pub use cache_types::*;
 pub use error::{Error, Result};
@@ -38,3 +40,4 @@ pub use queue::{
 pub use stock_types::*;
 pub use store::{AtlasStore, RecoveryImage, RecoveryValidationPeers, StoreOptions};
 pub use types::*;
+pub use upload_types::{ConsumedUpload, ExistingOriginalAsset, StagedUploadPrincipal};

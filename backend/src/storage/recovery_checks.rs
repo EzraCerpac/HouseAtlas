@@ -229,7 +229,7 @@ pub(super) fn validate_connection<C: Contract>(
     // These exact AT12 signatures have no required StockContractPort. Do not
     // certify nonempty stock envelopes/wire/cursor state using native C alone.
     // Native-only upgraded v2 databases legitimately have an empty journal.
-    let stock_present: bool = db.query_row("SELECT EXISTS(SELECT 1 FROM stock_operations UNION ALL SELECT 1 FROM stock_groups UNION ALL SELECT 1 FROM stock_keys UNION ALL SELECT 1 FROM stock_audit_links UNION ALL SELECT 1 FROM stock_history_cursors)", [], |row|row.get(0))?;
+    let stock_present: bool = db.query_row("SELECT EXISTS(SELECT 1 FROM stock_operations UNION ALL SELECT 1 FROM stock_groups UNION ALL SELECT 1 FROM stock_keys UNION ALL SELECT 1 FROM stock_audit_links UNION ALL SELECT 1 FROM stock_history_cursors UNION ALL SELECT 1 FROM upload_consumptions)", [], |row|row.get(0))?;
     if stock_present {
         return Err(Error::new(
             "schema-incompatible",

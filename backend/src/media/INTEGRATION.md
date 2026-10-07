@@ -21,7 +21,9 @@ The composed external compiler harness pins `serde = 1.0.229` (derive),
 `serde_json = 1.0.151` (arbitrary_precision, float_roundtrip, raw_value),
 `sha2 = 0.10.9`, `flate2 = 1.1.5`
 (default features disabled, rust_backend), `crc32fast = 1.5.0`,
-`rustix = 1.1.2` (fs) and `tempfile = 3.23.0`.
+`rustix = 1.1.2` (fs), `tempfile = 3.23.0` and `png = 0.18.1`.
+The PR52 continuation requires the root owner to add the exact new
+`png = "=0.18.1"` dependency and reconcile its lock; AT12 changed no manifest.
 The source supports Linux and macOS with a small platform boundary; current
 healthy checks run on Linux with Rust 1.99.0. The peer/backend manifest must
 reconcile these pins. Actual AT07/AT11/AT51 composition also uses their pinned
@@ -32,16 +34,17 @@ requires `regex = 1.13.1` and `ryu-js = 1.0.2`; the compiled domain peer uses
 `time = 0.3.44` (parsing, formatting) and `serde_jcs = 0.2.0`. The actual native backup API
 requires rusqlite's `backup` feature. No application manifest/lock
 is added by AT12; the earlier isolated harness and its logs are preserved.
+Owned upload-token issuance now directly uses the same pinned `getrandom = 0.3.4`.
 
 ## Compiled native peer composition
 
 `native.rs` imports the monolith's `crate::{storage, access, contracts}`;
 `native_recovery.rs` also requires the actual domain stock and queue ports. The
-current external harness compiles exact published AT07
+accepted recovery harness compiled exact published AT07
 `06eb465f6fe4b99530ef1636b46ea3e01e537106`, AT11
 `4a0cd4da563a32d26677755a608180c960765353` and AT51
 `49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c`, plus actual domain/jobs
-`d9e2b59ffef4b7ac2b11705df735b89d8371fdc5`. Storage's current native schema is
+`d9e2b59ffef4b7ac2b11705df735b89d8371fdc5`. That accepted recovery harness used native schema
 4. These actual compiled
 peer modules and embedded schema/fixture inputs remain outside this lane's Git
 namespace and ancestry. The native healthy example uses actual AT30
@@ -108,6 +111,202 @@ descriptor, mode, metadata and revocation epochs. AT12 retains actual AT11
 capabilities and supplies a local release binding; it creates no access authority.
 Its local checks compare scope/ID, lifecycle/availability, record and
 manifest, then reread after byte work and revalidate access before returning.
+
+## Owned upload staging and immutable asset-plan binding
+
+`staged_upload::NativeUploadStages::open(&vault, &server_runtime)` is actual
+filesystem/vault implementation, borrowing the existing `storage::Runtime` for
+server asset-ID issuance. `stage_original(guard, original, admission, body,
+budget)` returns `UploadReceipt { request_id, asset_id, staged }`. `staged` is the
+published stock stage projection: `uploadToken`, `sha256`, `byteSize`,
+`contentType`, `filename`. The new outer response is proposed host integration
+data; it is not a newly generated shared contract or an approval.
+
+`UploadAdmission` supplies request ID, original purpose, typed content type,
+descriptive filename, actual source licence and ordered evidence IDs. Scope and
+actor come from the actual original AT11 principal. Intrinsic licence, evidence
+UUID/uniqueness/count, filename and encoded metadata checks precede reading or
+retaining bytes. The vault measures and validates actual bytes and completes its
+existing immutable retained-original barriers. A cryptographically random UUID
+token is minted with `getrandom`; the asset ID is issued by the host runtime.
+Issuance does not reserve that ID against AtlasStore. No caller asset ID or
+approval flag is accepted at staging.
+
+An immutable `stage.json` is published exclusively under
+`<vault>/uploads/<sha256(token)>`, with private file/directory and parent barriers.
+It binds the measured file, issued asset ID, request, original scope/actor,
+purpose, licence and provenance. Original bytes remain in the existing scoped
+vault; there is no duplicate blob store, SQL connection or separate database.
+Files are bounded at 64 KiB, covering the published licence/evidence maxima.
+Durable upload admission counts every pending directory and retained byte path
+across owner/vault reopen; the in-memory map retains authority only. The
+trusted host policy and metadata retirement rules appear below. Filenames are descriptive
+metadata and never paths. The 1 byte–10 MiB stock stage range and the existing PNG,
+PDF and plain-text content rules apply. Derived-preview upload is unsupported.
+
+`bind_asset_plan(guard, original, token, &validated_request, budget)` reparses
+the unchanged request with the actual `NativeStockContract`, requires
+`atlas.asset.create`, and compares its request/home/target and every staged-file,
+purpose/licence/provenance field. It reopens real bytes and establishes their
+identity/barriers without fabricating an AssetRecord, audit ID or timestamp.
+It then exclusively publishes `plan/binding.json` containing the complete
+original envelope, including guards, reason, idempotency key and nullable
+approval reference. Full binding and field comparisons use the domain's
+`canonical_digest`; the separate original intent digest retains the published
+`request_digest` exclusions. Licence/approval fields are retained data and grant
+no authority. No submitted ID or envelope is rewritten.
+
+Both calls require an actual `TransactionAuthorization` for the exact original
+`RetainedPrincipal`, revalidate after final durability barriers, and retain its
+opaque handle in memory. The host must keep that exact clone in its existing
+prepared-operation context across phases. A freshly issued Principal, actor/home
+DTO equality or a token cannot adopt that handle. Owner loss/restart leaves
+durable bytes/data but no reconstructed authority; planning is unavailable until
+an actual access-owner reauthorization contract exists.
+
+The sealed `StagedAssetPlan` exposes `request()`, `asset_id()`, `payload()`,
+`staged()`, `binding_digest()` and `original_principal()`. This is verified data
+for the domain/storage owner, not the private `AtlasCommandPlan` or a consumed
+SQLite receipt. It invokes no held mapper, frozen mutation or storage commit.
+The current composed baseline has actual staged stock execution, atomic SQLite
+consumption and retained validation. Their SQL/domain implementations belong to
+the original owners. Media supplies no migration, frozen mutation, second store
+or substitute planner. HTTP multipart and React integration remain host-owned.
+
+### PR52 review continuation and actual storage seams
+
+This continuation starts from root integration
+`fa7c43621b6c6fa40d0199e795648bad804634a6`, whose sole ancestry root is the
+published `9f7561d99e09a680ec5282ca0c8aed4e10c6cbc9`. The external compiler harness
+uses that baseline's actual access/contracts/domain/jobs source and the actual
+published storage owner source
+`f5ec22394a6ffbfcf8682ea8150902d6e88f646b`
+(`codex/rust-at07-upload-resolution`, PR57), native database schema 5.
+Each of its 60 storage/migration files
+was verified against its published Git blob before compilation. Peer source
+and ancestry are not imported into this directory or branch. The historical
+recovery evidence above remains preserved with its original pins.
+
+`NativeUploadStages::open_with_limits(vault, runtime, UploadLimits)` takes
+trusted host policy. Defaults are 10,000 pending directories, 10,000 retained
+byte paths, 1 GiB retained bytes and a one-hour unbound pending lifetime.
+Pending/count bounds cannot exceed 10,000; lifetime is one second through
+24 hours. The host must serialize all admission, maintenance, blob installation
+and restore for the same configured vault root. These are local durable upload
+limits; direct trusted `AssetVault::prepare_original` and restore do not enforce
+this admission policy.
+
+`usage(budget) -> UploadUsage` scans actual private filesystem state on every
+call, including older pending receipts, private upload reservations, committed
+originals, abandoned originals and interrupted original scratch paths. Scratch
+and hard-linked blob paths are charged conservatively. Admission reserves its
+pending slot before reading/installing bytes, then checks retained capacity
+before installation, including space for a possible scratch path and new blob.
+Abandoned bytes remain charged even after metadata retirement. Actual byte
+limits, PNG validation and immutable blob identity/barriers remain required;
+no original, tombstone reservation or source identity is deleted.
+
+New receipts add a separate immutable `lifetime.json` with a server-derived
+creation/expiry time. Existing `stage.json` and `plan/binding.json` formats,
+complete request bindings and canonical digests remain unchanged.
+`expire_pending(budget) -> StageCleanup` is trusted exclusive host maintenance;
+it retires only recognized unbound expired metadata and empty retired
+directories. It does not invent a lifetime for older receipts. Bound plans and
+partially published plan directories are retained, because deleting a file
+would not cancel a returned live plan. Failed bound publication/restart
+reconciliation still needs separately qualified owner work. Metadata cleanup
+uses descriptor-relative private-file unlink/empty-directory removal with
+parent and vault barriers, including final barriers for empty scans. It never
+infers unreferenced blobs from a database miss or reconstructs authority.
+
+Storage's following APIs are actual callable symbols at the published owner
+pin, rather than proposed helper signatures:
+
+```rust
+// On AtlasStore<C, A, R>; B::Principal is independently generic.
+pub fn committed_upload_with_authorization<B: storage::Authorization,
+    S: stock::StockContractPort>(
+    &mut self, authorization: &B, principal: &B::Principal, contracts: &S,
+    scope: &storage::Scope, upload_token: &str,
+) -> storage::Result<Option<storage::ConsumedUpload>>;
+
+pub fn resolve_original_asset_with_authorization<B: storage::Authorization>(
+    &mut self, authorization: &B, principal: &B::Principal,
+    scope: &storage::Scope, prepared: &media::vault::PreparedOriginal,
+) -> storage::Result<Option<storage::ExistingOriginalAsset>>;
+```
+
+The first loader authorizes intake and the exact asset/history, validates the
+committed native/stock/audit/result links and current asset projection, then
+returns a sealed `ConsumedUpload`. No constructor, deserialization, caller
+boolean or client-supplied commit can manufacture that carrier.
+`cleanup_consumed(guard, original, &ConsumedUpload, budget) -> StageCleanup`
+requires the exact original AT11 mutation guard, scope/actor and complete
+canonical stage/request/payload binding. It removes only the matching pending
+stage/lifetime/plan metadata and authority-map entry, retaining immutable bytes
+and their quota charge. The host must acquire this result freshly from the
+current store while cleanup remains serialized with restore; the carrier does
+not itself prove a database generation. Cleanup after an already absent stage
+still completes the hierarchy barriers and reauthorization.
+
+`prepare_original_for_resolution(guard, original, &UploadAdmission, body,
+budget) -> PreparedOriginal` validates admission and the actual original guard,
+reserves durable admission, measures and retains real scoped bytes, retires its
+unbound reservation and reauthorizes before returning. It issues neither a new
+asset ID nor an upload token. Root should call the actual authorized storage
+resolver on this measured value before choosing an existing-asset path or the
+fresh `stage_original` fallback. A resolver miss is not permission to delete
+bytes or ignore a tombstone/storage-key reservation. Root owns retaining or
+reopening the bounded body for its fresh fallback; it must not rewrite the
+original envelope or salt a storage key to avoid the uniqueness constraint.
+
+The resolver checks exact scope/key/purpose/hash/size/type, active available
+Atlas ownership, current record-manifest equality, authorization to the actual
+target before opening bytes, and actual immutable byte proof. It returns a
+sealed `ExistingOriginalAsset` exposing the genuine record/ID/revision/payload
+without overwriting its licence/evidence. Root/domain must bind that exact
+result and revision into their qualified existing-asset evidence transaction.
+Resolution alone neither authorizes attachment nor supplies a staged/native
+plan. This media patch implements and verifies preparation/resolution inputs;
+it does not claim a second statement/evidence commit or root HTTP wiring.
+The root owner must compose this storage pin, add `png = "=0.18.1"`, wire fresh
+consumed cleanup after successful stock commit, and integrate the qualified
+existing-asset domain path before all three PR52 findings are closed.
+
+PNG support now covers ordinary static grayscale 1/2/4/8/16, indexed 1/2/4/8
+with palette/transparency, gray-alpha 8/16, RGB/RGBA 8/16 and Adam7 interlace.
+The bounded pinned decoder expands samples/transparency and strips 16-bit
+samples before producing metadata-free RGBA8 IHDR/IDAT/IEND output. APNG
+remains unsupported. Existing 10 MiB input/output and 25-million-pixel bounds
+remain. The decoder has a 256 MiB allocation limit; frame/row buffers are
+additional. Decode and peer calls remain bounded cooperative operations;
+conversion/compression checks the operation budget periodically, with compressed
+writes no larger than 64 KiB. No hard cancellation, memory-exhaustion, adversarial
+or performance qualification is claimed.
+
+The current checks select only two new ordinary positive library examples and
+one external healthy storage-owner composition, all with fresh synthetic state:
+
+```sh
+cargo test --locked --manifest-path "$AT12_MANIFEST" --lib \
+  media::healthy_review_examples:: -- --nocapture --test-threads=1
+cargo run --locked --manifest-path "$AT12_MANIFEST" \
+  --example healthy-consumed-cleanup -- "$FRESH_PRIVATE_EVIDENCE_DIRECTORY"
+```
+
+The library examples verify known pixels for every newly supported bit-depth
+family, palette alpha and an independently built Adam7 RGB fixture, plus actual
+AT11 admission, durable pending counts across reopen, one shared blob for two
+fresh admissions and successful expiry with retained bytes still charged. The
+external example adapts the actual storage-owner `checks/upload-healthy.rs`:
+one fresh real native stock asset/evidence/place commit, ordinary authorized
+reopen, strict committed-consumption lookup, exact guarded metadata retirement,
+fresh guarded measurement without issuing an asset ID, and authorized existing
+resolution preserving ID/revision/licence/provenance with actual vault bytes.
+Its exact synthetic graph/witness preparation is fixture-specific and grants
+no production graph/witness authority. There is no second statement commit,
+receipt replay, held control, provider or listener. Source/lock/peer manifests,
+logs and original evidence remain in the external handoff packet.
 
 `recovery::RecoveryDatabasePort::backup_to(destination, budget)` uses SQLite's
 backup API and closes a private standalone DELETE-journal copy.
@@ -237,7 +436,7 @@ the published `houseatlas-owned-recovery/1`, contract 1.0.0/database schema 3 an
 its exact absent-lineage wire shape. `NativeRustV1` selects a distinct
 `houseatlas-rust-owned-recovery/1` with compatibility fields taken from AT07's
 compiled `CONTRACT_VERSION`, `DATABASE_VERSION` and `DATABASE_LINEAGE` exports.
-The current compiled peer supports native contract 1.0.0/schema 4 and required
+The accepted recovery composition supported native contract 1.0.0/schema 4 and required
 `databaseLineage: houseatlas-rust-storage/1`. Populated stock/queue recovery
 requires the explicit peer frame above.
 Media holds no native numeric schema constant. Unified algorithms freeze the
@@ -268,8 +467,10 @@ The integrator must exclusively own and serialize configured directories;
 ordinary synthetic examples do not qualify hostile same-owner interference,
 target power-loss/rename behavior, security, deployment or retention.
 Only operation-owned staging is cleaned when its directory identities still
-match. Installed originals have no delete/GC API. Staging left after process
-death needs a future drained offline cleanup owner.
+match. Installed originals have no delete/GC API. Original scratch bytes and bound upload plans left after process death need a
+separately qualified drained cleanup owner; upload admission counts them
+conservatively. The unbound metadata lifetime policy above supplies no restart
+authority or original garbage collection.
 
 ## macOS portability and remaining native checks
 
@@ -326,7 +527,12 @@ cargo clippy --locked --manifest-path "$AT12_MANIFEST" --all-targets -- -D warni
 cargo test --locked --manifest-path "$AT12_MANIFEST" --lib media::healthy_ -- --nocapture --test-threads=1
 ```
 
-Exactly three named positive library examples run. The two retained examples remain:
+The accepted recovery packet at `8eca841` selected exactly three positive library
+examples. The earlier staging successor selected its separate upload example.
+The PR52 continuation selects only the two new media examples and one external
+composition listed above; earlier media examples and all controls remain unrun
+in this continuation.
+The two retained compatibility/content examples remain:
 one independently builds ten static
 RGB/RGBA PNG inputs covering filters 0–4, then checks dimensions/pixels and
 metadata-free output. The other checks actual original verification/immutable

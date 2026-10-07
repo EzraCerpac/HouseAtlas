@@ -354,7 +354,7 @@ impl Writes<'_> {
             .map_err(access_domain)?;
         let mut output = None;
         access
-            .with_mutation_authorization::<WriteFailure>(&p.principal, |guard| {
+            .with_mutation_authorization::<WriteFailure>(p.principal.principal(), |guard| {
                 let authorization = MutateAuthority {
                     guard,
                     principal: p,

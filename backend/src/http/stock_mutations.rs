@@ -51,6 +51,29 @@ fn supported(request: &st::ValidatedRequest) -> st::StockResult<()> {
         _ => Err(st::StockError::CapabilityHeld),
     }
 }
+#[derive(Clone, Copy)]
+enum UploadPlan<'a, 'u> {
+    Staged(&'a st::StagedAtlasCommandPlan<'u>),
+    Existing(&'a st::ExistingAssetAttachmentPlan<'u>),
+}
+impl<'a, 'u> UploadPlan<'a, 'u> {
+    fn plan(self) -> &'a st::AtlasCommandPlan {
+        match self {
+            Self::Staged(plan) => plan.plan(),
+            Self::Existing(plan) => plan.plan(),
+        }
+    }
+}
+fn supported_profile(
+    request: &st::ValidatedRequest,
+    upload: Option<UploadPlan<'_, '_>>,
+) -> st::StockResult<()> {
+    if let Some(upload) = upload {
+        require(upload.plan().original_request() == request.raw())
+    } else {
+        supported(request)
+    }
+}
 #[derive(Clone)]
 struct Graph {
     original: s::Snapshot,
@@ -69,12 +92,13 @@ struct Witness<'p> {
     pending: RefCell<Option<Committed>>,
     committed: Cell<bool>,
 }
-struct Authority<'p, 'a> {
+struct Authority<'p, 'a, 'u> {
     principal: &'p RequestPrincipal,
     access: &'a Access,
     store: &'a Mutex<Store>,
+    upload: Option<UploadPlan<'a, 'u>>,
 }
-impl Authority<'_, '_> {
+impl Authority<'_, '_, '_> {
     fn original(
         &self,
         p: &RequestPrincipal,
@@ -100,7 +124,7 @@ impl Authority<'_, '_> {
         Ok(())
     }
 }
-impl<'p> st::StockAuthorityPort<RequestPrincipal> for Authority<'p, '_> {
+impl<'p> st::StockAuthorityPort<RequestPrincipal> for Authority<'p, '_, '_> {
     type Witness = Witness<'p>;
     type Graph = Graph;
     fn capture(
@@ -108,7 +132,7 @@ impl<'p> st::StockAuthorityPort<RequestPrincipal> for Authority<'p, '_> {
         p: &RequestPrincipal,
         request: &st::ValidatedRequest,
     ) -> st::StockResult<Self::Witness> {
-        supported(request)?;
+        supported_profile(request, self.upload)?;
         let witness = Witness {
             principal: self.principal,
             raw: request.raw().clone(),
@@ -216,8 +240,8 @@ impl<'p> st::StockAuthorityPort<RequestPrincipal> for Authority<'p, '_> {
         }))
     }
 }
-struct Preparer<'a>(&'a Mutex<Store>);
-impl<'p> st::StockPreparerPort<RequestPrincipal, Witness<'p>> for Preparer<'_> {
+struct Preparer<'a, 'u>(&'a Mutex<Store>, Option<UploadPlan<'a, 'u>>);
+impl<'p> st::StockPreparerPort<RequestPrincipal, Witness<'p>> for Preparer<'_, '_> {
     type Graph = Graph;
     fn resolve(
         &mut self,
@@ -226,10 +250,13 @@ impl<'p> st::StockPreparerPort<RequestPrincipal, Witness<'p>> for Preparer<'_> {
         request: &st::ValidatedRequest,
     ) -> st::StockResult<Graph> {
         require(std::ptr::eq(p, w.principal) && w.raw == *request.raw())?;
-        supported(request)?;
+        supported_profile(request, self.1)?;
         Ok(Graph {
             original: snapshot(self.0, p, request)?,
-            plan: st::plan_atlas_commands(request, &NativeContracts)?,
+            plan: match self.1 {
+                Some(upload) => upload.plan().clone(),
+                None => st::plan_atlas_commands(request, &NativeContracts)?,
+            },
             request: request.clone(),
         })
     }
@@ -398,12 +425,13 @@ impl s::StockAuthorization for Transaction<'_, '_, '_> {
         ))
     }
 }
-struct Commands<'a> {
+struct Commands<'a, 'u> {
     store: &'a Mutex<Store>,
     access: &'a Access,
     contracts: st::NativeStockContract,
+    upload: Option<UploadPlan<'a, 'u>>,
 }
-impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands<'_> {
+impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands<'_, '_> {
     fn execute(
         &mut self,
         p: &RequestPrincipal,
@@ -411,7 +439,7 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
     ) -> st::StockResult<st::OwnerResult> {
         let w = prepared.witness();
         let graph = prepared.graph();
-        supported(prepared.request())?;
+        supported_profile(prepared.request(), self.upload)?;
         require(!w.committed.get() && w.pending.borrow().is_none())?;
         let entries = graph
             .plan
@@ -429,7 +457,7 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
         let mut access = self.access.lock().map_err(|_| unavailable())?;
         let mut output = None;
         access
-            .with_mutation_authorization::<WriteFailure>(&p.principal, |guard| {
+            .with_mutation_authorization::<WriteFailure>(p.principal.principal(), |guard| {
                 let authorization = Transaction {
                     native: MutateAuthority::new(
                         guard,
@@ -443,23 +471,32 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
                     phase: Cell::new(None),
                     failure: RefCell::new(None),
                 };
-                let commit = store
-                    .execute_stock_json_with_authorization(
+                let result = if let Some(UploadPlan::Staged(upload)) = self.upload {
+                    store.execute_staged_stock_json_with_authorization(
+                        &authorization,
+                        p,
+                        &self.contracts,
+                        prepared.request().raw(),
+                        upload.staged(),
+                    )
+                } else {
+                    store.execute_stock_json_with_authorization(
                         &authorization,
                         p,
                         &self.contracts,
                         prepared.request().raw(),
                     )
-                    .map_err(|e| {
-                        WriteFailure(
-                            authorization
-                                .failure
-                                .borrow_mut()
-                                .take()
-                                .or_else(|| authorization.native.take_failure())
-                                .unwrap_or_else(|| crate::app::storage_error(e)),
-                        )
-                    })?;
+                };
+                let commit = result.map_err(|e| {
+                    WriteFailure(
+                        authorization
+                            .failure
+                            .borrow_mut()
+                            .take()
+                            .or_else(|| authorization.native.take_failure())
+                            .unwrap_or_else(|| crate::app::storage_error(e)),
+                    )
+                })?;
                 if authorization.phase.get() != Some(s::MutationPhase::Precommit)
                     || !w
                         .pending
@@ -496,12 +533,66 @@ pub(super) fn execute_raw(
     raw: Value,
     contracts: &st::NativeStockContract,
 ) -> st::StockResult<st::OwnerResult> {
+    execute_profile(core, p, raw, contracts, None)
+}
+pub(super) fn execute_staged(
+    core: &Core,
+    p: &RequestPrincipal,
+    selection: &super::qualified_upload_plan::ResolvedPlace<'_, '_>,
+    raw: Value,
+    staged: &crate::media::staged_upload::StagedAssetPlan,
+    contracts: &st::NativeStockContract,
+) -> st::StockResult<st::OwnerResult> {
+    let request = st::ValidatedRequest::parse(contracts, raw.clone())?;
+    let qualified = super::qualified_upload_plan::qualify(p, selection, &request, staged)?;
+    execute_profile(
+        core,
+        p,
+        raw,
+        contracts,
+        Some(UploadPlan::Staged(&qualified)),
+    )
+}
+pub(super) fn execute_existing(
+    core: &Core,
+    p: &RequestPrincipal,
+    selection: &super::qualified_upload_plan::ResolvedPlace<'_, '_>,
+    raw: Value,
+    asset: &s::ExistingOriginalAsset,
+    measured: &crate::media::vault::PreparedOriginal,
+    contracts: &st::NativeStockContract,
+) -> st::StockResult<st::OwnerResult> {
+    let request = st::ValidatedRequest::parse(contracts, raw.clone())?;
+    let qualified =
+        super::qualified_upload_plan::qualify_existing(p, selection, &request, asset, measured)?;
+    execute_profile(
+        core,
+        p,
+        raw,
+        contracts,
+        Some(UploadPlan::Existing(&qualified)),
+    )
+}
+fn execute_profile(
+    core: &Core,
+    p: &RequestPrincipal,
+    raw: Value,
+    contracts: &st::NativeStockContract,
+    upload: Option<UploadPlan<'_, '_>>,
+) -> st::StockResult<st::OwnerResult> {
     let authority = Authority {
         principal: p,
         access: &core.access,
         store: &core.store,
+        upload,
     };
-    let prepared = st::prepare(p, raw, contracts, &authority, &mut Preparer(&core.store))?;
+    let prepared = st::prepare(
+        p,
+        raw,
+        contracts,
+        &authority,
+        &mut Preparer(&core.store, upload),
+    )?;
     st::dispatch(
         p,
         prepared,
@@ -512,6 +603,7 @@ pub(super) fn execute_raw(
             store: &core.store,
             access: &core.access,
             contracts: contracts.clone(),
+            upload,
         },
     )
 }

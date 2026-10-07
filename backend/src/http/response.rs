@@ -50,6 +50,11 @@ pub(super) struct HttpFailure {
     pub code: c::ApiErrorCode,
     pub current_revision: Option<u64>,
 }
+impl From<crate::access::AccessError> for HttpFailure {
+    fn from(error: crate::access::AccessError) -> Self {
+        super::access_error(error)
+    }
+}
 impl HttpFailure {
     pub fn for_status(status: StatusCode) -> Self {
         Self {
