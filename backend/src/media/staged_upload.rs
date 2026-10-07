@@ -247,16 +247,13 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
             MAX_STAGE,
         )?)
         .map_err(|_| MediaError::Unavailable)?;
-        let prepared = self.vault.prepare_original(
+        let prepared = self.vault.prepare_upload_original(
             &scope,
             admission.purpose,
             admission.content_type,
             body,
             budget,
         )?;
-        if prepared.identity.byte_size == 0 {
-            return Err(MediaError::InvalidInput);
-        }
         let payload = prepared.with_provenance(admission.source_license, admission.evidence_ids)?;
         let staged = StagedFile {
             upload_token: token.clone(),

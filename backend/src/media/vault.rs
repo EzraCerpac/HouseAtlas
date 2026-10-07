@@ -245,6 +245,29 @@ impl AssetVault {
         body: &mut impl Read,
         budget: &WorkBudget,
     ) -> MediaResult<PreparedOriginal> {
+        self.prepare_original_with_minimum(scope, purpose, content_type, body, budget, 0)
+    }
+
+    pub(super) fn prepare_upload_original(
+        &self,
+        scope: &Scope,
+        purpose: AssetPurpose,
+        content_type: ContentType,
+        body: &mut impl Read,
+        budget: &WorkBudget,
+    ) -> MediaResult<PreparedOriginal> {
+        self.prepare_original_with_minimum(scope, purpose, content_type, body, budget, 1)
+    }
+
+    fn prepare_original_with_minimum(
+        &self,
+        scope: &Scope,
+        purpose: AssetPurpose,
+        content_type: ContentType,
+        body: &mut impl Read,
+        budget: &WorkBudget,
+        minimum_bytes: usize,
+    ) -> MediaResult<PreparedOriginal> {
         scope.validate()?;
         if !purpose.is_original() {
             return Err(MediaError::InvalidInput);
@@ -266,6 +289,9 @@ impl AssetVault {
                 return Err(MediaError::TooLarge);
             }
             bytes.extend_from_slice(&chunk[..n]);
+        }
+        if bytes.len() < minimum_bytes {
+            return Err(MediaError::InvalidInput);
         }
         validate_content(&bytes, content_type, budget)?;
         let prepared = self.install(scope, &bytes, budget)?;
