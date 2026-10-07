@@ -8,6 +8,7 @@ use super::{
 };
 use crate::media::staged_upload::StagedAssetPlan;
 use crate::storage::{Contract, Operation};
+use serde_json::Value;
 
 /// Privately constructed qualified data, borrowing the exact live media seal.
 /// Read-only access neither authorizes execution nor consumes an upload token.
@@ -35,11 +36,30 @@ pub fn plan_staged_atlas_commands<'u>(
     staged: &'u StagedAssetPlan,
     native: &impl Contract,
 ) -> StockResult<StagedAtlasCommandPlan<'u>> {
+    let plan = plan_upload_atlas_commands(
+        root,
+        staged.request().raw(),
+        staged.asset_id(),
+        native,
+        || serde_json::to_value(staged.payload()).map_err(|_| StockError::OwnerUnavailable),
+    )?;
+    Ok(StagedAtlasCommandPlan { staged, plan })
+}
+
+/// Shared data mapping called only by the live seal and checked-consumption
+/// factories. No public raw-payload constructor or execution path is supplied.
+pub(super) fn plan_upload_atlas_commands(
+    root: &ValidatedRequest,
+    original_asset: &Value,
+    asset_id: &str,
+    native: &impl Contract,
+    payload: impl FnOnce() -> StockResult<Value>,
+) -> StockResult<AtlasCommandPlan> {
     let asset = asset_request(root)?;
-    if staged.request().id() != OperationId::AtlasAssetCreate
-        || canonical_digest(asset.raw())? != canonical_digest(staged.request().raw())?
+    if original_asset["commandId"] != "atlas.asset.create"
+        || canonical_digest(asset.raw())? != canonical_digest(original_asset)?
         || asset.target()["recordType"] != "asset"
-        || asset.target()["recordId"] != staged.asset_id()
+        || asset.target()["recordId"] != asset_id
     {
         return Err(StockError::CorrelationMismatch);
     }
@@ -48,21 +68,19 @@ pub fn plan_staged_atlas_commands<'u>(
         if child.id() != OperationId::AtlasAssetCreate
             && place != Some(index)
             && (child.id() != OperationId::AtlasEvidenceCreate
-                || !explicitly_connected(child, asset, staged.asset_id())?)
+                || !explicitly_connected(child, asset, asset_id)?)
         {
             return Err(StockError::CapabilityHeld);
         }
     }
-    let payload =
-        serde_json::to_value(staged.payload()).map_err(|_| StockError::OwnerUnavailable)?;
-    let plan = plan_atlas_commands_with(root, native, |request, index| {
+    let payload = payload()?;
+    plan_atlas_commands_with(root, native, |request, index| {
         if request.id() == OperationId::AtlasAssetCreate {
             map_group_with_payload(request, index, native, Operation::Create, &payload)
         } else {
             map_group(request, index, native)
         }
-    })?;
-    Ok(StagedAtlasCommandPlan { staged, plan })
+    })
 }
 
 fn upload_place_replacement(root: &ValidatedRequest) -> StockResult<Option<usize>> {

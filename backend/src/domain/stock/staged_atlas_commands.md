@@ -48,6 +48,25 @@ A checked consumed-upload carrier, strict persisted-link loader and retained
 planner are still required before reopened uploads can be projected or recovered.
 No migration, standalone consume operation or compatibility fallback is added.
 
+`plan_retained_staged_atlas_commands(root, consumed, native)` returns an
+`AtlasCommandPlan` from storage's actual private-field `ConsumedUpload`. Storage
+must first check the canonical binding/codec, complete original root and asset
+envelopes, actor/scope/group ordinal, native receipt, creation audit and immutable
+asset manifest before issuing the carrier in the same snapshot. The input root
+is the parsed durable original root, not a newly renewed child envelope. The
+factory uses `asset_request()`, `asset_id()` and the retained creation
+`asset_payload()`, then checks `scope()` and `group_ordinal()` against its mapped
+plan. It reuses the live single/batch/evidence/PLACE rules and preserves every
+original root and child. Actual root/group operation and audit IDs remain checked
+storage links; no ID is inferred from a request. Current asset fields and native
+entries under validation do not supply the retained payload. No live media seal,
+principal, grant, token consumption or historical guard authority is restored.
+
+The retained factory is coded against the exact getter contract supplied by the
+original AT07 owner. Actual schema-5 storage source and compiler reconciliation
+are pending; the earlier storage06 compiler proof covers the published live
+packet only. No proposal carrier or loader is added to the harness.
+
 The task-owned external harness compiles actual domain/jobs on accepted
 `d9e2b59ffef4b7ac2b11705df735b89d8371fdc5`, actual storage
 `06eb465f6fe4b99530ef1636b46ea3e01e537106`, the accepted media pin above,
