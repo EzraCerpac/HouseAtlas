@@ -205,6 +205,18 @@ impl<C: Sync, A: CredentialAuthority<C>> FileCredentialBoundary<C, A> {
     ) -> PortFuture<'a, CredentialLease<A::Original, A::Stopped>> {
         self.inner.enroll_atomic(context, binding, initial_record)
     }
+
+    /// Attach a validated issued client to the original disconnected website
+    /// enrollment. Callback configuration remains the record's original data.
+    pub fn initialize_website_client<'a>(
+        &'a self,
+        context: &'a C,
+        lease: &'a mut CredentialLease<A::Original, A::Stopped>,
+        issued_client_id: &'a str,
+    ) -> PortFuture<'a, ()> {
+        self.inner
+            .initialize_website_client(context, lease, issued_client_id)
+    }
 }
 
 /// Private injection point for bounded synthetic fixtures. Production always
@@ -372,6 +384,44 @@ impl<C: Sync, A: CredentialAuthority<C>, K: KeyProvider> Boundary<C, A, K> {
             *loaded = Some(meta);
             drop(loaded);
             Ok(lease)
+        })
+    }
+
+    pub(crate) fn initialize_website_client<'a>(
+        &'a self,
+        context: &'a C,
+        lease: &'a mut CredentialLease<A::Original, A::Stopped>,
+        issued_client_id: &'a str,
+    ) -> PortFuture<'a, ()> {
+        Box::pin(async move {
+            if !valid_issued_client(issued_client_id) {
+                return Err(AiError::InvalidInput);
+            }
+            if lease.stopped.is_some() {
+                return Err(UNAVAILABLE);
+            }
+            self.check_lease_identity(lease)?;
+            self.authority
+                .revalidate(context, &lease.original, &lease.binding)?;
+            self.authority
+                .revalidate_retained(&lease.original, &lease.binding)?;
+            let mut record = self.load(lease).await?;
+            if record.binding != lease.binding
+                || !valid_field(&record.app_name)
+                || record.app_name.trim().is_empty()
+                || !matches!(&record.kind, RegistrationKind::IssuedWebsite { .. })
+                || record.state != LifecycleState::Disconnected
+                || record.revocation != RevocationState::NotRequested
+                || record.issued_client_id.is_some()
+                || record.identity.is_some()
+                || record.credentials.is_some()
+                || record.pending_authorization.is_some()
+                || !matches!(&record.refresh_checkpoint, RefreshCheckpoint::None)
+            {
+                return Err(UNAVAILABLE);
+            }
+            record.issued_client_id = Some(issued_client_id.to_owned());
+            self.persist_atomic(lease, &record).await
         })
     }
 }

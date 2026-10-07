@@ -15,26 +15,30 @@ integrator-owned. This source is not an operational credential-runtime approval.
 current effective UID with mode 0700, a trusted non-whitespace stable host ID, and the original
 owner Arc. It does not create directories, change permissions, provision keys,
 unlock stores, enroll accounts, or create an initial registration record.
-The separate explicit `enroll_atomic(context, binding, initial_record)` creates
-only an absent record for the actual original authority and returns its held
-lease. Initial binding/host must match exactly; state is Disconnected and
-revocation NotRequested, with no issued client ID, identity, credentials, pending
+The explicit `enroll_atomic(context, binding, initial_record)` creates only an
+absent record for the actual original authority and returns its held lease.
+Initial binding/host must match exactly; state is Disconnected and revocation
+NotRequested, with no issued client ID, identity, credentials, pending
 authorization or checkpoint. App name must contain non-whitespace text. Native
 key availability is required; no key is provisioned. First publication uses
-atomic Linux NOREPLACE, so even a racing file appearance is preserved without replacement. Metadata initializes only
-after the fenced commit succeeds. The original host owns the trusted startup
-registration configuration and enrollment permission. First enrollment currently
-requires no issued client ID for either registration kind. An IssuedWebsite
-record cannot begin OAuth until the original host supplies the preprovisioned
-public client ID through an explicitly authorized metadata transition; active
-authenticated load/persist permits that None-to-Some transition and then freezes
-the value. New public client IDs must match the core ASCII alphanumeric/underscore/hyphen rule, be 1-200 bytes and exclude the dynamic
-client marker. A known subject must remain present and unchanged across every
-persisted record, including terminal bookkeeping; clearing it cannot discard
-the account anchor. A stopped lease may not introduce client/identity metadata.
-This host transition is an unresolved integration requirement, and this adapter
-does not invent or provision a client. LocalPublicClient uses the
-core dynamic-client path.
+atomic Linux NOREPLACE, preserving a racing file without replacement. Metadata
+initializes only after the fenced commit succeeds. The original host owns
+trusted startup configuration and enrollment permission.
+
+For IssuedWebsite, the host then explicitly calls
+`initialize_website_client(context, &mut lease, preprovisioned_public_id)` before
+OAuth begin. It revalidates the same original active context/proof, authenticates
+the exact-binding pristine disconnected website record, and sets only the public
+client ID through existing fenced persistence. It does not create an account,
+client, grant, callback configuration or key. The initial no-ID enrollment shape
+is unchanged; the host must wire this separate trusted startup call. The ID must
+be 1-200 ASCII alphanumeric/underscore/hyphen bytes and exclude the dynamic-client
+marker. A successful write freezes it. LocalPublicClient uses the core's dynamic
+client path and needs no website initialization.
+
+A known subject must remain present and unchanged in every persisted record,
+including terminal bookkeeping; clearing it cannot discard the account anchor.
+A stopped lease may not introduce client or identity metadata.
 Missing or corrupt ciphertext is preserved; ordinary persistence requires a
 successful authenticated load and its exact ciphertext preimage.
 
@@ -136,7 +140,9 @@ synthetic concurrency/denial/failure cases outside ordinary CI. The explicit
 allowlist in `enrollment_regression.rs` is `empty-enrollment`,
 `existing-enrollment-denied`, `racing-enrollment`,
 `blank-app-enrollment-denied`, `blank-host-construction-denied`,
-`invalid-issued-client-transition-denied`, and `known-subject-clear-denied`. The
+`invalid-issued-client-transition-denied`, `known-subject-clear-denied`, and
+`configured-website-client-initialization`. The positive website case verifies
+that only the supplied synthetic public client ID changes and survives reopen. The
 metadata cases use only fixed synthetic public identifiers; they assert denied
 writes preserve ciphertext and metadata after reopen. The blank-host
 case checks constructor rejection before directory acquisition and then enrolls
