@@ -552,3 +552,186 @@ fn healthy_owned_delivery_public_sqlite_capture_restore_and_receipt_bytes() {
         "healthy recovery: public frozen synthetic geometry fixture, explicit missing asset, active PNG/PDF, retained tombstone/text, actual SQLite backup, migrations/integrity/graph/manifests, capture/verify/restore, history and receipt bytes preserved; public JS compatibility peer, Rust AT07 integration PENDING"
     );
 }
+
+/// Fresh legal wide originals exercise successful original operations only.
+/// Optional preview rejection and cancellation/negative controls stay deferred.
+#[test]
+fn healthy_wide_original_identity_availability_restore_and_download() {
+    use super::content::validate_original_content;
+    use std::io::Cursor;
+
+    let temp = tempfile::Builder::new()
+        .prefix("houseatlas-at12-wide-healthy-")
+        .tempdir()
+        .unwrap();
+    let parent = fs::canonicalize(temp.path()).unwrap();
+    let source = AssetVault::open(&parent.join("source")).unwrap();
+    let restored = AssetVault::open(&parent.join("restored")).unwrap();
+    for (index, depth) in [png::BitDepth::Eight, png::BitDepth::Sixteen]
+        .into_iter()
+        .enumerate()
+    {
+        let width = 20_000;
+        let pixels =
+            vec![123; width as usize * 4 * if depth == png::BitDepth::Eight { 1 } else { 2 }];
+        let mut original = Vec::new();
+        {
+            let mut encoder = png::Encoder::new(&mut original, width, 2);
+            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_depth(depth);
+            let mut writer = encoder.write_header().unwrap();
+            let mut full_pixels = pixels.clone();
+            full_pixels.extend_from_slice(&pixels);
+            writer.write_image_data(&full_pixels).unwrap();
+        }
+        // Positive acceptance by the same public codec's prior whole-frame
+        // capability is independent of production's new streaming validator.
+        let mut previous = png::Decoder::new(Cursor::new(&original))
+            .read_info()
+            .unwrap();
+        let mut decoded = vec![0; previous.output_buffer_size().unwrap()];
+        previous.next_frame(&mut decoded).unwrap();
+        previous.finish().unwrap();
+        assert_eq!(&decoded[..pixels.len()], pixels);
+        assert_eq!(&decoded[pixels.len()..], pixels);
+        validate_original_content(&original, ContentType::Png, &budget()).unwrap();
+        let prepared = source
+            .prepare_original(
+                &scope(),
+                AssetPurpose::EvidenceOriginal,
+                ContentType::Png,
+                &mut original.as_slice(),
+                &budget(),
+            )
+            .unwrap();
+        source
+            .verify_prepared_original(&scope(), &prepared, &budget())
+            .unwrap();
+        let asset = record(
+            850 + index as u32,
+            prepared.with_provenance(license(), vec![u(100)]).unwrap(),
+        );
+        let unchanged = asset.clone();
+        assert_eq!(asset.payload.availability, Availability::Available);
+        assert_eq!(
+            asset.payload.preview_policy,
+            super::types::PreviewPolicy::DownloadOnly
+        );
+        let identity = source.verify_available_asset(&asset, &budget()).unwrap();
+        assert_eq!(identity.sha256, sha256(&original));
+        assert_eq!(identity.byte_size, original.len() as u64);
+        restored
+            .restore_retained(&asset, &original, &budget())
+            .unwrap();
+        assert_eq!(
+            restored.verify_available_asset(&asset, &budget()).unwrap(),
+            identity
+        );
+        assert_eq!(restored.read_retained(&asset, &budget()).unwrap(), original);
+        // Delivery uses explicit synthetic access/storage ports. Actual vault,
+        // validator, final rereads, grant revalidation and response are real.
+        let store = SyntheticDeliveryStore {
+            record: asset.clone(),
+            reads: Cell::new(0),
+        };
+        let access = SyntheticAccess {
+            authorized: Cell::new(0),
+            revalidated: Cell::new(0),
+        };
+        let service = MediaService::new(&store, &access, &restored);
+        let descriptor = OwnedDescriptor::AtlasAsset {
+            asset_id: asset.record_id.clone(),
+        };
+        for method in [ReadMethod::Get, ReadMethod::Head] {
+            let response = service
+                .deliver(
+                    &SyntheticPrincipal,
+                    &scope(),
+                    &descriptor,
+                    method,
+                    DeliveryMode::Download,
+                    &budget(),
+                )
+                .unwrap();
+            assert_eq!(response.status, 200);
+            assert_eq!(
+                response
+                    .headers
+                    .iter()
+                    .find(|(key, _)| *key == "content-length")
+                    .unwrap()
+                    .1,
+                original.len().to_string()
+            );
+            if method == ReadMethod::Get {
+                assert_eq!(response.body, original);
+            } else {
+                assert!(response.body.is_empty());
+            }
+        }
+        assert_eq!(store.reads.get(), 4);
+        assert_eq!(access.authorized.get(), 2);
+        assert_eq!(access.revalidated.get(), 2);
+        assert_eq!(store.record, unchanged);
+        assert_eq!(asset, unchanged);
+    }
+    // Independent packed Adam7 framing covers wide padding, zero-height
+    // passes, and a 1x1 image whose zero-width passes affect Reader's budget.
+    for (width, height) in [(20_003u32, 3u32), (1, 1)] {
+        let mut raw = Vec::new();
+        for (x, y, dx, dy) in [
+            (0, 0, 8, 8),
+            (4, 0, 8, 8),
+            (0, 4, 4, 8),
+            (2, 0, 4, 4),
+            (0, 2, 2, 4),
+            (1, 0, 2, 2),
+            (0, 1, 1, 2),
+        ] {
+            let samples = width.saturating_sub(x).div_ceil(dx);
+            if samples == 0 {
+                continue;
+            }
+            for _ in 0..height.saturating_sub(y).div_ceil(dy) {
+                raw.push(0);
+                raw.extend(std::iter::repeat_n(255, samples.div_ceil(8) as usize));
+            }
+        }
+        let mut compressed = ZlibEncoder::new(Vec::new(), Compression::default());
+        compressed.write_all(&raw).unwrap();
+        let mut header = width.to_be_bytes().to_vec();
+        header.extend_from_slice(&height.to_be_bytes());
+        header.extend_from_slice(&[1, 0, 0, 0, 1]);
+        let mut original = b"\x89PNG\r\n\x1a\n".to_vec();
+        for (kind, bytes) in [
+            (b"IHDR", header),
+            (b"IDAT", compressed.finish().unwrap()),
+            (b"IEND", Vec::new()),
+        ] {
+            original.extend_from_slice(&(bytes.len() as u32).to_be_bytes());
+            let mut crc = crc32fast::Hasher::new();
+            crc.update(kind);
+            crc.update(&bytes);
+            original.extend_from_slice(kind);
+            original.extend_from_slice(&bytes);
+            original.extend_from_slice(&crc.finalize().to_be_bytes());
+        }
+        let mut previous = png::Decoder::new(Cursor::new(&original));
+        previous.set_transformations(png::Transformations::EXPAND);
+        let mut previous = previous.read_info().unwrap();
+        let mut decoded = vec![0; previous.output_buffer_size().unwrap()];
+        previous.next_frame(&mut decoded).unwrap();
+        previous.finish().unwrap();
+        assert_eq!(decoded, vec![255; width as usize * height as usize]);
+        validate_original_content(&original, ContentType::Png, &budget()).unwrap();
+    }
+    for rgba in [false, true] {
+        for filter in 0..=4 {
+            validate_original_content(&png_fixture(rgba, filter).0, ContentType::Png, &budget())
+                .unwrap();
+        }
+    }
+    println!(
+        "healthy wide PNG originals: 20000x2 RGBA8/16 accepted by prior public codec; prepared/verified/restored identity, availability, GET bytes and HEAD original length unchanged; explicit delivery peer stubs; packed Adam7 20003x3 and 1x1; original filters 0..4"
+    );
+}

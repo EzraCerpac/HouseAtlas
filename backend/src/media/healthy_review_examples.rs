@@ -1,6 +1,11 @@
 //! Fresh standard PNGs and real durable staging continuity; no rejection,
 //! revocation, replay, crash, concurrency or provider controls.
-use std::{cell::Cell, fs, io::Cursor, time::Duration};
+use std::{
+    cell::Cell,
+    fs,
+    io::{Cursor, Read},
+    time::Duration,
+};
 
 use png::{BitDepth, ColorType};
 use serde_json::json;
@@ -12,7 +17,7 @@ use super::{
     AssetVault, content,
     healthy_examples::{budget, scope, u},
 };
-use crate::{access as a, storage as s};
+use crate::{access as a, domain::stock, storage as s};
 
 fn fixture(
     color: ColorType,
@@ -41,6 +46,7 @@ fn fixture(
             .write_image_data(pixels)
             .unwrap();
     }
+    content::validate_original_content(&bytes, ContentType::Png, &budget()).unwrap();
     bytes
 }
 
@@ -177,6 +183,7 @@ fn healthy_standard_png_variants_render_known_pixels() {
     chunk(b"IHDR", &[0, 0, 0, 5, 0, 0, 0, 5, 8, 2, 0, 0, 1]);
     chunk(b"IDAT", &compressed.finish().unwrap());
     chunk(b"IEND", &[]);
+    content::validate_original_content(&original, ContentType::Png, &budget()).unwrap();
     let expected: Vec<u8> = (0..5)
         .flat_map(|y| (0..5).flat_map(move |x| [x * 20, y * 30, 100, 255]))
         .collect();
@@ -225,18 +232,7 @@ fn evidence<'a>(cookie: Option<&'a str>, csrf: Option<&'a str>) -> a::RequestEvi
     }
 }
 
-#[test]
-fn healthy_durable_pending_accounting_expiry_and_shared_bytes() {
-    let temporary = tempfile::tempdir().unwrap();
-    let root = fs::canonicalize(temporary.path()).unwrap();
-    let server = Server {
-        next: Cell::new(230_000),
-        seconds: Cell::new(1_800_000_000),
-    };
-    let limits = UploadLimits {
-        pending_lifetime: Duration::from_secs(60),
-        ..UploadLimits::default()
-    };
+fn authorized_editor() -> (a::AccessBoundary, RetainedPrincipal) {
     let mut access = a::AccessBoundary::in_memory(
         a::AccessConfig::new(vec!["https://atlas.synthetic.invalid".into()])
             .unwrap()
@@ -280,6 +276,22 @@ fn healthy_durable_pending_accounting_expiry_and_shared_bytes() {
             )
             .unwrap(),
     );
+    (access, principal)
+}
+
+#[test]
+fn healthy_durable_pending_accounting_expiry_and_shared_bytes() {
+    let temporary = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(temporary.path()).unwrap();
+    let server = Server {
+        next: Cell::new(230_000),
+        seconds: Cell::new(1_800_000_000),
+    };
+    let limits = UploadLimits {
+        pending_lifetime: Duration::from_secs(60),
+        ..UploadLimits::default()
+    };
+    let (mut access, principal) = authorized_editor();
     let bytes = b"Fresh shared synthetic quota bytes.\n";
     let mut asset_ids = Vec::new();
     for number in 0..2 {
@@ -330,5 +342,269 @@ fn healthy_durable_pending_accounting_expiry_and_shared_bytes() {
     assert_eq!(usage.retained.bytes, bytes.len() as u64);
     println!(
         "healthy durable accounting: two fresh actual AT11 staging admissions across owner/vault reopen, one shared retained blob, two charged receipts, successful unbound expiry, retained bytes remain charged; no SQL duplicate-asset acceptance claimed"
+    );
+}
+
+/// Advancing the synthetic server clock during a successful read models
+/// ordinary processing longer than the configured pending window. No sleeps,
+/// failed admission, expired bind, cancellation or fault control executes.
+struct ProcessingBody<'a> {
+    bytes: &'a [u8],
+    clock: &'a Cell<i64>,
+}
+
+impl Read for ProcessingBody<'_> {
+    fn read(&mut self, output: &mut [u8]) -> std::io::Result<usize> {
+        let length = self.bytes.read(output)?;
+        if length != 0 {
+            self.clock.set(self.clock.get() + 2);
+        }
+        Ok(length)
+    }
+}
+
+#[test]
+fn healthy_completed_upload_gets_fresh_pending_window_and_binds() {
+    let temporary = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(temporary.path()).unwrap();
+    let server = Server {
+        next: Cell::new(260_000),
+        seconds: Cell::new(1_800_000_000),
+    };
+    let vault = AssetVault::open(&root.join("media")).unwrap();
+    let stages = NativeUploadStages::open_with_limits(
+        &vault,
+        &server,
+        UploadLimits {
+            pending_lifetime: Duration::from_secs(1),
+            ..UploadLimits::default()
+        },
+    )
+    .unwrap();
+    let (mut access, principal) = authorized_editor();
+    let original = b"Fresh successful processing before the pending window.\n";
+    let license = SourceLicense {
+        status: LicenseStatus::Unknown,
+        reference: None,
+    };
+    let mut bound = None;
+    access
+        .with_mutation_authorization(
+            principal.principal(),
+            |guard| -> Result<(), Box<dyn std::error::Error>> {
+                let receipt = stages.stage_original(
+                    guard,
+                    &principal,
+                    UploadAdmission {
+                        request_id: u(270_000),
+                        purpose: AssetPurpose::EvidenceOriginal,
+                        content_type: ContentType::Text,
+                        filename: "fresh-processing.txt".into(),
+                        source_license: license.clone(),
+                        evidence_ids: vec![],
+                    },
+                    &mut ProcessingBody {
+                        bytes: original,
+                        clock: &server.seconds,
+                    },
+                    &budget(),
+                )?;
+                assert_eq!(server.seconds.get(), 1_800_000_002);
+                let directory = root
+                    .join("media/uploads")
+                    .join(super::types::sha256(receipt.staged.upload_token.as_bytes()));
+                let mut members: Vec<_> = fs::read_dir(&directory)?
+                    .map(|entry| entry.unwrap().file_name().to_str().unwrap().to_owned())
+                    .collect();
+                members.sort();
+                assert_eq!(members, ["lifetime.json", "stage.json"]);
+                let lifetime: serde_json::Value =
+                    serde_json::from_slice(&fs::read(directory.join("lifetime.json"))?)?;
+                assert_eq!(lifetime["createdAt"], 1_800_000_002i64);
+                assert_eq!(lifetime["expiresAt"], 1_800_000_003i64);
+                let raw = json!({
+                    "schemaVersion":3,"commandId":"atlas.asset.create",
+                    "requestId":receipt.request_id,"context":scope(),
+                    "target":{"authority":"atlas","recordType":"asset","recordId":receipt.asset_id},
+                    "payload":{"staged":receipt.staged,"purpose":"evidence-original",
+                        "sourceLicense":license,"evidenceIds":[]},
+                    "idempotencyKey":u(270_001),"reason":"Fresh successful completed-stage window",
+                    "preconditions":{"target":null,"guards":[]},"approvalReceiptId":null
+                });
+                let contracts = stock::NativeStockContract::new()?;
+                let request = stock::ValidatedRequest::parse(&contracts, raw)?;
+                let plan = stages.bind_asset_plan(
+                    guard,
+                    &principal,
+                    &receipt.staged.upload_token,
+                    &request,
+                    &budget(),
+                )?;
+                assert_eq!(plan.asset_id(), receipt.asset_id);
+                assert!(std::ptr::eq(
+                    plan.original_principal().principal(),
+                    principal.principal()
+                ));
+                bound = Some(plan);
+                Ok(())
+            },
+        )
+        .unwrap();
+    assert_eq!(bound.unwrap().staged().byte_size, original.len() as u64);
+    assert_eq!(stages.usage(&budget()).unwrap().pending_stages, 1);
+    println!(
+        "healthy completed stage: two synthetic processing seconds precede a fresh one-second pending lifetime; exact published member layout and genuine unchanged stock binding succeed with original AT11 guard; no expired/failed bind or storage mutation control"
+    );
+}
+
+#[test]
+fn healthy_incremental_png_many_rows_and_bounded_wide_rows() {
+    for (width, height, depth) in [
+        (2048, 2048, BitDepth::Eight),
+        (16383, 2, BitDepth::Eight),
+        (8191, 2, BitDepth::Sixteen),
+    ] {
+        let mut original = Vec::new();
+        let expected = [17u8, 34, 51, 255];
+        let pixels: Vec<u8> = if depth == BitDepth::Eight {
+            expected.repeat((width * height) as usize)
+        } else {
+            [17u8, 0, 34, 0, 51, 0, 255, 255].repeat((width * height) as usize)
+        };
+        let mut encoder = png::Encoder::new(&mut original, width, height);
+        encoder.set_color(ColorType::Rgba);
+        encoder.set_depth(depth);
+        encoder
+            .write_header()
+            .unwrap()
+            .write_image_data(&pixels)
+            .unwrap();
+        let rendered = content::render_png(&original, &budget()).unwrap();
+        let decoded = rgba(&rendered);
+        assert_eq!(decoded.len(), (width * height * 4) as usize);
+        assert!(
+            decoded
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .all(|pixel| *pixel == expected)
+        );
+    }
+    println!(
+        "healthy incremental PNG: 2048 ordinary rows with repeated known pixels, plus accepted RGBA8/16 row-bound examples; real pinned decoder and stripped RGBA8 output; cancellation/deadline/over-limit controls remain unrun"
+    );
+}
+
+#[test]
+fn healthy_png_renderer_qualification_and_published_stage_policy() {
+    use super::healthy_examples::license;
+    use super::types::{Availability, PreviewPolicy, sha256};
+
+    let temp = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(temp.path()).unwrap();
+    let vault = AssetVault::open(&root.join("media")).unwrap();
+    let server = Server {
+        next: Cell::new(280_000),
+        seconds: Cell::new(1_800_000_000),
+    };
+    let stages = NativeUploadStages::open(&vault, &server).unwrap();
+    let (mut access, principal) = authorized_editor();
+    for (width, expected_policy) in [
+        (2, PreviewPolicy::SafeRendered),
+        (20_000, PreviewPolicy::DownloadOnly),
+    ] {
+        let pixels = [12, 34, 56, 255].repeat(width as usize);
+        let mut original = Vec::new();
+        {
+            let mut encoder = png::Encoder::new(&mut original, width, 1);
+            encoder.set_color(ColorType::Rgba);
+            encoder.set_depth(BitDepth::Eight);
+            encoder
+                .write_header()
+                .unwrap()
+                .write_image_data(&pixels)
+                .unwrap();
+        }
+        let qualified = vault
+            .prepare_original(
+                &scope(),
+                AssetPurpose::EvidenceOriginal,
+                ContentType::Png,
+                &mut original.as_slice(),
+                &budget(),
+            )
+            .unwrap();
+        let measured = qualified.clone().into_measured();
+        assert_eq!(measured.identity.sha256, sha256(&original));
+        // Measuring bytes/MIME alone does not convey renderer qualification.
+        assert_eq!(
+            measured
+                .clone()
+                .with_provenance(license(), vec![])
+                .unwrap()
+                .preview_policy,
+            PreviewPolicy::DownloadOnly
+        );
+        let payload = qualified.with_provenance(license(), vec![]).unwrap();
+        assert_eq!(payload.preview_policy, expected_policy);
+        assert_eq!(payload.availability, Availability::Available);
+        assert_eq!(payload.sha256, measured.identity.sha256);
+        if expected_policy == PreviewPolicy::SafeRendered {
+            assert_eq!(
+                rgba(&content::render_png(&original, &budget()).unwrap()),
+                pixels
+            );
+        }
+        access
+            .with_mutation_authorization(
+                principal.principal(),
+                |guard| -> Result<(), Box<dyn std::error::Error>> {
+                    // Genuine owner admission publishes the same qualification.
+                    let admission = UploadAdmission {
+                        request_id: u(290_000 + width),
+                        purpose: AssetPurpose::EvidenceOriginal,
+                        content_type: ContentType::Png,
+                        filename: "fresh-qualified.png".into(),
+                        source_license: license(),
+                        evidence_ids: vec![],
+                    };
+                    let retained = stages.prepare_original_for_resolution(
+                        guard,
+                        &principal,
+                        &admission,
+                        &mut original.as_slice(),
+                        &budget(),
+                    )?;
+                    assert_eq!(retained.identity, measured.identity);
+                    assert_eq!(
+                        retained.with_provenance(license(), vec![])?.preview_policy,
+                        PreviewPolicy::DownloadOnly
+                    );
+                    let receipt = stages.stage_original(
+                        guard,
+                        &principal,
+                        admission,
+                        &mut original.as_slice(),
+                        &budget(),
+                    )?;
+                    let directory = root
+                        .join("media/uploads")
+                        .join(sha256(receipt.staged.upload_token.as_bytes()));
+                    let stage: serde_json::Value =
+                        serde_json::from_slice(&fs::read(directory.join("stage.json"))?)?;
+                    assert_eq!(
+                        stage["payload"]["previewPolicy"],
+                        serde_json::to_value(expected_policy)?
+                    );
+                    assert_eq!(stage["payload"]["availability"], "available");
+                    assert_eq!(stage["payload"]["sha256"], sha256(&original));
+                    assert_eq!(stage["payload"]["byteSize"], original.len() as u64);
+                    Ok(())
+                },
+            )
+            .unwrap();
+    }
+    println!(
+        "healthy renderer qualification: successful bounded PNG render yields SafeRendered; legal wide PNG preserved DownloadOnly; actual AT11 stage admission publishes both correct policies; measured metadata/reuse remain DownloadOnly; no oversized-preview denial or held controls invoked"
     );
 }

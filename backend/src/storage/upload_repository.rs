@@ -94,7 +94,14 @@ fn validate_binding<C: Contract, S: stock::StockContractPort>(
         workspace_id: stage.scope.workspace_id.clone(),
         home_id: stage.scope.home_id.clone(),
     };
-    let expected = PreparedOriginal {
+    let content_type =
+        media::ContentType::parse(&stage.staged.content_type).map_err(|_| incompatible())?;
+    require(
+        stage.payload.preview_policy == media::PreviewPolicy::DownloadOnly
+            || (stage.payload.preview_policy == media::PreviewPolicy::SafeRendered
+                && content_type == media::ContentType::Png),
+    )?;
+    let mut expected = PreparedOriginal {
         purpose: stage.payload.purpose,
         storage_key: scope
             .storage_key(&stage.staged.sha256)
@@ -103,14 +110,17 @@ fn validate_binding<C: Contract, S: stock::StockContractPort>(
             sha256: stage.staged.sha256.clone(),
             byte_size: stage.staged.byte_size,
         },
-        content_type: media::ContentType::parse(&stage.staged.content_type)
-            .map_err(|_| incompatible())?,
+        content_type,
     }
     .with_provenance(
         stage.payload.source_license.clone(),
         stage.payload.evidence_ids.clone(),
     )
     .map_err(|_| incompatible())?;
+    // Measurement proves identity/provenance, not renderer qualification. The
+    // policy comes from the genuine immutable Media stage and remains bound by
+    // the complete canonical binding, consumed receipt and asset association.
+    expected.preview_policy = stage.payload.preview_policy;
     let canonical = |value: &Value| native.canonical_json(value);
     require(
         request.id() == stock::OperationId::AtlasAssetCreate
