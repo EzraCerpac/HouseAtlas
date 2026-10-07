@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b5c25443e92513eb7e7347edac17ce33776d6403ea1585e0e8cbd695ca19e622",
+  "sourceDigestSha256": "90e380859033972378ab4bbf7a7ee6e10e290de0520f3e1b2beda362dd0fcc93",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -286,15 +286,15 @@
     {
       "path": "backend/src/access/README.md",
       "mode": "100644",
-      "bytes": 13050,
-      "sha256": "2fc5537c80c4c32b61db25734584253f88e8a4257541ec9fb24faf06ddd2ba34",
+      "bytes": 14593,
+      "sha256": "5deee197d27cd3c79ed9a87243323b29e6259a9f9802b901a9cb320df6abadc1",
       "owner": "access"
     },
     {
       "path": "backend/src/access/boundary.rs",
       "mode": "100644",
-      "bytes": 24934,
-      "sha256": "2d8a5176236a44a63125693125a10236f55228ba005b1423578bf98fc3b8f628",
+      "bytes": 25684,
+      "sha256": "294eef48f5f70624bd0bcf87c78cbf9c4d2158da87f5b198e87ec1734c426abc",
       "owner": "access"
     },
     {
@@ -321,8 +321,8 @@
     {
       "path": "backend/src/access/healthy.rs",
       "mode": "100644",
-      "bytes": 17756,
-      "sha256": "b5ef5b96d63b0d6e66f78dc999fae0cdf72a8a29855a82c31567857b65cc8d1b",
+      "bytes": 20136,
+      "sha256": "3cfe93c1e0025bd3333d6748cd750246c860d8beedeb29c83802680fb560b16d",
       "owner": "access"
     },
     {
@@ -1091,8 +1091,8 @@
     {
       "path": "backend/src/http/stock_reads.rs",
       "mode": "100644",
-      "bytes": 25802,
-      "sha256": "288586c1f01c7c68eb08e1be91f1993984a815345d6a817aeafae1d8f9333757",
+      "bytes": 26107,
+      "sha256": "0eb16684f5045554b9418404bd1607746dcf24649703296e70c3d4637da0fbde",
       "owner": "core-integration"
     },
     {
@@ -2246,8 +2246,8 @@
     {
       "path": "backend/src/transports/mcp/README.md",
       "mode": "100644",
-      "bytes": 9296,
-      "sha256": "03d145efd038f9f07691113905ffa033eab36bc87158164ec5a801129bbfdc27",
+      "bytes": 8710,
+      "sha256": "65eb5d0ef8b92d6d96e9e539fb4c1b7973e694c38106ca856edbc4b1b790508d",
       "owner": "mcp"
     },
     {
@@ -2258,10 +2258,31 @@
       "owner": "mcp"
     },
     {
+      "path": "backend/src/transports/mcp/asset_download.rs",
+      "mode": "100644",
+      "bytes": 7907,
+      "sha256": "52d367ef65515cdcc3a583c67f3e2f626c30d68917c8a6ebe88ecab38c6ec992",
+      "owner": "mcp"
+    },
+    {
+      "path": "backend/src/transports/mcp/healthy_download.rs",
+      "mode": "100644",
+      "bytes": 15283,
+      "sha256": "45a73d6e9af0c4d1d653b8cce8dc424c555d93d6b1800e0f0ac950c4f40bdb10",
+      "owner": "mcp"
+    },
+    {
       "path": "backend/src/transports/mcp/healthy_examples.rs",
       "mode": "100644",
       "bytes": 19621,
       "sha256": "69cd7ee54121569ebc14b1f6bfdee44971ffa93dd2a1830d7e4dc2589499dcd1",
+      "owner": "mcp"
+    },
+    {
+      "path": "backend/src/transports/mcp/healthy_mappings.rs",
+      "mode": "100644",
+      "bytes": 3312,
+      "sha256": "36590e869e1f7ad0a5f9f479bb92735fda40fba47bc38e3809f16469e0fcd84b",
       "owner": "mcp"
     },
     {
@@ -2316,22 +2337,22 @@
     {
       "path": "backend/src/transports/mcp/mod.rs",
       "mode": "100644",
-      "bytes": 1169,
-      "sha256": "264eaac2b1375b273865bb6c86e8cc3c92e9b683afaa02875a002f46871ee6e8",
+      "bytes": 1549,
+      "sha256": "90e7a9790d8a33eab43a17aa6718d478115d4f240e8cad11cf4b72f4c091f52f",
       "owner": "mcp"
     },
     {
       "path": "backend/src/transports/mcp/native_catalog.rs",
       "mode": "100644",
-      "bytes": 8017,
-      "sha256": "127137d63314a1ab2de5a3ca42e79b6c1329f6a4c550f3e3c7997c20d94018dc",
+      "bytes": 8563,
+      "sha256": "a15760b975ad4c491f91a970fe95f8debb3541b43d3a3ad95eff564efdf4181e",
       "owner": "mcp"
     },
     {
       "path": "backend/src/transports/mcp/native_context.rs",
       "mode": "100644",
-      "bytes": 5376,
-      "sha256": "681c599fa28b120c757326b28a09ba7f5fdf79ed76485bfd377da31e69a1c6bd",
+      "bytes": 5629,
+      "sha256": "38b247aa7755b7a9ea148ba92b4414a4a96b3cbd6b8e34b368a3b7f8b80fe529",
       "owner": "mcp"
     },
     {
@@ -2344,8 +2365,15 @@
     {
       "path": "backend/src/transports/mcp/native_service.rs",
       "mode": "100644",
-      "bytes": 3131,
-      "sha256": "aa92a770276ad18105e10c3828a03c66e0b0433f83593d9d4d8246dc80274e19",
+      "bytes": 4175,
+      "sha256": "da0311625e77c7410b94bab620f2341fb16bfcea7385b5e6bd3d249f4cf80707",
+      "owner": "mcp"
+    },
+    {
+      "path": "backend/src/transports/mcp/operation_mapping.rs",
+      "mode": "100644",
+      "bytes": 3788,
+      "sha256": "7a2eea14c2597ce009fcca9d51d859f30d432cb25227e972c35faeaba8346662",
       "owner": "mcp"
     },
     {
@@ -2668,6 +2696,13 @@
       "mode": "100644",
       "bytes": 26492,
       "sha256": "cb00d993b1a3b996ec62577153472d1595939ae78451f2df1331b4ffeee3247d",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/rust-integration/access-session-binding.md",
+      "mode": "100644",
+      "bytes": 3027,
+      "sha256": "8d71f1135e984602e8c09f10d86de3e21ac4d6483f007f196e3d6b5b0f4193e4",
       "owner": "core-integration"
     },
     {
