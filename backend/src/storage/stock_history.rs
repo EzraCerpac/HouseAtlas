@@ -1,5 +1,5 @@
 //! Actor/scope/query-bound history cursors over immutable audit sequence rows.
-use super::super::{stock_repository as stock_repo, *};
+use super::super::{repository as repo, stock_repository as stock_repo, *};
 use super::stock::stock_error;
 use super::{AtlasStore, authorize, read_request, shape};
 use crate::domain::stock::{OwnerResult, StockContractPort, ValidatedRequest};
@@ -71,6 +71,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                 "Verified history principal changed",
             ));
         }
+        repo::read_record(&tx, &scope, &target)?;
         let (watermark, after): (i64, i64) = if let Some(cursor) = raw["payload"]["cursor"].as_str()
         {
             tx.query_row("SELECT watermark,after_seq FROM stock_history_cursors WHERE cursor_id=?1 AND workspace_id=?2 AND home_id=?3 AND actor_id=?4 AND query_json=?5 AND codec_version=1",params![cursor,scope.workspace_id,scope.home_id,actor.actor_id,query_json],|r|Ok((r.get(0)?,r.get(1)?))).optional()?.ok_or(Error::new("invalid-contract","History cursor does not match the authorized query"))?
@@ -107,11 +108,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                     "Original stock audit linkage is unavailable",
                 ))?;
             let commit = stock_repo::load(&tx, &self.contract, &scope, &audit.actor_id, &root)?;
-            let original = ValidatedRequest::parse(contracts, commit.original_request.clone())
-                .map_err(stock_error)?;
-            if original.intent_digest() != commit.request_digest {
-                return Err(stock_repo::incompatible());
-            }
+            super::super::stock_projection::validate_retained(&commit, contracts, &self.contract)?;
             let event: Value = serde_json::from_str(&event)?;
             let matches = q.is_none_or(|q| {
                 event["commandId"].as_str().is_some_and(|v| v.contains(q))
@@ -122,13 +119,13 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             }
             audits.push(audit);
         }
-        let page_size = raw["payload"]["pageSize"]
-            .as_u64()
-            .and_then(|v| usize::try_from(v).ok())
-            .ok_or(Error::new(
+        let page_size = usize::try_from(
+            super::super::numeric::safe_integer(&raw["payload"]["pageSize"]).ok_or(Error::new(
                 "invalid-contract",
                 "History page size is incompatible",
-            ))?;
+            ))?,
+        )
+        .map_err(|_| Error::new("invalid-contract", "History page size is incompatible"))?;
         if page_size == 0 {
             return Err(Error::new(
                 "invalid-contract",

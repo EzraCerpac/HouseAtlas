@@ -116,7 +116,8 @@ fn main() -> CheckResult<()> {
         replaced.wire["data"]["records"][0]["payload"]["label"],
         "Synthetic circuit"
     );
-    let first_request = history_request(95_003, Value::Null, 1);
+    let mut first_request = history_request(95_003, Value::Null, 1);
+    first_request["payload"]["pageSize"] = serde_json::from_str("1.0")?;
     let first = store.stock_history_json_with_authorization(
         &authorization,
         &principal,
@@ -142,7 +143,8 @@ fn main() -> CheckResult<()> {
         .as_str()
         .ok_or("Continuation required")?
         .to_owned();
-    let second_request = history_request(95_004, json!(cursor), 1);
+    let mut second_request = history_request(95_004, json!(cursor), 1);
+    second_request["payload"]["pageSize"] = serde_json::from_str("1e0")?;
     let second = store.stock_history_json_with_authorization(
         &authorization,
         &principal,

@@ -6,10 +6,7 @@ use super::super::{
 use super::{AtlasStore, shape};
 use crate::domain::{
     self,
-    stock::{
-        self, AtlasCommandPlan, AtlasCommitGroupView, AtlasCommitView, StockContractPort,
-        StockError, ValidatedRequest,
-    },
+    stock::{self, AtlasCommandPlan, StockContractPort, StockError, ValidatedRequest},
 };
 use rusqlite::Connection;
 use serde_json::Value;
@@ -104,33 +101,13 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort>
     StockTransaction<'_, C, B, R, S>
 {
     fn project(&self, commit: &StockAtlasCommit) -> Result<stock::OwnerResult> {
-        let groups = commit
-            .groups
-            .iter()
-            .map(|g| AtlasCommitGroupView {
-                child_index: g.child_index,
-                original_request: &g.original_request,
-                request_digest: &g.request_digest,
-                operation_id: &g.operation_id,
-                replayed: commit.replayed,
-                native_results: &g.native_results,
-            })
-            .collect::<Vec<_>>();
-        stock::map_atlas_commit(
+        super::super::stock_projection::project(
             self.request,
             self.plan,
-            &AtlasCommitView {
-                original_request: &commit.original_request,
-                request_digest: &commit.request_digest,
-                operation_id: &commit.operation_id,
-                actor_id: &commit.actor_id,
-                replayed: commit.replayed,
-                groups: &groups,
-            },
+            commit,
             self.contracts,
             self.contract,
         )
-        .map_err(stock_error)
     }
     fn id(&self) -> Result<String> {
         let id = self.runtime.new_id()?;
@@ -208,27 +185,11 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
             if commit.request_digest != self.plan.request_digest() {
                 return Err(stock_repo::conflict());
             }
-            // Revalidate the retained first-admitted result before renewal.
-            let original = ValidatedRequest::parse(self.contracts, commit.original_request.clone())
-                .map_err(stock_error)?;
-            let original_plan =
-                stock::plan_atlas_commands(&original, self.contract).map_err(stock_error)?;
-            let check = StockTransaction {
-                contract: self.contract,
-                authorization: self.authorization,
-                principal: self.principal,
-                runtime: self.runtime,
-                contracts: self.contracts,
-                request: &original,
-                plan: &original_plan,
-                entries: self.entries,
-                batch: self.batch,
-                commit: None,
-            };
-            let retained = check.project(&commit)?;
-            if retained.wire != commit.wire || retained.children != commit.children {
-                return Err(stock_repo::incompatible());
-            }
+            super::super::stock_projection::validate_retained(
+                &commit,
+                self.contracts,
+                self.contract,
+            )?;
             if let Some(batch) = self.batch {
                 let receipt = repo::receipt(
                     db,
@@ -246,7 +207,12 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
                     .flat_map(|g| g.native_results.clone())
                     .collect::<Vec<_>>();
                 if receipt.hash != repo::digest(self.contract, &body)?
-                    || serde_json::from_str::<Vec<MutationResult>>(&receipt.body)? != flat
+                    || self
+                        .contract
+                        .canonical_json(&serde_json::from_str::<Value>(&receipt.body)?)?
+                        != self
+                            .contract
+                            .canonical_json(&serde_json::to_value(&flat)?)?
                 {
                     return Err(stock_repo::incompatible());
                 }
@@ -305,7 +271,7 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
                     "guard-conflict",
                     "Stock root guard is unavailable",
                 ))?;
-            if record.revision != guard.expected_revision || record.lifecycle != Lifecycle::Active {
+            if record.revision != guard.expected_revision {
                 return Err(Error::new("guard-conflict", "Stock root guard changed"));
             }
         }

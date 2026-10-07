@@ -80,6 +80,19 @@ pub(crate) fn load<C: Contract>(
     if actual_keys != expected_keys {
         return Err(incompatible());
     }
+    let link_count: i64 = db.query_row(
+        "SELECT COUNT(*) FROM stock_audit_links WHERE root_operation_id=?1",
+        [id],
+        |r| r.get(0),
+    )?;
+    let expected_links = commit
+        .groups
+        .iter()
+        .map(|g| g.native_entries.len())
+        .sum::<usize>();
+    if expected_links == 0 || expected_links > 100 || link_count != expected_links as i64 {
+        return Err(incompatible());
+    }
     let batch_id = commit.original_request["target"]["batchId"].as_str();
     let batch_hash = if let Some(batch_id) = batch_id {
         let batch = BatchMutation {
@@ -139,8 +152,10 @@ pub(crate) fn load<C: Contract>(
             )?;
             if receipt.hash != hash
                 || hash != expected_hash
-                || serde_json::from_str::<MutationResult>(&receipt.body)? != *result
-                || serde_json::from_str::<Audit>(&audit)? != result.audit
+                || contract.canonical_json(&serde_json::from_str::<Value>(&receipt.body)?)?
+                    != contract.canonical_json(&serde_json::to_value(result)?)?
+                || contract.canonical_json(&serde_json::from_str::<Value>(&audit)?)?
+                    != contract.canonical_json(&serde_json::to_value(&result.audit)?)?
                 || group.original_request["commandId"] != command_id
                 || group.request_digest != digest
                 || state != "committed"

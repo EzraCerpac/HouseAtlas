@@ -13,6 +13,7 @@ mod numeric;
 mod ports;
 mod repository;
 mod stock_repository;
+mod stock_projection;
 mod stock_types;
 mod store;
 mod types;
