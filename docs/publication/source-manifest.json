@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "121462bf311e939271e593c59f4439e0843f00cfc4fe860d071958d4f99099cd",
+  "sourceDigestSha256": "e1237254f943f848730f779b93f28f07f92a3789cd2414e512b93e9ca9734f4e",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -286,15 +286,15 @@
     {
       "path": "backend/src/access/README.md",
       "mode": "100644",
-      "bytes": 13050,
-      "sha256": "2fc5537c80c4c32b61db25734584253f88e8a4257541ec9fb24faf06ddd2ba34",
+      "bytes": 14593,
+      "sha256": "5deee197d27cd3c79ed9a87243323b29e6259a9f9802b901a9cb320df6abadc1",
       "owner": "access"
     },
     {
       "path": "backend/src/access/boundary.rs",
       "mode": "100644",
-      "bytes": 24934,
-      "sha256": "2d8a5176236a44a63125693125a10236f55228ba005b1423578bf98fc3b8f628",
+      "bytes": 25684,
+      "sha256": "294eef48f5f70624bd0bcf87c78cbf9c4d2158da87f5b198e87ec1734c426abc",
       "owner": "access"
     },
     {
@@ -321,8 +321,8 @@
     {
       "path": "backend/src/access/healthy.rs",
       "mode": "100644",
-      "bytes": 17756,
-      "sha256": "b5ef5b96d63b0d6e66f78dc999fae0cdf72a8a29855a82c31567857b65cc8d1b",
+      "bytes": 20136,
+      "sha256": "3cfe93c1e0025bd3333d6748cd750246c860d8beedeb29c83802680fb560b16d",
       "owner": "access"
     },
     {
@@ -2668,6 +2668,13 @@
       "mode": "100644",
       "bytes": 25791,
       "sha256": "916a0a0210ab9b2b947064f8be52feb84bcdd6555db19baaba8dbd6180d7c942",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/rust-integration/access-session-binding.md",
+      "mode": "100644",
+      "bytes": 3027,
+      "sha256": "8d71f1135e984602e8c09f10d86de3e21ac4d6483f007f196e3d6b5b0f4193e4",
       "owner": "core-integration"
     },
     {
