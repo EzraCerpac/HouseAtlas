@@ -1,5 +1,125 @@
 # Retained HomeBox stock evidence
 
+Version two joins the actual opaque storage job ID and the separately issued
+writer operation UUID through `RetainedWriterJobBinding`. Select
+`HomeboxRetainedEvidence::new_v2` explicitly in the trusted recovery host.
+Version one's constructors, codec names and exact encoding remain supported
+with their original UUID-equality requirement; version one does not interoperate
+with AT07's actual `q` + SHA256 queue IDs and is not retroactively qualified.
+
+## Version two producer and host interface
+
+The original native producer must already possess the exact storage claim,
+admitted `StoredOperation` and its matching `InvocationPermit`. Preserve those
+objects and their provenance independently of the recoverable image:
+
+```rust
+let binding = RetainedWriterJobBinding::retain(
+    &claimed_job, &admitted_writer_operation, &writer_permit,
+)?;
+let retained = RetainedWriterAttempt::from_prepared_v2(
+    &writer_contracts,
+    trusted_queue_config,
+    binding,
+    admitted_writer_operation,
+    original_stock_preflight,
+    writer_permit,
+    unchanged_media_owner_evidence,
+)?;
+```
+
+`binding.job()` returns the full original leased job; `writer_operation_id()`
+returns its actual associated writer UUID. No queue ID is parsed as a UUID,
+truncated, hashed into a UUID or replaced. No UUID is issued by this module.
+Both identities, the complete lease/attempt and the original full envelope,
+actor, captured authority and permit are retained in the versioned prepared
+packet. All existing request/schema/plan/preflight/physical/scope/fence/expiry/
+liability checks still apply. The archive checks that one job has one writer
+operation per physical identity across retained attempts, and one writer operation
+is not reassigned to a different job. The binding has private fields and no
+image/JSON constructor; it compares complete actual admitted/permit objects,
+not a caller-supplied ID pair. Its constructor remains producer-owned data
+retention, not proof of driver authenticity or any access/invocation grant.
+
+Submit the exact `retained.prepared()` bytes and qualified new `steps()` through
+the original storage owner's existing journal/inbox APIs. Preserve the actual
+finish and liability cut with `record_finish`, then freeze the independent owner
+records with `RetainedWriterArchive::new`. The native producer must authenticate
+and durably retain this association with its original provenance; image bytes
+cannot recreate it. The existing `StoredOperation.operation_id` and
+`InvocationPermit.operation_id` supply the genuine UUID fields: no new storage,
+writer, schema or global field is required. This leaf supplies the retained
+producer API, not an implementation of the still-unbound live activity owner.
+
+The original PR53 recovery host owner changes only its codec selection:
+
+```rust
+let native = HomeboxRetainedEvidence::new_v2(
+    bindings.writer_contracts, bindings.writer_archive,
+);
+let evidence = NativeQueueRecoveryEvidence::new(&discovery, &native);
+```
+
+No host source is edited by this leaf. `/1` selection stays `new`; `/2` selection
+stays `new_v2`. There is no image-driven version selection, automatic upgrade or
+permissive fallback, and one configured native evidence peer selects one version.
+A mixed-version registration needs separately supported owner composition;
+changing a retained packet's codec label does not upgrade its proof.
+
+| Version two role | Selected codec |
+| --- | --- |
+| Prepared native intent | `houseatlas-homebox-stock-native/2` |
+| Response/readback | `houseatlas-homebox-stock-readback/2` |
+| Qualified physical end | `houseatlas-homebox-stock-remote-end/2` |
+| Positive driver noninvocation | `houseatlas-homebox-stock-never-invoked/2` |
+| Embedded producer association | `houseatlas-homebox-stock-job-binding/2` |
+
+Reconciliation, admission/other and retry-after-invocation qualification remain
+unavailable. Outcome-local prefixes, logical fences, physical activity, causal/
+CAS limits and independent media/accounting semantics are unchanged.
+
+### Version two source and healthy evidence
+
+This successor is based directly on preserved `/1` commit
+`c7a67af8ac5dc92e22b87142384eb1c4503532c0`, whose author and committer use the
+verified public no-reply identity. It inspected actual storage2643's deterministic
+opaque job-ID producer/validator and PR53 host
+`2973fbcb5d55b2bc8eea828d2adad5b25c0466cc`. The external harness uses original
+writer `c784be5776b614f8f0bb225fcb5355ecb9e90e0d`, storage
+`2643eced79c5a581f72cc53634659d93da323cfb`, and original-owner corrected domain
+recovery `fd72542686112e594d9a6f63b4782a62b5d9e6ef`. Both earlier291efa and corrected
+fd725 inputs remain separately retained unchanged. Root manifests/lock/module
+declarations remain external and integrator-owned; no peer source is patched.
+
+Exactly the inspected fresh `healthy_retained_writer_v2_storage_prepared` case
+runs against actual native schemas/semantics and actual SQLite. One enqueue and
+claim produce storage's genuine `q` + SHA256 ID, while the synthetic native owner
+supplies its separately existing admitted writer UUID. The version-two packet
+is journaled unchanged through actual storage; required original/media/native
+peers validate a newly captured prepared image and the same closed image.
+The actual journal envelope and retained storage attempt are exercised. This is
+healthy synthetic capture/validation, not restore/reopen or recovered execution.
+The later in-process native response/readback/finish/end records are synthetic
+and qualify their own typed outcome cuts; no physical driver or queue finish is
+executed. Source store and fixture files are disposable. Twelve other tests,
+including the historical `/1` fixture, remain filtered and unrun.
+
+```sh
+cargo test --locked --offline --manifest-path /workspace/recovery-codec-check/Cargo.toml --lib providers::homebox::recovery::healthy::healthy_retained_writer_v2_storage_prepared -- --exact --nocapture
+```
+
+Scoped formatting, locked offline compilation and strict Clippy (`--lib --tests
+-- -D warnings`) passed in the external harness. The selected healthy case
+passed once on the completed implementation; twelve other tests were filtered.
+
+The original snapshot-read omission and compiler fixture borrow correction logs
+are retained outside Git. No stopped control, provider/account call, new real
+credential/grant, deployment, paid inference, CI retry, billing change or root
+merge runs. Hosted CI account limits remain outside this leaf's control.
+
+## Preserved version one interface and evidence
+
+
 `HomeboxRetainedEvidence::new(&NativeWriterContracts, &RetainedWriterArchive)`
 implements the accepted `domain::queue_recovery::NativeRetainedEvidence<P>`.
 Pass it to `NativeQueueRecoveryEvidence::new(&discovery, &native)` and pass that
