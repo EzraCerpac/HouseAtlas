@@ -212,7 +212,7 @@ fn healthy_transaction_local_authority_checkpoint() {
         boundary.revalidate_source(&entity).unwrap(),
         &entity
     ));
-    boundary
+    let empty_partition = boundary
         .authorize_source_partition(&principal, &empty_registration.partition())
         .unwrap();
 
@@ -230,6 +230,15 @@ fn healthy_transaction_local_authority_checkpoint() {
             let tx = records.transaction()?;
             // Storage must check at receipt/replay entry as well as final COMMIT.
             authority.authorize(&scope(), Capability::Mutate)?;
+            assert!(std::ptr::eq(authority.revalidate_source(&entity)?, &entity));
+            assert!(std::ptr::eq(
+                authority.revalidate_source_partition(&partition)?,
+                &partition
+            ));
+            assert!(std::ptr::eq(
+                authority.revalidate_source_partition(&empty_partition)?,
+                &empty_partition
+            ));
             authority.authorize(
                 &scope(),
                 Capability::ReadCachePartition(&registration.partition()),
@@ -247,6 +256,17 @@ fn healthy_transaction_local_authority_checkpoint() {
                 ],
             )?;
             clock.store(NOW + 1000, Ordering::Relaxed);
+            // Retained grants are checked again through the held guard, using
+            // their captured versions and returning those exact original handles.
+            assert!(std::ptr::eq(authority.revalidate_source(&entity)?, &entity));
+            assert!(std::ptr::eq(
+                authority.revalidate_source_partition(&partition)?,
+                &partition
+            ));
+            assert!(std::ptr::eq(
+                authority.revalidate_source_partition(&empty_partition)?,
+                &empty_partition
+            ));
             authority.authorize(&scope(), Capability::Mutate)?;
             tx.commit()?;
             Ok(())
@@ -261,7 +281,7 @@ fn healthy_transaction_local_authority_checkpoint() {
         .unwrap();
     assert_eq!(saved, (id(7).as_str().into(), id(2).as_str().into()));
     println!(
-        "AT11 healthy authority checkpoint: SQLite {}, schema {}, session/principal/source/empty-partition/current-precommit checks",
+        "AT11 healthy authority checkpoint: SQLite {}, schema {}, session/principal/retained-source/retained-empty-partition/current-precommit checks",
         rusqlite::version(),
         ACCESS_SCHEMA_VERSION
     );
