@@ -1,0 +1,367 @@
+//! Wire3 handles over the existing managed Media HEAD/GET delivery path.
+//! Handles are bounded correlations, never authority. Every redemption checks
+//! the authenticated session and current record and calls real Media delivery.
+use super::{
+    OperationId, OwnerResult, PreparedRequest, StockContractPort, StockError, StockQueryPort,
+    StockResult, canonical_digest,
+};
+use crate::media::{
+    Cancellation, MediaError, WorkBudget,
+    service::{
+        DeliveryMode, MediaAccessPort, MediaResponse, MediaService, MediaStoragePort,
+        OwnedDescriptor, ReadMethod,
+    },
+    types::{AssetRecord, Availability, Lifecycle, Scope},
+};
+use serde_json::{Value, json};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
+
+/// Access-owned normalized session correlation. Implementations must revalidate
+/// the original opaque principal, include the Access instance and expose no raw
+/// credential. Caller cookie text, actor/scope DTOs and transport IDs cannot
+/// implement this contract. It cannot authorize media or issue replacement P.
+pub trait AuthenticatedSessionPort<P> {
+    fn authenticated_session_binding(&self, original: &P) -> StockResult<[u8; 32]>;
+}
+
+impl AuthenticatedSessionPort<crate::access::Principal> for crate::access::AccessBoundary {
+    fn authenticated_session_binding(
+        &self,
+        original: &crate::access::Principal,
+    ) -> StockResult<[u8; 32]> {
+        crate::access::AccessBoundary::authenticated_session_binding(self, original)
+            .map_err(|_| StockError::AuthorityChanged)
+    }
+}
+impl AuthenticatedSessionPort<crate::media::native::RetainedPrincipal>
+    for Mutex<crate::access::AccessBoundary>
+{
+    fn authenticated_session_binding(
+        &self,
+        original: &crate::media::native::RetainedPrincipal,
+    ) -> StockResult<[u8; 32]> {
+        self.lock()
+            .map_err(|_| StockError::OwnerUnavailable)?
+            .authenticated_session_binding(original.principal())
+            .map_err(|_| StockError::AuthorityChanged)
+    }
+}
+
+#[derive(Clone)]
+struct DownloadHandle {
+    token: String,
+    context: String,
+    session: [u8; 32],
+    scope: Scope,
+    asset_id: String,
+    record_digest: String,
+    data: Value,
+    expires: Instant,
+}
+
+/// Share once across the existing host's issuance and redemption adapters.
+/// At most 1000 five-minute handles and no restart persistence. Unexpired
+/// handles are retained; capacity failure occurs before a new handle is issued.
+#[derive(Clone, Default)]
+pub struct AtlasDownloadHandles(Arc<Mutex<VecDeque<DownloadHandle>>>);
+
+pub struct UnavailableAtlasDownloads;
+impl<P, W, G> StockQueryPort<P, W, G> for UnavailableAtlasDownloads {
+    fn query(&mut self, _: &P, _: &PreparedRequest<W, G>) -> StockResult<OwnerResult> {
+        Err(StockError::OwnerUnavailable)
+    }
+}
+
+/// Borrow the same genuine Media storage/access/vault composition. No byte
+/// reader, renderer, vault, grant issuer or provider framework is duplicated.
+pub struct NativeAtlasAssetDownloads<'a, S, A, E, C> {
+    media: &'a MediaService<'a, S, A>,
+    storage: &'a S,
+    sessions: &'a E,
+    contracts: &'a C,
+    handles: AtlasDownloadHandles,
+}
+impl<'a, S, A, E, C> NativeAtlasAssetDownloads<'a, S, A, E, C> {
+    pub fn new(
+        media: &'a MediaService<'a, S, A>,
+        storage: &'a S,
+        sessions: &'a E,
+        contracts: &'a C,
+        handles: AtlasDownloadHandles,
+    ) -> Self {
+        Self {
+            media,
+            storage,
+            sessions,
+            contracts,
+            handles,
+        }
+    }
+
+    fn current<P>(&self, p: &P, scope: &Scope, asset_id: &str) -> StockResult<AssetRecord>
+    where
+        S: MediaStoragePort<P>,
+    {
+        let stored = self
+            .storage
+            .read_owned_asset(p, scope, asset_id)
+            .map_err(media_error)?;
+        let record = stored.record;
+        record.validate().map_err(media_error)?;
+        if record.scope() != *scope
+            || record.record_id != asset_id
+            || record.lifecycle != Lifecycle::Active
+            || record.payload.availability != Availability::Available
+            || !record.payload.purpose.is_original()
+            || stored.manifest != record.payload
+            || record.payload.byte_size > crate::media::MAX_BYTES as u64
+        {
+            return Err(StockError::CorrelationMismatch);
+        }
+        Ok(record)
+    }
+
+    /// The root output authorizer checks the actual registered handle through
+    /// this method using the original P/prepared request and the shared cache.
+    /// It must additionally discharge its captured witness/graph obligations.
+    pub fn validate_issued<P, W, G>(
+        &self,
+        principal: &P,
+        prepared: &PreparedRequest<W, G>,
+        data: &Value,
+    ) -> StockResult<()>
+    where
+        S: MediaStoragePort<P>,
+        E: AuthenticatedSessionPort<P>,
+    {
+        let request = prepared.request();
+        if request.id() != OperationId::AtlasAssetDownload {
+            return Err(StockError::CorrelationMismatch);
+        }
+        let session = self.sessions.authenticated_session_binding(principal)?;
+        let scope = Scope {
+            workspace_id: request.context().workspace_id.clone(),
+            home_id: request.context().home_id.clone(),
+        };
+        let asset_id = request.target()["recordId"]
+            .as_str()
+            .ok_or(StockError::InvalidContract)?;
+        let current = self.current(principal, &scope, asset_id)?;
+        let record_digest = canonical_digest(&json!(current))?;
+        let context = canonical_digest(&json!({"session":session,
+            "request":request.raw(),"recordDigest":record_digest}))?;
+        let handles = self
+            .handles
+            .0
+            .lock()
+            .map_err(|_| StockError::OwnerUnavailable)?;
+        if !handles.iter().any(|h| {
+            h.context == context
+                && h.session == session
+                && h.scope == scope
+                && h.asset_id == asset_id
+                && h.record_digest == record_digest
+                && h.data == *data
+                && h.expires > Instant::now()
+        }) {
+            return Err(StockError::AuthorityChanged);
+        }
+        Ok(())
+    }
+
+    /// Redeem through the managed Media GET/HEAD path. Token supplies no scope
+    /// override and no grant; the current authenticated caller supplies P.
+    pub fn redeem<P>(
+        &self,
+        principal: &P,
+        token: &str,
+        method: ReadMethod,
+        budget: &WorkBudget,
+    ) -> StockResult<MediaResponse>
+    where
+        S: MediaStoragePort<P>,
+        A: MediaAccessPort<P>,
+        E: AuthenticatedSessionPort<P>,
+    {
+        let session = self.sessions.authenticated_session_binding(principal)?;
+        let handle = {
+            let mut handles = self
+                .handles
+                .0
+                .lock()
+                .map_err(|_| StockError::OwnerUnavailable)?;
+            handles.retain(|h| h.expires > Instant::now());
+            handles
+                .iter()
+                .find(|h| h.token == token && h.session == session)
+                .cloned()
+                .ok_or(StockError::AuthorityChanged)?
+        };
+        let record = self.current(principal, &handle.scope, &handle.asset_id)?;
+        if canonical_digest(&json!(record))? != handle.record_digest {
+            return Err(StockError::AuthorityChanged);
+        }
+        let descriptor = OwnedDescriptor::AtlasAsset {
+            asset_id: handle.asset_id.clone(),
+        };
+        let response = self
+            .media
+            .deliver(
+                principal,
+                &handle.scope,
+                &descriptor,
+                method,
+                DeliveryMode::Download,
+                budget,
+            )
+            .map_err(media_error)?;
+        let current = self.current(principal, &handle.scope, &handle.asset_id)?;
+        if canonical_digest(&json!(current))? != handle.record_digest
+            || self.sessions.authenticated_session_binding(principal)? != session
+            || handle.expires <= Instant::now()
+        {
+            return Err(StockError::AuthorityChanged);
+        }
+        Ok(response)
+    }
+}
+
+impl<P, W, G, S, A, E, C> StockQueryPort<P, W, G> for NativeAtlasAssetDownloads<'_, S, A, E, C>
+where
+    S: MediaStoragePort<P>,
+    A: MediaAccessPort<P>,
+    E: AuthenticatedSessionPort<P>,
+    C: StockContractPort,
+{
+    fn query(
+        &mut self,
+        principal: &P,
+        prepared: &PreparedRequest<W, G>,
+    ) -> StockResult<OwnerResult> {
+        let request = prepared.request();
+        if request.id() != OperationId::AtlasAssetDownload {
+            return Err(StockError::OwnerUnavailable);
+        }
+        self.contracts
+            .validate(request.operation().input_schema, request.raw())?;
+        let scope = Scope {
+            workspace_id: request.context().workspace_id.clone(),
+            home_id: request.context().home_id.clone(),
+        };
+        let asset_id = request.target()["recordId"]
+            .as_str()
+            .ok_or(StockError::InvalidContract)?;
+        let session = self.sessions.authenticated_session_binding(principal)?;
+        let record = self.current(principal, &scope, asset_id)?;
+        let record_digest = canonical_digest(&json!(record))?;
+        let context = canonical_digest(&json!({"session":session,
+            "request":request.raw(),"recordDigest":record_digest}))?;
+        let saved = {
+            let mut handles = self
+                .handles
+                .0
+                .lock()
+                .map_err(|_| StockError::OwnerUnavailable)?;
+            handles.retain(|h| h.expires > Instant::now());
+            handles.iter().find(|h| h.context == context).cloned()
+        };
+        let data = if let Some(saved) = saved {
+            saved.data
+        } else {
+            let budget = WorkBudget::new(Duration::from_secs(10), Cancellation::default())
+                .map_err(media_error)?;
+            let descriptor = OwnedDescriptor::AtlasAsset {
+                asset_id: asset_id.into(),
+            };
+            self.media
+                .deliver(
+                    principal,
+                    &scope,
+                    &descriptor,
+                    ReadMethod::Head,
+                    DeliveryMode::Download,
+                    &budget,
+                )
+                .map_err(media_error)?;
+            let current = self.current(principal, &scope, asset_id)?;
+            if current != record
+                || self.sessions.authenticated_session_binding(principal)? != session
+            {
+                return Err(StockError::AuthorityChanged);
+            }
+            let token = token()?;
+            let data = json!({"target":request.target(),"downloadToken":token,
+                "sha256":record.payload.sha256,"byteSize":record.payload.byte_size,
+                "contentType":record.payload.content_type,"disposition":"attachment"});
+            let mut handles = self
+                .handles
+                .0
+                .lock()
+                .map_err(|_| StockError::OwnerUnavailable)?;
+            // The same exact prepared read can be recomputed for disclosure.
+            // Concurrent qualification is held; a matching immutable handle is
+            // simply reused rather than minting a different result carrier.
+            if let Some(saved) = handles
+                .iter()
+                .find(|h| h.context == context && h.expires > Instant::now())
+            {
+                saved.data.clone()
+            } else {
+                if handles.iter().any(|h| h.token == token) {
+                    return Err(StockError::OwnerUnavailable);
+                }
+                handles.retain(|h| h.expires > Instant::now());
+                if handles.len() >= 1000 {
+                    return Err(StockError::OwnerUnavailable);
+                }
+                handles.push_back(DownloadHandle {
+                    token,
+                    context,
+                    session,
+                    scope,
+                    asset_id: asset_id.into(),
+                    record_digest,
+                    data: data.clone(),
+                    expires: Instant::now() + Duration::from_secs(300),
+                });
+                data
+            }
+        };
+        let wire = json!({"schemaVersion":3,"commandId":request.id().as_str(),
+            "requestId":request.request_id(),"resolvedScope":request.context(),
+            "status":"read","replayed":false,"data":data});
+        self.contracts
+            .validate(request.operation().output_schema, &wire)?;
+        Ok(OwnerResult {
+            wire,
+            children: Vec::new(),
+        })
+    }
+}
+
+fn token() -> StockResult<String> {
+    let mut bytes = [0_u8; 16];
+    getrandom::fill(&mut bytes).map_err(|_| StockError::OwnerUnavailable)?;
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    let hex: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+    Ok(format!(
+        "{}-{}-{}-{}-{}",
+        &hex[..8],
+        &hex[8..12],
+        &hex[12..16],
+        &hex[16..20],
+        &hex[20..]
+    ))
+}
+fn media_error(error: MediaError) -> StockError {
+    match error {
+        MediaError::Unauthenticated | MediaError::Forbidden => StockError::CapabilityDenied,
+        MediaError::Conflict => StockError::AuthorityChanged,
+        _ => StockError::OwnerUnavailable,
+    }
+}
