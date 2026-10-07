@@ -7,7 +7,10 @@ import {
   type ReactNode,
 } from "react";
 import type { Scope } from "../api/generated/contracts.js";
-import { StockWebMcpBoundary } from "../webmcp/StockWebMcpBoundary.js";
+import {
+  bindAtlasService,
+  CommandCoverageBoundary,
+} from "../webmcp/coverage/index.js";
 import type {
   StockCompletion,
   StockHostContext,
@@ -138,6 +141,10 @@ export function StockApplication({
     );
   }, []);
   const { admission } = ports;
+  const bindings = useMemo(
+    () => bindAtlasService(ports.service, admission?.commandIds ?? []),
+    [ports.service, admission],
+  );
   const context = useMemo<StockHostContext | null>(
     () =>
       scope && admission && sameScope(scope, admission.scope)
@@ -160,21 +167,16 @@ export function StockApplication({
         </>
       }
     >
-      <StockWebMcpBoundary
+      <CommandCoverageBoundary
         sessions={facade.sessions}
         schemas={ports.schemas}
-        service={ports.service}
+        bindings={bindings}
         {...(Object.hasOwn(ports, "modelContext")
           ? { modelContext: ports.modelContext }
           : {})}
       >
-        {({ completion }) => (
-          <>
-            {children(onScopeCommit)}
-            <StockCompletionView completion={context ? completion : null} />
-          </>
-        )}
-      </StockWebMcpBoundary>
+        {children(onScopeCommit)}
+      </CommandCoverageBoundary>
     </StockRenderBoundary>
   );
 }
