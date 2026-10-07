@@ -628,16 +628,22 @@ pub(super) fn execute_raw(
         store: &core.store,
     };
     let prepared = st::prepare(p, raw, contracts, &authority, &mut Preparer(&core.store))?;
+    // Compose the actual SQLite read owner without admitting downloads. The
+    // media byte route has no canonical stock token issuer/redemption owner.
+    let mut queries = crate::transports::mcp::NativeQueries::new(
+        NativeQueries {
+            store: &core.store,
+            access: &core.access,
+            contracts: contracts.clone(),
+        },
+        crate::transports::mcp::UnavailableAssetDownloads,
+    )?;
     st::dispatch(
         p,
         prepared,
         contracts,
         &authority,
-        &mut NativeQueries {
-            store: &core.store,
-            access: &core.access,
-            contracts: contracts.clone(),
-        },
+        &mut queries,
         &mut CommandsUnavailable,
     )
 }

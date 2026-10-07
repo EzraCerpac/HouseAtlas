@@ -5,13 +5,23 @@ use crate::{access, contracts::stock as wire, domain::stock as domain};
 use serde_json::Value;
 
 use super::{
-    CatalogPort, JsonObject, NativePrincipal, NativeRequirement, NativeSchemas, PortError,
-    PreparedOperation, ToolAnnotations, ToolDefinition, ToolPage, ToolResult,
+    CatalogPort, JsonObject, NativePrincipal, NativeRequirement, NativeSchemas, OperationMapping,
+    PortError, PreparedOperation, ToolAnnotations, ToolDefinition, ToolName, ToolPage, ToolResult,
 };
 
 /// Private immutable envelope; only the real stock validator constructs it.
 pub struct NativeOperation {
     pub(crate) request: wire::StockRequest,
+}
+
+impl NativeOperation {
+    pub fn request(&self) -> &wire::StockRequest {
+        &self.request
+    }
+
+    pub fn mapping(&self) -> Result<OperationMapping, PortError> {
+        OperationMapping::for_operation(self.request.id())
+    }
 }
 
 /// Only native domain dispatch can construct a releasable result.
@@ -38,6 +48,10 @@ impl NativeCatalog {
         admitted: impl IntoIterator<Item = wire::OperationId>,
     ) -> Result<Self, PortError> {
         let admitted: BTreeSet<_> = admitted.into_iter().collect();
+        // Confirm the joined finite catalogs without enabling their operations.
+        for id in &admitted {
+            OperationMapping::for_operation(*id)?;
+        }
         let validator = wire::StockValidation::new().map_err(|_| PortError::Unavailable)?;
         let contracts = domain::NativeStockContract::new().map_err(stock_error)?;
         let mut tools = Vec::new();
@@ -109,10 +123,11 @@ impl CatalogPort<NativePrincipal> for NativeCatalog {
         if !self.tools.iter().any(|tool| tool.name == name) {
             return Err(PortError::UnknownTool);
         }
+        let tool = ToolName::parse(name)?;
         let request = wire::StockRequest::parse(&self.validator, Value::Object(arguments))
             .map_err(|_| invalid_contract())?;
-        let metadata = wire::operation(request.id()).map_err(|_| PortError::Unavailable)?;
-        if metadata.tool_family.as_str() != name {
+        let mapping = OperationMapping::for_operation(request.id())?;
+        if mapping.family() != tool.family() {
             return Err(invalid_contract());
         }
         if !admitted_request(&self.admitted, &request) {
@@ -130,6 +145,8 @@ impl CatalogPort<NativePrincipal> for NativeCatalog {
         };
         let requirement = if native.is_mutation() {
             NativeRequirement::mutation(scope)
+        } else if mapping.operation() == wire::OperationId::AtlasAssetDownload {
+            NativeRequirement::asset_download(scope)
         } else if native.operation().output_kind == domain::OutputKind::History
             || matches!(
                 native.route(),
@@ -150,11 +167,8 @@ impl CatalogPort<NativePrincipal> for NativeCatalog {
     }
 
     fn render(&self, name: &str, output: NativeOutput) -> Result<ToolResult, PortError> {
-        if wire::operation(output.request.id())
-            .map_err(|_| PortError::Unavailable)?
-            .tool_family
-            .as_str()
-            != name
+        if OperationMapping::for_operation(output.request.id())?.family()
+            != ToolName::parse(name)?.family()
         {
             return Err(PortError::Unavailable);
         }
