@@ -1,10 +1,13 @@
 use super::authority::{NetworkAccess, OriginalNetworkLease};
 use crate::{
-    access as a, app::Store, config::providers::registry::ConfiguredSource,
-    providers::network as n, storage as s,
+    access as a,
+    app::{Core, Store},
+    config::providers::registry::ConfiguredSource,
+    providers::network as n,
+    storage as s,
 };
 use n::NetworkCachePublisher;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 /// Private original issuing-store fence and original AT11 lifecycle grant.
 /// No raw fence, caller authorizer or publication callback escapes this leaf.
@@ -18,7 +21,7 @@ impl PreparedPublication {
         lease: Arc<OriginalNetworkLease>,
         source: &n::SourceRegistration,
     ) -> s::Result<Self> {
-        let prepared = held(&lease, |authorization| {
+        let prepared = held_preparation(&lease, |authorization| {
             n::NativeNetworkPublisher::new(store)
                 .with_authorization(authorization)
                 .prepare_cache_publication(source, lease.as_ref())
@@ -69,7 +72,7 @@ impl PreparedPublication {
             return Err(conflict());
         }
         let lease = self.lease;
-        held(&lease, |authorization| {
+        held_consuming(&lease, |authorization| {
             n::NativeNetworkPublisher::new(store)
                 .with_authorization(authorization)
                 .publish_prepared_generation(self.prepared.fence, staged, lease.as_ref())
@@ -81,7 +84,7 @@ impl PreparedPublication {
         code: n::ErrorCode,
     ) -> s::Result<s::CacheStatus> {
         let lease = self.lease;
-        held(&lease, |authorization| {
+        held_consuming(&lease, |authorization| {
             n::NativeNetworkPublisher::new(store)
                 .with_authorization(authorization)
                 .record_prepared_cache_failure(self.prepared.fence, code, lease.as_ref())
@@ -112,7 +115,7 @@ impl n::NativeNetworkLease<CallAuthorization<'_>> for OriginalNetworkLease {
         self
     }
 }
-fn held<T>(
+fn held_preparation<T>(
     lease: &OriginalNetworkLease,
     operation: impl FnOnce(&CallAuthorization<'_>) -> s::Result<T>,
 ) -> s::Result<T> {
@@ -134,11 +137,70 @@ fn held<T>(
         .map_err(|e: PhaseError| e.0)?;
     output.ok_or_else(conflict)
 }
+/// These private callers invoke only the actual consuming native Store APIs.
+/// Their Ok(CacheStatus) is produced AFTER Store COMMIT. No later authority or
+/// Access-transaction cleanup error can undo that mutation or replace its result.
+fn held_consuming(
+    lease: &OriginalNetworkLease,
+    operation: impl FnOnce(&CallAuthorization<'_>) -> s::Result<s::CacheStatus>,
+) -> s::Result<s::CacheStatus> {
+    let mut boundary = lease.access.lock().map_err(storage_access)?;
+    let mut committed = None;
+    let access_completion = boundary.with_lifecycle_authorization(
+        &lease.principal,
+        &lease.lifecycle,
+        lease.source.access_registration(),
+        a::LifecycleCapability::PublishCache,
+        |guard| -> Result<(), PhaseError> {
+            lease.check_guard(guard)?;
+            // Native storage repeats this SAME original authorizer at precommit.
+            // Record success immediately; there is no fallible post-Store check.
+            committed = Some(operation(&CallAuthorization { guard, lease })?);
+            Ok(())
+        },
+    );
+    drop(boundary);
+    if let Some(receipt) = committed {
+        if let Err(PhaseError(error)) = access_completion {
+            // Best-effort sanitized settlement evidence, outside authority lock.
+            // Neither an Access error nor a diagnostic write error masks COMMIT.
+            let _ = std::io::Write::write_fmt(
+                &mut std::io::stderr(),
+                format_args!(
+                    "Network cache committed; Access finalization failed ({})\n",
+                    error.code,
+                ),
+            );
+        }
+        return Ok(receipt);
+    }
+    access_completion.map_err(|e: PhaseError| e.0)?;
+    Err(conflict())
+}
 impl NetworkAccess {
     /// Separate trusted ConfigureSource grant. This does not synthesize policy
     /// from registration metadata. Durable registration succeeds first; an AT11
     /// error afterward is returned and can leave only the durable registration.
+    /// The owning Core is checked before either Store or Access registry work.
     pub fn configure(
+        &self,
+        core: &Arc<Mutex<Core>>,
+        principal: &a::Principal,
+        source: &Arc<ConfiguredSource>,
+    ) -> s::Result<()> {
+        let mut owner = core
+            .try_lock()
+            .map_err(|_| storage_access(a::AccessError::Unavailable))?;
+        if !Arc::ptr_eq(self.shared().as_existing(), &owner.access) {
+            return Err(conflict());
+        }
+        let store = owner
+            .store
+            .get_mut()
+            .map_err(|_| storage_access(a::AccessError::Unavailable))?;
+        self.configure_in_store(store, principal, source)
+    }
+    fn configure_in_store(
         &self,
         store: &mut Store,
         principal: &a::Principal,

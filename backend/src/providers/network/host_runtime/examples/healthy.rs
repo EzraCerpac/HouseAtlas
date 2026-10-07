@@ -194,14 +194,7 @@ async fn main() -> Result<(), Failure> {
     assert!(Arc::ptr_eq(&canonical_from_core, &canonical));
     let access = NetworkAccess::from_shared(a::SharedAccess::from_existing(canonical_from_core));
     assert!(Arc::ptr_eq(access.shared().as_existing(), &canonical));
-    {
-        let mut locked = core.try_lock().map_err(|_| "Core unexpectedly locked")?;
-        access.configure(
-            locked.store.get_mut().map_err(|_| "Store poisoned")?,
-            &configure_principal,
-            &source,
-        )?;
-    }
+    access.configure(&core, &configure_principal, &source)?;
     let (partition, grants) = {
         let issuer = canonical
             .try_lock()
@@ -515,7 +508,7 @@ async fn main() -> Result<(), Failure> {
     sidecar.close()?;
     drop(core);
     println!(
-        "PASS healthy canonical Network: same Core/access/Store issuer, original principal before shared injection, accepted PR36 lease ABI; verified TLS inventory GET1, genuine AT11 original grants, same-store native publisher, epoch0->1, durable pointer/reopen, schema5; entities5/links4/relations4/observations1; genuine viewer link/observation capture and original-grant same-Core/Store rerelease; canonical ownership checked before browse; reads preserve epoch/reservations"
+        "PASS healthy canonical Network: same Core/access/Store issuer; owning-Core configuration, original principal before shared injection, accepted PR36 lease ABI; verified TLS inventory GET1, genuine AT11 original grants, same-store native publisher, epoch0->1, durable pointer/reopen, schema5; entities5/links4/relations4/observations1; genuine viewer link/observation capture and original-grant same-Core/Store rerelease; canonical ownership checked before browse; reads preserve epoch/reservations"
     );
     Ok(())
 }
