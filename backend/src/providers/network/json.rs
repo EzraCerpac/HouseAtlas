@@ -1,5 +1,8 @@
 use super::model::{ErrorCode, NetworkError, Result, guard};
-use serde::de::{DeserializeSeed, MapAccess, SeqAccess, Visitor};
+use serde::{
+    Deserialize,
+    de::{DeserializeSeed, MapAccess, SeqAccess, Visitor},
+};
 use serde_json::{Map, Number, Value};
 use std::fmt;
 
@@ -69,7 +72,23 @@ impl<'de> DeserializeSeed<'de> for StrictValue {
         if self.depth > 100 {
             return Err(serde::de::Error::custom("JSON nesting limit"));
         }
-        de.deserialize_any(self)
+        // RawValue dispatch keeps object keys distinct from Serde's internal
+        // arbitrary-precision number map under the host's unified features.
+        let raw = <&serde_json::value::RawValue>::deserialize(de)?;
+        let mut nested = serde_json::Deserializer::from_str(raw.get());
+        match raw.get().as_bytes().first() {
+            Some(b'{') => serde::Deserializer::deserialize_map(&mut nested, self),
+            Some(b'[') => serde::Deserializer::deserialize_seq(&mut nested, self),
+            Some(b'-' | b'0'..=b'9') => raw
+                .get()
+                .parse::<f64>()
+                .ok()
+                .and_then(js_number)
+                .map(Value::Number)
+                .ok_or_else(|| serde::de::Error::custom("nonfinite JSON number")),
+            _ => Value::deserialize(&mut nested),
+        }
+        .map_err(serde::de::Error::custom)
     }
 }
 impl<'de> Visitor<'de> for StrictValue {

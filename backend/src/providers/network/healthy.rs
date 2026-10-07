@@ -12,7 +12,7 @@ const WIRE: &str = include_str!("../../../../adapters/network/fixtures/inventory
 const REVIEW: &str = include_str!("../../../../adapters/network/fixtures/link-review.json");
 const AT: &str = "2026-01-02T12:00:00Z";
 const ID: &str = "00000000-0000-4000-8000-000000000901";
-fn source() -> SourceRegistration {
+pub(super) fn source() -> SourceRegistration {
     SourceRegistration {
         scope: SourceScope {
             workspace_id: "00000000-0000-4000-8000-000000000001".into(),
@@ -25,7 +25,7 @@ fn source() -> SourceRegistration {
         allowed_external_ids: vec![],
     }
 }
-fn review() -> LinkReview {
+pub(super) fn review() -> LinkReview {
     serde_json::from_str(REVIEW).unwrap()
 }
 fn generation(source: &SourceRegistration, document: &[u8]) -> NetworkGeneration {

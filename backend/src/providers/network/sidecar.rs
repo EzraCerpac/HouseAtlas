@@ -1,5 +1,5 @@
 //! Immutable retained sidecar payloads. This module performs no database writes.
-//! AT07/AT51 must provide the durable store and stage-before-pointer transaction.
+//! durable.rs stages these payloads; the host owns consuming cache publication.
 use super::{
     CompleteGenerationProposal,
     json::{bounded_json, canonical_json},
@@ -11,9 +11,9 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
-const MAX_ROW_BYTES: usize = 10 * 1024 * 1024;
-const MAX_PACKET_BYTES: usize = 16 * 1024 * 1024;
-const MAX_ROWS: usize = 10_000;
+pub(crate) const MAX_ROW_BYTES: usize = 10 * 1024 * 1024;
+pub(crate) const MAX_PACKET_BYTES: usize = 16 * 1024 * 1024;
+pub(crate) const MAX_ROWS: usize = 10_000;
 pub const SIDECAR_FORMAT: &str = "houseatlas-network-sidecar/1";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

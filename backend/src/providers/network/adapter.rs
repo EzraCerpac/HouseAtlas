@@ -28,7 +28,7 @@ pub struct InventoryResponse {
 }
 /// The reviewed host transport must bound streaming before buffering, pin its
 /// HTTPS origin/path, disable redirect following, and cancel on future drop.
-/// This component contains no live client or provider/session configuration.
+/// http.rs supplies a concrete implementation using trusted host config ports.
 pub trait InventoryTransport {
     fn get_inventory(
         &self,
@@ -94,6 +94,15 @@ impl NetworkProvider {
             review,
             limits,
         })
+    }
+    pub fn registration(&self) -> &SourceRegistration {
+        &self.registration
+    }
+    pub(crate) fn limits(&self) -> Limits {
+        self.limits
+    }
+    pub(crate) fn link_review(&self) -> &LinkReview {
+        &self.review
     }
     pub fn read(&self, authoritative_state: &RetainedState) -> Result<RetainedState> {
         validate_state(&self.registration, authoritative_state, Some(&self.review))?;
