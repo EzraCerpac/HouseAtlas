@@ -1,6 +1,6 @@
 {
   "format": "houseatlas-publication-source/1",
-  "status": "development-native-mcp-lifecycle-mounted-exact-candidate-review-required",
+  "status": "development-native-reader-calendar-and-command-coverage",
   "self": {
     "path": "docs/publication/source-manifest.json",
     "mode": "100644",
@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0c2ce8640cfb6232a031d587111fc6c8fbff43a15f4522f785d62f628c050854",
+  "sourceDigestSha256": "71c97f9dd979b6359cf2f075f46871c8716f24c461486a1457ca41a2d2f7a768",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -41,8 +41,8 @@
     {
       "path": ".gitignore",
       "mode": "100644",
-      "bytes": 336,
-      "sha256": "b2f1c11723b7286b383e186eec465bbfc03549da92e3a9ae80f7cee3daf96ecc",
+      "bytes": 400,
+      "sha256": "6d712972d7006598922b96a096bfd6976f787902518fdd929f1cdf3e2787d5ee",
       "owner": "core-integration"
     },
     {
@@ -244,8 +244,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 1572,
-      "sha256": "db6d541e3d05791dc1bd602642c4adfc67129712cd703d25b99604cf509c028b",
+      "bytes": 1687,
+      "sha256": "d317408eec9cd62a6314e04b2bc5654f914fee63c4598fe7700441df97971ce6",
       "owner": "core-integration"
     },
     {
@@ -377,8 +377,8 @@
     {
       "path": "backend/src/config/providers/homebox.rs",
       "mode": "100644",
-      "bytes": 5476,
-      "sha256": "89910cf06721abd083ed2da8f2f97dad3c8e7d4b057d5cccf60afeca762e47b2",
+      "bytes": 7354,
+      "sha256": "5949cbace5fccecf6487095b2c99657597031c68cf897595842f36e2875e0c80",
       "owner": "core-integration"
     },
     {
@@ -403,10 +403,24 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/contracts/examples/healthy-maintenance-calendar.rs",
+      "mode": "100644",
+      "bytes": 2469,
+      "sha256": "3fdcaf1471bf9397b2177a5c77975d487e35abe72717686def1b2a95235994cb",
+      "owner": "contracts"
+    },
+    {
+      "path": "backend/src/contracts/examples/maintenance-calendar.json",
+      "mode": "100644",
+      "bytes": 629,
+      "sha256": "41fbec6afba3fc9f518e90b7adbe0258ba06c9e9069b72db2da80f6dc1765d16",
+      "owner": "contracts"
+    },
+    {
       "path": "backend/src/contracts/generated.rs",
       "mode": "100644",
       "bytes": 71357,
-      "sha256": "90f0427ac7afb0d243948e7b63694f99d7db0dcb5b8c3193e8131fc547e8e1ca",
+      "sha256": "2976314a8ba81d45f22c4ca59ca2043d4d02001ad896951c39a682eb6b08ab2d",
       "owner": "contracts"
     },
     {
@@ -419,8 +433,8 @@
     {
       "path": "backend/src/contracts/mod.rs",
       "mode": "100644",
-      "bytes": 11280,
-      "sha256": "1697d3092cb63591ff570b7e5b1e4e5a386181d7173972b749946a632d50b4a0",
+      "bytes": 11351,
+      "sha256": "41d6a787df4fac5a1b24b799a7188a716364d2e90dc990bbad091dafda42bac5",
       "owner": "contracts"
     },
     {
@@ -1084,8 +1098,8 @@
     {
       "path": "backend/src/lib.rs",
       "mode": "100644",
-      "bytes": 390,
-      "sha256": "e9822671221b71c2e2b535ba011120f0ec494189e3a0e51161ad1df438408cbf",
+      "bytes": 412,
+      "sha256": "b72e98c62c115d9e1f74a2d07a97087df40e73bb92c78e9b08f9c2b82538b544",
       "owner": "core-integration"
     },
     {
@@ -1259,8 +1273,8 @@
     {
       "path": "backend/src/providers/homebox/read/client.rs",
       "mode": "100644",
-      "bytes": 20069,
-      "sha256": "d000f9cc2f9b3f93b5f5cf53295a331286c7e3087ca215ee17e4e02a68832e12",
+      "bytes": 22464,
+      "sha256": "6882a6c051bd50d2955a54359318318eb284387ba14ab4993826b1ad264bd3ad",
       "owner": "homebox"
     },
     {
@@ -1273,8 +1287,8 @@
     {
       "path": "backend/src/providers/homebox/read/error.rs",
       "mode": "100644",
-      "bytes": 1641,
-      "sha256": "e1759b1a6339aef480ed2c940b570ce3499bf3cb893ca1c5b11b1c11ae671c3c",
+      "bytes": 1636,
+      "sha256": "915e1b0cb7623ef0749c6df1c671ed2bbee9811d0053b00f2dfe1999f83fd894",
       "owner": "homebox"
     },
     {
@@ -1308,8 +1322,8 @@
     {
       "path": "backend/src/providers/homebox/read/mod.rs",
       "mode": "100644",
-      "bytes": 922,
-      "sha256": "35bdad8a54aec20ec6832bbd1a5cbdbfaf2dd6b078693f3a66398dd87d2d83cf",
+      "bytes": 965,
+      "sha256": "32151d0a78564785580f9057edbaebb7b2a3c30ea26659117f24cab1121bc7f9",
       "owner": "homebox"
     },
     {
@@ -1334,10 +1348,164 @@
       "owner": "homebox"
     },
     {
+      "path": "backend/src/providers/homebox/read/stock.rs",
+      "mode": "100644",
+      "bytes": 3458,
+      "sha256": "279d0a852f9005340620331c68707bf6b07908e32e8159ebc2df1c460fc2bcc5",
+      "owner": "homebox"
+    },
+    {
       "path": "backend/src/providers/homebox/read/types.rs",
       "mode": "100644",
-      "bytes": 13969,
-      "sha256": "85ca312100f9559ff2765aa3225b910cf50176db555e236aad227c3a08020077",
+      "bytes": 14047,
+      "sha256": "a666585069e68d4ac67ed7ac1749ef735cbe0016dbccaf09930b166bdd446558",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/bridge.rs",
+      "mode": "100644",
+      "bytes": 2431,
+      "sha256": "de336c79b354ee8a86488a39ac1b0174490b47af22abce0a917677f4f76844f0",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/decode.rs",
+      "mode": "100644",
+      "bytes": 9369,
+      "sha256": "db09c7d56c19f7df31c69358806525e9f9688315dd5d90b02b87172d50dacbeb",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/fixtures/empty-maintenance.json",
+      "mode": "100644",
+      "bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/fixtures/empty.page.json",
+      "mode": "100644",
+      "bytes": 81,
+      "sha256": "b1abee65e889fc906754bb7eecd53248459fcd792be48b1e6302b1584e11d4c9",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/fixtures/item.detail.json",
+      "mode": "100644",
+      "bytes": 2712,
+      "sha256": "abcf22cdd6777ab39f989c99480b403020223a0e4237265100621ec639451e10",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/fixtures/items-second.page.json",
+      "mode": "100644",
+      "bytes": 1706,
+      "sha256": "861f644aa7a91779fef98655ac44618d58af5f5fef1eeb840b06f34872f9073e",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/fixtures/items.page.json",
+      "mode": "100644",
+      "bytes": 2118,
+      "sha256": "fe5976a5d2038d148c04e0ba259641654cf341a77a29f3cedb1acbe130ee0431",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/fixtures/location.detail.json",
+      "mode": "100644",
+      "bytes": 1026,
+      "sha256": "8d0fed6b0ea5905a86cde35ce2dc0888ff2d9dfd53434e3fd9c043f6a98e2de4",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/fixtures/locations.page.json",
+      "mode": "100644",
+      "bytes": 872,
+      "sha256": "e0e3ed30ab1a9c3af2a4e9be9f8fe9751e7cd64ccda01e68b72eeed6ff8b71bd",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/fixtures/maintenance.json",
+      "mode": "100644",
+      "bytes": 892,
+      "sha256": "c3587a816458e57281881b4e8bee871a2da52f2f76c73421673540dd10a71e53",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/fixtures/manifest.json",
+      "mode": "100644",
+      "bytes": 2270,
+      "sha256": "5a536cb0641a54cfc1dcc020fcb732d8bca6247b02040245b8167aeb40019aa0",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/fixtures/unknown.detail.json",
+      "mode": "100644",
+      "bytes": 730,
+      "sha256": "ea6d9bbd071171ea415986ac8cf8e919cd8042a4275de3afb0e3a765940f25bf",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/harness/Cargo.lock",
+      "mode": "100644",
+      "bytes": 67710,
+      "sha256": "1310c0b6fd511bd10893b6c3c7218f90213d7151c3c61dead21397b66ab11fd2",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/harness/Cargo.toml",
+      "mode": "100644",
+      "bytes": 630,
+      "sha256": "406a55ec151a0c06aada1cfbac0828d8f9b8dbbf88e1c77f150782d2c51e9598",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/harness/lib.rs",
+      "mode": "100644",
+      "bytes": 154,
+      "sha256": "cd999df00706ac09d06f2e665afb5bdd975a481d2fdc3e16744d4a10979116f4",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/healthy.rs",
+      "mode": "100644",
+      "bytes": 11103,
+      "sha256": "a7fb6ded63d0a94fc94837ffc6e3f14572e672e42626e747e3a944e1689a1705",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/json.rs",
+      "mode": "100644",
+      "bytes": 3716,
+      "sha256": "0963b87b2823d10f27e361ccf55bc7c1fb4efe9e0cca1e065d53941e1e13ffa3",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/mod.rs",
+      "mode": "100644",
+      "bytes": 565,
+      "sha256": "5f92d1a1691d2277ce1528106341c828d5087399f62e259f99f8b1445a2287ea",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/navigation.rs",
+      "mode": "100644",
+      "bytes": 1045,
+      "sha256": "b46ea60d60b0b32885bbd6cd9619248db44e23c97508e678de23ab19c718d2c0",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/source-pins.json",
+      "mode": "100644",
+      "bytes": 5932,
+      "sha256": "fa8dd06cdd5f9750aed38db87942364f2c045259f40ac92364c206275d40dfbb",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/wire/types.rs",
+      "mode": "100644",
+      "bytes": 9553,
+      "sha256": "2b11a2d3cb7554e2b3ea094905c389982d9a482e995e6d8d53d167dc00b8f75f",
       "owner": "homebox"
     },
     {
@@ -2015,8 +2183,8 @@
     {
       "path": "backend/src/transports/mcp/native_schemas.rs",
       "mode": "100644",
-      "bytes": 8334,
-      "sha256": "71eed476fe327151c2661bd26767bbc65bf6022ea623032bae7afc178952b141",
+      "bytes": 8341,
+      "sha256": "6ce982f435ebdb3f723bfc525d2e1ebf316422ee607f1f6b424dcc4277054065",
       "owner": "mcp"
     },
     {
@@ -2071,8 +2239,8 @@
     {
       "path": "contracts/stock-wire3/adoption-manifest.json",
       "mode": "100644",
-      "bytes": 5564,
-      "sha256": "821d9216dc0c184933351192c6f251f30c5553e8fdd42cf249a206aa1aea65bb",
+      "bytes": 5782,
+      "sha256": "f744024bf87db3aad4b5246aad8c548e7694e2feea1ee5600d8c06cabe6f58d4",
       "owner": "contracts"
     },
     {
@@ -2163,7 +2331,7 @@
       "path": "contracts/stock-wire3/resource-map.json",
       "mode": "100644",
       "bytes": 1707,
-      "sha256": "29857eafbc38c9c7b9b528463de3f56c5065f8e9b7475386727c99c410da08ea",
+      "sha256": "d405b319f7e17b95ecebcbe3e089490fd8f02c5f5452e72f8ac58ee653b73d31",
       "owner": "contracts"
     },
     {
@@ -2384,6 +2552,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/rust-integration/native-reader-and-webmcp.md",
+      "mode": "100644",
+      "bytes": 4653,
+      "sha256": "394b777d294c792c0d51fe535b43b546cd2d1d3e78d50cd9445fcc4830edf10c",
+      "owner": "core-integration"
+    },
+    {
       "path": "docs/rust-integration/owned-media.md",
       "mode": "100644",
       "bytes": 3126,
@@ -2548,7 +2723,7 @@
       "path": "frontend/src/api/generated/contracts.ts",
       "mode": "100644",
       "bytes": 21445,
-      "sha256": "abb82ea98bb5c27c0b88d8648aae2e3f3a2fc57f767d380581a175915201f8f9",
+      "sha256": "033a1657a343e3bf917e9d29067cfdbb0e1b74a7c5cba9a922658700fbadbbce",
       "owner": "contracts"
     },
     {
@@ -2582,8 +2757,8 @@
     {
       "path": "frontend/src/app/StockApplication.tsx",
       "mode": "100644",
-      "bytes": 5094,
-      "sha256": "cd8bbe4a8c7764b44564565758e505d31515dc835f3876ab2591568344e0b423",
+      "bytes": 5107,
+      "sha256": "01e46d827ecbf14a9fd80bb61baa6505428785f44b4489d3152bb329e309e83e",
       "owner": "web"
     },
     {
@@ -2731,6 +2906,41 @@
       "mode": "100644",
       "bytes": 578,
       "sha256": "6491e1270cd5d2d93178351ad21a4b05d6e1e9922f95cc688257acd94a872aaf",
+      "owner": "webmcp"
+    },
+    {
+      "path": "frontend/src/webmcp/coverage/CommandCoverageBoundary.tsx",
+      "mode": "100644",
+      "bytes": 2284,
+      "sha256": "adbbf3ef35aef74b04b8ce89e2d7bf793e3d48619fe608bfa5801d92a26b4c46",
+      "owner": "webmcp"
+    },
+    {
+      "path": "frontend/src/webmcp/coverage/families.ts",
+      "mode": "100644",
+      "bytes": 4077,
+      "sha256": "1306d4d6648abe7829d25de6f943f4af45aec0b0c3093d340259c318253026a2",
+      "owner": "webmcp"
+    },
+    {
+      "path": "frontend/src/webmcp/coverage/healthy-browser.mjs",
+      "mode": "100644",
+      "bytes": 9869,
+      "sha256": "3519174fe75a8032633f7004b1495910967dea722746097b58b1519299b96403",
+      "owner": "webmcp"
+    },
+    {
+      "path": "frontend/src/webmcp/coverage/healthy.tsx",
+      "mode": "100644",
+      "bytes": 7216,
+      "sha256": "a0d279fa9957d01c7e1c79c185b0f016d696a5ae5bf103f1fd57eca6987faf08",
+      "owner": "webmcp"
+    },
+    {
+      "path": "frontend/src/webmcp/coverage/index.ts",
+      "mode": "100644",
+      "bytes": 345,
+      "sha256": "df5b054b93cdf8e6eca29fc55b06ff313efb17c79ab88d66bfc86f6893a944e1",
       "owner": "webmcp"
     },
     {
@@ -2954,7 +3164,7 @@
       "path": "packages/contracts/history/check-history.mjs",
       "mode": "100644",
       "bytes": 6409,
-      "sha256": "3d2d65b5a4dfef246f2851a0b729b1f0dac7140a4279599a402c5dc851a32adb",
+      "sha256": "4d4da5b555506428d6d90e64868f4c9427f66897b7e32959089494de4159e1df",
       "owner": "contracts"
     },
     {
@@ -3016,8 +3226,8 @@
     {
       "path": "packages/contracts/schemas/atlas.schema.json",
       "mode": "100644",
-      "bytes": 80076,
-      "sha256": "ef00707b251051da4157598833d4c91d15d01b73eebfa049daf8c52a2ff23806",
+      "bytes": 80374,
+      "sha256": "ba73d972c87391fe06cd41d68e73bc2d73fc3fcac322889cfb3b8d909c3f3f72",
       "owner": "contracts"
     },
     {
@@ -3597,8 +3807,8 @@
     {
       "path": "tools/rust-baseline/generate-contracts.mjs",
       "mode": "100644",
-      "bytes": 14164,
-      "sha256": "1f000478df84293c8bf0116cec700948112422b72a22dc4c16d3e6bde61650ca",
+      "bytes": 14527,
+      "sha256": "d4d49a0e5d92d8b0008afd6ab5981fd9abc91f42dd0d801d2abaabe96750da65",
       "owner": "contracts"
     },
     {
@@ -3618,8 +3828,8 @@
     {
       "path": "tools/rust-integration/check-source.mjs",
       "mode": "100644",
-      "bytes": 1847,
-      "sha256": "359d1e34a348a35832b924f68302790d9e3d9abf2ddda4abdd3e47309f8ddd74",
+      "bytes": 1953,
+      "sha256": "9ecfcd228b5887e13655f78bdc99c612c8de54329b7eead0628b9d441b9b72a5",
       "owner": "core-integration"
     },
     {

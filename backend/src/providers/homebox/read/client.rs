@@ -1,7 +1,7 @@
 use super::decode::{self, WireEntity};
 use super::error::invalid;
+use super::stock::{self, StockNavigation};
 use super::*;
-use serde_json::Value;
 use std::{
     collections::{BTreeMap, BTreeSet},
     future::Future,
@@ -118,6 +118,8 @@ pub struct HomeBoxReader<T, C> {
     clock: C,
     limits: Limits,
     navigation: Option<NativeNavigation>,
+    stock_navigation: Option<StockNavigation>,
+    stock_dialect: bool,
 }
 impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
     pub fn new(
@@ -142,7 +144,33 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
             clock,
             limits,
             navigation,
+            stock_navigation: None,
+            stock_dialect: false,
         })
+    }
+    /// Trusted server selection of stock v0.26.2 decoding. Reference version
+    /// selection does not establish the installed provider version or authority.
+    pub fn new_stock(
+        registration: SourceRegistration,
+        transport: T,
+        clock: C,
+        limits: Limits,
+        mut navigation: Option<StockNavigation>,
+    ) -> Result<Self, ReadError> {
+        let mut reader = Self::new(registration, transport, clock, limits, None)?;
+        if let Some(n) = &mut navigation {
+            n.validate(&reader.scope)?;
+        }
+        reader.stock_navigation = navigation;
+        reader.stock_dialect = true;
+        Ok(reader)
+    }
+    pub fn metadata_dialect(&self) -> &'static str {
+        if self.stock_dialect {
+            crate::providers::homebox::wire::DIALECT
+        } else {
+            METADATA_DIALECT
+        }
     }
     pub fn scope(&self) -> &SourceScope {
         &self.scope
@@ -302,7 +330,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
         query: Vec<(String, String)>,
         generation_deadline: Instant,
         stats: &mut ReadStats,
-    ) -> Result<(Value, Timestamp), ReadError> {
+    ) -> Result<(Vec<u8>, Timestamp, Instant), ReadError> {
         check_time(generation_deadline)?;
         let deadline = (Instant::now() + Duration::from_millis(self.limits.request_timeout_ms))
             .min(generation_deadline);
@@ -347,11 +375,9 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                 bytes.extend_from_slice(&chunk);
             }
             check_time(deadline)?;
-            let value = decode::parse(&bytes)?;
-            check_time(deadline)?;
             let retrieved_at = self.clock.now();
             check_time(deadline)?;
-            Ok((value, retrieved_at))
+            Ok((bytes, retrieved_at, deadline))
         };
         timeout_at(deadline, operation)
             .await
@@ -364,7 +390,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
         deadline: Instant,
         stats: &mut ReadStats,
     ) -> Result<Vec<Projection>, ReadError> {
-        let mut rows: BTreeMap<Uuid, (WireEntity, Value)> = BTreeMap::new();
+        let mut rows: BTreeMap<Uuid, (WireEntity, serde_json::Value)> = BTreeMap::new();
         for is_location in [true, false] {
             let mut total = None;
             let mut page = 1u64;
@@ -386,9 +412,17 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                         .iter()
                         .map(|id| ("parentIds".into(), id.as_str().to_owned())),
                 );
-                let (value, _) = self
+                let (bytes, _, response_deadline) = self
                     .request("/api/v1/entities".into(), query, deadline, stats)
                     .await?;
+                check_time(response_deadline)?;
+                let value = if self.stock_dialect {
+                    stock::page(&bytes, page, is_location, parents, self.limits)?
+                } else {
+                    decode::parse(&bytes)?
+                };
+                check_time(response_deadline)?;
+                check_time(deadline)?;
                 let data = decode::page(value)?;
                 if data.page != page
                     || data.page_size != self.limits.max_page_size as u64
@@ -436,7 +470,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                 continue;
             }
             self.check_parent(&listed)?;
-            let (value, _) = self
+            let (bytes, _, response_deadline) = self
                 .request(
                     format!("/api/v1/entities/{}", id.as_str()),
                     Vec::new(),
@@ -444,6 +478,14 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                     stats,
                 )
                 .await?;
+            check_time(response_deadline)?;
+            let value = if self.stock_dialect {
+                stock::detail(&bytes, &id, self.limits)?
+            } else {
+                decode::parse(&bytes)?
+            };
+            check_time(response_deadline)?;
+            check_time(deadline)?;
             let (detail, raw) = decode::wire(value)?;
             if detail.id != id {
                 return Err(ReadError(ErrorCode::WrongScope));
@@ -452,21 +494,40 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
             if detail != listed {
                 return Err(ReadError(ErrorCode::Pagination));
             }
-            let (maintenance, retrieved_at) = self
+            let (bytes, retrieved_at, response_deadline) = self
                 .request(
                     format!("/api/v1/entities/{}/maintenance", id.as_str()),
-                    Vec::new(),
+                    if self.stock_dialect {
+                        vec![("status".into(), "both".into())]
+                    } else {
+                        Vec::new()
+                    },
                     deadline,
                     stats,
                 )
                 .await?;
+            check_time(response_deadline)?;
+            let maintenance = if self.stock_dialect {
+                stock::maintenance(&bytes, &id, self.limits)?
+            } else {
+                decode::parse(&bytes)?
+            };
+            check_time(response_deadline)?;
+            check_time(deadline)?;
+            let navigation = if self.stock_dialect {
+                self.stock_navigation
+                    .as_ref()
+                    .and_then(|n| n.for_entity(&detail))
+            } else {
+                self.navigation.as_ref()
+            };
             projections.push(decode::projection(
                 raw,
                 detail,
                 maintenance,
                 &self.scope,
                 retrieved_at,
-                self.navigation.as_ref(),
+                navigation,
             )?);
             check_time(deadline)?;
         }

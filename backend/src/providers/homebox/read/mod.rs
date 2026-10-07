@@ -7,6 +7,7 @@ mod http_transport;
 mod navigation;
 mod publication;
 mod retained;
+mod stock;
 mod types;
 
 pub use client::{Body, Clock, GetRequest, GetResponse, HomeBoxReader, Limits, Transport};
@@ -17,6 +18,7 @@ pub use http_transport::{
 };
 pub use navigation::{NativeNavigation, NativeRoute};
 pub use publication::{PreparedGeneration, PublishError, RefreshError, StagedPublication};
+pub use stock::StockNavigation;
 pub use types::*;
 
 pub const HOMEBOX_REFERENCE_VERSION: &str = "v0.26.2";
