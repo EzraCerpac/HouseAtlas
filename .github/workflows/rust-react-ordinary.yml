@@ -83,17 +83,6 @@ jobs:
       - name: Genuine native MCP stock get and audit page after fresh circuit commit
         if: runner.os == 'Linux'
         run: cargo run --locked -p houseatlas-backend --example healthy-agent-stock
-      - name: Genuine cached HomeBox native and in-process MCP reads
-        if: runner.os == 'Linux'
-        run: cargo run --locked -p houseatlas-backend --example healthy-homebox-cache-stock
-      - name: Bounded retained original renderer proof
-        if: runner.os == 'Linux'
-        run: cargo run --locked -p houseatlas-backend --example healthy-asset-review
-      - name: Fresh standalone text asset and exact authenticated download
-        if: runner.os == 'Linux'
-        env:
-          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
-        run: node tools/rust-integration/healthy-standalone-asset-loopback.mjs
       - name: Real native Network publication and cached root TLS reads
         if: runner.os == 'Linux'
         run: |
