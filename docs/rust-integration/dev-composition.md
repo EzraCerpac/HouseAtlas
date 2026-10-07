@@ -54,6 +54,12 @@ Complete Media request digests and Stock intent digests retain their distinct
 meanings. Renderer proof data cannot recreate authority or enable replay. Mixed
 renderer reviews remain unavailable. A release error can follow a durable commit;
 it does not establish rollback or permission to retry.
+An optional request-local Store observer now captures the actual canonical commit
+after the SQL transaction returns, before postcommit Media release. The host
+keeps that data privately under the existing session/scope/actor and capacity/TTL
+bounds, with separate Store-qualified and final HTTP-release states. This data
+grants no disclosure, proof reconstruction or retry. A fresh authorized exact-intent
+reconciliation API remains a source gap; normal record/history reads are available.
 Four cached HomeBox
 entity/location reads are mounted in native stock and HTTP/MCP. The remaining
 HomeBox read families and durable writer host require genuine owner peers. PR119
