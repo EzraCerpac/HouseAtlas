@@ -290,6 +290,8 @@ fn validate_verified_review_data<C: Contract>(
         || receipt.original_byte_size != measured.payload.byte_size
         || receipt.original_byte_size == 0
         || receipt.rendered_byte_size == 0
+        || receipt.original_byte_size > crate::media::MAX_BYTES as u64
+        || receipt.rendered_byte_size > crate::media::MAX_BYTES as u64
         || !digest(&receipt.original_sha256)
         || !digest(&receipt.rendered_sha256)
         || receipt.original_record_digest
