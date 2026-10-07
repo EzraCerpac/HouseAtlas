@@ -40,4 +40,4 @@ pub use queue::{
 pub use stock_types::*;
 pub use store::{AtlasStore, RecoveryImage, RecoveryValidationPeers, StoreOptions};
 pub use types::*;
-pub use upload_types::{ConsumedUpload, StagedUploadPrincipal};
+pub use upload_types::{ConsumedUpload, ExistingOriginalAsset, StagedUploadPrincipal};

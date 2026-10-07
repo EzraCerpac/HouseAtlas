@@ -88,3 +88,36 @@ impl ConsumedUpload {
         &self.asset_audit_id
     }
 }
+
+/// A checked current original asset in its authorized home. This carrier is
+/// data for the owner's existing-asset planner, never a stage or new grant.
+/// There is no constructor, deserializer, mutable record or provenance setter.
+pub struct ExistingOriginalAsset {
+    pub(super) record: Record,
+}
+impl ExistingOriginalAsset {
+    pub fn record(&self) -> &Record {
+        &self.record
+    }
+    pub fn asset_id(&self) -> &str {
+        &self.record.record_id
+    }
+    pub fn revision(&self) -> u64 {
+        self.record.revision
+    }
+    pub fn payload(&self) -> &Value {
+        &self.record.payload
+    }
+    pub fn scope(&self) -> Scope {
+        Scope {
+            workspace_id: self.record.workspace_id.clone(),
+            home_id: self.record.home_id.clone(),
+        }
+    }
+    pub fn target(&self) -> RecordRef {
+        RecordRef {
+            record_type: RecordType::Asset,
+            record_id: self.record.record_id.clone(),
+        }
+    }
+}
