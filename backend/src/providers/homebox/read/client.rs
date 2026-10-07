@@ -86,7 +86,7 @@ impl Default for Limits {
     }
 }
 impl Limits {
-    fn validate(self) -> Result<(), ReadError> {
+    pub(super) fn validate(self) -> Result<(), ReadError> {
         let d = Self::default();
         for (v, max) in [
             (self.max_page_size as u64, d.max_page_size as u64),

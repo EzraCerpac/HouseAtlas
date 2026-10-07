@@ -2,7 +2,7 @@
 
 This namespace is based only on published HouseAtlas commit
 `9f7561d99e09a680ec5282ca0c8aed4e10c6cbc9`. It supplies an embeddable component
-for the modular monolith, with no HTTP server, credential store, network driver,
+for the modular monolith, with no HTTP server, credential store,
 SQLite implementation, provider writes or attachment download.
 
 ## Interfaces for reconciliation
@@ -17,11 +17,12 @@ serde_json = "=1.0.145"
 chrono = { version = "=0.4.42", default-features = false, features = ["std"] }
 url = "=2.5.7"
 fluent-uri = { version = "=0.4.1", default-features = false }
-tokio = { version = "=1.48.0", features = ["time", "rt", "macros"] }
+tokio = { version = "=1.48.0", features = ["time", "rt", "macros", "net", "io-util"] }
+reqwest = { version = "=0.13.5", default-features = false, features = ["rustls"] }
 ```
 
 The external harness retains its own Cargo.lock. Tokio supplies timers and a
-current-thread runtime for examples, without networking features. Chrono validates
+current-thread runtime and networking for the disposable loopback example. Chrono validates
 RFC3339 strings without replacing their original precision or offset. These pins
 are a narrow dependency proposal; shared application selection remains with AT51.
 The feature-disabled `fluent-uri` parser validates a borrowed original RFC3986 URI
@@ -172,8 +173,30 @@ pages, provenance/UUID spelling, allowlists, pure freshness and synthetic native
 navigation/publication handoff, integral numeric spellings, literal URL references
 and valid escaped URI spelling (path/query/fragment, host case and IPv6 authority).
 Emitted snapshots are checked against the published
-shape and semantic validator; view projections are checked separately. The harness
-does not open listeners or call a provider. Legacy broad test aggregates and stopped
+shape and semantic validator; view projections are checked separately. The healthy HTTP example opens one ephemeral literal-loopback listener, closes it
+after eight successful chunked GETs, and sends no authorization header. It calls no
+provider. This exercises the concrete HTTP path, not TLS or provider compatibility. Legacy broad test aggregates and stopped
 rejection, guard-reversal, mutation/omission, adversarial, fault/crash, concurrency and
 negative-consumer controls remain unrun. Ordinary results do not qualify source
 access, real wire compatibility, SQLite publication, recovery, security or deployment.
+
+## Configured HTTP driver
+
+`SourceEndpoint::https(origin, scope)` accepts a server-reviewed HTTPS origin and
+full partition scope; request data cannot override either. `HttpTransport::new`
+uses pinned reqwest with normal Rustls platform certificate verification. Proxy
+discovery, redirects, retries and automatic decompression are disabled explicitly.
+GETs send the configured opaque `X-Tenant`, JSON Accept and identity encoding.
+`CredentialProvider::read_authorization` is a host-owned, cancellable port for
+current original grants and configured source credentials. The opaque sensitive
+`AuthorizationHeader` has no Debug, serialization or content accessor. Production
+GETs require a credential header; none is embedded in source or fixtures.
+
+The streaming body checks declared and observed per-response byte limits, bounds
+each await by the request deadline, and drops the response on timeout/error/limit
+or when its owner is dropped. The reader independently caps aggregate generation
+bytes and time. Errors discard client diagnostic text and URLs. A scope receipt
+identifies the configured endpoint, not independent proof of tenant enforcement.
+The unauthenticated plain HTTP endpoint constructor exists only in test builds and
+requires a literal loopback IP. Host source configuration and grant adapters remain
+AT52/AT11 responsibilities; no live endpoint is activated by this component.
