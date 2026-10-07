@@ -15,7 +15,7 @@ use crate::ai::{
     AiError, PortFuture,
     oauth::{
         CredentialBoundary, LifecycleState, RefreshCheckpoint, RegistrationBinding,
-        RegistrationKind, RegistrationRecord,
+        RegistrationKind, RegistrationRecord, RevocationState,
     },
 };
 
@@ -178,6 +178,19 @@ impl<C, A: CredentialAuthority<C>> FileCredentialBoundary<C, A> {
     }
 }
 
+impl<C: Sync, A: CredentialAuthority<C>> FileCredentialBoundary<C, A> {
+    /// Explicit first enrollment for an already-authorized registration. The
+    /// host supplies the complete initial record and an existing native key.
+    pub fn enroll_atomic<'a>(
+        &'a self,
+        context: &'a C,
+        binding: &'a RegistrationBinding,
+        initial_record: &'a RegistrationRecord,
+    ) -> PortFuture<'a, CredentialLease<A::Original, A::Stopped>> {
+        self.inner.enroll_atomic(context, binding, initial_record)
+    }
+}
+
 /// Private injection point for bounded synthetic fixtures. Production always
 /// constructs the wrapper above with native OS key lookup.
 pub(crate) struct Boundary<C, A: CredentialAuthority<C>, K: KeyProvider> {
@@ -288,6 +301,62 @@ impl<C, A: CredentialAuthority<C>, K: KeyProvider> Boundary<C, A, K> {
             }
         }
         Ok(())
+    }
+}
+
+impl<C: Sync, A: CredentialAuthority<C>, K: KeyProvider> Boundary<C, A, K> {
+    pub(crate) fn enroll_atomic<'a>(
+        &'a self,
+        context: &'a C,
+        binding: &'a RegistrationBinding,
+        initial_record: &'a RegistrationRecord,
+    ) -> PortFuture<'a, CredentialLease<A::Original, A::Stopped>> {
+        Box::pin(async move {
+            if initial_record.binding != *binding
+                || initial_record.stable_host_id != self.host_id
+                || !valid_field(&initial_record.app_name)
+                || initial_record.app_name.trim().is_empty()
+                || initial_record.state != LifecycleState::Disconnected
+                || initial_record.revocation != RevocationState::NotRequested
+                || initial_record.issued_client_id.is_some()
+                || initial_record.identity.is_some()
+                || initial_record.credentials.is_some()
+                || initial_record.pending_authorization.is_some()
+                || !matches!(initial_record.refresh_checkpoint, RefreshCheckpoint::None)
+            {
+                return Err(AiError::InvalidInput);
+            }
+            let lease = self.acquire(context, binding).await?;
+            self.check_record_scope(&lease, initial_record)?;
+            if lease.stopped.is_some()
+                || lease.loaded.try_lock().map_err(|_| UNAVAILABLE)?.is_some()
+                || lease.file.read()?.is_some()
+            {
+                return Err(UNAVAILABLE);
+            }
+            self.authority
+                .revalidate(context, &lease.original, &lease.binding)?;
+            self.authority
+                .revalidate_retained(&lease.original, &lease.binding)?;
+            let key = self.current_key(&lease).await?;
+            let mut loaded = lease.loaded.try_lock().map_err(|_| UNAVAILABLE)?;
+            if loaded.is_some() || lease.file.read()?.is_some() {
+                return Err(UNAVAILABLE);
+            }
+            let plaintext = record::encode(initial_record)?;
+            let ciphertext = crypto::seal(&key, &lease.aad, plaintext.expose_for_encryption())?;
+            let meta = LoadedMeta::from_record(
+                initial_record,
+                <[u8; 32]>::from(Sha256::digest(&ciphertext)),
+            )?;
+            self.authority
+                .with_persistence_fence(&lease.original, &lease.binding, None, || {
+                    lease.file.replace_atomic(None, &ciphertext)
+                })?;
+            *loaded = Some(meta);
+            drop(loaded);
+            Ok(lease)
+        })
     }
 }
 
