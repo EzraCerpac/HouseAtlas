@@ -15,3 +15,10 @@ privacy findings resolved by owners, real source/account scope, measured recover
 and compatible prior release. A limited pilot and promotion have separate gates.
 Ordinary CI is only syntax/build/integrity and one positive synthetic assembly.
 It supplies no deployment, secret, target, family or production qualification.
+
+Concurrency, denial and failure-injection regressions may run under the separate
+README.md lane only: reviewed exact cases, isolated disposable synthetic state
+and fake/local-only transports, without real credentials, live providers, user
+data, populated production restore or deployment. This is synthetic regression
+permission only; it changes no G1–G5 gate, held class, ordinary CI command,
+secret or network permission and supplies no target/recovery/pilot qualification.
