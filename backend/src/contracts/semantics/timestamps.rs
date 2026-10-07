@@ -36,7 +36,7 @@ pub(in crate::contracts) fn published_date_time_format(value: &str) -> bool {
     published_time_format(time)
 }
 
-fn published_date_format(value: &str) -> bool {
+pub(in crate::contracts) fn published_date_format(value: &str) -> bool {
     let bytes = value.as_bytes();
     if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
         return false;
@@ -143,7 +143,7 @@ pub fn date_greater(left: &str, right: &str) -> bool {
     }
 }
 
-fn parse_milliseconds(value: &str) -> Option<i64> {
+pub(in crate::contracts) fn parse_milliseconds(value: &str) -> Option<i64> {
     let bytes = value.as_bytes();
     if bytes.get(4) != Some(&b'-') || bytes.get(7) != Some(&b'-') {
         return None;

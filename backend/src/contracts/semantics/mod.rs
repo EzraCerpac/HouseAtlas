@@ -23,6 +23,8 @@ use super::{
 
 pub use canonical::{canonical_json, digest as canonical_digest};
 pub(super) use formats::published_uri_format;
+pub(super) use timestamps::parse_milliseconds as finite_timestamp_millis;
+pub(super) use timestamps::published_date_format;
 pub(super) use timestamps::published_date_time_format;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
