@@ -93,6 +93,23 @@ account bootstrap or real account grants are supplied. File-backed opens use
 SQLite NOFOLLOW and mode 0600 on Unix. Restoring an old database requires the
 recovery owner's explicit epoch invalidation; restoration is not self-detecting.
 
+`AccessBoundary::open_existing(path, config)` is the strict recovery peer for
+separately provisioned trusted access persistence. It validates the complete
+compiled SQLite schema catalogue (tables, indexes, constraints and foreign-key
+DDL), schema-1 metadata and the existing opaque epoch through read snapshots.
+It uses a read-only validation connection before reopening without a CREATE
+flag and revalidating; no initialization or migration SQL reaches the selected
+database. It changes neither file permissions nor sessions/epoch. The normal
+`open` constructor keeps its existing initialization behavior. Recovery can
+separately call `invalidate_all_sessions` after successful strict reopen.
+
+Schema 1 contains no database-instance lineage identifier. This checks exact
+compiled access schema compatibility, not the historical provenance of a
+same-schema file. Trusted selection, path pins, excluded writers and recovery
+ordering remain caller-owned. No hostile replacement/race qualification is
+claimed. A positive persistent checkpoint verifies byte-preserving strict reopen
+and subsequent authorization using an existing synthetic session.
+
 ## Dependencies for AT51
 
 Direct dependency versions proposed for the shared application manifest:

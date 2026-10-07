@@ -128,6 +128,13 @@ impl AccessBoundary {
         Self::from_store(Store::open(path.as_ref())?, config)
     }
 
+    /// Reopen separately provisioned trusted access state without creation,
+    /// initialization, migration, permission changes or session/epoch reset.
+    /// Compatibility requires the full compiled schema, not only its version.
+    pub fn open_existing(path: impl AsRef<Path>, config: AccessConfig) -> AccessResult<Self> {
+        Self::from_store(Store::open_existing(path.as_ref())?, config)
+    }
+
     fn from_store(store: Store, config: AccessConfig) -> AccessResult<Self> {
         Ok(Self {
             store,

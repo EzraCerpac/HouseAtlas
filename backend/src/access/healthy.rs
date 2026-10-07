@@ -318,6 +318,22 @@ fn healthy_persistent_session_checkpoint() {
         .unwrap();
     assert_eq!(principal.actor_id(), &id(7));
     reopened.revalidate(&principal).unwrap();
+    drop(reopened);
+
+    // Strict reopen checks the already provisioned compiled schema. The file,
+    // opaque epoch and existing session stay unchanged until normal use begins.
+    let before = std::fs::read(&path).unwrap();
+    let mut strict = AccessBoundary::open_existing(&path, config()).unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), before);
+    let principal = strict
+        .authorize(
+            &request(Method::Get, Some(cookie(&session)), None),
+            &scope(),
+            Action::Read,
+        )
+        .unwrap();
+    assert_eq!(principal.actor_id(), &id(7));
+    strict.revalidate(&principal).unwrap();
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -326,6 +342,6 @@ fn healthy_persistent_session_checkpoint() {
             0o600
         );
     }
-    drop(reopened);
+    drop(strict);
     std::fs::remove_file(path).unwrap();
 }

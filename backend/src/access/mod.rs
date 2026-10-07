@@ -6,6 +6,7 @@
 mod boundary;
 mod credentials;
 mod error;
+mod existing;
 mod source;
 mod store;
 mod types;
