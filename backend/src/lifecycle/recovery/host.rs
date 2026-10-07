@@ -5,11 +5,14 @@
 //! Image integrity provides neither authenticity nor an operational gate.
 use crate::{
     app::{Core, ReadAuthority, ServerRuntime},
-    config::recovery::{RecoveryConfig, RecoveryPeers},
-    domain::stock::NativeStockContract,
+    config::recovery::{HomeboxRecoveryOwners, RecoveryConfig, RecoveryPeers},
+    domain::{
+        queue_recovery::{OriginalEnqueueOwner, QueuedMediaRecovery},
+        stock::NativeStockContract,
+    },
     http::contracts::NativeContracts,
     media::{
-        self, MediaResult, WorkBudget,
+        self, MediaError, MediaResult, WorkBudget,
         native::{NativeMediaRuntime, NativeMediaStorage},
         native_recovery::NativeMediaRecovery,
         recovery::{
@@ -173,4 +176,86 @@ pub fn restore_closed<D: QueueDiscovery, E: QueueRecoveryEvidence>(
         E,
     >::validator(&NativeContracts, peers.storage());
     media::recovery::restore_recovery(&port, bundle, destination, budget)
+}
+
+/// Concrete recovery host using the actual offline access issuer, corrected
+/// domain discovery/evidence and retained HomeBox codecs. Original and media
+/// owners remain mandatory; there is no default proof or recovered dispatch.
+pub struct HomeboxRecoveryHost<'a, O, M> {
+    core: Core,
+    owners: HomeboxRecoveryOwners<'a, O, M>,
+}
+impl<'a, O: OriginalEnqueueOwner, M: QueuedMediaRecovery<O::Proof>> HomeboxRecoveryHost<'a, O, M> {
+    pub fn new(core: Core, owners: HomeboxRecoveryOwners<'a, O, M>) -> Self {
+        Self { core, owners }
+    }
+    pub fn into_core(self) -> Core {
+        self.core
+    }
+    pub fn profile(&self) -> MediaResult<RecoveryProfile> {
+        self.owners
+            .with_peers(|peers| {
+                NativeMediaRecovery::new(&self.core.store, peers.storage()).recovery_profile()
+            })
+            .map_err(|_| MediaError::Unavailable)
+    }
+    /// Captures through the original issuing Store and its actual vault.
+    pub fn capture(
+        &mut self,
+        destination: &Path,
+        budget: &WorkBudget,
+    ) -> MediaResult<RecoveryManifest> {
+        self.owners
+            .with_peers(|peers| {
+                media::recovery::capture_recovery(
+                    &NativeMediaRecovery::new(&self.core.store, peers.storage()),
+                    &self.core.vault,
+                    destination,
+                    budget,
+                )
+            })
+            .map_err(|_| MediaError::Unavailable)?
+    }
+    pub fn validate(&self, bundle: &Path, budget: &WorkBudget) -> MediaResult<VerifiedRecovery> {
+        validate_homebox_closed(bundle, &self.owners, budget)
+    }
+    /// Uses detached real validators and preserves the complete native image.
+    /// All exclusions and independent queued-media requirements remain as above.
+    pub fn restore(
+        &self,
+        bundle: &Path,
+        destination: &Path,
+        budget: &WorkBudget,
+    ) -> MediaResult<RestoredRecovery> {
+        restore_homebox_closed(bundle, destination, &self.owners, budget)
+    }
+    pub fn reopen(
+        self,
+        config: RecoveryConfig,
+        budget: &WorkBudget,
+    ) -> Result<Core, super::reopen::ReopenError> {
+        super::reopen::reopen_homebox_with_owners(self.core, config, &self.owners, budget)
+    }
+}
+
+/// Closed-bundle validation needs no source Core, live grant or spare Store.
+pub fn validate_homebox_closed<O: OriginalEnqueueOwner, M: QueuedMediaRecovery<O::Proof>>(
+    bundle: &Path,
+    owners: &HomeboxRecoveryOwners<'_, O, M>,
+    budget: &WorkBudget,
+) -> MediaResult<VerifiedRecovery> {
+    owners
+        .with_peers(|peers| validate_closed(bundle, peers, budget))
+        .map_err(|_| MediaError::Unavailable)?
+}
+
+pub fn restore_homebox_closed<O: OriginalEnqueueOwner, M: QueuedMediaRecovery<O::Proof>>(
+    bundle: &Path,
+    destination: &Path,
+    owners: &HomeboxRecoveryOwners<'_, O, M>,
+    budget: &WorkBudget,
+) -> MediaResult<RestoredRecovery> {
+    owners
+        .with_peers(|peers| restore_closed(bundle, destination, peers, budget))
+        .map_err(|_| MediaError::Unavailable)?
 }

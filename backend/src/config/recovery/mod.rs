@@ -4,11 +4,21 @@
 //! persistence and configuration are separate operator-selected inputs. The
 //! caller owns and drains the selected directories throughout recovery.
 use crate::{
-    access::AccessConfig,
+    access::{AccessConfig, OfflineRecoveryAuthority, RecoveryDiscoveryGrant},
     app::access_scope,
-    domain::{HomeSummary, Scope, stock::NativeStockContract},
+    domain::{
+        HomeSummary, Scope,
+        queue_recovery::{
+            NativeQueueDiscovery, NativeQueueRecoveryEvidence, OriginalEnqueueOwner,
+            QueueRecoveryBindings, QueuedMediaRecovery, TrustedQueueRegistry,
+        },
+        stock::NativeStockContract,
+    },
     jobs::QueueConfig,
     media::recovery::{DatabaseMember, MAX_DATABASE, RestoredRecovery},
+    providers::homebox::recovery::{
+        HomeboxRetainedEvidence, NativeWriterContracts, RetainedWriterArchive,
+    },
     storage::{QueueDiscovery, QueueRecoveryEvidence, RecoveryValidationPeers},
 };
 use rustix::fs::{Mode, OFlags, open};
@@ -240,5 +250,101 @@ impl<'a, D: QueueDiscovery, E: QueueRecoveryEvidence> RecoveryPeers<'a, D, E> {
             discovery: self.discovery,
             evidence: self.evidence,
         }
+    }
+}
+
+/// Independently selected owner inputs, never recovered from an image. The
+/// stock profile is the original live enqueue profile, not a schema version.
+/// Authority/grant must come from explicit trusted administrative approval and
+/// remain the SAME issuer outside Core across close and access-session reset.
+pub struct HomeboxRecoveryBindings<'a, O, M> {
+    pub queues: &'a [QueueConfig],
+    pub stock_contract_id: &'a str,
+    pub authority: &'a OfflineRecoveryAuthority,
+    pub grant: &'a RecoveryDiscoveryGrant,
+    pub original_owner: &'a O,
+    pub media: &'a M,
+    pub writer_contracts: &'a NativeWriterContracts,
+    pub writer_archive: &'a RetainedWriterArchive,
+}
+
+/// Concrete access/domain/HomeBox codec composition. Original enqueue/lease
+/// provenance and queued media proof remain REQUIRED independent owner ports.
+/// The archive must be independently authenticated retained writer facts; its
+/// constructor, matching packets and digests do not establish that provenance.
+/// No grant is minted, no approval is inferred and no provider is invoked here.
+/// Original/media/archive facts must be independently retrievable after restart;
+/// owner handles must obey RecoveryPeers' lock/alias obligations. Cold startup
+/// supplies an independently approved issuer/grant before opening any image.
+/// At least one configured physical queue is required, so the actual issuer can
+/// revalidate the supplied grant. Queue-free images retain the native host path.
+pub struct HomeboxRecoveryOwners<'a, O, M> {
+    registry: TrustedQueueRegistry,
+    bindings: HomeboxRecoveryBindings<'a, O, M>,
+}
+
+type HomeboxDiscovery<'a, O, M> =
+    NativeQueueDiscovery<'a, NativeStockContract, OfflineRecoveryAuthority, O, M>;
+type HomeboxEvidence<'a, 'peer, O, M> = NativeQueueRecoveryEvidence<
+    'a,
+    'peer,
+    NativeStockContract,
+    OfflineRecoveryAuthority,
+    O,
+    M,
+    HomeboxRetainedEvidence<'peer>,
+>;
+
+impl<'a, O: OriginalEnqueueOwner, M: QueuedMediaRecovery<O::Proof>>
+    HomeboxRecoveryOwners<'a, O, M>
+{
+    pub fn new(bindings: HomeboxRecoveryBindings<'a, O, M>) -> Result<Self> {
+        if bindings.queues.is_empty() {
+            return Err(InvalidRecoveryConfig);
+        }
+        let registry =
+            TrustedQueueRegistry::new(bindings.queues).map_err(|_| InvalidRecoveryConfig)?;
+        let owners = Self { registry, bindings };
+        owners.with_peers(|_| ())?;
+        Ok(owners)
+    }
+
+    /// Freeze every registration, including empty queues, in the supplied order.
+    pub fn queues(&self) -> &[QueueConfig] {
+        self.registry.configs()
+    }
+
+    // Keep the discovery, evidence and native codec alive in one operation
+    // scope, avoiding self-referential owners or a reconstructed principal.
+    pub(crate) fn with_peers<T>(
+        &self,
+        operation: impl FnOnce(
+            &RecoveryPeers<'_, HomeboxDiscovery<'_, O, M>, HomeboxEvidence<'_, '_, O, M>>,
+        ) -> T,
+    ) -> Result<T> {
+        let contracts = NativeStockContract::new().map_err(|_| InvalidRecoveryConfig)?;
+        let bindings = &self.bindings;
+        let discovery = NativeQueueDiscovery::new(
+            self.registry.configs(),
+            QueueRecoveryBindings {
+                stock_contract_id: bindings.stock_contract_id,
+                contracts: &contracts,
+                authority: bindings.authority,
+                grant: bindings.grant,
+                original_owner: bindings.original_owner,
+                media: bindings.media,
+            },
+        )
+        .map_err(|_| InvalidRecoveryConfig)?;
+        for queue in discovery.registry().configs() {
+            discovery
+                .authorize_discovery(&queue.registration)
+                .map_err(|_| InvalidRecoveryConfig)?;
+        }
+        let native =
+            HomeboxRetainedEvidence::new(bindings.writer_contracts, bindings.writer_archive);
+        let evidence = NativeQueueRecoveryEvidence::new(&discovery, &native);
+        let peers = RecoveryPeers::new(discovery.registry().configs(), &discovery, &evidence)?;
+        Ok(operation(&peers))
     }
 }

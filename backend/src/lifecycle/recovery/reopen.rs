@@ -3,8 +3,11 @@
 use crate::{
     access::AccessBoundary,
     app::{Core, ReadAuthority, ServerRuntime, Store},
-    config::recovery::{ExistingPath, RecoveryConfig, RecoveryPeers},
-    domain::stock::NativeStockContract,
+    config::recovery::{ExistingPath, HomeboxRecoveryOwners, RecoveryConfig, RecoveryPeers},
+    domain::{
+        queue_recovery::{OriginalEnqueueOwner, QueuedMediaRecovery},
+        stock::NativeStockContract,
+    },
     http::contracts::NativeContracts,
     media::{
         AssetVault, MediaError, WorkBudget,
@@ -187,6 +190,31 @@ pub fn reopen_with_peers<D: QueueDiscovery, E: QueueRecoveryEvidence>(
     budget: &WorkBudget,
 ) -> Result<Core, ReopenError> {
     reopen_selected(Some(source), config, peers, budget)
+}
+
+/// Cold concrete composition. The independently retained access issuer/grant
+/// and writer/original/media owners survive the new boundary's session reset.
+/// Reconstructing those facts from the selected image is never an alternative.
+pub fn reopen_homebox_closed<O: OriginalEnqueueOwner, M: QueuedMediaRecovery<O::Proof>>(
+    config: RecoveryConfig,
+    owners: &HomeboxRecoveryOwners<'_, O, M>,
+    budget: &WorkBudget,
+) -> Result<Core, ReopenError> {
+    owners
+        .with_peers(|peers| reopen_closed(config, peers, budget))
+        .map_err(|_| ReopenError::Configuration)?
+}
+
+/// Consumes the old Core on all outcomes, including owner qualification errors.
+pub fn reopen_homebox_with_owners<O: OriginalEnqueueOwner, M: QueuedMediaRecovery<O::Proof>>(
+    source: Core,
+    config: RecoveryConfig,
+    owners: &HomeboxRecoveryOwners<'_, O, M>,
+    budget: &WorkBudget,
+) -> Result<Core, ReopenError> {
+    owners
+        .with_peers(|peers| reopen_with_peers(source, config, peers, budget))
+        .map_err(|_| ReopenError::Configuration)?
 }
 
 fn reopen_selected<D: QueueDiscovery, E: QueueRecoveryEvidence>(
