@@ -91,7 +91,7 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
         "/api/atlas/stock/v3/workspaces/{}/homes/{}/commands",
         core.home.scope.workspace_id, core.home.scope.home_id
     );
-    let principal = principal(core, cookie, csrf, true, &path)?;
+    let principal = Box::new(principal(core, cookie, csrf, true, &path)?);
     let retained = principal.principal.retained();
     let scope = s::Scope {
         workspace_id: core.home.scope.workspace_id.clone(),
@@ -243,8 +243,7 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
         assert_eq!(commit.wire["operationId"], commit.operation_id);
         assert_eq!(commit.groups.len(), 1);
         assert_eq!(commit.groups[0].operation_id, commit.operation_id);
-        assert_eq!(commit.children.len(), 1);
-        assert_eq!(commit.children[0]["operationId"], commit.operation_id);
+        assert!(commit.children.is_empty());
         assert_eq!(commit.groups[0].native_results.len(), 1);
         let result = &commit.groups[0].native_results[0];
         assert_eq!(result.record.record_id, id(950));
@@ -254,9 +253,18 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
         assert_eq!(result.audit.audit_id, result.record.last_audit_id);
         assert_eq!(result.audit.record.record_id, id(950));
         assert_eq!(result.audit.result_revision, 2);
+        assert_eq!(commit.wire["status"], "committed");
+        assert_eq!(commit.wire["commandId"], "atlas.asset.review");
+        assert_eq!(commit.wire["requestId"], raw["requestId"]);
+        assert_eq!(commit.wire["data"]["requestDigest"], commit.request_digest);
         assert_eq!(
-            commit.children[0]["data"]["auditIds"],
+            commit.wire["data"]["auditIds"],
             json!([result.audit.audit_id])
+        );
+        assert_eq!(commit.wire["data"]["records"][0]["revision"], 2);
+        assert_eq!(
+            commit.wire["data"]["records"][0]["payload"]["previewPolicy"],
+            "safe-rendered"
         );
         let facts = serde_json::to_value(
             commit
@@ -264,7 +272,7 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
                 .as_ref()
                 .ok_or("Missing retained renderer facts")?,
         )?;
-        assert_eq!(facts["format"], s::ATLAS_VERIFIED_ASSET_REVIEW_FORMAT);
+        assert_eq!(facts["format"], "houseatlas-bound-asset-renderer-review/1");
         assert_eq!(
             facts["rendererReceipt"]["format"],
             "houseatlas-existing-asset-renderer-review/1"
@@ -273,7 +281,7 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
         assert_eq!(facts["rendererReceipt"]["revision"], 1);
         assert_eq!(
             facts["rendererReceipt"]["actorId"],
-            principal.principal.actor_id().as_str()
+            principal.principal.principal().actor_id().as_str()
         );
         assert_eq!(
             facts["rendererReceipt"]["originalSha256"],
@@ -293,32 +301,48 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
             facts["rendererReceipt"]["receiptId"],
             proof.facts().receipt_id()
         );
-        assert_eq!(facts["requestDigest"], commit.request_digest);
-
-        let post = core
-            .store
-            .lock()
-            .map_err(|_| "Store unavailable")?
-            .read_snapshot(&principal, &scope)?;
-        let unchanged_asset = |snapshot: &s::Snapshot| {
-            snapshot
-                .records
-                .iter()
-                .find(|record| record.record_id == id(600))
-        };
-        assert_eq!(unchanged_asset(&post), unchanged_asset(&original));
-        let reviewed_after = post
-            .records
-            .iter()
-            .find(|record| record.record_id == id(950))
-            .ok_or("Reviewed asset disappeared from the Store")?;
-        assert_eq!(reviewed_after.revision, 2);
-        assert_eq!(reviewed_after.payload["previewPolicy"], "safe-rendered");
+        assert_eq!(facts["requestDigest"], proof.request_digest());
+        assert_eq!(
+            serde_json::to_value(
+                commit
+                    .asset_review
+                    .as_ref()
+                    .ok_or("Missing retained renderer facts")?
+            )?,
+            serde_json::to_value(bound.retained_facts())?
+        );
+        assert_eq!(commit.derivation.as_ref(), Some(bound.derivation()));
+        assert_eq!(
+            commit.derivation_format.as_deref(),
+            Some(st::ATLAS_DERIVATION_FORMAT)
+        );
         *committed.borrow_mut() = Some(commit);
         Ok(())
     })?;
     drop(access);
-    committed
+    let commit = committed
         .into_inner()
-        .ok_or_else(|| "Verified review did not return a Store commit".into())
+        .ok_or("Verified review did not return a Store commit")?;
+    // ReadAuthority reacquires Access, so obtain the durable successor only
+    // after releasing the Access mutex and its transaction guard.
+    let post = core
+        .store
+        .lock()
+        .map_err(|_| "Store unavailable")?
+        .read_snapshot(&principal, &scope)?;
+    let unchanged_asset = |snapshot: &s::Snapshot| {
+        snapshot
+            .records
+            .iter()
+            .find(|record| record.record_id == id(600))
+    };
+    assert_eq!(unchanged_asset(&post), unchanged_asset(&original));
+    let reviewed_after = post
+        .records
+        .iter()
+        .find(|record| record.record_id == id(950))
+        .ok_or("Reviewed asset disappeared from the Store")?;
+    assert_eq!(reviewed_after.revision, 2);
+    assert_eq!(reviewed_after.payload["previewPolicy"], "safe-rendered");
+    Ok(commit)
 }
