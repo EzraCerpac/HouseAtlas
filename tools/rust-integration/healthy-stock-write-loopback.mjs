@@ -274,7 +274,7 @@ try {
   assert.equal(reviewFacts.originalSha256,assetReview.before.payload.sha256);assert.equal(reviewFacts.originalByteSize,assetReview.before.payload.byteSize);
   assert.equal(reviewFacts.renderedSha256,assetReview.preview.sha256);assert.equal(reviewFacts.renderedByteSize,assetReview.preview.byteSize);
   assert.deepEqual(assetReview.preview.signature,[137,80,78,71,13,10,26,10]);assert.deepEqual(assetReview.preview.kinds,['IHDR','IDAT','IEND']);
-  assert.equal(assetReview.preview.width,2);assert.equal(assetReview.preview.height,1);assert.equal(assetReview.preview.bitDepth,8);assert.equal(assetReview.preview.colorType,6);
+  assert.equal(assetReview.preview.width,2);assert.equal(assetReview.preview.height,2);assert.equal(assetReview.preview.bitDepth,8);assert.equal(assetReview.preview.colorType,6);
   assert.equal(assetReview.preview.contentType,'image/png');assert.equal(assetReview.preview.cache,'private, no-store');assert.equal(assetReview.preview.disposition,'inline; filename="preview.png"');
   assert.equal(reviewWire.schemaVersion,3);assert.equal(reviewWire.commandId,assetReview.request.commandId);assert.equal(reviewWire.requestId,assetReview.request.requestId);
   assert.deepEqual(reviewWire.resolvedScope,view.scope);assert.equal(reviewWire.status,'committed');assert.equal(reviewWire.replayed,false);
@@ -459,6 +459,9 @@ try {
   const linkedReview=reviewJournal[0];
   assert.deepEqual(linkedReview.original,assetReview.request);assert.deepEqual(linkedReview.commit.originalRequest,assetReview.request);assert.deepEqual(linkedReview.commit.wire,reviewWire);
   assert.equal(linkedReview.commit.replayed,false);assert.equal(linkedReview.commit.operationId,reviewWire.operationId);assert.equal(linkedReview.commit.actorId,writes.actorId);
+  assert.equal(linkedReview.commit.derivationFormat,'atlas-verified-asset-review/1');
+  assert.deepEqual(linkedReview.commit.assetReview,{format:'houseatlas-bound-asset-renderer-review/1',rendererReceipt:reviewFacts,requestDigest:assetReview.requestDigest},'Persisted renderer measurements are the exact issued Media facts bound to this request');
+  assert.deepEqual(linkedReview.commit.derivation,{kind:'asset-review',original:assetReview.before,preview_policy:'safe-rendered',renderer_receipt_id:reviewFacts.receiptId});
   for(const digest of [linkedReview.operationDigest,linkedReview.groupDigest,linkedReview.linkDigest,linkedReview.commit.requestDigest])assert.equal(digest,assetReview.requestDigest);
   assert.equal(linkedReview.commandId,'atlas.asset.review');assert.equal(linkedReview.historyCommandId,'atlas.asset.review');assert.equal(linkedReview.idempotencyKey,assetReview.request.idempotencyKey);
   assert.equal(linkedReview.receiptHash,linkedReview.linkHash);assert.deepEqual(linkedReview.audit,reviewAudit);assert.deepEqual(linkedReview.nativeReceipt.record,reviewRecord);assert.deepEqual(linkedReview.nativeReceipt.audit,reviewAudit);assert.equal(linkedReview.nativeReceipt.replayed,false);
