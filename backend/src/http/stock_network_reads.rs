@@ -2,7 +2,7 @@
 use super::Host;
 use crate::{
     access as a,
-    app::{RequestPrincipal, ServerRuntime},
+    app::{Core, RequestPrincipal, ServerRuntime},
     config::providers::network_host::NetworkBinding,
     domain::stock as st,
     providers::network::{self as n, host_runtime::OriginalNetworkDisclosure},
@@ -10,7 +10,10 @@ use crate::{
 };
 use serde_json::Value;
 use st::StockAuthorityPort;
-use std::{cell::OnceCell, sync::Arc};
+use std::{
+    cell::OnceCell,
+    sync::{Arc, Mutex},
+};
 
 fn changed() -> st::StockError {
     st::StockError::AuthorityChanged
@@ -29,7 +32,7 @@ struct Witness<'p> {
     graph: OnceCell<Graph>,
 }
 struct Authority<'h, 'p> {
-    host: &'h Host,
+    core: &'h Arc<Mutex<Core>>,
     binding: &'h NetworkBinding,
     principal: &'p RequestPrincipal,
     now: String,
@@ -54,7 +57,7 @@ impl Authority<'_, '_> {
         {
             return Err(changed());
         }
-        let core = self.host.core.lock().map_err(|_| unavailable())?;
+        let core = self.core.lock().map_err(|_| unavailable())?;
         if !Arc::ptr_eq(&core.access, self.binding.access().shared().as_existing())
             || !core.homes.iter().any(|home| {
                 home.scope.workspace_id == request.context().workspace_id
@@ -85,7 +88,7 @@ impl Authority<'_, '_> {
         let current = self
             .binding
             .runtime()
-            .disclose(&self.host.core, &graph.original, &self.now)
+            .disclose(self.core, &graph.original, &self.now)
             .map_err(|_| changed())?;
         if current != graph.facet {
             return Err(changed());
@@ -222,7 +225,7 @@ impl<'p> st::StockPreparerPort<RequestPrincipal, Witness<'p>> for Preparer<'_, '
             .binding
             .runtime()
             .read(
-                &self.0.host.core,
+                self.0.core,
                 self.0.binding.access().clone(),
                 p.principal.principal().clone(),
                 partition,
@@ -268,9 +271,20 @@ pub(super) fn execute(
     raw: Value,
     contracts: &st::NativeStockContract,
 ) -> st::StockResult<st::OwnerResult> {
+    execute_with_bindings(&host.core, &host.network_bindings, p, raw, contracts)
+}
+
+/// Reuse the original Network authority and disclosure with only the root
+/// pieces needed by an owned MCP session. Never hold Core across this call.
+pub(super) fn execute_with_bindings(
+    core: &Arc<Mutex<Core>>,
+    bindings: &[NetworkBinding],
+    p: &RequestPrincipal,
+    raw: Value,
+    contracts: &st::NativeStockContract,
+) -> st::StockResult<st::OwnerResult> {
     let request = st::ValidatedRequest::parse(contracts, raw.clone())?;
-    let binding = host
-        .network_bindings
+    let binding = bindings
         .iter()
         .find(|binding| {
             let partition = binding.runtime().settings().configured_source().partition();
@@ -281,7 +295,7 @@ pub(super) fn execute(
         })
         .ok_or_else(unavailable)?;
     let authority = Authority {
-        host,
+        core,
         binding,
         principal: p,
         now: ServerRuntime.now().map_err(|_| unavailable())?,
