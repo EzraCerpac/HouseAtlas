@@ -43,6 +43,7 @@ impl NativePrincipal {
 enum RequiredAction {
     Read,
     History,
+    AssetDownload,
     Mutation,
 }
 
@@ -55,6 +56,12 @@ pub struct NativeRequirement {
 }
 
 impl NativeRequirement {
+    pub(crate) fn asset_download(scope: Scope) -> Self {
+        Self {
+            scope,
+            action: RequiredAction::AssetDownload,
+        }
+    }
     pub(crate) fn read(scope: Scope) -> Self {
         Self {
             scope,
@@ -80,6 +87,7 @@ impl NativeRequirement {
         match self.action {
             RequiredAction::Read => Capability::Read,
             RequiredAction::History => Capability::ReadHistory,
+            RequiredAction::AssetDownload => Capability::ReadAssetManifest,
             RequiredAction::Mutation => Capability::Mutate,
         }
     }
