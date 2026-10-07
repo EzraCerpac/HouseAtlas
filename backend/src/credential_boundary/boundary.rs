@@ -108,8 +108,18 @@ impl LoadedMeta {
         })
     }
 
-    fn allows(&self, record: &RegistrationRecord) -> bool {
-        self.binding == record.binding
+    fn allows(
+        &self,
+        record: &RegistrationRecord,
+        captured: &RegistrationBinding,
+        stopped: bool,
+    ) -> bool {
+        // A current active lease may adopt only its own originally captured
+        // cancellation epoch. Once persisted, metadata prevents a rollback.
+        (self.binding == record.binding
+            || (!stopped
+                && stable_identity(&self.binding, &record.binding)
+                && record.binding == *captured))
             && self.kind == record.kind
             && self.app_name == record.app_name
             && self.host_id == record.stable_host_id
@@ -348,7 +358,7 @@ impl<C: Sync, A: CredentialAuthority<C>, K: KeyProvider> CredentialBoundary<C>
             self.check_record_scope(lease, record)?;
             let mut loaded = lease.loaded.try_lock().map_err(|_| UNAVAILABLE)?;
             let prior = loaded.as_ref().ok_or(UNAVAILABLE)?;
-            if !prior.allows(record) {
+            if !prior.allows(record, &lease.binding, lease.stopped.is_some()) {
                 return Err(UNAVAILABLE);
             }
             if let Some(stopped) = lease.stopped.as_ref() {

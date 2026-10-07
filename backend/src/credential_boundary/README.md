@@ -24,8 +24,12 @@ and an exclusive nonblocking advisory file lock until Drop. Internally derived
 SHA-256 selectors include host, registration, actor, workspace and home; epochs,
 subject, email and display labels do not select another file or lock. The AAD
 also binds the original authority epoch. Cancellation rotation retains the
-original file/lease. Cooperative processes and aliases share the same persistent
-lock file. This is local-filesystem coordination, not a NAS/distributed protocol.
+original file/lease. An active lease may persist the exact currently captured
+binding to adopt a trusted reconnect cancellation epoch; actor/home/registration
+and authority cannot change. The captured lease proof never changes, and a
+stopped lease cannot adopt an epoch. Core must explicitly perform the trusted
+record transition; storage does not mint or recapture a proof. Cooperative
+processes and aliases share the same persistent lock file. This is local-filesystem coordination, not a NAS/distributed protocol.
 
 The owner must revalidate the original context and proof, stop local use and
 advance cancellation, and fence the final preimage check/rename/sync against
