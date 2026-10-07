@@ -157,9 +157,13 @@ later publication timestamp from `Runtime`. Its borrowed-authority counterpart
 is `record_prepared_cache_failure_at_with_authorization`. Both consume the same
 original fence and use the same transaction and native final-snapshot validation;
 the `CacheFailure` carrier and older methods retain their existing signatures.
-The captured-time API is coded and compiler-checked. Network's original adapter
-must still carry its captured timestamp to it; provider failure, clock change and
-other held qualification controls have not run for this seam.
+The named `checks/cache-attempt-time-healthy.rs` checkpoint verifies the configured
+and borrowed captured-time APIs, both older prepared compatibility methods, exact
+SQL/read/reopen persistence and immutable strict-image/separate-copy reopen with
+actual native contracts. Its sanitized Network metadata, authorities and static
+runtime are synthetic; Network's original adapter must still carry its captured
+timestamp to this API. Provider failure, clock change and other held qualification
+controls have not run for this seam.
 Cache writes do
 not create Atlas record audits or mutation receipts. Empty complete generations
 clear only projection rows and retain records and binding reservations. All
