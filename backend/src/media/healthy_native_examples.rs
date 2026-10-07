@@ -342,6 +342,20 @@ fn healthy_native_owned_media_records_and_history() {
     .unwrap();
     store.initialize_synthetic(&snapshot).unwrap();
     let store = Mutex::new(store);
+    let adapter = NativeMediaStorage::new(&store);
+    let service = MediaService::new(&adapter, &access, &vault);
+    let text_download = service
+        .deliver(
+            &reader,
+            &scope(),
+            &OwnedDescriptor::AtlasAsset { asset_id: u(611) },
+            ReadMethod::Get,
+            DeliveryMode::Download,
+            &budget(),
+        )
+        .unwrap();
+    assert_eq!(text_download.body, b"Healthy native retained text\n");
+    assert_eq!(text_download.status, 200);
     let storage_scope: s::Scope =
         serde_json::from_value(serde_json::to_value(scope()).unwrap()).unwrap();
     boundary.lock().unwrap().with_mutation_authorization(mutation.principal(), |guard| -> Result<(), Box<dyn std::error::Error>> {
@@ -351,8 +365,6 @@ fn healthy_native_owned_media_records_and_history() {
         store.execute_batch_json_with_authorization(&authority, &mutation, &storage_scope, &json!({"schemaVersion":1,"batchId":u(8320),"reason":"Healthy synthetic retained PDF","commands":[{"target":{"recordType":"asset","recordId":u(612)},"command":tombstone(8314)}]}))?;
         Ok(())
     }).unwrap();
-    let adapter = NativeMediaStorage::new(&store);
-    let service = MediaService::new(&adapter, &access, &vault);
     let descriptor = OwnedDescriptor::AtlasAsset { asset_id: u(610) };
     let original = service
         .deliver(
@@ -405,6 +417,6 @@ fn healthy_native_owned_media_records_and_history() {
         );
     }
     println!(
-        "healthy native Rust storage + actual AT11 login/principals/fenced single+batch mutation; actual media availability proof, private GET/HEAD and ordered history; semantic/JCS oracle TEST-ONLY; native backup/restore peer API PENDING"
+        "healthy native Rust storage + actual AT11 login/principals/fenced single+batch mutation; actual media availability proof, SafeRendered PNG download/preview HEAD, DownloadOnly text download and ordered history; semantic/JCS oracle TEST-ONLY; native backup/restore peer API PENDING"
     );
 }

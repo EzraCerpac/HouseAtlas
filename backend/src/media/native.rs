@@ -119,10 +119,14 @@ impl MediaAccessPort<RetainedPrincipal> for NativeMediaAccess {
         metadata: &OwnedMediaMetadata,
         mode: DeliveryMode,
     ) -> MediaResult<Self::Grant> {
-        if descriptor.asset_id() != metadata.asset_id
-            || mode == DeliveryMode::Preview
-                && metadata.preview_policy != PreviewPolicy::SafeRendered
-        {
+        let permitted = match mode {
+            DeliveryMode::Preview => metadata.preview_policy == PreviewPolicy::SafeRendered,
+            DeliveryMode::Download => matches!(
+                metadata.preview_policy,
+                PreviewPolicy::SafeRendered | PreviewPolicy::DownloadOnly
+            ),
+        };
+        if descriptor.asset_id() != metadata.asset_id || !permitted {
             return Err(MediaError::NotFound);
         }
         self.current(principal, &metadata.scope)?;

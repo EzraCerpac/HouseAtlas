@@ -56,6 +56,8 @@ the host still owns whole-operation bounded I/O/cancellation.
 `NativeMediaAccess` wraps the actual AT11 boundary. `authorize_request` invokes
 AT11 with the actual request and `Action::Media`. `RetainedPrincipal` holds the
 opaque issued Principal in a private Arc; clones retain the exact original.
+Before creating a grant, preview requires `SafeRendered`; download requires
+`SafeRendered` or `DownloadOnly`. All other policies return `NotFound`.
 `NativeOwnedGrant` is a local descriptor/metadata/mode continuity binding around
 that retained capability. Its release check uses Arc identity and exact metadata
 before AT11 reads current session/user/membership/restore-epoch authority for the
@@ -253,8 +255,9 @@ file, test glob, stopped control or readiness listener is invoked.
 `healthy_native_examples::healthy_native_owned_media_records_and_history` uses
 the actual Rust AtlasStore, actual AT11 synthetic login and opaque principals,
 and its held access mutation fence for two new healthy single/batch tombstones.
-Real originals supply storage availability proofs; authorized PNG GET/preview
-HEAD and ordered history read through the native adapters. Existing published
+Real originals supply storage availability proofs; authorized `SafeRendered`
+PNG GET/preview HEAD, an active `DownloadOnly` text GET before its tombstone,
+and ordered history read through the native adapters. Existing published
 optional-geometry graph/cache/projection/Network relation rows are bootstrapped
 into disposable native SQLite. This executes no native backup/restore while its
 peer API is missing. `checks/semantic-oracle.mjs` delegates pure published
