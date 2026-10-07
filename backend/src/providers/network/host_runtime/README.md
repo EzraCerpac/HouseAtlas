@@ -15,6 +15,10 @@ link/observation/read-fence/SharedAccess interfaces, and the storage owner's
 borrowed registered-cache partition read. These are actual owner code, not
 interface substitutes. Historical input bytes and exact source mappings remain
 in the external coordination receipt, outside tracked publication documentation.
+Storage additionally supplies its immutable
+`AtlasStore::configured_authorization(&self) -> &A` accessor. The leaf checks the
+actual configured `app::ReadAuthority.0` allocation as well as `Core.access`;
+public Core construction alone cannot establish that those issuers match.
 
 The external compiler also mounts accepted media, staged domain/stock,
 queue-recovery and HTTP stock-read leaves for the storage/access dependencies.
@@ -24,8 +28,9 @@ reconciles their central module declarations.
 ## Entrypoints
 
 `NetworkAccess::configure(&owning_core, &original_configure_principal, &source)`
-borrows the owning Core and verifies its canonical access allocation before
-either registry write. Call it outside caller-held Core/Store/access guards.
+borrows the owning Core and verifies both its canonical access allocation and
+the Store's original configured ReadAuthority before either registry write.
+Call it outside caller-held Core/Store/access guards.
 There is no public raw-Store configuration entrypoint. Durable source
 registration precedes AT11 registry installation; a subsequent Access failure
 still reports incomplete configuration and may leave the durable registration.
@@ -50,7 +55,8 @@ original_partition_grant, original_entity_grants, now)` performs a genuine
 ReadCache partition read under AT11's actual read transaction. It requires the
 exact stored registration selector, complete scope and original handles. Before
 any access/database read, it borrows the owning Core and checks that the injected
-SharedAccess is its canonical access allocation. Store is borrowed exclusively
+SharedAccess is both its canonical access allocation and the Store's original
+configured ReadAuthority allocation. Store is borrowed exclusively
 from that Core for the entire synchronous read/capture/release call. The sidecar
 is loaded outside the access lock and checked by the actual Network
 reopen/projector against the native cache pointer, digest and exact relations.
@@ -60,8 +66,9 @@ selectors are data, never a substitute membership issuer.
 
 The read returns a facet and opaque `OriginalNetworkDisclosure`. Release via
 `HostNetworkRuntime::disclose(&owning_core, &original_disclosure, now)` checks
-the lease's weak reference to its exact original Core and that Core's current
-canonical issuer before any Store read, then enters AT11's read fence and checks
+the lease's weak reference to its exact original Core, that Core's current
+canonical issuer and the Store's original configured issuer before any Store
+read, then enters AT11's read fence and checks
 every original principal/partition/entity/link/observation handle, invokes the actual borrowed native read on that application
 Store, compares the complete `RegisteredCacheRead` with the captured baseline,
 then builds and releases the facet after original-authority revalidation. The
@@ -95,8 +102,11 @@ canonical allocation/mutex/private issuer and complete existing state.
 `as_existing` preserves the accepted `&app::Access` ABI for ProviderLease capture;
 `try_lock` supplies typed current-authority operations without waiting, clearing
 poison, fallback or a peer. Refresh verifies pointer identity against Core.access
-when entering each native Store phase, including browse/disclosure. Original
-disclosure handles additionally retain their owning Core identity. Call the public
+when entering each native Store phase, including browse/disclosure. Each phase
+also compares the Store's original configured ReadAuthority using the actual
+immutable Storage accessor; the comparison takes no authority lock and creates
+no grant. Original disclosure handles additionally retain their owning Core
+identity and check both issuers on independent revalidation. Call the public
 Core-taking methods after releasing caller-owned Core/Store/access guards;
 the methods acquire their own nonblocking Core borrow. Existing root principals and original
 resource handles are moved into leases; no session rehoming or policy synthesis
@@ -134,7 +144,11 @@ Cancellation remains checked before durable generation staging and before
 failure-status publication. Once staging succeeds, late request cancellation
 does not abandon the immutable row: the same original authority and fence
 continue to consuming native publication, with all current-authority and
-precommit checks preserved. A later cancellation cannot replace the committed
+precommit checks preserved. Core/Store acquisition and identity checks precede
+durable staging, and that same borrow remains held through publication. A
+contended Core therefore fails before creating an immutable row. HTTPS is
+already complete and no authority lock spans sidecar I/O. A later cancellation
+cannot replace the committed
 outcome. Authority/storage failures still propagate; this does not add cleanup,
 retry, bypass or retention semantics for those failures. Cancellation/fault/expiry
 races are statically reviewed only; held control campaigns remain unrun.
@@ -277,3 +291,19 @@ publication APIs. Current root already adopts the owning-Core configuration
 caller; this correction changes no public API or parent declaration. Root's
 separate snapshot unresolved-endpoint preservation
 finding is not corrected or qualified by this runtime change.
+
+Configured-Store authority/Core-borrow successor evidence: the actual published
+Storage accessor is mounted byte-for-byte over the current integration archive.
+The leaf checks both the Core issuer and that Store's original configured issuer
+before configuration or any native Store phase, and during independent original
+disclosure revalidation. Successful refresh holds the same checked Core/Store
+borrow from before durable staging through consuming publication; there is no
+post-stage Core acquisition. Root library/named-example warnings-denied Clippy,
+locked offline build, scoped formatting/diff/source audit and one fresh inspected
+healthy TLS/native run passed. All prior genuine configuration, publication,
+viewer disclosure and durable reopen assertions remain exercised. Public leaf
+signatures are unchanged; root must adopt the actual immutable Storage accessor
+with this leaf. Mismatched issuer, Core contention, cancellation/quota and other
+held controls were not executed; these corrections have static review and
+normal healthy evidence. Source-manifest adoption, configured review/CI and final
+integration disposition remain the integrator's responsibility.

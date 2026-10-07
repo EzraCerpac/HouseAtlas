@@ -125,22 +125,30 @@ impl HostNetworkRuntime {
                     .ok_or_else(wrong_scope)?;
                 authority.authorize_generation(&lease, self.settings.source(), generation)?;
                 cancelled(&cancellation)?;
-                let staged = {
-                    let mut sidecar = self.sidecar.try_lock().map_err(|_| unavailable())?;
-                    n::stage_complete_generation(self.settings.source(), *proposal, &mut *sidecar)?
-                };
-                // The immutable sidecar row is now durable. Late request
-                // cancellation must not abandon it and consume the bounded
-                // sidecar quota; finish native publication with the SAME
-                // original authority and fence, including current/precommit
-                // checks. Authority/storage failures still propagate.
-                authority.revalidate_inventory(
-                    &lease,
-                    self.settings.source(),
-                    config.reviewed_origin(),
-                )?;
-                RefreshResult::Published(with_store(core, &lease.access, |store| {
-                    prepared.publish(store, staged)
+                // Acquire/validate Core and its Store BEFORE the immutable stage.
+                // Contention must not strand a row under the sidecar quota.
+                // Keep this same borrow through publication; HTTPS has ended,
+                // and no access/authority lock spans the sidecar filesystem I/O.
+                RefreshResult::Published(with_core_store(core, &lease.access, |store| {
+                    let staged = {
+                        let mut sidecar = self.sidecar.try_lock().map_err(|_| unavailable())?;
+                        n::stage_complete_generation(
+                            self.settings.source(),
+                            *proposal,
+                            &mut *sidecar,
+                        )?
+                    };
+                    // Staging is durable: finish with the SAME original fence
+                    // despite late request cancellation. Original authority and
+                    // native precommit checks remain; their errors propagate.
+                    authority.revalidate_inventory(
+                        &lease,
+                        self.settings.source(),
+                        config.reviewed_origin(),
+                    )?;
+                    prepared
+                        .publish(store, staged)
+                        .map_err(n::NetworkPublicationError::Storage)
                 })?)
             }
             n::RefreshOutcome::Failed(failure) => {
@@ -301,6 +309,12 @@ fn with_core_store<T>(
         return Err(wrong_scope().into());
     }
     let store = owner.store.get_mut().map_err(|_| storage_unavailable())?;
+    if !Arc::ptr_eq(
+        access.shared().as_existing(),
+        &store.configured_authorization().0,
+    ) {
+        return Err(wrong_scope().into());
+    }
     operation(store)
 }
 fn unavailable() -> n::NetworkError {

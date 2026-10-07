@@ -187,6 +187,13 @@ resource policy and private no-store responses. Cooperative cancellation does
 not establish hard-deadline or concurrency qualification. Fresh owned upload
 uses the qualified attachment route; HomeBox media transport remains unavailable.
 
+PNG originals retain their validated bytes independently of optional preview
+limits. Only an actual successful bounded renderer produces `safe-rendered`;
+legal originals without that qualification remain `download-only`. Measured
+metadata alone carries no preview qualification. Native upload persistence
+retains the policy from the original immutable Media stage and checks its full
+binding, consumed receipt and asset association.
+
 Mounted MCP is
 `POST /api/atlas/mcp/workspaces/{workspaceId}/homes/{homeId}`. Its cookie/CSRF
 profile uses actual observed POST evidence and genuine AT11 `Action::Mutate`
@@ -273,7 +280,9 @@ source facts, cache dates and generation. No upload or provider I/O occurs.
 The separately named upload runner submits two fresh actual React attachment
 intents for one small generated PNG and checks native SQLite receipts, one
 original asset and consumption, the exact original asset revision guard,
-unchanged original provenance and zero pending stages. It performs no retry,
+unchanged original provenance and zero pending stages. Both expanded canonical
+receipts retain their complete JSON within 390px phone and 1280px desktop views.
+It performs no retry,
 replay, expiry, recovery or failure control.
 Private evidence packets, fingerprints and optional screenshots remain outside Git.
 
@@ -395,3 +404,11 @@ replay, expiry, revocation, injected fault, crash and concurrency checks remain
 unrun. The jobs checkpoint contains replay and is not executed. No broad test
 alias, remote listener, provider/NAS call, live login/grant, deployment or
 security/recovery/target/product acceptance is supplied by this composition.
+
+The optional Network runtime compares its original Access allocation with both
+Core and the Store's configured authorizer. Core/Store is acquired before
+immutable generation staging. Multiple runtime instances still have separate
+refresh locks; shared-source serialization remains an original-owner review hold.
+The snapshot adapter still needs genuine retained raw-generation qualification
+for unresolved ends while Core/Store are borrowed. Actual healthy snapshot GETs
+prove response shape, without proving preservation of authorized relationships.

@@ -46,6 +46,13 @@ pub struct AtlasStore<C, A, R> {
     pub(super) options: StoreOptions,
 }
 impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
+    /// Borrow the original authorizer supplied when this Store was opened.
+    /// Composition can check its owner identity without acquiring an authority
+    /// lock. This borrow does not authorize any read, mutation or disclosure.
+    pub fn configured_authorization(&self) -> &A {
+        &self.authorization
+    }
+
     pub fn open(
         path: impl AsRef<Path>,
         contract: C,

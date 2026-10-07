@@ -44,8 +44,18 @@ impl OriginalNetworkDisclosure {
     }
     pub fn revalidate(&self) -> a::AccessResult<()> {
         let core = self.owner.upgrade().ok_or(a::AccessError::Unavailable)?;
-        let owner = core.try_lock().map_err(|_| a::AccessError::Unavailable)?;
+        let mut owner = core.try_lock().map_err(|_| a::AccessError::Unavailable)?;
         if !Arc::ptr_eq(self.access.shared().as_existing(), &owner.access) {
+            return Err(a::AccessError::Forbidden);
+        }
+        let store = owner
+            .store
+            .get_mut()
+            .map_err(|_| a::AccessError::Unavailable)?;
+        if !Arc::ptr_eq(
+            self.access.shared().as_existing(),
+            &store.configured_authorization().0,
+        ) {
             return Err(a::AccessError::Forbidden);
         }
         self.access

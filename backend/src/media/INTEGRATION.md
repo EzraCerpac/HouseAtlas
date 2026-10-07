@@ -1,4 +1,4 @@
-# AT12 Rust media integration proposal
+# AT12 Rust media integration
 
 Base: published `EzraCerpac/HouseAtlas` commit
 `9f7561d99e09a680ec5282ca0c8aed4e10c6cbc9`. AT12 owns only this directory.
@@ -15,6 +15,191 @@ owner validates method, canonical descriptors, query/fragment policy and access
 before invoking these typed operations, and maps errors to private responses.
 It must emit immediately after final authorization revalidation.
 
+## PR63 findings and PR76 original-compatibility correction
+
+This successor starts from actual landed main
+`87ad201140edb7b3afdb4396095a320c2926eafe`; its sole ancestry root remains
+published `9f7561d99e09a680ec5282ca0c8aed4e10c6cbc9`. Main already contains the
+original storage owner's genuine consumption/resolution APIs, the root upload
+composition and `png = "=0.18.1"`. The scoped compiler harness imports the actual
+access/contracts/domain/jobs/storage/media source at that main baseline, with
+only this media successor changed. No compatible lookalike, new dependency,
+root manifest/lock, SQL/schema, peer implementation or public stage/binding
+contract is introduced. The earlier sections retain historical recovery and
+PR52 evidence with their original source pins and limits.
+
+The [pending-lifetime finding](https://github.com/EzraCerpac/HouseAtlas/pull/63#discussion_r4206144188)
+is genuine in landed main and **fixed in this source**. A scratch-only immutable
+`reservation-lifetime.json` is synced before accepting/installing bytes so
+interrupted admissions remain counted. After body validation/installation,
+provenance and `stage.json` are complete, a separate fresh immutable
+`lifetime.json` is written immediately before publication, and the reservation
+member is removed with the existing descriptor-relative unlink/parent barrier.
+Published receipts still contain exactly `lifetime.json` and `stage.json`.
+After publication, parent/vault barriers and final authorization, the published
+lease is reread and checked before returning a receipt/retaining its authority.
+If those barriers consume the lease, the operation fails closed and published
+metadata remains charged for ordinary expiry; no published lease is refreshed.
+Expiry prefers the reservation lease for scratch directories that contain it,
+and supports earlier/interrupted scratch directories with only `lifetime.json`.
+Binding requires a live pending lease at intake; a published bound plan remains
+retained, and expiry never pretends to cancel its returned capability.
+
+The [whole-frame PNG finding](https://github.com/EzraCerpac/HouseAtlas/pull/63#discussion_r4206144202)
+is genuine in landed main and **fixed in this source**. `png_decode.rs` uses the
+pinned codec's incremental `next_interlaced_row()` API. Every returned row is
+checked before/after decode and copy/Adam7 expansion, and input is wrapped by
+budget-aware `Read`, outer `BufRead` and `Seek`. Each `fill_buf()` exposes at
+most 4 KiB to the codec and checks the actual operation budget, including
+buffered inflation, metadata reads and final image completion. Codec errors
+recheck the budget before format translation, preserving cancellation/deadline
+as the existing `Unavailable`. Frame initialization checks every 64 KiB too.
+Ordinary rows must have exactly the declared layout/count; Adam7 uses the
+actual opaque pass metadata and the pinned library's expansion helper, with
+exact total transformed byte accounting. No whole-frame decoder call remains
+in the production path and no replacement codec/filter/deinterlace framework
+is introduced.
+
+The codec still synchronously filters/transforms a whole **preview** row. To
+bound that optional operation, `content::MAX_PNG_PREVIEW_ROW_BYTES` is 64 KiB,
+enforced before `read_info()` or preview row allocation. Both the source row
+`ceil(width * source_samples * bit_depth / 8) + 1` and normalized RGBA pixel row
+`width * 4` must fit. Preview compression writes split at 64 KiB. This is an
+optional rendering capability, not an original admission/availability policy.
+Preview failure does not mutate retained records or availability. New
+`SafeRendered` qualification requires successful rendering at original admission;
+it cannot be inferred from MIME or original-format validation. A later preview
+operation remains subject to its own budget and output limit. Decoder allocation limit is
+256 MiB; application preview frame/row buffers are additional. Cancellation is
+cooperative between bounded calls, with no hard latency, preemption or
+allocation-success guarantee.
+
+**PR76 compatibility correction:** the preserved first PR76 packet at
+`2bbdabb1b8038469e9a962efa44e9822340859a3` applied the preview row limit to
+original validation as well. This was a genuine compatibility regression.
+This appended correction splits `content::validate_original_content(...) ->
+MediaResult<()>` from optional rendering. All four vault original operations
+(preparation, prepared verification, retained availability verification and
+restore) plus original GET/HEAD downloads use this original validator. The
+recovery capture/verification paths retain their existing identity checks;
+restore reaches the corrected vault validator. No record, retained byte,
+identity, revision, availability, preview policy, licence, evidence, migration,
+stage serialization or storage/access peer API is rewritten.
+
+`png_original.rs` uses the pinned public `StreamingDecoder`, `UnfilterRegion`
+and `UnfilterBuf` APIs to inflate bounded windows without allocating or
+transforming a pixel row. It checks the declared packed raster layout, filters
+0..4, per-pass packed padding and actual Adam7 rows. Legal filters are total byte
+transforms and palette expansion is total after a required palette; this
+validator returns no rendered-pixel authority. Shared inspection preserves
+strict chunk framing/CRC, dimensions, sample families, static-only policy,
+10 MiB input and 25-million-pixel limits without a new width restriction.
+Each update feeds at most 4 KiB and appends at most 8 KiB; a 40 KiB raster window
+preserves the codec's immutable 32 KiB lookback. This is the raster window,
+not a total memory bound: recognized metadata allocations remain bounded by
+the existing input cap, and original bytes are already retained in memory.
+Text/ICC parsing stays disabled. Budget checks bracket every update and
+preserve budget failures as `Unavailable` before translating codec errors.
+
+Completion follows the pinned Reader's actual behavior, including its
+separate frame-byte accounting for zero-width Adam7 passes: the declared
+raster must be present, and either the Reader frame budget is exhausted or
+its mutable-byte watermark covers the final real row. Only then are remaining
+IDAT/chunks scanned without a raster sink, as the old Reader does. This keeps
+the codec's existing trailing-data/checksum/benign-metadata policy rather than
+introducing a stricter original validator. It is source-based compatibility
+reasoning plus the named healthy examples, not a claim of exhaustive malformed
+input equivalence. No stopped controls were executed.
+
+Root owns combined integration, optional-preview presentation and normal merge.
+The original compatibility policy blocker in the first packet is corrected in
+this source. The later renderer-policy correction below has an explicit root
+consumer reconciliation requirement. No new dependency or width-admission
+policy is introduced. Original PR76 packets/evidence remain preserved.
+
+Selected ordinary positive examples are the four exact cases under
+`media::healthy_review_examples::`: unchanged standard sample/transparency and
+independent Adam7 known-pixel checks; durable quota/reopen/shared bytes/unbound
+expiry; fresh completed-stage lifetime followed by successful genuine binding;
+and many-row plus accepted RGBA8/16 row-bound previews. A fifth exact positive
+case, `media::healthy_examples::healthy_wide_original_identity_availability_restore_and_download`,
+uses fresh 20,000x2 RGBA8/16 originals accepted by the prior public codec and
+checks real vault preparation, prepared proof, retained availability, restore,
+raw identity, GET original bytes and HEAD original length. Its delivery
+storage/access ports are explicit synthetic stubs; this is not a new SQL,
+full recovery-bundle or production qualification claim. Independently framed
+20,003x3 and 1x1 packed Adam7 originals and all RGB/RGBA filters are also
+validated. No oversized-preview rejection is invoked. The lifetime case advances
+a synthetic server clock by two seconds during a successful body read with a
+one-second configured pending lifetime, then verifies a new completed lease
+and binds successfully under the actual original AT11 guard. It performs no
+sleep, expired/failed bind or stock mutation. PNG examples compare actual
+known pixels and stripped output using the real pinned decoder. Static review
+supports the budget placement; no cancellation, deadline, over-limit, denial,
+adversarial, fault/crash, concurrency, replay, negative-consumer or legacy broad
+control runs. Mac runtime and production witness/restore/retention qualification
+remain deferred. Earlier logs and evidence remain preserved unchanged.
+
+## PR76 renderer-policy finding: exact-head successor
+
+The [renderer-policy finding](https://github.com/EzraCerpac/HouseAtlas/pull/76#discussion_r4208144350)
+is genuine at `221552159aa053725ce141e4a748a98be5c861b7`: original validation
+returned no renderer proof, while `PreparedOriginal::with_provenance` still
+assigned `SafeRendered` from PNG MIME alone. The frozen catalog explicitly
+requires a verified renderer receipt (`contracts/stock-wire3/agent/operation-catalog.json`,
+`atlas.asset.create.payload.previewPolicy`). This successor corrects new
+qualification without rewriting existing originals or retained records.
+
+`AssetVault::prepare_original` now returns opaque `vault::QualifiedOriginal`:
+private measured metadata plus immutable server-derived preview qualification.
+Its `with_provenance` emits `SafeRendered` only after the actual bounded renderer
+successfully returns stripped PNG pixels/output. Eligible PNGs are rendered
+under the same operation budget before blob installation and receipt creation.
+Row-ineligible originals skip rendering and remain `Available`/`DownloadOnly`;
+non-PNG originals also remain download-only. Optional renderer `TooLarge` or
+`Unsupported` leaves the original download-only; budget failures propagate
+rather than become successful qualification. No held failure control was run.
+The qualifier and renderer share the same row-cap predicate.
+
+The carrier implements read-only `Deref<Target=PreparedOriginal>` for current
+measured-reference consumers. `into_measured()` deliberately discards renderer
+qualification. Plain `PreparedOriginal::with_provenance` always emits
+`DownloadOnly`: measured digest/size/content type do not prove a render. The
+original public measured struct fields are unchanged, so existing owner literals
+still compile. Upload staging receives the qualified carrier and serializes
+its actual policy using unchanged StageRecord/PlanRecord formats. Measurement
+for reuse keeps its existing `PreparedOriginal` return and does not render;
+its new internal vault helper uses the same validation/quota/barriers with
+qualification disabled. Original availability verification, restore and GET/HEAD
+retain bounded original validation and do not render or change stored policy.
+
+**Exact root consumer need before adopting this successor:** at the actual
+compiled peer baseline `87ad201140edb7b3afdb4396095a320c2926eafe`,
+`backend/src/storage/upload_repository.rs:97-123` reconstructs expected staged
+payload via bare `PreparedOriginal::with_provenance`, then compares the entire
+payload. The same source dependency is confirmed read-only at current public
+main `a16f9a55e5beab5348aa00a2675a0e03c9aef98b`. That measured carrier now
+correctly yields download-only; this peer
+would reject genuinely qualified safe-rendered staged PNGs. Root/AT07 must
+reconcile expected preview qualification from the actual immutable, validated
+Media bound StageRecord, or an agreed typed renderer-proof seam. Neither model
+input nor MIME may grant `SafeRendered`. Existing explicit annotations expecting
+`prepare_original -> PreparedOriginal` should use `.into_measured()` when they
+need only measured metadata. No peer namespace is edited here. Root source
+compilation proves current type composition, not successful SQL consumption
+under this changed semantic dependency. Do not merge without that reconciliation.
+
+Six selected healthy positives now pass: the previous five plus
+`media::healthy_review_examples::healthy_png_renderer_qualification_and_published_stage_policy`.
+The new case checks actual bounded render qualification, measured-only policy,
+correct newly published wide/bounded PNG stage policies under actual AT11 guard,
+and unchanged measurement-only reuse. The existing wide original case now
+asserts download-only together with available/hash/bytes/restore/GET/HEAD.
+Neither attempts an oversized preview nor runs stopped negative/fault controls.
+No existing record migration, stored qualification downgrade or exhaustive
+renderer-failure/security/production qualification is claimed. Both prior PR76
+packets remain unchanged; root owns consumer adoption and normal merge.
+
 ## Dependencies for AT51
 
 The composed external compiler harness pins `serde = 1.0.229` (derive),
@@ -22,8 +207,9 @@ The composed external compiler harness pins `serde = 1.0.229` (derive),
 `sha2 = 0.10.9`, `flate2 = 1.1.5`
 (default features disabled, rust_backend), `crc32fast = 1.5.0`,
 `rustix = 1.1.2` (fs), `tempfile = 3.23.0` and `png = 0.18.1`.
-The PR52 continuation requires the root owner to add the exact new
-`png = "=0.18.1"` dependency and reconcile its lock; AT12 changed no manifest.
+The historical PR52 continuation required the root owner to add the exact new
+`png = "=0.18.1"` dependency and reconcile its lock; landed main now contains it.
+AT12 changed no manifest.
 The source supports Linux and macOS with a small platform boundary; current
 healthy checks run on Linux with Rust 1.99.0. The peer/backend manifest must
 reconcile these pins. Actual AT07/AT11/AT51 composition also uses their pinned
@@ -269,23 +455,25 @@ result and revision into their qualified existing-asset evidence transaction.
 Resolution alone neither authorizes attachment nor supplies a staged/native
 plan. This media patch implements and verifies preparation/resolution inputs;
 it does not claim a second statement/evidence commit or root HTTP wiring.
-The root owner must compose this storage pin, add `png = "=0.18.1"`, wire fresh
-consumed cleanup after successful stock commit, and integrate the qualified
-existing-asset domain path before all three PR52 findings are closed.
+That PR52 handoff required root composition of the storage pin, exact PNG
+dependency, fresh consumed cleanup and qualified existing-asset domain path.
+Landed main now contains that root composition; this successor neither edits
+nor independently requalifies its HTTP/domain path.
 
-PNG support now covers ordinary static grayscale 1/2/4/8/16, indexed 1/2/4/8
+The PR52 PNG implementation covered ordinary static grayscale 1/2/4/8/16, indexed 1/2/4/8
 with palette/transparency, gray-alpha 8/16, RGB/RGBA 8/16 and Adam7 interlace.
 The bounded pinned decoder expands samples/transparency and strips 16-bit
 samples before producing metadata-free RGBA8 IHDR/IDAT/IEND output. APNG
 remains unsupported. Existing 10 MiB input/output and 25-million-pixel bounds
-remain. The decoder has a 256 MiB allocation limit; frame/row buffers are
-additional. Decode and peer calls remain bounded cooperative operations;
+remain. The successor additionally enforces the row bound described above.
+The decoder has a 256 MiB allocation limit; frame/row buffers are additional.
+Decode and peer calls remain bounded cooperative operations;
 conversion/compression checks the operation budget periodically, with compressed
 writes no larger than 64 KiB. No hard cancellation, memory-exhaustion, adversarial
 or performance qualification is claimed.
 
-The current checks select only two new ordinary positive library examples and
-one external healthy storage-owner composition, all with fresh synthetic state:
+The historical PR52 checks selected two new ordinary positive library examples
+and one external healthy storage-owner composition, all with fresh synthetic state:
 
 ```sh
 cargo test --locked --manifest-path "$AT12_MANIFEST" --lib \
