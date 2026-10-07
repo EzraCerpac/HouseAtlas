@@ -415,17 +415,22 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         {
             return Err(Error::new("forbidden", "Queue actor binding changed"));
         }
-        register(&mut self.db, &config, || {
-            authorize_session(
-                authority,
-                principal,
-                witness,
-                original,
-                receipt,
-                QueuePhase::Precommit,
-                QueueAction::Register(&config),
-            )
-        })?;
+        register(
+            &mut self.db,
+            &config,
+            self.options.stock_activity_profile,
+            || {
+                authorize_session(
+                    authority,
+                    principal,
+                    witness,
+                    original,
+                    receipt,
+                    QueuePhase::Precommit,
+                    QueueAction::Register(&config),
+                )
+            },
+        )?;
         authorize_session(
             authority,
             principal,
@@ -541,4 +546,46 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
     ) -> Result<JobSnapshot> {
         self.prove_remote_end_inner(evidence, now)
     }
+}
+
+/// Conservative cross-lane exclusion from actual Jobs rows. This grants no
+/// StockActivity permit and converts no scope, lease, epoch or accounting DTO.
+pub(crate) fn unresolved_physical_hold(db: &Connection, physical: &str) -> Result<bool> {
+    let deployment: Option<String> = db
+        .query_row(
+            "SELECT deployment_id FROM queue_physical WHERE physical_database_id=?1",
+            [physical],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let Some(deployment) = deployment else {
+        return Ok(false);
+    };
+    let ids = db
+        .prepare(CROSS_LANE_HOLD_CANDIDATES)?
+        .query_map(params![deployment, physical], |r| r.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    for id in ids {
+        let row = load(db, &id)?;
+        let liability = &row.liability;
+        let known = match liability.accounting {
+            ByteAccounting::Complete { known_bytes, .. }
+            | ByteAccounting::Incomplete { known_bytes } => known_bytes,
+        };
+        if row.logical
+            || matches!(
+                row.remote,
+                RemoteActivity::Invoked(
+                    InvokedRemoteActivity::Active | InvokedRemoteActivity::EndUnproven
+                )
+            )
+            || liability.reserved_bytes().is_none_or(|n| n > 0)
+            || known > 0
+            || liability.unresolved_attempts > 0
+            || liability.byte_disposition != ByteDisposition::None
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }

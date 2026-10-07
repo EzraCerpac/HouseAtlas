@@ -1,6 +1,6 @@
 {
   "format": "houseatlas-publication-source/1",
-  "status": "development-native-owned-upload-exact-candidate-review-required",
+  "status": "development-native-storage-access-domain-composition-review-required",
   "self": {
     "path": "docs/publication/source-manifest.json",
     "mode": "100644",
@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "65bb04e98aa5edea7250d29cffa1672a2cc14b024371a9db63d4a374f51dd719",
+  "sourceDigestSha256": "4ff77385d551ea257f0c3867991365533e1b18c5de16df828b09fbdc2aa06d67",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -34,8 +34,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 12425,
-      "sha256": "033621e5a1c62413170a00af2c2c2c235f1c06f0adda33ecdff7128cb170bcdf",
+      "bytes": 13154,
+      "sha256": "20c777881d32a9b3c146dc5e0378178eb157608dfec440c734ccb05773c238ed",
       "owner": "core-integration"
     },
     {
@@ -284,17 +284,24 @@
       "owner": "storage"
     },
     {
+      "path": "backend/migrations/0006_stock_activity.sql",
+      "mode": "100644",
+      "bytes": 3932,
+      "sha256": "ba17accb6f9b71d5229f35de6a2a29e804b6b7d53419ab1b3c20c6d53733a4b8",
+      "owner": "storage"
+    },
+    {
       "path": "backend/src/access/README.md",
       "mode": "100644",
-      "bytes": 13050,
-      "sha256": "2fc5537c80c4c32b61db25734584253f88e8a4257541ec9fb24faf06ddd2ba34",
+      "bytes": 23451,
+      "sha256": "57cc112417d529d4b28fa35e067842c3f277b01970c40ef8a5a50092a1a8bc7c",
       "owner": "access"
     },
     {
       "path": "backend/src/access/boundary.rs",
       "mode": "100644",
-      "bytes": 24934,
-      "sha256": "2d8a5176236a44a63125693125a10236f55228ba005b1423578bf98fc3b8f628",
+      "bytes": 26173,
+      "sha256": "2d33cae2c7c253784354d2ef714a86ffc0a9de5095cd73705fd0236ff5c1fed6",
       "owner": "access"
     },
     {
@@ -335,8 +342,36 @@
     {
       "path": "backend/src/access/mod.rs",
       "mode": "100644",
-      "bytes": 1039,
-      "sha256": "08d8b6108e753a4256cccf5e0763cbb3991e868388596bfd639bdbd455e8fcc9",
+      "bytes": 1416,
+      "sha256": "03d79fc86739a1a7dd89237d394d899a8b6be8cad8168ef1aecd26b9449fa902",
+      "owner": "access"
+    },
+    {
+      "path": "backend/src/access/network.rs",
+      "mode": "100644",
+      "bytes": 10254,
+      "sha256": "48f60feb308fcf6c25475647637ee1aca3f9a970216c52e46d93a948708fe8d8",
+      "owner": "access"
+    },
+    {
+      "path": "backend/src/access/network_healthy.rs",
+      "mode": "100644",
+      "bytes": 6273,
+      "sha256": "04098802121b059c1299554b42345b03defee12f21d9ef3c118721a080138ee4",
+      "owner": "access"
+    },
+    {
+      "path": "backend/src/access/recovery.rs",
+      "mode": "100644",
+      "bytes": 5517,
+      "sha256": "63a065de156e5d21d393e7f4e51bcf6a5803dec452e07be05c0d661c690d4d7b",
+      "owner": "access"
+    },
+    {
+      "path": "backend/src/access/recovery_healthy.rs",
+      "mode": "100644",
+      "bytes": 2926,
+      "sha256": "77db3dfa9ac93df0b7003126e95ee52afeb5ca4851e45028aa9bb6c9cbfeb632",
       "owner": "access"
     },
     {
@@ -347,10 +382,24 @@
       "owner": "access"
     },
     {
+      "path": "backend/src/access/shared.rs",
+      "mode": "100644",
+      "bytes": 1686,
+      "sha256": "42629ab241125cdf3f69e779146a79e472b703ea62452961efad7edb5052d86f",
+      "owner": "access"
+    },
+    {
+      "path": "backend/src/access/shared_healthy.rs",
+      "mode": "100644",
+      "bytes": 6099,
+      "sha256": "2da3f697bfc4509fae1ddb3eca703b1c34df15d465445f6da9201df3333b8814",
+      "owner": "access"
+    },
+    {
       "path": "backend/src/access/source.rs",
       "mode": "100644",
-      "bytes": 8861,
-      "sha256": "6599d7541e524bfe45dd7b6b7f17b25ddfffb1a8358696bc832357fa36b9dae3",
+      "bytes": 8872,
+      "sha256": "99ac30ad89a0ad118961fabf73370bc748e98b975f43fa9525173823a480e42e",
       "owner": "access"
     },
     {
@@ -685,8 +734,8 @@
     {
       "path": "backend/src/domain/mod.rs",
       "mode": "100644",
-      "bytes": 2461,
-      "sha256": "f1526d8c32a82a153e8964ba68d119f380b7afee357d35b1d396e03206700b1b",
+      "bytes": 2485,
+      "sha256": "90f522b6176a56ebf790d173cbb3d7ebec328192a8a36aeda9a35ef6fc78b640",
       "owner": "domain"
     },
     {
@@ -736,6 +785,34 @@
       "mode": "100644",
       "bytes": 6056,
       "sha256": "48a8fa74fbe9436d554c92ecf70d62579a5bcd883c49fae9ffbedbbabbaa29e7",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/queue_recovery/attempt.rs",
+      "mode": "100644",
+      "bytes": 5300,
+      "sha256": "f6427e36dc1bb72720f761015d8563e8528d9f4d734e14c5d7fef0a6621db584",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/queue_recovery/discovery.rs",
+      "mode": "100644",
+      "bytes": 8169,
+      "sha256": "6a35bb751575cdc853f9e03ec5e92034d687fa935c41daece84f810e4d85ef0e",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/queue_recovery/mod.rs",
+      "mode": "100644",
+      "bytes": 997,
+      "sha256": "7ba0c73da533a5ee52d13f91e1130b0b042c1f2980b36f32c65cd36fc19d9fc9",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/queue_recovery/ports.rs",
+      "mode": "100644",
+      "bytes": 4871,
+      "sha256": "23409f129df4fa1d41e428081530a05f6a798419ca00fcd097a19cd5435c7eef",
       "owner": "domain"
     },
     {
@@ -1847,8 +1924,8 @@
     {
       "path": "backend/src/storage/cache.rs",
       "mode": "100644",
-      "bytes": 28142,
-      "sha256": "d69a26419627d93a91bc8f26764058c6190ba892f3b7601c3f80e5c4e61faa72",
+      "bytes": 31464,
+      "sha256": "b9dfd6c6e11cdc75339766af9f6b9fff1cdcddd5def3d93dc8b9273f206bf3af",
       "owner": "storage"
     },
     {
@@ -1861,8 +1938,8 @@
     {
       "path": "backend/src/storage/cache_types.rs",
       "mode": "100644",
-      "bytes": 8102,
-      "sha256": "93588b48bfbb505e6564cdd75652b0cef7ff6c3b2de13fda656cb9d60a4e6575",
+      "bytes": 8408,
+      "sha256": "b58a86d5f6393475d67a7d6df9b0002dfcf4e80067c3fb05ca19c9759b498bcd",
       "owner": "storage"
     },
     {
@@ -1919,6 +1996,13 @@
       "mode": "100644",
       "bytes": 11550,
       "sha256": "f515e09386d0c2990a86bf5650d85c7b0347eb7f54b78ec38b383f23f74ffa73",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/checks/stock-activity-healthy.rs",
+      "mode": "100644",
+      "bytes": 34971,
+      "sha256": "07307843cda1b4b5cdc6c86d02c2bb2970b47c6ec06d66d95410718e1285e81e",
       "owner": "storage"
     },
     {
@@ -1980,15 +2064,15 @@
     {
       "path": "backend/src/storage/migrations.rs",
       "mode": "100644",
-      "bytes": 5712,
-      "sha256": "fc5c39e34f43673e78a804c60c0ac1199345fad9e4268e490e3a07c1774b0a86",
+      "bytes": 6482,
+      "sha256": "ccfdb9f46958594460d27679326b6235f6fb8b6c4164877347eb15a6de764fee",
       "owner": "storage"
     },
     {
       "path": "backend/src/storage/mod.rs",
       "mode": "100644",
-      "bytes": 1453,
-      "sha256": "dc417a279cf0f39a5deef322f6d18eabe315dcd6aa18c8d59e08da1da2c7b55a",
+      "bytes": 1533,
+      "sha256": "d3757daf166a315921b4085b8062bded2b50eb98d2c33cbf85bad1aae5265f38",
       "owner": "storage"
     },
     {
@@ -2015,15 +2099,15 @@
     {
       "path": "backend/src/storage/queue.rs",
       "mode": "100644",
-      "bytes": 18204,
-      "sha256": "2fd62286533269ca9ce4996e2d2981b2cd60526372c7d894e7a71b62de315d47",
+      "bytes": 19879,
+      "sha256": "37a3c0f7938331bd8b343641f7fc2f2690346cc11f4e5e17dfc8e14d1820b8f5",
       "owner": "storage"
     },
     {
       "path": "backend/src/storage/queue_admission.rs",
       "mode": "100644",
-      "bytes": 18208,
-      "sha256": "640ab42092e7342e8e282c54c9d82fbc052ae866ca262444dcd1b477050d9e0c",
+      "bytes": 18816,
+      "sha256": "65da0015ea72bbe7349e540c82fc4821367f9172c7e49454f361cf2b2900e62d",
       "owner": "storage"
     },
     {
@@ -2099,8 +2183,8 @@
     {
       "path": "backend/src/storage/queue_repository.rs",
       "mode": "100644",
-      "bytes": 19059,
-      "sha256": "e5d6f2a0cf4f86d4d2efb60c341e816c2880ea824262e931b1f9fac65670e382",
+      "bytes": 20460,
+      "sha256": "ac23b8fb09554a82117fe112503694bd7569e5deaa4eabdc7f68a72d3e693de7",
       "owner": "storage"
     },
     {
@@ -2120,15 +2204,15 @@
     {
       "path": "backend/src/storage/recovery.rs",
       "mode": "100644",
-      "bytes": 14170,
-      "sha256": "ef77c6e4b720c390cce3e0a92cfe766db9c1cf421e70ad6924742431c0f3836f",
+      "bytes": 18424,
+      "sha256": "aba3c91fa2bffe55a17c7e966993fe9cc0e2c5bb044256908ff73e6c6668bf79",
       "owner": "storage"
     },
     {
       "path": "backend/src/storage/recovery_checks.rs",
       "mode": "100644",
-      "bytes": 21759,
-      "sha256": "1d5aa8cf74baeb4b7ce2b4fde253757f24b5a99dc2ec5b0496f535b8039f564c",
+      "bytes": 23315,
+      "sha256": "fc2e7f4f97262d9f2c28bcbcfe3a4a7e12143d85252bcb3e08ba3283df82ac39",
       "owner": "storage"
     },
     {
@@ -2143,6 +2227,69 @@
       "mode": "100644",
       "bytes": 16476,
       "sha256": "a3377e0f4406406bf53a2b44f7f11b1056cb05442a958041a503683835c15161",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/stock_activity/baseline.rs",
+      "mode": "100644",
+      "bytes": 2018,
+      "sha256": "6598dbe8ad37b4ac4f162a14a97a32e3728d88d8c7791a88df463e13b57cf52a",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/stock_activity/codec.rs",
+      "mode": "100644",
+      "bytes": 17136,
+      "sha256": "cb4b18fa01ab758d6c30161a4bcc6889f9f317e93a97c1c87c9d919783c84204",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/stock_activity/journal.rs",
+      "mode": "100644",
+      "bytes": 6371,
+      "sha256": "0abaca5a0354a6c21a2d4d7eeb8aba79ec5556ef793d2f36de6a8b257d2efe9c",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/stock_activity/mod.rs",
+      "mode": "100644",
+      "bytes": 14559,
+      "sha256": "dc5c735818653e55bc291a56c613cae3fc8765cb8e6ddf3ace5e32b76dae4e23",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/stock_activity/recovery.rs",
+      "mode": "100644",
+      "bytes": 10557,
+      "sha256": "3e5c62209e486b9767c3fbd46511023356ad72ae36a2742d32fda8fe1cf2b145",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/stock_activity/replay.rs",
+      "mode": "100644",
+      "bytes": 4430,
+      "sha256": "008b01608c1aa95dffeadf902bf22b93aecc09bce53e317961f839e864c48005",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/stock_activity/repository.rs",
+      "mode": "100644",
+      "bytes": 16118,
+      "sha256": "b676b240dffc6ec78c89d10398ebb84f9b6df38db94d1a42c42765dbca09451d",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/stock_activity/retention.rs",
+      "mode": "100644",
+      "bytes": 8880,
+      "sha256": "ecd6785d7299b28b82b5f8ae0f2814c6b33e76a5561df2f43baa1918fa81f2b0",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/stock_activity/transitions.rs",
+      "mode": "100644",
+      "bytes": 17652,
+      "sha256": "e78c0186197a8b7868c3713a0b08abd6c2fb3d9ef09919d691505e43b0446dc4",
       "owner": "storage"
     },
     {
@@ -2190,8 +2337,8 @@
     {
       "path": "backend/src/storage/store.rs",
       "mode": "100644",
-      "bytes": 11950,
-      "sha256": "bcd0d3738b0fcdc93049e2ac22897105ef948b6d36125054a84a0c25594ec029",
+      "bytes": 13913,
+      "sha256": "ebfb46a89867b09e829f2889cdd307f8ce0344c35285ab2da8a2dc57fb51b04a",
       "owner": "storage"
     },
     {
@@ -2689,6 +2836,13 @@
       "mode": "100644",
       "bytes": 4851,
       "sha256": "153ff84efc628591fd8de16ea53a72875545f28b0ccb7219437341701e1813c1",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/rust-integration/native-storage-composition.md",
+      "mode": "100644",
+      "bytes": 2145,
+      "sha256": "9e20dc73d1977fcc1992606b84a126032f5f69f1d0c4ff902836c2bb3d402e24",
       "owner": "core-integration"
     },
     {

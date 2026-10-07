@@ -13,6 +13,7 @@ mod numeric;
 mod ports;
 mod queue;
 mod repository;
+mod stock_activity;
 mod stock_history_repository;
 mod stock_projection;
 mod stock_recovery;
@@ -25,7 +26,7 @@ mod upload_types;
 
 pub use cache_types::*;
 pub use error::{Error, Result};
-pub use migrations::{DATABASE_LINEAGE, DATABASE_VERSION};
+pub use migrations::{DATABASE_LINEAGE, DATABASE_VERSION, STOCK_ACTIVITY_DATABASE_VERSION};
 pub use native::NativeContract;
 pub use ports::{
     AssetProof, Authorization, AuthorizationRequest, Capability, Contract, Prior, Runtime,
@@ -37,6 +38,7 @@ pub use queue::{
     QueueRecoveryOutcome, QueueSession, QueueSessionBinding, QueueStepEvidence, QueueStoreHandle,
     StepKind,
 };
+pub use stock_activity::*;
 pub use stock_types::*;
 pub use store::{AtlasStore, RecoveryImage, RecoveryValidationPeers, StoreOptions};
 pub use types::*;

@@ -208,7 +208,7 @@ impl CurrentAuthority<'_> {
         Ok(())
     }
 
-    fn checked_partition(
+    pub(super) fn checked_partition(
         &self,
         principal: &Principal,
         partition: &SourcePartition,
