@@ -1,6 +1,8 @@
 node_modules/
 dist/
 coverage/
+!frontend/src/webmcp/coverage/
+!frontend/src/webmcp/coverage/**
 *.tsbuildinfo
 var/
 data/

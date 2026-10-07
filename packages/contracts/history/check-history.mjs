@@ -36,7 +36,7 @@ const historyPath = `${recordPath}/history`;
 
 check('accepted OpenAPI and schema preimages', () => {
   assert.equal(digest(frozenApiUrl), '4c161a9f2fad81cfbd7fa38b0d7476816163b390b5ee898fe3b80a37e7195351');
-  assert.equal(digest(frozenSchemaUrl), 'ef00707b251051da4157598833d4c91d15d01b73eebfa049daf8c52a2ff23806');
+  assert.equal(digest(frozenSchemaUrl), 'ba73d972c87391fe06cd41d68e73bc2d73fc3fcac322889cfb3b8d909c3f3f72');
 });
 check('six accepted path objects are identical; seventh path is the sole addition', () => {
   assert.equal(Object.keys(frozenApi.paths).length, 6);

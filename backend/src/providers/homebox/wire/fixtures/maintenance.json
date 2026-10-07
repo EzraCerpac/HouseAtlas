@@ -1,0 +1,32 @@
+[
+  {
+    "id": "00000000-0000-4000-8000-000000000301",
+    "name": "Scheduled check",
+    "description": "Synthetic",
+    "completedDate": "",
+    "scheduledDate": "2026-02-01",
+    "cost": "0",
+    "itemID": "00000000-0000-4000-8000-000000000002",
+    "itemName": "Synthetic entity 2"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000302",
+    "name": "Completed check",
+    "description": "Synthetic",
+    "completedDate": "2026-02-01",
+    "scheduledDate": "2026-01-31",
+    "cost": "12.50",
+    "itemID": "00000000-0000-4000-8000-000000000002",
+    "itemName": "Synthetic entity 2"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000303",
+    "name": "Exponent cost",
+    "description": "Synthetic",
+    "completedDate": "2026-02-02",
+    "scheduledDate": "",
+    "cost": "1.25e+06",
+    "itemID": "00000000-0000-4000-8000-000000000002",
+    "itemName": "Synthetic entity 2"
+  }
+]

@@ -131,6 +131,15 @@ that observer-only field selection was corrected before the complete pass.
 Locked actual Rust compilation, rustfmt, strict Clippy and strict TypeScript/Vite
 remain required. Vite retains its existing large-bundle warning. This upload
 runner is separately named and is not automatically added to runtime CI.
+The final composition includes reviewed main
+`a4e583c45a381cd5dc710a256c8d15d0aa8f2e5a`. Its locked source compilation,
+rustfmt, strict Clippy, four explicitly named healthy Rust examples, generated
+contract/history checks and strict TypeScript/Vite pass. The rebuilt actual
+binary SHA256 is `6a5a1ab4fc2633c256e68865fd2d69a6afb12a82fecb19525684b4570dc382b4`.
+It passed the 51-request attachment flow and the separate 10-request healthy
+MCP lifecycle flow. Evidence SHA256 values are respectively
+`8f6fb7d5301f74be62e9f1d6dc245391a2ebee2261ab4fcd71dcba770ac11a50`
+and `cb9a69d5a180e6abec8f45d121602b22e63035409c4d79b0dd00ab9a0088a7ac`.
 Final composed exact-head hosted review/CI must clear before normal merge.
 
 No existing-database migration, automatic retry/replay, restart reconciliation,

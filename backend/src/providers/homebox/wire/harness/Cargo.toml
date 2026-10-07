@@ -1,0 +1,18 @@
+[package]
+name = "houseatlas-wire-harness"
+version = "0.1.0"
+edition = "2024"
+[workspace]
+[lib]
+path = "lib.rs"
+[dependencies]
+houseatlas-backend = { path = "../../../../.." }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = { version = "=1.0.151", features = ["arbitrary_precision", "float_roundtrip", "raw_value"] }
+chrono = { version = "=0.4.42", default-features = false, features = ["std"] }
+url = "=2.5.7"
+fluent-uri = { version = "=0.4.1", default-features = false }
+
+[dev-dependencies]
+jsonschema = { version = "=0.58.6", default-features = false, features = ["arbitrary-precision"] }
+sha2 = "=0.10.9"

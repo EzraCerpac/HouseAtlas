@@ -14,7 +14,7 @@ use super::{JsonObject, PortError};
 pub const AGENT_SCHEMA_SHA256: &str =
     "314ee5f5effca941b3be92cb5cc37150aa17a3ab5dd8646255cebc74767b602d";
 pub const ATLAS_SCHEMA_SHA256: &str =
-    "ef00707b251051da4157598833d4c91d15d01b73eebfa049daf8c52a2ff23806";
+    "ba73d972c87391fe06cd41d68e73bc2d73fc3fcac322889cfb3b8d909c3f3f72";
 
 const DIALECT: &str = "https://json-schema.org/draft/2020-12/schema";
 const AGENT_ID: &str = "urn:houseatlas:agent:stock:3";
@@ -27,7 +27,7 @@ pub struct NativeSchemas {
 }
 
 impl NativeSchemas {
-    /// Admit only the two resources from published shared commit 49d4a0a.
+    /// Admit only the pinned stock resource and calendar-amended Atlas resource.
     /// This checks trusted configuration, not application input or authority.
     pub fn from_bytes(agent: &[u8], atlas: &[u8]) -> Result<Self, PortError> {
         Ok(Self {

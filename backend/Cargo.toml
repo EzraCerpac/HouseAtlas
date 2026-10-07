@@ -71,3 +71,11 @@ path = "../tools/rust-integration/examples/healthy_agent_stock.rs"
 [[example]]
 name = "healthy-canonical-upload-plan"
 path = "../tools/rust-integration/examples/healthy_canonical_upload_plan.rs"
+
+[[example]]
+name = "healthy-mcp-lifecycle"
+path = "src/transports/mcp/lifecycle/healthy.rs"
+
+[[example]]
+name = "healthy-maintenance-calendar"
+path = "src/contracts/examples/healthy-maintenance-calendar.rs"
