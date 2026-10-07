@@ -14,6 +14,12 @@ use rusqlite::Connection;
 use serde_json::Value;
 use std::collections::BTreeSet;
 
+enum Qualification<'a> {
+    Direct,
+    Staged(&'a crate::media::staged_upload::StagedAssetPlan),
+    Derived(&'a AtlasDerivation),
+}
+
 pub(super) fn stock_error(error: StockError) -> Error {
     match error {
         StockError::InvalidContract => {
@@ -50,8 +56,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             contracts,
             &request,
             &plan,
-            None,
-            None,
+            Qualification::Direct,
         )
     }
 
@@ -79,8 +84,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             contracts,
             &request,
             &plan,
-            None,
-            Some(derivation),
+            Qualification::Derived(derivation),
         )
     }
 
@@ -117,8 +121,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             contracts,
             &request,
             qualified.plan(),
-            Some(staged),
-            None,
+            Qualification::Staged(staged),
         )
     }
 
@@ -129,9 +132,13 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         contracts: &S,
         request: &ValidatedRequest,
         plan: &AtlasCommandPlan,
-        staged: Option<&crate::media::staged_upload::StagedAssetPlan>,
-        derivation: Option<&AtlasDerivation>,
+        qualification: Qualification<'_>,
     ) -> Result<StockAtlasCommit> {
+        let (staged, derivation) = match qualification {
+            Qualification::Direct => (None, None),
+            Qualification::Staged(staged) => (Some(staged), None),
+            Qualification::Derived(derivation) => (None, Some(derivation)),
+        };
         let entries = plan
             .groups()
             .iter()

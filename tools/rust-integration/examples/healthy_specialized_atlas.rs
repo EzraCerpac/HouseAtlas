@@ -63,11 +63,15 @@ fn principal(
     )?))
 }
 
+struct Client<'a> {
+    core: &'a Core,
+    cookie: &'a str,
+    csrf: &'a str,
+    validator: &'a wire::StockValidation,
+}
+
 fn command(
-    core: &Core,
-    cookie: &str,
-    csrf: &str,
-    validator: &wire::StockValidation,
+    client: &Client<'_>,
     command_id: &str,
     target: Value,
     payload: Value,
@@ -75,6 +79,12 @@ fn command(
     guards: Vec<Value>,
     serial: u32,
 ) -> Result<Value, Failure> {
+    let Client {
+        core,
+        cookie,
+        csrf,
+        validator,
+    } = client;
     let raw = json!({"schemaVersion":3,"commandId":command_id,
         "requestId":id(3000+serial),
         "context":{"workspaceId":core.home.scope.workspace_id,"homeId":core.home.scope.home_id},
@@ -88,7 +98,8 @@ fn command(
         core.home.scope.workspace_id, core.home.scope.home_id
     );
     let issued = principal(core, cookie, csrf, true, &path)?;
-    let output = stock_dispatch::execute(core, &issued, raw)?;
+    let output = stock_dispatch::execute(core, &issued, raw)
+        .map_err(|error| format!("Healthy {command_id} failed: {error}"))?;
     wire::StockResponse::parse(validator, &parsed, output.wire.clone(), &output.children)?;
     assert!(output.children.is_empty());
     assert_eq!(output.wire["status"], "committed");
@@ -188,6 +199,27 @@ pub fn healthy() -> Result<(), Failure> {
     let mut published: Value = serde_json::from_str(include_str!(
         "../../../packages/contracts/fixtures/optional-geometry.snapshot.json"
     ))?;
+    // Select only the one-home Atlas graph used by this case. The optional
+    // fixture also carries unrelated Network partitions and another home; they
+    // require their own original disclosure peers and are outside this check.
+    published["sources"]
+        .as_array_mut()
+        .ok_or("Missing sources")?
+        .retain(|source| source["sourceInstanceId"] == id(10));
+    let selected = [100, 200, 201, 300, 301, 400, 600, 601];
+    published["records"]
+        .as_array_mut()
+        .ok_or("Missing records")?
+        .retain(|record| {
+            selected
+                .iter()
+                .any(|number| record["recordId"] == id(*number))
+        });
+    published["homeboxEntities"]
+        .as_array_mut()
+        .ok_or("Missing projections")?
+        .truncate(2);
+    published["networkRelations"] = json!([]);
     for row in published["records"]
         .as_array_mut()
         .ok_or("Missing fixture records")?
@@ -249,13 +281,16 @@ pub fn healthy() -> Result<(), Failure> {
     );
     old.close()?;
     let validator = wire::StockValidation::new()?;
+    let client = Client {
+        core: &core,
+        cookie: &cookie,
+        csrf: &csrf,
+        validator: &validator,
+    };
     let evidence = vec![guard("evidence", 100, 1)];
     let binding_guards = vec![guard("identity", 200, 1), guard("evidence", 100, 1)];
     let created = command(
-        &core,
-        &cookie,
-        &csrf,
-        &validator,
+        &client,
         "atlas.binding.create",
         target("binding", 930),
         json!({"atlasId":id(200),"source":{"sourceInstanceId":id(10),
@@ -274,10 +309,7 @@ pub fn healthy() -> Result<(), Failure> {
         "proposed"
     );
     let reviewed = command(
-        &core,
-        &cookie,
-        &csrf,
-        &validator,
+        &client,
         "atlas.binding.review",
         target("binding", 930),
         json!({"reviewStatus":"rejected","evidenceIds":[id(100)]}),
@@ -290,10 +322,7 @@ pub fn healthy() -> Result<(), Failure> {
         "rejected"
     );
     let tombstoned = command(
-        &core,
-        &cookie,
-        &csrf,
-        &validator,
+        &client,
         "atlas.binding.tombstone",
         target("binding", 300),
         json!({}),
@@ -303,10 +332,7 @@ pub fn healthy() -> Result<(), Failure> {
     )?;
     assert_eq!(tombstoned["data"]["records"][0]["lifecycle"], "tombstoned");
     let restored = command(
-        &core,
-        &cookie,
-        &csrf,
-        &validator,
+        &client,
         "atlas.binding.restore",
         target("binding", 300),
         json!({}),
@@ -320,10 +346,7 @@ pub fn healthy() -> Result<(), Failure> {
         tombstoned["data"]["records"][0]["payload"]
     );
     let remapped = command(
-        &core,
-        &cookie,
-        &csrf,
-        &validator,
+        &client,
         "atlas.binding.remap",
         target("binding", 301),
         json!({"oldBindingId":id(301),"newBindingId":id(931),"journalId":id(932),
@@ -331,7 +354,11 @@ pub fn healthy() -> Result<(), Failure> {
                 "sourceKind":"homebox-entity","externalId":id(504)},
             "reason":"import-id-remap","evidenceIds":[id(100)]}),
         Some(1),
-        vec![guard("identity", 201, 1), guard("evidence", 100, 1)],
+        vec![
+            guard("identity", 201, 1),
+            guard("evidence", 100, 1),
+            guard("binding", 301, 1),
+        ],
         5,
     )?;
     let remap_records = remapped["data"]["records"]
@@ -351,10 +378,7 @@ pub fn healthy() -> Result<(), Failure> {
         .ok_or("Geometry payload object required")?
         .remove("importedAt");
     let geometry = command(
-        &core,
-        &cookie,
-        &csrf,
-        &validator,
+        &client,
         "atlas.geometry.create",
         target("geometry", 933),
         geometry_input,
@@ -376,10 +400,7 @@ pub fn healthy() -> Result<(), Failure> {
         (8, "block", "blocked", 2),
     ] {
         let result = command(
-            &core,
-            &cookie,
-            &csrf,
-            &validator,
+            &client,
             "atlas.asset.review",
             target("asset", 600),
             json!({"treatment":treatment,"rendererReceiptId":null,"evidenceIds":[id(100)]}),

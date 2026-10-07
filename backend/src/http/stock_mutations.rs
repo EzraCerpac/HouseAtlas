@@ -6,8 +6,9 @@ use super::{
 };
 use crate::{
     access as a,
-    app::{Access, Core, RequestPrincipal, Store},
+    app::{Access, Core, RequestPrincipal, ServerRuntime, Store},
     contracts::semantics as sem,
+    contracts::{AssetPayloadPreviewPolicy, BindingPayloadSourceState},
     domain::{self as d, stock as st},
     http::contracts::NativeContracts,
     storage as s,
@@ -16,7 +17,7 @@ use axum::{
     extract::{Path, Request, State},
     http::StatusCode,
 };
-use s::Contract;
+use s::{Contract, Runtime};
 use serde_json::Value;
 use std::{
     cell::{Cell, OnceCell, RefCell},
@@ -46,7 +47,7 @@ fn supported(request: &st::ValidatedRequest) -> st::StockResult<()> {
         } else {
             Err(st::StockError::CapabilityHeld)
         }
-    } else if mapped(request.id()) {
+    } else if mapped(request.id()) || st::atlas_derived_operation(request.id()) {
         Ok(())
     } else {
         Err(st::StockError::CapabilityHeld)
@@ -80,6 +81,62 @@ struct Graph {
     original: s::Snapshot,
     plan: st::AtlasCommandPlan,
     request: st::ValidatedRequest,
+    derivation: Option<st::AtlasDerivation>,
+}
+
+// Derivation is owner data from the same authorized snapshot, never client
+// authority. Newly asserted source presence and renderer receipts remain held.
+fn derive(
+    request: &st::ValidatedRequest,
+    original: &s::Snapshot,
+) -> st::StockResult<Option<st::AtlasDerivation>> {
+    use st::{AtlasDerivation as D, OperationId as O};
+    if !st::atlas_derived_operation(request.id()) {
+        return Ok(None);
+    }
+    let preimage = || {
+        original
+            .records
+            .iter()
+            .find(|row| {
+                row.workspace_id == request.context().workspace_id
+                    && row.home_id == request.context().home_id
+                    && request.target()["recordId"] == row.record_id
+                    && request.target()["recordType"] == row.record_type.as_str()
+            })
+            .cloned()
+            .ok_or(st::StockError::Domain(d::DomainError::NotFound))
+    };
+    Ok(Some(match request.id() {
+        O::AtlasBindingCreate => D::BindingCreate {
+            source_state: BindingPayloadSourceState::Unresolved,
+        },
+        O::AtlasBindingReview => D::BindingReview {
+            original: preimage()?,
+        },
+        O::AtlasBindingRestore => D::BindingRestore {
+            original: preimage()?,
+        },
+        O::AtlasBindingRemap => D::BindingRemap {
+            original: preimage()?,
+            source_state: BindingPayloadSourceState::Unresolved,
+        },
+        O::AtlasGeometryCreate => D::GeometryCreate {
+            imported_at: ServerRuntime
+                .now()
+                .map_err(|e| domain(crate::app::storage_error(e)))?,
+        },
+        O::AtlasAssetReview => D::AssetReview {
+            original: preimage()?,
+            preview_policy: match request.payload()["treatment"].as_str() {
+                Some("block") => AssetPayloadPreviewPolicy::Blocked,
+                Some("download-only") => AssetPayloadPreviewPolicy::DownloadOnly,
+                _ => return Err(st::StockError::CapabilityHeld),
+            },
+            renderer_receipt_id: None,
+        },
+        _ => return Err(st::StockError::CapabilityHeld),
+    }))
 }
 struct Committed {
     candidate: s::Snapshot,
@@ -226,11 +283,25 @@ impl<'p> st::StockAuthorityPort<RequestPrincipal> for Authority<'p, '_, '_> {
         purpose: st::DisclosurePurpose,
     ) -> st::StockResult<()> {
         self.revalidate(p, prepared.witness(), request)?;
-        require(
-            prepared.witness().committed.get()
-                && purpose == st::DisclosurePurpose::ExactTarget
-                && target == request.target(),
-        )?;
+        require(prepared.witness().committed.get())?;
+        if request.id() == st::OperationId::AtlasBindingRemap {
+            let graph = prepared.graph();
+            require(purpose == st::DisclosurePurpose::RemapRecord)?;
+            require(
+                graph
+                    .plan
+                    .groups()
+                    .iter()
+                    .flat_map(|group| group.native_entries())
+                    .any(|entry| {
+                        target["authority"] == "atlas"
+                            && target["recordType"] == entry.target.record_type.as_str()
+                            && target["recordId"] == entry.target.record_id
+                    }),
+            )?;
+        } else {
+            require(purpose == st::DisclosurePurpose::ExactTarget && target == request.target())?;
+        }
         let pin = prepared.witness().pending.borrow();
         let pin = pin.as_ref().ok_or_else(changed)?;
         require(pin.candidate.records.iter().any(|row| {
@@ -252,12 +323,24 @@ impl<'p> st::StockPreparerPort<RequestPrincipal, Witness<'p>> for Preparer<'_, '
     ) -> st::StockResult<Graph> {
         require(std::ptr::eq(p, w.principal) && w.raw == *request.raw())?;
         supported_profile(request, self.1)?;
+        let original = snapshot(self.0, p, request)?;
+        let derivation = if self.1.is_none() {
+            derive(request, &original)?
+        } else {
+            None
+        };
         Ok(Graph {
-            original: snapshot(self.0, p, request)?,
             plan: match self.1 {
                 Some(upload) => upload.plan().clone(),
-                None => st::plan_atlas_commands(request, &NativeContracts)?,
+                None => match &derivation {
+                    Some(derivation) => {
+                        st::plan_derived_atlas_commands(request, derivation, &NativeContracts)?
+                    }
+                    None => st::plan_atlas_commands(request, &NativeContracts)?,
+                },
             },
+            original,
+            derivation,
             request: request.clone(),
         })
     }
@@ -479,6 +562,14 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
                         &self.contracts,
                         prepared.request().raw(),
                         upload.staged(),
+                    )
+                } else if let Some(derivation) = &graph.derivation {
+                    store.execute_derived_stock_json_with_authorization(
+                        &authorization,
+                        p,
+                        &self.contracts,
+                        prepared.request().raw(),
+                        derivation,
                     )
                 } else {
                     store.execute_stock_json_with_authorization(

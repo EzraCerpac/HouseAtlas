@@ -37,7 +37,7 @@ pub(crate) fn validate_retained_preimage<C: Contract, S: StockContractPort>(
     contract: &C,
 ) -> Result<()> {
     match (&commit.derivation_format, &commit.derivation) {
-        (None, None) => return Ok(()),
+        (None, None) => Ok(()),
         (Some(format), Some(derivation))
             if format == crate::domain::stock::ATLAS_DERIVATION_FORMAT =>
         {
@@ -112,12 +112,11 @@ pub(crate) fn validate_derivation(
         }
         _ => {}
     }
-    if let AtlasDerivation::GeometryCreate { imported_at } = derivation {
-        if request.id() != OperationId::AtlasGeometryCreate
-            || crate::domain::stock::operational_time(imported_at).is_err()
-        {
-            return Err(request_error());
-        }
+    if let AtlasDerivation::GeometryCreate { imported_at } = derivation
+        && (request.id() != OperationId::AtlasGeometryCreate
+            || crate::domain::stock::operational_time(imported_at).is_err())
+    {
+        return Err(request_error());
     }
     Ok(())
 }
