@@ -164,14 +164,8 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
         shape(self.contract, "batchMutation", batch)?;
         let results =
             self.execute_entries(principal, scope, &batch.commands, Some(batch), &mut Core)?;
-        let result = BatchResult {
-            schema_version: 1,
-            batch_id: batch.batch_id.clone(),
-            replayed: results.iter().all(|r| r.replayed),
-            results,
-        };
-        shape(self.contract, "batchResult", &result)?;
-        Ok(result)
+        // execute_entries validates this exact envelope before committing.
+        Ok(batch_result(batch, results))
     }
 
     pub(super) fn execute_entries(
@@ -321,6 +315,13 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
                         "Scoped mutation receipt is incompatible",
                     ));
                 }
+            }
+            if let Some(batch) = batch {
+                shape(
+                    self.contract,
+                    "batchResult",
+                    &batch_result(batch, results.clone()),
+                )?;
             }
             let replay = Replay {
                 results: results.clone(),
@@ -522,6 +523,15 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
                 &ScopedTarget::new(scope, &entry.target),
             )?;
         }
+        if let Some(batch) = batch {
+            // Full output bounds and correlations participate in the same
+            // transaction as every record, audit, and receipt write.
+            shape(
+                self.contract,
+                "batchResult",
+                &batch_result(batch, results.clone()),
+            )?;
+        }
         extension.stage(&original, &results, &actor)?;
         revalidate(MutationPhase::Candidate, Some(&candidate), None, extension)?;
         for ((result, entry), hash) in results.iter().zip(entries).zip(&hashes) {
@@ -563,5 +573,14 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
         revalidate(MutationPhase::Precommit, Some(&candidate), None, extension)?;
         tx.commit()?;
         Ok(results)
+    }
+}
+
+fn batch_result(batch: &BatchMutation, results: Vec<MutationResult>) -> BatchResult {
+    BatchResult {
+        schema_version: 1,
+        batch_id: batch.batch_id.clone(),
+        replayed: results.iter().all(|result| result.replayed),
+        results,
     }
 }
