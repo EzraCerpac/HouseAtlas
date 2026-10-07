@@ -44,26 +44,27 @@ const MAX_RETAINED_CONNECTION_ACTIONS = 96;
 // Mounted views observe only the count. React removes these subscriptions on
 // disposal; the persistent correlation rows retain no observer or view/client.
 const actionCapacitySubscribers = new Set<() => void>();
+const emptyActionCapacitySnapshot = Object.freeze({ globalCount: 0 });
+let currentActionCapacitySnapshot = emptyActionCapacitySnapshot;
 function subscribeActionCapacity(changed: () => void): () => void {
   actionCapacitySubscribers.add(changed);
   return () => { actionCapacitySubscribers.delete(changed); };
 }
-function actionCapacitySnapshot(): number { return pendingConnectionActions.size; }
+function actionCapacitySnapshot(): Readonly<{ globalCount: number }> { return currentActionCapacitySnapshot; }
 // Server rendering/hydration starts with an empty browser-only registry.
-function serverActionCapacitySnapshot(): number { return 0; }
-function notifyActionCapacity(previousCount: number): void {
-  if (previousCount !== pendingConnectionActions.size)
-    for (const changed of [...actionCapacitySubscribers]) changed();
+function serverActionCapacitySnapshot(): Readonly<{ globalCount: number }> { return emptyActionCapacitySnapshot; }
+function notifyActionCapacity(): void {
+  // A new immutable snapshot also reports same-size metadata changes. Session
+  // hooks re-render and derive their own full-scope rows from the registry.
+  currentActionCapacitySnapshot = Object.freeze({ globalCount: pendingConnectionActions.size });
+  for (const changed of [...actionCapacitySubscribers]) changed();
 }
 function recordConnectionAction(actionId: string, action: PendingConnectionAction): void {
-  const previousCount = pendingConnectionActions.size;
   pendingConnectionActions.set(actionId, action);
-  notifyActionCapacity(previousCount);
+  notifyActionCapacity();
 }
 function retireConnectionAction(actionId: string): void {
-  const previousCount = pendingConnectionActions.size;
-  pendingConnectionActions.delete(actionId);
-  notifyActionCapacity(previousCount);
+  if (pendingConnectionActions.delete(actionId)) notifyActionCapacity();
 }
 
 interface ScopedState {
@@ -88,7 +89,7 @@ export function hasConnectionActionCapacity(unresolvedCount: number, globalCount
 
 /** Keep every mounted panel current when a different scope changes capacity. */
 export function useConnectionActionCapacity(unresolvedCount: number): boolean {
-  const globalCount = useSyncExternalStore(subscribeActionCapacity, actionCapacitySnapshot, serverActionCapacitySnapshot);
+  const { globalCount } = useSyncExternalStore(subscribeActionCapacity, actionCapacitySnapshot, serverActionCapacitySnapshot);
   return hasConnectionActionCapacity(unresolvedCount, globalCount);
 }
 
@@ -136,6 +137,9 @@ async function cancelRetainedRequest(scope: Scope, retained: RetainedRequest): P
  * application session, workspace/home, registration and cancellation epoch.
  * Labels and client object identity cannot replace that complete key. */
 export function useAiSession(client: AiClient, scopeKey: string) {
+  // Keep materialized per-scope action rows current when another instance
+  // changes this same registry, including same-size status updates.
+  useSyncExternalStore(subscribeActionCapacity, actionCapacitySnapshot, serverActionCapacitySnapshot);
   const scope = useMemo<Scope>(() => ({ client, key: scopeKey }), [client, scopeKey]);
   const activeScope = useRef<Scope | null>(null);
   const connectionController = useRef<AbortController | null>(null);
