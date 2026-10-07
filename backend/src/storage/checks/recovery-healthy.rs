@@ -18,7 +18,7 @@ use support::*;
 
 // Constant storage-owned table names for check evidence only. This is not an
 // application SQL/connection/callback interface.
-const TABLES: [&str; 27] = [
+const TABLES: [&str; 28] = [
     "atlas_rust_migrations",
     "atlas_rust_metadata",
     "records",
@@ -38,6 +38,7 @@ const TABLES: [&str; 27] = [
     "stock_keys",
     "stock_audit_links",
     "stock_history_cursors",
+    "stock_history_lookup",
     "queue_physical",
     "queue_aliases",
     "queue_jobs",

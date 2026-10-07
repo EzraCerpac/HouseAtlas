@@ -56,12 +56,16 @@ pub(crate) fn validate(connection: &Connection) -> Result<()> {
     Ok(())
 }
 
-pub const DATABASE_VERSION: u32 = 3;
+pub const DATABASE_VERSION: u32 = 4;
 pub const DATABASE_LINEAGE: &str = "houseatlas-rust-storage/1";
 const MIGRATIONS: &[(u32, &str)] = &[
     (1, include_str!("../../migrations/0001_rust_core.sql")),
     (2, include_str!("../../migrations/0002_stock_intents.sql")),
     (3, include_str!("../../migrations/0003_queue.sql")),
+    (
+        4,
+        include_str!("../../migrations/0004_stock_history_lookup.sql"),
+    ),
 ];
 
 pub(crate) fn sha256(bytes: impl AsRef<[u8]>) -> String {

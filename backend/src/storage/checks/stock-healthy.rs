@@ -30,6 +30,8 @@ fn history_request(request: u64, cursor: Value, page_size: u64) -> Value {
 fn main() -> CheckResult<()> {
     let root = PathBuf::from(std::env::var("HOUSEATLAS_ROOT")?);
     let stock_root = PathBuf::from(std::env::var("HOUSEATLAS_STOCK_ROOT")?);
+    let contract_peer = std::env::var("HOUSEATLAS_CONTRACT_PEER")?;
+    let domain_peer = std::env::var("HOUSEATLAS_DOMAIN_PEER")?;
     let output = PathBuf::from(
         std::env::args()
             .nth(1)
@@ -291,6 +293,9 @@ fn main() -> CheckResult<()> {
     assert_eq!(count("stock_keys")?, 5);
     assert_eq!(count("stock_audit_links")?, 4);
     assert_eq!(count("stock_history_cursors")?, 1);
+    assert_eq!(count("stock_history_lookup")?, 4);
+    let linked_lookup: i64 = db.query_row("SELECT COUNT(*) FROM stock_history_lookup h JOIN stock_audit_links l ON l.audit_id=h.audit_id AND l.command_id=h.command_id JOIN audits a ON a.seq=h.seq AND a.audit_id=h.audit_id AND a.workspace_id=h.workspace_id AND a.home_id=h.home_id AND a.record_id=h.record_id", [], |row| row.get(0))?;
+    assert_eq!(linked_lookup, 4);
     for commit in [&created, &replaced, &batched] {
         let stored: String = db.query_row(
             "SELECT commit_json FROM stock_operations WHERE operation_id=?1",
@@ -304,19 +309,18 @@ fn main() -> CheckResult<()> {
     assert_eq!(semantics.counts.borrow().get("guards"), Some(&4));
     assert_eq!(semantics.counts.borrow().get("final"), Some(&4));
     let evidence = json!({"format":"houseatlas-stock-healthy-check/1","outcome":"accepted",
-        "nativeSemanticPeer":"a2f76f9b8b0a3dbd56fbd358a8e80b15490cbb05","domainPeer":"298bcb2a0da2f80efbd6cfd070f734d6e68fd70c",
-        "stockContractPeer":"fde9586f41c32924543fe7066fb0481b02744b8c",
+        "nativeContractPeer":contract_peer,"domainPeer":domain_peer,"stockContractPeer":contract_peer,
         "scope":"Fresh synthetic create/replace, ordered two-child create batch, two history pages, matching search, persistence reopen",
         "actualEntryPoints":["execute_stock_json_with_authorization","stock_history_json_with_authorization"],
         "committedNativeCommands":4,"stockRootOperations":3,"stockGroups":4,"permanentStockKeys":5,
-        "historyPages":2,"matchingSearches":1,"storedCursors":1,"rootGuardSeparateClosure":true,
+        "historyPages":2,"matchingSearches":1,"storedCursors":1,"linkedLookupRows":linked_lookup,"rootGuardSeparateClosure":true,
         "nativeSemanticCalls":*semantics.counts.borrow(),"stockSchemaCalls":*schemas.calls.borrow(),
         "nativeAuthorizationFrames":*authorization.native_frames.borrow(),"stockAuthorizationFrames":*authorization.stock_frames.borrow(),
         "historyAuthorizationFrames":*authorization.history_frames.borrow(),"schemaResources":schemas.resources,
         "created":created,"replaced":replaced,"batch":batched,"historyFirst":first.wire,"historySecond":second.wire,"historySearch":searched.wire,
         "finalSnapshot":final_snapshot,"databaseLineage":DATABASE_LINEAGE,"sqliteVersion":rusqlite::version(),
         "schemaProfile":"Actual native StockValidation from PR18; embedded exact offline Draft202012 closure and Ajv-compatible native formats; no defaults or HTTP/file retrieval",
-        "contractsPeers":{"stock":"d3bdb7ccacb94a83d7409b70dbc30a4a3204395f","semantics":"a2f76f9b8b0a3dbd56fbd358a8e80b15490cbb05"},"deferred":"Production authority/runtime/service composition, independent peer review completion, format-boundary qualification, presence/provider qualification, replay/negative/fault/race controls"});
+        "contractsPeers":{"stock":contract_peer,"semantics":contract_peer},"deferred":"Production authority/runtime/service composition, independent peer review completion, format-boundary qualification, presence/provider qualification, replay/negative/fault/race controls"});
     fs::write(
         output.join("evidence.json"),
         serde_json::to_vec_pretty(&evidence)?,

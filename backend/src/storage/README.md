@@ -159,7 +159,7 @@ second service framework or raw database handle is exposed.
 
 ## Database and dependencies
 
-The new lineage is `houseatlas-rust-storage/1`, database version 3, distinct from
+The new lineage is `houseatlas-rust-storage/1`, database version 4, distinct from
 published JS database version 3 and record schema 1. `0001_rust_core.sql` starts
 from an empty database, including published durable receipts/reservations/epochs
 in its initial schema. Its own checksum ledger and lineage/contract metadata are
@@ -305,11 +305,36 @@ behavior has not been executed as qualification.
 
 `stock_history_json_with_authorization` uses actual audit sequence order and a
 fixed watermark. Cursors are opaque server UUIDs stored with the actor, scope,
-target and exact query. Every page reauthorizes history and output. All relevant
-audits must have original stock linkage before filtering/paging; unavailable
-native prehistory is not silently omitted. `q` is a literal case-sensitive
-substring of original command ID or committed state. Both `includeArchived`
-values preserve historical tombstones and bind the continuation query.
+target and exact query. Every page reauthorizes history and output. Migration 4
+adds a derived `stock_history_lookup`, populated once from existing immutable
+audits and maintained atomically by audit/link insert triggers. Its partial
+unlinked index checks every target audit before the watermark, including search
+nonmatches; unavailable native prehistory is not silently omitted.
+
+History reads use a deferred WAL snapshot. They retrieve and validate at most
+`pageSize + 1` audit bodies and their complete retained roots, deduplicating root
+validation within the page. Root groups, keys and linkage reads are capped at
+their accepted maximum plus one, with an index for keys by root. Only a needed
+continuation cursor takes a separate short IMMEDIATE transaction, after bounded
+validation finishes; the original authority is checked again before commit and
+output release. Immutable rows and the fixed watermark preserve the read facts
+across that gap. No read-to-write upgrade or automatic retry is introduced.
+
+`q` keeps literal case-sensitive substring semantics over original command IDs
+and the committed state. The finite published domain operation catalogue supplies
+matching IDs; each uses the target/command/sequence index with a bounded limit,
+then sequences are merged before audit hydration. Sparse search therefore does
+not scan arbitrary nonmatching history or change full-page/cursor behavior.
+Both `includeArchived` values preserve historical tombstones and bind the query.
+
+The bounded reader uses validated immutable persistence for unreturned envelopes
+instead of exhaustively revalidating the entire history on every request. Page
+and lookahead roots still receive the same receipt/hash/audit/projection checks.
+`StockHistoryFrame.audits` now means those bounded validated inputs, not all
+target audits. Complete recovery validation must verify derived lookup equality
+and the retained catalogue/stock inputs; native-only recovery checks its NULL
+lookup rows against every already validated native audit. Populated stock/queue
+full-image recovery remains unsupported pending its complete qualified peer.
 
 `checks/stock-healthy.rs` executes fresh create/replace/ordered batch commands,
 two history pages, matching search and reopened durable rows. Its schema peer
