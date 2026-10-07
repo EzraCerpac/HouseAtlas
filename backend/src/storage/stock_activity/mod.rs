@@ -173,7 +173,15 @@ impl<
         Ok(value)
     }
     fn transact<T>(&self, f: impl FnOnce(&Connection) -> PortResult<T>) -> PortResult<T> {
-        let mut store = self.store.lock().map_err(|_| StockPortFault::Unavailable)?;
+        // A live call retains the access fence before entering here, while an
+        // evidence policy may consult access with the store already borrowed.
+        // Never wait for the store mutex: contention returns Unavailable and
+        // releases the live fence, so those two paths cannot form a lock cycle.
+        // The caller receives no permit, implicit retry or physical release.
+        let mut store = self
+            .store
+            .try_lock()
+            .map_err(|_| StockPortFault::Unavailable)?;
         if !store.options.stock_activity_profile {
             return Err(StockPortFault::Unavailable);
         }

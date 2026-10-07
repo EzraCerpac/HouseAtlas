@@ -707,6 +707,16 @@ original number tokens; canonical intent/plan hashes still use the shared owner.
 The strict loader checks SQL keys, admission/permit/body linkage, approval rows,
 all event versions and each reducer's fact-to-snapshot transition.
 
+Activity calls never wait for the store mutex: both transaction and runtime
+ID/time borrows use `try_lock`. Contention returns `Unavailable`, including
+while a live call retains the access fence. This prevents a live access/store
+wait cycle with an independent evidence policy that consults access while the
+store is borrowed. The policy must still avoid storage reentry. Contention
+creates no permit, automatic retry or physical release; previously committed
+facts remain retained. This bounded source fix follows PR55's automatic lock
+review. The ordinary native quantity/readback example is rerun; concurrent
+execution and held fault/revocation campaigns are not qualified by that example.
+
 Only original-owner-qualified never-start evidence or correlated `EndedProven`
 can clear the physical slot. Readback, confirmed effects, cancellation and
 expiry cannot clear it. The current native HTTP driver returns `EndUnproven`,

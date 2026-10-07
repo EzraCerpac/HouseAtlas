@@ -23,7 +23,10 @@ impl<
             StockActivityAction::Reserve(command, authority),
         )?;
         let (id, now) = {
-            let store = self.store.lock().map_err(|_| StockPortFault::Unavailable)?;
+            let store = self
+                .store
+                .try_lock()
+                .map_err(|_| StockPortFault::Unavailable)?;
             (
                 Uuid::parse_str(&store.runtime.new_id().map_err(unavailable)?).map_err(evidence)?,
                 store.runtime.now().map_err(unavailable)?,
