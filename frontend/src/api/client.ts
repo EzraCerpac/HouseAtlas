@@ -43,7 +43,7 @@ export function createAtlasClient(
       signal,
     });
     if (response.status === 401) return { status: "expired" };
-    if (response.status === 403) return { status: "revoked" };
+    if (response.status === 403) return { status: "denied" };
     if (!response.ok) throw new AtlasReadError(response.status);
     const payload: unknown = await response.json();
     return decodeAtlasView(payload);
