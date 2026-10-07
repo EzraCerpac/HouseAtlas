@@ -2,6 +2,11 @@
 use super::{HttpFailure, failure};
 use axum::http::{StatusCode, Uri};
 
+// SourceRef contains two bounded opaque strings. JSON may use six ASCII bytes
+// per scalar for escaped controls; these bounds also cover its fixed fields.
+pub(super) const SOURCE_JSON_BYTES: usize = 64 * 1024;
+pub(super) const SOURCE_QUERY_BYTES: usize = 3 * SOURCE_JSON_BYTES + "source=".len();
+
 pub(super) fn one_utf8(
     uri: &Uri,
     name: &str,

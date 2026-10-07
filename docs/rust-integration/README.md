@@ -26,10 +26,10 @@ security, operational recovery or target acceptance.
 | Baseline generation/protocol, retained from main | 07576e6be463dd481b49071071c66dec144b1e0c |
 | Access, original-grant transaction revalidation and explicit lifecycle policy | 4a0cd4da563a32d26677755a608180c960765353 |
 | Combined native core/stock contracts and raw-current/timestamp peer exports | 49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c |
-| Storage schema4, native stock/queue full-image validation and retained outcome correction, over 06eb465f6fe4b99530ef1636b46ea3e01e537106 | 2643eced79c5a581f72cc53634659d93da323cfb |
-| Domain direct native semantics/storage, stock query/authority and canonical result bridges | d9e2b59ffef4b7ac2b11705df735b89d8371fdc5 |
+| Storage fresh schema5, actual atomic upload consumption and checked retained projection | e23a1c959119b1f64061d51555be5f45cf48e3e5 |
+| Domain direct native semantics/storage, stock bridges and live/retained upload factories | 8a568fb6ccef5b0fa575b18d6181dcc524d4db99 |
 | Jobs/stock boundaries | f35bcdc2d9c24646356bc080bfb1ef157120bcb3 |
-| Media native access/storage/runtime and explicit populated-image peer port | 8eca84173bbbc089cbc20c5edf0c154cd13f6646 |
+| Media native access/storage/runtime, genuine original-principal upload stages and populated-image peer port | f0d6b10f00bb93fc1c1dd4eb3ae66ee1fbe3f873 |
 | React session shell, stock completion, native1024 forms and read-only admission status | 26edb0f0cd77eea3e3b763ff980d96566dfa2660 |
 | Native MCP catalog, original opaque access context and service adapter | 97a1335b1419a4c12b2134fec2195ed68d67ed52 |
 | Browser WebMCP family/schema, session and React acknowledgment boundary | 6832e825c636b7b48eeed8fcb085fe3ca277ead3 |
@@ -83,7 +83,8 @@ server admission. Its reason fields display and enforce 1024 Unicode code points
 without clipping or relying on HTML's UTF-16 `maxLength`. The human-form healthy
 runtime flow completes through the real HTTP editing client and preserves its
 canonical receipt across refresh. Native WebMCP classification and canonical
-React completion are demonstrated separately. No upload client is bound.
+React completion are demonstrated separately. The actual attachment client and
+qualified multipart route are now bound; see [upload-preparation.md](upload-preparation.md).
 
 The fixture provisions disposable viewer/editor users through real access APIs
 with random passwords and salted scrypt verifiers. A mode-0600 scratch receipt
@@ -134,9 +135,9 @@ Qualified editing admission is
 It resolves the exact qualified source through the authorized current projection,
 accepted binding and location identity. It returns the real active location
 record and pinned binding, identity and evidence guards. The encoded query is
-limited to 4096 bytes and decoded source JSON to 2048 UTF-8 bytes; the root client
-checks both before fetching. This disposable transport profile covers a subset
-of the frozen SourceRef string range and does not change that shared schema.
+limited to 196,615 bytes and decoded source JSON to 65,536 UTF-8 bytes; the root
+client checks both before fetching. HTTP/2 metadata is bounded at 256 KiB.
+Maximum-range and resource-denial qualification remain unexercised.
 Classification uses
 `atlas.location-semantics.replace` on the existing stock `POST commands` route,
 preserving the full payload and all references except the selected semantic kind.
@@ -183,8 +184,8 @@ original retained principal to MediaService. NativeMediaStorage reads the same
 SQLite store; the vault verifies retained bytes and reviewed preview policy.
 GET and HEAD preserve content length, disposition, sandbox CSP, same-origin
 resource policy and private no-store responses. Cooperative cancellation does
-not establish hard-deadline or concurrency qualification. Fresh upload and
-HomeBox media transport remain unavailable.
+not establish hard-deadline or concurrency qualification. Fresh owned upload
+uses the qualified attachment route; HomeBox media transport remains unavailable.
 
 Mounted MCP is
 `POST /api/atlas/mcp/workspaces/{workspaceId}/homes/{homeId}`. Its cookie/CSRF
@@ -296,7 +297,8 @@ Provider stock preparation, original whole-collection approval, verified
 route/build binding, durable operation activity/liability and qualified physical
 dispatch/readback remain unbound. The root supports ten Atlas record-get arms,
 twenty record/history reads, fresh circuit create, qualified location
-classification replacement and child-only ordered identity-create batches.
+classification replacement, child-only ordered identity-create batches, and
+the ordered genuine-stage asset/evidence/location-identity upload batch.
 Other stock commands remain unbound. Catalogue/schema compilation does not
 establish operation completeness. StockTarget requires a UUID collection; the
 legacy fixture's string collection is preserved. Atlas mutation receipts and the
@@ -331,8 +333,8 @@ JavaScript database migration or adoption is supplied.
 
 Other missing product areas include atomic presence witness admission/recovery,
 trusted real source setup/refresh, actual Network facets, qualified source-native
-links and HomeBox editing, fresh owned uploads and HomeBox media, complete editing beyond the demonstrated
-classification form, recovery/export runtime,
+links and HomeBox editing, HomeBox media, complete editing beyond the demonstrated
+classification and attachment forms, recovery/export runtime,
 aliases/mobility/navigation extensions, geometry import, remote AI clients,
 complete generated host DTOs and full product routes. The corrected human UI
 is adopted and one ordinary classification submission is demonstrated.

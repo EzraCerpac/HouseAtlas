@@ -7,7 +7,7 @@
 //! is inferred from the reconstructed schema carriers below.
 use super::{numeric, repository as repo, stock_projection, stock_repository as stock_repo, *};
 use crate::domain::stock::{
-    self, Authority, Disposition, Effect, OutputKind, StockContractPort, ValidatedRequest,
+    Authority, Disposition, Effect, OutputKind, StockContractPort, ValidatedRequest,
 };
 use rusqlite::{Connection, params};
 use serde_json::{Value, json};
@@ -100,11 +100,9 @@ pub(super) fn validate<C: Contract, S: StockContractPort>(
         uuid(native, &actor)?;
         let commit = stock_repo::load(db, native, &scope, &actor, &id)?;
         check()?;
-        stock_projection::validate_retained(&commit, stock, native)?;
+        stock_projection::validate_retained(db, &commit, stock, native)?;
         check()?;
-        let original = ValidatedRequest::parse(stock, commit.original_request.clone())
-            .map_err(|_| incompatible())?;
-        let plan = stock::plan_atlas_commands(&original, native).map_err(|_| incompatible())?;
+        let (_, plan) = stock_projection::retained_plan(db, &commit, stock, native)?;
         require(plan.scope() == &scope && plan.root_idempotency_key() == key)?;
         require(keys.insert((
             scope.workspace_id.clone(),
@@ -202,6 +200,7 @@ pub(super) fn validate<C: Contract, S: StockContractPort>(
     drop(rows);
     drop(statement);
     validate_owned_rows(db, groups, keys, links, check)?;
+    super::upload_repository::validate_all(db, native, stock, check)?;
     validate_lookup(db, check)?;
     validate_cursors(db, native, stock, check)?;
     check()

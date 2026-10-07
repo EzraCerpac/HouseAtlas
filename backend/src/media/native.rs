@@ -30,9 +30,13 @@ impl RetainedPrincipal {
     pub fn principal(&self) -> &a::Principal {
         &self.0
     }
+
+    pub(super) fn same_original(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
 }
 
-fn access_error(error: a::AccessError) -> MediaError {
+pub(super) fn access_error(error: a::AccessError) -> MediaError {
     match error {
         a::AccessError::Unauthenticated => MediaError::Unauthenticated,
         a::AccessError::Forbidden => MediaError::Forbidden,
@@ -55,7 +59,7 @@ pub(super) fn storage_error(error: s::Error) -> MediaError {
     }
 }
 
-fn access_scope(scope: &Scope) -> MediaResult<a::Scope> {
+pub(super) fn access_scope(scope: &Scope) -> MediaResult<a::Scope> {
     scope.validate()?;
     Ok(a::Scope {
         workspace_id: a::CanonicalId::parse(&scope.workspace_id).map_err(access_error)?,

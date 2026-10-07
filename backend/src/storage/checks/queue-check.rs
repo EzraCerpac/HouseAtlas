@@ -632,7 +632,8 @@ struct PopulatedExpected {
     retained_cursor: String,
 }
 
-const TABLES: [&str; 28] = [
+const TABLES: [&str; 29] = [
+    "upload_consumptions",
     "atlas_rust_migrations",
     "atlas_rust_metadata",
     "records",
@@ -1258,7 +1259,7 @@ pub(crate) fn run(populated_recovery: bool) -> CheckResult<()> {
                 "fixtureEvidenceOnly":true,
             }))?,
         )?;
-        println!("populated synthetic recovery: stock, queue, exact 28-table image, strict reopen");
+        println!("populated synthetic recovery: stock, queue, exact 29-table image, strict reopen");
     }
     println!(
         "healthy synthetic AT07: enqueue, original recovery, claim, native journal, atomic finish, reopened receipt"

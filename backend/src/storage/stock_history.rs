@@ -141,6 +141,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             if validated_roots.insert((audit.actor_id.clone(), root.clone())) {
                 let commit = stock_repo::load(&tx, &self.contract, &scope, &audit.actor_id, &root)?;
                 super::super::stock_projection::validate_retained(
+                    &tx,
                     &commit,
                     contracts,
                     &self.contract,

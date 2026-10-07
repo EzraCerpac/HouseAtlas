@@ -16,6 +16,7 @@ mod platform_fs;
 mod private_fs;
 pub mod recovery;
 pub mod service;
+pub mod staged_upload;
 pub mod types;
 pub mod vault;
 
@@ -23,6 +24,8 @@ pub mod vault;
 mod healthy_examples;
 #[cfg(test)]
 mod healthy_native_examples;
+#[cfg(test)]
+mod healthy_upload_examples;
 
 pub use budget::{Cancellation, WorkBudget};
 pub use types::{MediaError, MediaResult};
