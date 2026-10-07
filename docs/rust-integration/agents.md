@@ -217,3 +217,10 @@ current CSRF, MCP initialization/discovery and all three saved query calls. Thei
 canonical structured/text results match the same HTTP source data. Seventeen
 root TLS requests still cause exactly one loopback inventory GET; populated
 recovery, provider activation and held controls remain outside this flow.
+
+Lantern composition retains the exact original native result boundary and
+exposes existing feature forms through Changes / Atlas tools. The named list
+fixture additionally checks actual Chrome responsive fit and focused-input
+Escape/focus restoration. Its evidence records candidate commit/tree, clean
+working-tree state, binary/frontend index SHA256 and native input events; only
+a clean candidate rebuilt at that pin qualifies the exact assembled source.

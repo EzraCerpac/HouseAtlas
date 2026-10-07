@@ -29,6 +29,7 @@ fn frontend(directory: &Path) -> Result<BTreeMap<String, (String, Vec<u8>)>, lif
                 Some("html") => "text/html; charset=utf-8",
                 Some("js") => "text/javascript; charset=utf-8",
                 Some("css") => "text/css; charset=utf-8",
+                Some("woff2") => "font/woff2",
                 _ => return Err("Unsupported frontend asset type".into()),
             };
             let key = format!(

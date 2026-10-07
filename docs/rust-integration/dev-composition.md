@@ -34,8 +34,14 @@ and identity-only/mixed batches; the other mapped forms remain runtime-unqualifi
 
 Six specialized single Atlas writes now reuse the original derived planner and
 same-Store native transaction; see [specialized writes](atlas-specialized-writes.md).
-Standalone stock staged asset-create intake, renderer-qualified asset review and
-mixed derived batches remain source implementation gaps. Four cached HomeBox
+Standalone text/plain stock asset-create now uses same-request actual Media
+staging, the original Access allocation and atomic Store consumption. Its named
+healthy TLS fixture verifies the one committed receipt, linked history and exact
+authenticated download bytes. Generic JSON staged intake, renderer-qualified
+asset review and mixed derived batches remain separate source implementation gaps.
+Media now provides opaque actual retained-byte renderer proof with exact
+request/preimage/successor revalidation; its example does not prove a Store commit
+or host receipt custody. Four cached HomeBox
 entity/location reads are mounted in native stock and HTTP/MCP. The remaining
 HomeBox read families and durable writer host require genuine owner peers.
 Missing product areas include Core-only MCP download admission and download link
@@ -80,3 +86,17 @@ generation before publication. See [network-archive-custody.md](network-archive-
 The three saved stock query forms are mounted in HTTP only for scopes with an
 actual configured Network binding. Mounted MCP shares those bindings and exact
 original read/disclosure runtime. They never refresh or construct a provider.
+
+The exact selected Lantern source donor `7f60415868db45ed0d10aa1da5fe33e43b1e58ab`
+is adopted with all 44 authored archive hashes retained. The root serves local
+WOFF2 fonts under the existing file/size/symlink bounds. Native Chrome validates
+ten lists, fresh continuation, exact visible result commitment, responsive fit
+and focused search-input Escape. Original feature forms remain under Changes /
+Atlas tools. Source geometry/citations/history/download-expiry gaps remain
+truthful; prototype fixture engines are not mounted.
+
+The read-only [review ledger](review-source-ledger.md) retains the captured 53
+comments despite the delegation’s 52-thread reference; no review state was
+closed. The unpublished Access `b1fbc9d` original read-fence donor remains absent
+from the accessible local object store and GitHub remote (commit lookup HTTP422).
+Its original authority is not replaced by fixtures or a manufactured grant.

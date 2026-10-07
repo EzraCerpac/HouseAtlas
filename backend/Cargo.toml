@@ -96,3 +96,7 @@ path = "../tools/rust-integration/examples/healthy_network_host.rs"
 [[example]]
 name = "healthy-homebox-cache-stock"
 path = "src/http/providers/homebox_stock_healthy.rs"
+
+[[example]]
+name = "healthy-asset-review"
+path = "src/media/healthy_asset_review.rs"

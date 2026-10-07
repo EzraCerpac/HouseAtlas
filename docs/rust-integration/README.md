@@ -213,6 +213,7 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     node tools/rust-integration/check-source.mjs
     cargo run --locked -p houseatlas-backend --example healthy-agent-stock
     cargo run --locked -p houseatlas-backend --example healthy-homebox-cache-stock
+    cargo run --locked -p houseatlas-backend --example healthy-asset-review
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-atlas-lists-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-core-loopback.mjs
@@ -241,6 +242,10 @@ forms through the actual native dispatcher and borrowed in-process MCP adapter.
 Its private fixture clone uses UUID collection IDs required by wire3; the actual
 opaque source-ID compatibility gap remains unresolved. It opens no listener and
 performs no provider I/O.
+The healthy-asset-review example measures/render-strips one private retained
+synthetic PNG, binds an opaque proof to actual original Access authority, and
+checks exact native request/preimage/Domain-mapped successor. It proves neither
+original admission nor Store commit nor cross-request host receipt custody.
 
 The separate standalone-asset runner uses no browser. It performs one actual
 editor HTTP login and fresh text/plain, unknown-license, download-only asset

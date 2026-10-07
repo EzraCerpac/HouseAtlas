@@ -2,6 +2,7 @@
 // No rejection/replay/expiry/revocation/fault/crash/concurrency control or provider.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, existsSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -92,6 +93,28 @@ try {
     console.error(JSON.stringify({healthyBootstrapResponses: responses, runtimeErrors, renderedText: await evaluate('document.body?.innerText ?? ""'), healthyView: await evaluate("fetch('/api/atlas/view',{credentials:'same-origin',cache:'no-store',redirect:'error'}).then(async r=>({status:r.status,body:await r.json()}))")}));
     throw error;
   }
+  const responsive = [];
+  for (const width of [1440, 834, 390]) {
+    await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+    await until(async () => await evaluate(`window.innerWidth === ${width}`), 'Lantern viewport');
+    const fit = await evaluate('({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,home:document.querySelector(".house-name")?.textContent})');
+    assert(fit.scrollWidth <= fit.width + 1, 'Lantern fits the actual viewport');
+    assert.equal(fit.home, 'Synthetic home');
+    responsive.push(fit);
+    if (process.env.HOUSEATLAS_SCREENSHOT_PREFIX) {
+      const screenshot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+      writeFileSync(process.env.HOUSEATLAS_SCREENSHOT_PREFIX + '-' + width + '.png', Buffer.from(screenshot.data, 'base64'));
+    }
+  }
+  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+  const searchPoint = await evaluate('(()=>{const rect=document.querySelector(".search-trigger").getBoundingClientRect();return {x:rect.x+rect.width/2,y:rect.y+rect.height/2};})()');
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', ...searchPoint, button: 'left', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...searchPoint, button: 'left', clickCount: 1 });
+  await until(async () => await evaluate('document.activeElement === document.querySelector(".palette input[role=combobox]")'), 'Actual search input focus');
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+  await until(async () => await evaluate('!document.querySelector(".palette")'), 'Native Chrome Escape closes focused search input');
+  assert.equal(await evaluate('document.activeElement === document.querySelector(".search-trigger")'), true, 'Search restores trigger focus');
   const bootstrap = await evaluate("fetch('/api/atlas/view',{credentials:'same-origin',cache:'no-store',redirect:'error'}).then(async r=>({status:r.status,body:await r.json()}))");
   assert.equal(bootstrap.status,200);
   const view=bootstrap.body;
@@ -148,7 +171,14 @@ try {
   assert.equal(runtimeErrors.length,0);
   assert(observedUrls.every(url=>url.startsWith(origin+'/')),'All observed page requests stay on loopback');
   assert(responses.every(response=>response.status===200||(response.status===204&&response.url===origin+'/favicon.ico')),'Only healthy successful responses');
-  const evidence={browser:version.product,native,admittedReads:result.admission.commandIds.length,listHandlers:result.collections.map(item=>({kind:item.kind,count:item.wire.data.records.length,commandId:item.wire.commandId})),exactEnvelopeInvokes:result.invokes,continuation:{freshFirstNonNull:true,nextNull:true,pageSize:1,distinctRecords:2,restToNativeWebMcp:true,exactVisibleBeforeReturn:true},filtered:{q:'ITEM',includeArchived:true,records:1},persisted:persisted.counts,observedRequests:observedUrls.length,scope:'Actual Rust/Access/SQLite/React healthy synthetic loopback TLS: all ten REST lists, exact ten invoke envelopes, one fresh nonnull cursor continuation through native WebMCP, one literal positive filter. No login/logout/write/MCP/provider/stopped control. Populated asset and archived rows remain unqualified.'};
+  const git = args => { const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' }); assert.equal(result.status, 0); return result.stdout.trim(); };
+  const candidateCommit = git(['rev-parse','HEAD']);
+  if (process.env.SOURCE_SHA) assert.equal(candidateCommit, process.env.SOURCE_SHA, 'Exact configured candidate');
+  const provenance = { candidateCommit, candidateTree: git(['rev-parse','HEAD^{tree}']), workingTreeClean: git(['status','--porcelain']) === '',
+    binarySha256: createHash('sha256').update(readFileSync(resolve(binary))).digest('hex'),
+    frontendIndexSha256: createHash('sha256').update(readFileSync(join(root,'frontend/dist/index.html'))).digest('hex'),
+    inputTrace: [{ event:'native mouse click', target:'.search-trigger' }, { event:'native keyDown', key:'Escape', code:'Escape', focused:'input[role=combobox]' }, { event:'native keyUp', key:'Escape', code:'Escape' }] };
+  const evidence={browser:version.product,provenance,native,lantern:{responsive,searchInputEscape:true,restoredFocus:true},admittedReads:result.admission.commandIds.length,listHandlers:result.collections.map(item=>({kind:item.kind,count:item.wire.data.records.length,commandId:item.wire.commandId})),exactEnvelopeInvokes:result.invokes,continuation:{freshFirstNonNull:true,nextNull:true,pageSize:1,distinctRecords:2,restToNativeWebMcp:true,exactVisibleBeforeReturn:true},filtered:{q:'ITEM',includeArchived:true,records:1},persisted:persisted.counts,observedRequests:observedUrls.length,scope:'Actual Rust/Access/SQLite/React healthy synthetic loopback TLS: all ten REST lists, exact ten invoke envelopes, one fresh nonnull cursor continuation through native WebMCP, one literal positive filter. No login/logout/write/MCP/provider/stopped control. Populated asset and archived rows remain unqualified.'};
   if(process.env.HOUSEATLAS_EVIDENCE)writeFileSync(process.env.HOUSEATLAS_EVIDENCE,JSON.stringify(evidence,null,2)+'\n');
   console.log(JSON.stringify(evidence,null,2));
 
