@@ -1,7 +1,6 @@
 //! Root cached-read mounting; provider refresh and credential bridges are separate.
 pub mod homebox_reads;
 pub mod network;
-pub mod network_host;
 
 use super::{CheckedHeaders, Host, HttpResult, authorized_read, failure, json_response};
 use crate::domain as d;

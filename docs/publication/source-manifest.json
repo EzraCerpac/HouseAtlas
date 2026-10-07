@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "836b52b828eb424f08d0f3ef9ec3f6a062677dfecf2f3d4ed698e19b007ed41f",
+  "sourceDigestSha256": "86459078ded446cd07ce41e34ee59af97010f24e10bffc54a6b547a7bf1e9d22",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -69,8 +69,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 2287,
-      "sha256": "e1f83c7c5c667af697f5305a439e4363a35275a5ff6874a023ec26241701429d",
+      "bytes": 2887,
+      "sha256": "f6072cf238c0ff1c61d0e88041c5da119615ec723154f77ca7178e48f1dab54e",
       "owner": "core-integration"
     },
     {
@@ -90,8 +90,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 3430,
-      "sha256": "7d9a45682677a3018707bda404009be606a79eea5e0b5b7e0bbe57cff572b313",
+      "bytes": 5380,
+      "sha256": "1839ab7a42697d37ff2f432a5cd55743bd781e1c36712087a6383474982da1fb",
       "owner": "core-integration"
     },
     {
@@ -825,22 +825,43 @@
     {
       "path": "backend/src/domain/stock/README.md",
       "mode": "100644",
-      "bytes": 16299,
-      "sha256": "935272fadda1f73071902ce05996fbe75e6e92944da6582ce172f4f917d105bf",
+      "bytes": 16739,
+      "sha256": "13f5bbd25b9f68044b20cc767e590c3bd7b53adb90f6cf0b5f53d25d2f02acb7",
       "owner": "domain"
     },
     {
       "path": "backend/src/domain/stock/atlas_commands.rs",
       "mode": "100644",
-      "bytes": 11599,
-      "sha256": "25a358577c9ce7a8c46446a2b1acad8e3a4f2d928a9eb237bbe676869a531b66",
+      "bytes": 13372,
+      "sha256": "07f868e73f64f3f77788e80811577c7febe9ca0427942af2273ff660099dd86b",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/atlas_downloads.rs",
+      "mode": "100644",
+      "bytes": 18224,
+      "sha256": "2875d62c2c985365e5ae67f7cd5d5fe6d242543aaf526b5907e9047381f84245",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/atlas_lists.md",
+      "mode": "100644",
+      "bytes": 6159,
+      "sha256": "7cdbef78f68f2b2cb46224723e5342f059045e15d45f00faf65464f14f7bd2ee",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/atlas_lists.rs",
+      "mode": "100644",
+      "bytes": 9659,
+      "sha256": "4e5719fd5d354b47ed4dae8897a212e9e02fcacee39ed89c5c4c697304aea985",
       "owner": "domain"
     },
     {
       "path": "backend/src/domain/stock/atlas_reads.rs",
       "mode": "100644",
-      "bytes": 7512,
-      "sha256": "ed8cff1bca47311c005e4fed3b180ac0ad48290386eacdf638b8345364158163",
+      "bytes": 13064,
+      "sha256": "e3db486ae28f19526bae7c0ec03a8428c4dd081626ead7f51383b554d3e2ea09",
       "owner": "domain"
     },
     {
@@ -865,10 +886,38 @@
       "owner": "domain"
     },
     {
+      "path": "backend/src/domain/stock/derived_atlas_commands.rs",
+      "mode": "100644",
+      "bytes": 10390,
+      "sha256": "d630f2ade8b1873016dec457d4411b7e5b31f483785625683d72a7312c91e16e",
+      "owner": "domain"
+    },
+    {
       "path": "backend/src/domain/stock/digest.rs",
       "mode": "100644",
       "bytes": 3171,
       "sha256": "ccae1bccf415e062226d01b7d898244eaa8ba327a48fabd45b66d49f05b95bfd",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/examples/atlas_download_healthy.rs",
+      "mode": "100644",
+      "bytes": 11468,
+      "sha256": "55579dc97808942bb50632d502596f682f1be6d7a488ab4bf8c57c191a425181",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/examples/atlas_lists_healthy.rs",
+      "mode": "100644",
+      "bytes": 24720,
+      "sha256": "da277dce2521e9a7597c8d99ef6fe667ad8c5e7688f5189f55e1eb24700b4567",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/examples/atlas_mappings_healthy.rs",
+      "mode": "100644",
+      "bytes": 9489,
+      "sha256": "bff1f50880efc94ea88304b6a3469dc8316883d86f7571ce3b68390e44123503",
       "owner": "domain"
     },
     {
@@ -923,8 +972,8 @@
     {
       "path": "backend/src/domain/stock/mod.rs",
       "mode": "100644",
-      "bytes": 1768,
-      "sha256": "5e86511433ef95832ff7c88a3b8e86c162e666c4324698d984ea9b1679c0c33b",
+      "bytes": 1921,
+      "sha256": "04f4ecab5221327a62d458c9e8fd941317dc39a74cae5dc7104472af348d6593",
       "owner": "domain"
     },
     {
@@ -988,6 +1037,13 @@
       "mode": "100644",
       "bytes": 2947,
       "sha256": "93a6265262ed36f0dfc6b439069720462adde15693618bae19fcd3068b018d5e",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/service_integration.md",
+      "mode": "100644",
+      "bytes": 5706,
+      "sha256": "b47935b846afff3f182e881beae11952dd6395f9166dd8324b2cde424671d1bc",
       "owner": "domain"
     },
     {
@@ -1098,8 +1154,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 22600,
-      "sha256": "608736c21324b6f5de135a1ac6062710b2d128d39ef2928fd827fcfb50e74901",
+      "bytes": 22595,
+      "sha256": "740ebd88a6ea56bdcbed715b30f22bd44052a206cadc1827b8006e3458e2c38d",
       "owner": "core-integration"
     },
     {
@@ -1126,19 +1182,12 @@
     {
       "path": "backend/src/http/providers/mod.rs",
       "mode": "100644",
-      "bytes": 4111,
-      "sha256": "baf15cb8b40320cea51a194bb0c53cd16f6503b51a70049c2e3e157295769c78",
+      "bytes": 4089,
+      "sha256": "57b21e6b9947b7332c4fb2eaeab9012e3221b072f2dd69ff8383fafaafe729db",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/http/providers/network.rs",
-      "mode": "100644",
-      "bytes": 7784,
-      "sha256": "8bf35b4b7a7375a92fef919b892c3366ba39ac01df4ba7d41bc14a070998b413",
-      "owner": "core-integration"
-    },
-    {
-      "path": "backend/src/http/providers/network_host.rs",
       "mode": "100644",
       "bytes": 4997,
       "sha256": "fde799548a43c713962abbf607f2d457e6e95f9f858a31af2e02e07488cbdedd",
@@ -1301,8 +1350,8 @@
     {
       "path": "backend/src/lifecycle/providers/network.rs",
       "mode": "100644",
-      "bytes": 12366,
-      "sha256": "b6eee8e69abf23f181a781587dfee6f0922c513bf06aaeded51869a1400f125e",
+      "bytes": 2426,
+      "sha256": "3d38f80d3f50dff18d8736d4ede1d2da808db5fcc16722d4f19aa54757c07d76",
       "owner": "core-integration"
     },
     {
@@ -2876,8 +2925,8 @@
     {
       "path": "docs/operations/qualification-and-rollout.md",
       "mode": "100644",
-      "bytes": 1067,
-      "sha256": "942799b8ab8bcf5816b98ee63228d6e582836f017391d800a7e073e091e2ccb3",
+      "bytes": 1552,
+      "sha256": "20dd5366613f50429a1ba823b584970161ba412b686b076071fab465712eb31d",
       "owner": "operations-policy"
     },
     {
@@ -2890,8 +2939,8 @@
     {
       "path": "docs/operations/scenario-validation.md",
       "mode": "100644",
-      "bytes": 1382,
-      "sha256": "fcd93c8961f1872d4979c4a8faa4b755c5940518619a3d01c57820c47de0e73b",
+      "bytes": 1817,
+      "sha256": "8fd371ebf340a02f99908b4ab99b5a67480fad4650df6cc7bc146f50b59876ed",
       "owner": "operations-policy"
     },
     {
@@ -2946,8 +2995,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 30794,
-      "sha256": "cb4c3aecd45524f959e413b45d2fe9711c2fab5b1090156a76e40b900b59ecde",
+      "bytes": 32189,
+      "sha256": "b1f61ce7d5e7255c6238fee2c236259c1fd6c083c53c06c10eb16c31343a2771",
       "owner": "core-integration"
     },
     {
@@ -2960,8 +3009,8 @@
     {
       "path": "docs/rust-integration/agents.md",
       "mode": "100644",
-      "bytes": 11485,
-      "sha256": "e6d6a5482967668f28bddc2760052e26b8620956131698c747d2992ea1168693",
+      "bytes": 12186,
+      "sha256": "019b7676e0ed86ae513723da09b424413348aab161c1c1b0a10c621a285f24d2",
       "owner": "core-integration"
     },
     {

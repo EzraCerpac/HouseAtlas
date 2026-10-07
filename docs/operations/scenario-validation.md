@@ -14,3 +14,10 @@
 Retained operations model tests are design source, not CI results. None of their
 rejection, tampering, omission, concurrency or failure-injection cases is run
 by the ordinary lane. The exact narrow CI coverage is described in README.md.
+
+The separate regression lane in README.md permits exact reviewed concurrency,
+denial and failure-injection cases with its disposable synthetic/local-only
+safeguards. Other held controls remain held unless an individual overlapping case
+genuinely fits that exact approved scope. No regression execution or additional
+qualification is claimed by this policy change; provider/target and production
+recovery checks above remain deferred.
