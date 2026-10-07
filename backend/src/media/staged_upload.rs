@@ -20,11 +20,14 @@ use super::types::{
 use super::vault::PreparedOriginal;
 use super::{AssetVault, MediaError, MediaResult, WorkBudget};
 
+#[path = "upload_maintenance.rs"]
+mod maintenance;
+pub use maintenance::{StageCleanup, UploadLimits, UploadUsage};
+
 const STAGE_FORMAT: &str = "houseatlas-owned-upload-stage/1";
 const PLAN_FORMAT: &str = "houseatlas-owned-upload-plan-binding/1";
 const MAX_STAGE: usize = 64 * 1024;
 const MAX_PLAN: usize = 1024 * 1024;
-const MAX_PENDING: usize = 10_000;
 
 /// Host admission data, not an approval or caller-supplied asset identity.
 pub struct UploadAdmission {
@@ -119,6 +122,7 @@ pub struct NativeUploadStages<'a, R> {
     directory: PrivateDir,
     schemas: stock::NativeStockContract,
     originals: Mutex<BTreeMap<String, RetainedPrincipal>>,
+    limits: UploadLimits,
 }
 
 fn stock_error(error: stock::StockError) -> MediaError {
@@ -178,24 +182,27 @@ fn upload_token() -> MediaResult<String> {
 
 impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
     pub fn open(vault: &'a AssetVault, runtime: &'a R) -> MediaResult<Self> {
+        Self::open_with_limits(vault, runtime, UploadLimits::default())
+    }
+
+    /// Trusted serialized host policy, never caller upload metadata.
+    pub fn open_with_limits(
+        vault: &'a AssetVault,
+        runtime: &'a R,
+        limits: UploadLimits,
+    ) -> MediaResult<Self> {
+        limits.validate()?;
         Ok(Self {
             directory: vault.upload_directory()?,
             vault,
             runtime,
             schemas: stock::NativeStockContract::new().map_err(stock_error)?,
             originals: Mutex::new(BTreeMap::new()),
+            limits,
         })
     }
 
-    pub fn stage_original(
-        &self,
-        guard: &a::TransactionAuthorization<'_>,
-        original: &RetainedPrincipal,
-        admission: UploadAdmission,
-        body: &mut impl Read,
-        budget: &WorkBudget,
-    ) -> MediaResult<UploadReceipt> {
-        let scope = authorize(guard, original, budget)?;
+    fn validate_admission(&self, admission: &UploadAdmission) -> MediaResult<()> {
         if !is_uuid(&admission.request_id)
             || !admission.purpose.is_original()
             || admission.filename.is_empty()
@@ -230,11 +237,25 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
             }),
             MAX_STAGE,
         )?;
+        Ok(())
+    }
+
+    pub fn stage_original(
+        &self,
+        guard: &a::TransactionAuthorization<'_>,
+        original: &RetainedPrincipal,
+        admission: UploadAdmission,
+        body: &mut impl Read,
+        budget: &WorkBudget,
+    ) -> MediaResult<UploadReceipt> {
+        let scope = authorize(guard, original, budget)?;
+        self.validate_admission(&admission)?;
+        self.expire_pending(budget)?;
         let mut originals = self
             .originals
             .try_lock()
             .map_err(|_| MediaError::Unavailable)?;
-        if originals.len() >= MAX_PENDING {
+        if self.usage(budget)?.pending_stages >= self.limits.max_pending {
             return Err(MediaError::TooLarge);
         }
         let token = upload_token()?;
@@ -247,12 +268,17 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
             MAX_STAGE,
         )?)
         .map_err(|_| MediaError::Unavailable)?;
+        // The durable reservation precedes blob installation. Interrupted
+        // reservations and immutable originals remain charged after reopen.
+        let pending = self.directory.temporary(".upload-")?;
+        self.write_lifetime(&pending.directory)?;
         let prepared = self.vault.prepare_upload_original(
             &scope,
             admission.purpose,
             admission.content_type,
             body,
             budget,
+            &self.limits,
         )?;
         let payload = prepared.with_provenance(admission.source_license, admission.evidence_ids)?;
         let staged = StagedFile {
@@ -277,7 +303,6 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
         };
         let key = sha256(token.as_bytes());
         self.directory.require_absent(&key)?;
-        let pending = self.directory.temporary(".upload-")?;
         pending.directory.write_new(
             "stage.json",
             &checked_bytes(&record, MAX_STAGE)?,
@@ -326,9 +351,10 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
             return Err(MediaError::Unsupported);
         }
         let directory = self.directory.child(&key, false)?;
-        if directory.members()? != ["stage.json"] {
+        if directory.members()? != ["lifetime.json", "stage.json"] {
             return Err(MediaError::Conflict);
         }
+        self.require_live(&directory, budget)?;
         let record: StageRecord =
             serde_json::from_slice(&directory.read("stage.json", MAX_STAGE, budget)?)
                 .map_err(|_| MediaError::Unavailable)?;
