@@ -96,6 +96,45 @@ impl AssetVault {
         self.staging.check()
     }
 
+    /// Pending upload receipts belong to this vault, not an independent DB.
+    /// Recovery exports committed originals; it does not export these receipts.
+    pub(super) fn upload_directory(&self) -> MediaResult<PrivateDir> {
+        self.check_hierarchy()?;
+        self.root.child("uploads", true)
+    }
+
+    /// Reopen and prove actual prepared bytes without inventing an asset record,
+    /// audit ID or timestamp before the storage transaction creates them.
+    pub(super) fn verify_prepared_original(
+        &self,
+        scope: &Scope,
+        prepared: &PreparedOriginal,
+        budget: &WorkBudget,
+    ) -> MediaResult<BlobIdentity> {
+        scope.validate()?;
+        let identity = &prepared.identity;
+        if !prepared.purpose.is_original()
+            || prepared.storage_key != scope.storage_key(&identity.sha256)?
+            || identity.byte_size == 0
+            || identity.byte_size > MAX_BYTES as u64
+        {
+            return Err(MediaError::Unavailable);
+        }
+        self.with_scope(scope, false, |directory| {
+            let member = format!("{}.blob", identity.sha256);
+            let bytes = directory.read(&member, MAX_BYTES, budget)?;
+            if bytes.len() as u64 != identity.byte_size || sha256(&bytes) != identity.sha256 {
+                return Err(MediaError::Unavailable);
+            }
+            validate_content(&bytes, prepared.content_type, budget)?;
+            self.sync_retained_member(directory, &member, budget)?;
+            Ok(BlobIdentity {
+                sha256: sha256(&bytes),
+                byte_size: bytes.len() as u64,
+            })
+        })
+    }
+
     /// Bottom-up barrier for a complete restored vault, including empty dirs.
     pub(crate) fn sync_retained_hierarchy(&self) -> MediaResult<()> {
         self.check_hierarchy()?;
