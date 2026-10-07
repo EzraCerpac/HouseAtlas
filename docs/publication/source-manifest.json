@@ -22,7 +22,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "4f5843dabaadbbb726c1a2692f8ea10e7e28ddd8eda7d9a6f798da11598bc6b0",
+  "sourceDigestSha256": "952a727354ddf67af0c1b21dec111e1673f15fbe221ff2e67d552abf6bb74190",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -741,22 +741,43 @@
     {
       "path": "backend/src/domain/stock/README.md",
       "mode": "100644",
-      "bytes": 16299,
-      "sha256": "935272fadda1f73071902ce05996fbe75e6e92944da6582ce172f4f917d105bf",
+      "bytes": 16739,
+      "sha256": "13f5bbd25b9f68044b20cc767e590c3bd7b53adb90f6cf0b5f53d25d2f02acb7",
       "owner": "domain"
     },
     {
       "path": "backend/src/domain/stock/atlas_commands.rs",
       "mode": "100644",
-      "bytes": 11599,
-      "sha256": "25a358577c9ce7a8c46446a2b1acad8e3a4f2d928a9eb237bbe676869a531b66",
+      "bytes": 13372,
+      "sha256": "07f868e73f64f3f77788e80811577c7febe9ca0427942af2273ff660099dd86b",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/atlas_downloads.rs",
+      "mode": "100644",
+      "bytes": 18224,
+      "sha256": "2875d62c2c985365e5ae67f7cd5d5fe6d242543aaf526b5907e9047381f84245",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/atlas_lists.md",
+      "mode": "100644",
+      "bytes": 6159,
+      "sha256": "7cdbef78f68f2b2cb46224723e5342f059045e15d45f00faf65464f14f7bd2ee",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/atlas_lists.rs",
+      "mode": "100644",
+      "bytes": 9659,
+      "sha256": "4e5719fd5d354b47ed4dae8897a212e9e02fcacee39ed89c5c4c697304aea985",
       "owner": "domain"
     },
     {
       "path": "backend/src/domain/stock/atlas_reads.rs",
       "mode": "100644",
-      "bytes": 7512,
-      "sha256": "ed8cff1bca47311c005e4fed3b180ac0ad48290386eacdf638b8345364158163",
+      "bytes": 13064,
+      "sha256": "e3db486ae28f19526bae7c0ec03a8428c4dd081626ead7f51383b554d3e2ea09",
       "owner": "domain"
     },
     {
@@ -781,10 +802,38 @@
       "owner": "domain"
     },
     {
+      "path": "backend/src/domain/stock/derived_atlas_commands.rs",
+      "mode": "100644",
+      "bytes": 10390,
+      "sha256": "d630f2ade8b1873016dec457d4411b7e5b31f483785625683d72a7312c91e16e",
+      "owner": "domain"
+    },
+    {
       "path": "backend/src/domain/stock/digest.rs",
       "mode": "100644",
       "bytes": 3171,
       "sha256": "ccae1bccf415e062226d01b7d898244eaa8ba327a48fabd45b66d49f05b95bfd",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/examples/atlas_download_healthy.rs",
+      "mode": "100644",
+      "bytes": 11468,
+      "sha256": "55579dc97808942bb50632d502596f682f1be6d7a488ab4bf8c57c191a425181",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/examples/atlas_lists_healthy.rs",
+      "mode": "100644",
+      "bytes": 24720,
+      "sha256": "da277dce2521e9a7597c8d99ef6fe667ad8c5e7688f5189f55e1eb24700b4567",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/examples/atlas_mappings_healthy.rs",
+      "mode": "100644",
+      "bytes": 9489,
+      "sha256": "bff1f50880efc94ea88304b6a3469dc8316883d86f7571ce3b68390e44123503",
       "owner": "domain"
     },
     {
@@ -839,8 +888,8 @@
     {
       "path": "backend/src/domain/stock/mod.rs",
       "mode": "100644",
-      "bytes": 1768,
-      "sha256": "5e86511433ef95832ff7c88a3b8e86c162e666c4324698d984ea9b1679c0c33b",
+      "bytes": 1921,
+      "sha256": "04f4ecab5221327a62d458c9e8fd941317dc39a74cae5dc7104472af348d6593",
       "owner": "domain"
     },
     {
@@ -904,6 +953,13 @@
       "mode": "100644",
       "bytes": 2947,
       "sha256": "93a6265262ed36f0dfc6b439069720462adde15693618bae19fcd3068b018d5e",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/stock/service_integration.md",
+      "mode": "100644",
+      "bytes": 5706,
+      "sha256": "b47935b846afff3f182e881beae11952dd6395f9166dd8324b2cde424671d1bc",
       "owner": "domain"
     },
     {

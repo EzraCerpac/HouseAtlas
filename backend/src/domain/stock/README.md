@@ -244,3 +244,10 @@ bindings and complete recovery remain host integration duties; provider
 dispatch remains held. See `../README.md` for the earlier pins and fresh
 storage example; older compiler/runtime intervals above retain their original
 scope and are not proof of these new bindings.
+
+The service successor adds all ten Atlas list query forms, a shared closed
+direct-write mapping helper, specialized pure derivation mapping and a wire3
+download owner over existing managed Media delivery. See `atlas_lists.md` and
+`service_integration.md` for exact interfaces, owner dependencies and root
+adoption. Specialized derivation remains data until Storage's same-transaction
+qualification and immutable retention are implemented.
