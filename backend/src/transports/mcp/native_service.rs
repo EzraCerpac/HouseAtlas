@@ -1,8 +1,44 @@
 //! Thin synchronous native-domain composition; no provider or persistence rules.
 use std::sync::Mutex;
 
-use super::{NativeOperation, NativeOutput, NativePrincipal, PortError, PortFuture, ServicePort};
+use super::{
+    AssetDownloadCodec, AssetDownloadPort, NativeOperation, NativeOutput, NativePrincipal,
+    PortError, PortFuture, ServicePort,
+};
 use crate::{access, domain::stock};
+
+/// Query composition with one independently injected download owner. This
+/// returns unreleased owner results through the same domain dispatch boundary.
+pub struct NativeQueries<Q, D> {
+    queries: Q,
+    downloads: AssetDownloadCodec<D>,
+}
+
+impl<Q, D> NativeQueries<Q, D> {
+    pub fn new(queries: Q, downloads: D) -> stock::StockResult<Self> {
+        Ok(Self {
+            queries,
+            downloads: AssetDownloadCodec::new(downloads)?,
+        })
+    }
+}
+
+impl<P, W, G, Q, D> stock::StockQueryPort<P, W, G> for NativeQueries<Q, D>
+where
+    Q: stock::StockQueryPort<P, W, G>,
+    D: AssetDownloadPort<P, W, G>,
+{
+    fn query(
+        &mut self,
+        principal: &P,
+        prepared: &stock::PreparedRequest<W, G>,
+    ) -> stock::StockResult<stock::OwnerResult> {
+        match prepared.request().id() {
+            stock::OperationId::AtlasAssetDownload => self.downloads.query(principal, prepared),
+            _ => self.queries.query(principal, prepared),
+        }
+    }
+}
 
 struct Owners<R, Q, M> {
     preparer: R,
