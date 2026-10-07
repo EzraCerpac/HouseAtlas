@@ -141,6 +141,11 @@ export function StockApplication({
     );
   }, []);
   const { admission } = ports;
+  // An opaque render key masks prior results before the committed facade publishes.
+  const renderIdentity = useMemo(
+    () => ({}),
+    [session, scope, admission, admission?.revision],
+  );
   const bindings = useMemo(
     () => bindAtlasService(ports.service, admission?.commandIds ?? []),
     [ports.service, admission],
@@ -168,6 +173,7 @@ export function StockApplication({
       }
     >
       <CommandCoverageBoundary
+        renderIdentity={renderIdentity}
         sessions={facade.sessions}
         schemas={ports.schemas}
         bindings={bindings}
