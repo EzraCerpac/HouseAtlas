@@ -387,6 +387,50 @@ fence.
 The reader is an explicit synthetic peer. This checkpoint does not qualify the
 actual Network generation, same-Store read composition or release pipeline.
 
+## Persisted source authority metadata
+
+```rust
+TransactionAuthorization::persisted_source_metadata(
+    &self, original: &PartitionGrant,
+) -> AccessResult<SourceAuthorityMetadata>;
+```
+
+This read-only export first revalidates the original partition grant against the
+held guard's exact original principal and source version. It reads the genuine
+`access_meta.epoch` and enabled `access_sources` row through that same Access
+transaction. The owned, getter-only result exposes `access_epoch()`,
+`source_registration_version()`, `source_registration_sha256()` and
+`registration()`. It has no public constructor or deserializer and exposes no
+connection, session material or administrative method. Export creates no grant,
+principal, epoch, source version, registration or database write.
+
+The epoch is the persisted opaque 64-character value, separate from the
+boundary's process instance and session binding. Source version comes from the
+actual enabled row and must be within `1..=9_007_199_254_740_991` for the frozen
+presence contract's safe integer representation. The full persisted typed
+registration is hashed with the existing
+`contracts::semantics::canonical_digest` representation (RFC 8785 JSON,
+SHA-256, lowercase hexadecimal). This digest is computed from durable state;
+there is no persisted digest column or new schema. Array order and exact Unicode
+spelling remain part of the registration preimage.
+
+Metadata equality grants no authority and does not establish a Native Store
+binding. The consumer must retain the same original principal/grants, compare
+the returned full registration with its exact owning Store's registration,
+and obtain/check metadata through the held guard at each required phase. Access
+has a separate database: this export does not create a cross-database transaction
+or implement `AtomicPresenceTransaction`, witness persistence or presence
+admission. The actual mutation context ID/version and accepted Access package
+version remain their existing owners' inputs; none is inferred from an actor,
+candidate, partition ID, database schema version or Rust package version.
+
+`metadata_healthy.rs` checks a genuine CSRF-authorized editor and its original
+partition grant, persisted epoch, independently configured source row version
+two, a golden canonical registration digest and zero export writes. A separate
+genuine request after strict reopen verifies metadata persistence. It supplies
+no original Native Store, atomic presence transaction or witness lifecycle
+qualification and runs no revocation or other held controls.
+
 ## Dependencies for AT51
 
 Direct dependency versions proposed for the shared application manifest:
