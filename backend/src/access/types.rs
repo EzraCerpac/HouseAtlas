@@ -44,6 +44,16 @@ pub struct Scope {
     pub home_id: CanonicalId,
 }
 
+/// Trusted native-only identity selected at startup. It is never request input.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LoopbackLocalIdentity {
+    pub user_id: CanonicalId,
+    pub actor_id: CanonicalId,
+    pub username: String,
+    pub scope: Scope,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {

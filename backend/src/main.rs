@@ -44,7 +44,7 @@ fn frontend(directory: &Path) -> Result<BTreeMap<String, (String, Vec<u8>)>, lif
                 if html.matches("id=\"root\"").count() != 1 {
                     return Err("Expected one React root".into());
                 }
-                bytes = html.replace("id=\"root\"", "id=\"root\" data-bootstrap-url=\"/api/atlas/view\" data-home-url-template=\"/api/atlas/homes/{workspaceId}/{homeId}/view\" data-session-url=\"/api/atlas/auth/session\" data-login-url=\"/api/atlas/auth/login\" data-logout-url=\"/api/atlas/auth/logout\"").into_bytes();
+                bytes = html.replace("id=\"root\"", "id=\"root\" data-bootstrap-url=\"/api/atlas/view\" data-home-url-template=\"/api/atlas/homes/{workspaceId}/{homeId}/view\" data-session-url=\"/api/atlas/auth/session\" data-login-url=\"/api/atlas/auth/login\" data-logout-url=\"/api/atlas/auth/logout\" data-auth-mode-url=\"/api/atlas/auth/mode\" data-local-sign-in-url=\"/api/atlas/auth/local\"").into_bytes();
             }
             files.insert(key, (kind.into(), bytes));
         }
@@ -76,8 +76,9 @@ async fn run() -> Result<(), lifecycle::Failure> {
                 config,
                 provisioning,
             } => {
-                tokio::task::spawn_blocking(move || {
-                    lifecycle::persistent::initialize(&config, &provisioning)
+                tokio::task::spawn_blocking(move || match provisioning {
+                    Some(path) => lifecycle::persistent::initialize(&config, &path),
+                    None => lifecycle::persistent::initialize_without_password(&config),
                 })
                 .await??;
                 println!(
@@ -202,8 +203,11 @@ async fn run_persistent(
     let selected = Arc::clone(&config);
     let (core, lease) =
         tokio::task::spawn_blocking(move || persistent::reopen(&selected)).await??;
-    let host = Host::new(core, config.origin.clone(), files, Vec::new())?
+    let mut host = Host::new(core, config.origin.clone(), files, Vec::new())?
         .with_mcp_command_profile(config.command_profile());
+    if !config.authentication.is_password() {
+        host = host.with_loopback_local()?;
+    }
     let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
     let listener = TcpListener::bind(config.listen)?;
     listener.set_nonblocking(true)?;

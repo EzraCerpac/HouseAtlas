@@ -24,6 +24,23 @@ pub struct ServerConfig {
     pub origin: String,
     pub homes: Vec<ServerHome>,
     pub mcp_commands: ServerCommands,
+    #[serde(default, skip_serializing_if = "ServerAuthentication::is_password")]
+    pub authentication: ServerAuthentication,
+}
+
+#[derive(Default, Deserialize, Serialize)]
+#[serde(tag = "mode", rename_all = "kebab-case", deny_unknown_fields)]
+pub enum ServerAuthentication {
+    #[default]
+    Password,
+    LoopbackLocal {
+        identity: access::LoopbackLocalIdentity,
+    },
+}
+impl ServerAuthentication {
+    pub fn is_password(&self) -> bool {
+        matches!(self, Self::Password)
+    }
 }
 
 #[derive(Deserialize, Serialize)]
@@ -44,7 +61,7 @@ pub enum ServerCommands {
 pub enum ServerCommand {
     Initialize {
         config: ServerConfig,
-        provisioning: PathBuf,
+        provisioning: Option<PathBuf>,
     },
     Serve(ServerConfig),
 }
@@ -83,13 +100,22 @@ impl ServerCommand {
             }
             Ok(Some(Self::Serve(config)))
         } else {
-            let provisioning = PathBuf::from(
-                options
-                    .get("--provisioning-file")
-                    .ok_or("Required --provisioning-file")?
-                    .as_str(),
-            );
-            absolute_path(&provisioning)?;
+            let provisioning = options
+                .get("--provisioning-file")
+                .map(|path| PathBuf::from(path.as_str()));
+            match (&config.authentication, &provisioning) {
+                (ServerAuthentication::Password, Some(path)) => absolute_path(path)?,
+                (ServerAuthentication::Password, None) => {
+                    return Err("Required --provisioning-file".into());
+                }
+                (ServerAuthentication::LoopbackLocal { .. }, None) => {}
+                (ServerAuthentication::LoopbackLocal { .. }, Some(_)) => {
+                    return Err(
+                        "Loopback-local initialization accepts no password provisioning file"
+                            .into(),
+                    );
+                }
+            }
             Ok(Some(Self::Initialize {
                 config,
                 provisioning,
@@ -144,7 +170,33 @@ impl ServerConfig {
                 return Err("Invalid configured home".into());
             }
         }
+        if let ServerAuthentication::LoopbackLocal { identity } = &self.authentication {
+            if self.listen.ip() != std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)
+                || self.listen.port() != 48743
+                || self.origin != "https://127.0.0.1:48743"
+                || self.homes.len() != 1
+                || self.homes[0].workspace_id != identity.scope.workspace_id
+                || self.homes[0].home_id != identity.scope.home_id
+            {
+                return Err(
+                    "Loopback-local requires exactly one selected home at HTTPS127.0.0.1:48743"
+                        .into(),
+                );
+            }
+            self.access_config()?;
+        }
         Ok(())
+    }
+
+    pub fn access_config(&self) -> Result<access::AccessConfig, String> {
+        let config = access::AccessConfig::new(vec![self.origin.clone()])
+            .map_err(|_| "Invalid access configuration")?;
+        match &self.authentication {
+            ServerAuthentication::Password => Ok(config),
+            ServerAuthentication::LoopbackLocal { identity } => config
+                .with_loopback_local(identity.clone())
+                .map_err(|_| "Invalid explicit local identity".into()),
+        }
     }
 
     pub fn home_summaries(&self) -> Vec<domain::HomeSummary> {
@@ -163,8 +215,12 @@ impl ServerConfig {
     /// Startup metadata correlation only; this digest is not an authentication grant.
     pub fn state_digest(&self) -> Result<String, String> {
         use sha2::{Digest, Sha256};
-        let value = serde_json::json!({"format":"houseatlas-server-state/1", "deploymentId":self.deployment_id,
+        let mut value = serde_json::json!({"format":"houseatlas-server-state/1", "deploymentId":self.deployment_id,
             "dataDirectory":self.data_directory, "origin":self.origin, "homes":self.homes});
+        if !self.authentication.is_password() {
+            value["authentication"] = serde_json::to_value(&self.authentication)
+                .map_err(|_| "Cannot encode local identity")?;
+        }
         let bytes = serde_jcs::to_vec(&value).map_err(|_| "Cannot encode server state identity")?;
         Ok(format!("{:x}", Sha256::digest(bytes)))
     }

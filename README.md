@@ -105,3 +105,12 @@ source is provisional. The integration writer resolves overlaps, records donor
 heads and tracks review corrections. The same ordinary workflows run on dev
 pushes; cache publication remains restricted to verified main pushes. Main
 acceptance still requires review of the exact candidate and passing CI.
+
+
+One inspected ordinary synthetic local-session example (fresh private state,
+strict reopen and in-process router only; no listener or held controls):
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-local-session
+```
+

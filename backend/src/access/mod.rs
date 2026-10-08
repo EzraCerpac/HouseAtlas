@@ -28,9 +28,10 @@ pub use network::{
 pub use recovery::{OfflineRecoveryApproval, OfflineRecoveryAuthority, RecoveryDiscoveryGrant};
 pub use shared::SharedAccess;
 pub use types::{
-    Action, CanonicalId, Capability, Method, PartitionGrant, PartitionMode, Principal,
-    PrincipalView, RequestEvidence, Role, Scope, SessionInfo, SessionReceipt, SourceGrant,
-    SourceKey, SourceKind, SourceOwner, SourcePartition, SourceRef, SourceRegistration,
+    Action, CanonicalId, Capability, LoopbackLocalIdentity, Method, PartitionGrant, PartitionMode,
+    Principal, PrincipalView, RequestEvidence, Role, Scope, SessionInfo, SessionReceipt,
+    SourceGrant, SourceKey, SourceKind, SourceOwner, SourcePartition, SourceRef,
+    SourceRegistration,
 };
 
 pub const SESSION_COOKIE: &str = "__Host-houseatlas-session";

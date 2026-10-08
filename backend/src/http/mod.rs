@@ -81,6 +81,7 @@ pub struct Host {
     quantity_installations:
         Arc<Vec<Arc<crate::config::providers::quantity_installation::OriginalQuantityConfigured>>>,
     quantity_previews: Arc<Mutex<quantity::Registry>>,
+    loopback_local: bool,
 }
 impl Host {
     pub fn new(
@@ -97,6 +98,7 @@ impl Host {
             native_media_archive: None,
             quantity_installations: Arc::new(Vec::new()),
             quantity_previews: Arc::new(Mutex::new(quantity::Registry::default())),
+            loopback_local: false,
             operation_events: Arc::new(Mutex::new(operation_events::EventRegistry::default())),
             core: Arc::new(Mutex::new(core)),
             origin,
@@ -112,6 +114,25 @@ impl Host {
                 agents::mcp_transport::TransportSessions::default(),
             )),
         })
+    }
+    /// Explicit startup choice validated against the actual native local user.
+    pub fn with_loopback_local(mut self) -> crate::storage::Result<Self> {
+        if self.origin != "https://127.0.0.1:48743" {
+            return Err(crate::storage::Error::new(
+                "invalid-local-mode",
+                "Local mode requires the selected loopback origin",
+            ));
+        }
+        {
+            let mut access = self.mcp_access.lock().map_err(|_| {
+                crate::storage::Error::new("owner-unavailable", "Access unavailable")
+            })?;
+            access.validate_loopback_local_user().map_err(|e| {
+                crate::storage::Error::new(e.code(), "Explicit local identity unavailable")
+            })?;
+        }
+        self.loopback_local = true;
+        Ok(self)
     }
     /// Explicit original startup selections; no provider or artifact I/O here.
     pub fn with_quantity_installations(
@@ -782,6 +803,8 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/items", get(items))
         .route("/api/atlas/homes", get(homes))
         .route("/api/atlas/auth/login", post(auth::login))
+        .route("/api/atlas/auth/mode", get(auth::mode))
+        .route("/api/atlas/auth/local", post(auth::local))
         .route(
             "/api/atlas/auth/session",
             get(auth::session)

@@ -199,17 +199,39 @@ struct State {
 /// Offline only. The operator supplies every account/password/membership.
 /// Failure can leave incomplete private files; serve refuses missing state.
 pub fn initialize(config: &ServerConfig, provision_path: &Path) -> Result<(), Failure> {
+    if !config.authentication.is_password() {
+        return Err("Loopback-local accepts no password provisioning file".into());
+    }
+    initialize_selected(config, Some(provision_path))
+}
+
+/// Explicit fresh local identity; no secret, password or session is created.
+pub fn initialize_without_password(config: &ServerConfig) -> Result<(), Failure> {
+    if config.authentication.is_password() {
+        return Err("Password mode requires explicit provisioning".into());
+    }
+    initialize_selected(config, None)
+}
+
+fn initialize_selected(
+    config: &ServerConfig,
+    provision_path: Option<&Path>,
+) -> Result<(), Failure> {
     config.validate()?;
-    let users = provisioning(provision_path, config)?;
+    let users = match provision_path {
+        Some(path) => provisioning(path, config)?,
+        None => Vec::new(),
+    };
     let lease = ServerLease::acquire(config, true)?;
     let vault = Arc::new(crate::media::AssetVault::open(
         &config.data_directory.join("media"),
     )?);
     let access_path = config.data_directory.join("access.sqlite");
-    let mut access = a::AccessBoundary::open(
-        &access_path,
-        a::AccessConfig::new(vec![config.origin.clone()])?,
-    )?;
+    let mut access = a::AccessBoundary::open(&access_path, config.access_config()?)?;
+    if !config.authentication.is_password() {
+        access.provision_loopback_local_user()?;
+        access.validate_loopback_local_user()?;
+    }
     for prepared in users {
         let user = prepared.user;
         access.provision_user(
@@ -324,10 +346,11 @@ pub fn reopen(config: &ServerConfig) -> Result<(Core, ServerLease), Failure> {
     let vault = Arc::new(crate::media::AssetVault::open(
         &config.data_directory.join("media"),
     )?);
-    let access = Arc::new(Mutex::new(a::AccessBoundary::open_existing(
-        &access_path,
-        a::AccessConfig::new(vec![config.origin.clone()])?,
-    )?));
+    let mut access = a::AccessBoundary::open_existing(&access_path, config.access_config()?)?;
+    if !config.authentication.is_password() {
+        access.validate_loopback_local_user()?;
+    }
+    let access = Arc::new(Mutex::new(access));
     let store = Store::open_existing(
         &atlas_path,
         NativeContracts,

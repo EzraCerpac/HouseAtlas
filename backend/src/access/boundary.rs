@@ -1,4 +1,5 @@
 use std::{
+    net::IpAddr,
     path::Path,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -14,8 +15,8 @@ use super::{
     PartitionGrant, PasswordVerifier, Principal, RequestEvidence, Role, SESSION_COOKIE, Scope,
     SessionInfo, SessionReceipt, SourceGrant,
     credentials::{digest, hex, nonce, random_bytes, verify_password},
-    store::{self, Session, Store, User},
-    types::RestoreEpoch,
+    store::{self, Session, Store, User, UserVerifier},
+    types::{LoopbackLocalIdentity, RestoreEpoch},
 };
 
 /// Trusted server configuration, with the published defaults and ceilings.
@@ -58,6 +59,7 @@ impl AccessLimits {
 
 pub struct AccessConfig {
     origins: Vec<String>,
+    loopback_local: Option<LoopbackLocalIdentity>,
     limits: AccessLimits,
     clock: Box<dyn Fn() -> i64 + Send + Sync>,
     pub(super) lifecycle: LifecyclePolicy,
@@ -80,6 +82,7 @@ impl AccessConfig {
         }
         Ok(Self {
             origins,
+            loopback_local: None,
             limits: AccessLimits::default(),
             lifecycle: LifecyclePolicy::default(),
             clock: Box::new(|| {
@@ -90,6 +93,37 @@ impl AccessConfig {
                     .unwrap_or(-1)
             }),
         })
+    }
+
+    pub fn with_loopback_local(mut self, identity: LoopbackLocalIdentity) -> AccessResult<Self> {
+        const NIL: &str = "00000000-0000-0000-0000-000000000000";
+        if self.origins.len() != 1
+            || !self.origins.iter().all(|origin| {
+                Url::parse(origin).is_ok_and(|url| {
+                    url.scheme() == "https"
+                        && url.origin().ascii_serialization() == *origin
+                        && url.port() == Some(48743)
+                        && match url.host() {
+                            Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+                            Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+                            _ => false,
+                        }
+                })
+            })
+            || [
+                &identity.user_id,
+                &identity.actor_id,
+                &identity.scope.workspace_id,
+                &identity.scope.home_id,
+            ]
+            .iter()
+            .any(|id| id.as_str() == NIL)
+            || store::username_key(&identity.username)? != identity.username
+        {
+            return Err(AccessError::InvalidInput);
+        }
+        self.loopback_local = Some(identity);
+        Ok(self)
     }
 
     pub fn with_limits(mut self, limits: AccessLimits) -> AccessResult<Self> {
@@ -129,6 +163,77 @@ pub struct AccessBoundary {
 }
 
 impl AccessBoundary {
+    pub fn loopback_local_enabled(&self) -> bool {
+        self.config.loopback_local.is_some()
+    }
+
+    pub fn provision_loopback_local_user(&mut self) -> AccessResult<()> {
+        let identity = self
+            .config
+            .loopback_local
+            .as_ref()
+            .ok_or(AccessError::Forbidden)?;
+        self.store.provision_loopback_local_user(identity)
+    }
+
+    pub fn validate_loopback_local_user(&mut self) -> AccessResult<()> {
+        let identity = self
+            .config
+            .loopback_local
+            .as_ref()
+            .ok_or(AccessError::Forbidden)?;
+        let tx = self
+            .store
+            .db
+            .transaction_with_behavior(TransactionBehavior::Deferred)?;
+        store::validate_loopback_local_user(&tx, identity)?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn login_loopback_local(
+        &mut self,
+        request: &RequestEvidence<'_>,
+        actual_peer: IpAddr,
+    ) -> AccessResult<SessionReceipt> {
+        let identity = self
+            .config
+            .loopback_local
+            .as_ref()
+            .ok_or(AccessError::Unauthenticated)?;
+        if !actual_peer.is_loopback() {
+            return Err(AccessError::Forbidden);
+        }
+        if request.method != Method::Post {
+            return Err(AccessError::MethodNotAllowed);
+        }
+        let username = identity.username.clone();
+        let origin = self.check_origin(request, true, None)?;
+        self.rate(
+            "login:global",
+            self.config.limits.global_login_limit,
+            60_000,
+        )?;
+        self.rate(
+            &format!("login:client:{actual_peer}"),
+            self.config.limits.login_limit,
+            300_000,
+        )?;
+        self.rate(
+            &format!("login:username:{username}"),
+            self.config.limits.login_limit,
+            300_000,
+        )?;
+        let identity = self
+            .config
+            .loopback_local
+            .as_ref()
+            .ok_or(AccessError::Unauthenticated)?;
+        let user = store::validate_loopback_local_user(&self.store.db, identity)?;
+        let previous = token_hash(request, false)?;
+        self.issue(&user, &origin, previous.as_deref(), false)
+    }
+
     pub fn in_memory(config: AccessConfig) -> AccessResult<Self> {
         Self::from_store(Store::memory()?, config)
     }
@@ -251,8 +356,17 @@ impl AccessBoundary {
             self.config.limits.login_limit,
             300_000,
         )?;
+        if self.config.loopback_local.is_some() {
+            return Err(AccessError::Unauthenticated);
+        }
         let user = store::user_by_name(&self.store.db, &username)?;
-        let verifier = user.as_ref().filter(|u| u.enabled).map(|u| &u.verifier);
+        let verifier = user
+            .as_ref()
+            .filter(|u| u.enabled)
+            .and_then(|u| match &u.verifier {
+                UserVerifier::Password(verifier) => Some(verifier),
+                UserVerifier::LoopbackLocal => None,
+            });
         let verified = verify_password(&body.password, verifier)?;
         let user = user
             .filter(|u| verified && u.enabled)
@@ -499,9 +613,21 @@ impl AccessBoundary {
             config: &self.config,
             instance: &self.instance,
         };
-        let user = store::user(&tx, &observed.user_id)?
-            .filter(|u| u.enabled && u.version == observed.version)
-            .ok_or(AccessError::Unauthenticated)?;
+        let user =
+            store::user_with_loopback(&tx, &observed.user_id, self.config.loopback_local.as_ref())?
+                .filter(|u| u.enabled && u.version == observed.version)
+                .ok_or(AccessError::Unauthenticated)?;
+        if matches!(user.verifier, UserVerifier::LoopbackLocal) {
+            store::validate_loopback_local_user(
+                &tx,
+                self.config
+                    .loopback_local
+                    .as_ref()
+                    .ok_or(AccessError::Unauthenticated)?,
+            )?;
+        } else if self.config.loopback_local.is_some() {
+            return Err(AccessError::Unauthenticated);
+        }
         let now = self.config.now()?;
         let previous = if preserve_lifetime {
             Some(
@@ -644,6 +770,7 @@ impl CurrentAuthority<'_> {
         let epoch: RestoreEpoch = store::epoch(self.db)?;
         if session.epoch != epoch
             || session.origin != origin
+            || (self.config.loopback_local.is_some() && self.config.origins[0] != origin)
             || now < session.created_at
             || now < session.last_seen
             || now >= session.expires_at
@@ -651,9 +778,24 @@ impl CurrentAuthority<'_> {
         {
             return Err(AccessError::Unauthenticated);
         }
-        let user = store::user(self.db, &session.user_id)?
-            .filter(|u| u.enabled && u.version == session.user_version)
-            .ok_or(AccessError::Unauthenticated)?;
+        let user = store::user_with_loopback(
+            self.db,
+            &session.user_id,
+            self.config.loopback_local.as_ref(),
+        )?
+        .filter(|u| u.enabled && u.version == session.user_version)
+        .ok_or(AccessError::Unauthenticated)?;
+        if matches!(user.verifier, UserVerifier::LoopbackLocal) {
+            store::validate_loopback_local_user(
+                self.db,
+                self.config
+                    .loopback_local
+                    .as_ref()
+                    .ok_or(AccessError::Unauthenticated)?,
+            )?;
+        } else if self.config.loopback_local.is_some() {
+            return Err(AccessError::Unauthenticated);
+        }
         Ok((session, user, now))
     }
 

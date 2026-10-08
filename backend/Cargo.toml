@@ -150,3 +150,7 @@ path = "src/media/healthy_native_upload_policy_archive.rs"
 [[example]]
 name = "healthy-native-policy-reference"
 path = "src/media/healthy_native_policy_reference.rs"
+
+[[example]]
+name = "healthy-local-session"
+path = "src/http/local_session_healthy.rs"

@@ -28,3 +28,32 @@ The sole NAS writer must receive the verified new source checkpoint, then explic
 ## Validation
 
 Combined actual-peer cargo check and production Clippy with warnings denied pass. Initial compile error was a missing I/O error mapping in the new existing-database opener and was corrected; its diagnostic is retained. One disposable offline provisioning/normal-reopen positive passed: one explicit synthetic user, zero sessions, unchanged initialization receipt and exact configured home. This handoff does not claim an HTTPS launch, restart under a service manager, NAS runtime validation or deployment acceptance.
+
+
+## Explicit password-free loopback mode
+
+The default remains password authentication. The opt-in `authentication` object
+is `{ "mode": "loopback-local", "identity": { "userId": "…", "actorId": "…",
+"username": "ezra", "scope": { "workspaceId": "…", "homeId": "…" } } }`.
+Select exactly one matching configured home, listen `127.0.0.1:48743` and origin
+`https://127.0.0.1:48743`. Initialization requires fresh absent data and no
+provisioning file:
+
+```sh
+houseatlas initialize --server-config /canonical/private/server.json
+houseatlas serve --server-config /canonical/private/server.json
+```
+
+Native Access stores an explicit password-disabled credential kind, not a blank
+or generated password. It creates one Editor membership and zero sessions.
+The initialization digest binds the selected mode and full identity. Normal
+serve strictly reopens existing state and revalidates the singleton; it does not
+migrate, reset, adopt or reprovision a password installation.
+
+GET `/api/atlas/auth/mode` is informational. The explicit Open Home action POSTs
+`{}` to `/api/atlas/auth/local`; actual loopback connection, selected origin and
+native login admission issue the existing cookie/CSRF session receipt. Subsequent
+reads and mutations use the ordinary native session, membership, epoch and CSRF
+checks. Password login is absent in this mode. This opt-in trusts local access
+through the selected listener/SSH route; it activates no household provider or AI,
+and changes no LAN/proxy/autostart configuration.

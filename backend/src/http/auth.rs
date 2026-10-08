@@ -88,6 +88,9 @@ pub(super) async fn login(
     ConnectInfo(address): ConnectInfo<SocketAddr>,
     request: Request,
 ) -> HttpResult {
+    if host.loopback_local {
+        return Err(failure(StatusCode::NOT_FOUND));
+    }
     no_query(request.uri())?;
     login_metadata(&request)?;
     let checked = request
@@ -119,6 +122,77 @@ pub(super) async fn login(
             .lock()
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
             .login(&observed, &body, &address.ip().to_string())
+            .map_err(access_error)?;
+        receipt_response(receipt)
+    })
+    .await
+    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
+}
+
+/// Informational mode only; this cannot issue a principal or session.
+pub(super) async fn mode(
+    State(host): State<Host>,
+    Extension(checked): Extension<CheckedHeaders>,
+    uri: Uri,
+) -> HttpResult {
+    no_query(&uri)?;
+    let _admitted = checked.admission_permit()?;
+    if checked
+        .origin
+        .as_deref()
+        .is_some_and(|origin| origin != host.origin)
+        || checked
+            .sec_fetch_site
+            .as_deref()
+            .is_some_and(|site| site != "same-origin")
+    {
+        return Err(failure(StatusCode::FORBIDDEN));
+    }
+    Ok(axum::Json(serde_json::json!({"schemaVersion":1,"mode":if host.loopback_local {"loopback-local"} else {"password"}})).into_response())
+}
+
+/// Local bootstrap uses the same origin/rate admission and native session
+/// receipt as password login. Subsequent mutations still require its CSRF.
+pub(super) async fn local(
+    State(host): State<Host>,
+    ConnectInfo(address): ConnectInfo<SocketAddr>,
+    request: Request,
+) -> HttpResult {
+    if !host.loopback_local || !address.ip().is_loopback() {
+        return Err(failure(StatusCode::NOT_FOUND));
+    }
+    no_query(request.uri())?;
+    login_metadata(&request)?;
+    let checked = request
+        .extensions()
+        .get::<CheckedHeaders>()
+        .cloned()
+        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    let uri = request.uri().clone();
+    let method = request.method().clone();
+    host.admission
+        .login(&checked, &method, &host.origin, address.ip())
+        .map_err(access_error)?;
+    let body = super::admission::body(request.into_body(), 16).await?;
+    let value: serde_json::Value =
+        serde_json::from_slice(&body).map_err(|_| failure(StatusCode::UNPROCESSABLE_ENTITY))?;
+    if value != serde_json::json!({}) {
+        return Err(failure(StatusCode::UNPROCESSABLE_ENTITY));
+    }
+    tokio::task::spawn_blocking(move || {
+        let _admitted = checked.admission_permit()?;
+        let core = host
+            .core
+            .lock()
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        let request_url = url(&host, &uri);
+        let observed =
+            evidence(&host.origin, &checked, &uri, &request_url, &method).map_err(access_error)?;
+        let receipt = core
+            .access
+            .lock()
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
+            .login_loopback_local(&observed, address.ip())
             .map_err(access_error)?;
         receipt_response(receipt)
     })
