@@ -3,6 +3,7 @@
 //! Nothing here is decoded from the recovery manifest or a request. Access
 //! persistence and configuration are separate operator-selected inputs. The
 //! caller owns and drains the selected directories throughout recovery.
+pub mod media_policy;
 use crate::{
     access::{AccessConfig, OfflineRecoveryAuthority, RecoveryDiscoveryGrant},
     app::access_scope,

@@ -118,5 +118,13 @@ name = "healthy-recovery-policy"
 path = "src/media/healthy_recovery_policy.rs"
 
 [[example]]
+name = "healthy-recovery-policy-archive"
+path = "src/media/healthy_recovery_policy_archive.rs"
+
+[[example]]
+name = "network-disclosure-pin"
+path = "src/providers/network/host_runtime/examples/pin-lifetime.rs"
+
+[[example]]
 name = "healthy-stock-retained-read"
 path = "../tools/rust-integration/examples/healthy_stock_retained_read.rs"

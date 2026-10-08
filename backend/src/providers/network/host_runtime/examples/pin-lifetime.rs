@@ -14,6 +14,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     future::Future,
+    os::unix::fs::PermissionsExt,
     path::Path,
     pin::Pin,
     sync::{Arc, Mutex},
@@ -135,6 +136,7 @@ fn count_disclosures(
 async fn main() -> Check<()> {
     let directory = tempfile::Builder::new()
         .prefix("houseatlas-network-pin-")
+        .permissions(std::fs::Permissions::from_mode(0o700))
         .tempdir()?;
     let directory_path = std::fs::canonicalize(directory.path())?;
     let mut snapshot: s::Snapshot = serde_json::from_slice(include_bytes!(
@@ -305,6 +307,7 @@ async fn main() -> Check<()> {
         store: Mutex::new(store),
         vault,
         atlas_list_pages: Default::default(),
+        media_policy_evidence: Mutex::default(),
         homes: vec![home.clone()],
         home,
     }));

@@ -17,6 +17,9 @@ use std::sync::Arc;
 /// authenticates a recovered image nor creates a production origin policy.
 /// Read/write owners must independently qualify the original native origin,
 /// generation, producer provenance and complete catalog, without SQL reentry.
+/// Select a dedicated Media-only preprovisioned directory. The complete reader
+/// rejects HomeBox producer files and all other unknown or pending members;
+/// sharing its descriptor with another format cannot establish a valid catalog.
 pub struct NativeMediaPolicyArchive<W, R> {
     archive: Arc<PrivateStockArchive>,
     origin: MediaPolicyArchiveOrigin,

@@ -83,6 +83,15 @@ jobs:
       - name: Genuine native MCP stock get and audit page after fresh circuit commit
         if: runner.os == 'Linux'
         run: cargo run --locked -p houseatlas-backend --example healthy-agent-stock
+      - name: Genuine bounded retained intent and fixed-watermark event pages
+        if: runner.os == 'Linux'
+        run: cargo run --locked -p houseatlas-backend --example healthy-stock-retained-read
+      - name: Fresh native Media packet publication and independent synthetic archive read
+        if: runner.os == 'Linux'
+        run: cargo run --locked -p houseatlas-backend --example healthy-recovery-policy-archive
+      - name: Same-Store original Network disclosure lifetime pins
+        if: runner.os == 'Linux'
+        run: cargo run --locked -p houseatlas-backend --example network-disclosure-pin
       - name: Real native Network publication and cached root TLS reads
         if: runner.os == 'Linux'
         run: |
@@ -130,6 +139,12 @@ jobs:
           HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
           HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
         run: node tools/rust-integration/healthy-stock-history-loopback.mjs
+      - name: Real fixed-watermark event pages and Changes view
+        if: runner.os == 'Linux'
+        env:
+          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
+          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+        run: node tools/rust-integration/healthy-operation-events-loopback.mjs
       - name: Real native browser WebMCP stock read fresh create and audit page
         if: runner.os == 'Linux'
         env:

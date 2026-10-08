@@ -141,8 +141,10 @@ WOFF2 fonts under the existing file/size/symlink bounds. Native Chrome validates
 ten lists, fresh continuation, exact visible result commitment, responsive fit
 and focused search-input Escape. Original feature forms remain under Changes /
 Atlas tools. Real geometry metadata is mounted without inferred shapes or placements.
-Citations and operation-history DTOs remain unavailable; prototype fixture
-engines are not mounted.
+Citations remain unavailable. Changes now reads the actual bounded
+`atlas-operation-events/1` projection with native saved identities and explicit
+partial stock-only coverage; authored per-record history remains separate.
+Prototype fixture engines are not mounted.
 
 The read-only [review ledger](review-source-ledger.md) retains the captured 53
 comments despite the delegation’s 52-thread reference; no review state was
@@ -150,6 +152,25 @@ closed. The original Access `b1fbc9d` read-fence donor was published and integra
 Its source-read guard revalidates the original partition and explicitly supplied
 member grants; callers remain responsible for complete current owner evidence.
 It supplies no source-presence or mutation permission.
+The separate Access-owned native version declaration is now present as an
+explicit exact-match source policy, independent of Cargo/schema/JavaScript
+versions. Atomic-presence transaction groundwork is composed but unmounted;
+engine hooks, a new schema profile and exhaustive witness validation remain
+required before any admission. The current presence hold remains in force.
+
+Original Network disclosures now own genuine same-Store generation pins through
+their retained Reader Arc. Residency guards enumerate and retain those live
+leases; dropping a reader does not remove protection already held by a guard.
+This source adds no reclamation executor. Recovery/export/external coverage
+remains Unknown, and coherent ownership across independent path opens remains
+a separate native-owner prerequisite.
+
+Independent Media producer provenance, closed archive packets and typed native
+descriptor custody are composed. The required offline queue composite retains
+separate Jobs and Media validators. Production archive origin/write/read/catalog
+authentication is absent; the genuine fresh synthetic publication/new-reader
+example is not a production cold-start or restored-image proof. See
+[Media policy archive](media-policy-archive.md).
 
 The owned HomeBox file-source adapter now decodes exact original entity/member
 observations, measures the captured local stream and revalidates current bytes

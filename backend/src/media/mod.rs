@@ -18,6 +18,8 @@ mod platform_fs;
 mod private_fs;
 pub mod recovery;
 pub mod recovery_policy;
+pub mod recovery_policy_archive;
+mod recovery_policy_archive_codec;
 pub mod review;
 pub mod service;
 pub mod staged_upload;

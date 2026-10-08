@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "8577dee95b9ecee5e1e18a31470ec2580284a826e3650f53e7115abfe9405c32",
+  "sourceDigestSha256": "89a0780c6e1a1a7306a0e045522a872fd85bfa50fce4756ad699c428cbc01980",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -35,8 +35,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 14621,
-      "sha256": "95d80d21ea466cde4d2e00396ade55727ec806a49727032576e413ba5cfbdccf",
+      "bytes": 15557,
+      "sha256": "e227c9be35351656a47716b7d9080034dbaf8c60564ac8416f032298e18d0753",
       "owner": "core-integration"
     },
     {
@@ -245,8 +245,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 2881,
-      "sha256": "91ec09cd0f3d091662e0dd82b117a6423e63a6f85de9973d07c7b2fda554931d",
+      "bytes": 3103,
+      "sha256": "fa15af228abc5b852b74e3fd05494e1722ae82056b3df595d672eeef5286778f",
       "owner": "core-integration"
     },
     {
@@ -294,8 +294,8 @@
     {
       "path": "backend/src/access/README.md",
       "mode": "100644",
-      "bytes": 30170,
-      "sha256": "94bd6ab1dce91c4dbdcd50ccd81e4873f5c4e2fea196431fb6d293fd478c3fa6",
+      "bytes": 31806,
+      "sha256": "9d74a00eec4e31564778864b730036a3f8a8f8ff6217caf2221057cc9828057e",
       "owner": "access"
     },
     {
@@ -357,8 +357,8 @@
     {
       "path": "backend/src/access/mod.rs",
       "mode": "100644",
-      "bytes": 1519,
-      "sha256": "3b1e22266d6a1eecfc62869a6f378438ce5ae2eb9ae1dfa0253eeb17a550d36b",
+      "bytes": 1901,
+      "sha256": "d9c85d87a87bcecdba94b7585a44cbb44b608fe7141b38805fb4eff09b289d61",
       "owner": "access"
     },
     {
@@ -789,10 +789,17 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/config/recovery/media_policy.rs",
+      "mode": "100644",
+      "bytes": 1649,
+      "sha256": "20a9637cd965d72d55d14a4f2e486139f75483753aad62af8eac50a9c4d592f9",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/config/recovery/mod.rs",
       "mode": "100644",
-      "bytes": 20654,
-      "sha256": "542de86c1be4d65d7ebda3fcbd6406c602b0031506b5fe679a0509d7cbe8f34d",
+      "bytes": 20676,
+      "sha256": "a315ab293fef596522b93dafcd12ccd84005fd1925239c5864033e91b48b02e2",
       "owner": "core-integration"
     },
     {
@@ -1897,8 +1904,8 @@
     {
       "path": "backend/src/lifecycle/provider_dispatch/archive.rs",
       "mode": "100644",
-      "bytes": 7199,
-      "sha256": "7a97c705c7a519bde11c64d5a25fa802ea0708b097857c16f0aa60795b5b1225",
+      "bytes": 17365,
+      "sha256": "f57d0d4c707eabea94557becf6b824fdbad1eb7758f42123ec39e8e49f494189",
       "owner": "core-integration"
     },
     {
@@ -1930,10 +1937,17 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/lifecycle/provider_dispatch/media_policy_archive.rs",
+      "mode": "100644",
+      "bytes": 3206,
+      "sha256": "6775b4fc1340576d4ee4d8d9729dfdace84e8c92f12740e00432898d31ec01c9",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/lifecycle/provider_dispatch/mod.rs",
       "mode": "100644",
-      "bytes": 5218,
-      "sha256": "d162f07130abfa230f7927bac022af01b8cb7fc1e02161f4de74bc34c3215f10",
+      "bytes": 5248,
+      "sha256": "a9747b96213e97a115f22ff49c380b9a1693e5b8d21147c7741e6535502517e0",
       "owner": "core-integration"
     },
     {
@@ -2084,6 +2098,13 @@
       "owner": "media"
     },
     {
+      "path": "backend/src/media/healthy_recovery_policy_archive.rs",
+      "mode": "100644",
+      "bytes": 17750,
+      "sha256": "290b2006a7c7ceb6a2ce5410c34573f8643c2fb494375bf7ef09dc58d5a6d03c",
+      "owner": "media"
+    },
+    {
       "path": "backend/src/media/healthy_review_examples.rs",
       "mode": "100644",
       "bytes": 23471,
@@ -2107,8 +2128,8 @@
     {
       "path": "backend/src/media/mod.rs",
       "mode": "100644",
-      "bytes": 1117,
-      "sha256": "d309006f8f61046650ac175e23a1d49c6a59b2d3656f807cb1dc61a48759b749",
+      "bytes": 1185,
+      "sha256": "1d9f9c016939e74686411fd9168d087fa5e6f2e55c9dfbad111bbb849831e72e",
       "owner": "media"
     },
     {
@@ -2163,8 +2184,22 @@
     {
       "path": "backend/src/media/recovery_policy.rs",
       "mode": "100644",
-      "bytes": 15807,
-      "sha256": "13b568743a056482a69a42fdc1f4f50b399c623dce6ea790edb77fee31e741db",
+      "bytes": 17157,
+      "sha256": "c2725a16c3c8629c9cdac47bfb07ea8f16a0617301c6f70c90045fe6a96b5f63",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/recovery_policy_archive.rs",
+      "mode": "100644",
+      "bytes": 18791,
+      "sha256": "d5bee3c5436be65f28cd16acb5e404d65097fddeb0d169e46d00c7c68e0e358c",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/recovery_policy_archive_codec.rs",
+      "mode": "100644",
+      "bytes": 20792,
+      "sha256": "4a446c70abe1a6a19ff77d04eae051aafd5e8719d5c28a6f5b6a11a2d2b28608",
       "owner": "media"
     },
     {
@@ -2973,6 +3008,13 @@
       "owner": "network"
     },
     {
+      "path": "backend/src/providers/network/host_runtime/disclosure-pin.md",
+      "mode": "100644",
+      "bytes": 4378,
+      "sha256": "e567d1f6a156648b54d90fcaeee2bb7c6546ae97508269f8aba269778d91d610",
+      "owner": "network"
+    },
+    {
       "path": "backend/src/providers/network/host_runtime/disclosure.rs",
       "mode": "100644",
       "bytes": 6059,
@@ -2998,6 +3040,13 @@
       "mode": "100644",
       "bytes": 19445,
       "sha256": "1bfd9dbc49fc25d91e614bec0be7734fe1d30c50894515ef368fee705c965631",
+      "owner": "network"
+    },
+    {
+      "path": "backend/src/providers/network/host_runtime/examples/pin-lifetime.rs",
+      "mode": "100644",
+      "bytes": 16329,
+      "sha256": "b376bc54fc984aac57deba896fb5c0657ac19e8aa3d32084e97748b6890da397",
       "owner": "network"
     },
     {
@@ -3045,8 +3094,8 @@
     {
       "path": "backend/src/providers/network/host_runtime/reads.rs",
       "mode": "100644",
-      "bytes": 12140,
-      "sha256": "600b46e986880e6d851f3df16d175ae1b8745f19c3b5afded29781a335190326",
+      "bytes": 14423,
+      "sha256": "39c8be262548253e0d19bdbc9b926963fbc9c5f6a9ddfcced16a4f6844e1c62b",
       "owner": "network"
     },
     {
@@ -3066,8 +3115,8 @@
     {
       "path": "backend/src/providers/network/host_runtime/runtime.rs",
       "mode": "100644",
-      "bytes": 20783,
-      "sha256": "9db1fe7416ed7d78f7d30be4bf251864547e6e73b3158b0b62cece0af1edeb00",
+      "bytes": 20828,
+      "sha256": "e52c1071db8c68521e83852d393874bb8cf4f977a08dd11fbfaa3cf3c4eb6a3d",
       "owner": "network"
     },
     {
@@ -3178,8 +3227,8 @@
     {
       "path": "backend/src/storage/cache_custody.rs",
       "mode": "100644",
-      "bytes": 37315,
-      "sha256": "db1bfcbd8843f308a69bf7aeb968905b54b5f3e2c8dbe67c9660b2ef50bbfc5b",
+      "bytes": 42670,
+      "sha256": "b1aeebda30a4f715b65a27a303cf7b6a46f4dc85a455d7b8b97427f8e0a5c94f",
       "owner": "storage"
     },
     {
@@ -4193,8 +4242,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 36163,
-      "sha256": "30dafaf03251267c79d8866fc3520b83abd385936ec8939d60745cc9ad52c839",
+      "bytes": 36496,
+      "sha256": "f5f57eed838a2e796cd2d65c247b21bb32daa0ebce7a5cf39774524d68b07da2",
       "owner": "core-integration"
     },
     {
@@ -4249,8 +4298,8 @@
     {
       "path": "docs/rust-integration/dev-composition.md",
       "mode": "100644",
-      "bytes": 11983,
-      "sha256": "793d252e885618da0b4cd352653c2c448b0df4aae1116b7b4cd6ba418cee3016",
+      "bytes": 13384,
+      "sha256": "28b11b6136b704b5975d610d5d69711d1a8d1e9a94edbef32ff8405563196c33",
       "owner": "core-integration"
     },
     {
@@ -4272,6 +4321,13 @@
       "mode": "100644",
       "bytes": 5985,
       "sha256": "83134811b72e0f113a89c6debd12f60f4cb59be34adb66633db07319bbd05f50",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/rust-integration/media-policy-archive.md",
+      "mode": "100644",
+      "bytes": 4162,
+      "sha256": "aa3642e5e6e47adf869f261c157e947f4581c84032b91033e6b3d9ac3d857925",
       "owner": "core-integration"
     },
     {

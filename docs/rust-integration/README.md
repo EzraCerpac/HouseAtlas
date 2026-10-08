@@ -47,6 +47,8 @@ the required original Jobs peer and supplies only the separate Media policy
 callback; it creates no recovery permit. Durable archive origin/capture/read
 authentication remains a separate native-owner contract. No restore or archive
 maintenance is exercised by this composition.
+The closed durable packet, typed descriptor custody and required independent
+offline peer composition are described in [Media archive source](media-policy-archive.md).
 
 ## Actual running core
 
@@ -219,7 +221,9 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     cargo run --locked -p houseatlas-backend --example healthy-homebox-cache-stock
     cargo run --locked -p houseatlas-backend --example healthy-download-lifetime
     cargo run --locked -p houseatlas-backend --example healthy-recovery-policy
+    cargo run --locked -p houseatlas-backend --example healthy-recovery-policy-archive
     cargo run --locked -p houseatlas-backend --example healthy-stock-retained-read
+    cargo run --locked -p houseatlas-backend --example network-disclosure-pin
     cargo run --locked -p houseatlas-backend --example healthy-asset-review
     cargo run --locked -p houseatlas-backend --example healthy-homebox-artifacts
     cargo run --locked -p houseatlas-backend --example healthy-homebox-stock-history
