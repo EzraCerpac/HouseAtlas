@@ -213,21 +213,35 @@ impl RequestPrincipal {
         if self.source_capture_sealed.get() {
             return Err(a::AccessError::Unavailable);
         }
-        self.capture_source(access, reference.from())?;
-        self.capture_source(access, reference.to())?;
+        // Stage both original endpoint grants without mutating the request.
+        // A denied second endpoint or typed link must not leave a stray first
+        // grant that can suppress unrelated qualified relations at release.
         let sources = self.sources.borrow();
-        let member = |reference: &a::SourceRef| {
+        let member = |member_ref: &a::SourceRef| {
             sources
                 .iter()
-                .find(|grant| grant.reference() == reference)
-                .ok_or(a::AccessError::NotFound)
+                .find(|grant| grant.reference() == member_ref)
+                .cloned()
+                .map(Ok)
+                .unwrap_or_else(|| access.authorize_source(&self.principal, member_ref))
         };
-        let grant = access.authorize_network_link(
-            &self.principal,
-            reference,
-            member(reference.from())?,
-            member(reference.to())?,
-        )?;
+        let from = member(reference.from())?;
+        let to = if reference.from() == reference.to() {
+            from.clone()
+        } else {
+            member(reference.to())?
+        };
+        let grant = access.authorize_network_link(&self.principal, reference, &from, &to)?;
+        drop(sources);
+        let mut sources = self.sources.borrow_mut();
+        for staged in [from, to] {
+            if !sources
+                .iter()
+                .any(|existing| existing.reference() == staged.reference())
+            {
+                sources.push(staged);
+            }
+        }
         drop(sources);
         self.network_links.borrow_mut().push(grant);
         Ok(())
