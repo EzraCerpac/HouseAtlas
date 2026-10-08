@@ -126,5 +126,9 @@ name = "network-disclosure-pin"
 path = "src/providers/network/host_runtime/examples/pin-lifetime.rs"
 
 [[example]]
+name = "network-constructor-ownership"
+path = "src/providers/network/host_runtime/examples/ownership.rs"
+
+[[example]]
 name = "healthy-stock-retained-read"
 path = "../tools/rust-integration/examples/healthy_stock_retained_read.rs"

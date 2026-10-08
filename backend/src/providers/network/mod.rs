@@ -10,6 +10,8 @@ mod json;
 mod link_binding;
 mod model;
 mod native;
+#[path = "host_runtime/native_owner.rs"]
+mod native_owner;
 mod projection;
 mod publication;
 mod saved_queries;

@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d2fe22ff317fba182c72e564b915eecfc285d0ae50108eef8b01f5b45153641e",
+  "sourceDigestSha256": "05000ed554a80b581ef3d7604d24b924d6c7275539be99ad3dd3360666aad669",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -245,8 +245,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 3103,
-      "sha256": "fa15af228abc5b852b74e3fd05494e1722ae82056b3df595d672eeef5286778f",
+      "bytes": 3221,
+      "sha256": "fe763de40ef99e7d71f2a329cd9b84b110cc835ce3f85fa8fdf1541815ebbad8",
       "owner": "core-integration"
     },
     {
@@ -2128,8 +2128,8 @@
     {
       "path": "backend/src/media/mod.rs",
       "mode": "100644",
-      "bytes": 1185,
-      "sha256": "1d9f9c016939e74686411fd9168d087fa5e6f2e55c9dfbad111bbb849831e72e",
+      "bytes": 1224,
+      "sha256": "cb7213f22d604797ed3c7c64851dcfecbdb41da262485284351b777856a02ecf",
       "owner": "media"
     },
     {
@@ -2954,15 +2954,15 @@
     {
       "path": "backend/src/providers/network/archive.rs",
       "mode": "100644",
-      "bytes": 34874,
-      "sha256": "9f76cfe0eb13f3876984855fd0547af9518fa36792612fbc05c490ef5447da35",
+      "bytes": 32574,
+      "sha256": "d28cb9d9c9545cd046d1ee3b4a916ac6674d71112a69861d53a880cf67193c7b",
       "owner": "network"
     },
     {
       "path": "backend/src/providers/network/durable.rs",
       "mode": "100644",
-      "bytes": 22050,
-      "sha256": "bbf723d2297625f33753e34c171a6a3bd5d5096d24d998c72a707c339539dbd9",
+      "bytes": 22679,
+      "sha256": "00429e53e8e7e7ae37384aac18dfe889071485a5f14c0a143121ecc66577f7d9",
       "owner": "network"
     },
     {
@@ -2998,6 +2998,13 @@
       "mode": "100644",
       "bytes": 10527,
       "sha256": "3d8c15b2ef7af4bbe4203166411579f4272d7d0d11e0aed668410793a0858a37",
+      "owner": "network"
+    },
+    {
+      "path": "backend/src/providers/network/host_runtime/constructor-ownership.md",
+      "mode": "100644",
+      "bytes": 4712,
+      "sha256": "f45b40e855bcccdd316fd7846334ef08a46ae588a64bc60d78f14e0f4195e716",
       "owner": "network"
     },
     {
@@ -3043,6 +3050,27 @@
       "owner": "network"
     },
     {
+      "path": "backend/src/providers/network/host_runtime/examples/ownership-exclusivity.rs",
+      "mode": "100644",
+      "bytes": 6471,
+      "sha256": "e56468dc68ddb975557d1a64c2a06826242ce2834a646ac7c589c95b55e37c12",
+      "owner": "network"
+    },
+    {
+      "path": "backend/src/providers/network/host_runtime/examples/ownership-fixture.rs",
+      "mode": "100644",
+      "bytes": 4387,
+      "sha256": "23c8f3b47250d044ccb48fbf0c9a56b304ef435e48cc47cb3a24c526ab003ee9",
+      "owner": "network"
+    },
+    {
+      "path": "backend/src/providers/network/host_runtime/examples/ownership.rs",
+      "mode": "100644",
+      "bytes": 4053,
+      "sha256": "63412e1b226983662cb8ecc83e6fd8b7b0ad0379a7f9fe96bbdaef061af0f2a4",
+      "owner": "network"
+    },
+    {
       "path": "backend/src/providers/network/host_runtime/examples/pin-lifetime.rs",
       "mode": "100644",
       "bytes": 16329,
@@ -3082,6 +3110,13 @@
       "mode": "100644",
       "bytes": 853,
       "sha256": "ac5a46ff0a75b0a3a709d5287d49c0e29aa8255ab7d72589a42af3d979e5dcf8",
+      "owner": "network"
+    },
+    {
+      "path": "backend/src/providers/network/host_runtime/native_owner.rs",
+      "mode": "100644",
+      "bytes": 10116,
+      "sha256": "b73bf5b128c8cd96f89dae099bf50b782731ceae82bc38e15b944cd2faa346e5",
       "owner": "network"
     },
     {
@@ -3143,8 +3178,8 @@
     {
       "path": "backend/src/providers/network/mod.rs",
       "mode": "100644",
-      "bytes": 949,
-      "sha256": "0acc73cc2b859a06c9d43fb5475a9b0633187337b29dc0e2084f5f7998a55757",
+      "bytes": 1008,
+      "sha256": "4f57bfef7d3df5092dce08378cfd0cf7ba1e8f4a8f6c74705c5f9712626f2022",
       "owner": "network"
     },
     {
@@ -3470,10 +3505,24 @@
       "owner": "storage"
     },
     {
+      "path": "backend/src/storage/presence_engine.rs",
+      "mode": "100644",
+      "bytes": 11360,
+      "sha256": "a8210c92c1d274419c63874b7a08efeee2a926b725debaed940317b18aea83a6",
+      "owner": "storage"
+    },
+    {
       "path": "backend/src/storage/presence_transaction.rs",
       "mode": "100644",
       "bytes": 24635,
       "sha256": "6fb6494ab35765199e415356005c9034f1286293e7dc4c6a277d427dae5896e4",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/presence_validation.rs",
+      "mode": "100644",
+      "bytes": 7922,
+      "sha256": "299efcee315175ca296d28c705f48a968716bd72294ef6126a75674e9cfc2818",
       "owner": "storage"
     },
     {
@@ -4242,8 +4291,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 36496,
-      "sha256": "f5f57eed838a2e796cd2d65c247b21bb32daa0ebce7a5cf39774524d68b07da2",
+      "bytes": 36581,
+      "sha256": "3ead97d78aa895235b5a00424a65270bbef879b1b69cbf597ccfc5f122b60a34",
       "owner": "core-integration"
     },
     {
@@ -4298,8 +4347,8 @@
     {
       "path": "docs/rust-integration/dev-composition.md",
       "mode": "100644",
-      "bytes": 13384,
-      "sha256": "28b11b6136b704b5975d610d5d69711d1a8d1e9a94edbef32ff8405563196c33",
+      "bytes": 13876,
+      "sha256": "2a4056879d69c19fc6e0c08a7d61bdc41d0d68a7ab40df4f5d40d53cfe48e434",
       "owner": "core-integration"
     },
     {
@@ -4368,8 +4417,8 @@
     {
       "path": "docs/rust-integration/review-source-ledger.md",
       "mode": "100644",
-      "bytes": 20614,
-      "sha256": "341b71b929dbcb16e0eb7fe8c9cde99efe749950d59ff337c8c16873196d846c",
+      "bytes": 21144,
+      "sha256": "6ee0fef488cdea3117c7232923402718a38bcfc3982a61451f57225b433adb73",
       "owner": "core-integration"
     },
     {
@@ -6321,8 +6370,8 @@
     {
       "path": "tools/rust-integration/examples/healthy_network_host.rs",
       "mode": "100644",
-      "bytes": 33224,
-      "sha256": "88cad1fa04394fffe07ce9ff729657464a08fc3aded4d9dbd02921b8edfe6fe4",
+      "bytes": 33379,
+      "sha256": "25acc4f3b4aac52d95762564765133ae9781465b6fb786e6b997911b40557c59",
       "owner": "core-integration"
     },
     {

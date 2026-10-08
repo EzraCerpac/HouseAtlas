@@ -37,6 +37,7 @@ mod healthy_upload_examples;
 
 pub use budget::{Cancellation, WorkBudget};
 pub use download_lifetime::{DownloadAvailability, DownloadLifetime};
+pub(crate) use private_fs::PrivateDir;
 pub use types::{MediaError, MediaResult};
 pub use vault::AssetVault;
 

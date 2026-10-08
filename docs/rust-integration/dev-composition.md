@@ -154,16 +154,22 @@ member grants; callers remain responsible for complete current owner evidence.
 It supplies no source-presence or mutation permission.
 The separate Access-owned native version declaration is now present as an
 explicit exact-match source policy, independent of Cargo/schema/JavaScript
-versions. Atomic-presence transaction groundwork is composed but unmounted;
-engine hooks, a new schema profile and exhaustive witness validation remain
-required before any admission. The current presence hold remains in force.
+versions. Atomic-presence transaction, engine and exhaustive historical validator
+source is retained but unmounted. Actual command hooks, a distinct fresh schema
+profile and genuine historical observation custody remain required before
+admission. Current cache rows cannot substitute for historical evidence. The
+current presence hold remains in force.
 
 Original Network disclosures now own genuine same-Store generation pins through
 their retained Reader Arc. Residency guards enumerate and retain those live
 leases; dropping a reader does not remove protection already held by a guard.
 This source adds no reclamation executor. Recovery/export/external coverage
-remains Unknown, and coherent ownership across independent path opens remains
-a separate native-owner prerequisite.
+remains Unknown. Supported native constructors retain persistent private custody
+file leases through close, including independent path opens, and check the actual
+database and segment-directory identities. Separate custody members avoid Darwin
+SQLite lock conflicts. This cooperative contract does not qualify arbitrary external
+SQLite/filesystem actors or future recovery/export owners. The named healthy
+capture/reopen and configured Root reader checks cover the Mac composition.
 
 Independent Media producer provenance, closed archive packets and typed native
 descriptor custody are composed. The required offline queue composite retains

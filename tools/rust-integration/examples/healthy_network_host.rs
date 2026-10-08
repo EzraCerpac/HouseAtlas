@@ -349,8 +349,8 @@ async fn main() -> Result<(), Failure> {
         db.query_row("SELECT COUNT(*) FROM cache_generations", [], |r| r.get(0))?;
     let schema: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0))?;
     assert_eq!(schema, 5);
-    // Inspect only the successful original capture: reopen the actual Native
-    // archive and compare the retained bytes with the one served TLS document.
+    // Locate the successful original capture. Independent Native owner reopen
+    // follows runtime close below; current custody forbids a second live owner.
     let archive_paths: Vec<_> = std::fs::read_dir(&directory_path)?
         .map(|entry| entry.map(|entry| entry.path()))
         .collect::<Result<Vec<_>, _>>()?
@@ -366,17 +366,6 @@ async fn main() -> Result<(), Failure> {
         "../../../backend/src/providers/network/host_runtime/examples/fixtures/inventory-with-observation.wire.json"
     );
     let raw_digest = format!("{:x}", Sha256::digest(original_bytes));
-    let native_archive = n::NetworkImmutableArchive::open(&archive_paths[0])?;
-    let capture = native_archive.reopen(
-        settings.source(),
-        cache
-            .generation_id
-            .as_deref()
-            .ok_or("Missing committed generation")?,
-    )?;
-    assert_eq!(capture.body(), original_bytes);
-    assert_eq!(capture.body_sha256(), raw_digest);
-    assert_eq!(capture.registration(), settings.source());
     let archive_db = rusqlite::Connection::open_with_flags(
         &archive_paths[0],
         rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
@@ -387,7 +376,6 @@ async fn main() -> Result<(), Failure> {
     )?;
     assert_eq!((sealed, reserved, permanent), (1, 0, 1));
     drop(archive_db);
-    native_archive.close()?;
     // A distinct genuine viewer has no lifecycle policy. Browse uses only its
     // current Read authority and original typed resource grants on the same Store.
     let viewer = a::CanonicalId::parse("00000000-0000-4000-8000-000000000006")?;
@@ -796,6 +784,20 @@ async fn main() -> Result<(), Failure> {
     Arc::try_unwrap(runtime)
         .map_err(|_| "Runtime unexpectedly retained")?
         .close()?;
+    // The original runtime has closed its SQLite connections and custody leases.
+    // A fresh Native owner now validates the exact saved raw capture.
+    let native_archive = n::NetworkImmutableArchive::open(&archive_paths[0])?;
+    let capture = native_archive.reopen(
+        settings.source(),
+        cache
+            .generation_id
+            .as_deref()
+            .ok_or("Missing committed generation")?,
+    )?;
+    assert_eq!(capture.body(), original_bytes);
+    assert_eq!(capture.body_sha256(), raw_digest);
+    assert_eq!(capture.registration(), settings.source());
+    native_archive.close()?;
     drop(core);
     println!(
         "PASS healthy root Network router: one actual TLS inventory GET/custody-aware native publication; immutable Native archive reopen matches original response bytes/hash and exact registration/generation; genuine viewer HTTP saved queries and cached reads; genuine editor/current-CSRF mounted MCP initialization, discovery and all three saved queries with exact canonical HTTP data; original issuer/disclosure and unchanged epochs/reservations; four generic snapshot relations including the unresolved public projection bound to original raw members, cache metadata unchanged. Seventeen actual Root TLS requests; no browser qualification or held controls."
