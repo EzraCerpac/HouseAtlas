@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { stripTypeScriptTypes } from 'node:module';
 import { projectView } from '../src/lantern/adapters/read.ts';
 import { createGeometryClient } from '../src/api/geometry-client.ts';
+import { createEvidenceClient } from '../src/api/evidence-client.ts';
 import { createOperationHistoryClient } from '../src/api/operation-history-client.ts';
 import { createRetainedIntentClient, canReadRetainedIntent } from '../src/api/retained-intent-client.ts';
 import { demoSnapshot, demoOptions } from '../../web/demo/fixtures.mjs';
@@ -154,6 +155,59 @@ assert.equal(geometryProjection.house.geometry, 'none');
 assert(geometryProjection.house.floors.every(floor => !floor.hasPlan));
 assert(geometryProjection.house.spaces.every(space => space.geometry === 'none' && !space.shape));
 assert(geometryProjection.house.items.every(item => !item.pos && !item.spaceId && !item.containerId));
+
+// Two schema-valid positive point reads preserve the full public evidence payload.
+const evidenceRecord = geometrySnapshot.records.find(record => record.recordType === 'evidence');
+assert(evidenceRecord);
+const evidencePayload = {
+  ...evidenceRecord.payload,
+  statement: 'Synthetic survey café + original evidence statement',
+  provenance: { ...evidenceRecord.payload.provenance,
+    source: publicGeometry.payload.mappings[0].homeboxEntity,
+    sourceRevision: 'source-revision-007', sourceConfidence: 'Owner supplied confidence',
+    factAt: '2026-10-08T13:05:00.123+02:00', retrievedAt: '2026-10-08T14:15:00+02:00',
+    vantage: null },
+  supersedesEvidenceIds: ['00000000-0000-4000-8000-000000000981'],
+  references: [
+    { kind: 'atlas-asset', assetId: publicGeometry.payload.originalAssetId },
+    { kind: 'homebox-attachment', entity: publicGeometry.payload.mappings[0].homeboxEntity,
+      attachmentId: '00000000-0000-4000-8000-000000000982' },
+    { kind: 'external-link', url: 'https://example.invalid/original?label=caf%C3%A9+survey', archived: false },
+  ],
+};
+const evidenceOriginal = JSON.stringify(evidencePayload);
+for (const lifecycle of ['active', 'tombstoned']) {
+  const publicEvidence = {
+    target: { authority: 'atlas', recordType: 'evidence', recordId: evidenceRecord.recordId },
+    revision: lifecycle === 'active' ? evidenceRecord.revision : evidenceRecord.revision + 1,
+    lifecycle, payload: evidencePayload,
+  };
+  let evidenceCalls = 0;
+  const evidenceClient = createEvidenceClient(async (url, init) => {
+    evidenceCalls++;
+    assert.equal(url, `/api/atlas/stock/v3/workspaces/${geometryScope.workspaceId}/homes/${geometryScope.homeId}/records/evidence/${evidenceRecord.recordId}`);
+    assert.equal(new URL(url, 'https://atlas.invalid').search, '');
+    assert.equal(init.method, 'GET');
+    assert.equal(init.credentials, 'same-origin');
+    assert.equal(init.cache, 'no-store');
+    assert.equal(init.redirect, 'error');
+    assert.deepEqual(init.headers, { Accept: 'application/json' });
+    assert.equal(init.signal, signal);
+    assert.equal(init.body, undefined);
+    return { ok: true, json: async () => ({
+      schemaVersion: 3, commandId: 'atlas.evidence.get',
+      requestId: '00000000-0000-4000-8000-000000000983', resolvedScope: geometryScope,
+      status: 'read', replayed: false,
+      data: { records: [publicEvidence], nextCursor: null, sourceStatus: 'current' },
+    }) };
+  });
+  const evidenceRead = await evidenceClient.read(geometryScope, evidenceRecord.recordId, signal);
+  assert.equal(evidenceCalls, 1);
+  assert.deepEqual(evidenceRead, { status: 'ready', record: publicEvidence, sourceStatus: 'current' });
+  assert.equal(evidenceRead.record, publicEvidence);
+  assert.equal(evidenceRead.record.payload, evidencePayload);
+  assert.equal(JSON.stringify(evidenceRead.record.payload), evidenceOriginal);
+}
 
 const operationScope = geometryScope;
 const operationEntries = [
@@ -377,4 +431,4 @@ for (const [path, expected] of Object.entries(hashes)) {
   assert.equal(result.status, 0);
   assert.equal(digest(result.stdout), expected, path);
 }
-console.log('PASS synthetic scoped projection, geometry, operation history and original retained-intent reads, opaque sequential pagination, arbitrary place kinds, unknown placement, retained source metadata, actual document handles, source dates, maintenance, and 44 unchanged authored reference hashes');
+console.log('PASS synthetic scoped projection, geometry, linked active/tombstoned evidence, operation history and original retained-intent reads, opaque sequential pagination, arbitrary place kinds, unknown placement, retained source metadata, actual document handles, source dates, maintenance, and 44 unchanged authored reference hashes');

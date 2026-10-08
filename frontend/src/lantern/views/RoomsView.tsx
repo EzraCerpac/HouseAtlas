@@ -3,6 +3,7 @@ import { roomContents, unplaced, dueState, CLAIM_LABEL } from '../data/query';
 import { useSelect, useStore } from '../state/store';
 import { ROOM_TINT } from '../atlas/palette';
 import { EntityLink, Empty } from '../components/ui';
+import { LinkedEvidence } from '../components/LinkedEvidence';
 
 export function RoomsView() {
   return (
@@ -214,20 +215,21 @@ function GeometryMetadata() {
               <div><dt>Source transform</dt><dd>{p.transform?.join(', ') ?? 'Not supplied'}</dd></div>
               <div><dt>Evidence IDs</dt><dd>{p.evidenceIds.join(', ')}</dd></div>
             </dl>
+            <div data-evidence-context="geometry">{p.evidenceIds.map(evidenceId => <LinkedEvidence key={evidenceId} evidenceId={evidenceId} />)}</div>
             <h3>Producer room mappings</h3>
             {!p.mappings.length && <Empty>No producer room mappings supplied.</Empty>}
             {p.mappings.map((mapping, index) => {
               const ref = mapping.homeboxEntity;
               const matched = [...projection.geometryMappings.entries()].find(([, matches]) => matches.some((match) => match.record === record && match.mapping === mapping));
               const place = matched ? projection.entries.get(matched[0]) : undefined;
-              return <dl className="facts" key={index}>
+              return <div key={index} data-evidence-context="mapping"><dl className="facts">
                 <div><dt>Producer room</dt><dd>{mapping.producerRoomId}</dd></div>
                 <div><dt>Mapping status</dt><dd>{mapping.reviewStatus}</dd></div>
                 <div><dt>Atlas identity ID</dt><dd>{mapping.atlasId}</dd></div>
                 <div><dt>HomeBox source reference</dt><dd>{ref ? `${ref.workspaceId} / ${ref.homeId} / ${ref.key.sourceInstanceId} / ${ref.key.collectionId} / ${ref.key.sourceKind} / ${ref.key.externalId}` : 'Not supplied'}</dd></div>
                 <div><dt>Saved place match</dt><dd>{place ? place.entity.name : 'No exact HomeBox place reference in this view'}</dd></div>
                 <div><dt>Mapping evidence IDs</dt><dd>{mapping.evidenceIds.join(', ')}</dd></div>
-              </dl>;
+              </dl>{mapping.evidenceIds.map(evidenceId => <LinkedEvidence key={evidenceId} evidenceId={evidenceId} />)}</div>;
             })}
           </details>;
         })}
