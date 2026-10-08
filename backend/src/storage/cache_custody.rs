@@ -4,10 +4,11 @@ use super::super::{cache_repository as repo, *};
 use super::AtlasStore;
 use rusqlite::{Transaction, TransactionBehavior};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
-    sync::Arc,
+    sync::{Arc, Weak},
 };
 
 pub const CACHE_PROTECTED_ENTRY_LIMIT: usize = 10_000;
@@ -221,8 +222,62 @@ impl CacheProtectionSink<'_> {
 #[derive(Default)]
 pub(super) struct CachePinRegistry {
     entries: Vec<ProtectedCacheGeneration>,
+    disclosures: Vec<Weak<CacheDisclosureLease>>,
 }
+
+struct CacheDisclosureLease {
+    issuer: Arc<()>,
+    registration: SourceRegistration,
+    generation_id: String,
+    baseline_sha256: [u8; 32],
+}
+
+/// Original same-Store lifetime pin. No public constructor, Clone, persistence
+/// or release operation. Retaining the enclosing original disclosure's Arc
+/// retains this token; dropping it performs no IO or lock acquisition.
+pub struct CacheDisclosurePin {
+    lease: Arc<CacheDisclosureLease>,
+}
+impl CacheDisclosurePin {
+    pub fn registration(&self) -> &SourceRegistration {
+        &self.lease.registration
+    }
+    pub fn generation_id(&self) -> &str {
+        &self.lease.generation_id
+    }
+}
+
+/// Issued only by the actual authorized Store read. The optional pin is absent
+/// only when the validated Network baseline has no generation pointer.
+pub struct PinnedCacheRead {
+    read: RegisteredCacheRead,
+    pin: Option<CacheDisclosurePin>,
+}
+impl PinnedCacheRead {
+    pub fn read(&self) -> &RegisteredCacheRead {
+        &self.read
+    }
+    pub fn into_parts(self) -> (RegisteredCacheRead, Option<CacheDisclosurePin>) {
+        (self.read, self.pin)
+    }
+}
+
+fn disclosure_baseline_digest(read: &RegisteredCacheRead) -> Result<[u8; 32]> {
+    Ok(Sha256::digest(serde_json::to_vec(&(&read.registration, &read.state))?).into())
+}
+
+fn disclosure_conflict() -> Error {
+    Error::new(
+        "guard-conflict",
+        "Original cache disclosure pin unavailable",
+    )
+}
+
 impl CachePinRegistry {
+    fn live_disclosures(&mut self) -> Vec<Arc<CacheDisclosureLease>> {
+        self.disclosures.retain(|pin| pin.strong_count() != 0);
+        self.disclosures.iter().filter_map(Weak::upgrade).collect()
+    }
     pub(super) fn reserve(&mut self, fence: &CachePublicationFence) -> Result<()> {
         if self.entries.len() >= CACHE_PROTECTED_ENTRY_LIMIT {
             return Err(capacity_error());
@@ -598,6 +653,9 @@ pub struct CacheResidencyGuard<'a, G> {
     contract: &'a dyn Contract,
     references: G,
     protected: Vec<ProtectedCacheGeneration>,
+    // Keep the actual original tokens live for this whole inventory boundary,
+    // even if their last reader owner releases its Arc after enumeration.
+    _disclosure_pins: Vec<Arc<CacheDisclosureLease>>,
 }
 impl<G: OriginalCacheReferenceGuard> CacheResidencyGuard<'_, G> {
     pub fn protected(&self) -> &[ProtectedCacheGeneration] {
@@ -738,6 +796,78 @@ impl<G: OriginalCacheReferenceGuard> UnpublishedCacheCandidateGuard<'_, G> {
 }
 
 impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
+    /// Perform the existing actual authorized registered read, then acquire a
+    /// same-instance generation pin before the exclusive Store borrow exits.
+    /// Caller-supplied snapshots or generation selectors never issue a pin.
+    /// The supplied authorizer is the original borrowed per-call read fence;
+    /// this function never reenters the configured authorizer or Access owner.
+    pub fn read_cache_partition_pinned_with_authorization<B: Authorization>(
+        &mut self,
+        authorization: &B,
+        principal: &B::Principal,
+        scope: &Scope,
+        partition: &SourcePartition,
+    ) -> Result<PinnedCacheRead> {
+        let read = self.read_cache_partition_with_authorization(
+            authorization,
+            principal,
+            scope,
+            partition,
+        )?;
+        if read.registration.owner != SourceOwner::Network {
+            return Err(disclosure_conflict());
+        }
+        let pin = if let Some(generation_id) = read
+            .state
+            .cache
+            .as_ref()
+            .and_then(|cache| cache.generation_id.as_ref())
+        {
+            if !repo::generation_reserved(&self.db, partition, generation_id)? {
+                return Err(disclosure_conflict());
+            }
+            let live = self.cache_pins.live_disclosures();
+            if live.len() >= CACHE_PROTECTED_ENTRY_LIMIT {
+                return Err(capacity_error());
+            }
+            let lease = Arc::new(CacheDisclosureLease {
+                issuer: Arc::clone(&self.instance),
+                registration: read.registration.clone(),
+                generation_id: generation_id.clone(),
+                baseline_sha256: disclosure_baseline_digest(&read)?,
+            });
+            self.cache_pins.disclosures.push(Arc::downgrade(&lease));
+            Some(CacheDisclosurePin { lease })
+        } else {
+            None
+        };
+        Ok(PinnedCacheRead { read, pin })
+    }
+
+    /// Check the original allocation and entire captured registered baseline.
+    /// Current-pointer/authority revalidation remains the original reader's
+    /// separate release check; supersession never silently drops a live pin.
+    pub fn validate_cache_disclosure_pin(
+        &self,
+        pin: &CacheDisclosurePin,
+        read: &RegisteredCacheRead,
+    ) -> Result<()> {
+        if !Arc::ptr_eq(&self.instance, &pin.lease.issuer)
+            || pin.registration() != &read.registration
+            || read.registration.owner != SourceOwner::Network
+            || read
+                .state
+                .cache
+                .as_ref()
+                .and_then(|cache| cache.generation_id.as_deref())
+                != Some(pin.generation_id())
+            || disclosure_baseline_digest(read)? != pin.lease.baseline_sha256
+        {
+            return Err(disclosure_conflict());
+        }
+        Ok(())
+    }
+
     pub fn publish_prepared_generation_with_custody(
         &mut self,
         principal: &A::Principal,
@@ -850,6 +980,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         &'a mut self,
         references: &'a mut P,
     ) -> Result<CacheResidencyGuard<'a, P::Guard<'a>>> {
+        let disclosure_pins = self.cache_pins.live_disclosures();
         let transaction = self
             .db
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -870,6 +1001,18 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                 CacheProtectionOrigin::StorePin,
             )?;
         }
+        for pin in &disclosure_pins {
+            if !Arc::ptr_eq(&pin.issuer, &self.instance) {
+                return Err(disclosure_conflict());
+            }
+            sink.protect_with_origin(
+                &pin.registration,
+                &pin.generation_id,
+                None,
+                CacheProtectionReason::Disclosure,
+                CacheProtectionOrigin::StorePin,
+            )?;
+        }
         original.enumerate(&mut sink)?;
         if let Some(error) = sink.failed {
             return Err(error);
@@ -880,6 +1023,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             contract: &self.contract,
             references: original,
             protected,
+            _disclosure_pins: disclosure_pins,
         })
     }
 

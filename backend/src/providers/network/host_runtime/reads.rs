@@ -25,6 +25,7 @@ pub struct OriginalNetworkDisclosure {
     pub(super) observations: Vec<a::NetworkObservationGrant>,
     pub(super) retained: n::RetainedState,
     pub(super) baseline: s::RegisteredCacheRead,
+    pin: Option<s::CacheDisclosurePin>,
 }
 impl OriginalNetworkDisclosure {
     pub fn source(&self) -> &ConfiguredSource {
@@ -58,6 +59,8 @@ impl OriginalNetworkDisclosure {
         ) {
             return Err(a::AccessError::Forbidden);
         }
+        self.check_pin(store)
+            .map_err(|_| a::AccessError::Forbidden)?;
         self.access
             .lock()?
             .with_read_authorization(&self.principal, |guard| self.check_guard(guard))
@@ -82,6 +85,13 @@ impl OriginalNetworkDisclosure {
         }
         Ok(())
     }
+    fn check_pin(&self, store: &Store) -> s::Result<()> {
+        match &self.pin {
+            Some(pin) => store.validate_cache_disclosure_pin(pin, &self.baseline),
+            None if self.generation_id().is_none() => Ok(()),
+            None => Err(conflict()),
+        }
+    }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn capture(
         owner: Weak<Mutex<Core>>,
@@ -91,9 +101,16 @@ impl OriginalNetworkDisclosure {
         partition: a::PartitionGrant,
         entities: Vec<a::SourceGrant>,
         retained: n::RetainedState,
-        baseline: s::RegisteredCacheRead,
+        pinned: s::PinnedCacheRead,
     ) -> Result<Arc<Self>, n::NetworkError> {
+        let (baseline, pin) = pinned.into_parts();
         if partition.partition() != &source.partition()
+            || baseline.registration != *source.registration()
+            || pin.as_ref().map(s::CacheDisclosurePin::generation_id)
+                != retained.cache.generation_id.as_deref()
+            || pin
+                .as_ref()
+                .is_some_and(|pin| pin.registration() != source.registration())
             || entities.len() > 10_000
             || entities.iter().any(|g| !source.contains(g.reference()))
         {
@@ -173,6 +190,7 @@ impl OriginalNetworkDisclosure {
             observations,
             retained,
             baseline,
+            pin,
         }))
     }
 }
@@ -272,6 +290,7 @@ pub(super) fn release(
     now: &str,
     stale_after_ms: i64,
 ) -> s::Result<n::NetworkFacet> {
+    lease.check_pin(store)?;
     let mut boundary = lease.access.lock().map_err(storage_access)?;
     let mut output = None;
     boundary
@@ -303,6 +322,48 @@ pub(super) fn release(
             output = Some(facet);
             Ok(())
         })
+        .map_err(|e: PhaseError| e.0)?;
+    output.ok_or_else(conflict)
+}
+
+/// Acquire the actual Store lifetime pin inside the same original AT11 read
+/// fence, before any retained sidecar bytes are opened outside that fence.
+pub(super) fn read_pinned_partition(
+    store: &mut Store,
+    access: &NetworkAccess,
+    principal: &a::Principal,
+    source: &ConfiguredSource,
+    partition: &a::PartitionGrant,
+    entities: &[a::SourceGrant],
+) -> s::Result<s::PinnedCacheRead> {
+    let mut boundary = access.lock().map_err(storage_access)?;
+    let mut output = None;
+    boundary
+        .with_source_read_authorization(
+            principal,
+            partition,
+            entities,
+            |guard| -> Result<(), PhaseError> {
+                let authorization = PartitionRead {
+                    guard,
+                    source,
+                    partition,
+                    entities,
+                    disclosure: None,
+                };
+                output = Some(store.read_cache_partition_pinned_with_authorization(
+                    &authorization,
+                    principal,
+                    &source.registration().scope(),
+                    &source.registration().partition(),
+                )?);
+                guard.revalidate_source_partition(partition)?;
+                for grant in entities {
+                    guard.revalidate_source(grant)?;
+                }
+                Ok(())
+            },
+        )
         .map_err(|e: PhaseError| e.0)?;
     output.ok_or_else(conflict)
 }
