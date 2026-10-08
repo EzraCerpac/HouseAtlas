@@ -189,7 +189,7 @@ impl<
         if request.whole_collection_required() {
             return Err(StockError::CapabilityHeld);
         }
-        let entity = entity_owner(&command.target)?;
+        let entity = command_entity_owner(command, self.native.plan())?;
         self.covered_entity(&command.target, entity)?;
         for partition in self.captured.partition_grants() {
             if partition.partition().scope() != *principal.scope() {
@@ -259,6 +259,57 @@ impl<
         } else {
             Err(StockError::CapabilityDenied)
         }
+    }
+}
+
+// Only the frozen generated file-upload target lacks a resourceId. Its exact
+// retained native multipart plan must name the existing entity owner; no
+// generated resource ID, owner fallback or remapping supplies entitlement.
+fn command_entity_owner(
+    command: &native::StockCommand,
+    plan: &native::NativePlan,
+) -> StockResult<uuid::Uuid> {
+    if command.command_id != "homebox.file.upload" {
+        return entity_owner(&command.target);
+    }
+    let target = &command.target;
+    let entity = target
+        .entity_id
+        .filter(|id| !id.is_nil())
+        .ok_or(StockError::CapabilityHeld)?;
+    let raw_target = serde_json::json!({
+        "authority":"homebox", "sourceInstanceId":target.source_instance_id,
+        "collectionId":target.collection_id, "resourceKind":"attachment", "entityId":entity
+    });
+    if target.resource_kind != native::ResourceKind::Attachment
+        || target.resource_id.is_some()
+        || target.source_instance_id.is_nil()
+        || target.collection_id.is_nil()
+        || command.original_wire["target"] != raw_target
+        || plan.request.method != native::NativeMethod::Post
+        || plan.request.path != format!("/api/v1/entities/{entity}/attachments")
+        || !plan.request.query.is_empty()
+        || plan.readback.target != *target
+        || plan.readback.path != format!("/api/v1/entities/{entity}")
+        || !plan.readback.query.is_empty()
+        || plan.readback.absence
+        || !matches!(&plan.readback.selector,
+            native::ReadbackSelector::Member { field } if field == "attachments")
+        || !matches!(&plan.generated,
+            native::GeneratedIdentity::EntityMember { field, .. } if field == "attachments")
+    {
+        return Err(StockError::CorrelationMismatch);
+    }
+    match &plan.request.body {
+        native::NativeBody::Multipart {
+            file_field, stage, ..
+        } if file_field == "file"
+            && command.payload["staged"]
+                == serde_json::to_value(stage).map_err(|_| StockError::OwnerUnavailable)? =>
+        {
+            Ok(entity)
+        }
+        _ => Err(StockError::CorrelationMismatch),
     }
 }
 
