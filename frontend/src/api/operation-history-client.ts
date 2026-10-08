@@ -92,7 +92,7 @@ export function createOperationHistoryClient(transport: typeof fetch = globalThi
         || new TextEncoder().encode(cursor).length > 4096))
         throw new TypeError('Invalid operation history cursor');
       signal.throwIfAborted();
-      const query = new URLSearchParams({ homeId: scope.homeId, pageSize: '25' });
+      const query = new URLSearchParams({ workspaceId: scope.workspaceId, homeId: scope.homeId, pageSize: '25' });
       if (cursor !== null) query.set('cursor', cursor);
       const response = await transport(`/api/atlas/operation-events?${query}`, {
         method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
