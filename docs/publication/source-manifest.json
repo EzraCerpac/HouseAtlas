@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "a4eb8b0578b1688bd6f4722c0b9986f9fbe87962f768893ce4941f017445b6ef",
+  "sourceDigestSha256": "8d4fc3a4ad29af241f8235dd70d49e9f53641b1ec269ed54965dab93a72f4aff",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 7860,
-      "sha256": "e132d88c067b5070909279de72500bedc842fa8059ed5271a3f219854d7965db",
+      "bytes": 8682,
+      "sha256": "387255d6d137baee72e22a48b6f7cf5381dc24f749201587b51984709d12533f",
       "owner": "core-integration"
     },
     {
@@ -3659,10 +3659,17 @@
       "owner": "network"
     },
     {
+      "path": "backend/src/providers/network/host_runtime/examples/pin-lifetime-loopback.py",
+      "mode": "100644",
+      "bytes": 4581,
+      "sha256": "c5ed27f1dac183474ce98bcaa70c0b8bc25cddbff24249603f8298f07bc7c3e2",
+      "owner": "network"
+    },
+    {
       "path": "backend/src/providers/network/host_runtime/examples/pin-lifetime.rs",
       "mode": "100644",
-      "bytes": 16378,
-      "sha256": "1a9c559a187c20bd18a3e339f364e8b0382dc1624009ad5389c6b65575c3caad",
+      "bytes": 16308,
+      "sha256": "65f5403975b7b9bd5154fff4176d26e18c03d1296ea94e0b52f9a7c04285135c",
       "owner": "network"
     },
     {

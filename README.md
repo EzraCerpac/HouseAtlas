@@ -106,6 +106,20 @@ heads and tracks review corrections. The same ordinary workflows run on dev
 pushes; cache publication remains restricted to verified main pushes. Main
 acceptance still requires review of the exact candidate and passing CI.
 
+The inspected Network pin fixture uses fresh synthetic state and exactly one
+verified numeric-loopback TLS inventory GET. Its native publication, disclosure
+pin counts `1→2→1→0`, unchanged post-publication Core state and cleanup passed on
+Mac with OpenSSL 3.6.5 and a temporary directory under `/tmp`. The earlier default
+tool environment failed certificate setup before any listener or native GET;
+that failure's cause remains unproven. This case establishes no live-provider or
+deployment acceptance and performs no reclamation or held controls. It is a
+separate named check, outside ordinary CI:
+
+```sh
+cargo build --offline --locked -p houseatlas-backend --example network-disclosure-pin
+python3 backend/src/providers/network/host_runtime/examples/pin-lifetime-loopback.py <compiled-network-disclosure-pin>
+```
+
 
 One inspected ordinary synthetic local-session example (fresh private state,
 strict reopen and in-process router only; no listener or held controls):
