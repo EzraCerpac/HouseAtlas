@@ -229,6 +229,15 @@ impl HostNetworkRuntime {
         }
         let result = match outcome {
             n::RefreshOutcome::Complete(proposal) => {
+                // A source-scope DTO or offline response cannot stand in for
+                // the original concrete client's verified origin custody.
+                if !proposal
+                    .original_capture()
+                    .is_from_reviewed_origin(config.reviewed_origin())
+                {
+                    self.cancel_archive_reservation(reservation)?;
+                    return Err(wrong_scope().into());
+                }
                 let generation = proposal.state().generation.as_ref();
                 let Some(generation) = generation else {
                     self.cancel_archive_reservation(reservation)?;
@@ -315,6 +324,9 @@ impl HostNetworkRuntime {
         let state = if let Some(id) = &cache.generation_id {
             let sidecar = self.sidecar.try_lock().map_err(|_| unavailable())?;
             let original = sidecar.reopen_original_capture(self.settings.source(), id)?;
+            if !original.is_from_reviewed_origin(self.settings.transport().reviewed_origin()) {
+                return Err(wrong_scope());
+            }
             let row = sidecar.load(self.settings.source(), id)?;
             let reopened = n::reopen_sidecar(
                 self.settings.source(),

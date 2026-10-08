@@ -7,9 +7,9 @@ use std::{
     sync::Arc,
 };
 
-/// The shared host currently compiles reqwest 0.13.5 with Rustls platform
-/// verification. The owner's 0.12.24 WebPKI profile remains a reconciliation
-/// item; constructing these settings does not qualify either real target.
+/// One compiled client profile: reqwest 0.13.5 with Rustls platform
+/// verification. Reviewed extra roots retain certificate/hostname checks;
+/// constructing settings supplies no live target qualification.
 pub const COMPILED_TLS_PROFILE: &str = "reqwest-0.13.5-rustls-platform-verification";
 
 #[derive(Clone)]

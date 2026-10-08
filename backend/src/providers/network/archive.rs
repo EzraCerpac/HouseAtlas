@@ -52,6 +52,8 @@ struct SegmentHeader {
     body_bytes: usize,
     body_sha256: String,
     projected_receipt_sha256: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    origin_sha256: Option<String>,
 }
 
 /// Store-issued capacity and generation reservation. No public constructor or
@@ -106,6 +108,14 @@ pub struct ReopenedNetworkCapture {
     generation: NetworkGeneration,
 }
 impl ReopenedNetworkCapture {
+    /// Verified private archive provenance, not a principal or disclosure grant.
+    /// Missing legacy evidence is unknown; it never inherits current settings.
+    pub fn is_from_reviewed_origin(&self, origin: &super::ReviewedNetworkOrigin) -> bool {
+        self.header
+            .origin_sha256
+            .as_ref()
+            .is_some_and(|digest| *digest == origin.custody_fingerprint())
+    }
     pub fn body(&self) -> &[u8] {
         &self.body
     }
@@ -354,6 +364,7 @@ impl NetworkImmutableArchive {
             body_bytes: capture.body().len(),
             body_sha256: capture.body_sha256().into(),
             projected_receipt_sha256: projected.sha256().into(),
+            origin_sha256: capture.origin_sha256().map(str::to_owned),
         };
         let header_json = serde_json::to_vec(&header).map_err(|_| invalid())?;
         let frame_bytes = FRAME_PREFIX_BYTES
@@ -644,6 +655,7 @@ fn reservation_size(
         body_bytes: MAX_ARCHIVE_ROW_BYTES,
         body_sha256: "f".repeat(64),
         projected_receipt_sha256: "f".repeat(64),
+        origin_sha256: Some("f".repeat(64)),
     };
     let header = serde_json::to_vec(&worst).map_err(|_| invalid())?;
     if header.len() > MAX_HEADER_BYTES {
@@ -703,7 +715,14 @@ fn decode_segment(bytes: &[u8]) -> Result<(SegmentHeader, Vec<u8>)> {
     let header: SegmentHeader =
         serde_json::from_slice(&bytes[FRAME_PREFIX_BYTES..header_end]).map_err(|_| invalid())?;
     let body = bytes[header_end..].to_vec();
-    if header.format != FORMAT {
+    if header.format != FORMAT
+        || header.origin_sha256.as_ref().is_some_and(|digest| {
+            digest.len() != 64
+                || !digest
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        })
+    {
         return Err(invalid());
     }
     Ok((header, body))
