@@ -193,24 +193,54 @@ fn lookup<C: Contract, S: StockContractPort>(
     }
     Ok((Some(commit), ordinal))
 }
-type EventRead = (
-    Vec<(i64, StockOperationEvent)>,
-    Vec<Audit>,
-    Vec<RecordRef>,
-    Vec<Record>,
-    Vec<StockAtlasCommit>,
-);
+const MAX_RETAINED_SNAPSHOT_ROOTS: usize = 128;
+const MAX_RETAINED_SNAPSHOT_SQL_BYTES: usize = 32 * 1024 * 1024;
+const MAX_RETAINED_SNAPSHOT_FACT_BYTES: usize = 48 * 1024 * 1024;
 
-fn event_rows<C: Contract, S: StockContractPort>(
+// Count the bounded JSON representation of decoded detached facts
+// without allocating another complete encoded copy. This is not an allocator
+// heap-size claim; SQL predecode, event/root/target counts are separate caps.
+struct FactBudget {
+    remaining: usize,
+}
+impl std::io::Write for FactBudget {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.remaining = self
+            .remaining
+            .checked_sub(bytes.len())
+            .ok_or_else(|| std::io::Error::other("Retained fact budget exceeded"))?;
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+fn fact_budget(snapshot: &StockOperationEventSnapshot, records: &[Record]) -> Result<()> {
+    let mut budget = FactBudget {
+        remaining: MAX_RETAINED_SNAPSHOT_FACT_BYTES,
+    };
+    serde_json::to_writer(
+        &mut budget,
+        &(
+            &snapshot.retained_commits,
+            &snapshot.targets,
+            &snapshot.rows,
+            &snapshot.audits,
+            records,
+        ),
+    )
+    .map_err(|_| unavailable())?;
+    Ok(())
+}
+
+fn snapshot_rows<C: Contract, S: StockContractPort>(
     db: &rusqlite::Connection,
     contract: &C,
     stock: &S,
     scope: &Scope,
     watermark: i64,
-    after: i64,
-    size: usize,
-) -> Result<EventRead> {
-    let links = stock_repo::retained_event_links(db, scope, watermark, after, size)?;
+) -> Result<(StockOperationEventSnapshot, Vec<Record>)> {
+    let links = stock_repo::retained_snapshot_event_links(db, scope, watermark)?;
     let mut validated = std::collections::BTreeMap::new();
     let mut budget = 0_usize;
     let mut rows = Vec::new();
@@ -219,6 +249,9 @@ fn event_rows<C: Contract, S: StockContractPort>(
     for link in links {
         let identity = (link.actor_id.clone(), link.root_operation_id.clone());
         if !validated.contains_key(&identity) {
+            if validated.len() >= MAX_RETAINED_SNAPSHOT_ROOTS {
+                return Err(unavailable());
+            }
             budget = budget
                 .checked_add(stock_repo::assert_retained_read_budget(
                     db,
@@ -227,7 +260,7 @@ fn event_rows<C: Contract, S: StockContractPort>(
                     &link.root_operation_id,
                 )?)
                 .ok_or_else(unavailable)?;
-            if budget > 32 * 1024 * 1024 {
+            if budget > MAX_RETAINED_SNAPSHOT_SQL_BYTES {
                 return Err(unavailable());
             }
             let commit =
@@ -283,13 +316,30 @@ fn event_rows<C: Contract, S: StockContractPort>(
         audits.push(audit.clone());
     }
     let records = current_records(db, contract, scope, &targets)?;
-    Ok((
+    let snapshot = StockOperationEventSnapshot {
+        watermark,
         rows,
         audits,
         targets,
-        records,
-        validated.into_values().collect(),
-    ))
+        retained_commits: validated.into_values().collect(),
+    };
+    fact_budget(&snapshot, &records)?;
+    Ok((snapshot, records))
+}
+
+fn snapshot_page(
+    snapshot: &StockOperationEventSnapshot,
+    after: i64,
+    size: usize,
+) -> (Vec<(i64, StockOperationEvent)>, Vec<Audit>) {
+    snapshot
+        .rows
+        .iter()
+        .zip(&snapshot.audits)
+        .filter(|((sequence, _), _)| *sequence > after)
+        .take(size + 1)
+        .map(|(row, audit)| (row.clone(), audit.clone()))
+        .unzip()
 }
 
 impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
@@ -573,15 +623,18 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         if watermark > max {
             return Err(stock_repo::incompatible());
         }
-        let (rows, audits, targets, records, retained_commits) = event_rows(
-            &tx,
-            &self.contract,
-            stock,
-            scope,
-            watermark,
-            after,
-            page_size,
-        )?;
+        let (actual_snapshot, records) =
+            snapshot_rows(&tx, &self.contract, stock, scope, watermark)?;
+        let snapshot = if let Some(c) = continuation {
+            if actual_snapshot != *c.snapshot {
+                return Err(changed());
+            }
+            Arc::clone(&c.snapshot)
+        } else {
+            Arc::new(actual_snapshot)
+        };
+        let (rows, audits) = snapshot_page(&snapshot, after, page_size);
+        let targets = snapshot.targets.clone();
         let events = rows.iter().map(|(_, e)| e.clone()).collect::<Vec<_>>();
         if check(
             &self.contract,
@@ -596,7 +649,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                 commit: None,
                 audits: &audits,
                 events: &events,
-                retained_commits: &retained_commits,
+                retained_commits: &snapshot.retained_commits,
                 output: None,
             },
         )? != actor
@@ -612,7 +665,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             after,
             rows,
             audits,
-            retained_commits,
+            snapshot,
             targets,
             current_records: records,
         })
@@ -651,19 +704,22 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             return Err(changed());
         }
         let tx = self.db.transaction()?;
-        let (rows, audits, targets, records, retained_commits) = event_rows(
+        let (actual_snapshot, records) = snapshot_rows(
             &tx,
             &self.contract,
             stock,
             &preparation.scope,
             preparation.watermark,
-            preparation.after,
-            preparation.page_size,
         )?;
+        if actual_snapshot != *preparation.snapshot {
+            return Err(changed());
+        }
+        let snapshot = &preparation.snapshot;
+        let (rows, audits) = snapshot_page(snapshot, preparation.after, preparation.page_size);
+        let targets = &snapshot.targets;
         if rows != preparation.rows
             || audits != preparation.audits
-            || targets != preparation.targets
-            || retained_commits != preparation.retained_commits
+            || targets != &preparation.targets
         {
             return Err(changed());
         }
@@ -709,12 +765,12 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                     phase,
                     scope: &preparation.scope,
                     intent: None,
-                    targets: &targets,
+                    targets,
                     current_records: &records,
                     commit: None,
                     audits: &audits,
                     events: &events,
-                    retained_commits: &retained_commits,
+                    retained_commits: &snapshot.retained_commits,
                     output: Some(&wire),
                 },
             )? != actor
@@ -735,6 +791,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             page_size: preparation.page_size,
             watermark: preparation.watermark,
             after,
+            snapshot: Arc::clone(&preparation.snapshot),
         });
         Ok(StockOperationEvents {
             page: output,
