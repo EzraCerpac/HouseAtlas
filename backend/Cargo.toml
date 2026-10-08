@@ -104,3 +104,7 @@ path = "src/media/healthy_asset_review.rs"
 [[example]]
 name = "healthy-homebox-artifacts"
 path = "src/media/healthy_homebox_artifacts.rs"
+
+[[example]]
+name = "healthy-homebox-stock-history"
+path = "../tools/rust-integration/examples/healthy_homebox_stock_history.rs"

@@ -7,6 +7,7 @@ mod cache_types;
 mod command_extension;
 mod context;
 mod error;
+mod homebox_stock_history_types;
 mod migrations;
 mod native;
 mod numeric;
@@ -28,6 +29,7 @@ mod upload_types;
 
 pub use cache_types::*;
 pub use error::{Error, Result};
+pub use homebox_stock_history_types::*;
 pub use migrations::{DATABASE_LINEAGE, DATABASE_VERSION, STOCK_ACTIVITY_DATABASE_VERSION};
 pub use native::NativeContract;
 pub use ports::{

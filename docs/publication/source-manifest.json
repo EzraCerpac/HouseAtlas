@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "62e7fdbbf7f23c98bc3d9cd0a77747ac6146ff373df3c70803e1c28005d24da6",
+  "sourceDigestSha256": "44f59b1a56a5071ab9c70e7e378bd81a6127fb60f8b7235d3648b38ebd895e8e",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -245,8 +245,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 2439,
-      "sha256": "d5ba04bad171b9a0c8580cd2b5a2d2ed3c73d2d802f2729058942913bf56e5a6",
+      "bytes": 2568,
+      "sha256": "4c4373a8c5b40555141057d49f0c6d668a30836d7941092acef8174f6f676c86",
       "owner": "core-integration"
     },
     {
@@ -3253,6 +3253,27 @@
       "owner": "storage"
     },
     {
+      "path": "backend/src/storage/homebox_stock_history.rs",
+      "mode": "100644",
+      "bytes": 13226,
+      "sha256": "c12566e911462b645c89da1a59ea7e0016574efbff933c662316021305f72bfb",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/homebox_stock_history_repository.rs",
+      "mode": "100644",
+      "bytes": 14651,
+      "sha256": "ed6d71e0b1f71c02f1b1560b52241525d4ec8abfea45baab87e97f9bcb92ba1d",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/homebox_stock_history_types.rs",
+      "mode": "100644",
+      "bytes": 1778,
+      "sha256": "120960415efd4c2330e138ac814189c631640f1215a4a7c3fa12794d7a8f8953",
+      "owner": "storage"
+    },
+    {
       "path": "backend/src/storage/migrations.rs",
       "mode": "100644",
       "bytes": 6482,
@@ -3262,8 +3283,8 @@
     {
       "path": "backend/src/storage/mod.rs",
       "mode": "100644",
-      "bytes": 1652,
-      "sha256": "199c0c4714ff877d40d684dc53d7407a651a0278789b0a829d06ceb731b422ce",
+      "bytes": 1725,
+      "sha256": "0819b7facb7f46850948313788ad673585a05e4886ab031c809fce098f1ea8fd",
       "owner": "storage"
     },
     {
@@ -3444,8 +3465,8 @@
     {
       "path": "backend/src/storage/stock_activity/mod.rs",
       "mode": "100644",
-      "bytes": 16147,
-      "sha256": "2f47b5096be262827579cf134df4858f104a00203b62e248803dd54add298d9d",
+      "bytes": 16233,
+      "sha256": "3699fc7a86542028119c4cd26cb776d1a147b227586fa165f4a0bd46fb053e77",
       "owner": "storage"
     },
     {
@@ -3549,8 +3570,8 @@
     {
       "path": "backend/src/storage/store.rs",
       "mode": "100644",
-      "bytes": 15552,
-      "sha256": "c2746881007dad7c077e3e286c6c091a5f642803fc78df9c63a82f8644321b6e",
+      "bytes": 15674,
+      "sha256": "d15cea2eefa7aea5cf3c029b9340220889237efa10ea049799bd4c008e939214",
       "owner": "storage"
     },
     {
@@ -4032,8 +4053,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 33321,
-      "sha256": "8f80de08b605373f60331e1fbb089d50c80b6d6a0e778d53ba49e320165eebd4",
+      "bytes": 33983,
+      "sha256": "6ad822f96aac8bb8548d64e0171e80e6759e0ac6675ef67762e422261ed3bbd7",
       "owner": "core-integration"
     },
     {
@@ -6064,6 +6085,13 @@
       "mode": "100644",
       "bytes": 11818,
       "sha256": "77d285f630cd61e3b525e644af1130a16fec2bc563e0aa866f4e2f0d1427c44d",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/rust-integration/examples/healthy_homebox_stock_history.rs",
+      "mode": "100644",
+      "bytes": 26782,
+      "sha256": "b1d6a9ea7bb3bf00b992c495c351c218fd2991f08a66e3542f4f6315fed98101",
       "owner": "core-integration"
     },
     {

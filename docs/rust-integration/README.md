@@ -215,6 +215,7 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     cargo run --locked -p houseatlas-backend --example healthy-homebox-cache-stock
     cargo run --locked -p houseatlas-backend --example healthy-asset-review
     cargo run --locked -p houseatlas-backend --example healthy-homebox-artifacts
+    cargo run --locked -p houseatlas-backend --example healthy-homebox-stock-history
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-atlas-lists-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-core-loopback.mjs
@@ -259,6 +260,15 @@ and HEAD admission. It verifies measured bytes and source-version correlation.
 Its local source port is explicitly synthetic. No production retained HomeBox
 attachment-membership/byte resolver, stock prepared-disclosure peer or HTTP route
 is installed; module compilation does not admit file-download capability.
+
+The healthy-homebox-stock-history example retains four actual profile-6
+reservations and reads entity pagination, a watermark-pinned continuation,
+location history through the native history port, and an ordinary reopened
+page. Each entry is one real saved operation cut with incomplete upstream
+coverage. Its Access disclosure peer is synthetic; default profile 5 remains
+unavailable. Ordinary reopen does not qualify strict recovery or generated
+create identity correlation. Application disclosure and HTTP admission require
+the actual original source and partition grants.
 
 The separate standalone-asset runner uses no browser. It performs one actual
 editor HTTP login and fresh text/plain, unknown-license, download-only asset

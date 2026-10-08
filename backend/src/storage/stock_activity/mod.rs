@@ -2,6 +2,8 @@
 //! Original host handles are retained in memory; database rows are data only.
 mod baseline;
 mod codec;
+#[path = "../homebox_stock_history_repository.rs"]
+pub(crate) mod history_repository;
 mod journal;
 mod recovery;
 mod replay;

@@ -6,6 +6,8 @@ mod cache_custody;
 pub use cache_custody::*;
 #[path = "commands.rs"]
 mod commands;
+#[path = "homebox_stock_history.rs"]
+mod homebox_stock_history;
 #[path = "recovery.rs"]
 mod recovery;
 #[path = "stock.rs"]
@@ -16,6 +18,7 @@ mod stock_asset_review;
 mod stock_history;
 #[path = "upload_queries.rs"]
 mod upload_queries;
+pub use homebox_stock_history::NativeHomeBoxStockHistory;
 pub use recovery::{RecoveryImage, RecoveryValidationPeers};
 
 use rusqlite::{Connection, TransactionBehavior};
