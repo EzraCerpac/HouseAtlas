@@ -4,6 +4,7 @@ import type { ConflictInfo, HouseData, Overlay, Selection, System, WriteOp, Writ
 import type { AskEntry } from '../assistant/engine';
 import type { LanternProjection } from '../adapters/read';
 import type { AtlasEditingClient } from '../../app/editing';
+import type { QuantityClient } from '../../api/quantity-client';
 import type { Scope } from '../../app/types';
 import type { SessionSettings } from '../../app/session';
 export type ViewId = 'atlas' | 'rooms' | 'upkeep' | 'network' | 'library' | 'changes';
@@ -83,6 +84,7 @@ export interface LanternActions {
   switchHome: (scope: Scope) => void;
   session?: SessionSettings;
   editing?: AtlasEditingClient;
+  quantity?: QuantityClient;
   nativeContent: ReactNode;
 }
 function initial(house: HouseData): AppState {

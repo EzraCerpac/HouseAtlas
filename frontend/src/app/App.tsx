@@ -22,6 +22,7 @@ import { AtlasPage } from "./pages";
 import { text } from "./copy";
 import type { SessionSettings } from "./session";
 import type { AtlasEditingClient } from "./editing";
+import type { QuantityClient } from "../api/quantity-client";
 import { AiHost, AiActivityStatus } from "../ai/host/index.js";
 import type { AiViewResolver } from "../ai/host/index.js";
 
@@ -32,6 +33,7 @@ export interface AtlasContentActions {
   notice: string;
   session?: SessionSettings;
   editing?: AtlasEditingClient;
+  quantity?: QuantityClient;
 }
 export interface AtlasAppProps {
   client: AtlasClient;
@@ -44,6 +46,7 @@ export interface AtlasAppProps {
   /** Reports only the committed authorized scope, or unavailable context. */
   onScopeCommit?: (scope: Scope | null) => void;
   editing?: AtlasEditingClient;
+  quantity?: QuantityClient;
   /** Wrap content with its current authorized view during the same render. */
   renderContent?: (view: AtlasView, content: ReactNode, actions: AtlasContentActions) => ReactNode;
   resolveAi?: AiViewResolver;
@@ -57,6 +60,7 @@ export function App({
   session,
   onScopeCommit,
   editing,
+  quantity,
   renderContent,
   resolveAi,
 }: AtlasAppProps) {
@@ -367,7 +371,7 @@ export function App({
           : null
       }
     >
-      {renderContent ? renderContent(view, content, { reload: () => read(view.status === "ready" ? view.scope : undefined), switchHome, busy, notice, ...(session ? { session } : {}), ...(editing ? { editing } : {}) }) : content}
+      {renderContent ? renderContent(view, content, { reload: () => read(view.status === "ready" ? view.scope : undefined), switchHome, busy, notice, ...(session ? { session } : {}), ...(editing ? { editing } : {}), ...(quantity ? { quantity } : {}) }) : content}
     </AiHost>
   );
 }
