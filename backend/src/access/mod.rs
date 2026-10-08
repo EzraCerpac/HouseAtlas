@@ -9,6 +9,7 @@ mod error;
 mod existing;
 mod lifecycle;
 mod network;
+mod read;
 mod recovery;
 mod shared;
 mod source;

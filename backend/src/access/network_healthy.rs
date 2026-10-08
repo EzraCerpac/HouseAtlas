@@ -64,6 +64,9 @@ fn healthy_network_disclosure_checkpoint() {
     request.method = Method::Get;
     request.cookie = Some(session.set_cookie().split(';').next().unwrap());
     let principal = access.authorize(&request, &scope, Action::Read).unwrap();
+    let partition_grant = access
+        .authorize_source_partition(&principal, &registration.partition())
+        .unwrap();
     let member = |kind, external_id: &str| SourceRef {
         workspace_id: scope.workspace_id.clone(),
         home_id: scope.home_id.clone(),
@@ -109,6 +112,9 @@ fn healthy_network_disclosure_checkpoint() {
             Some(&interface_grant),
         )
         .unwrap();
+    // Capture the trusted typed member set before any consumer seals capture.
+    // Moving these handles preserves their original private provenance.
+    let member_grants = [device_grant, interface_grant, segment_grant];
     assert_eq!(link_grant.reference(), &link);
     assert_eq!(observation_grant.reference(), &observation);
     assert_eq!(observation_grant.reference().collector_id(), "collector-a");
@@ -137,29 +143,51 @@ fn healthy_network_disclosure_checkpoint() {
         .unwrap();
     let mut released = None;
     access
-        .with_read_authorization(&principal, |guard| -> AccessResult<()> {
-            assert!(std::ptr::eq(guard.principal(), &principal));
-            assert!(std::ptr::eq(
-                guard.revalidate_network_link(&link_grant)?,
-                &link_grant
-            ));
-            assert!(std::ptr::eq(
-                guard.revalidate_network_observation(&observation_grant)?,
-                &observation_grant
-            ));
-            let snapshot: (String, String) = records.query_row(
-                "SELECT link_id, observation_id FROM synthetic_disclosure",
-                [],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )?;
-            guard.revalidate_network_link(&link_grant)?;
-            guard.revalidate_network_observation(&observation_grant)?;
-            released = Some(snapshot);
-            Ok(())
-        })
+        .with_source_read_authorization(
+            &principal,
+            &partition_grant,
+            &member_grants,
+            |guard| -> AccessResult<()> {
+                assert!(std::ptr::eq(guard.principal(), &principal));
+                assert!(std::ptr::eq(
+                    guard.revalidate_source_partition(&partition_grant)?,
+                    &partition_grant
+                ));
+                for member in &member_grants {
+                    assert!(std::ptr::eq(guard.revalidate_source(member)?, member));
+                }
+                assert!(std::ptr::eq(
+                    guard.revalidate_network_link(&link_grant)?,
+                    &link_grant
+                ));
+                assert!(std::ptr::eq(
+                    guard.revalidate_network_observation(&observation_grant)?,
+                    &observation_grant
+                ));
+                let snapshot: (String, String) = records.query_row(
+                    "SELECT link_id, observation_id FROM synthetic_disclosure",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )?;
+                guard.revalidate_network_link(&link_grant)?;
+                guard.revalidate_network_observation(&observation_grant)?;
+                released = Some(snapshot);
+                Ok(())
+            },
+        )
         .unwrap();
     assert_eq!(released.unwrap(), ("row-a".into(), "row-a".into()));
+    // Partition metadata remains readable without entity handles. This checks
+    // only Access authority, not an empty Network generation or Store baseline.
+    access
+        .with_source_read_authorization(
+            &principal,
+            &partition_grant,
+            &[],
+            |guard| -> AccessResult<()> { guard.revalidate_source_read(&partition_grant, &[]) },
+        )
+        .unwrap();
     println!(
-        "AT11 healthy Network disclosure: genuine viewer, original endpoints/both observation members, distinct row namespaces, fenced synthetic SQLite read"
+        "AT11 healthy Network disclosure: genuine viewer, original partition/member binding, original endpoints/both observation members, distinct row namespaces, fenced synthetic SQLite read and partition-only authority"
     );
 }

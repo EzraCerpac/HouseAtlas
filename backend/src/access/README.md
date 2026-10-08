@@ -285,6 +285,47 @@ owner integration work.
 
 ## Network link and observation disclosure
 
+For cached stock reads, retain the already authenticated original principal,
+its exact `PartitionGrant`, and the `SourceGrant` for each trusted configured
+typed member before the request's capture seal. Existing
+`authorize_source_partition` and `authorize_source` issue these grants from the
+canonical Access boundary. Qualified partition identity includes workspace,
+home, source instance and collection; an external ID alone is insufficient.
+The owning runtime supplies the trusted typed members: a registry allowlist of
+untyped IDs does not establish source kinds or complete generation membership.
+
+```rust
+TransactionAuthorization::revalidate_source_read(
+    &self, original_partition: &PartitionGrant, original_members: &[SourceGrant],
+) -> AccessResult<()>;
+AccessBoundary::with_source_read_authorization<E: From<AccessError>>(
+    &mut self, original: &Principal, partition: &PartitionGrant,
+    members: &[SourceGrant],
+    operation: impl FnOnce(&TransactionAuthorization<'_>) -> Result<(), E>,
+) -> Result<(), E>;
+```
+
+The guard checks current read permission, the original partition version and
+full principal provenance, every member's exact partition, and every original
+member version and provenance. The convenience fence checks that same borrowed
+set before and after successful synchronous work. It issues no replacement
+principal or grant. An empty member set still requires the original partition
+grant and supplies metadata authority only. This set is not proof of configured
+completeness, Store ownership, retained generation membership, or source-presence
+admission. Consumers release captured output only after the fence returns `Ok`.
+
+The current Network host already accepts this principal/partition/member tuple
+in `HostNetworkRuntime::read` and retains its own `OriginalNetworkDisclosure`.
+Root constructs `NetworkAccess` from `SharedAccess::from_existing` with the
+canonical `Core.access`; the host checks the same owning Core, Store and Access
+allocation. Root calls `read` outside the Core mutex, then uses `disclose` and
+`SavedNetworkQueries` with the retained original authority through final release.
+The new helper does not replace that Network-owned handle or its membership and
+native baseline checks. The host currently uses `with_read_authorization` and
+checks its retained grants directly; adopting this convenience helper remains
+the Network owner's choice. `NetworkAccess::retain_original` additionally captures
+publication lifecycle authority and is not the cached-read binding path.
+
 `NetworkLinkRef` and `NetworkObservationRef` are distinct server-only selectors;
 the frozen `SourceKind` enum and wire contracts stay unchanged. A link selector
 names the exact partition, raw link ID and BOTH raw endpoint `SourceRef`s.
@@ -340,7 +381,9 @@ by this access lane.
 
 `network_healthy.rs` exercises a genuine viewer session, reviewed source, raw
 link endpoints, both observation members, same-spelled link/observation IDs,
-original-handle checks and a disposable SQLite read inside the access fence.
+original-handle checks, the exact partition/member binding (including a
+partition-only authority check), and a disposable SQLite read inside the access
+fence.
 The reader is an explicit synthetic peer. This checkpoint does not qualify the
 actual Network generation, same-Store read composition or release pipeline.
 
