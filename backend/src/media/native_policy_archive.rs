@@ -1,4 +1,4 @@
-//! Concrete native review publication and strict independent catalog policy.
+//! Concrete native renderer publication and strict independent catalog policy.
 //! Configuration is a mandatory trusted native input, never candidate archive
 //! metadata. No callback default, grant restoration or cold-start inference.
 use std::{collections::BTreeMap, sync::Arc};
@@ -12,6 +12,7 @@ use super::recovery_policy_archive::{
     RestoredMediaPolicyArchiveCut, valid_media_policy_archive_member,
 };
 use super::review::VerifiedAssetReview;
+use super::staged_upload::StagedAssetPlan;
 use super::types::{Scope, sha256};
 use super::{MediaError, MediaResult, WorkBudget};
 use crate::{
@@ -285,10 +286,56 @@ impl MediaPolicyArchiveWriteAuthorization for ReviewWritePermit<'_, '_> {
     }
 }
 
-/// Native review producer owner. It publishes only opaque SAME-Store qualified
+struct UploadWritePermit<'a, 'g> {
+    binding: &'a NativeMediaArchiveBinding,
+    completion: &'a s::AssetUploadQualifiedCompletion,
+    stage: &'a StagedAssetPlan,
+    packet: &'a MediaPolicyArchivePacket,
+    guard: &'a a::TransactionAuthorization<'g>,
+    budget: &'a WorkBudget,
+}
+impl MediaPolicyArchiveWriteAuthorization for UploadWritePermit<'_, '_> {
+    fn authorize_archive(
+        &self,
+        destination: &ArchiveDestination,
+        packet: &MediaPolicyArchivePacket,
+    ) -> MediaResult<()> {
+        self.budget.check()?;
+        let original = self.completion.original_principal();
+        if !self
+            .binding
+            .store
+            .matches_upload_completion(self.completion)
+            || !std::ptr::eq(packet, self.packet)
+            || destination != self.binding.destination()
+            || packet.cut().origin() != &self.binding.origin
+            || !self.binding.scopes.contains(packet.cut().scope())
+            || !std::ptr::eq(original.principal(), self.guard.principal())
+            || !original.same_original(self.stage.original_principal())
+            || !original.same_original(packet.original_principal())
+            || packet.cut().commit() != self.completion.commit()
+            || !packet
+                .cut()
+                .matches_consumed_upload(self.completion.consumed_upload())
+        {
+            return Err(MediaError::Forbidden);
+        }
+        self.guard
+            .authorize(&access_scope(packet.cut().scope())?, a::Capability::Mutate)
+            .map_err(access_error)?;
+        // The real stage's opaque renderer qualification and exact native
+        // commit association remain mandatory even at the write-policy call.
+        let mut live = super::recovery_policy::MediaPolicyEvidence::default();
+        live.retain_upload(self.stage, self.completion.commit())
+    }
+}
+
+/// Native renderer producer owner. It publishes only opaque SAME-Store qualified
 /// completions and records expected bytes/catalog only after actual sync. Host
-/// serializes it under its existing Access -> owner -> Store/custody lock order.
-/// It has no upload/data-only completion entrypoint or historical grant adoption.
+/// serializes it under Core -> Store -> Access -> owner -> native custody,
+/// with no Store or Access reentry from the publisher.
+/// Upload publication additionally retains the genuine native stage. It has no
+/// data-only completion entrypoint or historical grant adoption.
 pub struct NativeMediaArchiveOwner {
     binding: NativeMediaArchiveBinding,
     generation: NativeMediaArchiveGeneration,
@@ -366,10 +413,6 @@ impl NativeMediaArchiveOwner {
             self.binding.archive.max_frame_bytes(),
             budget,
         )?;
-        let mut next = self.generation.clone();
-        // Bound the complete resulting generation BEFORE durable publication.
-        next.insert(packet.member_name().into(), packet.bytes().to_vec())?;
-        let reader = NativeMediaArchiveReadOwner::new(self.generation.clone());
         let permit = ReviewWritePermit {
             binding: &self.binding,
             completion: &completion,
@@ -378,16 +421,82 @@ impl NativeMediaArchiveOwner {
             guard,
             budget,
         };
+        let next = Self::publish_packet(&self.binding, &self.generation, &packet, permit, budget)?;
+        self.generation = next.0;
+        Ok(next.1)
+    }
+    /// Capture only after the actual Store qualified its fresh non-replayed
+    /// completion, strict consumed binding and current original bytes. The host
+    /// retains that SAME Store/Access fence and genuine stage until publication
+    /// returns; no Store or Access reentry occurs here. A download-only stage
+    /// cannot supply the required real SafeRendered renderer qualification.
+    /// Any failure after SQL/archive publication never implies rollback/retry.
+    pub fn publish_upload(
+        &mut self,
+        completion: s::AssetUploadQualifiedCompletion,
+        stage: &StagedAssetPlan,
+        guard: &a::TransactionAuthorization<'_>,
+        budget: &WorkBudget,
+    ) -> MediaResult<ArchiveReceipt> {
+        budget.check()?;
+        if !self.binding.store.matches_upload_completion(&completion)
+            || !std::ptr::eq(
+                completion.original_principal().principal(),
+                guard.principal(),
+            )
+            || !completion
+                .original_principal()
+                .same_original(stage.original_principal())
+        {
+            return Err(MediaError::Forbidden);
+        }
+        let packet = MediaPolicyArchivePacket::encode_upload(
+            stage,
+            completion.commit(),
+            guard,
+            &self.binding.origin,
+            self.binding.archive.max_frame_bytes(),
+            budget,
+        )?;
+        if !packet
+            .cut()
+            .matches_consumed_upload(completion.consumed_upload())
+        {
+            return Err(MediaError::Conflict);
+        }
+        let permit = UploadWritePermit {
+            binding: &self.binding,
+            completion: &completion,
+            stage,
+            packet: &packet,
+            guard,
+            budget,
+        };
+        let next = Self::publish_packet(&self.binding, &self.generation, &packet, permit, budget)?;
+        self.generation = next.0;
+        Ok(next.1)
+    }
+    fn publish_packet<W: MediaPolicyArchiveWriteAuthorization>(
+        binding: &NativeMediaArchiveBinding,
+        generation: &NativeMediaArchiveGeneration,
+        packet: &MediaPolicyArchivePacket,
+        permit: W,
+        budget: &WorkBudget,
+    ) -> MediaResult<(NativeMediaArchiveGeneration, ArchiveReceipt)> {
+        let mut next = generation.clone();
+        // Bound the complete resulting generation BEFORE durable publication.
+        next.insert(packet.member_name().into(), packet.bytes().to_vec())?;
+        let reader = NativeMediaArchiveReadOwner::new(generation.clone());
         let native = NativeMediaPolicyArchive::new(
-            self.binding.archive.clone(),
-            self.binding.origin.clone(),
+            binding.archive.clone(),
+            binding.origin.clone(),
             permit,
             reader,
         );
         // Authenticate the entire current catalog before writing; no adoption of
         // plausible existing members and no default-success empty-directory rule.
         native.read(budget).map_err(|_| MediaError::Unavailable)?;
-        let receipt = native.append(&packet, budget)?;
+        let receipt = native.append(packet, budget)?;
         if receipt.name() != packet.member_name() || receipt.sha256() != sha256(packet.bytes()) {
             return Err(MediaError::Unavailable);
         }
@@ -396,9 +505,8 @@ impl NativeMediaArchiveOwner {
         // publication and never implies rollback or a retry permission.
         let next_reader = NativeMediaArchiveReadOwner::new(next.clone());
         next_reader
-            .read(self.binding.archive.clone(), budget)
+            .read(binding.archive.clone(), budget)
             .map_err(|_| MediaError::Unavailable)?;
-        self.generation = next;
-        Ok(receipt)
+        Ok((next, receipt))
     }
 }
