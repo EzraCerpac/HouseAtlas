@@ -2,10 +2,13 @@
 
 These new files provide the Storage implementation of
 `domain::qualified::AtomicPresenceTransaction` and append-only witness persistence.
-They are **source only**. The private modules now compile in the actual library.
-The existing command engine supplies actual Candidate and Precommit frames after
-ordinary phase authorization. Stock constructs no original presence peer and
-preserves its staging hold. No table is installed by this component. Profiles 5/6
+They are **source only**. The private modules compile in the actual library.
+The explicit configured Stock path retains genuine native publications, the
+original command preparation and a unique Store-issued invocation. It qualifies
+actual Candidate and Precommit frames before typed native and Stock authorization,
+then stamps the ordered witnesses before the sole SQL commit. Ordinary commands
+retain their existing authorization order and staging hold. No table is installed
+by this component. Profiles 5/6
 migration catalogs and their checksum validation are unchanged.
 
 `StoreOptions::presence_profile` defaults to `PresenceProfileSelection::Disabled`.
@@ -81,25 +84,35 @@ object safety, original authorization ordering and one commit.
 1. Retain the existing original snapshot, ordered entries, Runtime-generated
    context ID, original actor/grants and actual candidate graph. Supply the exact
    context built by `context::build`; do not reconstruct it from caller DTOs.
-2. After normal Candidate authorization and domain validation, construct the
-   Candidate adapter from that same transaction. Run the genuine
+2. On the explicitly configured path, construct the Candidate adapter from the
+   same transaction after domain validation. Run the genuine
    `NativePresenceQualifier` using the original ordered presence assertions,
    trusted current clock and existing configured cache age. Retain its captures
-   through the operation.
+   through the operation. The borrowed phase proof is then consumed by the
+   concrete native and Stock authorizers, with full original scope, actor,
+   grants, preparation and invocation correlation.
 3. Keep normal record, audit, command receipt and batch receipt writes in that
-   transaction. After normal Precommit authorization, construct the Precommit
+   transaction. Construct the Precommit
    adapter from the same engine invocation/context ID and actual final graph.
-   Run the same qualifier's genuine precommit revalidation.
+   Run the same qualifier's genuine precommit revalidation, then typed native
+   and Stock authorization. Drop the borrowed proof before witness retention.
 4. Immediately before the engine's sole commit, call
    `retain_witnesses(&qualifier, &actual_results, &original_command_hashes,
    original_batch_hash.as_deref(), (&current_clock, &configured_cache_age))`.
-   Propagate any error out of the engine; do not catch it and commit. Only after
-   success may the original engine commit and return normal results.
+   Propagate any error out of the engine; do not catch it and commit. After the
+   sole commit, move the prebuilt committed DATA into its observation before any
+   fallible Release work. Revalidate the same captures and complete accepted
+   Precommit context in a fresh same-Store read transaction. Check the durable
+   commit, projection, receipts and ordered witnesses, using native Release
+   authorization without advancing the Stock phase state again. The result
+   remains pending until the outer Access transaction commits and the original
+   invocation, principal and preparation are matched for promotion.
 
 Replay/admit-return branches must keep their existing behavior and never call
 capture or retention. No witness is minted, replaced or repaired on replay. The
-retention return value is a count of attempted same-transaction rows, not a durable
-receipt or proof of commit. Final API success must follow the engine commit.
+retained witnesses are the exact ordered stamped vector, not a durable receipt
+or proof of commit. Final API success follows Store Release and the complete
+outer Access commit.
 
 Candidate reads compare actual SQL with the original snapshot; Precommit reads
 compare it with the final candidate snapshot. Context format/schema, unique
