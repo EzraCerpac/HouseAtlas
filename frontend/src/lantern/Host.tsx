@@ -4,6 +4,9 @@ import type { AtlasContentActions } from '../app/App';
 import { createOperationHistoryClient, type OperationHistoryRead } from '../api/operation-history-client';
 import { createGeometryClient, type GeometryRead } from '../api/geometry-client';
 import type { ReadyView } from '../app/types';
+import type { ModelContextPort } from '../webmcp/ports';
+import type { QuantityAdmissionPort } from '../webmcp/quantity/tool';
+import { QuantityHandoffLeaf } from '../webmcp/quantity/QuantityHandoff';
 import { projectView } from './adapters/read';
 import { StoreProvider } from './state/store';
 import { NativeActions } from './components/NativeActions';
@@ -16,8 +19,9 @@ import './styles/panels.css';
 import './styles/integration.css';
 
 /** The existing session/view/stock owners remain above this presentation seam. */
-export function LanternHost({ view, actions, nativeContent }: {
+export function LanternHost({ view, actions, nativeContent, quantityWebMcp }: {
   view: ReadyView; actions: AtlasContentActions; nativeContent: ReactNode;
+  quantityWebMcp?: { readonly admission: QuantityAdmissionPort; readonly modelContext: ModelContextPort };
 }) {
   const client = useMemo(() => createGeometryClient(), []);
   const historyClient = useMemo(() => createOperationHistoryClient(), []);
@@ -82,6 +86,7 @@ export function LanternHost({ view, actions, nativeContent }: {
   return <StoreProvider key={projection.house.id} projection={projection} actions={ports}>
     <App />
     <NativeActions />
+    {quantityWebMcp && actions.quantity && <QuantityHandoffLeaf client={actions.quantity} admission={quantityWebMcp.admission} modelContext={quantityWebMcp.modelContext} />}
     {actions.notice && <p className="lantern-reload-notice" role="status">{actions.notice}</p>}
   </StoreProvider>;
 }
