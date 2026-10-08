@@ -202,14 +202,50 @@ pub enum OriginalQueuedQuantityClaim {
 pub struct OriginalQueuedQuantityAttempt {
     job: LeasedJob,
     _custody: Arc<OriginalCustodyBrand>,
+    record: Arc<OriginalEnqueueRecord>,
 }
 impl OriginalQueuedQuantityAttempt {
     pub fn job(&self) -> &LeasedJob {
         &self.job
     }
+
+    pub(super) fn matches_store_identity(
+        &self,
+        identity: &crate::storage::QuantityInstallationStoreIdentity,
+    ) -> bool {
+        Arc::ptr_eq(&identity.0, &self.record.store.0)
+    }
+
+    pub(super) fn record(&self) -> &Arc<OriginalEnqueueRecord> {
+        &self.record
+    }
+
+    pub(super) fn journal_ledger(
+        &self,
+    ) -> &Mutex<super::journal_custody::OriginalQuantityJournalLedger> {
+        &self.record.journal
+    }
+
+    pub(super) fn matches_original_quantity<T: read::Transport, K: read::Clock + Send + Sync>(
+        &self,
+        store: &crate::storage::QuantityInstallationStoreIdentity,
+        preparation: &OriginalQueuedQuantityPreparation<'_, '_, '_, '_, T, K>,
+    ) -> bool {
+        Arc::ptr_eq(&store.0, &self.record.store.0)
+            && Arc::ptr_eq(&self._custody, &self.record.custody)
+            && Arc::ptr_eq(preparation.source_cut(), &self.record.source)
+            && Arc::ptr_eq(preparation.media_cut(), &self.record.media)
+            && self.record.original.raw() == preparation.original().raw()
+            && self.record.original.intent_digest() == preparation.original().intent_digest()
+            && self.job.lease.job_id == self.record.snapshot.job_id
+            && self.job.attempt == 1
+            && self.record.claim.lock().is_ok_and(|ledger| {
+                matches!(&*ledger, InitialClaimLedger::ReleaseQualified(cut) if cut == &self.job)
+            })
+    }
 }
 
-struct OriginalEnqueueRecord {
+pub(super) struct OriginalEnqueueRecord {
     source: Arc<NativeQueuedQuantityOriginal>,
     media: Arc<NativeQueuedMediaOriginal>,
     store: crate::storage::QuantityInstallationStoreIdentity,
@@ -220,6 +256,15 @@ struct OriginalEnqueueRecord {
     // Claim Release. It is independent of later SQL lookup and retains no
     // prepared, journal, outcome or liability-prefix qualification.
     claim: Mutex<InitialClaimLedger>,
+    journal: Mutex<super::journal_custody::OriginalQuantityJournalLedger>,
+}
+impl OriginalEnqueueRecord {
+    pub(super) fn source_cut(&self) -> &Arc<NativeQueuedQuantityOriginal> {
+        &self.source
+    }
+    pub(super) fn media_cut(&self) -> &Arc<NativeQueuedMediaOriginal> {
+        &self.media
+    }
 }
 /// Detached process-local history; no live Root bundle, Access or provider.
 pub struct RecordedOriginalEnqueue(Arc<OriginalEnqueueRecord>);
@@ -293,6 +338,9 @@ impl crate::app::Store {
                     original: preparation.original().clone(),
                     snapshot,
                     claim: Mutex::new(InitialClaimLedger::Empty),
+                    journal: Mutex::new(
+                        super::journal_custody::OriginalQuantityJournalLedger::Empty,
+                    ),
                 });
                 Ok(OriginalQueuedQuantityEnqueue::Enqueued(
                     OriginalQueuedQuantityOwner {
@@ -362,6 +410,7 @@ impl<'bundle, 'native, 'p, 'owner, T: read::Transport, K: read::Clock + Send + S
                     OriginalQueuedQuantityAttempt {
                         job,
                         _custody: Arc::clone(&self.record.custody),
+                        record: Arc::clone(&self.record),
                     },
                 ))
             }
