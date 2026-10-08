@@ -162,3 +162,152 @@ pub fn prepare_configured<'p>(
         )?;
     prepared.ok_or(PresencePreparationError::Unavailable)
 }
+
+#[derive(Debug)]
+pub enum PresencePublicationError {
+    Access(a::AccessError),
+    Store(s::Error),
+    Unavailable,
+}
+impl From<a::AccessError> for PresencePublicationError {
+    fn from(value: a::AccessError) -> Self {
+        Self::Access(value)
+    }
+}
+impl From<s::Error> for PresencePublicationError {
+    fn from(value: s::Error) -> Self {
+        Self::Store(value)
+    }
+}
+impl fmt::Display for PresencePublicationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Configured native presence publication unavailable")
+    }
+}
+impl std::error::Error for PresencePublicationError {}
+
+/// A closed same-invocation Store and Access release joined to the configured
+/// native origin. This is neither a historical witness nor current admission.
+pub struct ConfiguredPresenceReleased<'origin, 'principal> {
+    origin: &'origin Arc<owner::ConfiguredNativePresenceOrigin<'principal>>,
+    released: a::historical_presence::PresenceAccessReleasedCut<'origin, a::Principal>,
+}
+impl<'origin, 'principal> ConfiguredPresenceReleased<'origin, 'principal> {
+    pub fn origin(&self) -> &owner::ConfiguredNativePresenceOrigin<'principal> {
+        self.origin
+    }
+    pub fn committed(&self) -> &s::CachePresenceCommittedData {
+        self.released.committed()
+    }
+    pub fn native_generation(&self) -> &crate::providers::homebox::read::NativePresenceGeneration {
+        self.released.native_generation()
+    }
+    pub fn native_access_package_version(&self) -> &'static str {
+        self.released.native_access_package_version()
+    }
+}
+
+fn native_principal(principal: &a::Principal) -> &a::Principal {
+    principal
+}
+
+fn same_registration(
+    configured: &TrustedHomeBoxSource,
+    metadata: &a::SourceAuthorityMetadata,
+    committed: &s::SourceRegistration,
+) -> bool {
+    match (
+        serde_json::to_value(configured.registration()),
+        serde_json::to_value(metadata.registration()),
+    ) {
+        (Ok(configured_metadata), Ok(access_metadata)) => {
+            configured_metadata == access_metadata && configured.registration() == committed
+        }
+        _ => false,
+    }
+}
+
+/// Consume only a capture returned by the actual configured owner. The origin
+/// remains caller-owned so Access can borrow its exact retained source grants
+/// through the final release without constructing a self-borrowing receipt.
+/// The supplied lifecycle grant is freshly checked here; this API does not
+/// claim it is the same allocation used during preparation.
+pub fn publish_configured<'origin, 'principal: 'origin>(
+    core: &Core,
+    selected: &Arc<TrustedHomeBoxSource>,
+    origin: &'origin Arc<owner::ConfiguredNativePresenceOrigin<'principal>>,
+    capture: crate::providers::homebox::read::NativePresenceCapture<'principal, a::Principal>,
+    lifecycle: &a::LifecycleGrant,
+    observation: &s::CachePresenceCommittedObservation,
+) -> Result<ConfiguredPresenceReleased<'origin, 'principal>, PresencePublicationError> {
+    if !Arc::ptr_eq(selected, origin.configured())
+        || !origin.matches_capture(&capture)
+        || !ptr::eq(origin.original_principal(), capture.principal())
+        || origin.original_source().reference().partition()
+            != *origin.original_partition().partition()
+        || *origin.partition() != selected.partition()
+        || origin.registration() != selected.registration()
+        || origin.scope() != selected.scope()
+    {
+        return Err(PresencePublicationError::Unavailable);
+    }
+    let mut store = core
+        .store
+        .lock()
+        .map_err(|_| PresencePublicationError::Unavailable)?;
+    let mut access = core
+        .access
+        .lock()
+        .map_err(|_| PresencePublicationError::Unavailable)?;
+    let released = a::historical_presence::with_presence_storage_release(
+        &mut access,
+        origin.original_principal(),
+        origin.original_source(),
+        origin.original_partition(),
+        capture,
+        native_principal,
+        |guard, publication| {
+            if !origin.matches_capture(publication.native_capture())
+                || !ptr::eq(
+                    publication.native_capture().principal(),
+                    origin.original_principal(),
+                )
+                || publication.qualified_access().captured_source_metadata()
+                    != origin.source_metadata()
+            {
+                return Err(PresencePublicationError::Unavailable);
+            }
+            let authority = PresencePublishAuthority {
+                guard,
+                principal: origin.original_principal(),
+                source: origin.original_source(),
+                partition: origin.original_partition(),
+                lifecycle,
+                configured: selected,
+            };
+            publication
+                .publish(&mut *store, &authority, observation)
+                .map_err(PresencePublicationError::from)
+        },
+    )?;
+    if !origin.matches_capture(released.native_capture())
+        || !released.compares_exact_original_allocation(
+            origin.original_principal(),
+            origin.original_source(),
+            origin.original_partition(),
+        )
+        || released.captured_source_metadata() != origin.source_metadata()
+        || released.original_source_ref() != origin.original_source().reference()
+        || released.original_partition() != origin.original_partition().partition()
+        || !same_registration(
+            selected,
+            released.captured_source_metadata(),
+            released.committed().registration(),
+        )
+        || released.committed().cache().generation_id.as_deref()
+            != Some(origin.reserved_generation_id())
+    {
+        return Err(PresencePublicationError::Unavailable);
+    }
+    Ok(ConfiguredPresenceReleased { origin, released })
+}
