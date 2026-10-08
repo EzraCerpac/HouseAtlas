@@ -103,6 +103,30 @@ pub struct NativeMediaArchiveGeneration {
     members: BTreeMap<String, Vec<u8>>,
     catalog: Vec<MediaPolicyArchiveCatalogEntry>,
     total: usize,
+    // Retain the actual fresh Store allocation across genuine successors and
+    // clones. Independent configuration DATA never supplies producer lineage.
+    producer_lineage: Option<s::AssetReviewStoreIdentity>,
+}
+
+/// Opaque complete producer snapshot. Only this native publication owner can
+/// construct it; decoded/configured DATA cannot issue a capture. No Clone/serde.
+pub struct PublishedNativeMediaReference {
+    generation: NativeMediaArchiveGeneration,
+    audit_id: String,
+}
+impl PublishedNativeMediaReference {
+    fn published(generation: NativeMediaArchiveGeneration, audit_id: &str) -> Self {
+        Self {
+            generation,
+            audit_id: audit_id.into(),
+        }
+    }
+    pub(super) fn generation(&self) -> &NativeMediaArchiveGeneration {
+        &self.generation
+    }
+    pub(super) fn audit_id(&self) -> &str {
+        &self.audit_id
+    }
 }
 impl NativeMediaArchiveGeneration {
     /// Mandatory independent configuration input. This performs strict bounded
@@ -141,7 +165,58 @@ impl NativeMediaArchiveGeneration {
             members: BTreeMap::new(),
             catalog: Vec::new(),
             total: 0,
+            producer_lineage: None,
         }
+    }
+    pub(super) fn reference_parts(
+        &self,
+    ) -> (
+        &ArchiveDestination,
+        &MediaPolicyArchiveOrigin,
+        &[Scope],
+        &BTreeMap<String, Vec<u8>>,
+    ) {
+        (&self.destination, &self.origin, &self.scopes, &self.members)
+    }
+    /// Mechanical closed source validation only; emits no generation or lineage.
+    pub(super) fn validate_reference_data(
+        destination: &ArchiveDestination,
+        origin: &MediaPolicyArchiveOrigin,
+        scopes: &[Scope],
+        members: Vec<NativeMediaArchiveExpectedMember>,
+        budget: &WorkBudget,
+    ) -> MediaResult<()> {
+        origin.validate()?;
+        if scopes.is_empty() || scopes.len() > 10_000 {
+            return Err(MediaError::InvalidInput);
+        }
+        for (index, scope) in scopes.iter().enumerate() {
+            budget.check()?;
+            scope.validate()?;
+            if scopes[..index].contains(scope) {
+                return Err(MediaError::InvalidInput);
+            }
+        }
+        let mut generation = Self {
+            destination: destination.clone(),
+            origin: origin.clone(),
+            scopes: scopes.to_vec(),
+            members: BTreeMap::new(),
+            catalog: Vec::new(),
+            total: 0,
+            producer_lineage: None,
+        };
+        for member in members {
+            budget.check()?;
+            generation.insert(member.name, member.bytes)?;
+        }
+        let reader = NativeMediaArchiveReadOwner::new(generation);
+        for (name, bytes) in &reader.generation.members {
+            budget.check()?;
+            MediaPolicyArchivePacket::decode(bytes, destination, name, &reader, budget)
+                .map_err(|_| MediaError::InvalidInput)?;
+        }
+        budget.check()
     }
     fn insert(&mut self, name: String, bytes: Vec<u8>) -> MediaResult<()> {
         if self.members.len() >= MAX_MEDIA_POLICY_ARCHIVE_MEMBERS
@@ -339,15 +414,19 @@ impl MediaPolicyArchiveWriteAuthorization for UploadWritePermit<'_, '_> {
 pub struct NativeMediaArchiveOwner {
     binding: NativeMediaArchiveBinding,
     generation: NativeMediaArchiveGeneration,
+    published_reference: Option<PublishedNativeMediaReference>,
 }
 impl NativeMediaArchiveOwner {
     /// Empty newly selected process issuer, not automatic cold-start admission.
     /// Before any publication, strict descriptor read must match the empty
     /// independent generation. Existing files cannot be adopted by this method.
     pub fn fresh(binding: NativeMediaArchiveBinding) -> Self {
+        let mut generation = NativeMediaArchiveGeneration::empty(&binding);
+        generation.producer_lineage = Some(binding.store.clone());
         Self {
-            generation: NativeMediaArchiveGeneration::empty(&binding),
+            generation,
             binding,
+            published_reference: None,
         }
     }
     /// Resume from a separately admitted complete native reference generation;
@@ -365,7 +444,13 @@ impl NativeMediaArchiveOwner {
         Ok(Self {
             binding,
             generation,
+            published_reference: None,
         })
+    }
+    /// One-time extraction after genuine publication and complete postcatalog
+    /// qualification. Mechanically configured historical DATA cannot mint it.
+    pub fn take_published_reference(&mut self) -> Option<PublishedNativeMediaReference> {
+        self.published_reference.take()
     }
     pub fn generation(&self) -> NativeMediaArchiveGeneration {
         self.generation.clone()
@@ -382,6 +467,11 @@ impl NativeMediaArchiveOwner {
     ) -> MediaResult<ArchiveReceipt> {
         budget.check()?;
         if !self.binding.store.matches_completion(&completion)
+            || self
+                .generation
+                .producer_lineage
+                .as_ref()
+                .is_some_and(|original_store| !original_store.matches_completion(&completion))
             || !std::ptr::eq(
                 completion.original_principal().principal(),
                 guard.principal(),
@@ -423,6 +513,12 @@ impl NativeMediaArchiveOwner {
         };
         let next = Self::publish_packet(&self.binding, &self.generation, &packet, permit, budget)?;
         self.generation = next.0;
+        self.published_reference = self.generation.producer_lineage.is_some().then(|| {
+            PublishedNativeMediaReference::published(
+                self.generation.clone(),
+                packet.cut().audit_id(),
+            )
+        });
         Ok(next.1)
     }
     /// Capture only after the actual Store qualified its fresh non-replayed
@@ -440,6 +536,13 @@ impl NativeMediaArchiveOwner {
     ) -> MediaResult<ArchiveReceipt> {
         budget.check()?;
         if !self.binding.store.matches_upload_completion(&completion)
+            || self
+                .generation
+                .producer_lineage
+                .as_ref()
+                .is_some_and(|original_store| {
+                    !original_store.matches_upload_completion(&completion)
+                })
             || !std::ptr::eq(
                 completion.original_principal().principal(),
                 guard.principal(),
@@ -474,6 +577,12 @@ impl NativeMediaArchiveOwner {
         };
         let next = Self::publish_packet(&self.binding, &self.generation, &packet, permit, budget)?;
         self.generation = next.0;
+        self.published_reference = self.generation.producer_lineage.is_some().then(|| {
+            PublishedNativeMediaReference::published(
+                self.generation.clone(),
+                packet.cut().audit_id(),
+            )
+        });
         Ok(next.1)
     }
     fn publish_packet<W: MediaPolicyArchiveWriteAuthorization>(
