@@ -2,6 +2,7 @@
 mod admission;
 pub mod agents;
 pub mod ai;
+pub(crate) mod ai_account;
 pub(crate) mod asset_reviews;
 mod auth;
 pub mod contracts;

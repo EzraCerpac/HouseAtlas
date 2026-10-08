@@ -7,13 +7,62 @@ use crate::ai::{
         lifecycle::ConnectionFacts,
         native::NativeHostContext,
         startup::{
-            NativeStartup, StartupInputs, StartupOwners,
+            AccountOnlyStartupInputs, NativeStartup, StartupInputs, StartupOwners,
+            account::NativeAccountFacts,
             stock::{NativeReadDomain, NativeReadPrepared},
         },
     },
     runtime::HumanReviewPort,
 };
 use axum::Router;
+use std::sync::Arc;
+
+/// Explicit account observation composition. Retains the original native
+/// startup, while mounting only its authenticated local account GET consumer.
+/// Construction supplies no enrollment, sign-in, callback worker or listener.
+pub struct NativeAccountAiApplication<R>
+where
+    R: ExactReviewReady<NativeHostContext, NativeReadPrepared>
+        + HumanReviewPort<NativeHostContext>
+        + Send
+        + Sync,
+{
+    startup: Arc<NativeStartup<NativeAccountFacts, NativeReadDomain, R>>,
+    router: Router,
+}
+
+impl<R> NativeAccountAiApplication<R>
+where
+    R: ExactReviewReady<NativeHostContext, NativeReadPrepared>
+        + HumanReviewPort<NativeHostContext>
+        + Send
+        + Sync
+        + 'static,
+{
+    /// The same Host and enrollment allocations reach both native startup and
+    /// HTTP capture. Native assembly verifies their original Access/journal
+    /// ownership. Configuration and original review remain explicit inputs.
+    pub fn assemble_account_only_reads(
+        owners: StartupOwners,
+        inputs: AccountOnlyStartupInputs<R>,
+    ) -> Result<Self, AiError> {
+        let host = owners.host.clone();
+        let enrollment = Arc::clone(&owners.enrollment);
+        let startup = Arc::new(NativeStartup::assemble_account_only_reads(owners, inputs)?);
+        let account =
+            crate::http::ai_account::mounted_router(host.clone(), Arc::clone(&startup), enrollment);
+        let router = crate::http::router_with_ai(host, Some(account));
+        Ok(Self { startup, router })
+    }
+
+    pub fn router(&self) -> &Router {
+        &self.router
+    }
+
+    pub fn startup(&self) -> &NativeStartup<NativeAccountFacts, NativeReadDomain, R> {
+        &self.startup
+    }
+}
 
 /// Keep this application owner alive while serving its router and driving any
 /// separately authorized native operation. No worker or listener starts here.
