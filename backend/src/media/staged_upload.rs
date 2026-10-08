@@ -14,6 +14,7 @@ use crate::{access as a, contracts as dto, domain::stock, storage as s};
 
 use super::native::{RetainedPrincipal, access_error, access_scope, storage_error};
 use super::private_fs::PrivateDir;
+use super::recovery_policy::RendererQualification;
 use super::types::{
     AssetPayload, AssetPurpose, BlobIdentity, ContentType, Scope, SourceLicense, is_uuid, sha256,
 };
@@ -89,9 +90,13 @@ pub struct StagedAssetPlan {
     payload: AssetPayload,
     staged: StagedFile,
     binding_digest: String,
+    qualification: Option<RendererQualification>,
 }
 
 impl StagedAssetPlan {
+    pub(super) fn recovery_qualification(&self) -> Option<&RendererQualification> {
+        self.qualification.as_ref()
+    }
     pub fn original_principal(&self) -> &RetainedPrincipal {
         &self.original
     }
@@ -112,6 +117,11 @@ impl StagedAssetPlan {
     }
 }
 
+struct RetainedStageProducer {
+    original: RetainedPrincipal,
+    qualification: Option<RendererQualification>,
+}
+
 /// Borrowed vault plus the host's real storage Runtime for asset-ID issuance.
 /// Token/plan data is durable, but opaque authority stays in this process. Losing
 /// this owner loses its handles; files cannot reconstruct or adopt authority.
@@ -121,7 +131,7 @@ pub struct NativeUploadStages<'a, R> {
     runtime: &'a R,
     directory: PrivateDir,
     schemas: stock::NativeStockContract,
-    originals: Mutex<BTreeMap<String, RetainedPrincipal>>,
+    originals: Mutex<BTreeMap<String, RetainedStageProducer>>,
     limits: UploadLimits,
 }
 
@@ -280,6 +290,7 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
             budget,
             &self.limits,
         )?;
+        let qualification = prepared.renderer_qualification().cloned();
         let payload = prepared.with_provenance(admission.source_license, admission.evidence_ids)?;
         let staged = StagedFile {
             upload_token: token.clone(),
@@ -316,7 +327,13 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
         // Slow publication barriers cannot return a receipt already expired.
         // Published metadata remains charged and eligible for ordinary expiry.
         self.require_live(&self.directory.child(&key, false)?, budget)?;
-        originals.insert(key, original.clone());
+        originals.insert(
+            key,
+            RetainedStageProducer {
+                original: original.clone(),
+                qualification,
+            },
+        );
         Ok(UploadReceipt {
             request_id: record.request_id,
             asset_id: record.asset_id,
@@ -345,7 +362,7 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
             .try_lock()
             .map_err(|_| MediaError::Unavailable)?;
         let retained = originals.get(&key).ok_or(MediaError::Unavailable)?;
-        if !retained.same_original(original) {
+        if !retained.original.same_original(original) {
             return Err(MediaError::Forbidden);
         }
         checked_bytes(request.raw(), MAX_PLAN)?;
@@ -399,6 +416,14 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
             },
             content_type: ContentType::parse(&record.payload.content_type)?,
         };
+        let qualification = retained.qualification.clone();
+        if record.payload.preview_policy == super::types::PreviewPolicy::SafeRendered
+            && !qualification
+                .as_ref()
+                .is_some_and(|q| q.matches(&scope, &prepared))
+        {
+            return Err(MediaError::Unavailable);
+        }
         let identity = self
             .vault
             .verify_prepared_original(&scope, &prepared, budget)?;
@@ -432,6 +457,7 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
             payload: record.payload,
             staged: record.staged,
             binding_digest,
+            qualification,
         })
     }
 }
