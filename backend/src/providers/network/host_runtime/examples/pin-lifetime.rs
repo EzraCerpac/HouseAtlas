@@ -1,5 +1,5 @@
-//! Positive disposable lifetime fixture. Actual AT11/Core/Store and original
-//! Network capture/sidecar; no HTTP, deletion, maintenance or stopped controls.
+//! Positive disposable pin lifetime with actual AT11/Core/Store/native publication
+//! and one concrete verified loopback inventory GET. No reclamation or held controls.
 use houseatlas_backend::{
     access as a,
     app::{self, Core, ReadAuthority, RequestPrincipal, ServerRuntime, Store},
@@ -13,16 +13,20 @@ use houseatlas_backend::{
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
-    future::Future,
     os::unix::fs::PermissionsExt,
     path::Path,
-    pin::Pin,
     sync::{Arc, Mutex},
 };
 
+use tokio_util::sync::CancellationToken;
 type Check<T> = Result<T, Box<dyn std::error::Error>>;
+fn owner_error(error: n::NetworkPublicationError<s::Error>) -> Box<dyn std::error::Error> {
+    match error {
+        n::NetworkPublicationError::Network(error) => Box::new(error),
+        n::NetworkPublicationError::Storage(error) => Box::new(error),
+    }
+}
 const AT: &str = "2026-01-02T12:00:00Z";
-const GENERATION: &str = "00000000-0000-4000-8000-000000000777";
 const ORIGIN: &str = "https://network-pin.invalid";
 fn evidence<'a>(
     url: &'a str,
@@ -39,34 +43,6 @@ fn evidence<'a>(
         cookie,
         authorization: None,
         csrf,
-    }
-}
-struct Inventory(n::SourceScope);
-impl n::InventoryTransport for Inventory {
-    fn get_inventory(
-        &self,
-        request: n::InventoryGet,
-        _: n::Limits,
-    ) -> Pin<Box<dyn Future<Output = Result<n::InventoryResponse, n::NetworkError>> + Send + '_>>
-    {
-        assert_eq!(
-            (request.method(), request.path()),
-            ("GET", "/api/inventory")
-        );
-        Box::pin(async {
-            Ok(n::InventoryResponse {
-                status: 200,
-                source: Some(self.0.clone()),
-                body: include_bytes!(
-                    "../../../../../../adapters/network/fixtures/inventory.wire.json"
-                )
-                .to_vec(),
-                source_snapshot_at: None,
-                redirected: false,
-                location: None,
-                url: None,
-            })
-        })
     }
 }
 // Evidence only: compare all actual keys and bodies under one read-only SQL
@@ -118,13 +94,14 @@ fn core_state(path: &Path) -> Check<Value> {
 fn count_disclosures(
     store: &mut Store,
     references: &mut n::NetworkCacheReferences<'_>,
+    generation_id: &str,
 ) -> s::Result<usize> {
     let guard = store.guard_cache_residency(references)?;
     let count = guard
         .protected()
         .iter()
         .filter(|entry| {
-            entry.generation_id() == GENERATION
+            entry.generation_id() == generation_id
                 && entry.reason() == s::CacheProtectionReason::Disclosure
                 && entry.origin() == s::CacheProtectionOrigin::StorePin
         })
@@ -134,6 +111,20 @@ fn count_disclosures(
 }
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Check<()> {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() != 3 {
+        return Err("Expected fresh loopback origin and reviewed CA arguments".into());
+    }
+    let upstream_origin = &args[1];
+    let parsed = url::Url::parse(upstream_origin)?;
+    if parsed.scheme() != "https"
+        || parsed.host_str() != Some("127.0.0.1")
+        || parsed.port().is_none()
+        || parsed.origin().ascii_serialization() != *upstream_origin
+    {
+        return Err("Fixture accepts canonical IPv4 loopback HTTPS only".into());
+    }
+    let ca = std::fs::read(&args[2])?;
     let directory = tempfile::Builder::new()
         .prefix("houseatlas-network-pin-")
         .permissions(std::fs::Permissions::from_mode(0o700))
@@ -168,58 +159,26 @@ async fn main() -> Check<()> {
     ))?;
     let settings = NetworkSettings::new(
         configured.clone(),
-        ORIGIN,
+        upstream_origin,
         review.clone(),
         n::Limits::default(),
         2000,
         2000,
         300_000,
         &directory_path,
-    )?;
+    )?
+    .with_reviewed_ca_pem(&ca)?;
     let key = n::partition_key(&source.scope)?;
     let sidecar_path = directory_path.join(format!(
         "network-{:x}.sqlite",
         Sha256::digest(key.as_bytes())
     ));
-    // A single actual Native original capture supplies healthy local setup.
-    // Preserve the original inventory/review input bytes. No transport client.
-    let mut sidecar = n::SqliteNetworkSidecar::open(&sidecar_path, std::slice::from_ref(&source))?;
-    let admission =
-        sidecar.reserve_original_capture(&source, &review, GENERATION, n::Limits::default())?;
-    let proposal =
-        match n::NetworkProvider::new(source.clone(), review.clone(), n::Limits::default())?
-            .prepare_refresh(
-                &n::RetainedState::empty(source.scope.clone()),
-                0,
-                GENERATION,
-                &Inventory(source.scope.clone()),
-                || AT.into(),
-            )
-            .await?
-        {
-            n::RefreshOutcome::Complete(proposal) => proposal,
-            _ => return Err("Expected positive synthetic proposal".into()),
-        };
+    // Fresh approved bootstrap contains no target cache pointer or relation.
+    // The actual original runtime must reserve, fetch, stage and publish it.
     snapshot
         .caches
         .retain(|cache| cache["sourceInstanceId"] != registration.source_instance_id);
-    snapshot
-        .caches
-        .push(serde_json::to_value(&proposal.state().cache)?);
-    snapshot.network_relations = proposal
-        .state()
-        .generation
-        .as_ref()
-        .ok_or("Missing generation")?
-        .network_relations
-        .iter()
-        .map(serde_json::to_value)
-        .collect::<Result<Vec<_>, _>>()?;
-    let staged = n::stage_complete_generation(&source, *proposal, &mut sidecar)?
-        .attach_original_archive(&mut sidecar, admission)?;
-    assert_eq!(staged.receipt().original().generation_id(), GENERATION);
-    drop(staged);
-    sidecar.close()?;
+    snapshot.network_relations.clear();
 
     let scope = configured.partition().scope();
     let user = a::CanonicalId::parse("00000000-0000-4000-8000-000000000004")?;
@@ -231,10 +190,18 @@ async fn main() -> Check<()> {
         a::LifecycleCapability::ConfigureSource,
         a::Action::Mutate,
     )?;
+    let publish_rule = a::LifecycleRule::new(
+        user.clone(),
+        actor.clone(),
+        configured.access_registration().clone(),
+        a::LifecycleCapability::PublishCache,
+        a::Action::Read,
+    )?;
     let canonical = Arc::new(Mutex::new(a::AccessBoundary::open(
         directory_path.join("access.sqlite"),
-        a::AccessConfig::new(vec![ORIGIN.into()])?
-            .with_lifecycle_policy(a::LifecyclePolicy::from_trusted_configuration(vec![rule])),
+        a::AccessConfig::new(vec![ORIGIN.into()])?.with_lifecycle_policy(
+            a::LifecyclePolicy::from_trusted_configuration(vec![rule, publish_rule]),
+        ),
     )?));
     let (configure_principal, principal) = {
         let mut issuer = canonical.lock().map_err(|_| "Fixture access lock")?;
@@ -292,8 +259,7 @@ async fn main() -> Check<()> {
             ..Default::default()
         },
     )?;
-    // Fresh approved bootstrap only. It seeds a genuinely validated generation
-    // and its permanent ID, not a pin or Native publication/custody proof.
+    // Fresh approved bootstrap only: no target generation or invented custody.
     store.initialize_synthetic(&snapshot)?;
     let home = d::HomeSummary {
         scope: d::Scope {
@@ -340,13 +306,36 @@ async fn main() -> Check<()> {
         }
         (partition, entities)
     };
+    let runtime = HostNetworkRuntime::open(settings.clone())?;
+    let original = access.retain_original(
+        principal.clone(),
+        configured.clone(),
+        partition.clone(),
+        entities.clone(),
+    )?;
+    let authority = NetworkAuthority::new(original.clone(), &settings.transport(), None)?;
+    let cache = match runtime
+        .refresh(
+            &core,
+            authority,
+            original.clone(),
+            CancellationToken::new(),
+            || AT.into(),
+        )
+        .await
+        .map_err(owner_error)?
+    {
+        RefreshResult::Published(cache) => cache,
+        _ => return Err("Expected genuine healthy Network publication".into()),
+    };
+    original.revalidate()?;
+    let generation_id = cache.generation_id.ok_or("Missing published generation")?;
     let before = core_state(&db_path)?;
-    let runtime = HostNetworkRuntime::open(settings)?;
     let request_principal = RequestPrincipal::new(principal.clone());
     let (facet, disclosure) = runtime
         .read(&core, access.clone(), principal, partition, entities, AT)
         .map_err(|_| "Original positive runtime read failed")?;
-    assert_eq!(disclosure.generation_id(), Some(GENERATION));
+    assert_eq!(disclosure.generation_id(), Some(generation_id.as_str()));
     assert_eq!(disclosure.link_grants().len(), 4);
     // This unchanged original inventory input has no observation rows.
     assert_eq!(disclosure.observation_grants().len(), 0);
@@ -368,7 +357,10 @@ async fn main() -> Check<()> {
         n::NetworkCacheReferences::new(&sidecar, &source, &review, n::Limits::default());
     let owner = core.lock().map_err(|_| "Fixture Core lock")?;
     let mut store = owner.store.lock().map_err(|_| "Fixture Store lock")?;
-    assert_eq!(count_disclosures(&mut store, &mut references)?, 1);
+    assert_eq!(
+        count_disclosures(&mut store, &mut references, &generation_id)?,
+        1
+    );
     let pinned = store.read_cache_partition_pinned_with_authorization(
         &ReadAuthority(canonical.clone()),
         &request_principal,
@@ -379,22 +371,31 @@ async fn main() -> Check<()> {
     let token = token.ok_or("Missing actual current generation pin")?;
     store.validate_cache_disclosure_pin(&token, &baseline)?;
     assert_eq!(token.registration(), &registration);
-    assert_eq!(token.generation_id(), GENERATION);
-    assert_eq!(count_disclosures(&mut store, &mut references)?, 2);
+    assert_eq!(token.generation_id(), generation_id);
+    assert_eq!(
+        count_disclosures(&mut store, &mut references, &generation_id)?,
+        2
+    );
     drop(token);
-    assert_eq!(count_disclosures(&mut store, &mut references)?, 1);
+    assert_eq!(
+        count_disclosures(&mut store, &mut references, &generation_id)?,
+        1
+    );
     // Exactly the Arc retention used by actual HTTP Graph/Witness/Reader.
     let reader = disclosure.clone();
     assert!(Arc::ptr_eq(&reader, &disclosure));
     drop(disclosure);
-    assert_eq!(count_disclosures(&mut store, &mut references)?, 1);
+    assert_eq!(
+        count_disclosures(&mut store, &mut references, &generation_id)?,
+        1
+    );
     let mut guard = store.guard_cache_residency(&mut references)?;
     drop(reader);
     assert!(
         guard
             .protected()
             .iter()
-            .any(|entry| entry.generation_id() == GENERATION
+            .any(|entry| entry.generation_id() == generation_id
                 && entry.reason() == s::CacheProtectionReason::Disclosure)
     );
     let plan = guard.plan_reclamation(&s::CacheReclamationPolicy::new(
@@ -408,7 +409,10 @@ async fn main() -> Check<()> {
             .all(|entry| !entry.owner_policy_candidate())
     );
     guard.release().1?;
-    assert_eq!(count_disclosures(&mut store, &mut references)?, 0);
+    assert_eq!(
+        count_disclosures(&mut store, &mut references, &generation_id)?,
+        0
+    );
     assert_eq!(core_state(&db_path)?, before);
     drop(store);
     drop(owner);
@@ -417,13 +421,14 @@ async fn main() -> Check<()> {
         .map_err(|_| "Fixture sidecar lock")?
         .close()?;
     drop(core);
+    drop(original);
     drop(access);
     drop(canonical);
     let path = directory_path;
     drop(directory);
     assert!(!path.exists());
     println!(
-        "PASS actual AT11 Network disclosure; same-Store read pin; Native guard Disclosure enumeration 1->2->1; Reader Arc lifetime; last drop after guarded inventory ->0; Unknown protects all; full cache/Core-source state and burned IDs unchanged; fresh state removed; no HTTP/reclamation/maintenance/held controls"
+        "PASS actual AT11 Network disclosure; same-Store read pin; Native guard Disclosure enumeration 1->2->1; Reader Arc lifetime; last drop after guarded inventory ->0; Unknown protects all; full cache/Core-source state and burned IDs unchanged; fresh state removed; one concrete verified passive inventory TLS GET and actual native publication; no live provider/reclamation/maintenance/held controls"
     );
     Ok(())
 }
