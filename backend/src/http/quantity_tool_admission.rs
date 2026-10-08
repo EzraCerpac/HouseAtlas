@@ -111,18 +111,34 @@ pub(super) async fn admission(
                         if !current {
                             continue;
                         }
+                        let descriptor = configured.descriptor();
+                        let policy = match descriptor.policy {
+                            crate::providers::homebox::write::stock::QuantityPolicy::HumanRequired => {
+                                json!({"kind":"human-required"})
+                            }
+                            crate::providers::homebox::write::stock::QuantityPolicy::NoHuman { maximum } => {
+                                json!({"kind":"no-human","maximum":maximum})
+                            }
+                        };
                         // The revision records selected configuration and
                         // verified current metadata, but grants no authority.
                         revision_entries.push((key.clone(), json!({
                             "source":source,
-                            "target":configured.descriptor().target,
-                            "sourceCommit":configured.descriptor().source_commit,
-                            "version":configured.descriptor().version,
-                            "buildDigest":configured.descriptor().build_digest.as_str(),
-                            "catalogDigest":configured.descriptor().catalog_digest.as_str(),
-                            "routeDigest":configured.descriptor().route_digest.as_str(),
-                            "policyDigest":configured.descriptor().policy_digest.as_str(),
+                            "target":descriptor.target,
+                            "sourceCommit":descriptor.source_commit,
+                            "version":descriptor.version,
+                            "buildDigest":descriptor.build_digest.as_str(),
+                            "catalogDigest":descriptor.catalog_digest.as_str(),
+                            "routeDigest":descriptor.route_digest.as_str(),
+                            "groupId":descriptor.group_id,
+                            "accountId":descriptor.account_id,
+                            "authority":format!("{:?}", descriptor.authority),
+                            "dispatcherEpoch":descriptor.dispatcher_epoch,
+                            "policyDigest":descriptor.policy_digest.as_str(),
+                            "policy":policy,
+                            "freshness":format!("{:?}", descriptor.freshness),
                             "reviewedPolicy":configured.reviewed_policy(),
+                            "sourceConfiguration":configured.source().access_registration(),
                             "queue":format!("{:?}", configured.queue()),
                             "physical":format!("{:?}", configured.physical()),
                             "metadata":{
