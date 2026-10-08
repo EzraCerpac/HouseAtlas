@@ -202,6 +202,18 @@ impl<'origin, 'principal> ConfiguredPresenceReleased<'origin, 'principal> {
     pub fn native_generation(&self) -> &crate::providers::homebox::read::NativePresenceGeneration {
         self.released.native_generation()
     }
+    /// Retain the same original native allocation after the full publication
+    /// release. Neither this identity nor its bytes is current authority.
+    pub(crate) fn retain_native_identity(
+        &self,
+    ) -> crate::providers::homebox::read::NativePresenceIdentity {
+        self.released.native_capture().retain_native_identity()
+    }
+    pub(crate) fn retained_complete_generation(
+        &self,
+    ) -> crate::providers::homebox::read::CompleteGeneration {
+        self.released.native_capture().generation().clone()
+    }
     pub fn native_access_package_version(&self) -> &'static str {
         self.released.native_access_package_version()
     }

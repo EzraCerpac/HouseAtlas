@@ -296,6 +296,10 @@ impl<'call, 'origin, 'reader> StockPresenceAcceptedCut<'call, 'origin, 'reader> 
     pub fn original_command_principal(&self) -> &app::RequestPrincipal {
         self.principal
     }
+    /// Exact validated request borrowed by this original accepted invocation.
+    pub fn original_request(&self) -> &stock::ValidatedRequest {
+        self.request
+    }
     pub fn publications(
         &self,
     ) -> &'call [&'call app::homebox_presence::ConfiguredPresenceReleased<'origin, 'reader>] {
@@ -315,6 +319,11 @@ impl<'call, 'origin, 'reader> StockPresenceAcceptedCut<'call, 'origin, 'reader> 
         store: &AtlasStore<C, A, R>,
     ) -> bool {
         Arc::ptr_eq(&self.instance, &store.instance)
+    }
+    /// Move the accepted immutable DATA after a producer has captured its
+    /// original native publications. This does not reissue authority.
+    pub fn into_history_frame(self) -> StockPresenceAcceptedFrame {
+        self.frame
     }
 }
 pub(crate) fn promote_presence_access_released<'call, 'origin, 'reader, W, G>(
