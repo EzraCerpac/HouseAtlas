@@ -9,7 +9,7 @@ export interface QuantityClientOptions {
 }
 const root = '/api/atlas/homebox/quantity';
 const freeze = <T,>(value: T): T => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
-/** Private custody data only; grants no proof, approval or reconciliation authority. */
+/** Private custody data only; grants no proof, approval or reconciliation authority. A null approval means no decoded receipt, not non-issuance. */
 interface DispatchCustody { readonly prepared: QuantityPrepared; readonly approval: QuantityApproval | null }
 interface UnknownAttempt extends DispatchCustody { readonly action: string; readonly source: SourceRef; readonly binding: QuantitySessionBinding; readonly at: number; readonly status: number | null }
 const dispatchUnconfirmed = 'Prior dispatch outcome unconfirmed. The quantity change may have been admitted or applied. Further quantity mutations for this source are held in this session; do not infer failure, rollback or safe retry.';
@@ -95,7 +95,8 @@ export function createQuantityClient(options: QuantityClientOptions): QuantityCl
       controller.signal.throwIfAborted();
       if (!isCurrent(binding)) throw new QuantityActionError('expired', 'Session');
       // Posted dispatch 503 may be overloaded before or after native admission: outcome unconfirmed.
-      if (!response.ok) throw new QuantityActionError(posted && action === 'dispatch' && response.status === 503 ? 'unknown' : ({401:'expired',403:'denied',404:'absent',409:'changed',503:'unavailable'} as const)[response.status as 401] ?? 'unknown', action);
+      // Posted approval 503 may follow actual receipt issuance then an output/currentness failure: outcome unconfirmed.
+      if (!response.ok) throw new QuantityActionError(posted && (action === 'dispatch' || action === 'approval') && response.status === 503 ? 'unknown' : ({401:'expired',403:'denied',404:'absent',409:'changed',503:'unavailable'} as const)[response.status as 401] ?? 'unknown', action);
       const reader = response.body?.getReader(); if (!reader) throw new TypeError('Quantity response missing');
       const chunks: Uint8Array[] = []; let length = 0;
       while (true) { const next = await reader.read(); controller.signal.throwIfAborted(); if (next.done) break; length += next.value.byteLength; if (length > 1048576) { await reader.cancel(); throw new TypeError('Quantity response exceeds bound'); } chunks.push(next.value); }
@@ -133,8 +134,11 @@ export function createQuantityClient(options: QuantityClientOptions): QuantityCl
     async approve(prepared, signal) {
       check(prepared); holdUnknown(prepared.wire.source); if (prepared.wire.policy.approval !== 'human-required' || spentApproval.has(prepared)) throw new TypeError('Approval action unavailable');
       spentApproval.add(prepared); const p = prepared.wire;
-      const raw = await request('approval', preparedOwners.get(prepared)!, signal, { previewId: p.previewId, requestDigest: p.requestDigest, planDigest: p.planDigest, policyId: p.policy.id, policyVersion: p.policy.version, policyEpoch: p.policy.epoch, acknowledgement: true }, '', p.source);
-      try { check(prepared); const receipt = freeze(decodeQuantityApproval(raw, p)); approvals.set(receipt, prepared); return receipt; } catch { throw unknown(p.source, preparedOwners.get(prepared)!, 'approval'); }
+      const raw = await request('approval', preparedOwners.get(prepared)!, signal, { previewId: p.previewId, requestDigest: p.requestDigest, planDigest: p.planDigest, policyId: p.policy.id, policyVersion: p.policy.version, policyEpoch: p.policy.epoch, acknowledgement: true }, '', p.source, Object.freeze({ prepared, approval: null }));
+      // Only a genuinely decoded receipt is retained; never derived from the reserved ID or an error body.
+      let decoded: QuantityApproval | null = null;
+      try { check(prepared); const receipt = freeze(decodeQuantityApproval(raw, p)); decoded = receipt; check(prepared); approvals.set(receipt, prepared); return receipt; }
+      catch { throw unknown(p.source, preparedOwners.get(prepared)!, 'approval', Object.freeze({ prepared, approval: decoded })); }
     },
     async dispatch(prepared, approval, signal) {
       check(prepared); holdUnknown(prepared.wire.source); const p = prepared.wire;
