@@ -3,9 +3,14 @@ use super::{migrations, repository as repo, *};
 mod cache;
 #[path = "cache_custody.rs"]
 mod cache_custody;
+#[path = "cache_presence_publication.rs"]
+mod cache_presence_publication;
 #[path = "quantity_installation.rs"]
 mod quantity_installation;
 pub use cache_custody::*;
+pub use cache_presence_publication::{
+    CachePresenceCommittedData, CachePresenceCommittedObservation, CachePresenceStorageReleasedCut,
+};
 #[path = "commands.rs"]
 mod commands;
 #[path = "homebox_stock_history.rs"]
