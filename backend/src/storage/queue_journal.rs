@@ -77,10 +77,34 @@ impl<C, A: Authorization, R, Q: QueueAuthorization<Principal = A::Principal>>
         capture: Option<&super::journal_custody::QueueOriginalJournalCapture<'_>>,
         owned: Option<&dyn super::quantity_original::OwnedQuantityContext>,
     ) -> Result<NativeJournalReceipt> {
-        if capture.is_some() != owned.is_some() {
+        self.commit_native_inner_with_custody(job, prepared, capture, None, owned)
+    }
+
+    pub(super) fn commit_native_inner_with_upload_owned(
+        &mut self,
+        job: &LeasedJob,
+        prepared: &PreparedNativeIntent,
+        capture: &super::upload_journal_custody::QueueUploadJournalCapture<'_>,
+        owned: &dyn super::quantity_original::OwnedQuantityContext,
+    ) -> Result<NativeJournalReceipt> {
+        self.commit_native_inner_with_custody(job, prepared, None, Some(capture), Some(owned))
+    }
+
+    fn commit_native_inner_with_custody(
+        &mut self,
+        job: &LeasedJob,
+        prepared: &PreparedNativeIntent,
+        capture: Option<&super::journal_custody::QueueOriginalJournalCapture<'_>>,
+        upload_capture: Option<&super::upload_journal_custody::QueueUploadJournalCapture<'_>>,
+        owned: Option<&dyn super::quantity_original::OwnedQuantityContext>,
+    ) -> Result<NativeJournalReceipt> {
+        if (capture.is_some() as u8 + upload_capture.is_some() as u8) != owned.is_some() as u8 {
             return Err(conflict());
         }
         if let Some(capture) = capture {
+            capture.validate_session(self, job, prepared)?;
+        }
+        if let Some(capture) = upload_capture {
             capture.validate_session(self, job, prepared)?;
         }
         if prepared.codec.is_empty()
@@ -139,7 +163,7 @@ impl<C, A: Authorization, R, Q: QueueAuthorization<Principal = A::Principal>>
             "SELECT native_codec,native_payload_digest,prepared_media_digest,prepared_liability_json,journal_evidence_digest,native_payload,prepared_media FROM queue_journal WHERE job_id=?1 AND fence=?2",
             params![job.lease.job_id.0,decimal(job.lease.fence)],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?))).optional()?;
         let new_journal = existing.is_none();
-        if capture.is_some() && !new_journal {
+        if (capture.is_some() || upload_capture.is_some()) && !new_journal {
             return Err(conflict());
         }
         if let Some((codec, n, m, l, j, np, pm)) = existing {
@@ -181,7 +205,7 @@ impl<C, A: Authorization, R, Q: QueueAuthorization<Principal = A::Principal>>
                 &prepared.storage_liability,
             )?;
         }
-        let receipt = if capture.is_some() {
+        let receipt = if capture.is_some() || upload_capture.is_some() {
             Some(NativeJournalReceipt {
                 native_payload_digest: Digest::from_hex(native.clone()).map_err(|_| bad())?,
                 journal_evidence_digest: Digest::from_hex(journal.clone()).map_err(|_| bad())?,
@@ -204,7 +228,13 @@ impl<C, A: Authorization, R, Q: QueueAuthorization<Principal = A::Principal>>
         if let Some(owned) = owned {
             owned.revalidate(&tx)?;
         }
+        if let Some(capture) = upload_capture {
+            capture.prepare_committed(job, prepared, receipt.as_ref().ok_or_else(bad)?)?;
+        }
         tx.commit()?;
+        if let Some(capture) = upload_capture {
+            capture.record_committed();
+        }
         if let Some(capture) = capture {
             capture.record_committed(job, prepared, receipt.as_ref().ok_or_else(bad)?)?;
         }

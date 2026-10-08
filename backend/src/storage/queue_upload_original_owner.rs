@@ -1,6 +1,7 @@
 //! Process-local custody for the installed original queued upload.
 //! A durable queue row is DATA. Only the original producer's successful
 //! postcommit Release qualifies the exact enqueue or first claim captured here.
+use super::upload_journal_custody::OriginalUploadJournalLedger;
 use super::*;
 use crate::{
     app::homebox_queued_upload_admission::OriginalQueuedUploadAdmission,
@@ -275,7 +276,7 @@ impl QueueUploadClaimCapture<'_> {
     }
 }
 
-struct OriginalUploadEnqueueRecord {
+pub(super) struct OriginalUploadEnqueueRecord {
     upload: Arc<NativeQueuedUploadOriginal>,
     store: crate::storage::QuantityInstallationStoreIdentity,
     custody: Arc<OriginalUploadCustodyBrand>,
@@ -285,6 +286,12 @@ struct OriginalUploadEnqueueRecord {
     scope: CanonicalScope,
     snapshot: JobSnapshot,
     claim: Mutex<Cell<InitialClaimLedger>>,
+    journal: Mutex<Cell<OriginalUploadJournalLedger>>,
+}
+impl OriginalUploadEnqueueRecord {
+    pub(super) fn upload_cut(&self) -> &Arc<NativeQueuedUploadOriginal> {
+        &self.upload
+    }
 }
 
 /// The live original admission remains borrowed while it issues its first
@@ -317,6 +324,42 @@ impl OriginalQueuedUploadAttempt {
         Arc::ptr_eq(&self.record, &proof.record)
             && Arc::ptr_eq(&self.custody, &proof.record.custody)
             && proof.matches_released_attempt(&self.job)
+    }
+    pub(super) fn record(&self) -> &Arc<OriginalUploadEnqueueRecord> {
+        &self.record
+    }
+    pub(super) fn journal_ledger(&self) -> &Mutex<Cell<OriginalUploadJournalLedger>> {
+        &self.record.journal
+    }
+    pub(super) fn matches_store_identity(
+        &self,
+        store: &crate::storage::QuantityInstallationStoreIdentity,
+    ) -> bool {
+        Arc::ptr_eq(&self.record.store.0, &store.0)
+            && Arc::ptr_eq(&self.custody, &self.record.custody)
+    }
+    pub(super) fn matches_original_upload(
+        &self,
+        store: &crate::storage::QuantityInstallationStoreIdentity,
+        preparation: &OriginalQueuedUploadAdmission<'_, '_, '_, '_, '_>,
+    ) -> bool {
+        self.matches_store_identity(store)
+            && Arc::ptr_eq(preparation.upload_cut(), &self.record.upload)
+            && matches_original_admission(preparation)
+            && self.record.original.raw() == preparation.original().raw()
+            && self.record.config == *preparation.config()
+            && self.record.request == *preparation.request()
+            && self.record.scope == *preparation.scope()
+            && self.job.lease.job_id == self.record.snapshot.job_id
+            && self.job.attempt == 1
+            && self.job.request == self.record.request
+            && self.job.canonical_scope == self.record.scope
+            && self.job.lease.physical_identity == self.record.config.registration.identity
+            && self.job.lease.owner_id == self.record.config.registration.dispatcher_owner_id
+            && self.job.pending_byte_liability == self.record.request.pending_byte_liability
+            && self.matches_released_upload(&RecordedOriginalUploadEnqueueProof {
+                record: Arc::clone(&self.record),
+            })
     }
 }
 
@@ -532,6 +575,7 @@ impl crate::app::Store {
                     scope: preparation.scope().clone(),
                     snapshot,
                     claim: Mutex::new(Cell::new(InitialClaimLedger::Empty)),
+                    journal: Mutex::new(Cell::new(OriginalUploadJournalLedger::Empty)),
                 });
                 Ok(OriginalQueuedUploadEnqueue::Enqueued(
                     OriginalQueuedUploadOwner {
