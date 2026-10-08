@@ -140,6 +140,21 @@ impl SqliteNetworkSidecar {
     ) -> Result<Vec<super::archive::NetworkArchiveReference>> {
         self.archive.protected_references()
     }
+    /// Enumerate every separately persisted projection, including rows whose
+    /// raw archive stage never completed. No absence-of-current-pointer filter.
+    fn protected_projected_rows(&self) -> Result<Vec<SidecarRow>> {
+        bound_stored_rows(&self.db)?;
+        let rows = self.db.prepare("SELECT partition_key,generation_id,sha256,body FROM core_network_generations ORDER BY partition_key,generation_id")
+            .map_err(sql_error)?.query_map([], |r| Ok(SidecarRow {
+                partition_key: r.get(0)?, generation_id: r.get(1)?, sha256: r.get(2)?, body: r.get(3)?,
+            })).map_err(sql_error)?.collect::<std::result::Result<Vec<_>, _>>().map_err(sql_error)?;
+        let packet = SidecarPacket {
+            format: SIDECAR_FORMAT.into(),
+            rows,
+        };
+        validate_sidecar_packet(&packet, &self.sources)?;
+        Ok(packet.rows)
+    }
 }
 impl DurableNetworkSidecar for SqliteNetworkSidecar {
     type Receipt = DurableNetworkReceipt;
@@ -260,6 +275,13 @@ impl crate::storage::OriginalCacheReferenceGuard for NetworkCacheReferenceGuard<
         super::StagedNetworkPublication<super::NetworkStagingReceipt<DurableNetworkReceipt>>;
     type Admission = super::NetworkArchiveReservation;
 
+    fn reclamation_coverage(&self) -> crate::storage::CacheReferenceCoverage {
+        // Persisted rows/catalog are complete, but live disclosure leases and
+        // external recovery custody have no actual owner registry here yet.
+        // Never substitute an empty graph for those unknown retained refs.
+        crate::storage::CacheReferenceCoverage::Unknown
+    }
+
     fn enumerate(
         &mut self,
         output: &mut crate::storage::CacheProtectionSink<'_>,
@@ -268,6 +290,50 @@ impl crate::storage::OriginalCacheReferenceGuard for NetworkCacheReferenceGuard<
             .sidecar
             .protected_archive_references()
             .map_err(storage_network_error)?;
+        let sources = self
+            .sidecar
+            .sources
+            .iter()
+            .map(|source| super::partition_key(&source.scope).map(|key| (key, source)))
+            .collect::<Result<std::collections::BTreeMap<_, _>>>()
+            .map_err(storage_network_error)?;
+        let archive_by_id = refs
+            .iter()
+            .map(|reference| {
+                (
+                    (
+                        reference.partition_key.as_str(),
+                        reference.generation_id.as_str(),
+                    ),
+                    reference,
+                )
+            })
+            .collect::<std::collections::BTreeMap<_, _>>();
+        for row in self
+            .sidecar
+            .protected_projected_rows()
+            .map_err(storage_network_error)?
+        {
+            let source = sources
+                .get(&row.partition_key)
+                .ok_or_else(storage_network_conflict)?;
+            let archived =
+                archive_by_id.get(&(row.partition_key.as_str(), row.generation_id.as_str()));
+            let paired = archived.is_some_and(|reference| {
+                reference.state == super::archive::NetworkArchiveReferenceState::Sealed
+                    && reference.projected_receipt_sha256.as_deref() == Some(row.sha256.as_str())
+            });
+            output.protect(
+                &storage_registration(source)?,
+                &row.generation_id,
+                archived.and_then(|reference| reference.body_sha256.as_deref()),
+                if paired {
+                    crate::storage::CacheProtectionReason::Archive
+                } else {
+                    crate::storage::CacheProtectionReason::StagedOrAmbiguous
+                },
+            )?;
+        }
         for reference in refs {
             let source = self
                 .sidecar

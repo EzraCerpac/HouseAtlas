@@ -4,7 +4,11 @@ use super::super::{cache_repository as repo, *};
 use super::AtlasStore;
 use rusqlite::{Transaction, TransactionBehavior};
 use serde_json::Value;
-use std::{fmt, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    sync::Arc,
+};
 
 pub const CACHE_PROTECTED_ENTRY_LIMIT: usize = 10_000;
 pub const CACHE_ACTIVE_SEGMENT_BYTES: u64 = 16 * 1024 * 1024;
@@ -63,6 +67,11 @@ pub trait OriginalCacheReferenceGuard {
     /// Original non-cloneable capacity reservation consumed by Native staging.
     type Admission;
     fn enumerate(&mut self, output: &mut CacheProtectionSink<'_>) -> Result<()>;
+    /// Planning coverage only, never reclamation authority. Existing owners
+    /// without an actual complete disclosure/recovery registry remain unknown.
+    fn reclamation_coverage(&self) -> CacheReferenceCoverage {
+        CacheReferenceCoverage::Unknown
+    }
     /// Verify original issuer/receipt and exact full registration, partition,
     /// generation and native digest against original immutable stored bytes.
     fn verify_staged(&mut self, staged: &Self::Staged) -> Result<()>;
@@ -98,6 +107,24 @@ pub enum CacheProtectionReason {
     Archive,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CacheReferenceCoverage {
+    Unknown,
+    /// Original owner has enumerated all live disclosure, retained history,
+    /// recovery and external pins under the same exclusive reference guard.
+    Complete,
+}
+
+/// Distinguishes a burned identifier fact from a retained payload reference.
+/// Original owners cannot label their own history as a Store reservation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CacheProtectionOrigin {
+    StoreReservation,
+    StoreReference,
+    StorePin,
+    OriginalOwner,
+}
+
 /// Read-only inventory metadata. Possession never proves authority or custody.
 #[derive(Debug)]
 pub struct ProtectedCacheGeneration {
@@ -105,6 +132,7 @@ pub struct ProtectedCacheGeneration {
     generation_id: String,
     native_sha256: Option<String>,
     reason: CacheProtectionReason,
+    origin: CacheProtectionOrigin,
 }
 impl ProtectedCacheGeneration {
     pub fn registration(&self) -> &SourceRegistration {
@@ -118,6 +146,9 @@ impl ProtectedCacheGeneration {
     }
     pub fn reason(&self) -> CacheProtectionReason {
         self.reason
+    }
+    pub fn origin(&self) -> CacheProtectionOrigin {
+        self.origin
     }
 }
 
@@ -135,6 +166,22 @@ impl CacheProtectionSink<'_> {
         generation_id: &str,
         native_sha256: Option<&str>,
         reason: CacheProtectionReason,
+    ) -> Result<()> {
+        self.protect_with_origin(
+            registration,
+            generation_id,
+            native_sha256,
+            reason,
+            CacheProtectionOrigin::OriginalOwner,
+        )
+    }
+    fn protect_with_origin(
+        &mut self,
+        registration: &SourceRegistration,
+        generation_id: &str,
+        native_sha256: Option<&str>,
+        reason: CacheProtectionReason,
+        origin: CacheProtectionOrigin,
     ) -> Result<()> {
         if let Some(error) = &self.failed {
             return Err(error.clone());
@@ -160,6 +207,7 @@ impl CacheProtectionSink<'_> {
                 generation_id: generation_id.into(),
                 native_sha256: native_sha256.map(str::to_owned),
                 reason,
+                origin,
             });
             Ok(())
         })();
@@ -190,6 +238,7 @@ impl CachePinRegistry {
             generation_id: fence.reserved_generation_id.clone(),
             native_sha256: None,
             reason: CacheProtectionReason::InFlightOrAmbiguous,
+            origin: CacheProtectionOrigin::StorePin,
         });
         Ok(())
     }
@@ -316,18 +365,291 @@ impl<T> PublishedStagedCachePublication<T> {
     }
 }
 
+/// An explicit owner request for these exact archived bytes. No age/count
+/// cutoff, broad partition release, or deletion capability is represented.
+#[derive(Debug)]
+pub struct CacheReclamationRequest {
+    registration: SourceRegistration,
+    generation_id: String,
+    native_sha256: String,
+}
+impl CacheReclamationRequest {
+    pub fn archived_payload(
+        registration: SourceRegistration,
+        generation_id: String,
+        native_sha256: String,
+    ) -> Result<Self> {
+        if registration.owner != SourceOwner::Network {
+            return Err(reclamation_error());
+        }
+        validate_digest(&native_sha256)?;
+        Ok(Self {
+            registration,
+            generation_id,
+            native_sha256,
+        })
+    }
+}
+#[derive(Debug)]
+pub struct CacheReclamationPolicy {
+    revision: String,
+    requests: Vec<CacheReclamationRequest>,
+}
+impl CacheReclamationPolicy {
+    pub fn new(revision: String, requests: Vec<CacheReclamationRequest>) -> Result<Self> {
+        if revision.is_empty()
+            || revision.len() > 128
+            || revision.trim() != revision
+            || !revision.is_ascii()
+            || revision.bytes().any(|byte| byte.is_ascii_control())
+            || requests.len() > CACHE_PROTECTED_ENTRY_LIMIT
+        {
+            return Err(reclamation_error());
+        }
+        let mut keys = BTreeSet::new();
+        for request in &requests {
+            if !keys.insert(generation_key(
+                &request.registration,
+                &request.generation_id,
+            )) {
+                return Err(reclamation_error());
+            }
+        }
+        Ok(Self { revision, requests })
+    }
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CacheReclamationBlocker {
+    OwnerPolicyAbsent,
+    ExternalReferencesUnknown,
+    UnknownGeneration,
+    UnknownPublicationDisposition,
+    RegistrationConflict,
+    NativeDigestUnavailableOrConflicting,
+    RequestedDigestMismatch,
+    RetainedReference(CacheProtectionReason),
+}
+/// Advisory metadata only. Even an empty blocker list supplies no authority,
+/// proof, receipt, grant, or method capable of deleting bytes or burned IDs.
+#[derive(Debug)]
+pub struct CacheReclamationEntry {
+    pub registration: SourceRegistration,
+    pub generation_id: String,
+    pub native_sha256: Option<String>,
+    pub reference_count: usize,
+    pub reasons: Vec<CacheProtectionReason>,
+    pub blockers: Vec<CacheReclamationBlocker>,
+    pub burned_identifier_present: bool,
+}
+impl CacheReclamationEntry {
+    pub fn owner_policy_candidate(&self) -> bool {
+        self.blockers.is_empty()
+    }
+}
+#[derive(Debug)]
+pub struct CacheReclamationPlan {
+    pub policy_revision: String,
+    pub coverage: CacheReferenceCoverage,
+    pub entries: Vec<CacheReclamationEntry>,
+}
+type GenerationKey = (String, String, String, String, String);
+fn generation_key(registration: &SourceRegistration, id: &str) -> GenerationKey {
+    (
+        registration.workspace_id.clone(),
+        registration.home_id.clone(),
+        registration.source_instance_id.clone(),
+        registration.collection_id.clone(),
+        id.to_owned(),
+    )
+}
+fn reclamation_error() -> Error {
+    Error::new(
+        "guard-conflict",
+        "Explicit cache reclamation planning policy unavailable",
+    )
+}
+fn build_reclamation_plan(
+    policy: &CacheReclamationPolicy,
+    protected: &[ProtectedCacheGeneration],
+    coverage: CacheReferenceCoverage,
+) -> Result<CacheReclamationPlan> {
+    let mut groups: BTreeMap<GenerationKey, Vec<&ProtectedCacheGeneration>> = BTreeMap::new();
+    for reference in protected {
+        groups
+            .entry(generation_key(
+                reference.registration(),
+                reference.generation_id(),
+            ))
+            .or_default()
+            .push(reference);
+    }
+    for request in &policy.requests {
+        groups
+            .entry(generation_key(
+                &request.registration,
+                &request.generation_id,
+            ))
+            .or_default();
+    }
+    if groups.len() > CACHE_PROTECTED_ENTRY_LIMIT {
+        return Err(capacity_error());
+    }
+    let requests = policy
+        .requests
+        .iter()
+        .map(|request| {
+            (
+                generation_key(&request.registration, &request.generation_id),
+                request,
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut entries = Vec::with_capacity(groups.len());
+    for (key, references) in groups {
+        let requested = requests.get(&key).copied();
+        let registration = references
+            .first()
+            .map(|r| &r.registration)
+            .or_else(|| requested.map(|r| &r.registration))
+            .ok_or_else(reclamation_error)?;
+        let mut blockers = Vec::new();
+        let mut block = |reason| {
+            if !blockers.contains(&reason) {
+                blockers.push(reason);
+            }
+        };
+        if coverage == CacheReferenceCoverage::Unknown {
+            block(CacheReclamationBlocker::ExternalReferencesUnknown);
+        }
+        if requested.is_none() {
+            block(CacheReclamationBlocker::OwnerPolicyAbsent);
+        }
+        if references.is_empty() {
+            block(CacheReclamationBlocker::UnknownGeneration);
+        }
+        if references.iter().any(|r| &r.registration != registration)
+            || requested.is_some_and(|r| &r.registration != registration)
+        {
+            block(CacheReclamationBlocker::RegistrationConflict);
+        }
+        let burned = references
+            .iter()
+            .any(|r| r.origin == CacheProtectionOrigin::StoreReservation);
+        if !burned {
+            block(CacheReclamationBlocker::UnknownPublicationDisposition);
+        }
+        let digests = references
+            .iter()
+            .filter_map(|r| r.native_sha256())
+            .collect::<BTreeSet<_>>();
+        let digest = if digests.len() == 1 {
+            digests.first().copied()
+        } else {
+            None
+        };
+        if digest.is_none()
+            || !references.iter().any(|r| {
+                r.origin == CacheProtectionOrigin::OriginalOwner
+                    && r.reason == CacheProtectionReason::Archive
+                    && r.native_sha256.is_some()
+            })
+        {
+            block(CacheReclamationBlocker::NativeDigestUnavailableOrConflicting);
+        }
+        if requested.is_some_and(|r| Some(r.native_sha256.as_str()) != digest) {
+            block(CacheReclamationBlocker::RequestedDigestMismatch);
+        }
+        for reference in &references {
+            // Only the Core's burned-ID FACT and explicitly selected verified
+            // archive residency may be candidates. Actual retained history from
+            // an original owner remains protected, even with the same reason.
+            let burned_fact = reference.origin == CacheProtectionOrigin::StoreReservation
+                && reference.reason == CacheProtectionReason::History;
+            let archive = reference.origin == CacheProtectionOrigin::OriginalOwner
+                && reference.reason == CacheProtectionReason::Archive
+                && reference.native_sha256.is_some();
+            if !burned_fact && !archive {
+                block(CacheReclamationBlocker::RetainedReference(reference.reason));
+            }
+        }
+        entries.push(CacheReclamationEntry {
+            registration: registration.clone(),
+            generation_id: key.4,
+            native_sha256: digest.map(str::to_owned),
+            reference_count: references.len(),
+            reasons: references.iter().map(|r| r.reason).collect(),
+            blockers,
+            burned_identifier_present: burned,
+        });
+    }
+    Ok(CacheReclamationPlan {
+        policy_revision: policy.revision.clone(),
+        coverage,
+        entries,
+    })
+}
+
 /// Owns the existing Store's IMMEDIATE transaction and actual peer guard. This
 /// excludes another Store call and keeps catalog/recovery/disclosure pins live.
 /// Inventory getters confer no Access grant. No deletion or retention release.
 pub struct CacheResidencyGuard<'a, G> {
     transaction: Transaction<'a>,
     issuer: Arc<()>,
+    contract: &'a dyn Contract,
     references: G,
     protected: Vec<ProtectedCacheGeneration>,
 }
 impl<G: OriginalCacheReferenceGuard> CacheResidencyGuard<'_, G> {
     pub fn protected(&self) -> &[ProtectedCacheGeneration] {
         &self.protected
+    }
+    /// Read-only source plan, not a deletion permit. Re-enumerate original
+    /// references because admission can add a reservation after guard creation.
+    /// The same Store transaction, issuer and original peer lock stay held.
+    pub fn plan_reclamation(
+        &mut self,
+        policy: &CacheReclamationPolicy,
+    ) -> Result<CacheReclamationPlan> {
+        let mut protected = self
+            .protected
+            .iter()
+            .filter(|entry| entry.origin != CacheProtectionOrigin::OriginalOwner)
+            .map(|entry| ProtectedCacheGeneration {
+                registration: entry.registration.clone(),
+                generation_id: entry.generation_id.clone(),
+                native_sha256: entry.native_sha256.clone(),
+                reason: entry.reason,
+                origin: entry.origin,
+            })
+            .collect::<Vec<_>>();
+        let mut sink = CacheProtectionSink {
+            contract: self.contract,
+            entries: &mut protected,
+            failed: None,
+        };
+        self.references.enumerate(&mut sink)?;
+        if let Some(error) = sink.failed {
+            return Err(error);
+        }
+        for request in &policy.requests {
+            self.contract.validate_shape(
+                "sourceRegistration",
+                &serde_json::to_value(&request.registration)?,
+            )?;
+            self.contract.validate_shape(
+                "recordRef",
+                &serde_json::to_value(RecordRef {
+                    record_type: RecordType::Identity,
+                    record_id: request.generation_id.clone(),
+                })?,
+            )?;
+        }
+        self.protected = protected;
+        build_reclamation_plan(
+            policy,
+            &self.protected,
+            self.references.reclamation_coverage(),
+        )
     }
     /// Original producer, retained under the same transaction and pins. Recovery
     /// must verify immutable bytes and transfer custody here before transition.
@@ -540,11 +862,12 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         };
         enumerate_sql(&transaction, &mut sink)?;
         for pin in &self.cache_pins.entries {
-            sink.protect(
+            sink.protect_with_origin(
                 &pin.registration,
                 &pin.generation_id,
                 pin.native_sha256.as_deref(),
                 pin.reason,
+                CacheProtectionOrigin::StorePin,
             )?;
         }
         original.enumerate(&mut sink)?;
@@ -554,6 +877,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         Ok(CacheResidencyGuard {
             transaction,
             issuer: Arc::clone(&self.instance),
+            contract: &self.contract,
             references: original,
             protected,
         })
@@ -697,7 +1021,17 @@ fn enumerate_sql(db: &rusqlite::Connection, sink: &mut CacheProtectionSink<'_>) 
                     "Current generation reservation unavailable",
                 ));
             }
-            sink.protect(&registration, &generation_id, None, reason)?;
+            sink.protect_with_origin(
+                &registration,
+                &generation_id,
+                None,
+                reason,
+                if reason == CacheProtectionReason::History {
+                    CacheProtectionOrigin::StoreReservation
+                } else {
+                    CacheProtectionOrigin::StoreReference
+                },
+            )?;
         }
     }
     Ok(())
