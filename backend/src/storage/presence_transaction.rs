@@ -5,6 +5,7 @@ use super::super::{
     repository as repo, *,
 };
 use super::AtlasStore;
+use crate::app::homebox_presence::ConfiguredPresenceReleased;
 use crate::{
     access as a,
     contracts::{self, stock as wire},
@@ -35,7 +36,7 @@ impl PresenceStoreAllocation {
 /// All inputs are borrowed from the same owner invocation. No caller graph,
 /// access DTO, newly issued grant or synthetic version/epoch fallback. The
 /// explicitly accepted trusted owner version remains a required input.
-pub(super) struct PresenceMutationInputs<'a, 'access> {
+pub(super) struct PresenceMutationInputs<'a, 'access, 'origin, 'reader> {
     pub context: &'a MutationAuthorizationContext,
     pub principal: &'a a::Principal,
     pub guard: &'a a::TransactionAuthorization<'access>,
@@ -44,14 +45,17 @@ pub(super) struct PresenceMutationInputs<'a, 'access> {
     pub accepted_access_package_version: &'a str,
     /// Borrow the actual immutable Native owner for the whole active phase.
     pub network: Option<(&'a net::SqliteNetworkSidecar, &'a net::LinkReview)>,
+    pub publications: &'a [&'a ConfiguredPresenceReleased<'origin, 'reader>],
 }
 
-pub(super) struct PresenceMutationTransaction<'a, 'db, 'access, C> {
+pub(super) struct PresenceMutationTransaction<'a, 'db, 'access, 'origin, 'reader, C> {
     transaction: &'a Transaction<'db>,
     contract: &'a C,
-    input: PresenceMutationInputs<'a, 'access>,
+    input: PresenceMutationInputs<'a, 'access, 'origin, 'reader>,
 }
-impl<'a, 'db, 'access, C: Contract> PresenceMutationTransaction<'a, 'db, 'access, C> {
+impl<'a, 'db, 'access, 'origin, 'reader, C: Contract>
+    PresenceMutationTransaction<'a, 'db, 'access, 'origin, 'reader, C>
+{
     /// Private engine hook only, after its normal Candidate/Precommit checks.
     /// Never opens a connection/transaction or accepts an arbitrary Connection.
     pub(super) fn from_active(
@@ -59,7 +63,7 @@ impl<'a, 'db, 'access, C: Contract> PresenceMutationTransaction<'a, 'db, 'access
         allocation: &PresenceStoreAllocation,
         current_store_instance: &Arc<()>,
         contract: &'a C,
-        input: PresenceMutationInputs<'a, 'access>,
+        input: PresenceMutationInputs<'a, 'access, 'origin, 'reader>,
     ) -> d::DomainResult<Self> {
         if allocation.connection != std::ptr::from_ref(&**transaction)
             || !Arc::ptr_eq(&allocation.instance, current_store_instance)
@@ -198,7 +202,7 @@ impl<'a, 'db, 'access, C: Contract> PresenceMutationTransaction<'a, 'db, 'access
         hashes: &[String],
         original_batch_hash: Option<&str>,
         clock: (&str, &presence::ConfiguredCacheAge),
-    ) -> d::DomainResult<usize> {
+    ) -> d::DomainResult<Vec<wire::PresenceWitness>> {
         self.check_phase_graph()?;
         if self.input.context.phase != MutationPhase::Precommit
             || results.len() != self.input.context.entries.len()
@@ -304,12 +308,12 @@ impl<'a, 'db, 'access, C: Contract> PresenceMutationTransaction<'a, 'db, 'access
             stamped.push(witness);
         }
         witnesses::append(self.transaction, self.contract, &stamped).map_err(storage_error)?;
-        Ok(stamped.len())
+        Ok(stamped)
     }
 }
 
 impl<C: Contract> presence::AtomicPresenceTransaction
-    for PresenceMutationTransaction<'_, '_, '_, C>
+    for PresenceMutationTransaction<'_, '_, '_, '_, '_, C>
 {
     fn binding_change(
         &self,
@@ -471,6 +475,33 @@ impl<C: Contract> presence::AtomicPresenceTransaction
         let registration = cache::source(self.transaction, &partition).map_err(storage_error)?;
         let publication =
             cache::publication_state(self.transaction, &partition).map_err(storage_error)?;
+        if registration.owner != SourceOwner::Homebox {
+            return Err(d::DomainError::UpstreamUnavailable);
+        }
+        let matching = self
+            .input
+            .publications
+            .iter()
+            .filter(|closed| {
+                let committed = closed.committed();
+                closed.origin().partition() == &partition
+                    && closed.origin().registration() == &registration
+                    && committed.registration() == &registration
+                    && committed.successor_cache_epoch() == publication.cache_epoch
+                    && publication.cache.as_ref() == Some(committed.cache())
+                    && publication.homebox_entities == committed.homebox_entities()
+                    && publication.network_relations == committed.network_relations()
+                    && closed.native_generation().generation_id().as_str()
+                        == committed
+                            .cache()
+                            .generation_id
+                            .as_deref()
+                            .unwrap_or_default()
+            })
+            .count();
+        if matching != 1 {
+            return Err(d::DomainError::UpstreamIncomplete);
+        }
         let generation = publication
             .cache
             .as_ref()
