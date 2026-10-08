@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "2a2f060e2cb4388b79be6d90959a011c74e669150db39398493d805cf7407629",
+  "sourceDigestSha256": "a4eb8b0578b1688bd6f4722c0b9986f9fbe87962f768893ce4941f017445b6ef",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5033,8 +5033,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 40231,
-      "sha256": "453edbddae694a7eb11f2ae2f3d177033946dab21da010458ba9758083aaa9a5",
+      "bytes": 40857,
+      "sha256": "5318e1273b6460028ed7501a07132717a3101f775ad4d6ed97dd1e979a30debc",
       "owner": "core-integration"
     },
     {
@@ -6029,6 +6029,13 @@
       "mode": "100644",
       "bytes": 13724,
       "sha256": "637c4242f4d5ca732adc4d6d75529ddfd1289492915370778da404ec090958da",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/quantity/uncertainty.regression.tsx",
+      "mode": "100644",
+      "bytes": 9739,
+      "sha256": "809da85c90d2d5f3dc446f82fe4727810f38cfb71c34598b37fbaf9f3838907e",
       "owner": "web"
     },
     {

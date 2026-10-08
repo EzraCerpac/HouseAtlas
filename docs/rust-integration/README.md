@@ -252,6 +252,15 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-upload-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs
 
+The separate `frontend/src/lantern/quantity/uncertainty.regression.tsx` case
+passed with the actual React preview, quantity client and handoff store. One
+fixed fake preview response was HTTP500, producing the genuine retained unknown;
+the alert appeared and Approve disabled without a click. Human-required Submit
+was already disabled and remained disabled. Prepared wire, ledger, custody and
+cached quantity stayed unchanged. This is a bounded failure-injection case in
+the separate regression lane; it is not part of ordinary CI and runs no approval,
+dispatch, live service/provider, session replacement, expiry or replay.
+
 The named configured Presence case is an ordinary synthetic verification:
 
 ```sh
