@@ -246,3 +246,49 @@ Emitted snapshots pass published shape/semantic validation as additional evidenc
 no JavaScript oracle is used in the Rust publication path. Legacy broad aggregates,
 stopped rejection/guard-reversal/mutation/adversarial/fault/crash/concurrency/negative
 controls remain unrun. Ordinary success does not qualify deployment or security.
+
+## Original bounded native captures
+
+`HomeBoxReader::capture_stock_entity(&Uuid)` captures exactly
+`GET /api/v1/entities/{entityId}`. `capture_stock_maintenance(&Uuid)` captures
+exactly `GET /api/v1/entities/{entityId}/maintenance?status=both`. Both require
+the existing registered stock reader and its configured transport/clock/limits.
+They enforce the reader's allowlist, response scope, redirect/status policy,
+response/aggregate byte bounds and deadlines; detail parents retain the same
+registered partition restriction. There is no caller-selected origin or route.
+
+The returned sealed `NativeCapture<T>` exposes immutable scope, requested owner,
+fixed method/path/query, actual status, host retrieval time, original body bytes,
+parsed source JSON and native decoded value. Unknown fields, numeric spellings,
+calendar dates and original attachment membership metadata survive in the raw
+body/source. Captures can contain private inventory and belong in private owner
+custody. No public publication or serialization adapter is supplied.
+
+These are actual configured GET observations, not complete writable snapshots,
+provider/build qualification, freshness proofs, grants, approvals or receipts.
+The existing fresh writer adapter still requires its original qualified owner
+evidence for preparation/readback and hidden PUT fields. A body from a registered
+transport does not itself establish current credential custody or admission.
+
+The file successor still needs the original `NativeStoredFileOwner` critical
+section and correlated attachment body/version evidence. This source captures
+original detail membership but does not fetch attachment bodies or invent a
+version from paths, dates, hashes or cache generations. Media's original stage
+API presently binds Atlas asset creation; Atlas tokens do not admit HomeBox bytes.
+
+The integration owner must declare `mod native_capture` and export
+`NativeCapture`, `CapturedStockEntity`, `CapturedStockMaintenance` in `read/mod.rs`.
+The separate positive fixture requires `#[cfg(test)] mod native_capture_healthy`.
+Module/Cargo/manifest composition stays with that owner. Once declared, its exact
+permitted command is:
+
+```sh
+cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_capture_healthy::healthy_fixed_native_get_captures_preserve_originals -- --exact --test-threads=1
+```
+
+One ordinary synthetic case performs two successful chunked GETs over the actual
+credential-free ephemeral loopback `HttpTransport`, then closes the listener.
+It covers a reviewed entity/parent allowlist, exact paths/query/tenant, response
+status and retrieval time, byte equality, large integers/exponent spelling,
+original date spelling and maintenance costs. It creates no qualification owner,
+write approval, stage token or source authority and makes no live provider call.
