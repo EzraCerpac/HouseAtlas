@@ -309,6 +309,18 @@ impl NativeQueuedUploadInstallationOwner {
             .iter()
             .map(|captured| QueuedUploadArtifactSource { captured })
     }
+    pub(super) fn original_capture_deadline(&self) -> Result<Instant, StockErrorCode> {
+        self.check_capture_window()?;
+        let deadline = self
+            .captured_at
+            .checked_add(self.descriptor().freshness)
+            .ok_or(StockErrorCode::ProviderUnqualified)?;
+        self.check_capture_window()?;
+        if Instant::now() >= deadline {
+            return Err(StockErrorCode::ProviderUnqualified);
+        }
+        Ok(deadline)
+    }
     pub(super) fn check_capture_window(&self) -> Result<(), StockErrorCode> {
         self.check_configuration()?;
         if self.captured_at.elapsed() > self.descriptor().freshness {
