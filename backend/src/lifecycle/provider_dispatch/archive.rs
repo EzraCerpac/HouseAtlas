@@ -7,7 +7,7 @@ use std::{
     fs::File,
     io::{Read, Write},
     os::unix::fs::{MetadataExt, OpenOptionsExt},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 use uuid::Uuid;
 
@@ -73,6 +73,7 @@ pub struct PrivateStockArchive {
     directory: File,
     destination: ArchiveDestination,
     max_frame_bytes: usize,
+    custody: Mutex<()>,
 }
 impl PrivateStockArchive {
     /// Open the already-provisioned trusted directory without creating a path.
@@ -109,6 +110,7 @@ impl PrivateStockArchive {
                 owner: metadata.uid(),
             },
             max_frame_bytes: config.max_frame_bytes(),
+            custody: Mutex::new(()),
         }))
     }
     pub fn destination(&self) -> &ArchiveDestination {
@@ -127,7 +129,18 @@ impl PrivateStockArchive {
         if bytes.len() > self.max_frame_bytes {
             return Err(ArchiveError::TooLarge);
         }
+        // Every typed native writer shares the actual descriptor custody. In
+        // particular an independently opened HomeBox writer cannot race a
+        // Media catalog read if configuration accidentally selects one path.
+        let _local = self
+            .custody
+            .try_lock()
+            .map_err(|_| ArchiveError::Unavailable)?;
+        let _lock = self.custody_lock()?;
         let name = format!("{operation}.{version}.producer.json");
+        self.retain_named(&name, bytes)
+    }
+    fn retain_named(&self, name: &str, bytes: &[u8]) -> Result<ArchiveReceipt, ArchiveError> {
         let mut nonce = [0u8; 16];
         getrandom::fill(&mut nonce).map_err(|_| ArchiveError::Unavailable)?;
         let pending = format!("pending-{}", Uuid::from_bytes(nonce));
@@ -151,11 +164,11 @@ impl PrivateStockArchive {
                 &self.directory,
                 &pending,
                 &self.directory,
-                &name,
+                name,
                 AtFlags::empty(),
             ) {
                 Ok(()) => {}
-                Err(rustix::io::Errno::EXIST) => self.matches(&name, bytes)?,
+                Err(rustix::io::Errno::EXIST) => self.matches(name, bytes)?,
                 Err(_) => return Err(ArchiveError::Unavailable),
             }
             rustix::fs::unlinkat(&self.directory, &pending, AtFlags::empty())
@@ -164,7 +177,7 @@ impl PrivateStockArchive {
                 .sync_all()
                 .map_err(|_| ArchiveError::Unavailable)?;
             Ok(ArchiveReceipt {
-                name,
+                name: name.to_owned(),
                 sha256: format!("{:x}", Sha256::digest(bytes)),
             })
         })();
@@ -201,5 +214,258 @@ impl PrivateStockArchive {
             return Err(ArchiveError::Conflict);
         }
         file.sync_all().map_err(|_| ArchiveError::Unavailable)
+    }
+}
+
+const MEDIA_MEMBER_LIMIT: usize = 10_000;
+const MEDIA_BYTE_LIMIT: usize = 16 * 1024 * 1024;
+const MEDIA_MEMBER_BYTES: usize = 1024 * 1024;
+#[derive(PartialEq)]
+pub(super) struct MediaArchiveMember {
+    pub(super) name: String,
+    pub(super) bytes: Vec<u8>,
+    identity: MemberIdentity,
+}
+#[derive(PartialEq)]
+struct MemberIdentity {
+    device: u64,
+    inode: u64,
+    size: u64,
+    modified: i64,
+    modified_ns: i64,
+    changed: i64,
+    changed_ns: i64,
+}
+impl MemberIdentity {
+    fn checked(metadata: &std::fs::Metadata, maximum: usize) -> Result<Self, ArchiveError> {
+        if !metadata.is_file()
+            || metadata.mode() & 0o7777 != 0o600
+            || metadata.uid() != rustix::process::geteuid().as_raw()
+            || metadata.len() > maximum as u64
+        {
+            return Err(ArchiveError::Unavailable);
+        }
+        Ok(Self {
+            device: metadata.dev(),
+            inode: metadata.ino(),
+            size: metadata.len(),
+            modified: metadata.mtime(),
+            modified_ns: metadata.mtime_nsec(),
+            changed: metadata.ctime(),
+            changed_ns: metadata.ctime_nsec(),
+        })
+    }
+}
+#[derive(PartialEq)]
+struct DirectoryIdentity {
+    device: u64,
+    inode: u64,
+    size: u64,
+    modified: i64,
+    modified_ns: i64,
+    changed: i64,
+    changed_ns: i64,
+}
+struct DirectoryLock<'a>(&'a File);
+impl Drop for DirectoryLock<'_> {
+    fn drop(&mut self) {
+        let _ = rustix::fs::flock(self.0, rustix::fs::FlockOperation::Unlock);
+    }
+}
+fn media_name(name: &str) -> bool {
+    name.strip_suffix(".media-policy.json")
+        .and_then(|id| Uuid::parse_str(id).ok().map(|uuid| uuid.to_string() == id))
+        .unwrap_or(false)
+}
+impl PrivateStockArchive {
+    fn destination_current(&self) -> Result<(), ArchiveError> {
+        let descriptor = self
+            .directory
+            .metadata()
+            .map_err(|_| ArchiveError::Unavailable)?;
+        let named = std::fs::symlink_metadata(self.destination.directory())
+            .map_err(|_| ArchiveError::Unavailable)?;
+        for metadata in [descriptor, named] {
+            if !metadata.is_dir()
+                || metadata.mode() & 0o7777 != 0o700
+                || metadata.uid() != self.destination.owner
+                || metadata.uid() != rustix::process::geteuid().as_raw()
+                || metadata.dev() != self.destination.device
+                || metadata.ino() != self.destination.inode
+            {
+                return Err(ArchiveError::Unavailable);
+            }
+        }
+        Ok(())
+    }
+    fn media_directory_identity(&self) -> Result<DirectoryIdentity, ArchiveError> {
+        let metadata = self
+            .directory
+            .metadata()
+            .map_err(|_| ArchiveError::Unavailable)?;
+        Ok(DirectoryIdentity {
+            device: metadata.dev(),
+            inode: metadata.ino(),
+            size: metadata.len(),
+            modified: metadata.mtime(),
+            modified_ns: metadata.mtime_nsec(),
+            changed: metadata.ctime(),
+            changed_ns: metadata.ctime_nsec(),
+        })
+    }
+    fn custody_lock(&self) -> Result<DirectoryLock<'_>, ArchiveError> {
+        self.destination_current()?;
+        rustix::fs::flock(
+            &self.directory,
+            rustix::fs::FlockOperation::NonBlockingLockExclusive,
+        )
+        .map_err(|_| ArchiveError::Unavailable)?;
+        Ok(DirectoryLock(&self.directory))
+    }
+    fn media_scan(
+        &self,
+        budget: &crate::media::WorkBudget,
+    ) -> Result<Vec<MediaArchiveMember>, ArchiveError> {
+        self.destination_current()?;
+        let directory_identity = self.media_directory_identity()?;
+        let maximum = self.max_frame_bytes.min(MEDIA_MEMBER_BYTES);
+        let mut directory =
+            rustix::fs::Dir::read_from(&self.directory).map_err(|_| ArchiveError::Unavailable)?;
+        let mut members = Vec::new();
+        let mut total = 0usize;
+        while let Some(entry) = directory.read() {
+            budget.check().map_err(|_| ArchiveError::Unavailable)?;
+            let entry = entry.map_err(|_| ArchiveError::Unavailable)?;
+            let name = entry
+                .file_name()
+                .to_str()
+                .map_err(|_| ArchiveError::Unavailable)?;
+            if name == "." || name == ".." {
+                continue;
+            }
+            if !media_name(name) || members.len() >= MEDIA_MEMBER_LIMIT {
+                return Err(ArchiveError::Unavailable);
+            }
+            let fd = rustix::fs::openat(
+                &self.directory,
+                name,
+                OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
+                Mode::empty(),
+            )
+            .map_err(|_| ArchiveError::Unavailable)?;
+            let mut file = File::from(fd);
+            let identity = MemberIdentity::checked(
+                &file.metadata().map_err(|_| ArchiveError::Unavailable)?,
+                maximum,
+            )?;
+            total = total
+                .checked_add(identity.size as usize)
+                .ok_or(ArchiveError::TooLarge)?;
+            if total > MEDIA_BYTE_LIMIT {
+                return Err(ArchiveError::TooLarge);
+            }
+            let mut bytes = Vec::with_capacity(identity.size as usize);
+            (&mut file)
+                .take(maximum as u64 + 1)
+                .read_to_end(&mut bytes)
+                .map_err(|_| ArchiveError::Unavailable)?;
+            if bytes.len() as u64 != identity.size
+                || MemberIdentity::checked(
+                    &file.metadata().map_err(|_| ArchiveError::Unavailable)?,
+                    maximum,
+                )? != identity
+            {
+                return Err(ArchiveError::Unavailable);
+            }
+            members.push(MediaArchiveMember {
+                name: name.to_owned(),
+                bytes,
+                identity,
+            });
+        }
+        members.sort_by(|a, b| a.name.cmp(&b.name));
+        if members.windows(2).any(|pair| pair[0].name == pair[1].name) {
+            return Err(ArchiveError::Unavailable);
+        }
+        budget.check().map_err(|_| ArchiveError::Unavailable)?;
+        self.destination_current()?;
+        if directory_identity != self.media_directory_identity()? {
+            return Err(ArchiveError::Unavailable);
+        }
+        Ok(members)
+    }
+    pub(super) fn retain_media<
+        A: crate::media::recovery_policy_archive::MediaPolicyArchiveWriteAuthorization,
+    >(
+        &self,
+        packet: &crate::media::recovery_policy_archive::MediaPolicyArchivePacket,
+        owner: &A,
+        budget: &crate::media::WorkBudget,
+    ) -> crate::media::MediaResult<ArchiveReceipt> {
+        use crate::media::MediaError;
+        budget.check()?;
+        let _local = self
+            .custody
+            .try_lock()
+            .map_err(|_| MediaError::Unavailable)?;
+        let _lock = self.custody_lock().map_err(|_| MediaError::Unavailable)?;
+        owner.authorize_archive(self.destination(), packet)?;
+        let name = packet.member_name();
+        let bytes = packet.bytes();
+        if !media_name(name) || bytes.len() > self.max_frame_bytes.min(MEDIA_MEMBER_BYTES) {
+            return Err(MediaError::TooLarge);
+        }
+        let before = self
+            .media_scan(budget)
+            .map_err(|_| MediaError::Unavailable)?;
+        let existing = before.iter().find(|member| member.name == name);
+        if existing.is_none() && before.len() >= MEDIA_MEMBER_LIMIT {
+            return Err(MediaError::TooLarge);
+        }
+        let total: usize = before.iter().map(|member| member.bytes.len()).sum();
+        if existing.is_none()
+            && total
+                .checked_add(bytes.len())
+                .is_none_or(|total| total > MEDIA_BYTE_LIMIT)
+        {
+            return Err(MediaError::TooLarge);
+        }
+        budget.check()?;
+        let receipt = self
+            .retain_named(name, bytes)
+            .map_err(|_| MediaError::Unavailable)?;
+        let after = self
+            .media_scan(budget)
+            .map_err(|_| MediaError::Unavailable)?;
+        if before.iter().any(|old| !after.iter().any(|new| old == new))
+            || after.len() != before.len() + usize::from(existing.is_none())
+            || !after
+                .iter()
+                .any(|member| member.name == name && member.bytes == bytes)
+        {
+            return Err(MediaError::Unavailable);
+        }
+        Ok(receipt)
+    }
+    pub(super) fn with_media_catalog<T>(
+        &self,
+        budget: &crate::media::WorkBudget,
+        qualify: impl FnOnce(&[MediaArchiveMember]) -> crate::storage::Result<T>,
+    ) -> crate::storage::Result<T> {
+        let unavailable =
+            || crate::storage::Error::new("unavailable", "Private Media archive unavailable");
+        budget.check().map_err(|_| unavailable())?;
+        let _local = self.custody.try_lock().map_err(|_| unavailable())?;
+        let _lock = self.custody_lock().map_err(|_| unavailable())?;
+        let directory_identity = self.media_directory_identity().map_err(|_| unavailable())?;
+        let before = self.media_scan(budget).map_err(|_| unavailable())?;
+        let result = qualify(&before)?;
+        let after = self.media_scan(budget).map_err(|_| unavailable())?;
+        if before != after
+            || directory_identity != self.media_directory_identity().map_err(|_| unavailable())?
+        {
+            return Err(unavailable());
+        }
+        Ok(result)
     }
 }
