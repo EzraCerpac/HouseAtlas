@@ -1,10 +1,10 @@
 # HTTP intake correction
 
-This narrow candidate starts at the immutable PR16 checkpoint
-`915d9baae6710d23e29f34da488df1de493a2c0c`. It changes root-owned HTTP
+This narrow candidate continues the immutable native core checkpoint.
+It changes root-owned HTTP
 intake, its final healthy loopback assertion, documentation and the central
-source integrity manifest. It also consumes the exact React owner successor
-`0ddd0bf42a91d6ccf179dbd5bdb6735459d28f0c`: the existing configured Sign out
+source integrity manifest. It also consumes the React owner successor:
+the existing configured Sign out
 action remains available on authenticated non-ready panels while house content
 and choices remain withheld. Unavailable/denied panels are reviewed only in source. Media and later feature successors are separate.
 

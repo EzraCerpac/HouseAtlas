@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "a634a47c2636cff6d0aae5c8b102bdbe6f9ca591f50f376a44b79922ee672cd9",
+  "sourceDigestSha256": "2a9dc5b65bbb3a073926384a956eae518b7fcd8fe5330d4b6a0ced55f35200db",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -4137,8 +4137,8 @@
     {
       "path": "docs/rust-integration/core-continuation.md",
       "mode": "100644",
-      "bytes": 2770,
-      "sha256": "5b27af864701c15bcdc624590bb5c111a40aa33beeeee90022b261238bca1298",
+      "bytes": 2780,
+      "sha256": "ba33a20cfacfe2eb4ab95f73745db009f98e1caecfe8fbfe1c38a0bc228f0864",
       "owner": "core-integration"
     },
     {
@@ -4165,8 +4165,8 @@
     {
       "path": "docs/rust-integration/intake-correction.md",
       "mode": "100644",
-      "bytes": 2744,
-      "sha256": "33c3ace1366017ed45571aa0da6f3b869d4af210f03ddaaa5dc76b504e9bb4d8",
+      "bytes": 2659,
+      "sha256": "d5dddab876dd8ea8c0ac1341034ada5ad16109d2a32fdb6faf3bcf9862e84c99",
       "owner": "core-integration"
     },
     {
@@ -4200,8 +4200,8 @@
     {
       "path": "docs/rust-integration/owned-media.md",
       "mode": "100644",
-      "bytes": 3126,
-      "sha256": "4db9e7dbd2f4edc8bea7297d86cfeb53318f7056d5f371d4d29cb659e7cd7c51",
+      "bytes": 3100,
+      "sha256": "26a67765bd723fe040c3b04d482da4baa0cb1b0c9fcd6a0f33c0da7571eee68b",
       "owner": "core-integration"
     },
     {
