@@ -361,10 +361,11 @@ impl HostNetworkRuntime {
             {
                 return Err(wrong_scope().into());
             }
-            let baseline = super::reads::read_partition(
+            let pinned = super::reads::read_pinned_partition(
                 store, &access, &principal, &source, &partition, &entities,
             )
             .map_err(n::NetworkPublicationError::Storage)?;
+            let baseline = pinned.read();
             let cache: n::CacheMetadata = match &baseline.state.cache {
                 Some(cache) => serde_json::from_value(
                     serde_json::to_value(cache)
@@ -395,7 +396,7 @@ impl HostNetworkRuntime {
                 partition,
                 entities,
                 retained,
-                baseline,
+                pinned,
             )?;
             // Stay inside this validated Core borrow; calling the public method
             // here would reenter its mutex. Only supplied AT11 guards reach Store.
