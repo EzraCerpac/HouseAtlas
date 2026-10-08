@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { request as httpsRequest } from 'node:https';
-import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -13,7 +12,12 @@ const root = resolve(process.env.HOUSEATLAS_SOURCE_ROOT ?? fileURLToPath(new URL
 assert(existsSync(join(root, 'AGENTS.md')) && existsSync(join(root, 'frontend/dist/index.html')));
 const binary = process.env.HOUSEATLAS_BINARY;
 assert(binary && existsSync(binary), 'Supply the locked compiled HOUSEATLAS_BINARY');
-const scratch = mkdtempSync(join(tmpdir(), 'houseatlas-operation-events-healthy-'));
+const chromium = process.env.HOUSEATLAS_CHROMIUM ?? [
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/usr/bin/google-chrome', '/usr/bin/chromium',
+].find(existsSync);
+assert(chromium, 'A real Chromium executable is required for the read-only Changes view');
+const scratch = mkdtempSync('/tmp/houseatlas-operation-events-healthy-');
 const data = join(scratch, 'data');
 const cert = join(scratch, 'cert.pem'), key = join(scratch, 'key.pem');
 const certificate = spawnSync('openssl', [
@@ -27,22 +31,23 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(check, label, milliseconds = 30000) {
   const deadline = Date.now() + milliseconds;
   while (Date.now() < deadline) {
-    if (check()) return;
+    const result = await check();
+    if (result) return result;
     await delay(50);
   }
   throw new Error('Timed out: ' + label);
 }
 
-let service, output = '';
+let service, browser, output = '', serviceError = '';
 try {
   service = spawn(resolve(binary), [
     '--disposable-dir', data, '--frontend-dist', join(root, 'frontend/dist'),
     '--tls-cert', cert, '--tls-key', key,
   ], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
   service.stdout.on('data', bytes => { output += bytes; });
-  service.stderr.on('data', () => {});
+  service.stderr.on('data', bytes => { serviceError += bytes; });
   await until(() => {
-    if (service.exitCode !== null) throw new Error('Actual Rust startup failed');
+    if (service.exitCode !== null) throw new Error('Actual Rust startup failed: ' + serviceError.slice(-1200));
     return output.includes('listening at') && existsSync(join(data, 'smoke-session.json'));
   }, 'actual Rust TLS listener');
   const fixture = JSON.parse(readFileSync(join(data, 'smoke-session.json')));
@@ -212,12 +217,91 @@ try {
   assertPage(fresh, after);
   assert.equal(fresh.nextCursor, null);
 
+  // The real built React Changes view reads this aggregate through Chrome.
+  // Browser interaction is navigation only; operation history transport is GET.
+  const browserRequests = [];
+  class Pipe {
+    next = 0; pending = new Map(); buffer = Buffer.alloc(0);
+    constructor(process) {
+      this.process = process;
+      process.stdio[4].on('data', bytes => {
+        this.buffer = Buffer.concat([this.buffer, bytes]);
+        let end;
+        while ((end = this.buffer.indexOf(0)) !== -1) {
+          const raw = this.buffer.subarray(0, end).toString();
+          this.buffer = this.buffer.subarray(end + 1);
+          if (!raw) continue;
+          const message = JSON.parse(raw);
+          if (message.id) {
+            const pending = this.pending.get(message.id); if (!pending) continue;
+            this.pending.delete(message.id); clearTimeout(pending.timer);
+            message.error ? pending.reject(new Error(message.error.message)) : pending.resolve(message.result);
+          } else if (message.method === 'Network.requestWillBeSent') {
+            browserRequests.push({ url: message.params.request.url, method: message.params.request.method });
+          }
+        }
+      });
+    }
+    send(method, params = {}, sessionId) {
+      const id = ++this.next;
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('CDP timeout: ' + method)); }, 15000);
+        this.pending.set(id, { resolve, reject, timer });
+        this.process.stdio[3].write(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + '\0');
+      });
+    }
+  }
+  browser = spawn(chromium, [
+    '--headless=new', '--no-sandbox', '--disable-gpu', '--remote-debugging-pipe',
+    '--no-first-run', '--no-default-browser-check', '--disable-background-networking',
+    '--disable-component-update', '--disable-sync',
+    '--disable-features=MediaRouter,OptimizationHints', '--ignore-certificate-errors',
+    '--user-data-dir=' + join(scratch, 'browser'), 'about:blank',
+  ], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
+  const cdp = new Pipe(browser);
+  const version = await cdp.send('Browser.getVersion');
+  const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
+  const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
+  const send = (method, params) => cdp.send(method, params, sessionId);
+  await send('Network.enable'); await send('Page.enable'); await send('Runtime.enable');
+  const split = cookie.indexOf('=');
+  const installed = await send('Network.setCookie', {
+    name: cookie.slice(0, split), value: cookie.slice(split + 1), url: origin,
+    path: '/', secure: true, httpOnly: true, sameSite: 'Strict',
+  });
+  assert.equal(installed.success, true);
+  const evaluate = async expression => {
+    const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+    assert(!result.exceptionDetails, 'Read-only Changes view evaluation');
+    return result.result.value;
+  };
+  await send('Page.navigate', { url: origin });
+  await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'actual authorized React home');
+  await until(async () => await evaluate(`(() => {
+    const button = [...document.querySelectorAll('nav[aria-label="Sections"] button')]
+      .find(button => button.textContent?.trim() === 'Changes' && button.getClientRects().length);
+    if (!button) return false;
+    button.click(); return true;
+  })()`), 'visible Changes navigation');
+  await until(async () => (await evaluate('document.querySelector("main#main h1")?.textContent')) === 'Changes', 'Changes view');
+  const renderedIds = await until(async () => {
+    const ids = await evaluate(`[...document.querySelectorAll('ol[aria-label="Retained operation events"] li')]
+      .map(row => row.querySelector('details dd')?.textContent ?? null)`);
+    return ids?.length === 4 ? ids : null;
+  }, 'four actual rendered operation events');
+  assert.deepEqual(renderedIds, after.map(row => row.auditId));
+  const operationGets = browserRequests.filter(request => request.url.startsWith(origin + '/api/atlas/operation-events?'));
+  assert(operationGets.length >= 1);
+  assert(operationGets.every(request => request.method === 'GET'));
+
   const evidence = {
     flow: 'Actual editor HTTP login, fresh native stock writes, retained SQLite audits, fixed-watermark aggregate event pages',
     originalAuditIds: originalIds, laterAuditId: laterReceipt.data.auditIds[0],
     pinnedPageAuditIds: [firstPage, secondPage, thirdPage].flatMap(page => page.entries.map(entry => entry.eventId)),
     freshReadAuditIds: fresh.entries.map(entry => entry.eventId),
     sourceGraphUnchanged: true, laterRecordAuditId: laterRecord.lastAuditId,
+    browser: version.product, renderedAuditIds: renderedIds,
+    browserOperationHistoryGets: operationGets.length,
     observed,
     limitations: ['Only local synthetic positive writes and reads.', 'No replay, expiry, denial, fault, recovery, concurrency or external provider.'],
   };
@@ -225,6 +309,7 @@ try {
   console.log(JSON.stringify(evidence, null, 2));
 } finally {
   try {
+    if (browser?.exitCode === null) browser.kill('SIGTERM');
     if (service?.exitCode === null) {
       service.kill('SIGINT');
       await until(() => service.exitCode !== null, 'graceful Rust shutdown', 10000);
