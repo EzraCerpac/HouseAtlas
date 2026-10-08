@@ -36,6 +36,12 @@ pub use types::{
 pub const SESSION_COOKIE: &str = "__Host-houseatlas-session";
 pub const ACCESS_SCHEMA_VERSION: i64 = 1;
 
+/// Explicit native Access producer identifier, independent of Cargo, database
+/// schema and the legacy JavaScript package. This source proposal declares only
+/// exact-version compatibility; trusted composition must separately accept it.
+/// The identifier supplies no authority or presence-admission permission.
+pub const NATIVE_ACCESS_PACKAGE_VERSION: &str = "0.1.0-native.1";
+
 #[cfg(test)]
 mod healthy;
 
