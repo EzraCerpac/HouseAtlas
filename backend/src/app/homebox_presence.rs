@@ -8,6 +8,7 @@ use crate::{
     providers::homebox::read::{NativeReadCredentialConfig, native_presence_owner as owner},
     storage as s,
 };
+use serde_json::Value;
 use std::{fmt, ptr, sync::Arc};
 
 #[derive(Debug)]
@@ -42,28 +43,27 @@ fn access_error(_: a::AccessError) -> s::Error {
 
 /// The only Storage authority admitted in this phase. A Store callback uses
 /// this already-held original Access guard and never locks Access again.
-struct PresencePublishAuthority<'guard, 'tx, 'original> {
+struct PresencePublishAuthority<'guard, 'tx, 'original, 'input> {
     guard: &'guard a::TransactionAuthorization<'tx>,
     principal: &'original a::Principal,
     source: &'original a::SourceGrant,
     partition: &'original a::PartitionGrant,
     lifecycle: &'original a::LifecycleGrant,
     configured: &'original Arc<TrustedHomeBoxSource>,
+    expected_source: &'input Value,
 }
-impl s::Authorization for PresencePublishAuthority<'_, '_, '_> {
+impl s::Authorization for PresencePublishAuthority<'_, '_, '_, '_> {
     type Principal = a::Principal;
     fn authorize(
         &self,
         principal: &a::Principal,
         request: s::AuthorizationRequest<'_>,
     ) -> s::Result<s::VerifiedActor> {
-        let selected =
-            serde_json::to_value(self.configured.partition()).map_err(|_| unavailable())?;
         if !ptr::eq(principal, self.principal)
             || !ptr::eq(self.guard.principal(), principal)
             || request.capability != s::Capability::PublishCache
             || !request.targets.is_empty()
-            || request.source != Some(&selected)
+            || request.source != Some(self.expected_source)
             || request.mutation.is_some()
             || request.scope != &self.configured.partition().scope()
             || request.source_partition.is_some()
@@ -181,6 +181,8 @@ fn prepare_with_reader<'p>(
             .map_err(|_| PresencePreparationError::Unavailable)?,
     )
     .map_err(|_| PresencePreparationError::Unavailable)?;
+    let expected_source = serde_json::to_value(configured.partition())
+        .map_err(|_| PresencePreparationError::Unavailable)?;
     let mut pending = Some(reader);
     let mut prepared = None;
     let mut store = core
@@ -203,6 +205,7 @@ fn prepare_with_reader<'p>(
                     partition,
                     lifecycle,
                     configured,
+                    expected_source: &expected_source,
                 };
                 prepared = Some(
                     pending
@@ -350,6 +353,9 @@ pub fn publish_configured<'origin, 'principal: 'origin>(
             {
                 return Err(PresencePublicationError::Unavailable);
             }
+            let expected_source =
+                serde_json::to_value(publication.native_capture().generation().cache())
+                    .map_err(|_| PresencePublicationError::Unavailable)?;
             let authority = PresencePublishAuthority {
                 guard,
                 principal: origin.original_principal(),
@@ -357,6 +363,7 @@ pub fn publish_configured<'origin, 'principal: 'origin>(
                 partition: origin.original_partition(),
                 lifecycle,
                 configured: selected,
+                expected_source: &expected_source,
             };
             publication
                 .publish(&mut *store, &authority, observation)
