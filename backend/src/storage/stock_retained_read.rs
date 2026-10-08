@@ -165,15 +165,32 @@ fn lookup<C: Contract, S: StockContractPort>(
     actor: &str,
     request: &ValidatedRequest,
 ) -> Result<(Option<StockAtlasCommit>, Option<usize>)> {
+    let (commit, group, _) = lookup_with_plan(db, contract, stock, scope, actor, request)?;
+    Ok((commit, group))
+}
+type SavedAtlasPlan = (ValidatedRequest, stock::AtlasCommandPlan);
+type RetainedLookup = (
+    Option<StockAtlasCommit>,
+    Option<usize>,
+    Option<SavedAtlasPlan>,
+);
+fn lookup_with_plan<C: Contract, S: StockContractPort>(
+    db: &rusqlite::Connection,
+    contract: &C,
+    stock: &S,
+    scope: &Scope,
+    actor: &str,
+    request: &ValidatedRequest,
+) -> Result<RetainedLookup> {
     let key = request.raw()["idempotencyKey"]
         .as_str()
         .ok_or_else(stock_repo::incompatible)?;
     let Some((root, ordinal)) = stock_repo::key(db, scope, actor, key)? else {
-        return Ok((None, None));
+        return Ok((None, None, None));
     };
     stock_repo::assert_retained_read_budget(db, scope, actor, &root)?;
     let commit = stock_repo::load(db, contract, scope, actor, &root)?;
-    stock_projection::validate_retained(db, &commit, stock, contract)?;
+    let saved_plan = stock_projection::validate_retained_with_plan(db, &commit, stock, contract)?;
     let ordinal = ordinal
         .map(usize::try_from)
         .transpose()
@@ -200,7 +217,7 @@ fn lookup<C: Contract, S: StockContractPort>(
     if raw["idempotencyKey"] != key || digest != request.intent_digest() || !intent_matches {
         return Err(stock_repo::conflict());
     }
-    Ok((Some(commit), ordinal))
+    Ok((Some(commit), ordinal, Some(saved_plan)))
 }
 const MAX_RETAINED_SNAPSHOT_ROOTS: usize = 128;
 const MAX_RETAINED_SNAPSHOT_SQL_BYTES: usize = 32 * 1024 * 1024;
@@ -380,6 +397,26 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         S: StockContractPort,
         A::Principal: StagedUploadPrincipal,
     {
+        self.prepare_retained_source_with_authorization(b, principal, stock, raw, original)
+            .map(|(preparation, _)| preparation)
+    }
+
+    // Shared first read transaction. Both public preparation APIs keep the
+    // same original binding and Intake/Prepare callbacks; saved plan validation
+    // and current facts are read before that transaction commits.
+    pub(super) fn prepare_retained_source_with_authorization<B, S>(
+        &mut self,
+        b: &B,
+        principal: &A::Principal,
+        stock: &S,
+        raw: &Value,
+        original: &RetainedPrincipal,
+    ) -> Result<(StockRetainedPreparation, Option<SavedAtlasPlan>)>
+    where
+        B: StockRetainedReadAuthorization<Principal = A::Principal>,
+        S: StockContractPort,
+        A::Principal: StagedUploadPrincipal,
+    {
         same_original(principal, original)?;
         if serde_json::to_vec(raw)?.len() > 4 * 1024 * 1024 {
             return Err(unavailable());
@@ -413,7 +450,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             },
         )?;
         let tx = self.db.transaction()?;
-        let (commit, group) = lookup(
+        let (commit, group, saved_plan) = lookup_with_plan(
             &tx,
             &self.contract,
             stock,
@@ -455,15 +492,18 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             return Err(changed());
         }
         tx.commit()?;
-        Ok(StockRetainedPreparation {
-            binding: self.read_binding(principal, original, actor, b.retained_read_owner()),
-            scope,
-            request,
-            group,
-            commit,
-            targets,
-            current_records: records,
-        })
+        Ok((
+            StockRetainedPreparation {
+                binding: self.read_binding(principal, original, actor, b.retained_read_owner()),
+                scope,
+                request,
+                group,
+                commit,
+                targets,
+                current_records: records,
+            },
+            saved_plan,
+        ))
     }
     pub fn disclose_stock_retained_intent_with_authorization<B, S>(
         &mut self,

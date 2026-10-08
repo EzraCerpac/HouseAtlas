@@ -100,6 +100,18 @@ pub(crate) fn validate_retained<C: Contract, S: StockContractPort>(
     stock: &S,
     native: &C,
 ) -> Result<()> {
+    validate_retained_with_plan(db, commit, stock, native).map(|_| ())
+}
+
+/// Return the same validated saved mapping, without reconstructing authority
+/// or projecting a new request/replay result. Callers keep it inside their
+/// actual read transaction until original disclosure qualification completes.
+pub(crate) fn validate_retained_with_plan<C: Contract, S: StockContractPort>(
+    db: &Connection,
+    commit: &StockAtlasCommit,
+    stock: &S,
+    native: &C,
+) -> Result<(ValidatedRequest, AtlasCommandPlan)> {
     if commit.replayed {
         return Err(repo::incompatible());
     }
@@ -111,5 +123,5 @@ pub(crate) fn validate_retained<C: Contract, S: StockContractPort>(
     {
         return Err(repo::incompatible());
     }
-    Ok(())
+    Ok((original, plan))
 }
