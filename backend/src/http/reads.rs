@@ -27,6 +27,28 @@ fn network_snapshot(
     p: &RequestPrincipal,
     scope: &s::Scope,
 ) -> Result<s::Snapshot, super::HttpFailure> {
+    source_snapshot(core, host, p, scope, false)
+}
+
+/// Capture the genuine current read graph. The caller seals the original
+/// request after qualifying the bounded retained facts during preparation.
+/// Subsequent pages use that sealed request and cannot refresh its handles.
+pub(super) fn retained_read_snapshot(
+    core: &mut Core,
+    host: &Host,
+    p: &RequestPrincipal,
+    scope: &s::Scope,
+) -> Result<s::Snapshot, super::HttpFailure> {
+    source_snapshot(core, host, p, scope, true)
+}
+
+fn source_snapshot(
+    core: &mut Core,
+    host: &Host,
+    p: &RequestPrincipal,
+    scope: &s::Scope,
+    capture_graph: bool,
+) -> Result<s::Snapshot, super::HttpFailure> {
     let mut retained = Vec::new();
     let mut links = Vec::new();
     for binding in host.network_bindings.iter().filter(|binding| {
@@ -136,7 +158,15 @@ fn network_snapshot(
         p.revalidate_network_snapshot(&mut access, &partition, &entities)
             .map_err(super::access_error)?;
     }
-    p.seal_source_capture();
+    if capture_graph {
+        s::Contract::validate_snapshot(&NativeContracts, &snapshot)
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        super::stock_reads::capture_graph(&core.access, p, &snapshot)
+            .map_err(super::stock_reads::http_error)?;
+    }
+    if !capture_graph {
+        p.seal_source_capture();
+    }
     Ok(snapshot)
 }
 

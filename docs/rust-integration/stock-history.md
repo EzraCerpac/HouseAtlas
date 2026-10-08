@@ -35,3 +35,43 @@ or concurrency control is executed by this slice. Whole-home capture remains
 conservative; no access lock spans the owner's SQLite cursor transaction.
 Operational security, cross-database atomicity and target qualification remain
 outside this ordinary development proof.
+
+## Retained operation events
+
+GET `/api/atlas/operation-events?homeId={homeId}&pageSize=25` serves the separate
+`atlas-operation-events/1` projection. `pageSize` is 1–100; an optional `cursor`
+selects an opaque owner-issued continuation. The actual session and configured
+home determine actor and workspace. The response declares
+`coverage: retained-atlas-stock-only`, `completeness: partial` and
+`order: audit-sequence-ascending`. Entries retain saved audit, root/group operation,
+command, actor, timestamp, target and request-digest facts. Provider activity,
+unlinked native audits and legacy activity are outside this coverage.
+
+Initial preparation validates every scoped linked root through one fixed audit
+watermark, including complete original root/child requests, native results and
+target/guard closure. The host captures actual current and historical source
+references before sealing its original request principal. Preparation,
+disclosure and release use the same complete retained closure and freshly read
+current records. Later pages compare the entire saved snapshot to the pinned
+one; they cannot add a root, reference or authority capture. The original full
+heap-allocated request principal, inner Access allocation, Store instance and
+semantic owner allocation remain pinned in the bounded cursor registry.
+
+Storage bounds the global audit preflight to 4096 events/16 MiB, scoped roots to
+128, aggregate saved root SQL bytes to 32 MiB, targets to 256 and current JSON to
+16 MiB. Detached fact representations are bounded to 48 MiB; these are serialized
+representation limits, not a peak-memory guarantee. The HTTP registry holds at
+most eight continuations and four per session. Missing qualification or exceeded
+bounds returns unavailable, with no truncated complete-history claim.
+
+Lantern displays this projection separately from authored per-record history.
+It keeps server sequence, raw saved timestamps and native identities, exposes
+explicit Load more and masks results immediately on session/view changes. The
+stock wire3 schema and frozen per-record audit response remain unchanged.
+
+The named `healthy-stock-retained-read` example uses genuine fresh direct and
+derived commits, three pages with a complete initial closure, unchanged SQLite
+and WAL across reads, and ordinary reopen. The separately inspected
+`healthy-operation-events-loopback.mjs` covers actual HTTP paging over real saved
+stock/audit linkage. Neither runner executes replay, recovery, expired cursors,
+revocation or concurrency controls.

@@ -257,6 +257,23 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
         assert_eq!(result.audit.audit_id, result.record.last_audit_id);
         assert_eq!(result.audit.record.record_id, id(950));
         assert_eq!(result.audit.result_revision, 2);
+        // Capture the actual successful Store association with the still-held
+        // original renderer proof and guard, then qualify that exact Asset.
+        // This is process-local evidence; it supplies no restart/replay proof.
+        let mut policy = core
+            .media_policy_evidence
+            .try_lock()
+            .map_err(|_| "Media policy owner unavailable")?;
+        policy.retain_review(
+            &proof,
+            guard,
+            principal.principal.retained(),
+            &result.record,
+            &commit,
+            &budget,
+        )?;
+        policy.validate_frame(s::MediaPolicyRecoveryFrame::Asset(&result.record))?;
+        drop(policy);
         assert_eq!(commit.wire["status"], "committed");
         assert_eq!(commit.wire["commandId"], "atlas.asset.review");
         assert_eq!(commit.wire["requestId"], raw["requestId"]);

@@ -608,6 +608,7 @@ impl s::StockAuthorization for Transaction<'_, '_, '_> {
 struct Commands<'a, 'u> {
     store: &'a Mutex<Store>,
     access: &'a Access,
+    media_policy: &'a Mutex<m::recovery_policy::MediaPolicyEvidence>,
     contracts: st::NativeStockContract,
     upload: Option<UploadPlan<'a, 'u>>,
 }
@@ -711,6 +712,49 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
                         .is_some_and(|pin| pin.receipt == commit)
                 {
                     return Err(WriteFailure(d::DomainError::UpstreamUnavailable));
+                }
+                // This is the actual successful same-Store commit, while its
+                // original Access guard and opaque stage/review proof remain
+                // held. DTO consistency alone cannot supply provenance.
+                // Retention failure withholds output; the SQL commit remains.
+                match self.upload {
+                    Some(UploadPlan::Staged(upload))
+                        if upload.staged().payload().preview_policy
+                            == m::types::PreviewPolicy::SafeRendered =>
+                    {
+                        self.media_policy
+                            .try_lock()
+                            .map_err(|_| WriteFailure(d::DomainError::UpstreamUnavailable))?
+                            .retain_upload(upload.staged(), &commit)
+                            .map_err(|_| WriteFailure(d::DomainError::UpstreamUnavailable))?;
+                    }
+                    Some(UploadPlan::Review(plan, budget, _)) => {
+                        let asset_id = prepared.request().target()["recordId"]
+                            .as_str()
+                            .ok_or(WriteFailure(d::DomainError::UpstreamUnavailable))?;
+                        let successor = commit
+                            .groups
+                            .iter()
+                            .flat_map(|group| &group.native_results)
+                            .find(|result| {
+                                result.record.record_type == s::RecordType::Asset
+                                    && result.record.record_id == asset_id
+                            })
+                            .ok_or(WriteFailure(d::DomainError::UpstreamUnavailable))?;
+                        self.media_policy
+                            .try_lock()
+                            .map_err(|_| WriteFailure(d::DomainError::UpstreamUnavailable))?
+                            .retain_review(
+                                plan.media_proof(),
+                                guard,
+                                p.principal.retained(),
+                                &successor.record,
+                                &commit,
+                                budget,
+                            )
+                            .map_err(|_| WriteFailure(d::DomainError::UpstreamUnavailable))?;
+                    }
+                    _ => {}
                 }
                 output = Some(commit);
                 Ok(())
@@ -858,6 +902,7 @@ fn execute_profile(
         &mut Commands {
             store: &core.store,
             access: &core.access,
+            media_policy: &core.media_policy_evidence,
             contracts: contracts.clone(),
             upload,
         },

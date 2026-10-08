@@ -16,6 +16,8 @@ mod stock;
 mod stock_asset_review;
 #[path = "stock_history.rs"]
 mod stock_history;
+#[path = "stock_retained_read.rs"]
+mod stock_retained_read;
 #[path = "upload_queries.rs"]
 mod upload_queries;
 pub use homebox_stock_history::NativeHomeBoxStockHistory;

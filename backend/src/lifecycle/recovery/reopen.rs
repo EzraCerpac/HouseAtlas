@@ -486,6 +486,7 @@ fn finish_reopen(
         access,
         store: Mutex::new(store),
         atlas_list_pages: crate::domain::stock::AtlasListPages::default(),
+        media_policy_evidence: Mutex::default(),
         vault,
         home: config.home,
         homes: config.homes,

@@ -148,6 +148,7 @@ fn prepare_local(directory: &Path) -> Result<Core, Failure> {
         access,
         store: Mutex::new(store),
         atlas_list_pages: d::stock::AtlasListPages::default(),
+        media_policy_evidence: Mutex::default(),
         vault,
         homes: vec![home.clone()],
         home,

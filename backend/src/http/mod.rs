@@ -10,6 +10,7 @@ mod headers;
 mod intake;
 mod media;
 mod mutations;
+mod operation_events;
 mod pages;
 pub mod providers;
 pub mod qualified_upload_plan;
@@ -61,6 +62,7 @@ pub struct Host {
     mcp_access: crate::app::Access,
     mcp_scopes: Arc<Vec<d::Scope>>,
     pub(crate) asset_reviews: Arc<Mutex<asset_reviews::ReviewRegistry>>,
+    operation_events: Arc<Mutex<operation_events::EventRegistry>>,
 }
 impl Host {
     pub fn new(
@@ -73,6 +75,7 @@ impl Host {
             mcp_access: core.access.clone(),
             mcp_scopes: Arc::new(core.homes.iter().map(|home| home.scope.clone()).collect()),
             asset_reviews: Arc::new(Mutex::new(asset_reviews::ReviewRegistry::default())),
+            operation_events: Arc::new(Mutex::new(operation_events::EventRegistry::default())),
             core: Arc::new(Mutex::new(core)),
             origin,
             files,
@@ -592,6 +595,7 @@ pub fn router(host: Host) -> Router {
 /// The caller supplies an AI router bound to actual session and enrollment peers.
 pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
     let base = Router::new()
+        .route("/api/atlas/operation-events", get(operation_events::events).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/collections/{collection_id}/cached", get(providers::cached_homebox).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/cached", get(providers::cached_homebox_query).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/network/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/cached", get(providers::network::cached).head(auth::session_head).fallback(auth::session_head))

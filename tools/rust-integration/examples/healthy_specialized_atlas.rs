@@ -468,6 +468,7 @@ pub fn healthy() -> Result<(), Failure> {
         access,
         store: Mutex::new(reopened),
         atlas_list_pages: AtlasListPages::default(),
+        media_policy_evidence: Mutex::default(),
         vault,
         home,
         homes,

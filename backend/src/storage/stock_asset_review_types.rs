@@ -28,6 +28,11 @@ pub struct VerifiedAssetReviewPlan<'a> {
     pub(super) facts: RetainedAssetReviewFacts,
 }
 impl VerifiedAssetReviewPlan<'_> {
+    /// Borrow the actual original opaque proof for the host's postcommit
+    /// provenance capture. Retained data cannot create this carrier.
+    pub(crate) fn media_proof(&self) -> &media::review::VerifiedAssetReview {
+        self.proof
+    }
     pub fn plan(&self) -> &stock::AtlasCommandPlan {
         &self.plan
     }

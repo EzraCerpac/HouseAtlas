@@ -1,4 +1,5 @@
 //! The actual access/storage/domain composition and original request authority.
+pub mod media_policy_recovery;
 pub mod stock_activity_principal;
 use crate::{access as a, domain as d, http::contracts::NativeContracts, storage as s};
 use std::{
@@ -18,6 +19,9 @@ pub struct Core {
     /// One process-local owner cache shared by every request and transport.
     /// A reopened application starts with fresh continuation state.
     pub atlas_list_pages: d::stock::AtlasListPages,
+    /// Actual renderer provenance captured by this host after successful commits.
+    /// Process restart starts empty; it cannot reconstruct historical authority.
+    pub media_policy_evidence: Mutex<crate::media::recovery_policy::MediaPolicyEvidence>,
     pub vault: Arc<crate::media::AssetVault>,
     pub home: d::HomeSummary,
     /// Trusted configured summaries; no labels or membership come from a request.

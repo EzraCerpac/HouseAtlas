@@ -36,6 +36,18 @@ scope. `domain::queue_recovery` and the Access recovery extensions are present.
 Their compilation does not supply the independent discovery, original-media
 or durable archive peers required for composed populated recovery.
 
+The host now retains independent actual renderer provenance after successful
+qualified upload/review stock commits, while the same Store lock, original Access
+guard and opaque producer remain held. Capture occurs before stage/proof cleanup;
+a capture error withholds disclosure and does not reverse a durable SQL commit.
+The process-local Media owner validates exact current Asset lineage or a full
+historical consumed-upload association. Empty, restarted or unretained later
+lineage remains unavailable. Its queue composite delegates attempt validation to
+the required original Jobs peer and supplies only the separate Media policy
+callback; it creates no recovery permit. Durable archive origin/capture/read
+authentication remains a separate native-owner contract. No restore or archive
+maintenance is exercised by this composition.
+
 ## Actual running core
 
 The binary requires explicit disposable settings, creates private scratch state
@@ -206,6 +218,8 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     cargo run --locked -p houseatlas-backend --example healthy-agent-stock
     cargo run --locked -p houseatlas-backend --example healthy-homebox-cache-stock
     cargo run --locked -p houseatlas-backend --example healthy-download-lifetime
+    cargo run --locked -p houseatlas-backend --example healthy-recovery-policy
+    cargo run --locked -p houseatlas-backend --example healthy-stock-retained-read
     cargo run --locked -p houseatlas-backend --example healthy-asset-review
     cargo run --locked -p houseatlas-backend --example healthy-homebox-artifacts
     cargo run --locked -p houseatlas-backend --example healthy-homebox-stock-history
@@ -217,6 +231,7 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-stock-write-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-standalone-asset-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-stock-history-loopback.mjs
+    HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-operation-events-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-agent-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-agent-host-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-human-host-loopback.mjs

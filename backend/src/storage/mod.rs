@@ -21,6 +21,8 @@ mod stock_history_repository;
 mod stock_projection;
 mod stock_recovery;
 mod stock_repository;
+mod stock_retained_read_types;
+pub use stock_retained_read_types::*;
 mod stock_types;
 mod store;
 mod types;

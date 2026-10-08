@@ -112,3 +112,11 @@ path = "../tools/rust-integration/examples/healthy_homebox_stock_history.rs"
 [[example]]
 name = "healthy-download-lifetime"
 path = "src/media/healthy_download_lifetime.rs"
+
+[[example]]
+name = "healthy-recovery-policy"
+path = "src/media/healthy_recovery_policy.rs"
+
+[[example]]
+name = "healthy-stock-retained-read"
+path = "../tools/rust-integration/examples/healthy_stock_retained_read.rs"

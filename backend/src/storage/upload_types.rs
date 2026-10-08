@@ -58,6 +58,11 @@ pub enum MediaPolicyRecoveryFrame<'a> {
     Upload(&'a ConsumedUpload),
 }
 impl ConsumedUpload {
+    /// Exact retained root envelope, checked by the original Storage loader.
+    /// This is immutable comparison data, never upload or recovery authority.
+    pub fn root_request(&self) -> &Value {
+        &self.root_request
+    }
     pub fn asset_request(&self) -> &Value {
         &self.binding.original_request
     }

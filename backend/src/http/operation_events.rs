@@ -258,8 +258,8 @@ impl s::StockRetainedReadAuthorization for EventAuthority<'_> {
         {
             return Err(unavailable());
         }
-        if let Some(captured) = self.captured.get() {
-            if closure
+        if let Some(captured) = self.captured.get()
+            && (closure
                 .record_refs
                 .iter()
                 .any(|item| !captured.record_refs.contains(item))
@@ -270,10 +270,9 @@ impl s::StockRetainedReadAuthorization for EventAuthority<'_> {
                 || closure
                     .source_partitions
                     .iter()
-                    .any(|item| !captured.source_partitions.contains(item))
-            {
-                return Err(unavailable());
-            }
+                    .any(|item| !captured.source_partitions.contains(item)))
+        {
+            return Err(unavailable());
         }
         let mut access = self.access.try_lock().map_err(|_| unavailable())?;
         if frame.phase == s::StockRetainedReadPhase::Prepare && self.initial {
