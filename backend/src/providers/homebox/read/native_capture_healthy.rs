@@ -1,5 +1,6 @@
-//! Two successful native GET captures over the actual credential-free loopback driver.
+//! Positive loopback captures and in-process conversion into existing fresh inputs.
 use super::*;
+use crate::providers::homebox::write::stock::{Context, ResourceKind, StockTarget};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 struct FixtureCredentials;
@@ -175,4 +176,149 @@ async fn healthy_fixed_native_get_captures_preserve_originals() {
     tokio::time::timeout(std::time::Duration::from_secs(10), operation)
         .await
         .unwrap();
+}
+
+struct CaptureChunks(std::collections::VecDeque<Vec<u8>>);
+impl Body for CaptureChunks {
+    async fn next_chunk(&mut self) -> Result<Option<Vec<u8>>, ReadError> {
+        Ok(self.0.pop_front())
+    }
+}
+struct CaptureIntake {
+    scope: SourceScope,
+    responses: std::collections::VecDeque<Vec<u8>>,
+    calls: std::sync::Arc<std::sync::Mutex<Vec<GetRequest>>>,
+}
+impl Transport for CaptureIntake {
+    type Body = CaptureChunks;
+    async fn get(&mut self, request: GetRequest) -> Result<GetResponse<Self::Body>, ReadError> {
+        assert_eq!(request.scope(), &self.scope);
+        assert_eq!(request.method(), "GET");
+        assert!(request.reject_redirects());
+        self.calls.lock().unwrap().push(request);
+        let original = self.responses.pop_front().unwrap();
+        Ok(GetResponse {
+            status: 200,
+            scope: self.scope.clone(),
+            redirected: false,
+            body: CaptureChunks(original.chunks(7).map(|chunk| chunk.to_vec()).collect()),
+        })
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn healthy_captured_members_into_existing_fresh_inputs() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../adapters/homebox/fixtures/metadata.normalized-synthetic-v1.json"
+    ))
+    .unwrap();
+    let mut registration: SourceRegistration =
+        serde_json::from_value(fixture["sourceRegistration"].clone()).unwrap();
+    // An explicitly supplied synthetic UUID collection, not a parsed/coerced
+    // replacement for an opaque existing registration string.
+    let collection = uuid::Uuid::parse_str("abcdef01-2345-4678-9abc-abcdefabcdef").unwrap();
+    registration.collection_id = collection.to_string();
+    let owner = uuid::Uuid::parse_str("00000000-0000-4000-8000-000000000002").unwrap();
+    let field = uuid::Uuid::parse_str("00000000-0000-4000-8000-000000000061").unwrap();
+    let attachment = uuid::Uuid::parse_str("00000000-0000-4000-8000-000000000201").unwrap();
+    let maintenance = uuid::Uuid::parse_str("00000000-0000-4000-8000-000000000302").unwrap();
+    let id = Uuid::parse(&owner.to_string()).unwrap();
+    registration.partition_mode = PartitionMode::ReviewedEntityAllowlist;
+    registration.allowed_external_ids = vec![
+        id.clone(),
+        Uuid::parse("00000000-0000-4000-8000-000000000001").unwrap(),
+    ];
+    let scope = registration.scope();
+    let context = Context {
+        workspace_id: uuid::Uuid::parse_str(scope.workspace_id.as_str()).unwrap(),
+        home_id: uuid::Uuid::parse_str(scope.home_id.as_str()).unwrap(),
+    };
+    let source = uuid::Uuid::parse_str(scope.source_instance_id.as_str()).unwrap();
+    let detail = include_str!("../wire/fixtures/item.detail.json")
+        .replacen("\"purchasePrice\": 0", "\"purchasePrice\": 1.2300e+2", 1)
+        .replacen(
+            "\"fields\": null",
+            &format!("\"fields\": [{{\"id\":\"{field}\",\"name\":\"Original field\",\"type\":\"number\",\"textValue\":\"\",\"numberValue\":9007199254740993,\"booleanValue\":false}}]"),
+            1,
+        )
+        .into_bytes();
+    let log = include_bytes!("../wire/fixtures/maintenance.json").to_vec();
+    let calls = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let transport = CaptureIntake {
+        scope: scope.clone(),
+        responses: [detail.clone(), detail.clone(), detail.clone(), log.clone()].into(),
+        calls: calls.clone(),
+    };
+    let mut reader = HomeBoxReader::new_stock(
+        registration,
+        transport,
+        FixtureClock,
+        Limits::default(),
+        None,
+    )
+    .unwrap();
+    for (kind, member, entity_id) in [
+        (ResourceKind::Entity, owner, None),
+        (ResourceKind::Field, field, Some(owner)),
+        (ResourceKind::Attachment, attachment, Some(owner)),
+    ] {
+        let target = StockTarget {
+            source_instance_id: source,
+            collection_id: collection,
+            resource_kind: kind,
+            resource_id: Some(member),
+            entity_id,
+        };
+        let captured = reader.capture_stock_entity(&id).await.unwrap();
+        let fresh = captured.into_fresh(&context, target.clone()).unwrap();
+        assert_eq!(fresh.scope, scope);
+        assert_eq!(fresh.target, target);
+        assert_eq!(fresh.path, format!("/api/v1/entities/{owner}"));
+        assert!(fresh.query.is_empty());
+        assert_eq!(fresh.original, detail);
+        assert_eq!(fresh.observed_at, "2026-10-08T12:00:00.1200+02:00");
+        let retained: serde_json::Value = serde_json::from_slice(&fresh.original).unwrap();
+        assert_eq!(
+            retained["purchasePrice"].as_number().unwrap().to_string(),
+            "1.2300e+2"
+        );
+        assert_eq!(
+            retained["fields"][0]["numberValue"]
+                .as_number()
+                .unwrap()
+                .to_string(),
+            "9007199254740993"
+        );
+        assert_eq!(retained["updatedAt"], "2026-01-02T03:04:05.1200+02:00");
+    }
+    let target = StockTarget {
+        source_instance_id: source,
+        collection_id: collection,
+        resource_kind: ResourceKind::Maintenance,
+        resource_id: Some(maintenance),
+        entity_id: Some(owner),
+    };
+    let captured = reader.capture_stock_maintenance(&id).await.unwrap();
+    let fresh = captured.into_fresh(&context, target.clone()).unwrap();
+    assert_eq!(fresh.scope, scope);
+    assert_eq!(fresh.target, target);
+    assert_eq!(fresh.path, format!("/api/v1/entities/{owner}/maintenance"));
+    assert_eq!(fresh.query, [("status".into(), "both".into())]);
+    assert_eq!(fresh.original, log);
+    assert_eq!(fresh.observed_at, "2026-10-08T12:00:00.1200+02:00");
+    let retained: serde_json::Value = serde_json::from_slice(&fresh.original).unwrap();
+    assert_eq!(retained[1]["cost"], "12.50");
+    assert_eq!(retained[2]["cost"], "1.25e+06");
+    assert_eq!(retained[1]["completedDate"], "2026-02-01");
+    let calls = calls.lock().unwrap();
+    assert_eq!(calls.len(), 4);
+    for call in &calls[..3] {
+        assert_eq!(call.path(), format!("/api/v1/entities/{owner}"));
+        assert!(call.query().is_empty());
+    }
+    assert_eq!(
+        calls[3].path(),
+        format!("/api/v1/entities/{owner}/maintenance")
+    );
+    assert_eq!(calls[3].query(), &[("status".into(), "both".into())]);
 }

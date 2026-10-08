@@ -292,3 +292,42 @@ It covers a reviewed entity/parent allowlist, exact paths/query/tenant, response
 status and retrieval time, byte equality, large integers/exponent spelling,
 original date spelling and maintenance costs. It creates no qualification owner,
 write approval, stage token or source authority and makes no live provider call.
+
+## Consuming conversion to existing fresh inputs
+
+Both sealed capture types provide
+`into_fresh(self, &write::stock::Context, write::stock::StockTarget)` returning
+the existing `write::stock::FreshNativeCapture`. Conversion checks exact
+workspace/home/source correlation, the successful fixed route/query and the
+requested resource/owner. The canonical stock collection UUID spelling must
+equal the original opaque registration `collection_id` string byte for byte;
+the adapter never parses, normalizes or replaces that registration string.
+
+An entity capture supports its exact entity target, or a field/attachment target
+under that entity only when the original captured array has exactly one matching
+member ID. A maintenance capture supports a matching maintenance member under
+its original owner. Missing or ambiguous members remain `ResourceUnavailable`;
+other resource kinds remain `UnsupportedCapability`. Entity targets must not
+carry a member-owner field. No create target or missing member is inferred.
+
+The consuming conversion moves the entire original body, scope, route and query
+into the existing DTO and preserves the retrieval timestamp spelling. It does
+not create qualification evidence, source freshness/completeness facts, hidden
+PUT guarantees, stage admission, credentials or authority. The existing fresh
+decoding/qualification adapters retain their mandatory original-owner inputs.
+`FreshNativeCapture` remains a publicly constructible input DTO; using this
+conversion does not certify every such DTO's provenance or implement a production
+preparation/readback owner port.
+
+The exact additional positive source case uses four in-process synthetic GETs
+through the actual registered reader/public Transport contract, consumes three
+detail captures for entity/field/attachment and one maintenance-owner capture,
+and checks exact scope/target/routes/bytes/time plus numeric/date retention:
+
+```sh
+cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_capture_healthy::healthy_captured_members_into_existing_fresh_inputs -- --exact --test-threads=1
+```
+
+This case uses only actually captured synthetic members and introduces no
+qualification owner, mismatch/denial control or provider write. The earlier
+two-request socket fixture stays unchanged.
