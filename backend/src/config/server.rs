@@ -279,10 +279,14 @@ impl ServerConfig {
     }
 
     /// Startup metadata correlation only; this digest is not an authentication grant.
+    /// Format 2 also pins the listener and command catalog. Earlier receipts
+    /// cannot satisfy strict reopen or the original-config check during rebind;
+    /// this method provides no receipt migration or automatic adoption.
     pub fn state_digest(&self) -> Result<String, String> {
         use sha2::{Digest, Sha256};
-        let mut value = serde_json::json!({"format":"houseatlas-server-state/1", "deploymentId":self.deployment_id,
-            "dataDirectory":self.data_directory, "origin":self.origin, "homes":self.homes});
+        let mut value = serde_json::json!({"format":"houseatlas-server-state/2", "deploymentId":self.deployment_id,
+            "dataDirectory":self.data_directory, "listen":self.listen, "origin":self.origin,
+            "homes":self.homes, "mcpCommands":self.mcp_commands});
         if !self.authentication.is_password() {
             value["authentication"] = serde_json::to_value(&self.authentication)
                 .map_err(|_| "Cannot encode local identity")?;
