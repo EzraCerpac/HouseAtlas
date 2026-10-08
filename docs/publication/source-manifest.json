@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "8d4fc3a4ad29af241f8235dd70d49e9f53641b1ec269ed54965dab93a72f4aff",
+  "sourceDigestSha256": "a01f3a02c5b9f573c0cfd0e14c74b059839359d7c7c750e0a8c487d9b3d53295",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -469,8 +469,8 @@
     {
       "path": "backend/src/ai/README.md",
       "mode": "100644",
-      "bytes": 12444,
-      "sha256": "6e36cb2f9b76be8c9075313690f0947a234f294389061f4482493eaf6bddd6f9",
+      "bytes": 13349,
+      "sha256": "79aceee64c501aaa44d1b97aa3254bdd59e9172bc4d0935a489e97a6dca028af",
       "owner": "ai"
     },
     {
@@ -649,6 +649,13 @@
       "owner": "ai"
     },
     {
+      "path": "backend/src/ai/host/startup/account.rs",
+      "mode": "100644",
+      "bytes": 9004,
+      "sha256": "850e369958b4b00998d25a3bc9b77ee7d0119d4929ae25f7bb95293bf6b26cb9",
+      "owner": "ai"
+    },
+    {
       "path": "backend/src/ai/host/startup/authority.rs",
       "mode": "100644",
       "bytes": 2402,
@@ -665,8 +672,8 @@
     {
       "path": "backend/src/ai/host/startup/configuration.rs",
       "mode": "100644",
-      "bytes": 7010,
-      "sha256": "3bc0f95768cd6171caa8b039707bd8b856c7686bb37738c6e2a86aa8e68ad8cc",
+      "bytes": 7458,
+      "sha256": "826bd45f23d867928cf1993579121fe2bdf02f1806145d250b34cae46a3994b0",
       "owner": "ai"
     },
     {
@@ -679,8 +686,8 @@
     {
       "path": "backend/src/ai/host/startup/environment.rs",
       "mode": "100644",
-      "bytes": 8121,
-      "sha256": "7d1d3391135dc38a9e464c777460b9cacdddba500bffd0762dbfd1e4c6680975",
+      "bytes": 8530,
+      "sha256": "56690663b1b8e5fdc4d42076b3e3411f1c41915d3afb422e7fa8755a47042faa",
       "owner": "ai"
     },
     {
@@ -693,8 +700,8 @@
     {
       "path": "backend/src/ai/host/startup/mod.rs",
       "mode": "100644",
-      "bytes": 11625,
-      "sha256": "eadf0caf43b78f04dd855c8ebd8e299ea4fea983742876a1f21e2564da6535b2",
+      "bytes": 15475,
+      "sha256": "cb7af0f03e5fda384185b6d5f06b04132aeafc172eb4bd1175a3ad2aeae3397f",
       "owner": "ai"
     },
     {

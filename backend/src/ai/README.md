@@ -15,6 +15,19 @@ local sign-in helper, issued website client and local inference companion.
 Actual runtime selection defaults unset/held. Companion availability and mobile
 relay require a deliberate later choice and qualification.
 
+`NativeStartup::assemble_account_only_reads` supplies a concrete account-only
+observation from the original encrypted credential lease and previously validated
+identity. `observe_account` works without a selected model and timestamps the
+local record read; it makes no provider request. The saved subject identifies an
+account, while an optional configured label is application display metadata.
+Current authorization additionally requires the saved access credential and a
+known future expiry. Original granted scopes determine direct-use permission.
+No workspace is inferred: the shared account display stays absent, and workspace,
+eligibility, runtime qualification and paid admission remain held or unknown.
+This source branch still needs the application's authenticated bootstrap
+projection and startup/router composition; no credential or inference runtime
+was exercised for its source validation.
+
 `StockCatalog` projects the shared stock `0.3.0-at34.stock.2`, wire3, across ten
 original families and 164 retained command metadata entries. Authorized tool
 schemas come from the shared generated validator. Each call is prepared and its
