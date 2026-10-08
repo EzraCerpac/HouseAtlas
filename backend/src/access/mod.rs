@@ -15,8 +15,8 @@ mod recovery;
 mod shared;
 mod source;
 mod store;
-mod types;
 mod trusted_proxy;
+mod types;
 
 pub use boundary::{AccessBoundary, AccessConfig, AccessLimits, TransactionAuthorization};
 pub use credentials::{PasswordVerifier, hash_password};
