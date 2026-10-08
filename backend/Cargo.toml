@@ -13,6 +13,7 @@ autobenches = false
 path = "src/lib.rs"
 
 [dependencies]
+jsonwebtoken.workspace = true
 axum.workspace = true
 tokio.workspace = true
 rusqlite.workspace = true
