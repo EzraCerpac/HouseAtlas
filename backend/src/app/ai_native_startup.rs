@@ -7,8 +7,8 @@ use crate::ai::{
         lifecycle::ConnectionFacts,
         native::NativeHostContext,
         startup::{
-            AccountOnlyStartupInputs, NativeStartup, StartupInputs, StartupOwners,
-            account::NativeAccountFacts,
+            NativeStartup, StartupInputs, StartupOwners,
+            account::NativeAccountStartup,
             stock::{NativeReadDomain, NativeReadPrepared},
         },
     },
@@ -20,35 +20,19 @@ use std::sync::Arc;
 /// Explicit account observation composition. Retains the original native
 /// startup, while mounting only its authenticated local account GET consumer.
 /// Construction supplies no enrollment, sign-in, callback worker or listener.
-pub struct NativeAccountAiApplication<R>
-where
-    R: ExactReviewReady<NativeHostContext, NativeReadPrepared>
-        + HumanReviewPort<NativeHostContext>
-        + Send
-        + Sync,
-{
-    startup: Arc<NativeStartup<NativeAccountFacts, NativeReadDomain, R>>,
+pub struct NativeAccountAiApplication {
+    startup: Arc<NativeAccountStartup>,
     router: Router,
 }
 
-impl<R> NativeAccountAiApplication<R>
-where
-    R: ExactReviewReady<NativeHostContext, NativeReadPrepared>
-        + HumanReviewPort<NativeHostContext>
-        + Send
-        + Sync
-        + 'static,
-{
+impl NativeAccountAiApplication {
     /// The same Host and enrollment allocations reach both native startup and
     /// HTTP capture. Native assembly verifies their original Access/journal
-    /// ownership. Configuration and original review remain explicit inputs.
-    pub fn assemble_account_only_reads(
-        owners: StartupOwners,
-        inputs: AccountOnlyStartupInputs<R>,
-    ) -> Result<Self, AiError> {
+    /// ownership. Pinned configuration remains an explicit input.
+    pub fn assemble_account_only_reads(owners: StartupOwners) -> Result<Self, AiError> {
         let host = owners.host.clone();
         let enrollment = Arc::clone(&owners.enrollment);
-        let startup = Arc::new(NativeStartup::assemble_account_only_reads(owners, inputs)?);
+        let startup = Arc::new(NativeAccountStartup::assemble(owners)?);
         let account =
             crate::http::ai_account::mounted_router(host.clone(), Arc::clone(&startup), enrollment);
         let router = crate::http::router_with_ai(host, Some(account));
@@ -59,7 +43,7 @@ where
         &self.router
     }
 
-    pub fn startup(&self) -> &NativeStartup<NativeAccountFacts, NativeReadDomain, R> {
+    pub fn startup(&self) -> &NativeAccountStartup {
         &self.startup
     }
 }

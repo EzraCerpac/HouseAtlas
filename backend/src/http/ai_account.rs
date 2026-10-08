@@ -3,17 +3,10 @@ use super::{Host, ai::ApplicationAuthority, auth, response::HttpFailure};
 use crate::ai::{
     AiError, Cancellation,
     host::{
-        continuation::ExactReviewReady,
         enrollment::EnrollmentOwner,
         http::{HttpAuthority, SessionHttpGate},
-        native::NativeHostContext,
-        startup::{
-            NativeStartup,
-            account::{NativeAccountFacts, NativeAccountObservation},
-            stock::{NativeReadDomain, NativeReadPrepared},
-        },
+        startup::account::{NativeAccountObservation, NativeAccountStartup},
     },
-    runtime::HumanReviewPort,
 };
 use axum::{
     Json, Router,
@@ -23,14 +16,8 @@ use axum::{
 };
 use std::sync::Arc;
 
-struct AccountMount<R>
-where
-    R: ExactReviewReady<NativeHostContext, NativeReadPrepared>
-        + HumanReviewPort<NativeHostContext>
-        + Send
-        + Sync,
-{
-    startup: Arc<NativeStartup<NativeAccountFacts, NativeReadDomain, R>>,
+struct AccountMount {
+    startup: Arc<NativeAccountStartup>,
     gate: SessionHttpGate<
         ApplicationAuthority<EnrollmentOwner>,
         ApplicationAuthority<EnrollmentOwner>,
@@ -39,23 +26,16 @@ where
 
 /// Called by the native application with the same Host/enrollment allocations
 /// already checked by native assembly. No inference or lifecycle route mounts.
-pub(crate) fn mounted_router<R>(
+pub(crate) fn mounted_router(
     host: Host,
-    startup: Arc<NativeStartup<NativeAccountFacts, NativeReadDomain, R>>,
+    startup: Arc<NativeAccountStartup>,
     enrollment: Arc<EnrollmentOwner>,
-) -> Router
-where
-    R: ExactReviewReady<NativeHostContext, NativeReadPrepared>
-        + HumanReviewPort<NativeHostContext>
-        + Send
-        + Sync
-        + 'static,
-{
+) -> Router {
     let application = ApplicationAuthority::new(host, enrollment);
     Router::new()
         .route(
             "/account",
-            get(account::<R>)
+            get(account)
                 .head(auth::session_head)
                 .fallback(auth::session_head),
         )
@@ -68,17 +48,10 @@ where
         }))
 }
 
-async fn account<R>(
-    State(mount): State<Arc<AccountMount<R>>>,
+async fn account(
+    State(mount): State<Arc<AccountMount>>,
     request: Request,
-) -> Result<Json<NativeAccountObservation>, HttpFailure>
-where
-    R: ExactReviewReady<NativeHostContext, NativeReadPrepared>
-        + HumanReviewPort<NativeHostContext>
-        + Send
-        + Sync
-        + 'static,
-{
+) -> Result<Json<NativeAccountObservation>, HttpFailure> {
     let (head, _) = request.into_parts();
     let context = mount
         .gate
