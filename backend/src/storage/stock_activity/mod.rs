@@ -148,6 +148,11 @@ impl<
     S: StockContractPort + Send + Sync,
 > StockActivitySession<C, A, R, P, G, S>
 {
+    /// Borrow the actual session authorizer without issuing or cloning authority.
+    pub(crate) fn original_quantity_authorization(&self) -> &G {
+        &self.authorization
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         store: Arc<Mutex<AtlasStore<C, A, R>>>,
