@@ -4,7 +4,11 @@ use crate::{
     access as a,
     app::{Core, ReadAuthority, RequestPrincipal},
     domain::stock as st,
-    providers::homebox::read::{self as r, query as q},
+    providers::homebox::{
+        read::{self as r, query as q},
+        recovery::NativeWriterContracts,
+        write::stock as native,
+    },
     storage as s,
 };
 use serde_json::Value;
@@ -19,6 +23,17 @@ pub const CACHED_READ_OPERATIONS: [st::OperationId; 4] = [
     st::OperationId::HomeboxLocationGet,
     st::OperationId::HomeboxLocationList,
 ];
+pub const HISTORY_READ_OPERATIONS: [st::OperationId; 2] = [
+    st::OperationId::HomeboxEntityMediatedHistory,
+    st::OperationId::HomeboxLocationMediatedHistory,
+];
+/// An unavailable Store lock fails closed. The default schema-5 host never
+/// advertises or executes native activity history.
+pub fn history_enabled(core: &Core) -> bool {
+    core.store
+        .try_lock()
+        .is_ok_and(|store| store.database_version() == s::STOCK_ACTIVITY_DATABASE_VERSION)
+}
 // An explicit conservative display-age bound, not a provider qualification.
 const STALE_AFTER_MS: u64 = 300_000;
 
@@ -38,6 +53,19 @@ struct Authority<'a> {
     core: &'a Core,
     principal: &'a RequestPrincipal,
     now: r::Timestamp,
+    history: OnceCell<HistoryContext>,
+    history_result: OnceCell<st::OwnerResult>,
+}
+struct HistoryContext {
+    request: Value,
+    scope: s::Scope,
+    target: native::WireTarget,
+    partition: s::SourcePartition,
+    source: a::SourceRef,
+    registration: s::SourceRegistration,
+}
+fn is_history(id: st::OperationId) -> bool {
+    HISTORY_READ_OPERATIONS.contains(&id)
 }
 fn partition(request: &st::ValidatedRequest) -> st::StockResult<s::SourcePartition> {
     let scope = q::HomeBoxReadQuery::from_request(request)?;
@@ -50,9 +78,13 @@ impl Authority<'_> {
         p: &RequestPrincipal,
         request: &st::ValidatedRequest,
     ) -> st::StockResult<()> {
+        if is_history(request.id()) && !history_enabled(self.core) {
+            return Err(unavailable());
+        }
         if !std::ptr::eq(p, self.principal)
             || request.is_mutation()
-            || !CACHED_READ_OPERATIONS.contains(&request.id())
+            || !(CACHED_READ_OPERATIONS.contains(&request.id())
+                || is_history(request.id()) && history_enabled(self.core))
             || request.operation().authority != st::Authority::Homebox
             || request.context().workspace_id != p.principal.scope().workspace_id.as_str()
             || request.context().home_id != p.principal.scope().home_id.as_str()
@@ -66,7 +98,15 @@ impl Authority<'_> {
         let access = self.core.access.lock().map_err(|_| unavailable())?;
         p.release(&access).map_err(|_| changed())?;
         access
-            .authorize_storage(&p.principal, p.principal.scope(), a::Capability::Read)
+            .authorize_storage(
+                &p.principal,
+                p.principal.scope(),
+                if is_history(request.id()) {
+                    a::Capability::ReadHistory
+                } else {
+                    a::Capability::Read
+                },
+            )
             .map_err(|_| changed())?;
         Ok(())
     }
@@ -117,9 +157,19 @@ impl Authority<'_> {
         p: &RequestPrincipal,
         prepared: &st::PreparedRequest<Witness<'_>, Graph>,
     ) -> st::StockResult<st::OwnerResult> {
+        if is_history(prepared.request().id()) {
+            return self
+                .history_result
+                .get()
+                .filter(|result| {
+                    result.wire["commandId"] == prepared.request().id().as_str()
+                        && result.wire["requestId"] == prepared.request().request_id()
+                })
+                .cloned()
+                .ok_or_else(changed);
+        }
         let contracts = st::NativeStockContract::new()?;
-        q::HomeBoxQueries::new(&contracts, &mut Reader(self), &mut HistoryUnavailable)
-            .query(p, prepared)
+        q::HomeBoxQueries::new(&contracts, &mut Reader(self), &mut History(self)).query(p, prepared)
     }
 }
 impl<'a> StockAuthorityPort<RequestPrincipal> for Authority<'a> {
@@ -148,27 +198,60 @@ impl<'a> StockAuthorityPort<RequestPrincipal> for Authority<'a> {
         // The issuing store already checked the original partition grant. Capture
         // every original entity/parent reference before sealing; never renew it.
         let query = q::HomeBoxReadQuery::from_request(request)?;
-        let previous = r::PreviousGeneration::from_retained(graph.0.state.clone(), query.scope())
-            .map_err(|_| unavailable())?;
         let source_instance_id = a::CanonicalId::parse(query.scope().source_instance_id.as_str())
             .map_err(|_| changed())?;
         let access = self.core.access.lock().map_err(|_| unavailable())?;
-        for row in previous.entities() {
-            let reference = |id: &r::Uuid| a::SourceRef {
+        if is_history(request.id()) {
+            let target: native::WireTarget =
+                serde_json::from_value(request.target().clone()).map_err(|_| changed())?;
+            let partition = partition(request)?;
+            let source = a::SourceRef {
                 workspace_id: p.principal.scope().workspace_id.clone(),
                 home_id: p.principal.scope().home_id.clone(),
                 key: a::SourceKey {
-                    source_instance_id: source_instance_id.clone(),
+                    source_instance_id,
                     collection_id: query.scope().collection_id.clone(),
                     source_kind: a::SourceKind::HomeboxEntity,
-                    external_id: id.as_str().into(),
+                    external_id: target.resource_id.to_string(),
                 },
             };
-            p.capture_source(&access, &reference(&row.entity.id))
-                .map_err(|_| changed())?;
-            if let Some(parent) = &row.entity.parent {
-                p.capture_source(&access, &reference(&parent.id))
+            let original_partition: a::SourcePartition =
+                serde_json::from_value(serde_json::to_value(&partition).map_err(|_| changed())?)
                     .map_err(|_| changed())?;
+            p.capture_partition(&access, &original_partition)
+                .map_err(|_| changed())?;
+            p.capture_source(&access, &source).map_err(|_| changed())?;
+            self.history
+                .set(HistoryContext {
+                    request: request.raw().clone(),
+                    scope: partition.scope(),
+                    target,
+                    partition,
+                    source,
+                    registration: graph.0.registration.clone(),
+                })
+                .map_err(|_| changed())?;
+        } else {
+            let previous =
+                r::PreviousGeneration::from_retained(graph.0.state.clone(), query.scope())
+                    .map_err(|_| unavailable())?;
+            for row in previous.entities() {
+                let reference = |id: &r::Uuid| a::SourceRef {
+                    workspace_id: p.principal.scope().workspace_id.clone(),
+                    home_id: p.principal.scope().home_id.clone(),
+                    key: a::SourceKey {
+                        source_instance_id: source_instance_id.clone(),
+                        collection_id: query.scope().collection_id.clone(),
+                        source_kind: a::SourceKind::HomeboxEntity,
+                        external_id: id.as_str().into(),
+                    },
+                };
+                p.capture_source(&access, &reference(&row.entity.id))
+                    .map_err(|_| changed())?;
+                if let Some(parent) = &row.entity.parent {
+                    p.capture_source(&access, &reference(&parent.id))
+                        .map_err(|_| changed())?;
+                }
             }
         }
         p.release(&access).map_err(|_| changed())?;
@@ -219,6 +302,17 @@ impl<'a> StockAuthorityPort<RequestPrincipal> for Authority<'a> {
             st::DisclosurePurpose::ScopedPage
         };
         let expected = self.result(p, prepared)?;
+        if is_history(request.id()) {
+            if purpose != st::DisclosurePurpose::ExactTarget
+                || target != request.target()
+                || !expected.wire["data"]["entries"]
+                    .as_array()
+                    .is_some_and(|rows| rows.iter().any(|candidate| candidate == row))
+            {
+                return Err(changed());
+            }
+            return self.revalidate(p, prepared.witness(), request);
+        }
         if purpose != expected_purpose
             || !expected.wire["data"]["resources"]
                 .as_array()
@@ -261,15 +355,126 @@ impl<'p> q::HomeBoxReadOwner<RequestPrincipal, Witness<'p>, Graph> for Reader<'_
             .map(q::HomeBoxReadResult::Resources)
     }
 }
-struct HistoryUnavailable;
-impl st::StockHistoryPort<RequestPrincipal> for HistoryUnavailable {
+struct HistoryPeer<'a> {
+    core: &'a Core,
+    original: &'a RequestPrincipal,
+    context: &'a HistoryContext,
+}
+impl s::Authorization for HistoryPeer<'_> {
+    type Principal = RequestPrincipal;
+    fn authorize(
+        &self,
+        p: &RequestPrincipal,
+        request: s::AuthorizationRequest<'_>,
+    ) -> s::Result<s::VerifiedActor> {
+        s::Authorization::authorize(&ReadAuthority(Arc::clone(&self.core.access)), p, request)
+    }
+}
+impl s::HomeBoxStockHistoryAuthorization for HistoryPeer<'_> {
+    fn authorize_homebox_stock_history(
+        &self,
+        p: &RequestPrincipal,
+        frame: s::HomeBoxStockHistoryFrame<'_>,
+    ) -> s::Result<s::VerifiedActor> {
+        let invalid = || s::Error::new("not-found", "Original HomeBox history unavailable");
+        let ctx = self.context;
+        if !std::ptr::eq(p, self.original)
+            || frame.request != &ctx.request
+            || frame.scope != &ctx.scope
+            || frame.target != &ctx.target
+            || frame.partition != &ctx.partition
+            || match frame.phase {
+                s::HomeBoxStockHistoryPhase::Entry => {
+                    frame.registration.is_some()
+                        || frame.result.is_some()
+                        || !frame.entries.is_empty()
+                }
+                _ => frame.registration != Some(&ctx.registration) || frame.result.is_none(),
+            }
+        {
+            return Err(invalid());
+        }
+        if let Some(result) = frame.result {
+            let page_size = ctx.request["payload"]["pageSize"]
+                .as_u64()
+                .and_then(|n| usize::try_from(n).ok())
+                .ok_or_else(invalid)?;
+            let expected: Vec<Value> = frame.entries.iter().take(page_size).cloned().collect();
+            if frame.entries.len() > page_size + 1
+                || !result.children.is_empty()
+                || result.wire["commandId"] != ctx.request["commandId"]
+                || result.wire["requestId"] != ctx.request["requestId"]
+                || result.wire["resolvedScope"] != ctx.request["context"]
+                || result.wire["status"] != "read"
+                || result.wire["data"]["entries"] != Value::Array(expected)
+                || frame
+                    .entries
+                    .iter()
+                    .any(|entry| entry["target"] != ctx.request["target"])
+            {
+                return Err(invalid());
+            }
+        }
+        let access = self
+            .core
+            .access
+            .try_lock()
+            .map_err(|_| s::Error::new("upstream-unavailable", "Access unavailable"))?;
+        p.release(&access).map_err(|_| invalid())?;
+        access
+            .authorize_storage(
+                &p.principal,
+                p.principal.scope(),
+                a::Capability::ReadHistory,
+            )
+            .map_err(|_| invalid())?;
+        let partition: a::SourcePartition =
+            serde_json::from_value(serde_json::to_value(&ctx.partition).map_err(|_| invalid())?)
+                .map_err(|_| invalid())?;
+        let partition_grant = p.captured_partition(&partition).map_err(|_| invalid())?;
+        let source_grant = p.captured_source(&ctx.source).map_err(|_| invalid())?;
+        access
+            .revalidate_source_partition(&partition_grant)
+            .map_err(|_| invalid())?;
+        access
+            .revalidate_source(&source_grant)
+            .map_err(|_| invalid())?;
+        Ok(s::VerifiedActor {
+            workspace_id: p.principal.scope().workspace_id.as_str().into(),
+            home_id: p.principal.scope().home_id.as_str().into(),
+            actor_id: p.principal.actor_id().as_str().into(),
+        })
+    }
+}
+struct History<'a, 'b>(&'a Authority<'b>);
+impl st::StockHistoryPort<RequestPrincipal> for History<'_, '_> {
     fn stock_history<C: st::StockContractPort>(
         &mut self,
-        _: &RequestPrincipal,
-        _: &C,
-        _: &st::ValidatedRequest,
+        p: &RequestPrincipal,
+        contracts: &C,
+        request: &st::ValidatedRequest,
     ) -> st::StockResult<st::OwnerResult> {
-        Err(unavailable())
+        let ctx = self.0.history.get().ok_or_else(changed)?;
+        if !std::ptr::eq(p, self.0.principal)
+            || *request.raw() != ctx.request
+            || !history_enabled(self.0.core)
+        {
+            return Err(changed());
+        }
+        let peer = HistoryPeer {
+            core: self.0.core,
+            original: p,
+            context: ctx,
+        };
+        let native = NativeWriterContracts::new().map_err(|_| unavailable())?;
+        let mut store = self.0.core.store.lock().map_err(|_| unavailable())?;
+        let mut owner = s::NativeHomeBoxStockHistory::from_store(&mut *store, &peer, &native);
+        let result = st::StockHistoryPort::stock_history(&mut owner, p, contracts, request)?;
+        self.0
+            .history_result
+            .set(result.clone())
+            .map_err(|_| changed())?;
+        Ok(result)
     }
 }
 struct CommandsUnavailable;
@@ -292,10 +497,12 @@ pub fn execute(core: &Core, p: &RequestPrincipal, raw: Value) -> st::StockResult
         principal: p,
         now: r::Timestamp::parse(&crate::app::now().map_err(|_| unavailable())?)
             .map_err(|_| unavailable())?,
+        history: OnceCell::new(),
+        history_result: OnceCell::new(),
     };
     let prepared = st::prepare(p, raw, &contracts, &authority, &mut Preparer(&authority))?;
     let mut reader = Reader(&authority);
-    let mut history = HistoryUnavailable;
+    let mut history = History(&authority);
     let mut queries = q::HomeBoxQueries::new(&contracts, &mut reader, &mut history);
     st::dispatch(
         p,

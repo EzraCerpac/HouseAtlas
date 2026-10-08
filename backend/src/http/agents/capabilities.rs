@@ -1,5 +1,5 @@
 //! Explicit host admission, independent of catalog disposition and browser role.
-use crate::{access, contracts::stock as wire};
+use crate::{access, app::Core, contracts::stock as wire};
 
 pub fn reads() -> Vec<wire::OperationId> {
     use wire::OperationId::*;
@@ -42,8 +42,19 @@ pub fn reads() -> Vec<wire::OperationId> {
     );
     reads
 }
-pub fn admitted(principal: &access::Principal) -> Vec<wire::OperationId> {
-    let mut operations = reads();
+pub fn reads_for(core: &Core) -> Vec<wire::OperationId> {
+    let mut reads = reads();
+    if super::super::providers::homebox_stock::history_enabled(core) {
+        reads.extend(
+            super::super::providers::homebox_stock::HISTORY_READ_OPERATIONS
+                .iter()
+                .filter_map(|id| wire::OperationId::parse(id.as_str())),
+        );
+    }
+    reads
+}
+pub fn admitted(core: &Core, principal: &access::Principal) -> Vec<wire::OperationId> {
+    let mut operations = reads_for(core);
     // HTTP Host provides both the genuine issuer and authenticated redemption.
     // The Core-only MCP catalog continues to use reads() without this operation.
     operations.push(wire::OperationId::AtlasAssetDownload);
