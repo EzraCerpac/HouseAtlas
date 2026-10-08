@@ -408,6 +408,10 @@ impl HostNetworkRuntime {
                 partition,
                 entities,
                 retained,
+                self.settings
+                    .transport()
+                    .reviewed_origin()
+                    .custody_fingerprint(),
                 pinned,
             )?;
             // Stay inside this validated Core borrow; calling the public method
@@ -437,7 +441,9 @@ impl HostNetworkRuntime {
         lease: &OriginalNetworkDisclosure,
         now: &str,
     ) -> Result<n::NetworkFacet> {
-        if lease.source().registration() != self.settings.configured_source().registration() {
+        if lease.source().registration() != self.settings.configured_source().registration()
+            || !lease.is_from_reviewed_origin(self.settings.transport().reviewed_origin())
+        {
             return Err(wrong_scope().into());
         }
         super::reads::release(store, lease, now, self.settings.stale_after_ms())

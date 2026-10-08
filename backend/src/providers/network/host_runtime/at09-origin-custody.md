@@ -39,13 +39,18 @@ Older raw archives remain inspectable by their existing low-level trusted owner;
 they are unavailable to genuine runtime reads until an independently authorized
 fresh concrete capture exists. No automatic migration, rehash or rewrite occurs.
 
-The additional pure disclosure-origin tag is proposed separately where required
-by the reserved source owner; later rerelease must compare the original tag to
-the current runtime before original grant checks, without hidden file I/O under
-an authority callback. This source document does not assert that pending glue is
-accepted. The separate fresh fixture proposals carry their entire imports/main/
-helper bodies and are compiler checked; execution requires the exact named
-healthy source reservation and inspection. No broad runtime/test alias is used.
+The closed OriginalNetworkDisclosure capture path stores a private origin tag
+only after retained capture validation succeeds against the immutable runtime
+settings. Later release compares that tag with the receiving runtime before the
+existing original grant and same-Store pin checks. The tag is comparison data,
+not a fresh HTTP proof or authority grant. It adds no file I/O to the authority
+callback and leaves standalone revalidate unchanged: that operation returns no
+facet and has no receiving runtime configuration. An empty retained read carries
+only the runtime setting tag and establishes no raw-capture provenance.
+
+The separate fresh fixture proposals carry their entire imports/main/helper
+bodies and are compiler checked; execution requires the exact named healthy
+source reservation and inspection. No broad runtime/test alias is used.
 
 Root declarations, manifests, router, migrations, shared schemas and CI are
 untouched. The same compiled normal client profile is used; no parallel client,
