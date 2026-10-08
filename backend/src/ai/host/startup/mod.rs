@@ -1,5 +1,6 @@
 //! Actual configurable native startup consumers. Construction performs no OAuth,
 //! key lookup, first enrollment, provider request, listener or inference action.
+pub mod account;
 pub mod authority;
 pub mod callback;
 pub mod configuration;
@@ -29,6 +30,7 @@ use crate::ai::{
     stock::{AcceptedStockCommand, SharedStockPort, StockCatalog},
     transport::{ResponsesAdapter, TransportLimits},
 };
+use account::{NativeAccountFacts, NativeAccountObservation};
 use authority::StartupAuthority;
 use callback::{LocalCredentialHost, NativeBrowser};
 use configuration::StartupConfiguration;
@@ -58,6 +60,16 @@ pub struct StartupInputs<R, O> {
     pub transport_limits: TransportLimits,
     pub continuation_lifetime: Duration,
 }
+/// Explicit account-only source composition. It consumes genuine existing
+/// review/native owners while leaving unsupported workspace/runtime/admission
+/// facts held. No independently qualified observation owner is implied here.
+pub struct AccountOnlyStartupInputs<R> {
+    pub original_review: Arc<R>,
+    pub browser: NativeBrowser,
+    pub run_limits: RunLimits,
+    pub transport_limits: TransportLimits,
+    pub continuation_lifetime: Duration,
+}
 pub struct NativeStartup<O, D, R>
 where
     O: ConnectionFacts<NativeHostContext>,
@@ -75,6 +87,43 @@ where
     selection: ModelSelection,
     callbacks: Arc<LocalCredentialHost>,
     lifecycle: Arc<NativeLifecycle<O>>,
+    account: NativeAccountFacts,
+}
+impl<R> NativeStartup<NativeAccountFacts, stock::NativeReadDomain, R>
+where
+    R: ExactReviewReady<NativeHostContext, stock::NativeReadPrepared>
+        + HumanReviewPort<NativeHostContext>
+        + Send
+        + Sync
+        + 'static,
+{
+    pub fn assemble_account_only_reads(
+        owners: StartupOwners,
+        inputs: AccountOnlyStartupInputs<R>,
+    ) -> Result<Self, AiError> {
+        Self::assemble_account_only(owners, inputs, stock::native_read_catalog)
+    }
+}
+impl<D, R> NativeStartup<NativeAccountFacts, D, R>
+where
+    D: SharedStockPort<NativeHostContext> + Send + Sync + 'static,
+    D::Prepared: Send + Sync + 'static,
+    R: ExactReviewReady<NativeHostContext, AcceptedStockCommand<D::Prepared>>
+        + HumanReviewPort<NativeHostContext>
+        + Send
+        + Sync
+        + 'static,
+{
+    /// The actual native account consumer is constructed from the same original
+    /// authority/store allocations as lifecycle, discovery and Responses. This
+    /// explicit branch neither supplies nor replaces qualified/spending owners.
+    pub fn assemble_account_only(
+        owners: StartupOwners,
+        inputs: AccountOnlyStartupInputs<R>,
+        stock: impl FnOnce(&crate::http::Host, StartupAuthority) -> Result<StockCatalog<D>, AiError>,
+    ) -> Result<Self, AiError> {
+        Self::assemble_with_observation(owners, inputs, stock, |account| Arc::new(account.clone()))
+    }
 }
 impl<O, R> NativeStartup<O, stock::NativeReadDomain, R>
 where
@@ -113,6 +162,33 @@ where
         inputs: StartupInputs<R, O>,
         stock: impl FnOnce(&crate::http::Host, StartupAuthority) -> Result<StockCatalog<D>, AiError>,
     ) -> Result<Self, AiError> {
+        let StartupInputs {
+            original_review,
+            original_observation,
+            browser,
+            run_limits,
+            transport_limits,
+            continuation_lifetime,
+        } = inputs;
+        Self::assemble_with_observation(
+            owners,
+            AccountOnlyStartupInputs {
+                original_review,
+                browser,
+                run_limits,
+                transport_limits,
+                continuation_lifetime,
+            },
+            stock,
+            |_| original_observation,
+        )
+    }
+    fn assemble_with_observation(
+        owners: StartupOwners,
+        inputs: AccountOnlyStartupInputs<R>,
+        stock: impl FnOnce(&crate::http::Host, StartupAuthority) -> Result<StockCatalog<D>, AiError>,
+        observation: impl FnOnce(&NativeAccountFacts) -> Arc<O>,
+    ) -> Result<Self, AiError> {
         let StartupOwners {
             host,
             configuration,
@@ -148,8 +224,9 @@ where
                 Arc::clone(&credential_authority),
             )?));
         let selection = ModelSelection::default();
+        let account = NativeAccountFacts::new(authority.clone(), credentials.clone());
         let facts = AccountFacts {
-            original: inputs.original_observation,
+            original: observation(&account),
             selection: selection.clone(),
             authority: authority.clone(),
         };
@@ -166,6 +243,7 @@ where
                 authority: authority.clone(),
                 credentials: credentials.clone(),
                 facts: facts.clone(),
+                account: account.clone(),
                 callbacks: Arc::clone(&callbacks),
                 display: Mutex::default(),
             },
@@ -217,6 +295,7 @@ where
             selection,
             callbacks,
             lifecycle,
+            account,
         })
     }
     pub fn mounted_router(&self) -> axum::Router {
@@ -232,6 +311,26 @@ where
     }
     pub fn choose_model(&self, context: &NativeHostContext, model: &str) -> Result<(), AiError> {
         self.selection.choose(&self.authority, context, model)
+    }
+    /// Native account/authorization observation before any model is selected.
+    /// Root may project this through its original authenticated bootstrap. No
+    /// provider query, workspace inference, route mount or consent runs here.
+    pub async fn observe_account(
+        &self,
+        context: &NativeHostContext,
+        cancel: &Cancellation,
+    ) -> Result<NativeAccountObservation, AiError> {
+        let deadline = std::time::Instant::now() + Duration::from_secs(30);
+        crate::ai::host::transport::bounded(
+            cancel,
+            deadline,
+            self.account.read_current(context, cancel),
+        )
+        .await
+        .map_err(|issue| match issue {
+            crate::ai::transport::TransportIssue::StopRequested => AiError::CancelRequested,
+            _ => AiError::ConnectionUnavailable,
+        })?
     }
 
     /// Explicit trusted administrative operation only, absent from mounted HTTP

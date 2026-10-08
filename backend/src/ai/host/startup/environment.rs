@@ -1,7 +1,7 @@
 //! Concrete lifecycle environment, retaining separate runtime/paid-use owners.
 use super::{
-    authority::StartupAuthority, callback::LocalCredentialHost, credentials::StartupCredentials,
-    selection::ModelSelection,
+    account::NativeAccountFacts, authority::StartupAuthority, callback::LocalCredentialHost,
+    credentials::StartupCredentials, selection::ModelSelection,
 };
 use crate::ai::{
     AiError, AuthorizationState, Cancellation, ConnectionMethod, ConnectionSnapshot, Eligibility,
@@ -124,6 +124,7 @@ pub struct NativeEnvironment<O> {
     pub(super) authority: StartupAuthority,
     pub(super) credentials: StartupCredentials,
     pub(super) facts: AccountFacts<O>,
+    pub(super) account: NativeAccountFacts,
     pub(super) callbacks: Arc<LocalCredentialHost>,
     pub(super) display: Mutex<BTreeMap<String, ConnectionSnapshot>>,
 }
@@ -207,13 +208,19 @@ impl<O: ConnectionFacts<NativeHostContext>> LifecycleEnvironment<NativeHostConte
             }
             let snapshot = match self.facts.selection.selected(&self.authority, context) {
                 Ok(model) => self.facts.observe(context, &record, &model, cancel).await?,
-                Err(AiError::ConnectionUnavailable) => held_snapshot(Some(&record)),
+                // Account observation is independent of a selected model. It
+                // uses this existing lease, and preserves all unsupported
+                // workspace/runtime/admission facts held even after sign-in.
+                Err(AiError::ConnectionUnavailable) => {
+                    self.account.project(context, &record)?.connection().clone()
+                }
                 Err(error) => return Err(error),
             };
             self.credentials
                 .revalidate(context, &lease, &binding)
                 .await?;
             self.authority.revalidate(context, &binding)?;
+            cancel.checkpoint()?;
             self.display
                 .lock()
                 .map_err(|_| AiError::DomainUnavailable)?
