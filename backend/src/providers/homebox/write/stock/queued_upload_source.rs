@@ -303,6 +303,50 @@ impl<'captured, 'p> QueuedUploadSource<'captured, 'p> {
     ) -> &Arc<crate::config::providers::queued_upload::OriginalQueuedUploadConfigured> {
         self.identity.bindings.installation.configured()
     }
+    pub(crate) fn check_queued_upload_in_guard(
+        &self,
+        native: &RetainedFreshPreparation<'_, NativeWriterContracts, Self>,
+        qualification: &FreshQualification<'_, '_, '_>,
+    ) -> Result<(), StockPortFault> {
+        if !std::ptr::eq(native.source(), self) {
+            return Err(StockPortFault::EvidenceConflict);
+        }
+        native
+            .revalidate_in_guard(qualification, &self.command, &self.authority)
+            .map_err(|_| StockPortFault::EvidenceConflict)?;
+        if self
+            .identity
+            .bindings
+            .check_guard(qualification.guard())
+            .map_err(|_| StockPortFault::EvidenceConflict)?
+            != self.identity.metadata
+        {
+            return Err(StockPortFault::EvidenceConflict);
+        }
+        native
+            .revalidate_in_guard(qualification, &self.command, &self.authority)
+            .map_err(|_| StockPortFault::EvidenceConflict)
+    }
+    pub fn deliver_header_in_guard(
+        &self,
+        native: &RetainedFreshPreparation<'_, NativeWriterContracts, Self>,
+        endpoint: &crate::providers::homebox::write_transport::SourceEndpoint,
+        permit: &InvocationPermit,
+        deadline: std::time::Instant,
+        qualification: &FreshQualification<'_, '_, '_>,
+    ) -> Result<crate::providers::homebox::write_transport::AuthorizationHeader, StockPortFault>
+    {
+        self.check_queued_upload_in_guard(native, qualification)?;
+        self.configured()
+            .credentials()
+            .deliver_queued_upload_header_in_guard(
+                native,
+                endpoint,
+                permit,
+                deadline,
+                qualification,
+            )
+    }
     /// Immutable original capture-window DATA, not a grant or current authority.
     pub fn original_capture_deadline(
         &self,
@@ -345,6 +389,178 @@ impl<'captured, 'p> QueuedUploadSource<'captured, 'p> {
         Ok(())
     }
 }
+/// Exact real GET retained before any fallible post-I/O qualification.
+pub(super) struct PendingQueuedUploadReadback<'captured, 'p> {
+    identity: Arc<ObservationIdentity<'captured, 'p>>,
+    capture: read::CapturedStockEntityObservation,
+}
+impl PendingQueuedUploadReadback<'_, '_> {
+    pub(super) fn original_bytes(&self) -> &[u8] {
+        self.capture.original_bytes()
+    }
+    pub(super) fn observed_at(&self) -> &str {
+        self.capture.retrieved_at().as_str()
+    }
+    pub(super) fn raw_digest(&self) -> Result<Digest, StockPortFault> {
+        upload_bytes_digest(self.original_bytes()).map_err(|_| StockPortFault::EvidenceConflict)
+    }
+}
+pub struct QualifiedQueuedUploadReadback<'captured, 'p> {
+    pending: Arc<PendingQueuedUploadReadback<'captured, 'p>>,
+    value: Value,
+    digest: Digest,
+}
+impl<'captured, 'p> QualifiedQueuedUploadReadback<'captured, 'p> {
+    pub(super) fn matches_capture(
+        &self,
+        pending: &Arc<PendingQueuedUploadReadback<'captured, 'p>>,
+    ) -> bool {
+        Arc::ptr_eq(&self.pending, pending)
+    }
+    pub(super) fn value(&self) -> &Value {
+        &self.value
+    }
+    pub(super) fn digest(&self) -> &Digest {
+        &self.digest
+    }
+    pub(super) fn observed_at(&self) -> &str {
+        self.pending.capture.retrieved_at().as_str()
+    }
+}
+pub(super) struct QueuedUploadReadbackFailure<'captured, 'p> {
+    pub(super) code: StockErrorCode,
+    pub(super) pending: Option<Arc<PendingQueuedUploadReadback<'captured, 'p>>>,
+}
+impl<'captured, 'p> QueuedUploadSource<'captured, 'p> {
+    pub(super) async fn capture_queued_readback(
+        &self,
+        evidence: &QueuedUploadCaptureEvidence<'captured, 'p>,
+        original_deadline: tokio::time::Instant,
+    ) -> Result<
+        Arc<PendingQueuedUploadReadback<'captured, 'p>>,
+        QueuedUploadReadbackFailure<'captured, 'p>,
+    > {
+        let mut retained = None;
+        let result = async {
+            self.check_frozen(&self.command, &self.authority)?;
+            if !Arc::ptr_eq(&evidence.identity, &self.identity) {
+                return Err(StockErrorCode::PreflightConflict);
+            }
+            let bindings = &self.identity.bindings;
+            if bindings.fence(&evidence.proof)? != self.identity.metadata {
+                return Err(StockErrorCode::PreflightConflict);
+            }
+            let configured = bindings.installation.configured();
+            let credentials = configured
+                .credentials()
+                .bind_original(
+                    configured.access().clone(),
+                    bindings.captured.principal(),
+                    bindings.source.clone(),
+                    bindings.partition.clone(),
+                )
+                .map_err(|_| StockErrorCode::CapabilityDenied)?;
+            let mut reader = configured
+                .homebox()
+                .reader(credentials, HostClock)
+                .map_err(|_| StockErrorCode::ProviderUnqualified)?;
+            check_reader(&reader, &bindings.installation)?;
+            let id = read::Uuid::parse(
+                &bindings
+                    .installation
+                    .descriptor()
+                    .owner
+                    .id()
+                    .map_err(|_| StockErrorCode::InvalidArgument)?
+                    .to_string(),
+            )
+            .map_err(|_| StockErrorCode::InvalidArgument)?;
+            let budget =
+                media::WorkBudget::new(Duration::from_secs(10), media::Cancellation::default())
+                    .map_err(|_| StockErrorCode::ResourceUnavailable)?;
+            let deadline = original_deadline.min(tokio::time::Instant::from_std(
+                self.original_capture_deadline(&budget)?,
+            ));
+            if tokio::time::Instant::now() >= deadline {
+                return Err(StockErrorCode::PreflightConflict);
+            }
+            let capture =
+                tokio::time::timeout_at(deadline, reader.capture_stock_entity_observation(&id))
+                    .await
+                    .map_err(|_| StockErrorCode::ResourceUnavailable)?
+                    .map_err(|_| StockErrorCode::ResourceUnavailable)?;
+            // Preserve original lexical bytes before reader, Source or Media postchecks.
+            let pending = Arc::new(PendingQueuedUploadReadback {
+                identity: self.identity.clone(),
+                capture,
+            });
+            retained = Some(pending.clone());
+            pending
+                .capture
+                .decode_entity()
+                .map_err(|_| StockErrorCode::PreflightConflict)?;
+            check_reader(&reader, &bindings.installation)?;
+            drop(reader);
+            if bindings.fence(&evidence.proof)? != self.identity.metadata {
+                return Err(StockErrorCode::PreflightConflict);
+            }
+            self.check_frozen(&self.command, &self.authority)?;
+            Ok(pending)
+        }
+        .await;
+        result.map_err(|code| QueuedUploadReadbackFailure {
+            code,
+            pending: retained,
+        })
+    }
+    pub(super) fn qualify_queued_readback_in_guard(
+        &self,
+        pending: &Arc<PendingQueuedUploadReadback<'captured, 'p>>,
+        native: &RetainedFreshPreparation<'_, NativeWriterContracts, Self>,
+        context: &FreshQualification<'_, '_, '_>,
+    ) -> Result<QualifiedQueuedUploadReadback<'captured, 'p>, StockErrorCode> {
+        if !std::ptr::eq(native.source(), self) || !Arc::ptr_eq(&pending.identity, &self.identity) {
+            return Err(StockErrorCode::PreflightConflict);
+        }
+        native.revalidate_in_guard(context, &self.command, &self.authority)?;
+        let bindings = &self.identity.bindings;
+        if bindings.check_guard(context.guard())? != self.identity.metadata {
+            return Err(StockErrorCode::PreflightConflict);
+        }
+        let raw = &pending.capture;
+        let owner = bindings
+            .installation
+            .descriptor()
+            .owner
+            .id()
+            .map_err(|_| StockErrorCode::InvalidArgument)?;
+        let id =
+            read::Uuid::parse(&owner.to_string()).map_err(|_| StockErrorCode::InvalidArgument)?;
+        if raw.status() != 200
+            || raw.method() != "GET"
+            || raw.entity_id() != &id
+            || raw.scope() != &self.identity.scope
+            || raw.path() != self.identity.path
+            || !raw.query().is_empty()
+        {
+            return Err(StockErrorCode::PreflightConflict);
+        }
+        let decoded = raw
+            .decode_entity()
+            .map_err(|_| StockErrorCode::PreflightConflict)?;
+        let digest = upload_bytes_digest(raw.original_bytes())?;
+        if bindings.check_guard(context.guard())? != self.identity.metadata {
+            return Err(StockErrorCode::PreflightConflict);
+        }
+        native.revalidate_in_guard(context, &self.command, &self.authority)?;
+        Ok(QualifiedQueuedUploadReadback {
+            pending: pending.clone(),
+            value: decoded.source,
+            digest,
+        })
+    }
+}
+
 impl<'captured, 'p> FreshPreparationSourcePort for QueuedUploadSource<'captured, 'p> {
     type Evidence = QueuedUploadCaptureEvidence<'captured, 'p>;
     async fn capture_preparation(
@@ -405,6 +621,12 @@ impl<'captured, 'p> FreshPreparationSourcePort for QueuedUploadSource<'captured,
             return Err(StockErrorCode::PreflightConflict);
         }
         check_command(&self.identity, &e.proof, command, authority)?;
+        bindings
+            .installation
+            .configured()
+            .credentials()
+            .validate_queued_upload_original_in_guard(self, context)
+            .map_err(|_| StockErrorCode::PreflightConflict)?;
         if !context
             .queued_upload_installation()
             .is_some_and(|physical| std::ptr::eq(physical.partition(), bindings.partition))

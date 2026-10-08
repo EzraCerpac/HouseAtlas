@@ -191,50 +191,73 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
         Ok(())
     }
 
+    /// Complete bounded bytes from one fixed detail GET, before semantic checks.
+    /// Failed/incomplete body reads have no complete response observation.
+    pub async fn capture_stock_entity_observation(
+        &mut self,
+        id: &Uuid,
+    ) -> Result<native_capture::CapturedStockEntityObservation, ReadError> {
+        self.check_capture_owner(id)?;
+        let path = format!("/api/v1/entities/{}", id.as_str());
+        let deadline = Instant::now() + Duration::from_millis(self.limits.generation_timeout_ms);
+        let response_deadline =
+            (Instant::now() + Duration::from_millis(self.limits.request_timeout_ms)).min(deadline);
+        check_time(response_deadline)?;
+        let request = GetRequest {
+            path: path.clone(),
+            query: Vec::new(),
+            scope: self.scope.clone(),
+            deadline: response_deadline,
+        };
+        let operation = async {
+            let mut response = self.transport.get(request).await?;
+            let mut bytes = Vec::new();
+            while let Some(chunk) = response.body.next_chunk().await? {
+                check_time(response_deadline)?;
+                let total = bytes
+                    .len()
+                    .checked_add(chunk.len())
+                    .ok_or(ReadError(ErrorCode::SizeLimit))?;
+                if total > self.limits.max_response_bytes
+                    || total > self.limits.max_generation_bytes
+                {
+                    return Err(ReadError(ErrorCode::SizeLimit));
+                }
+                bytes.extend_from_slice(&chunk);
+            }
+            // Complete actual bytes precede every fallible semantic postcheck.
+            Ok(native_capture::CapturedStockEntityObservation::new(
+                native_capture::NativeEntityObservationFacts {
+                    scope: response.scope,
+                    expected_scope: self.scope.clone(),
+                    entity_id: id.clone(),
+                    path,
+                    query: Vec::new(),
+                    status: response.status,
+                    redirected: response.redirected,
+                    retrieved_at: self.clock.now(),
+                    limits: self.limits,
+                    partition_mode: self.registration.partition_mode,
+                    allowed: self.registration.allowed_external_ids.clone(),
+                    response_deadline,
+                },
+                bytes,
+            ))
+        };
+        timeout_at(response_deadline, operation)
+            .await
+            .map_err(|_| ReadError(ErrorCode::Timeout))?
+    }
+
     /// Capture one original stock detail through the configured bounded GET
     /// transport. No caller-selected endpoint or writable snapshot is admitted.
     pub async fn capture_stock_entity(
         &mut self,
         id: &Uuid,
     ) -> Result<CapturedStockEntity, ReadError> {
-        self.check_capture_owner(id)?;
-        let path = format!("/api/v1/entities/{}", id.as_str());
-        let query = Vec::new();
-        let deadline = Instant::now() + Duration::from_millis(self.limits.generation_timeout_ms);
-        let mut stats = ReadStats::default();
-        let (bytes, retrieved_at, response_deadline, status) = self
-            .request(path.clone(), query.clone(), deadline, &mut stats, None)
-            .await?;
-        // The pinned detail GET is a 200 JSON response, never partial content.
-        if status != 200 {
-            return Err(ReadError(ErrorCode::Upstream));
-        }
-        check_time(response_deadline)?;
-        let decoded = crate::providers::homebox::wire::decode_detail(
-            &bytes,
-            id,
-            native_capture::decode_limits(self.limits),
-        )
-        .map_err(native_capture::read_error)?;
-        if decoded
-            .value
-            .entity
-            .parent
-            .as_ref()
-            .is_some_and(|p| !self.authorized(&p.id))
-        {
-            return Err(ReadError(ErrorCode::WrongScope));
-        }
-        check_time(response_deadline)?;
-        Ok(NativeCapture::new(
-            self.scope.clone(),
-            id.clone(),
-            path,
-            query,
-            status,
-            retrieved_at,
-            decoded,
-        ))
+        self.capture_stock_entity_observation(id)
+            .await?
+            .into_entity()
     }
 
     /// Capture one fixed native attachment between two owner-detail GETs.
