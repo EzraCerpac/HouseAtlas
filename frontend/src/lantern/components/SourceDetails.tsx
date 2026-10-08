@@ -4,6 +4,7 @@ import { PlaceEditor } from '../../app/PlaceEditor';
 import { useStore } from '../state/store';
 import { fmtDateTime } from '../data/time';
 import { Section } from './ui';
+import { QuantityPreview } from './QuantityPreview';
 
 /** Original qualified records and independently issued capabilities are retained. */
 export function SourceDetails() {
@@ -29,6 +30,7 @@ export function SourceDetails() {
       </dl>
       <p className="fine">Source hierarchy does not establish physical placement.</p>
       {entry.nativeLinks.filter(link => link.verifiedRoute && sameScope(link.entity, entry) && sourceKey(link.entity.key) === entry.key).map(link => { const href = link.intent === 'view' ? safeWebUrl(link.href, true) : nativeLink(entry, link.intent, projection.view.canEdit); return href ? <a key={`${link.intent}:${link.href}`} className="btn" href={href} target="_blank" rel="noopener noreferrer">{link.intent === 'edit' ? 'Edit in HomeBox' : link.intent === 'maintenance' ? 'Upkeep in HomeBox' : 'View in HomeBox'}</a> : null; })}
+      {actions.quantity && entry.source.sourceKind === 'homebox-entity' && <QuantityPreview key={entry.key} client={actions.quantity} renderIdentity={projection.view} sourceIdentity={entry} source={{ workspaceId: entry.workspaceId, homeId: entry.homeId, key: entry.source }} />}
       {entry.kind === 'place' && actions.editing && <PlaceEditor key={entry.key} entry={entry} client={actions.editing} refresh={actions.reload} />}
     </Section>
   </div>;
