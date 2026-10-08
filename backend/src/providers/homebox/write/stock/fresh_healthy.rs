@@ -2,6 +2,10 @@
 //! explicitly synthetic; no provider invocation, credential or ledger is used.
 use crate::providers::homebox::{read, recovery::NativeWriterContracts, wire, write::stock::*};
 use serde_json::{Value, json};
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 use uuid::Uuid;
 
 fn id(n: u64) -> Uuid {
@@ -80,12 +84,21 @@ struct Proof {
     command: StockCommand,
     authority: StockAuthority,
     original: Vec<u8>,
+    retained_token: Box<u64>,
+}
+#[derive(Default)]
+struct PreparationAudit {
+    captures: AtomicUsize,
+    qualifications: AtomicUsize,
+    token_address: AtomicUsize,
+    original_address: AtomicUsize,
 }
 struct Source {
     command: StockCommand,
     authority: StockAuthority,
     native: Value,
     capture_target: StockTarget,
+    audit: Arc<PreparationAudit>,
 }
 impl Source {
     fn capture(&self, t: StockTarget) -> FreshNativeCapture {
@@ -116,6 +129,7 @@ impl Source {
             command: self.command.clone(),
             authority: self.authority.clone(),
             original: serde_json::to_vec(&self.native).unwrap(),
+            retained_token: Box::new(103),
         }
     }
     fn check(&self, p: &Proof, c: &StockCommand, a: &StockAuthority, s: &DecodedFreshSnapshot) {
@@ -138,6 +152,7 @@ impl FreshPreparationSourcePort for Source {
     ) -> Result<FreshPreparationCapture<Proof>, StockErrorCode> {
         assert_eq!(c, &self.command);
         assert_eq!(a, &self.authority);
+        self.audit.captures.fetch_add(1, Ordering::SeqCst);
         Ok(FreshPreparationCapture {
             evidence: self.proof(),
             snapshots: vec![self.capture(self.capture_target.clone())],
@@ -150,6 +165,18 @@ impl FreshPreparationSourcePort for Source {
         d: &DecodedFreshPreparation<Proof>,
     ) -> Result<StockPreflight, StockErrorCode> {
         assert_eq!(d.snapshots().len(), 1);
+        // Fixture instrumentation observes retained allocations. It supplies no
+        // production provenance, authority, freshness or qualification fact.
+        let token = d.evidence().retained_token.as_ref() as *const u64 as usize;
+        let original = d.snapshots()[0].original().original.as_ptr() as usize;
+        if self.audit.qualifications.fetch_add(1, Ordering::SeqCst) == 0 {
+            self.audit.token_address.store(token, Ordering::SeqCst);
+            self.audit
+                .original_address
+                .store(original, Ordering::SeqCst);
+        }
+        assert_eq!(self.audit.token_address.load(Ordering::SeqCst), token);
+        assert_eq!(self.audit.original_address.load(Ordering::SeqCst), original);
         self.check(d.evidence(), c, a, &d.snapshots()[0]);
         let contracts = NativeWriterContracts::new().unwrap();
         // Explicit fixture-owned completeness and hidden-field assertions.
@@ -275,6 +302,7 @@ fn source(c: &StockCommand, a: &StockAuthority, native: Value, t: StockTarget) -
         authority: a.clone(),
         native,
         capture_target: t,
+        audit: Arc::new(PreparationAudit::default()),
     }
 }
 
@@ -453,4 +481,89 @@ async fn healthy_fresh_complete_maintenance_preparation_and_readback() {
     };
     assert_eq!(value, after);
     assert_eq!(o.plan, Some(plan));
+}
+
+#[tokio::test]
+async fn healthy_retained_original_preparation_revalidates_same_owner() {
+    let t = target(ResourceKind::Entity, Some(2), None);
+    let raw = entity();
+    let a = authority();
+    let c = command(
+        "homebox.entity.update",
+        t.clone(),
+        json!({"name":"Only requested change"}),
+    );
+    let s = source(&c, &a, raw.clone(), t.clone());
+    let audit = Arc::clone(&s.audit);
+    let p = DecodedStockPreparation::new(
+        NativeWriterContracts::new().unwrap(),
+        s,
+        wire::DecodeLimits::default(),
+    );
+    let retained = p.prepare_retained(&c, &a).await.unwrap();
+    assert_eq!(retained.command(), &c);
+    assert_eq!(retained.authority(), &a);
+    let capture = retained.capture();
+    let snapshot = &capture.snapshots()[0];
+    assert_eq!(
+        snapshot.original().original,
+        serde_json::to_vec(&raw).unwrap()
+    );
+    assert_eq!(snapshot.original().scope, scope());
+    assert_eq!(snapshot.original().target, t);
+    assert_eq!(
+        snapshot.original().path,
+        format!("/api/v1/entities/{}", id(2))
+    );
+    assert!(snapshot.original().query.is_empty());
+    assert_eq!(snapshot.original().observed_at, at());
+    assert_eq!(snapshot.source(), &raw);
+    assert_eq!(
+        retained.owner_preflight().preparation.snapshots[0].value,
+        raw
+    );
+    assert_eq!(
+        retained.preflight().preparation,
+        retained.owner_preflight().preparation
+    );
+    assert_eq!(
+        retained.preflight().provider_observation,
+        c.provider_observation
+    );
+    assert_eq!(
+        retained.plan(),
+        &map_stock(&c, &retained.preflight().preparation).unwrap()
+    );
+    let NativeBody::Json(body) = &retained.plan().request.body else {
+        panic!("native JSON")
+    };
+    assert_eq!(body["name"], "Only requested change");
+    assert_eq!(body["purchasePrice"].to_string(), "1.2300e+2");
+    assert_eq!(body["purchaseFrom"], raw["purchaseFrom"]);
+    let evidence_address = capture.evidence().retained_token.as_ref() as *const u64 as usize;
+    let original_address = snapshot.original().original.as_ptr() as usize;
+    let owner_preflight = retained.owner_preflight().clone();
+    let wrapped_preflight = retained.preflight().clone();
+    let plan = retained.plan().clone();
+    // Three successful phase calls model the consumer's separate entry,
+    // precommit and release fences; no queue, SQL or write is exercised here.
+    for _ in 0..3 {
+        retained.revalidate(&c, &a).unwrap();
+        assert_eq!(retained.owner_preflight(), &owner_preflight);
+        assert_eq!(retained.preflight(), &wrapped_preflight);
+        assert_eq!(retained.plan(), &plan);
+        assert_eq!(
+            retained.capture().evidence().retained_token.as_ref() as *const u64 as usize,
+            evidence_address
+        );
+        assert_eq!(
+            retained.capture().snapshots()[0]
+                .original()
+                .original
+                .as_ptr() as usize,
+            original_address
+        );
+    }
+    assert_eq!(audit.captures.load(Ordering::SeqCst), 1);
+    assert_eq!(audit.qualifications.load(Ordering::SeqCst), 4);
 }

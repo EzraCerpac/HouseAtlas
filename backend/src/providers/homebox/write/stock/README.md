@@ -211,10 +211,10 @@ staged metadata and qualified clear forms. This binding does not qualify the
 owner proof or accept upload bytes. The admission/retention owner must preserve
 and revalidate that actual proof linkage; no replacement evidence store is added.
 `qualify_preparation` is the trusted original-owner boundary, not independent
-admission validation. `StockPreflight` returns only the wrapped digest and the
-existing port surface has no typed retained-proof handoff or admission-time
-source revalidation callback. Those consumer hooks remain unavailable here;
-production admission must not infer that they exist from this adapter.
+admission validation. `StockPreparationPort::prepare` continues to return the wrapped `StockPreflight`
+for existing consumers. A retained original handoff is also available through
+`prepare_retained`, described below; production admission must use that carrier
+and its original qualifier rather than infer proof from a digest.
 
 The supported native captures are entity details and entity-owner maintenance
 lists with `status=both`. Entity field/attachment member readback uses the exact
@@ -237,13 +237,15 @@ Qualified absence, `CompleteImpact`/printer selectors, tag/type/template capture
 families and owner source registration remain unsupported by this bounded adapter;
 it returns unavailable rather than derive absence from a 404 or list omission.
 
-The existing port contracts contain only preflight digests/flags and native
-observation values, not original source bytes, source revisions or fresh-proof
-provenance. These mandatory original-owner capture/qualification/retention seams
-are therefore concrete remaining consumer contracts, not authority produced by
-this adapter. Freshness/completeness cannot be recovered from cached read APIs.
+The DTO-based port contracts contain only preflight digests/flags and native
+observation values. The retained handoff below also carries original bytes and
+opaque evidence; its admission consumer and durable evidence persistence are
+separate composition work. Genuine production capture/qualification remains a
+required source implementation. Freshness/completeness cannot be recovered from
+cached read APIs or the retained digest.
 
-`fresh_healthy.rs` contains only three exact ordinary positive source fixtures:
+`fresh_healthy.rs` includes the following three original exact ordinary positive
+source fixtures; the retained handoff case is documented separately below:
 
 * `fresh_healthy::healthy_fresh_complete_entity_preparation`
 * `fresh_healthy::healthy_fresh_exact_entity_and_generated_member_readback`
@@ -260,3 +262,58 @@ held control or native write is invoked. Run only each exact case with
 `cargo test --offline --locked --manifest-path <task-harness>/Cargo.toml --lib
 <exact-case> -- --exact --test-threads=1`; the harness is not a repository runner
 or root-manifest change. Source success does not qualify production intake.
+
+## Retained original preparation handoff
+
+`DecodedStockPreparation::prepare_retained` uses the same capture, decoder,
+mandatory `FreshPreparationSourcePort::qualify_preparation`, snapshot checks,
+`map_stock`, full-PUT known-shape guard and canonical preflight envelope as
+`StockPreparationPort::prepare`. It returns a privately constructed
+`RetainedFreshPreparation<'owner,C,S>` only after all those steps succeed. The
+carrier borrows the same adapter instance, preserving its contract and source
+owner allocation for the entire handoff. It moves the original
+`DecodedFreshPreparation<S::Evidence>` without cloning opaque evidence or raw
+capture buffers, and retains the exact command and captured authority, untouched
+owner preflight, wrapped preflight and actual native plan.
+
+Immutable getters `command`, `authority`, `capture`, `owner_preflight`,
+`preflight` and `plan` expose those original values. There is no public data
+constructor, `Clone`, `Debug` or serde implementation for this carrier. The raw
+capture getters preserve original bytes, scope, target, fixed path/query and
+retrieval timestamp. This is an in-process handoff; persisted evidence data does
+not reconstruct this owner, its evidence or authority.
+
+`revalidate(&exact_command, &current_original_authority)` requires full equality
+with the retained command and authority and then reruns the **same source
+owner's existing qualifier** on the **same retained captures and opaque
+evidence**, without recapturing, decoding replacement bytes or refreshing an
+observation. It repeats command validation, snapshot correspondence, native
+mapping, full-PUT checks and wrapper calculation, and requires the entire owner
+preflight, wrapped preflight and native plan to remain identical. Qualifier
+errors pass through; changed qualified values are preflight conflicts.
+
+These getters are data, not an admission capability. A queue consumer must call
+`revalidate` at its actual original entry/precommit/release fences and preserve
+its original principal, graph, access handles, source ownership and atomic
+persistence rules. Capture awaits must occur without Store or Access guards.
+Equality of `StockAuthority` values does not establish original principal/grant
+provenance or current authority. The production source qualifier for genuine
+providerObservation, finite freshness, registered build/route, complete write
+reference/impact graph, approval and hidden-field preservation remains absent.
+This handoff supplies retention mechanics, not those missing source peers, queue
+schema changes, credential admission, dispatch or activation.
+
+One exact ordinary positive fixture can be run independently:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib providers::homebox::write::stock::fresh_healthy::healthy_retained_original_preparation_revalidates_same_owner -- --exact --test-threads=1
+```
+
+It captures one synthetic entity response in process, preserves its exact raw
+buffer and opaque fixture-owned evidence allocation, maps the existing entity
+PUT without sending it, and performs three successful revalidations through the
+same original owner. Instrumentation records one capture and four qualifier
+calls including initial preparation. It checks original lexical cost/date and
+fixed route/target data. Its explicitly synthetic qualifier is not a production
+proof implementation. It performs no socket request, queue/SQL mutation,
+provider invocation, new grant, mismatch/denial/expiry/revocation or held control.
