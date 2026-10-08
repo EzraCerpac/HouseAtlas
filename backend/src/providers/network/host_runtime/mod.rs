@@ -16,6 +16,6 @@ pub use authority::{NetworkAccess, NetworkAuthority, OriginalNetworkLease, Sessi
 pub use disclosure::generation_references;
 pub use publication::PreparedPublication;
 pub use reads::OriginalNetworkDisclosure;
-pub use runtime::{HostNetworkRuntime, RefreshResult};
+pub use runtime::{HostNetworkRuntime, RefreshResult, SnapshotLinkBindings};
 
 pub const TLS_PROFILE: &str = "reqwest-0.13.5-rustls-platform-verification";

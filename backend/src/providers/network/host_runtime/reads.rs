@@ -238,26 +238,31 @@ pub(super) fn read_partition(
     let mut boundary = access.lock().map_err(storage_access)?;
     let mut output = None;
     boundary
-        .with_read_authorization(principal, |guard| -> Result<(), PhaseError> {
-            let authorization = PartitionRead {
-                guard,
-                source,
-                partition,
-                entities,
-                disclosure: None,
-            };
-            output = Some(store.read_cache_partition_with_authorization(
-                &authorization,
-                principal,
-                &source.registration().scope(),
-                &source.registration().partition(),
-            )?);
-            guard.revalidate_source_partition(partition)?;
-            for grant in entities {
-                guard.revalidate_source(grant)?;
-            }
-            Ok(())
-        })
+        .with_source_read_authorization(
+            principal,
+            partition,
+            entities,
+            |guard| -> Result<(), PhaseError> {
+                let authorization = PartitionRead {
+                    guard,
+                    source,
+                    partition,
+                    entities,
+                    disclosure: None,
+                };
+                output = Some(store.read_cache_partition_with_authorization(
+                    &authorization,
+                    principal,
+                    &source.registration().scope(),
+                    &source.registration().partition(),
+                )?);
+                guard.revalidate_source_partition(partition)?;
+                for grant in entities {
+                    guard.revalidate_source(grant)?;
+                }
+                Ok(())
+            },
+        )
         .map_err(|e: PhaseError| e.0)?;
     output.ok_or_else(conflict)
 }

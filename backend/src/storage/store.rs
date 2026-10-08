@@ -284,7 +284,8 @@ fn read_snapshot<C: Contract, B: Authorization>(
         // grants alone cannot qualify a reused link ID with different ends.
         let mut refs = vec![
             json!({"workspaceId":scope.workspace_id,"homeId":scope.home_id,
-            "key":base,"from":relation["from"],"to":relation["to"]}),
+            "key":base,"from":relation["from"],"to":relation["to"],
+            "relation":relation}),
         ];
         for endpoint in [&relation["from"], &relation["to"]] {
             if endpoint["kind"] != "unresolved" {
