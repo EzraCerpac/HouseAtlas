@@ -294,3 +294,83 @@ and stale age. Authority/history/artifact/provider peers for the other forms are
 explicitly synthetic fixture owners, not production implementations. No native
 artifact bytes, real grants, printer, live provider, app/listener or security,
 replay, failure, fault, crash, concurrency, omission or adversarial controls run.
+
+
+## Original owned-file source producer
+
+`OwnedHomeboxFileSource<O>::new(owner, wire::DecodeLimits)` implements the exact
+Media `homebox_artifacts::HomeboxFileSource` contract from source
+`982f3565df6e1a61295731473dd42da85d64d0aa`. Root must compose that actual module;
+this slice changes only the HomeBox query source namespace. It supplies bounded
+local decoding and byte measurement, with no provider/file URL retrieval,
+credential use, HTTP mount, source registration or durable custody replacement.
+
+`NativeStoredFileOwner` is a mandatory trusted original owner port. `capture_file`
+returns already captured local input before the Access transaction.
+`with_current_file` holds its authoritative source/Store critical section through
+the supplied inspection callback under the ORIGINAL Access guard/principal/grant.
+It must check current source registration/generation, exact stored-file membership
+and authoritative version. Lock order is Access -> broker -> source/Store, without
+reentry into Access, broker or the same source lock. The synchronous callback
+rereads at most Media's 10 MiB local bytes and checks work budget while reading.
+Access is not a cross-database/provider transaction and implies no provider CAS.
+
+`NativeStoredFileCapture<E,R>` contains independently captured scope/target,
+exact owner and file GET path/query, original complete owner bytes and retrieval
+time, opaque original evidence and already captured local reader. The immutable
+`DecodedStoredFile<E>` retains these originals, the exact source/member objects
+(including unknown facts) and independently measured SHA-256/size. Required
+`qualify_file` authenticates the actual source owner's original response/body,
+membership, source revision/build/freshness and authoritative version linkage
+against that exact capture. It must preserve original evidence privately and may
+not reacquire a source lock; it runs inside the current-file critical section too.
+No serde proof/default qualification or native version factory is provided.
+
+The adapter checks the actual native validated download target, independently
+captured scope, original entity SourceGrant partition/entity, fixed owner entity
+GET and scoped attachment GET (empty queries), exactly one selected attachment in
+the original decoded owner object, and present nonempty non-link MIME/path facts.
+MIME/path are only descriptive checks; they cannot authenticate stored-file
+presence or body provenance. Original native keys are never opened as URLs or
+filesystem paths. Missing MIME, external-link MIME or missing selected member
+returns unavailable. An owner's unavailable original proof also remains unavailable.
+
+Only the trusted qualifier supplies `HomeboxFileVersion`; native entity or
+attachment timestamps, capture/byte hashes and retrieval clocks do not become
+versions. The content type must match the observed member and any original
+optional declared size/hash must agree with independently measured local bytes.
+`open_file` returns a stable measured local body to the actual broker, which
+independently reads/measures it again. `revalidate_file` checks pointer identity of
+the ORIGINAL Access principal, revalidates its original source grant under the
+held guard, verifies the sealed binding's original request/source correlation,
+and independently decodes/rereads current local bytes inside the source-owner
+critical section. Exact native version/content type/declarations and actual size/
+digest must match that sealed binding. It creates no grant, receipt, token, hold
+release or native retrieval. Media retains original allocation/grant/body custody
+and owns authenticated GET/HEAD issuance/redemption. Domain stock output/witness/
+disclosure authorization and root mounting remain required separately.
+
+Concrete production facts still missing: pinned native `repo.ItemAttachment`
+provides observed entity membership, metadata/timestamps and a native path but no
+trusted byte version, digest, size or immutable capture primitive. The attachment
+GET response is bytes only. No contract proves entity `updatedAt` changes with
+attachment bytes. Production must provide genuine scoped response/body association,
+current stored-file membership and owner-stable version/pinned snapshot plus its
+source/Store critical section. This slice supplies no production implementation
+of that owner port; those operations stay unavailable until these actual originals
+exist. File list/get archive facts remain separately unavailable and unchanged.
+
+The one exact ordinary positive fixture
+`owned_file_source_healthy::healthy_original_owned_file_membership_and_measured_get_head`
+uses actual native contract, Access boundary/session/entity grant, this producer
+and Media broker. Its private disposable local store creates and owns a fresh
+synthetic file/member and allocates its own generation (not a hash/timestamp
+version). It retains the original principal, raw metadata and measured original
+bytes; it holds a real source Mutex through all eight current revalidations.
+Two fresh issuances and separate native authenticated GET and HEAD use two source
+captures plus eight current measurements; the broker independently measures the
+two capture bodies. Raw unknown facts and native date spelling remain retained.
+No live capture/download, listener, provider, real files/accounts/credentials,
+replay/expiry/revocation/failure/mutation/omission or other held controls run.
+Compile and run only this exact case through the task-owned actual-library harness
+with `--exact --test-threads=1`; no repository runner/manifest is added here.
