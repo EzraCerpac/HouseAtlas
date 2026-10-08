@@ -10,6 +10,7 @@ use crate::{
         Access, Core, RequestPrincipal, ServerRuntime, Store,
         homebox_presence::ConfiguredPresenceReleased,
         homebox_presence_command::{self, OriginalPresenceCommandExecutor, PresenceCommandError},
+        homebox_presence_history::RecordedPresenceHistory,
     },
     contracts::semantics as sem,
     contracts::{AssetPayloadPreviewPolicy, BindingPayloadSourceState},
@@ -174,6 +175,7 @@ pub(super) struct ConfiguredPresenceInput<'a, 'origin, 'reader> {
     pub publications: &'a [&'a ConfiguredPresenceReleased<'origin, 'reader>],
     pub age: &'a d::qualified::ConfiguredCacheAge,
     pub observation: &'a s::StockPresenceCommittedObservation,
+    pub history: &'a RefCell<Option<std::sync::Arc<RecordedPresenceHistory>>>,
 }
 
 /// An explicit, previously closed native publication may select Present for
@@ -856,6 +858,13 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
         supported_profile(prepared.request(), self.upload)?;
         require(!w.committed.get() && w.pending.borrow().is_none())?;
         if let Some(input) = self.presence {
+            require(
+                input
+                    .history
+                    .try_borrow()
+                    .map_err(|_| unavailable())?
+                    .is_none(),
+            )?;
             let mut executor = ConfiguredExecutor {
                 principal: p,
                 prepared,
@@ -877,8 +886,14 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
                     .as_ref()
                     .is_some_and(|pin| pin.receipt == *accepted.frame().commit()),
             )?;
+            let output = accepted.frame().commit().owner_result();
+            let history =
+                RecordedPresenceHistory::from_accepted(accepted).map_err(|_| unavailable())?;
+            let mut observed = input.history.try_borrow_mut().map_err(|_| unavailable())?;
+            require(observed.is_none())?;
+            *observed = Some(std::sync::Arc::new(history));
             w.committed.set(true);
-            return Ok(accepted.frame().commit().owner_result());
+            return Ok(output);
         }
         let entries = graph
             .plan
@@ -1271,15 +1286,7 @@ fn execute_profile(
 ) -> st::StockResult<st::OwnerResult> {
     if let Some(presence) = presence {
         require(upload.is_none())?;
-        return execute_configured_presence(
-            core,
-            p,
-            raw,
-            presence.publications,
-            presence.age,
-            contracts,
-            presence.observation,
-        );
+        return execute_configured_presence(core, p, raw, presence, contracts);
     }
     let authority = Authority {
         principal: p,
@@ -1318,16 +1325,9 @@ pub(super) fn execute_configured_presence<'principal, 'input, 'origin, 'reader>(
     core: &Core,
     p: &'principal RequestPrincipal,
     raw: Value,
-    publications: &'input [&'input ConfiguredPresenceReleased<'origin, 'reader>],
-    age: &'input d::qualified::ConfiguredCacheAge,
+    presence: ConfiguredPresenceInput<'input, 'origin, 'reader>,
     contracts: &st::NativeStockContract,
-    observation: &'input s::StockPresenceCommittedObservation,
 ) -> st::StockResult<st::OwnerResult> {
-    let presence = ConfiguredPresenceInput {
-        publications,
-        age,
-        observation,
-    };
     let authority = Authority {
         principal: p,
         access: &core.access,

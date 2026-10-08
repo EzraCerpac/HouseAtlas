@@ -123,6 +123,59 @@ pub fn prepare_configured<'p>(
         source.clone(),
         partition.clone(),
     )?;
+    prepare_with_reader(
+        core, principal, source, partition, lifecycle, configured, reader,
+    )
+}
+
+/// Use the same original preparation fence with an explicitly selected local
+/// TLS certificate. This only changes transport setup in a test build.
+#[cfg(test)]
+pub(crate) struct LoopbackPresenceSource<'a> {
+    pub configured: &'a Arc<TrustedHomeBoxSource>,
+    pub credentials: &'a Arc<NativeReadCredentialConfig>,
+    pub certificate_der: &'a [u8],
+}
+
+#[cfg(test)]
+pub(crate) fn prepare_configured_with_loopback_certificate<'p>(
+    core: &Core,
+    principal: &'p a::Principal,
+    source: &a::SourceGrant,
+    partition: &a::PartitionGrant,
+    lifecycle: &a::LifecycleGrant,
+    selected: LoopbackPresenceSource<'_>,
+) -> Result<owner::PreparedConfiguredNativePresence<'p>, PresencePreparationError> {
+    let reader = owner::NativePresenceReader::from_configured_with_loopback_certificate(
+        selected.configured,
+        selected.credentials,
+        Arc::clone(&core.access),
+        principal,
+        source.clone(),
+        partition.clone(),
+        selected.certificate_der,
+    )?;
+    prepare_with_reader(
+        core,
+        principal,
+        source,
+        partition,
+        lifecycle,
+        selected.configured,
+        reader,
+    )
+}
+
+fn prepare_with_reader<'p>(
+    core: &Core,
+    principal: &'p a::Principal,
+    source: &a::SourceGrant,
+    partition: &a::PartitionGrant,
+    lifecycle: &a::LifecycleGrant,
+    configured: &Arc<TrustedHomeBoxSource>,
+    reader: owner::NativePresenceReader<'p>,
+) -> Result<owner::PreparedConfiguredNativePresence<'p>, PresencePreparationError> {
+    let access = Arc::clone(&core.access);
     let registration: a::SourceRegistration = serde_json::from_value(
         serde_json::to_value(configured.registration())
             .map_err(|_| PresencePreparationError::Unavailable)?,
@@ -201,6 +254,18 @@ impl<'origin, 'principal> ConfiguredPresenceReleased<'origin, 'principal> {
     }
     pub fn native_generation(&self) -> &crate::providers::homebox::read::NativePresenceGeneration {
         self.released.native_generation()
+    }
+    /// Retain the same original native allocation after the full publication
+    /// release. Neither this identity nor its bytes is current authority.
+    pub(crate) fn retain_native_identity(
+        &self,
+    ) -> crate::providers::homebox::read::NativePresenceIdentity {
+        self.released.native_capture().retain_native_identity()
+    }
+    pub(crate) fn retained_complete_generation(
+        &self,
+    ) -> crate::providers::homebox::read::CompleteGeneration {
+        self.released.native_capture().generation().clone()
     }
     pub fn native_access_package_version(&self) -> &'static str {
         self.released.native_access_package_version()
