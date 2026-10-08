@@ -27,12 +27,12 @@ export interface LanternProjection {
 
 type Prefix = 'sp' | 'it' | 'uk' | 'doc' | 'mt';
 
-function scopedId(prefix: Prefix, entry: Entry, suffix?: string, index?: number): string {
+function scopedId(prefix: Prefix, entry: Entry, suffix?: string): string {
   return `${prefix}-${JSON.stringify([
     entry.workspaceId,
     entry.homeId,
     entry.key,
-    ...(suffix === undefined ? [] : [suffix, index]),
+    ...(suffix === undefined ? [] : [suffix]),
   ])}`;
 }
 
@@ -103,8 +103,10 @@ export function projectView(view: ReadyView, geometryMetadata: GeometryRead = { 
       });
     }
 
-    entry.attachments.forEach((attachment, index) => {
-      const docId = scopedId('doc', entry, attachment.attachmentId, index);
+    entry.attachments.forEach((attachment) => {
+      const docId = scopedId('doc', entry, attachment.attachmentId);
+      // Source IDs identify attachments; reject rather than collapse duplicates.
+      if (entries.has(docId)) throw new TypeError('Duplicate attachment identity');
       const storage = attachment.kind === 'stored-file' ? 'stored' : 'link';
       const href = attachment.kind === 'stored-file' ? attachment.downloadHref : attachment.url;
       const previewHref = attachment.kind === 'stored-file' ? attachment.previewHref : null;
@@ -130,8 +132,9 @@ export function projectView(view: ReadyView, geometryMetadata: GeometryRead = { 
       });
     });
 
-    entry.maintenance.forEach((maintenance, index) => {
-      const taskId = scopedId('mt', entry, maintenance.entryId, index);
+    entry.maintenance.forEach((maintenance) => {
+      const taskId = scopedId('mt', entry, maintenance.entryId);
+      if (entries.has(taskId)) throw new TypeError('Duplicate maintenance identity');
       entries.set(taskId, entry);
       tasks.push({
         id: taskId,
