@@ -656,14 +656,20 @@ impl Transaction<'_, '_, '_, '_, '_> {
                 let mut pin = self.witness.pending.borrow_mut();
                 if expected == s::MutationPhase::Candidate {
                     require(pin.is_none())?;
-                    // The native owner persists canonical JSON. Preserve exact raw
-                    // Candidate–Precommit equality separately from the durable image.
-                    let durable = NativeContracts
-                        .canonical_json(
-                            &serde_json::to_value(candidate).map_err(|_| unavailable())?,
-                        )
-                        .map_err(|e| domain(crate::app::storage_error(e)))?;
-                    let durable = serde_json::from_str(&durable).map_err(|_| unavailable())?;
+                    // Record bodies are persisted through the native JCS
+                    // contract. Existing source, cache, and projection bodies
+                    // retain their original JSON numbers in their own tables.
+                    // Keep the raw Candidate for the Precommit check and pin
+                    // the exact durable representation for final full equality.
+                    let mut durable = candidate.clone();
+                    for record in &mut durable.records {
+                        let encoded = NativeContracts
+                            .canonical_json(
+                                &serde_json::to_value(&*record).map_err(|_| unavailable())?,
+                            )
+                            .map_err(|e| domain(crate::app::storage_error(e)))?;
+                        *record = serde_json::from_str(&encoded).map_err(|_| unavailable())?;
+                    }
                     *pin = Some(Committed {
                         candidate: candidate.clone(),
                         durable,
