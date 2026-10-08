@@ -18,6 +18,7 @@ use std::sync::Arc;
 
 struct AccountMount {
     startup: Arc<NativeAccountStartup>,
+    custody: Option<Arc<crate::lifecycle::ai_account::NativeAccountCustody>>,
     gate: SessionHttpGate<
         ApplicationAuthority<EnrollmentOwner>,
         ApplicationAuthority<EnrollmentOwner>,
@@ -30,6 +31,7 @@ pub(crate) fn mounted_router(
     host: Host,
     startup: Arc<NativeAccountStartup>,
     enrollment: Arc<EnrollmentOwner>,
+    custody: Option<Arc<crate::lifecycle::ai_account::NativeAccountCustody>>,
 ) -> Router {
     let application = ApplicationAuthority::new(host, enrollment);
     Router::new()
@@ -41,6 +43,7 @@ pub(crate) fn mounted_router(
         )
         .with_state(Arc::new(AccountMount {
             startup,
+            custody,
             gate: SessionHttpGate {
                 application: application.clone(),
                 authority: application,
@@ -53,6 +56,9 @@ async fn account(
     request: Request,
 ) -> Result<Json<NativeAccountObservation>, HttpFailure> {
     let (head, _) = request.into_parts();
+    if let Some(custody) = &mount.custody {
+        custody.revalidate().map_err(failure)?;
+    }
     let context = mount
         .gate
         .authenticate(&head, false)
@@ -60,12 +66,24 @@ async fn account(
         .map_err(failure)?;
     let cancel = Cancellation::default();
     let result = mount
-        .startup
-        .observe_account(context.native(), &cancel)
-        .await;
+        .custody
+        .as_ref()
+        .map_or(Ok(()), |custody| custody.revalidate());
+    let result = match result {
+        Ok(()) => {
+            mount
+                .startup
+                .observe_account(context.native(), &cancel)
+                .await
+        }
+        Err(error) => Err(error),
+    };
     // Revalidate every result after await. A stale principal or enrollment
     // replaces either observation or error before any response is constructed.
     mount.gate.release(&context).map_err(failure)?;
+    if let Some(custody) = &mount.custody {
+        custody.revalidate().map_err(failure)?;
+    }
     result.map(Json).map_err(failure)
 }
 
