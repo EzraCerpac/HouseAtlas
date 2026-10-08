@@ -24,7 +24,7 @@ pub struct StockRetainedReadFrame<'a> {
     pub commit: Option<&'a StockAtlasCommit>,
     pub audits: &'a [Audit],
     pub events: &'a [StockOperationEvent],
-    /// Complete validated immutable root closures for page and lookahead.
+    /// Complete validated immutable root closures across the fixed watermark.
     /// Original request/source refs and native saved records require qualification.
     pub retained_commits: &'a [StockAtlasCommit],
     pub output: Option<&'a Value>,
@@ -141,7 +141,7 @@ pub struct StockOperationEventPreparation {
     pub(super) after: i64,
     pub(super) rows: Vec<(i64, StockOperationEvent)>,
     pub(super) audits: Vec<Audit>,
-    pub(super) retained_commits: Vec<StockAtlasCommit>,
+    pub(super) snapshot: Arc<StockOperationEventSnapshot>,
     pub(super) targets: Vec<RecordRef>,
     pub(super) current_records: Vec<Record>,
 }
@@ -159,7 +159,10 @@ impl StockOperationEventPreparation {
         &self.current_records
     }
     pub fn retained_commits(&self) -> &[StockAtlasCommit] {
-        &self.retained_commits
+        &self.snapshot.retained_commits
+    }
+    pub fn snapshot_closure(&self) -> &StockOperationEventSnapshot {
+        &self.snapshot
     }
     pub fn audits(&self) -> &[Audit] {
         &self.audits
@@ -169,6 +172,28 @@ impl StockOperationEventPreparation {
     }
     pub fn has_more(&self) -> bool {
         self.rows.len() > self.page_size
+    }
+}
+/// Bounded detached fixed-watermark facts for initial historical source capture.
+/// Not an authority, replay handle, serialized cursor, or mutable SQL snapshot.
+/// Host qualifies this entire closure before sealing the original principal.
+#[derive(PartialEq)]
+pub struct StockOperationEventSnapshot {
+    pub(super) watermark: i64,
+    pub(super) retained_commits: Vec<StockAtlasCommit>,
+    pub(super) targets: Vec<RecordRef>,
+    pub(super) rows: Vec<(i64, StockOperationEvent)>,
+    pub(super) audits: Vec<Audit>,
+}
+impl StockOperationEventSnapshot {
+    pub fn watermark(&self) -> i64 {
+        self.watermark
+    }
+    pub fn retained_commits(&self) -> &[StockAtlasCommit] {
+        &self.retained_commits
+    }
+    pub fn targets(&self) -> &[RecordRef] {
+        &self.targets
     }
 }
 /// Same Store/original wrapper/actual Access allocation, fixed audit snapshot.
@@ -181,6 +206,7 @@ pub struct StockRetainedContinuation {
     pub(super) page_size: usize,
     pub(super) watermark: i64,
     pub(super) after: i64,
+    pub(super) snapshot: Arc<StockOperationEventSnapshot>,
 }
 impl StockRetainedContinuation {
     pub fn cursor_id(&self) -> &str {

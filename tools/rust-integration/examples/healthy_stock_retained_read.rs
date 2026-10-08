@@ -1,4 +1,4 @@
-//! Two fresh native stock writes followed by bounded retained-read disclosure.
+//! Three fresh native stock writes followed by bounded retained-read disclosure.
 //! This is an in-process, disposable Access and SQLite fixture, not an HTTP test.
 
 use houseatlas_backend::{
@@ -205,6 +205,7 @@ fn main() -> Result<(), Failure> {
     rustix::process::umask(rustix::fs::Mode::from_raw_mode(0o077));
     assert_send_sync::<s::StockRetainedContinuation>();
     assert_send_sync::<s::StockOperationEventPreparation>();
+    assert_send_sync::<s::StockOperationEventSnapshot>();
     let scratch = tempfile::Builder::new()
         .prefix("houseatlas-retained-read-")
         .tempdir_in("/tmp")?;
@@ -330,6 +331,15 @@ fn main() -> Result<(), Failure> {
         "preconditions":{"target":null,"guards":[guard("asset",600,1),guard("identity",200,1),guard("evidence",100,1)]},
         "approvalReceiptId":null});
     let derived_result = write(&core, &cookie, &csrf, &derived, &schemas)?;
+    // Third root is beyond page1+lookahead. Initial preparation must still
+    // provide it for historical qualification before the host seals grants.
+    let mut third = direct.clone();
+    third["requestId"] = json!(id(923));
+    third["target"] = target("identity", 922);
+    third["idempotencyKey"] = json!(id(1922));
+    third["reason"] = json!("Fresh third synthetic history root");
+    let third_result = write(&core, &cookie, &csrf, &third, &schemas)?;
+
     assert_eq!(direct_result["data"]["records"][0]["revision"], 1);
     assert_eq!(derived_result["data"]["records"][0]["revision"], 1);
     // Compare SQLite and its WAL while Store remains open. No retained read
@@ -388,6 +398,7 @@ fn main() -> Result<(), Failure> {
     }
     let mut continuation = None;
     let mut collected = Vec::new();
+    let mut pinned_watermark = None;
     loop {
         let prepared = store.prepare_stock_operation_events_with_authorization(
             &read_authority,
@@ -398,6 +409,17 @@ fn main() -> Result<(), Failure> {
             1,
             continuation.as_ref(),
         )?;
+        let closure = prepared.snapshot_closure();
+        assert_eq!(closure.retained_commits().len(), 3);
+        assert!(closure.retained_commits().iter().any(
+            |commit| Some(commit.operation_id.as_str()) == third_result["operationId"].as_str()
+        ));
+        assert_eq!(closure.targets(), prepared.targets());
+        if let Some(watermark) = pinned_watermark {
+            assert_eq!(closure.watermark(), watermark);
+        } else {
+            pinned_watermark = Some(closure.watermark());
+        }
         let disclosed = store.disclose_stock_operation_events_with_authorization(
             &read_authority,
             &original_box,
@@ -411,10 +433,11 @@ fn main() -> Result<(), Failure> {
             break;
         }
     }
-    assert_eq!(collected.len(), 2);
+    assert_eq!(collected.len(), 3);
     for (event, raw, result) in [
         (&collected[0], &direct, &direct_result),
         (&collected[1], &derived, &derived_result),
+        (&collected[2], &third, &third_result),
     ] {
         assert_eq!(
             Some(event.event_id.as_str()),
@@ -504,7 +527,7 @@ fn main() -> Result<(), Failure> {
         derived_result["operationId"].as_str()
     );
     println!(
-        "healthy-stock-retained-read: two genuine writes, retained inspection, two event pages and ordinary reopen verified"
+        "healthy-stock-retained-read: three genuine writes, full pinned closure, three event pages and ordinary reopen verified"
     );
     Ok(())
 }

@@ -408,20 +408,29 @@ pub(crate) struct RetainedEventLink {
     pub entry_ordinal: i64,
 }
 
-/// Select one bounded page of retained stock audit links at a fixed global
-/// watermark. The complete global audit range is budgeted before scope or link
-/// predicates can narrow the page.
-pub(crate) fn retained_event_links(
+/// Read a bounded complete retained snapshot for the caller to validate.
+/// Global audit preflight happens before scope filtering, and the lookahead
+/// proves that the returned vector was not silently truncated.
+pub(crate) fn retained_snapshot_event_links(
     db: &Connection,
     scope: &Scope,
     watermark: i64,
-    after: i64,
-    page_size: usize,
 ) -> Result<Vec<RetainedEventLink>> {
-    if watermark < 0 || after < 0 || after > watermark || !(1..=100).contains(&page_size) {
+    if watermark < 0 {
         return Err(incompatible());
     }
 
+    retained_global_audit_preflight(db, watermark)?;
+    let rows = retained_event_links_query(db, scope, watermark)?;
+    if rows.len() > 4096 {
+        return Err(retained_budget_unavailable());
+    }
+    Ok(rows)
+}
+
+/// Budget every audit body through the fixed watermark before any scope or
+/// stock-link predicate can reduce the selected range.
+fn retained_global_audit_preflight(db: &Connection, watermark: i64) -> Result<()> {
     let mut preflight = db.prepare(
         "SELECT length(CAST(body AS BLOB)) FROM audits NOT INDEXED
          WHERE seq<=?1 ORDER BY seq LIMIT 4097",
@@ -442,22 +451,39 @@ pub(crate) fn retained_event_links(
             return Err(retained_budget_unavailable());
         }
     }
+    Ok(())
+}
 
-    let limit = i64::try_from(page_size + 1).map_err(|_| incompatible())?;
+/// Use the established native audit rowid range and the audit-id primary-key
+/// index for links. Selection follows the complete global predecode preflight.
+fn retained_event_links_query(
+    db: &Connection,
+    scope: &Scope,
+    watermark: i64,
+) -> Result<Vec<RetainedEventLink>> {
     let mut statement = db.prepare(
-        "SELECT a.seq,l.audit_id,l.root_operation_id,l.actor_id,l.group_ordinal,l.entry_ordinal
+        "SELECT a.seq,l.audit_id,l.root_operation_id,l.actor_id,l.group_ordinal,l.entry_ordinal,
+                length(CAST(l.audit_id AS BLOB)), length(CAST(l.root_operation_id AS BLOB)),
+                length(CAST(l.actor_id AS BLOB))
          FROM audits AS a NOT INDEXED
          CROSS JOIN stock_audit_links AS l INDEXED BY sqlite_autoindex_stock_audit_links_1
            ON l.audit_id=a.audit_id
-         WHERE a.seq>?1 AND a.seq<=?2
-           AND a.workspace_id=?3 AND a.home_id=?4
-           AND l.workspace_id=?3 AND l.home_id=?4
-         ORDER BY a.seq LIMIT ?5",
+         WHERE a.seq<=?1
+           AND a.workspace_id=?2 AND a.home_id=?3
+           AND l.workspace_id=?2 AND l.home_id=?3
+         ORDER BY a.seq LIMIT 4097",
     )?;
     let rows = statement
         .query_map(
-            params![after, watermark, scope.workspace_id, scope.home_id, limit],
+            params![watermark, scope.workspace_id, scope.home_id],
             |row| {
+                // Genuine audit, operation and actor identifiers are UUIDs.
+                // Check SQL byte lengths before materializing metadata text.
+                for index in 6..=8 {
+                    if row.get::<_, i64>(index)? != 36 {
+                        return Err(rusqlite::Error::InvalidQuery);
+                    }
+                }
                 Ok(RetainedEventLink {
                     sequence: row.get(0)?,
                     audit_id: row.get(1)?,
