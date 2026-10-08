@@ -208,3 +208,96 @@ impl ConnectionFacts<NativeHostContext> for NativeAccountFacts {
         })
     }
 }
+
+/// Existing-record account reader, without inference/lifecycle/review peers.
+/// This owner is deliberately narrower than NativeStartup: it cannot expose
+/// Connect, callback, enrollment, models, tool dispatch or reviewed write APIs.
+/// Assembly verifies original owner allocations and the existing directory;
+/// per-request reads verify the installed approval and original credential lease.
+pub struct NativeAccountStartup {
+    account: NativeAccountFacts,
+}
+impl NativeAccountStartup {
+    /// Explicit application input only. StartupOwners must retain the original
+    /// Host access, EnrollmentOwner, StatusJournal and pinned configuration.
+    /// This never installs approval, opens an account, provisions a key or starts
+    /// a worker. A missing installed enrollment/record fails on the first read.
+    pub fn assemble(owners: super::StartupOwners) -> Result<Self, AiError> {
+        let super::StartupOwners {
+            host,
+            configuration,
+            enrollment,
+            journal,
+        } = owners;
+        if host.origin != configuration.application_origin() {
+            return Err(AiError::ConnectionUnavailable);
+        }
+        let access = std::sync::Arc::clone(
+            &host
+                .core
+                .lock()
+                .map_err(|_| AiError::DomainUnavailable)?
+                .access,
+        );
+        if !enrollment.owns(&access, &journal) {
+            return Err(AiError::ConnectionUnavailable);
+        }
+        let authority = StartupAuthority {
+            access,
+            enrollment: std::sync::Arc::clone(&enrollment),
+            configuration: std::sync::Arc::clone(&configuration),
+        };
+        let credential_authority = std::sync::Arc::new(
+            crate::ai::host::credentials::NativeCredentialAuthority::new(enrollment, |context| {
+                context
+            }),
+        );
+        let credentials = StartupCredentials(std::sync::Arc::new(
+            super::credentials::NativeCredentialStore::new_existing(
+                configuration.credential_directory(),
+                configuration.stable_host_id(),
+                credential_authority,
+            )?,
+        ));
+        Ok(Self {
+            account: NativeAccountFacts::new(authority, credentials),
+        })
+    }
+
+    pub async fn observe_account(
+        &self,
+        context: &NativeHostContext,
+        cancel: &Cancellation,
+    ) -> Result<NativeAccountObservation, AiError> {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        crate::ai::host::transport::bounded(
+            cancel,
+            deadline,
+            self.account.read_current(context, cancel),
+        )
+        .await
+        .map_err(|issue| match issue {
+            crate::ai::transport::TransportIssue::StopRequested => AiError::CancelRequested,
+            _ => AiError::ConnectionUnavailable,
+        })?
+    }
+
+    /// Read-result correlation only. Revalidates the full original binding
+    /// before and after copying; there is no disconnect-epoch exception here.
+    pub fn receipt_identity(
+        &self,
+        context: &NativeHostContext,
+    ) -> Result<crate::ai::host::trusted_startup::AiReceiptIdentity, AiError> {
+        let binding = context.registration();
+        self.account.authority.revalidate(context, binding)?;
+        let identity = crate::ai::host::trusted_startup::AiReceiptIdentity {
+            actor_id: binding.actor_id.clone(),
+            workspace_id: binding.workspace_id.clone(),
+            home_id: binding.home_id.clone(),
+            registration_id: binding.registration_id.clone(),
+            authority_epoch: binding.authority_epoch.clone(),
+        };
+        self.account.authority.revalidate(context, binding)?;
+        Ok(identity)
+    }
+}
