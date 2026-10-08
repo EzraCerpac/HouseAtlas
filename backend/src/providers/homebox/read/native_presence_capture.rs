@@ -4,7 +4,9 @@
 //! authority, source completeness outside the reader checks, publication, or
 //! admission. Its carrier takes ownership of the exact staged generation and
 //! store-issued publication fence while borrowing the original principal.
-use super::{CompleteGeneration, SourceRegistration, SourceScope, Timestamp, Uuid};
+use super::{
+    CompleteGeneration, Limits, SourceRegistration, SourceScope, StockNavigation, Timestamp, Uuid,
+};
 use crate::storage::CachePublicationFence;
 use std::{fmt, sync::Arc};
 
@@ -75,6 +77,8 @@ pub struct NativePresenceGeneration {
     pub(super) scope: SourceScope,
     pub(super) generation_id: Uuid,
     pub(super) responses: Vec<NativePresenceResponse>,
+    pub(super) limits: Limits,
+    pub(super) stock_navigation: Option<StockNavigation>,
 }
 
 impl fmt::Debug for NativePresenceGeneration {
@@ -96,12 +100,16 @@ impl NativePresenceGeneration {
         scope: SourceScope,
         generation_id: Uuid,
         responses: Vec<NativePresenceResponse>,
+        limits: Limits,
+        stock_navigation: Option<StockNavigation>,
     ) -> Self {
         Self {
             registration,
             scope,
             generation_id,
             responses,
+            limits,
+            stock_navigation,
         }
     }
     pub fn registration(&self) -> &SourceRegistration {
@@ -130,7 +138,7 @@ pub struct NativePresenceCapture<'a, P> {
 
 /// Opaque identity for the exact original native allocation, not DATA, an
 /// address, or a reconstructed content digest. It intentionally has no Clone.
-pub struct NativePresenceIdentity(Arc<NativePresenceGeneration>);
+pub struct NativePresenceIdentity(pub(super) Arc<NativePresenceGeneration>);
 
 impl NativePresenceIdentity {
     /// Immutable original observed bytes for DATA inspection and correlation.
