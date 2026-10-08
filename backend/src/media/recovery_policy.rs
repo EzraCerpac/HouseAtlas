@@ -135,7 +135,7 @@ fn value<T: Serialize>(data: &T) -> MediaResult<Value> {
     serde_json::to_value(data).map_err(|_| MediaError::Unavailable)
 }
 
-fn commit_group<'a>(
+pub(super) fn commit_group<'a>(
     commit: &'a s::StockAtlasCommit,
     request: &stock::ValidatedRequest,
     actor: &str,
@@ -331,27 +331,65 @@ impl MediaPolicyEvidence {
             s::MediaPolicyRecoveryFrame::Upload(upload) => self
                 .entries
                 .iter()
-                .filter_map(|e| e.upload.as_ref())
+                .filter_map(|entry| entry.upload.as_ref())
                 .any(|entry| {
-                    upload.scope().workspace_id == entry.qualifier.scope.workspace_id
-                        && upload.scope().home_id == entry.qualifier.scope.home_id
-                        && upload.actor_id() == entry.actor_id
-                        && upload.request_id() == entry.request_id
-                        && upload.asset_id() == entry.asset_id
-                        && stock::canonical_digest(upload.asset_request())
-                            .is_ok_and(|d| d == entry.request_digest)
-                        && upload.staged() == &entry.staged
-                        && upload.asset_payload() == &entry.payload
-                        && upload.binding_digest() == entry.binding_digest
-                        && upload.root_operation_id() == entry.root_operation_id
-                        && upload.group_ordinal() == entry.group_ordinal
-                        && upload.group_operation_id() == entry.group_operation_id
-                        && upload.asset_audit_id() == entry.asset_audit_id
-                        && stock::canonical_digest(upload.root_request())
-                            .is_ok_and(|d| d == entry.root_request_digest)
+                    UploadMatch {
+                        scope: &entry.qualifier.scope,
+                        actor_id: &entry.actor_id,
+                        request_id: &entry.request_id,
+                        asset_id: &entry.asset_id,
+                        request_digest: &entry.request_digest,
+                        staged: &entry.staged,
+                        payload: &entry.payload,
+                        binding_digest: &entry.binding_digest,
+                        root_request_digest: &entry.root_request_digest,
+                        root_operation_id: &entry.root_operation_id,
+                        group_ordinal: entry.group_ordinal,
+                        group_operation_id: &entry.group_operation_id,
+                        asset_audit_id: &entry.asset_audit_id,
+                    }
+                    .matches(upload)
                 }),
         };
         if matches { Ok(()) } else { Err(unavailable()) }
+    }
+}
+
+/// Pure comparison DATA shared by live and authenticated offline owners. This
+/// can neither issue qualification nor construct a ConsumedUpload/grant.
+pub(super) struct UploadMatch<'a> {
+    pub scope: &'a Scope,
+    pub actor_id: &'a str,
+    pub request_id: &'a str,
+    pub asset_id: &'a str,
+    pub request_digest: &'a str,
+    pub staged: &'a StagedFile,
+    pub payload: &'a Value,
+    pub binding_digest: &'a str,
+    pub root_request_digest: &'a str,
+    pub root_operation_id: &'a str,
+    pub group_ordinal: usize,
+    pub group_operation_id: &'a str,
+    pub asset_audit_id: &'a str,
+}
+impl UploadMatch<'_> {
+    pub fn matches(&self, upload: &s::ConsumedUpload) -> bool {
+        upload.scope().workspace_id == self.scope.workspace_id
+            && upload.scope().home_id == self.scope.home_id
+            && upload.actor_id() == self.actor_id
+            && upload.request_id() == self.request_id
+            && upload.asset_id() == self.asset_id
+            && stock::canonical_digest(upload.asset_request())
+                .is_ok_and(|d| d == self.request_digest)
+            && upload.staged() == self.staged
+            && upload.asset_payload() == self.payload
+            && upload.binding_digest() == self.binding_digest
+            && upload.root_operation_id() == self.root_operation_id
+            && upload.group_ordinal() == self.group_ordinal
+            && upload.group_operation_id() == self.group_operation_id
+            && upload.asset_audit_id() == self.asset_audit_id
+            && stock::canonical_digest(upload.root_request())
+                .is_ok_and(|d| d == self.root_request_digest)
     }
 }
 
