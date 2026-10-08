@@ -25,6 +25,7 @@ const MAX_SESSION_ENTRIES: usize = 4;
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct EventQuery {
+    workspace_id: Option<a::CanonicalId>,
     home_id: a::CanonicalId,
     #[serde(default = "default_page_size")]
     page_size: usize,
@@ -50,15 +51,15 @@ pub(super) struct EventRegistry {
     entries: VecDeque<RetainedPage>,
 }
 impl EventRegistry {
-    fn take(
-        &mut self,
+    fn reserve(
+        &self,
         cursor: &str,
         scope: &s::Scope,
         session: &[u8; 32],
         actor: &str,
         page_size: usize,
         access: &Access,
-    ) -> Result<RetainedPage, super::HttpFailure> {
+    ) -> Result<usize, super::HttpFailure> {
         let index = self
             .entries
             .iter()
@@ -75,9 +76,9 @@ impl EventRegistry {
         {
             return Err(failure(StatusCode::FORBIDDEN));
         }
-        self.entries
-            .remove(index)
-            .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))
+        // The caller holds the registry guard through final disclosure. Failure
+        // leaves this exact original principal, owner and cursor in custody.
+        Ok(index)
     }
     fn retain(&mut self, entry: RetainedPage) {
         while self
@@ -348,7 +349,13 @@ pub(super) async fn events(
         let matches: Vec<_> = core
             .homes
             .iter()
-            .filter(|home| home.scope.home_id == query.home_id.as_str())
+            .filter(|home| {
+                home.scope.home_id == query.home_id.as_str()
+                    && query
+                        .workspace_id
+                        .as_ref()
+                        .is_none_or(|workspace| home.scope.workspace_id == workspace.as_str())
+            })
             .collect();
         let scope: d::Scope = match matches.as_slice() {
             [home] => home.scope.clone(),
@@ -384,42 +391,37 @@ pub(super) async fn events(
             (RequestPrincipal::new(principal), session)
         };
         let actor = current.principal.actor_id().as_str().to_owned();
-        let retained = query
+        // Reserve by borrowing under the actual registry mutex. The native
+        // prepare/disclose APIs borrow the original continuation and cannot
+        // advance it; no failure below consumes or reissues the saved cursor.
+        let mut registry = host
+            .operation_events
+            .lock()
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        let reserved = query
             .cursor
             .as_ref()
             .map(|cursor| {
-                host.operation_events
-                    .lock()
-                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
-                    .take(
-                        cursor,
-                        &storage_scope,
-                        &session,
-                        &actor,
-                        query.page_size,
-                        &core.access,
-                    )
+                registry.reserve(
+                    cursor,
+                    &storage_scope,
+                    &session,
+                    &actor,
+                    query.page_size,
+                    &core.access,
+                )
             })
             .transpose()?;
+        let initial_principal = Box::new(current);
+        let initial_owner = s::StockRetainedReadOwner::new();
+        let retained = reserved.map(|index| &registry.entries[index]);
         let initial = retained.is_none();
-        let (principal, continuation, owner, captured_graph, captured_closure) = match retained {
-            Some(entry) => (
-                entry.principal,
-                Some(entry.continuation),
-                entry.owner,
-                Some(entry.graph),
-                Some(entry.closure),
-            ),
-            None => (
-                Box::new(current),
-                None,
-                s::StockRetainedReadOwner::new(),
-                None,
-                None,
-            ),
-        };
+        let principal =
+            retained.map_or(initial_principal.as_ref(), |entry| entry.principal.as_ref());
+        let continuation = retained.map(|entry| &entry.continuation);
+        let owner = retained.map_or(&initial_owner, |entry| &entry.owner);
         let graph =
-            super::reads::retained_read_snapshot(&mut core, &host, &principal, &storage_scope)?;
+            super::reads::retained_read_snapshot(&mut core, &host, principal, &storage_scope)?;
         if serde_json::to_vec(&graph)
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
             .len()
@@ -427,9 +429,9 @@ pub(super) async fn events(
         {
             return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
         }
-        let original_graph = captured_graph.unwrap_or_else(|| graph.clone());
+        let original_graph = retained.map_or_else(|| graph.clone(), |entry| entry.graph.clone());
         let captured = OnceCell::new();
-        if let Some(closure) = captured_closure {
+        if let Some(closure) = retained.map(|entry| entry.closure.clone()) {
             captured
                 .set(closure)
                 .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
@@ -443,10 +445,10 @@ pub(super) async fn events(
             return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
         }
         let authority = EventAuthority {
-            principal: &principal,
+            principal,
             scope: &storage_scope,
             access: &access,
-            owner: &owner,
+            owner,
             graph: &graph,
             phase: Cell::new(0),
             original_graph: &original_graph,
@@ -459,12 +461,12 @@ pub(super) async fn events(
         let prepared = store
             .prepare_stock_operation_events_with_authorization(
                 &authority,
-                &principal,
+                principal,
                 &contracts,
                 principal.principal.retained(),
                 &storage_scope,
                 query.page_size,
-                continuation.as_ref(),
+                continuation,
             )
             .map_err(|error| domain_error(crate::app::storage_error(error)))?;
         let mut full_graph = original_graph.clone();
@@ -480,7 +482,7 @@ pub(super) async fn events(
         }
         let result = store
             .disclose_stock_operation_events_with_authorization(
-                &authority, &principal, &contracts, &prepared,
+                &authority, principal, &contracts, &prepared,
             )
             .map_err(|error| domain_error(crate::app::storage_error(error)))?;
         if authority.phase.get() != 5 {
@@ -521,24 +523,38 @@ pub(super) async fn events(
             .cloned()
             .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
         drop(authority);
+        // Commit registry custody only after native disclosure and the final
+        // current-session/read fence succeeded. Removal and replacement have
+        // no intervening fallible operation and preserve the original Box.
+        let response = response.ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        let previous = match reserved {
+            Some(index) => Some(
+                registry
+                    .entries
+                    .remove(index)
+                    .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?,
+            ),
+            None => None,
+        };
         if let Some(continuation) = result.continuation {
-            host.operation_events
-                .lock()
-                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
-                .retain(RetainedPage {
-                    principal,
-                    continuation,
-                    scope: storage_scope,
-                    session,
-                    actor,
-                    page_size: query.page_size,
-                    access,
-                    owner,
-                    graph: original_graph,
-                    closure,
-                });
+            let (principal, owner) = match previous {
+                Some(entry) => (entry.principal, entry.owner),
+                None => (initial_principal, initial_owner),
+            };
+            registry.retain(RetainedPage {
+                principal,
+                continuation,
+                scope: storage_scope,
+                session,
+                actor,
+                page_size: query.page_size,
+                access,
+                owner,
+                graph: original_graph,
+                closure,
+            });
         }
-        response.ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))
+        Ok(response)
     })
     .await
     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
@@ -548,6 +564,7 @@ pub(super) async fn events(
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct IntentQuery {
+    workspace_id: Option<a::CanonicalId>,
     home_id: a::CanonicalId,
     intent: String,
 }
@@ -567,21 +584,26 @@ pub(super) async fn reconcile_intent(
             .core
             .lock()
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-        let matches: Vec<_> = core
-            .homes
-            .iter()
-            .filter(|home| home.scope.home_id == query.home_id.as_str())
-            .collect();
-        let scope = match matches.as_slice() {
-            [home] => home.scope.clone(),
-            [] => return Err(failure(StatusCode::NOT_FOUND)),
-            _ => return Err(failure(StatusCode::SERVICE_UNAVAILABLE)),
+        // The complete intent carries its original full scope. Resolve it
+        // before authorization rather than selecting an ambiguous home ID.
+        let storage_scope: s::Scope = serde_json::from_value(raw["context"].clone())
+            .map_err(|_| failure(StatusCode::UNPROCESSABLE_ENTITY))?;
+        if storage_scope.home_id != query.home_id.as_str()
+            || query
+                .workspace_id
+                .as_ref()
+                .is_some_and(|workspace| storage_scope.workspace_id != workspace.as_str())
+        {
+            return Err(failure(StatusCode::FORBIDDEN));
+        }
+        let scope = d::Scope {
+            workspace_id: storage_scope.workspace_id.clone(),
+            home_id: storage_scope.home_id.clone(),
         };
         let native_scope = crate::app::access_scope(&scope).map_err(access_error)?;
-        let storage_scope: s::Scope = serde_json::from_value(
-            serde_json::to_value(&scope).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
-        )
-        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        if !core.homes.iter().any(|home| home.scope == scope) {
+            return Err(failure(StatusCode::NOT_FOUND));
+        }
         if raw["context"]
             != serde_json::to_value(&storage_scope)
                 .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
