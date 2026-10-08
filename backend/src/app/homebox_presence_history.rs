@@ -2,13 +2,17 @@
 //! Only a cut promoted after the full original Access commit can create this.
 use crate::{
     access as a,
+    app::homebox_presence::ConfiguredPresenceReleased,
     contracts::{self, stock as wire},
     domain::stock,
     providers::homebox::read as hb,
     storage as s,
 };
 use serde::Serialize;
-use std::io::{self, Write};
+use std::{
+    io::{self, Write},
+    sync::Arc,
+};
 
 const MAX_RAW_BYTES: usize = 512 * 1024 * 1024;
 const MAX_NORMALIZED_BYTES: usize = 128 * 1024 * 1024;
@@ -78,10 +82,83 @@ pub struct RecordedPresenceHistory {
     normalized_bytes: usize,
 }
 
+/// Refuse unsupported predecessor history and oversized or unverifiable native
+/// captures before any new command can mutate Storage. This issues no history
+/// evidence; only the later fully accepted cut can do that.
+pub(crate) fn validate_publications_for_archive(
+    publications: &[&ConfiguredPresenceReleased<'_, '_>],
+) -> s::Result<(usize, usize)> {
+    require(!publications.is_empty() && publications.len() <= MAX_PUBLICATIONS)?;
+    let mut raw_bytes = 0usize;
+    let mut normalized_bytes = 0usize;
+    for publication in publications {
+        let native = publication.retain_native_identity();
+        let complete = publication.normalized_generation();
+        let origin = publication.origin();
+        let committed = publication.committed();
+        // Without an archived predecessor, missing IDs and quarantine have no
+        // independently verifiable historical meaning.
+        require(
+            origin.baseline_generation_id().is_none()
+                && origin.baseline_cache_epoch().value() == 0
+                && complete.missing_external_ids().is_empty()
+                && !complete.quarantine(),
+        )?;
+        for response in native.generation().responses() {
+            raw_bytes = raw_bytes
+                .checked_add(response.body().len())
+                .ok_or_else(incompatible)?;
+            require(raw_bytes <= MAX_RAW_BYTES)?;
+        }
+        let remaining = MAX_NORMALIZED_BYTES
+            .checked_sub(normalized_bytes)
+            .ok_or_else(incompatible)?;
+        normalized_bytes = normalized_bytes
+            .checked_add(bounded(
+                &(
+                    complete,
+                    committed.generation(),
+                    committed.registration(),
+                    origin.source_metadata().access_epoch(),
+                    origin.source_metadata().source_registration_version(),
+                    origin.source_metadata().source_registration_sha256(),
+                ),
+                remaining,
+            )?)
+            .ok_or_else(incompatible)?;
+        require(normalized_bytes <= MAX_NORMALIZED_BYTES)?;
+        let registration: hb::SourceRegistration = serde_json::from_value(
+            serde_json::to_value(committed.registration()).map_err(|_| incompatible())?,
+        )
+        .map_err(|_| incompatible())?;
+        native
+            .validate_retained_generation(&registration, complete)
+            .map_err(|_| incompatible())?;
+        require(
+            committed.registration() == origin.registration()
+                && committed.generation().network_relations.is_empty()
+                && complete.cache().generation_id.as_ref().map(|v| v.as_str())
+                    == committed.cache().generation_id.as_deref()
+                && origin.original_source().reference().partition()
+                    == *origin.original_partition().partition()
+                && committed.cache().partition() == *origin.partition(),
+        )?;
+    }
+    Ok((raw_bytes, normalized_bytes))
+}
+
+/// Public composition entry: only opaque records minted from original accepted
+/// cuts can populate this catalog. It does not issue current authority.
+pub fn catalog_from_accepted(
+    entries: Vec<Arc<RecordedPresenceHistory>>,
+) -> s::Result<s::PresenceHistoryCatalog> {
+    s::PresenceHistoryCatalog::from_accepted(entries)
+}
+
 impl RecordedPresenceHistory {
     pub(crate) fn from_accepted(cut: s::StockPresenceAcceptedCut<'_, '_, '_>) -> s::Result<Self> {
         let publications = cut.publications();
-        require(!publications.is_empty() && publications.len() <= MAX_PUBLICATIONS)?;
+        let (raw_bytes, normalized_bytes) = validate_publications_for_archive(publications)?;
         let frame = cut.frame();
         require(frame.witnesses().len() <= MAX_WITNESSES)?;
         bounded(
@@ -98,64 +175,15 @@ impl RecordedPresenceHistory {
         )?;
         require(cut.original_request().raw() == &frame.commit().original_request)?;
 
-        let mut raw_bytes = 0usize;
-        let mut normalized_bytes = 0usize;
         let mut originals = Vec::with_capacity(publications.len());
         for publication in publications {
             let native = publication.retain_native_identity();
-            let complete = publication.retained_complete_generation();
+            let complete = publication.normalized_generation();
             let origin = publication.origin();
             let committed = publication.committed();
-            // A predecessor changes missing-ID and quarantine semantics. Do not
-            // reconstruct its history from today's rows or infer it from bytes.
-            require(
-                origin.baseline_generation_id().is_none()
-                    && origin.baseline_cache_epoch().value() == 0
-                    && complete.missing_external_ids().is_empty()
-                    && !complete.quarantine(),
-            )?;
-            for response in native.generation().responses() {
-                raw_bytes = raw_bytes
-                    .checked_add(response.body().len())
-                    .ok_or_else(incompatible)?;
-                require(raw_bytes <= MAX_RAW_BYTES)?;
-            }
-            let remaining = MAX_NORMALIZED_BYTES
-                .checked_sub(normalized_bytes)
-                .ok_or_else(incompatible)?;
-            normalized_bytes = normalized_bytes
-                .checked_add(bounded(
-                    &(
-                        &complete,
-                        committed.generation(),
-                        committed.registration(),
-                        origin.source_metadata().access_epoch(),
-                        origin.source_metadata().source_registration_version(),
-                        origin.source_metadata().source_registration_sha256(),
-                    ),
-                    remaining,
-                )?)
-                .ok_or_else(incompatible)?;
-            require(normalized_bytes <= MAX_NORMALIZED_BYTES)?;
-            let registration: hb::SourceRegistration = serde_json::from_value(
-                serde_json::to_value(committed.registration()).map_err(|_| incompatible())?,
-            )
-            .map_err(|_| incompatible())?;
-            native
-                .validate_retained_generation(&registration, &complete)
-                .map_err(|_| incompatible())?;
-            require(
-                committed.registration() == origin.registration()
-                    && committed.generation().network_relations.is_empty()
-                    && complete.cache().generation_id.as_ref().map(|v| v.as_str())
-                        == committed.cache().generation_id.as_deref()
-                    && origin.original_source().reference().partition()
-                        == *origin.original_partition().partition()
-                    && committed.cache().partition() == *origin.partition(),
-            )?;
             originals.push(OriginalPublication {
                 native,
-                complete,
+                complete: complete.clone(),
                 normalized: committed.generation().clone(),
                 registration: committed.registration().clone(),
                 metadata: origin.source_metadata().clone(),

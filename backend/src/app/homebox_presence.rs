@@ -262,10 +262,10 @@ impl<'origin, 'principal> ConfiguredPresenceReleased<'origin, 'principal> {
     ) -> crate::providers::homebox::read::NativePresenceIdentity {
         self.released.native_capture().retain_native_identity()
     }
-    pub(crate) fn retained_complete_generation(
+    pub(crate) fn normalized_generation(
         &self,
-    ) -> crate::providers::homebox::read::CompleteGeneration {
-        self.released.native_capture().generation().clone()
+    ) -> &crate::providers::homebox::read::CompleteGeneration {
+        self.released.native_capture().generation()
     }
     pub fn native_access_package_version(&self) -> &'static str {
         self.released.native_access_package_version()
