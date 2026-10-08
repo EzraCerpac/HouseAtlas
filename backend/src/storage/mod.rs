@@ -58,15 +58,16 @@ pub use queue::{
     JournalEvidenceView, NativeJournalReceipt, OriginalQueueJournalCut,
     OriginalQueuedQuantityAttempt, OriginalQueuedQuantityClaim, OriginalQueuedQuantityEnqueue,
     OriginalQueuedQuantityOwner, OriginalQueuedUploadAttempt, OriginalQueuedUploadClaim,
-    OriginalQueuedUploadEnqueue, OriginalQueuedUploadOwner, OriginalUploadJournalCut,
-    PreparedNativeIntent, QueueAction, QueueAuthorization, QueueDiscovery, QueueEvidenceInbox,
-    QueueHandles, QueueJournalHandle, QueueJournalPort, QueueOriginalCommittedData,
-    QueueOriginalCommittedObservation, QueueOriginalIntent, QueueOriginalJournalCommittedData,
-    QueueOriginalJournalCommittedObservation, QueueOriginalPreparationCommittedData,
-    QueueOriginalPreparationData, QueueOriginalPreparationObservation, QueuePhase,
-    QueueRecoveryAttempt, QueueRecoveryEvidence, QueueRecoveryOutcome, QueueSession,
-    QueueSessionBinding, QueueStepEvidence, QueueStoreHandle, QueueUploadCommittedData,
-    QueueUploadCommittedObservation, QueueUploadJournalCommittedData,
+    OriginalQueuedUploadEnqueue, OriginalQueuedUploadExecution, OriginalQueuedUploadOwner,
+    OriginalUploadJournalCut, PreparedNativeIntent, QueueAction, QueueAuthorization,
+    QueueDiscovery, QueueEvidenceInbox, QueueHandles, QueueJournalHandle, QueueJournalPort,
+    QueueOriginalCommittedData, QueueOriginalCommittedObservation, QueueOriginalIntent,
+    QueueOriginalJournalCommittedData, QueueOriginalJournalCommittedObservation,
+    QueueOriginalPreparationCommittedData, QueueOriginalPreparationData,
+    QueueOriginalPreparationObservation, QueuePhase, QueueRecoveryAttempt, QueueRecoveryEvidence,
+    QueueRecoveryOutcome, QueueSession, QueueSessionBinding, QueueStepEvidence, QueueStoreHandle,
+    QueueUploadCommittedData, QueueUploadCommittedObservation, QueueUploadFinishCommittedData,
+    QueueUploadFinishCommittedObservation, QueueUploadJournalCommittedData,
     QueueUploadJournalCommittedObservation, RecordedOriginalEnqueue, RecordedOriginalEnqueueProof,
     RecordedOriginalUploadEnqueue, RecordedOriginalUploadEnqueueProof, StepKind,
 };
@@ -80,6 +81,7 @@ pub use upload_types::{
     ExistingOriginalAsset, MediaPolicyRecoveryFrame, StagedUploadPrincipal,
 };
 
+pub(crate) use queue::upload_execution::current_now as original_upload_execution_now;
 pub(crate) use stock_activity::retained_native_codec_bridge;
 
 pub use quantity_installation_types::QuantityInstallationTransaction;
