@@ -1,6 +1,7 @@
 //! Private genuine installed upload phases. The shared queue engine receives a
 //! distinct upload context, never quantity source evidence or copied custody.
 use super::*;
+use crate::media::{WorkBudget, native_queued_upload::NativeQueuedUploadPrepared};
 use crate::{
     access,
     app::{
@@ -12,7 +13,10 @@ use crate::{
 };
 use quantity_original::{OwnedQuantityContext, UploadCommitContext};
 use std::cell::{Cell, RefCell};
-use upload_original_owner::{QueueUploadClaimCapture, QueueUploadEnqueueCapture};
+use upload_journal_custody::QueueUploadJournalCapture;
+use upload_original_owner::{
+    OriginalQueuedUploadAttempt, QueueUploadClaimCapture, QueueUploadEnqueueCapture,
+};
 
 fn unavailable() -> Error {
     Error::new(
@@ -263,6 +267,178 @@ impl OwnedQuantityContext for UploadContext<'_, '_, '_, '_, '_, '_, '_, '_> {
         Err(conflict())
     }
 }
+// This context retains the actual released attempt and opaque Media owner.
+// It is synchronous and borrows each real active SQLite transaction only while
+// the current installed native/body/physical fences are qualified.
+struct UploadJournalContext<'phase, 'tx, 'bundle, 'native, 'owner, 'captured, 'p> {
+    preparation: &'phase OriginalQueuedUploadAdmission<'bundle, 'native, 'owner, 'captured, 'p>,
+    guard: &'phase access::TransactionAuthorization<'tx>,
+    identity: crate::storage::QuantityInstallationStoreIdentity,
+    attempt: &'phase OriginalQueuedUploadAttempt,
+    native: &'phase Arc<NativeQueuedUploadPrepared>,
+    journal_seen: Cell<bool>,
+    budget: WorkBudget,
+}
+impl UploadJournalContext<'_, '_, '_, '_, '_, '_, '_> {
+    fn active(&self, db: &Connection) -> Result<()> {
+        if !self
+            .attempt
+            .matches_original_upload(&self.identity, self.preparation)
+            || !Arc::ptr_eq(self.native.upload_cut(), self.preparation.upload_cut())
+            || !self.native.matches_original(self.preparation.upload_cut())
+        {
+            return Err(conflict());
+        }
+        self.validate_job_and_journal(db)?;
+        let prepared = self.preparation.preparation();
+        let configured = prepared.configured();
+        let source = prepared.native().source();
+        let original = OriginalQueuedUploadPrincipal::from_captured(
+            configured,
+            prepared.captured(),
+            source.original_source(),
+            source.original_partition(),
+        )?;
+        let transaction = crate::storage::observe_quantity_installation_in_transaction(
+            db,
+            &self.identity,
+            &original,
+            self.guard,
+            configured.queue(),
+            configured.physical(),
+        )?;
+        let physical = OriginalQueuedUploadPhysical::from_activity_transaction(
+            configured,
+            &transaction,
+            self.guard,
+        )?;
+        self.native
+            .revalidate_original_phase(self.preparation, self.guard, &physical, &self.budget)
+            .map_err(|_| unavailable())?;
+        self.validate_job_and_journal(db)
+    }
+    fn validate_job_and_journal(&self, db: &Connection) -> Result<()> {
+        let job = self.attempt.job();
+        let config = self.preparation.config();
+        assert_registered(db, config)?;
+        let row = validate_job(db, config, job)?;
+        matches_original(
+            &self.preparation.request().receipt,
+            self.preparation.original(),
+            &row,
+            config,
+        )?;
+        let (_, active_id, fence, expires) = active(db, config)?;
+        let reservation = reservation_liability(job.pending_byte_liability)?.ok_or_else(stale)?;
+        let claimed_at = job
+            .lease
+            .expires_at
+            .checked_sub(config.lease_duration_ms)
+            .ok_or_else(stale)?;
+        if current_now()? >= job.lease.expires_at
+            || active_id.as_deref() != Some(job.lease.job_id.0.as_str())
+            || fence != Some(job.lease.fence)
+            || expires != Some(job.lease.expires_at)
+            || row.status != JobStatus::Running
+            || row.attempts != 1
+            || row.updated != claimed_at.max(row.created)
+            || row.next.is_some()
+            || !row.body_accepted
+            || !row.logical
+            || row.remote != RemoteActivity::Invoked(InvokedRemoteActivity::Active)
+            || row.applied.is_some()
+            || row.failure.is_some()
+            || row.reconciliation.is_some()
+            || !retained_outcomes(db, job)?.is_empty()
+            || !retained_steps(db, job)?.is_empty()
+        {
+            return Err(stale());
+        }
+        let prepared = self.native.prepared();
+        let prefix = match load_journal_view(db, job)? {
+            Some(journal) => {
+                let native = digest(&prepared.native_payload);
+                let media = digest(&prepared.prepared_media_evidence);
+                let expected = journal_digest(
+                    job,
+                    &prepared.codec,
+                    &native,
+                    &media,
+                    &prepared.storage_liability,
+                )?;
+                type Payload = (String, Vec<u8>, Vec<u8>);
+                let stored: Payload = db.query_row(
+                    "SELECT native_codec,native_payload,prepared_media FROM queue_journal WHERE job_id=?1 AND fence=?2",
+                    params![job.lease.job_id.0, decimal(job.lease.fence)],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )?;
+                if stored
+                    != (
+                        prepared.codec.clone(),
+                        prepared.native_payload.clone(),
+                        prepared.prepared_media_evidence.clone(),
+                    )
+                    || journal.native_codec != prepared.codec
+                    || journal.native_payload_digest.as_hex() != native
+                    || journal.prepared_media_digest.as_hex() != media
+                    || journal.journal_evidence_digest.as_hex() != expected
+                    || journal.prepared_liability != prepared.storage_liability
+                {
+                    return Err(stale());
+                }
+                self.journal_seen.set(true);
+                vec![
+                    ("claim".into(), reservation.clone()),
+                    ("journal".into(), prepared.storage_liability.clone()),
+                ]
+            }
+            None => {
+                if self.journal_seen.get() {
+                    return Err(stale());
+                }
+                vec![("claim".into(), reservation.clone())]
+            }
+        };
+        if retained_liabilities(db, job)? != prefix
+            || row.liability != aggregate_liability(db, &row.id)?
+        {
+            return Err(stale());
+        }
+        Ok(())
+    }
+}
+impl OwnedQuantityContext for UploadJournalContext<'_, '_, '_, '_, '_, '_, '_> {
+    fn upload_commit_context(&self) -> Option<&dyn UploadCommitContext> {
+        None
+    }
+    fn revalidate(&self, db: &Connection) -> Result<()> {
+        if db.is_autocommit() {
+            let tx = db.unchecked_transaction()?;
+            self.active(&tx)?;
+            tx.commit()?;
+            Ok(())
+        } else {
+            self.active(db)
+        }
+    }
+    fn validate_fresh(
+        &self,
+        _: &EnqueueRequest,
+        _: &CanonicalScope,
+        _: &QueueConfig,
+    ) -> Result<()> {
+        Err(conflict())
+    }
+    fn validate_initial(&self, _: &StoredJob, _: &QueueConfig, _: Timestamp) -> Result<()> {
+        Err(conflict())
+    }
+    fn enqueue_committed(&self, _: &JobSnapshot) -> Result<()> {
+        Err(conflict())
+    }
+    fn claim_committed(&self, _: &LeasedJob) -> Result<()> {
+        Err(conflict())
+    }
+}
 fn current_now() -> Result<Timestamp> {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -387,5 +563,88 @@ impl crate::app::Store {
             capture.record_released(job)?;
         }
         Ok(output)
+    }
+}
+
+impl crate::app::Store {
+    pub(super) fn commit_original_upload_journal_inner<'bundle, 'native, 'owner, 'captured, 'p>(
+        &mut self,
+        preparation: &OriginalQueuedUploadAdmission<'bundle, 'native, 'owner, 'captured, 'p>,
+        attempt: &OriginalQueuedUploadAttempt,
+        prepared: &Arc<NativeQueuedUploadPrepared>,
+        capture: &QueueUploadJournalCapture<'_>,
+    ) -> Result<NativeJournalReceipt> {
+        capture.validate_attempt(self, preparation, prepared)?;
+        let boundary = Arc::clone(&self.configured_authorization().0);
+        if !Arc::ptr_eq(&boundary, preparation.preparation().configured().access()) {
+            return Err(unavailable());
+        }
+        let identity = self.quantity_installation_store_identity();
+        let mut boundary = boundary.try_lock().map_err(|_| unavailable())?;
+        let mut receipt = None;
+        boundary
+            .with_mutation_authorization(preparation.principal().principal.principal(), |guard| {
+                let context = UploadJournalContext {
+                    preparation,
+                    guard,
+                    identity,
+                    attempt,
+                    native: prepared,
+                    journal_seen: Cell::new(false),
+                    budget: WorkBudget::new(
+                        std::time::Duration::from_secs(10),
+                        crate::media::Cancellation::default(),
+                    )
+                    .map_err(|_| unavailable())?,
+                };
+                context.revalidate(&self.db)?;
+                let authority =
+                    QueuedUploadAdmissionPhase::new_journal(preparation, guard, attempt, prepared)?;
+                // The journal corridor uses the already registered queue. The
+                // ordinary session factory would authorize/register again;
+                // this closed descendant construction permits only the exact
+                // released Lease and Journal with the current owned context.
+                let config = preparation.config().clone();
+                config.validate().map_err(|_| invalid())?;
+                let original = preparation.original();
+                let selected_receipt = &preparation.request().receipt;
+                if !original.is_mutation()
+                    || original.context().workspace_id != selected_receipt.workspace_id
+                    || original.context().home_id != selected_receipt.home_id
+                {
+                    return Err(invalid().into());
+                }
+                authorize_session(
+                    &authority,
+                    preparation.principal(),
+                    preparation,
+                    original,
+                    selected_receipt,
+                    QueuePhase::Entry,
+                    QueueAction::Lease(&attempt.job().lease),
+                )?;
+                let mut session = QueueSession {
+                    store: self,
+                    config,
+                    receipt: selected_receipt,
+                    original,
+                    principal: preparation.principal(),
+                    witness: preparation,
+                    authority: &authority,
+                    inbox: QueueEvidenceInbox::default(),
+                };
+                capture.validate_session(&session, attempt.job(), prepared.prepared())?;
+                receipt = Some(session.commit_native_inner_with_upload_owned(
+                    attempt.job(),
+                    prepared.prepared(),
+                    capture,
+                    &context,
+                )?);
+                Ok::<(), PhaseFailure>(())
+            })
+            .map_err(PhaseFailure::storage)?;
+        let receipt = receipt.ok_or_else(unavailable)?;
+        capture.record_released(&receipt)?;
+        Ok(receipt)
     }
 }

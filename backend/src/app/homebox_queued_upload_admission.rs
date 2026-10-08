@@ -11,7 +11,8 @@ use crate::{
     media::{
         WorkBudget,
         native_queued_upload::{
-            NativeQueuedUploadOriginal, NativeQueuedUploadStage, NativeQueuedUploadStages,
+            NativeQueuedUploadOriginal, NativeQueuedUploadPrepared, NativeQueuedUploadStage,
+            NativeQueuedUploadStages,
         },
     },
     storage,
@@ -162,6 +163,10 @@ pub(crate) struct QueuedUploadAdmissionPhase<'phase, 'tx, 'bundle, 'native, 'own
     preparation: &'phase OriginalQueuedUploadAdmission<'bundle, 'native, 'owner, 'captured, 'p>,
     guard: &'phase access::TransactionAuthorization<'tx>,
     initial: Option<&'phase jobs::JobSnapshot>,
+    journal: Option<(
+        &'phase storage::OriginalQueuedUploadAttempt,
+        &'phase Arc<NativeQueuedUploadPrepared>,
+    )>,
 }
 impl<'phase, 'tx, 'bundle, 'native, 'owner, 'captured, 'p>
     QueuedUploadAdmissionPhase<'phase, 'tx, 'bundle, 'native, 'owner, 'captured, 'p>
@@ -176,6 +181,35 @@ impl<'phase, 'tx, 'bundle, 'native, 'owner, 'captured, 'p>
             preparation,
             guard,
             initial,
+            journal: None,
+        })
+    }
+    pub(crate) fn new_journal(
+        preparation: &'phase OriginalQueuedUploadAdmission<'bundle, 'native, 'owner, 'captured, 'p>,
+        guard: &'phase access::TransactionAuthorization<'tx>,
+        attempt: &'phase storage::OriginalQueuedUploadAttempt,
+        native: &'phase Arc<NativeQueuedUploadPrepared>,
+    ) -> storage::Result<Self> {
+        preparation.revalidate_guard(guard)?;
+        let job = attempt.job();
+        let config = preparation.config();
+        if !Arc::ptr_eq(native.upload_cut(), preparation.upload_cut())
+            || !native.matches_original(preparation.upload_cut())
+            || job.request != *preparation.request()
+            || job.canonical_scope != *preparation.scope()
+            || job.pending_byte_liability != preparation.request().pending_byte_liability
+            || job.lease.owner_id != config.registration.dispatcher_owner_id
+            || job.lease.physical_identity != config.registration.identity
+            || job.lease.fence == 0
+            || job.attempt != 1
+        {
+            return Err(unavailable());
+        }
+        Ok(Self {
+            preparation,
+            guard,
+            initial: None,
+            journal: Some((attempt, native)),
         })
     }
     fn check(
@@ -209,29 +243,46 @@ impl<'bundle, 'native, 'owner, 'captured, 'p> storage::QueueAuthorization
         self.check(principal, witness, original)?;
         let config = self.preparation.config();
         let request = self.preparation.request();
-        let exact = match action {
-            storage::QueueAction::Register(selected) => selected == config,
-            storage::QueueAction::Enqueue(selected) => selected == request,
-            storage::QueueAction::Snapshot(receipt) => receipt == &request.receipt,
-            storage::QueueAction::Reject {
-                request: selected, ..
-            } => selected == request,
-            storage::QueueAction::Claim(job) => self.initial.is_some_and(|initial| {
-                job.lease.job_id == initial.job_id
-                    && job.attempt == 1
-                    && job.lease.fence > 0
-                    && std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .ok()
-                        .and_then(|n| u64::try_from(n.as_millis()).ok())
-                        .is_some_and(|now| now < job.lease.expires_at)
-                    && job.lease.owner_id == config.registration.dispatcher_owner_id
-                    && job.lease.physical_identity == config.registration.identity
-                    && job.request == *request
-                    && job.canonical_scope == *self.preparation.scope()
-                    && job.pending_byte_liability == request.pending_byte_liability
-            }),
-            _ => false,
+        let exact = if let Some((attempt, native)) = self.journal {
+            let job = attempt.job();
+            let current = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .ok()
+                .and_then(|n| u64::try_from(n.as_millis()).ok())
+                .is_some_and(|now| now < job.lease.expires_at);
+            current
+                && match action {
+                    storage::QueueAction::Lease(lease) => lease == &job.lease,
+                    storage::QueueAction::Journal(selected, prepared) => {
+                        selected == job && std::ptr::eq(prepared, native.prepared())
+                    }
+                    _ => false,
+                }
+        } else {
+            match action {
+                storage::QueueAction::Register(selected) => selected == config,
+                storage::QueueAction::Enqueue(selected) => selected == request,
+                storage::QueueAction::Snapshot(receipt) => receipt == &request.receipt,
+                storage::QueueAction::Reject {
+                    request: selected, ..
+                } => selected == request,
+                storage::QueueAction::Claim(job) => self.initial.is_some_and(|initial| {
+                    job.lease.job_id == initial.job_id
+                        && job.attempt == 1
+                        && job.lease.fence > 0
+                        && std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .ok()
+                            .and_then(|n| u64::try_from(n.as_millis()).ok())
+                            .is_some_and(|now| now < job.lease.expires_at)
+                        && job.lease.owner_id == config.registration.dispatcher_owner_id
+                        && job.lease.physical_identity == config.registration.identity
+                        && job.request == *request
+                        && job.canonical_scope == *self.preparation.scope()
+                        && job.pending_byte_liability == request.pending_byte_liability
+                }),
+                _ => false,
+            }
         };
         if !exact {
             return Err(unavailable());
@@ -255,7 +306,10 @@ impl<'bundle, 'native, 'owner, 'captured, 'p> storage::QueueAuthorization
         scope: &jobs::CanonicalScope,
     ) -> storage::Result<()> {
         self.check(principal, witness, original)?;
-        if request != self.preparation.request() || scope != self.preparation.scope() {
+        if self.journal.is_some()
+            || request != self.preparation.request()
+            || scope != self.preparation.scope()
+        {
             return Err(unavailable());
         }
         Ok(())

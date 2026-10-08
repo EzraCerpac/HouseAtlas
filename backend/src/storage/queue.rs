@@ -62,8 +62,14 @@ mod finish;
 mod journal;
 #[path = "queue_quantity_original.rs"]
 mod quantity_original;
+#[path = "queue_upload_journal_custody.rs"]
+mod upload_journal_custody;
 #[path = "queue_upload_original.rs"]
 mod upload_original;
+pub use upload_journal_custody::{
+    OriginalUploadJournalCut, QueueUploadJournalCommittedData,
+    QueueUploadJournalCommittedObservation,
+};
 #[path = "queue_upload_original_owner.rs"]
 mod upload_original_owner;
 pub use upload_original_owner::{
