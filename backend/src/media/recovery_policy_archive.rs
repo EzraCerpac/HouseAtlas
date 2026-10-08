@@ -251,6 +251,11 @@ impl RestoredMediaPolicyArchiveCut {
             }
         }
     }
+    // Pure exact comparison for the native publisher's genuine Store carrier.
+    // This cannot authenticate completion or construct a stage/renderer proof.
+    pub(super) fn matches_consumed_upload(&self, upload: &s::ConsumedUpload) -> bool {
+        self.matches(s::MediaPolicyRecoveryFrame::Upload(upload))
+    }
 }
 
 /// Fresh factory-only packet retaining the genuine original allocation until
