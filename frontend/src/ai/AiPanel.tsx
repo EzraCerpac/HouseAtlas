@@ -114,6 +114,7 @@ export function AiPanelView({
       }] : []
   );
   const pendingKinds = unresolvedActions.filter(action => action.admissionBlocking !== false).map(action => action.action);
+  const disconnectUnresolved = unresolvedActions.some(action => action.action === 'disconnect');
   const disconnectRetryBlocked = unresolvedActions.some(action => action.action === 'disconnect' && !hasObservedUnconfirmedReceipt(action));
   const disconnectReceiptMissing = unresolvedActions.some(action => action.action === 'disconnect'
     && action.status === 'unconfirmed' && action.hostStatus !== 'unconfirmed');
@@ -140,7 +141,7 @@ export function AiPanelView({
     {state.connection.status === 'available'
       ? <ConnectionDetails connection={state.connection.snapshot} />
       : <p role="status">{state.connection.status === 'loading' ? 'Checking connection.' : 'Connection status is unavailable.'}</p>}
-    <ModelsSection binding={modelsBinding} state={state} />
+    <ModelsSection binding={modelsBinding} state={state} disconnectUnresolved={disconnectUnresolved} />
     <fieldset className="ha-ai__connection">
       <legend>Connection actions</legend>
       <label htmlFor={`${id}-route`}>Candidate runtime</label>
@@ -205,14 +206,14 @@ export function AiPanelView({
 type ModelsRead = { readonly identity: object; readonly status: 'loading' | 'available' | 'unavailable' | 'unauthorized'; readonly result?: ModelDiscovery };
 
 /** This read has its own observer and never changes inference/session admission. */
-function ModelsSection({ binding, state }: { readonly binding: AiModelsBinding | undefined; readonly state: AiSessionState }) {
+function ModelsSection({ binding, state, disconnectUnresolved }: { readonly binding: AiModelsBinding | undefined; readonly state: AiSessionState; readonly disconnectUnresolved: boolean }) {
   const client = binding?.client;
   const scopeKey = binding?.scopeKey;
   const receipt = binding?.receiptIdentity;
   const registrationId = receipt?.registrationId;
   const snapshot = state.connection.status === 'available' ? state.connection.snapshot : null;
-  const disconnecting = state.connectionAction.action === 'disconnect'
-    && (state.connectionAction.status === 'working' || state.connectionAction.status === 'pending' || state.connectionAction.status === 'unconfirmed');
+  const disconnecting = disconnectUnresolved || (state.connectionAction.action === 'disconnect'
+    && (state.connectionAction.status === 'working' || state.connectionAction.status === 'pending' || state.connectionAction.status === 'unconfirmed'));
   const authorized = snapshot?.authorization === 'connected' && snapshot.account !== null && !disconnecting;
   const bound = Boolean(client?.models && scopeKey && registrationId?.trim()
     && new TextEncoder().encode(registrationId).length <= 4096);
