@@ -199,11 +199,11 @@ function describe(output: QuantityToolOutput): string {
   if (output.outcome === 'not-prepared') return `Assistant quantity request not prepared: ${output.message}`;
   if (output.outcome === 'preview-outcome-unknown') return output.message;
   const ended = output.ended;
-  if (ended.outcome === 'native-result') return 'Native result returned to the assistant.';
+  if (ended.outcome === 'native-result') return 'Native result offered to the assistant.';
   if (ended.outcome === 'ended-before-submission') return ended.cause === 'preview-deadline'
-    ? 'Preview deadline reached with no submission started; returned to the assistant.'
-    : 'Dismissed with no submission started; returned to the assistant.';
-  return `Returned to the assistant: ${ended.message}`;
+    ? 'Preview deadline reached with no submission started; offered to the assistant.'
+    : 'Dismissed with no submission started; offered to the assistant.';
+  return `Offered to the assistant: ${ended.message}`;
 }
 
 type Lease = ReturnType<ReturnType<typeof useCommittedResult<QuantityToolOutput>>['activate']>;
