@@ -101,6 +101,27 @@ pub struct EnrollmentOwner {
     journal: StatusJournal,
     identity: Arc<()>,
 }
+impl EnrollmentOwner {
+    /// Read-only verification against the existing installed configuration.
+    /// This neither installs approval nor reconstructs authority from labels.
+    pub fn verify_existing_configuration(
+        &self,
+        original: &access::Principal,
+        registration: &TrustedRegistration,
+    ) -> Result<(), AiError> {
+        let access = self.access.lock().map_err(|_| AiError::DomainUnavailable)?;
+        access.revalidate(original).map_err(access_error)?;
+        matches_scope(original, registration.binding())?;
+        let db = self.db.lock().map_err(|_| AiError::DomainUnavailable)?;
+        let row = read_row(&db, original)?;
+        if row.binding != *registration.binding()
+            || row.configuration != registration.configuration()
+        {
+            return Err(AiError::ConnectionUnavailable);
+        }
+        Ok(())
+    }
+}
 /// Nonserializable original proof. Cloning the native principal preserves its
 /// opaque session/membership/action provenance; no safe DTO is used as a grant.
 pub struct OriginalEnrollment {
