@@ -1,7 +1,7 @@
 //! Native HomeBox activity journal on the original Atlas connection.
 //! Original host handles are retained in memory; database rows are data only.
 mod baseline;
-mod codec;
+pub(crate) mod codec;
 #[path = "../homebox_stock_history_repository.rs"]
 pub(crate) mod history_repository;
 mod journal;

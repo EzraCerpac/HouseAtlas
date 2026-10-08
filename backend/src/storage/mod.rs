@@ -23,6 +23,11 @@ pub use presence_profile::{
     PresenceProfileDefinition, PresenceProfileSelection, presence_profile_definition,
 };
 mod queue;
+mod queue_original_profile;
+pub use queue_original_profile::{
+    QueueOriginalPreparationProfileDefinition, QueueOriginalPreparationProfileSelection,
+    queue_original_preparation_profile_definition,
+};
 mod repository;
 mod stock_activity;
 mod stock_asset_review_types;
@@ -50,9 +55,10 @@ pub use ports::{
 pub use queue::{
     JournalEvidenceView, NativeJournalReceipt, PreparedNativeIntent, QueueAction,
     QueueAuthorization, QueueDiscovery, QueueEvidenceInbox, QueueHandles, QueueJournalHandle,
-    QueueJournalPort, QueueOriginalIntent, QueuePhase, QueueRecoveryAttempt, QueueRecoveryEvidence,
-    QueueRecoveryOutcome, QueueSession, QueueSessionBinding, QueueStepEvidence, QueueStoreHandle,
-    StepKind,
+    QueueJournalPort, QueueOriginalIntent, QueueOriginalPreparationCommittedData,
+    QueueOriginalPreparationData, QueueOriginalPreparationObservation, QueuePhase,
+    QueueRecoveryAttempt, QueueRecoveryEvidence, QueueRecoveryOutcome, QueueSession,
+    QueueSessionBinding, QueueStepEvidence, QueueStoreHandle, StepKind,
 };
 pub use stock_activity::*;
 pub use stock_asset_review_types::*;

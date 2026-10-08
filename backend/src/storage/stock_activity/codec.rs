@@ -54,6 +54,21 @@ fn get<T: DeserializeOwned + Serialize>(json: &str) -> Result<T> {
     Ok(envelope.payload)
 }
 
+/// DATA encoding through the same lossless retained activity wrappers.
+/// No authority, source handle or historical qualifier is reconstructed.
+pub(crate) fn encode_original_authority(
+    value: &homebox::StockAuthority,
+) -> Result<serde_json::Value> {
+    serde_json::from_str(&put(AuthorityRow::from(value))?).map_err(|_| incompatible())
+}
+
+/// DATA encoding only; preserves existing decimal and snapshot semantics.
+pub(crate) fn encode_original_preflight(
+    value: &homebox::StockPreflight,
+) -> Result<serde_json::Value> {
+    serde_json::from_str(&put(PreflightRow::from(value))?).map_err(|_| incompatible())
+}
+
 #[derive(Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PhysicalBindingRow {

@@ -6,6 +6,29 @@ Composition precedes review and CI; it does not accept a donor, promote main or
 release deployment gates. The publication manifest verifies the complete source
 file set, modes, digests and logical owners. Its status remains provisional.
 
+The current composition also mounts the visible Saved receipt action on genuine
+canonical command completions. It passively retrieves the original saved result
+without replay, retry or download authority. A configured native HomeBox reader
+now captures original fixed GET responses and discloses entity tags, field
+list/get and maintenance list/get through the same original Access and graph
+fences. Its concrete credential owner retains explicit trusted header input and
+checks the current original source grants on every delivery; account enrollment
+and production source configuration remain required inputs. Default startup
+does not activate a provider. Lantern binds only the actual admitted family IDs.
+
+Configured native Media publication consumes genuine opaque same-Store review
+or upload completions, preserving committed DATA before consuming the carrier.
+It matches the original renderer/stage and publishes through the native private
+descriptor with complete catalog checks and fsync. Fresh generation readers use
+the genuine published generation; cold-start origin and complete independent
+catalog admission remain mandatory trusted inputs. Source temporary Media
+directories explicitly use mode 0700 without changing process settings.
+
+The [initial preparation source](queue-original-preparation.md) retains original
+native raw/evidence custody and binds it to the actual prepared graph. Its
+separate profile-8 schema definition is held before database access. These
+carriers and schema metadata do not enable a HomeBox write or queue admission.
+
 The application Core now retains its existing Store in one shared
 `Arc<Mutex<Store>>`. `Core::durable_homebox_stock_host` binds those exact Store
 and Access allocations to the actual durable host, checking the configured

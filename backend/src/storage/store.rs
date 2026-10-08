@@ -42,6 +42,8 @@ pub struct StoreOptions {
     pub stock_activity_profile: bool,
     /// Source-only fresh profile; unavailable until independent historical custody exists.
     pub presence_profile: PresenceProfileSelection,
+    /// Held fresh-only initial preparation definition; never installs a schema.
+    pub queue_original_preparation_profile: QueueOriginalPreparationProfileSelection,
 }
 impl Default for StoreOptions {
     fn default() -> Self {
@@ -50,6 +52,7 @@ impl Default for StoreOptions {
             busy_timeout_ms: 5_000,
             stock_activity_profile: false,
             presence_profile: PresenceProfileSelection::Disabled,
+            queue_original_preparation_profile: QueueOriginalPreparationProfileSelection::Disabled,
         }
     }
 }

@@ -48,6 +48,14 @@ impl StoreOptions {
                 "Fresh presence profile requires independent original historical custody and exhaustive profile admission",
             ));
         }
+        if self.queue_original_preparation_profile
+            == super::QueueOriginalPreparationProfileSelection::FreshV8
+        {
+            return Err(Error::new(
+                "upstream-unavailable",
+                "Fresh original preparation profile requires original qualification, historical evidence custody and exhaustive profile admission",
+            ));
+        }
         Ok(())
     }
 }

@@ -35,6 +35,12 @@ use outcomes::*;
 #[path = "queue_evidence.rs"]
 mod evidence;
 use evidence::*;
+#[path = "queue_original_preparation.rs"]
+mod original_preparation;
+pub use original_preparation::{
+    QueueOriginalPreparationCommittedData, QueueOriginalPreparationData,
+    QueueOriginalPreparationObservation,
+};
 #[path = "queue_admission.rs"]
 mod admission;
 #[path = "queue_finish.rs"]
