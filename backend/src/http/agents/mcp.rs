@@ -13,12 +13,19 @@ use std::{
 pub type Adapter<'a> = m::McpAdapter<m::NativePrincipalPort, m::NativeCatalog, StockService<'a>>;
 pub(crate) type OwnedLifecycle = m::lifecycle::NativeSession<OwnedStockService>;
 
-fn read_catalog(principal: &m::NativePrincipal) -> Result<m::NativeCatalog, m::PortError> {
+fn read_catalog(
+    core: &Core,
+    principal: &m::NativePrincipal,
+) -> Result<m::NativeCatalog, m::PortError> {
     let schemas = m::NativeSchemas::from_bytes(
         include_bytes!("../../../../contracts/stock-wire3/agent/agent.schema.json"),
         include_bytes!("../../../../packages/contracts/schemas/atlas.schema.json"),
     )?;
-    m::NativeCatalog::with_admitted_operations(&schemas, principal, super::capabilities::reads())
+    m::NativeCatalog::with_admitted_operations(
+        &schemas,
+        principal,
+        super::capabilities::reads_for(core),
+    )
 }
 
 /// Preserve the existing in-process binding and its original opaque authority.
@@ -30,7 +37,7 @@ pub async fn bind_read(
     let context = m::NativeContext::from_principal(original);
     let principal_port = m::NativePrincipalPort::new(core.access.clone());
     let principal = principal_port.resolve(&context).await?;
-    let catalog = read_catalog(&principal)?;
+    let catalog = read_catalog(core, &principal)?;
     let adapter = m::McpAdapter::new(
         principal_port,
         catalog,
@@ -51,7 +58,13 @@ pub(crate) async fn bind_owned_lifecycle(
         include_bytes!("../../../../contracts/stock-wire3/agent/agent.schema.json"),
         include_bytes!("../../../../packages/contracts/schemas/atlas.schema.json"),
     )?;
-    let mut admitted = super::capabilities::reads();
+    let mut admitted = context
+        .core
+        .try_lock()
+        .ok()
+        .map_or_else(super::capabilities::reads, |core| {
+            super::capabilities::reads_for(&core)
+        });
     admitted.push(crate::contracts::stock::OperationId::AtlasAssetDownload);
     if context.network_bindings.iter().any(|binding| {
         binding

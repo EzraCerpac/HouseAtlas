@@ -35,8 +35,8 @@ pub(super) async fn admission(
     }
     tokio::task::spawn_blocking(move || {
         let _admitted = headers.admission_permit()?;
-        authorized_read(&host, &headers, &uri, &method, Some(d::Scope { workspace_id, home_id }), false, |_, p, home| {
-            let mut admitted = capabilities::admitted(&p.principal);
+        authorized_read(&host, &headers, &uri, &method, Some(d::Scope { workspace_id, home_id }), false, |core, p, home| {
+            let mut admitted = capabilities::admitted(core, &p.principal);
             if host.network_bindings.iter().any(|binding| binding.runtime().settings().configured_source().partition().scope() == *p.principal.scope()) {
                 admitted.extend(crate::providers::network::SAVED_NETWORK_QUERY_SUPPORT.iter().map(|support| support.agent_operation));
             }
