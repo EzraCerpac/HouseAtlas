@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "05fee910c74a18928a7d76e444bd1a0f1f2cb4e66f850dfe76c9431b3c0cb092",
+  "sourceDigestSha256": "dd3119635df4f10d303afee0012d7c1d1eb4e8a2d9d885f509b59ee20cd1f8d9",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -4431,8 +4431,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 39172,
-      "sha256": "e6aaba631bb25dfbb81f894e17099f900f71f932484c132d9b0bd342337f815e",
+      "bytes": 39425,
+      "sha256": "16a0b1b47bab1ef0cf24edbfacebdb075cdf21f1880aabe2e9d20ac4e293bac2",
       "owner": "core-integration"
     },
     {
@@ -4487,8 +4487,8 @@
     {
       "path": "docs/rust-integration/dev-composition.md",
       "mode": "100644",
-      "bytes": 21577,
-      "sha256": "d635c6101bcf22b4e62fbe6e32234ffda95980059802621d63cab390b7311b50",
+      "bytes": 22349,
+      "sha256": "85d51d8b3b29826c6a7dd70445974179d561f22324841ffb26d2425671b5413b",
       "owner": "core-integration"
     },
     {
@@ -4571,8 +4571,8 @@
     {
       "path": "docs/rust-integration/review-source-ledger.md",
       "mode": "100644",
-      "bytes": 21144,
-      "sha256": "6ee0fef488cdea3117c7232923402718a38bcfc3982a61451f57225b433adb73",
+      "bytes": 22348,
+      "sha256": "db54588edbcf4f1ff02e2efc02b4ea650e9ec8a8d79c7acfe48550d28e9c326c",
       "owner": "core-integration"
     },
     {
@@ -4760,8 +4760,8 @@
     {
       "path": "frontend/lantern-tests/healthy-read.mjs",
       "mode": "100644",
-      "bytes": 22598,
-      "sha256": "3814f995ab51565eebfb7910c9903d7dad198628b170b9265d6e6d9d6332317c",
+      "bytes": 25579,
+      "sha256": "ed74df71a755adbda864021864d6eb5482055f5eee71dfd556580126bee83842",
       "owner": "web"
     },
     {
@@ -4937,6 +4937,13 @@
       "mode": "100644",
       "bytes": 4990,
       "sha256": "fbc451d0ea2c3e6853b14faf2e3ccffce35d59c6ed464069b69535ec3c4d2e8a",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/api/evidence-client.ts",
+      "mode": "100644",
+      "bytes": 3679,
+      "sha256": "ede6cdeeb655a520496035a1b956877d6890b5dec71fe4b74e4d0674a3bf3c36",
       "owner": "web"
     },
     {
@@ -5227,6 +5234,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/components/LinkedEvidence.tsx",
+      "mode": "100644",
+      "bytes": 6454,
+      "sha256": "e21c008d303807483719e132a3692296bd70a74d90ebe96274888d56b0627d02",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/components/Modal.tsx",
       "mode": "100644",
       "bytes": 3448,
@@ -5460,8 +5474,8 @@
     {
       "path": "frontend/src/lantern/views/RoomsView.tsx",
       "mode": "100644",
-      "bytes": 12328,
-      "sha256": "2e1e99b1bf3802e527a1935afb9e2e54963603a605a0d63c9fe71ff02e76bb3a",
+      "bytes": 12685,
+      "sha256": "f1b71fe82151af58067b57d3ba38ac8a6907f1bc8447a13c8f2e13d450bae4a7",
       "owner": "web"
     },
     {
@@ -6580,8 +6594,8 @@
     {
       "path": "tools/rust-integration/healthy-atlas-lists-loopback.mjs",
       "mode": "100644",
-      "bytes": 26281,
-      "sha256": "c05a20fbb0d9ddb03e1ad7b1d6fef52284d25b2810ecd81549ec08643fbd6b81",
+      "bytes": 31417,
+      "sha256": "38105d5ad0a87514c9d021d035b1bcdabca38c00991d489a7ea37ea8075a3586",
       "owner": "core-integration"
     },
     {
