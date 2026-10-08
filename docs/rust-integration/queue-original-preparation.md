@@ -48,3 +48,29 @@ reconstruct it. Production original write qualification, complete impact and
 hidden-field preservation, approval provenance, historical evidence custody and
 exhaustive profile admission remain missing source dependencies. Runtime
 profile-8 admission, migration, replay and recovery controls remain held.
+
+## Genuine process-local quantity enqueue and initial claim
+
+A separate concrete owner now composes the installed NoHuman quantity writer,
+its exact native quantity-only PATCH and ordered source scope, and the actual
+known-zero Media admission token. It retains the original preparation allocation
+and reconstructs current graph authority under each actual Store-to-Access
+transaction fence. It uses the existing queue schema and admission engine; it
+does not enable profile 8 or derive a zero reservation from request DATA.
+
+The fresh enqueue captures committed DATA before Release. It issues opaque
+original custody only after current native/physical checks, mandatory queue
+Release, and the final Access transaction commit all succeed. The initial claim
+requires the exact newly minted queued row with no prior attempt or lease,
+checks that preimage before mutation, and qualifies only the same committed
+first attempt after those complete Release fences. Commit followed by a failed
+fence retains DATA without historical claim qualification or retry authority.
+
+Detached recorded provenance retains immutable Source and Media allocations and
+the actual release-qualified enqueue/claim cuts. It contains no live Access,
+provider, vault, SQL handle or old guard. The existing offline owner and concrete
+Media peer support only this exact unprepared first attempt. Prepared data,
+journals, steps, liability prefixes, outcomes, nonzero Media, Human queue approval
+and cold-start historical intake still require their genuine producers. This
+source slice has passed production compilation and strict Clippy; no queue,
+claim, provider invocation, replay or recovery runtime is claimed.

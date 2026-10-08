@@ -16,6 +16,7 @@ pub mod native;
 pub mod native_policy_archive;
 pub mod native_policy_intake;
 pub mod native_policy_reference;
+pub mod native_queued_quantity;
 pub mod native_recovery;
 mod platform_fs;
 mod private_fs;

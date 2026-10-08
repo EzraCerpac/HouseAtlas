@@ -43,10 +43,19 @@ pub use original_preparation::{
 };
 #[path = "queue_admission.rs"]
 mod admission;
+#[path = "queue_original_owner.rs"]
+mod original_owner;
+pub use original_owner::{
+    OriginalQueuedQuantityAttempt, OriginalQueuedQuantityClaim, OriginalQueuedQuantityEnqueue,
+    OriginalQueuedQuantityOwner, QueueOriginalCommittedData, QueueOriginalCommittedObservation,
+    RecordedOriginalEnqueue, RecordedOriginalEnqueueProof,
+};
 #[path = "queue_finish.rs"]
 mod finish;
 #[path = "queue_journal.rs"]
 mod journal;
+#[path = "queue_quantity_original.rs"]
+mod quantity_original;
 #[path = "queue_queries.rs"]
 mod queries;
 #[path = "queue_resolution.rs"]

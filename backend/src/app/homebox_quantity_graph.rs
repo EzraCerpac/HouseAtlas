@@ -22,6 +22,12 @@ type PreparedQuantity<'native, 'p, 'owner, T, K> = domain::PreparedRequest<
     QuantityGraph<'native, 'p, 'owner, QuantityContracts, native::QuantitySource<'p, T, K>>,
 >;
 
+/// Identity-only custody of this genuine bind. It retains no grants, locks or
+/// provider handles and cannot construct a preparation or renew authority.
+pub(crate) struct OriginalQuantityPreparationIdentity {
+    _private: (),
+}
+
 /// The original prepared allocations survive between phases, but no original
 /// transaction guard does. Only the genuine graph constructor can bind this
 /// bundle; every activity transaction rebuilds the current phase authority.
@@ -41,6 +47,7 @@ pub struct OriginalQuantityPreparation<
     >,
     original: &'p OriginalStockActivityPrincipal,
     configured: Arc<OriginalQuantityConfigured>,
+    identity: Arc<OriginalQuantityPreparationIdentity>,
 }
 
 impl<
@@ -79,7 +86,13 @@ impl<
             native: authority.native,
             original: authority.original,
             configured: Arc::clone(&authority.configured),
+            identity: Arc::new(OriginalQuantityPreparationIdentity { _private: () }),
         })
+    }
+    pub(crate) fn original_preparation_identity(
+        &self,
+    ) -> &Arc<OriginalQuantityPreparationIdentity> {
+        &self.identity
     }
     pub fn prepared(&self) -> &PreparedQuantity<'native, 'p, 'owner, T, K> {
         self.prepared

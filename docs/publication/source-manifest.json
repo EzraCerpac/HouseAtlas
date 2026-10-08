@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "81e38e538326df850216b70264b39078af51ce66731d7ee52610881d9d144d77",
+  "sourceDigestSha256": "52f049794a4041fb408d815fe841841e14d25792e6aa7ba2a44d9b79ed464e74",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -735,15 +735,15 @@
     {
       "path": "backend/src/app.rs",
       "mode": "100644",
-      "bytes": 27278,
-      "sha256": "43546fd58972f3c486d88dd85b41ce2b5a1755fe59b3f9dfe57d850fa102fa7c",
+      "bytes": 27311,
+      "sha256": "7cc44c699555d5608fef9fe7989794593379b3e2efc0495e3d9ada6d2ff86169",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/app/homebox_quantity_graph.rs",
       "mode": "100644",
-      "bytes": 19681,
-      "sha256": "3bdb898d3980e1fd765ce168aa2f2520c72dbdac1936f17101291012e7003e6d",
+      "bytes": 20201,
+      "sha256": "e2481bb4810e97dd9c167d4482940c143a828200e621887a46711c23e19cd492",
       "owner": "core-integration"
     },
     {
@@ -752,6 +752,13 @@
       "bytes": 6264,
       "sha256": "d5515ebf1874f4705dccdceb7ff61f6e8a17eb4b5f9cf8aa916b3b0e758bda44",
       "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/app/homebox_queued_quantity.rs",
+      "owner": "core-integration",
+      "mode": "100644",
+      "bytes": 10178,
+      "sha256": "0f22ff2f938fe9f28349dc6c1583d9983724f79f25df0b322e1973c8c949fa56"
     },
     {
       "path": "backend/src/app/homebox_stock_host.rs",
@@ -2275,8 +2282,8 @@
     {
       "path": "backend/src/media/mod.rs",
       "mode": "100644",
-      "bytes": 1318,
-      "sha256": "ab1d9574bdeba4e788a4daf81a98b95dc83b73efbd3f19a8322501182fdf3baa",
+      "bytes": 1350,
+      "sha256": "3238d6ed4df036116aff2c230cbbfcf57ac9c23f78cfb536252f3f0043568eb4",
       "owner": "media"
     },
     {
@@ -2306,6 +2313,13 @@
       "bytes": 28041,
       "sha256": "ae26d262d188d4f4302ab50063a73d7b9751457819a9b2df734e76922266be6d",
       "owner": "media"
+    },
+    {
+      "path": "backend/src/media/native_queued_quantity.rs",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 8017,
+      "sha256": "517a99d30608c4d74fcbe3130fc0793223a64951d84b35271f0efa35fa914027"
     },
     {
       "path": "backend/src/media/native_recovery.rs",
@@ -2989,8 +3003,8 @@
     {
       "path": "backend/src/providers/homebox/write/stock/README.md",
       "mode": "100644",
-      "bytes": 43328,
-      "sha256": "77131dba6b4b6ad8a1152fc92d0e9f5abd42d48e64d6172ccbc87edcca8a3db5",
+      "bytes": 45678,
+      "sha256": "cb00706eb60159473dd61cac78253197ed1a41bc7ca53b52e61991c2202eed4e",
       "owner": "homebox"
     },
     {
@@ -3045,8 +3059,8 @@
     {
       "path": "backend/src/providers/homebox/write/stock/mod.rs",
       "mode": "100644",
-      "bytes": 2084,
-      "sha256": "3bd3d64f7c001a6ac91165986c895114992a6713ae3fa360842700e6a1d094f8",
+      "bytes": 2223,
+      "sha256": "6dc3da7158784c8dddb8786f98029d80ed84d00038ede67cd7de479e8c0884ff",
       "owner": "homebox"
     },
     {
@@ -3132,6 +3146,13 @@
       "bytes": 7464,
       "sha256": "aa4eb602ce26e4952b563ffeafef70fb803ad93b60751f10df749380ef0efa26",
       "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/write/stock/quantity_queue_original.rs",
+      "owner": "homebox",
+      "mode": "100644",
+      "bytes": 20458,
+      "sha256": "834a32dc37ee46d748b143d441b4f4076836d43fa752e803868213006565e29e"
     },
     {
       "path": "backend/src/providers/homebox/write/stock/quantity_source.rs",
@@ -3759,8 +3780,8 @@
     {
       "path": "backend/src/storage/mod.rs",
       "mode": "100644",
-      "bytes": 2903,
-      "sha256": "73c603f147831299c4d90ef90eb468c597b3fe373caa3f6f27c27ff6c6cdbca8",
+      "bytes": 3153,
+      "sha256": "dd01bc6c2edf15c1ec02fd5e0b31aa27e1e280ad5096fd4cc7850e2747af02d9",
       "owner": "storage"
     },
     {
@@ -3843,15 +3864,15 @@
     {
       "path": "backend/src/storage/queue.rs",
       "mode": "100644",
-      "bytes": 23359,
-      "sha256": "13fe0b53cf1931fa4363b6fc5ec148bb55da229d1a6bc16187255d5acc14273e",
+      "bytes": 23756,
+      "sha256": "17f0cc28aef8acd1e32d206c426f4a253cc4a7ea53e8d2817da90b2644ab03dc",
       "owner": "storage"
     },
     {
       "path": "backend/src/storage/queue_admission.rs",
       "mode": "100644",
-      "bytes": 20418,
-      "sha256": "a1cb0be52c220620e1adf8e674892d8dc0b155303d3cb577dba11b77a79abf4f",
+      "bytes": 24997,
+      "sha256": "95dc929189f59fb0f24f15fdfa6c74bf59b3d272df968384abde271a4eae7498",
       "owner": "storage"
     },
     {
@@ -3904,6 +3925,13 @@
       "owner": "storage"
     },
     {
+      "path": "backend/src/storage/queue_original_owner.rs",
+      "owner": "storage",
+      "mode": "100644",
+      "bytes": 16779,
+      "sha256": "22b8ffa3c82ab20d93673f8742c676666364f0fc58bf46787196c7e9587cfd74"
+    },
+    {
       "path": "backend/src/storage/queue_original_preparation.rs",
       "mode": "100644",
       "bytes": 13775,
@@ -3923,6 +3951,13 @@
       "bytes": 8852,
       "sha256": "d04db9788d43ec6e9fe11671088e65bffa06d7c2d0ca691b2f69ecd59dd9a0f3",
       "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/queue_quantity_original.rs",
+      "owner": "storage",
+      "mode": "100644",
+      "bytes": 10259,
+      "sha256": "15d47605b4ae737d8072b5521dd7f464962f35dac447b7ef776a463692021600"
     },
     {
       "path": "backend/src/storage/queue_queries.rs",
@@ -4781,8 +4816,8 @@
     {
       "path": "docs/rust-integration/queue-original-preparation.md",
       "mode": "100644",
-      "bytes": 3302,
-      "sha256": "1c4538a592245b06b643fb7dae5f30b10bc6c0dfddecdeb4ce3d6c7fabd2fd0d",
+      "bytes": 4987,
+      "sha256": "9aa3905253edc409624883e7d6dc8d416ef4ceb868149723dab57876f95ae697",
       "owner": "core-integration"
     },
     {
