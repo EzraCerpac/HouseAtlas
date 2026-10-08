@@ -6,6 +6,7 @@ use crate::{
     access,
     app::{
         homebox_quantity_graph::OriginalQuantityPreparation,
+        quantity_approval::HumanQuantityApproval,
         stock_activity_principal::OriginalStockActivityPrincipal,
     },
     domain::stock::OperationId,
@@ -21,6 +22,7 @@ where
 {
     preparation: &'bundle OriginalQuantityPreparation<'native, 'p, 'owner, T, K>,
     plan_digest: Digest,
+    approval: Option<&'bundle HumanQuantityApproval<'bundle, 'native, 'p, 'owner, T, K>>,
     pub(super) evidence: Mutex<super::quantity_evidence::QuantityEvidenceState<'bundle, 'p, T, K>>,
 }
 impl<'bundle, 'native, 'p, 'owner, T: read::Transport, K: read::Clock + Send + Sync>
@@ -33,6 +35,28 @@ impl<'bundle, 'native, 'p, 'owner, T: read::Transport, K: read::Clock + Send + S
         let consumer = Self {
             preparation,
             plan_digest,
+            approval: None,
+            evidence: Mutex::new(super::quantity_evidence::QuantityEvidenceState::default()),
+        };
+        consumer.check_original(preparation.original())?;
+        Ok(consumer)
+    }
+    /// Borrow genuine authenticated consent for this unchanged original bundle.
+    pub fn new_with_approval(
+        preparation: &'bundle OriginalQuantityPreparation<'native, 'p, 'owner, T, K>,
+        approval: &'bundle HumanQuantityApproval<'bundle, 'native, 'p, 'owner, T, K>,
+    ) -> Result<Self, StockPortFault> {
+        if !matches!(
+            preparation.configured().descriptor().policy,
+            QuantityPolicy::HumanRequired
+        ) || !approval.matches_original(preparation)
+        {
+            return Err(StockPortFault::EvidenceConflict);
+        }
+        let consumer = Self {
+            preparation,
+            plan_digest: plan_digest(preparation.native().plan())?,
+            approval: Some(approval),
             evidence: Mutex::new(super::quantity_evidence::QuantityEvidenceState::default()),
         };
         consumer.check_original(preparation.original())?;
@@ -71,7 +95,6 @@ impl<'bundle, 'native, 'p, 'owner, T: read::Transport, K: read::Clock + Send + S
             || command.target.entity_id.is_some()
             || command.target.id().is_err()
             || command.target.id().is_ok_and(|id| id.is_nil())
-            || command.approval_receipt_id.is_some()
             || command.native_sync_behavior.is_some()
             || request.id() != OperationId::HomeboxEntityQuantitySet
             || request.raw() != &command.original_wire
@@ -101,8 +124,22 @@ impl<'bundle, 'native, 'p, 'owner, T: read::Transport, K: read::Clock + Send + S
             return Err(StockPortFault::EvidenceConflict);
         }
         let maximum = match e.policy {
-            QuantityPolicy::NoHuman { maximum } => maximum,
-            QuantityPolicy::HumanRequired => return Err(StockPortFault::Unavailable),
+            QuantityPolicy::NoHuman { maximum } => {
+                if self.approval.is_some() || command.approval_receipt_id.is_some() {
+                    return Err(StockPortFault::EvidenceConflict);
+                }
+                maximum
+            }
+            QuantityPolicy::HumanRequired => {
+                let approval = self.approval.ok_or(StockPortFault::Unavailable)?;
+                if !approval.matches_original(self.preparation)
+                    || approval.receipt_id().is_nil()
+                    || command.approval_receipt_id != Some(approval.receipt_id())
+                {
+                    return Err(StockPortFault::EvidenceConflict);
+                }
+                9_007_199_254_740_991
+            }
         };
         let quantity = command
             .payload
@@ -392,7 +429,15 @@ impl<T: read::Transport, K: read::Clock + Send + Sync>
         }
         if let Some(guard) = guard {
             self.check_guard(original, registration, guard)?;
-            return self.check_action(phase, action);
+            self.check_action(phase, action)?;
+            if let storage::StockActivityAction::Invoke(operation, ..) = action
+                && let Some(approval) = self.approval
+            {
+                approval
+                    .revalidate_admitted(self.preparation, operation, guard)
+                    .map_err(|_| StockPortFault::EvidenceConflict)?;
+            }
+            return Ok(());
         }
         // These legacy port fences occur outside every Store transaction.
         // A supplied guard always takes the branch above, with no lock reentry.
@@ -433,8 +478,16 @@ impl<T: read::Transport, K: read::Clock + Send + Sync>
     ) -> Result<storage::StockActivityAdmissionEvidence, StockPortFault> {
         self.check_guard(original, registration, guard)?;
         self.check_admission(operation, plan, preflight)?;
+        let approval = self
+            .approval
+            .map(|receipt| {
+                receipt
+                    .admission(self.preparation, operation, guard)
+                    .map_err(|_| StockPortFault::EvidenceConflict)
+            })
+            .transpose()?;
         Ok(storage::StockActivityAdmissionEvidence {
-            approval: None,
+            approval,
             liability: no_stage_liability(),
         })
     }
