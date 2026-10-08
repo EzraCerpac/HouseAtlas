@@ -9,6 +9,10 @@ export interface QuantityClientOptions {
 }
 const root = '/api/atlas/homebox/quantity';
 const freeze = <T,>(value: T): T => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
+/** Private custody data only; grants no proof, approval or reconciliation authority. */
+interface DispatchCustody { readonly prepared: QuantityPrepared; readonly approval: QuantityApproval | null }
+interface UnknownAttempt extends DispatchCustody { readonly action: string; readonly source: SourceRef; readonly binding: QuantitySessionBinding; readonly at: number; readonly status: number | null }
+const dispatchUnconfirmed = 'Prior dispatch outcome unconfirmed. The quantity change may have been admitted or applied. Further quantity mutations for this source are held in this session; do not infer failure, rollback or safe retry.';
 export function createQuantityClient(options: QuantityClientOptions): QuantityClient {
   const transport = options.transport ?? globalThis.fetch;
   let publicOwner: QuantitySessionBinding | null = null, publicIdentity: object = {};
@@ -47,7 +51,8 @@ export function createQuantityClient(options: QuantityClientOptions): QuantityCl
     if (!original || !isCurrent(original) || !sameQuantityScope(original.scope, source)) throw new QuantityActionError('expired', 'Session');
     return { identity: original.identity, scope: { ...original.scope }, session: { ...original.session } };
   };
-  const unknownPosts: Array<{ source: SourceRef; binding: QuantitySessionBinding; message: string }> = [];
+  // Strong private references; every matching unknown attempt is retained.
+  const unknownPosts: Array<{ source: SourceRef; binding: QuantitySessionBinding; message: string; attempts: UnknownAttempt[] }> = [];
   const sameBinding = (a: QuantitySessionBinding, b: QuantitySessionBinding) => a.identity === b.identity
     && sameQuantityScope(a.scope, b.scope) && a.session.actorId === b.session.actorId
     && a.session.csrfToken === b.session.csrfToken && a.session.expiresAt === b.session.expiresAt;
@@ -56,9 +61,15 @@ export function createQuantityClient(options: QuantityClientOptions): QuantityCl
     if (!binding || !isCurrent(binding) || !sameQuantityScope(binding.scope, source)) return null;
     return unknownPosts.find(row => sameBinding(row.binding, binding) && equalQuantityJson(row.source, source))?.message ?? null;
   };
-  const unknown = (source: SourceRef, binding: QuantitySessionBinding, action: string) => {
-    if (!unknownPosts.some(row => sameBinding(row.binding, binding) && equalQuantityJson(row.source, source))) {
-      unknownPosts.push({ source: structuredClone(source), binding, message: `Prior ${action} response unavailable. Issuance or admission may have occurred. Further quantity mutations for this source are held in this session; do not infer rollback or safe retry.` });
+  const unknown = (source: SourceRef, binding: QuantitySessionBinding, action: string, custody?: DispatchCustody, status: number | null = null) => {
+    let row = unknownPosts.find(row => sameBinding(row.binding, binding) && equalQuantityJson(row.source, source));
+    if (!row) {
+      row = { source: structuredClone(source), binding, message: `Prior ${action} response unavailable. Issuance or admission may have occurred. Further quantity mutations for this source are held in this session; do not infer rollback or safe retry.`, attempts: [] };
+      unknownPosts.push(row);
+    }
+    if (custody) {
+      row.attempts.push(Object.freeze({ action, source, binding, prepared: custody.prepared, approval: custody.approval, at: Date.now(), status }));
+      if (action === 'dispatch') row.message = dispatchUnconfirmed;
     }
     return new QuantityActionError('unknown', action);
   };
@@ -67,12 +78,12 @@ export function createQuantityClient(options: QuantityClientOptions): QuantityCl
     if (!preparedOwners.has(prepared) || !isCurrent(preparedOwners.get(prepared)!)) throw new QuantityActionError('expired', 'Session');
     if (performance.now() >= prepared.expiresAt) throw new QuantityActionError('changed', 'Preview expired');
   };
-  async function request(action: string, binding: QuantitySessionBinding, signal: AbortSignal, body?: object, query = '', originalSource?: SourceRef) {
+  async function request(action: string, binding: QuantitySessionBinding, signal: AbortSignal, body?: object, query = '', originalSource?: SourceRef, custody?: DispatchCustody) {
     if (!isCurrent(binding)) throw new QuantityActionError('expired', 'Session');
     const controller = new AbortController();
     const abort = () => controller.abort(); signal.addEventListener('abort', abort, { once: true });
     const unsubscribe = subscribe(() => { if (!isCurrent(binding)) controller.abort(); });
-    let posted = false;
+    let posted = false, status: number | null = null;
     try {
       signal.throwIfAborted(); if (!isCurrent(binding)) throw new QuantityActionError('expired', 'Session');
       const raw = body ? JSON.stringify(body) : undefined;
@@ -80,9 +91,11 @@ export function createQuantityClient(options: QuantityClientOptions): QuantityCl
       posted = !!body;
       const response = await transport(`${root}/${action}${query}`, { method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: controller.signal,
         headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json', 'X-Atlas-CSRF': binding.session.csrfToken } : {}) }, ...(raw ? { body: raw } : {}) });
+      status = response.status;
       controller.signal.throwIfAborted();
       if (!isCurrent(binding)) throw new QuantityActionError('expired', 'Session');
-      if (!response.ok) throw new QuantityActionError(({401:'expired',403:'denied',404:'absent',409:'changed',503:'unavailable'} as const)[response.status as 401] ?? 'unknown', action);
+      // Posted dispatch 503 may be overloaded before or after native admission: outcome unconfirmed.
+      if (!response.ok) throw new QuantityActionError(posted && action === 'dispatch' && response.status === 503 ? 'unknown' : ({401:'expired',403:'denied',404:'absent',409:'changed',503:'unavailable'} as const)[response.status as 401] ?? 'unknown', action);
       const reader = response.body?.getReader(); if (!reader) throw new TypeError('Quantity response missing');
       const chunks: Uint8Array[] = []; let length = 0;
       while (true) { const next = await reader.read(); controller.signal.throwIfAborted(); if (next.done) break; length += next.value.byteLength; if (length > 1048576) { await reader.cancel(); throw new TypeError('Quantity response exceeds bound'); } chunks.push(next.value); }
@@ -90,7 +103,7 @@ export function createQuantityClient(options: QuantityClientOptions): QuantityCl
       if (!isCurrent(binding)) throw new QuantityActionError('expired', 'Session');
       return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown;
     } catch (error) {
-      if (posted && originalSource && (!(error instanceof QuantityActionError) || error.state === 'unknown' || controller.signal.aborted || !isCurrent(binding))) throw unknown(originalSource, binding, action);
+      if (posted && originalSource && (!(error instanceof QuantityActionError) || error.state === 'unknown' || controller.signal.aborted || !isCurrent(binding))) throw unknown(originalSource, binding, action, custody, status);
       if (error instanceof QuantityActionError && !controller.signal.aborted) throw error;
       if (posted) throw new QuantityActionError('unknown', action);
       throw error;
@@ -127,8 +140,9 @@ export function createQuantityClient(options: QuantityClientOptions): QuantityCl
       check(prepared); holdUnknown(prepared.wire.source); const p = prepared.wire;
       if (spentDispatch.has(prepared) || (p.policy.approval === 'human-required' ? !approval || approvals.get(approval) !== prepared : approval !== null)) throw new TypeError('Dispatch action unavailable');
       spentDispatch.add(prepared);
-      const raw = await request('dispatch', preparedOwners.get(prepared)!, signal, { previewId: p.previewId, requestDigest: p.requestDigest, planDigest: p.planDigest, approvalReceiptId: approval?.approvalReceiptId ?? null }, '', p.source);
-      try { if (!isCurrent(preparedOwners.get(prepared)!)) throw new Error('Session changed'); return freeze(decodeQuantityResult(raw, p)); } catch { throw unknown(p.source, preparedOwners.get(prepared)!, 'dispatch'); }
+      const custody: DispatchCustody = Object.freeze({ prepared, approval });
+      const raw = await request('dispatch', preparedOwners.get(prepared)!, signal, { previewId: p.previewId, requestDigest: p.requestDigest, planDigest: p.planDigest, approvalReceiptId: approval?.approvalReceiptId ?? null }, '', p.source, custody);
+      try { if (!isCurrent(preparedOwners.get(prepared)!)) throw new Error('Session changed'); return freeze(decodeQuantityResult(raw, p)); } catch { throw unknown(p.source, preparedOwners.get(prepared)!, 'dispatch', custody); }
     },
   };
 }
