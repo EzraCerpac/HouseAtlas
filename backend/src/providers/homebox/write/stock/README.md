@@ -642,3 +642,40 @@ checks remain separate. This successor has source compilation and review only;
 no human approval, admission, invocation, transport or control runtime case ran.
 Actual authenticated route/server ownership and configuration remain root peers,
 and live installation credentials and grants remain external inputs.
+
+### Detached original quantity queue capture
+
+`NativeQueuedQuantityOriginal::capture_original` runs synchronously under the
+same captured Access allocation, original principal and genuine configured
+physical phase as `OriginalQuantityPreparation`. It revalidates that original
+Root B phase and native preparation without acquiring another lock. The cut
+admits only the literal reviewed `NoHuman` maximum, null approval receipt and
+one complete existing-entity quantity PATCH with its fixed GET readback. It
+refuses staged uploads, clears, children, whole-collection scope, generated
+identities and complete-impact plans.
+
+The detached cut owns immutable command, plan, authority, wrapped preflight,
+exact raw snapshot and retrieval metadata, source registration/metadata,
+reviewed policy, physical registration and queue configuration. It retains a
+private bind-issued original identity marker and its own private issuer token;
+it retains no live root bundle, configured owner, Access boundary, reader,
+credential, grant, opaque native evidence or SQL handle. Neither the cut nor its
+snapshot or known-zero token has a public DATA constructor, Clone or serde.
+
+The derived enqueue metadata uses the production
+`contracts::stock::CONTRACT_VERSION`, original UUID/idempotency spelling and
+opaque registered partition. Queue registration resolves the single ordered
+entity scope; incompatible literal scope spellings are refused rather than
+normalized. `known_zero_admission` matches only its own cut by private allocation
+identity and supplies `PendingByteLiability { required: false,
+reserved_bytes: Some(0) }` for this verified no-stage form. Those accounting and
+enqueue values remain DATA; they do not authorize Storage admission.
+
+`revalidate_original_guard` first checks the unchanged Root B identity marker,
+then exact original command, plan, bytes, policy, metadata and configuration.
+It checks the same current mutation principal and original grants, and asks the
+original source to revalidate its actual capture and artifact windows. This leaf
+acquires neither Store nor Access and supplies no physical qualification. The
+root consumer must separately revalidate its current same-transaction physical
+phase before queue enqueue or claim. This slice adds no queue execution,
+invocation, retry or activation path, and no runtime case has run.
