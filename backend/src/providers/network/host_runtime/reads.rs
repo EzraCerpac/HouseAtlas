@@ -26,6 +26,9 @@ pub struct OriginalNetworkDisclosure {
     pub(super) retained: n::RetainedState,
     pub(super) baseline: s::RegisteredCacheRead,
     pin: Option<s::CacheDisclosurePin>,
+    // Comparison data from the closed validated runtime capture path;
+    // this is neither an authority grant nor a fresh HTTP custody issuer.
+    origin_sha256: String,
 }
 impl OriginalNetworkDisclosure {
     pub fn source(&self) -> &ConfiguredSource {
@@ -42,6 +45,9 @@ impl OriginalNetworkDisclosure {
     }
     pub(super) fn belongs_to(&self, core: &Arc<Mutex<Core>>) -> bool {
         self.owner.ptr_eq(&Arc::downgrade(core))
+    }
+    pub(super) fn is_from_reviewed_origin(&self, origin: &n::ReviewedNetworkOrigin) -> bool {
+        self.origin_sha256 == origin.custody_fingerprint()
     }
     pub fn revalidate(&self) -> a::AccessResult<()> {
         let core = self.owner.upgrade().ok_or(a::AccessError::Unavailable)?;
@@ -101,6 +107,7 @@ impl OriginalNetworkDisclosure {
         partition: a::PartitionGrant,
         entities: Vec<a::SourceGrant>,
         retained: n::RetainedState,
+        origin_sha256: String,
         pinned: s::PinnedCacheRead,
     ) -> Result<Arc<Self>, n::NetworkError> {
         let (baseline, pin) = pinned.into_parts();
@@ -191,6 +198,7 @@ impl OriginalNetworkDisclosure {
             retained,
             baseline,
             pin,
+            origin_sha256,
         }))
     }
 }

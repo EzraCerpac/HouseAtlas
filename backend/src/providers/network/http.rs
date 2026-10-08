@@ -8,6 +8,7 @@ use reqwest::{
         HeaderValue, LOCATION,
     },
 };
+use sha2::{Digest, Sha256};
 use std::{
     future::Future,
     pin::Pin,
@@ -39,8 +40,60 @@ impl ReviewedNetworkOrigin {
         endpoint.set_path(InventoryGet.path());
         Ok(Self { endpoint })
     }
+    pub(crate) fn custody_fingerprint(&self) -> String {
+        let mut hash = Sha256::new();
+        hash.update(b"houseatlas-network-origin/1\0GET\0/api/inventory\0");
+        hash.update(self.origin().as_bytes());
+        format!("{:x}", hash.finalize())
+    }
     pub fn origin(&self) -> String {
         self.endpoint.origin().ascii_serialization()
+    }
+}
+
+/// Opaque evidence from this concrete verified inventory read. No public
+/// issuer, Clone, serialization or URL/header disclosure. It is provenance,
+/// never an authority grant; the provider consumes it against exact bytes.
+pub struct InventoryOriginCustody {
+    registration: SourceRegistration,
+    origin_sha256: String,
+    body_sha256: String,
+}
+impl InventoryOriginCustody {
+    pub(crate) fn consume(
+        self,
+        registration: &SourceRegistration,
+        body_sha256: &str,
+    ) -> Result<String> {
+        if self.registration != *registration || self.body_sha256 != body_sha256 {
+            return Err(NetworkError::new(ErrorCode::WrongScope));
+        }
+        Ok(self.origin_sha256)
+    }
+}
+/// An existing response and optional concrete origin witness travel together.
+/// Injected/offline transports can supply only an unattested response.
+pub struct CustodiedInventoryResponse {
+    response: InventoryResponse,
+    origin: Option<InventoryOriginCustody>,
+}
+impl CustodiedInventoryResponse {
+    pub fn unattested(response: InventoryResponse) -> Self {
+        Self {
+            response,
+            origin: None,
+        }
+    }
+    pub fn into_parts(self) -> (InventoryResponse, Option<InventoryOriginCustody>) {
+        (self.response, self.origin)
+    }
+    fn verified(config: &NetworkHttpConfig, response: InventoryResponse) -> Self {
+        let origin = (response.status == 200).then(|| InventoryOriginCustody {
+            registration: config.source.clone(),
+            origin_sha256: config.origin.custody_fingerprint(),
+            body_sha256: format!("{:x}", Sha256::digest(&response.body)),
+        });
+        Self { response, origin }
     }
 }
 
@@ -139,7 +192,7 @@ impl NetworkHttpConfig {
         })
     }
     /// Extra verified trust roots are a reviewed host setting, not a TLS bypass.
-    /// Built-in WebPKI roots and certificate/hostname verification remain active.
+    /// The configured Rustls verifier and certificate/hostname checks remain active.
     pub fn with_reviewed_ca_pem(mut self, pem: &[u8]) -> Result<Self> {
         guard(!pem.is_empty() && pem.len() <= 64 * 1024 && self.extra_roots.len() < 16)?;
         let cert = reqwest::Certificate::from_pem(pem)
@@ -309,6 +362,14 @@ impl<A: NetworkReadAuthority> InventoryTransport for HttpInventoryTransport<A> {
         _request: InventoryGet,
         limits: Limits,
     ) -> Pin<Box<dyn Future<Output = Result<InventoryResponse>> + Send + '_>> {
+        let response = self.get_inventory_with_custody(_request, limits);
+        Box::pin(async move { Ok(response.await?.into_parts().0) })
+    }
+    fn get_inventory_with_custody(
+        &self,
+        _request: InventoryGet,
+        limits: Limits,
+    ) -> Pin<Box<dyn Future<Output = Result<CustodiedInventoryResponse>> + Send + '_>> {
         Box::pin(async move {
             validate_limits(limits)?;
             let limits = Limits {
@@ -329,7 +390,12 @@ impl<A: NetworkReadAuthority> InventoryTransport for HttpInventoryTransport<A> {
             // A timer cannot interrupt a synchronous callback in a poll. Reject
             // any result that finishes after the original absolute deadline.
             self.check_deadline(deadline)?;
-            result
+            // The concrete client alone issues custody after successful TLS,
+            // exact endpoint, full bounded body and final original authority
+            // checks. Hashing is bounded and remains inside the same deadline.
+            let response = CustodiedInventoryResponse::verified(&self.config, result?);
+            self.check_deadline(deadline)?;
+            Ok(response)
         })
     }
 }

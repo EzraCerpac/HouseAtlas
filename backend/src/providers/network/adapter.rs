@@ -1,4 +1,9 @@
-use super::{json::canonical_json, model::*, projection::*};
+use super::{
+    http::{CustodiedInventoryResponse, InventoryOriginCustody, ReviewedNetworkOrigin},
+    json::canonical_json,
+    model::*,
+    projection::*,
+};
 use sha2::{Digest, Sha256};
 use std::{future::Future, pin::Pin, time::Duration};
 
@@ -38,6 +43,16 @@ pub trait InventoryTransport {
     ) -> Pin<
         Box<dyn Future<Output = std::result::Result<InventoryResponse, NetworkError>> + Send + '_>,
     >;
+    /// Compatible offline peers provide no origin proof. The concrete HTTPS
+    /// client overrides this method; a caller-set response URL is not evidence.
+    fn get_inventory_with_custody(
+        &self,
+        request: InventoryGet,
+        limits: Limits,
+    ) -> Pin<Box<dyn Future<Output = Result<CustodiedInventoryResponse>> + Send + '_>> {
+        let response = self.get_inventory(request, limits);
+        Box::pin(async move { Ok(CustodiedInventoryResponse::unattested(response.await?)) })
+    }
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PublicationPrecondition {
@@ -91,6 +106,7 @@ pub struct OriginalNetworkCapture {
     limits: Limits,
     body: Vec<u8>,
     body_sha256: String,
+    origin_sha256: Option<String>,
 }
 struct OriginalCaptureContext<'a> {
     registration: &'a SourceRegistration,
@@ -102,7 +118,11 @@ struct OriginalCaptureContext<'a> {
     limits: Limits,
 }
 impl OriginalNetworkCapture {
-    fn from_response(context: OriginalCaptureContext<'_>, body: Vec<u8>) -> Result<Self> {
+    fn from_response(
+        context: OriginalCaptureContext<'_>,
+        body: Vec<u8>,
+        origin: Option<InventoryOriginCustody>,
+    ) -> Result<Self> {
         let OriginalCaptureContext {
             registration,
             source_attestation,
@@ -114,6 +134,9 @@ impl OriginalNetworkCapture {
         } = context;
         guard(body.len() <= limits.max_response_bytes && body.len() <= 10 * 1024 * 1024)?;
         let body_sha256 = format!("{:x}", Sha256::digest(&body));
+        let origin_sha256 = origin
+            .map(|proof| proof.consume(registration, &body_sha256))
+            .transpose()?;
         Ok(Self {
             registration: registration.clone(),
             source_attestation: source_attestation.clone(),
@@ -124,7 +147,17 @@ impl OriginalNetworkCapture {
             limits,
             body,
             body_sha256,
+            origin_sha256,
         })
+    }
+    /// Provenance comparison only; current original authority is still required.
+    pub fn is_from_reviewed_origin(&self, origin: &ReviewedNetworkOrigin) -> bool {
+        self.origin_sha256
+            .as_ref()
+            .is_some_and(|digest| *digest == origin.custody_fingerprint())
+    }
+    pub(crate) fn origin_sha256(&self) -> Option<&str> {
+        self.origin_sha256.as_deref()
     }
     pub fn registration(&self) -> &SourceRegistration {
         &self.registration
@@ -266,10 +299,11 @@ impl NetworkProvider {
     {
         let response = tokio::time::timeout(
             Duration::from_millis(self.limits.request_timeout_ms),
-            transport.get_inventory(InventoryGet, self.limits),
+            transport.get_inventory_with_custody(InventoryGet, self.limits),
         )
         .await
         .map_err(|_| NetworkError::new(ErrorCode::Timeout))??;
+        let (response, origin) = response.into_parts();
         if matches!(response.status, 401 | 403) {
             return Err(NetworkError::new(ErrorCode::Auth));
         }
@@ -301,6 +335,7 @@ impl NetworkProvider {
                 limits: self.limits,
             },
             response.body,
+            origin,
         )?;
         let generation = project_capture(
             &self.registration,
