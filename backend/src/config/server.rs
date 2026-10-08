@@ -36,6 +36,11 @@ pub enum ServerAuthentication {
     LoopbackLocal {
         identity: access::LoopbackLocalIdentity,
     },
+    TrustedProxy {
+        identity: access::LoopbackLocalIdentity,
+        policy: access::TrustedProxyPolicy,
+        socket: PathBuf,
+    },
 }
 impl ServerAuthentication {
     pub fn is_password(&self) -> bool {
@@ -64,6 +69,10 @@ pub enum ServerCommand {
         provisioning: Option<PathBuf>,
     },
     Serve(ServerConfig),
+    Rebind {
+        previous: ServerConfig,
+        config: Box<ServerConfig>,
+    },
 }
 
 impl ServerCommand {
@@ -72,19 +81,21 @@ impl ServerCommand {
         let Some(mode) = arguments.first().map(String::as_str) else {
             return Ok(None);
         };
-        if !matches!(mode, "initialize" | "serve") {
+        if !matches!(mode, "initialize" | "serve" | "rebind-origin") {
             return Ok(None);
         }
         let mut options = std::collections::BTreeMap::new();
         let mut remaining = arguments[1..].iter();
         while let Some(name) = remaining.next() {
-            if !matches!(name.as_str(), "--server-config" | "--provisioning-file")
-                || options
-                    .insert(
-                        name.as_str(),
-                        remaining.next().ok_or("Missing option value")?,
-                    )
-                    .is_some()
+            if !matches!(
+                name.as_str(),
+                "--server-config" | "--provisioning-file" | "--previous-server-config"
+            ) || options
+                .insert(
+                    name.as_str(),
+                    remaining.next().ok_or("Missing option value")?,
+                )
+                .is_some()
             {
                 return Err("Unsupported or repeated persistent startup option".into());
             }
@@ -94,6 +105,23 @@ impl ServerCommand {
                 .get("--server-config")
                 .ok_or("Required --server-config")?,
         ))?;
+        if mode == "rebind-origin" {
+            if options.contains_key("--provisioning-file") {
+                return Err("Rebind never provisions accounts".into());
+            }
+            let previous = ServerConfig::read(Path::new(
+                options
+                    .get("--previous-server-config")
+                    .ok_or("Required --previous-server-config")?,
+            ))?;
+            return Ok(Some(Self::Rebind {
+                previous,
+                config: Box::new(config),
+            }));
+        }
+        if options.contains_key("--previous-server-config") {
+            return Err("Previous configuration is only accepted by rebind-origin".into());
+        }
         if mode == "serve" {
             if options.contains_key("--provisioning-file") {
                 return Err("Serve never provisions accounts".into());
@@ -108,8 +136,16 @@ impl ServerCommand {
                 (ServerAuthentication::Password, None) => {
                     return Err("Required --provisioning-file".into());
                 }
-                (ServerAuthentication::LoopbackLocal { .. }, None) => {}
-                (ServerAuthentication::LoopbackLocal { .. }, Some(_)) => {
+                (
+                    ServerAuthentication::LoopbackLocal { .. }
+                    | ServerAuthentication::TrustedProxy { .. },
+                    None,
+                ) => {}
+                (
+                    ServerAuthentication::LoopbackLocal { .. }
+                    | ServerAuthentication::TrustedProxy { .. },
+                    Some(_),
+                ) => {
                     return Err(
                         "Loopback-local initialization accepts no password provisioning file"
                             .into(),
@@ -157,7 +193,11 @@ impl ServerConfig {
         }
         access::AccessConfig::new(vec![self.origin.clone()]).map_err(|_| "Invalid HTTPS origin")?;
         let origin = url::Url::parse(&self.origin).map_err(|_| "Invalid HTTPS origin")?;
-        if origin.port_or_known_default() != Some(self.listen.port()) {
+        if !matches!(
+            self.authentication,
+            ServerAuthentication::TrustedProxy { .. }
+        ) && origin.port_or_known_default() != Some(self.listen.port())
+        {
             return Err("Origin port must match the explicit listening port".into());
         }
         let mut homes = BTreeSet::new();
@@ -185,6 +225,27 @@ impl ServerConfig {
             }
             self.access_config()?;
         }
+        if let ServerAuthentication::TrustedProxy {
+            identity, socket, ..
+        } = &self.authentication
+        {
+            if self.listen
+                != "127.0.0.1:48743"
+                    .parse::<SocketAddr>()
+                    .map_err(|_| "Invalid listener")?
+                || socket != &self.data_directory.join("gateway.sock")
+                || self.homes.len() != 1
+                || self.homes[0].workspace_id != identity.scope.workspace_id
+                || self.homes[0].home_id != identity.scope.home_id
+            {
+                return Err(
+                    "Trusted proxy requires the selected private Unix socket and one exact home"
+                        .into(),
+                );
+            }
+            absolute_path(socket)?;
+            self.access_config()?;
+        }
         Ok(())
     }
 
@@ -196,6 +257,11 @@ impl ServerConfig {
             ServerAuthentication::LoopbackLocal { identity } => config
                 .with_loopback_local(identity.clone())
                 .map_err(|_| "Invalid explicit local identity".into()),
+            ServerAuthentication::TrustedProxy {
+                identity, policy, ..
+            } => config
+                .with_trusted_proxy(identity.clone(), std::sync::Arc::new(policy.clone()))
+                .map_err(|_| "Invalid explicit trusted proxy identity".into()),
         }
     }
 

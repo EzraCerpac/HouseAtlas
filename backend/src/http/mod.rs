@@ -88,6 +88,7 @@ pub struct Host {
     #[cfg(test)]
     quantity_tls_fixture: Option<Arc<quantity_fixture::PrivateLoopbackQuantityTls>>,
     loopback_local: bool,
+    gateway: Option<Arc<crate::app::trusted_gateway::GatewaySocket>>,
 }
 impl Host {
     pub fn new(
@@ -107,6 +108,7 @@ impl Host {
             #[cfg(test)]
             quantity_tls_fixture: None,
             loopback_local: false,
+            gateway: None,
             operation_events: Arc::new(Mutex::new(operation_events::EventRegistry::default())),
             core: Arc::new(Mutex::new(core)),
             origin,
@@ -140,6 +142,34 @@ impl Host {
             })?;
         }
         self.loopback_local = true;
+        Ok(self)
+    }
+    /// Select only the native Access policy and the actual private Unix listener.
+    pub fn with_trusted_gateway(
+        mut self,
+        socket: Arc<crate::app::trusted_gateway::GatewaySocket>,
+    ) -> crate::storage::Result<Self> {
+        let mut access = self
+            .mcp_access
+            .lock()
+            .map_err(|_| crate::storage::Error::new("owner-unavailable", "Access unavailable"))?;
+        let policy = access.trusted_proxy_policy().ok_or_else(|| {
+            crate::storage::Error::new("invalid-proxy-mode", "Native proxy selection absent")
+        })?;
+        if !Arc::ptr_eq(policy, socket.policy())
+            || access.trusted_proxy_origin() != Some(self.origin.as_str())
+            || self.loopback_local
+        {
+            return Err(crate::storage::Error::new(
+                "invalid-proxy-mode",
+                "Selected gateway custody changed",
+            ));
+        }
+        access.validate_loopback_local_user().map_err(|e| {
+            crate::storage::Error::new(e.code(), "Selected native identity unavailable")
+        })?;
+        drop(access);
+        self.gateway = Some(socket);
         Ok(self)
     }
     /// Explicit original startup selections; no provider or artifact I/O here.
@@ -348,8 +378,18 @@ async fn response_adapter(State(host): State<Host>, mut request: Request, next: 
     let request_id = host.response_ids.next();
     let admitted = host.admission.admit();
     let checked = admitted.as_ref().map_err(Clone::clone).and_then(|permit| {
-        let headers =
+        let mut headers =
             CheckedHeaders::read(request.headers(), request.version()).map_err(access_error)?;
+        if let Some(socket) = &host.gateway {
+            let peer = request
+                .extensions()
+                .get::<axum::extract::ConnectInfo<crate::app::trusted_gateway::GatewayConnection>>()
+                .ok_or_else(|| failure(StatusCode::FORBIDDEN))?;
+            let identity = headers::single(request.headers(), "x-houseatlas-gateway-identity")
+                .map_err(access_error)?
+                .ok_or_else(|| failure(StatusCode::FORBIDDEN))?;
+            headers.gateway = Some(socket.admit(&peer.0, &identity).map_err(access_error)?);
+        }
         headers
             .check_authority(&host.origin, request.uri())
             .map_err(access_error)?;
@@ -813,6 +853,7 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/auth/login", post(auth::login))
         .route("/api/atlas/auth/mode", get(auth::mode))
         .route("/api/atlas/auth/local", post(auth::local))
+        .route("/api/atlas/auth/proxy", post(auth::proxy))
         .route(
             "/api/atlas/auth/session",
             get(auth::session)

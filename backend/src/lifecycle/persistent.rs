@@ -301,6 +301,14 @@ fn initialize_selected(
 pub fn reopen(config: &ServerConfig) -> Result<(Core, ServerLease), Failure> {
     config.validate()?;
     let lease = ServerLease::acquire(config, false)?;
+    match fs::symlink_metadata(config.data_directory.join("server-state.rebind.pending")) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Ok(_) => return Err(
+            "Incomplete explicit rebind requires reviewed recovery; no automatic receipt adoption"
+                .into(),
+        ),
+        Err(error) => return Err(error.into()),
+    }
     let state: State = serde_json::from_slice(&read_selected_file(
         &config.data_directory.join("server-state.json"),
         16 * 1024,
@@ -373,6 +381,111 @@ pub fn reopen(config: &ServerConfig) -> Result<(Core, ServerLease), Failure> {
         media_policy_evidence: Mutex::default(),
     };
     Ok((core, lease))
+}
+
+/// Explicit offline origin/authentication rebind of the SAME initialized files.
+/// Native sessions/rates are revoked before receipt publication; no account,
+/// membership, Atlas row, database identity, schema or media is recreated.
+/// A failure after revocation can leave old binding plus revoked sessions and a
+/// private pending receipt. No automatic retry, rollback or receipt adoption.
+pub fn rebind_origin(previous: &ServerConfig, config: &ServerConfig) -> Result<(), Failure> {
+    use crate::config::server::ServerAuthentication;
+    fn identity(config: &ServerConfig) -> Option<&a::LoopbackLocalIdentity> {
+        match &config.authentication {
+            ServerAuthentication::LoopbackLocal { identity }
+            | ServerAuthentication::TrustedProxy { identity, .. } => Some(identity),
+            ServerAuthentication::Password => None,
+        }
+    }
+    previous.validate()?;
+    config.validate()?;
+    let transition = matches!(
+        (&previous.authentication, &config.authentication),
+        (
+            ServerAuthentication::LoopbackLocal { .. },
+            ServerAuthentication::TrustedProxy { .. }
+        ) | (
+            ServerAuthentication::TrustedProxy { .. },
+            ServerAuthentication::LoopbackLocal { .. }
+        )
+    );
+    if !transition
+        || identity(previous).is_none()
+        || identity(previous) != identity(config)
+        || previous.deployment_id != config.deployment_id
+        || previous.data_directory != config.data_directory
+        || previous.log_directory != config.log_directory
+        || serde_json::to_value(&previous.homes)? != serde_json::to_value(&config.homes)?
+        || serde_json::to_value(previous.mcp_commands)?
+            != serde_json::to_value(config.mcp_commands)?
+    {
+        return Err("Rebind requires the same initialized deployment, singleton Editor/home and command policy".into());
+    }
+    // Acquires the existing exclusive lease, strict old receipt and both native
+    // database identities before any state write. A running server prevents it.
+    let (core, lease) = reopen(previous)?;
+    let path = config.data_directory.join("server-state.json");
+    let original = read_selected_file(&path, 16 * 1024, true)?;
+    let mut state: State = serde_json::from_slice(&original)?;
+    state.configuration_digest = config.state_digest()?;
+    let bytes = serde_json::to_vec(&state)?;
+    let backup_path = config.data_directory.join(format!(
+        "server-state.previous.{}.json",
+        previous.state_digest()?
+    ));
+    match fs::symlink_metadata(&backup_path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let mut backup = open_private(&backup_path, true, false)?;
+            backup.write_all(&original)?;
+            sync(&backup)?;
+        }
+        Ok(_) if read_selected_file(&backup_path, 16 * 1024, true)? == original => {}
+        Ok(_) => return Err("Existing rebind backup differs from the strict old receipt".into()),
+        Err(error) => return Err(error.into()),
+    }
+    sync(&lease.directory)?;
+    let pending_path = config.data_directory.join("server-state.rebind.pending");
+    let mut pending = open_private(&pending_path, true, false)?;
+    pending.write_all(&bytes)?;
+    sync(&pending)?;
+    // This actual native transaction rotates epoch and clears sessions/rates.
+    // A later file error does not imply it rolled back.
+    core.access
+        .lock()
+        .map_err(|_| "Access unavailable during explicit rebind")?
+        .invalidate_all_sessions()?;
+    drop(core);
+    let mut selected = a::AccessBoundary::open_existing(
+        config.data_directory.join("access.sqlite"),
+        config.access_config()?,
+    )?;
+    selected.validate_loopback_local_user()?;
+    drop(selected);
+    lease.check()?;
+    if read_selected_file(&path, 16 * 1024, true)? != original {
+        return Err("Old receipt changed during explicit rebind".into());
+    }
+    let pending_metadata = private_metadata(&pending_path)?;
+    let actual = pending.metadata()?;
+    if pending_metadata.dev() != actual.dev()
+        || pending_metadata.ino() != actual.ino()
+        || read_selected_file(&pending_path, 16 * 1024, true)? != bytes
+    {
+        return Err("Pending rebind receipt changed".into());
+    }
+    fs::rename(&pending_path, &path)?;
+    sync(&lease.directory)?;
+    // Recheck only the exact native identities recorded by the original issuer.
+    let access = private_metadata(&config.data_directory.join("access.sqlite"))?;
+    let atlas = private_metadata(&config.data_directory.join("atlas.sqlite"))?;
+    if access.dev() != state.access_device
+        || access.ino() != state.access_inode
+        || atlas.dev() != state.atlas_device
+        || atlas.ino() != state.atlas_inode
+    {
+        return Err("Native database identity changed during rebind".into());
+    }
+    Ok(())
 }
 
 fn private_directory(path: &Path) -> Result<File, Failure> {

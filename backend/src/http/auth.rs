@@ -88,7 +88,7 @@ pub(super) async fn login(
     ConnectInfo(address): ConnectInfo<SocketAddr>,
     request: Request,
 ) -> HttpResult {
-    if host.loopback_local {
+    if host.loopback_local || host.gateway.is_some() {
         return Err(failure(StatusCode::NOT_FOUND));
     }
     no_query(request.uri())?;
@@ -148,7 +148,7 @@ pub(super) async fn mode(
     {
         return Err(failure(StatusCode::FORBIDDEN));
     }
-    Ok(axum::Json(serde_json::json!({"schemaVersion":1,"mode":if host.loopback_local {"loopback-local"} else {"password"}})).into_response())
+    Ok(axum::Json(serde_json::json!({"schemaVersion":1,"mode":if host.gateway.is_some() {"trusted-proxy"} else if host.loopback_local {"loopback-local"} else {"password"}})).into_response())
 }
 
 /// Local bootstrap uses the same origin/rate admission and native session
@@ -193,6 +193,65 @@ pub(super) async fn local(
             .lock()
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
             .login_loopback_local(&observed, address.ip())
+            .map_err(access_error)?;
+        receipt_response(receipt)
+    })
+    .await
+    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
+}
+/// Gateway bootstrap retains native origin and CSRF session issuance.
+pub(super) async fn proxy(State(host): State<Host>, request: Request) -> HttpResult {
+    if host.gateway.is_none() {
+        return Err(failure(StatusCode::NOT_FOUND));
+    }
+    let peer = request
+        .extensions()
+        .get::<ConnectInfo<crate::app::trusted_gateway::GatewayConnection>>()
+        .ok_or_else(|| failure(StatusCode::FORBIDDEN))?
+        .0
+        .clone();
+    let identity = headers::single(request.headers(), "x-houseatlas-gateway-identity")
+        .map_err(access_error)?
+        .ok_or_else(|| failure(StatusCode::FORBIDDEN))?;
+    no_query(request.uri())?;
+    login_metadata(&request)?;
+    let checked = request
+        .extensions()
+        .get::<CheckedHeaders>()
+        .cloned()
+        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    let uri = request.uri().clone();
+    let method = request.method().clone();
+    host.admission
+        .login_gateway(&checked, &method, &host.origin)
+        .map_err(access_error)?;
+    let body = super::admission::body(request.into_body(), 16).await?;
+    let value: serde_json::Value =
+        serde_json::from_slice(&body).map_err(|_| failure(StatusCode::UNPROCESSABLE_ENTITY))?;
+    if value != serde_json::json!({}) {
+        return Err(failure(StatusCode::UNPROCESSABLE_ENTITY));
+    }
+    tokio::task::spawn_blocking(move || {
+        let _admitted = checked.admission_permit()?;
+        let core = host
+            .core
+            .lock()
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        let request_url = url(&host, &uri);
+        let observed =
+            evidence(&host.origin, &checked, &uri, &request_url, &method).map_err(access_error)?;
+        let socket = host
+            .gateway
+            .as_ref()
+            .ok_or_else(|| failure(StatusCode::FORBIDDEN))?;
+        let proof = socket
+            .checked_identity(&peer, &identity, &observed)
+            .map_err(access_error)?;
+        let receipt = core
+            .access
+            .lock()
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
+            .login_trusted_proxy(&observed, proof)
             .map_err(access_error)?;
         receipt_response(receipt)
     })

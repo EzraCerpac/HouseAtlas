@@ -6,6 +6,7 @@ pub mod homebox_stock_host;
 pub mod media_policy_recovery;
 pub mod quantity_approval;
 pub mod stock_activity_principal;
+pub mod trusted_gateway;
 use crate::{access as a, domain as d, http::contracts::NativeContracts, storage as s};
 use std::{
     cell::{Cell, RefCell},

@@ -123,3 +123,16 @@ reference directory contains the explicitly pinned public HomeBox source bytes.
 ```sh
 HOUSEATLAS_QUANTITY_REFERENCE_DIR=/tmp/houseatlas-quantity-reference-e01dd737 TMPDIR=/tmp cargo test --offline --locked -p houseatlas-backend --lib http::quantity_http_healthy::healthy_quantity_human_http_preview_approval_native_journal_and_readback -- --exact --nocapture
 ```
+
+### Fresh synthetic trusted gateway positive
+
+The named ordinary example creates only private disposable state. It performs
+one fresh local-to-proxy origin rebind and native session checks over its actual
+Unix socket, using a simulated selected gateway identity. Inspect the full
+`backend/src/http/trusted_gateway_healthy.rs` body before execution. It includes
+no native Tailscale enrollment, real accounts, providers, denial, replay, expiry,
+failure injection or populated restore case:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-trusted-gateway
+```

@@ -57,3 +57,68 @@ reads and mutations use the ordinary native session, membership, epoch and CSRF
 checks. Password login is absent in this mode. This opt-in trusts local access
 through the selected listener/SSH route; it activates no household provider or AI,
 and changes no LAN/proxy/autostart configuration.
+
+## Explicit trusted Tailscale gateway mode
+
+`authentication.mode` may explicitly select `trusted-proxy`. Its closed fields
+are the same complete `identity`, a `policy` object containing `userLogin`,
+`nodeTag` and `peerUid`, and `socket` equal to `dataDirectory/gateway.sock`.
+The selected origin is one canonical HTTPS DNS origin under `.ts.net`. Identity,
+user, tag, UID and actual hostname are private operator configuration; none is
+inferred from requests. Exactly one matching home remains configured. The
+existing loopback listen selection is retained as configuration, but this mode
+opens only the private Unix listener. External HTTPS termination and native
+WhoIs authentication belong to the separately registered gateway.
+
+The gateway must authenticate each accepted remote connection through native
+WhoIs and enforce the approved exact user or native node tag before forwarding.
+It removes all client copies of `x-houseatlas-gateway-identity` and sets one
+bounded JSON value `{schemaVersion:1,kind:"user"|"tag",value:"…"}`. External
+Host and Origin are preserved. Network reachability and asserted forwarded
+identity/address headers are not application authorization.
+
+HouseAtlas checks the actual Unix peer UID, selected private parent and socket
+inode, and the strict selected identity on every proxied request. Session
+issuance rechecks that channel against the actual native request evidence and
+consumes the resulting private proof. Mode GET returns `trusted-proxy`;
+explicit Open Home POSTs `{}` to `/api/atlas/auth/proxy`. Password and local
+bootstrap routes do not issue sessions in this mode. Existing native session
+cookies, current singleton membership/version/epoch, same-origin and mutation
+CSRF remain mandatory. Gateway admission is checked per request; this does not
+claim synchronous remote tailnet-policy revocation of already running work.
+
+Use a dedicated gateway hostname so its host-only cookie is not shared with
+other services on the same DNS host. The channel trusts processes running as
+the selected service user and the native gateway daemon. It adds no provider,
+AI, recovery or stock-write capability beyond the configured scoped Editor.
+
+## Explicit offline origin rebind
+
+Changing origin/mode on initialized state requires the separate command:
+
+```sh
+houseatlas rebind-origin --previous-server-config /canonical/private/previous.json --server-config /canonical/private/candidate.json
+```
+
+Stop the old server gracefully first. The existing exclusive lease and strict
+old receipt/native database identities are required. Only transitions between
+loopback-local and trusted-proxy are accepted, preserving the complete selected
+identity, deployment, data/log paths, homes and command policy. No database,
+schema, account, membership, Atlas row or media is reset or reprovisioned.
+The actual native Access transaction rotates the epoch and clears old sessions
+and login-rate rows. Users must open a new session at the selected origin.
+
+A private exact previous receipt and exclusive pending receipt are synced before
+revocation. Publication replaces the selected receipt atomically and syncs its
+directory. Failures after the native transaction do not imply rollback. Any
+pending receipt makes normal reopen unavailable, before opening native databases;
+there is no automatic adoption, removal, retry or recovery. Preserve diagnostics
+for reviewed recovery. Use only the compatible candidate binary, not an older
+binary unaware of this pending fence. Rollback is a separate explicit reverse
+rebind under the same lease and identity, and also revokes sessions.
+
+The source healthy example uses fresh synthetic state, preserves both database
+inodes, then performs native session/read/mutation-guard checks over an actual
+private Unix socket and OS peer with a simulated selected gateway header. It
+does not qualify native Tailscale WhoIs, deployment, populated migration,
+old-cookie denial, failure recovery or autostart.

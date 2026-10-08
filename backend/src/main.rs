@@ -44,7 +44,7 @@ fn frontend(directory: &Path) -> Result<BTreeMap<String, (String, Vec<u8>)>, lif
                 if html.matches("id=\"root\"").count() != 1 {
                     return Err("Expected one React root".into());
                 }
-                bytes = html.replace("id=\"root\"", "id=\"root\" data-bootstrap-url=\"/api/atlas/view\" data-home-url-template=\"/api/atlas/homes/{workspaceId}/{homeId}/view\" data-session-url=\"/api/atlas/auth/session\" data-login-url=\"/api/atlas/auth/login\" data-logout-url=\"/api/atlas/auth/logout\" data-auth-mode-url=\"/api/atlas/auth/mode\" data-local-sign-in-url=\"/api/atlas/auth/local\"").into_bytes();
+                bytes = html.replace("id=\"root\"", "id=\"root\" data-bootstrap-url=\"/api/atlas/view\" data-home-url-template=\"/api/atlas/homes/{workspaceId}/{homeId}/view\" data-session-url=\"/api/atlas/auth/session\" data-login-url=\"/api/atlas/auth/login\" data-logout-url=\"/api/atlas/auth/logout\" data-auth-mode-url=\"/api/atlas/auth/mode\" data-local-sign-in-url=\"/api/atlas/auth/local\" data-proxy-sign-in-url=\"/api/atlas/auth/proxy\"").into_bytes();
             }
             files.insert(key, (kind.into(), bytes));
         }
@@ -87,6 +87,16 @@ async fn run() -> Result<(), lifecycle::Failure> {
                 Ok(())
             }
             ServerCommand::Serve(config) => run_persistent(config).await,
+            ServerCommand::Rebind { previous, config } => {
+                tokio::task::spawn_blocking(move || {
+                    lifecycle::persistent::rebind_origin(&previous, &config)
+                })
+                .await??;
+                println!(
+                    "HouseAtlas state rebound to the selected origin; old sessions revoked; no listener started"
+                );
+                Ok(())
+            }
         };
     }
     let config = Config::from_args().map_err(|e| format!("HouseAtlas settings: {e}"))?;
@@ -193,6 +203,12 @@ async fn run_persistent(
         config::server::read_tls_files,
         lifecycle::persistent::{self, ServerEvent},
     };
+    if matches!(
+        config.authentication,
+        houseatlas_backend::config::server::ServerAuthentication::TrustedProxy { .. }
+    ) {
+        return run_gateway(config).await;
+    }
     let config = Arc::new(config);
     if std::fs::canonicalize(&config.frontend_directory)? != config.frontend_directory {
         return Err("Persistent frontend directory must be canonical".into());
@@ -238,6 +254,61 @@ async fn run_persistent(
         .await;
     signal.abort();
     result?;
+    lease.event(ServerEvent::Shutdown)?;
+    Ok(())
+}
+
+/// The trusted gateway uses only its private Unix channel. External HTTPS is
+/// terminated by the separately registered native Tailscale gateway owner.
+async fn run_gateway(
+    config: houseatlas_backend::config::server::ServerConfig,
+) -> Result<(), lifecycle::Failure> {
+    use houseatlas_backend::{
+        app::trusted_gateway::{GatewayConnection, GatewaySocket},
+        config::server::ServerAuthentication,
+        lifecycle::persistent::{self, ServerEvent},
+    };
+    let config = Arc::new(config);
+    if fs::canonicalize(&config.frontend_directory)? != config.frontend_directory {
+        return Err("Persistent frontend directory must be canonical".into());
+    }
+    let files = Arc::new(frontend(&config.frontend_directory)?);
+    let selected = Arc::clone(&config);
+    let (core, lease) =
+        tokio::task::spawn_blocking(move || persistent::reopen(&selected)).await??;
+    let policy = core
+        .access
+        .lock()
+        .map_err(|_| "Access unavailable")?
+        .trusted_proxy_policy()
+        .cloned()
+        .ok_or("Native gateway policy absent")?;
+    let ServerAuthentication::TrustedProxy { socket: path, .. } = &config.authentication else {
+        return Err("Gateway mode absent".into());
+    };
+    let (listener, socket) = GatewaySocket::bind(path, policy).await?;
+    let host = Host::new(core, config.origin.clone(), files, Vec::new())?
+        .with_mcp_command_profile(config.command_profile())
+        .with_trusted_gateway(Arc::clone(&socket))?;
+    lease.event(ServerEvent::Listening)?;
+    println!(
+        "HouseAtlas private Unix gateway listening for {}",
+        config.origin
+    );
+    println!(
+        "HomeBox, Network and AI providers unconfigured; historical Media admission unavailable"
+    );
+    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+    let result = axum::serve(
+        listener,
+        router(host).into_make_service_with_connect_info::<GatewayConnection>(),
+    )
+    .with_graceful_shutdown(async move {
+        tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {} }
+    })
+    .await;
+    result?;
+    socket.remove_after_shutdown()?;
     lease.event(ServerEvent::Shutdown)?;
     Ok(())
 }

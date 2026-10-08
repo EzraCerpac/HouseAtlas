@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "52f049794a4041fb408d815fe841841e14d25792e6aa7ba2a44d9b79ed464e74",
+  "sourceDigestSha256": "2d3912f780bc4ee537670844eceb94bed25d7fe1d7974916774bff1e8332174b",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 7275,
-      "sha256": "44de1a7e9ff2e4f41cd4fde439ca492685f64f8491334f987ac21bf7caba11f5",
+      "bytes": 7860,
+      "sha256": "e132d88c067b5070909279de72500bedc842fa8059ed5271a3f219854d7965db",
       "owner": "core-integration"
     },
     {
@@ -245,8 +245,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 3796,
-      "sha256": "6f793c61fa7e26bad6a69d739f6e5d151e42b1e6b124dfaaccfa9d8f5c0db1d6",
+      "bytes": 3887,
+      "sha256": "adb53e5f28829c97bbff259776802636aec32572418dc1b9830877ea087347c7",
       "owner": "core-integration"
     },
     {
@@ -315,8 +315,8 @@
     {
       "path": "backend/src/access/boundary.rs",
       "mode": "100644",
-      "bytes": 31953,
-      "sha256": "5a8f48de7c831f5c9f2401895f8dbb0118a25063104384d2bee2d191dd30dc22",
+      "bytes": 36922,
+      "sha256": "481c6ab8d0ebb4d659b5f8982d0564e06c51a573cc0aa5eb72a62d7766ae2877",
       "owner": "access"
     },
     {
@@ -371,8 +371,8 @@
     {
       "path": "backend/src/access/mod.rs",
       "mode": "100644",
-      "bytes": 1928,
-      "sha256": "9a6ac680f86ac29f5a35c4bcc592cc890e2691469bec26bf9582825c9ce9ac33",
+      "bytes": 1990,
+      "sha256": "8296fc75600ba99872defd24c2f2cd335e53aab6505237c03b498dba2919fcf6",
       "owner": "access"
     },
     {
@@ -444,6 +444,13 @@
       "bytes": 17362,
       "sha256": "531da23843cb1a37c8ef8d710d0a25eab63ce00d54de2a7864bd4c81687822f0",
       "owner": "access"
+    },
+    {
+      "path": "backend/src/access/trusted_proxy.rs",
+      "owner": "access",
+      "mode": "100644",
+      "bytes": 1472,
+      "sha256": "3efafcb174ef4845b366624e9057df851f3d895fd3a6a759579b07f7a99fd1aa"
     },
     {
       "path": "backend/src/access/types.rs",
@@ -735,8 +742,8 @@
     {
       "path": "backend/src/app.rs",
       "mode": "100644",
-      "bytes": 27311,
-      "sha256": "7cc44c699555d5608fef9fe7989794593379b3e2efc0495e3d9ada6d2ff86169",
+      "bytes": 27336,
+      "sha256": "9232edf12a63f12b29e565976c8eb045e894e9bf964c347b240c45a82b76f7ed",
       "owner": "core-integration"
     },
     {
@@ -787,6 +794,13 @@
       "bytes": 5215,
       "sha256": "002774d90d4f74e555e49d0ffe10f9ca0282cd396c36d2efcb1f004f8ae839d9",
       "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/app/trusted_gateway.rs",
+      "owner": "core-integration",
+      "mode": "100644",
+      "bytes": 7279,
+      "sha256": "ec3d4feb57e7f3365f34838fd947d39d8cd25a0bfd9aca096105ed17848ff919"
     },
     {
       "path": "backend/src/config/mod.rs",
@@ -868,8 +882,8 @@
     {
       "path": "backend/src/config/server.rs",
       "mode": "100644",
-      "bytes": 11577,
-      "sha256": "0a44f2e151dc3dae60a975987e7ced8264885111acda0c8ea3697347126827ab",
+      "bytes": 14042,
+      "sha256": "96e6d63fe58d0ceeed88f3087e350d3504d1cde6e7eeee21a56af08eb0c9962f",
       "owner": "core-integration"
     },
     {
@@ -1631,8 +1645,8 @@
     {
       "path": "backend/src/http/admission.rs",
       "mode": "100644",
-      "bytes": 3481,
-      "sha256": "1163f9472d050f1bab880c99c6f8204ba34ac0ef66014c311b5f71fcc04d2dac",
+      "bytes": 4158,
+      "sha256": "1ce78242b28c05d4404563d9b666e4ce98e7c17bb858817a149092ee3b828b10",
       "owner": "core-integration"
     },
     {
@@ -1694,8 +1708,8 @@
     {
       "path": "backend/src/http/auth.rs",
       "mode": "100644",
-      "bytes": 10896,
-      "sha256": "e864f171c932c456eb56ba72f050024745df83b85646f08c5d4ac80f14d12578",
+      "bytes": 13308,
+      "sha256": "592c9b486804efc65c9c800900302631c4f2001ab63c264e94d9ea00114d2d7f",
       "owner": "core-integration"
     },
     {
@@ -1715,8 +1729,8 @@
     {
       "path": "backend/src/http/headers.rs",
       "mode": "100644",
-      "bytes": 3713,
-      "sha256": "5b94d0e9f410a3fa86b326c21b9a5eeade314c1242ed40cbf062dc55efa575e9",
+      "bytes": 3819,
+      "sha256": "ca3581d7f6740e6d22288f1f9f80f64ad95d97a6d7d2e5360fa4627f7afdeb0c",
       "owner": "core-integration"
     },
     {
@@ -1743,8 +1757,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 34810,
-      "sha256": "54be808efe48baa2930f6bab00babc6fe0bb37ea8af3860367fe740eb95e3220",
+      "bytes": 36711,
+      "sha256": "d7ba2eeb2a22f600247144d2434177b8fc45abc9ed0956aaf28092d8b085c00d",
       "owner": "core-integration"
     },
     {
@@ -1902,6 +1916,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/http/trusted_gateway_healthy.rs",
+      "owner": "core-integration",
+      "mode": "100644",
+      "bytes": 8525,
+      "sha256": "27c6ddf13ad2d7530f1cf54d311e9484dc50900d307441c29231a355a37c864d"
+    },
+    {
       "path": "backend/src/http/upload.rs",
       "mode": "100644",
       "bytes": 11270,
@@ -2023,8 +2044,8 @@
     {
       "path": "backend/src/lifecycle/persistent.rs",
       "mode": "100644",
-      "bytes": 15158,
-      "sha256": "8e2438e03366ff61993091bc0836ae97521b06554f22998dde1074d4091bf106",
+      "bytes": 20413,
+      "sha256": "60ce4f7f0506ab1156ec37872f3b10b2ce3aea4d38cbf408a9d5b64d86368181",
       "owner": "core-integration"
     },
     {
@@ -2142,8 +2163,8 @@
     {
       "path": "backend/src/main.rs",
       "mode": "100644",
-      "bytes": 10145,
-      "sha256": "238af338be9b877e9958954ff2723fe422f2b1bf1ea4535535fbc59e737c0bb8",
+      "bytes": 13068,
+      "sha256": "44995c7c7673c9da7c3515eaef1e50e9fe5eec83a214fa8cc6695aa5340a8f0e",
       "owner": "core-integration"
     },
     {
@@ -4606,8 +4627,8 @@
     {
       "path": "docs/operations/persistent-server.md",
       "mode": "100644",
-      "bytes": 5376,
-      "sha256": "90dc945e0918e0a74116c7148444811ca75195373a8a474bca2bd5ee26caeea0",
+      "bytes": 9337,
+      "sha256": "1e829fb9436aa79742f4677d3fe4c49f5e159418ecc86900bf665dbe9d982aaf",
       "owner": "core-integration"
     },
     {
@@ -4970,8 +4991,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 8271,
-      "sha256": "59ca90566561fe5b826067194c2209afe4a9b5cc2e704023202580f3de450797",
+      "bytes": 9075,
+      "sha256": "6ae047b48b2f37061c00bfa6479677ed3a20ec46ab3e59590d425f6c8e9a11bf",
       "owner": "core-integration"
     },
     {
@@ -5201,8 +5222,8 @@
     {
       "path": "frontend/src/api/client.ts",
       "mode": "100644",
-      "bytes": 7263,
-      "sha256": "31bba890cae64ef8c1f12a1a00fe23b4317a2811ecba2a3f59c57b5faede157e",
+      "bytes": 8982,
+      "sha256": "b48277df2093b25f6c47c68cfa18af1238aa20675ad347f865e9c5ebbc7aac56",
       "owner": "web"
     },
     {
@@ -5278,8 +5299,8 @@
     {
       "path": "frontend/src/app/SessionApp.tsx",
       "mode": "100644",
-      "bytes": 11753,
-      "sha256": "9a4d15b44f67ac7a8e5b72adcc90f337ed5fcb245c0647c01b0116ae32e85b3c",
+      "bytes": 12197,
+      "sha256": "051baf3cd90d24d82dfbc3b4f80d426f4a7540bb4ab8dba242d1883010c075af",
       "owner": "web"
     },
     {
@@ -5369,8 +5390,8 @@
     {
       "path": "frontend/src/app/session.ts",
       "mode": "100644",
-      "bytes": 3066,
-      "sha256": "6f21c2a7763b7e58f97dfaa0bc6097b0d09c9ddf35d1226da7a6a8b43a5a67d8",
+      "bytes": 3332,
+      "sha256": "3e35d66cec8d3235b88a6d2255b88d18568db3ce6eed1da78818c485785e5b89",
       "owner": "web"
     },
     {

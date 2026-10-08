@@ -16,6 +16,7 @@ mod shared;
 mod source;
 mod store;
 mod types;
+mod trusted_proxy;
 
 pub use boundary::{AccessBoundary, AccessConfig, AccessLimits, TransactionAuthorization};
 pub use credentials::{PasswordVerifier, hash_password};
@@ -27,6 +28,7 @@ pub use network::{
 };
 pub use recovery::{OfflineRecoveryApproval, OfflineRecoveryAuthority, RecoveryDiscoveryGrant};
 pub use shared::SharedAccess;
+pub use trusted_proxy::TrustedProxyPolicy;
 pub use types::{
     Action, CanonicalId, Capability, LoopbackLocalIdentity, Method, PartitionGrant, PartitionMode,
     Principal, PrincipalView, RequestEvidence, Role, Scope, SessionInfo, SessionReceipt,
