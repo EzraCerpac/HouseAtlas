@@ -485,6 +485,12 @@ impl CurrentNativeQueuedUploadStage<'_, '_, '_> {
 pub struct NativeQueuedUploadStages {
     owner: Arc<StageOwner>,
 }
+enum OriginalBindPhase<'phase, 'p> {
+    Ordinary,
+    QueuedUpload(
+        &'phase crate::app::homebox_queued_upload::OriginalQueuedUploadPhysical<'phase, 'p>,
+    ),
+}
 impl NativeQueuedUploadStages {
     pub fn open(path: &Path) -> MediaResult<Self> {
         let owner = Arc::new(StageOwner {
@@ -642,6 +648,76 @@ impl NativeQueuedUploadStages {
         self.bind_original(guard, stage, bound, config, budget)
     }
 
+    /// Consume the stage using only the actual installed upload Source's E and
+    /// the same Store-borrowed physical phase. No caller-selected proof/config
+    /// or ordinary qualification fallback is accepted.
+    pub fn bind_original_with_queued_upload_installation<
+        'phase,
+        'a,
+        'p,
+        'owner,
+        'captured,
+        W,
+        G,
+        F,
+        C,
+    >(
+        &self,
+        guard: &'phase a::TransactionAuthorization<'_>,
+        stage: NativeQueuedUploadStage<'_>,
+        bound: &NativeQueueOriginalPreparation<
+            'a,
+            'p,
+            'owner,
+            W,
+            G,
+            F,
+            C,
+            native::QueuedUploadSource<'captured, 'p>,
+        >,
+        physical: &'phase crate::app::homebox_queued_upload::OriginalQueuedUploadPhysical<
+            'phase,
+            'p,
+        >,
+        budget: &WorkBudget,
+    ) -> MediaResult<NativeQueuedUploadOriginal>
+    where
+        G: NativeQueueOriginalGraph<'owner, C, native::QueuedUploadSource<'captured, 'p>>,
+        F: GraphAuthorization<W, G>,
+        C: native::StockContractPort + Sync,
+    {
+        check_queued_upload_binding(
+            guard,
+            &stage.custody,
+            &stage.original,
+            stage.source,
+            bound,
+            physical,
+            budget,
+        )?;
+        let original = self.bind_inner(
+            guard,
+            stage,
+            bound,
+            physical.queue_config(),
+            budget,
+            OriginalBindPhase::QueuedUpload(physical),
+        )?;
+        // The engine has released all Media locks before these Source/phase
+        // checks. The SAME actual E still retains the original stage allocation.
+        let proof = bound.native().capture().evidence().source_preparation();
+        check_queued_upload_binding(
+            guard,
+            &original.custody,
+            &proof.original,
+            proof.source,
+            bound,
+            physical,
+            budget,
+        )?;
+        Ok(original)
+    }
+
     /// Actual native/Domain original qualification is mandatory before and after
     /// binding. Consume the stage once; retain only detached descriptor custody
     /// and exact original facts. This issues no current Access/Store authority.
@@ -652,6 +728,32 @@ impl NativeQueuedUploadStages {
         bound: &NativeQueueOriginalPreparation<'a, 'p, 'owner, W, G, F, C, S>,
         config: &jobs::QueueConfig,
         budget: &WorkBudget,
+    ) -> MediaResult<NativeQueuedUploadOriginal>
+    where
+        G: NativeQueueOriginalGraph<'owner, C, S>,
+        F: GraphAuthorization<W, G>,
+        C: native::StockContractPort + Sync,
+        S: native::FreshPreparationSourcePort,
+    {
+        self.bind_inner(
+            guard,
+            stage,
+            bound,
+            config,
+            budget,
+            OriginalBindPhase::Ordinary,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn bind_inner<'phase, 'a, 'p, 'owner, W, G, F, C, S>(
+        &self,
+        guard: &'phase a::TransactionAuthorization<'_>,
+        stage: NativeQueuedUploadStage<'_>,
+        bound: &NativeQueueOriginalPreparation<'a, 'p, 'owner, W, G, F, C, S>,
+        config: &jobs::QueueConfig,
+        budget: &WorkBudget,
+        phase: OriginalBindPhase<'phase, 'p>,
     ) -> MediaResult<NativeQueuedUploadOriginal>
     where
         G: NativeQueueOriginalGraph<'owner, C, S>,
@@ -676,9 +778,16 @@ impl NativeQueuedUploadStages {
             return Err(MediaError::Forbidden);
         }
         authorize_original(guard, &stage.original, stage.source)?;
-        bound
-            .revalidate(guard, bound.native().authority())
-            .map_err(|_| MediaError::Unavailable)?;
+        match &phase {
+            OriginalBindPhase::Ordinary => bound.revalidate(guard, bound.native().authority()),
+            OriginalBindPhase::QueuedUpload(physical) => bound
+                .revalidate_with_queued_upload_installation(
+                    guard,
+                    bound.native().authority(),
+                    physical,
+                ),
+        }
+        .map_err(|_| MediaError::Unavailable)?;
         let native = bound.native();
         let command = native.command();
         let request = bound.prepared().request();
@@ -847,9 +956,12 @@ impl NativeQueuedUploadStages {
         drop(local_custody);
         // A source qualifier may consult this actual stage producer. Never call
         // it while Media owner locks are held.
-        bound
-            .revalidate(guard, native.authority())
-            .map_err(|_| MediaError::Unavailable)?;
+        match &phase {
+            OriginalBindPhase::Ordinary => bound.revalidate(guard, native.authority()),
+            OriginalBindPhase::QueuedUpload(physical) => bound
+                .revalidate_with_queued_upload_installation(guard, native.authority(), physical),
+        }
+        .map_err(|_| MediaError::Unavailable)?;
         authorize_original(guard, &stage.original, stage.source)?;
         budget.check()?;
         let impact = NativeQueuedUploadImpact {
@@ -1028,6 +1140,87 @@ impl NativeQueuedUploadOriginal {
         &self.canonical_scope
     }
 }
+#[allow(clippy::too_many_arguments)]
+fn check_queued_upload_binding<'phase, 'a, 'p, 'owner, 'captured, W, G, F, C>(
+    guard: &'phase a::TransactionAuthorization<'_>,
+    custody: &Arc<StageCustody>,
+    original: &RetainedPrincipal,
+    grant: &a::SourceGrant,
+    bound: &NativeQueueOriginalPreparation<
+        'a,
+        'p,
+        'owner,
+        W,
+        G,
+        F,
+        C,
+        native::QueuedUploadSource<'captured, 'p>,
+    >,
+    physical: &'phase crate::app::homebox_queued_upload::OriginalQueuedUploadPhysical<'phase, 'p>,
+    budget: &WorkBudget,
+) -> MediaResult<()>
+where
+    G: NativeQueueOriginalGraph<'owner, C, native::QueuedUploadSource<'captured, 'p>>,
+    F: GraphAuthorization<W, G>,
+    C: native::StockContractPort + Sync,
+{
+    budget.check()?;
+    let source = bound.native().source();
+    let captured = source.captured();
+    let configured = source.configured();
+    let selected_source = source.original_source();
+    let selected_partition = source.original_partition();
+    let proof = bound.native().capture().evidence().source_preparation();
+    if !Arc::ptr_eq(custody, &proof.custody)
+        || !Arc::ptr_eq(&custody.issuer, &proof.custody.issuer)
+        || !std::ptr::eq(original.principal(), proof.original.principal())
+        || !std::ptr::eq(grant, proof.source)
+        || !std::ptr::eq(original.principal(), source.original().principal())
+        || !std::ptr::eq(original.principal(), captured.principal())
+        || !std::ptr::eq(guard.principal(), captured.principal())
+        || !std::ptr::eq(captured, bound.captured())
+        || !std::ptr::eq(captured, physical.captured())
+        || !std::ptr::eq(grant, selected_source)
+        || !std::ptr::eq(selected_source, physical.source())
+        || !std::ptr::eq(selected_partition, physical.partition())
+        || !captured
+            .source_grants()
+            .iter()
+            .any(|item| std::ptr::eq(item, selected_source))
+        || !captured
+            .partition_grants()
+            .iter()
+            .any(|item| std::ptr::eq(item, selected_partition))
+        || selected_source.reference().partition() != *selected_partition.partition()
+        || selected_partition.partition() != &configured.source().partition()
+        || !configured.source().contains(selected_source.reference())
+        || !Arc::ptr_eq(configured, physical.configured())
+        || !physical.matches_configured_store()
+        || physical.queue_config() != configured.queue()
+        || physical.registration() != configured.physical()
+        || physical.source_metadata() != configured.metadata()
+    {
+        return Err(MediaError::Forbidden);
+    }
+    guard
+        .revalidate_source_partition(selected_partition)
+        .map_err(access_error)?;
+    if guard
+        .persisted_source_metadata(selected_partition)
+        .map_err(access_error)?
+        != *configured.metadata()
+    {
+        return Err(MediaError::Forbidden);
+    }
+    {
+        let _current = proof.current_under_guard(guard, original, grant, budget)?;
+    }
+    // No Source or Store callback, network work or reentry surrounds these
+    // bounded Media descriptor checks. All Media locks have now been dropped.
+    authorize_original(guard, original, grant)?;
+    budget.check()
+}
+
 fn authorize_original(
     guard: &a::TransactionAuthorization<'_>,
     original: &RetainedPrincipal,
