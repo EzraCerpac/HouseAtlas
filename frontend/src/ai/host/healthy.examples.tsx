@@ -40,6 +40,7 @@ type Mode = 'connection' | 'completed' | 'review' | 'cancel' | 'status' | 'termi
 interface Observed { readonly path: string; readonly method: string; readonly body: Record<string, unknown> | null }
 
 export function createHealthyAiHostFixture(mode: Mode) {
+  let mutationHeaderReads = 0;
   let snapshot = mode === 'connection' ? held : ready;
   let pendingAction = '';
   let requestId = '';
@@ -49,12 +50,13 @@ export function createHealthyAiHostFixture(mode: Mode) {
   const response = (value: unknown) => new Response(JSON.stringify(value), { status: 200, headers: { 'Content-Type': 'application/json' } });
   const client = createAiHostClient({
     endpoints: {
+      models: '/api/atlas/v1/workspaces/synthetic-workspace/homes/synthetic-home/ai/models',
       connection: '/synthetic/connection', connectionAction: '/synthetic/action',
       connectionActionStatus: id => `/synthetic/action/${encodeURIComponent(id)}`,
       run: '/synthetic/run', cancel: id => `/synthetic/cancel/${encodeURIComponent(id)}`,
       openReview: '/synthetic/review', resume: '/synthetic/resume', requestStatus: id => `/synthetic/status/${encodeURIComponent(id)}`,
     },
-    mutationHeaders: async () => ({ 'X-Atlas-CSRF': 'synthetic-application-nonce' }),
+    mutationHeaders: async () => { mutationHeaderReads++; return { 'X-Atlas-CSRF': 'synthetic-application-nonce' }; },
     fetch: async (input, init) => {
       assert(typeof input === 'string' && init, 'Explicit synthetic transport');
       assert(init.credentials === 'same-origin' && init.cache === 'no-store' && init.redirect === 'error', 'Host request options');
@@ -64,6 +66,10 @@ export function createHealthyAiHostFixture(mode: Mode) {
       const body = raw as Record<string, unknown> | null;
       observed.push({ path: input, method, body });
       if (method === 'POST') assert(new Headers(init.headers).get('X-Atlas-CSRF') === 'synthetic-application-nonce', 'Application nonce');
+      if (input === '/api/atlas/v1/workspaces/synthetic-workspace/homes/synthetic-home/ai/models') {
+        assert(method === 'GET' && init.body === undefined && !new Headers(init.headers).has('X-Atlas-CSRF'), 'Passive models read');
+        return response({ registrationId: 'synthetic-registration', checkedAt: '2026-10-08T12:34:56.123+02:00', modelSlugs: ['synthetic-model-z', 'synthetic-model-a'] });
+      }
       if (input === '/synthetic/connection') return response(snapshot);
       if (input === '/synthetic/action') {
         assert(body && typeof body['actionId'] === 'string', 'Retained action ID');
@@ -110,6 +116,7 @@ export function createHealthyAiHostFixture(mode: Mode) {
   });
   return {
     client, observed,
+    get mutationHeaderReads() { return mutationHeaderReads; },
     confirmConnection() { snapshot = ready; },
     finishCancelled() { assert(finish, 'Synthetic result retained'); finish({ status: 'cancelled', usage }); },
     finishStatusTransport() { assert(finish, 'Synthetic result retained'); finish({ status: 'completed', text: 'Canonical status response', operationIds: [], usage }); },
@@ -118,7 +125,8 @@ export function createHealthyAiHostFixture(mode: Mode) {
 
 function Example({ client }: { readonly client: ReturnType<typeof createAiHostClient> }) {
   const [settings, setSettings] = useState(true);
-  return <AiHost context={{ client, scopeKey: 'synthetic-actor/home/registration/session/epoch', scopeLabel: 'Synthetic home' }}>
+  return <AiHost context={{ client, scopeKey: 'synthetic-actor/home/registration/session/epoch', scopeLabel: 'Synthetic home',
+    receiptIdentity: { actorId: 'synthetic-actor', workspaceId: 'synthetic-workspace', homeId: 'synthetic-home', registrationId: 'synthetic-registration', authorityEpoch: 'synthetic-authority-epoch' } }}>
     <button type="button" onClick={() => setSettings(value => !value)}>Toggle Settings example</button>
     {settings ? <div className="settings-list"><AiSettingsSection /></div> : <AiActivityStatus />}
   </AiHost>;
@@ -289,4 +297,32 @@ export function runHealthyConnectionAdmissionProjection(container: HTMLElement) 
     return { groups: ['retained old Connect/Consent display and capacity', 'current-runtime blockers',
       'older Disconnect and usage safeguards', 'legacy admission metadata'], hostActions };
   } finally { flushSync(() => root.unmount()); }
+}
+
+/** Manual positive discovery only. Other exported lifecycle groups are not run. */
+export async function runHealthyAiModelsExample(container: HTMLElement) {
+  const fixture = createHealthyAiHostFixture('completed');
+  const root = createRoot(container);
+  const modelsPath = '/api/atlas/v1/workspaces/synthetic-workspace/homes/synthetic-home/ai/models';
+  try {
+    flushSync(() => root.render(<Example client={fixture.client} />));
+    await until(() => container.textContent?.includes('Synthetic account') === true, 'current connection snapshot');
+    assert(fixture.observed.every(row => row.path === '/synthetic/connection'), 'Mount reads only connection');
+    assert(container.textContent?.includes('Models are unknown.'), 'Models unknown before manual refresh');
+    click(container, 'Refresh models');
+    await until(() => container.querySelector('[aria-label="Reported model slugs"]') !== null, 'manual models result');
+    const slugs = [...container.querySelectorAll('[aria-label="Reported model slugs"] li')].map(row => row.textContent);
+    assert(slugs.join(',') === 'synthetic-model-z,synthetic-model-a', 'Original model order');
+    const checked = container.querySelector<HTMLTimeElement>('.ha-ai__models time');
+    assert(checked?.dateTime === '2026-10-08T12:34:56.123+02:00' && checked.textContent === checked.dateTime, 'Original checkedAt retained');
+    assert(fixture.observed.filter(row => row.path === modelsPath).length === 1, 'Exactly one manual discovery GET');
+    assert(fixture.observed.every(row => row.method === 'GET' && row.body === null), 'Only passive reads');
+    assert(fixture.mutationHeaderReads === 0, 'No mutation headers requested');
+    assert(container.textContent?.includes('Informational model list.'), 'Discovery limitation visible');
+    assert(container.querySelector('select')?.value === 'unset' && container.querySelector('textarea')?.value === '', 'Discovery does not select or submit');
+    return { groups: ['manual model discovery; original order and timestamp; passive GET without mutation headers'], observed: fixture.observed,
+      scope: 'Explicit synthetic transport and actual AiHost/AiSettingsSection composition only; no lifecycle action, inference, live provider, grant or held control.' };
+  } finally {
+    flushSync(() => root.unmount());
+  }
 }

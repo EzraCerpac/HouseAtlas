@@ -2,7 +2,7 @@
 import { decodeConnectionActionResult } from '../wire.js';
 import type {
   CancelReceipt, ConnectionSnapshot, JsonValue, RequestStatus, ReviewChallenge,
-  RunOutcome, ToolCall, Usage,
+  RunOutcome, ToolCall, Usage, ModelDiscovery,
 } from '../types.js';
 
 function object(value: unknown, keys: readonly string[]): Record<string, unknown> {
@@ -113,4 +113,34 @@ export function decodeRequestStatus(value: unknown, requestId: string): RequestS
   return status === 'finished'
     ? { requestId, status, outcome: decodeRunOutcome(row['outcome']) }
     : { requestId, status };
+}
+
+/** Exact native Models DTO, preserving provider order and original timestamp. */
+export function decodeModelDiscovery(value: unknown): ModelDiscovery {
+  const row = object(value, ['registrationId', 'checkedAt', 'modelSlugs']);
+  const registrationId = text(row['registrationId']);
+  if (registrationId.trim().length === 0 || new TextEncoder().encode(registrationId).length > 4096)
+    throw new TypeError('Invalid AI model registration');
+  const checkedAt = text(row['checkedAt']);
+  const match = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|([+-])(\d{2}):(\d{2}))$/u.exec(checkedAt);
+  if (!match) throw new TypeError('Invalid AI model timestamp');
+  const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (month < 1 || month > 12 || day < 1 || day > (days[month - 1] ?? 0)
+    || Number(match[4]) > 23 || Number(match[5]) > 59 || Number(match[6]) > 60
+    || (match[8] !== undefined && Number(match[8]) > 23)
+    || (match[9] !== undefined && Number(match[9]) > 59))
+    throw new TypeError('Invalid AI model timestamp');
+  if (!Array.isArray(row['modelSlugs']) || row['modelSlugs'].length > 1024)
+    throw new TypeError('Invalid AI models collection');
+  const seen = new Set<string>();
+  const modelSlugs = row['modelSlugs'].map((value: unknown) => {
+    const slug = text(value);
+    if (slug.length === 0 || new TextEncoder().encode(slug).length > 256 || /\p{Cc}/u.test(slug)
+      || /[\uD800-\uDFFF]/u.test(slug) || seen.has(slug)) throw new TypeError('Invalid AI model slug');
+    seen.add(slug);
+    return slug;
+  });
+  return { registrationId, checkedAt, modelSlugs };
 }

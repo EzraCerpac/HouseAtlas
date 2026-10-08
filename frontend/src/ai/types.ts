@@ -119,7 +119,25 @@ export type RequestStatus =
  * generation and authority never enter this island. Review opens the separate
  * trusted human UI; only its ready result initiates the existing continuation.
  */
+/** Informational discovery for the current host registration; no inference grant. */
+export interface ModelDiscovery {
+  readonly registrationId: string;
+  readonly checkedAt: string;
+  readonly modelSlugs: readonly string[];
+}
+
+/** Models-only transport denial; existing request errors retain their semantics. */
+export class AiModelsUnauthorizedError extends Error {
+  readonly status: 401 | 403;
+  constructor(status: 401 | 403) {
+    super('AI model discovery is unauthorized');
+    this.name = 'AiModelsUnauthorizedError';
+    this.status = status;
+  }
+}
+
 export interface AiClient {
+  models?(signal: AbortSignal): Promise<ModelDiscovery>;
   connection(signal: AbortSignal): Promise<ConnectionSnapshot>;
   connectionAction(input: ConnectionActionRequest, signal: AbortSignal): Promise<ConnectionActionResult>;
   connectionActionStatus(actionId: string, signal: AbortSignal): Promise<ConnectionActionResult>;

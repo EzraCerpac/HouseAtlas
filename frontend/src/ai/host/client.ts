@@ -1,10 +1,12 @@
 import { bindAiLifecyclePort } from '../wire.js';
 import type { AiLifecycleWirePort } from '../wire.js';
+import { AiModelsUnauthorizedError } from '../types.js';
 import type { AiClient, ReviewInput } from '../types.js';
-import { decodeCancelReceipt, decodeConnectionSnapshot, decodeRequestStatus, decodeRunOutcome } from './decode.js';
+import { decodeCancelReceipt, decodeConnectionSnapshot, decodeModelDiscovery, decodeRequestStatus, decodeRunOutcome } from './decode.js';
 
 /** Every operation is already bound to the server's current actor/home/provider. */
 export interface AiHostWirePort extends AiLifecycleWirePort {
+  models?(signal: AbortSignal): Promise<unknown>;
   connection(signal: AbortSignal): Promise<unknown>;
   run(input: { readonly requestId: string; readonly prompt: string }, signal: AbortSignal): Promise<unknown>;
   cancel(requestId: string): Promise<unknown>;
@@ -16,6 +18,7 @@ export interface AiHostWirePort extends AiLifecycleWirePort {
 export function bindAiHostPort(port: AiHostWirePort): AiClient {
   return {
     ...bindAiLifecyclePort(port),
+    ...(port.models ? { models: async (signal: AbortSignal) => decodeModelDiscovery(await port.models!(signal)) } : {}),
     async connection(signal) { return decodeConnectionSnapshot(await port.connection(signal)); },
     async run(input, signal) { return decodeRunOutcome(await port.run(input, signal)); },
     async cancel(requestId) { return decodeCancelReceipt(await port.cancel(requestId), requestId); },
@@ -26,6 +29,7 @@ export function bindAiHostPort(port: AiHostWirePort): AiClient {
 
 /** URLs must be explicitly supplied by the integrator after Rust route agreement. */
 export interface AiHostEndpoints {
+  readonly models?: string;
   readonly connection: string;
   readonly connectionAction: string;
   readonly connectionActionStatus: (actionId: string) => string;
@@ -54,7 +58,7 @@ function localPath(path: string): string {
 export function createAiHostClient(options: AiHostHttpOptions): AiClient {
   const transport = options.fetch ?? globalThis.fetch;
   const endpoints = { ...options.endpoints };
-  async function request(path: string, signal: AbortSignal, body?: unknown): Promise<unknown> {
+  async function request(path: string, signal: AbortSignal, body?: unknown, modelsRead = false): Promise<unknown> {
     const url = localPath(path);
     const headers = new Headers(body === undefined ? undefined : await options.mutationHeaders(signal));
     headers.set('Accept', 'application/json');
@@ -65,12 +69,14 @@ export function createAiHostClient(options: AiHostHttpOptions): AiClient {
       credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal, headers,
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
+    if (modelsRead && (response.status === 401 || response.status === 403)) throw new AiModelsUnauthorizedError(response.status);
     if (!response.ok) throw new Error('AI host response is unavailable');
     const value: unknown = await response.json();
     signal.throwIfAborted();
     return value;
   }
   return bindAiHostPort({
+    ...(endpoints.models === undefined ? {} : { models: (signal: AbortSignal) => request(endpoints.models!, signal, undefined, true) }),
     connection: signal => request(endpoints.connection, signal),
     connectionAction: (input, signal) => request(endpoints.connectionAction, signal, input),
     connectionActionStatus: (actionId, signal) => request(endpoints.connectionActionStatus(actionId), signal),
