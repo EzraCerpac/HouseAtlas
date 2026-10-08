@@ -7,18 +7,27 @@ The explicit configured Stock path retains genuine native publications, the
 original command preparation and a unique Store-issued invocation. It qualifies
 actual Candidate and Precommit frames before typed native and Stock authorization,
 then stamps the ordered witnesses before the sole SQL commit. Ordinary commands
-retain their existing authorization order and staging hold. No table is installed
-by this component. Profiles 5/6
+retain their existing authorization order and staging hold. The explicit fresh
+Presence constructor installs schema 7 only in an empty database. Profiles 5/6
 migration catalogs and their checksum validation are unchanged.
 
 `StoreOptions::presence_profile` defaults to `PresenceProfileSelection::Disabled`.
-Explicit `FreshV7` returns `upstream-unavailable` before database open/reopen,
-including when the legacy activity selector is also set. The source-only
-`0007_presence_witnesses.sql` has a distinct lineage and checksum, but no installer
-routes to it. Required independent `OriginalPresenceHistoryEvidence` has no
-implementation or success default. Its historical validator compiles, with the
-unavailable mount documented by a narrow dead-code expectation, and is not
-invoked for current profiles.
+Ordinary open/reopen still reject `FreshV7` before opening a database. Separate
+`AtlasStore::open_presence` and `open_existing_presence` constructors require
+the explicit selector, the activity profile and a disabled queue-original
+profile. The fresh constructor requires an empty history catalog and installs
+the exact schema 1–7 lineage only in a database with no existing schema or objects.
+It performs no upgrade or backfill. The existing-file constructor validates the
+complete native, Stock, activity, queue and Presence closure in one read
+transaction before enabling WAL and normal operation.
+
+`PresenceHistoryCatalog` accepts only opaque Root `RecordedPresenceHistory`
+entries. Root issues those entries by consuming an actual accepted command cut
+following Store Release and the complete Access commit. The current archive
+supports original first-generation publications with no predecessor, missing-ID
+or quarantine facts. Predecessor custody and independent cold-start intake
+remain separate code dependencies. Neither a current cache nor witness JSON
+can issue an archive entry.
 
 ## Exact dependencies and scope
 
@@ -147,44 +156,43 @@ Do not infer it from Cargo, schema versions, a Principal, the unrelated JS packa
 version, an epoch/version row, or healthy fixture authority. No production version
 default is included. The actual engine context ID is correlation, not authority.
 
-## Fresh profile and recovery proposal
+## Explicit fresh profile and retained history
 
-`0007_presence_witnesses.sql` contains the precise proposed table, index,
-immutable triggers and distinct fresh lineage. The explicit source selector and
-definition identify version, lineage, filename and checksum. Complete compatible
-profile/catalog admission and independent recovery policy remain required before
-mounting retention. Current profiles 5/6 validate their entire migration ledger
-and `sqlite_schema`; adding this table to either existing profile silently would
-make the database incompatible. This patch does not modify those profiles or
-install/execute a migration. There is no live migration or legacy backfill.
+`0007_presence_witnesses.sql` contains the table, index, immutable triggers and
+distinct fresh lineage. The selector identifies version, lineage, filename and
+checksum. Explicit constructors implement fresh installation and strict
+same-file reopen using the retained history catalog. Profiles 5/6 and their
+migration ledgers remain unchanged. No default configuration or HTTP route
+selects schema 7. There is no live migration or legacy backfill.
 
-The proposed key is `(workspace_id, binding_record_id, binding_revision)`, with
+The witness key is `(workspace_id, binding_record_id, binding_revision)`, with
 unique audit ID and scoped actor/mutation ID. Foreign keys link the existing
 record, immutable audit and command receipt. The revision is a positive published
-safe integer. JSON body contains the full frozen v1 witness, including required
-nullable Native source dates. Later record revisions must remain possible; do
-not add a foreign key tying historical witness revision to the current record
-revision. Witness rows remain append-only.
+safe integer. JSON contains the full frozen v1 witness, including required
+nullable Native source dates. Later record revisions remain possible; historical
+witnesses are linked to their original receipt and audit rather than assuming
+that the current record still has the historical revision. Rows are append-only.
 
-Before admitting this new profile, Root's complete open/image/recovery validators
-must enumerate and validate **every** witness, including empty collections, and
-check the exact canonical body against every denormalized key and scoped linked
-row. Validate schema/amendment, binding type, audit operation/revision/actor/
-mutation/time/digests, actual command receipt's historical final record, its
-scope/binding/source, and required historical qualifying-witness coverage.
-A current record may be newer than a historical witness; its immutable original
-receipt/audit outcome supplies the historical final row. SQL foreign keys alone
-do not enforce home/type/JSON correlations. Reject missing/mismatched/duplicate
-or unsupported persisted evidence according to the accepted fresh-profile
-policy. No missing historical witness may be fabricated from a current cache or
-metadata. Root owns these exhaustive validators and corresponding lineage rules.
+The explicit existing-file validator enumerates every witness, including empty
+collections, and checks canonical bodies against all denormalized keys and
+linked rows. It checks schema, binding type, operation, revision, actor,
+mutation, time, digests, original final record and source scope. The catalog
+requires exact witness coverage by its retained accepted frames, bounds SQL
+bodies before decoding, and rejects unused or duplicate entries. Missing
+historical witnesses cannot be reconstructed from a current cache or metadata.
 
-Native cache generation/epoch/digest references also need inclusion in the
-accepted original-owner residency, export and recovery catalogs. Copying a JSON
-witness supplies neither retained raw Native bytes nor an active authority token.
-Do not claim restore, historical admission or cross-owner atomic commit from this
-source component. Access's separate held database supplies original authority;
-this is not a distributed SQL transaction.
+Each Root archive entry retains the same opaque Native allocation, original
+complete generation, normalized rows, registration and historical metadata
+facts. Source replays the response sequence through the actual decoder and
+projection using the issuer's retained limits and navigation. This validates
+retained content and issues no current grant. Entries retain no live principal,
+Access/Store handle, guard, reader or credential. Copying witness JSON supplies
+neither this custody nor authority. An empty catalog admits only a database whose
+exhaustive scan needs no qualifying history.
+
+Detached backup or restore with an expected recovery image, predecessor-bearing
+history and independent administrative cold-start intake remain code dependencies.
+Access's separate database remains outside the Store SQL transaction.
 
 ## Actual validation and limits
 
@@ -193,13 +201,16 @@ warnings-denied Clippy. The named positive representation target passes through
 the actual library. These checks execute no phase adapter, qualifier, witness
 retention, schema installer, profile admission or historical validator.
 
-Earlier owner validation used a task-owned external compiler composing dev with AT11's exact
-`metadata.rs`/module export and these two files. It adds the proposed private
-mounts with `allow(dead_code)` **only in that external compiler copy**, because
-production presence-peer construction deliberately remains unwired. All method bodies are type
-checked; no stub replaces a Store, Access or Network implementation. Production
-Cargo lock/dependencies remain unchanged. The root Cargo manifest now names the
-existing positive representation example.
+Earlier owner validation used a task-owned external compiler with temporary
+mounts and a dead-code allowance. That historical check does not describe the
+current mounted composition: the genuine Source, Root and Storage consumers now
+compile together under warnings-denied production Clippy without a suppression.
+Production Cargo dependencies and lockfile remain unchanged.
+
+The test-only configured HTTPS loopback constructor and original publication
+preparation helper compile with the unit sources. They retain the actual TLS,
+Access and Store fences. The new ordinary configured publication/Binding/history
+case has not yet run; source compilation is not runtime acceptance.
 
 `checks/presence-metadata-healthy.rs` inspects three published positive wire
 witness/qualification representation pairs, accepted integral numeric spellings,
@@ -218,6 +229,7 @@ name = "presence-metadata-healthy"
 path = "src/storage/checks/presence-metadata-healthy.rs"
 ```
 
-Actual presence admission and all lifecycle/revocation/replay/held controls remain
-unrun pending the explicitly accepted engine/profile/recovery composition and
-separate qualification authority.
+The new configured Presence phase, schema installation and history reopen have
+not yet been exercised by an ordinary runtime case. Lifecycle, revocation, replay
+and other held controls remain unrun; the representation positive does not
+certify those behaviors.

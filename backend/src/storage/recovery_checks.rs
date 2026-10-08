@@ -113,19 +113,25 @@ fn validate_core<C: Contract>(
     contract: &C,
     check: Check<'_>,
 ) -> Result<RecoveryImage> {
-    validate_core_profile(db, contract, check, false)
+    validate_core_profile(db, contract, check, CoreProfile::Base)
+}
+#[derive(Clone, Copy)]
+enum CoreProfile {
+    Base,
+    Activity,
+    Presence,
 }
 fn validate_core_profile<C: Contract>(
     db: &Connection,
     contract: &C,
     check: Check<'_>,
-    activity: bool,
+    profile: CoreProfile,
 ) -> Result<RecoveryImage> {
     check()?;
-    if activity {
-        migrations::validate_profile(db, true)?;
-    } else {
-        migrations::validate(db)?;
+    match profile {
+        CoreProfile::Base => migrations::validate(db)?,
+        CoreProfile::Activity => migrations::validate_profile(db, true)?,
+        CoreProfile::Presence => migrations::validate_presence(db)?,
     }
     let mut integrity_rows = 0;
     each(db, "PRAGMA integrity_check", check, |row, _| {
@@ -239,11 +245,14 @@ fn validate_core_profile<C: Contract>(
     check()?;
     Ok(RecoveryImage {
         contract_version: CONTRACT_VERSION.into(),
-        database_lineage: DATABASE_LINEAGE.into(),
-        database_schema: if activity {
-            STOCK_ACTIVITY_DATABASE_VERSION
-        } else {
-            DATABASE_VERSION
+        database_lineage: match profile {
+            CoreProfile::Presence => presence_profile_definition().lineage.into(),
+            CoreProfile::Base | CoreProfile::Activity => DATABASE_LINEAGE.into(),
+        },
+        database_schema: match profile {
+            CoreProfile::Base => DATABASE_VERSION,
+            CoreProfile::Activity => STOCK_ACTIVITY_DATABASE_VERSION,
+            CoreProfile::Presence => presence_profile_definition().version,
         },
         assets,
     })
@@ -354,7 +363,50 @@ pub(super) fn validate_connection_with_activity_peers<
     activity: &StockActivityRecoveryPeers<'_, W, AD, AE>,
     check: Check<'_>,
 ) -> Result<RecoveryImage> {
-    let image = validate_core_profile(db, contract, check, true)?;
+    let image = validate_core_profile(db, contract, check, CoreProfile::Activity)?;
+    validate_activity_closure(db, contract, base, activity, image, check)
+}
+
+pub(super) fn validate_connection_with_presence_peers<
+    C: Contract,
+    S: crate::domain::stock::StockContractPort,
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+    W: crate::providers::homebox::write::stock::StockContractPort,
+    AD: StockActivityRecoveryDiscovery,
+    AE: StockActivityRecoveryEvidence,
+>(
+    db: &Connection,
+    contract: &C,
+    peers: &super::PresenceOpenPeers<'_, S, D, E, W, AD, AE>,
+    check: Check<'_>,
+) -> Result<RecoveryImage> {
+    let image = validate_core_profile(db, contract, check, CoreProfile::Presence)?;
+    let image = validate_activity_closure(db, contract, peers.base, peers.activity, image, check)?;
+    // Consume the complete witness history only after the native, activity,
+    // Stock, Media and Jobs closures have passed on this same read snapshot.
+    check()?;
+    peers.history.validate_connection(db, contract, check)?;
+    check()?;
+    Ok(image)
+}
+
+fn validate_activity_closure<
+    C: Contract,
+    S: crate::domain::stock::StockContractPort,
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+    W: crate::providers::homebox::write::stock::StockContractPort,
+    AD: StockActivityRecoveryDiscovery,
+    AE: StockActivityRecoveryEvidence,
+>(
+    db: &Connection,
+    contract: &C,
+    base: &super::RecoveryValidationPeers<'_, S, D, E>,
+    activity: &StockActivityRecoveryPeers<'_, W, AD, AE>,
+    image: RecoveryImage,
+    check: Check<'_>,
+) -> Result<RecoveryImage> {
     super::super::super::stock_activity::validate_recovery_activity(db, activity, check)?;
     super::super::super::stock_recovery::validate_with_activity(
         db,

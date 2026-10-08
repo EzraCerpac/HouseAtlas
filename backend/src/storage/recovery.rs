@@ -88,6 +88,15 @@ pub struct RecoveryValidationPeers<'a, S, D, E> {
     pub evidence: &'a E,
 }
 
+/// Explicit fresh Presence profile peers. The history catalog contains only
+/// detached cuts issued from actual accepted original commands; it grants no
+/// current session, source, mutation or dispatch authority.
+pub struct PresenceOpenPeers<'a, S, D, E, W, AD, AE> {
+    pub base: &'a RecoveryValidationPeers<'a, S, D, E>,
+    pub activity: &'a StockActivityRecoveryPeers<'a, W, AD, AE>,
+    pub history: &'a PresenceHistoryCatalog,
+}
+
 type Verifier<'a, C> =
     &'a mut dyn FnMut(&Connection, &C, &mut dyn FnMut() -> Result<()>) -> Result<RecoveryImage>;
 
@@ -361,6 +370,86 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             options,
         }
     }
+}
+
+pub(super) fn open_existing_presence_connection<
+    C: Contract,
+    S: StockContractPort,
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+    W: crate::providers::homebox::write::stock::StockContractPort,
+    AD: StockActivityRecoveryDiscovery,
+    AE: StockActivityRecoveryEvidence,
+>(
+    database: &Path,
+    contract: &C,
+    options: &StoreOptions,
+    peers: &PresenceOpenPeers<'_, S, D, E, W, AD, AE>,
+    check: &mut dyn FnMut() -> Result<()>,
+) -> Result<Connection> {
+    if options.presence_profile != PresenceProfileSelection::FreshV7
+        || !options.stock_activity_profile
+        || options.queue_original_preparation_profile
+            != QueueOriginalPreparationProfileSelection::Disabled
+        || options.allow_synthetic_bootstrap
+        || options.busy_timeout_ms > 60_000
+    {
+        return Err(Error::new(
+            "invalid-contract",
+            "Existing Presence storage options are incompatible",
+        ));
+    }
+    let deadline = Instant::now() + Duration::from_secs(30);
+    checkpoint(deadline, check)?;
+    // Normal same-file reopen may retain WAL mode. Detached recovery images
+    // continue to use the separate standalone-header and sidecar checks.
+    if !fs::symlink_metadata(database)
+        .map_err(|_| unavailable())?
+        .file_type()
+        .is_file()
+    {
+        return Err(checks::incompatible());
+    }
+    let mut db = Connection::open_with_flags(
+        database,
+        OpenFlags::SQLITE_OPEN_READ_WRITE
+            | OpenFlags::SQLITE_OPEN_NO_MUTEX
+            | OpenFlags::SQLITE_OPEN_NOFOLLOW,
+    )?;
+    let prepared = (|| -> Result<()> {
+        db.busy_timeout(Duration::ZERO)?;
+        db.pragma_update(None, "query_only", true)?;
+        let tx = db.transaction()?;
+        let mode: String = tx.query_row("PRAGMA journal_mode", [], |row| row.get(0))?;
+        if mode != "delete" && mode != "wal" {
+            return Err(checks::incompatible());
+        }
+        let mut progress = || checkpoint(deadline, check);
+        let actual =
+            checks::validate_connection_with_presence_peers(&tx, contract, peers, &mut progress)?;
+        let definition = presence_profile_definition();
+        if actual.database_schema != definition.version
+            || actual.database_lineage != definition.lineage
+            || actual.contract_version != CONTRACT_VERSION
+        {
+            return Err(checks::incompatible());
+        }
+        tx.commit()?;
+        checkpoint(deadline, check)?;
+        db.pragma_update(None, "query_only", false)?;
+        db.busy_timeout(Duration::from_millis(options.busy_timeout_ms))?;
+        db.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;")?;
+        let mode: String = db.query_row("PRAGMA journal_mode=WAL", [], |row| row.get(0))?;
+        if mode != "wal" {
+            return Err(unavailable());
+        }
+        checkpoint(deadline, check)
+    })();
+    if let Err(error) = prepared {
+        db.close().map_err(|(_, error)| Error::from(error))?;
+        return Err(error);
+    }
+    Ok(db)
 }
 
 fn backup_image<C: Contract>(

@@ -8,6 +8,7 @@ mod native_capture;
 mod native_file_capture;
 mod native_presence_capture;
 pub mod native_presence_owner;
+mod native_presence_retained;
 mod native_query;
 mod navigation;
 mod publication;
