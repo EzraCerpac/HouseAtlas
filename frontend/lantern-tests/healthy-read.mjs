@@ -3,12 +3,56 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { stripTypeScriptTypes } from 'node:module';
 import { projectView } from '../src/lantern/adapters/read.ts';
 import { createGeometryClient } from '../src/api/geometry-client.ts';
 import { createOperationHistoryClient } from '../src/api/operation-history-client.ts';
 import { createRetainedIntentClient, canReadRetainedIntent } from '../src/api/retained-intent-client.ts';
 import { demoSnapshot, demoOptions } from '../../web/demo/fixtures.mjs';
 import { prepareAtlasView } from '../../web/src/prepare.mjs';
+
+// Compile the actual binder with its unchanged frozen catalog offline. Its
+// browser JSON imports have no Node import attributes; no runtime host is used.
+const catalogData = JSON.parse(readFileSync(new URL('../../contracts/stock-wire3/agent/operation-catalog.json', import.meta.url)));
+const familyData = JSON.parse(readFileSync(new URL('../../contracts/stock-wire3/agent/tool-families.json', import.meta.url)));
+const catalogModule = 'data:text/javascript;base64,' + Buffer.from(
+  `export const stockCatalog=${JSON.stringify(catalogData)};export const stockFamilies=${JSON.stringify(familyData)};`
+).toString('base64');
+const binderSource = readFileSync(new URL('../src/webmcp/coverage/families.ts', import.meta.url), 'utf8')
+  .replace('"../stock-schema.js"', JSON.stringify(catalogModule));
+const binderModule = stripTypeScriptTypes(binderSource, { mode: 'strip' });
+const { bindAtlasService, bindCommandFamilies } = await import('data:text/javascript;base64,' + Buffer.from(binderModule).toString('base64'));
+const nativeHomeboxReads = ['homebox.entity.tags.get', 'homebox.field.list', 'homebox.field.get',
+  'homebox.maintenance.list', 'homebox.maintenance.get'];
+const nativeHomeboxSession = { state: 'authenticated', revision: 'synthetic-homebox-reads' };
+const nativeHomeboxScope = { workspaceId: '00000000-0000-4000-8000-000000000001', homeId: '00000000-0000-4000-8000-000000000002' };
+const nativeHomeboxContext = { session: { actorId: '00000000-0000-4000-8000-000000000007', csrfToken: 'synthetic-unused', expiresAt: '2026-10-08T12:00:00Z' },
+  scope: nativeHomeboxScope, commandIds: nativeHomeboxReads };
+const nativeHomeboxSessions = { getSnapshot: () => nativeHomeboxSession,
+  subscribe: () => () => {}, getContext: () => nativeHomeboxContext };
+const nativeHomeboxDispatches = [];
+const nativeHomeboxService = { async dispatch(request, context) {
+  nativeHomeboxDispatches.push({ request, context }); return request;
+} };
+const nativeHomeboxBindings = bindAtlasService(nativeHomeboxService, nativeHomeboxReads);
+assert.deepEqual(nativeHomeboxBindings.filter(row => row.commandIds.length).map(row => [row.toolName, row.commandIds]), [
+  ['homebox_tags_fields', nativeHomeboxReads.slice(0, 3)],
+  ['homebox_maintenance', nativeHomeboxReads.slice(3)],
+]);
+const nativeHomeboxPorts = bindCommandFamilies(nativeHomeboxSessions, nativeHomeboxBindings);
+assert.deepEqual(nativeHomeboxPorts.sessions.getContext(nativeHomeboxSession).commandIds, nativeHomeboxReads);
+for (const commandId of nativeHomeboxReads) {
+  const request = { commandId, context: nativeHomeboxScope };
+  const context = { session: nativeHomeboxSession, signal: new AbortController().signal,
+    applicationSession: nativeHomeboxContext.session };
+  assert.equal(await nativeHomeboxPorts.service.dispatch(request, context), request);
+  assert.equal(nativeHomeboxDispatches.at(-1).request, request);
+  assert.equal(nativeHomeboxDispatches.at(-1).context, context);
+}
+assert(nativeHomeboxPorts.coverage().filter(row => nativeHomeboxReads.includes(row.commandId))
+  .every(row => row.state === 'admitted-and-bound'));
+assert(nativeHomeboxPorts.coverage().filter(row => !nativeHomeboxReads.includes(row.commandId))
+  .every(row => row.state === 'not-host-admitted'));
 
 const snapshot = demoSnapshot('normal');
 const options = demoOptions(snapshot, 'normal');
