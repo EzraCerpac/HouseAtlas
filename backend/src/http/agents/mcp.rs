@@ -176,7 +176,7 @@ fn execute_output(
         .map_err(|error| stock_failure(error, &request_id))
 }
 
-fn stock_failure(error: st::StockError, request_id: &str) -> m::PortError {
+pub(crate) fn stock_failure(error: st::StockError, request_id: &str) -> m::PortError {
     let body = super::errors::wire(error, request_id);
     if crate::contracts::stock::StockValidation::new()
         .and_then(|c| c.validate("#/$defs/stockError", &body))

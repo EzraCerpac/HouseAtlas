@@ -42,3 +42,5 @@ pub(crate) fn valid_id(id: &str) -> bool {
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b"_-".contains(&b))
 }
+
+pub mod startup;
