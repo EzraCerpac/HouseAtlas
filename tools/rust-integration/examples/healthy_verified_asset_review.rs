@@ -110,12 +110,12 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
 
     // Pin both the complete graph preimage and the exact authorized asset row
     // before Media creates opaque renderer evidence.
-    let (original, original_pin) = {
+    let (original, original_pin, store_identity) = {
         let mut store = core.store.lock().map_err(|_| "Store unavailable")?;
         let original = store.read_snapshot(&principal, &scope)?;
         let pinned =
             store.capture_asset_review_original(&principal, retained, &scope, &target_ref)?;
-        (original, pinned)
+        (original, pinned, store.asset_review_store_identity())
     };
     let original_record = original_pin.record().clone();
     if original_record.record_id != id(950)
@@ -226,6 +226,7 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
             &original,
             bound.plan(),
         );
+        let observation = s::AssetReviewCommitObservation::new();
         let commit = core
             .store
             .lock()
@@ -235,8 +236,18 @@ pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCom
                 &principal,
                 &contracts,
                 &raw,
-                s::AssetReviewCommitPeers::new(&bound, guard, &budget),
+                s::AssetReviewCommitPeers::new(&bound, guard, &budget).observing(&observation),
             )?;
+        let completion = observation
+            .take_qualified()
+            .ok_or("Missing actual Store-qualified completion")?;
+        assert!(store_identity.matches_completion(&completion));
+        assert!(store_identity.clone().matches_completion(&completion));
+        assert_eq!(completion.commit(), &commit);
+        assert!(std::ptr::eq(
+            completion.original_principal().principal(),
+            retained.principal()
+        ));
         wire::StockResponse::parse(
             &validator,
             &typed_request,
