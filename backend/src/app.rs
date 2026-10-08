@@ -3,6 +3,7 @@ pub mod ai_native_startup;
 pub mod homebox_quantity_graph;
 pub mod homebox_quantity_startup;
 pub mod homebox_queued_quantity;
+pub mod homebox_presence;
 pub mod homebox_stock_host;
 pub mod media_policy_recovery;
 pub mod quantity_approval;
