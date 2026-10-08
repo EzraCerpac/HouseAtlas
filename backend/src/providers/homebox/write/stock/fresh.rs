@@ -130,14 +130,69 @@ impl<C, S> DecodedStockPreparation<C, S> {
         }
     }
 }
-impl<C: StockContractPort + Sync, S: FreshPreparationSourcePort> StockPreparationPort
-    for DecodedStockPreparation<C, S>
+/// Retains the original decoded capture and its owner for a later admission
+/// fence. These getters expose data only; a consuming fence must call
+/// `revalidate` with current original authority before using it.
+pub struct RetainedFreshPreparation<'owner, C, S: FreshPreparationSourcePort> {
+    owner: &'owner DecodedStockPreparation<C, S>,
+    command: StockCommand,
+    authority: StockAuthority,
+    capture: DecodedFreshPreparation<S::Evidence>,
+    owner_preflight: StockPreflight,
+    preflight: StockPreflight,
+    plan: NativePlan,
+}
+impl<'owner, C: StockContractPort + Sync, S: FreshPreparationSourcePort>
+    RetainedFreshPreparation<'owner, C, S>
 {
-    async fn prepare(
+    pub fn command(&self) -> &StockCommand {
+        &self.command
+    }
+    pub fn authority(&self) -> &StockAuthority {
+        &self.authority
+    }
+    pub fn capture(&self) -> &DecodedFreshPreparation<S::Evidence> {
+        &self.capture
+    }
+    pub fn owner_preflight(&self) -> &StockPreflight {
+        &self.owner_preflight
+    }
+    pub fn preflight(&self) -> &StockPreflight {
+        &self.preflight
+    }
+    pub fn plan(&self) -> &NativePlan {
+        &self.plan
+    }
+
+    /// Equality only correlates the submitted values with this retained
+    /// capture. The original source owner must check current original P,
+    /// grants, freshness, build/route, full graph and hidden fields again.
+    pub fn revalidate(
         &self,
         command: &StockCommand,
         authority: &StockAuthority,
-    ) -> Result<StockPreflight, StockErrorCode> {
+    ) -> Result<(), StockErrorCode> {
+        if command != &self.command || authority != &self.authority {
+            return Err(StockErrorCode::PreflightConflict);
+        }
+        let (owner_preflight, preflight, plan) =
+            self.owner
+                .qualify_decoded(command, authority, &self.capture)?;
+        if owner_preflight != self.owner_preflight
+            || preflight != self.preflight
+            || plan != self.plan
+        {
+            return Err(StockErrorCode::PreflightConflict);
+        }
+        Ok(())
+    }
+}
+impl<C: StockContractPort + Sync, S: FreshPreparationSourcePort> DecodedStockPreparation<C, S> {
+    pub async fn prepare_retained<'owner>(
+        &'owner self,
+        command: &StockCommand,
+        authority: &StockAuthority,
+    ) -> Result<RetainedFreshPreparation<'owner, C, S>, StockErrorCode> {
         validate_command(&self.contracts, command)?;
         let input = self.source.capture_preparation(command, authority).await?;
         bounded(
@@ -182,9 +237,29 @@ impl<C: StockContractPort + Sync, S: FreshPreparationSourcePort> StockPreparatio
             snapshots,
             capture_digest,
         };
+        let (owner_preflight, preflight, plan) =
+            self.qualify_decoded(command, authority, &capture)?;
+        Ok(RetainedFreshPreparation {
+            owner: self,
+            command: command.clone(),
+            authority: authority.clone(),
+            capture,
+            owner_preflight,
+            preflight,
+            plan,
+        })
+    }
+
+    fn qualify_decoded(
+        &self,
+        command: &StockCommand,
+        authority: &StockAuthority,
+        capture: &DecodedFreshPreparation<S::Evidence>,
+    ) -> Result<(StockPreflight, StockPreflight, NativePlan), StockErrorCode> {
+        validate_command(&self.contracts, command)?;
         let mut preflight = self
             .source
-            .qualify_preparation(command, authority, &capture)?;
+            .qualify_preparation(command, authority, capture)?;
         if preflight.provider_observation != command.provider_observation
             || preflight.request_digest != command.request_digest
             || preflight.source_epoch != authority.source_epoch
@@ -218,6 +293,7 @@ impl<C: StockContractPort + Sync, S: FreshPreparationSourcePort> StockPreparatio
                 full_put_known_shape(snapshot)?;
             }
         }
+        let owner_preflight = preflight.clone();
         let snapshots:Vec<_>=preflight.preparation.snapshots.iter().map(|s|json!({
             "target":s.target,"digest":s.digest,"complete":s.complete,"hiddenFieldsPreserved":s.hidden_fields_preserved
         })).collect();
@@ -234,7 +310,18 @@ impl<C: StockContractPort + Sync, S: FreshPreparationSourcePort> StockPreparatio
                 "stagedUpload":preflight.preparation.staged_upload,"nativeClearValues":clears
             }))
             .map_err(|_| StockErrorCode::PreflightConflict)?;
-        Ok(preflight)
+        Ok((owner_preflight, preflight, plan))
+    }
+}
+impl<C: StockContractPort + Sync, S: FreshPreparationSourcePort> StockPreparationPort
+    for DecodedStockPreparation<C, S>
+{
+    async fn prepare(
+        &self,
+        command: &StockCommand,
+        authority: &StockAuthority,
+    ) -> Result<StockPreflight, StockErrorCode> {
+        Ok(self.prepare_retained(command, authority).await?.preflight)
     }
 }
 
