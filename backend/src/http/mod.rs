@@ -72,7 +72,8 @@ pub struct Host {
     homebox_cache_sources: Arc<Vec<crate::config::providers::homebox::TrustedHomeBoxSource>>,
     native_homebox_reads: Arc<Vec<providers::homebox_native::NativeHomeBoxReadBinding>>,
     pinned_homebox_file_bindings: Arc<Vec<homebox_pinned_files::PinnedHomeBoxFileBinding>>,
-    pinned_homebox_artifacts: Arc<Mutex<crate::media::homebox_pinned_artifacts::NativePinnedArtifactBroker>>,
+    pinned_homebox_artifacts:
+        Arc<Mutex<crate::media::homebox_pinned_artifacts::NativePinnedArtifactBroker>>,
     network_bindings: Arc<Vec<crate::config::providers::network_host::NetworkBinding>>,
     atlas_download_handles: d::stock::AtlasDownloadHandles,
     response_ids: Arc<ResponseIds>,
@@ -251,14 +252,21 @@ impl Host {
     ) -> crate::storage::Result<Self> {
         let mut partitions = std::collections::BTreeSet::new();
         if bindings.len() > 64 {
-            return Err(crate::storage::Error::new("invalid-contract", "Pinned HomeBox source unavailable"));
+            return Err(crate::storage::Error::new(
+                "invalid-contract",
+                "Pinned HomeBox source unavailable",
+            ));
         }
         for binding in &bindings {
             let partition = binding.source().partition();
-            if !self.mcp_scopes.iter().any(|scope| scope.workspace_id == partition.workspace_id && scope.home_id == partition.home_id)
-                || !partitions.insert(serde_json::to_string(&partition)?)
+            if !self.mcp_scopes.iter().any(|scope| {
+                scope.workspace_id == partition.workspace_id && scope.home_id == partition.home_id
+            }) || !partitions.insert(serde_json::to_string(&partition)?)
             {
-                return Err(crate::storage::Error::new("invalid-contract", "Pinned HomeBox source unavailable"));
+                return Err(crate::storage::Error::new(
+                    "invalid-contract",
+                    "Pinned HomeBox source unavailable",
+                ));
             }
         }
         self.pinned_homebox_file_bindings = Arc::new(bindings);
