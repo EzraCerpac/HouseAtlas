@@ -695,7 +695,7 @@ impl NativeQueuedUploadStages {
             physical,
             budget,
         )?;
-        let original = self.bind_inner(
+        let mut original = self.bind_inner(
             guard,
             stage,
             bound,
@@ -715,6 +715,8 @@ impl NativeQueuedUploadStages {
             physical,
             budget,
         )?;
+        budget.check()?;
+        original.installed_issuer = Some(Arc::new(InstalledQueuedUploadIssuer));
         Ok(original)
     }
 
@@ -975,6 +977,7 @@ impl NativeQueuedUploadStages {
             pending,
         };
         let original = NativeQueuedUploadOriginal {
+            installed_issuer: None,
             custody: Arc::clone(&stage.custody),
             known_nonzero,
             source_reference: reference.clone(),
@@ -1072,11 +1075,36 @@ impl NativeQueuedUploadKnownNonzeroAdmission {
         self.pending
     }
 }
+struct InstalledQueuedUploadIssuer;
+
+/// Pure correlation of the closed installed producer selection and this exact
+/// cut. No Clone, serde or public constructor exists. This is not queue/current
+/// authority, restore, disclosure, native-write or recovery evidence. A later
+/// owner must independently issue genuine fresh enqueue and claim/Release proof.
+pub struct InstalledNativeQueuedUploadOrigin<'cut> {
+    original: &'cut NativeQueuedUploadOriginal,
+    installed_issuer: &'cut Arc<InstalledQueuedUploadIssuer>,
+    custody: &'cut Arc<StageCustody>,
+    custody_issuer: &'cut Arc<UploadIssuer>,
+}
+impl InstalledNativeQueuedUploadOrigin<'_> {
+    pub fn matches_original(&self, original: &NativeQueuedUploadOriginal) -> bool {
+        std::ptr::eq(self.original, original)
+            && Arc::ptr_eq(self.custody, &original.custody)
+            && Arc::ptr_eq(self.custody_issuer, &original.custody.issuer)
+            && original
+                .installed_issuer
+                .as_ref()
+                .is_some_and(|issuer| Arc::ptr_eq(self.installed_issuer, issuer))
+    }
+}
+
 /// Detached original facts plus actual immutable body descriptors. No Clone,
 /// serde, Access/grants/session/provider/SQL handles or current authorization.
 /// Root must retain the actual original native/Domain preparation for later live
 /// enqueue/Release. No historical queue proof is issued by this stage producer.
 pub struct NativeQueuedUploadOriginal {
+    installed_issuer: Option<Arc<InstalledQueuedUploadIssuer>>,
     custody: Arc<StageCustody>,
     known_nonzero: NativeQueuedUploadKnownNonzeroAdmission,
     source_reference: a::SourceRef,
@@ -1094,6 +1122,19 @@ pub struct NativeQueuedUploadOriginal {
     canonical_scope: jobs::CanonicalScope,
 }
 impl NativeQueuedUploadOriginal {
+    /// Present only after the concrete installed binder's final checks. The
+    /// borrowed receipt records producer origin, without current authority.
+    pub fn installed_origin(&self) -> Option<InstalledNativeQueuedUploadOrigin<'_>> {
+        self.installed_issuer
+            .as_ref()
+            .map(|installed_issuer| InstalledNativeQueuedUploadOrigin {
+                original: self,
+                installed_issuer,
+                custody: &self.custody,
+                custody_issuer: &self.custody.issuer,
+            })
+    }
+
     pub fn staged_upload(&self) -> &native::StagedUpload {
         &self.custody.staged
     }
