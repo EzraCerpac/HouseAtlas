@@ -317,3 +317,99 @@ calls including initial preparation. It checks original lexical cost/date and
 fixed route/target data. Its explicitly synthetic qualifier is not a production
 proof implementation. It performs no socket request, queue/SQL mutation,
 provider invocation, new grant, mismatch/denial/expiry/revocation or held control.
+
+
+## Guarded quantity capture mechanics
+
+The quantity source is a bounded mechanical successor, not a fully qualified
+production write source. `QuantityProfile::production` retains explicit expected
+installation data. No public descriptor, hash, `NativeQualification` value,
+Editor role or `X-Tenant` header proves an installed route or approval policy.
+Production qualification remains unavailable until an original installation and
+policy admission producer supplies those missing facts. A private test-only
+profile permits the named ordinary synthetic positive; it cannot be constructed
+in a production build.
+
+`OriginalQuantityPreview` borrows the actual mutation principal and already
+captured source/partition grants. `QuantityObservationRegistry` issues a handle
+only after the registered reader completes a bounded fixed entity GET between
+short original Access mutation fences. The registry retains the original capture,
+source revision, retrieval timestamp, actual persisted registration metadata and
+monotonic elapsed-time bound. The caller then constructs its immutable command
+using that issued handle. A read-action principal cannot stand in for this
+mutation preparation action. No grant is issued, refreshed or resealed.
+
+`QuantitySource` retains the original activity principal, configured reader,
+registry and profile allocations. Preparation resolves the existing observation
+and captures the same fixed entity GET before qualifying; the native body,
+revision, target, route/query and original registration must correlate. Capture
+awaits hold neither Access nor Store guards. Guarded qualification checks the
+same original principal and captured handles through the caller's existing
+`TransactionAuthorization`; it never locks Access or Store inside that guard.
+Exact nonnegative integer quantities up to 9007199254740991 are supported in
+this slice, avoiding float rounding of an original JSON numeric value. Other
+numeric representations require a separately reviewed native precision contract.
+
+`DecodedStockPreparation::capture_pending` captures without yielding a preflight.
+Its consuming `finish_in_guard` uses the new REQUIRED source qualifier through
+`FreshQualification`, retaining the same owner, raw buffer and opaque evidence.
+`RetainedFreshPreparation::revalidate_in_guard` repeats the qualifier and the
+existing snapshot, mapper and entire-preflight comparisons. The Domain consumer
+must still check its exact original graph/carrier pointer before and after this
+call. Legacy DTO-only methods retain synthetic compatibility; the concrete
+quantity source refuses their unguarded qualifier. The existing mapper produces
+only `PATCH /api/v1/entities/{id}` with `{"quantity":2}` for the named positive.
+Matching GET readback establishes an observed value, not causal attribution, CAS,
+remote completion, dispatch permission or release of any physical hold.
+
+Required installation inputs are concrete: installed release, immutable source
+commit, binary/image digest with build provenance and custom-patch inventory;
+exact catalog/schema and GET/PATCH/response route artifacts; selected HTTPS
+origin and API prefix; real bearer account/group identifiers mapped to the
+original workspace/home/source and opaque collection; complete current source
+registration and Access epoch/version; deployment and physical provider database
+identities, configuration digest, dispatcher owner/epoch and source epoch; and an
+explicit policy identity/version, exact target/quantity limits and finite clocks.
+These are expected inputs, not claims that they have been supplied or verified.
+Non-root API-prefix deployments and unreviewed builds remain unsupported.
+
+If policy requires human approval, the original receipt must bind issuer and
+caller class, actor/home/session, exact target/intent/quantity/effect scope,
+policy and authority epochs, expiry and single-use state. A receipt UUID alone
+is insufficient; this source does not issue or consume one. `HumanRequired`
+therefore remains unavailable here. An explicitly configured bounded no-human
+rule also requires genuine original policy admission; Editor membership does
+not select it.
+
+A sanitized installed detail sample must retain all key presence, nulls, arrays,
+unknown fields and numeric/date lexemes, with consistently replaced relationship
+identities. Existing legitimate PATCH-response/readback samples or exact installed
+route artifacts can establish compatibility without performing a new write.
+Neither a sample nor the repository's pinned upstream source proves which binary
+is deployed. No installed inputs, account authentication or provider activation
+are inferred by this implementation.
+
+
+The guarded readback API uses the same `FreshQualification` constructor, which
+requires the genuine original mutation allocation and mutation-issued handles.
+A later ordinary Read-action principal cannot substitute. Both preparation and
+readback have pending capture/decode methods outside the guard and consuming
+`finish_in_guard` methods inside it. Concrete unguarded readback returns
+unavailable; no Access mutex is hidden inside its qualifier.
+
+One exact ordinary positive is approved for this slice:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib providers::homebox::write::stock::quantity_healthy::healthy_native_quantity_capture_guard_and_readback -- --exact --test-threads=1
+```
+
+It uses one private synthetic profile and actual in-memory Access login,
+original mutation principal, source/partition handles and fresh mutation guards.
+Three fixed in-process GETs supply original preview, unchanged preparation and
+a separately supplied quantity2 readback. No socket or credential is involved.
+The fixture preserves raw buffers, retrieval and source date spelling, original
+numeric lexemes, owner/reader/Access allocation identity and unchanged retained
+plan across three successful guarded revalidations. It maps the actual one-field
+PATCH but sends no native mutation. Supplied historical operation data is neither
+queued nor admitted; causality, CAS and remote completion remain unproven. No
+queue/replay/denial/expiry/revocation or other held control is executed.

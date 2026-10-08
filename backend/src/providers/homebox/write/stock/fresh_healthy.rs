@@ -207,6 +207,31 @@ impl FreshPreparationSourcePort for Source {
             preflight_digest: proof,
         })
     }
+    fn qualify_preparation_in_guard(
+        &self,
+        c: &StockCommand,
+        a: &StockAuthority,
+        d: &DecodedFreshPreparation<Proof>,
+        context: &FreshQualification<'_, '_, '_>,
+    ) -> Result<StockPreflight, StockErrorCode> {
+        // The fixture has no production graph owner. It does recheck every
+        // original handle through the actual held mutation guard.
+        let guard = context.guard();
+        guard
+            .assert_mutation()
+            .map_err(|_| StockErrorCode::CapabilityDenied)?;
+        for grant in context.captured().source_grants() {
+            guard
+                .revalidate_source(grant)
+                .map_err(|_| StockErrorCode::CapabilityDenied)?;
+        }
+        for grant in context.captured().partition_grants() {
+            guard
+                .revalidate_source_partition(grant)
+                .map_err(|_| StockErrorCode::CapabilityDenied)?;
+        }
+        self.qualify_preparation(c, a, d)
+    }
 }
 impl FreshReadbackSourcePort for Source {
     type Evidence = Proof;
@@ -242,6 +267,25 @@ impl FreshReadbackSourcePort for Source {
             complete: true,
             impact: None,
         })
+    }
+    fn qualify_readback_in_guard(
+        &self,
+        o: &StoredOperation,
+        p: &ReadbackPlan,
+        a: &StockAuthority,
+        d: &DecodedFreshReadback<Proof>,
+        context: &FreshQualification<'_, '_, '_>,
+    ) -> Option<NativeObservation> {
+        let guard = context.guard();
+        guard.assert_mutation().ok()?;
+        for grant in context.captured().source_grants() {
+            guard.revalidate_source(grant).ok()?;
+        }
+        for grant in context.captured().partition_grants() {
+            guard.revalidate_source_partition(grant).ok()?;
+        }
+        guard.revalidate().ok()?;
+        self.qualify_readback(o, p, a, d)
     }
 }
 fn operation(
