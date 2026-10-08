@@ -10,7 +10,7 @@ use crate::{
         Access, Core, RequestPrincipal, ServerRuntime, Store,
         homebox_presence::ConfiguredPresenceReleased,
         homebox_presence_command::{self, OriginalPresenceCommandExecutor, PresenceCommandError},
-        homebox_presence_history::RecordedPresenceHistory,
+        homebox_presence_history::{self, RecordedPresenceHistory},
     },
     contracts::semantics as sem,
     contracts::{AssetPayloadPreviewPolicy, BindingPayloadSourceState},
@@ -865,6 +865,8 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
                     .map_err(|_| unavailable())?
                     .is_none(),
             )?;
+            homebox_presence_history::validate_publications_for_archive(input.publications)
+                .map_err(|_| unavailable())?;
             let mut executor = ConfiguredExecutor {
                 principal: p,
                 prepared,
