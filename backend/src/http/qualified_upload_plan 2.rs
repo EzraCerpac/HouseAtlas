@@ -134,7 +134,7 @@ pub fn resolve<'p, 'm>(
         return Err(invalid());
     }
     let snapshot = d::ReadPort::snapshot(
-        &mut Reads(&mut *core.store.lock().map_err(|_| unavailable())?),
+        &mut Reads(core.store.get_mut().map_err(|_| unavailable())?),
         principal,
         &home.scope,
     )

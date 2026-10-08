@@ -51,7 +51,7 @@ pub(super) fn admission(
         return Ok(Value::Null);
     };
     let snapshot = d::ReadPort::snapshot(
-        &mut Reads(&mut *core.store.lock().map_err(|_| unavailable())?),
+        &mut Reads(core.store.get_mut().map_err(|_| unavailable())?),
         p,
         &home.scope,
     )

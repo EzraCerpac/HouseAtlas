@@ -435,9 +435,9 @@ pub(super) async fn events(
                 .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
         }
         let access = Arc::clone(&core.access);
-        let mut store = core
+        let store = core
             .store
-            .lock()
+            .get_mut()
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
         if !Arc::ptr_eq(&store.configured_authorization().0, &access) {
             return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
@@ -622,9 +622,9 @@ pub(super) async fn reconcile_intent(
         }
         let owner = s::StockRetainedReadOwner::new();
         let access = Arc::clone(&core.access);
-        let mut store = core
+        let store = core
             .store
-            .lock()
+            .get_mut()
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
         if !Arc::ptr_eq(&store.configured_authorization().0, &access) {
             return Err(failure(StatusCode::SERVICE_UNAVAILABLE));

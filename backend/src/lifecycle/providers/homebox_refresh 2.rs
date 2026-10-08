@@ -108,10 +108,10 @@ pub async fn refresh<A: TrustedLifecycleAuthority, P: read::CredentialProvider, 
         .reader(credentials, clock)
         .map_err(HostError::Configuration)?;
     let prepared = {
-        let core = core.lock().map_err(|_| HostError::Authority)?;
-        let mut store = core.store.lock().map_err(|_| HostError::Authority)?;
+        let mut core = core.lock().map_err(|_| HostError::Authority)?;
+        let store = core.store.get_mut().map_err(|_| HostError::Authority)?;
         lease
-            .prepare_homebox_publication(authority, &mut store, &reader)
+            .prepare_homebox_publication(authority, store, &reader)
             .map_err(HostError::Storage)?
     };
     // The owner repeats full registration and quarantine checks before GETs,
@@ -121,18 +121,18 @@ pub async fn refresh<A: TrustedLifecycleAuthority, P: read::CredentialProvider, 
         .await
         .map_err(HostError::Storage)?;
     let outcome = {
-        let core = core.lock().map_err(|_| HostError::Authority)?;
-        let mut store = core.store.lock().map_err(|_| HostError::Authority)?;
+        let mut core = core.lock().map_err(|_| HostError::Authority)?;
+        let store = core.store.get_mut().map_err(|_| HostError::Authority)?;
         match fetched {
             HomeBoxPublicationOutcome::Complete(staged) => RefreshOutcome::Published {
                 cache: (*staged)
-                    .commit(authority, &mut store)
+                    .commit(authority, store)
                     .map_err(HostError::Storage)?,
             },
             HomeBoxPublicationOutcome::Failed(failed) => {
                 let code = failed.error_code();
                 let cache = (*failed)
-                    .commit_failure(authority, &mut store)
+                    .commit_failure(authority, store)
                     .map_err(HostError::Storage)?;
                 RefreshOutcome::FailureRecorded { cache, code }
             }

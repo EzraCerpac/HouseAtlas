@@ -304,7 +304,7 @@ async fn main() -> Check<()> {
     };
     let core = Arc::new(Mutex::new(Core {
         access: canonical.clone(),
-        store: Arc::new(Mutex::new(store)),
+        store: Mutex::new(store),
         vault,
         atlas_list_pages: Default::default(),
         media_policy_evidence: Mutex::default(),
@@ -366,9 +366,9 @@ async fn main() -> Check<()> {
     )?);
     let mut references =
         n::NetworkCacheReferences::new(&sidecar, &source, &review, n::Limits::default());
-    let owner = core.lock().map_err(|_| "Fixture Core lock")?;
-    let mut store = owner.store.lock().map_err(|_| "Fixture Store lock")?;
-    assert_eq!(count_disclosures(&mut store, &mut references)?, 1);
+    let mut owner = core.lock().map_err(|_| "Fixture Core lock")?;
+    let store = owner.store.get_mut().map_err(|_| "Fixture Store lock")?;
+    assert_eq!(count_disclosures(store, &mut references)?, 1);
     let pinned = store.read_cache_partition_pinned_with_authorization(
         &ReadAuthority(canonical.clone()),
         &request_principal,
@@ -380,14 +380,14 @@ async fn main() -> Check<()> {
     store.validate_cache_disclosure_pin(&token, &baseline)?;
     assert_eq!(token.registration(), &registration);
     assert_eq!(token.generation_id(), GENERATION);
-    assert_eq!(count_disclosures(&mut store, &mut references)?, 2);
+    assert_eq!(count_disclosures(store, &mut references)?, 2);
     drop(token);
-    assert_eq!(count_disclosures(&mut store, &mut references)?, 1);
+    assert_eq!(count_disclosures(store, &mut references)?, 1);
     // Exactly the Arc retention used by actual HTTP Graph/Witness/Reader.
     let reader = disclosure.clone();
     assert!(Arc::ptr_eq(&reader, &disclosure));
     drop(disclosure);
-    assert_eq!(count_disclosures(&mut store, &mut references)?, 1);
+    assert_eq!(count_disclosures(store, &mut references)?, 1);
     let mut guard = store.guard_cache_residency(&mut references)?;
     drop(reader);
     assert!(
@@ -408,9 +408,8 @@ async fn main() -> Check<()> {
             .all(|entry| !entry.owner_policy_candidate())
     );
     guard.release().1?;
-    assert_eq!(count_disclosures(&mut store, &mut references)?, 0);
+    assert_eq!(count_disclosures(store, &mut references)?, 0);
     assert_eq!(core_state(&db_path)?, before);
-    drop(store);
     drop(owner);
     sidecar
         .into_inner()

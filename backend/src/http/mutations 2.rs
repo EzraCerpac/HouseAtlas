@@ -461,7 +461,7 @@ async fn command(
         // the HTTP caller cancels its await. No unbounded replacement work.
         let _admitted = checked.admission_permit()?;
         let wire = intake::json(&bytes)?;
-        let core = host
+        let mut core = host
             .core
             .lock()
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
@@ -473,13 +473,12 @@ async fn command(
             .ok_or_else(|| failure(StatusCode::NOT_FOUND))?;
         let access = Arc::clone(&core.access);
         let contracts = NativeContracts;
-        let mut store = core
-            .store
-            .lock()
-            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
         let mut commands = d::Commands {
             store: Writes {
-                store: &mut store,
+                store: core
+                    .store
+                    .get_mut()
+                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
                 access: Arc::clone(&access),
             },
             access: HomeAuthority { access, home },

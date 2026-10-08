@@ -448,18 +448,18 @@ fn with_core_store<T>(
     access: &NetworkAccess,
     operation: impl FnOnce(&mut Store) -> Result<T>,
 ) -> Result<T> {
-    let owner = core.try_lock().map_err(|_| storage_unavailable())?;
+    let mut owner = core.try_lock().map_err(|_| storage_unavailable())?;
     if !Arc::ptr_eq(access.shared().as_existing(), &owner.access) {
         return Err(wrong_scope().into());
     }
-    let mut store = owner.store.lock().map_err(|_| storage_unavailable())?;
+    let store = owner.store.get_mut().map_err(|_| storage_unavailable())?;
     if !Arc::ptr_eq(
         access.shared().as_existing(),
         &store.configured_authorization().0,
     ) {
         return Err(wrong_scope().into());
     }
-    operation(&mut store)
+    operation(store)
 }
 fn unavailable() -> n::NetworkError {
     n::NetworkError::new(n::ErrorCode::Upstream)

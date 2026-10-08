@@ -285,8 +285,7 @@ fn close_source(source: Core) -> Result<(), ReopenError> {
         vault,
         ..
     } = source;
-    Arc::try_unwrap(store)
-        .map_err(|_| ReopenError::SourceClose)?
+    store
         .into_inner()
         .map_err(|_| ReopenError::SourceClose)?
         .close()
@@ -485,7 +484,7 @@ fn finish_reopen(
     }
     Ok(Core {
         access,
-        store: Arc::new(Mutex::new(store)),
+        store: Mutex::new(store),
         atlas_list_pages: crate::domain::stock::AtlasListPages::default(),
         media_policy_evidence: Mutex::default(),
         vault,

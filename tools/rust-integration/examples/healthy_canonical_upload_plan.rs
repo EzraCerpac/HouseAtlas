@@ -123,7 +123,7 @@ fn main() -> Result<(), Failure> {
     assert_eq!(before.homebox_entities.len(), 2);
     assert_eq!(before_audits, 0);
     let snapshot = d::ReadPort::snapshot(
-        &mut Reads(core.store.get_mut().map_err(|_| "Store unavailable")?),
+        &mut Reads(&mut *core.store.lock().map_err(|_| "Store unavailable")?),
         &principal,
         &home.scope,
     )?;
@@ -278,7 +278,7 @@ fn native_state(
     principal: &RequestPrincipal,
     scope: &s::Scope,
 ) -> Result<(s::Snapshot, usize), Failure> {
-    let store = core.store.get_mut().map_err(|_| "Store unavailable")?;
+    let mut store = core.store.lock().map_err(|_| "Store unavailable")?;
     let snapshot = store.read_snapshot(principal, scope)?;
     let mut audits = 0;
     for record in &snapshot.records {

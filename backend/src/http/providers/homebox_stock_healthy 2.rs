@@ -146,7 +146,7 @@ fn prepare_local(directory: &Path) -> Result<Core, Failure> {
     )?;
     Ok(Core {
         access,
-        store: Arc::new(Mutex::new(store)),
+        store: Mutex::new(store),
         atlas_list_pages: d::stock::AtlasListPages::default(),
         media_policy_evidence: Mutex::default(),
         vault,

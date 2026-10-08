@@ -211,15 +211,15 @@ impl NetworkAccess {
         principal: &a::Principal,
         source: &Arc<ConfiguredSource>,
     ) -> s::Result<()> {
-        let owner = core
+        let mut owner = core
             .try_lock()
             .map_err(|_| storage_access(a::AccessError::Unavailable))?;
         if !Arc::ptr_eq(self.shared().as_existing(), &owner.access) {
             return Err(conflict());
         }
-        let mut store = owner
+        let store = owner
             .store
-            .lock()
+            .get_mut()
             .map_err(|_| storage_access(a::AccessError::Unavailable))?;
         if !Arc::ptr_eq(
             self.shared().as_existing(),
@@ -227,7 +227,7 @@ impl NetworkAccess {
         ) {
             return Err(conflict());
         }
-        self.configure_in_store(&mut store, principal, source)
+        self.configure_in_store(store, principal, source)
     }
     fn configure_in_store(
         &self,

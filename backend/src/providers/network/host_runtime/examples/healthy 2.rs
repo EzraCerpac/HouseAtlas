@@ -181,7 +181,7 @@ async fn main() -> Result<(), Failure> {
     };
     let core = Arc::new(Mutex::new(Core {
         access: canonical.clone(),
-        store: Arc::new(Mutex::new(store)),
+        store: Mutex::new(store),
         vault,
         homes: vec![home.clone()],
         home,

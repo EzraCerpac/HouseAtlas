@@ -6,6 +6,14 @@ Composition precedes review and CI; it does not accept a donor, promote main or
 release deployment gates. The publication manifest verifies the complete source
 file set, modes, digests and logical owners. Its status remains provisional.
 
+The application Core now retains its existing Store in one shared
+`Arc<Mutex<Store>>`. `Core::durable_homebox_stock_host` binds those exact Store
+and Access allocations to the actual durable host, checking the configured
+Access owner and requiring the already-open profile6. It opens no database,
+grants no authority and starts no provider request or dispatcher. Live original
+activity and I/O peers remain mandatory. Closing/recovery requires draining all
+shared host/session owners; a retained Store alias makes close fail unavailable.
+
 Root declarations connect the retained HomeBox archive, stock activity storage,
 provider dispatcher, recovery and content-only source-presence qualifier to the
 actual modules. Source compilation does not establish runtime admission. Explicit

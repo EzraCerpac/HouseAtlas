@@ -376,12 +376,12 @@ fn query_view(
     principal: &RequestPrincipal,
     home: &d::HomeSummary,
 ) -> Result<d::CurrentOutput, HttpFailure> {
-    let mut store = core
-        .store
-        .lock()
-        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
     let mut queries = d::Queries {
-        store: Reads(&mut store),
+        store: Reads(
+            core.store
+                .get_mut()
+                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
+        ),
         access: HomeAuthority {
             access: Arc::clone(&core.access),
             home: home.clone(),

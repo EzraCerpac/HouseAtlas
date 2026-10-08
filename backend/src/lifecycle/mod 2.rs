@@ -297,7 +297,7 @@ pub fn prepare_with_profile(
     )?;
     Ok(Core {
         access,
-        store: Arc::new(Mutex::new(store)),
+        store: Mutex::new(store),
         atlas_list_pages: crate::domain::stock::AtlasListPages::default(),
         media_policy_evidence: Mutex::default(),
         vault,

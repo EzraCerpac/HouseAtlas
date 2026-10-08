@@ -195,7 +195,7 @@ async fn main() -> Result<(), Failure> {
             atlas_list_pages: houseatlas_backend::domain::stock::AtlasListPages::default(),
             media_policy_evidence: Mutex::default(),
             access: canonical.clone(),
-            store: Mutex::new(store),
+            store: Arc::new(Mutex::new(store)),
             vault,
             homes: vec![home.clone()],
             home,

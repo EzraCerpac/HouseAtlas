@@ -61,25 +61,36 @@ impl<W: MediaPolicyArchiveWriteAuthorization, R: MediaPolicyArchiveReadAuthoriza
         &self,
         budget: &WorkBudget,
     ) -> storage::Result<AuthenticatedMediaPolicyArchive<'_, R>> {
-        self.archive.with_media_catalog(budget, |members| {
-            let mut evidence = Vec::with_capacity(members.len());
-            for member in members {
-                let member = MediaPolicyArchivePacket::decode(
-                    &member.bytes,
-                    self.archive.destination(),
-                    &member.name,
-                    &self.read_owner,
-                    budget,
-                )?;
-                evidence.push(member);
-            }
-            AuthenticatedMediaPolicyArchive::new(
-                self.archive.destination(),
-                &self.origin,
-                evidence,
-                &self.read_owner,
-                budget,
-            )
-        })
+        read_media_policy_archive(&self.archive, &self.origin, &self.read_owner, budget)
     }
+}
+
+/// Read through the actual descriptor while borrowing the independent policy
+/// owner for the complete offline evidence lifetime. No temporary wrapper can
+/// outlive its authority owner, and no scan occurs inside the frame matcher.
+pub fn read_media_policy_archive<'a, R: MediaPolicyArchiveReadAuthorization>(
+    archive: &PrivateStockArchive,
+    origin: &MediaPolicyArchiveOrigin,
+    read_owner: &'a R,
+    budget: &WorkBudget,
+) -> storage::Result<AuthenticatedMediaPolicyArchive<'a, R>> {
+    archive.with_media_catalog(budget, |members| {
+        let mut evidence = Vec::with_capacity(members.len());
+        for member in members {
+            evidence.push(MediaPolicyArchivePacket::decode(
+                &member.bytes,
+                archive.destination(),
+                &member.name,
+                read_owner,
+                budget,
+            )?);
+        }
+        AuthenticatedMediaPolicyArchive::new(
+            archive.destination(),
+            origin,
+            evidence,
+            read_owner,
+            budget,
+        )
+    })
 }

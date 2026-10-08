@@ -1,4 +1,5 @@
 //! The actual access/storage/domain composition and original request authority.
+pub mod homebox_stock_host;
 pub mod media_policy_recovery;
 pub mod stock_activity_principal;
 use crate::{access as a, domain as d, http::contracts::NativeContracts, storage as s};
@@ -15,7 +16,7 @@ pub type Store = s::AtlasStore<
 >;
 pub struct Core {
     pub access: Access,
-    pub store: Mutex<Store>,
+    pub store: Arc<Mutex<Store>>,
     /// One process-local owner cache shared by every request and transport.
     /// A reopened application starts with fresh continuation state.
     pub atlas_list_pages: d::stock::AtlasListPages,

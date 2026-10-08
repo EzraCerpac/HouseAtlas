@@ -166,7 +166,7 @@ pub fn healthy() -> Result<(), Failure> {
         .prefix("houseatlas-specialized-")
         .tempdir_in("/tmp")?;
     let directory = scratch.path().join("fixture");
-    let mut core = lifecycle::prepare(&directory, ORIGIN)?;
+    let core = lifecycle::prepare(&directory, ORIGIN)?;
     let receipt: Value = serde_json::from_slice(&fs::read(directory.join("smoke-session.json"))?)?;
     let login_body = serde_json::to_vec(receipt.get("editorLogin").ok_or("Missing editor login")?)?;
     let login_url = format!("{ORIGIN}/api/atlas/auth/login");
@@ -282,7 +282,7 @@ pub fn healthy() -> Result<(), Failure> {
     store.close()?;
     let replacement = new_store(s::StoreOptions::default())?;
     let old = std::mem::replace(
-        core.store.get_mut().map_err(|_| "Store unavailable")?,
+        &mut *core.store.lock().map_err(|_| "Store unavailable")?,
         replacement,
     );
     old.close()?;
@@ -450,7 +450,8 @@ pub fn healthy() -> Result<(), Failure> {
         homes,
         ..
     } = core;
-    store
+    Arc::try_unwrap(store)
+        .map_err(|_| "Store unavailable")?
         .into_inner()
         .map_err(|_| "Store unavailable")?
         .close()?;
@@ -466,7 +467,7 @@ pub fn healthy() -> Result<(), Failure> {
     )?;
     let core = Core {
         access,
-        store: Mutex::new(reopened),
+        store: Arc::new(Mutex::new(reopened)),
         atlas_list_pages: AtlasListPages::default(),
         media_policy_evidence: Mutex::default(),
         vault,

@@ -74,9 +74,8 @@ fn source_snapshot(
             .map_err(super::access_error)?;
         drop(access);
         let before = match binding.runtime().snapshot_link_bindings(
-            &mut *core
-                .store
-                .lock()
+            core.store
+                .get_mut()
                 .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
             binding.access(),
             p.principal.principal(),
@@ -121,9 +120,9 @@ fn source_snapshot(
         p.revalidate_network_snapshot(&mut access, partition, entities)
             .map_err(super::access_error)?;
     }
-    let mut store = core
+    let store = core
         .store
-        .lock()
+        .get_mut()
         .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
     if !Arc::ptr_eq(&base.0, &store.configured_authorization().0) {
         return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
@@ -142,7 +141,7 @@ fn source_snapshot(
         let after = binding
             .runtime()
             .snapshot_link_bindings(
-                &mut store,
+                store,
                 binding.access(),
                 p.principal.principal(),
                 &partition,
@@ -207,12 +206,12 @@ pub(super) async fn record(
             false,
             |core, p, home| {
                 let target = target(kind, id)?;
-                let mut store = core
-                    .store
-                    .lock()
-                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
                 let mut query = d::Queries {
-                    store: Reads(&mut store),
+                    store: Reads(
+                        core.store
+                            .get_mut()
+                            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
+                    ),
                     access: HomeAuthority {
                         access: Arc::clone(&core.access),
                         home: home.clone(),
@@ -255,12 +254,12 @@ pub(super) async fn history(
             false,
             |core, p, home| {
                 let target = target(kind, id)?;
-                let mut store = core
-                    .store
-                    .lock()
-                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
                 let mut query = d::Queries {
-                    store: Reads(&mut store),
+                    store: Reads(
+                        core.store
+                            .get_mut()
+                            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
+                    ),
                     access: HomeAuthority {
                         access: Arc::clone(&core.access),
                         home: home.clone(),
@@ -314,7 +313,7 @@ async fn list(
                     network_snapshot(core, &host, p, &scope)?
                 } else {
                     core.store
-                        .lock()
+                        .get_mut()
                         .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
                         .read_snapshot(p, &scope)
                         .map_err(|error| domain_error(crate::app::storage_error(error)))?

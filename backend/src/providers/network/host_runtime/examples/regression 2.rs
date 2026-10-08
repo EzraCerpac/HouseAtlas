@@ -180,7 +180,7 @@ fn fixture(origin: &str, ca: &[u8], tls_root: &std::path::Path) -> Result<Fixtur
     };
     let core = Arc::new(Mutex::new(Core {
         access: canonical.clone(),
-        store: Arc::new(Mutex::new(store)),
+        store: Mutex::new(store),
         vault,
         homes: vec![home.clone()],
         home,

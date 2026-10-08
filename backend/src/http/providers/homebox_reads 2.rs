@@ -43,7 +43,7 @@ pub(in crate::http) fn cached_partition(
     }
     let snapshot = core
         .store
-        .lock()
+        .get_mut()
         .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
         .read_snapshot(principal, &partition.scope())
         .map_err(|error| crate::http::domain_error(crate::app::storage_error(error)))?;

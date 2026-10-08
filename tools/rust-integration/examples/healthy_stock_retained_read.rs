@@ -236,7 +236,7 @@ fn main() -> Result<(), Failure> {
         .prefix("houseatlas-retained-read-")
         .tempdir_in("/tmp")?;
     let directory = scratch.path().join("fixture");
-    let mut core = lifecycle::prepare(&directory, ORIGIN)?;
+    let core = lifecycle::prepare(&directory, ORIGIN)?;
     let receipt: Value = serde_json::from_slice(&fs::read(directory.join("smoke-session.json"))?)?;
     let login_body = serde_json::to_vec(receipt.get("editorLogin").ok_or("Missing editor login")?)?;
     let (cookie, csrf) = {
@@ -338,7 +338,7 @@ fn main() -> Result<(), Failure> {
     selected_store.close()?;
     let replacement = open(s::StoreOptions::default())?;
     let old = std::mem::replace(
-        core.store.get_mut().map_err(|_| "Store unavailable")?,
+        &mut *core.store.lock().map_err(|_| "Store unavailable")?,
         replacement,
     );
     old.close()?;
@@ -543,7 +543,8 @@ fn main() -> Result<(), Failure> {
         homes,
         ..
     } = core;
-    store
+    Arc::try_unwrap(store)
+        .map_err(|_| "Store unavailable")?
         .into_inner()
         .map_err(|_| "Store unavailable")?
         .close()?;
@@ -559,7 +560,7 @@ fn main() -> Result<(), Failure> {
     )?;
     let core = Core {
         access,
-        store: Mutex::new(reopened),
+        store: Arc::new(Mutex::new(reopened)),
         atlas_list_pages: AtlasListPages::default(),
         media_policy_evidence: Mutex::default(),
         vault,
