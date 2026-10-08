@@ -4,6 +4,7 @@ mod adapter;
 mod cache;
 mod detail;
 mod native_features;
+mod native_file_owner;
 mod native_resources;
 mod observations;
 mod owned_file_source;
@@ -12,6 +13,9 @@ mod types;
 
 pub use adapter::{HomeBoxQueries, HomeBoxReadOwner};
 pub use cache::cached_entity_page;
+pub use native_file_owner::{
+    CurrentPinnedFileSnapshot, LocalPinnedFileSnapshotIdentity, NativePinnedFileOwner,
+};
 pub use observations::{DecodedReadObservation, DecodedReadOwner, TemplateDetailCapture};
 pub use owned_file_source::*;
 pub use selection::{HomeBoxReadQuery, REQUIRED_READ_OPERATIONS};

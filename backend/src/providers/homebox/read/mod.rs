@@ -5,6 +5,7 @@ mod error;
 mod failure_publication;
 mod http_transport;
 mod native_capture;
+mod native_file_capture;
 mod native_presence_capture;
 mod native_query;
 mod navigation;
@@ -21,6 +22,7 @@ pub use http_transport::{
     AuthorizationHeader, CredentialProvider, HttpBody, HttpTransport, SourceEndpoint,
 };
 pub use native_capture::{CapturedStockEntity, CapturedStockMaintenance, NativeCapture};
+pub use native_file_capture::CapturedNativeFileSnapshot;
 pub use native_presence_capture::{
     NativePresenceCapture, NativePresenceGeneration, NativePresenceResponse,
 };

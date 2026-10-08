@@ -374,3 +374,56 @@ No live capture/download, listener, provider, real files/accounts/credentials,
 replay/expiry/revocation/failure/mutation/omission or other held controls run.
 Compile and run only this exact case through the task-owned actual-library harness
 with `--exact --test-threads=1`; no repository runner/manifest is added here.
+
+## Concrete finite pinned-local attachment owner
+
+`HomeBoxReader::capture_native_file_snapshot(owner, attachment)` performs three
+fixed scoped GETs: entity detail, that entity's attachment body, and entity
+detail again. All three share the existing generation deadline, capped at 60 seconds, and byte
+statistics, retain status 200 and exact bounded response bytes/retrieval clock
+spelling, and use the pinned detail decoder and parent authorization checks.
+The selected member must be exactly one decoded stored attachment, with the
+same original selected member value before and after retrieval. Its native
+path is descriptive data; it never selects the body URL. The transport accepts
+only canonical entity/attachment UUID paths, refuses attachment queries and
+requests the body as `application/octet-stream`. The body is bounded by the
+smaller configured reader and Media limits. No redirect, credential or TLS
+policy is changed.
+
+`NativePinnedFileOwner::capture_configured` accepts the actual trusted HomeBox
+configuration, original credential peer, shared Access owner, retained original
+principal, original source/partition grants and validated download request.
+It constructs the real configured reader; no injected transport, public body
+or qualification callback is accepted. Short original read fences bracket the
+GETs and compare full configured registration and persisted Access metadata,
+including opaque collection, owner, partition mode, allowed-ID order, access
+epoch, registration version and digest. The post-fence completes its Access
+commit before the owner is issued. No Access or Store lock spans a GET.
+Original UUID spelling must agree with the reader; it is never silently changed
+into a different request or partition.
+
+The owner retains one sealed bounded local capture, original principal/grants,
+configuration and Access allocation, and a private local snapshot identity.
+Its fixed 60-second monotonic window starts before the first GET and is never
+renewed. Credential headers and the temporary reader are not retained. There
+is no body accessor outside `current_snapshot`: that method returns a
+`CurrentPinnedFileSnapshot` holding both the source Mutex guard and a borrow
+of the caller's actual current Access guard. It verifies the same original
+principal, both retained and supplied grants, immutable request, full current
+metadata and capture window. `revalidate(budget)` repeats current read
+qualification without reacquiring Access. Bytes, original detail/member/path
+metadata, lexical retrieval clocks and descriptive optional MIME borrow this
+carrier. Missing MIME, byte size, archived facts and other unknowns remain
+unknown.
+
+This is qualification of a finite **local pinned snapshot**. The private
+allocation identity is neither a content hash nor a provider revision, and it
+has no public constructor, Clone, serde or version text. The before/after
+member observations do not prove unchanged upstream bytes, a coherent remote
+transaction, current provider membership, provider CAS, remote freshness after
+capture or attachment archive state. No `HomeboxFileVersion.source_version` is
+fabricated and the provider-version `NativeStoredFileOwner` path remains
+unsupported by this owner. Media and root require a separate explicit pinned
+snapshot consumer; these files add no broker issuance/redemption, stage,
+reservation, mutation, quantity, Atlas or execution authority. No new runtime
+case has run.
