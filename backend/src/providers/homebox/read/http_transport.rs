@@ -190,8 +190,10 @@ impl<P: CredentialProvider> Transport for HttpTransport<P> {
             }
             let mut url = self.endpoint.origin.clone();
             url.set_path(request.path());
-            url.query_pairs_mut()
-                .extend_pairs(request.query().iter().map(|(k, v)| (k, v)));
+            if !request.query().is_empty() {
+                url.query_pairs_mut()
+                    .extend_pairs(request.query().iter().map(|(k, v)| (k, v)));
+            }
             let mut builder = self
                 .client
                 .get(url)
