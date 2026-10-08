@@ -12,9 +12,15 @@ use axum::{
     http::{Method, StatusCode, Uri},
 };
 use serde::Deserialize;
-use std::{cell::Cell, collections::VecDeque, sync::Arc};
+use std::{
+    cell::{Cell, OnceCell},
+    collections::VecDeque,
+    sync::Arc,
+};
 
-const MAX_ENTRIES: usize = 64;
+const MAX_ENTRIES: usize = 8;
+const MAX_GRAPH_BYTES: usize = 16 * 1024 * 1024;
+const MAX_CLOSURE_REFS: usize = 4096;
 const MAX_SESSION_ENTRIES: usize = 4;
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -36,6 +42,8 @@ struct RetainedPage {
     page_size: usize,
     access: Access,
     owner: s::StockRetainedReadOwner,
+    graph: s::Snapshot,
+    closure: crate::contracts::semantics::ReferenceClosure,
 }
 #[derive(Default)]
 pub(super) struct EventRegistry {
@@ -100,6 +108,9 @@ struct EventAuthority<'a> {
     owner: &'a s::StockRetainedReadOwner,
     graph: &'a s::Snapshot,
     phase: Cell<usize>,
+    original_graph: &'a s::Snapshot,
+    captured: OnceCell<crate::contracts::semantics::ReferenceClosure>,
+    initial: bool,
 }
 impl s::Authorization for EventAuthority<'_> {
     type Principal = RequestPrincipal;
@@ -230,18 +241,42 @@ impl s::StockRetainedReadAuthorization for EventAuthority<'_> {
                 })
                 .collect();
             if current.len() != frame.current_records.len()
-                || current.iter().any(|record| {
-                    !frame.current_records.iter().any(|other| {
-                        serde_json::to_value(record).ok() == serde_json::to_value(other).ok()
-                    })
-                })
+                || current
+                    .iter()
+                    .any(|record| !frame.current_records.iter().any(|other| *record == other))
             {
                 return Err(unavailable());
             }
         }
-        let closure = closure(self.graph, frame.scope, frame.retained_commits)?;
+        let mut graph = self.original_graph.clone();
+        graph.records.extend(self.graph.records.iter().cloned());
+        let closure = closure(&graph, frame.scope, frame.retained_commits)?;
+        if serde_json::to_vec(&closure)?.len() > MAX_GRAPH_BYTES
+            || closure.record_refs.len() > MAX_CLOSURE_REFS
+            || closure.source_refs.len() > MAX_CLOSURE_REFS
+            || closure.source_partitions.len() > MAX_CLOSURE_REFS
+        {
+            return Err(unavailable());
+        }
+        if let Some(captured) = self.captured.get() {
+            if closure
+                .record_refs
+                .iter()
+                .any(|item| !captured.record_refs.contains(item))
+                || closure
+                    .source_refs
+                    .iter()
+                    .any(|item| !captured.source_refs.contains(item))
+                || closure
+                    .source_partitions
+                    .iter()
+                    .any(|item| !captured.source_partitions.contains(item))
+            {
+                return Err(unavailable());
+            }
+        }
         let mut access = self.access.try_lock().map_err(|_| unavailable())?;
-        if frame.phase == s::StockRetainedReadPhase::Prepare {
+        if frame.phase == s::StockRetainedReadPhase::Prepare && self.initial {
             // The concrete request wrapper allows only existing captured grants
             // after sealing. These selectors never become grants themselves.
             for source in &closure.source_refs {
@@ -262,11 +297,12 @@ impl s::StockRetainedReadAuthorization for EventAuthority<'_> {
                 principal.principal.principal(),
                 |guard| -> a::AccessResult<()> {
                     guard.authorize(principal.principal.scope(), a::Capability::ReadHistory)?;
-                    principal.release_guard(guard, &closure)
+                    principal.release_guard(guard, self.captured.get().unwrap_or(&closure))
                 },
             )
             .map_err(|_| unavailable())?;
-        if frame.phase == s::StockRetainedReadPhase::Prepare {
+        if frame.phase == s::StockRetainedReadPhase::Prepare && self.initial {
+            self.captured.set(closure).map_err(|_| unavailable())?;
             principal.seal_source_capture();
         }
         self.phase.set(self.phase.get() + 1);
@@ -350,12 +386,39 @@ pub(super) async fn events(
                     )
             })
             .transpose()?;
-        let (principal, continuation, owner) = match retained {
-            Some(entry) => (entry.principal, Some(entry.continuation), entry.owner),
-            None => (Box::new(current), None, s::StockRetainedReadOwner::new()),
+        let initial = retained.is_none();
+        let (principal, continuation, owner, captured_graph, captured_closure) = match retained {
+            Some(entry) => (
+                entry.principal,
+                Some(entry.continuation),
+                entry.owner,
+                Some(entry.graph),
+                Some(entry.closure),
+            ),
+            None => (
+                Box::new(current),
+                None,
+                s::StockRetainedReadOwner::new(),
+                None,
+                None,
+            ),
         };
         let graph =
             super::reads::retained_read_snapshot(&mut core, &host, &principal, &storage_scope)?;
+        if serde_json::to_vec(&graph)
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
+            .len()
+            > MAX_GRAPH_BYTES
+        {
+            return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+        }
+        let original_graph = captured_graph.unwrap_or_else(|| graph.clone());
+        let captured = OnceCell::new();
+        if let Some(closure) = captured_closure {
+            captured
+                .set(closure)
+                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        }
         let access = Arc::clone(&core.access);
         let store = core
             .store
@@ -371,6 +434,9 @@ pub(super) async fn events(
             owner: &owner,
             graph: &graph,
             phase: Cell::new(0),
+            original_graph: &original_graph,
+            captured,
+            initial,
         };
         let contracts =
             d::stock::NativeStockContract::new().map_err(super::stock_reads::http_error)?;
@@ -385,6 +451,17 @@ pub(super) async fn events(
                 continuation.as_ref(),
             )
             .map_err(|error| domain_error(crate::app::storage_error(error)))?;
+        let mut full_graph = original_graph.clone();
+        full_graph.records.extend(graph.records.iter().cloned());
+        let snapshot_closure = closure(
+            &full_graph,
+            &storage_scope,
+            prepared.snapshot_closure().retained_commits(),
+        )
+        .map_err(|error| domain_error(crate::app::storage_error(error)))?;
+        if authority.captured.get() != Some(&snapshot_closure) {
+            return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+        }
         let result = store
             .disclose_stock_operation_events_with_authorization(
                 &authority, &principal, &contracts, &prepared,
@@ -409,10 +486,11 @@ pub(super) async fn events(
                 principal.principal.principal(),
                 |guard| -> a::AccessResult<()> {
                     guard.authorize(principal.principal.scope(), a::Capability::ReadHistory)?;
-                    let final_closure =
-                        closure(&graph, &storage_scope, prepared.retained_commits())
-                            .map_err(|_| a::AccessError::Unavailable)?;
-                    principal.release_guard(guard, &final_closure)?;
+                    let final_closure = authority
+                        .captured
+                        .get()
+                        .ok_or(a::AccessError::Unavailable)?;
+                    principal.release_guard(guard, final_closure)?;
                     let value = serde_json::to_value(&result.page)
                         .map_err(|_| a::AccessError::Unavailable)?;
                     response = Some(super::json_response(value));
@@ -421,6 +499,12 @@ pub(super) async fn events(
             )
             .map_err(access_error)?;
         drop(access_guard);
+        let closure = authority
+            .captured
+            .get()
+            .cloned()
+            .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        drop(authority);
         if let Some(continuation) = result.continuation {
             host.operation_events
                 .lock()
@@ -434,6 +518,8 @@ pub(super) async fn events(
                     page_size: query.page_size,
                     access,
                     owner,
+                    graph: original_graph,
+                    closure,
                 });
         }
         response.ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))
