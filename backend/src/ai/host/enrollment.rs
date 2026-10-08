@@ -179,6 +179,117 @@ impl EnrollmentOwner {
             identity: Arc::new(()),
         })
     }
+    /// The original application/storage owners supply this existing read-only
+    /// database, Access allocation and same read-only journal. Validation uses
+    /// SELECTs only and never creates a table, installs approval or adopts rows
+    /// as an OriginalEnrollment proof. Root retains secure file/path fencing.
+    /// Empty approved state remains empty: capture/verification still fail closed.
+    pub fn open_existing_read_only(
+        connection: Connection,
+        access: Arc<Mutex<access::AccessBoundary>>,
+        journal: StatusJournal,
+    ) -> Result<Self, AiError> {
+        super::status::validate_existing_read_only_schema(
+            &connection,
+            &[
+                (
+                    "index",
+                    "sqlite_autoindex_ai_host_enrollment_1",
+                    "ai_host_enrollment",
+                    None,
+                ),
+                (
+                    "table",
+                    "ai_host_enrollment",
+                    "ai_host_enrollment",
+                    Some(
+                        "CREATE TABLE ai_host_enrollment (
+                       actor_id TEXT NOT NULL, workspace_id TEXT NOT NULL, home_id TEXT NOT NULL,
+                       registration_id TEXT NOT NULL, authority_epoch TEXT NOT NULL,
+                       cancellation_epoch TEXT NOT NULL, approval TEXT NOT NULL,
+                       cancellation_generation INTEGER NOT NULL CHECK(cancellation_generation>=0),
+                       configuration TEXT NOT NULL,
+                       PRIMARY KEY(actor_id,workspace_id,home_id))",
+                    ),
+                ),
+            ],
+        )?;
+        journal.require_read_only()?;
+        {
+            let mut statement = connection
+                .prepare(
+                    "SELECT actor_id,workspace_id,home_id,registration_id,authority_epoch,
+                 cancellation_epoch,approval,cancellation_generation,configuration
+                 FROM main.ai_host_enrollment",
+                )
+                .map_err(db_error)?;
+            let mut rows = statement.query([]).map_err(db_error)?;
+            while let Some(row) = rows.next().map_err(db_error)? {
+                for index in 0..7 {
+                    let value: String = row.get(index).map_err(db_error)?;
+                    if value.trim().is_empty() || value.len() > 4096 {
+                        return Err(AiError::DomainUnavailable);
+                    }
+                    if index < 3 {
+                        access::CanonicalId::parse(&value)
+                            .map_err(|_| AiError::DomainUnavailable)?;
+                    }
+                }
+                let generation: i64 = row.get(7).map_err(db_error)?;
+                let configuration: String = row.get(8).map_err(db_error)?;
+                // The original configuration matcher remains authoritative on
+                // each read. Constructor validation establishes only JSON format.
+                let value: serde_json::Value =
+                    serde_json::from_str(&configuration).map_err(|_| AiError::DomainUnavailable)?;
+                let known_configuration = match value.as_array().map(Vec::as_slice) {
+                    Some(
+                        [
+                            kind,
+                            serde_json::Value::String(app),
+                            serde_json::Value::String(host),
+                        ],
+                    ) if !app.trim().is_empty()
+                        && app.len() <= 4096
+                        && !host.trim().is_empty()
+                        && host.len() <= 4096 =>
+                    {
+                        match kind.as_array().map(Vec::as_slice) {
+                            Some([serde_json::Value::String(kind)]) => kind == "localPublicClient",
+                            Some(
+                                [
+                                    serde_json::Value::String(kind),
+                                    serde_json::Value::String(_),
+                                    serde_json::Value::String(_),
+                                    serde_json::Value::String(authentication),
+                                ],
+                            ) => {
+                                kind == "issuedWebsite"
+                                    && matches!(
+                                        authentication.as_str(),
+                                        "public" | "issuedSecretBasic"
+                                    )
+                            }
+                            _ => false,
+                        }
+                    }
+                    _ => false,
+                };
+                if generation < 0
+                    || !known_configuration
+                    || serde_json::to_string(&value).map_err(|_| AiError::DomainUnavailable)?
+                        != configuration
+                {
+                    return Err(AiError::DomainUnavailable);
+                }
+            }
+        }
+        Ok(Self {
+            access,
+            db: Mutex::new(connection),
+            journal,
+            identity: Arc::new(()),
+        })
+    }
     /// Trusted startup/administrative entry point only, absent from app HTTP.
     /// Accept existing approved identifiers; never issue an account, source
     /// lifecycle grant or inference admission. Existing rows are preserved.

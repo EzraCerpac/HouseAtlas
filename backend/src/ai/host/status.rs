@@ -24,6 +24,43 @@ pub struct StatusJournal {
     active: Arc<Mutex<BTreeMap<Key, Cancellation>>>,
 }
 impl StatusJournal {
+    /// Open the current dedicated journal supplied by the original storage
+    /// owner. Validation issues SELECTs only: no schema creation, migration,
+    /// scope normalization, transaction or persisted cancellation adoption.
+    /// Root owns the secure existing-file open and live path/sidecar fencing.
+    pub fn open_existing_read_only(connection: Connection) -> Result<Self, AiError> {
+        validate_existing_read_only_schema(
+            &connection,
+            &[
+                ("index", "sqlite_autoindex_ai_host_status_1", "ai_host_status", None),
+                ("table", "ai_host_status", "ai_host_status", Some(
+                    "CREATE TABLE ai_host_status (
+                       scope TEXT NOT NULL, id TEXT NOT NULL, kind TEXT NOT NULL,
+                       state TEXT NOT NULL, payload TEXT, cancelled INTEGER NOT NULL DEFAULT 0,
+                       PRIMARY KEY(scope,id,kind))")),
+                ("table", "ai_host_observation", "ai_host_observation", Some(
+                    "CREATE TABLE ai_host_observation (
+                       sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                       scope TEXT NOT NULL, id TEXT NOT NULL, category TEXT NOT NULL, payload TEXT NOT NULL)")),
+                ("table", "sqlite_sequence", "sqlite_sequence", Some("CREATE TABLE sqlite_sequence(name,seq)")),
+            ],
+        )?;
+        validate_current_journal_rows(&connection)?;
+        Ok(Self {
+            db: Arc::new(Mutex::new(connection)),
+            // Persisted unconfirmed work is not active in this process.
+            active: Arc::default(),
+        })
+    }
+
+    pub(super) fn require_read_only(&self) -> Result<(), AiError> {
+        if self.db()?.is_readonly("main").map_err(db_error)? {
+            Ok(())
+        } else {
+            Err(AiError::DomainUnavailable)
+        }
+    }
+
     /// Both durable status and live cancellation state must have one owner.
     pub(crate) fn same_owner(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.db, &other.db) && Arc::ptr_eq(&self.active, &other.active)
@@ -792,6 +829,188 @@ impl StatusJournal {
             Ok(None)
         }
     }
+}
+
+/// Exact compiled DDL comparison. The tokenizer preserves identifier/literal
+/// boundaries like the existing Access schema validator; it does not accept
+/// arbitrary equivalent schemas or construct a writable reference database.
+pub(super) fn validate_existing_read_only_schema(
+    connection: &Connection,
+    expected: &[(&str, &str, &str, Option<&str>)],
+) -> Result<(), AiError> {
+    if !connection.is_readonly("main").map_err(db_error)? || !connection.is_autocommit() {
+        return Err(AiError::DomainUnavailable);
+    }
+    let mut databases = connection
+        .prepare("SELECT name FROM pragma_database_list")
+        .map_err(db_error)?;
+    let mut rows = databases.query([]).map_err(db_error)?;
+    while let Some(row) = rows.next().map_err(db_error)? {
+        let name: String = row.get(0).map_err(db_error)?;
+        // Existing methods use unqualified names. Reject attached databases
+        // and an initialized temporary schema rather than allowing shadowing.
+        if name != "main" {
+            return Err(AiError::DomainUnavailable);
+        }
+    }
+    let mut catalogue = connection
+        .prepare("SELECT type,name,tbl_name,sql FROM main.sqlite_schema ORDER BY type,name")
+        .map_err(db_error)?;
+    let mut rows = catalogue.query([]).map_err(db_error)?;
+    let mut count = 0;
+    while let Some(row) = rows.next().map_err(db_error)? {
+        let kind: String = row.get(0).map_err(db_error)?;
+        let name: String = row.get(1).map_err(db_error)?;
+        let table: String = row.get(2).map_err(db_error)?;
+        let sql: Option<String> = row.get(3).map_err(db_error)?;
+        let Some((expected_kind, _, expected_table, expected_sql)) = expected
+            .iter()
+            .find(|(_, expected_name, _, _)| *expected_name == name)
+        else {
+            return Err(AiError::DomainUnavailable);
+        };
+        if kind != *expected_kind
+            || table != *expected_table
+            || sql.as_deref().map(existing_sql_tokens) != expected_sql.map(existing_sql_tokens)
+        {
+            return Err(AiError::DomainUnavailable);
+        }
+        count += 1;
+    }
+    if count != expected.len() {
+        return Err(AiError::DomainUnavailable);
+    }
+    Ok(())
+}
+
+fn existing_sql_tokens(sql: &str) -> Vec<String> {
+    let mut characters = sql.chars().peekable();
+    let mut tokens = Vec::new();
+    while let Some(character) = characters.next() {
+        if character.is_ascii_whitespace() {
+            continue;
+        }
+        let mut token = String::from(character);
+        if matches!(character, '\'' | '"' | '`' | '[') {
+            let delimiter = if character == '[' { ']' } else { character };
+            while let Some(next) = characters.next() {
+                token.push(next);
+                if next == delimiter {
+                    if delimiter != ']' && characters.peek() == Some(&delimiter) {
+                        token.push(characters.next().expect("Peeked SQL delimiter"));
+                    } else {
+                        break;
+                    }
+                }
+            }
+        } else if character.is_ascii_alphanumeric() || character == '_' {
+            token.make_ascii_lowercase();
+            while characters
+                .peek()
+                .is_some_and(|next| next.is_ascii_alphanumeric() || *next == '_')
+            {
+                token.push(
+                    characters
+                        .next()
+                        .expect("Peeked SQL token")
+                        .to_ascii_lowercase(),
+                );
+            }
+        }
+        tokens.push(token);
+    }
+    tokens
+}
+
+fn current_scope(raw: &str, fields: usize) -> Result<(), AiError> {
+    let scope: Vec<String> = serde_json::from_str(raw).map_err(|_| AiError::DomainUnavailable)?;
+    if scope.len() != fields
+        || scope
+            .iter()
+            .any(|value| value.trim().is_empty() || value.len() > 4096)
+        || serde_json::to_string(&scope).map_err(|_| AiError::DomainUnavailable)? != raw
+    {
+        return Err(AiError::DomainUnavailable);
+    }
+    Ok(())
+}
+
+fn validate_current_journal_rows(connection: &Connection) -> Result<(), AiError> {
+    let mut statement = connection
+        .prepare("SELECT scope,id,kind,state,payload,cancelled FROM main.ai_host_status")
+        .map_err(db_error)?;
+    let mut rows = statement.query([]).map_err(db_error)?;
+    while let Some(row) = rows.next().map_err(db_error)? {
+        let scope: String = row.get(0).map_err(db_error)?;
+        let id: String = row.get(1).map_err(db_error)?;
+        let kind: String = row.get(2).map_err(db_error)?;
+        let state: String = row.get(3).map_err(db_error)?;
+        let payload: Option<String> = row.get(4).map_err(db_error)?;
+        let cancelled: i64 = row.get(5).map_err(db_error)?;
+        if !valid_id(&id) || !matches!(cancelled, 0 | 1) {
+            return Err(AiError::DomainUnavailable);
+        }
+        match kind.as_str() {
+            "action" => {
+                // A six-field legacy key requires a separately authorized
+                // migration; this read-only constructor never upgrades it.
+                current_scope(&scope, 5)?;
+                let raw = payload.ok_or(AiError::DomainUnavailable)?;
+                if cancelled != 0 {
+                    return Err(AiError::DomainUnavailable);
+                }
+                match state.as_str() {
+                    "unconfirmed" => {
+                        let _: crate::ai::runtime::ConnectionAction =
+                            serde_json::from_str(&raw).map_err(|_| AiError::DomainUnavailable)?;
+                    }
+                    "observed" => {
+                        let result: ConnectionActionResult =
+                            serde_json::from_str(&raw).map_err(|_| AiError::DomainUnavailable)?;
+                        if result.action_id != id {
+                            return Err(AiError::DomainUnavailable);
+                        }
+                    }
+                    _ => return Err(AiError::DomainUnavailable),
+                }
+            }
+            "request" => {
+                current_scope(&scope, 6)?;
+                let outcome = payload
+                    .as_deref()
+                    .map(serde_json::from_str::<RunOutcome>)
+                    .transpose()
+                    .map_err(|_| AiError::DomainUnavailable)?;
+                match (state.as_str(), outcome) {
+                    ("finished", Some(_))
+                    | ("unconfirmed", None | Some(RunOutcome::Stopped { .. })) => {}
+                    _ => return Err(AiError::DomainUnavailable),
+                }
+            }
+            _ => return Err(AiError::DomainUnavailable),
+        }
+    }
+    let mut statement = connection
+        .prepare("SELECT sequence,scope,id,category,payload FROM main.ai_host_observation")
+        .map_err(db_error)?;
+    let mut rows = statement.query([]).map_err(db_error)?;
+    while let Some(row) = rows.next().map_err(db_error)? {
+        let sequence: i64 = row.get(0).map_err(db_error)?;
+        let scope: String = row.get(1).map_err(db_error)?;
+        let id: String = row.get(2).map_err(db_error)?;
+        let category: String = row.get(3).map_err(db_error)?;
+        let payload: String = row.get(4).map_err(db_error)?;
+        current_scope(&scope, 6)?;
+        if sequence <= 0
+            || !valid_id(&id)
+            || category.is_empty()
+            || payload.len() > 16 * 1024 * 1024
+        {
+            return Err(AiError::DomainUnavailable);
+        }
+        let _: Value = serde_json::from_str(&payload).map_err(|_| AiError::DomainUnavailable)?;
+    }
+    Ok(())
 }
 /// Upgrade only the dedicated host action correlation keys. Payload, state,
 /// cancellation flags and all request/observation rows remain unchanged. The
