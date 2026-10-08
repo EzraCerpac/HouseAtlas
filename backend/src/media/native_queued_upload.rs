@@ -1,6 +1,7 @@
-//! Descriptor-backed HomeBox upload custody and genuine original binding.
-//! This is neither Atlas asset staging nor queue admission/Release, dispatch,
-//! historical recovery or an output grant. Reopened reservation DATA cannot
+//! Descriptor-backed HomeBox upload binding, measured dispatch-body custody
+//! and retained preparation DATA validation. This issues no queue admission/
+//! Release, invocation/header/native-effect, historical reconstruction or output
+//! grant. Reopened reservation DATA cannot
 //! reconstruct a live stage. Errors never imply rollback or retry authority.
 use rustix::fs::{self as rfs, Mode, OFlags};
 use serde::{Deserialize, Serialize};
@@ -11,7 +12,11 @@ use std::{
     io::{Read, Write},
     os::unix::fs::MetadataExt,
     path::Path,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Instant,
 };
 use uuid::Uuid;
 
@@ -1366,6 +1371,7 @@ fn claim_reservation(upload: &NativeQueuedUploadOriginal) -> MediaResult<jobs::S
 
 struct UploadPreparedIssuer {
     custody: Arc<StageCustody>,
+    dispatch_body_taken: AtomicBool,
 }
 
 /// Captured only from the live original admission and its actual current
@@ -1404,6 +1410,7 @@ impl NativeQueuedUploadPrepared {
             upload: Arc::clone(upload),
             issuer: Arc::new(UploadPreparedIssuer {
                 custody: Arc::clone(&upload.custody),
+                dispatch_body_taken: AtomicBool::new(false),
             }),
             prepared,
         };
@@ -1505,6 +1512,58 @@ impl NativeQueuedUploadPrepared {
     pub fn prepared(&self) -> &s::PreparedNativeIntent {
         &self.prepared
     }
+
+    /// Bounded retained DATA decoding under this actual original issuer. No
+    /// filesystem read, cold-start admission or reconstructed proof is issued.
+    pub fn decode_retained_data<'a>(
+        &'a self,
+        candidate: &s::PreparedNativeIntent,
+        budget: &WorkBudget,
+    ) -> MediaResult<NativeQueuedUploadDecoded<'a>> {
+        if !self.matches_original(&self.upload) {
+            return Err(MediaError::Unavailable);
+        }
+        budget.check()?;
+        let liability = claim_reservation(&self.upload)?;
+        if candidate.codec != NATIVE_QUEUED_UPLOAD_PREPARED_CODEC
+            || candidate.native_payload.len() > MAX_PREPARED_FIELD_BYTES
+            || candidate.prepared_media_evidence.len() > MAX_PREPARED_FIELD_BYTES
+            || candidate.storage_liability != liability
+        {
+            return Err(MediaError::Unavailable);
+        }
+        let expected = encode_upload_prepared(&self.upload, liability, budget)?;
+        budget.check()?;
+        let _: Value = serde_json::from_slice(&candidate.native_payload)
+            .map_err(|_| MediaError::Unavailable)?;
+        budget.check()?;
+        let _: Value = serde_json::from_slice(&candidate.prepared_media_evidence)
+            .map_err(|_| MediaError::Unavailable)?;
+        budget.check()?;
+        // Exact canonical bytes reject unknown, duplicate, missing or changed
+        // fields even where a general JSON parser would accept their spelling.
+        if candidate != &expected || self.prepared != expected {
+            return Err(MediaError::Unavailable);
+        }
+        Ok(NativeQueuedUploadDecoded { native: self })
+    }
+
+    pub fn validate_prepared_journal<'a>(
+        &'a self,
+        journal: &s::OriginalUploadJournalCut,
+        attempt: &s::OriginalQueuedUploadAttempt,
+        candidate: &s::PreparedNativeIntent,
+        budget: &WorkBudget,
+    ) -> MediaResult<NativeQueuedUploadDecoded<'a>> {
+        if !journal.matches_attempt(attempt)
+            || !std::ptr::eq(self, journal.native_preparation().as_ref())
+            || !Arc::ptr_eq(&self.upload, journal.upload_cut())
+            || candidate != journal.prepared()
+        {
+            return Err(MediaError::Unavailable);
+        }
+        self.decode_retained_data(candidate, budget)
+    }
     /// Actual original/issuer custody correlation only, with no current grant.
     pub fn matches_original(&self, upload: &Arc<NativeQueuedUploadOriginal>) -> bool {
         Arc::ptr_eq(&self.upload, upload)
@@ -1515,6 +1574,166 @@ impl NativeQueuedUploadPrepared {
                 .is_some_and(|origin| origin.matches_original(upload))
             && upload.known_nonzero.matches_original(upload)
     }
+}
+
+/// Borrowed original plan/stage/intent DATA after exact retained validation.
+/// No Clone, serde, public constructor or current/dispatch authority.
+pub struct NativeQueuedUploadDecoded<'a> {
+    native: &'a NativeQueuedUploadPrepared,
+}
+impl NativeQueuedUploadDecoded<'_> {
+    pub fn plan(&self) -> &native::NativePlan {
+        &self.native.upload.plan
+    }
+    pub fn staged_upload(&self) -> &native::StagedUpload {
+        &self.native.upload.custody.staged
+    }
+    pub fn prepared(&self) -> &s::PreparedNativeIntent {
+        &self.native.prepared
+    }
+}
+
+/// Comparison/work inputs only; these bounds issue no proof or authority.
+pub struct NativeQueuedUploadDispatchBounds<'budget> {
+    pub max_bytes: usize,
+    pub deadline: Instant,
+    pub budget: &'budget WorkBudget,
+}
+
+/// One-shot measured local body custody, with no permit, headers, provider
+/// authority or public DATA constructor. Failure consumes the opportunity.
+pub struct NativeQueuedUploadDispatchBody {
+    native: Arc<NativeQueuedUploadPrepared>,
+    bytes: Vec<u8>,
+    deadline: Instant,
+    effective_deadline: Instant,
+}
+impl NativeQueuedUploadDispatchBody {
+    pub fn capture_under_guard<'phase, 'tx, 'bundle, 'native: 'phase, 'owner, 'captured, 'p>(
+        native: &Arc<NativeQueuedUploadPrepared>,
+        journal: &s::OriginalUploadJournalCut,
+        attempt: &s::OriginalQueuedUploadAttempt,
+        admission: &crate::app::homebox_queued_upload_admission::OriginalQueuedUploadAdmission<
+            'bundle,
+            'native,
+            'owner,
+            'captured,
+            'p,
+        >,
+        guard: &'phase a::TransactionAuthorization<'tx>,
+        physical: &'phase crate::app::homebox_queued_upload::OriginalQueuedUploadPhysical<
+            'phase,
+            'p,
+        >,
+        bounds: NativeQueuedUploadDispatchBounds<'_>,
+    ) -> MediaResult<Self> {
+        // SAME prepared issuer owns this opportunity across all Arc copies.
+        native
+            .issuer
+            .dispatch_body_taken
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .map_err(|_| MediaError::Unavailable)?;
+        let NativeQueuedUploadDispatchBounds {
+            max_bytes,
+            deadline,
+            budget,
+        } = bounds;
+        check_body_deadline(deadline, budget)?;
+        if !journal.matches_attempt(attempt)
+            || !Arc::ptr_eq(native, journal.native_preparation())
+            || !Arc::ptr_eq(native.upload_cut(), journal.upload_cut())
+            || !Arc::ptr_eq(native.upload_cut(), admission.upload_cut())
+            || native.prepared() != journal.prepared()
+        {
+            return Err(MediaError::Unavailable);
+        }
+        let body_size = native.upload.custody.staged.byte_size;
+        if body_size == 0 || body_size > max_bytes.min(MAX_BYTES) as u64 {
+            return Err(MediaError::TooLarge);
+        }
+        native.validate_prepared_journal(journal, attempt, native.prepared(), budget)?;
+        native.revalidate_original_phase(admission, guard, physical, budget)?;
+        let source_deadline = admission
+            .preparation()
+            .native()
+            .source()
+            .original_capture_deadline(budget)
+            .map_err(|_| MediaError::Unavailable)?;
+        let effective_deadline = deadline.min(source_deadline);
+        check_body_deadline(effective_deadline, budget)?;
+        let bytes = {
+            let custody = &native.upload.custody;
+            let owner = &custody.owner;
+            let _local = owner
+                .custody
+                .try_lock()
+                .map_err(|_| MediaError::Unavailable)?;
+            let _directory = owner.lock()?;
+            let before = owner.scan(budget)?;
+            let bytes = read_revalidated_body(custody, budget)?;
+            if before != owner.scan(budget)? || bytes.len() > max_bytes {
+                return Err(MediaError::Unavailable);
+            }
+            bytes
+        };
+        // No Media locks surround actual Root/Source/Access phase callbacks.
+        native.revalidate_original_phase(admission, guard, physical, budget)?;
+        native.validate_prepared_journal(journal, attempt, native.prepared(), budget)?;
+        if admission
+            .preparation()
+            .native()
+            .source()
+            .original_capture_deadline(budget)
+            .map_err(|_| MediaError::Unavailable)?
+            != source_deadline
+        {
+            return Err(MediaError::Unavailable);
+        }
+        check_body_deadline(deadline, budget)?;
+        check_body_deadline(effective_deadline, budget)?;
+        Ok(Self {
+            native: Arc::clone(native),
+            bytes,
+            deadline,
+            effective_deadline,
+        })
+    }
+
+    /// Pure same-preparation allocation correlation, without current authority.
+    pub fn matches_preparation(&self, native: &Arc<NativeQueuedUploadPrepared>) -> bool {
+        Arc::ptr_eq(&self.native, native) && native.matches_original(native.upload_cut())
+    }
+
+    pub fn into_bytes(
+        self,
+        stage: &native::StagedUpload,
+        max_bytes: usize,
+        deadline: Instant,
+        budget: &WorkBudget,
+    ) -> MediaResult<Vec<u8>> {
+        check_body_deadline(self.deadline, budget)?;
+        check_body_deadline(self.effective_deadline, budget)?;
+        check_body_deadline(deadline, budget)?;
+        if deadline > self.deadline
+            || stage != &self.native.upload.custody.staged
+            || self.bytes.len() > max_bytes
+            || stage.byte_size != self.bytes.len() as u64
+            || stage.sha256.as_str() != sha256(&self.bytes)
+        {
+            return Err(MediaError::Unavailable);
+        }
+        check_body_deadline(self.deadline, budget)?;
+        check_body_deadline(self.effective_deadline, budget)?;
+        check_body_deadline(deadline, budget)?;
+        Ok(self.bytes)
+    }
+}
+fn check_body_deadline(deadline: Instant, budget: &WorkBudget) -> MediaResult<()> {
+    budget.check()?;
+    if Instant::now() >= deadline {
+        return Err(MediaError::Unavailable);
+    }
+    Ok(())
 }
 
 #[derive(Serialize)]
@@ -1802,6 +2021,14 @@ fn exact_uuid(raw: &Value, expected: Uuid) -> MediaResult<String> {
     Ok(raw.into())
 }
 fn revalidate_body(custody: &StageCustody, budget: &WorkBudget) -> MediaResult<()> {
+    read_revalidated_body(custody, budget).map(|_| ())
+}
+fn read_revalidated_body(custody: &StageCustody, budget: &WorkBudget) -> MediaResult<Vec<u8>> {
+    budget.check()?;
+    let body_size = usize::try_from(custody.staged.byte_size).map_err(|_| MediaError::TooLarge)?;
+    if body_size == 0 || body_size > MAX_BYTES {
+        return Err(MediaError::TooLarge);
+    }
     let id = custody.staged.upload_token.to_string();
     let reservation =
         custody
@@ -1809,7 +2036,7 @@ fn revalidate_body(custody: &StageCustody, budget: &WorkBudget) -> MediaResult<(
             .read_member(&reservation_name(&id), MAX_RESERVATION_BYTES, budget)?;
     let body = custody
         .owner
-        .read_member(&body_name(&id), MAX_BYTES, budget)?;
+        .read_member(&body_name(&id), body_size, budget)?;
     if reservation.identity != custody.reservation_identity
         || reservation.bytes != custody.reservation_bytes
         || body.identity != custody.body_identity
@@ -1820,7 +2047,8 @@ fn revalidate_body(custody: &StageCustody, budget: &WorkBudget) -> MediaResult<(
     {
         return Err(MediaError::Unavailable);
     }
-    budget.check()
+    budget.check()?;
+    Ok(body.bytes)
 }
 
 // Counting writer: no temporary serialized copy can grow beyond the shared
