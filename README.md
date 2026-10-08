@@ -114,3 +114,12 @@ strict reopen and in-process router only; no listener or held controls):
 cargo run --offline --locked -p houseatlas-backend --example healthy-local-session
 ```
 
+
+One inspected ordinary synthetic quantity HTTP example uses fresh private state,
+a fixed local HTTPS provider, genuine approval and native journal/readback. It
+retains the end-unproven physical hold and does not retry or release it. The
+reference directory contains the explicitly pinned public HomeBox source bytes.
+
+```sh
+HOUSEATLAS_QUANTITY_REFERENCE_DIR=/tmp/houseatlas-quantity-reference-e01dd737 TMPDIR=/tmp cargo test --offline --locked -p houseatlas-backend --lib http::quantity_http_healthy::healthy_quantity_human_http_preview_approval_native_journal_and_readback -- --exact --nocapture
+```

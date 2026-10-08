@@ -48,7 +48,19 @@ impl<P: DispatchResources> HttpDispatcher<P> {
         limits: Limits,
     ) -> Result<Self, TransportFault> {
         let limits = limits.validate()?;
-        let client = Client::builder()
+        let client = Self::client_builder(&endpoint, limits)
+            .build()
+            .map_err(|_| TransportFault::Configuration)?;
+        Ok(Self {
+            client,
+            endpoint,
+            resources,
+            limits,
+        })
+    }
+
+    fn client_builder(endpoint: &SourceEndpoint, limits: Limits) -> reqwest::ClientBuilder {
+        Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .retry(reqwest::retry::never())
             .no_proxy()
@@ -63,6 +75,29 @@ impl<P: DispatchResources> HttpDispatcher<P> {
             .timeout(limits.timeout)
             .read_timeout(limits.timeout)
             .pool_max_idle_per_host(0)
+    }
+
+    /// A test-only trust root for an actual authenticated HTTPS loopback peer.
+    #[cfg(test)]
+    pub(crate) fn new_with_loopback_certificate(
+        endpoint: SourceEndpoint,
+        resources: P,
+        limits: Limits,
+        certificate_der: &[u8],
+    ) -> Result<Self, TransportFault> {
+        let limits = limits.validate()?;
+        let loopback = match endpoint.origin.host() {
+            Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+            Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+            _ => false,
+        };
+        if endpoint.fixture || endpoint.origin.scheme() != "https" || !loopback {
+            return Err(TransportFault::Configuration);
+        }
+        let certificate = reqwest::Certificate::from_der(certificate_der)
+            .map_err(|_| TransportFault::Configuration)?;
+        let client = Self::client_builder(&endpoint, limits)
+            .tls_certs_only([certificate])
             .build()
             .map_err(|_| TransportFault::Configuration)?;
         Ok(Self {

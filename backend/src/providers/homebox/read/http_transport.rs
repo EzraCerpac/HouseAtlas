@@ -101,7 +101,19 @@ impl<P: CredentialProvider> HttpTransport<P> {
         limits: Limits,
     ) -> Result<Self, ReadError> {
         limits.validate()?;
-        let client = Client::builder()
+        let client = Self::client_builder(&endpoint, limits)
+            .build()
+            .map_err(|_| ReadError(ErrorCode::Transport))?;
+        Ok(Self {
+            client,
+            endpoint,
+            credentials,
+            limits,
+        })
+    }
+
+    fn client_builder(endpoint: &SourceEndpoint, limits: Limits) -> reqwest::ClientBuilder {
+        Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .retry(reqwest::retry::never())
             .no_proxy()
@@ -114,6 +126,29 @@ impl<P: CredentialProvider> HttpTransport<P> {
             .connect_timeout(Duration::from_millis(limits.request_timeout_ms))
             .read_timeout(Duration::from_millis(limits.request_timeout_ms))
             .pool_max_idle_per_host(0)
+    }
+
+    /// A test-only trust root for an actual authenticated HTTPS loopback peer.
+    #[cfg(test)]
+    pub(crate) fn new_with_loopback_certificate(
+        endpoint: SourceEndpoint,
+        credentials: P,
+        limits: Limits,
+        certificate_der: &[u8],
+    ) -> Result<Self, ReadError> {
+        limits.validate()?;
+        let loopback = match endpoint.origin.host() {
+            Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+            Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+            _ => false,
+        };
+        if endpoint.fixture || endpoint.origin.scheme() != "https" || !loopback {
+            return Err(invalid());
+        }
+        let certificate = reqwest::Certificate::from_der(certificate_der)
+            .map_err(|_| ReadError(ErrorCode::Transport))?;
+        let client = Self::client_builder(&endpoint, limits)
+            .tls_certs_only([certificate])
             .build()
             .map_err(|_| ReadError(ErrorCode::Transport))?;
         Ok(Self {

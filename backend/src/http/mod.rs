@@ -15,6 +15,10 @@ mod pages;
 pub mod providers;
 pub mod qualified_upload_plan;
 mod quantity;
+#[cfg(test)]
+mod quantity_fixture;
+#[cfg(test)]
+mod quantity_http_healthy;
 mod quantity_worker;
 mod query;
 mod reads;
@@ -81,6 +85,8 @@ pub struct Host {
     quantity_installations:
         Arc<Vec<Arc<crate::config::providers::quantity_installation::OriginalQuantityConfigured>>>,
     quantity_previews: Arc<Mutex<quantity::Registry>>,
+    #[cfg(test)]
+    quantity_tls_fixture: Option<Arc<quantity_fixture::PrivateLoopbackQuantityTls>>,
     loopback_local: bool,
 }
 impl Host {
@@ -98,6 +104,8 @@ impl Host {
             native_media_archive: None,
             quantity_installations: Arc::new(Vec::new()),
             quantity_previews: Arc::new(Mutex::new(quantity::Registry::default())),
+            #[cfg(test)]
+            quantity_tls_fixture: None,
             loopback_local: false,
             operation_events: Arc::new(Mutex::new(operation_events::EventRegistry::default())),
             core: Arc::new(Mutex::new(core)),

@@ -66,6 +66,8 @@ fn current(
 pub(super) struct Worker {
     pub core: Arc<Mutex<Core>>,
     pub configured: Arc<OriginalQuantityConfigured>,
+    #[cfg(test)]
+    pub tls_fixture: Option<Arc<super::quantity_fixture::PrivateLoopbackQuantityTls>>,
 }
 impl Worker {
     pub(super) fn run(
@@ -77,7 +79,10 @@ impl Worker {
         handle: tokio::runtime::Handle,
         initial: &mut Option<Reply>,
     ) -> Result<()> {
-        let Self { core, configured } = self;
+        let core = self.core;
+        let configured = self.configured;
+        #[cfg(test)]
+        let tls_fixture = self.tls_fixture;
         let started = Instant::now();
         let expires = started + configured.descriptor().freshness;
         let policy = configured.reviewed_policy();
@@ -132,9 +137,20 @@ impl Worker {
                 Ok::<(), FlowError>(())
             })?;
         let original_preview = original_preview.ok_or(FlowError)?;
+        #[cfg(not(test))]
         let reader = installation
             .create_reader(&original_preview, Clock)
             .map_err(failed)?;
+        #[cfg(test)]
+        let reader = match tls_fixture.as_ref() {
+            Some(tls) => installation.create_reader_with_loopback_certificate(
+                &original_preview,
+                Clock,
+                tls.certificate_for(&configured).ok_or(FlowError)?,
+            ),
+            None => installation.create_reader(&original_preview, Clock),
+        }
+        .map_err(failed)?;
         let registry = n::QuantityObservationRegistry::new(&original_preview);
         let observation = handle
             .block_on(registry.issue_installed_observation(&reader))
@@ -420,18 +436,43 @@ impl Worker {
                         let cancellation = tokio_util::sync::CancellationToken::new();
                         let deadline = tokio::time::Instant::now()
                             + expires.saturating_duration_since(Instant::now());
+                        let limits = write_transport::Limits {
+                            max_request_bytes: 4096,
+                            max_response_bytes: 16384,
+                            timeout: Duration::from_secs(10),
+                        };
+                        #[cfg(not(test))]
                         let attempt = n::QuantityNativeAttempt::from_original(
                             &session,
                             &bundle,
                             invocation,
-                            write_transport::Limits {
-                                max_request_bytes: 4096,
-                                max_response_bytes: 16384,
-                                timeout: Duration::from_secs(10),
-                            },
+                            limits,
                             deadline,
                             cancellation,
                         )
+                        .map_err(failed)?;
+                        #[cfg(test)]
+                        let attempt = match tls_fixture.as_ref() {
+                            Some(tls) => {
+                                n::QuantityNativeAttempt::from_original_with_loopback_certificate(
+                                    &session,
+                                    &bundle,
+                                    invocation,
+                                    limits,
+                                    deadline,
+                                    cancellation,
+                                    tls.certificate_for(&configured).ok_or(FlowError)?,
+                                )
+                            }
+                            None => n::QuantityNativeAttempt::from_original(
+                                &session,
+                                &bundle,
+                                invocation,
+                                limits,
+                                deadline,
+                                cancellation,
+                            ),
+                        }
                         .map_err(failed)?;
                         let dispatched_report =
                             handle.block_on(attempt.execute()).map_err(failed)?;

@@ -261,6 +261,8 @@ pub(super) async fn preview(State(host): State<Host>, request: Request) -> HttpR
         let outcome = super::quantity_worker::Worker {
             core: owner,
             configured: selected,
+            #[cfg(test)]
+            tls_fixture: host.quantity_tls_fixture.clone(),
         }
         .run(input, principal, id, inbox, handle, &mut initial);
         if let Some(reply) = initial.take() {
