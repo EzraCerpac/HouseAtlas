@@ -539,7 +539,13 @@ async fn healthy_body() {
         },
         &stock_contract,
     )
-    .unwrap();
+    .unwrap_or_else(|error| {
+        panic!(
+            "configured presence failed: {error:?}; committed_data={}; accepted_history={}",
+            !committed.is_empty(),
+            history.borrow().is_some()
+        )
+    });
     assert_eq!(result.wire["replayed"], false);
     let committed_data = committed.take().expect("same original committed DATA");
     assert_eq!(committed_data.witnesses().len(), 1);

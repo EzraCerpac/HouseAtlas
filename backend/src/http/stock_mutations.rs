@@ -868,7 +868,13 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
                     .is_none(),
             )?;
             homebox_presence_history::validate_publications_for_archive(input.publications)
-                .map_err(|_| unavailable())?;
+                .map_err(|error| {
+                    #[cfg(test)]
+                    eprintln!("configured presence archive preflight: {error:?}");
+                    #[cfg(not(test))]
+                    let _ = error;
+                    unavailable()
+                })?;
             let mut executor = ConfiguredExecutor {
                 principal: p,
                 prepared,
@@ -883,7 +889,13 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
                 input.age,
                 &mut executor,
             )
-            .map_err(|_| unavailable())?;
+            .map_err(|error| {
+                #[cfg(test)]
+                eprintln!("configured presence command: {error:?}");
+                #[cfg(not(test))]
+                let _ = error;
+                unavailable()
+            })?;
             require(
                 w.pending
                     .borrow()
@@ -891,8 +903,13 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
                     .is_some_and(|pin| pin.receipt == *accepted.frame().commit()),
             )?;
             let output = accepted.frame().commit().owner_result();
-            let history =
-                RecordedPresenceHistory::from_accepted(accepted).map_err(|_| unavailable())?;
+            let history = RecordedPresenceHistory::from_accepted(accepted).map_err(|error| {
+                #[cfg(test)]
+                eprintln!("configured presence accepted archive: {error:?}");
+                #[cfg(not(test))]
+                let _ = error;
+                unavailable()
+            })?;
             let mut observed = input.history.try_borrow_mut().map_err(|_| unavailable())?;
             require(observed.is_none())?;
             *observed = Some(std::sync::Arc::new(history));
@@ -1344,7 +1361,13 @@ pub(super) fn execute_configured_presence<'principal, 'input, 'origin, 'reader>(
         contracts,
         &authority,
         &mut Preparer(&core.store, None, Some(presence)),
-    )?;
+    )
+    .inspect_err(|error| {
+        #[cfg(test)]
+        eprintln!("configured presence prepare: {error:?}");
+        #[cfg(not(test))]
+        let _ = error;
+    })?;
     st::dispatch(
         p,
         prepared,
@@ -1361,6 +1384,12 @@ pub(super) fn execute_configured_presence<'principal, 'input, 'origin, 'reader>(
             presence: Some(presence),
         },
     )
+    .inspect_err(|error| {
+        #[cfg(test)]
+        eprintln!("configured presence dispatch: {error:?}");
+        #[cfg(not(test))]
+        let _ = error;
+    })
 }
 pub(super) async fn command(
     State(host): State<Host>,
