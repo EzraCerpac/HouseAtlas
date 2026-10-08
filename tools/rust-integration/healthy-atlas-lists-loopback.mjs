@@ -217,10 +217,21 @@ try {
     for(const context of ['geometry','mapping']){
       const selector=`[data-evidence-context="${context}"] .linked-evidence[data-evidence-id="${originalEvidence.recordId}"]`;
       assert.equal(responses.filter(response=>response.url===evidenceUrl).length,evidenceReads.length,'Evidence is loaded only by each explicit action');
-      const point=await evaluate(`(()=>{const button=document.querySelector(${JSON.stringify(selector+' button')});button.scrollIntoView({block:'center'});const rect=button.getBoundingClientRect();return {x:rect.x+rect.width/2,y:rect.y+rect.height/2};})()`);
+      await evaluate(`(async()=>{document.querySelector(${JSON.stringify(selector+' button')}).scrollIntoView({block:'start',behavior:'instant'});await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));})()`);
+      const hit=await evaluate(`(()=>{const button=document.querySelector(${JSON.stringify(selector+' button')});const rect=button.getBoundingClientRect();const point={x:rect.x+rect.width/2,y:rect.y+rect.height/2};const target=document.elementFromPoint(point.x,point.y);return {point,matches:target===button||button.contains(target),target:target?.outerHTML,rect:rect.toJSON()};})()`);
+      if(!hit.matches) console.error(JSON.stringify({linkedEvidenceHit:hit}));
+      assert(hit.matches,'Native mouse hit reaches the evidence button');
+      const point=hit.point;
+      await send('Input.dispatchMouseEvent',{type:'mouseMoved',...point});
       await send('Input.dispatchMouseEvent',{type:'mousePressed',...point,button:'left',clickCount:1});
       await send('Input.dispatchMouseEvent',{type:'mouseReleased',...point,button:'left',clickCount:1});
-      await until(async()=>await evaluate(`document.querySelector(${JSON.stringify(selector+' h3')})?.textContent==='Evidence'`),'Actual linked evidence renders for '+context);
+      try {
+        await until(async()=>await evaluate(`document.querySelector(${JSON.stringify(selector+' h3')})?.textContent==='Evidence'`),'Actual linked evidence renders for '+context);
+      } catch(error) {
+        const diagnostic=await evaluate(`(()=>{const panel=document.querySelector(${JSON.stringify(selector)});return {text:panel?.innerText,buttonDisabled:panel?.querySelector('button')?.disabled,now:Date.now(),allText:document.body.innerText};})()`);
+        console.error(JSON.stringify({linkedEvidenceDiagnostic:diagnostic,responses,runtimeErrors}));
+        throw error;
+      }
       const delivered=responses.filter(response=>response.url===evidenceUrl);
       assert.equal(delivered.length,evidenceReads.length+1,'One actual authorized evidence GET per action');
       assert.equal(delivered.at(-1).status,200);
@@ -239,7 +250,7 @@ try {
       const provenance=originalEvidence.payload.provenance;
       assert.deepEqual(displayed.facts,{'Atlas read status':'current','Record revision':String(originalEvidence.revision),'Lifecycle':originalEvidence.lifecycle,'Statement':originalEvidence.payload.statement,'Supersedes evidence IDs':'None supplied','Evidence basis':provenance.evidenceBasis,'Original fact date':provenance.factAt,'Retrieved':provenance.retrievedAt,'Source reference':'Not supplied','Source revision':'Not supplied','Source confidence':'Not supplied','Vantage':'Not supplied','Uncertainty status':provenance.uncertainty.status,'Uncertainty explanation':'Not supplied'});
       assert.equal(displayed.references,null,'Original empty references stay empty');assert.equal(displayed.anchors,0,'Saved references do not fabricate download links');
-      evidenceReads.push({context,wire,displayed});
+      evidenceReads.push({context,wire,displayed,input:{event:'native mouse click',selector:selector+' button',point,hitConfirmed:hit.matches,scroll:'instant start'}});
     }
     assert.notEqual(evidenceReads[0].wire.requestId,evidenceReads[1].wire.requestId,'Server keeps distinct actual read request IDs');
     const evidenceResponsive=[];
