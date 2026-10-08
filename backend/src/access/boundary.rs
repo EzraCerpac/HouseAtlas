@@ -1,6 +1,7 @@
 use std::{
     net::IpAddr,
     path::Path,
+    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -16,6 +17,7 @@ use super::{
     SessionInfo, SessionReceipt, SourceGrant,
     credentials::{digest, hex, nonce, random_bytes, verify_password},
     store::{self, Session, Store, User, UserVerifier},
+    trusted_proxy::TrustedProxyPolicy,
     types::{LoopbackLocalIdentity, RestoreEpoch},
 };
 
@@ -60,6 +62,7 @@ impl AccessLimits {
 pub struct AccessConfig {
     origins: Vec<String>,
     loopback_local: Option<LoopbackLocalIdentity>,
+    trusted_proxy: Option<Arc<TrustedProxyPolicy>>,
     limits: AccessLimits,
     clock: Box<dyn Fn() -> i64 + Send + Sync>,
     pub(super) lifecycle: LifecyclePolicy,
@@ -83,6 +86,7 @@ impl AccessConfig {
         Ok(Self {
             origins,
             loopback_local: None,
+            trusted_proxy: None,
             limits: AccessLimits::default(),
             lifecycle: LifecyclePolicy::default(),
             clock: Box::new(|| {
@@ -96,8 +100,8 @@ impl AccessConfig {
     }
 
     pub fn with_loopback_local(mut self, identity: LoopbackLocalIdentity) -> AccessResult<Self> {
-        const NIL: &str = "00000000-0000-0000-0000-000000000000";
-        if self.origins.len() != 1
+        if self.trusted_proxy.is_some()
+            || self.origins.len() != 1
             || !self.origins.iter().all(|origin| {
                 Url::parse(origin).is_ok_and(|url| {
                     url.scheme() == "https"
@@ -110,19 +114,32 @@ impl AccessConfig {
                         }
                 })
             })
-            || [
-                &identity.user_id,
-                &identity.actor_id,
-                &identity.scope.workspace_id,
-                &identity.scope.home_id,
-            ]
-            .iter()
-            .any(|id| id.as_str() == NIL)
-            || store::username_key(&identity.username)? != identity.username
         {
             return Err(AccessError::InvalidInput);
         }
+        validate_local_identity(&identity)?;
         self.loopback_local = Some(identity);
+        Ok(self)
+    }
+
+    /// Select the singleton identity through the separate checked Unix gateway.
+    /// A policy is configuration DATA, never evidence of a gateway request.
+    pub fn with_trusted_proxy(
+        mut self,
+        identity: LoopbackLocalIdentity,
+        policy: Arc<TrustedProxyPolicy>,
+    ) -> AccessResult<Self> {
+        if self.loopback_local.is_some() || self.trusted_proxy.is_some() || self.origins.len() != 1
+        {
+            return Err(AccessError::InvalidInput);
+        }
+        validate_trusted_proxy_origin(&self.origins[0])?;
+        policy.validate()?;
+        validate_local_identity(&identity)?;
+        // Existing native sentinel, singleton provisioning and session checks
+        // continue to use this same selected identity in both local modes.
+        self.loopback_local = Some(identity);
+        self.trusted_proxy = Some(policy);
         Ok(self)
     }
 
@@ -154,6 +171,53 @@ impl AccessConfig {
     }
 }
 
+fn validate_local_identity(identity: &LoopbackLocalIdentity) -> AccessResult<()> {
+    const NIL: &str = "00000000-0000-0000-0000-000000000000";
+    if [
+        &identity.user_id,
+        &identity.actor_id,
+        &identity.scope.workspace_id,
+        &identity.scope.home_id,
+    ]
+    .iter()
+    .any(|id| id.as_str() == NIL)
+        || store::username_key(&identity.username)? != identity.username
+    {
+        return Err(AccessError::InvalidInput);
+    }
+    Ok(())
+}
+
+fn validate_trusted_proxy_origin(origin: &str) -> AccessResult<()> {
+    let parsed = Url::parse(origin).map_err(|_| AccessError::InvalidInput)?;
+    let Some(url::Host::Domain(host)) = parsed.host() else {
+        return Err(AccessError::InvalidInput);
+    };
+    if parsed.scheme() != "https"
+        || parsed.origin().ascii_serialization() != origin
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.path() != "/"
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+        || !host.is_ascii()
+        || host.len() > 253
+        || !host.ends_with(".ts.net")
+        || host.split('.').any(|label| {
+            label.is_empty()
+                || label.len() > 63
+                || label.starts_with('-')
+                || label.ends_with('-')
+                || !label
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+        })
+    {
+        return Err(AccessError::InvalidInput);
+    }
+    Ok(())
+}
+
 /// Synchronous modular-monolith component. The embedding runtime owns routing,
 /// bounded body streaming and scheduling blocking SQLite/scrypt work.
 pub struct AccessBoundary {
@@ -164,7 +228,26 @@ pub struct AccessBoundary {
 
 impl AccessBoundary {
     pub fn loopback_local_enabled(&self) -> bool {
-        self.config.loopback_local.is_some()
+        self.config.loopback_local.is_some() && self.config.trusted_proxy.is_none()
+    }
+
+    pub fn trusted_proxy_enabled(&self) -> bool {
+        self.config.trusted_proxy.is_some()
+    }
+
+    pub fn trusted_proxy_policy(&self) -> Option<&Arc<TrustedProxyPolicy>> {
+        self.config.trusted_proxy.as_ref()
+    }
+
+    pub fn trusted_proxy_origin(&self) -> Option<&str> {
+        self.config
+            .trusted_proxy
+            .as_ref()
+            .map(|_| self.config.origins[0].as_str())
+    }
+
+    pub fn configured_local_identity(&self) -> Option<&LoopbackLocalIdentity> {
+        self.config.loopback_local.as_ref()
     }
 
     pub fn provision_loopback_local_user(&mut self) -> AccessResult<()> {
@@ -196,6 +279,9 @@ impl AccessBoundary {
         request: &RequestEvidence<'_>,
         actual_peer: IpAddr,
     ) -> AccessResult<SessionReceipt> {
+        if self.config.trusted_proxy.is_some() {
+            return Err(AccessError::Unauthenticated);
+        }
         let identity = self
             .config
             .loopback_local
@@ -216,6 +302,61 @@ impl AccessBoundary {
         )?;
         self.rate(
             &format!("login:client:{actual_peer}"),
+            self.config.limits.login_limit,
+            300_000,
+        )?;
+        self.rate(
+            &format!("login:username:{username}"),
+            self.config.limits.login_limit,
+            300_000,
+        )?;
+        let identity = self
+            .config
+            .loopback_local
+            .as_ref()
+            .ok_or(AccessError::Unauthenticated)?;
+        let user = store::validate_loopback_local_user(&self.store.db, identity)?;
+        let previous = token_hash(request, false)?;
+        self.issue(&user, &origin, previous.as_deref(), false)
+    }
+
+    /// Consume the root's one-shot checked gateway identity. Native WhoIs runs
+    /// in the separate gateway, while Access preserves its native session path.
+    pub(crate) fn login_trusted_proxy<'request, 'evidence>(
+        &mut self,
+        request: &'request RequestEvidence<'evidence>,
+        checked: crate::app::trusted_gateway::CheckedGatewayIdentity<'request, 'evidence>,
+    ) -> AccessResult<SessionReceipt> {
+        let policy = self
+            .config
+            .trusted_proxy
+            .as_ref()
+            .ok_or(AccessError::Unauthenticated)?;
+        if !std::ptr::eq(request, checked.request())
+            || !Arc::ptr_eq(policy, checked.policy())
+            || checked.actual_peer_uid() != policy.peer_uid
+        {
+            return Err(AccessError::Forbidden);
+        }
+        if request.method != Method::Post {
+            return Err(AccessError::MethodNotAllowed);
+        }
+        let selected_uid = policy.peer_uid;
+        let username = self
+            .config
+            .loopback_local
+            .as_ref()
+            .ok_or(AccessError::Unauthenticated)?
+            .username
+            .clone();
+        let origin = self.check_origin(request, true, None)?;
+        self.rate(
+            "login:global",
+            self.config.limits.global_login_limit,
+            60_000,
+        )?;
+        self.rate(
+            &format!("login:client:trusted-proxy:{selected_uid}"),
             self.config.limits.login_limit,
             300_000,
         )?;
