@@ -4,6 +4,7 @@ pub mod providers {
     pub mod network;
     pub mod network_host;
     pub mod quantity_installation;
+    pub mod queued_upload;
     pub mod registry;
 }
 pub mod provider_dispatch;
