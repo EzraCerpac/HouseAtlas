@@ -48,8 +48,8 @@ export interface QuantityClient {
 }
 export class QuantityActionError extends Error {
   constructor(readonly state: 'expired' | 'denied' | 'absent' | 'changed' | 'unavailable' | 'unknown', readonly action: string) {
-    // Preview performs no reserve, admission or receipt issuance.
-    super(state === 'unknown' ? `${action} response unavailable. ${action === 'preview' ? 'Preview availability unknown' : 'Issuance or admission may have occurred'}; do not retry automatically.` : `${action}: ${state}.${['preview', 'approval', 'dispatch'].includes(action) ? ' No completion established; do not infer rollback or safe retry.' : ''}`);
+    // Preview performs no reserve, admission or receipt issuance; a held prior action may be only a preview.
+    super(state === 'unknown' ? (action === 'Prior quantity action' ? 'Prior quantity action outcome unknown; do not retry automatically.' : `${action} response unavailable. ${action === 'preview' ? 'Preview outcome unknown' : 'Issuance or admission may have occurred'}; do not retry automatically.`) : `${action}: ${state}.${['preview', 'approval', 'dispatch'].includes(action) ? ' No completion established; do not infer rollback or safe retry.' : ''}`);
   }
 }
 const text = { type: 'string', minLength: 1 };
