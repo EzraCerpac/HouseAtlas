@@ -38,6 +38,8 @@ export interface QuantityClient {
   getBindingIdentity(): object | string | null;
   /** Sanitized prior ambiguous POST for this original source/current session. */
   getUncertainty(source: SourceRef): string | null;
+  /** Notifies after a hold is recorded or its message changes; read via getUncertainty. Implementers record every posted unknown before rejecting, so views defer other errors to this store. Optional: legacy clients keep render-time reads and a conservative local hold. */
+  subscribeUncertainty?(changed: () => void): () => void;
   subscribeSessionBinding(changed: () => void): () => void;
   isCurrent(identity: object | string): boolean;
   isCurrentPrepared(prepared: QuantityPrepared): boolean;
