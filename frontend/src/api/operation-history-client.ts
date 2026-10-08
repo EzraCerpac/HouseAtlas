@@ -77,7 +77,7 @@ const pageSchema = {
         },
       },
     },
-    nextCursor: { anyOf: [{ type: 'string', minLength: 1, maxLength: 4096 }, { type: 'null' }] },
+    nextCursor: { anyOf: [{ type: 'string', minLength: 1, maxLength: 128 }, { type: 'null' }] },
   },
 };
 
@@ -89,7 +89,7 @@ export function createOperationHistoryClient(transport: typeof fetch = globalThi
   return {
     async read(scope: Scope, signal: AbortSignal, cursor: string | null = null): Promise<OperationHistoryRead> {
       if (cursor !== null && (typeof cursor !== 'string' || cursor.length === 0
-        || new TextEncoder().encode(cursor).length > 4096))
+        || new TextEncoder().encode(cursor).length > 128))
         throw new TypeError('Invalid operation history cursor');
       signal.throwIfAborted();
       const query = new URLSearchParams({ workspaceId: scope.workspaceId, homeId: scope.homeId, pageSize: '25' });
@@ -108,7 +108,7 @@ export function createOperationHistoryClient(transport: typeof fetch = globalThi
       if (!validatePage(value)) throw new TypeError('Operation history page is incompatible');
       if (value.resolvedScope.workspaceId !== scope.workspaceId || value.resolvedScope.homeId !== scope.homeId)
         throw new TypeError('Operation history scope does not match request');
-      if (value.nextCursor !== null && new TextEncoder().encode(value.nextCursor).length > 4096)
+      if (value.nextCursor !== null && new TextEncoder().encode(value.nextCursor).length > 128)
         throw new TypeError('Operation history cursor exceeded byte bound');
       if (new Set(value.entries.map(entry => entry.eventId)).size !== value.entries.length)
         throw new TypeError('Operation history page repeated an event');

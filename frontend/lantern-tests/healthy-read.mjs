@@ -270,7 +270,8 @@ const operationProjection = projectView(geometryView, geometryRead, operationSin
 assert.equal(operationProjection.operationHistory, operationSingleRead);
 assert.equal(operationProjection.house.history.length, 0);
 
-const operationCursor = 'opaque+/operation==';
+const operationCursor = 'opaque+/operation==0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef+/operation==';
+assert.equal(new TextEncoder().encode(operationCursor).length, 128);
 let operationPageCalls = 0;
 const operationPagedClient = createOperationHistoryClient(async (url, init) => {
   const page = operationPageCalls++;
