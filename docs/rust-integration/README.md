@@ -276,6 +276,9 @@ with no configured root runtime fixture claimed. Strict cursor recovery selects
 the HomeBox validator only after complete activity validation on the same
 snapshot. New cursor admissions are capped at 4096 globally and 256 per actor
 and scope; existing immutable cursors survive without expiration or reclamation.
+Before selection or cursor ranking, the original read snapshot is bounded to
+4096 events and 16 MiB of operation JSON at the fixed watermark. Exceeding
+either budget returns unavailable, with no truncated page or evicted history.
 
 For the explicit geometry metadata read fixture, set
 `HOUSEATLAS_FIXTURE_PROFILE=geometry-metadata` and `SOURCE_SHA` to the clean

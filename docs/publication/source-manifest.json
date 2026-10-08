@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "faf090a27ef7085f414b8612cc6e86ed821808ed41da89cbe3946e3f79c8ab8b",
+  "sourceDigestSha256": "74310b785f09ac1395500c96eb51ebff48f152ec05504c718b5f95bb2b3b8b75",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -3283,8 +3283,8 @@
     {
       "path": "backend/src/storage/homebox_stock_history_repository.rs",
       "mode": "100644",
-      "bytes": 23802,
-      "sha256": "5d8ec4d0091282f84d6e0d061d22ce0d1b4342121e7388ed87c9977e7f255aec",
+      "bytes": 27007,
+      "sha256": "462720ab4dddea6d0668fb16e8c8c579c7d44e8a6fc6ba33f757650de4123f1a",
       "owner": "storage"
     },
     {
@@ -4074,8 +4074,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 35125,
-      "sha256": "a14618a145d86993e7f5b54f1898d844f283275b5eb850401c3cb1375822fb3e",
+      "bytes": 35355,
+      "sha256": "8ab82fbae876d3622a795c1c02b70719b98cae0a5503f77de82ef3ccf23826c5",
       "owner": "core-integration"
     },
     {
