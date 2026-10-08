@@ -236,6 +236,95 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
         ))
     }
 
+    /// Capture one fixed native attachment between two owner-detail GETs.
+    /// The shared generation deadline and byte statistics cover all three.
+    pub async fn capture_native_file_snapshot(
+        &mut self,
+        owner: &Uuid,
+        attachment: &Uuid,
+    ) -> Result<super::native_file_capture::CapturedNativeFileSnapshot, ReadError> {
+        self.check_capture_owner(owner)?;
+        if owner.as_str() == "00000000-0000-0000-0000-000000000000"
+            || attachment.as_str() == "00000000-0000-0000-0000-000000000000"
+        {
+            return Err(invalid());
+        }
+        let detail_path = format!("/api/v1/entities/{}", owner.as_str());
+        let file_path = format!("{detail_path}/attachments/{}", attachment.as_str());
+        let deadline = Instant::now()
+            + Duration::from_millis(self.limits.generation_timeout_ms)
+                .min(super::native_file_capture::PINNED_FILE_CAPTURE_WINDOW);
+        let mut stats = ReadStats::default();
+        let (before, before_at, before_deadline, before_status) = self
+            .request(detail_path.clone(), Vec::new(), deadline, &mut stats)
+            .await?;
+        if before_status != 200 {
+            return Err(ReadError(ErrorCode::Upstream));
+        }
+        let before_decoded = crate::providers::homebox::wire::decode_detail(
+            &before,
+            owner,
+            native_capture::decode_limits(self.limits),
+        )
+        .map_err(native_capture::read_error)?;
+        self.check_file_parent(&before_decoded.value)?;
+        let member = selected_stored_member(&before_decoded, owner, attachment)?;
+        check_time(before_deadline)?;
+        let (body, body_at, body_deadline, body_status) = self
+            .request(file_path, Vec::new(), deadline, &mut stats)
+            .await?;
+        if body_status != 200 {
+            return Err(ReadError(ErrorCode::Upstream));
+        }
+        if body.len() > crate::media::MAX_BYTES {
+            return Err(ReadError(ErrorCode::SizeLimit));
+        }
+        check_time(body_deadline)?;
+        let (after, after_at, after_deadline, after_status) = self
+            .request(detail_path, Vec::new(), deadline, &mut stats)
+            .await?;
+        if after_status != 200 {
+            return Err(ReadError(ErrorCode::Upstream));
+        }
+        let after_decoded = crate::providers::homebox::wire::decode_detail(
+            &after,
+            owner,
+            native_capture::decode_limits(self.limits),
+        )
+        .map_err(native_capture::read_error)?;
+        self.check_file_parent(&after_decoded.value)?;
+        if selected_stored_member(&after_decoded, owner, attachment)? != member {
+            return Err(ReadError(ErrorCode::Upstream));
+        }
+        check_time(after_deadline)?;
+        check_time(deadline)?;
+        Ok(
+            super::native_file_capture::CapturedNativeFileSnapshot::from_reader(
+                self.scope.clone(),
+                owner.clone(),
+                attachment.clone(),
+                (before, before_at, before_status),
+                (body, body_at, body_status),
+                (after, after_at, after_status),
+                member,
+            ),
+        )
+    }
+    fn check_file_parent(
+        &self,
+        detail: &crate::providers::homebox::wire::Detail,
+    ) -> Result<(), ReadError> {
+        if detail
+            .entity
+            .parent
+            .as_ref()
+            .is_some_and(|parent| !self.authorized(&parent.id))
+        {
+            return Err(ReadError(ErrorCode::WrongScope));
+        }
+        Ok(())
+    }
+
     /// Capture the original owner log using the fixed native status=both query.
     /// Its decoded entries do not assert completeness or installed API behavior.
     pub async fn capture_stock_maintenance(
@@ -427,6 +516,11 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
         check_time(generation_deadline)?;
         let deadline = (Instant::now() + Duration::from_millis(self.limits.request_timeout_ms))
             .min(generation_deadline);
+        let response_limit = if super::http_transport::attachment_path(&path) {
+            self.limits.max_response_bytes.min(crate::media::MAX_BYTES)
+        } else {
+            self.limits.max_response_bytes
+        };
         let request = GetRequest {
             path,
             query,
@@ -460,8 +554,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                     .bytes
                     .checked_add(chunk.len())
                     .ok_or(ReadError(ErrorCode::SizeLimit))?;
-                if response_size > self.limits.max_response_bytes
-                    || stats.bytes > self.limits.max_generation_bytes
+                if response_size > response_limit || stats.bytes > self.limits.max_generation_bytes
                 {
                     return Err(ReadError(ErrorCode::SizeLimit));
                 }
@@ -712,4 +805,26 @@ fn check_time(deadline: Instant) -> Result<(), ReadError> {
     } else {
         Ok(())
     }
+}
+
+fn selected_stored_member(
+    detail: &crate::providers::homebox::wire::Decoded<crate::providers::homebox::wire::Detail>,
+    owner: &Uuid,
+    attachment: &Uuid,
+) -> Result<serde_json::Value, ReadError> {
+    if detail.source["id"].as_str() != Some(owner.as_str()) {
+        return Err(invalid());
+    }
+    let rows = detail.source["attachments"]
+        .as_array()
+        .ok_or_else(invalid)?;
+    let mut selected = rows
+        .iter()
+        .filter(|row| row["id"].as_str() == Some(attachment.as_str()));
+    let member = selected.next().ok_or_else(invalid)?;
+    if selected.next().is_some() || member["mimeType"].as_str() == Some("link/url")
+        || !detail.value.attachments.iter().any(|entry| matches!(entry, Attachment::StoredFile { attachment_id, .. } if attachment_id == attachment)) {
+        return Err(invalid());
+    }
+    Ok(member.clone())
 }

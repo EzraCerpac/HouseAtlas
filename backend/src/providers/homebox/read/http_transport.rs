@@ -209,9 +209,16 @@ impl<P: CredentialProvider> Transport for HttpTransport<P> {
         {
             return Err(ReadError(ErrorCode::WrongScope));
         }
-        if !stock_path(request.path()) {
+        if !stock_path(request.path())
+            || (attachment_path(request.path()) && !request.query().is_empty())
+        {
             return Err(ReadError(ErrorCode::Transport));
         }
+        let response_limit = if attachment_path(request.path()) {
+            self.limits.max_response_bytes.min(crate::media::MAX_BYTES)
+        } else {
+            self.limits.max_response_bytes
+        };
         let deadline = request
             .deadline()
             .min(Instant::now() + Duration::from_millis(self.limits.request_timeout_ms));
@@ -236,7 +243,14 @@ impl<P: CredentialProvider> Transport for HttpTransport<P> {
                     "X-Tenant",
                     HeaderValue::from_bytes(request.tenant().as_bytes()).map_err(|_| invalid())?,
                 )
-                .header(ACCEPT, "application/json")
+                .header(
+                    ACCEPT,
+                    if attachment_path(request.path()) {
+                        "application/octet-stream"
+                    } else {
+                        "application/json"
+                    },
+                )
                 .header(ACCEPT_ENCODING, "identity");
             if let Some(header) = header {
                 builder = builder.header(AUTHORIZATION, header.0);
@@ -247,7 +261,7 @@ impl<P: CredentialProvider> Transport for HttpTransport<P> {
             }
             if response
                 .content_length()
-                .is_some_and(|n| n > self.limits.max_response_bytes as u64)
+                .is_some_and(|n| n > response_limit as u64)
             {
                 return Err(ReadError(ErrorCode::SizeLimit));
             }
@@ -263,7 +277,7 @@ impl<P: CredentialProvider> Transport for HttpTransport<P> {
                     response: Some(response),
                     deadline,
                     received: 0,
-                    limit: self.limits.max_response_bytes,
+                    limit: response_limit,
                 },
             })
         };
@@ -286,6 +300,22 @@ fn stock_path(path: &str) -> bool {
     let Some(tail) = path.strip_prefix("/api/v1/entities/") else {
         return false;
     };
+    if attachment_path(path) {
+        return true;
+    }
     let id = tail.strip_suffix("/maintenance").unwrap_or(tail);
     Uuid::parse(id).is_ok_and(|uuid| uuid.as_str() == id)
+}
+
+pub(super) fn attachment_path(path: &str) -> bool {
+    let Some(tail) = path.strip_prefix("/api/v1/entities/") else {
+        return false;
+    };
+    let Some((owner, attachment)) = tail.split_once("/attachments/") else {
+        return false;
+    };
+    [owner, attachment].into_iter().all(|id| {
+        Uuid::parse(id)
+            .is_ok_and(|uuid| uuid.as_str() == id && id != "00000000-0000-0000-0000-000000000000")
+    })
 }
