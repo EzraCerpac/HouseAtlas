@@ -1,5 +1,6 @@
 use super::decode::{self, WireEntity};
 use super::error::invalid;
+use super::native_capture::{self, CapturedStockEntity, CapturedStockMaintenance, NativeCapture};
 use super::stock::{self, StockNavigation};
 use super::*;
 use std::{
@@ -189,6 +190,98 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
         Ok(())
     }
 
+    /// Capture one original stock detail through the configured bounded GET
+    /// transport. No caller-selected endpoint or writable snapshot is admitted.
+    pub async fn capture_stock_entity(
+        &mut self,
+        id: &Uuid,
+    ) -> Result<CapturedStockEntity, ReadError> {
+        self.check_capture_owner(id)?;
+        let path = format!("/api/v1/entities/{}", id.as_str());
+        let query = Vec::new();
+        let deadline = Instant::now() + Duration::from_millis(self.limits.generation_timeout_ms);
+        let mut stats = ReadStats::default();
+        let (bytes, retrieved_at, response_deadline, status) = self
+            .request(path.clone(), query.clone(), deadline, &mut stats)
+            .await?;
+        // The pinned detail GET is a 200 JSON response, never partial content.
+        if status != 200 {
+            return Err(ReadError(ErrorCode::Upstream));
+        }
+        check_time(response_deadline)?;
+        let decoded = crate::providers::homebox::wire::decode_detail(
+            &bytes,
+            id,
+            native_capture::decode_limits(self.limits),
+        )
+        .map_err(native_capture::read_error)?;
+        if decoded
+            .value
+            .entity
+            .parent
+            .as_ref()
+            .is_some_and(|p| !self.authorized(&p.id))
+        {
+            return Err(ReadError(ErrorCode::WrongScope));
+        }
+        check_time(response_deadline)?;
+        Ok(NativeCapture::new(
+            self.scope.clone(),
+            id.clone(),
+            path,
+            query,
+            status,
+            retrieved_at,
+            decoded,
+        ))
+    }
+
+    /// Capture the original owner log using the fixed native status=both query.
+    /// Its decoded entries do not assert completeness or installed API behavior.
+    pub async fn capture_stock_maintenance(
+        &mut self,
+        id: &Uuid,
+    ) -> Result<CapturedStockMaintenance, ReadError> {
+        self.check_capture_owner(id)?;
+        let path = format!("/api/v1/entities/{}/maintenance", id.as_str());
+        let query = vec![("status".into(), "both".into())];
+        let deadline = Instant::now() + Duration::from_millis(self.limits.generation_timeout_ms);
+        let mut stats = ReadStats::default();
+        let (bytes, retrieved_at, response_deadline, status) = self
+            .request(path.clone(), query.clone(), deadline, &mut stats)
+            .await?;
+        if status != 200 {
+            return Err(ReadError(ErrorCode::Upstream));
+        }
+        check_time(response_deadline)?;
+        let decoded = crate::providers::homebox::wire::decode_maintenance(
+            &bytes,
+            id,
+            native_capture::decode_limits(self.limits),
+        )
+        .map_err(native_capture::read_error)?;
+        check_time(response_deadline)?;
+        Ok(NativeCapture::new(
+            self.scope.clone(),
+            id.clone(),
+            path,
+            query,
+            status,
+            retrieved_at,
+            decoded,
+        ))
+    }
+
+    fn check_capture_owner(&self, id: &Uuid) -> Result<(), ReadError> {
+        if !self.stock_dialect {
+            return Err(invalid());
+        }
+        if !self.authorized(id) {
+            return Err(ReadError(ErrorCode::WrongScope));
+        }
+        Ok(())
+    }
+
     /// No parent-filter argument exists on this full-generation operation.
     /// ID is minted by the server coordinator, never by the upstream provider.
     pub async fn fetch_generation(
@@ -330,7 +423,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
         query: Vec<(String, String)>,
         generation_deadline: Instant,
         stats: &mut ReadStats,
-    ) -> Result<(Vec<u8>, Timestamp, Instant), ReadError> {
+    ) -> Result<(Vec<u8>, Timestamp, Instant, u16), ReadError> {
         check_time(generation_deadline)?;
         let deadline = (Instant::now() + Duration::from_millis(self.limits.request_timeout_ms))
             .min(generation_deadline);
@@ -377,7 +470,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
             check_time(deadline)?;
             let retrieved_at = self.clock.now();
             check_time(deadline)?;
-            Ok((bytes, retrieved_at, deadline))
+            Ok((bytes, retrieved_at, deadline, response.status))
         };
         timeout_at(deadline, operation)
             .await
@@ -412,7 +505,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                         .iter()
                         .map(|id| ("parentIds".into(), id.as_str().to_owned())),
                 );
-                let (bytes, _, response_deadline) = self
+                let (bytes, _, response_deadline, _) = self
                     .request("/api/v1/entities".into(), query, deadline, stats)
                     .await?;
                 check_time(response_deadline)?;
@@ -470,7 +563,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                 continue;
             }
             self.check_parent(&listed)?;
-            let (bytes, _, response_deadline) = self
+            let (bytes, _, response_deadline, _) = self
                 .request(
                     format!("/api/v1/entities/{}", id.as_str()),
                     Vec::new(),
@@ -494,7 +587,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
             if detail != listed {
                 return Err(ReadError(ErrorCode::Pagination));
             }
-            let (bytes, retrieved_at, response_deadline) = self
+            let (bytes, retrieved_at, response_deadline, _) = self
                 .request(
                     format!("/api/v1/entities/{}/maintenance", id.as_str()),
                     if self.stock_dialect {
