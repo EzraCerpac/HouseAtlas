@@ -1,8 +1,9 @@
 use super::{
     NetworkAccess, NetworkAuthority, OriginalNetworkDisclosure, OriginalNetworkLease,
-    PreparedPublication, authority::wrong_scope,
+    PreparedPublication, authority::wrong_scope, grant_index::GrantIndex,
 };
 use crate::{
+    access as a,
     app::{Core, Store},
     config::providers::network::NetworkSettings,
     providers::network as n,
@@ -19,6 +20,13 @@ pub enum RefreshResult {
     AlreadyRunning,
 }
 
+/// Data selected from the actual retained generation and the same Store's
+/// complete registered-cache baseline. These selectors confer no authority.
+pub struct SnapshotLinkBindings {
+    pub baseline: s::RegisteredCacheRead,
+    pub links: Vec<(serde_json::Value, a::NetworkLinkRef)>,
+}
+
 /// Uses PR36's ordering and quarantine predicate. This concrete successor owns
 /// authority callbacks and delegates actual native publication, without changing
 /// that accepted input. Root mounts this module and calls explicit methods; no
@@ -28,6 +36,84 @@ pub struct HostNetworkRuntime {
     sidecar: Mutex<n::SqliteNetworkSidecar>,
 }
 impl HostNetworkRuntime {
+    /// Borrow the original request's already captured grants. The native
+    /// baseline read holds the canonical Access read fence; the sidecar is
+    /// opened only after that fence exits, while the caller owns Core/Store.
+    pub fn snapshot_link_bindings(
+        &self,
+        store: &mut Store,
+        access: &NetworkAccess,
+        principal: &a::Principal,
+        partition: &a::PartitionGrant,
+        entities: &[a::SourceGrant],
+    ) -> Result<SnapshotLinkBindings> {
+        let source = self.settings.configured_source();
+        let baseline =
+            super::reads::read_partition(store, access, principal, source, partition, entities)
+                .map_err(n::NetworkPublicationError::Storage)?;
+        let cache: n::CacheMetadata = match &baseline.state.cache {
+            Some(cache) => serde_json::from_value(
+                serde_json::to_value(cache)
+                    .map_err(s::Error::from)
+                    .map_err(n::NetworkPublicationError::Storage)?,
+            )
+            .map_err(s::Error::from)
+            .map_err(n::NetworkPublicationError::Storage)?,
+            None => n::RetainedState::empty(self.settings.source().scope.clone()).cache,
+        };
+        let relations: Vec<n::NetworkRelation> = serde_json::from_value(serde_json::Value::Array(
+            baseline.state.network_relations.clone(),
+        ))
+        .map_err(s::Error::from)
+        .map_err(n::NetworkPublicationError::Storage)?;
+        if !baseline.state.homebox_entities.is_empty() {
+            return Err(wrong_scope().into());
+        }
+        let retained = self.retained(&cache, &relations)?;
+        let mut links = Vec::new();
+        if let Some(generation) = retained.public_read().generation.as_ref() {
+            let originals = super::generation_references(self.settings.source(), generation)?;
+            let index = GrantIndex::new(entities);
+            if originals
+                .iter()
+                .any(|reference| index.position(reference).is_none())
+            {
+                return Err(wrong_scope().into());
+            }
+            for binding in n::retained_link_bindings(self.settings.source(), generation)? {
+                let member = |row: &n::QualifiedRecord| -> std::result::Result<a::SourceRef, n::NetworkError> {
+                    let kind = match row.source_kind {
+                        n::SourceKind::Device => a::SourceKind::NetworkDevice,
+                        n::SourceKind::Interface => a::SourceKind::NetworkInterface,
+                        n::SourceKind::Segment => a::SourceKind::NetworkSegment,
+                        _ => return Err(wrong_scope()),
+                    };
+                    Ok(a::SourceRef {
+                        workspace_id: a::CanonicalId::parse(&row.scope.workspace_id).map_err(|_| wrong_scope())?,
+                        home_id: a::CanonicalId::parse(&row.scope.home_id).map_err(|_| wrong_scope())?,
+                        key: a::SourceKey {
+                            source_instance_id: a::CanonicalId::parse(&row.scope.source_instance_id).map_err(|_| wrong_scope())?,
+                            collection_id: row.scope.collection_id.clone(),
+                            source_kind: kind,
+                            external_id: row.external_id.clone(),
+                        },
+                    })
+                };
+                let reference = a::NetworkLinkRef::new(
+                    source.partition(),
+                    binding.link.external_id.clone(),
+                    member(binding.from)?,
+                    member(binding.to)?,
+                )
+                .map_err(|_| wrong_scope())?;
+                links.push((
+                    serde_json::to_value(binding.relation).map_err(|_| wrong_scope())?,
+                    reference,
+                ));
+            }
+        }
+        Ok(SnapshotLinkBindings { baseline, links })
+    }
     pub fn open(settings: NetworkSettings) -> std::result::Result<Self, n::NetworkError> {
         Ok(Self {
             sidecar: Mutex::new(settings.open_sidecar()?),

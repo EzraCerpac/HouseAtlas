@@ -736,8 +736,8 @@ async fn main() -> Result<(), Failure> {
             &[],
         )?;
     }
-    // Snapshot-backed routes retain qualified resolved relations while the
-    // unresolved projected end remains withheld from this selector path.
+    // The generic relation route binds the unresolved public projection to
+    // its original hidden raw endpoint under the same retained generation.
     for path in [
         format!(
             "/api/atlas/v1/workspaces/{}/homes/{}/network/relations",
@@ -757,7 +757,20 @@ async fn main() -> Result<(), Failure> {
         let body: Value = serde_json::from_slice(&response.bytes().await?)?;
         assert!(body.is_object() || body.is_array());
         if path.ends_with("network/relations") {
-            assert_eq!(body["items"], json!(projected.network_relations));
+            let items = body["items"].as_array().ok_or("Missing relation page")?;
+            assert_eq!(items.len(), 4);
+            let resolved_items = items
+                .iter()
+                .filter(|row| row["externalId"] != "gap-a")
+                .cloned()
+                .collect::<Vec<_>>();
+            assert_eq!(resolved_items, projected.network_relations);
+            let gap = items
+                .iter()
+                .find(|row| row["externalId"] == "gap-a")
+                .ok_or("Missing retained unresolved relation")?;
+            assert_eq!(gap["to"]["kind"], "unresolved");
+            assert_eq!(gap["to"]["id"], Value::Null);
             assert!(
                 body["sourceStatuses"]
                     .as_array()
@@ -784,7 +797,7 @@ async fn main() -> Result<(), Failure> {
         .close()?;
     drop(core);
     println!(
-        "PASS healthy root Network router: one actual TLS inventory GET/custody-aware native publication; immutable Native archive reopen matches original response bytes/hash and exact registration/generation; genuine viewer HTTP saved queries and cached reads; genuine editor/current-CSRF mounted MCP initialization, discovery and all three saved queries with exact canonical HTTP data; original issuer/disclosure and unchanged epochs/reservations; resolved snapshot relations retained, unresolved relation withheld, cache metadata unchanged. Seventeen actual Root TLS requests; no browser qualification or held controls."
+        "PASS healthy root Network router: one actual TLS inventory GET/custody-aware native publication; immutable Native archive reopen matches original response bytes/hash and exact registration/generation; genuine viewer HTTP saved queries and cached reads; genuine editor/current-CSRF mounted MCP initialization, discovery and all three saved queries with exact canonical HTTP data; original issuer/disclosure and unchanged epochs/reservations; four generic snapshot relations including the unresolved public projection bound to original raw members, cache metadata unchanged. Seventeen actual Root TLS requests; no browser qualification or held controls."
     );
     Ok(())
 }

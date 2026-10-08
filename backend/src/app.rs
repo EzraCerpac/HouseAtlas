@@ -196,7 +196,7 @@ impl RequestPrincipal {
             .cloned()
             .ok_or(a::AccessError::Unavailable)
     }
-    fn capture_network_link(
+    pub(crate) fn capture_network_link(
         &self,
         access: &a::AccessBoundary,
         reference: &a::NetworkLinkRef,
@@ -231,6 +231,35 @@ impl RequestPrincipal {
         drop(sources);
         self.network_links.borrow_mut().push(grant);
         Ok(())
+    }
+    pub(crate) fn has_captured_network_link(&self, reference: &a::NetworkLinkRef) -> bool {
+        self.network_links
+            .borrow()
+            .iter()
+            .any(|grant| grant.reference() == reference)
+    }
+    /// Recheck the original partition, complete configured member set and
+    /// captured raw links under the canonical Access read transaction.
+    pub(crate) fn revalidate_network_snapshot(
+        &self,
+        access: &mut a::AccessBoundary,
+        partition: &a::PartitionGrant,
+        members: &[a::SourceGrant],
+    ) -> a::AccessResult<()> {
+        access.with_source_read_authorization(
+            self.principal.principal(),
+            partition,
+            members,
+            |guard| {
+                if !std::ptr::eq(guard.principal(), self.principal.principal()) {
+                    return Err(a::AccessError::Forbidden);
+                }
+                for grant in self.network_links.borrow().iter() {
+                    guard.revalidate_network_link(grant)?;
+                }
+                Ok(())
+            },
+        )
     }
     pub(crate) fn seal_source_capture(&self) {
         self.source_capture_sealed.set(true);
@@ -316,6 +345,80 @@ struct CachedNetworkLink {
     key: CachedNetworkLinkKey,
     from: serde_json::Value,
     to: serde_json::Value,
+    #[serde(default)]
+    relation: Option<serde_json::Value>,
+}
+/// Per-call selectors from the actual retained generation. The map is data;
+/// each link must also have an original grant on the same RequestPrincipal.
+pub(crate) struct VerifiedNetworkSnapshotLink {
+    pub relation: serde_json::Value,
+    pub reference: a::NetworkLinkRef,
+}
+pub(crate) struct NetworkSnapshotAuthority<'a> {
+    pub base: &'a ReadAuthority,
+    pub links: &'a [VerifiedNetworkSnapshotLink],
+}
+impl s::Authorization for NetworkSnapshotAuthority<'_> {
+    type Principal = RequestPrincipal;
+    fn authorize(
+        &self,
+        p: &RequestPrincipal,
+        request: s::AuthorizationRequest<'_>,
+    ) -> s::Result<s::VerifiedActor> {
+        if request.capability == s::Capability::ReadCache
+            && request
+                .source
+                .is_some_and(|source| source["key"]["sourceKind"] == "network-link")
+        {
+            let selected: CachedNetworkLink = serde_json::from_value(
+                request
+                    .source
+                    .ok_or_else(|| s::Error::new("not-found", "Network link unavailable"))?
+                    .clone(),
+            )
+            .map_err(|_| s::Error::new("invalid-contract", "Invalid Network link selector"))?;
+            let relation = selected
+                .relation
+                .as_ref()
+                .ok_or_else(|| s::Error::new("not-found", "Network link unavailable"))?;
+            let selected_partition = a::SourcePartition {
+                workspace_id: selected.workspace_id,
+                home_id: selected.home_id,
+                source_instance_id: selected.key.source_instance_id,
+                collection_id: selected.key.collection_id,
+            };
+            let matched = self
+                .links
+                .iter()
+                .find(|link| {
+                    link.relation == *relation
+                        && selected.from == relation["from"]
+                        && selected.to == relation["to"]
+                        && link.reference.partition() == &selected_partition
+                        && link.reference.external_id() == selected.key.external_id
+                        && p.has_captured_network_link(&link.reference)
+                })
+                .ok_or_else(|| s::Error::new("not-found", "Network link unavailable"))?;
+            let access = self
+                .base
+                .0
+                .try_lock()
+                .map_err(|_| s::Error::new("unavailable", "Access unavailable"))?;
+            p.release(&access).map_err(storage_access)?;
+            access
+                .authorize_storage(&p.principal, p.principal.scope(), a::Capability::Read)
+                .map_err(storage_access)?;
+            if !p.has_captured_network_link(&matched.reference) {
+                return Err(s::Error::new("not-found", "Network link unavailable"));
+            }
+            return Ok(s::VerifiedActor {
+                workspace_id: p.principal.scope().workspace_id.as_str().into(),
+                home_id: p.principal.scope().home_id.as_str().into(),
+                actor_id: p.principal.actor_id().as_str().into(),
+            });
+        }
+        self.base.authorize(p, request)
+    }
 }
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
