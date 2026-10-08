@@ -19,10 +19,26 @@ subscribers on login, rotation, scope or capability changes. Replacing bindings
 requires a remount; keep all port objects stable between those changes.
 
 `GatewayDownloadPort.resolve(name, input, result, context)` returns either null
-or `GatewayDownload {href, filename: string | null, mediaType, label}` from actual host-issued
-availability. The adapter accepts a same-origin absolute path; it constructs
+or `GatewayDownload {href, filename: string | null, mediaType, label, lifetime: {remainingMs}}`
+from actual host-issued availability. The adapter accepts a same-origin absolute path; it constructs
 no download URL and retrieves no bytes. The resolver owns current authorization,
-expiry and the association with the confirmed result. Rendering the link is an
+availability and the association with the confirmed result. Only Media's actual
+`{state: 'available', lifetime: {remainingMs}}` status can supply a link;
+`unavailable` and `unbound` resolve null. The positive integer millisecond budget is at most 300000ms
+for the owner's five-minute handle and is floored from the retained owner's monotonic deadline after its final
+authenticated current-record/bytes checks. It is not inferred from a token, URL,
+request time or wall clock, and the browser never renews it.
+
+The adapter anchors its local presentation cutoff with `performance.now()`
+**before** calling `downloads.resolve`, then adds that exact remaining budget.
+Resolution, transit, setup and React commit time therefore consume the budget
+conservatively. Invalid or already-consumed budgets withhold the link while
+preserving the canonical completion. `GatewayResult` checks the cutoff during
+render and schedules link-only invalidation; its result text remains unchanged.
+Session/view replacement keeps its existing immediate invalidation. Changes in
+actual owner availability require the host to resolve that owner again; there
+is no backend subscription or browser HEAD/download request used as clock proof.
+Unbound export/native-URL kinds resolve null. Rendering the link is an
 available user action, not a completed byte transfer. The canonical tool output
 is unchanged; download metadata is separate presentation state.
 AT38's codec at `ef09ee02cadd711c8f69603095ecfddd8645abf1` retains canonical
@@ -90,7 +106,8 @@ Healthy `healthy.tsx` uses the unchanged first native stock request/result
 fixture and shared offline schema through injected synthetic gateway peers.
 The `fixture_gateway_*` names exist only in the example. Six check groups
 verify admitted/bound registration, canonical DOM completion, an issued
-synthetic download link visible before return, normal sequential reactivation
+synthetic download link with an injected fresh owner budget visible before return,
+normal sequential reactivation
 after earlier executions finish, stable-port revision changes and explicit
 render identity before parent-layout publication, and unmount cleanup. No export
 job, byte transfer, provider call, listener or live browser registration runs.
@@ -103,6 +120,11 @@ jsdom 30.1.2 and esbuild 0.28.2 under Node 26.10.0/npm 11.19.1. Held denial,
 revocation, rejection, mutation/omission, adversarial, fault/crash and concurrency
 controls remain unrun. Healthy compilation and synthetic examples do not
 qualify a deployed gateway, provider or real browser lifecycle.
+`runGatewayHealthyReact(container, {freshAvailabilityOnly: true})` runs only the
+fresh admitted read/available-link groups and cleanup, using the injected
+positive owner budget. It advances no clock and executes no lifetime-end,
+expiry, revocation or timing control. Timer invalidation remains source/compile
+coverage only.
 
 The current [WebMCP draft](https://webmachinelearning.github.io/webmcp/)
 and [Chrome imperative guidance](https://developer.chrome.com/docs/ai/webmcp/imperative-api)
