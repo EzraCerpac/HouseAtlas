@@ -8,14 +8,6 @@ It retains original opaque authority throughout native owner preparation,
 transactions and output release. Existing JavaScript sources remain references;
 the running Rust service invokes no JavaScript semantic oracle.
 
-The first read slice landed through PR14 at main
-`e9de66477c04c43eb74a29d932b22322115e33d5`, tree
-`442de62b76aee515cfe1b56c37faccc77a337382`. The historical PR16 core checkpoint is
-`915d9baae6710d23e29f34da488df1de493a2c0c`, tree
-`f50c85c046f24690bdd10126c5dd277a6f495b2b`. PR37 subsequently landed normally as main
-`6214a015066de5733e0ab7664678019bae0cdf84`, tree
-`f8c3236158fb409d8b079c7e761f54c852f392a1`. This separate host continuation
-starts from that exact reviewed tree. Current composition inputs are below.
 Development composition and ordinary healthy evidence do not establish product,
 security, operational recovery or target acceptance.
 
@@ -213,6 +205,7 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     node tools/rust-integration/check-source.mjs
     cargo run --locked -p houseatlas-backend --example healthy-agent-stock
     cargo run --locked -p houseatlas-backend --example healthy-homebox-cache-stock
+    cargo run --locked -p houseatlas-backend --example healthy-download-lifetime
     cargo run --locked -p houseatlas-backend --example healthy-asset-review
     cargo run --locked -p houseatlas-backend --example healthy-homebox-artifacts
     cargo run --locked -p houseatlas-backend --example healthy-homebox-stock-history
@@ -369,11 +362,9 @@ loopback inventory fixture. The example makes one verified TLS inventory GET,
 publishes through the actual native Store, starts the real root TLS listener,
 logs in a genuine viewer, then makes two cached GETs and three snapshot-backed
 relation/room/item GETs. Snapshot selectors use actual typed AT11 link grants;
-an unresolved snapshot endpoint currently conceals the whole partition,
-including its authorized resolved relations. The runtime must supply an original
-raw-generation qualifier compatible with the already borrowed Store before this
-snapshot path can be accepted. The three snapshot GETs assert response shape,
-not relation preservation. Native cached entities, links,
+actual raw-generation member evidence now qualifies an explicitly unresolved
+end under the original Access source-read fence. The three snapshot GETs preserve
+four authorized relations and the original cache status. Native cached entities, links,
 relations, observation text and distinct fact/retrieval dates are preserved;
 cache epochs and generation reservations stay unchanged during browsing. Its
 listener supplies actual connection metadata; no transport extension is mocked.
@@ -467,9 +458,12 @@ immutable generation staging. Multiple runtime instances share a bounded
 process-local refresh lock keyed by the original Core handle and source partition.
 This is scheduling only; it supplies no authority or cross-process arbitration.
 Concurrency controls remain unrun.
-The snapshot adapter still needs genuine retained raw-generation qualification
-for unresolved ends while Core/Store are borrowed. Actual healthy snapshot GETs
-prove response shape, without proving preservation of authorized relationships.
+The snapshot adapter reads the same native baseline inside the original Access
+source-read fence and binds each projected relation to actual immutable raw-member
+evidence. It atomically captures both endpoint grants and the typed link grant,
+withholds only unqualified relations, and compares full baseline/binding equality
+before release. The named healthy snapshot GET preserves four actual relations,
+including an explicitly unresolved end; no denial or revocation control runs.
 
 The captured failure-time source chain now uses the three original Network
 host-runtime leaves from `84da52f5bbb7c041a572def526eb2e31d534d590`, the original

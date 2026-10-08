@@ -22,7 +22,7 @@ export interface StockAdmission {
 }
 export type StockApplicationPorts = Pick<
   StockMountOptions,
-  "schemas" | "service"
+  "schemas" | "service" | "downloads"
 > & {
   readonly admission: StockAdmission | null;
   readonly modelContext?: StockMountOptions["modelContext"];
@@ -167,6 +167,7 @@ export function StockApplication({
         sessions={facade.sessions}
         schemas={ports.schemas}
         bindings={bindings}
+        {...(ports.downloads ? { downloads: ports.downloads } : {})}
         {...(Object.hasOwn(ports, "modelContext")
           ? { modelContext: ports.modelContext }
           : {})}

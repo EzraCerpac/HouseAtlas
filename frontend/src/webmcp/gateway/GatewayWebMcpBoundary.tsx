@@ -3,7 +3,7 @@ import { detectModelContext } from "../browser.js";
 import type { RegistrationStatus } from "../ports.js";
 import { useCommittedResult, useSessionViewToken, type RenderIdentity } from "../useCommittedResult.js";
 import { mountGatewayWebMcp } from "./mount.js";
-import type { GatewayCompletion, GatewayMountOptions } from "./ports.js";
+import type { GatewayCompletion, GatewayDownload, GatewayMountOptions } from "./ports.js";
 
 export type GatewayWebMcpBoundaryProps = Omit<GatewayMountOptions, "visible" | "modelContext"> & {
   readonly modelContext?: GatewayMountOptions["modelContext"];
@@ -12,31 +12,34 @@ export type GatewayWebMcpBoundaryProps = Omit<GatewayMountOptions, "visible" | "
 };
 
 /** A link is an available download action, never a transfer receipt. */
-export function GatewayResult({ completion }: { readonly completion: GatewayCompletion | null }) {
-  const [ended, setEnded] = useState<GatewayCompletion | null>(null);
+export function IssuedDownloadLink({ download, deadline }: {
+  readonly download: GatewayDownload | null; readonly deadline: number | null;
+}) {
+  const identity = useMemo(() => ({}), [download, deadline]);
+  const [ended, setEnded] = useState<object | null>(null);
   useLayoutEffect(() => {
-    if (!completion?.download || completion.downloadDeadline === null
-      || !Number.isFinite(completion.downloadDeadline)) return;
-    const current = completion;
-    const deadline = completion.downloadDeadline;
+    if (!download || deadline === null || !Number.isFinite(deadline)) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const observe = () => {
       const remaining = deadline - performance.now();
-      if (remaining <= 0) setEnded(current);
+      if (remaining <= 0) setEnded(identity);
       else timer = setTimeout(observe, Math.min(remaining, 2_147_483_647));
     };
     observe();
     return () => { if (timer !== undefined) clearTimeout(timer); };
-  }, [completion]);
+  }, [download, deadline, identity]);
+  const available = download !== null && deadline !== null
+    && Number.isFinite(deadline) && performance.now() < deadline && ended !== identity;
+  return available && download ? <a href={download.href} download={download.filename ?? ""}
+    type={download.mediaType}>{download.label}</a> : null;
+}
+
+export function GatewayResult({ completion }: { readonly completion: GatewayCompletion | null }) {
   if (!completion) return null;
-  const available = completion.download !== null && completion.downloadDeadline !== null
-    && Number.isFinite(completion.downloadDeadline) && performance.now() < completion.downloadDeadline
-    && ended !== completion;
   return <section aria-label="Gateway result" data-gateway-tool={completion.toolName}>
     <h2>{completion.toolName}</h2>
     <pre role="status" aria-live="polite">{JSON.stringify(completion.result, null, 2)}</pre>
-    {available && completion.download && <a href={completion.download.href} download={completion.download.filename ?? ""}
-      type={completion.download.mediaType}>{completion.download.label}</a>}
+    <IssuedDownloadLink download={completion.download} deadline={completion.downloadDeadline} />
   </section>;
 }
 

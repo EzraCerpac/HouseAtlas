@@ -118,6 +118,17 @@ impl<'a> Downloads<'a> {
     ) -> st::StockResult<MediaResponse> {
         self.with_owner(|owner| owner.redeem(p, token, method, budget))
     }
+    fn resolve_availability(
+        &self,
+        p: &RequestPrincipal,
+        token: &str,
+        budget: &m::WorkBudget,
+    ) -> st::StockResult<m::DownloadAvailability> {
+        if self.handles.is_none() {
+            return Ok(m::DownloadAvailability::Unbound);
+        }
+        self.with_owner(|owner| owner.resolve_availability(p, token, budget))
+    }
 }
 impl<W, G> AssetDownloadPort<RequestPrincipal, W, G> for Downloads<'_> {
     fn download(
@@ -137,6 +148,53 @@ impl Drop for CancelOnDrop {
     fn drop(&mut self) {
         self.0.cancel();
     }
+}
+
+/// Owner-observed presentation budget, separate from the frozen stock result.
+/// This authenticates and validates the real retained handle through Media;
+/// neither this route nor its DTO renews or authorizes delivery.
+pub(super) async fn availability(
+    State(host): State<Host>,
+    Path((workspace_id, home_id, token)): Path<(String, String, String)>,
+    Extension(headers): Extension<CheckedHeaders>,
+    uri: Uri,
+    method: Method,
+) -> HttpResult {
+    if uri.query().is_some() {
+        return Err(failure(StatusCode::FORBIDDEN));
+    }
+    let cancellation = m::Cancellation::default();
+    let _cancel = CancelOnDrop(cancellation.clone());
+    let budget = m::WorkBudget::new(Duration::from_secs(10), cancellation)
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
+        authorized_read(
+            &host,
+            &headers,
+            &uri,
+            &method,
+            Some(d::Scope {
+                workspace_id,
+                home_id,
+            }),
+            false,
+            |core, p, _| {
+                let observed = Downloads::for_core(core, Some(&host.atlas_download_handles))
+                    .resolve_availability(p, &token, &budget)
+                    .map_err(super::stock_reads::http_error)?;
+                budget
+                    .check()
+                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+                Ok(super::json_response(
+                    serde_json::to_value(observed)
+                        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
+                ))
+            },
+        )
+    })
+    .await
+    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
 }
 
 pub(super) async fn redeem(

@@ -2,6 +2,7 @@ import { Component, useMemo, type ReactNode } from "react";
 import { StockWebMcpBoundary, type StockWebMcpBoundaryProps } from "../StockWebMcpBoundary.js";
 import type { StockCompletion } from "../stock.js";
 import { bindCommandFamilies, type CommandFamilyBinding } from "./families.js";
+import { IssuedDownloadLink } from "../gateway/GatewayWebMcpBoundary.js";
 
 /** Render the full canonical envelope as text. Never infer a successful receipt,
  * freshness, provider availability or completion from the requested action. */
@@ -10,6 +11,7 @@ export function CanonicalCommandResult({ completion }: { readonly completion: St
   return <section className="stock-completion" aria-label="Command result" data-tool-family={completion.toolName}>
     <h2>{completion.request.commandId}</h2>
     <pre role="status" aria-live="polite">{JSON.stringify(completion.result, null, 2)}</pre>
+    <IssuedDownloadLink download={completion.download ?? null} deadline={completion.downloadDeadline ?? null} />
   </section>;
 }
 
@@ -32,6 +34,7 @@ export function CommandCoverageBoundary(props: CommandCoverageBoundaryProps) {
   const ports = useMemo(() => bindCommandFamilies(sessions, bindings), [sessions, bindings]);
   return <CommandRenderBoundary fallback={<><p role="alert">Command result could not be displayed.</p>{children}</>}>
     <StockWebMcpBoundary sessions={ports.sessions} schemas={schemas} service={ports.service}
+      {...(props.downloads ? { downloads: props.downloads } : {})}
       {...(Object.hasOwn(props, "renderIdentity") ? { renderIdentity: props.renderIdentity } : {})}
       {...(Object.hasOwn(props, "modelContext") ? { modelContext: props.modelContext } : {})}>
       {({ completion }) => <>{children}<CanonicalCommandResult completion={completion} /></>}

@@ -7,6 +7,7 @@ import type { AtlasClient, AtlasView } from "../src/app/types";
 import { createAtlasClient, createAtlasSessionClient } from "../src/api/client";
 import { createStockSchemas } from "./stock-schemas";
 import { createStockDispatch } from "./stock-dispatch";
+import { createAtlasGatewayDownloadResolver } from "../src/api/managed-download-client";
 import { createEditingClient } from "./editing-client";
 import type { AtlasSessionClient, AtlasSessionInfo } from "../src/app/session";
 import "../src/styles/atlas.css";
@@ -21,6 +22,7 @@ if (!element) throw new Error("HouseAtlas root missing");
 const root = element;
 const schemas = createStockSchemas();
 const service = createStockDispatch();
+const downloads = createAtlasGatewayDownloadResolver(schemas);
 const events = new EventTarget();
 /** Other confirmed host session actions notify this transient subscriber only.
  * Session GET itself emits nothing, preventing a rotation/reload cycle. */
@@ -101,6 +103,6 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
   }, []);
   // Keep the concrete editing port stable through view/catalog refreshes.
   // Each place admission and command obtains the actual request authority.
-  return <div className="lantern-integration"><SessionApp renderContent={(view, content, actions) => view.status === "ready" ? <LanternHost view={view} actions={actions} nativeContent={content} /> : content} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission }} {...(ai ? { ai } : {})} /></div>;
+  return <div className="lantern-integration"><SessionApp renderContent={(view, content, actions) => view.status === "ready" ? <LanternHost view={view} actions={actions} nativeContent={content} /> : content} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></div>;
 }
 createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);

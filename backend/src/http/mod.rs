@@ -608,6 +608,7 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}/history", get(stock_reads::history).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/media/{workspace_id}/{home_id}/{digest}/{mode}", get(media::deliver).fallback(media::other))
         .route("/api/atlas/media/downloads/{workspace_id}/{home_id}/{token}", get(stock_downloads::redeem).fallback(media::other))
+        .route("/api/atlas/media/downloads/{workspace_id}/{home_id}/{token}/availability", get(stock_downloads::availability).head(auth::session_head).fallback(media::other))
         .route("/api/atlas/view", get(current))
         .route(
             "/api/atlas/homes/{workspace_id}/{home_id}/view",

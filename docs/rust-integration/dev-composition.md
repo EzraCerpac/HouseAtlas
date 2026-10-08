@@ -83,8 +83,7 @@ contracts, with explicitly synthetic qualification. Genuine capture/qualificatio
 complete references/impact/hidden-field proof and private retained-proof handoff
 with admission-time revalidation remain required. Digests provide integrity
 binding and do not grant authority, release credentials or activate a writer.
-Missing product areas include Core-only MCP download admission and download link
-UI, Core-only MCP Network query mounts, complete
+Missing product areas include Core-only MCP download admission, Core-only MCP Network query mounts, complete
 provider setup and UI, trusted AI configuration/startup callers and receipt identity,
 and composed populated recovery. The HTTP saved Network query adapter now uses
 lock-per-phase orchestration around the original runtime, with configured member
@@ -94,13 +93,17 @@ Generic snapshots now withhold only an unqualified Network relation instead of
 marking its entire authorized partition access-revoked. Other resolved relations
 and original cache status remain visible under their exact rechecked selectors.
 The dedicated saved-query owner preserves explicit unknown endpoints through
-its retained raw-member evidence. A generic snapshot bridge to that evidence
-remains a separate source gap.
+its retained raw-member evidence. The generic snapshot bridge now reads the actual native baseline inside the
+original Access read fence and matches exact projected selectors to retained raw
+member evidence. Both endpoint grants and the typed link grant are captured
+atomically per qualified relation before sealing. It compares the full same-Store
+baseline and bindings before release; a withheld relation leaves no partial
+endpoint capture in the request.
 Profile-6 recovery requires genuine activity
 registration discovery and original-media evidence; the retained synthetic test
-peers are not production substitutes. Gateway download execution/resolution is
-also unbound. Scope and completion receipt corrections remain in the tracked
-review cleanup pass.
+peers are not production substitutes. The application now resolves Atlas stock handles through authenticated native
+owner availability and uses a conservative monotonic link lifetime. HomeBox and
+export gateway kinds remain unbound; canonical results survive unavailable links.
 
 Retained owner regression sources are not added to ordinary test aggregates.
 The stopped controls, live credentials/providers, remote listeners, production
@@ -137,14 +140,16 @@ is adopted with all 44 authored archive hashes retained. The root serves local
 WOFF2 fonts under the existing file/size/symlink bounds. Native Chrome validates
 ten lists, fresh continuation, exact visible result commitment, responsive fit
 and focused search-input Escape. Original feature forms remain under Changes /
-Atlas tools. Source geometry/citations/history/download-expiry gaps remain
-truthful; prototype fixture engines are not mounted.
+Atlas tools. Real geometry metadata is mounted without inferred shapes or placements.
+Citations and operation-history DTOs remain unavailable; prototype fixture
+engines are not mounted.
 
 The read-only [review ledger](review-source-ledger.md) retains the captured 53
 comments despite the delegation’s 52-thread reference; no review state was
-closed. The unpublished Access `b1fbc9d` original read-fence donor remains absent
-from the accessible local object store and GitHub remote (commit lookup HTTP422).
-Its original authority is not replaced by fixtures or a manufactured grant.
+closed. The original Access `b1fbc9d` read-fence donor was published and integrated.
+Its source-read guard revalidates the original partition and explicitly supplied
+member grants; callers remain responsible for complete current owner evidence.
+It supplies no source-presence or mutation permission.
 
 The owned HomeBox file-source adapter now decodes exact original entity/member
 observations, measures the captured local stream and revalidates current bytes

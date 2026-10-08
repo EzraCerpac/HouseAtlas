@@ -300,12 +300,13 @@ try {
     const U=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
     for(const [index,original] of originals.entries()){
       const request={schemaVersion:3,commandId:'atlas.asset.download',requestId:U(1500+index),context:scope,target:{authority:'atlas',recordType:'asset',recordId:original.assetId},payload:{}};
-      let wire,visible=null;
+      let wire,visible=null,visibleLink=null;
       if(index===0){
         const tools=await document.modelContext.getTools(),tool=tools.find(tool=>tool.name==='atlas_media_geometry');
         const result=await document.modelContext.executeTool(tool,JSON.stringify(request));
         wire=typeof result==='string'?JSON.parse(result):result;
         visible=document.querySelector('.stock-completion pre')?.textContent;
+        const link=document.querySelector('.stock-completion a');visibleLink=link?{href:link.getAttribute('href'),label:link.textContent}:null;
       }else{
         const endpoint='/api/atlas/stock/v3/workspaces/'+scope.workspaceId+'/homes/'+scope.homeId+'/invoke?request='+encodeURIComponent(JSON.stringify(request));
         const response=await fetch(endpoint,{credentials:'same-origin',cache:'no-store',redirect:'error'});
@@ -313,13 +314,16 @@ try {
         wire=await response.json();
       }
       const path='/api/atlas/media/downloads/'+scope.workspaceId+'/'+scope.homeId+'/'+wire.data.downloadToken;
+      const availabilityResponse=await fetch(path+'/availability',{credentials:'same-origin',cache:'no-store',redirect:'error'});
+      if(availabilityResponse.status!==200)throw new Error('Healthy actual owner availability failed');
+      const availability=await availabilityResponse.json();
       const deliveries=[];
       for(const method of ['GET','HEAD']){
         const response=await fetch(path,{method,credentials:'same-origin',cache:'no-store',redirect:'error'});
         if(response.status!==200)throw new Error('Healthy stock handle redemption failed');
         deliveries.push({method,status:response.status,bytes:Array.from(new Uint8Array(await response.arrayBuffer())),length:Number(response.headers.get('content-length')),contentType:response.headers.get('content-type'),disposition:response.headers.get('content-disposition'),cache:response.headers.get('cache-control'),csp:response.headers.get('content-security-policy')});
       }
-      rows.push({request,wire,visible,deliveries,original:Array.from(atob(original.originalBase64),c=>c.charCodeAt(0)),payload:original.payload});
+      rows.push({request,wire,visible,visibleLink,path,availability,deliveries,original:Array.from(atob(original.originalBase64),c=>c.charCodeAt(0)),payload:original.payload});
     }
     return rows;
   })()`);
@@ -330,7 +334,8 @@ try {
     assert.deepEqual(row.wire.data.target,row.request.target);assert.match(row.wire.data.downloadToken,/^[a-f0-9-]{36}$/);
     assert.equal(row.wire.data.sha256,row.payload.sha256);assert.equal(row.wire.data.byteSize,row.original.length);
     assert.equal(row.wire.data.contentType,row.payload.contentType);assert.equal(row.wire.data.disposition,'attachment');
-    if(index===0)assert.deepEqual(JSON.parse(row.visible),row.wire,'Canonical issued metadata visible before native WebMCP returns');
+    assert.equal(row.availability.state,'available');assert.ok(Number.isSafeInteger(row.availability.lifetime.remainingMs));assert.ok(row.availability.lifetime.remainingMs>0&&row.availability.lifetime.remainingMs<=300000);
+    if(index===0){assert.deepEqual(JSON.parse(row.visible),row.wire,'Canonical issued metadata visible before native WebMCP returns');assert.deepEqual(row.visibleLink,{href:row.path,label:'Download original'},'Actual owner-qualified link visible before native WebMCP returns');}
     assert.deepEqual(row.deliveries[0].bytes,row.original);assert.deepEqual(row.deliveries[1].bytes,[]);
     for(const delivery of row.deliveries){
       assert.equal(delivery.length,row.original.length);assert.equal(delivery.contentType,row.payload.contentType);
@@ -469,7 +474,7 @@ try {
   assert.equal(linkedReview.commandId,'atlas.asset.review');assert.equal(linkedReview.historyCommandId,'atlas.asset.review');assert.equal(linkedReview.idempotencyKey,assetReview.request.idempotencyKey);
   assert.equal(linkedReview.receiptHash,linkedReview.linkHash);assert.deepEqual(linkedReview.audit,reviewAudit);assert.deepEqual(linkedReview.nativeReceipt.record,reviewRecord);assert.deepEqual(linkedReview.nativeReceipt.audit,reviewAudit);assert.equal(linkedReview.nativeReceipt.replayed,false);
   assert.deepEqual(linkedReview.event,{eventId:reviewAudit.auditId,commandId:'atlas.asset.review',at:reviewAudit.at,actorId:writes.actorId,requestDigest:assetReview.intentDigest,state:'committed',target:assetReview.request.target,beforeDigest:assetReview.beforeDigest,afterDigest:assetReview.afterDigest});
-  const evidence = { rust:serviceOutput.trim(), browser:version.product, apiReads:api.map(({path,status})=>({path,status})), coreReads, writes, media, assetReview, reviewJournal, stockDownloads, stockWrites, stock:stock.map(row=>({path:row.path,status:row.status,frozenStatus:row.frozenStatus,commandId:row.wire.commandId,revision:row.expected.revision,matchesFrozen:true})), authResponses:responses.filter(r=>r.url.startsWith(origin+'/api/atlas/auth/')).map(r=>({path:new URL(r.url).pathname,status:r.status})), scopedRead:result.status, rooms:1, items:1, persisted:JSON.parse(rows.stdout), observedRequests:observedUrls.length, scope:'Actual native schema/graph/JCS, Rust/SQLite/access/domain/React positive loopback TLS session/login/logout, canonical paged reads, fresh circuit create, atomic local identity batch, native owned PNG/text availability and actual GET/HEAD download plus safe PNG preview, and genuine stock circuit/asset reads compared with actual frozen SQLite rows. Fresh stock circuit and identity singles plus identity-only and mixed circuit/identity/unresolved binding batches use the actual original AT11 fence and native atomic stock journal. The mixed derived binding has a genuine configured same-scope source partition, no source-presence assertion, and a measured canonical record digest linked to its native history. Genuine stock PNG/text handles issue through native WebMCP/HTTP and redeem current originals with GET/HEAD. Native issued metadata is visible before return; the download link UI remains unbound. The editor HTTP catalog advertises 73 stock operations, including six specialized mappings; this flow qualifies only the exercised creates and one existing PNG request-preview review. The review uses actual Media-measured renderer receipt facts and the server-held original Access allocation and same-Store consumer; the fixture supplies no proof carrier. Revision 2 preserves original byte attributes/provenance, matches the frozen record, and links its measured record/request digests to the native audit and read-only SQLite stock journal. No rejected request, stopped control, replay, stock history request, recovery or external provider.' };
+  const evidence = { rust:serviceOutput.trim(), browser:version.product, apiReads:api.map(({path,status})=>({path,status})), coreReads, writes, media, assetReview, reviewJournal, stockDownloads, stockWrites, stock:stock.map(row=>({path:row.path,status:row.status,frozenStatus:row.frozenStatus,commandId:row.wire.commandId,revision:row.expected.revision,matchesFrozen:true})), authResponses:responses.filter(r=>r.url.startsWith(origin+'/api/atlas/auth/')).map(r=>({path:new URL(r.url).pathname,status:r.status})), scopedRead:result.status, rooms:1, items:1, persisted:JSON.parse(rows.stdout), observedRequests:observedUrls.length, scope:'Actual native schema/graph/JCS, Rust/SQLite/access/domain/React positive loopback TLS session/login/logout, canonical paged reads, fresh circuit create, atomic local identity batch, native owned PNG/text availability and actual GET/HEAD download plus safe PNG preview, and genuine stock circuit/asset reads compared with actual frozen SQLite rows. Fresh stock circuit and identity singles plus identity-only and mixed circuit/identity/unresolved binding batches use the actual original AT11 fence and native atomic stock journal. The mixed derived binding has a genuine configured same-scope source partition, no source-presence assertion, and a measured canonical record digest linked to its native history. Genuine stock PNG/text handles issue through native WebMCP/HTTP and redeem current originals with GET/HEAD. Native issued metadata and the actual owner-qualified PNG link are visible before return. Fresh authenticated owner availability for both handles reports the retained positive lifetime, capped at five minutes; no expiry control is exercised. The editor HTTP catalog advertises 73 stock operations, including six specialized mappings; this flow qualifies only the exercised creates and one existing PNG request-preview review. The review uses actual Media-measured renderer receipt facts and the server-held original Access allocation and same-Store consumer; the fixture supplies no proof carrier. Revision 2 preserves original byte attributes/provenance, matches the frozen record, and links its measured record/request digests to the native audit and read-only SQLite stock journal. No rejected request, stopped control, replay, stock history request, recovery or external provider.' };
   if (process.env.HOUSEATLAS_EVIDENCE) writeFileSync(process.env.HOUSEATLAS_EVIDENCE, JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));
 } finally {

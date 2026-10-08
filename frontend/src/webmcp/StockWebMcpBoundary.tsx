@@ -18,11 +18,11 @@ export type StockWebMcpBoundaryProps = Omit<StockMountOptions, "visible" | "mode
  * The parent owns application session/scope and the domain result presentation.
  */
 export function StockWebMcpBoundary(props: StockWebMcpBoundaryProps): ReactNode {
-  const { sessions, schemas, service, children } = props;
+  const { sessions, schemas, service, downloads, children } = props;
   const explicitContext = Object.hasOwn(props, "modelContext");
   const suppliedContext = props.modelContext;
   const sessionToken = useSessionViewToken(sessions);
-  const view = useMemo(() => ({}), [sessions, sessionToken, props.renderIdentity, schemas, service, explicitContext, suppliedContext]);
+  const view = useMemo(() => ({}), [sessions, sessionToken, props.renderIdentity, schemas, service, downloads, explicitContext, suppliedContext]);
   const { value: completion, activate } = useCommittedResult<StockCompletion>(view);
   const [observed, setObserved] = useState<{ readonly view: object; readonly status: RegistrationStatus }>(
     () => ({ view, status: { state: "inactive" } }));
@@ -33,7 +33,8 @@ export function StockWebMcpBoundary(props: StockWebMcpBoundaryProps): ReactNode 
     const visible = activate();
     const modelContext = explicitContext ? suppliedContext
       : detectModelContext(typeof document === "undefined" ? undefined : document);
-    const handle = mountStockWebMcp({ modelContext, sessions, schemas, service, visible });
+    const handle = mountStockWebMcp({ modelContext, sessions, schemas, service, visible,
+      ...(downloads ? { downloads } : {}) });
     const onStatus = (): void => {
       const status = handle.getStatus();
       setObserved({ view, status });
@@ -49,6 +50,6 @@ export function StockWebMcpBoundary(props: StockWebMcpBoundaryProps): ReactNode 
       handle.dispose();
       visible.deactivate();
     };
-  }, [explicitContext, suppliedContext, sessions, schemas, service, activate, view]);
+  }, [explicitContext, suppliedContext, sessions, schemas, service, downloads, activate, view]);
   return children({ registration, completion });
 }

@@ -10,6 +10,7 @@ compile_error!("The private media filesystem currently supports Linux and macOS"
 
 mod budget;
 pub mod content;
+pub mod download_lifetime;
 pub mod homebox_artifacts;
 pub mod native;
 pub mod native_recovery;
@@ -32,6 +33,7 @@ mod healthy_review_examples;
 mod healthy_upload_examples;
 
 pub use budget::{Cancellation, WorkBudget};
+pub use download_lifetime::{DownloadAvailability, DownloadLifetime};
 pub use types::{MediaError, MediaResult};
 pub use vault::AssetVault;
 
