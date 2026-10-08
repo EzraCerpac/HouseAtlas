@@ -1,5 +1,6 @@
 //! Native SQLite retained sidecar. Separate from Atlas cache/publication storage.
 //! It commits immutable generation rows before the host publishes their pointer.
+use super::native_owner::DatabaseOwner;
 use super::sidecar::{MAX_PACKET_BYTES, MAX_ROW_BYTES, MAX_ROWS};
 use super::{
     model::{Result, guard},
@@ -14,6 +15,7 @@ pub struct SqliteNetworkSidecar {
     db: Connection,
     sources: Vec<SourceRegistration>,
     archive: super::NetworkImmutableArchive,
+    owner: DatabaseOwner,
 }
 pub struct DurableNetworkReceipt {
     partition_key: String,
@@ -40,14 +42,14 @@ impl SqliteNetworkSidecar {
             validate_registration(source)?;
             guard(keys.insert(partition_key(&source.scope)?))?;
         }
-        if let Ok(meta) = std::fs::symlink_metadata(path) {
-            guard(meta.is_file() && !meta.file_type().is_symlink())?;
-        }
+        let owner = DatabaseOwner::open(path)?;
+        owner.check()?;
         let db = Connection::open_with_flags(
-            path,
+            owner.path(),
             OpenFlags::SQLITE_OPEN_READ_WRITE
                 | OpenFlags::SQLITE_OPEN_CREATE
-                | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+                | OpenFlags::SQLITE_OPEN_NO_MUTEX
+                | OpenFlags::SQLITE_OPEN_NOFOLLOW,
         )
         .map_err(sql_error)?;
         db.busy_timeout(std::time::Duration::from_secs(5))
@@ -82,25 +84,31 @@ impl SqliteNetworkSidecar {
             CREATE TABLE IF NOT EXISTS core_network_generations(partition_key TEXT NOT NULL,generation_id TEXT NOT NULL,sha256 TEXT NOT NULL,body TEXT NOT NULL,PRIMARY KEY(partition_key,generation_id));
             CREATE TRIGGER IF NOT EXISTS core_network_no_update BEFORE UPDATE ON core_network_generations BEGIN SELECT RAISE(ABORT,'immutable generation'); END;
             CREATE TRIGGER IF NOT EXISTS core_network_no_delete BEFORE DELETE ON core_network_generations BEGIN SELECT RAISE(ABORT,'immutable generation'); END;").map_err(sql_error)?;
+        // Validate the original sidecar schema before creating any separate
+        // archive artifacts. The original sidecar inode lease stays held.
         let archive =
             super::NetworkImmutableArchive::open(&path.with_extension("raw-archive.sqlite"))?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
-                .map_err(|_| NetworkError::new(ErrorCode::Upstream))?;
-        }
+        owner.check()?;
+        archive.check_owner()?;
         Ok(Self {
             db,
             sources: sources.to_vec(),
             archive,
+            owner,
         })
     }
     pub fn close(self) -> Result<()> {
-        self.archive.close()?;
+        self.check_owner()?;
+        // Keep the full original archive/sidecar ownership until the sidecar
+        // connection has actually closed. No release through a caller mutex.
         self.db
             .close()
-            .map_err(|_| NetworkError::new(ErrorCode::Upstream))
+            .map_err(|_| NetworkError::new(ErrorCode::Upstream))?;
+        self.archive.close()
+    }
+    fn check_owner(&self) -> Result<()> {
+        self.owner.check()?;
+        self.archive.check_owner()
     }
     pub fn reserve_original_capture(
         &mut self,
@@ -109,6 +117,7 @@ impl SqliteNetworkSidecar {
         generation_id: &str,
         limits: Limits,
     ) -> Result<super::NetworkArchiveReservation> {
+        self.check_owner()?;
         guard(self.sources.iter().any(|v| v == source))?;
         self.archive.reserve(source, review, generation_id, limits)
     }
@@ -116,6 +125,7 @@ impl SqliteNetworkSidecar {
         &mut self,
         reservation: super::NetworkArchiveReservation,
     ) -> Result<()> {
+        self.check_owner()?;
         self.archive.cancel_before_stage(reservation)
     }
     pub fn stage_original_capture(
@@ -124,6 +134,7 @@ impl SqliteNetworkSidecar {
         proposal: &CompleteGenerationProposal,
         projected: &DurableNetworkReceipt,
     ) -> Result<super::NetworkArchiveReceipt> {
+        self.check_owner()?;
         self.archive
             .stage_original(reservation, proposal, projected)
     }
@@ -132,17 +143,20 @@ impl SqliteNetworkSidecar {
         source: &SourceRegistration,
         generation_id: &str,
     ) -> Result<super::ReopenedNetworkCapture> {
+        self.check_owner()?;
         guard(self.sources.iter().any(|v| v == source))?;
         self.archive.reopen(source, generation_id)
     }
     pub(crate) fn protected_archive_references(
         &self,
     ) -> Result<Vec<super::archive::NetworkArchiveReference>> {
+        self.check_owner()?;
         self.archive.protected_references()
     }
     /// Enumerate every separately persisted projection, including rows whose
     /// raw archive stage never completed. No absence-of-current-pointer filter.
     fn protected_projected_rows(&self) -> Result<Vec<SidecarRow>> {
+        self.check_owner()?;
         bound_stored_rows(&self.db)?;
         let rows = self.db.prepare("SELECT partition_key,generation_id,sha256,body FROM core_network_generations ORDER BY partition_key,generation_id")
             .map_err(sql_error)?.query_map([], |r| Ok(SidecarRow {
@@ -159,6 +173,7 @@ impl SqliteNetworkSidecar {
 impl DurableNetworkSidecar for SqliteNetworkSidecar {
     type Receipt = DurableNetworkReceipt;
     fn stage(&mut self, source: &SourceRegistration, row: &SidecarRow) -> Result<Self::Receipt> {
+        self.check_owner()?;
         guard(
             self.sources.iter().any(|v| v == source)
                 && row.partition_key == partition_key(&source.scope)?,
@@ -205,6 +220,7 @@ impl DurableNetworkSidecar for SqliteNetworkSidecar {
         })
     }
     fn load(&self, source: &SourceRegistration, generation_id: &str) -> Result<SidecarRow> {
+        self.check_owner()?;
         guard(self.sources.iter().any(|v| v == source))?;
         bound_stored_rows(&self.db)?;
         let row = self.db.query_row("SELECT partition_key,generation_id,sha256,body FROM core_network_generations WHERE partition_key=?1 AND generation_id=?2",
@@ -262,6 +278,7 @@ impl<'owner> crate::storage::OriginalCacheReferences for NetworkCacheReferences<
             .sidecar
             .try_lock()
             .map_err(|_| storage_network_conflict())?;
+        sidecar.check_owner().map_err(storage_network_error)?;
         Ok(NetworkCacheReferenceGuard {
             source: self.source,
             review: self.review,

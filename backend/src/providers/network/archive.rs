@@ -4,6 +4,7 @@
 //! before transport. The catalog never evicts or rewrites retained generations.
 //! This Network owner does not issue Storage pins; original Storage reference
 //! guard integration remains required for accepted custody transfer.
+use super::native_owner::{DatabaseOwner, SegmentOwner};
 use super::projection::validate_registration;
 use super::{
     CompleteGenerationProposal, DurableNetworkReceipt, Limits, LinkReview, NetworkCapture,
@@ -12,12 +13,7 @@ use super::{
 use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{
-    collections::BTreeSet,
-    fs::{self, File, OpenOptions},
-    io::{Read, Write},
-    path::{Path, PathBuf},
-};
+use std::{collections::BTreeSet, path::Path};
 
 pub const MAX_ACTIVE_SEGMENT_BYTES: usize = 16 * 1024 * 1024;
 pub const MAX_RETAINED_SEGMENT_BYTES: usize = 256 * 1024 * 1024;
@@ -157,42 +153,23 @@ pub(crate) enum NetworkArchiveReferenceState {
 
 pub struct NetworkImmutableArchive {
     db: Connection,
-    segments: PathBuf,
+    segments: SegmentOwner,
+    owner: DatabaseOwner,
 }
 impl NetworkImmutableArchive {
     /// Open beneath the already-validated private settings directory. Existing
     /// catalog rows and segment bytes are fully enumerated and hash-verified;
     /// missing, extra, oversized, or partial files fail closed.
     pub fn open(path: &Path) -> Result<Self> {
-        if !path.is_absolute() {
-            return Err(invalid());
-        }
-        match fs::symlink_metadata(path) {
-            Ok(meta) if meta.is_file() && !meta.file_type().is_symlink() => {}
-            Ok(_) => return Err(invalid()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(_) => return Err(err()),
-        }
-        let parent = path.parent().ok_or_else(invalid)?;
-        let parent_meta = fs::symlink_metadata(parent).map_err(|_| err())?;
-        if !parent_meta.is_dir() || parent_meta.file_type().is_symlink() {
-            return Err(invalid());
-        }
-        let segments = path.with_extension("segments");
-        if !segments.exists() {
-            fs::create_dir(&segments).map_err(|_| err())?;
-            set_private_dir(&segments)?;
-            sync_dir(parent)?;
-        }
-        let meta = fs::symlink_metadata(&segments).map_err(|_| err())?;
-        if !meta.is_dir() || meta.file_type().is_symlink() {
-            return Err(invalid());
-        }
+        let owner = DatabaseOwner::open(path)?;
+        let segments = owner.segments()?;
+        owner.check()?;
         let db = Connection::open_with_flags(
-            path,
+            owner.path(),
             OpenFlags::SQLITE_OPEN_READ_WRITE
                 | OpenFlags::SQLITE_OPEN_CREATE
-                | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+                | OpenFlags::SQLITE_OPEN_NO_MUTEX
+                | OpenFlags::SQLITE_OPEN_NOFOLLOW,
         )
         .map_err(|_| err())?;
         db.busy_timeout(std::time::Duration::from_secs(5))
@@ -236,8 +213,13 @@ impl NetworkImmutableArchive {
             CREATE TABLE IF NOT EXISTS network_archive_catalog(partition_key TEXT NOT NULL,generation_id TEXT NOT NULL,body_sha256 TEXT NOT NULL,projected_receipt_sha256 TEXT NOT NULL,segment_sha256 TEXT NOT NULL,segment_name TEXT NOT NULL UNIQUE,segment_bytes INTEGER NOT NULL CHECK(segment_bytes>0),header_json TEXT NOT NULL,PRIMARY KEY(partition_key,generation_id));
             CREATE TRIGGER IF NOT EXISTS network_archive_catalog_no_update BEFORE UPDATE ON network_archive_catalog BEGIN SELECT RAISE(ABORT,'immutable catalog'); END;
             CREATE TRIGGER IF NOT EXISTS network_archive_catalog_no_delete BEFORE DELETE ON network_archive_catalog BEGIN SELECT RAISE(ABORT,'immutable catalog'); END;") .map_err(|_| err())?;
-        set_private_file(path)?;
-        let archive = Self { db, segments };
+        owner.check()?;
+        segments.check()?;
+        let archive = Self {
+            db,
+            segments,
+            owner,
+        };
         archive.verify_complete_catalog()?;
         Ok(archive)
     }
@@ -253,6 +235,7 @@ impl NetworkImmutableArchive {
         generation_id: &str,
         limits: Limits,
     ) -> Result<NetworkArchiveReservation> {
+        self.check_owner()?;
         validate_registration(registration)?;
         ensure(super::projection::uuid(generation_id))?;
         let partition_key = super::partition_key(&registration.scope)?;
@@ -298,6 +281,7 @@ impl NetworkImmutableArchive {
     /// definite no-generation outcome. The permanent generation-ID row remains.
     /// No segment/catalog deletion or retained-generation release exists.
     pub fn cancel_before_stage(&mut self, reservation: NetworkArchiveReservation) -> Result<()> {
+        self.check_owner()?;
         let tx = self
             .db
             .transaction_with_behavior(TransactionBehavior::Immediate)
@@ -324,6 +308,7 @@ impl NetworkImmutableArchive {
         proposal: &CompleteGenerationProposal,
         projected: &DurableNetworkReceipt,
     ) -> Result<NetworkArchiveReceipt> {
+        self.check_owner()?;
         let capture = proposal.original_capture();
         let state = proposal.state();
         let generation = state.generation.as_ref().ok_or_else(invalid)?;
@@ -382,26 +367,19 @@ impl NetworkImmutableArchive {
             return Err(size());
         }
         let segment_name = segment_name(&reservation.partition_key, &reservation.generation_id);
-        let final_path = self.segments.join(&segment_name);
-        let active_path = self.segments.join(format!("{segment_name}.active"));
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&active_path)
-            .map_err(|_| err())?;
-        file.write_all(&(header_json.len() as u32).to_le_bytes())
-            .map_err(|_| err())?;
-        file.write_all(&(capture.body().len() as u64).to_le_bytes())
-            .map_err(|_| err())?;
-        file.write_all(&header_json).map_err(|_| err())?;
-        file.write_all(capture.body()).map_err(|_| err())?;
-        file.sync_all().map_err(|_| err())?;
-        drop(file);
-        verify_segment(&active_path, &header, capture.body())?;
-        fs::rename(&active_path, &final_path).map_err(|_| err())?;
-        sync_dir(&self.segments)?;
-        verify_segment(&final_path, &header, capture.body())?;
-        let segment_sha256 = digest(&read_bounded_segment(&final_path)?);
+        let active_name = format!("{segment_name}.active");
+        let mut frame = Vec::with_capacity(frame_bytes);
+        frame.extend_from_slice(&(header_json.len() as u32).to_le_bytes());
+        frame.extend_from_slice(&(capture.body().len() as u64).to_le_bytes());
+        frame.extend_from_slice(&header_json);
+        frame.extend_from_slice(capture.body());
+        self.check_owner()?;
+        self.segments.write_new(&active_name, &frame)?;
+        verify_segment(&self.segments, &active_name, &header, capture.body())?;
+        self.segments.seal(&active_name, &segment_name)?;
+        verify_segment(&self.segments, &segment_name, &header, capture.body())?;
+        let segment_sha256 = digest(&read_bounded_segment(&self.segments, &segment_name)?);
+        self.check_owner()?;
         let tx = self
             .db
             .transaction_with_behavior(TransactionBehavior::Immediate)
@@ -448,6 +426,7 @@ impl NetworkImmutableArchive {
         registration: &SourceRegistration,
         generation_id: &str,
     ) -> Result<ReopenedNetworkCapture> {
+        self.check_owner()?;
         let partition_key = super::partition_key(&registration.scope)?;
         let (name, bytes, catalog_digest, projected_digest, segment_digest, header_json): (String, i64, String, String, String, String) = self.db.query_row(
             "SELECT segment_name,segment_bytes,body_sha256,projected_receipt_sha256,segment_sha256,header_json FROM network_archive_catalog WHERE partition_key=?1 AND generation_id=?2",
@@ -455,8 +434,8 @@ impl NetworkImmutableArchive {
         if bytes < FRAME_PREFIX_BYTES as i64 || bytes as usize > MAX_ACTIVE_SEGMENT_BYTES {
             return Err(size());
         }
-        let path = self.segments.join(&name);
-        let segment = read_bounded_segment(&path)?;
+        self.check_owner()?;
+        let segment = read_bounded_segment(&self.segments, &name)?;
         ensure(segment.len() == bytes as usize && digest(&segment) == segment_digest)?;
         let (header, body) = decode_segment(&segment)?;
         ensure(
@@ -543,6 +522,7 @@ impl NetworkImmutableArchive {
     /// Enumerate and verify every catalog row. Bounded at 10,000 and fail-closed
     /// for any orphan, missing, symlinked, partial or hash-mismatched segment.
     fn verify_complete_catalog(&self) -> Result<()> {
+        self.check_owner()?;
         let mut stmt = self.db.prepare("SELECT partition_key,generation_id,body_sha256,projected_receipt_sha256,segment_sha256,segment_name,segment_bytes,header_json FROM network_archive_catalog ORDER BY partition_key,generation_id").map_err(|_| err())?;
         let mut rows = stmt.query([]).map_err(|_| err())?;
         let mut expected = BTreeSet::new();
@@ -569,8 +549,7 @@ impl NetworkImmutableArchive {
                 return Err(size());
             }
             ensure(name == segment_name(&partition, &generation) && expected.insert(name.clone()))?;
-            let path = self.segments.join(&name);
-            let bytes = read_bounded_segment(&path)?;
+            let bytes = read_bounded_segment(&self.segments, &name)?;
             ensure(bytes.len() == segment_bytes as usize && digest(&bytes) == segment_hash)?;
             let (header, body) = decode_segment(&bytes)?;
             ensure(
@@ -627,17 +606,21 @@ impl NetworkImmutableArchive {
         {
             return Err(size());
         }
-        for entry in fs::read_dir(&self.segments).map_err(|_| err())? {
-            let entry = entry.map_err(|_| err())?;
-            let ty = entry.file_type().map_err(|_| err())?;
-            let name = entry.file_name().into_string().map_err(|_| invalid())?;
-            if !ty.is_file() || ty.is_symlink() || !expected.contains(&name) {
+        for name in self.segments.members()? {
+            if !expected.contains(&name) {
                 return Err(invalid());
             }
         }
-        Ok(())
+        self.check_owner()
+    }
+    pub(crate) fn check_owner(&self) -> Result<()> {
+        self.owner.check()?;
+        self.segments.check()
     }
     pub fn close(self) -> Result<()> {
+        self.check_owner()?;
+        // Database and segment descriptor leases remain held until the actual
+        // connection closes (including ordinary error drop).
         self.db.close().map_err(|_| err())
     }
 }
@@ -694,35 +677,8 @@ fn segment_name(partition: &str, generation: &str) -> String {
 fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
-fn read_bounded_segment(path: &Path) -> Result<Vec<u8>> {
-    let path_meta = fs::symlink_metadata(path).map_err(|_| err())?;
-    if !path_meta.is_file()
-        || path_meta.file_type().is_symlink()
-        || path_meta.len() > MAX_ACTIVE_SEGMENT_BYTES as u64
-    {
-        return Err(invalid());
-    }
-    let file = OpenOptions::new()
-        .read(true)
-        .open(path)
-        .map_err(|_| err())?;
-    let opened_meta = file.metadata().map_err(|_| err())?;
-    if !opened_meta.is_file() || opened_meta.len() > MAX_ACTIVE_SEGMENT_BYTES as u64 {
-        return Err(invalid());
-    }
-    let mut bounded = file.take(MAX_ACTIVE_SEGMENT_BYTES as u64 + 1);
-    let mut bytes = Vec::with_capacity(opened_meta.len() as usize);
-    bounded.read_to_end(&mut bytes).map_err(|_| err())?;
-    if bytes.len() as u64 > MAX_ACTIVE_SEGMENT_BYTES as u64 {
-        return Err(size());
-    }
-    ensure(bytes.len() as u64 == opened_meta.len())?;
-    Ok(bytes)
-}
-
-fn read_segment(path: &Path) -> Result<(SegmentHeader, Vec<u8>)> {
-    let bytes = read_bounded_segment(path)?;
-    decode_segment(&bytes)
+fn read_bounded_segment(owner: &SegmentOwner, name: &str) -> Result<Vec<u8>> {
+    owner.read(name, MAX_ACTIVE_SEGMENT_BYTES)
 }
 
 fn decode_segment(bytes: &[u8]) -> Result<(SegmentHeader, Vec<u8>)> {
@@ -752,29 +708,13 @@ fn decode_segment(bytes: &[u8]) -> Result<(SegmentHeader, Vec<u8>)> {
     }
     Ok((header, body))
 }
-fn verify_segment(path: &Path, expected: &SegmentHeader, expected_body: &[u8]) -> Result<()> {
-    let (header, body) = read_segment(path)?;
+fn verify_segment(
+    owner: &SegmentOwner,
+    name: &str,
+    expected: &SegmentHeader,
+    expected_body: &[u8],
+) -> Result<()> {
+    let (header, body) = decode_segment(&read_bounded_segment(owner, name)?)?;
     ensure(&header == expected && body == expected_body && digest(&body) == expected.body_sha256)?;
-    Ok(())
-}
-fn sync_dir(path: &Path) -> Result<()> {
-    File::open(path)
-        .and_then(|f| f.sync_all())
-        .map_err(|_| err())
-}
-fn set_private_file(path: &Path) -> Result<()> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o600)).map_err(|_| err())?;
-    }
-    Ok(())
-}
-fn set_private_dir(path: &Path) -> Result<()> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o700)).map_err(|_| err())?;
-    }
     Ok(())
 }
