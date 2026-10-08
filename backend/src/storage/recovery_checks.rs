@@ -364,7 +364,7 @@ pub(super) fn validate_connection_with_activity_peers<
     check: Check<'_>,
 ) -> Result<RecoveryImage> {
     let image = validate_core_profile(db, contract, check, CoreProfile::Activity)?;
-    validate_activity_closure(db, contract, base, activity, image, check)
+    validate_activity_closure(db, contract, base, activity, None, image, check)
 }
 
 pub(super) fn validate_connection_with_presence_peers<
@@ -382,7 +382,15 @@ pub(super) fn validate_connection_with_presence_peers<
     check: Check<'_>,
 ) -> Result<RecoveryImage> {
     let image = validate_core_profile(db, contract, check, CoreProfile::Presence)?;
-    let image = validate_activity_closure(db, contract, peers.base, peers.activity, image, check)?;
+    let image = validate_activity_closure(
+        db,
+        contract,
+        peers.base,
+        peers.activity,
+        Some(peers.history),
+        image,
+        check,
+    )?;
     // Consume the complete witness history only after the native, activity,
     // Stock, Media and Jobs closures have passed on this same read snapshot.
     check()?;
@@ -404,18 +412,31 @@ fn validate_activity_closure<
     contract: &C,
     base: &super::RecoveryValidationPeers<'_, S, D, E>,
     activity: &StockActivityRecoveryPeers<'_, W, AD, AE>,
+    presence_history: Option<&PresenceHistoryCatalog>,
     image: RecoveryImage,
     check: Check<'_>,
 ) -> Result<RecoveryImage> {
     super::super::super::stock_activity::validate_recovery_activity(db, activity, check)?;
-    super::super::super::stock_recovery::validate_with_activity(
-        db,
-        contract,
-        base.stock,
-        base.evidence,
-        activity.contracts,
-        check,
-    )?;
+    if let Some(history) = presence_history {
+        super::super::super::stock_recovery::validate_with_activity_and_presence(
+            db,
+            contract,
+            base.stock,
+            base.evidence,
+            activity.contracts,
+            history,
+            check,
+        )?;
+    } else {
+        super::super::super::stock_recovery::validate_with_activity(
+            db,
+            contract,
+            base.stock,
+            base.evidence,
+            activity.contracts,
+            check,
+        )?;
+    }
     validate_media_policies(&image, base.evidence, check)?;
     check()?;
     // Independent Jobs rows keep their own registry, codecs and original claims.

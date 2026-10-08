@@ -49,6 +49,7 @@ fn validate_with_cursor<C: Contract, S: StockContractPort, E: QueueRecoveryEvide
     stock: &S,
     evidence: &E,
     cursor_check: Option<&CursorCheck<'_>>,
+    presence_history: Option<&PresenceHistoryCatalog>,
     check: &mut dyn FnMut() -> Result<()>,
 ) -> Result<()> {
     check()?;
@@ -102,9 +103,17 @@ fn validate_with_cursor<C: Contract, S: StockContractPort, E: QueueRecoveryEvide
         uuid(native, &actor)?;
         let commit = stock_repo::load(db, native, &scope, &actor, &id)?;
         check()?;
-        stock_projection::validate_retained(db, &commit, stock, native)?;
+        let (_, plan) =
+            match presence_history.and_then(|catalog| catalog.accepted_frame_for_commit(&commit)) {
+                Some(frame) => stock_projection::validate_retained_with_accepted_presence(
+                    db, &commit, stock, native, frame,
+                )?,
+                None => {
+                    stock_projection::validate_retained(db, &commit, stock, native)?;
+                    stock_projection::retained_plan(db, &commit, stock, native)?
+                }
+            };
         check()?;
-        let (_, plan) = stock_projection::retained_plan(db, &commit, stock, native)?;
         require(plan.scope() == &scope && plan.root_idempotency_key() == key)?;
         require(keys.insert((
             scope.workspace_id.clone(),
@@ -428,7 +437,7 @@ pub(super) fn validate<C: Contract, S: StockContractPort, E: QueueRecoveryEviden
     evidence: &E,
     check: &mut dyn FnMut() -> Result<()>,
 ) -> Result<()> {
-    validate_with_cursor(db, native, stock, evidence, None, check)
+    validate_with_cursor(db, native, stock, evidence, None, None, check)
 }
 pub(super) fn validate_with_activity<
     C: Contract,
@@ -449,5 +458,47 @@ pub(super) fn validate_with_activity<
             db, native, stock, activity, cursor, check,
         )
     };
-    validate_with_cursor(db, native, stock, evidence, Some(&cursor_check), check)
+    validate_with_cursor(
+        db,
+        native,
+        stock,
+        evidence,
+        Some(&cursor_check),
+        None,
+        check,
+    )
+}
+
+/// Explicit Presence reopen supplies only the opaque accepted history catalog.
+/// Every saved Present commit must match one exact catalog frame; unmatched
+/// commits still pass the ordinary strict retained validator.
+pub(super) fn validate_with_activity_and_presence<
+    C: Contract,
+    S: StockContractPort,
+    E: QueueRecoveryEvidence,
+    N: crate::providers::homebox::write::stock::StockContractPort,
+>(
+    db: &Connection,
+    native: &C,
+    stock: &S,
+    evidence: &E,
+    activity: &N,
+    history: &PresenceHistoryCatalog,
+    check: &mut dyn FnMut() -> Result<()>,
+) -> Result<()> {
+    let cursor_check = |cursor: stock_activity::history_repository::RetainedHistoryCursor<'_>,
+                        check: &mut dyn FnMut() -> Result<()>| {
+        stock_activity::history_repository::validate_cursor(
+            db, native, stock, activity, cursor, check,
+        )
+    };
+    validate_with_cursor(
+        db,
+        native,
+        stock,
+        evidence,
+        Some(&cursor_check),
+        Some(history),
+        check,
+    )
 }

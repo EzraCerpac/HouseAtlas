@@ -7,10 +7,7 @@ use super::super::{
 use super::stock_presence::bounded_size;
 use crate::{app::homebox_presence_history::RecordedPresenceHistory, contracts::stock as wire};
 use rusqlite::{Connection, OptionalExtension, params};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 type WitnessKey = (String, String, u64);
 const MAX_ENTRIES: usize = 4_096;
@@ -25,12 +22,14 @@ const MAX_FRAME_BYTES: usize = 64 * 1024 * 1024;
 pub struct PresenceHistoryCatalog {
     entries: Vec<Arc<RecordedPresenceHistory>>,
     witnesses: BTreeMap<WitnessKey, (usize, wire::PresenceWitness)>,
+    commits: BTreeMap<(String, String, String, String), usize>,
 }
 impl PresenceHistoryCatalog {
     pub fn empty() -> Self {
         Self {
             entries: Vec::new(),
             witnesses: BTreeMap::new(),
+            commits: BTreeMap::new(),
         }
     }
 
@@ -39,7 +38,7 @@ impl PresenceHistoryCatalog {
             return Err(incompatible());
         }
         let mut witnesses = BTreeMap::new();
-        let mut commits = BTreeSet::new();
+        let mut commits = BTreeMap::new();
         let mut raw_total = 0_usize;
         let mut normalized_total = 0_usize;
         let mut frame_total = 0_usize;
@@ -56,12 +55,17 @@ impl PresenceHistoryCatalog {
                 || frame.candidate().scope != frame.precommit().scope
                 || frame.witnesses().is_empty()
                 || frame.witnesses().len() > 100
-                || !commits.insert((
-                    scope.workspace_id.clone(),
-                    scope.home_id.clone(),
-                    commit.actor_id.clone(),
-                    commit.operation_id.clone(),
-                ))
+                || commits
+                    .insert(
+                        (
+                            scope.workspace_id.clone(),
+                            scope.home_id.clone(),
+                            commit.actor_id.clone(),
+                            commit.operation_id.clone(),
+                        ),
+                        index,
+                    )
+                    .is_some()
             {
                 return Err(incompatible());
             }
@@ -97,7 +101,29 @@ impl PresenceHistoryCatalog {
                 }
             }
         }
-        Ok(Self { entries, witnesses })
+        Ok(Self {
+            entries,
+            witnesses,
+            commits,
+        })
+    }
+
+    /// A historical Store read may select this frame only by exact identity
+    /// and entire commit equality with a post-Access opaque archive entry.
+    pub(crate) fn accepted_frame_for_commit(
+        &self,
+        commit: &StockAtlasCommit,
+    ) -> Option<&super::StockPresenceAcceptedFrame> {
+        let scope = &commit.groups.first()?.native_results.first()?.record;
+        let index = self.commits.get(&(
+            scope.workspace_id.clone(),
+            scope.home_id.clone(),
+            commit.actor_id.clone(),
+            commit.operation_id.clone(),
+        ))?;
+        let entry = &self.entries[*index];
+        (entry.frame().commit() == commit && entry.request().raw() == &commit.original_request)
+            .then(|| entry.frame())
     }
 
     pub(crate) fn is_empty(&self) -> bool {

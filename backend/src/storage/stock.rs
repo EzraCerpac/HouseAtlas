@@ -103,7 +103,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                 Qualification::Direct,
             ),
             PresenceCommandMapping::Derived(derivation) => {
-                super::super::stock_derivation::validate_derivation(&request, derivation)?;
+                super::super::stock_derivation::validate_presence_derivation(&request, derivation)?;
                 (
                     stock::plan_derived_atlas_commands(&request, derivation, &self.contract)
                         .map_err(stock_error)?,
@@ -820,13 +820,23 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
             review.validate_original(self.contract, original)?;
         }
         if let Some(derivation) = self.derivation {
-            super::super::stock_derivation::validate_original(
-                self.contract,
-                self.request,
-                original,
-                self.plan.scope(),
-                derivation,
-            )?;
+            if self.presence.is_some() {
+                super::super::stock_derivation::validate_original_presence(
+                    self.contract,
+                    self.request,
+                    original,
+                    self.plan.scope(),
+                    derivation,
+                )?;
+            } else {
+                super::super::stock_derivation::validate_original(
+                    self.contract,
+                    self.request,
+                    original,
+                    self.plan.scope(),
+                    derivation,
+                )?;
+            }
         }
         if let Some(derivations) = self.child_derivations {
             super::super::stock_derivation::validate_batch_derivations(self.request, derivations)?;
@@ -1063,7 +1073,9 @@ fn release_presence_stock<C: Contract, B: StockAuthorization, S: StockContractPo
     if saved != *commit {
         return Err(stock_repo::incompatible());
     }
-    super::super::stock_projection::validate_retained(&tx, &saved, contracts, contract)?;
+    super::super::stock_projection::validate_retained_with_accepted_presence(
+        &tx, &saved, contracts, contract, frame,
+    )?;
     match (&frame.precommit.batch, frame.batch_hash.as_deref()) {
         (Some(batch), Some(hash)) => {
             let results = commit
