@@ -224,6 +224,7 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     cargo run --locked -p houseatlas-backend --example healthy-recovery-policy-archive
     cargo run --locked -p houseatlas-backend --example healthy-stock-retained-read
     cargo run --locked -p houseatlas-backend --example presence-metadata-healthy
+    cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_capture_healthy::healthy_fixed_native_get_captures_preserve_originals -- --exact --test-threads=1
     cargo run --locked -p houseatlas-backend --example network-disclosure-pin
     cargo run --locked -p houseatlas-backend --example network-constructor-ownership
     cargo run --locked -p houseatlas-backend --example healthy-asset-review

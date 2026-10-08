@@ -15,6 +15,8 @@ rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.151", features = ["arbitrary_precision", "float_roundtrip", "raw_value"] }
 jsonschema = { version = "=0.58.6", default-features = false, features = ["arbitrary-precision"] }
+rcgen = { version = "=0.14.10", default-features = false, features = ["ring", "pem"] }
+tokio-rustls = { version = "=0.26.6", default-features = false, features = ["ring", "tls12"] }
 tower = { version = "=0.5.3", default-features = false, features = ["util"] }
 base64 = "=0.22.1"
 getrandom = "=0.3.4"

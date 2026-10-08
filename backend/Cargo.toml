@@ -49,6 +49,8 @@ secret-service.workspace = true
 
 [dev-dependencies]
 tower.workspace = true
+rcgen.workspace = true
+tokio-rustls.workspace = true
 
 [lints]
 workspace = true

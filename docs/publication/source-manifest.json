@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "3dfee50b9114472e312eccc9cdef31063742c62fa073dbeed4d9693a55c17d6a",
+  "sourceDigestSha256": "ccf25f726686e1dd9fd7bf731c9b1a706c6b2915c67fa2f853c14b838de0267c",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -77,15 +77,15 @@
     {
       "path": "Cargo.lock",
       "mode": "100644",
-      "bytes": 79621,
-      "sha256": "32c5ec93227d8bdd550cd1c2211792cca25498550f24093cc3e60a9bf0db305e",
+      "bytes": 83519,
+      "sha256": "fc1e0f3d85957d72522b5536f6274ed93129bde7a90648c93bdf91d77a5db398",
       "owner": "core-integration"
     },
     {
       "path": "Cargo.toml",
       "mode": "100644",
-      "bytes": 2127,
-      "sha256": "c8c1391fd49b09753016edef6d45c9305173f6a78b7118f3cb5375f4eee631c3",
+      "bytes": 2309,
+      "sha256": "434f21272d4dea6f9658958deddca3a4d3fa27167c0a2f87fe9c943bb1204b45",
       "owner": "core-integration"
     },
     {
@@ -245,8 +245,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 3326,
-      "sha256": "f085fa904da6706c21a57661e2db92490b392fa9dbf566279082c70667fe1f5b",
+      "bytes": 3379,
+      "sha256": "fff24f8d5436229b95c7147df8a30c1e020daa9e60b6506b4e7800131871e919",
       "owner": "core-integration"
     },
     {
@@ -2310,8 +2310,8 @@
     {
       "path": "backend/src/providers/homebox/read/http_transport.rs",
       "mode": "100644",
-      "bytes": 8925,
-      "sha256": "2767c59b52082016bd8b103ec46468c6ff400415927ab2cb30bad988d5fa97b6",
+      "bytes": 8992,
+      "sha256": "c4a0397cd80cbdde079ecad2004967071abc3a8263a20dc396cfbc4220cb2eae",
       "owner": "homebox"
     },
     {
@@ -4326,8 +4326,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 36662,
-      "sha256": "a10b56d25311a074bbc91570f2a186820a7cd045cf23fa4adf1e0b1eee160b06",
+      "bytes": 36845,
+      "sha256": "1565dcb9aa7316b78df5f6ef24eb1eaebd5dd273a09612ed2187f13dc1773a5b",
       "owner": "core-integration"
     },
     {
@@ -4382,8 +4382,8 @@
     {
       "path": "docs/rust-integration/dev-composition.md",
       "mode": "100644",
-      "bytes": 17222,
-      "sha256": "f2a68b06e15a5f3dfcd2d99a04b65c182b6f521140e6ae0752a93b61a28abf48",
+      "bytes": 17628,
+      "sha256": "e52423aee73287d7f6ccf5ad7bd216806cf968a6ab16e6db5b5fe6f70183d168",
       "owner": "core-integration"
     },
     {

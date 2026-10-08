@@ -242,6 +242,11 @@ and existing byte/decoder limits. Captures retain original bytes, source JSON,
 native scope, target, status and retrieval time; they establish neither complete
 snapshot consistency nor hidden-field PUT qualification, credentials, current
 Access custody or file version. The named source harness covers two bounded
-in-process synthetic GETs. The supplied chunked HTTP test source remains unrun:
-baseline library-test compilation lacks the existing Network fixture's rcgen
-and tokio-rustls dev dependencies. No dependency or Network source was changed.
+in-process synthetic GETs. Root test-only wiring now supplies pinned rcgen and tokio-rustls dependencies
+required by the existing Network test compilation. Every previous lock version
+and checksum is preserved. The exact HomeBox positive socket fixture passed two
+actual credential-free chunked loopback GETs. Its first run exposed the original
+transport's empty-query `?`; the owner corrected only empty-query construction,
+retaining nonempty maintenance `status=both` unchanged. No other test was run;
+the test build retains an existing Mac test-only unused SecretKey warning.
+Production library/binary/examples pass warnings-denied Clippy.
