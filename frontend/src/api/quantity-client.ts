@@ -118,7 +118,9 @@ export async function decodeQuantityPreview(value: unknown, original: SourceRef,
   if (!equalQuantityJson(value.source, original) || !sameQuantityScope(value.resolvedScope, original) || !sameQuantityScope(request.context, original)
     || request.commandId !== 'homebox.entity.quantity.set' || request.target['sourceInstanceId'] !== original.key.sourceInstanceId
     || request.target['collectionId'] !== original.key.collectionId || request.target['resourceId'] !== original.key.externalId
-    || request.payload['quantity'] !== quantity || request['reason'] !== reason || request['approvalReceiptId'] !== null
+    || request.payload['quantity'] !== quantity || request['reason'] !== reason
+    // The reserved UUID is correlation data only; approval requires issuance.
+    || (value.policy.approval === 'human-required' ? typeof request['approvalReceiptId'] !== 'string' : request['approvalReceiptId'] !== null)
     || value.effect.quantity !== quantity || value.effect.body.quantity !== quantity
     || value.effect.path !== `/api/v1/entities/${original.key.externalId}`
     || (value.policy.maximumQuantity !== null && quantity > value.policy.maximumQuantity)
@@ -130,7 +132,8 @@ function correlates(value: QuantityApproval | QuantityResult, preview: QuantityP
     && value.previewId === preview.previewId && value.requestDigest === preview.requestDigest && value.planDigest === preview.planDigest;
 }
 export function decodeQuantityApproval(value: unknown, preview: QuantityPreviewWire): QuantityApproval {
-  if (!approvalSchema(value) || !correlates(value, preview)) throw new TypeError('Approval correlation differs');
+  if (!approvalSchema(value) || !correlates(value, preview) || preview.policy.approval !== 'human-required'
+    || value.approvalReceiptId !== preview.request['approvalReceiptId']) throw new TypeError('Approval correlation differs');
   return value;
 }
 export function decodeQuantityResult(value: unknown, preview: QuantityPreviewWire): QuantityResult {
