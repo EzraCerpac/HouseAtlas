@@ -64,7 +64,8 @@ export function createQuantityClient(options: QuantityClientOptions): QuantityCl
   const unknown = (source: SourceRef, binding: QuantitySessionBinding, action: string, custody?: DispatchCustody, status: number | null = null) => {
     let row = unknownPosts.find(row => sameBinding(row.binding, binding) && equalQuantityJson(row.source, source));
     if (!row) {
-      row = { source: structuredClone(source), binding, message: `Prior ${action} response unavailable. Issuance or admission may have occurred. Further quantity mutations for this source are held in this session; do not infer rollback or safe retry.`, attempts: [] };
+      // Preview performs no reserve, admission or receipt issuance; the hold is unchanged.
+      row = { source: structuredClone(source), binding, message: `Prior ${action} response unavailable. ${action === 'preview' ? 'Preview availability unknown.' : 'Issuance or admission may have occurred.'} Further quantity mutations for this source are held in this session; do not infer rollback or safe retry.`, attempts: [] };
       unknownPosts.push(row);
     }
     if (custody) {
