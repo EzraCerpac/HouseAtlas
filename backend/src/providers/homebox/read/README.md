@@ -331,3 +331,71 @@ cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native
 This case uses only actually captured synthetic members and introduces no
 qualification owner, mismatch/denial control or provider write. The earlier
 two-request socket fixture stays unchanged.
+
+
+## Configured native read producer and retained owner
+
+`HomeBoxReader::capture_native_read` takes a frozen `ValidatedRequest`, the
+actual shared `Arc<Mutex<AccessBoundary>>` and the original `CapturedAccess`.
+It requires an original HomeBox entity `SourceGrant` and matching
+`SourcePartitionGrant`, with exact context/source/opaque collection/owner
+spelling. The configured reader supplies its existing endpoint, transport,
+credentials, limits and clock. Intake performs an actual fixed entity GET for
+`homebox.entity.tags.get`, `homebox.field.list` and `homebox.field.get`, or the
+fixed entity-maintenance GET with `status=both` for
+`homebox.maintenance.list` and `homebox.maintenance.get`. Other families remain
+unavailable. The original parser/projection/schema constraints apply unchanged.
+
+The sealed `NativeReadCapture` retains the original body, lexical retrieval time
+and validated observation. Its observation exposes actual resource selectors and
+source relations for the existing graph resolver before preparation. These are
+private source data, not grants or evidence of a complete/qualified graph. The
+application must use its real owner to resolve and authorize the full original
+graph, then consume the same capture through `bind_prepared`. That conversion
+requires the exact original request and the existing mandatory
+`GraphAuthorization`, revalidating the same original principal/grants/witness/G.
+It binds an existing `DecodedReadOwner` to that original prepared request.
+`NativeReadOwner` supplies the existing `HomeBoxReadOwner` interface for
+`HomeBoxQueries` and Domain `dispatch_prepared`, which retain final graph/result
+disclosure. The adapter never extends an already authorized graph.
+
+`capture_prepared_read` is a convenience for requests whose immutable original
+graph already independently qualifies every returned member. When native intake
+can discover members, use intake before original preparation. Shared Access
+locks are short phase checks before/after I/O and around synchronous semantic
+revalidation; no Access/Core/Store guard crosses GET await, and no Access guard
+is held while the graph owner enters its Store section. These checks do not
+claim an atomic provider/Store snapshot. No principal or grants are reissued,
+and no refreshed witness is sealed. Source status remains `unresolved`.
+
+This implements configured GET intake and retained read dispatch mechanics.
+Application reader/credential configuration, the original full-graph owner and
+HTTP async composition remain mandatory integration inputs. It supplies no
+production fresh writer qualification/readback source, installed-build facts,
+current credential provenance, hidden PUT/full-graph proof, file-body version or
+HomeBox stage admission. Response bytes, hashes and retrieval time provide none
+of those missing facts. There is no production provider activation.
+
+The integration owner declares `mod native_query`, exports `NativeReadCapture`
+and `NativeReadOwner`, and declares `#[cfg(test)] mod native_query_healthy` in
+`read/mod.rs`. Module/Cargo/manifest changes stay with that owner. The exact
+additional permitted positive command is:
+
+```sh
+cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_query_healthy::healthy_configured_native_queries_retain_original_authority -- --exact --test-threads=1
+```
+
+One ordinary case sends five actual chunked, credential-free ephemeral-loopback
+HTTP GETs, checks fixed paths/query/tenant, and acquires the actual shared Access
+lock while each response is pending. It uses a genuine synthetic Access login,
+principal and original source/partition grants. The explicitly synthetic graph
+owner resolves members from retained captured bytes before preparation and
+checks exact scope/member identities during graph and result authorization.
+All five forms dispatch through existing Domain contracts and final disclosure.
+The case preserves original bytes/time, a large integer extension, exponent
+purchase-price spelling, native calendar dates and two decimal maintenance
+costs. Existing empty native dates project to null while retained bytes keep
+the original empty spelling. Its two-row maintenance response is synthetic and makes no claim about
+the unsupported exponent-cost projection or provider-wide completeness.
+Only this positive case is executed; no mismatch/denial/revocation/expiry,
+concurrency control, held proof or provider write is exercised.

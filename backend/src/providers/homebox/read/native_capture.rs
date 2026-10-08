@@ -76,6 +76,10 @@ impl<T> NativeCapture<T> {
         &self.decoded.value
     }
 
+    pub(super) fn wire_decoded(&self) -> &wire::Decoded<T> {
+        &self.decoded
+    }
+
     fn check_fresh_scope(
         &self,
         context: &Context,
