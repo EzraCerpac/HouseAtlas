@@ -76,7 +76,8 @@ class Handoff implements QuantityPersonHandoff {
   close() { if (!this.#state.closable) return; this.#closed = true; this.dispose(); this.#publish(); }
   #attemptable() {
     return this.#open && !this.#done && !this.#closed && !this.inFlight && this.#client.isCurrent(this.identity)
-      && this.#client.isCurrentPrepared(this.prepared) && performance.now() < this.prepared.expiresAt;
+      && this.#client.isCurrentPrepared(this.prepared) && performance.now() < this.prepared.expiresAt
+      && this.#client.getUncertainty(this.source) === null;
   }
   #start(step: Step) { const attempt: Attempt = { step, state: 'started', value: null, error: undefined }; this.#ledger.push(attempt); this.#publish(); return attempt; }
   #failed(attempt: Attempt, error: unknown) {
