@@ -155,10 +155,14 @@ It supplies no source-presence or mutation permission.
 The separate Access-owned native version declaration is now present as an
 explicit exact-match source policy, independent of Cargo/schema/JavaScript
 versions. Atomic-presence transaction, engine and exhaustive historical validator
-source is retained but unmounted. Actual command hooks, a distinct fresh schema
-profile and genuine historical observation custody remain required before
-admission. Current cache rows cannot substitute for historical evidence. The
-current presence hold remains in force.
+now compile as private Storage modules. Authorized Candidate/Precommit hooks
+carry the same transaction, Store allocation and context. Stock constructs no
+presence peer and retains its staging hold. A distinct source-only schema-7
+definition and explicit fresh selector exist; the selector returns unavailable
+before open/reopen until complete profile admission and independent historical
+observation custody are supplied. It never routes to the existing installer.
+Profiles 5/6 remain unchanged. Current cache rows cannot substitute for historical
+evidence, and presence admission remains held.
 
 Original Network disclosures now own genuine same-Store generation pins through
 their retained Reader Arc. Residency guards enumerate and retain those live

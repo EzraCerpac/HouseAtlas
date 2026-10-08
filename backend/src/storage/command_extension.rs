@@ -1,9 +1,12 @@
 //! Private transaction hooks; never exported to consumers.
+use super::store::presence_engine::{ActiveCommandFrame, assert_core_presence_hold};
 use super::*;
 use rusqlite::Connection;
 
-pub(crate) trait CommandExtension {
+pub(crate) trait CommandExtension<C: Contract> {
     fn stock(&self) -> bool;
+    fn after_candidate(&mut self, frame: &ActiveCommandFrame<'_, '_, C>) -> Result<()>;
+    fn after_precommit(&mut self, frame: &ActiveCommandFrame<'_, '_, C>) -> Result<()>;
     fn authorize(
         &mut self,
         facts: &MutationAuthorizationContext,
@@ -27,7 +30,14 @@ pub(crate) trait CommandExtension {
     fn persist(&self, db: &Connection, hashes: &[String]) -> Result<()>;
 }
 pub(crate) struct Core;
-impl CommandExtension for Core {
+impl<C: Contract> CommandExtension<C> for Core {
+    fn after_candidate(&mut self, frame: &ActiveCommandFrame<'_, '_, C>) -> Result<()> {
+        assert_core_presence_hold(frame)
+    }
+    fn after_precommit(&mut self, _: &ActiveCommandFrame<'_, '_, C>) -> Result<()> {
+        // Core carries no qualifier and never retains a presence witness.
+        Ok(())
+    }
     fn stock(&self) -> bool {
         false
     }

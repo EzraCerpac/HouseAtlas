@@ -1,4 +1,5 @@
-//! SOURCE PROPOSAL, private Store child. No entry point or engine mount supplied.
+//! Private same-transaction phase peer; no public or production peer constructor.
+//! Explicit fresh profile remains unavailable without independent historical custody.
 use super::super::*;
 use super::presence_transaction::{
     PresenceMutationInputs, PresenceMutationTransaction, PresenceStoreAllocation,
@@ -40,6 +41,10 @@ pub(super) struct OriginalPresenceEngine<'owner, 'access> {
     store_instance: Option<Arc<()>>,
 }
 
+#[expect(
+    dead_code,
+    reason = "No runtime original-presence constructor is configured"
+)]
 pub(super) struct OriginalPresenceEngineInputs<'owner, 'access> {
     pub principal: &'owner a::Principal,
     pub guard: &'owner a::TransactionAuthorization<'access>,
@@ -49,6 +54,10 @@ pub(super) struct OriginalPresenceEngineInputs<'owner, 'access> {
     pub now: &'owner dyn Fn() -> d::DomainResult<String>,
 }
 impl<'owner, 'access> OriginalPresenceEngine<'owner, 'access> {
+    #[expect(
+        dead_code,
+        reason = "Mandatory historical custody blocks fresh-profile construction"
+    )]
     pub(super) fn new(input: OriginalPresenceEngineInputs<'owner, 'access>) -> Result<Self> {
         if !std::ptr::eq(input.principal, input.access.principal)
             || !std::ptr::eq(input.principal, input.guard.principal())

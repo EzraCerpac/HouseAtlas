@@ -432,6 +432,7 @@ fn open_existing_connection<C: Contract>(
     check: &mut dyn FnMut() -> Result<()>,
     verify: Verifier<'_, C>,
 ) -> Result<Connection> {
+    options.require_available_profile()?;
     if options.stock_activity_profile != activity
         || options.allow_synthetic_bootstrap
         || options.busy_timeout_ms > 60_000

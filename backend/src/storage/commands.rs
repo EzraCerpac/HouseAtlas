@@ -7,9 +7,11 @@ use super::super::{
     *,
 };
 use super::{AtlasStore, authorize, shape};
+use super::{presence_engine::ActiveCommandFrame, presence_transaction::PresenceStoreAllocation};
 use rusqlite::{Connection, TransactionBehavior};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
     pub fn execute(
@@ -75,7 +77,12 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
     }
 
     fn commands(&mut self) -> CommandTransaction<'_, C, A, R> {
+        let allocation = PresenceStoreAllocation::capture(self);
         CommandTransaction {
+            allocation,
+            instance: &self.instance,
+            fresh_witness_profile: self.options.presence_profile
+                == PresenceProfileSelection::FreshV7,
             db: &mut self.db,
             contract: &self.contract,
             authorization: &self.authorization,
@@ -86,7 +93,12 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         &'a mut self,
         authorization: &'a B,
     ) -> CommandTransaction<'a, C, B, R> {
+        let allocation = PresenceStoreAllocation::capture(self);
         CommandTransaction {
+            allocation,
+            instance: &self.instance,
+            fresh_witness_profile: self.options.presence_profile
+                == PresenceProfileSelection::FreshV7,
             db: &mut self.db,
             contract: &self.contract,
             authorization,
@@ -98,6 +110,9 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
 /// A borrowed view of the store's private connection and required peers.
 /// Default and per-call authorization share exactly this transaction engine.
 pub(super) struct CommandTransaction<'a, C, A, R> {
+    pub(super) allocation: PresenceStoreAllocation,
+    pub(super) instance: &'a Arc<()>,
+    pub(super) fresh_witness_profile: bool,
     pub(super) db: &'a mut Connection,
     pub(super) contract: &'a C,
     pub(super) authorization: &'a A,
@@ -174,7 +189,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
         scope: &Scope,
         entries: &[MutationEntry],
         batch: Option<&BatchMutation>,
-        extension: &mut dyn CommandExtension,
+        extension: &mut dyn CommandExtension<C>,
     ) -> Result<Vec<MutationResult>> {
         shape(self.contract, "scope", scope)?;
         if entries.is_empty() || entries.len() > 100 {
@@ -233,8 +248,8 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
         let revalidate = |phase: MutationPhase,
                           candidate: Option<&Snapshot>,
                           replay: Option<&Replay>,
-                          extension: &mut dyn CommandExtension|
-         -> Result<()> {
+                          extension: &mut dyn CommandExtension<C>|
+         -> Result<MutationAuthorizationContext> {
             let facts = context(phase, candidate, replay)?;
             let verified = authorize(
                 self.contract,
@@ -256,7 +271,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
                 ));
             }
             extension.authorize(&facts, &original, candidate, replay, &actor)?;
-            Ok(())
+            Ok(facts)
         };
         let ids: BTreeSet<_> = entries.iter().map(|e| &e.command.mutation_id).collect();
         let target_keys: BTreeSet<_> = entries
@@ -280,7 +295,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
             })
             .transpose()?;
         let replay_results = |mut results: Vec<MutationResult>,
-                              extension: &mut dyn CommandExtension|
+                              extension: &mut dyn CommandExtension<C>|
          -> Result<Vec<MutationResult>> {
             if results.len() != entries.len() {
                 return Err(Error::new(
@@ -533,7 +548,19 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
             )?;
         }
         extension.stage(&original, &results, &actor)?;
-        revalidate(MutationPhase::Candidate, Some(&candidate), None, extension)?;
+        let candidate_facts =
+            revalidate(MutationPhase::Candidate, Some(&candidate), None, extension)?;
+        extension.after_candidate(&ActiveCommandFrame {
+            transaction: &tx,
+            allocation: &self.allocation,
+            instance: self.instance,
+            contract: self.contract,
+            context: &candidate_facts,
+            results: &results,
+            command_hashes: &hashes,
+            batch_hash: batch_hash.as_deref(),
+            fresh_witness_profile: self.fresh_witness_profile,
+        })?;
         for ((result, entry), hash) in results.iter().zip(entries).zip(&hashes) {
             repo::write_record(
                 &tx,
@@ -570,7 +597,19 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
             )?;
         }
         extension.persist(&tx, &hashes)?;
-        revalidate(MutationPhase::Precommit, Some(&candidate), None, extension)?;
+        let precommit_facts =
+            revalidate(MutationPhase::Precommit, Some(&candidate), None, extension)?;
+        extension.after_precommit(&ActiveCommandFrame {
+            transaction: &tx,
+            allocation: &self.allocation,
+            instance: self.instance,
+            contract: self.contract,
+            context: &precommit_facts,
+            results: &results,
+            command_hashes: &hashes,
+            batch_hash: batch_hash.as_deref(),
+            fresh_witness_profile: self.fresh_witness_profile,
+        })?;
         tx.commit()?;
         Ok(results)
     }

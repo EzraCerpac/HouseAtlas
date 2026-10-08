@@ -2,9 +2,20 @@
 
 These new files provide the Storage implementation of
 `domain::qualified::AtomicPresenceTransaction` and append-only witness persistence.
-They are **source only**. Existing production module declarations, command hooks,
-profile/checksum ledgers, migrations and recovery readers are unchanged. Existing
-presence admission remains held. No table is installed by this component.
+They are **source only**. The private modules now compile in the actual library.
+The existing command engine supplies actual Candidate and Precommit frames after
+ordinary phase authorization. Stock constructs no original presence peer and
+preserves its staging hold. No table is installed by this component. Profiles 5/6
+migration catalogs and their checksum validation are unchanged.
+
+`StoreOptions::presence_profile` defaults to `PresenceProfileSelection::Disabled`.
+Explicit `FreshV7` returns `upstream-unavailable` before database open/reopen,
+including when the legacy activity selector is also set. The source-only
+`0007_presence_witnesses.sql` has a distinct lineage and checksum, but no installer
+routes to it. Required independent `OriginalPresenceHistoryEvidence` has no
+implementation or success default. Its historical validator compiles, with the
+unavailable mount documented by a narrow dead-code expectation, and is not
+invoked for current profiles.
 
 ## Exact dependencies and scope
 
@@ -26,7 +37,7 @@ outside this patch.
 
 ## Root engine composition
 
-Root alone should make these declarations after accepting the source seam:
+Root private declarations now mount these source seams:
 
 ```rust
 // storage/store.rs
@@ -63,8 +74,9 @@ transaction on another connection or Store is rejected. The adapter opens no
 connection and begins or commits no transaction.
 
 Use the existing engine `TransactionBehavior::Immediate`. Do not adapt the
-public detached read API or current `CommandExtension` hooks: those hooks do not
-supply all actual transaction, graph, context and final result inputs together.
+public detached read API. Private `CommandExtension<C>` hooks now carry the
+actual transaction, graph, context and final result inputs together, preserving
+object safety, original authorization ordering and one commit.
 
 1. Retain the existing original snapshot, ordered entries, Runtime-generated
    context ID, original actor/grants and actual candidate graph. Supply the exact
@@ -114,9 +126,9 @@ transaction. There is no upsert, update, delete or independent commit.
 
 ## Required accepted owner input
 
-AT11's persisted metadata intentionally supplies no package version. Root must
-supply the explicitly accepted **native Access owner package version**, from a
-trusted fixed owner constant/policy at the private engine call site. The adapter
+AT11's persisted metadata intentionally supplies no package version. The private
+engine takes the explicitly accepted **native Access owner package version** from
+`access::NATIVE_ACCESS_PACKAGE_VERSION`, independently of Cargo/schema/JavaScript. The adapter
 checks the frozen wire version-string pattern (not a strict SemVer parser) but cannot authenticate that caller input.
 Do not infer it from Cargo, schema versions, a Principal, the unrelated JS package
 version, an epoch/version row, or healthy fixture authority. No production version
@@ -124,9 +136,10 @@ default is included. The actual engine context ID is correlation, not authority.
 
 ## Fresh profile and recovery proposal
 
-`PRESENCE_WITNESS_SCHEMA_PROPOSAL` contains the precise proposed table, index and
-immutable triggers. Root must select an explicit compatible fresh DB profile,
-lineage/version, migration filename/checksum/catalog and recovery policy before
+`0007_presence_witnesses.sql` contains the precise proposed table, index,
+immutable triggers and distinct fresh lineage. The explicit source selector and
+definition identify version, lineage, filename and checksum. Complete compatible
+profile/catalog admission and independent recovery policy remain required before
 mounting retention. Current profiles 5/6 validate their entire migration ledger
 and `sqlite_schema`; adding this table to either existing profile silently would
 make the database incompatible. This patch does not modify those profiles or
@@ -162,13 +175,18 @@ this is not a distributed SQL transaction.
 
 ## Actual validation and limits
 
-The task-owned external compiler composes exact dev source with AT11's exact
+The mounted actual library/binaries/examples pass locked offline compilation and
+warnings-denied Clippy. The named positive representation target passes through
+the actual library. These checks execute no phase adapter, qualifier, witness
+retention, schema installer, profile admission or historical validator.
+
+Earlier owner validation used a task-owned external compiler composing dev with AT11's exact
 `metadata.rs`/module export and these two files. It adds the proposed private
 mounts with `allow(dead_code)` **only in that external compiler copy**, because
-production phase hooks deliberately remain unwired. All method bodies are type
+production presence-peer construction deliberately remains unwired. All method bodies are type
 checked; no stub replaces a Store, Access or Network implementation. Production
-Cargo manifests/lock/dependencies are unchanged; an external manifest alone names
-the optional positive example.
+Cargo lock/dependencies remain unchanged. The root Cargo manifest now names the
+existing positive representation example.
 
 `checks/presence-metadata-healthy.rs` inspects three published positive wire
 witness/qualification representation pairs, accepted integral numeric spellings,
@@ -179,7 +197,7 @@ qualifier admission/revalidation, witness stamping/appending, database/migration
 execution, service, provider or listener runs. It does not certify the atomic
 engine composition, lifecycle/revocation/replay controls or strict recovery.
 
-Root can optionally add this isolated positive target after source composition:
+Root declares this existing isolated positive representation target:
 
 ```toml
 [[example]]

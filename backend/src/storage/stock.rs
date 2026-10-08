@@ -4,6 +4,10 @@ use super::super::{
     stock_repository as stock_repo, *,
 };
 use super::{AtlasStore, shape};
+use super::{
+    presence_engine::{ActiveCommandFrame, OriginalPresenceEngine, assert_core_presence_hold},
+    presence_transaction::PresenceStoreAllocation,
+};
 use crate::domain::{
     self,
     stock::{
@@ -186,7 +190,9 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         if let Some(batch) = &batch {
             shape(&self.contract, "batchMutation", batch)?;
         }
+        let allocation = PresenceStoreAllocation::capture(self);
         let mut extension = StockTransaction {
+            presence: None,
             contract: &self.contract,
             authorization,
             principal,
@@ -204,6 +210,10 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         };
         // Borrow private fields once; there is one connection and engine.
         let mut commands = super::commands::CommandTransaction {
+            allocation,
+            instance: &self.instance,
+            fresh_witness_profile: self.options.presence_profile
+                == PresenceProfileSelection::FreshV7,
             db: &mut self.db,
             contract: &self.contract,
             authorization,
@@ -220,6 +230,8 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
     }
 }
 struct StockTransaction<'a, 'g, C, B: Authorization, R, S> {
+    // No public/host constructor supplies this peer; existing staging holds remain.
+    presence: Option<OriginalPresenceEngine<'a, 'g>>,
     contract: &'a C,
     authorization: &'a B,
     principal: &'a B::Principal,
@@ -260,9 +272,51 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort>
         Ok(id)
     }
 }
-impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> CommandExtension
+impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> CommandExtension<C>
     for StockTransaction<'_, '_, C, B, R, S>
 {
+    fn after_candidate(&mut self, frame: &ActiveCommandFrame<'_, '_, C>) -> Result<()> {
+        match self.presence.as_mut() {
+            Some(original) => {
+                original.candidate(frame)?;
+                for result in frame.results {
+                    if result.record.record_type == RecordType::Binding {
+                        let prior =
+                            frame.context.original.records.iter().find(|r| {
+                                r.matches(&frame.context.scope, &result.record.reference())
+                            });
+                        let prior_domain: Option<domain::Record> = prior
+                            .map(|r| serde_json::from_value(serde_json::to_value(r)?))
+                            .transpose()?;
+                        let current: domain::Record =
+                            serde_json::from_value(serde_json::to_value(&result.record)?)?;
+                        let operation =
+                            serde_json::from_value(serde_json::to_value(result.audit.operation)?)?;
+                        if matches!(
+                            domain::binding_presence_requirement(
+                                prior_domain.as_ref(),
+                                &current,
+                                operation
+                            )
+                            .map_err(|_| stock_repo::incompatible())?,
+                            domain::PresenceRequirement::Qualify(_)
+                        ) {
+                            original
+                                .check_staged_binding(&result.record, result.audit.operation)?;
+                        }
+                    }
+                }
+                Ok(())
+            }
+            None => assert_core_presence_hold(frame),
+        }
+    }
+    fn after_precommit(&mut self, frame: &ActiveCommandFrame<'_, '_, C>) -> Result<()> {
+        if let Some(original) = self.presence.as_mut() {
+            original.precommit(frame)?;
+        }
+        Ok(())
+    }
     fn stock(&self) -> bool {
         true
     }

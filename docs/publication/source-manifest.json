@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "05000ed554a80b581ef3d7604d24b924d6c7275539be99ad3dd3360666aad669",
+  "sourceDigestSha256": "0c40c15986121159713174ca3dd8da77213141424c0f9357ab33c87c34d9dd2a",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -245,8 +245,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 3221,
-      "sha256": "fe763de40ef99e7d71f2a329cd9b84b110cc835ce3f85fa8fdf1541815ebbad8",
+      "bytes": 3326,
+      "sha256": "f085fa904da6706c21a57661e2db92490b392fa9dbf566279082c70667fe1f5b",
       "owner": "core-integration"
     },
     {
@@ -289,6 +289,13 @@
       "mode": "100644",
       "bytes": 3932,
       "sha256": "ba17accb6f9b71d5229f35de6a2a29e804b6b7d53419ab1b3c20c6d53733a4b8",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/migrations/0007_presence_witnesses.sql",
+      "mode": "100644",
+      "bytes": 1294,
+      "sha256": "ec068be08a509d8ff2ce554e3d0e20d54a979c07d0ff3d506a5d7e89dcfd94a0",
       "owner": "storage"
     },
     {
@@ -3416,15 +3423,15 @@
     {
       "path": "backend/src/storage/command_extension.rs",
       "mode": "100644",
-      "bytes": 1578,
-      "sha256": "7058cee4e1f687570df198f45da857e74284cff4f56b1cdfea4151eed08c42ea",
+      "bytes": 2184,
+      "sha256": "3950cdc008115f3d3b859a5765f75ad3acc81053493a3aa0c16e69378df98736",
       "owner": "storage"
     },
     {
       "path": "backend/src/storage/commands.rs",
       "mode": "100644",
-      "bytes": 21726,
-      "sha256": "18281cbfa1877602e5ec1deaefe9792eb902cd7c1c336126d4af703ea0bda8ae",
+      "bytes": 23439,
+      "sha256": "64b72b539aca6124c85ec3287120b9c7c746b22a1139d778d673ae0fb155a2d3",
       "owner": "storage"
     },
     {
@@ -3472,8 +3479,8 @@
     {
       "path": "backend/src/storage/mod.rs",
       "mode": "100644",
-      "bytes": 1794,
-      "sha256": "fd0844493c11f9dc05f1f4e62511e548f4aa39f7c427d633190bcd6bf5a08994",
+      "bytes": 2131,
+      "sha256": "d502041864d89ee532233e1b15038958f85420e32b8c521c4a69c618ffb44e33",
       "owner": "storage"
     },
     {
@@ -3500,15 +3507,22 @@
     {
       "path": "backend/src/storage/presence_atomic.source.md",
       "mode": "100644",
-      "bytes": 10864,
-      "sha256": "635682e078fb5a637c1d2029d5204317cbcdae4c99d46f63eadc88ddfa4445eb",
+      "bytes": 12067,
+      "sha256": "618eb2662274517bcafbfbb89ec1aed47f0e45992e1cffe4585ec1aeef32c27d",
       "owner": "storage"
     },
     {
       "path": "backend/src/storage/presence_engine.rs",
       "mode": "100644",
-      "bytes": 11360,
-      "sha256": "a8210c92c1d274419c63874b7a08efeee2a926b725debaed940317b18aea83a6",
+      "bytes": 11667,
+      "sha256": "351130923bb82ccef8ccd230fab7791145eba8d8b19e2c130676c41a299d7670",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/presence_profile.rs",
+      "mode": "100644",
+      "bytes": 2014,
+      "sha256": "d3ba91d06405af6307792e0707c676fa9aebe63948e6c25a5654a6e87d2b8730",
       "owner": "storage"
     },
     {
@@ -3528,8 +3542,8 @@
     {
       "path": "backend/src/storage/presence_witness_repository.rs",
       "mode": "100644",
-      "bytes": 4511,
-      "sha256": "d1df722491ef74216f9c96e462ef3ffa049998f8771af9a92a1cdfaedc3304be",
+      "bytes": 3305,
+      "sha256": "c59f013a1f10a0b385d2325c718fa441ca1aa8d3770deabbef5d808176f19223",
       "owner": "storage"
     },
     {
@@ -3640,8 +3654,8 @@
     {
       "path": "backend/src/storage/recovery.rs",
       "mode": "100644",
-      "bytes": 18499,
-      "sha256": "006cedcb99b85ec3494e921d96aa0d4c54b1064a81cd46f085d797aa6a841f38",
+      "bytes": 18541,
+      "sha256": "8508da2e5763da0eb841b74d3197342b46d014f6b05354eee009893b006f7fdf",
       "owner": "storage"
     },
     {
@@ -3661,8 +3675,8 @@
     {
       "path": "backend/src/storage/stock.rs",
       "mode": "100644",
-      "bytes": 22631,
-      "sha256": "dcb33863d72656b00bc428121bcb7ec0e72fb494e11ea174e9b88a3e976b9ef9",
+      "bytes": 25220,
+      "sha256": "fda64b679f5789905d71aa62dc49126482ecd7bf159a6ccf80a598229b5034fb",
       "owner": "storage"
     },
     {
@@ -3808,8 +3822,8 @@
     {
       "path": "backend/src/storage/store.rs",
       "mode": "100644",
-      "bytes": 15767,
-      "sha256": "c04afc52a68766375317e0059cc8777aadeceddd84e53c7e7f82b67ae0c34d70",
+      "bytes": 16159,
+      "sha256": "c305f74de0a092d415207b02daea5955dec21477b05bb768917c9284f232fce9",
       "owner": "storage"
     },
     {
@@ -4291,8 +4305,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 36581,
-      "sha256": "3ead97d78aa895235b5a00424a65270bbef879b1b69cbf597ccfc5f122b60a34",
+      "bytes": 36662,
+      "sha256": "a10b56d25311a074bbc91570f2a186820a7cd045cf23fa4adf1e0b1eee160b06",
       "owner": "core-integration"
     },
     {
@@ -4347,8 +4361,8 @@
     {
       "path": "docs/rust-integration/dev-composition.md",
       "mode": "100644",
-      "bytes": 13876,
-      "sha256": "2a4056879d69c19fc6e0c08a7d61bdc41d0d68a7ab40df4f5d40d53cfe48e434",
+      "bytes": 14201,
+      "sha256": "0eb33c9a84a46b5009c142cfdc9c56c21f3135e3939fcc8b00b28051e2e67ef1",
       "owner": "core-integration"
     },
     {

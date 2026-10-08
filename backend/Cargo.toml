@@ -132,3 +132,7 @@ path = "src/providers/network/host_runtime/examples/ownership.rs"
 [[example]]
 name = "healthy-stock-retained-read"
 path = "../tools/rust-integration/examples/healthy_stock_retained_read.rs"
+
+[[example]]
+name = "presence-metadata-healthy"
+path = "src/storage/checks/presence-metadata-healthy.rs"

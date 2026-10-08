@@ -8,6 +8,10 @@ pub use cache_custody::*;
 mod commands;
 #[path = "homebox_stock_history.rs"]
 mod homebox_stock_history;
+#[path = "presence_engine.rs"]
+pub(crate) mod presence_engine;
+#[path = "presence_transaction.rs"]
+pub(crate) mod presence_transaction;
 #[path = "recovery.rs"]
 mod recovery;
 #[path = "stock.rs"]
@@ -34,6 +38,8 @@ pub struct StoreOptions {
     pub busy_timeout_ms: u64,
     /// Fresh-only opt-in profile; never upgrades an existing schema-5 database.
     pub stock_activity_profile: bool,
+    /// Source-only fresh profile; unavailable until independent historical custody exists.
+    pub presence_profile: PresenceProfileSelection,
 }
 impl Default for StoreOptions {
     fn default() -> Self {
@@ -41,6 +47,7 @@ impl Default for StoreOptions {
             allow_synthetic_bootstrap: false,
             busy_timeout_ms: 5_000,
             stock_activity_profile: false,
+            presence_profile: PresenceProfileSelection::Disabled,
         }
     }
 }
@@ -71,6 +78,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         runtime: R,
         options: StoreOptions,
     ) -> Result<Self> {
+        options.require_available_profile()?;
         if options.busy_timeout_ms > 60_000 {
             return Err(Error::new("invalid-contract", "Invalid storage timeout"));
         }

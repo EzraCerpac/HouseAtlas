@@ -12,6 +12,16 @@ mod migrations;
 mod native;
 mod numeric;
 mod ports;
+mod presence_profile;
+#[expect(
+    dead_code,
+    reason = "Historical custody has no configured independent owner; no profile-7 admission or recovery mount"
+)]
+mod presence_validation;
+mod presence_witness_repository;
+pub use presence_profile::{
+    PresenceProfileDefinition, PresenceProfileSelection, presence_profile_definition,
+};
 mod queue;
 mod repository;
 mod stock_activity;
