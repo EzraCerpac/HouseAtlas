@@ -17,7 +17,7 @@ function QuantityPreviewCurrent({ client, source }: { client: QuantityClient; so
   const [available, setAvailable] = useState(false), [busy, setBusy] = useState(false), [notice, setNotice] = useState('');
   const [uncertainty, setUncertainty] = useState('');
   const [quantity, setQuantity] = useState(''), [reason, setReason] = useState('');
-  const [prepared, setPrepared] = useState<QuantityPrepared | null>(null), [approval, setApproval] = useState<QuantityApproval | null>(null), [result, setResult] = useState<QuantityResult | null>(null);
+  const [prepared, setPrepared] = useState<QuantityPrepared | null>(null), [approval, setApproval] = useState<QuantityApproval | null>(null), [result, setResult] = useState<{ value: QuantityResult; prepared: QuantityPrepared } | null>(null);
   const [clock, setClock] = useState(0), [approvalAttempted, setApprovalAttempted] = useState(false), [dispatchAttempted, setDispatchAttempted] = useState(false);
   const section = useRef<HTMLElement | null>(null);
   const previewButton = useRef<HTMLButtonElement | null>(null), previewPanel = useRef<HTMLDivElement | null>(null);
@@ -41,11 +41,12 @@ function QuantityPreviewCurrent({ client, source }: { client: QuantityClient; so
   };
   const controller = () => { active.current?.abort(); const next = new AbortController(); active.current = next; return next.signal; };
   const current = (token: number) => token === revision.current && !!binding && client.isCurrent(binding);
-  const reset = () => { setPrepared(null); setApproval(null); setResult(null); setApprovalAttempted(false); setDispatchAttempted(false); };
+  // The native result stays bound to its original preview; session/source/render replacement clears or masks it.
+  const reset = () => { setPrepared(null); setApproval(null); setApprovalAttempted(false); setDispatchAttempted(false); };
   const parsed = /^[0-9]+$/.test(quantity) ? Number(quantity) : NaN;
   const inputValid = Number.isSafeInteger(parsed) && parsed >= 0 && !!reason.trim() && new TextEncoder().encode(reason).length <= 2048;
   const p = visible?.wire;
-  const native = result && prepared && sessionCurrent && client.isCurrentPrepared(prepared) ? result.result : null;
+  const native = result && sessionCurrent && client.isCurrentPrepared(result.prepared) ? result.value.result : null;
   return <section ref={section} tabIndex={-1} className="quantity-preview" style={{ minWidth: 0, overflowWrap: 'anywhere' }} aria-label="HomeBox quantity" aria-busy={busy}>
     <h3>HomeBox quantity</h3>
     <button type="button" className="btn" disabled={busy || !sessionCurrent} onClick={() => void run('Checking quantity availability…', async () => {
@@ -86,16 +87,16 @@ function QuantityPreviewCurrent({ client, source }: { client: QuantityClient; so
       <details><summary>Full original stock request</summary><pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{JSON.stringify(p.request, null, 2)}</pre></details>
       <p>Causality and atomic compare-and-set are not established.</p>
       {p.policy.approval === 'human-required' && !approval && <button type="button" className="btn" disabled={busy || approvalAttempted || !!heldUncertainty} onClick={() => void run('Requesting quantity approval…', async () => {
-        if (!visible || performance.now() >= visible.expiresAt) return; setApprovalAttempted(true); const token = revision.current;
+        if (!visible || performance.now() >= visible.expiresAt) throw new QuantityActionError('changed', 'Preview expired'); setApprovalAttempted(true); const token = revision.current;
         const value = await client.approve(visible, controller()); if (current(token)) setApproval(value);
       }, true)}>Approve this exact quantity change</button>}
       <button type="button" className="btn" disabled={busy || !!heldUncertainty || dispatchAttempted || (p.policy.approval === 'human-required' && !approval)} onClick={() => void run('Submitting quantity change…', async () => {
-        if (!visible || performance.now() >= visible.expiresAt) return; setDispatchAttempted(true); const token = revision.current;
-        const value = await client.dispatch(visible, approval, controller()); if (current(token)) setResult(value);
+        if (!visible || performance.now() >= visible.expiresAt) throw new QuantityActionError('changed', 'Preview expired'); setDispatchAttempted(true); const token = revision.current;
+        const value = await client.dispatch(visible, approval, controller()); if (current(token)) setResult({ value, prepared: visible });
       }, true)}>Submit quantity change</button>
     </div>}
     {native && <div role="status"><h4>Native result</h4>
-      <dl className="facts">{['state', 'verification', 'responseSuccess', 'readbackAgrees', 'observedAt', 'readbackDigest', 'causalityProven', 'atomicProviderCAS', 'nativeEditorRacePossible', 'code', 'retry'].filter(key => Object.hasOwn(native, key)).map(key => <div key={key}><dt>{({state:'State',verification:'Verification',responseSuccess:'Provider response success',readbackAgrees:'Original readback agrees',observedAt:'Observed at',readbackDigest:'Original readback digest',causalityProven:'Causality proven',atomicProviderCAS:'Atomic provider compare-and-set',nativeEditorRacePossible:'Native editor race possible',code:'Code',retry:'Native retry advice'} as Record<string,string>)[key]}</dt><dd>{native[key] === null ? 'Not supplied' : String(native[key])}</dd></div>)}
+      <dl className="facts">{['state', 'verification', 'operationId', 'requestId', 'responseSuccess', 'readbackAgrees', 'observedAt', 'readbackDigest', 'causalityProven', 'atomicProviderCAS', 'nativeEditorRacePossible', 'unknownScopeFenceRetained', 'code', 'retry'].filter(key => Object.hasOwn(native, key)).map(key => <div key={key}><dt>{({state:'State',verification:'Verification',operationId:'Operation identifier',requestId:'Request identifier',responseSuccess:'Provider response success',readbackAgrees:'Original readback agrees',observedAt:'Observed at',readbackDigest:'Original readback digest',causalityProven:'Causality proven',atomicProviderCAS:'Atomic provider compare-and-set',nativeEditorRacePossible:'Native editor race possible',unknownScopeFenceRetained:'Unknown scope fence retained',code:'Code',retry:'Native retry advice'} as Record<string,string>)[key]}</dt><dd>{native[key] === null ? 'Not supplied' : String(native[key])}</dd></div>)}
       {native['remoteActivity'] && <div><dt>Remote activity</dt><dd>{String((native['remoteActivity'] as Record<string, unknown>)['state'])}</dd></div>}</dl>
       <p>Cached quantity is unchanged. Readback agreement does not establish causality.</p>
     </div>}
