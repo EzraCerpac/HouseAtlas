@@ -88,6 +88,9 @@ impl AssetReviewStoreIdentity {
     pub fn matches_completion(&self, completion: &AssetReviewQualifiedCompletion) -> bool {
         Arc::ptr_eq(&self.0, &completion.instance)
     }
+    pub fn matches_upload_completion(&self, completion: &AssetUploadQualifiedCompletion) -> bool {
+        Arc::ptr_eq(&self.0, &completion.instance)
+    }
     pub(super) fn from_instance(instance: &Arc<()>) -> Self {
         Self(instance.clone())
     }
