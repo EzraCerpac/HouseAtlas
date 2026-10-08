@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "7c9c722e50378f043b8312edfd66fa9d30daf33699376fd1013ab832583ea0ba",
+  "sourceDigestSha256": "f6cbbdaf7be71b9a352c3bbb0c5dbc155ba1eecc00dca95d8ee34be217f32271",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -4914,8 +4914,8 @@
     {
       "path": "frontend/integration/quantity-client.ts",
       "mode": "100644",
-      "bytes": 12698,
-      "sha256": "22cd88a4de1302e2b6201031896bb814beab06daa744661ced93a82dce878331",
+      "bytes": 13200,
+      "sha256": "cd383baa610d8298960e029b3cdd1f03e54432097679bcca2bcc28b7908a1e2e",
       "owner": "web"
     },
     {
