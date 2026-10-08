@@ -10,6 +10,7 @@ import { createStockDispatch } from "./stock-dispatch";
 import { createAtlasGatewayDownloadResolver } from "../src/api/managed-download-client";
 import { createEditingClient } from "./editing-client";
 import { createQuantityClient } from "./quantity-client";
+import { createPinnedFileClient } from "./pinned-file-client";
 import { detectModelContext } from "../src/webmcp/browser";
 import { quantityAdmissionUrl, readQuantityAdmission, type QuantityAdmissionPort, type QuantityToolAdmission } from "../src/webmcp/quantity/tool";
 import type { Scope } from "../src/api/generated/contracts";
@@ -127,6 +128,16 @@ const quantity = createQuantityClient({
     return () => quantityEvents.removeEventListener("changed", changed);
   },
 });
+// Local HomeBox files use the same actual session allocation and completed view
+// scope; each discovery, capture and availability read is authorized anew.
+const pinnedFiles = createPinnedFileClient({
+  getSessionBinding: () => currentSession && currentQuantityScope
+    ? { session: currentSession, scope: currentQuantityScope } : null,
+  subscribeSessionBinding: changed => {
+    quantityEvents.addEventListener("changed", changed);
+    return () => quantityEvents.removeEventListener("changed", changed);
+  },
+});
 // The admission applies only while the client's own public identity is unchanged.
 const quantityAdmissionPort: QuantityAdmissionPort = {
   getSnapshot: () => currentQuantityAdmission && quantity.getBindingIdentity() === currentQuantityAdmission.bindingIdentity
@@ -213,6 +224,6 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
   }, []);
   // Keep the concrete editing port stable through view/catalog refreshes.
   // Each place admission and command obtains the actual request authority.
-  return <div className="lantern-integration"><SessionApp renderContent={(view, content, actions) => view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></div>;
+  return <div className="lantern-integration"><SessionApp renderContent={(view, content, actions) => view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></div>;
 }
 createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);
