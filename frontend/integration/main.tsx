@@ -10,6 +10,8 @@ import { createStockDispatch } from "./stock-dispatch";
 import { createAtlasGatewayDownloadResolver } from "../src/api/managed-download-client";
 import { createEditingClient } from "./editing-client";
 import { createQuantityClient } from "./quantity-client";
+import { detectModelContext } from "../src/webmcp/browser";
+import { quantityAdmissionUrl, readQuantityAdmission, type QuantityAdmissionPort, type QuantityToolAdmission } from "../src/webmcp/quantity/tool";
 import type { Scope } from "../src/api/generated/contracts";
 import type { AtlasSessionClient, AtlasSessionInfo } from "../src/app/session";
 import "../src/styles/atlas.css";
@@ -46,8 +48,12 @@ const nativeSessions = createAtlasSessionClient({
 });
 let currentSession: AtlasSessionInfo | null = null;
 let currentQuantityScope: Scope | null = null;
+/** Read-only tool admission for the current scope; cleared with every scope clear. */
+let currentQuantityAdmission: QuantityToolAdmission | null = null;
 const quantityEvents = new EventTarget();
 const quantityChanged = () => quantityEvents.dispatchEvent(new Event("changed"));
+// Native browser support only; undefined sends no admission request and registers nothing.
+const modelContext = detectModelContext(document);
 let sessionGeneration = 0;
 const nativeSignOut = nativeSessions.signOut;
 const nativeLocalAccess = nativeSessions.localAccess;
@@ -57,6 +63,7 @@ const sessions: AtlasSessionClient = {
   async session(signal) {
     const generation = ++sessionGeneration;
     currentSession = null;
+    currentQuantityAdmission = null;
     currentQuantityScope = null;
     quantityChanged();
     const value = await nativeSessions.session(signal);
@@ -66,6 +73,7 @@ const sessions: AtlasSessionClient = {
   async signIn(credentials, signal) {
     const generation = ++sessionGeneration;
     currentSession = null;
+    currentQuantityAdmission = null;
     currentQuantityScope = null;
     quantityChanged();
     const value = await nativeSessions.signIn(credentials, signal);
@@ -75,6 +83,7 @@ const sessions: AtlasSessionClient = {
   ...(nativeSignOut ? { async signOut(signal: AbortSignal) {
     ++sessionGeneration;
     currentSession = null;
+    currentQuantityAdmission = null;
     currentQuantityScope = null;
     quantityChanged();
     await nativeSignOut(signal);
@@ -86,6 +95,7 @@ const sessions: AtlasSessionClient = {
     ...(nativeLocalSignIn ? { async signIn(signal: AbortSignal) {
       const generation = ++sessionGeneration;
       currentSession = null;
+      currentQuantityAdmission = null;
       currentQuantityScope = null;
       quantityChanged();
       const value = await nativeLocalSignIn(signal);
@@ -95,6 +105,7 @@ const sessions: AtlasSessionClient = {
     ...(nativeProxySignIn ? { async proxySignIn(signal: AbortSignal) {
       const generation = ++sessionGeneration;
       currentSession = null;
+      currentQuantityAdmission = null;
       currentQuantityScope = null;
       quantityChanged();
       const value = await nativeProxySignIn(signal);
@@ -116,6 +127,16 @@ const quantity = createQuantityClient({
     return () => quantityEvents.removeEventListener("changed", changed);
   },
 });
+// The admission applies only while the client's own public identity is unchanged.
+const quantityAdmissionPort: QuantityAdmissionPort = {
+  getSnapshot: () => currentQuantityAdmission && quantity.getBindingIdentity() === currentQuantityAdmission.bindingIdentity
+    ? currentQuantityAdmission : null,
+  subscribe: changed => {
+    quantityEvents.addEventListener("changed", changed);
+    const unsubscribe = quantity.subscribeSessionBinding(changed);
+    return () => { quantityEvents.removeEventListener("changed", changed); unsubscribe(); };
+  },
+};
 const nativeClient = createAtlasClient({
   bootstrap: root.dataset.bootstrapUrl ?? "/api/atlas/view",
   home: scope => `/api/atlas/homes/${encodeURIComponent(scope.workspaceId)}/${encodeURIComponent(scope.homeId)}/view`,
@@ -130,6 +151,7 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
       const originalSessionGeneration = sessionGeneration;
       const sameSession = () => originalSession !== null && currentSession === originalSession
         && sessionGeneration === originalSessionGeneration;
+      currentQuantityAdmission = null;
       currentQuantityScope = null;
       quantityChanged();
       setAdmission(null);
@@ -156,8 +178,31 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
         }
       }
       if (!signal.aborted && attempt === generation && sameSession()) {
+        currentQuantityAdmission = null;
         currentQuantityScope = view.status === "ready" ? view.scope : null;
         quantityChanged();
+        const quantityScope = currentQuantityScope;
+        if (quantityScope && modelContext) {
+          try {
+            const response = await fetch(quantityAdmissionUrl(quantityScope), {
+              method: "GET", credentials: "same-origin", cache: "no-store", redirect: "error", signal,
+              headers: { Accept: "application/json" },
+            });
+            // Any non-success status is no admission; there is no fallback.
+            const row = response.ok ? await readQuantityAdmission(response, quantityScope, signal) : null;
+            if (!response.ok) await response.body?.cancel();
+            if (row && !signal.aborted && attempt === generation && sameSession() && currentQuantityScope === quantityScope) {
+              const bindingIdentity = quantity.getBindingIdentity();
+              if (bindingIdentity !== null) {
+                currentQuantityAdmission = Object.freeze({ ...row, bindingIdentity });
+                quantityChanged();
+              }
+            }
+          } catch (error) {
+            if (signal.aborted) throw error;
+            // Keep the view; the quantity tool stays unregistered.
+          }
+        }
       }
       return view;
     };
@@ -168,6 +213,6 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
   }, []);
   // Keep the concrete editing port stable through view/catalog refreshes.
   // Each place admission and command obtains the actual request authority.
-  return <div className="lantern-integration"><SessionApp renderContent={(view, content, actions) => view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} /> : content} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></div>;
+  return <div className="lantern-integration"><SessionApp renderContent={(view, content, actions) => view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></div>;
 }
 createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);
