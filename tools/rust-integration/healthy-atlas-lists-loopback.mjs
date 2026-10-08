@@ -195,6 +195,11 @@ try {
     assert.equal(nativeGeometry.wire.commandId,geometryRequest.commandId);assert.equal(nativeGeometry.wire.requestId,geometryRequest.requestId);assert.equal(nativeGeometry.wire.status,'read');assert.equal(nativeGeometry.wire.replayed,false);assert.deepEqual(nativeGeometry.wire.resolvedScope,view.scope);
     assert.deepEqual(nativeGeometry.wire.data,{records:geometryRows,nextCursor:null,sourceStatus:'current'});
     assert.deepEqual(JSON.parse(nativeGeometry.visible),nativeGeometry.wire,'Actual geometry metadata committed visibly before native tool return');
+    const hidePoint=await evaluate(`(()=>{const button=document.querySelector('.stock-completion-header button');const rect=button.getBoundingClientRect();const point={x:rect.x+rect.width/2,y:rect.y+rect.height/2};return {...point,hit:document.elementFromPoint(point.x,point.y)===button};})()`);
+    assert(hidePoint.hit,'Native mouse reaches the visible result control');
+    await send('Input.dispatchMouseEvent',{type:'mousePressed',x:hidePoint.x,y:hidePoint.y,button:'left',clickCount:1});
+    await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:hidePoint.x,y:hidePoint.y,button:'left',clickCount:1});
+    await until(async()=>await evaluate(`document.querySelector('.stock-completion-header button')?.getAttribute('aria-expanded')==='false'`),'User hides the acknowledged command result');
     const roomsPoint=await evaluate(`(()=>{const button=Array.from(document.querySelectorAll('.nav-btn')).find(node=>node.textContent.trim()==='Rooms & places');const rect=button.getBoundingClientRect();return {x:rect.x+rect.width/2,y:rect.y+rect.height/2};})()`);
     await send('Input.dispatchMouseEvent',{type:'mousePressed',...roomsPoint,button:'left',clickCount:1});
     await send('Input.dispatchMouseEvent',{type:'mouseReleased',...roomsPoint,button:'left',clickCount:1});
@@ -260,7 +265,7 @@ try {
       const fit=await evaluate('({width:innerWidth,scrollWidth:document.documentElement.scrollWidth})');
       assert(fit.scrollWidth<=fit.width+1,'Open evidence facts fit actual viewport');evidenceResponsive.push(fit);
     }
-    geometryMetadata={profile:fixtureProfile,nativeGeometry,retained,ui,originalGeometry,originalAsset,evidenceReads,evidenceResponsive};
+    geometryMetadata={profile:fixtureProfile,nativeGeometry,resultVisibility:{userHidden:true,input:{event:'native mouse click',target:'.stock-completion-header button',point:{x:hidePoint.x,y:hidePoint.y},hitConfirmed:hidePoint.hit}},retained,ui,originalGeometry,originalAsset,evidenceReads,evidenceResponsive};
     if(process.env.HOUSEATLAS_SCREENSHOT_PREFIX){const screenshot=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(process.env.HOUSEATLAS_SCREENSHOT_PREFIX+'-geometry-metadata.png',Buffer.from(screenshot.data,'base64'));}
   }
   assert.equal(runtimeErrors.length,0);

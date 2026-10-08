@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "1053e98e750df68da00cb78f5e99fa2a58d52bf2ac93255eca8baf19978eeace",
+  "sourceDigestSha256": "27b720406e1837d412689d8b578ea28ec08d5c053ee537c34c8d5ef05372338e",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5523,8 +5523,8 @@
     {
       "path": "frontend/src/styles/stock.css",
       "mode": "100644",
-      "bytes": 425,
-      "sha256": "f413831f30a51d12443583795110b91e5d51925b6fa640f111871dfaa51ef15a",
+      "bytes": 616,
+      "sha256": "886c7d42562a5da34f1b41cc6b823a36fa44082edb9e7e30979e27ea25e606af",
       "owner": "web"
     },
     {
@@ -5558,8 +5558,8 @@
     {
       "path": "frontend/src/webmcp/coverage/CommandCoverageBoundary.tsx",
       "mode": "100644",
-      "bytes": 3148,
-      "sha256": "29c119db83cb288d62a30604b5c60d1165996dc65f986ab254eec5df1f756e5a",
+      "bytes": 3658,
+      "sha256": "f6e2e0121211abcb370b8526df948b3541c514f4985d9d3a4a09f9ed27b66422",
       "owner": "webmcp"
     },
     {
@@ -6608,8 +6608,8 @@
     {
       "path": "tools/rust-integration/healthy-atlas-lists-loopback.mjs",
       "mode": "100644",
-      "bytes": 32579,
-      "sha256": "c5e558ff1ba903fdbc17984de17d852af5376f613a8ff39a4e6f999fefee46c1",
+      "bytes": 33558,
+      "sha256": "c396ba6d4bdadf558af1486dbe149a60b4dcaed03bbc9f857e77a972117228d0",
       "owner": "core-integration"
     },
     {

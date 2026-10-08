@@ -1,4 +1,4 @@
-import { Component, useMemo, type ReactNode } from "react";
+import { Component, useId, useMemo, useState, type ReactNode } from "react";
 import { StockWebMcpBoundary, type StockWebMcpBoundaryProps } from "../StockWebMcpBoundary.js";
 import type { StockCompletion, StockSessionPort } from "../stock.js";
 import type { RenderIdentity } from "../useCommittedResult.js";
@@ -13,12 +13,23 @@ export function CanonicalCommandResult({ completion, sessions, renderIdentity }:
   readonly sessions?: StockSessionPort;
   readonly renderIdentity?: RenderIdentity;
 }) {
+  const bodyId = useId();
+  const [hiddenCompletion, setHiddenCompletion] = useState<StockCompletion | null>(null);
   if (!completion) return null;
+  const hidden = hiddenCompletion === completion;
   return <section className="stock-completion" aria-label="Command result" data-tool-family={completion.toolName}>
-    <h2>{completion.request.commandId}</h2>
-    <pre role="status" aria-live="polite">{JSON.stringify(completion.result, null, 2)}</pre>
-    <IssuedDownloadLink download={completion.download ?? null} deadline={completion.downloadDeadline ?? null} />
-    {sessions && <SavedReceipt completion={completion} sessions={sessions} {...(renderIdentity !== undefined ? { renderIdentity } : {})} />}
+    <div className="stock-completion-header">
+      <h2>{completion.request.commandId}</h2>
+      <button type="button" aria-controls={bodyId} aria-expanded={!hidden}
+        onClick={() => setHiddenCompletion(hidden ? null : completion)}>
+        {hidden ? "Show result" : "Hide result"}
+      </button>
+    </div>
+    <div id={bodyId} hidden={hidden}>
+      <pre role="status" aria-live="polite">{JSON.stringify(completion.result, null, 2)}</pre>
+      <IssuedDownloadLink download={completion.download ?? null} deadline={completion.downloadDeadline ?? null} />
+      {sessions && <SavedReceipt completion={completion} sessions={sessions} {...(renderIdentity !== undefined ? { renderIdentity } : {})} />}
+    </div>
   </section>;
 }
 
