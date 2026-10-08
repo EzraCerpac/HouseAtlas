@@ -52,3 +52,17 @@ impl QuantityInstallationStoreIdentity {
         Arc::ptr_eq(&self.0, &observation.instance)
     }
 }
+
+/// A quantity observation tied to the caller's already active Store transaction.
+/// The connection is deliberately private: consumers can only inspect the facts
+/// validated by the quantity installation validator.
+pub struct QuantityInstallationTransaction<'tx, 'p, P: StockActivityPrincipal> {
+    pub(super) observation: QuantityInstallationObservation<'p, P>,
+    pub(super) _connection: &'tx rusqlite::Connection,
+}
+
+impl<'tx, 'p, P: StockActivityPrincipal> QuantityInstallationTransaction<'tx, 'p, P> {
+    pub fn observation(&self) -> &QuantityInstallationObservation<'p, P> {
+        &self.observation
+    }
+}
