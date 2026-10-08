@@ -48,7 +48,7 @@ class Pipe {
           this.pending.delete(message.id); clearTimeout(pending.timer);
           message.error ? pending.reject(new Error(message.error.message)) : pending.resolve(message.result);
         } else if (message.method === 'Network.requestWillBeSent') observedUrls.push(message.params.request.url);
-        else if (message.method === 'Network.responseReceived') responses.push({ url: message.params.response.url, status: message.params.response.status });
+        else if (message.method === 'Network.responseReceived') responses.push({ url: message.params.response.url, status: message.params.response.status, requestId: message.params.requestId });
         else if (message.method === 'Runtime.exceptionThrown') runtimeErrors.push(message.params.exceptionDetails.text);
       }
     });
@@ -209,7 +209,47 @@ try {
     const payload=originalGeometry.payload,mapping=payload.mappings[0],ref=mapping.homeboxEntity;
     assert.deepEqual(ui.facts,[{'Record revision':'1','Producer version':'Not supplied','Export format':payload.exportFormat,'Imported':payload.importedAt,'Original asset ID':payload.originalAssetId+' · file availability not supplied by this read','Previous geometry ID':'Not supplied','Coordinate units':'unknown','Source scale':'Not supplied','Source transform':'Not supplied','Evidence IDs':payload.evidenceIds.join(', ')},{'Producer room':mapping.producerRoomId,'Mapping status':'proposed','Atlas identity ID':mapping.atlasId,'HomeBox source reference':[ref.workspaceId,ref.homeId,ref.key.sourceInstanceId,ref.key.collectionId,ref.key.sourceKind,ref.key.externalId].join(' / '),'Saved place match':'Synthetic cabinet','Mapping evidence IDs':mapping.evidenceIds.join(', ')}]);
     assert(ui.shapes.length>0&&ui.shapes.every(shape=>shape==='No shape'),'Metadata does not fabricate a reviewed shape');
-    geometryMetadata={profile:fixtureProfile,nativeGeometry,retained,ui,originalGeometry,originalAsset};
+    const originalEvidence=fixture.records.find(record=>record.recordType==='evidence'&&record.recordId===payload.evidenceIds[0]);
+    assert(originalEvidence,'Published geometry has an actual linked evidence record');
+    assert.deepEqual(persisted.records.find(record=>record.recordId===originalEvidence.recordId),originalEvidence,'Linked evidence is the unchanged SQLite bootstrap row');
+    const evidenceUrl=origin+prefix+'/records/evidence/'+originalEvidence.recordId;
+    const evidenceReads=[];
+    for(const context of ['geometry','mapping']){
+      const selector=`[data-evidence-context="${context}"] .linked-evidence[data-evidence-id="${originalEvidence.recordId}"]`;
+      assert.equal(responses.filter(response=>response.url===evidenceUrl).length,evidenceReads.length,'Evidence is loaded only by each explicit action');
+      const point=await evaluate(`(()=>{const button=document.querySelector(${JSON.stringify(selector+' button')});button.scrollIntoView({block:'center'});const rect=button.getBoundingClientRect();return {x:rect.x+rect.width/2,y:rect.y+rect.height/2};})()`);
+      await send('Input.dispatchMouseEvent',{type:'mousePressed',...point,button:'left',clickCount:1});
+      await send('Input.dispatchMouseEvent',{type:'mouseReleased',...point,button:'left',clickCount:1});
+      await until(async()=>await evaluate(`document.querySelector(${JSON.stringify(selector+' h3')})?.textContent==='Evidence'`),'Actual linked evidence renders for '+context);
+      const delivered=responses.filter(response=>response.url===evidenceUrl);
+      assert.equal(delivered.length,evidenceReads.length+1,'One actual authorized evidence GET per action');
+      assert.equal(delivered.at(-1).status,200);
+      const responseBody=await send('Network.getResponseBody',{requestId:delivered.at(-1).requestId});
+      assert.equal(responseBody.base64Encoded,false);
+      const wire=JSON.parse(responseBody.body);
+      assert.equal(wire.commandId,'atlas.evidence.get');assert.equal(wire.status,'read');assert.equal(wire.replayed,false);assert.deepEqual(wire.resolvedScope,view.scope);
+      assert.deepEqual(wire.data,{records:[{target:{authority:'atlas',recordType:'evidence',recordId:originalEvidence.recordId},revision:originalEvidence.revision,lifecycle:originalEvidence.lifecycle,payload:originalEvidence.payload}],nextCursor:null,sourceStatus:'current'});
+      const displayed=await evaluate(`(()=>{const panel=document.querySelector(${JSON.stringify(selector)});return {summary:panel.querySelector('summary').textContent,text:panel.innerText,facts:Object.fromEntries(Array.from(panel.querySelectorAll('dl > div')).map(row=>[row.querySelector('dt').textContent,row.querySelector('dd').textContent])),references:panel.querySelector('ul[aria-label="Original evidence references"]')?.innerText??null,anchors:panel.querySelectorAll('a').length};})()`);
+      assert.equal(displayed.summary,'Evidence '+originalEvidence.recordId+' · '+originalEvidence.lifecycle);
+      assert(displayed.text.includes(originalEvidence.payload.statement));
+      assert(displayed.text.includes(originalEvidence.payload.provenance.factAt));
+      assert(displayed.text.includes(originalEvidence.payload.provenance.retrievedAt));
+      assert(displayed.text.includes(originalEvidence.payload.provenance.evidenceBasis));
+      assert(displayed.text.includes(originalEvidence.payload.provenance.uncertainty.status));
+      const provenance=originalEvidence.payload.provenance;
+      assert.deepEqual(displayed.facts,{'Atlas read status':'current','Record revision':String(originalEvidence.revision),'Lifecycle':originalEvidence.lifecycle,'Statement':originalEvidence.payload.statement,'Supersedes evidence IDs':'None supplied','Evidence basis':provenance.evidenceBasis,'Original fact date':provenance.factAt,'Retrieved':provenance.retrievedAt,'Source reference':'Not supplied','Source revision':'Not supplied','Source confidence':'Not supplied','Vantage':'Not supplied','Uncertainty status':provenance.uncertainty.status,'Uncertainty explanation':'Not supplied'});
+      assert.equal(displayed.references,null,'Original empty references stay empty');assert.equal(displayed.anchors,0,'Saved references do not fabricate download links');
+      evidenceReads.push({context,wire,displayed});
+    }
+    assert.notEqual(evidenceReads[0].wire.requestId,evidenceReads[1].wire.requestId,'Server keeps distinct actual read request IDs');
+    const evidenceResponsive=[];
+    for(const width of [1440,834,390]){
+      await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:false});
+      await until(async()=>await evaluate(`innerWidth===${width}`),'Evidence viewport');
+      const fit=await evaluate('({width:innerWidth,scrollWidth:document.documentElement.scrollWidth})');
+      assert(fit.scrollWidth<=fit.width+1,'Open evidence facts fit actual viewport');evidenceResponsive.push(fit);
+    }
+    geometryMetadata={profile:fixtureProfile,nativeGeometry,retained,ui,originalGeometry,originalAsset,evidenceReads,evidenceResponsive};
     if(process.env.HOUSEATLAS_SCREENSHOT_PREFIX){const screenshot=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(process.env.HOUSEATLAS_SCREENSHOT_PREFIX+'-geometry-metadata.png',Buffer.from(screenshot.data,'base64'));}
   }
   assert.equal(runtimeErrors.length,0);
@@ -222,7 +262,7 @@ try {
     binarySha256: createHash('sha256').update(readFileSync(resolve(binary))).digest('hex'),
     frontendIndexSha256: createHash('sha256').update(readFileSync(join(root,'frontend/dist/index.html'))).digest('hex'),
     inputTrace: [{ event:'native mouse click', target:'.search-trigger' }, { event:'native keyDown', key:'Escape', code:'Escape', focused:'input[role=combobox]' }, { event:'native keyUp', key:'Escape', code:'Escape' }] };
-  const evidence={browser:version.product,provenance,fixtureProfile,geometryMetadata,native,lantern:{responsive,searchInputEscape:true,restoredFocus:true},admittedReads:result.admission.commandIds.length,listHandlers:result.collections.map(item=>({kind:item.kind,count:item.wire.data.records.length,commandId:item.wire.commandId})),exactEnvelopeInvokes:result.invokes,continuation:{freshFirstNonNull:true,nextNull:true,pageSize:1,distinctRecords:2,restToNativeWebMcp:true,exactVisibleBeforeReturn:true},filtered:{q:'ITEM',includeArchived:true,records:1},persisted:persisted.counts,observedRequests:observedUrls.length,scope:'Actual Rust/Access/SQLite/React healthy synthetic loopback TLS: all ten REST lists, exact ten invoke envelopes, one fresh nonnull cursor continuation through native WebMCP, one literal positive filter. No login/logout/write/MCP/provider/stopped control. '+(geometryMetadataProfile?' Public missing/blocked original and geometry metadata match exact native SQLite rows and actual native WebMCP; Rooms displays supplied metadata and exact proposed mapping while shape/position projection stays unavailable. Available original delivery and reviewed shapes remain unqualified.':' Populated asset and archived rows remain unqualified.')};
+  const evidence={browser:version.product,provenance,fixtureProfile,geometryMetadata,native,lantern:{responsive,searchInputEscape:true,restoredFocus:true},admittedReads:result.admission.commandIds.length,listHandlers:result.collections.map(item=>({kind:item.kind,count:item.wire.data.records.length,commandId:item.wire.commandId})),exactEnvelopeInvokes:result.invokes,continuation:{freshFirstNonNull:true,nextNull:true,pageSize:1,distinctRecords:2,restToNativeWebMcp:true,exactVisibleBeforeReturn:true},filtered:{q:'ITEM',includeArchived:true,records:1},persisted:persisted.counts,observedRequests:observedUrls.length,scope:'Actual Rust/Access/SQLite/React healthy synthetic loopback TLS: all ten REST lists, exact ten invoke envelopes, one fresh nonnull cursor continuation through native WebMCP, one literal positive filter. No login/logout/write/MCP/provider/stopped control. '+(geometryMetadataProfile?' Public missing/blocked original and geometry metadata match exact native SQLite rows and actual native WebMCP; Rooms displays supplied metadata and exact proposed mapping, and two explicit geometry/mapping evidence actions disclose the unchanged saved Atlas evidence statement/provenance through actual original Access/Store GETs; shape/position projection stays unavailable. Available original delivery and reviewed shapes remain unqualified.':' Populated asset and archived rows remain unqualified.')};
   if(process.env.HOUSEATLAS_EVIDENCE)writeFileSync(process.env.HOUSEATLAS_EVIDENCE,JSON.stringify(evidence,null,2)+'\n');
   console.log(JSON.stringify(evidence,null,2));
 

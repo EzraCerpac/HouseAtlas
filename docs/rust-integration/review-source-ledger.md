@@ -1,6 +1,6 @@
 # Per-thread source disposition ledger
 
-Each row is one unresolved GitHub review comment in the captured snapshot. Disposition reflects baseline `fd68e9325abd0dabb41c7874094c7ef423ba0327` plus the scoped composition corrections identified below; a fixed source finding remains unresolved in GitHub because review state was read-only. The SafeRendered finding is security-mitigated by fail-closed behavior, while successful production recovery still needs a populated independent Media peer.
+Each row is one unresolved GitHub review comment in the captured snapshot. Disposition reflects baseline `fd68e9325abd0dabb41c7874094c7ef423ba0327` plus the scoped composition corrections identified below; a fixed source finding remains unresolved in GitHub because review state was read-only. The SafeRendered historical finding remains mitigated by fail-closed recovery. Fresh review/upload producer code and concrete native archive policies now exist; cold-start and legacy recovery still require independently admitted physical origin and complete expected generation evidence.
 
 The delegation referenced 52 review threads. The available historical snapshot and fresh GitHub read both contain the same 53 unresolved roots among 78 historical threads (101 comments, including 23 replies); no genuine 52-comment baseline was available to identify an extra row. All 53 are retained below. No GitHub review state was changed. Baseline line references may move during composition.
 
@@ -31,7 +31,7 @@ Fifty-one findings are source-fixed, one has bounded-retention mitigation with r
 | PR #54 | [4209102331](https://github.com/EzraCerpac/HouseAtlas/pull/54#discussion_r4209102331) | 2026-10-07T16:02:42Z | `backend/src/ai/oauth.rs:924` | Checkpoint partial revocation results per session | Fixed in integrated source | `backend/src/ai/oauth.rs:944-987` |
 | PR #73 | [4209269304](https://github.com/EzraCerpac/HouseAtlas/pull/73#discussion_r4209269304) | 2026-10-07T16:19:45Z | `backend/src/providers/network/host_runtime/runtime.rs:144` | Reuse or remove staged rows after publication contention | Fixed in integrated source | `backend/src/providers/network/host_runtime/runtime.rs:166-175` |
 | PR #89 | [4209321376](https://github.com/EzraCerpac/HouseAtlas/pull/89#discussion_r4209321376) | 2026-10-07T16:24:51Z | `backend/src/lifecycle/provider_dispatch/durable_stock.rs:274` | Recheck access before returning sticky retention errors | Fixed in integrated source | `backend/src/lifecycle/provider_dispatch/durable_stock.rs:274-314` |
-| PR #71 | [4209400409](https://github.com/EzraCerpac/HouseAtlas/pull/71#discussion_r4209400409) | 2026-10-07T16:31:13Z | `backend/src/storage/upload_repository.rs:102` | Revalidate SafeRendered policy with Media evidence | Fail-closed production recovery; bounded live provenance and authenticated archive interfaces composed | `upload_repository calls the mandatory Upload policy callback; queue defaults unavailable. Actual host captures opaque producer provenance in media/recovery_policy.rs; config/recovery/media_policy.rs composes independently authenticated archive evidence. Production native origin/write/read/catalog policy and cold-start custody remain absent; serialized facts do not qualify recovery.` |
+| PR #71 | [4209400409](https://github.com/EzraCerpac/HouseAtlas/pull/71#discussion_r4209400409) | 2026-10-07T16:31:13Z | `backend/src/storage/upload_repository.rs:102` | Revalidate SafeRendered policy with Media evidence | Fresh native producer/policies implemented; legacy and cold-start recovery fail closed | `upload_repository calls the mandatory Upload policy callback; queue defaults unavailable. Actual host captures opaque producer provenance in media/recovery_policy.rs; config/recovery/media_policy.rs composes independently authenticated archive evidence. Concrete media/native_policy_archive.rs write/read/catalog policies consume actual opaque same-Store qualified review/upload completions and genuine proof/stage, with pre/post full catalog and fsync. Native deployment/physical-DB/archive/origin mapping plus complete independently admitted cold-start generation and historical/legacy producer proof remain required; serialized facts or candidate scans do not qualify them.` |
 | PR #89 | [4209544555](https://github.com/EzraCerpac/HouseAtlas/pull/89#discussion_r4209544555) | 2026-10-07T16:45:15Z | `backend/src/lifecycle/provider_dispatch/durable_stock.rs:360` | Authorize sticky state with the disclosure phase | Fixed in integrated source | `backend/src/lifecycle/provider_dispatch/durable_stock.rs:353-390` |
 | PR #77 | [4209570303](https://github.com/EzraCerpac/HouseAtlas/pull/77#discussion_r4209570303) | 2026-10-07T16:47:45Z | `backend/src/storage/stock_activity/transitions.rs:60` | Record producer ownership before committing the reservation | Fixed in integrated source | `backend/src/storage/stock_activity/transitions.rs:37-63` |
 | PR #71 | [4209592434](https://github.com/EzraCerpac/HouseAtlas/pull/71#discussion_r4209592434) | 2026-10-07T16:49:46Z | `backend/src/storage/stock_activity/transitions.rs:60` | Preserve producer eligibility after committing a reservation | Fixed in integrated source | `backend/src/storage/stock_activity/transitions.rs:37-63` |
@@ -71,3 +71,17 @@ remain in external integration evidence. This review-level finding is separate
 from the 53 thread roots and no GitHub review state was changed. The current
 full raw ledger, current PR refs and all replies are retained outside the source
 checkout for exact-candidate review.
+
+
+## Exact-source cleanup audit
+
+All 53 captured roots were rechecked against published commit
+`25b65e4a359363622a033ca64abf571d9e84e669`. The per-comment current symbol/line
+and SHA-256 evidence is retained with the private integration handoff, separately
+for AI/frontend and native provider/Storage/Network/Media sources. The original
+51 source-supported fixes, one bounded Network retention mitigation and one
+fail-closed historical Media mitigation remain distinct. Source support does
+not certify the held runtime classes or close GitHub review threads. The audit
+corrects the earlier claim that all Media write/read/catalog policy code is
+missing: fresh concrete policy and genuine completion producers are implemented;
+independent cold-start and legacy historical evidence remain required.

@@ -315,7 +315,7 @@ For the explicit geometry metadata read fixture, set
 composed candidate, then run the same healthy-atlas-lists-loopback script.
 It loads the original published optional-geometry snapshot through native
 bootstrap, retains eight records, compares the public geometry row with actual
-SQLite, and checks the Rooms metadata display. The original asset is missing
+SQLite, and checks the Rooms metadata display. Two explicit geometry/mapping View evidence actions read the unchanged linked Atlas evidence row through actual scoped GETs, preserve its fact/retrieval dates and uncertainty, and fit three responsive widths. No evidence read occurs before the actions. The original asset is missing
 and blocked. Geometry has no shape or placement; this qualifies metadata reads
 only. The standard six-record fixture remains unchanged.
 

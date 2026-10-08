@@ -309,3 +309,15 @@ remains separate. The conversion issues no qualifier proof or authority and
 implements no production preparation/readback port. Mandatory owner evidence
 for current authority, freshness, build/route, completeness, hidden-field PUT
 preservation and file membership/version remains unavailable.
+
+
+Rooms now exposes the saved Atlas evidence records referenced by geometry and
+producer-room mappings. Each explicit View evidence action performs one scoped
+stock evidence GET, validates the full frozen result and exact target/scope,
+and displays original statement, evidence basis, fact/retrieval dates,
+uncertainty and source references. Active and tombstoned evidence keep their
+saved lifecycle. Missing, denied and unavailable reads remain distinct. Asset,
+attachment and external references are plain text; no file availability or AI
+answer citation is inferred. Reads abort and visible results are masked on
+original view/session changes. The unchanged optional-geometry fixture supplies
+a real saved evidence row for the ordinary two-action TLS browser positive.
