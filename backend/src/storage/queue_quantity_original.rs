@@ -312,6 +312,7 @@ impl crate::app::Store {
         T: read::Transport,
         K: read::Clock + Send + Sync,
     {
+        capture.validate_attempt(self, preparation, prepared)?;
         let boundary = Arc::clone(&self.configured_authorization().0);
         if !Arc::ptr_eq(
             &boundary,
