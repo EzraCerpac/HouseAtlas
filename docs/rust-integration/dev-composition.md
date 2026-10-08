@@ -76,6 +76,13 @@ admission. Its named positive local-file example exercises those source APIs.
 The production source port still needs exact retained attachment membership,
 current version and measured-byte revalidation. Stock prepared disclosure and
 HTTP issue/redemption routes remain unmounted; no new capability is advertised.
+HomeBox fresh preparation/readback adapters now preserve bounded original bytes,
+exact native scope/target/GET/time, opaque owner evidence and qualified mapping.
+The source lane checks four preparations and three readbacks through actual
+contracts, with explicitly synthetic qualification. Genuine capture/qualification,
+complete references/impact/hidden-field proof and private retained-proof handoff
+with admission-time revalidation remain required. Digests provide integrity
+binding and do not grant authority, release credentials or activate a writer.
 Missing product areas include Core-only MCP download admission and download link
 UI, Core-only MCP Network query mounts, complete
 provider setup and UI, trusted AI configuration/startup callers and receipt identity,
