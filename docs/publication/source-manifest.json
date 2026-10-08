@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "5fc426f9f9bd455172e7a86e25f74e7fc8374505fceeaf8cc3215e96d1900041",
+  "sourceDigestSha256": "0828a09b6ae25e9a26443ef414ed8264a4c5d6f52f3abd93a3ccbeca0d2b75aa",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -1029,8 +1029,8 @@
     {
       "path": "backend/src/config/server.rs",
       "mode": "100644",
-      "bytes": 14042,
-      "sha256": "96e6d63fe58d0ceeed88f3087e350d3504d1cde6e7eeee21a56af08eb0c9962f",
+      "bytes": 14341,
+      "sha256": "166b718f75a597d82325f1f648525371d3bf529fa159823a3aa3571228d8f967",
       "owner": "core-integration"
     },
     {
@@ -1881,6 +1881,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/http/homebox_pinned_discovery.rs",
+      "mode": "100644",
+      "bytes": 9688,
+      "sha256": "7495b973441d1dd187dfab91a3a5bc6338f7f25abce6de36a6b7d8b120b61d60",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/http/homebox_pinned_files.rs",
       "mode": "100644",
       "bytes": 13963,
@@ -1911,8 +1918,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 39056,
-      "sha256": "658ede65492699d7e0cf3f77a3f9c978bd1779b795e4768ce251dd77fdd23f1b",
+      "bytes": 39292,
+      "sha256": "bdac8b034f56f92ea44c6dd96243a7af677da500e38ca51679ec66532946b898",
       "owner": "core-integration"
     },
     {
@@ -1925,8 +1932,8 @@
     {
       "path": "backend/src/http/operation_events.rs",
       "mode": "100644",
-      "bytes": 26144,
-      "sha256": "beaef1bc9ecfb10bd9daa74d94fd59b642e7ec57dbb40a5823384a606327f79d",
+      "bytes": 27512,
+      "sha256": "272652f3f2f0ccccdc331a222cd52f5ae3a8c9372baa748e545b93548bc98a2c",
       "owner": "core-integration"
     },
     {
@@ -2065,8 +2072,8 @@
     {
       "path": "backend/src/http/stock_mutations/presence_healthy.rs",
       "mode": "100644",
-      "bytes": 21236,
-      "sha256": "076e9f72b295d6ef60e7fa90f9da976425a79dc180baee8b87f397651a741103",
+      "bytes": 21683,
+      "sha256": "e82ec55423437140c5bd5e7e9f620adf1fda7e976f9083342dcbbe69ad8f386a",
       "owner": "core-integration"
     },
     {
@@ -2520,8 +2527,8 @@
     {
       "path": "backend/src/media/native_queued_upload.rs",
       "mode": "100644",
-      "bytes": 53469,
-      "sha256": "32c536f078e2948ee945f1dafeebab5d715fa0922313f31153ada4bceea94a16",
+      "bytes": 55914,
+      "sha256": "1e7d2c2250be9c4630b71db4f0661142469c5739fc7646867618b2aa5ea4c2f8",
       "owner": "media"
     },
     {
@@ -4081,8 +4088,8 @@
     {
       "path": "backend/src/storage/presence_atomic.source.md",
       "mode": "100644",
-      "bytes": 14320,
-      "sha256": "ba4198210b8c9c1572f609dc6281d11d3a9a97fafc0c23236c6738d416c8bd1a",
+      "bytes": 14347,
+      "sha256": "09907d5195f80656232cb94afddc00abfec1ab1400e6e1f0c58b79ca564e5ced",
       "owner": "storage"
     },
     {
@@ -4921,8 +4928,8 @@
     {
       "path": "docs/operations/persistent-server.md",
       "mode": "100644",
-      "bytes": 9337,
-      "sha256": "1e829fb9436aa79742f4677d3fe4c49f5e159418ecc86900bf665dbe9d982aaf",
+      "bytes": 9794,
+      "sha256": "71aed89957d3b4acbd40aec74aad7c2694701b7942bf67b2ef91bf7ba97b78a9",
       "owner": "core-integration"
     },
     {
@@ -5005,8 +5012,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 39981,
-      "sha256": "a3835c316c627b5d3491bc31a7c3b0ac94a4ceb666b42109c1f35b7775bfea45",
+      "bytes": 40436,
+      "sha256": "4fb24b7986067c3e14c5e4b5eaac8cec2b7332a09c3a0b10d2dfaca87d63a943",
       "owner": "core-integration"
     },
     {
@@ -5292,8 +5299,8 @@
     {
       "path": "frontend/integration/quantity-client.ts",
       "mode": "100644",
-      "bytes": 13349,
-      "sha256": "2d27884f608e6dc812f82f79fd1dd03d33a392152a7c5c6ff7dda55fdf8b4e8f",
+      "bytes": 14310,
+      "sha256": "58791ab83ac80567e1c6c96e88bdbe698b8ba2b3580b94b54c91c4d0b51eddb9",
       "owner": "web"
     },
     {
@@ -5558,8 +5565,8 @@
     {
       "path": "frontend/src/api/quantity-client.ts",
       "mode": "100644",
-      "bytes": 11638,
-      "sha256": "9fd201bff6e3ac03ffb951b8666241e180db3f8d778434a4c495f019680d8d35",
+      "bytes": 11969,
+      "sha256": "0dc1fa30db6173dd082b001e0a416ba07410e5d127965163670ab391ee8fe969",
       "owner": "web"
     },
     {
@@ -5852,8 +5859,8 @@
     {
       "path": "frontend/src/lantern/components/QuantityPreview.tsx",
       "mode": "100644",
-      "bytes": 14673,
-      "sha256": "285312e17d204c2f608fc71c957def3ade7b7b7912ca8d093720d619bf593589",
+      "bytes": 15393,
+      "sha256": "bc04e6739c9027f88fb6baafc7cb0fe15d4bad851488981e127a51f14f780978",
       "owner": "web"
     },
     {
@@ -6251,8 +6258,8 @@
     {
       "path": "frontend/src/webmcp/quantity/QuantityHandoff.tsx",
       "mode": "100644",
-      "bytes": 15566,
-      "sha256": "7f0ee55661d1ddd81142750a9665cf53bc725af9b6aa4746b5615fc30ab3bc26",
+      "bytes": 15625,
+      "sha256": "8f1051e91ddab0f7385e4ea4e7f10908ad5668ce1d4946b81298ee8ac76a800b",
       "owner": "webmcp"
     },
     {

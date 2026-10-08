@@ -13,6 +13,13 @@ houseatlas serve --server-config /canonical/private/server.json
 
 `serve` requires existing private native state and the exact compiled Access and Atlas schemas. It does not provision accounts, reset sessions or apply database migrations. The receipt binds deployment configuration and original database file identities. One descriptor lock owns the data directory until graceful HTTP drain finishes. SIGINT/SIGTERM request a five-second drain. Existing disposable fixture CLI remains separate.
 
+The configuration digest format `houseatlas-server-state/2` also binds the exact
+listener and MCP command selection. Earlier format-1 receipts fail strict reopen,
+including the previous-configuration check in `rebind-origin`. This source adds
+no receipt migration or automatic adoption; upgrading an existing installation
+requires a separately implemented and reviewed transition. Do not reinitialize
+an existing data directory to bypass that requirement.
+
 Server configuration is closed JSON with schemaVersion 1, deploymentId, dataDirectory, logDirectory (exact dataDirectory/logs), frontendDirectory, tlsCertificate, tlsPrivateKey, explicit nonzero listen address, exact HTTPS origin matching that port, homes[{workspaceId,homeId,label}], and mcpCommands (`read-only` or `existing-editor-commands`). All paths must be absolute and normal; selected configuration and private key must be canonical regular private files owned by the service user. No TLS material is generated. The frontend directory must use its canonical path.
 
 Provisioning is closed private JSON: schemaVersion 1 and users[{userId,actorId,username,password,memberships[{workspaceId,homeId,role}]}]. Roles use existing viewer/editor values. Passwords are explicit operator input, hashed using the existing Access implementation, then zeroized in the provisioning owner. Do not store real provisioning packets in Git or logs. The provisioning file is not read by normal serve.

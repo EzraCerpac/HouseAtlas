@@ -7,6 +7,7 @@ mod auth;
 pub mod contracts;
 mod editing;
 mod headers;
+mod homebox_pinned_discovery;
 mod homebox_pinned_files;
 pub use homebox_pinned_files::PinnedHomeBoxFileBinding;
 mod intake;
@@ -871,6 +872,7 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/media/pinned-homebox/{workspace_id}/{home_id}/{token}", get(homebox_pinned_files::redeem).head(homebox_pinned_files::redeem).fallback(auth::session_head))
         .route("/api/atlas/media/pinned-homebox/{workspace_id}/{home_id}/{token}/availability", get(homebox_pinned_files::availability).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/quantity-tool-admission", get(quantity_tool_admission::admission).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/homebox-pinned-file-admission", get(homebox_pinned_discovery::admission).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/invoke", get(agents::invoke).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/commands", post(stock_mutations::command))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/assets", post(upload_asset::command))

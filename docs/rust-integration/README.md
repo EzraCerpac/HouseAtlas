@@ -226,7 +226,6 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     cargo run --locked -p houseatlas-backend --example healthy-native-upload-policy-archive
     cargo run --locked -p houseatlas-backend --example healthy-stock-retained-read
     cargo run --locked -p houseatlas-backend --example presence-metadata-healthy
-    cargo test --offline --locked -p houseatlas-backend --lib http::stock_mutations::presence_healthy::healthy_configured_presence_binding_single -- --exact --nocapture
     cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_capture_healthy::healthy_fixed_native_get_captures_preserve_originals -- --exact --test-threads=1
     cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_capture_healthy::healthy_captured_members_into_existing_fresh_inputs -- --exact --test-threads=1
     cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_query_healthy::healthy_configured_native_queries_retain_original_authority -- --exact --test-threads=1
@@ -253,11 +252,23 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-upload-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs
 
-The named configured Presence case uses one fresh synthetic schema-7 database,
-verified numeric-loopback TLS capture, one accepted Binding command and normal
-same-file reopen through its retained history catalog. It does not exercise
-replay, expiry, revocation, injected failure, populated restore, live providers
-or deployment. Inspect its complete body and helpers before running it.
+The separate named configured Presence case is an ordinary synthetic case
+under active diagnosis, outside the required passing verification sequence:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib http::stock_mutations::presence_healthy::healthy_configured_presence_binding_single -- --exact --nocapture
+```
+
+Its fresh schema-7 installation, numeric-loopback TLS capture and configured
+publication have completed. After fixture corrections the Binding command SQL
+commit and accepted-history capture also completed, but final dispatch returned
+AuthorityChanged. Final response and same-file reopen have no passing receipt.
+The assertions
+intend one accepted Binding and normal same-file reopen through its retained
+history catalog. Preserve the failing receipts while correcting the actual
+fixture or source defect. It exercises no replay, expiry, revocation, injected
+failure, populated restore, live provider or deployment. Inspect its complete
+body and helpers before any named execution.
 
 The inspected stock-write and upload loopback positives also accept the explicit
 `HOUSEATLAS_FIXTURE_PROFILE=native-media-archive` selection. It opens a dedicated
