@@ -80,7 +80,7 @@ export const healthyQuantityFixture = {
         },
         "atlasGuards": []
       },
-      "approvalReceiptId": null,
+      "approvalReceiptId": "00000000-0000-4000-8000-000000000010",
       "requestId": "00000000-0000-4000-8000-000000000008"
     },
     "observed": {
