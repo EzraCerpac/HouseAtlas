@@ -8,3 +8,6 @@ CREATE TABLE queue_original_preparations(
 ) STRICT;
 CREATE TRIGGER queue_original_preparation_no_update BEFORE UPDATE ON queue_original_preparations BEGIN SELECT RAISE(ABORT,'immutable original preparation'); END;
 CREATE TRIGGER queue_original_preparation_no_delete BEFORE DELETE ON queue_original_preparations BEGIN SELECT RAISE(ABORT,'permanent original preparation'); END;
+
+-- Fresh-only definition identity; never applied to an existing profile.
+UPDATE atlas_rust_metadata SET value='houseatlas-rust-storage/queue-original-preparation/1' WHERE key='lineage';
