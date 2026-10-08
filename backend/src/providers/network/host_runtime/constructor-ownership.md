@@ -3,11 +3,22 @@
 This leaf closes the independent typed-constructor custody gap without changing
 NetworkSettings, NetworkBinding, HostNetworkRuntime or SameStore disclosure APIs.
 Every SqliteNetworkSidecar and NetworkImmutableArchive constructor takes a
-nonblocking exclusive flock on the actual database inode before SQLite opens.
-The archive also locks its actual private segment-directory descriptor. These
-original leases remain alive through connection close; independent opens fail
-with the existing Upstream availability error. Binding/runtime Arc clones keep
-the original owner. Read-only evidence connections confer no custody authority.
+nonblocking exclusive flock on a persistent 0600 regular custody member before
+SQLite opens. Separate database and segment-directory members live in a private
+`.network-constructor-custody` child of the configured 0700 parent. Their names
+derive from the resource basename and type, and cooperating constructors never
+unlink or replace them. The archive holds both leases through connection close;
+independent opens, including other processes, fail with the existing Upstream
+availability error. Binding/runtime Arc clones keep the original owner.
+Read-only evidence connections confer no custody authority.
+
+The database file and segment directory still have their actual inode and
+descriptor identities checked before and after normal operations. Custody
+member identities, private modes and single-link status are likewise checked.
+This separate flock avoids conflict with SQLite's byte-range locks on Darwin;
+the database inode and directory descriptor themselves carry no flock. The
+guarantee applies to cooperating typed constructors, not arbitrary external
+SQLite or same-UID filesystem tooling.
 
 The implementation uses accepted Media PrivateDir descriptor checks and durable
 writes, SQLite NOFOLLOW, bounded descriptor-relative segment reads and NOREPLACE
@@ -61,8 +72,7 @@ All cases use empty fresh native stores, no credentials/grants/provider fallback
 compare applicable full logical inventory, close owners and remove temporary
 state. No broad suite, alias, crash, replay, expiry, revocation or path attack runs.
 
-The lock is a cooperative typed-constructor contract, not a claim against
-arbitrary external SQLite or same-UID filesystem tooling. SQLite still opens by
+The lock is a cooperative typed-constructor contract. SQLite still opens by
 path under the original private directory with inode checks before/after; a
 hostile external replacement race is not qualified here. Linux synthetic proof
 does not establish macOS qualification. External native archive origins, actual

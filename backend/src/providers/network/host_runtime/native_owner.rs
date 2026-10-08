@@ -1,8 +1,9 @@
-//! Original descriptor ownership shared by every Network constructor. These
-//! leases confer no Store/Access grant or reference-coverage completeness.
+//! Private custody shared by every Network constructor. These leases confer
+//! no Store/Access grant or reference-coverage completeness.
 use super::{ErrorCode, NetworkError};
 use crate::media::PrivateDir;
 use rustix::fs::{self as rfs, AtFlags, FlockOperation, Mode, OFlags, RenameFlags};
+use sha2::{Digest, Sha256};
 use std::{
     fs::File,
     io::Read,
@@ -21,12 +22,83 @@ fn member(name: &str) -> Result<()> {
     Ok(())
 }
 
-/// Own the actual private database inode, not a separately replaceable lockfile.
-/// Independent open descriptions compete for this same nonblocking OS lock,
-/// including other processes using these constructors. No Clone/public issuer.
+/// A durable custody member has its own open description, so its flock does not
+/// collide with SQLite's byte-range locks on Darwin. Its private parent and
+/// inode are checked on every operation; cooperating constructors never remove
+/// or replace it. Database and segment identities remain checked separately.
+struct CustodyLock {
+    directory: PrivateDir,
+    file: File,
+    name: String,
+    device: u64,
+    inode: u64,
+}
+impl CustodyLock {
+    fn open(parent: &PrivateDir, kind: &str, resource: &str) -> Result<Self> {
+        parent.check().map_err(|_| unavailable())?;
+        let directory = parent
+            .child(".network-constructor-custody", true)
+            .map_err(|_| unavailable())?;
+        let name = format!("{kind}-{:x}", Sha256::digest(resource.as_bytes()));
+        let file = File::from(
+            rfs::openat(
+                &directory.file,
+                &name,
+                OFlags::RDWR
+                    | OFlags::CREATE
+                    | OFlags::NOFOLLOW
+                    | OFlags::NONBLOCK
+                    | OFlags::CLOEXEC,
+                Mode::from_raw_mode(0o600),
+            )
+            .map_err(|_| unavailable())?,
+        );
+        let metadata = file.metadata().map_err(|_| unavailable())?;
+        if !metadata.is_file() || metadata.mode() & 0o777 != 0o600 || metadata.nlink() != 1 {
+            return Err(unavailable());
+        }
+        rfs::flock(&file, FlockOperation::NonBlockingLockExclusive).map_err(|_| unavailable())?;
+        let lock = Self {
+            directory,
+            file,
+            name,
+            device: metadata.dev(),
+            inode: metadata.ino(),
+        };
+        lock.check()?;
+        lock.file.sync_all().map_err(|_| unavailable())?;
+        lock.directory.sync().map_err(|_| unavailable())?;
+        parent.check().map_err(|_| unavailable())?;
+        Ok(lock)
+    }
+    fn check(&self) -> Result<()> {
+        self.directory.check().map_err(|_| unavailable())?;
+        let opened = self.file.metadata().map_err(|_| unavailable())?;
+        let named = rfs::statat(&self.directory.file, &self.name, AtFlags::SYMLINK_NOFOLLOW)
+            .map_err(|_| unavailable())?;
+        if !opened.is_file()
+            || opened.mode() & 0o777 != 0o600
+            || opened.nlink() != 1
+            || opened.dev() != self.device
+            || opened.ino() != self.inode
+            || rfs::FileType::from_raw_mode(named.st_mode) != rfs::FileType::RegularFile
+            || named.st_mode & 0o777 != 0o600
+            || named.st_nlink != 1
+            || named.st_dev as u64 != self.device
+            || named.st_ino as u64 != self.inode
+        {
+            return Err(unavailable());
+        }
+        Ok(())
+    }
+}
+
+/// Bind the actual private database inode while retaining a separate custody
+/// lock. Independent constructors and processes compete on that custody file.
 pub(super) struct DatabaseOwner {
     directory: PrivateDir,
     file: File,
+    custody: CustodyLock,
     name: String,
     device: u64,
     inode: u64,
@@ -61,10 +133,11 @@ impl DatabaseOwner {
         if !metadata.is_file() || metadata.mode() & 0o077 != 0 || metadata.nlink() != 1 {
             return Err(unavailable());
         }
-        rfs::flock(&file, FlockOperation::NonBlockingLockExclusive).map_err(|_| unavailable())?;
+        let custody = CustodyLock::open(&directory, "database", &name)?;
         let owner = Self {
             directory,
             file,
+            custody,
             name,
             device: metadata.dev(),
             inode: metadata.ino(),
@@ -79,6 +152,7 @@ impl DatabaseOwner {
         self.directory.path.join(&self.name)
     }
     pub(super) fn check(&self) -> Result<()> {
+        self.custody.check()?;
         self.directory.check().map_err(|_| unavailable())?;
         let opened = self.file.metadata().map_err(|_| unavailable())?;
         let named = rfs::statat(&self.directory.file, &self.name, AtFlags::SYMLINK_NOFOLLOW)
@@ -111,21 +185,24 @@ impl DatabaseOwner {
             .directory
             .child(&name, true)
             .map_err(|_| unavailable())?;
-        rfs::flock(&directory.file, FlockOperation::NonBlockingLockExclusive)
-            .map_err(|_| unavailable())?;
+        let custody = CustodyLock::open(&self.directory, "segments", &name)?;
         directory.sync().map_err(|_| unavailable())?;
         self.directory.sync().map_err(|_| unavailable())?;
-        Ok(SegmentOwner { directory })
+        let owner = SegmentOwner { directory, custody };
+        owner.check()?;
+        Ok(owner)
     }
 }
 
-/// Lock and use the actual segment directory descriptor. Segment operations
-/// stay relative to it and verify the bound hierarchy on both sides of IO.
+/// Bind the actual segment directory descriptor while its separate custody
+/// file excludes competing constructors. Operations remain descriptor-relative.
 pub(super) struct SegmentOwner {
     directory: PrivateDir,
+    custody: CustodyLock,
 }
 impl SegmentOwner {
     pub(super) fn check(&self) -> Result<()> {
+        self.custody.check()?;
         self.directory.check().map_err(|_| unavailable())
     }
     pub(super) fn read(&self, name: &str, ceiling: usize) -> Result<Vec<u8>> {
@@ -171,9 +248,11 @@ impl SegmentOwner {
     }
     pub(super) fn write_new(&self, name: &str, bytes: &[u8]) -> Result<()> {
         member(name)?;
+        self.check()?;
         self.directory
             .write_new(name, bytes, Mode::from_raw_mode(0o600))
-            .map_err(|_| unavailable())
+            .map_err(|_| unavailable())?;
+        self.check()
     }
     pub(super) fn seal(&self, active: &str, sealed: &str) -> Result<()> {
         member(active)?;
@@ -187,9 +266,13 @@ impl SegmentOwner {
             RenameFlags::NOREPLACE,
         )
         .map_err(|_| unavailable())?;
-        self.directory.sync().map_err(|_| unavailable())
+        self.directory.sync().map_err(|_| unavailable())?;
+        self.check()
     }
     pub(super) fn members(&self) -> Result<Vec<String>> {
-        self.directory.members().map_err(|_| unavailable())
+        self.check()?;
+        let members = self.directory.members().map_err(|_| unavailable())?;
+        self.check()?;
+        Ok(members)
     }
 }
