@@ -209,8 +209,16 @@ Production Cargo dependencies and lockfile remain unchanged.
 
 The test-only configured HTTPS loopback constructor and original publication
 preparation helper compile with the unit sources. They retain the actual TLS,
-Access and Store fences. The new ordinary configured publication/Binding/history
-case has not yet run; source compilation is not runtime acceptance.
+Access and Store fences. The named single ordinary configured
+publication/Binding/history case has run against a fresh synthetic database and real numeric loopback TLS provider. Its
+configured native capture and publication completed. The Binding command then
+first rejected the ordinary derived validation. The closed Presence correction
+now permits Present only with the original live engine frame or an exact opaque
+accepted-history match for explicit schema-7 reopen; ordinary validators stay
+strict. The next same-case attempt rejected an Intake/Validate mutation context
+before SQL commit. Committed data and accepted history remained empty. No
+successful Binding or same-file reopen is claimed; that native context failure
+is being diagnosed independently.
 
 `checks/presence-metadata-healthy.rs` inspects three published positive wire
 witness/qualification representation pairs, accepted integral numeric spellings,
@@ -229,7 +237,8 @@ name = "presence-metadata-healthy"
 path = "src/storage/checks/presence-metadata-healthy.rs"
 ```
 
-The new configured Presence phase, schema installation and history reopen have
-not yet been exercised by an ordinary runtime case. Lifecycle, revocation, replay
-and other held controls remain unrun; the representation positive does not
-certify those behaviors.
+Fresh schema installation and configured native capture/publication were exercised
+by that single ordinary case. The configured Binding phase and history reopen
+still have no passing runtime receipt. Lifecycle, revocation, replay and other
+held controls remain unrun; the representation positive does not certify those
+behaviors.

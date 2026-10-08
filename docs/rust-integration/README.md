@@ -226,6 +226,7 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     cargo run --locked -p houseatlas-backend --example healthy-native-upload-policy-archive
     cargo run --locked -p houseatlas-backend --example healthy-stock-retained-read
     cargo run --locked -p houseatlas-backend --example presence-metadata-healthy
+    cargo test --offline --locked -p houseatlas-backend --lib http::stock_mutations::presence_healthy::healthy_configured_presence_binding_single -- --exact --nocapture
     cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_capture_healthy::healthy_fixed_native_get_captures_preserve_originals -- --exact --test-threads=1
     cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_capture_healthy::healthy_captured_members_into_existing_fresh_inputs -- --exact --test-threads=1
     cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_query_healthy::healthy_configured_native_queries_retain_original_authority -- --exact --test-threads=1
@@ -251,6 +252,12 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-human-host-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-upload-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs
+
+The named configured Presence case uses one fresh synthetic schema-7 database,
+verified numeric-loopback TLS capture, one accepted Binding command and normal
+same-file reopen through its retained history catalog. It does not exercise
+replay, expiry, revocation, injected failure, populated restore, live providers
+or deployment. Inspect its complete body and helpers before running it.
 
 The inspected stock-write and upload loopback positives also accept the explicit
 `HOUSEATLAS_FIXTURE_PROFILE=native-media-archive` selection. It opens a dedicated
