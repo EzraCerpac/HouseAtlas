@@ -1,0 +1,443 @@
+//! Aggregate retained event transport. Registry selectors never carry authority.
+//! Genuine retained payloads supply selectors to the actual original Access
+//! producer before sealing; subsequent pages cannot acquire new grants.
+use super::{CheckedHeaders, Host, HttpResult, access_error, domain_error, evidence, failure};
+use crate::{
+    access as a,
+    app::{Access, RequestPrincipal},
+    domain as d, storage as s,
+};
+use axum::{
+    extract::{Extension, Query, State},
+    http::{Method, StatusCode, Uri},
+};
+use serde::Deserialize;
+use std::{cell::Cell, collections::VecDeque, sync::Arc};
+
+const MAX_ENTRIES: usize = 64;
+const MAX_SESSION_ENTRIES: usize = 4;
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct EventQuery {
+    home_id: a::CanonicalId,
+    #[serde(default = "default_page_size")]
+    page_size: usize,
+    cursor: Option<String>,
+}
+fn default_page_size() -> usize {
+    25
+}
+struct RetainedPage {
+    principal: Box<RequestPrincipal>,
+    continuation: s::StockRetainedContinuation,
+    scope: s::Scope,
+    session: [u8; 32],
+    actor: String,
+    page_size: usize,
+    access: Access,
+    owner: s::StockRetainedReadOwner,
+}
+#[derive(Default)]
+pub(super) struct EventRegistry {
+    entries: VecDeque<RetainedPage>,
+}
+impl EventRegistry {
+    fn take(
+        &mut self,
+        cursor: &str,
+        scope: &s::Scope,
+        session: &[u8; 32],
+        actor: &str,
+        page_size: usize,
+        access: &Access,
+    ) -> Result<RetainedPage, super::HttpFailure> {
+        let index = self
+            .entries
+            .iter()
+            .position(|entry| entry.continuation.cursor_id() == cursor)
+            .ok_or_else(|| failure(StatusCode::NOT_FOUND))?;
+        let entry = &self.entries[index];
+        if entry.scope != *scope
+            || entry.session != *session
+            || entry.actor != actor
+            || entry.page_size != page_size
+            || !Arc::ptr_eq(&entry.access, access)
+            || entry.continuation.scope() != scope
+            || entry.continuation.page_size() != page_size
+        {
+            return Err(failure(StatusCode::FORBIDDEN));
+        }
+        self.entries
+            .remove(index)
+            .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))
+    }
+    fn retain(&mut self, entry: RetainedPage) {
+        while self
+            .entries
+            .iter()
+            .filter(|old| old.session == entry.session)
+            .count()
+            >= MAX_SESSION_ENTRIES
+        {
+            if let Some(index) = self
+                .entries
+                .iter()
+                .position(|old| old.session == entry.session)
+            {
+                self.entries.remove(index);
+            }
+        }
+        while self.entries.len() >= MAX_ENTRIES {
+            self.entries.pop_front();
+        }
+        self.entries.push_back(entry);
+    }
+}
+struct EventAuthority<'a> {
+    principal: &'a RequestPrincipal,
+    scope: &'a s::Scope,
+    access: &'a Access,
+    owner: &'a s::StockRetainedReadOwner,
+    graph: &'a s::Snapshot,
+    phase: Cell<usize>,
+}
+impl s::Authorization for EventAuthority<'_> {
+    type Principal = RequestPrincipal;
+    fn authorize(
+        &self,
+        principal: &RequestPrincipal,
+        request: s::AuthorizationRequest<'_>,
+    ) -> s::Result<s::VerifiedActor> {
+        if !std::ptr::eq(principal, self.principal)
+            || request.scope != self.scope
+            || request.capability != s::Capability::ReadHistory
+            || request.source.is_some()
+            || request.source_partition.is_some()
+            || request.mutation.is_some()
+        {
+            return Err(s::Error::new(
+                "forbidden",
+                "Original event read authority changed",
+            ));
+        }
+        s::Authorization::authorize(
+            &crate::app::ReadAuthority(Arc::clone(self.access)),
+            principal,
+            request,
+        )
+    }
+}
+fn unavailable() -> s::Error {
+    s::Error::new("unavailable", "Retained event qualification unavailable")
+}
+fn closure(
+    graph: &s::Snapshot,
+    scope: &s::Scope,
+    commits: &[s::StockAtlasCommit],
+) -> s::Result<crate::contracts::semantics::ReferenceClosure> {
+    use d::stock::AtlasDerivation;
+    let mut graph = graph.clone();
+    for commit in commits {
+        for derivation in commit
+            .derivation
+            .iter()
+            .chain(commit.child_derivations.iter().flatten().flatten())
+        {
+            match derivation {
+                AtlasDerivation::BindingReview { original }
+                | AtlasDerivation::BindingRestore { original }
+                | AtlasDerivation::BindingRemap { original, .. }
+                | AtlasDerivation::AssetReview { original, .. } => {
+                    graph.records.push(original.clone())
+                }
+                _ => {}
+            }
+        }
+    }
+    let typed = serde_json::from_value(serde_json::to_value(graph)?)?;
+    let scope = serde_json::from_value(serde_json::to_value(scope)?)?;
+    let entries: Vec<_> = commits
+        .iter()
+        .flat_map(|commit| &commit.groups)
+        .flat_map(|group| &group.native_entries)
+        .collect();
+    let results: Vec<_> = commits
+        .iter()
+        .flat_map(|commit| &commit.groups)
+        .flat_map(|group| &group.native_results)
+        .collect();
+    let entries: Vec<crate::contracts::BatchMutationCommandsItem> =
+        serde_json::from_value(serde_json::to_value(entries)?)?;
+    let results: Vec<crate::contracts::MutationResult> =
+        serde_json::from_value(serde_json::to_value(results)?)?;
+    let closure = crate::contracts::semantics::reference_closure(
+        &scope,
+        &typed,
+        None,
+        &entries,
+        Some(&results),
+    )
+    .map_err(|_| unavailable())?;
+    if !closure.missing_record_refs.is_empty() {
+        return Err(unavailable());
+    }
+    Ok(closure)
+}
+impl s::StockRetainedReadAuthorization for EventAuthority<'_> {
+    fn retained_read_owner(&self) -> &s::StockRetainedReadOwner {
+        self.owner
+    }
+    fn authorize_stock_retained_read(
+        &self,
+        principal: &RequestPrincipal,
+        frame: s::StockRetainedReadFrame<'_>,
+    ) -> s::Result<s::VerifiedActor> {
+        let actor = s::Authorization::authorize(
+            self,
+            principal,
+            s::AuthorizationRequest {
+                scope: frame.scope,
+                capability: s::Capability::ReadHistory,
+                targets: frame.targets,
+                source: None,
+                source_partition: None,
+                mutation: None,
+            },
+        )?;
+        if frame.intent.is_some() || frame.commit.is_some() || frame.scope != self.scope {
+            return Err(unavailable());
+        }
+        let expected = match self.phase.get() {
+            0 | 2 => s::StockRetainedReadPhase::Intake,
+            1 => s::StockRetainedReadPhase::Prepare,
+            3 => s::StockRetainedReadPhase::Disclosure,
+            4 => s::StockRetainedReadPhase::Release,
+            _ => return Err(unavailable()),
+        };
+        if frame.phase != expected {
+            return Err(unavailable());
+        }
+        if frame.phase != s::StockRetainedReadPhase::Intake {
+            let current: Vec<_> = self
+                .graph
+                .records
+                .iter()
+                .filter(|record| {
+                    frame.targets.iter().any(|target| {
+                        target.record_type == record.record_type
+                            && target.record_id == record.record_id
+                    })
+                })
+                .collect();
+            if current.len() != frame.current_records.len()
+                || current.iter().any(|record| {
+                    !frame.current_records.iter().any(|other| {
+                        serde_json::to_value(record).ok() == serde_json::to_value(other).ok()
+                    })
+                })
+            {
+                return Err(unavailable());
+            }
+        }
+        let closure = closure(self.graph, frame.scope, frame.retained_commits)?;
+        let mut access = self.access.try_lock().map_err(|_| unavailable())?;
+        if frame.phase == s::StockRetainedReadPhase::Prepare {
+            // The concrete request wrapper allows only existing captured grants
+            // after sealing. These selectors never become grants themselves.
+            for source in &closure.source_refs {
+                let source = serde_json::from_value(serde_json::to_value(source)?)?;
+                principal
+                    .capture_source(&access, &source)
+                    .map_err(|_| unavailable())?;
+            }
+            for partition in &closure.source_partitions {
+                let partition = serde_json::from_value(serde_json::to_value(partition)?)?;
+                principal
+                    .capture_partition(&access, &partition)
+                    .map_err(|_| unavailable())?;
+            }
+        }
+        access
+            .with_read_authorization(
+                principal.principal.principal(),
+                |guard| -> a::AccessResult<()> {
+                    guard.authorize(principal.principal.scope(), a::Capability::ReadHistory)?;
+                    principal.release_guard(guard, &closure)
+                },
+            )
+            .map_err(|_| unavailable())?;
+        if frame.phase == s::StockRetainedReadPhase::Prepare {
+            principal.seal_source_capture();
+        }
+        self.phase.set(self.phase.get() + 1);
+        Ok(actor)
+    }
+}
+
+pub(super) async fn events(
+    State(host): State<Host>,
+    Query(query): Query<EventQuery>,
+    Extension(headers): Extension<CheckedHeaders>,
+    uri: Uri,
+) -> HttpResult {
+    if !(1..=100).contains(&query.page_size)
+        || query
+            .cursor
+            .as_ref()
+            .is_some_and(|cursor| cursor.len() > 128 || cursor.is_empty())
+    {
+        return Err(failure(StatusCode::UNPROCESSABLE_ENTITY));
+    }
+    tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
+        let mut core = host
+            .core
+            .lock()
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        let matches: Vec<_> = core
+            .homes
+            .iter()
+            .filter(|home| home.scope.home_id == query.home_id.as_str())
+            .collect();
+        let scope: d::Scope = match matches.as_slice() {
+            [home] => home.scope.clone(),
+            [] => return Err(failure(StatusCode::NOT_FOUND)),
+            _ => return Err(failure(StatusCode::SERVICE_UNAVAILABLE)),
+        };
+        let native_scope = crate::app::access_scope(&scope).map_err(access_error)?;
+        let storage_scope: s::Scope = serde_json::from_value(
+            serde_json::to_value(&scope).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
+        )
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        let url = format!(
+            "{}{}",
+            host.origin,
+            uri.path_and_query().map_or("/", |path| path.as_str())
+        );
+        let request =
+            evidence(&host.origin, &headers, &uri, &url, &Method::GET).map_err(access_error)?;
+        let (current, session) = {
+            let mut access = core
+                .access
+                .lock()
+                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+            let principal = access
+                .authorize(&request, &native_scope, a::Action::Read)
+                .map_err(access_error)?;
+            access
+                .authorize_storage(&principal, &native_scope, a::Capability::ReadHistory)
+                .map_err(access_error)?;
+            let session = access
+                .authenticated_session_binding(&principal)
+                .map_err(access_error)?;
+            (RequestPrincipal::new(principal), session)
+        };
+        let actor = current.principal.actor_id().as_str().to_owned();
+        let retained = query
+            .cursor
+            .as_ref()
+            .map(|cursor| {
+                host.operation_events
+                    .lock()
+                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
+                    .take(
+                        cursor,
+                        &storage_scope,
+                        &session,
+                        &actor,
+                        query.page_size,
+                        &core.access,
+                    )
+            })
+            .transpose()?;
+        let (principal, continuation, owner) = match retained {
+            Some(entry) => (entry.principal, Some(entry.continuation), entry.owner),
+            None => (Box::new(current), None, s::StockRetainedReadOwner::new()),
+        };
+        let graph =
+            super::reads::retained_read_snapshot(&mut core, &host, &principal, &storage_scope)?;
+        let access = Arc::clone(&core.access);
+        let store = core
+            .store
+            .get_mut()
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        if !Arc::ptr_eq(&store.configured_authorization().0, &access) {
+            return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+        }
+        let authority = EventAuthority {
+            principal: &principal,
+            scope: &storage_scope,
+            access: &access,
+            owner: &owner,
+            graph: &graph,
+            phase: Cell::new(0),
+        };
+        let contracts =
+            d::stock::NativeStockContract::new().map_err(super::stock_reads::http_error)?;
+        let prepared = store
+            .prepare_stock_operation_events_with_authorization(
+                &authority,
+                &principal,
+                &contracts,
+                principal.principal.retained(),
+                &storage_scope,
+                query.page_size,
+                continuation.as_ref(),
+            )
+            .map_err(|error| domain_error(crate::app::storage_error(error)))?;
+        let result = store
+            .disclose_stock_operation_events_with_authorization(
+                &authority, &principal, &contracts, &prepared,
+            )
+            .map_err(|error| domain_error(crate::app::storage_error(error)))?;
+        if authority.phase.get() != 5 {
+            return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+        }
+        let mut response = None;
+        let mut access_guard = access
+            .lock()
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        if access_guard
+            .authenticated_session_binding(&principal.principal)
+            .map_err(access_error)?
+            != session
+        {
+            return Err(failure(StatusCode::FORBIDDEN));
+        }
+        access_guard
+            .with_read_authorization(
+                principal.principal.principal(),
+                |guard| -> a::AccessResult<()> {
+                    guard.authorize(principal.principal.scope(), a::Capability::ReadHistory)?;
+                    let final_closure =
+                        closure(&graph, &storage_scope, prepared.retained_commits())
+                            .map_err(|_| a::AccessError::Unavailable)?;
+                    principal.release_guard(guard, &final_closure)?;
+                    let value = serde_json::to_value(&result.page)
+                        .map_err(|_| a::AccessError::Unavailable)?;
+                    response = Some(super::json_response(value));
+                    Ok(())
+                },
+            )
+            .map_err(access_error)?;
+        drop(access_guard);
+        if let Some(continuation) = result.continuation {
+            host.operation_events
+                .lock()
+                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
+                .retain(RetainedPage {
+                    principal,
+                    continuation,
+                    scope: storage_scope,
+                    session,
+                    actor,
+                    page_size: query.page_size,
+                    access,
+                    owner,
+                });
+        }
+        response.ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))
+    })
+    .await
+    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
+}
