@@ -4,7 +4,7 @@ import type { StockDispatchPort, StockSessionPort } from "../stock.js";
 /** Families routed by the native stock executor. Only owner-supplied command
  * IDs within these families bind; other provider peers remain unbound. */
 export type AtlasCommandFamily = "atlas_records" | "atlas_bindings" | "atlas_media_geometry"
-  | "homebox_entities_locations" | "network_queries";
+  | "homebox_entities_locations" | "homebox_tags_fields" | "homebox_maintenance" | "network_queries";
 export interface CommandFamilyBinding {
   readonly toolName: AtlasCommandFamily;
   /** Exact executable arms supplied by the service owner, never browser grants.
@@ -69,7 +69,8 @@ export function bindCommandFamilies(sessions: StockSessionPort, bindings: readon
  * This does not infer service support from catalog metadata or user roles. */
 export function bindAtlasService(service: StockDispatchPort, commandIds: readonly string[]): readonly CommandFamilyBinding[] {
   const names: readonly AtlasCommandFamily[] = [
-    "atlas_records", "atlas_bindings", "atlas_media_geometry", "homebox_entities_locations", "network_queries",
+    "atlas_records", "atlas_bindings", "atlas_media_geometry", "homebox_entities_locations",
+    "homebox_tags_fields", "homebox_maintenance", "network_queries",
   ];
   const bindings = names.map(toolName => ({ toolName, service,
     commandIds: commandIds.filter(id => stockFamilies.families.find(row => row.toolName === toolName)?.commandIds.includes(id)),
