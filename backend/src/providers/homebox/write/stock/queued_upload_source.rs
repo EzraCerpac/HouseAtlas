@@ -303,6 +303,31 @@ impl<'captured, 'p> QueuedUploadSource<'captured, 'p> {
     ) -> &Arc<crate::config::providers::queued_upload::OriginalQueuedUploadConfigured> {
         self.identity.bindings.installation.configured()
     }
+    /// Immutable original capture-window DATA, not a grant or current authority.
+    pub fn original_capture_deadline(
+        &self,
+        budget: &media::WorkBudget,
+    ) -> Result<Instant, StockErrorCode> {
+        budget
+            .check()
+            .map_err(|_| StockErrorCode::ResourceUnavailable)?;
+        self.check_frozen(&self.command, &self.authority)?;
+        let installation = &self.identity.bindings.installation;
+        let source_deadline = self
+            .identity
+            .started_at
+            .checked_add(installation.descriptor().freshness)
+            .ok_or(StockErrorCode::PreflightConflict)?;
+        let deadline = source_deadline.min(installation.original_capture_deadline()?);
+        self.check_frozen(&self.command, &self.authority)?;
+        budget
+            .check()
+            .map_err(|_| StockErrorCode::ResourceUnavailable)?;
+        if Instant::now() >= deadline {
+            return Err(StockErrorCode::PreflightConflict);
+        }
+        Ok(deadline)
+    }
     fn check_frozen(
         &self,
         command: &StockCommand,
