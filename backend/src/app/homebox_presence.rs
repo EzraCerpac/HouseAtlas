@@ -205,6 +205,14 @@ impl<'origin, 'principal> ConfiguredPresenceReleased<'origin, 'principal> {
     pub fn native_access_package_version(&self) -> &'static str {
         self.released.native_access_package_version()
     }
+    /// Compare only the Store allocation that published this capture. This
+    /// supplies no current command authority or historical witness admission.
+    pub fn matches_store<C: s::Contract, A: s::Authorization, R: s::Runtime>(
+        &self,
+        actual: &s::AtlasStore<C, A, R>,
+    ) -> bool {
+        self.released.matches_store(actual)
+    }
 }
 
 fn native_principal(principal: &a::Principal) -> &a::Principal {
