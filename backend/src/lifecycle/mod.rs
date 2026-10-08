@@ -1,4 +1,5 @@
 //! Minimum healthy fixture setup through the actual module APIs.
+pub mod ai_account;
 pub mod persistent;
 pub mod provider_dispatch;
 pub mod providers {

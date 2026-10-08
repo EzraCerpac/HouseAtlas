@@ -30,11 +30,22 @@ impl NativeAccountAiApplication {
     /// HTTP capture. Native assembly verifies their original Access/journal
     /// ownership. Pinned configuration remains an explicit input.
     pub fn assemble_account_only_reads(owners: StartupOwners) -> Result<Self, AiError> {
+        Self::assemble_with_custody(owners, None)
+    }
+
+    pub(crate) fn assemble_with_custody(
+        owners: StartupOwners,
+        custody: Option<Arc<crate::lifecycle::ai_account::NativeAccountCustody>>,
+    ) -> Result<Self, AiError> {
         let host = owners.host.clone();
         let enrollment = Arc::clone(&owners.enrollment);
         let startup = Arc::new(NativeAccountStartup::assemble(owners)?);
-        let account =
-            crate::http::ai_account::mounted_router(host.clone(), Arc::clone(&startup), enrollment);
+        let account = crate::http::ai_account::mounted_router(
+            host.clone(),
+            Arc::clone(&startup),
+            enrollment,
+            custody,
+        );
         let router = crate::http::router_with_ai(host, Some(account));
         Ok(Self { startup, router })
     }

@@ -68,6 +68,9 @@ fn main() -> Result<(), lifecycle::Failure> {
 async fn run() -> Result<(), lifecycle::Failure> {
     use houseatlas_backend::config::server::ServerCommand;
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
+    let (arguments, ai_account) =
+        houseatlas_backend::config::ai_account::ServerAccountSelection::from_arguments(&arguments)
+            .map_err(|error| format!("HouseAtlas AI account settings: {error}"))?;
     if let Some(command) = ServerCommand::from_arguments(&arguments)
         .map_err(|error| format!("HouseAtlas settings: {error}"))?
     {
@@ -86,7 +89,7 @@ async fn run() -> Result<(), lifecycle::Failure> {
                 );
                 Ok(())
             }
-            ServerCommand::Serve(config) => run_persistent(config).await,
+            ServerCommand::Serve(config) => run_persistent(config, ai_account).await,
             ServerCommand::Rebind { previous, config } => {
                 tokio::task::spawn_blocking(move || {
                     lifecycle::persistent::rebind_origin(&previous, &config)
@@ -198,6 +201,7 @@ async fn run_disposable(config: Config) -> Result<(), lifecycle::Failure> {
 
 async fn run_persistent(
     config: houseatlas_backend::config::server::ServerConfig,
+    ai_account: Option<houseatlas_backend::config::ai_account::ServerAccountSelection>,
 ) -> Result<(), lifecycle::Failure> {
     use houseatlas_backend::{
         config::server::read_tls_files,
@@ -207,7 +211,7 @@ async fn run_persistent(
         config.authentication,
         houseatlas_backend::config::server::ServerAuthentication::TrustedProxy { .. }
     ) {
-        return run_gateway(config).await;
+        return run_gateway(config, ai_account).await;
     }
     let config = Arc::new(config);
     if std::fs::canonicalize(&config.frontend_directory)? != config.frontend_directory {
@@ -224,6 +228,10 @@ async fn run_persistent(
     if !config.authentication.is_password() {
         host = host.with_loopback_local()?;
     }
+    let account_selected = ai_account.is_some();
+    let ai_account =
+        prepare_persistent_account(&host, ai_account, config.data_directory.clone()).await?;
+    let application = mount_persistent_account(host, ai_account).await?;
     let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
     let listener = TcpListener::bind(config.listen)?;
     listener.set_nonblocking(true)?;
@@ -232,9 +240,7 @@ async fn run_persistent(
         listener.local_addr()?,
         config.origin
     );
-    println!(
-        "HomeBox, Network and AI providers unconfigured; historical Media admission unavailable"
-    );
+    report_persistent_sources(account_selected);
     lease.event(ServerEvent::Listening)?;
     let handle = axum_server::Handle::new();
     let shutdown = handle.clone();
@@ -250,7 +256,7 @@ async fn run_persistent(
         .max_header_list_size(256 * 1024);
     let result = server
         .handle(handle)
-        .serve(router(host).into_make_service_with_connect_info::<std::net::SocketAddr>())
+        .serve(application.into_make_service_with_connect_info::<std::net::SocketAddr>())
         .await;
     signal.abort();
     result?;
@@ -262,6 +268,7 @@ async fn run_persistent(
 /// terminated by the separately registered native Tailscale gateway owner.
 async fn run_gateway(
     config: houseatlas_backend::config::server::ServerConfig,
+    ai_account: Option<houseatlas_backend::config::ai_account::ServerAccountSelection>,
 ) -> Result<(), lifecycle::Failure> {
     use houseatlas_backend::{
         app::trusted_gateway::{GatewayConnection, GatewaySocket},
@@ -286,29 +293,86 @@ async fn run_gateway(
     let ServerAuthentication::TrustedProxy { socket: path, .. } = &config.authentication else {
         return Err("Gateway mode absent".into());
     };
-    let (listener, socket) = GatewaySocket::bind(path, policy).await?;
     let host = Host::new(core, config.origin.clone(), files, Vec::new())?
-        .with_mcp_command_profile(config.command_profile())
-        .with_trusted_gateway(Arc::clone(&socket))?;
-    lease.event(ServerEvent::Listening)?;
-    println!(
-        "HouseAtlas private Unix gateway listening for {}",
-        config.origin
-    );
-    println!(
-        "HomeBox, Network and AI providers unconfigured; historical Media admission unavailable"
-    );
-    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
-    let result = axum::serve(
-        listener,
-        router(host).into_make_service_with_connect_info::<GatewayConnection>(),
-    )
-    .with_graceful_shutdown(async move {
-        tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {} }
-    })
+        .with_mcp_command_profile(config.command_profile());
+    let account_selected = ai_account.is_some();
+    let ai_account =
+        prepare_persistent_account(&host, ai_account, config.data_directory.clone()).await?;
+    // Gateway capture requires the actual bound socket authority. Existing AI
+    // files/owners were verified above; final composition precedes serving.
+    let (listener, socket) = GatewaySocket::bind(path, policy).await?;
+    let result = async {
+        let host = host.with_trusted_gateway(Arc::clone(&socket))?;
+        let application = mount_persistent_account(host, ai_account).await?;
+        lease.event(ServerEvent::Listening)?;
+        println!(
+            "HouseAtlas private Unix gateway listening for {}",
+            config.origin
+        );
+        report_persistent_sources(account_selected);
+        let mut terminate =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+        axum::serve(
+            listener,
+            application.into_make_service_with_connect_info::<GatewayConnection>(),
+        )
+        .with_graceful_shutdown(async move {
+            tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {} }
+        })
+        .await?;
+        Ok::<(), lifecycle::Failure>(())
+    }
     .await;
-    result?;
+    // The actual listener is dropped when the serving future finishes, including
+    // Host/mount/log/signal failures. Remove only this gateway's checked inode.
     socket.remove_after_shutdown()?;
+    result?;
     lease.event(ServerEvent::Shutdown)?;
     Ok(())
+}
+
+async fn prepare_persistent_account(
+    host: &Host,
+    selection: Option<houseatlas_backend::config::ai_account::ServerAccountSelection>,
+    data_root: std::path::PathBuf,
+) -> Result<Option<lifecycle::ai_account::SelectedAccountState>, lifecycle::Failure> {
+    match selection {
+        Some(selection) => {
+            let host = host.clone();
+            let selected = tokio::task::spawn_blocking(move || {
+                lifecycle::ai_account::prepare(&host, selection, &data_root)
+            })
+            .await?
+            .map_err(|_| "Selected existing AI account state unavailable")?;
+            Ok(Some(selected))
+        }
+        None => Ok(None),
+    }
+}
+
+async fn mount_persistent_account(
+    host: Host,
+    selected: Option<lifecycle::ai_account::SelectedAccountState>,
+) -> Result<axum::Router, lifecycle::Failure> {
+    match selected {
+        Some(selected) => {
+            let application = tokio::task::spawn_blocking(move || selected.mount(host))
+                .await?
+                .map_err(|_| "Selected existing AI account state unavailable")?;
+            Ok(application.router().clone())
+        }
+        None => Ok(router(host)),
+    }
+}
+
+fn report_persistent_sources(account_selected: bool) {
+    if account_selected {
+        println!(
+            "HomeBox and Network unconfigured; existing AI account observation selected; historical Media admission unavailable"
+        );
+    } else {
+        println!(
+            "HomeBox, Network and AI providers unconfigured; historical Media admission unavailable"
+        );
+    }
 }
