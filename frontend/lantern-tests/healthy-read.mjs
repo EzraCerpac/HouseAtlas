@@ -418,6 +418,57 @@ assert.deepEqual(pagedRead, { status: 'ready', records: [publicGeometry], source
 const undated = projectView({ ...view, entries: [{ ...original, maintenance: [{ entryId: 'unscheduled', name: 'Undated upkeep', description: '', scheduledDate: null, completedDate: null, cost: null }] }] });
 assert.equal(undated.house.tasks[0].status, 'unknown');
 assert.equal(undated.house.tasks[0].due, undefined);
+// Projected document and task handles follow source IDs, not list positions.
+const handleLink = { attachmentId: '00000000-0000-4000-8000-000000000a01', title: 'Synthetic manual',
+  kind: 'external-link', url: 'https://example.invalid/manual', archived: false };
+const handleFile = { attachmentId: '00000000-0000-4000-8000-000000000a02', title: 'Synthetic photo',
+  kind: 'stored-file', contentType: 'image/png', byteSize: 2048,
+  downloadHref: '/api/atlas/media/synthetic-photo', previewHref: null };
+const handleTask = { entryId: '00000000-0000-4000-8000-000000000a03', name: 'Synthetic filter check',
+  description: '', scheduledDate: '2026-11-01', completedDate: null, cost: null };
+const handleBefore = projectView({ ...view, entries: [{ ...original, attachments: [handleLink, handleFile], maintenance: [handleTask] }] });
+const docIdOf = (projection, attachment) => [...projection.attachments].find(([, value]) => value === attachment)[0];
+const taskIdOf = (projection, name) => projection.house.tasks.find(task => task.title === name).id;
+assert.equal(docIdOf(handleBefore, handleFile),
+  `doc-${JSON.stringify([original.workspaceId, original.homeId, original.key, handleFile.attachmentId])}`);
+assert.equal(taskIdOf(handleBefore, handleTask.name),
+  `mt-${JSON.stringify([original.workspaceId, original.homeId, original.key, handleTask.entryId])}`);
+const refreshedLink = { ...handleLink, title: 'Renamed manual', url: 'https://example.invalid/manual-v2' };
+const refreshedFile = { ...handleFile, downloadHref: null };
+const insertedLink = { ...handleLink, attachmentId: '00000000-0000-4000-8000-000000000a04', title: 'Inserted link' };
+const refreshedTask = { ...handleTask, description: 'Replaced filter', completedDate: '2026-11-02' };
+const insertedTask = { ...handleTask, entryId: '00000000-0000-4000-8000-000000000a05', name: 'Inserted upkeep' };
+const refreshedEntry = { ...original, attachments: [refreshedFile, insertedLink, refreshedLink], maintenance: [insertedTask, refreshedTask] };
+const handleAfter = projectView({ ...view, entries: [refreshedEntry] });
+for (const [before, after] of [[handleLink, refreshedLink], [handleFile, refreshedFile]]) {
+  const id = docIdOf(handleBefore, before);
+  assert.equal(docIdOf(handleAfter, after), id);
+  assert.equal(handleAfter.attachments.get(id), after);
+  assert.equal(handleAfter.entries.get(id), refreshedEntry);
+}
+assert.equal(handleAfter.docAccess.get(docIdOf(handleBefore, handleFile)).available, false);
+assert.equal(handleAfter.house.docs.find(doc => doc.id === docIdOf(handleBefore, handleLink)).url, refreshedLink.url);
+const taskId = taskIdOf(handleBefore, handleTask.name);
+assert.equal(taskIdOf(handleAfter, refreshedTask.name), taskId);
+assert.equal(handleAfter.house.tasks.find(task => task.id === taskId).status, 'done');
+assert.equal(handleAfter.entries.get(taskId), refreshedEntry);
+const handleOther = view.entries.find(entry => entry.key !== original.key);
+assert(handleOther);
+const sameIdTask = { ...handleTask, entryId: handleFile.attachmentId };
+const sharedEntries = [
+  { ...original, attachments: [handleFile], maintenance: [sameIdTask] },
+  { ...handleOther, attachments: [handleFile], maintenance: [sameIdTask] },
+];
+const shared = projectView({ ...view, entries: sharedEntries });
+assert.equal(new Set([...shared.house.docs, ...shared.house.tasks].map(record => record.id)).size, 4);
+assert(shared.house.docs.every(doc => shared.attachments.get(doc.id) === handleFile));
+assert(shared.house.docs.every((doc, i) => shared.entries.get(doc.id) === sharedEntries[i]));
+assert(shared.house.tasks.every((task, i) => shared.entries.get(task.id) === sharedEntries[i]));
+const otherHome = '00000000-0000-4000-8000-000000000099';
+const otherScope = projectView({ ...view, scope: { ...view.scope, homeId: otherHome },
+  entries: [{ ...original, homeId: otherHome, attachments: [handleFile], maintenance: [handleTask] }] });
+assert.notEqual(otherScope.house.docs[0].id, docIdOf(handleBefore, handleFile));
+assert.notEqual(otherScope.house.tasks[0].id, taskId);
 const alternate = { ...view, scope: { ...view.scope, homeId: '00000000-0000-4000-8000-000000000099' }, entries: [] };
 assert.notEqual(projectView(alternate).house.id, projected.house.id);
 assert.equal(projectView(alternate).house.items.length, 0);
