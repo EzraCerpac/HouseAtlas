@@ -114,6 +114,46 @@ impl<'p> NativePresenceReader<'p> {
         })
     }
 
+    /// Test-only selected certificate for local setup; it establishes no authority.
+    #[cfg(test)]
+    pub(crate) fn from_configured_with_loopback_certificate(
+        homebox: &Arc<TrustedHomeBoxSource>,
+        credentials: &Arc<NativeReadCredentialConfig>,
+        access: Arc<Mutex<a::AccessBoundary>>,
+        principal: &'p a::Principal,
+        source: a::SourceGrant,
+        partition: a::PartitionGrant,
+        certificate_der: &[u8],
+    ) -> Result<Self, NativePresenceOwnerError> {
+        if homebox.metadata_dialect() != crate::providers::homebox::wire::DIALECT {
+            return Err(NativePresenceOwnerError::Configuration);
+        }
+        let endpoint = homebox
+            .endpoint()
+            .map_err(|_| NativePresenceOwnerError::Configuration)?;
+        if !credentials.matches_endpoint(&endpoint) || endpoint.origin().scheme() != "https" {
+            return Err(NativePresenceOwnerError::Configuration);
+        }
+        let metadata = source_fence(homebox, &access, principal, &source, &partition)?;
+        let bound = credentials
+            .bind_original(access.clone(), principal, source.clone(), partition.clone())
+            .map_err(|_| NativePresenceOwnerError::Configuration)?;
+        let reader = homebox
+            .reader_with_loopback_certificate(bound, HostClock, certificate_der)
+            .map_err(|_| NativePresenceOwnerError::Configuration)?;
+        check_reader(homebox, &reader)?;
+        Ok(Self {
+            reader,
+            configured: homebox.clone(),
+            access,
+            principal,
+            source,
+            partition,
+            metadata,
+            endpoint: endpoint.origin().as_str().to_owned(),
+        })
+    }
+
     pub fn prepare<
         C: storage::Contract,
         A: storage::Authorization,
