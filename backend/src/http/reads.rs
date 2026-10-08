@@ -47,28 +47,8 @@ fn network_snapshot(
             Err(a::AccessError::NotFound | a::AccessError::Forbidden) => continue,
             Err(error) => return Err(super::access_error(error)),
         }
-        let mut complete_members = true;
-        for reference in binding.entities() {
-            match p.capture_source(&access, reference) {
-                Ok(()) => {}
-                Err(a::AccessError::NotFound | a::AccessError::Forbidden) => {
-                    complete_members = false;
-                    break;
-                }
-                Err(error) => return Err(super::access_error(error)),
-            }
-        }
-        if !complete_members {
-            continue;
-        }
         let partition = p
             .captured_partition(&source.partition())
-            .map_err(super::access_error)?;
-        let entities = binding
-            .entities()
-            .iter()
-            .map(|reference| p.captured_source(reference))
-            .collect::<a::AccessResult<Vec<_>>>()
             .map_err(super::access_error)?;
         drop(access);
         let before = match binding.runtime().snapshot_link_bindings(
@@ -78,7 +58,7 @@ fn network_snapshot(
             binding.access(),
             p.principal.principal(),
             &partition,
-            &entities,
+            &[],
         ) {
             Ok(before) => before,
             Err(n::NetworkPublicationError::Network(error))
@@ -106,6 +86,7 @@ fn network_snapshot(
             }
         }
         drop(access);
+        let entities = p.captured_network_members(partition.partition());
         retained.push((binding, partition, entities, before));
     }
     let base = ReadAuthority(core.access.clone());

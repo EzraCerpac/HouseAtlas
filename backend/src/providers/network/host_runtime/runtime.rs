@@ -1,6 +1,6 @@
 use super::{
     NetworkAccess, NetworkAuthority, OriginalNetworkDisclosure, OriginalNetworkLease,
-    PreparedPublication, authority::wrong_scope, grant_index::GrantIndex,
+    PreparedPublication, authority::wrong_scope,
 };
 use crate::{
     access as a,
@@ -72,14 +72,6 @@ impl HostNetworkRuntime {
         let retained = self.retained(&cache, &relations)?;
         let mut links = Vec::new();
         if let Some(generation) = retained.public_read().generation.as_ref() {
-            let originals = super::generation_references(self.settings.source(), generation)?;
-            let index = GrantIndex::new(entities);
-            if originals
-                .iter()
-                .any(|reference| index.position(reference).is_none())
-            {
-                return Err(wrong_scope().into());
-            }
             for binding in n::retained_link_bindings(self.settings.source(), generation)? {
                 let member = |row: &n::QualifiedRecord| -> std::result::Result<a::SourceRef, n::NetworkError> {
                     let kind = match row.source_kind {

@@ -238,6 +238,17 @@ impl RequestPrincipal {
             .iter()
             .any(|grant| grant.reference() == reference)
     }
+    pub(crate) fn captured_network_members(
+        &self,
+        partition: &a::SourcePartition,
+    ) -> Vec<a::SourceGrant> {
+        self.sources
+            .borrow()
+            .iter()
+            .filter(|grant| grant.reference().partition() == *partition)
+            .cloned()
+            .collect()
+    }
     /// Recheck the original partition, complete configured member set and
     /// captured raw links under the canonical Access read transaction.
     pub(crate) fn revalidate_network_snapshot(
