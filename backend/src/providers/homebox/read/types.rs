@@ -361,7 +361,7 @@ pub enum QuarantineTransition {
 }
 
 /// Staged only. Private fields and no Deserialize keep filtered reads out of publication.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompleteGeneration {
     pub(super) cache: CacheStatus,
@@ -369,6 +369,9 @@ pub struct CompleteGeneration {
     pub(super) missing_external_ids: Vec<Uuid>,
     pub(super) quarantine: bool,
     pub(super) stats: ReadStats,
+    /// Original native bytes remain private and never enter normal cache JSON.
+    #[serde(skip)]
+    pub(super) native_presence: Option<super::native_presence_capture::NativePresenceGeneration>,
 }
 impl CompleteGeneration {
     pub fn cache(&self) -> &CacheStatus {

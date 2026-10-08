@@ -1,6 +1,7 @@
 use super::decode::{self, WireEntity};
 use super::error::invalid;
 use super::native_capture::{self, CapturedStockEntity, CapturedStockMaintenance, NativeCapture};
+use super::native_presence_capture::{NativePresenceGeneration, NativePresenceResponse};
 use super::stock::{self, StockNavigation};
 use super::*;
 use std::{
@@ -202,7 +203,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
         let deadline = Instant::now() + Duration::from_millis(self.limits.generation_timeout_ms);
         let mut stats = ReadStats::default();
         let (bytes, retrieved_at, response_deadline, status) = self
-            .request(path.clone(), query.clone(), deadline, &mut stats)
+            .request(path.clone(), query.clone(), deadline, &mut stats, None)
             .await?;
         // The pinned detail GET is a 200 JSON response, never partial content.
         if status != 200 {
@@ -256,7 +257,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                 .min(super::native_file_capture::PINNED_FILE_CAPTURE_WINDOW);
         let mut stats = ReadStats::default();
         let (before, before_at, before_deadline, before_status) = self
-            .request(detail_path.clone(), Vec::new(), deadline, &mut stats)
+            .request(detail_path.clone(), Vec::new(), deadline, &mut stats, None)
             .await?;
         if before_status != 200 {
             return Err(ReadError(ErrorCode::Upstream));
@@ -271,7 +272,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
         let member = selected_stored_member(&before_decoded, owner, attachment)?;
         check_time(before_deadline)?;
         let (body, body_at, body_deadline, body_status) = self
-            .request(file_path, Vec::new(), deadline, &mut stats)
+            .request(file_path, Vec::new(), deadline, &mut stats, None)
             .await?;
         if body_status != 200 {
             return Err(ReadError(ErrorCode::Upstream));
@@ -281,7 +282,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
         }
         check_time(body_deadline)?;
         let (after, after_at, after_deadline, after_status) = self
-            .request(detail_path, Vec::new(), deadline, &mut stats)
+            .request(detail_path, Vec::new(), deadline, &mut stats, None)
             .await?;
         if after_status != 200 {
             return Err(ReadError(ErrorCode::Upstream));
@@ -337,7 +338,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
         let deadline = Instant::now() + Duration::from_millis(self.limits.generation_timeout_ms);
         let mut stats = ReadStats::default();
         let (bytes, retrieved_at, response_deadline, status) = self
-            .request(path.clone(), query.clone(), deadline, &mut stats)
+            .request(path.clone(), query.clone(), deadline, &mut stats, None)
             .await?;
         if status != 200 {
             return Err(ReadError(ErrorCode::Upstream));
@@ -381,6 +382,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
         let attempt = self.clock.now();
         let deadline = Instant::now() + Duration::from_millis(self.limits.generation_timeout_ms);
         let mut stats = ReadStats::default();
+        let mut native_responses = Vec::new();
         let empty = PreviousGeneration::new(CacheStatus::empty(&self.scope), Vec::new(), false);
         let previous = previous.unwrap_or(&empty);
         if let Err(e) = self.validate_previous(previous, deadline) {
@@ -388,7 +390,12 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
             return Err(self.failure(e, &attempt, None, false, stats));
         }
         let result = self
-            .read(&[], deadline, &mut stats)
+            .read(
+                &[],
+                deadline,
+                &mut stats,
+                self.stock_dialect.then_some(&mut native_responses),
+            )
             .await
             .and_then(|entities| {
                 let success = self.clock.now();
@@ -416,7 +423,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                 cache.status = CacheState::Fresh;
                 cache.last_attempt_at = Some(attempt.clone());
                 cache.last_successful_fetch_at = Some(success);
-                cache.generation_id = Some(generation_id);
+                cache.generation_id = Some(generation_id.clone());
                 check_time(deadline)?;
                 Ok(CompleteGeneration {
                     cache,
@@ -424,6 +431,14 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                     missing_external_ids: missing,
                     quarantine: previous.quarantine || previous.cache.quarantined(),
                     stats,
+                    native_presence: self.stock_dialect.then(|| {
+                        NativePresenceGeneration::new(
+                            self.registration.clone(),
+                            self.scope.clone(),
+                            generation_id,
+                            native_responses,
+                        )
+                    }),
                 })
             });
         result.map_err(|e| self.failure(e, &attempt, Some(previous), false, stats))
@@ -450,7 +465,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
             return Err(self.failure(e, &attempt, None, true, stats));
         }
         let result = self
-            .read(&parents, deadline, &mut stats)
+            .read(&parents, deadline, &mut stats, None)
             .await
             .and_then(|entities| {
                 self.validate_entities(&entities, deadline)?;
@@ -512,10 +527,13 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
         query: Vec<(String, String)>,
         generation_deadline: Instant,
         stats: &mut ReadStats,
+        capture: Option<&mut Vec<NativePresenceResponse>>,
     ) -> Result<(Vec<u8>, Timestamp, Instant, u16), ReadError> {
         check_time(generation_deadline)?;
         let deadline = (Instant::now() + Duration::from_millis(self.limits.request_timeout_ms))
             .min(generation_deadline);
+        let capture_path = path.clone();
+        let capture_query = query.clone();
         let response_limit = if super::http_transport::attachment_path(&path) {
             self.limits.max_response_bytes.min(crate::media::MAX_BYTES)
         } else {
@@ -565,9 +583,21 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
             check_time(deadline)?;
             Ok((bytes, retrieved_at, deadline, response.status))
         };
-        timeout_at(deadline, operation)
+        let response = timeout_at(deadline, operation)
             .await
-            .map_err(|_| ReadError(ErrorCode::Timeout))?
+            .map_err(|_| ReadError(ErrorCode::Timeout))??;
+        if let Some(capture) = capture {
+            let (bytes, retrieved_at, _, status) = &response;
+            capture.push(NativePresenceResponse::new(
+                capture_path,
+                capture_query,
+                self.scope.clone(),
+                *status,
+                retrieved_at.clone(),
+                bytes.clone(),
+            ));
+        }
+        Ok(response)
     }
 
     async fn read(
@@ -575,6 +605,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
         parents: &[Uuid],
         deadline: Instant,
         stats: &mut ReadStats,
+        mut native_responses: Option<&mut Vec<NativePresenceResponse>>,
     ) -> Result<Vec<Projection>, ReadError> {
         let mut rows: BTreeMap<Uuid, (WireEntity, serde_json::Value)> = BTreeMap::new();
         for is_location in [true, false] {
@@ -599,7 +630,13 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                         .map(|id| ("parentIds".into(), id.as_str().to_owned())),
                 );
                 let (bytes, _, response_deadline, _) = self
-                    .request("/api/v1/entities".into(), query, deadline, stats)
+                    .request(
+                        "/api/v1/entities".into(),
+                        query,
+                        deadline,
+                        stats,
+                        native_responses.as_deref_mut(),
+                    )
                     .await?;
                 check_time(response_deadline)?;
                 let value = if self.stock_dialect {
@@ -662,6 +699,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                     Vec::new(),
                     deadline,
                     stats,
+                    native_responses.as_deref_mut(),
                 )
                 .await?;
             check_time(response_deadline)?;
@@ -690,6 +728,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                     },
                     deadline,
                     stats,
+                    native_responses.as_deref_mut(),
                 )
                 .await?;
             check_time(response_deadline)?;

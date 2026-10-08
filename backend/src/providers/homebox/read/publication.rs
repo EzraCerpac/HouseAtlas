@@ -1,4 +1,5 @@
 //! Consuming adapter for AT07's actual store-issued publication fence.
+use super::native_presence_capture::NativePresenceCapture;
 use super::*;
 use crate::storage::{self, AtlasStore, Authorization, Contract, Runtime};
 use std::fmt;
@@ -207,6 +208,47 @@ fn matches_registration(
 impl<P> StagedPublication<'_, P> {
     pub fn generation(&self) -> &CompleteGeneration {
         &self.generation
+    }
+    /// Borrow raw bytes from the same stock-dialect generation while it is
+    /// still pinned to this principal and Store-issued publication fence.
+    /// The returned carrier grants no historical authority and cannot outlive
+    /// this staged publication.
+    pub fn native_presence_capture(
+        &self,
+    ) -> Result<Option<NativePresenceCapture<'_, P>>, PublishError> {
+        let Some(native) = self.generation.native_presence.as_ref() else {
+            return Ok(None);
+        };
+        let generation_id = self
+            .generation
+            .cache()
+            .generation_id
+            .as_ref()
+            .ok_or(PublishError::InvalidRetainedState)?;
+        if generation_id != native.generation_id()
+            || generation_id.as_str() != self.fence.reserved_generation_id()
+            || !matches_registration(&native.registration, self.fence.registration())
+            || native.scope != self.generation.cache().scope()
+            || native.responses.len() != self.generation.stats().requests
+            || native
+                .responses
+                .iter()
+                .map(|response| response.body.len())
+                .sum::<usize>()
+                != self.generation.stats().bytes
+            || native
+                .responses
+                .iter()
+                .any(|response| response.scope != native.scope)
+        {
+            return Err(PublishError::InvalidRetainedState);
+        }
+        Ok(Some(NativePresenceCapture {
+            principal: self.principal,
+            fence: &self.fence,
+            generation: &self.generation,
+            native,
+        }))
     }
     pub fn commit<C: Contract, A: Authorization<Principal = P>, R: Runtime>(
         self,
