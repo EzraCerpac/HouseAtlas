@@ -98,7 +98,7 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
       quantityChanged();
       setAdmission(null);
       const view = await operation(signal);
-      if (view.status === "ready") {
+      if (view.status === "ready" && !signal.aborted && attempt === generation && sameSession()) {
         const scope = view.scope;
         try {
           const response = await fetch(`/api/atlas/stock/v3/workspaces/${encodeURIComponent(scope.workspaceId)}/homes/${encodeURIComponent(scope.homeId)}/admission`, {
