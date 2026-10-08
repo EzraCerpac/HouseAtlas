@@ -611,6 +611,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
             fresh_witness_profile: self.fresh_witness_profile,
         })?;
         tx.commit()?;
+        extension.record_committed();
         Ok(results)
     }
 }
