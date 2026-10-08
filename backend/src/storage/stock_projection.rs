@@ -1,10 +1,16 @@
 //! One pure retained projection check shared by replay and history.
+use super::StockPresenceAcceptedFrame;
 use super::{stock_repository as repo, *};
 use crate::domain::stock::{
     self, AtlasCommandPlan, AtlasCommitGroupView, AtlasCommitView, OwnerResult, StockContractPort,
     ValidatedRequest,
 };
 use rusqlite::Connection;
+
+enum RetainedPresence<'a> {
+    Ordinary,
+    Accepted(&'a StockPresenceAcceptedFrame),
+}
 
 fn incompatible(_: stock::StockError) -> Error {
     repo::incompatible()
@@ -60,6 +66,16 @@ pub(crate) fn retained_plan<C: Contract, S: StockContractPort>(
     stock: &S,
     native: &C,
 ) -> Result<(ValidatedRequest, AtlasCommandPlan)> {
+    retained_plan_inner(db, commit, stock, native, RetainedPresence::Ordinary)
+}
+
+fn retained_plan_inner<C: Contract, S: StockContractPort>(
+    db: &Connection,
+    commit: &StockAtlasCommit,
+    stock: &S,
+    native: &C,
+    presence: RetainedPresence<'_>,
+) -> Result<(ValidatedRequest, AtlasCommandPlan)> {
     let original =
         ValidatedRequest::parse(stock, commit.original_request.clone()).map_err(incompatible)?;
     if commit.derivation.is_some()
@@ -67,7 +83,25 @@ pub(crate) fn retained_plan<C: Contract, S: StockContractPort>(
         || commit.child_derivations.is_some()
         || commit.asset_review.is_some()
     {
-        super::stock_derivation::validate_retained_preimage(commit, stock, native)?;
+        match presence {
+            RetainedPresence::Ordinary => {
+                super::stock_derivation::validate_retained_preimage(commit, stock, native)?;
+            }
+            RetainedPresence::Accepted(frame) => {
+                if frame.commit() != commit
+                    || frame.witnesses().is_empty()
+                    || frame.candidate().phase != MutationPhase::Candidate
+                    || frame.precommit().phase != MutationPhase::Precommit
+                    || frame.candidate().context_id != frame.precommit().context_id
+                    || frame.candidate().scope != frame.precommit().scope
+                {
+                    return Err(repo::incompatible());
+                }
+                super::stock_derivation::validate_retained_presence_preimage(
+                    commit, stock, native,
+                )?;
+            }
+        }
         if super::upload_repository::load_for_commit(db, native, stock, commit)?.is_some() {
             return Err(repo::incompatible());
         }
@@ -112,10 +146,32 @@ pub(crate) fn validate_retained_with_plan<C: Contract, S: StockContractPort>(
     stock: &S,
     native: &C,
 ) -> Result<(ValidatedRequest, AtlasCommandPlan)> {
+    validate_retained_inner(db, commit, stock, native, RetainedPresence::Ordinary)
+}
+
+/// The live engine's accepted frame or an exact opaque catalog record must be
+/// supplied by the original owner. Generic reads still use the ordinary path.
+pub(crate) fn validate_retained_with_accepted_presence<C: Contract, S: StockContractPort>(
+    db: &Connection,
+    commit: &StockAtlasCommit,
+    stock: &S,
+    native: &C,
+    frame: &StockPresenceAcceptedFrame,
+) -> Result<(ValidatedRequest, AtlasCommandPlan)> {
+    validate_retained_inner(db, commit, stock, native, RetainedPresence::Accepted(frame))
+}
+
+fn validate_retained_inner<C: Contract, S: StockContractPort>(
+    db: &Connection,
+    commit: &StockAtlasCommit,
+    stock: &S,
+    native: &C,
+    presence: RetainedPresence<'_>,
+) -> Result<(ValidatedRequest, AtlasCommandPlan)> {
     if commit.replayed {
         return Err(repo::incompatible());
     }
-    let (original, plan) = retained_plan(db, commit, stock, native)?;
+    let (original, plan) = retained_plan_inner(db, commit, stock, native, presence)?;
     let output = project(&original, &plan, commit, stock, native)?;
     if native.canonical_json(&output.wire)? != native.canonical_json(&commit.wire)?
         || native.canonical_json(&serde_json::to_value(&output.children)?)?

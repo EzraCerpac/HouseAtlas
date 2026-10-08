@@ -11,6 +11,28 @@ pub(crate) fn validate_original<C: Contract>(
     derivation: &AtlasDerivation,
 ) -> Result<()> {
     validate_derivation(request, derivation)?;
+    validate_original_preimage(contract, original, scope, derivation)
+}
+
+/// Only the Store's closed original Presence command may select this mapping.
+/// It retains the ordinary exact saved preimage check for remap.
+pub(crate) fn validate_original_presence<C: Contract>(
+    contract: &C,
+    request: &ValidatedRequest,
+    original: &Snapshot,
+    scope: &Scope,
+    derivation: &AtlasDerivation,
+) -> Result<()> {
+    validate_presence_derivation(request, derivation)?;
+    validate_original_preimage(contract, original, scope, derivation)
+}
+
+fn validate_original_preimage<C: Contract>(
+    contract: &C,
+    original: &Snapshot,
+    scope: &Scope,
+    derivation: &AtlasDerivation,
+) -> Result<()> {
     let Some(expected) = derivation_original(derivation) else {
         return Ok(());
     };
@@ -29,6 +51,33 @@ pub(crate) fn validate_original<C: Contract>(
         return Err(repo::incompatible());
     }
     Ok(())
+}
+
+/// Pure structural check; callers must first retain the original accepted
+/// frame or an exact opaque historical cut. This never issues authority.
+pub(crate) fn validate_retained_presence_preimage<C: Contract, S: StockContractPort>(
+    commit: &StockAtlasCommit,
+    stock: &S,
+    contract: &C,
+) -> Result<()> {
+    use crate::domain::stock::ATLAS_DERIVATION_FORMAT;
+    let request = ValidatedRequest::parse(stock, commit.original_request.clone())
+        .map_err(|_| repo::incompatible())?;
+    let (Some(ATLAS_DERIVATION_FORMAT), Some(derivation), None, None) = (
+        commit.derivation_format.as_deref(),
+        &commit.derivation,
+        &commit.child_derivations,
+        &commit.asset_review,
+    ) else {
+        return Err(repo::incompatible());
+    };
+    if request.id() == OperationId::AtlasBatchExecute || commit.groups.len() != 1 {
+        return Err(repo::incompatible());
+    }
+    let group = &commit.groups[0];
+    validate_group_envelope(&request, group, None)?;
+    validate_presence_derivation(&request, derivation).map_err(|_| repo::incompatible())?;
+    validate_group_original(&request, derivation, group, contract)
 }
 
 /// Require exact child alignment and at least one specialized mapper. All-direct
@@ -224,6 +273,35 @@ pub(crate) fn validate_derivation(
         return Err(request_error());
     }
     Ok(())
+}
+
+pub(crate) fn validate_presence_derivation(
+    request: &ValidatedRequest,
+    derivation: &AtlasDerivation,
+) -> Result<()> {
+    let accepted = matches!(
+        (request.id(), derivation),
+        (
+            OperationId::AtlasBindingCreate,
+            AtlasDerivation::BindingCreate {
+                source_state: BindingPayloadSourceState::Present
+            }
+        ) | (
+            OperationId::AtlasBindingRemap,
+            AtlasDerivation::BindingRemap {
+                source_state: BindingPayloadSourceState::Present,
+                ..
+            }
+        )
+    );
+    if accepted {
+        Ok(())
+    } else {
+        Err(Error::new(
+            "invalid-contract",
+            "Derived stock mapping is incompatible",
+        ))
+    }
 }
 
 fn derivation_original(derivation: &AtlasDerivation) -> Option<&Record> {
