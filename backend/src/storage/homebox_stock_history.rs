@@ -82,7 +82,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         // A distinct owner/format keeps the shared immutable cursor table's
         // Atlas audit sequence namespace separate from native activity sequence.
         let query_json = self.contract.canonical_json(&json!({
-            "format":"homebox-stock-activity-cut/1","commandId":request.id().as_str(),
+            "format":history_repository::HOMEBOX_HISTORY_CURSOR_FORMAT,"commandId":request.id().as_str(),
             "target":request.target(),"payload":query}))?;
         let check =
             |phase, registration: Option<&SourceRegistration>, entries: &[Value], result| {
@@ -233,6 +233,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                 return Err(incompatible());
             }
             recheck(HomeBoxStockHistoryPhase::CursorPrecommit)?;
+            history_repository::admit_cursor(&tx, &scope, &actor.actor_id)?;
             tx.execute(
                 "INSERT INTO stock_history_cursors VALUES(?1,?2,?3,?4,?5,?6,?7,1)",
                 params![
