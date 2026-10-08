@@ -312,7 +312,7 @@ async fn healthy_body() {
             aid(5),
             registration.clone(),
             a::LifecycleCapability::PublishCache,
-            a::Action::Read,
+            a::Action::Mutate,
         )
         .unwrap(),
     ]);
@@ -330,7 +330,7 @@ async fn healthy_body() {
     )
     .unwrap();
     for (user, actor, name, role) in [
-        (4, 5, "presence-viewer", a::Role::Viewer),
+        (4, 5, "presence-publisher", a::Role::Editor),
         (6, 7, "presence-editor", a::Role::Editor),
     ] {
         boundary
@@ -347,12 +347,16 @@ async fn healthy_body() {
             .unwrap();
     }
     boundary.put_source(&registration, None).unwrap();
-    let (viewer_cookie, _) = login(&mut boundary, "presence-viewer");
+    let (publisher_cookie, publisher_csrf) = login(&mut boundary, "presence-publisher");
     let provider_principal = boundary
         .authorize(
-            &evidence(a::Method::Get, Some(&viewer_cookie), None),
+            &evidence(
+                a::Method::Post,
+                Some(&publisher_cookie),
+                Some(&publisher_csrf),
+            ),
             &scope(),
-            a::Action::Read,
+            a::Action::Mutate,
         )
         .unwrap();
     let source_grant = boundary
