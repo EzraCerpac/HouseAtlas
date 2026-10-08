@@ -5,6 +5,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rusqlite::{Connection, TransactionBehavior, params};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -657,7 +658,7 @@ impl AccessBoundary {
             return Err(AccessError::MethodNotAllowed);
         }
         let (session, _, _) = self.authenticate(request, false)?;
-        let csrf = nonce()?;
+        let csrf = session_csrf_token(request)?;
         let tx = self
             .store
             .db
@@ -669,8 +670,8 @@ impl AccessBoundary {
         };
         let (session, user, now) = authority.session_state(&session.token_hash, &session.origin)?;
         tx.execute(
-            "UPDATE access_sessions SET csrf_hash=?1,last_seen=MAX(last_seen,?2) WHERE token_hash=?3",
-            params![digest(&csrf), now, session.token_hash],
+            "UPDATE access_sessions SET last_seen=MAX(last_seen,?1) WHERE token_hash=?2",
+            params![now, session.token_hash],
         )?;
         tx.commit()?;
         Ok(SessionInfo {
@@ -1004,6 +1005,13 @@ fn token_format(token: &str) -> bool {
 }
 
 fn token_hash(request: &RequestEvidence<'_>, required: bool) -> AccessResult<Option<String>> {
+    Ok(session_token(request, required)?.map(digest))
+}
+
+fn session_token<'a>(
+    request: &RequestEvidence<'a>,
+    required: bool,
+) -> AccessResult<Option<&'a str>> {
     if request.authorization.is_some() {
         return Err(AccessError::Unauthenticated);
     }
@@ -1025,7 +1033,16 @@ fn token_hash(request: &RequestEvidence<'_>, required: bool) -> AccessResult<Opt
     if values.next().is_some() || !token_format(token) {
         return Err(AccessError::Unauthenticated);
     }
-    Ok(Some(digest(token)))
+    Ok(Some(token))
+}
+
+// Stable for this exact cookie, independent of session reads in other tabs.
+// The cookie remains HttpOnly; this domain-separated output cannot replace it.
+fn session_csrf_token(request: &RequestEvidence<'_>) -> AccessResult<String> {
+    let token = session_token(request, true)?.ok_or(AccessError::Unauthenticated)?;
+    let key = ring::hmac::Key::new(ring::hmac::HMAC_SHA256, token.as_bytes());
+    let tag = ring::hmac::sign(&key, b"houseatlas:session-csrf:v1");
+    Ok(URL_SAFE_NO_PAD.encode(tag.as_ref()))
 }
 
 fn check_csrf(request: &RequestEvidence<'_>, session: &Session) -> AccessResult<()> {
@@ -1033,11 +1050,14 @@ fn check_csrf(request: &RequestEvidence<'_>, session: &Session) -> AccessResult<
         .csrf
         .filter(|c| token_format(c))
         .ok_or(AccessError::Forbidden)?;
-    if !bool::from(
-        digest(candidate)
-            .as_bytes()
-            .ct_eq(session.csrf_hash.as_bytes()),
-    ) {
+    let candidate_hash = digest(candidate);
+    let issued_matches = candidate_hash
+        .as_bytes()
+        .ct_eq(session.csrf_hash.as_bytes());
+    let stable_hash = digest(&session_csrf_token(request)?);
+    let stable_matches = candidate_hash.as_bytes().ct_eq(stable_hash.as_bytes());
+    // Keep the originally issued token valid without changing its stored hash.
+    if !bool::from(issued_matches | stable_matches) {
         return Err(AccessError::Forbidden);
     }
     Ok(())
