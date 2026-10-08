@@ -89,6 +89,9 @@ impl NativeMediaArchiveExpectedMember {
         }
         Ok(Self { name, bytes })
     }
+    pub(super) fn name(&self) -> &str {
+        &self.name
+    }
 }
 
 /// Immutable native configuration/capture generation. No serde, mutable member
