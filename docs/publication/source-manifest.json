@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "a86dad3d1038ee28fcd4abfb108e8b65ac9cc84e8f0065785e4d0b5c9d12c299",
+  "sourceDigestSha256": "5a527e76972088d6dc786ed4a886762d0c31669a8e722d3ecd3465a83e05aa8c",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -350,8 +350,8 @@
     {
       "path": "backend/src/access/historical_presence.rs",
       "mode": "100644",
-      "bytes": 15697,
-      "sha256": "549b8ad59412e38df95117815b9ac88a9ded46fd464938ce9a0d6d5230390b07",
+      "bytes": 15991,
+      "sha256": "d62f87b177e8f1dd3513590644cfda680f5f912d86e537fa0044ccc715a6d08b",
       "owner": "access"
     },
     {
@@ -840,8 +840,8 @@
     {
       "path": "backend/src/app.rs",
       "mode": "100644",
-      "bytes": 27389,
-      "sha256": "f0ec08c21fb661aae08af23800dd34e3d15755bf4220abc75435a05646bb419d",
+      "bytes": 27420,
+      "sha256": "6acf340b9af9f0d33e3852dd4b94fe356231518df00f25f22a84e396a60763d0",
       "owner": "core-integration"
     },
     {
@@ -854,8 +854,8 @@
     {
       "path": "backend/src/app/homebox_presence.rs",
       "mode": "100644",
-      "bytes": 12021,
-      "sha256": "8b883647eda4bc6488b5f6d3d7352a46c275378f90c549c7e72022758c60817c",
+      "bytes": 12376,
+      "sha256": "8815ffb2d6649a92c2a3c9b5b4048b9cd05fa4d72fed6010e7e603234da6acf9",
       "owner": "core-integration"
     },
     {
@@ -877,6 +877,13 @@
       "mode": "100644",
       "bytes": 11728,
       "sha256": "699c3d8b70e9d50ca2bcf86d7b3e1b7cc2e33512f312d433d20dd5463798209a",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/app/homebox_queued_upload.rs",
+      "mode": "100644",
+      "bytes": 8199,
+      "sha256": "218380464f70685ef2e39a87304d2745adf661df79dff97de6f4c4c27c028ade",
       "owner": "core-integration"
     },
     {
@@ -917,8 +924,8 @@
     {
       "path": "backend/src/config/mod.rs",
       "mode": "100644",
-      "bytes": 2973,
-      "sha256": "2ef20377f6df8428e620ed83c9336d4165eba6134fcbebd9d508ff1d4217ba6d",
+      "bytes": 3000,
+      "sha256": "0abf6ff0acf58c829a4867443cadc25122181c3dfd8873108feda797062873f5",
       "owner": "core-integration"
     },
     {
@@ -968,6 +975,13 @@
       "mode": "100644",
       "bytes": 9969,
       "sha256": "a814a23dde93d385174c8b4ef1c4d7ae66474536f0a73dc4273c61f2821a1e2a",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/config/providers/queued_upload.rs",
+      "mode": "100644",
+      "bytes": 10784,
+      "sha256": "3c42a7d0301028bc02e2375d27f22d6a2e2ccd8a82b584ed2729ae308acd49ac",
       "owner": "core-integration"
     },
     {
@@ -2478,8 +2492,8 @@
     {
       "path": "backend/src/media/native_queued_upload.rs",
       "mode": "100644",
-      "bytes": 39663,
-      "sha256": "f352e4095d13e4e5ad287f188f793c0c836fc8af504bdd32606f19adc681d1da",
+      "bytes": 46624,
+      "sha256": "8cec14b9503ef99e117075e04b93d32f8fa9db62dc235def82f010c9d9e9711a",
       "owner": "media"
     },
     {
@@ -3220,8 +3234,8 @@
     {
       "path": "backend/src/providers/homebox/write/stock/fresh.rs",
       "mode": "100644",
-      "bytes": 39977,
-      "sha256": "d81be63a7513eaed5aba17c5e0c16184f86ea66c0902a86ab096e1cea665de6a",
+      "bytes": 42644,
+      "sha256": "52d9bcc544145cd2329f3c06b03808219c3da8de6002f8a7c6a6ec1c3f15deac",
       "owner": "homebox"
     },
     {
@@ -3248,8 +3262,8 @@
     {
       "path": "backend/src/providers/homebox/write/stock/mod.rs",
       "mode": "100644",
-      "bytes": 2374,
-      "sha256": "a8d21bdb5285474279c009d85cfa563e9d1e7ee7325b1fb7205bbaaa40198aaa",
+      "bytes": 2668,
+      "sha256": "8940876b3bc9b80f7de182e29b8dd4e6ea60f2feb046fad577881670b54818c4",
       "owner": "homebox"
     },
     {
@@ -3355,6 +3369,20 @@
       "mode": "100644",
       "bytes": 20570,
       "sha256": "4fd80be28ccb319a90a76f2bdc933094f8a8be216c2760bfc247e6fe895370b6",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/write/stock/queued_upload_installation.rs",
+      "mode": "100644",
+      "bytes": 22421,
+      "sha256": "c5fd1c68c78f0444b73afedfcc47d385430df69b01362f51d684a21210822edc",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/write/stock/queued_upload_source.rs",
+      "mode": "100644",
+      "bytes": 25962,
+      "sha256": "8901d540c24ffb64d3f6fa2e90da98f2f2a5f588135f11bd87767a12dd36d99c",
       "owner": "homebox"
     },
     {
