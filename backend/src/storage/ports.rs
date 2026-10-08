@@ -72,6 +72,19 @@ pub trait Authorization {
         principal: &Self::Principal,
         request: AuthorizationRequest<'_>,
     ) -> Result<VerifiedActor>;
+    /// Explicitly denied until the concrete native owner consumes the sealed
+    /// qualification from this same active transaction.
+    fn authorize_presence_mutation(
+        &self,
+        _principal: &Self::Principal,
+        _request: AuthorizationRequest<'_>,
+        _qualified: &StockPresenceQualifiedPhase<'_>,
+    ) -> Result<VerifiedActor> {
+        Err(Error::new(
+            "upstream-unavailable",
+            "Qualified native presence authorization is unavailable",
+        ))
+    }
 }
 
 pub struct AssetProof {

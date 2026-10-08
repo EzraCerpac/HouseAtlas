@@ -50,7 +50,7 @@ pub(crate) struct PreparedIdentity {
     graph: *const (),
 }
 impl PreparedIdentity {
-    fn capture<W, G>(prepared: &stock::PreparedRequest<W, G>) -> Self {
+    pub(crate) fn capture<W, G>(prepared: &stock::PreparedRequest<W, G>) -> Self {
         Self {
             prepared: std::ptr::from_ref(prepared).cast(),
             request: std::ptr::from_ref(prepared.request()),
@@ -58,7 +58,7 @@ impl PreparedIdentity {
             graph: std::ptr::from_ref(prepared.graph()).cast(),
         }
     }
-    fn matches<W, G>(&self, prepared: &stock::PreparedRequest<W, G>) -> bool {
+    pub(crate) fn matches<W, G>(&self, prepared: &stock::PreparedRequest<W, G>) -> bool {
         self.prepared == std::ptr::from_ref(prepared).cast()
             && self.request == std::ptr::from_ref(prepared.request())
             && self.witness == std::ptr::from_ref(prepared.witness()).cast()
@@ -80,9 +80,117 @@ pub struct StockPresenceCommandPeers<'phase, 'call, 'tx, 'origin, 'reader> {
 }
 /// Kept by the caller across the complete outer Access transaction.
 pub struct StockPresenceCommandInvocation {
+    instance: Arc<()>,
     invocation: Arc<()>,
     principal: *const app::RequestPrincipal,
     prepared: PreparedIdentity,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StockPresenceAuthorizationPhase {
+    Candidate,
+    Precommit,
+    Release,
+}
+
+/// A borrowed result of the original Store's completed native qualification.
+/// Its private pointer identities are compared only; none is dereferenced.
+pub struct StockPresenceQualifiedPhase<'phase> {
+    phase: StockPresenceAuthorizationPhase,
+    context: &'phase MutationAuthorizationContext,
+    qualifications: &'phase [wire::PresenceQualification],
+    principal: &'phase app::RequestPrincipal,
+    guard: &'phase a::TransactionAuthorization<'phase>,
+    prepared: PreparedIdentity,
+    instance: &'phase Arc<()>,
+    invocation: &'phase Arc<()>,
+    transaction: &'phase rusqlite::Connection,
+}
+/// Only sibling Store machinery can assemble these live, borrowed issuer inputs.
+pub(in crate::storage::store) struct PresencePhaseProofInputs<'phase> {
+    pub(in crate::storage::store) phase: StockPresenceAuthorizationPhase,
+    pub(in crate::storage::store) context: &'phase MutationAuthorizationContext,
+    pub(in crate::storage::store) qualifications: &'phase [wire::PresenceQualification],
+    pub(in crate::storage::store) principal: &'phase app::RequestPrincipal,
+    pub(in crate::storage::store) guard: &'phase a::TransactionAuthorization<'phase>,
+    pub(in crate::storage::store) prepared: PreparedIdentity,
+    pub(in crate::storage::store) instance: &'phase Arc<()>,
+    pub(in crate::storage::store) invocation: &'phase Arc<()>,
+    pub(in crate::storage::store) transaction: &'phase rusqlite::Connection,
+}
+impl<'phase> StockPresenceQualifiedPhase<'phase> {
+    pub(in crate::storage::store) fn issued(inputs: PresencePhaseProofInputs<'phase>) -> Self {
+        let PresencePhaseProofInputs {
+            phase,
+            context,
+            qualifications,
+            principal,
+            guard,
+            prepared,
+            instance,
+            invocation,
+            transaction,
+        } = inputs;
+        Self {
+            phase,
+            context,
+            qualifications,
+            principal,
+            guard,
+            prepared,
+            instance,
+            invocation,
+            transaction,
+        }
+    }
+    pub fn phase(&self) -> StockPresenceAuthorizationPhase {
+        self.phase
+    }
+    pub fn context(&self) -> &MutationAuthorizationContext {
+        self.context
+    }
+    pub fn qualifications(&self) -> &[wire::PresenceQualification] {
+        self.qualifications
+    }
+    pub fn matches_principal_and_guard(
+        &self,
+        guard: &a::TransactionAuthorization<'_>,
+        principal: &app::RequestPrincipal,
+        context: &MutationAuthorizationContext,
+    ) -> bool {
+        std::ptr::eq(self.guard, guard)
+            && std::ptr::eq(self.principal, principal)
+            && std::ptr::eq(self.context, context)
+            && !self.transaction.is_autocommit()
+            && match self.phase {
+                StockPresenceAuthorizationPhase::Candidate => {
+                    context.phase == MutationPhase::Candidate
+                }
+                StockPresenceAuthorizationPhase::Precommit
+                | StockPresenceAuthorizationPhase::Release => {
+                    context.phase == MutationPhase::Precommit
+                }
+            }
+            && std::ptr::eq(principal.principal.principal(), guard.principal())
+            && guard.assert_mutation().is_ok()
+            && guard.revalidate().is_ok()
+    }
+    pub fn matches_original_preparation<W, G>(
+        &self,
+        principal: &app::RequestPrincipal,
+        prepared: &stock::PreparedRequest<W, G>,
+    ) -> bool {
+        std::ptr::eq(self.principal, principal) && self.prepared.matches(prepared)
+    }
+    pub fn matches_invocation(&self, invocation: &StockPresenceCommandInvocation) -> bool {
+        Arc::ptr_eq(self.instance, &invocation.instance)
+            && Arc::ptr_eq(self.invocation, &invocation.invocation)
+            && invocation.principal == std::ptr::from_ref(self.principal)
+            && self.prepared.prepared == invocation.prepared.prepared
+            && self.prepared.request == invocation.prepared.request
+            && self.prepared.witness == invocation.prepared.witness
+            && self.prepared.graph == invocation.prepared.graph
+    }
 }
 
 pub struct StockPresenceAcceptedFrame {
@@ -215,7 +323,8 @@ pub(crate) fn promote_presence_access_released<'call, 'origin, 'reader, W, G>(
     principal: &app::RequestPrincipal,
     prepared: &stock::PreparedRequest<W, G>,
 ) -> Result<StockPresenceAcceptedCut<'call, 'origin, 'reader>> {
-    if !Arc::ptr_eq(&pending.invocation, &invocation.invocation)
+    if !Arc::ptr_eq(&pending.instance, &invocation.instance)
+        || !Arc::ptr_eq(&pending.invocation, &invocation.invocation)
         || invocation.principal != std::ptr::from_ref(principal)
         || !invocation.prepared.matches(prepared)
         || !std::ptr::eq(pending.principal, principal)
@@ -338,6 +447,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                 invocation: Arc::clone(&invocation),
             },
             StockPresenceCommandInvocation {
+                instance: Arc::clone(&self.instance),
                 invocation,
                 principal: std::ptr::from_ref(principal),
                 prepared: identity,
