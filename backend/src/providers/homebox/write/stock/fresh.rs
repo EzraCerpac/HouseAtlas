@@ -2,6 +2,7 @@
 //! Parsing establishes neither freshness, completeness, authority nor safe PUT.
 use super::*;
 use crate::providers::homebox::{read, wire};
+use crate::{access as a, domain::stock as st};
 use serde_json::{Value, json};
 use sha2::{Digest as _, Sha256};
 use std::{collections::BTreeSet, future::Future};
@@ -25,10 +26,69 @@ pub struct FreshReadbackCapture<E> {
     pub snapshot: FreshNativeCapture,
 }
 
+/// Actual held mutation guard and the original captured access handles.
+/// This does not construct or replace either authority object.
+pub struct FreshQualification<'g, 'tx, 'p> {
+    guard: &'g a::TransactionAuthorization<'tx>,
+    captured: &'g st::CapturedAccess<'p>,
+}
+impl<'g, 'tx, 'p> FreshQualification<'g, 'tx, 'p> {
+    pub fn new(
+        guard: &'g a::TransactionAuthorization<'tx>,
+        captured: &'g st::CapturedAccess<'p>,
+    ) -> Result<Self, StockErrorCode> {
+        let context = Self { guard, captured };
+        context.revalidate()?;
+        Ok(context)
+    }
+    pub fn guard(&self) -> &a::TransactionAuthorization<'tx> {
+        self.guard
+    }
+    pub fn captured(&self) -> &st::CapturedAccess<'p> {
+        self.captured
+    }
+
+    /// Recheck the original handles using this same held authorization. This
+    /// does not acquire another lock or issue replacement grants.
+    pub(super) fn revalidate(&self) -> Result<(), StockErrorCode> {
+        if !std::ptr::eq(self.guard.principal(), self.captured.principal()) {
+            return Err(StockErrorCode::CapabilityDenied);
+        }
+        self.guard.assert_mutation().map_err(access_error)?;
+        for grant in self.captured.source_grants() {
+            self.guard.revalidate_source(grant).map_err(access_error)?;
+        }
+        for grant in self.captured.partition_grants() {
+            self.guard
+                .revalidate_source_partition(grant)
+                .map_err(access_error)?;
+        }
+        self.guard.revalidate().map_err(access_error)?;
+        Ok(())
+    }
+}
+
+fn access_error(error: a::AccessError) -> StockErrorCode {
+    match error {
+        a::AccessError::Unauthenticated => StockErrorCode::Unauthenticated,
+        a::AccessError::Forbidden => StockErrorCode::CapabilityDenied,
+        a::AccessError::NotFound => StockErrorCode::ResourceUnavailable,
+        a::AccessError::InvalidInput => StockErrorCode::InvalidArgument,
+        a::AccessError::MethodNotAllowed => StockErrorCode::CapabilityDenied,
+        a::AccessError::BodyTooLarge => StockErrorCode::InvalidArgument,
+        a::AccessError::RateLimited | a::AccessError::Unavailable => {
+            StockErrorCode::ResourceUnavailable
+        }
+    }
+}
+
 /// Original-owner evidence remains opaque and non-serializable to this adapter.
 /// Qualification MUST check the original providerObservation, finite freshness
 /// clocks, source revision/build/route, complete references/approved impact,
 /// schema completeness and hidden-field preservation against these exact bytes.
+/// Its opaque Evidence MUST bind the exact original principal and original
+/// captured grants to the supplied guarded context; a new same-value capture
+/// cannot replace the witness. The adapter cannot infer that binding.
 /// It must retain that evidence privately and supply its genuine proof digest.
 /// The adapter binds that digest and the exact qualified preparation to the
 /// capture_digest. This is no grant or credential-release API.
@@ -45,10 +105,20 @@ pub trait FreshPreparationSourcePort: Sync {
         authority: &StockAuthority,
         capture: &DecodedFreshPreparation<Self::Evidence>,
     ) -> Result<StockPreflight, StockErrorCode>;
+    /// Recheck the original evidence and grants through the actual held guard.
+    /// This is required for fenced admission; no synthetic fallback exists.
+    fn qualify_preparation_in_guard(
+        &self,
+        command: &StockCommand,
+        authority: &StockAuthority,
+        capture: &DecodedFreshPreparation<Self::Evidence>,
+        context: &FreshQualification<'_, '_, '_>,
+    ) -> Result<StockPreflight, StockErrorCode>;
 }
 /// The source owner checks exact operation/GET correlation, current original
 /// authority, freshness, complete snapshot/impact and output scope. It must
-/// retain original evidence; matching values is neither causality nor CAS.
+/// retain original evidence bound to the exact original principal and captured
+/// grants in the guarded context; matching values is neither causality nor CAS.
 pub trait FreshReadbackSourcePort: Sync {
     type Evidence: Send + Sync;
     fn capture_readback(
@@ -63,6 +133,16 @@ pub trait FreshReadbackSourcePort: Sync {
         plan: &ReadbackPlan,
         authority: &StockAuthority,
         capture: &DecodedFreshReadback<Self::Evidence>,
+    ) -> Option<NativeObservation>;
+    /// Qualify current original evidence and output scope under the actual
+    /// held mutation guard and its retained original access handles.
+    fn qualify_readback_in_guard(
+        &self,
+        operation: &StoredOperation,
+        plan: &ReadbackPlan,
+        authority: &StockAuthority,
+        capture: &DecodedFreshReadback<Self::Evidence>,
+        context: &FreshQualification<'_, '_, '_>,
     ) -> Option<NativeObservation>;
 }
 
@@ -142,6 +222,42 @@ pub struct RetainedFreshPreparation<'owner, C, S: FreshPreparationSourcePort> {
     preflight: StockPreflight,
     plan: NativePlan,
 }
+/// The single original capture waits for an actual held mutation guard before
+/// source qualification. Neither raw bytes nor opaque evidence are cloned.
+pub struct PendingFreshPreparation<'owner, C, S: FreshPreparationSourcePort> {
+    owner: &'owner DecodedStockPreparation<C, S>,
+    command: StockCommand,
+    authority: StockAuthority,
+    input: FreshPreparationCapture<S::Evidence>,
+}
+impl<'owner, C: StockContractPort + Sync, S: FreshPreparationSourcePort>
+    PendingFreshPreparation<'owner, C, S>
+{
+    pub fn finish_in_guard(
+        self,
+        context: &FreshQualification<'_, '_, '_>,
+    ) -> Result<RetainedFreshPreparation<'owner, C, S>, StockErrorCode> {
+        context.revalidate()?;
+        let capture = self
+            .owner
+            .decode_preparation(&self.command, &self.authority, self.input)?;
+        let (owner_preflight, preflight, plan) = self.owner.qualify_decoded_in_guard(
+            &self.command,
+            &self.authority,
+            &capture,
+            context,
+        )?;
+        Ok(RetainedFreshPreparation {
+            owner: self.owner,
+            command: self.command,
+            authority: self.authority,
+            capture,
+            owner_preflight,
+            preflight,
+            plan,
+        })
+    }
+}
 impl<'owner, C: StockContractPort + Sync, S: FreshPreparationSourcePort>
     RetainedFreshPreparation<'owner, C, S>
 {
@@ -186,8 +302,47 @@ impl<'owner, C: StockContractPort + Sync, S: FreshPreparationSourcePort>
         }
         Ok(())
     }
+
+    /// A consuming admission fence must invoke this with current original
+    /// authority while the actual mutation guard is held.
+    pub fn revalidate_in_guard(
+        &self,
+        context: &FreshQualification<'_, '_, '_>,
+        command: &StockCommand,
+        authority: &StockAuthority,
+    ) -> Result<(), StockErrorCode> {
+        if command != &self.command || authority != &self.authority {
+            return Err(StockErrorCode::PreflightConflict);
+        }
+        context.revalidate()?;
+        let (owner_preflight, preflight, plan) =
+            self.owner
+                .qualify_decoded_in_guard(command, authority, &self.capture, context)?;
+        if owner_preflight != self.owner_preflight
+            || preflight != self.preflight
+            || plan != self.plan
+        {
+            return Err(StockErrorCode::PreflightConflict);
+        }
+        Ok(())
+    }
 }
 impl<C: StockContractPort + Sync, S: FreshPreparationSourcePort> DecodedStockPreparation<C, S> {
+    pub async fn capture_pending<'owner>(
+        &'owner self,
+        command: &StockCommand,
+        authority: &StockAuthority,
+    ) -> Result<PendingFreshPreparation<'owner, C, S>, StockErrorCode> {
+        validate_command(&self.contracts, command)?;
+        let input = self.source.capture_preparation(command, authority).await?;
+        Ok(PendingFreshPreparation {
+            owner: self,
+            command: command.clone(),
+            authority: authority.clone(),
+            input,
+        })
+    }
+
     pub async fn prepare_retained<'owner>(
         &'owner self,
         command: &StockCommand,
@@ -195,6 +350,26 @@ impl<C: StockContractPort + Sync, S: FreshPreparationSourcePort> DecodedStockPre
     ) -> Result<RetainedFreshPreparation<'owner, C, S>, StockErrorCode> {
         validate_command(&self.contracts, command)?;
         let input = self.source.capture_preparation(command, authority).await?;
+        let capture = self.decode_preparation(command, authority, input)?;
+        let (owner_preflight, preflight, plan) =
+            self.qualify_decoded(command, authority, &capture)?;
+        Ok(RetainedFreshPreparation {
+            owner: self,
+            command: command.clone(),
+            authority: authority.clone(),
+            capture,
+            owner_preflight,
+            preflight,
+            plan,
+        })
+    }
+
+    fn decode_preparation(
+        &self,
+        command: &StockCommand,
+        authority: &StockAuthority,
+        input: FreshPreparationCapture<S::Evidence>,
+    ) -> Result<DecodedFreshPreparation<S::Evidence>, StockErrorCode> {
         bounded(
             self.limits,
             input.snapshots.iter().map(|s| s.original.len()),
@@ -232,21 +407,10 @@ impl<C: StockContractPort + Sync, S: FreshPreparationSourcePort> DecodedStockPre
                 "qualification":qualification(&authority.qualification),"captures":captures
             }))
             .map_err(|_| StockErrorCode::PreflightConflict)?;
-        let capture = DecodedFreshPreparation {
+        Ok(DecodedFreshPreparation {
             evidence: input.evidence,
             snapshots,
             capture_digest,
-        };
-        let (owner_preflight, preflight, plan) =
-            self.qualify_decoded(command, authority, &capture)?;
-        Ok(RetainedFreshPreparation {
-            owner: self,
-            command: command.clone(),
-            authority: authority.clone(),
-            capture,
-            owner_preflight,
-            preflight,
-            plan,
         })
     }
 
@@ -257,9 +421,33 @@ impl<C: StockContractPort + Sync, S: FreshPreparationSourcePort> DecodedStockPre
         capture: &DecodedFreshPreparation<S::Evidence>,
     ) -> Result<(StockPreflight, StockPreflight, NativePlan), StockErrorCode> {
         validate_command(&self.contracts, command)?;
-        let mut preflight = self
+        let preflight = self
             .source
             .qualify_preparation(command, authority, capture)?;
+        self.check_qualification(command, authority, capture, preflight)
+    }
+
+    fn qualify_decoded_in_guard(
+        &self,
+        command: &StockCommand,
+        authority: &StockAuthority,
+        capture: &DecodedFreshPreparation<S::Evidence>,
+        context: &FreshQualification<'_, '_, '_>,
+    ) -> Result<(StockPreflight, StockPreflight, NativePlan), StockErrorCode> {
+        validate_command(&self.contracts, command)?;
+        let preflight = self
+            .source
+            .qualify_preparation_in_guard(command, authority, capture, context)?;
+        self.check_qualification(command, authority, capture, preflight)
+    }
+
+    fn check_qualification(
+        &self,
+        command: &StockCommand,
+        authority: &StockAuthority,
+        capture: &DecodedFreshPreparation<S::Evidence>,
+        mut preflight: StockPreflight,
+    ) -> Result<(StockPreflight, StockPreflight, NativePlan), StockErrorCode> {
         if preflight.provider_observation != command.provider_observation
             || preflight.request_digest != command.request_digest
             || preflight.source_epoch != authority.source_epoch
@@ -330,6 +518,33 @@ pub struct DecodedStockReadback<C, S> {
     source: S,
     limits: wire::DecodeLimits,
 }
+/// Single decoded original GET and opaque source evidence awaiting a held
+/// mutation guard. Construction is restricted to the exact source adapter.
+pub struct PendingFreshReadback<'owner, C, S: FreshReadbackSourcePort> {
+    owner: &'owner DecodedStockReadback<C, S>,
+    operation: StoredOperation,
+    plan: ReadbackPlan,
+    authority: StockAuthority,
+    capture: DecodedFreshReadback<S::Evidence>,
+}
+impl<'owner, C: StockContractPort + Sync, S: FreshReadbackSourcePort>
+    PendingFreshReadback<'owner, C, S>
+{
+    pub fn finish_in_guard(
+        self,
+        context: &FreshQualification<'_, '_, '_>,
+    ) -> Option<NativeObservation> {
+        context.revalidate().ok()?;
+        let observation = self.owner.source.qualify_readback_in_guard(
+            &self.operation,
+            &self.plan,
+            &self.authority,
+            &self.capture,
+            context,
+        )?;
+        check_readback_observation(&self.operation, &self.plan, &self.capture, observation)
+    }
+}
 impl<C, S> DecodedStockReadback<C, S> {
     pub fn new(contracts: C, source: S, limits: wire::DecodeLimits) -> Self {
         Self {
@@ -354,12 +569,54 @@ impl<C: StockContractPort + Sync, S: FreshReadbackSourcePort> StockReadbackPort
     }
 }
 impl<C: StockContractPort + Sync, S: FreshReadbackSourcePort> DecodedStockReadback<C, S> {
+    pub async fn capture_pending<'owner>(
+        &'owner self,
+        operation: &StoredOperation,
+        plan: &ReadbackPlan,
+        authority: &StockAuthority,
+    ) -> Option<PendingFreshReadback<'owner, C, S>> {
+        self.validate_readback_request(operation, plan, authority)?;
+        let input = self
+            .source
+            .capture_readback(operation, plan, authority)
+            .await?;
+        let capture = self.decode_readback_input(operation, plan, input)?;
+        Some(PendingFreshReadback {
+            owner: self,
+            operation: operation.clone(),
+            plan: plan.clone(),
+            authority: authority.clone(),
+            capture,
+        })
+    }
+
     async fn present(
         &self,
         operation: &StoredOperation,
         plan: &ReadbackPlan,
         authority: &StockAuthority,
     ) -> Option<NativeObservation> {
+        let pending = self.capture_pending(operation, plan, authority).await?;
+        let observation = self.source.qualify_readback(
+            &pending.operation,
+            &pending.plan,
+            &pending.authority,
+            &pending.capture,
+        )?;
+        check_readback_observation(
+            &pending.operation,
+            &pending.plan,
+            &pending.capture,
+            observation,
+        )
+    }
+
+    fn validate_readback_request(
+        &self,
+        operation: &StoredOperation,
+        plan: &ReadbackPlan,
+        authority: &StockAuthority,
+    ) -> Option<()> {
         validate_command(&self.contracts, &operation.command).ok()?;
         if operation.actor_id != authority.actor_id
             || authority.physical_binding != operation.captured_authority.physical_binding
@@ -382,10 +639,15 @@ impl<C: StockContractPort + Sync, S: FreshReadbackSourcePort> DecodedStockReadba
         {
             return None;
         }
-        let input = self
-            .source
-            .capture_readback(operation, plan, authority)
-            .await?;
+        Some(())
+    }
+
+    fn decode_readback_input(
+        &self,
+        operation: &StoredOperation,
+        plan: &ReadbackPlan,
+        input: FreshReadbackCapture<S::Evidence>,
+    ) -> Option<DecodedFreshReadback<S::Evidence>> {
         bounded(self.limits, [input.snapshot.original.len()]).ok()?;
         scope_matches(&input.snapshot, &operation.command).ok()?;
         if input.snapshot.target != plan.target
@@ -399,30 +661,36 @@ impl<C: StockContractPort + Sync, S: FreshReadbackSourcePort> DecodedStockReadba
             evidence: input.evidence,
             snapshot,
         };
-        let observation = self
-            .source
-            .qualify_readback(operation, plan, authority, &capture)?;
-        let NativeObservation::Present {
-            context,
-            target,
-            value,
-            observed_at,
-            complete,
-            ..
-        } = &observation
-        else {
-            return None;
-        };
-        if context != &operation.command.context
-            || target != &plan.target
-            || value != capture.snapshot.source()
-            || observed_at != &capture.snapshot.original().observed_at
-            || !complete
-        {
-            return None;
-        }
-        Some(observation)
+        Some(capture)
     }
+}
+
+fn check_readback_observation<E>(
+    operation: &StoredOperation,
+    plan: &ReadbackPlan,
+    capture: &DecodedFreshReadback<E>,
+    observation: NativeObservation,
+) -> Option<NativeObservation> {
+    let NativeObservation::Present {
+        context,
+        target,
+        value,
+        observed_at,
+        complete,
+        ..
+    } = &observation
+    else {
+        return None;
+    };
+    if context != &operation.command.context
+        || target != &plan.target
+        || value != capture.snapshot.source()
+        || observed_at != &capture.snapshot.original().observed_at
+        || !complete
+    {
+        return None;
+    }
+    Some(observation)
 }
 
 fn validate_command<C: StockContractPort>(
