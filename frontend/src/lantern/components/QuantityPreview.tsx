@@ -43,6 +43,8 @@ export function QuantityPreview({ client, source, renderIdentity, sourceIdentity
 function QuantityPreviewCurrent({ client, source, handoff }: { client: QuantityClient; source: SourceRef; handoff?: QuantityPersonHandoff | undefined }) {
   const binding = useSyncExternalStore(client.subscribeSessionBinding, client.getBindingIdentity, () => null);
   const ledger = useSyncExternalStore<QuantityHandoffState | null>(handoff ? handoff.subscribe : noSubscription, handoff ? handoff.getState : noHandoffState, noHandoffState);
+  // Scalar snapshot; source/session changes remount via the parent revision key, and getUncertainty masks non-current bindings.
+  const held = useSyncExternalStore<string | null>(client.subscribeUncertainty ?? noSubscription, () => client.getUncertainty(source), () => null);
   const [available, setAvailable] = useState(false), [busy, setBusy] = useState(false), [notice, setNotice] = useState('');
   const [uncertainty, setUncertainty] = useState('');
   const [quantity, setQuantity] = useState(''), [reason, setReason] = useState('');
@@ -66,13 +68,20 @@ function QuantityPreviewCurrent({ client, source, handoff }: { client: QuantityC
   const closedToPerson = !!handoff && !ledger?.open;
   const working = busy || !!ledger?.inFlight;
   useEffect(() => { if (!prepared) return; const timer = window.setTimeout(() => { if (previewPanel.current?.contains(document.activeElement)) { if (previewButton.current && !previewButton.current.disabled) previewButton.current.focus(); else section.current?.focus(); } setClock(performance.now()); }, Math.max(0, prepared.expiresAt - performance.now())); return () => clearTimeout(timer); }, [prepared]);
-  const heldUncertainty = client.getUncertainty(source) ?? uncertainty;
+  const heldUncertainty = held ?? uncertainty;
   const sessionCurrent = !!binding && client.isCurrent(binding);
   const visible = prepared && sessionCurrent && client.isCurrentPrepared(prepared) && performance.now() < prepared.expiresAt && clock < prepared.expiresAt ? prepared : null;
   const run = async (label: string, action: () => Promise<void>, mutation = false) => {
     if (fence.current || !sessionCurrent || (mutation && heldUncertainty)) return;
     fence.current = true; const token = revision.current; setBusy(true); setNotice(label);
-    try { await action(); } catch (error) { if (revision.current === token) { const message = error instanceof QuantityActionError ? error.message : 'Response could not be validated.'; setNotice(message); if (mutation && (!(error instanceof QuantityActionError) || error.state === 'unknown')) setUncertainty(message + ' Further quantity mutations are held in this context.'); } }
+    try { await action(); } catch (error) {
+      if (revision.current === token) {
+        // A subscribed client records every posted unknown in its held store; other errors defer to that store. Legacy clients keep the conservative local hold.
+        const holdLocally = error instanceof QuantityActionError ? error.state === 'unknown' : !client.subscribeUncertainty;
+        const message = error instanceof QuantityActionError ? error.message : !mutation || holdLocally ? 'Response could not be validated.' : client.getUncertainty(source) ? 'Quantity action not completed; the recorded hold applies.' : 'Quantity action not completed; no unconfirmed request is recorded for this source.';
+        setNotice(message); if (mutation && holdLocally) setUncertainty(message + ' Further quantity mutations are held in this context.');
+      }
+    }
     finally { if (revision.current === token) { fence.current = false; setBusy(false); } }
   };
   const controller = () => { active.current?.abort(); const next = new AbortController(); active.current = next; return next.signal; };

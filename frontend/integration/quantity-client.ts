@@ -13,6 +13,9 @@ const freeze = <T,>(value: T): T => { if (value && typeof value === 'object') { 
 interface DispatchCustody { readonly prepared: QuantityPrepared; readonly approval: QuantityApproval | null }
 interface UnknownAttempt extends DispatchCustody { readonly action: string; readonly source: SourceRef; readonly binding: QuantitySessionBinding; readonly at: number; readonly status: number | null }
 const dispatchUnconfirmed = 'Prior dispatch outcome unconfirmed. The quantity change may have been admitted or applied. Further quantity mutations for this source are held in this session; do not infer failure, rollback or safe retry.';
+const heldMessage = (action: string) => `Prior ${action} response unavailable. ${action === 'preview' ? 'Preview outcome unknown.' : 'Issuance or admission may have occurred.'} Further quantity mutations for this source are held in this session; do not infer rollback or safe retry.`;
+// Exact held messages by severity, preview < approval < dispatch; a row message is only ever upgraded.
+const heldSeverity = [heldMessage('preview'), heldMessage('approval'), heldMessage('dispatch'), dispatchUnconfirmed];
 export function createQuantityClient(options: QuantityClientOptions): QuantityClient {
   const transport = options.transport ?? globalThis.fetch;
   let publicOwner: QuantitySessionBinding | null = null, publicIdentity: object = {};
@@ -53,6 +56,9 @@ export function createQuantityClient(options: QuantityClientOptions): QuantityCl
   };
   // Strong private references; every matching unknown attempt is retained.
   const unknownPosts: Array<{ source: SourceRef; binding: QuantitySessionBinding; message: string; attempts: UnknownAttempt[] }> = [];
+  // Mounted readers only; carries no identity, binding or custody.
+  const uncertaintyListeners = new Set<() => void>();
+  const subscribeUncertainty = (changed: () => void) => { uncertaintyListeners.add(changed); return () => { uncertaintyListeners.delete(changed); }; };
   const sameBinding = (a: QuantitySessionBinding, b: QuantitySessionBinding) => a.identity === b.identity
     && sameQuantityScope(a.scope, b.scope) && a.session.actorId === b.session.actorId
     && a.session.csrfToken === b.session.csrfToken && a.session.expiresAt === b.session.expiresAt;
@@ -63,15 +69,15 @@ export function createQuantityClient(options: QuantityClientOptions): QuantityCl
   };
   const unknown = (source: SourceRef, binding: QuantitySessionBinding, action: string, custody?: DispatchCustody, status: number | null = null) => {
     let row = unknownPosts.find(row => sameBinding(row.binding, binding) && equalQuantityJson(row.source, source));
+    const before = row?.message, next = action === 'dispatch' && custody ? dispatchUnconfirmed : heldMessage(action);
     if (!row) {
       // Preview performs no reserve, admission or receipt issuance; the hold is unchanged.
-      row = { source: structuredClone(source), binding, message: `Prior ${action} response unavailable. ${action === 'preview' ? 'Preview outcome unknown.' : 'Issuance or admission may have occurred.'} Further quantity mutations for this source are held in this session; do not infer rollback or safe retry.`, attempts: [] };
+      row = { source: structuredClone(source), binding, message: next, attempts: [] };
       unknownPosts.push(row);
-    }
-    if (custody) {
-      row.attempts.push(Object.freeze({ action, source, binding, prepared: custody.prepared, approval: custody.approval, at: Date.now(), status }));
-      if (action === 'dispatch') row.message = dispatchUnconfirmed;
-    }
+    } else if (heldSeverity.indexOf(next) > heldSeverity.indexOf(row.message)) row.message = next;
+    if (custody) row.attempts.push(Object.freeze({ action, source, binding, prepared: custody.prepared, approval: custody.approval, at: Date.now(), status }));
+    // Custody is recorded first; a throwing listener cannot replace the unknown error or skip recording.
+    if (row.message !== before) for (const changed of [...uncertaintyListeners]) try { changed(); } catch (error) { queueMicrotask(() => { throw error; }); }
     return new QuantityActionError('unknown', action);
   };
   const holdUnknown = (source: SourceRef) => { if (getUncertainty(source)) throw new QuantityActionError('unknown', 'Prior quantity action'); };
@@ -114,6 +120,7 @@ export function createQuantityClient(options: QuantityClientOptions): QuantityCl
   return {
     getBindingIdentity: getPublicIdentity,
     getUncertainty,
+    subscribeUncertainty,
     subscribeSessionBinding: subscribe,
     isCurrent: identity => getPublicIdentity() === identity,
     isCurrentPrepared: prepared => { const binding = preparedOwners.get(prepared); return !!binding && isCurrent(binding); },
