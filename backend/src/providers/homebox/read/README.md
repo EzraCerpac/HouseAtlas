@@ -32,6 +32,18 @@ projections, unresolved missing external IDs, stats and retained quarantine.
 Missing entities never delete Atlas identities or prove upstream deletion.
 A successful empty collection is a complete fresh generation.
 
+For the concrete stock dialect, a successful full generation privately retains
+the original ordered fixed-GET response bodies, exact paths/query/status/scope,
+lexical retrieval timestamps, complete reader registration and generated ID.
+`StagedPublication::native_presence_capture()` borrows that exact bundle with
+the same normalized generation, original principal and Store-issued fence.
+The raw bytes never serialize into cache/publication DTOs, are not Clone, and the
+borrow cannot outlive the staged publication. This is source evidence only; it
+does not create historical authority or admission. The Access original-source
+cut and Storage postcommit/full-release owner join remain required before an
+original-history consumer may admit such evidence. The synthetic normalized
+dialect keeps its existing fetch behavior and returns no native capture.
+
 `fetch_view(parent_ids)` returns a separate `FilteredView` with only projections
 and stats. It has no generation, complete cache or publication method; successful
 filtered reads never freshen the complete cache. Auth/scope failures propose
