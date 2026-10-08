@@ -98,10 +98,10 @@ export function AiPanelView({
   const unresolvedActions = unresolvedConnectionActions ?? (
     (state.connectionAction.status === 'pending' || state.connectionAction.status === 'unconfirmed')
       && state.connectionAction.action !== null ? [{
-        actionId: state.connectionAction.actionId, action: state.connectionAction.action, status: state.connectionAction.status, hostStatus: null,
+        actionId: state.connectionAction.actionId, action: state.connectionAction.action, status: state.connectionAction.status, hostStatus: null, admissionBlocking: true,
       }] : []
   );
-  const pendingKinds = unresolvedActions.map(action => action.action);
+  const pendingKinds = unresolvedActions.filter(action => action.admissionBlocking !== false).map(action => action.action);
   const disconnectRetryBlocked = unresolvedActions.some(action => action.action === 'disconnect' && !hasObservedUnconfirmedReceipt(action));
   const disconnectReceiptMissing = unresolvedActions.some(action => action.action === 'disconnect'
     && action.status === 'unconfirmed' && action.hostStatus !== 'unconfirmed');

@@ -3,9 +3,11 @@
 import { useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { flushSync } from 'react-dom';
+import { AiPanelView } from '../AiPanel.js';
+import { hasConnectionActionCapacity, isConnectionActionAdmissionBlocking } from '../useAiSession.js';
 import { AiActivityStatus, AiHost, AiSettingsSection } from './AiHost.js';
 import { createAiHostClient } from './client.js';
-import type { ConnectionSnapshot, ReviewRequired, RunOutcome, Usage } from '../types.js';
+import type { AiSessionState, ConnectionSnapshot, ReviewRequired, RunOutcome, UnresolvedConnectionAction, Usage } from '../types.js';
 
 function assert(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
@@ -226,4 +228,65 @@ export async function runHealthyAiHostExamples(container: HTMLElement) {
   } finally {
     if (root) flushSync(() => root?.unmount());
   }
+}
+
+/** Static healthy receipt/admission projection only. No host action, runtime
+ * rotation, disconnect, reconnect, enrollment or status lifecycle is executed. */
+export function runHealthyConnectionAdmissionProjection(container: HTMLElement) {
+  const root = createRoot(container);
+  const currentScope = 'synthetic/current-runtime';
+  const previousScope = 'synthetic/prior-runtime';
+  let hostActions = 0;
+  const state: AiSessionState = {
+    connection: { status: 'available', snapshot: held }, request: { status: 'idle' },
+    connectionAction: { status: 'idle', action: null, actionId: null },
+    reviewAction: { status: 'idle' }, recoveryAction: { status: 'idle' },
+  };
+  const row = (action: UnresolvedConnectionAction['action'], scopeKey: string, index: number): UnresolvedConnectionAction => ({
+    action, actionId: `synthetic-retained-${index}`, status: 'pending', hostStatus: 'pending',
+    admissionBlocking: isConnectionActionAdmissionBlocking({ action, scopeKey }, currentScope),
+  });
+  const button = (label: string) => {
+    const found = [...container.querySelectorAll('button')].find(item => item.textContent === label);
+    assert(found, `Projected control ${label}`); return found;
+  };
+  const render = (rows: readonly UnresolvedConnectionAction[]) => {
+    const noop = () => {};
+    flushSync(() => root.render(<AiPanelView state={state} scopeLabel="Synthetic admission metadata"
+      prompt="" onPromptChange={noop} onSubmit={noop} onCancel={noop} onRefresh={noop}
+      onConnectionAction={() => { hostActions++; }} onReview={noop} onRecover={noop}
+      unresolvedConnectionActions={rows} />));
+    const route = container.querySelector('select'); assert(route, 'Synthetic route selector');
+    flushSync(() => { route.value = 'issued-website-client'; route.dispatchEvent(new Event('change', { bubbles: true })); });
+    assert(container.querySelectorAll('ul[aria-label="Unresolved connection actions"] li').length === rows.length,
+      'Every receipt remains visible');
+  };
+  try {
+    for (const action of ['connect', 'consent'] as const) {
+      assert(isConnectionActionAdmissionBlocking({ action, scopeKey: previousScope, opening: true }, currentScope),
+        'Older active opening metadata remains blocking');
+    }
+    const older = [row('connect', previousScope, 1), row('consent', previousScope, 2)];
+    render(older);
+    assert(!button('Connect').disabled && !button('Review inference consent').disabled, 'Older Connect/Consent are display-only admission metadata');
+    assert(older.length === 2 && hasConnectionActionCapacity(older.length), 'Both older rows still count toward receipt capacity');
+    for (const action of ['connect', 'consent'] as const) {
+      render([row(action, currentScope, 3)]);
+      assert(button('Connect').disabled && button('Review inference consent').disabled, 'Current-runtime receipts still block admission');
+    }
+    for (const action of ['disconnect', 'manage-usage'] as const) {
+      const olderGuard = row(action, previousScope, 4);
+      assert(olderGuard.admissionBlocking, 'Older Disconnect/usage retain their admission safeguards');
+      render([olderGuard]);
+      assert(button('Connect').disabled && button('Review inference consent').disabled, 'Older Disconnect/usage still block connection controls');
+      if (action === 'disconnect') assert(button('Disconnect').disabled, 'Pending Disconnect retry remains blocked');
+      else assert(button('Manage usage').disabled, 'Manage usage duplicate remains blocked');
+    }
+    const legacy: UnresolvedConnectionAction = { action: 'connect', actionId: 'synthetic-legacy', status: 'pending', hostStatus: 'pending' };
+    render([legacy]);
+    assert(button('Connect').disabled && button('Review inference consent').disabled, 'Absent admission metadata preserves legacy blocking');
+    assert(hostActions === 0, 'Static projection performs no host actions');
+    return { groups: ['retained old Connect/Consent display and capacity', 'current-runtime blockers',
+      'older Disconnect and usage safeguards', 'legacy admission metadata'], hostActions };
+  } finally { flushSync(() => root.unmount()); }
 }
