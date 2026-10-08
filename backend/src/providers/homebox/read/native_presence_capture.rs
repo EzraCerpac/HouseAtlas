@@ -133,6 +133,12 @@ pub struct NativePresenceCapture<'a, P> {
 pub struct NativePresenceIdentity(Arc<NativePresenceGeneration>);
 
 impl NativePresenceIdentity {
+    /// Immutable original observed bytes for DATA inspection and correlation.
+    /// Configured origin, admission, and current authority remain independent.
+    pub fn generation(&self) -> &NativePresenceGeneration {
+        &self.0
+    }
+
     pub fn matches_capture<P>(&self, capture: &NativePresenceCapture<'_, P>) -> bool {
         capture
             .generation
