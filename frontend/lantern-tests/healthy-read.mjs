@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { projectView } from '../src/lantern/adapters/read.ts';
 import { createGeometryClient } from '../src/api/geometry-client.ts';
 import { createOperationHistoryClient } from '../src/api/operation-history-client.ts';
+import { createRetainedIntentClient, canReadRetainedIntent } from '../src/api/retained-intent-client.ts';
 import { demoSnapshot, demoOptions } from '../../web/demo/fixtures.mjs';
 import { prepareAtlasView } from '../../web/src/prepare.mjs';
 
@@ -193,6 +194,117 @@ const emptyOperationClient = createOperationHistoryClient(async (url, init) => {
 assert.deepEqual(await emptyOperationClient.read(operationScope, signal),
   { status: 'ready', page: operationPage([], null) });
 
+// A single scoped, positive retained lookup of the complete synthetic request.
+const retainedRequest = {
+  schemaVersion: 3, commandId: 'atlas.identity.create',
+  requestId: '00000000-0000-4000-8000-000000000951', context: operationScope,
+  target: { authority: 'atlas', recordType: 'identity', recordId: '00000000-0000-4000-8000-000000000952' },
+  payload: { kind: 'item', evidenceIds: [] },
+  idempotencyKey: '00000000-0000-4000-8000-000000000953',
+  reason: 'Synthetic retained lookup café + exact intent',
+  preconditions: { target: null, guards: [] }, approvalReceiptId: null,
+};
+const retainedOperationId = '00000000-0000-4000-8000-000000000954';
+const retainedReceipt = {
+  format: 'atlas-retained-reconciliation/1', lookupRequestId: retainedRequest.requestId,
+  inspection: {
+    format: 'atlas-retained-intent-inspection/1', resolvedScope: operationScope,
+    coverage: 'retained-atlas-stock-only', outcome: 'retained-commit', retrySafety: 'not-established',
+    rootOperationId: retainedOperationId, operationId: retainedOperationId,
+    commandId: retainedRequest.commandId, requestDigest: 'c'.repeat(64),
+  },
+  committedResult: {
+    originalRequestId: retainedRequest.requestId,
+    wire: {
+      schemaVersion: 3, commandId: retainedRequest.commandId, requestId: retainedRequest.requestId,
+      resolvedScope: operationScope, status: 'committed', replayed: false, operationId: retainedOperationId,
+      data: { auditIds: ['00000000-0000-4000-8000-000000000955'], records: [{
+        target: retainedRequest.target, revision: 1, lifecycle: 'active', payload: retainedRequest.payload,
+      }], requestDigest: 'c'.repeat(64) },
+    },
+    children: [], originalMediaRelease: 'not-established', originalHttpDelivery: 'not-established',
+  },
+};
+const retainedRequestJson = JSON.stringify(retainedRequest);
+let retainedCalls = 0;
+const retainedClient = createRetainedIntentClient(async (url, init) => {
+  retainedCalls++;
+  const parsed = new URL(url, 'https://atlas.invalid');
+  assert.equal(parsed.pathname, '/api/atlas/retained-intent');
+  assert.equal(parsed.searchParams.get('homeId'), operationScope.homeId);
+  assert.equal(parsed.searchParams.get('intent'), retainedRequestJson);
+  assert.deepEqual(JSON.parse(parsed.searchParams.get('intent')), retainedRequest);
+  assert.deepEqual([...parsed.searchParams.keys()].sort(), ['homeId', 'intent']);
+  assert.equal(init.method, 'GET');
+  assert.equal(init.credentials, 'same-origin');
+  assert.equal(init.cache, 'no-store');
+  assert.equal(init.redirect, 'error');
+  assert.equal(init.headers.Accept, 'application/json');
+  assert.equal(init.signal, signal);
+  return { ok: true, json: async () => retainedReceipt };
+});
+assert.equal(canReadRetainedIntent(retainedRequest), true);
+const retainedRead = await retainedClient.read(retainedRequest, operationScope, signal);
+assert.equal(retainedCalls, 1);
+assert.deepEqual(retainedRead, { status: 'ready', receipt: retainedReceipt });
+assert.equal(JSON.stringify(retainedRequest), retainedRequestJson);
+
+const retainedSecondRequest = {
+  ...retainedRequest, requestId: '00000000-0000-4000-8000-000000000961',
+  target: { ...retainedRequest.target, recordId: '00000000-0000-4000-8000-000000000962' },
+  idempotencyKey: '00000000-0000-4000-8000-000000000963', payload: { kind: 'location', evidenceIds: [] },
+};
+const retainedBatchRequest = {
+  ...retainedRequest, commandId: 'atlas.batch.execute',
+  requestId: '00000000-0000-4000-8000-000000000971',
+  idempotencyKey: '00000000-0000-4000-8000-000000000973',
+  target: { authority: 'atlas', kind: 'batch', batchId: '00000000-0000-4000-8000-000000000972' },
+  payload: { commands: [retainedRequest, retainedSecondRequest] },
+};
+const retainedBatchOperationId = '00000000-0000-4000-8000-000000000974';
+const retainedBatchChildren = [retainedReceipt.committedResult.wire, {
+  ...retainedReceipt.committedResult.wire, requestId: retainedSecondRequest.requestId,
+  operationId: '00000000-0000-4000-8000-000000000964',
+  data: { auditIds: ['00000000-0000-4000-8000-000000000965'], records: [{
+    target: retainedSecondRequest.target, revision: 1, lifecycle: 'active', payload: retainedSecondRequest.payload,
+  }], requestDigest: 'd'.repeat(64) },
+}];
+const retainedBatchReceipt = {
+  ...retainedReceipt, lookupRequestId: retainedBatchRequest.requestId,
+  inspection: { ...retainedReceipt.inspection, commandId: retainedBatchRequest.commandId,
+    rootOperationId: retainedBatchOperationId, operationId: retainedBatchOperationId, requestDigest: 'e'.repeat(64) },
+  committedResult: {
+    ...retainedReceipt.committedResult, originalRequestId: retainedBatchRequest.requestId,
+    wire: { ...retainedReceipt.committedResult.wire, commandId: retainedBatchRequest.commandId,
+      requestId: retainedBatchRequest.requestId, operationId: retainedBatchOperationId,
+      data: { auditIds: retainedBatchChildren.flatMap(child => child.data.auditIds),
+        records: retainedBatchChildren.flatMap(child => child.data.records), requestDigest: 'e'.repeat(64) } },
+    children: retainedBatchChildren,
+  },
+};
+let retainedBatchCalls = 0;
+const retainedBatchClient = createRetainedIntentClient(async (url, init) => {
+  retainedBatchCalls++;
+  const parsed = new URL(url, 'https://atlas.invalid');
+  assert.equal(parsed.pathname, '/api/atlas/retained-intent');
+  assert.equal(parsed.searchParams.get('homeId'), operationScope.homeId);
+  assert.equal(parsed.searchParams.get('intent'), JSON.stringify(retainedBatchRequest));
+  assert.deepEqual([...parsed.searchParams.keys()].sort(), ['homeId', 'intent']);
+  assert.equal(init.method, 'GET');
+  assert.equal(init.credentials, 'same-origin');
+  assert.equal(init.cache, 'no-store');
+  assert.equal(init.redirect, 'error');
+  assert.equal(init.headers.Accept, 'application/json');
+  assert.equal(init.signal, signal);
+  return { ok: true, json: async () => retainedBatchReceipt };
+});
+assert.equal(canReadRetainedIntent(retainedBatchRequest), true);
+assert.deepEqual(await retainedBatchClient.read(retainedBatchRequest, operationScope, signal),
+  { status: 'ready', receipt: retainedBatchReceipt });
+assert.equal(retainedBatchCalls, 1);
+assert.deepEqual(retainedBatchReceipt.committedResult.children.map(child => child.requestId),
+  [retainedRequest.requestId, retainedSecondRequest.requestId]);
+
 const opaqueCursor = 'opaque+/cursor==';
 let pageCalls = 0;
 const pagedClient = createGeometryClient(async (url, init) => {
@@ -221,4 +333,4 @@ for (const [path, expected] of Object.entries(hashes)) {
   assert.equal(result.status, 0);
   assert.equal(digest(result.stdout), expected, path);
 }
-console.log('PASS synthetic scoped projection, geometry and operation history reads, opaque sequential pagination, arbitrary place kinds, unknown placement, retained source metadata, actual document handles, source dates, maintenance, and 44 unchanged authored reference hashes');
+console.log('PASS synthetic scoped projection, geometry, operation history and original retained-intent reads, opaque sequential pagination, arbitrary place kinds, unknown placement, retained source metadata, actual document handles, source dates, maintenance, and 44 unchanged authored reference hashes');
