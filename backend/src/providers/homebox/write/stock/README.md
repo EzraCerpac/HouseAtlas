@@ -173,3 +173,90 @@ The external verification harness uses the existing jsonschema 4.26.0 package.
 Held denial/revocation/replay/expiry/rejection/fault/crash/concurrency/adversarial/
 mutation/omission controls remain unrun. Successful compilation and healthy
 fixtures do not qualify real storage composition, provider security or deployment.
+
+## Decoded fresh source adapters
+
+`DecodedStockPreparation<C,S>` implements the existing `StockPreparationPort`;
+`DecodedStockReadback<C,S>` implements `StockReadbackPort`. Both use the existing
+native writer contract `C`, a server-owned original source port `S`, and bounded
+`wire::DecodeLimits`. They perform no credential release, provider dispatch,
+storage/history write, artifact brokerage or application admission.
+
+The required `FreshPreparationSourcePort` and `FreshReadbackSourcePort` expose
+capture methods followed by qualification methods. Their associated `Evidence`
+is opaque, owner-provided and never interpreted as a grant by this adapter.
+Capture inputs contain exact original bytes, independently captured `SourceScope`,
+concrete target, fixed GET path/query and original retrieval timestamp.
+Controller/request data must never instantiate these source ports or substitute
+cached projections for captures. No production source-port implementation,
+provider registration, fresh clock policy or source authority is supplied here.
+
+The owner qualification methods must validate actual endpoint/response linkage,
+original `providerObservation`, current source/build/route and finite freshness
+policy, source revision, full native schema, original authorized reference/impact
+graph and hidden-field preservation. They must retain those original proofs and
+bytes privately. Parsing alone cannot establish any of these facts. Preparation
+rejects a changed original command, wrong partition/target, duplicate snapshots,
+changed native value/digest or missing complete qualification. It never creates
+`complete` or `hidden_fields_preserved` assertions. The actual `map_stock` enforces
+the existing replacement PUT and native-clear limitations.
+
+`DecodedFreshPreparation::capture_digest` binds the full original request,
+captured actor/source epoch/authority/physical binding/qualification and every
+scope/target/GET/time/raw-byte SHA-256/native digest. After qualification, the
+returned `preflight_digest` is the native contract's canonical digest of the
+`homebox-decoded-fresh-preflight-v1` envelope containing that capture digest,
+the unchanged owner preflight proof digest, exact snapshot qualification flags,
+staged metadata and qualified clear forms. This binding does not qualify the
+owner proof or accept upload bytes. The admission/retention owner must preserve
+and revalidate that actual proof linkage; no replacement evidence store is added.
+`qualify_preparation` is the trusted original-owner boundary, not independent
+admission validation. `StockPreflight` returns only the wrapped digest and the
+existing port surface has no typed retained-proof handoff or admission-time
+source revalidation callback. Those consumer hooks remain unavailable here;
+production admission must not infer that they exist from this adapter.
+
+The supported native captures are entity details and entity-owner maintenance
+lists with `status=both`. Entity field/attachment member readback uses the exact
+owner entity GET. Original source JSON and byte documents survive decoding;
+the narrower read DTO is never a writable snapshot. Preparation uses the actual
+complete entity object or exact original maintenance row. Whole readback returns
+the full captured object/list, including unknown facts and source revision/date
+spelling. A replacement PUT containing unknown properties anywhere in these
+objects is refused against the pinned native schema because the fixed mapper
+cannot promise to preserve new writable extensions. Known hidden fields still
+require actual owner proof; this guard does not infer preservation from absence.
+
+Readback compares the supplied plan with the stored immutable plan plus the
+existing qualified generated target resolution. It requires exact scope, target,
+GET path/query, native value and retrieval timestamp in the owner's qualified
+`Present` observation. Source uncertainty and any genuine owner-provided embedded
+impact evidence pass unchanged to the original reducers. Matching values never
+prove causality, provider CAS or remote termination and never release a hold.
+Qualified absence, `CompleteImpact`/printer selectors, tag/type/template capture
+families and owner source registration remain unsupported by this bounded adapter;
+it returns unavailable rather than derive absence from a 404 or list omission.
+
+The existing port contracts contain only preflight digests/flags and native
+observation values, not original source bytes, source revisions or fresh-proof
+provenance. These mandatory original-owner capture/qualification/retention seams
+are therefore concrete remaining consumer contracts, not authority produced by
+this adapter. Freshness/completeness cannot be recovered from cached read APIs.
+
+`fresh_healthy.rs` contains only three exact ordinary positive source fixtures:
+
+* `fresh_healthy::healthy_fresh_complete_entity_preparation`
+* `fresh_healthy::healthy_fresh_exact_entity_and_generated_member_readback`
+* `fresh_healthy::healthy_fresh_complete_maintenance_preparation_and_readback`
+
+The task-owned external harness imports these exact fixture bytes and the actual
+backend library. It uses `NativeWriterContracts`, both adapter implementations and
+`map_stock`, with explicitly synthetic opaque qualification owners. Seven port
+calls (four preparations and three readbacks) exercise retained complete native
+values, original observation handle/digests, known PUT field/date/number
+preservation, exact resolved member GET, full raw readback extensions and unchanged
+operation/uncertainty. No dispatcher, socket, real account/token/data, database,
+held control or native write is invoked. Run only each exact case with
+`cargo test --offline --locked --manifest-path <task-harness>/Cargo.toml --lib
+<exact-case> -- --exact --test-threads=1`; the harness is not a repository runner
+or root-manifest change. Source success does not qualify production intake.

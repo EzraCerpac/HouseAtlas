@@ -3,15 +3,19 @@
 mod entity;
 mod evidence;
 mod features;
+mod fresh;
 mod outcome;
 mod ports;
 mod resources;
 mod types;
 mod workflow;
+pub use fresh::*;
 pub use outcome::*;
 pub use ports::*;
 pub use types::*;
 pub use workflow::*;
+#[cfg(test)]
+mod fresh_healthy;
 #[cfg(test)]
 mod healthy_examples;
 #[cfg(test)]
