@@ -12,12 +12,15 @@ export interface AtlasCredentials {
 }
 /** Informational sign-in method published by the host mode route. It does not
  * describe a session and never replaces the canonical session GET. */
-export type AtlasAuthMode = "password" | "loopback-local";
-/** Paired optional port: supplied only when the host mounts both the mode route
- * and the local sign-in action. Local sign-in sends no credentials. */
+export type AtlasAuthMode = "password" | "loopback-local" | "trusted-proxy";
+/** Paired optional port: supplied only when the host mounts the mode route and
+ * at least one sign-in action. Each action matches exactly one decoded mode:
+ * signIn for loopback-local, proxySignIn for trusted-proxy. Neither sends
+ * credentials, identity, actor or CSRF values. */
 export interface AtlasLocalAccess {
   mode(signal: AbortSignal): Promise<AtlasAuthMode>;
-  signIn(signal: AbortSignal): Promise<AtlasSessionInfo>;
+  signIn?: (signal: AbortSignal) => Promise<AtlasSessionInfo>;
+  proxySignIn?: (signal: AbortSignal) => Promise<AtlasSessionInfo>;
 }
 export interface AtlasSessionClient {
   /** Host rotation/change notification; re-read the canonical session route. */
@@ -71,7 +74,9 @@ export function decodeAuthMode(value: unknown): AtlasAuthMode {
     !own("schemaVersion") ||
     !own("mode") ||
     row.schemaVersion !== 1 ||
-    (row.mode !== "password" && row.mode !== "loopback-local")
+    (row.mode !== "password" &&
+      row.mode !== "loopback-local" &&
+      row.mode !== "trusted-proxy")
   )
     throw new TypeError("Invalid sign-in method");
   return row.mode;
