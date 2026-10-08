@@ -396,12 +396,12 @@ async fn healthy_body() {
     let binding = published
         .records
         .iter()
-        .find(|r| r.record_id == id(300))
+        .find(|r| r.record_id == id(301))
         .unwrap()
         .clone();
     published
         .records
-        .retain(|r| r.record_id == id(100) || r.record_id == id(200));
+        .retain(|r| r.record_id == id(100) || r.record_id == id(201));
     published.sources = vec![serde_json::to_value(&registration).unwrap()];
     published.caches.clear();
     published.homebox_entities.clear();
@@ -514,7 +514,7 @@ async fn healthy_body() {
     let identity = published
         .records
         .iter()
-        .find(|record| record.record_type == s::RecordType::Identity && record.record_id == id(200))
+        .find(|record| record.record_type == s::RecordType::Identity && record.record_id == id(201))
         .expect("seeded Binding atlasId identity");
     assert_eq!(payload["atlasId"], identity.record_id);
     let raw = json!({
