@@ -86,8 +86,14 @@ impl<
         current_original_authority: &native::StockAuthority,
     ) -> StockResult<()> {
         self.check_original(guard)?;
+        let qualification = native::FreshQualification::new(guard, self.captured)
+            .map_err(|_| StockError::AuthorityChanged)?;
         self.native
-            .revalidate(self.native.command(), current_original_authority)
+            .revalidate_in_guard(
+                &qualification,
+                self.native.command(),
+                current_original_authority,
+            )
             .map_err(|_| StockError::OwnerUnavailable)?;
         // Qualification must not substitute the original graph or handles.
         // Recheck both actual authorities after the mandatory native qualifier.

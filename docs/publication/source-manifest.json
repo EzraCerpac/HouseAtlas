@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "27b720406e1837d412689d8b578ea28ec08d5c053ee537c34c8d5ef05372338e",
+  "sourceDigestSha256": "d5b4622b66017e52eb350d88f9101f5ec88348eecd7317cd80966913e5d86619",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -1533,8 +1533,8 @@
     {
       "path": "backend/src/domain/stock/queue_original_preparation.rs",
       "mode": "100644",
-      "bytes": 9618,
-      "sha256": "d301912db278b7f52f5b5b46362a33c918ce3bb8d1b8d8ff8cc6a09d729a7435",
+      "bytes": 9845,
+      "sha256": "536ff7245a39a5efd677eb28bc60ab499a832c005567d36f699d3ede61b9aaca",
       "owner": "domain"
     },
     {
@@ -2891,8 +2891,8 @@
     {
       "path": "backend/src/providers/homebox/write/stock/README.md",
       "mode": "100644",
-      "bytes": 22129,
-      "sha256": "47c0a2507cf494f748d81bd89fbf0f31bac517b0abb192ac4470012e0983fa22",
+      "bytes": 28295,
+      "sha256": "174cc2770689bb65f7e1c0a8da1b996cbcdeedf5a88f232ad2ffb6c92bac6c8e",
       "owner": "homebox"
     },
     {
@@ -2919,15 +2919,15 @@
     {
       "path": "backend/src/providers/homebox/write/stock/fresh.rs",
       "mode": "100644",
-      "bytes": 24538,
-      "sha256": "89aea650a94f67a8f4b0a92a69f4fd3d27fba954d328e3f781faf5208a00e126",
+      "bytes": 34379,
+      "sha256": "2a6ee4c2abc4d9b334f5c1b62d871e9ca64c60a1673e6165ab42a25af6bc4bcf",
       "owner": "homebox"
     },
     {
       "path": "backend/src/providers/homebox/write/stock/fresh_healthy.rs",
       "mode": "100644",
-      "bytes": 21497,
-      "sha256": "cdfac52d2fd27f89d6a7dc51f824c93f2609457d91aec0187286a6f40e951360",
+      "bytes": 23147,
+      "sha256": "4026dfc02462acb42e6b849284f790f988d5f6f5890e1e9dd8cda06554a8ac20",
       "owner": "homebox"
     },
     {
@@ -2947,8 +2947,8 @@
     {
       "path": "backend/src/providers/homebox/write/stock/mod.rs",
       "mode": "100644",
-      "bytes": 1527,
-      "sha256": "f464e2baad83003e98385491915d99760f51a4868fb9153654e1e0377f66c6ba",
+      "bytes": 1721,
+      "sha256": "6f62eaa8bfd73c35753f76b5fb3bed0a8eb907f01cb826c9a3edf79ac7040ba3",
       "owner": "homebox"
     },
     {
@@ -2963,6 +2963,34 @@
       "mode": "100644",
       "bytes": 11785,
       "sha256": "5e8415a1986fc9417fa370a3e530f2b85680e076aad2a5d5359ee81ab6cd71ef",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/write/stock/quantity_healthy.rs",
+      "mode": "100644",
+      "bytes": 18181,
+      "sha256": "67e6b5cd90235a2ff7c09081da051482078e0f79a5cd4d17d878ba61205fe5c9",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/write/stock/quantity_observation.rs",
+      "mode": "100644",
+      "bytes": 10083,
+      "sha256": "40e22f5343aa07591f5a14e3c8256de808fb7e1c3029d89154b0b5af2fd1e854",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/write/stock/quantity_profile.rs",
+      "mode": "100644",
+      "bytes": 5989,
+      "sha256": "983c96140b583bc7b48287f7d696fea38db1ca776361eaa3b93e74201efd2b18",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/write/stock/quantity_source.rs",
+      "mode": "100644",
+      "bytes": 16487,
+      "sha256": "86397b149634752d42893c77b4ac60011c2402e856c2e4b470c93db466f6bc48",
       "owner": "homebox"
     },
     {

@@ -6,12 +6,18 @@ mod features;
 mod fresh;
 mod outcome;
 mod ports;
+mod quantity_observation;
+mod quantity_profile;
+mod quantity_source;
 mod resources;
 mod types;
 mod workflow;
 pub use fresh::*;
 pub use outcome::*;
 pub use ports::*;
+pub use quantity_observation::*;
+pub use quantity_profile::*;
+pub use quantity_source::*;
 pub use types::*;
 pub use workflow::*;
 #[cfg(test)]
@@ -20,6 +26,8 @@ mod fresh_healthy;
 mod healthy_examples;
 #[cfg(test)]
 mod healthy_workflow;
+#[cfg(test)]
+mod quantity_healthy;
 
 /// Complete supported write-family dispatch. No caller-supplied route or verb.
 pub fn map_stock(
