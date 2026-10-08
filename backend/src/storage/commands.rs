@@ -6,6 +6,7 @@ use super::super::{
     repository::ReceiptKind,
     *,
 };
+use super::StockPresenceQualifiedPhase;
 use super::{AtlasStore, authorize, shape};
 use super::{presence_engine::ActiveCommandFrame, presence_transaction::PresenceStoreAllocation};
 use rusqlite::{Connection, TransactionBehavior};
@@ -548,9 +549,13 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
             )?;
         }
         extension.stage(&original, &results, &actor)?;
-        let candidate_facts =
-            revalidate(MutationPhase::Candidate, Some(&candidate), None, extension)?;
-        extension.after_candidate(&ActiveCommandFrame {
+        let qualified = extension.uses_qualified_presence();
+        let candidate_facts = if qualified {
+            context(MutationPhase::Candidate, Some(&candidate), None)?
+        } else {
+            revalidate(MutationPhase::Candidate, Some(&candidate), None, extension)?
+        };
+        let candidate_frame = ActiveCommandFrame {
             transaction: &tx,
             allocation: &self.allocation,
             instance: self.instance,
@@ -560,7 +565,32 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
             command_hashes: &hashes,
             batch_hash: batch_hash.as_deref(),
             fresh_witness_profile: self.fresh_witness_profile,
-        })?;
+        };
+        extension.after_candidate(&candidate_frame)?;
+        if qualified {
+            let proof = extension.qualified_presence(&candidate_frame)?;
+            let verified = authorize_qualified_presence(
+                self.contract,
+                self.authorization,
+                principal,
+                AuthorizationRequest {
+                    scope,
+                    capability: Capability::Mutate,
+                    targets: &targets,
+                    source: None,
+                    source_partition: None,
+                    mutation: Some(&candidate_facts),
+                },
+                &proof,
+            )?;
+            if verified != actor {
+                return Err(Error::new(
+                    "unauthenticated",
+                    "Verified principal changed during transaction",
+                ));
+            }
+            extension.authorize_qualified_presence(&candidate_frame, &actor, &proof)?;
+        }
         for ((result, entry), hash) in results.iter().zip(entries).zip(&hashes) {
             repo::write_record(
                 &tx,
@@ -597,9 +627,12 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
             )?;
         }
         extension.persist(&tx, &hashes)?;
-        let precommit_facts =
-            revalidate(MutationPhase::Precommit, Some(&candidate), None, extension)?;
-        extension.after_precommit(&ActiveCommandFrame {
+        let precommit_facts = if qualified {
+            context(MutationPhase::Precommit, Some(&candidate), None)?
+        } else {
+            revalidate(MutationPhase::Precommit, Some(&candidate), None, extension)?
+        };
+        let precommit_frame = ActiveCommandFrame {
             transaction: &tx,
             allocation: &self.allocation,
             instance: self.instance,
@@ -609,11 +642,65 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
             command_hashes: &hashes,
             batch_hash: batch_hash.as_deref(),
             fresh_witness_profile: self.fresh_witness_profile,
-        })?;
+        };
+        extension.after_precommit(&precommit_frame)?;
+        if qualified {
+            {
+                let proof = extension.qualified_presence(&precommit_frame)?;
+                let verified = authorize_qualified_presence(
+                    self.contract,
+                    self.authorization,
+                    principal,
+                    AuthorizationRequest {
+                        scope,
+                        capability: Capability::Mutate,
+                        targets: &targets,
+                        source: None,
+                        source_partition: None,
+                        mutation: Some(&precommit_facts),
+                    },
+                    &proof,
+                )?;
+                if verified != actor {
+                    return Err(Error::new(
+                        "unauthenticated",
+                        "Verified principal changed during transaction",
+                    ));
+                }
+                extension.authorize_qualified_presence(&precommit_frame, &actor, &proof)?;
+            }
+            extension.finish_qualified_precommit(&precommit_frame)?;
+        }
         tx.commit()?;
         extension.record_committed();
         Ok(results)
     }
+}
+
+/// The qualified port has the same scope and actor validation as Store's
+/// ordinary authorize wrapper; the sealed proof changes only the port call.
+fn authorize_qualified_presence<C: Contract, A: Authorization>(
+    contract: &C,
+    authorization: &A,
+    principal: &A::Principal,
+    request: AuthorizationRequest<'_>,
+    proof: &StockPresenceQualifiedPhase<'_>,
+) -> Result<VerifiedActor> {
+    shape(contract, "scope", request.scope)?;
+    let scope = request.scope;
+    let actor = authorization.authorize_presence_mutation(principal, request, proof)?;
+    if actor.workspace_id != scope.workspace_id || actor.home_id != scope.home_id {
+        return Err(Error::new("not-found", "Authorized home unavailable"));
+    }
+    shape(
+        contract,
+        "recordRef",
+        &RecordRef {
+            record_type: RecordType::Identity,
+            record_id: actor.actor_id.clone(),
+        },
+    )?;
+    Ok(actor)
 }
 
 fn batch_result(batch: &BatchMutation, results: Vec<MutationResult>) -> BatchResult {
