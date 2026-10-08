@@ -23,6 +23,9 @@ pub(crate) mod presence_transaction;
 mod recovery;
 #[path = "stock.rs"]
 mod stock;
+#[path = "stock_presence.rs"]
+mod stock_presence;
+pub use stock_presence::*;
 #[path = "stock_asset_review.rs"]
 mod stock_asset_review;
 #[path = "stock_asset_upload.rs"]
