@@ -6,7 +6,7 @@
 //! store-issued publication fence.
 use super::{CompleteGeneration, SourceRegistration, SourceScope, Timestamp, Uuid};
 use crate::storage::CachePublicationFence;
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 /// One response from the reader's fixed, bounded native GET sequence.
 pub struct NativePresenceResponse {
@@ -119,14 +119,27 @@ impl NativePresenceGeneration {
     }
 }
 
-/// Borrowed proof input tied to the original principal allocation, the exact
-/// native and normalized generation, and the Store-issued publication fence.
-/// This view cannot outlive or independently consume its staged publication.
+/// Owned source carrier tied to the original borrowed principal allocation,
+/// exact native and normalized generation, and Store-issued publication fence.
+/// It can move through Storage publication without detaching those inputs.
 pub struct NativePresenceCapture<'a, P> {
     pub(super) principal: &'a P,
-    pub(super) fence: &'a CachePublicationFence,
-    pub(super) generation: &'a CompleteGeneration,
-    pub(super) native: &'a NativePresenceGeneration,
+    pub(super) fence: CachePublicationFence,
+    pub(super) generation: CompleteGeneration,
+}
+
+/// Opaque identity for the exact original native allocation, not DATA, an
+/// address, or a reconstructed content digest. It intentionally has no Clone.
+pub struct NativePresenceIdentity(Arc<NativePresenceGeneration>);
+
+impl NativePresenceIdentity {
+    pub fn matches_capture<P>(&self, capture: &NativePresenceCapture<'_, P>) -> bool {
+        capture
+            .generation
+            .native_presence
+            .as_ref()
+            .is_some_and(|native| Arc::ptr_eq(&self.0, native))
+    }
 }
 
 impl<P> NativePresenceCapture<'_, P> {
@@ -134,12 +147,23 @@ impl<P> NativePresenceCapture<'_, P> {
         self.principal
     }
     pub fn fence(&self) -> &CachePublicationFence {
-        self.fence
+        &self.fence
     }
     pub fn generation(&self) -> &CompleteGeneration {
-        self.generation
+        &self.generation
     }
     pub fn native(&self) -> &NativePresenceGeneration {
-        self.native
+        self.generation
+            .native_presence
+            .as_deref()
+            .expect("native presence capture retains its source allocation")
+    }
+    pub fn retain_native_identity(&self) -> NativePresenceIdentity {
+        NativePresenceIdentity(Arc::clone(
+            self.generation
+                .native_presence
+                .as_ref()
+                .expect("native presence capture retains its source allocation"),
+        ))
     }
 }
