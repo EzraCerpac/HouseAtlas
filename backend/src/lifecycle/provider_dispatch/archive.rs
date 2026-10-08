@@ -73,7 +73,7 @@ pub struct PrivateStockArchive {
     directory: File,
     destination: ArchiveDestination,
     max_frame_bytes: usize,
-    media_custody: Mutex<()>,
+    custody: Mutex<()>,
 }
 impl PrivateStockArchive {
     /// Open the already-provisioned trusted directory without creating a path.
@@ -110,7 +110,7 @@ impl PrivateStockArchive {
                 owner: metadata.uid(),
             },
             max_frame_bytes: config.max_frame_bytes(),
-            media_custody: Mutex::new(()),
+            custody: Mutex::new(()),
         }))
     }
     pub fn destination(&self) -> &ArchiveDestination {
@@ -129,6 +129,14 @@ impl PrivateStockArchive {
         if bytes.len() > self.max_frame_bytes {
             return Err(ArchiveError::TooLarge);
         }
+        // Every typed native writer shares the actual descriptor custody. In
+        // particular an independently opened HomeBox writer cannot race a
+        // Media catalog read if configuration accidentally selects one path.
+        let _local = self
+            .custody
+            .try_lock()
+            .map_err(|_| ArchiveError::Unavailable)?;
+        let _lock = self.custody_lock()?;
         let name = format!("{operation}.{version}.producer.json");
         self.retain_named(&name, bytes)
     }
@@ -270,7 +278,7 @@ fn media_name(name: &str) -> bool {
         .unwrap_or(false)
 }
 impl PrivateStockArchive {
-    fn media_destination_current(&self) -> Result<(), ArchiveError> {
+    fn destination_current(&self) -> Result<(), ArchiveError> {
         let descriptor = self
             .directory
             .metadata()
@@ -305,8 +313,8 @@ impl PrivateStockArchive {
             changed_ns: metadata.ctime_nsec(),
         })
     }
-    fn media_lock(&self) -> Result<DirectoryLock<'_>, ArchiveError> {
-        self.media_destination_current()?;
+    fn custody_lock(&self) -> Result<DirectoryLock<'_>, ArchiveError> {
+        self.destination_current()?;
         rustix::fs::flock(
             &self.directory,
             rustix::fs::FlockOperation::NonBlockingLockExclusive,
@@ -318,7 +326,7 @@ impl PrivateStockArchive {
         &self,
         budget: &crate::media::WorkBudget,
     ) -> Result<Vec<MediaArchiveMember>, ArchiveError> {
-        self.media_destination_current()?;
+        self.destination_current()?;
         let directory_identity = self.media_directory_identity()?;
         let maximum = self.max_frame_bytes.min(MEDIA_MEMBER_BYTES);
         let mut directory =
@@ -380,7 +388,7 @@ impl PrivateStockArchive {
             return Err(ArchiveError::Unavailable);
         }
         budget.check().map_err(|_| ArchiveError::Unavailable)?;
-        self.media_destination_current()?;
+        self.destination_current()?;
         if directory_identity != self.media_directory_identity()? {
             return Err(ArchiveError::Unavailable);
         }
@@ -397,10 +405,10 @@ impl PrivateStockArchive {
         use crate::media::MediaError;
         budget.check()?;
         let _local = self
-            .media_custody
+            .custody
             .try_lock()
             .map_err(|_| MediaError::Unavailable)?;
-        let _lock = self.media_lock().map_err(|_| MediaError::Unavailable)?;
+        let _lock = self.custody_lock().map_err(|_| MediaError::Unavailable)?;
         owner.authorize_archive(self.destination(), packet)?;
         let name = packet.member_name();
         let bytes = packet.bytes();
@@ -447,8 +455,8 @@ impl PrivateStockArchive {
         let unavailable =
             || crate::storage::Error::new("unavailable", "Private Media archive unavailable");
         budget.check().map_err(|_| unavailable())?;
-        let _local = self.media_custody.try_lock().map_err(|_| unavailable())?;
-        let _lock = self.media_lock().map_err(|_| unavailable())?;
+        let _local = self.custody.try_lock().map_err(|_| unavailable())?;
+        let _lock = self.custody_lock().map_err(|_| unavailable())?;
         let directory_identity = self.media_directory_identity().map_err(|_| unavailable())?;
         let before = self.media_scan(budget).map_err(|_| unavailable())?;
         let result = qualify(&before)?;
