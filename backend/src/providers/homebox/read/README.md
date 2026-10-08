@@ -399,3 +399,62 @@ the original empty spelling. Its two-row maintenance response is synthetic and m
 the unsupported exponent-cost projection or provider-wide completeness.
 Only this positive case is executed; no mismatch/denial/revocation/expiry,
 concurrency control, held proof or provider write is exercised.
+
+
+## Original-authority native credential delivery
+
+`NativeReadCredentialConfig::from_trusted_header(&SourceEndpoint, Vec<u8>)`
+retains one explicit trusted host input for an exact endpoint and source scope.
+The nonempty authorization header is limited to 8192 bytes and validated by the
+existing sensitive `AuthorizationHeader` constructor. The owned buffer uses
+`Zeroizing<Vec<u8>>`; immutable `Arc` configuration reuse keeps it until the last
+owner drops. There is no Debug/serde/secret getter or configuration clone. The
+transient header and HTTP library allocations are not a secure-erasure proof.
+No environment, credential file, browser input or AI boundary is read.
+
+For each request, `Arc<NativeReadCredentialConfig>::bind_original` receives the
+actual shared Access owner, a borrow of the exact native original principal, and
+the original opaque HomeBox entity SourceGrant and PartitionGrant. It checks
+exact scope/source/opaque collection correlation and uses the existing
+`with_source_read_authorization` fence to validate complete principal provenance,
+read capability and the captured grant versions. No principal or grant is issued
+or replaced. `NativeReadCredentials::from_trusted_header` delegates for direct
+per-request use. `matches_endpoint` permits safe configuration correlation and
+exposes no authorization bytes.
+
+The concrete existing `CredentialProvider` implementation repeats this native
+read fence at every header delivery, checks the exact selected endpoint/scope and
+request deadline, and creates the transient sensitive header within that fence.
+Mutex acquisition is nonblocking. The original synchronous Access/SQLite fence
+retains its existing busy timeout and cannot be interrupted by an async timer;
+execute this source phase on the existing blocking worker. A post-fence deadline
+check refuses late delivery, but does not promise a preemptible wall-clock bound.
+It drops Access locks and transactions before transport socket awaits. A returned
+future contains only the result, not a request wrapper or lock. This supports the
+root's synchronous original RequestPrincipal handling and actual async GET I/O.
+
+These constructors handle explicit header custody; syntax/current native read
+checks do not authenticate a provider account or certify enrollment, credential
+provenance, expiry or source admission. Those remain genuine trusted host inputs.
+The existing CredentialProvider interface receives an endpoint and deadline,
+not a GET owner/path. Root must pair the SAME original principal/source handles
+with NativeReadCapture's exact request-owner/fixed-route checks. This credential
+peer supplies no write approval, provider qualification or activation.
+
+The integration owner declares `mod credentials`, exports
+`NativeReadCredentialConfig` and `NativeReadCredentials`, and declares
+`#[cfg(test)] mod credentials_healthy` in `read/mod.rs`. Once declared, the exact
+additional permitted positive command is:
+
+```sh
+cargo test --locked -p houseatlas-backend --lib providers::homebox::read::credentials_healthy::healthy_original_credentials_deliver_two_native_gets -- --exact --test-threads=1
+```
+
+One ordinary case reuses an immutable explicitly synthetic header configuration
+for two genuine Access-issued read requests and their original source/partition
+grants. Actual ephemeral-loopback HttpTransport sends two successful chunked
+GETs with the exact synthetic Authorization header, tenant, fixed routes and
+identity encoding. Original native detail/maintenance bytes and lexical retrieval
+time survive. The server successfully acquires the shared Access lock while each
+response is pending. No real credentials, accounts, inventory or live provider
+calls, mismatch/denial/revocation/expiry controls, writes or held proof tests run.
