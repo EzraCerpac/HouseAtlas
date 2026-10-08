@@ -4,7 +4,9 @@ use super::super::*;
 use super::presence_transaction::{
     PresenceMutationInputs, PresenceMutationTransaction, PresenceStoreAllocation,
 };
+use super::stock_presence::{MAX_ACCEPTED_FRAME_BYTES, bounded_size};
 use crate::{access as a, domain as d, providers::network as net};
+use crate::{app::homebox_presence::ConfiguredPresenceReleased, contracts::stock::PresenceWitness};
 use d::qualified as p;
 use rusqlite::Transaction;
 use std::sync::Arc;
@@ -26,7 +28,7 @@ pub(crate) struct ActiveCommandFrame<'phase, 'db, C> {
 
 /// Exact original invocation inputs. Root supplies the accepted native version;
 /// the type has no version, age, review, grant or guard fallback.
-pub(super) struct OriginalPresenceEngine<'owner, 'access> {
+pub(super) struct OriginalPresenceEngine<'owner, 'access, 'origin, 'reader> {
     guard: &'owner a::TransactionAuthorization<'access>,
     access: &'owner p::OriginalPresenceAccess<'owner>,
     version: &'owner str,
@@ -39,26 +41,28 @@ pub(super) struct OriginalPresenceEngine<'owner, 'access> {
     context_id: Option<String>,
     transaction_identity: Option<*const ()>,
     store_instance: Option<Arc<()>>,
+    candidate_context: Option<MutationAuthorizationContext>,
+    publications: &'owner [&'owner ConfiguredPresenceReleased<'origin, 'reader>],
 }
 
-#[expect(
-    dead_code,
-    reason = "No runtime original-presence constructor is configured"
-)]
-pub(super) struct OriginalPresenceEngineInputs<'owner, 'access> {
+pub(super) struct OriginalPresenceEngineInputs<'owner, 'access, 'origin, 'reader> {
     pub principal: &'owner a::Principal,
     pub guard: &'owner a::TransactionAuthorization<'access>,
     pub access: &'owner p::OriginalPresenceAccess<'owner>,
     pub network: Option<(&'owner net::SqliteNetworkSidecar, &'owner net::LinkReview)>,
     pub age: &'owner p::ConfiguredCacheAge,
     pub now: &'owner dyn Fn() -> d::DomainResult<String>,
+    pub publications: &'owner [&'owner ConfiguredPresenceReleased<'origin, 'reader>],
 }
-impl<'owner, 'access> OriginalPresenceEngine<'owner, 'access> {
-    #[expect(
-        dead_code,
-        reason = "Mandatory historical custody blocks fresh-profile construction"
-    )]
-    pub(super) fn new(input: OriginalPresenceEngineInputs<'owner, 'access>) -> Result<Self> {
+pub(super) struct PresencePhaseRetention {
+    pub candidate: MutationAuthorizationContext,
+    pub precommit: MutationAuthorizationContext,
+    pub witnesses: Vec<PresenceWitness>,
+}
+impl<'owner, 'access, 'origin, 'reader> OriginalPresenceEngine<'owner, 'access, 'origin, 'reader> {
+    pub(super) fn new(
+        input: OriginalPresenceEngineInputs<'owner, 'access, 'origin, 'reader>,
+    ) -> Result<Self> {
         if !std::ptr::eq(input.principal, input.access.principal)
             || !std::ptr::eq(input.principal, input.guard.principal())
         {
@@ -85,12 +89,15 @@ impl<'owner, 'access> OriginalPresenceEngine<'owner, 'access> {
             context_id: None,
             transaction_identity: None,
             store_instance: None,
+            candidate_context: None,
+            publications: input.publications,
         })
     }
     pub(super) fn candidate<C: Contract>(
         &mut self,
         frame: &ActiveCommandFrame<'_, '_, C>,
     ) -> Result<()> {
+        bounded_size(frame.context, MAX_ACCEPTED_FRAME_BYTES)?;
         if !frame.fresh_witness_profile
             || frame.context.phase != MutationPhase::Candidate
             || self.context_id.is_some()
@@ -109,6 +116,7 @@ impl<'owner, 'access> OriginalPresenceEngine<'owner, 'access> {
                 access: self.access,
                 accepted_access_package_version: self.version,
                 network: self.network,
+                publications: self.publications,
             },
         )
         .map_err(domain_error)?;
@@ -164,6 +172,7 @@ impl<'owner, 'access> OriginalPresenceEngine<'owner, 'access> {
         self.context_id = Some(frame.context.context_id.clone());
         self.transaction_identity = Some(std::ptr::from_ref(frame.transaction).cast::<()>());
         self.store_instance = Some(Arc::clone(frame.instance));
+        self.candidate_context = Some(frame.context.clone());
         Ok(())
     }
     /// Future stage gate ONLY after actual Candidate capture. Root must preserve
@@ -184,7 +193,8 @@ impl<'owner, 'access> OriginalPresenceEngine<'owner, 'access> {
     pub(super) fn precommit<C: Contract>(
         &mut self,
         frame: &ActiveCommandFrame<'_, '_, C>,
-    ) -> Result<usize> {
+    ) -> Result<PresencePhaseRetention> {
+        bounded_size(frame.context, MAX_ACCEPTED_FRAME_BYTES)?;
         if !frame.fresh_witness_profile
             || frame.context.phase != MutationPhase::Precommit
             || self.transaction_identity != Some(std::ptr::from_ref(frame.transaction).cast::<()>())
@@ -208,6 +218,7 @@ impl<'owner, 'access> OriginalPresenceEngine<'owner, 'access> {
                 access: self.access,
                 accepted_access_package_version: self.version,
                 network: self.network,
+                publications: self.publications,
             },
         )
         .map_err(domain_error)?;
@@ -220,7 +231,7 @@ impl<'owner, 'access> OriginalPresenceEngine<'owner, 'access> {
         )
         .map_err(domain_error)?;
         let now = (self.now)().map_err(domain_error)?;
-        adapter
+        let witnesses = adapter
             .retain_witnesses(
                 &self.qualifier,
                 frame.results,
@@ -228,7 +239,13 @@ impl<'owner, 'access> OriginalPresenceEngine<'owner, 'access> {
                 frame.batch_hash,
                 (&now, self.age),
             )
-            .map_err(domain_error)
+            .map_err(domain_error)?;
+        bounded_size(&witnesses, MAX_ACCEPTED_FRAME_BYTES)?;
+        Ok(PresencePhaseRetention {
+            candidate: self.candidate_context.take().ok_or_else(incompatible)?,
+            precommit: frame.context.clone(),
+            witnesses,
+        })
     }
 }
 fn carrier<T: serde::de::DeserializeOwned>(data: &impl serde::Serialize) -> Result<T> {

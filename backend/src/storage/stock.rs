@@ -1,12 +1,20 @@
 //! Stock execution uses the existing native transaction, never a second store.
 use super::super::{
-    command_extension::CommandExtension, context, repository as repo, repository::ReceiptKind,
-    stock_repository as stock_repo, *,
+    cache_repository as cache, command_extension::CommandExtension, context, repository as repo,
+    repository::ReceiptKind, stock_repository as stock_repo, *,
 };
 use super::{AtlasStore, shape};
 use super::{
-    presence_engine::{ActiveCommandFrame, OriginalPresenceEngine, assert_core_presence_hold},
+    presence_engine::{
+        ActiveCommandFrame, OriginalPresenceEngine, OriginalPresenceEngineInputs,
+        assert_core_presence_hold,
+    },
     presence_transaction::PresenceStoreAllocation,
+    stock_presence::{
+        MAX_ACCEPTED_FRAME_BYTES, PresenceCommandMapping, StockPresenceAcceptedFrame,
+        StockPresenceCommandPeers, StockPresenceCommittedData, StockPresenceCommittedObservation,
+        StockPresenceStorageReleasedCut, bounded_size,
+    },
 };
 use crate::domain::{
     self,
@@ -15,8 +23,10 @@ use crate::domain::{
     },
 };
 use rusqlite::Connection;
+use rusqlite::{TransactionBehavior, params};
 use serde_json::Value;
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 pub(super) enum Qualification<'a, 'g> {
     Direct,
@@ -41,6 +51,244 @@ pub(super) fn stock_error(error: StockError) -> Error {
     }
 }
 impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
+    // The opaque peers, original principal, mapping, and observation must remain
+    // distinct inputs so the command cannot infer one from retained DATA.
+    #[allow(clippy::too_many_arguments)]
+    pub fn execute_presence_stock_json_with_authorization<
+        'phase,
+        'call,
+        'tx,
+        'origin,
+        'reader,
+        B,
+        S,
+    >(
+        &mut self,
+        authorization: &B,
+        principal: &'call crate::app::RequestPrincipal,
+        contracts: &S,
+        raw: &Value,
+        mapping: PresenceCommandMapping<'_>,
+        peers: StockPresenceCommandPeers<'phase, 'call, 'tx, 'origin, 'reader>,
+        observation: &StockPresenceCommittedObservation,
+    ) -> Result<StockPresenceStorageReleasedCut<'call, 'origin, 'reader>>
+    where
+        B: StockAuthorization<Principal = crate::app::RequestPrincipal>,
+        S: StockContractPort,
+    {
+        if !Arc::ptr_eq(&self.instance, &peers.instance)
+            || !std::ptr::eq(principal, peers.principal)
+            || raw != peers.request.raw()
+            || !observation.is_empty()
+            || peers
+                .publications
+                .iter()
+                .any(|closed| !closed.matches_store(self))
+        {
+            return Err(Error::new(
+                "forbidden",
+                "Original stock presence command changed",
+            ));
+        }
+        let request = ValidatedRequest::parse(contracts, raw.clone()).map_err(stock_error)?;
+        if request.raw() != peers.request.raw()
+            || request.intent_digest() != peers.request.intent_digest()
+        {
+            return Err(stock_repo::incompatible());
+        }
+        let (plan, qualification) = match mapping {
+            PresenceCommandMapping::Direct => (
+                stock::plan_atlas_commands(&request, &self.contract).map_err(stock_error)?,
+                Qualification::Direct,
+            ),
+            PresenceCommandMapping::Derived(derivation) => {
+                super::super::stock_derivation::validate_derivation(&request, derivation)?;
+                (
+                    stock::plan_derived_atlas_commands(&request, derivation, &self.contract)
+                        .map_err(stock_error)?,
+                    Qualification::Derived(derivation),
+                )
+            }
+            PresenceCommandMapping::DerivedBatch(derivations) => {
+                super::super::stock_derivation::validate_batch_derivations(&request, derivations)?;
+                (
+                    stock::plan_derived_atlas_batch_commands(&request, derivations, &self.contract)
+                        .map_err(stock_error)?,
+                    Qualification::DerivedBatch(derivations),
+                )
+            }
+        };
+        let (commit, frame) = self.execute_stock_plan_with_presence(
+            authorization,
+            principal,
+            contracts,
+            &request,
+            &plan,
+            qualification,
+            Some(&peers),
+            Some(observation),
+        )?;
+        let frame = frame.ok_or_else(stock_repo::incompatible)?;
+        if commit.replayed || frame.commit != commit {
+            return Err(stock_repo::incompatible());
+        }
+        let tx = self
+            .db
+            .transaction_with_behavior(TransactionBehavior::Deferred)?;
+        let check = || -> Result<()> {
+            peers
+                .guard
+                .assert_mutation()
+                .map_err(|_| Error::new("forbidden", "Original Access mutation unavailable"))?;
+            peers
+                .guard
+                .revalidate()
+                .map_err(|_| Error::new("forbidden", "Original Access mutation unavailable"))?;
+            for grant in peers.access.sources {
+                peers.guard.revalidate_source(grant).map_err(|_| {
+                    Error::new("forbidden", "Original source authority unavailable")
+                })?;
+            }
+            for grant in peers.access.partitions {
+                peers
+                    .guard
+                    .revalidate_source_partition(grant)
+                    .map_err(|_| {
+                        Error::new("forbidden", "Original partition authority unavailable")
+                    })?;
+            }
+            let scope: crate::access::Scope =
+                serde_json::from_value(serde_json::to_value(plan.scope())?)?;
+            peers
+                .guard
+                .authorize(&scope, crate::access::Capability::Mutate)
+                .map_err(|_| Error::new("forbidden", "Original mutation scope unavailable"))?;
+            let verified = authorization.authorize(
+                principal,
+                AuthorizationRequest {
+                    scope: plan.scope(),
+                    capability: Capability::Mutate,
+                    targets: &frame.precommit.targets,
+                    source: None,
+                    source_partition: None,
+                    mutation: Some(&frame.precommit),
+                },
+            )?;
+            if verified.workspace_id != plan.scope().workspace_id
+                || verified.home_id != plan.scope().home_id
+                || verified.actor_id != commit.actor_id
+            {
+                return Err(stock_repo::incompatible());
+            }
+            Ok(())
+        };
+        check()?;
+        let saved = stock_repo::load(
+            &tx,
+            &self.contract,
+            plan.scope(),
+            &commit.actor_id,
+            &commit.operation_id,
+        )?;
+        if saved != commit {
+            return Err(stock_repo::incompatible());
+        }
+        super::super::stock_projection::validate_retained(&tx, &saved, contracts, &self.contract)?;
+        match (&frame.precommit.batch, frame.batch_hash.as_deref()) {
+            (Some(batch), Some(hash)) => {
+                let results = commit
+                    .groups
+                    .iter()
+                    .flat_map(|g| g.native_results.iter().cloned())
+                    .collect::<Vec<_>>();
+                super::super::presence_witness_repository::check_batch_receipt(
+                    &tx,
+                    &self.contract,
+                    plan.scope(),
+                    &commit.actor_id,
+                    batch,
+                    hash,
+                    &results,
+                )?;
+            }
+            (None, None) => {}
+            _ => return Err(stock_repo::incompatible()),
+        }
+        for closed in peers.publications {
+            let data = closed.committed();
+            let partition = data.cache().partition();
+            let registration = cache::source(&tx, &partition)?;
+            let current = cache::publication_state(&tx, &partition)?;
+            if registration != *data.registration()
+                || current.cache.as_ref() != Some(data.cache())
+                || current.cache_epoch != data.successor_cache_epoch()
+                || current.homebox_entities != data.homebox_entities()
+                || current.network_relations != data.network_relations()
+            {
+                return Err(stock_repo::incompatible());
+            }
+        }
+        for witness in &frame.witnesses {
+            let body: String = tx.query_row(
+                "SELECT body FROM presence_witnesses WHERE workspace_id=?1 AND home_id=?2 AND binding_record_id=?3 AND audit_id=?4",
+                params![witness.workspace_id, witness.home_id, witness.binding_record_id, witness.audit_id],
+                |row| row.get(0),
+            )?;
+            if body != repo::json(&self.contract, witness)? {
+                return Err(stock_repo::incompatible());
+            }
+        }
+        for (result, hash) in commit
+            .groups
+            .iter()
+            .flat_map(|g| &g.native_results)
+            .zip(&frame.command_hashes)
+        {
+            let current =
+                repo::read_record(&tx, &result.record.scope(), &result.record.reference())?;
+            let audit: String = tx.query_row(
+                "SELECT body FROM audits WHERE workspace_id=?1 AND home_id=?2 AND record_id=?3 AND audit_id=?4",
+                params![result.record.workspace_id, result.record.home_id, result.record.record_id, result.audit.audit_id],
+                |row| row.get(0),
+            )?;
+            let receipt = repo::receipt(
+                &tx,
+                ReceiptKind::Command,
+                &result.record.scope(),
+                &commit.actor_id,
+                &result.audit.mutation_id,
+            )?
+            .ok_or_else(stock_repo::incompatible)?;
+            if current != result.record
+                || audit != repo::json(&self.contract, &result.audit)?
+                || receipt.hash != *hash
+                || receipt.body != repo::json(&self.contract, result)?
+            {
+                return Err(stock_repo::incompatible());
+            }
+        }
+        check()?;
+        tx.commit()?;
+        if peers
+            .publications
+            .iter()
+            .any(|closed| !closed.matches_store(self))
+        {
+            return Err(Error::new(
+                "forbidden",
+                "Original native publication Store changed",
+            ));
+        }
+        Ok(StockPresenceStorageReleasedCut {
+            frame,
+            instance: peers.instance,
+            invocation: peers.invocation,
+            principal: peers.principal,
+            request: peers.request,
+            publications: peers.publications,
+            prepared: peers.prepared,
+        })
+    }
     /// Required authorizer retains original handles for both native and stock
     /// checks. Full input is validated before planning; no alternate weak plan.
     pub fn execute_stock_json_with_authorization<B, S>(
@@ -169,6 +417,41 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         plan: &AtlasCommandPlan,
         qualification: Qualification<'_, '_>,
     ) -> Result<StockAtlasCommit> {
+        self.execute_stock_plan_with_presence(
+            authorization,
+            principal,
+            contracts,
+            request,
+            plan,
+            qualification,
+            None,
+            None,
+        )
+        .map(|(commit, _)| commit)
+    }
+
+    // Preserve the existing planner inputs and pass the optional original peer
+    // explicitly through the single native engine.
+    #[allow(clippy::too_many_arguments)]
+    fn execute_stock_plan_with_presence<
+        'phase,
+        'call,
+        'tx,
+        'origin,
+        'reader,
+        B: StockAuthorization,
+        S: StockContractPort,
+    >(
+        &mut self,
+        authorization: &B,
+        principal: &B::Principal,
+        contracts: &S,
+        request: &ValidatedRequest,
+        plan: &AtlasCommandPlan,
+        qualification: Qualification<'_, '_>,
+        presence: Option<&StockPresenceCommandPeers<'phase, 'call, 'tx, 'origin, 'reader>>,
+        observation: Option<&StockPresenceCommittedObservation>,
+    ) -> Result<(StockAtlasCommit, Option<StockPresenceAcceptedFrame>)> {
         let (staged, derivation, child_derivations, review) = match qualification {
             Qualification::Direct => (None, None, None, None),
             Qualification::VerifiedReview(peers) => (None, None, None, Some(peers)),
@@ -191,8 +474,30 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             shape(&self.contract, "batchMutation", batch)?;
         }
         let allocation = PresenceStoreAllocation::capture(self);
+        let runtime = &self.runtime;
+        let clock = || {
+            runtime
+                .now()
+                .map_err(|_| domain::DomainError::UpstreamUnavailable)
+        };
+        let original_presence = presence
+            .map(|peers| {
+                OriginalPresenceEngine::new(OriginalPresenceEngineInputs {
+                    principal: peers.access.principal,
+                    guard: peers.guard,
+                    access: peers.access,
+                    network: None,
+                    age: peers.age,
+                    now: &clock,
+                    publications: peers.publications,
+                })
+            })
+            .transpose()?;
         let mut extension = StockTransaction {
-            presence: None,
+            presence: original_presence,
+            observation,
+            accepted_frame: None,
+            pending_data: None,
             contract: &self.contract,
             authorization,
             principal,
@@ -226,12 +531,16 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             batch.as_ref(),
             &mut extension,
         )?;
-        extension.commit.ok_or_else(stock_repo::incompatible)
+        let commit = extension.commit.ok_or_else(stock_repo::incompatible)?;
+        Ok((commit, extension.accepted_frame))
     }
 }
-struct StockTransaction<'a, 'g, C, B: Authorization, R, S> {
+struct StockTransaction<'a, 'g, 'origin, 'reader, C, B: Authorization, R, S> {
     // No public/host constructor supplies this peer; existing staging holds remain.
-    presence: Option<OriginalPresenceEngine<'a, 'g>>,
+    presence: Option<OriginalPresenceEngine<'a, 'g, 'origin, 'reader>>,
+    observation: Option<&'a StockPresenceCommittedObservation>,
+    accepted_frame: Option<StockPresenceAcceptedFrame>,
+    pending_data: Option<StockPresenceCommittedData>,
     contract: &'a C,
     authorization: &'a B,
     principal: &'a B::Principal,
@@ -248,7 +557,7 @@ struct StockTransaction<'a, 'g, C, B: Authorization, R, S> {
     commit: Option<StockAtlasCommit>,
 }
 impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort>
-    StockTransaction<'_, '_, C, B, R, S>
+    StockTransaction<'_, '_, '_, '_, C, B, R, S>
 {
     fn project(&self, commit: &StockAtlasCommit) -> Result<stock::OwnerResult> {
         super::super::stock_projection::project(
@@ -273,7 +582,7 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort>
     }
 }
 impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> CommandExtension<C>
-    for StockTransaction<'_, '_, C, B, R, S>
+    for StockTransaction<'_, '_, '_, '_, C, B, R, S>
 {
     fn after_candidate(&mut self, frame: &ActiveCommandFrame<'_, '_, C>) -> Result<()> {
         match self.presence.as_mut() {
@@ -313,9 +622,39 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
     }
     fn after_precommit(&mut self, frame: &ActiveCommandFrame<'_, '_, C>) -> Result<()> {
         if let Some(original) = self.presence.as_mut() {
-            original.precommit(frame)?;
+            let retained = original.precommit(frame)?;
+            bounded_size(
+                &(
+                    &retained.candidate,
+                    &retained.precommit,
+                    self.commit.as_ref().ok_or_else(stock_repo::incompatible)?,
+                    frame.command_hashes,
+                    frame.batch_hash,
+                    &retained.witnesses,
+                ),
+                MAX_ACCEPTED_FRAME_BYTES,
+            )?;
+            let accepted = StockPresenceAcceptedFrame {
+                commit: self
+                    .commit
+                    .as_ref()
+                    .ok_or_else(stock_repo::incompatible)?
+                    .clone(),
+                candidate: retained.candidate,
+                precommit: retained.precommit,
+                command_hashes: frame.command_hashes.to_vec(),
+                batch_hash: frame.batch_hash.map(str::to_owned),
+                witnesses: retained.witnesses,
+            };
+            self.pending_data = Some(accepted.data());
+            self.accepted_frame = Some(accepted);
         }
         Ok(())
+    }
+    fn record_committed(&mut self) {
+        if let (Some(observation), Some(data)) = (self.observation, self.pending_data.take()) {
+            observation.committed(data);
+        }
     }
     fn stock(&self) -> bool {
         true
@@ -328,7 +667,7 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
         replay: Option<&Replay>,
         actor: &VerifiedActor,
     ) -> Result<()> {
-        if self.review.is_some()
+        if (self.review.is_some() || self.presence.is_some())
             && (matches!(
                 facts.phase,
                 MutationPhase::Replay | MutationPhase::ReplayPrecommit
@@ -336,7 +675,11 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
         {
             return Err(Error::new(
                 "upstream-unavailable",
-                "Renderer review replay is held",
+                if self.review.is_some() {
+                    "Renderer review replay is held"
+                } else {
+                    "Original presence replay is held"
+                },
             ));
         }
         let extra = self
@@ -402,6 +745,9 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
         if let Some((id, ordinal)) =
             stock_repo::key(db, scope, &actor.actor_id, self.plan.root_idempotency_key())?
         {
+            if self.presence.is_some() {
+                return Err(stock_repo::conflict());
+            }
             if self.review.is_some() {
                 return Err(Error::new(
                     "upstream-unavailable",
@@ -585,12 +931,14 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
                         .map_err(|_| {
                             Error::new("invalid-contract", "Presence predicate is incompatible")
                         })?;
-                domain::enforce_current_presence_hold(requirement).map_err(|_| {
-                    Error::new(
-                        "upstream-unavailable",
-                        "Atomic presence qualification is unavailable",
-                    )
-                })?;
+                if self.presence.is_none() {
+                    domain::enforce_current_presence_hold(requirement).map_err(|_| {
+                        Error::new(
+                            "upstream-unavailable",
+                            "Atomic presence qualification is unavailable",
+                        )
+                    })?;
+                }
             }
             groups.push(StockCommitGroup {
                 child_index: group.child_index(),
