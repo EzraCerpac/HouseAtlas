@@ -9,7 +9,10 @@ use crate::{
     media::native_queued_quantity::NativeQueuedMediaOriginal,
     providers::homebox::{
         read,
-        write::stock::{FreshQualification, quantity_queue_original::NativeQueuedQuantityOriginal},
+        write::stock::{
+            FreshQualification, quantity_queue_original::NativeQueuedQuantityOriginal,
+            quantity_queue_prepared::NativeQueuedQuantityPrepared,
+        },
     },
     storage::{self, StockActivityPrincipal as _},
 };
@@ -149,6 +152,11 @@ where
     preparation: &'phase OriginalQueuedQuantityPreparation<'bundle, 'native, 'p, 'owner, T, K>,
     guard: &'phase access::TransactionAuthorization<'tx>,
     initial: Option<&'phase jobs::JobSnapshot>,
+    journal: Option<(
+        &'phase jobs::LeasedJob,
+        &'phase storage::PreparedNativeIntent,
+    )>,
+    journal_proof: Option<&'phase NativeQueuedQuantityPrepared>,
 }
 
 impl<'phase, 'tx, 'bundle, 'native, 'p, 'owner, T, K>
@@ -167,6 +175,27 @@ where
             preparation,
             guard,
             initial,
+            journal: None,
+            journal_proof: None,
+        })
+    }
+
+    pub(crate) fn for_journal(
+        preparation: &'phase OriginalQueuedQuantityPreparation<'bundle, 'native, 'p, 'owner, T, K>,
+        guard: &'phase access::TransactionAuthorization<'tx>,
+        job: &'phase jobs::LeasedJob,
+        prepared: &'phase NativeQueuedQuantityPrepared,
+    ) -> storage::Result<Self> {
+        preparation.revalidate_guard(guard)?;
+        prepared
+            .revalidate_original_guard(preparation.quantity_preparation(), guard)
+            .map_err(|_| unavailable())?;
+        Ok(Self {
+            preparation,
+            guard,
+            initial: None,
+            journal: Some((job, prepared.prepared())),
+            journal_proof: Some(prepared),
         })
     }
 
@@ -182,7 +211,13 @@ where
         {
             return Err(unavailable());
         }
-        self.preparation.revalidate_guard(self.guard)
+        self.preparation.revalidate_guard(self.guard)?;
+        if let Some(proof) = self.journal_proof {
+            proof
+                .revalidate_original_guard(self.preparation.quantity_preparation(), self.guard)
+                .map_err(|_| unavailable())?;
+        }
+        Ok(())
     }
 }
 
@@ -223,6 +258,12 @@ where
                     && job.canonical_scope == *self.preparation.scope()
                     && job.pending_byte_liability == request.pending_byte_liability
             }),
+            storage::QueueAction::Journal(job, prepared) => {
+                self.journal
+                    .is_some_and(|(expected_job, expected_prepared)| {
+                        job == expected_job && prepared == expected_prepared
+                    })
+            }
             _ => false,
         };
         if !exact {
