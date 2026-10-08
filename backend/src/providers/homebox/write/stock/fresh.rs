@@ -3,7 +3,12 @@
 use super::*;
 use crate::providers::homebox::{read, wire};
 use crate::{
-    access as a, app::homebox_quantity_startup::OriginalQuantityPhysical, domain::stock as st,
+    access as a,
+    app::{
+        homebox_quantity_startup::OriginalQuantityPhysical,
+        homebox_queued_upload::OriginalQueuedUploadPhysical,
+    },
+    domain::stock as st,
     storage::StockActivityPrincipal as _,
 };
 use serde_json::{Value, json};
@@ -35,6 +40,7 @@ pub struct FreshQualification<'g, 'tx, 'p> {
     guard: &'g a::TransactionAuthorization<'tx>,
     captured: &'g st::CapturedAccess<'p>,
     quantity_installation: Option<&'g OriginalQuantityPhysical<'g, 'p>>,
+    queued_upload_installation: Option<&'g OriginalQueuedUploadPhysical<'g, 'p>>,
 }
 impl<'g, 'tx, 'p> FreshQualification<'g, 'tx, 'p> {
     pub fn new(
@@ -45,6 +51,7 @@ impl<'g, 'tx, 'p> FreshQualification<'g, 'tx, 'p> {
             guard,
             captured,
             quantity_installation: None,
+            queued_upload_installation: None,
         };
         context.revalidate()?;
         Ok(context)
@@ -61,6 +68,23 @@ impl<'g, 'tx, 'p> FreshQualification<'g, 'tx, 'p> {
             guard,
             captured,
             quantity_installation: Some(physical),
+            queued_upload_installation: None,
+        };
+        context.revalidate()?;
+        Ok(context)
+    }
+    /// Bind a distinct actual upload physical observation. The selected
+    /// original source/partition must be pointer members of this capture.
+    pub fn with_queued_upload_installation(
+        guard: &'g a::TransactionAuthorization<'tx>,
+        captured: &'g st::CapturedAccess<'p>,
+        physical: &'g OriginalQueuedUploadPhysical<'g, 'p>,
+    ) -> Result<Self, StockErrorCode> {
+        let context = Self {
+            guard,
+            captured,
+            quantity_installation: None,
+            queued_upload_installation: Some(physical),
         };
         context.revalidate()?;
         Ok(context)
@@ -73,6 +97,9 @@ impl<'g, 'tx, 'p> FreshQualification<'g, 'tx, 'p> {
     }
     pub fn quantity_installation(&self) -> Option<&OriginalQuantityPhysical<'g, 'p>> {
         self.quantity_installation
+    }
+    pub fn queued_upload_installation(&self) -> Option<&OriginalQueuedUploadPhysical<'g, 'p>> {
+        self.queued_upload_installation
     }
 
     /// Recheck the original handles using this same held authorization. This
@@ -141,6 +168,42 @@ impl<'g, 'tx, 'p> FreshQualification<'g, 'tx, 'p> {
                 .map_err(access_error)?;
             if &metadata != observation.source_metadata()
                 || metadata.registration().partition() != *partition.partition()
+            {
+                return Err(StockErrorCode::PreflightConflict);
+            }
+        }
+        if let Some(physical) = self.queued_upload_installation {
+            if !physical.matches_configured_store()
+                || !std::ptr::eq(physical.captured(), self.captured)
+                || !std::ptr::eq(physical.captured().principal(), self.guard.principal())
+                || !self
+                    .captured
+                    .source_grants()
+                    .iter()
+                    .any(|grant| std::ptr::eq(grant, physical.source()))
+                || !self
+                    .captured
+                    .partition_grants()
+                    .iter()
+                    .any(|grant| std::ptr::eq(grant, physical.partition()))
+                || physical.source().reference().partition() != *physical.partition().partition()
+                || physical.source_metadata() != physical.configured().metadata()
+                || physical.queue_config() != physical.configured().queue()
+                || physical.registration() != physical.configured().physical()
+            {
+                return Err(StockErrorCode::CapabilityDenied);
+            }
+            self.guard
+                .revalidate_source(physical.source())
+                .map_err(access_error)?;
+            self.guard
+                .revalidate_source_partition(physical.partition())
+                .map_err(access_error)?;
+            if self
+                .guard
+                .persisted_source_metadata(physical.partition())
+                .map_err(access_error)?
+                != *physical.source_metadata()
             {
                 return Err(StockErrorCode::PreflightConflict);
             }
