@@ -242,11 +242,12 @@ const operationPage = (entries, nextCursor) => ({
 const assertOperationRequest = (url, init, expectedCursor) => {
   const parsed = new URL(url, 'https://atlas.invalid');
   assert.equal(parsed.pathname, '/api/atlas/operation-events');
+  assert.equal(parsed.searchParams.get('workspaceId'), operationScope.workspaceId);
   assert.equal(parsed.searchParams.get('homeId'), operationScope.homeId);
   assert.equal(parsed.searchParams.get('pageSize'), '25');
   assert.equal(parsed.searchParams.get('cursor'), expectedCursor);
   assert.deepEqual([...parsed.searchParams.keys()].sort(), expectedCursor === null
-    ? ['homeId', 'pageSize'] : ['cursor', 'homeId', 'pageSize']);
+    ? ['homeId', 'pageSize', 'workspaceId'] : ['cursor', 'homeId', 'pageSize', 'workspaceId']);
   assert.equal(init.method, 'GET');
   assert.equal(init.credentials, 'same-origin');
   assert.equal(init.cache, 'no-store');
@@ -329,10 +330,11 @@ const retainedClient = createRetainedIntentClient(async (url, init) => {
   retainedCalls++;
   const parsed = new URL(url, 'https://atlas.invalid');
   assert.equal(parsed.pathname, '/api/atlas/retained-intent');
+  assert.equal(parsed.searchParams.get('workspaceId'), retainedRequest.context.workspaceId);
   assert.equal(parsed.searchParams.get('homeId'), operationScope.homeId);
   assert.equal(parsed.searchParams.get('intent'), retainedRequestJson);
   assert.deepEqual(JSON.parse(parsed.searchParams.get('intent')), retainedRequest);
-  assert.deepEqual([...parsed.searchParams.keys()].sort(), ['homeId', 'intent']);
+  assert.deepEqual([...parsed.searchParams.keys()].sort(), ['homeId', 'intent', 'workspaceId']);
   assert.equal(init.method, 'GET');
   assert.equal(init.credentials, 'same-origin');
   assert.equal(init.cache, 'no-store');
@@ -385,9 +387,10 @@ const retainedBatchClient = createRetainedIntentClient(async (url, init) => {
   retainedBatchCalls++;
   const parsed = new URL(url, 'https://atlas.invalid');
   assert.equal(parsed.pathname, '/api/atlas/retained-intent');
+  assert.equal(parsed.searchParams.get('workspaceId'), retainedBatchRequest.context.workspaceId);
   assert.equal(parsed.searchParams.get('homeId'), operationScope.homeId);
   assert.equal(parsed.searchParams.get('intent'), JSON.stringify(retainedBatchRequest));
-  assert.deepEqual([...parsed.searchParams.keys()].sort(), ['homeId', 'intent']);
+  assert.deepEqual([...parsed.searchParams.keys()].sort(), ['homeId', 'intent', 'workspaceId']);
   assert.equal(init.method, 'GET');
   assert.equal(init.credentials, 'same-origin');
   assert.equal(init.cache, 'no-store');

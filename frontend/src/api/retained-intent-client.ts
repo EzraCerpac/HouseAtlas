@@ -88,7 +88,9 @@ function intentQuery(request: StockRequestEnvelope): string {
   const original = JSON.stringify(request);
   if (new TextEncoder().encode(original).length > maximumBytes)
     throw new TypeError('Original stock request exceeds retained intent bound');
-  const query = new URLSearchParams({ homeId: request.context.homeId, intent: original }).toString();
+  const query = new URLSearchParams({
+    workspaceId: request.context.workspaceId, homeId: request.context.homeId, intent: original,
+  }).toString();
   if (new TextEncoder().encode(query).length > maximumBytes)
     throw new TypeError('Retained intent query exceeds transport bound');
   return query;
