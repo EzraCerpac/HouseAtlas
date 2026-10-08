@@ -62,6 +62,15 @@ mod finish;
 mod journal;
 #[path = "queue_quantity_original.rs"]
 mod quantity_original;
+#[path = "queue_upload_original.rs"]
+mod upload_original;
+#[path = "queue_upload_original_owner.rs"]
+mod upload_original_owner;
+pub use upload_original_owner::{
+    OriginalQueuedUploadAttempt, OriginalQueuedUploadClaim, OriginalQueuedUploadEnqueue,
+    OriginalQueuedUploadOwner, QueueUploadCommittedData, QueueUploadCommittedObservation,
+    RecordedOriginalUploadEnqueue, RecordedOriginalUploadEnqueueProof,
+};
 #[path = "queue_queries.rs"]
 mod queries;
 #[path = "queue_resolution.rs"]

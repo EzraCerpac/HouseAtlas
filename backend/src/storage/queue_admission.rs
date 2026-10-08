@@ -237,9 +237,16 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
         if let Some(preparation) = original_preparation {
             preparation.revalidate()?;
         }
+        if let Some(upload) = owned.and_then(|context| context.upload_commit_context()) {
+            upload.prepare_enqueue_commit(&output)?;
+        }
         tx.commit()?;
         if let Some(context) = owned {
-            context.enqueue_committed(&output)?;
+            if let Some(upload) = context.upload_commit_context() {
+                upload.record_enqueue_committed();
+            } else {
+                context.enqueue_committed(&output)?;
+            }
             let release = self.store.db.transaction()?;
             context.revalidate(&release)?;
             authorize_session(
@@ -589,9 +596,16 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
             QueuePhase::Precommit,
             QueueAction::Claim(&job),
         )?;
+        if let Some(upload) = owned.and_then(|(context, _)| context.upload_commit_context()) {
+            upload.prepare_claim_commit(&job)?;
+        }
         tx.commit()?;
         if let Some((context, _)) = owned {
-            context.claim_committed(&job)?;
+            if let Some(upload) = context.upload_commit_context() {
+                upload.record_claim_committed();
+            } else {
+                context.claim_committed(&job)?;
+            }
             let release = self.store.db.transaction()?;
             context.revalidate(&release)?;
             authorize_session(

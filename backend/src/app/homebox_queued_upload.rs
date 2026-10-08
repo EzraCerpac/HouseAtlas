@@ -44,17 +44,17 @@ impl Core {
 
 /// An original private producer separate from the phase that borrows it. Its
 /// source and partition must be actual members of the same CapturedAccess.
-pub(crate) struct OriginalQueuedUploadPrincipal<'p> {
-    captured: &'p CapturedAccess<'p>,
-    source: &'p access::SourceGrant,
-    partition: &'p access::PartitionGrant,
+pub(crate) struct OriginalQueuedUploadPrincipal<'captured, 'p> {
+    captured: &'captured CapturedAccess<'p>,
+    source: &'captured access::SourceGrant,
+    partition: &'captured access::PartitionGrant,
 }
-impl<'p> OriginalQueuedUploadPrincipal<'p> {
+impl<'captured, 'p> OriginalQueuedUploadPrincipal<'captured, 'p> {
     pub(crate) fn from_captured(
         configured: &OriginalQueuedUploadConfigured,
-        captured: &'p CapturedAccess<'p>,
-        source: &'p access::SourceGrant,
-        partition: &'p access::PartitionGrant,
+        captured: &'captured CapturedAccess<'p>,
+        source: &'captured access::SourceGrant,
+        partition: &'captured access::PartitionGrant,
     ) -> storage::Result<Self> {
         let descriptor = configured.descriptor();
         let owner_id = descriptor.owner.id().map_err(|_| unavailable())?;
@@ -89,7 +89,7 @@ impl<'p> OriginalQueuedUploadPrincipal<'p> {
         self.captured
     }
 }
-impl storage::StockActivityPrincipal for OriginalQueuedUploadPrincipal<'_> {
+impl storage::StockActivityPrincipal for OriginalQueuedUploadPrincipal<'_, '_> {
     fn original_activity_principal(&self) -> &access::Principal {
         self.captured.principal()
     }
@@ -105,36 +105,94 @@ impl storage::StockActivityPrincipal for OriginalQueuedUploadPrincipal<'_> {
 /// phase. An observation is DATA; the source still needs current qualification.
 pub struct OriginalQueuedUploadPhysical<'phase, 'p> {
     configured: &'phase Arc<OriginalQueuedUploadConfigured>,
-    observation:
-        Box<storage::QuantityInstallationObservation<'phase, OriginalQueuedUploadPrincipal<'p>>>,
-    _store: &'phase mut Store,
+    phase: UploadPhysicalPhase<'phase, 'p>,
+}
+enum UploadPhysicalPhase<'phase, 'p> {
+    Store {
+        observation: Box<
+            storage::QuantityInstallationObservation<
+                'phase,
+                OriginalQueuedUploadPrincipal<'phase, 'p>,
+            >,
+        >,
+        _store: &'phase mut Store,
+    },
+    Transaction(
+        &'phase storage::QuantityInstallationTransaction<
+            'phase,
+            'phase,
+            OriginalQueuedUploadPrincipal<'phase, 'p>,
+        >,
+    ),
 }
 impl<'phase, 'p> OriginalQueuedUploadPhysical<'phase, 'p> {
+    fn observation(
+        &self,
+    ) -> &storage::QuantityInstallationObservation<'phase, OriginalQueuedUploadPrincipal<'phase, 'p>>
+    {
+        match &self.phase {
+            UploadPhysicalPhase::Store { observation, .. } => observation,
+            UploadPhysicalPhase::Transaction(transaction) => transaction.observation(),
+        }
+    }
+    pub(crate) fn from_activity_transaction(
+        configured: &'phase Arc<OriginalQueuedUploadConfigured>,
+        transaction: &'phase storage::QuantityInstallationTransaction<
+            'phase,
+            'phase,
+            OriginalQueuedUploadPrincipal<'phase, 'p>,
+        >,
+        guard: &access::TransactionAuthorization<'_>,
+    ) -> storage::Result<Self> {
+        let observation = transaction.observation();
+        let original = observation.original();
+        if !configured.store_identity().matches_observation(observation)
+            || !std::ptr::eq(guard.principal(), original.original_activity_principal())
+            || observation.source_metadata() != configured.metadata()
+            || observation.queue_config() != configured.queue()
+            || observation.registration() != configured.physical()
+            || observation.source_reference() != original.original_activity_source().reference()
+            || observation.source_partition() != original.original_activity_partition().partition()
+        {
+            return Err(unavailable());
+        }
+        guard.assert_mutation().map_err(|_| unavailable())?;
+        guard
+            .revalidate_source(original.original_activity_source())
+            .map_err(|_| unavailable())?;
+        guard
+            .revalidate_source_partition(original.original_activity_partition())
+            .map_err(|_| unavailable())?;
+        Ok(Self {
+            configured,
+            phase: UploadPhysicalPhase::Transaction(transaction),
+        })
+    }
     pub fn configured(&self) -> &Arc<OriginalQueuedUploadConfigured> {
         self.configured
     }
     pub fn captured(&self) -> &CapturedAccess<'p> {
-        self.observation.original().captured()
+        self.observation().original().captured()
     }
     pub fn source(&self) -> &access::SourceGrant {
-        self.observation.original().original_activity_source()
+        self.observation().original().original_activity_source()
     }
     pub fn partition(&self) -> &access::PartitionGrant {
-        self.observation.original().original_activity_partition()
+        self.observation().original().original_activity_partition()
     }
     pub fn source_metadata(&self) -> &access::SourceAuthorityMetadata {
-        self.observation.source_metadata()
+        self.observation().source_metadata()
     }
     pub fn queue_config(&self) -> &crate::jobs::QueueConfig {
-        self.observation.queue_config()
+        self.observation().queue_config()
     }
     pub fn registration(&self) -> &storage::StockActivityPhysicalRegistration {
-        self.observation.registration()
+        self.observation().registration()
     }
     pub fn matches_configured_store(&self) -> bool {
         self.configured
             .store_identity()
-            .matches_observation(&self.observation)
+            .matches_observation(self.observation())
     }
 }
 
@@ -142,12 +200,12 @@ impl OriginalQueuedUploadConfigured {
     /// Execute a same-Store, same-Access physical phase using a private producer
     /// borrowed from the existing captured grants. Callback success is not a
     /// publication, admission, or authority receipt.
-    pub fn with_original_physical<'p, T>(
+    pub fn with_original_physical<'captured, 'p, T>(
         self: &Arc<Self>,
         store: &mut Store,
-        captured: &'p CapturedAccess<'p>,
-        source: &'p access::SourceGrant,
-        partition: &'p access::PartitionGrant,
+        captured: &'captured CapturedAccess<'p>,
+        source: &'captured access::SourceGrant,
+        partition: &'captured access::PartitionGrant,
         guard: &access::TransactionAuthorization<'_>,
         operation: impl FnOnce(&OriginalQueuedUploadPhysical<'_, 'p>) -> storage::Result<T>,
     ) -> storage::Result<T> {
@@ -161,7 +219,7 @@ impl OriginalQueuedUploadConfigured {
     pub(crate) fn observe_original<'phase, 'p>(
         self: &'phase Arc<Self>,
         store: &'phase mut Store,
-        original: &'phase OriginalQueuedUploadPrincipal<'p>,
+        original: &'phase OriginalQueuedUploadPrincipal<'phase, 'p>,
         guard: &access::TransactionAuthorization<'_>,
     ) -> storage::Result<OriginalQueuedUploadPhysical<'phase, 'p>> {
         if !Arc::ptr_eq(&store.configured_authorization().0, self.access())
@@ -203,8 +261,10 @@ impl OriginalQueuedUploadConfigured {
         }
         Ok(OriginalQueuedUploadPhysical {
             configured: self,
-            observation: Box::new(observation),
-            _store: store,
+            phase: UploadPhysicalPhase::Store {
+                observation: Box::new(observation),
+                _store: store,
+            },
         })
     }
 }
