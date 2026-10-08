@@ -80,57 +80,16 @@ impl<
         preflight: &StockPreflight,
         authority: &StockAuthority,
     ) -> PortResult<Admission> {
-        self.check_authority(authority)?;
-        self.checked(reserved)?;
-        if preflight.request_digest != reserved.command.request_digest
-            || preflight.provider_observation != reserved.command.provider_observation
-            || preflight.source_epoch != authority.source_epoch
-            || self
-                .schemas
-                .digest_native(&serde_json::to_value(plan).map_err(evidence)?)?
-                != *plan_digest
-        {
-            return Err(StockPortFault::EvidenceConflict);
-        }
-        if native::map_stock(&reserved.command, &preflight.preparation).map_err(evidence)? != *plan
-        {
-            return Err(StockPortFault::EvidenceConflict);
-        }
-        let result=self.transact_live(|db, guard| {
-            let mut row=repository::load(db,reserved.operation_id)?;
-            if row.operation!=*reserved {return Err(StockPortFault::VersionConflict);}
-            if row.permit.is_some() || row.body_accepted || !matches!(row.operation.outcome.state,OutcomeState::Prepared|OutcomeState::Queued) {return Err(StockPortFault::EvidenceConflict);}
-            let action=StockActivityAction::Admit(&row.operation,plan,plan_digest,preflight,authority);
-            self.authorize_guard(Some(guard),StockActivityPhase::Entry,action)?;
-            let earlier:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM stock_activity_events e JOIN stock_activity_operations o ON o.operation_id=e.operation_id WHERE e.kind='reserve' AND o.physical_database_id=?1 AND o.body_accepted=0 AND json_extract(o.operation_json,'$.payload.outcome.state') IN ('prepared','queued') AND e.sequence<(SELECT sequence FROM stock_activity_events WHERE operation_id=?2 AND kind='reserve'))",params![self.registration.physical_binding.physical_database_id.to_string(),reserved.operation_id.to_string()],|r|r.get(0)).map_err(unavailable)?;
-            if earlier || repository::occupied(db,&self.registration)? {
-                self.authorize_guard(Some(guard),StockActivityPhase::Precommit,action)?;
-                if row.operation.outcome.state==OutcomeState::Prepared {
-                    row.operation.outcome.state=OutcomeState::Queued;
-                    repository::update(db,&mut row.operation,None,false,"queued","{}")?;
-                }
-                return Ok(Admission::Held(Box::new(row.operation)));
-            }
-            let evidence=self.authorization.admission(&self.original,&self.registration,guard,&row.operation,plan,preflight)?;
-            if !evidence.liability.well_formed() || evidence.approval.as_ref().map(|a|a.receipt_id)!=row.operation.command.approval_receipt_id {return Err(StockPortFault::EvidenceConflict);}
-            if let NativeBody::Multipart{stage,..}=&plan.request.body
-                && evidence.liability.reserved_bytes.is_none_or(|b|b<stage.byte_size) {return Err(StockPortFault::EvidenceConflict);}
-            if let Some(approval)=&evidence.approval {
-                db.execute("INSERT INTO stock_activity_approvals VALUES(?1,?2,?3)",params![approval.receipt_id.to_string(),row.operation.operation_id.to_string(),approval.evidence_digest.as_str()]).map_err(evidence_error)?;
-            }
-            let permit=InvocationPermit {operation_id:row.operation.operation_id,actor_id:row.operation.actor_id,physical_binding:self.registration.physical_binding.clone(),owner_id:self.registration.owner_id,dispatcher_epoch:self.registration.dispatcher_epoch,source_epoch:self.registration.source_epoch,plan_digest:plan_digest.clone(),qualification:self.registration.qualification.clone()};
-            self.authorize_guard(Some(guard),StockActivityPhase::Precommit,action)?;
-            row.operation.plan=Some(plan.clone());
-            row.operation.outcome.state=OutcomeState::Dispatching;
-            row.operation.outcome.remote_activity=RemoteActivity::Active{termination_evidence_digest:None};
-            row.operation.outcome.unknown_scope_fence_retained=true;
-            row.operation.outcome.storage_liability=evidence.liability.clone();
-            self.checked(&row.operation)?;
-            repository::update(db,&mut row.operation,Some(&permit),true,"admit",&codec::encode_admission(&permit,preflight,&evidence).map_err(evidence_error)?)?;
-            let changed=db.execute("UPDATE stock_activity_physical SET active_operation_id=?1 WHERE physical_database_id=?2 AND active_operation_id IS NULL",params![permit.operation_id.to_string(),permit.physical_binding.physical_database_id.to_string()]).map_err(unavailable)?;
-            if changed!=1 {return Err(StockPortFault::VersionConflict);}
-            Ok(Admission::Admitted{permit:Box::new(permit),operation:Box::new(row.operation)})
-        })?;
+        let result = self.admit_with_qualification(
+            reserved,
+            plan,
+            plan_digest,
+            preflight,
+            authority,
+            false,
+            |_, _, _| Ok(()),
+            |_| {},
+        )?;
         let operation = match &result {
             Admission::Admitted { operation, .. } | Admission::Held(operation) => operation,
         };

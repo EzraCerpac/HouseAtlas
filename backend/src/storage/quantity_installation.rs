@@ -3,8 +3,8 @@
 
 use super::super::{
     Authorization, Contract, Error, QuantityInstallationObservation,
-    QuantityInstallationStoreIdentity, Result, Runtime, StockActivityPhysicalRegistration,
-    StockActivityPrincipal,
+    QuantityInstallationStoreIdentity, QuantityInstallationTransaction, Result, Runtime,
+    StockActivityPhysicalRegistration, StockActivityPrincipal,
 };
 use super::AtlasStore;
 use crate::providers::homebox::write::stock::{Digest, PhysicalBinding};
@@ -220,6 +220,43 @@ fn check_persisted(
         return Err(incompatible());
     }
     Ok(actual)
+}
+
+/// Recheck the complete installed quantity path under the activity journal's
+/// existing transaction. This does not open a second transaction or expose SQL
+/// to a caller of the returned observation.
+pub(crate) fn observe_quantity_installation_in_transaction<'tx, 'p, P: StockActivityPrincipal>(
+    db: &'tx rusqlite::Connection,
+    identity: &QuantityInstallationStoreIdentity,
+    original: &'p P,
+    guard: &access::TransactionAuthorization<'_>,
+    queue: &QueueConfig,
+    expected: &StockActivityPhysicalRegistration,
+) -> Result<QuantityInstallationTransaction<'tx, 'p, P>> {
+    if db.is_autocommit() {
+        return Err(unavailable());
+    }
+    check_config_bounds(queue)?;
+    check_queue_source(original, queue)?;
+    check_physical_identity(queue, expected)?;
+    let before = check_original(original, guard)?;
+    let registration = check_persisted(db, queue, expected)?;
+    let after = check_original(original, guard)?;
+    if before != after {
+        return Err(forbidden());
+    }
+    Ok(QuantityInstallationTransaction {
+        observation: QuantityInstallationObservation {
+            instance: Arc::clone(&identity.0),
+            original,
+            queue_config: queue.clone(),
+            registration,
+            source_reference: original.original_activity_source().reference().clone(),
+            source_partition: original.original_activity_partition().partition().clone(),
+            source_metadata: after,
+        },
+        _connection: db,
+    })
 }
 
 impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {

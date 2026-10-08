@@ -54,6 +54,12 @@ pub enum StockActivityAction<'a> {
         &'a StockPreflight,
         &'a StockAuthority,
     ),
+    Invoke(
+        &'a StoredOperation,
+        &'a InvocationPermit,
+        &'a NativePlan,
+        &'a StockAuthority,
+    ),
     Reject(&'a StoredOperation, StockErrorCode),
     NeverInvoked(&'a StoredOperation, &'a InvocationPermit),
     Dispatch(&'a StoredOperation, &'a InvocationPermit, &'a DispatchFacts),
@@ -201,6 +207,13 @@ impl<
         f: impl FnOnce(&Connection, &R) -> PortResult<T>,
         committed: impl FnOnce(&mut T),
     ) -> PortResult<T> {
+        self.transact_with_runtime_identity_committed(|db, runtime, _| f(db, runtime), committed)
+    }
+    fn transact_with_runtime_identity_committed<T>(
+        &self,
+        f: impl FnOnce(&Connection, &R, &super::QuantityInstallationStoreIdentity) -> PortResult<T>,
+        committed: impl FnOnce(&mut T),
+    ) -> PortResult<T> {
         // A live call retains the access fence before entering here, while an
         // evidence policy may consult access with the store already borrowed.
         // Never wait for the store mutex: contention returns Unavailable and
@@ -213,11 +226,12 @@ impl<
         if !store.options.stock_activity_profile {
             return Err(StockPortFault::Unavailable);
         }
+        let identity = store.quantity_installation_store_identity();
         let AtlasStore { db, runtime, .. } = &mut *store;
         let tx = db
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(unavailable)?;
-        let mut result = f(&tx, runtime)?;
+        let mut result = f(&tx, runtime, &identity)?;
         tx.commit().map_err(unavailable)?;
         committed(&mut result);
         Ok(result)
@@ -239,6 +253,21 @@ impl<
         f: impl FnOnce(&Connection, &access::TransactionAuthorization<'_>, &R) -> PortResult<T>,
         committed: impl FnOnce(&mut T),
     ) -> PortResult<T> {
+        self.transact_live_with_identity_committed(
+            |db, guard, runtime, _| f(db, guard, runtime),
+            committed,
+        )
+    }
+    fn transact_live_with_identity_committed<T>(
+        &self,
+        f: impl FnOnce(
+            &Connection,
+            &access::TransactionAuthorization<'_>,
+            &R,
+            &super::QuantityInstallationStoreIdentity,
+        ) -> PortResult<T>,
+        committed: impl FnOnce(&mut T),
+    ) -> PortResult<T> {
         let mut boundary = self
             .access
             .lock()
@@ -252,9 +281,9 @@ impl<
                     guard
                         .revalidate_source_partition(self.original.original_activity_partition())?;
                     output = Some(
-                        self.transact_with_runtime_committed(
-                            |db, runtime| {
-                                let result = f(db, guard, runtime)?;
+                        self.transact_with_runtime_identity_committed(
+                            |db, runtime, identity| {
+                                let result = f(db, guard, runtime, identity)?;
                                 guard
                                     .revalidate_source(self.original.original_activity_source())
                                     .map_err(evidence)?;
@@ -278,6 +307,69 @@ impl<
             )
             .map_err(|e| e.0)?;
         output.ok_or(StockPortFault::Unavailable)?.map_err(|e| e.0)
+    }
+    /// Quantity admission takes the actual Store first and then its current
+    /// Access guard, matching the original quantity graph's lock order. Both
+    /// stay borrowed through the single SQL commit and its infallible data
+    /// recording callback.
+    fn transact_quantity_live_committed<T>(
+        &self,
+        f: impl FnOnce(
+            &Connection,
+            &access::TransactionAuthorization<'_>,
+            &super::QuantityInstallationStoreIdentity,
+        ) -> PortResult<T>,
+        committed: impl FnOnce(&mut T),
+    ) -> PortResult<T> {
+        let mut store = self
+            .store
+            .try_lock()
+            .map_err(|_| StockPortFault::Unavailable)?;
+        if !store.options.stock_activity_profile {
+            return Err(StockPortFault::Unavailable);
+        }
+        let identity = store.quantity_installation_store_identity();
+        let mut boundary = self
+            .access
+            .try_lock()
+            .map_err(|_| StockPortFault::Unavailable)?;
+        let mut output = None;
+        boundary
+            .with_mutation_authorization(
+                self.original.original_activity_principal(),
+                |guard| -> std::result::Result<(), AuthorityFailure> {
+                    guard.revalidate_source(self.original.original_activity_source())?;
+                    guard
+                        .revalidate_source_partition(self.original.original_activity_partition())?;
+                    let tx = store
+                        .db
+                        .transaction_with_behavior(TransactionBehavior::Immediate)
+                        .map_err(unavailable)
+                        .map_err(AuthorityFailure)?;
+                    let result = (|| -> PortResult<T> {
+                        let mut result = f(&tx, guard, &identity)?;
+                        guard
+                            .revalidate_source(self.original.original_activity_source())
+                            .map_err(evidence)?;
+                        guard
+                            .revalidate_source_partition(
+                                self.original.original_activity_partition(),
+                            )
+                            .map_err(evidence)?;
+                        tx.commit().map_err(unavailable)?;
+                        committed(&mut result);
+                        Ok(result)
+                    })();
+                    output = Some(result);
+                    match output.as_ref() {
+                        Some(Ok(_)) => Ok(()),
+                        Some(Err(error)) => Err(AuthorityFailure(*error)),
+                        None => Err(AuthorityFailure(StockPortFault::Unavailable)),
+                    }
+                },
+            )
+            .map_err(|e| e.0)?;
+        output.ok_or(StockPortFault::Unavailable)?
     }
     fn authorize(
         &self,
