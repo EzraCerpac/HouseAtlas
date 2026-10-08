@@ -24,12 +24,16 @@ use super::{
 };
 use crate::{
     access as a,
+    domain::queue_recovery::{
+        QueuedMediaRecovery, RetainedAttempt, RetainedEnqueue, RetainedOutcome,
+    },
     domain::stock::{
         self as domain, GraphAuthorization, NativeQueueOriginalGraph,
         NativeQueueOriginalPreparation, ValidatedRequest,
     },
     jobs,
     providers::homebox::{read, write::stock as native},
+    storage::{self as s, RecordedOriginalUploadEnqueueProof},
 };
 
 pub const MAX_QUEUED_UPLOAD_STAGES: usize = 64;
@@ -1194,6 +1198,136 @@ impl NativeQueuedUploadOriginal {
         &self.canonical_scope
     }
 }
+fn upload_provenance_unavailable() -> s::Error {
+    s::Error::new(
+        "owner-unavailable",
+        "Original upload Media provenance is unavailable",
+    )
+}
+
+impl NativeQueuedUploadOriginal {
+    /// Pure comparison against the installed cut retained by Storage's actual
+    /// released original enqueue. Matching DTOs cannot create this provenance.
+    pub fn validate_original(
+        &self,
+        proof: &RecordedOriginalUploadEnqueueProof,
+        registration: &jobs::QueueRegistration,
+        original: &ValidatedRequest,
+        request: &jobs::EnqueueRequest,
+        scope: &jobs::CanonicalScope,
+    ) -> s::Result<()> {
+        let pending = self.known_nonzero.pending_byte_liability();
+        if !std::ptr::eq(self, proof.upload_cut().as_ref())
+            || !self
+                .installed_origin()
+                .is_some_and(|origin| origin.matches_original(self))
+            || !self.known_nonzero.matches_original(self)
+            || !pending.required
+            || pending.reserved_bytes != Some(self.custody.staged.byte_size)
+            || pending.reserved_bytes != Some(self.custody.body_bytes.len() as u64)
+            || self.custody.staged.byte_size == 0
+        {
+            return Err(upload_provenance_unavailable());
+        }
+        if registration != &self.queue_config.registration
+            || original.raw() != self.original.raw()
+            || original.intent_digest() != self.original.intent_digest()
+            || request != &self.enqueue_request
+            || scope != &self.canonical_scope
+            || request.pending_byte_liability != pending
+            || request.intent.request_digest.as_hex() != original.intent_digest()
+        {
+            return Err(upload_provenance_unavailable());
+        }
+        Ok(())
+    }
+
+    /// The actual Storage Release-qualified matcher runs before DATA checks.
+    /// Only its exact initial claim can qualify this unprepared attempt.
+    #[allow(clippy::too_many_arguments)]
+    pub fn validate_unprepared_attempt(
+        &self,
+        proof: &RecordedOriginalUploadEnqueueProof,
+        registration: &jobs::QueueRegistration,
+        original: &ValidatedRequest,
+        request: &jobs::EnqueueRequest,
+        scope: &jobs::CanonicalScope,
+        job: &jobs::LeasedJob,
+    ) -> s::Result<()> {
+        if !proof.matches_released_attempt(job) || !std::ptr::eq(self, proof.upload_cut().as_ref())
+        {
+            return Err(upload_provenance_unavailable());
+        }
+        self.validate_original(proof, registration, original, request, scope)?;
+        if job.request != *request
+            || job.canonical_scope != *scope
+            || job.pending_byte_liability != self.known_nonzero.pending_byte_liability()
+            || job.lease.physical_identity != registration.identity
+            || job.lease.owner_id != registration.dispatcher_owner_id
+            || job.attempt != 1
+        {
+            return Err(upload_provenance_unavailable());
+        }
+        Ok(())
+    }
+}
+
+/// Concrete offline comparison only for the genuine released original enqueue
+/// and its unprepared initial claim. Prepared bytes, journals, step/liability
+/// prefixes and outcomes remain unavailable; this issues no recovery permission
+/// or current native/Access authority and performs no I/O or native callbacks.
+impl QueuedMediaRecovery<RecordedOriginalUploadEnqueueProof> for NativeQueuedUploadOriginal {
+    fn validate_original(
+        &self,
+        enqueue: &RetainedEnqueue<'_, RecordedOriginalUploadEnqueueProof>,
+    ) -> s::Result<()> {
+        NativeQueuedUploadOriginal::validate_original(
+            self,
+            enqueue.original_proof,
+            &enqueue.config.registration,
+            enqueue.original,
+            enqueue.request,
+            enqueue.scope,
+        )?;
+        if enqueue.config != &self.queue_config {
+            return Err(upload_provenance_unavailable());
+        }
+        Ok(())
+    }
+
+    fn validate_attempt(
+        &self,
+        attempt: &RetainedAttempt<'_, RecordedOriginalUploadEnqueueProof>,
+    ) -> s::Result<()> {
+        let enqueue = &attempt.enqueue;
+        self.validate_unprepared_attempt(
+            enqueue.original_proof,
+            &enqueue.config.registration,
+            enqueue.original,
+            enqueue.request,
+            enqueue.scope,
+            attempt.job,
+        )?;
+        if enqueue.config != &self.queue_config
+            || attempt.prepared.is_some()
+            || attempt.journal.is_some()
+            || !attempt.steps.is_empty()
+            || !attempt.liabilities.is_empty()
+            || !attempt.outcomes.is_empty()
+        {
+            return Err(upload_provenance_unavailable());
+        }
+        Ok(())
+    }
+
+    fn validate_outcome(
+        &self,
+        _: &RetainedOutcome<'_, '_, RecordedOriginalUploadEnqueueProof>,
+    ) -> s::Result<()> {
+        Err(upload_provenance_unavailable())
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn check_queued_upload_binding<'phase, 'a, 'p, 'owner, 'captured, W, G, F, C>(
     guard: &'phase a::TransactionAuthorization<'_>,
