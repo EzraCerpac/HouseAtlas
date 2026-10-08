@@ -306,6 +306,13 @@ fn issue_after_access_commit<'original, P>(
 }
 
 impl<P> PresenceAccessReleasedCut<'_, P> {
+    /// Same Store allocation only; this does not check command authority.
+    pub(crate) fn matches_store<C: Contract, A: Authorization, R: Runtime>(
+        &self,
+        actual: &AtlasStore<C, A, R>,
+    ) -> bool {
+        actual.matches_presence_publication(&self.released.storage)
+    }
     pub(crate) fn native_capture(&self) -> &NativePresenceCapture<'_, P> {
         self.released.storage.native_capture()
     }
