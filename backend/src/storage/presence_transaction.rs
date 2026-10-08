@@ -31,6 +31,12 @@ impl PresenceStoreAllocation {
             instance: Arc::clone(&store.instance),
         }
     }
+    pub(super) fn from_connection(connection: &Connection, instance: &Arc<()>) -> Self {
+        Self {
+            connection: std::ptr::from_ref(connection),
+            instance: Arc::clone(instance),
+        }
+    }
 }
 
 /// All inputs are borrowed from the same owner invocation. No caller graph,
@@ -52,6 +58,12 @@ pub(super) struct PresenceMutationTransaction<'a, 'db, 'access, 'origin, 'reader
     transaction: &'a Transaction<'db>,
     contract: &'a C,
     input: PresenceMutationInputs<'a, 'access, 'origin, 'reader>,
+    mode: PresenceTransactionMode,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PresenceTransactionMode {
+    Active,
+    Release,
 }
 impl<'a, 'db, 'access, 'origin, 'reader, C: Contract>
     PresenceMutationTransaction<'a, 'db, 'access, 'origin, 'reader, C>
@@ -77,9 +89,63 @@ impl<'a, 'db, 'access, 'origin, 'reader, C: Contract>
             transaction,
             contract,
             input,
+            mode: PresenceTransactionMode::Active,
         };
         this.check_phase_graph()?;
         Ok(this)
+    }
+
+    /// An actual new deferred read transaction checks the retained original
+    /// Precommit content. This is never passed through an ActiveCommandFrame.
+    pub(super) fn from_release(
+        transaction: &'a Transaction<'db>,
+        allocation: &PresenceStoreAllocation,
+        current_store_instance: &Arc<()>,
+        contract: &'a C,
+        input: PresenceMutationInputs<'a, 'access, 'origin, 'reader>,
+    ) -> d::DomainResult<Self> {
+        if input.context.phase != MutationPhase::Precommit
+            || allocation.connection != std::ptr::from_ref(&**transaction)
+            || !Arc::ptr_eq(&allocation.instance, current_store_instance)
+            || transaction.is_autocommit()
+            || !std::ptr::eq(input.principal, input.guard.principal())
+            || !std::ptr::eq(input.principal, input.access.principal)
+        {
+            return Err(d::DomainError::Forbidden);
+        }
+        let this = Self {
+            transaction,
+            contract,
+            input,
+            mode: PresenceTransactionMode::Release,
+        };
+        this.check_phase_graph()?;
+        Ok(this)
+    }
+
+    pub(super) fn revalidate_release_capture(
+        &self,
+        qualifier: &presence::NativePresenceQualifier<'_, '_>,
+        now: &str,
+        age: &presence::ConfiguredCacheAge,
+    ) -> d::DomainResult<()> {
+        if self.mode != PresenceTransactionMode::Release {
+            return Err(d::DomainError::InvalidTransition);
+        }
+        self.check_phase_graph()?;
+        let captured = qualifier
+            .captured_content()
+            .ok_or(d::DomainError::InvalidTransition)?;
+        for content in captured {
+            presence::revalidate_native_presence(
+                content,
+                self,
+                self.input.guard,
+                self.input.access,
+                (now, age),
+            )?;
+        }
+        Ok(())
     }
 
     fn check_phase_graph(&self) -> d::DomainResult<()> {

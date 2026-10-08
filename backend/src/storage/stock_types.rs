@@ -31,6 +31,17 @@ pub trait StockAuthorization: Authorization {
         principal: &Self::Principal,
         frame: StockMutationFrame<'_>,
     ) -> Result<VerifiedActor>;
+    fn authorize_presence_stock_mutation(
+        &self,
+        _principal: &Self::Principal,
+        _frame: StockMutationFrame<'_>,
+        _qualified: &StockPresenceQualifiedPhase<'_>,
+    ) -> Result<VerifiedActor> {
+        Err(Error::new(
+            "upstream-unavailable",
+            "Qualified Stock presence authorization is unavailable",
+        ))
+    }
     fn authorize_stock_history(
         &self,
         principal: &Self::Principal,
