@@ -1,4 +1,6 @@
 //! Fresh local stock commands through the actual native atomic owner and AT11 fence.
+#[cfg(test)]
+mod presence_healthy;
 use super::{
     CheckedHeaders, Host, HttpResult, access_error, evidence, failure, intake,
     mutations::{self, MutateAuthority, WriteFailure},
