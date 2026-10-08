@@ -3,7 +3,7 @@ use super::error::invalid;
 use super::*;
 use reqwest::{
     Client, Response,
-    header::{ACCEPT, ACCEPT_ENCODING, AUTHORIZATION, HeaderValue},
+    header::{ACCEPT, ACCEPT_ENCODING, AUTHORIZATION, CONTENT_ENCODING, HeaderValue},
 };
 use std::{future::Future, time::Duration};
 use tokio::time::{Instant, timeout_at};
@@ -258,6 +258,15 @@ impl<P: CredentialProvider> Transport for HttpTransport<P> {
             let response = builder.send().await.map_err(network_error)?;
             if response.url().origin() != self.endpoint.origin.origin() {
                 return Err(ReadError(ErrorCode::WrongScope));
+            }
+            // Reject encoded bodies before handing them to HttpBody or retention.
+            if response
+                .headers()
+                .get_all(CONTENT_ENCODING)
+                .iter()
+                .any(|value| value.as_bytes() != b"identity")
+            {
+                return Err(ReadError(ErrorCode::Transport));
             }
             if response
                 .content_length()
