@@ -6,13 +6,59 @@
 //! summary when that summary may contain a post-watermark suffix.
 use super::*;
 use crate::providers::homebox::write::stock as native;
+use crate::{domain::stock as domain, storage as s};
 use rusqlite::{Connection, params};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 /// Retained rows are bounded before `repository::retained` decodes the full
 /// immutable chain. Larger chains remain retained but this history projection
 /// reports unavailable instead of partially validating or silently omitting
 /// them.
+pub(crate) const HOMEBOX_HISTORY_CURSOR_FORMAT: &str = "homebox-stock-activity-cut/1";
+
+// Paging and strict cursor validation must use exactly the same immutable-cut
+// eligibility predicate, including generated actual targets and query filters.
+const SELECTED_CUTS: &str = "WITH selected AS (
+                SELECT e.operation_id, MAX(e.sequence) AS sequence
+                FROM stock_activity_events AS e
+                JOIN stock_activity_operations AS o ON o.operation_id=e.operation_id
+                WHERE e.sequence<=?1
+                  AND o.workspace_id=?2 AND o.home_id=?3
+                  AND json_extract(e.operation_json,'$.payload.command.context.workspaceId')=?2
+                  AND json_extract(e.operation_json,'$.payload.command.context.homeId')=?3
+                  AND json_extract(e.operation_json,'$.payload.command.target.sourceInstanceId')=?4
+                  AND json_extract(e.operation_json,'$.payload.command.target.collectionId')=?5
+                  AND json_extract(e.operation_json,'$.payload.command.target.resourceKind')='entity'
+                  AND json_extract(e.operation_json,'$.payload.command.target.entityId') IS NULL
+                  AND substr(json_extract(e.operation_json,'$.payload.command.command_id'),1,length(?7))=?7
+                GROUP BY e.operation_id
+             )
+             SELECT e.operation_id, e.sequence
+             FROM selected AS s
+             JOIN stock_activity_events AS e
+               ON e.operation_id=s.operation_id AND e.sequence=s.sequence
+             WHERE s.sequence>?8
+               -- Never select an earlier matching actualTarget when the
+               -- operation's latest cut under this watermark differs.
+               AND (
+                    json_extract(e.operation_json,'$.payload.command.target.resourceId')=?6
+                    OR (
+                        json_extract(e.operation_json,'$.payload.command.target.resourceId') IS NULL
+                        AND json_extract(e.operation_json,'$.payload.command.command_id')=?11
+                        AND json_extract(e.operation_json,'$.payload.actualTarget.sourceInstanceId')=?4
+                        AND json_extract(e.operation_json,'$.payload.actualTarget.collectionId')=?5
+                        AND json_extract(e.operation_json,'$.payload.actualTarget.resourceKind')='entity'
+                        AND json_extract(e.operation_json,'$.payload.actualTarget.resourceId')=?6
+                        AND json_extract(e.operation_json,'$.payload.actualTarget.entityId') IS NULL
+                    )
+               )
+               AND (?9 IS NULL
+                    OR instr(json_extract(e.operation_json,'$.payload.command.command_id'),?9)>0
+                    OR instr(json_extract(e.operation_json,'$.payload.outcome.state'),?9)>0)
+             ORDER BY s.sequence ASC
+             LIMIT ?10";
+
 const MAX_EVENTS_PER_OPERATION: i64 = 128;
 const MAX_BYTES_PER_OPERATION: i64 = 2 * 1024 * 1024;
 const MAX_BYTES_PER_PAGE: i64 = 16 * 1024 * 1024;
@@ -81,49 +127,7 @@ pub(crate) fn page<S: StockContractPort>(
     // choosing each operation's greatest sequence at or below the watermark.
     // Target eligibility, including mutable generated actualTarget evidence,
     // is applied only to that selected event cut in the outer query.
-    let mut statement = db
-        .prepare(
-            "WITH selected AS (
-                SELECT e.operation_id, MAX(e.sequence) AS sequence
-                FROM stock_activity_events AS e
-                JOIN stock_activity_operations AS o ON o.operation_id=e.operation_id
-                WHERE e.sequence<=?1
-                  AND o.workspace_id=?2 AND o.home_id=?3
-                  AND json_extract(e.operation_json,'$.payload.command.context.workspaceId')=?2
-                  AND json_extract(e.operation_json,'$.payload.command.context.homeId')=?3
-                  AND json_extract(e.operation_json,'$.payload.command.target.sourceInstanceId')=?4
-                  AND json_extract(e.operation_json,'$.payload.command.target.collectionId')=?5
-                  AND json_extract(e.operation_json,'$.payload.command.target.resourceKind')='entity'
-                  AND json_extract(e.operation_json,'$.payload.command.target.entityId') IS NULL
-                  AND substr(json_extract(e.operation_json,'$.payload.command.command_id'),1,length(?7))=?7
-                GROUP BY e.operation_id
-             )
-             SELECT e.operation_id, e.sequence
-             FROM selected AS s
-             JOIN stock_activity_events AS e
-               ON e.operation_id=s.operation_id AND e.sequence=s.sequence
-             WHERE s.sequence>?8
-               -- Never select an earlier matching actualTarget when the
-               -- operation's latest cut under this watermark differs.
-               AND (
-                    json_extract(e.operation_json,'$.payload.command.target.resourceId')=?6
-                    OR (
-                        json_extract(e.operation_json,'$.payload.command.target.resourceId') IS NULL
-                        AND json_extract(e.operation_json,'$.payload.command.command_id')=?11
-                        AND json_extract(e.operation_json,'$.payload.actualTarget.sourceInstanceId')=?4
-                        AND json_extract(e.operation_json,'$.payload.actualTarget.collectionId')=?5
-                        AND json_extract(e.operation_json,'$.payload.actualTarget.resourceKind')='entity'
-                        AND json_extract(e.operation_json,'$.payload.actualTarget.resourceId')=?6
-                        AND json_extract(e.operation_json,'$.payload.actualTarget.entityId') IS NULL
-                    )
-               )
-               AND (?9 IS NULL
-                    OR instr(json_extract(e.operation_json,'$.payload.command.command_id'),?9)>0
-                    OR instr(json_extract(e.operation_json,'$.payload.outcome.state'),?9)>0)
-             ORDER BY s.sequence ASC
-             LIMIT ?10",
-        )
-        .map_err(unavailable)?;
+    let mut statement = db.prepare(SELECTED_CUTS).map_err(unavailable)?;
     let candidates = statement
         .query_map(
             params![
@@ -332,4 +336,248 @@ fn query_matches(query: Option<&str>, command_id: &str, state: native::OutcomeSt
         .ok()
         .and_then(|value| value.as_str().map(str::to_owned));
     command_id.contains(query) || state.is_some_and(|state| state.contains(query))
+}
+
+/// Data fields from an immutable cursor row. These are not an original request,
+/// principal, permission, producer, or resumable operation authorization.
+pub(crate) struct RetainedHistoryCursor<'a> {
+    pub id: &'a str,
+    pub scope: &'a s::Scope,
+    pub actor: &'a str,
+    pub query_json: &'a str,
+    pub watermark: i64,
+    pub after_sequence: i64,
+    pub codec_version: i64,
+}
+
+/// Validate only retained data, after the caller has completely validated native
+/// activity with the actual recovery contracts on this SAME read snapshot. No
+/// producer, guard, admission, dispatch, delivery, or authority is reconstructed.
+pub(crate) fn validate_cursor<
+    C: s::Contract,
+    S: domain::StockContractPort,
+    N: StockContractPort,
+>(
+    db: &Connection,
+    native: &C,
+    stock: &S,
+    activity: &N,
+    cursor: RetainedHistoryCursor<'_>,
+    check: &mut dyn FnMut() -> s::Result<()>,
+) -> s::Result<()> {
+    check()?;
+    let RetainedHistoryCursor {
+        id,
+        scope,
+        actor,
+        query_json,
+        watermark,
+        after_sequence,
+        codec_version,
+    } = cursor;
+    require_cursor(codec_version == 1 && 0 < after_sequence && after_sequence < watermark)?;
+    native.validate_shape("scope", &serde_json::to_value(scope)?)?;
+    for identity in [id, actor] {
+        native.validate_shape(
+            "recordRef",
+            &json!({"recordType":"identity","recordId":identity}),
+        )?;
+    }
+    let query: Value = serde_json::from_str(query_json)?;
+    require_cursor(
+        query["format"] == HOMEBOX_HISTORY_CURSOR_FORMAT
+            && native.canonical_json(&query)? == query_json,
+    )?;
+    let mut payload = query["payload"]
+        .as_object()
+        .ok_or_else(cursor_incompatible)?
+        .clone();
+    require_cursor(!payload.contains_key("cursor"))?;
+    payload.insert("cursor".into(), Value::Null);
+    // ID and NULL cursor are schema-only carriers. They grant no authority and
+    // are never handed to a mutation/resume API as an original request.
+    let request = domain::ValidatedRequest::parse(
+        stock,
+        json!({
+            "schemaVersion":3,"commandId":query["commandId"],"context":scope,
+            "requestId":id,"target":query["target"],"payload":payload
+        }),
+    )
+    .map_err(|_| cursor_incompatible())?;
+    let location_route = match request.id().as_str() {
+        "homebox.entity.mediated-history" => false,
+        "homebox.location.mediated-history" => true,
+        _ => return Err(cursor_incompatible()),
+    };
+    let operation = request.operation();
+    require_cursor(
+        operation.authority == domain::Authority::Homebox
+            && operation.effect == domain::Effect::Read
+            && operation.disposition == domain::Disposition::MediatedHistory
+            && operation.output_kind == domain::OutputKind::History,
+    )?;
+    let mut stripped = request.payload().clone();
+    stripped
+        .as_object_mut()
+        .ok_or_else(cursor_incompatible)?
+        .remove("cursor");
+    require_cursor(
+        native.canonical_json(&json!({"format":HOMEBOX_HISTORY_CURSOR_FORMAT,
+        "commandId":request.id().as_str(),"target":request.target(),"payload":stripped}))?
+            == query_json,
+    )?;
+    let wire: native::WireTarget = serde_json::from_value(request.target().clone())?;
+    require_cursor(wire.resource_kind == native::ResourceKind::Entity && wire.entity_id.is_none())?;
+    let context: native::Context = serde_json::from_value(serde_json::to_value(scope)?)?;
+    let target = native::StockTarget {
+        source_instance_id: wire.source_instance_id,
+        collection_id: wire.collection_id,
+        resource_kind: wire.resource_kind,
+        resource_id: Some(wire.resource_id),
+        entity_id: None,
+    };
+    let partition = s::SourcePartition {
+        workspace_id: scope.workspace_id.clone(),
+        home_id: scope.home_id.clone(),
+        source_instance_id: wire.source_instance_id.to_string(),
+        collection_id: wire.collection_id.to_string(),
+    };
+    let registration = s::cache_repository::source(db, &partition)?;
+    native.validate_shape("sourceRegistration", &serde_json::to_value(&registration)?)?;
+    require_cursor(
+        registration.partition() == partition
+            && registration.owner == s::SourceOwner::Homebox
+            && (registration.partition_mode != s::PartitionMode::ReviewedEntityAllowlist
+                || registration
+                    .allowed_external_ids
+                    .contains(&wire.resource_id.to_string())),
+    )?;
+    let watermark_exists: bool = db.query_row(
+        "SELECT EXISTS(SELECT 1 FROM stock_activity_events WHERE sequence=?1)",
+        [watermark],
+        |row| row.get(0),
+    )?;
+    require_cursor(watermark_exists)?;
+    let page_size = s::numeric::safe_integer(&request.payload()["pageSize"])
+        .filter(|n| (1..=100).contains(n))
+        .ok_or_else(cursor_incompatible)?;
+    let q = request.payload().get("q").and_then(Value::as_str);
+    let (route, create) = if location_route {
+        ("homebox.location.", "homebox.location.create")
+    } else {
+        ("homebox.entity.", "homebox.entity.create")
+    };
+    // Already validated retained chains supply these selected rows. Scan only
+    // sequence metadata, with progress per row; never decode every prior page
+    // again for each cursor. SQL eligibility is shared verbatim with paging.
+    let mut statement = db.prepare(SELECTED_CUTS)?;
+    let mut rows = statement.query(params![
+        watermark,
+        scope.workspace_id,
+        scope.home_id,
+        wire.source_instance_id.to_string(),
+        wire.collection_id.to_string(),
+        wire.resource_id.to_string(),
+        route,
+        0_i64,
+        q,
+        -1_i64,
+        create
+    ])?;
+    let mut rank = 0_u64;
+    let mut boundary = false;
+    let mut remaining = false;
+    while let Some(row) = rows.next()? {
+        check()?;
+        let sequence: i64 = row.get(1)?;
+        if sequence <= after_sequence {
+            rank = rank.checked_add(1).ok_or_else(cursor_incompatible)?;
+            boundary |= sequence == after_sequence;
+        } else {
+            remaining = true;
+            break;
+        }
+    }
+    require_cursor(boundary && rank > 0 && rank.is_multiple_of(page_size) && remaining)?;
+    check()?;
+    // Validate the exact original operation cuts at the boundary and lookahead
+    // through the existing bounded retained-chain decoder and native contracts.
+    let cuts = page(
+        db,
+        activity,
+        &context,
+        &target,
+        location_route,
+        q,
+        Some(watermark),
+        after_sequence - 1,
+        1,
+    )
+    .map_err(cursor_fault)?;
+    require_cursor(
+        cuts.items
+            .first()
+            .is_some_and(|event| event.sequence() == after_sequence as u64)
+            && cuts.has_more
+            && cuts.items.len() == 2,
+    )?;
+    check()
+}
+
+fn cursor_incompatible() -> s::Error {
+    s::Error::new(
+        "schema-incompatible",
+        "Retained HomeBox history cursor is incompatible",
+    )
+}
+fn require_cursor(condition: bool) -> s::Result<()> {
+    if condition {
+        Ok(())
+    } else {
+        Err(cursor_incompatible())
+    }
+}
+fn cursor_fault(fault: StockPortFault) -> s::Error {
+    if fault == StockPortFault::Unavailable {
+        s::Error::new(
+            "upstream-unavailable",
+            "Native HomeBox history validation is unavailable",
+        )
+    } else {
+        cursor_incompatible()
+    }
+}
+
+/// Called only within the same Immediate transaction as cursor insertion.
+/// Caps apply to future HomeBox-format admissions; existing rows are retained,
+/// and Atlas cursors neither consume nor acquire these native-reader budgets.
+pub(crate) fn admit_cursor(db: &Connection, scope: &s::Scope, actor: &str) -> s::Result<()> {
+    const GLOBAL: i64 = 4096;
+    const ACTOR_SCOPE: i64 = 256;
+    let global: i64 = db.query_row(
+        "SELECT COUNT(*) FROM (SELECT 1 FROM stock_history_cursors
+         WHERE json_extract(query_json,'$.format')=?1 LIMIT ?2)",
+        params![HOMEBOX_HISTORY_CURSOR_FORMAT, GLOBAL],
+        |row| row.get(0),
+    )?;
+    let local: i64 = db.query_row(
+        "SELECT COUNT(*) FROM (SELECT 1 FROM stock_history_cursors
+         WHERE workspace_id=?1 AND home_id=?2 AND actor_id=?3
+         AND json_extract(query_json,'$.format')=?4 LIMIT ?5)",
+        params![
+            scope.workspace_id,
+            scope.home_id,
+            actor,
+            HOMEBOX_HISTORY_CURSOR_FORMAT,
+            ACTOR_SCOPE
+        ],
+        |row| row.get(0),
+    )?;
+    if global >= GLOBAL || local >= ACTOR_SCOPE {
+        return Err(s::Error::new(
+            "upstream-unavailable",
+            "Native HomeBox history cursor capacity is exhausted",
+        ));
+    }
+    Ok(())
 }
