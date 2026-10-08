@@ -12,7 +12,8 @@ function check(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
 }
 
-export async function runGatewayHealthyReact(container: HTMLElement): Promise<readonly string[]> {
+export async function runGatewayHealthyReact(container: HTMLElement,
+  options: { readonly freshAvailabilityOnly?: boolean } = {}): Promise<readonly string[]> {
   const request = fixture.requests[0]!;
   const response = fixture.results[0]!.wire as unknown as JsonValue;
   const operation = stockCatalog.commands.find(row => row.commandId === request.commandId)!;
@@ -77,7 +78,8 @@ export async function runGatewayHealthyReact(container: HTMLElement): Promise<re
       check(context.applicationSession === applicationSession, "Download resolver receives current authority context");
       events.push(`download:${name}`);
       return name === "fixture_gateway_download" ? { href: "/synthetic-issued-download/healthy.json",
-        filename: "healthy.json", mediaType: "application/json", label: "Download file" } : null;
+        filename: "healthy.json", mediaType: "application/json", label: "Download file",
+        lifetime: { remainingMs: 60_000 } } : null;
     },
   };
   function HealthyHost({ publishRevision, ...props }: GatewayWebMcpBoundaryProps & { readonly publishRevision?: string }) {
@@ -132,6 +134,12 @@ export async function runGatewayHealthyReact(container: HTMLElement): Promise<re
   }
   check(events.join(",") === names.flatMap(name => [`execute:${name}`, `validate:${name}`, `download:${name}`, `return:${name}`]).join(","),
     "Healthy service, owner validation, download resolution and return ordering");
+  if (options.freshAvailabilityOnly) {
+    await act(async () => root.unmount());
+    check(tools.size === 0, "Fresh available-link example cleans up registrations and its presentation timer");
+    return ["gateway admitted service intersection and shared schemas", "canonical gateway result visible before return",
+      "fresh owner-budget download presentation visible before return"];
+  }
   // All earlier executions have finished. Exercise a normal sequential host
   // remount, not the held pending-call/race or obsolete-consumer controls.
   let firstReplacementCommitObserved = false;

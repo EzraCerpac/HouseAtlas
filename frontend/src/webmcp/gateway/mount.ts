@@ -51,7 +51,10 @@ export function mountGatewayWebMcp(options: GatewayMountOptions): WebMcpHandle {
     visible: {
       async apply(toolName, result, context, input) {
         admittedBinding(toolName, context.session);
-        const download = options.downloads
+        // Start before resolving actual owner availability: transit/setup and
+        // React acknowledgement consume its returned budget conservatively.
+        const downloadStartedAt = performance.now();
+        const resolvedDownload = options.downloads
           ? await options.downloads.resolve(toolName, structuredClone(input), structuredClone(result), invocation(context))
           : null;
         context.signal.throwIfAborted();
@@ -61,11 +64,17 @@ export function mountGatewayWebMcp(options: GatewayMountOptions): WebMcpHandle {
         if (current.state !== "authenticated" || current.revision !== context.session.revision)
           throw new DOMException("Tool session is no longer current", "InvalidStateError");
         admittedBinding(toolName, context.session);
-        if (download && (!download.href.startsWith("/") || download.href.startsWith("//") ||
-          /[\\\u0000-\u0020\u007f]/u.test(download.href)))
+        if (resolvedDownload && (!resolvedDownload.href.startsWith("/") || resolvedDownload.href.startsWith("//") ||
+          /[\\\u0000-\u0020\u007f]/u.test(resolvedDownload.href)))
           throw new TypeError("Download must use an issued same-origin path");
+        const remainingMs = resolvedDownload?.lifetime?.remainingMs;
+        const cutoff = remainingMs !== undefined && Number.isSafeInteger(remainingMs) && remainingMs > 0
+          ? downloadStartedAt + remainingMs : null;
+        const download = cutoff !== null && Number.isFinite(cutoff) && performance.now() < cutoff
+          ? resolvedDownload : null;
         await options.visible.commit({ toolName, input: structuredClone(input), result: structuredClone(result),
           download: download ? structuredClone(download) : null,
+          downloadDeadline: download ? cutoff : null,
           sessionRevision: context.session.revision }, context.signal);
       },
     },

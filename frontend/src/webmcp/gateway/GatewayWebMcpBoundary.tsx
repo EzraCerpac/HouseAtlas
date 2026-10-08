@@ -13,11 +13,29 @@ export type GatewayWebMcpBoundaryProps = Omit<GatewayMountOptions, "visible" | "
 
 /** A link is an available download action, never a transfer receipt. */
 export function GatewayResult({ completion }: { readonly completion: GatewayCompletion | null }) {
+  const [ended, setEnded] = useState<GatewayCompletion | null>(null);
+  useLayoutEffect(() => {
+    if (!completion?.download || completion.downloadDeadline === null
+      || !Number.isFinite(completion.downloadDeadline)) return;
+    const current = completion;
+    const deadline = completion.downloadDeadline;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const observe = () => {
+      const remaining = deadline - performance.now();
+      if (remaining <= 0) setEnded(current);
+      else timer = setTimeout(observe, Math.min(remaining, 2_147_483_647));
+    };
+    observe();
+    return () => { if (timer !== undefined) clearTimeout(timer); };
+  }, [completion]);
   if (!completion) return null;
+  const available = completion.download !== null && completion.downloadDeadline !== null
+    && Number.isFinite(completion.downloadDeadline) && performance.now() < completion.downloadDeadline
+    && ended !== completion;
   return <section aria-label="Gateway result" data-gateway-tool={completion.toolName}>
     <h2>{completion.toolName}</h2>
     <pre role="status" aria-live="polite">{JSON.stringify(completion.result, null, 2)}</pre>
-    {completion.download && <a href={completion.download.href} download={completion.download.filename ?? ""}
+    {available && completion.download && <a href={completion.download.href} download={completion.download.filename ?? ""}
       type={completion.download.mediaType}>{completion.download.label}</a>}
   </section>;
 }

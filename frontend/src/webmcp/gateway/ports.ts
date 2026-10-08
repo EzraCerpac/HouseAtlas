@@ -34,11 +34,15 @@ export interface GatewayDownload {
   readonly filename: string | null;
   readonly mediaType: string;
   readonly label: string;
+  /** Actual available Media owner's floored remaining monotonic budget after
+   * final authenticated checks. Never infer this from a token, URL or clock. */
+  readonly lifetime: { readonly remainingMs: number };
 }
 export interface GatewayDownloadPort {
   /** Resolve only an actually available download under current authority.
    * Null preserves pending, unavailable and non-download outcomes. Never fetch
-   * bytes or claim that rendering a link completed a download. */
+   * bytes or claim that rendering a link completed a download. Only the owner's
+   * available status supplies its lifetime; unavailable/unbound resolve null. */
   resolve(toolName: string, input: JsonObject, result: JsonValue,
     context: GatewayInvocation): Promise<GatewayDownload | null>;
 }
@@ -47,6 +51,9 @@ export interface GatewayCompletion {
   readonly input: JsonObject;
   readonly result: JsonValue;
   readonly download: GatewayDownload | null;
+  /** Local presentation cutoff in performance.now() units, anchored before
+   * resolving availability. Not an owner DTO, renewal or authority evidence. */
+  readonly downloadDeadline: number | null;
   readonly sessionRevision: string;
 }
 export interface GatewayVisiblePort {
