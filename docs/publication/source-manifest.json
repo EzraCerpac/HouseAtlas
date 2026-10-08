@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "5a527e76972088d6dc786ed4a886762d0c31669a8e722d3ecd3465a83e05aa8c",
+  "sourceDigestSha256": "66b3f52fc1235f4a5b2a74acdeb78ac5f7d29ee1be3d19daef3f8f8863a0d9a1",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -840,8 +840,8 @@
     {
       "path": "backend/src/app.rs",
       "mode": "100644",
-      "bytes": 27420,
-      "sha256": "6acf340b9af9f0d33e3852dd4b94fe356231518df00f25f22a84e396a60763d0",
+      "bytes": 27491,
+      "sha256": "7b1b2d173e3f13eb0a644ae0e8086551571e0c19849dd69b52821198581592a8",
       "owner": "core-integration"
     },
     {
@@ -856,6 +856,13 @@
       "mode": "100644",
       "bytes": 12376,
       "sha256": "8815ffb2d6649a92c2a3c9b5b4048b9cd05fa4d72fed6010e7e603234da6acf9",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/app/homebox_presence_command.rs",
+      "mode": "100644",
+      "bytes": 3511,
+      "sha256": "aaaa965b3804dc251b8558d93c8454ec40b12cba0c6da876f3542d7488237921",
       "owner": "core-integration"
     },
     {
@@ -884,6 +891,13 @@
       "mode": "100644",
       "bytes": 8199,
       "sha256": "218380464f70685ef2e39a87304d2745adf661df79dff97de6f4c4c27c028ade",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/app/homebox_queued_upload_graph.rs",
+      "mode": "100644",
+      "bytes": 20901,
+      "sha256": "7bc9cdf070d4b69a34fbd6bac0f4185b0e50cb9886ccd88b6f67fce837c45e4a",
       "owner": "core-integration"
     },
     {
@@ -1715,8 +1729,8 @@
     {
       "path": "backend/src/domain/stock/queue_original_preparation.rs",
       "mode": "100644",
-      "bytes": 14024,
-      "sha256": "465c0d415bec2d99d0f15c6f83db371e108eda4544b8790c452d6fb48ba39554",
+      "bytes": 15872,
+      "sha256": "a3e22cfc6c8813ae467560e1887c9d0b4d59d4527812dbd93ec780fddf8c9e7c",
       "owner": "domain"
     },
     {
@@ -2492,8 +2506,8 @@
     {
       "path": "backend/src/media/native_queued_upload.rs",
       "mode": "100644",
-      "bytes": 46624,
-      "sha256": "8cec14b9503ef99e117075e04b93d32f8fa9db62dc235def82f010c9d9e9711a",
+      "bytes": 53469,
+      "sha256": "32c536f078e2948ee945f1dafeebab5d715fa0922313f31153ada4bceea94a16",
       "owner": "media"
     },
     {
@@ -3962,15 +3976,15 @@
     {
       "path": "backend/src/storage/command_extension.rs",
       "mode": "100644",
-      "bytes": 2184,
-      "sha256": "3950cdc008115f3d3b859a5765f75ad3acc81053493a3aa0c16e69378df98736",
+      "bytes": 2338,
+      "sha256": "9075736ade47bb18cda88c2e8f244b10d91845a1262119da21e86c289e011eef",
       "owner": "storage"
     },
     {
       "path": "backend/src/storage/commands.rs",
       "mode": "100644",
-      "bytes": 23439,
-      "sha256": "64b72b539aca6124c85ec3287120b9c7c746b22a1139d778d673ae0fb155a2d3",
+      "bytes": 23477,
+      "sha256": "db13fbce8eb29e00da7f0d6648ec5b614118e06ada5cce25877c7d958eee190a",
       "owner": "storage"
     },
     {
@@ -4053,8 +4067,8 @@
     {
       "path": "backend/src/storage/presence_engine.rs",
       "mode": "100644",
-      "bytes": 11667,
-      "sha256": "351130923bb82ccef8ccd230fab7791145eba8d8b19e2c130676c41a299d7670",
+      "bytes": 12796,
+      "sha256": "a332e934843564ef4c11cd62a72c7b3baa26d0e23636ed6b7a9b51d01896ee09",
       "owner": "storage"
     },
     {
@@ -4067,8 +4081,8 @@
     {
       "path": "backend/src/storage/presence_transaction.rs",
       "mode": "100644",
-      "bytes": 24635,
-      "sha256": "6fb6494ab35765199e415356005c9034f1286293e7dc4c6a277d427dae5896e4",
+      "bytes": 26153,
+      "sha256": "6c28b909de39c1c0a7ab77637e204b39155e8040054fe0893a41313cd23ced93",
       "owner": "storage"
     },
     {
@@ -4263,8 +4277,8 @@
     {
       "path": "backend/src/storage/stock.rs",
       "mode": "100644",
-      "bytes": 25220,
-      "sha256": "fda64b679f5789905d71aa62dc49126482ecd7bf159a6ccf80a598229b5034fb",
+      "bytes": 38923,
+      "sha256": "728b453a51e4012bedf4417e20e7d9f7e37c6418f22296857874bc6253e85f88",
       "owner": "storage"
     },
     {
@@ -4380,6 +4394,20 @@
       "owner": "storage"
     },
     {
+      "path": "backend/src/storage/stock_presence.rs",
+      "mode": "100644",
+      "bytes": 214,
+      "sha256": "ea515131de457197ea76e66c92116ad0fca58278be4de91a4cc2eee248b976bd",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/stock_presence/types.rs",
+      "mode": "100644",
+      "bytes": 13009,
+      "sha256": "df4c0eaf6c4c00344e321d77b999ef883a6003c14cb4f3a63b300d84936993e4",
+      "owner": "storage"
+    },
+    {
       "path": "backend/src/storage/stock_projection.rs",
       "mode": "100644",
       "bytes": 4771,
@@ -4438,8 +4466,8 @@
     {
       "path": "backend/src/storage/store.rs",
       "mode": "100644",
-      "bytes": 18619,
-      "sha256": "2137e8d05cb5b8c62b8f22b2f70fa4de7ec5fb0049fdbf7f1825fc0c5adadf2a",
+      "bytes": 18696,
+      "sha256": "74f3c526bfe3b30d13b55bfdfa6407e8fb81d57f66b9251b29d9140db9ff386d",
       "owner": "storage"
     },
     {
