@@ -10,6 +10,15 @@ export interface AtlasCredentials {
   username: string;
   password: string;
 }
+/** Informational sign-in method published by the host mode route. It does not
+ * describe a session and never replaces the canonical session GET. */
+export type AtlasAuthMode = "password" | "loopback-local";
+/** Paired optional port: supplied only when the host mounts both the mode route
+ * and the local sign-in action. Local sign-in sends no credentials. */
+export interface AtlasLocalAccess {
+  mode(signal: AbortSignal): Promise<AtlasAuthMode>;
+  signIn(signal: AbortSignal): Promise<AtlasSessionInfo>;
+}
 export interface AtlasSessionClient {
   /** Host rotation/change notification; re-read the canonical session route. */
   subscribe?: (changed: () => void) => () => void;
@@ -20,6 +29,8 @@ export interface AtlasSessionClient {
   ): Promise<AtlasSessionInfo>;
   /** Only supplied when the host mounts the documented logout action. */
   signOut?: (signal: AbortSignal) => Promise<void>;
+  /** Absent means the legacy password flow, unchanged. */
+  localAccess?: AtlasLocalAccess;
 }
 export interface SessionSettings {
   expiresAt: string;
@@ -44,4 +55,24 @@ export function decodeSessionInfo(value: unknown): AtlasSessionInfo {
     csrfToken: row.csrfToken,
     expiresAt: row.expiresAt,
   };
+}
+/** Strict bare mode object: exactly {schemaVersion:1,mode}. Unknown modes and
+ * extra fields are failures, never a fallback to another sign-in method. */
+export function decodeAuthMode(value: unknown): AtlasAuthMode {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new TypeError("Expected sign-in method");
+  const prototype: unknown = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null)
+    throw new TypeError("Expected sign-in method");
+  const row = value as Record<string, unknown>;
+  const own = (key: string) => Object.prototype.hasOwnProperty.call(row, key);
+  if (
+    Reflect.ownKeys(row).length !== 2 ||
+    !own("schemaVersion") ||
+    !own("mode") ||
+    row.schemaVersion !== 1 ||
+    (row.mode !== "password" && row.mode !== "loopback-local")
+  )
+    throw new TypeError("Invalid sign-in method");
+  return row.mode;
 }

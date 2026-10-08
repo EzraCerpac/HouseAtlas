@@ -1,6 +1,7 @@
 import { decodeAtlasView } from "../app/decode";
 import type { AtlasClient, AtlasView, Scope } from "../app/types";
 import {
+  decodeAuthMode,
   decodeSessionInfo,
   type AtlasSessionClient,
   type AtlasSessionInfo,
@@ -59,6 +60,36 @@ export function createAtlasClient(
   };
 }
 
+/** The bare mode object is a few dozen bytes; anything larger is rejected. */
+const AUTH_MODE_MAX_BYTES = 1024;
+async function readBoundedJson(
+  response: Response,
+  limit: number,
+): Promise<unknown> {
+  const body = response.body;
+  if (!body) throw new TypeError("Expected sign-in method");
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel().catch(() => undefined);
+      throw new TypeError("Sign-in method response too large");
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+}
+
 export interface AtlasSessionEndpoints {
   /** Canonical published paths: /api/atlas/auth/session and /api/atlas/auth/login.
    * The host explicitly supplies mounted routes; no route is enabled by default. */
@@ -66,6 +97,9 @@ export interface AtlasSessionEndpoints {
   login: string;
   /** Published logout acknowledgement: {schemaVersion:1,signedOut:true}. */
   logout?: string;
+  /** Paired canonical paths /api/atlas/auth/mode and /api/atlas/auth/local.
+   * Supplied only when the host mounts both; never enabled by default. */
+  localAccess?: { mode: string; signIn: string };
 }
 /** Only application session operations, never account/source provisioning or
  * provider authentication. Cookies stay HttpOnly; CSRF remains transient. */
@@ -140,6 +174,36 @@ export function createAtlasSessionClient(
         value.signedOut !== true
       )
         throw new TypeError("Invalid sign-out acknowledgement");
+    };
+  const localAccess = endpoints.localAccess;
+  if (localAccess)
+    client.localAccess = {
+      // Informational route: any non-2xx, including 401, is a mode failure.
+      mode: async (signal) => {
+        const response = await request(localAccess.mode, signal, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
+        if (!response.ok) throw new AtlasReadError(response.status);
+        return decodeAuthMode(
+          await readBoundedJson(response, AUTH_MODE_MAX_BYTES),
+        );
+      },
+      // Literal empty body: no credentials, CSRF or actor. The host issues the
+      // native HttpOnly cookie and returns the actual session.
+      signIn: async (signal) => {
+        const response = await request(localAccess.signIn, signal, {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: "{}",
+        });
+        if (!response.ok) throw new AtlasReadError(response.status);
+        const value: unknown = await response.json();
+        return decodeSessionInfo(value);
+      },
     };
   return client;
 }

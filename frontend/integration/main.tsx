@@ -29,10 +29,14 @@ const events = new EventTarget();
 /** Other confirmed host session actions notify this transient subscriber only.
  * Session GET itself emits nothing, preventing a rotation/reload cycle. */
 export function notifySessionChanged(): void { events.dispatchEvent(new Event("changed")); }
+// Root emits both attributes only when it mounts both routes; no defaults.
+const authModeUrl = root.dataset.authModeUrl;
+const localSignInUrl = root.dataset.localSignInUrl;
 const nativeSessions = createAtlasSessionClient({
   session: root.dataset.sessionUrl ?? "/api/atlas/auth/session",
   login: root.dataset.loginUrl ?? "/api/atlas/auth/login",
   logout: root.dataset.logoutUrl ?? "/api/atlas/auth/logout",
+  ...(authModeUrl && localSignInUrl ? { localAccess: { mode: authModeUrl, signIn: localSignInUrl } } : {}),
 });
 let currentSession: AtlasSessionInfo | null = null;
 let currentQuantityScope: Scope | null = null;
@@ -40,6 +44,7 @@ const quantityEvents = new EventTarget();
 const quantityChanged = () => quantityEvents.dispatchEvent(new Event("changed"));
 let sessionGeneration = 0;
 const nativeSignOut = nativeSessions.signOut;
+const nativeLocalAccess = nativeSessions.localAccess;
 const sessions: AtlasSessionClient = {
   async session(signal) {
     const generation = ++sessionGeneration;
@@ -65,6 +70,20 @@ const sessions: AtlasSessionClient = {
     currentQuantityScope = null;
     quantityChanged();
     await nativeSignOut(signal);
+  } } : {}),
+  // Mode is informational and writes no shared state; local sign-in publishes
+  // the returned session under the same fence as password sign-in.
+  ...(nativeLocalAccess ? { localAccess: {
+    mode: (signal: AbortSignal) => nativeLocalAccess.mode(signal),
+    async signIn(signal: AbortSignal) {
+      const generation = ++sessionGeneration;
+      currentSession = null;
+      currentQuantityScope = null;
+      quantityChanged();
+      const value = await nativeLocalAccess.signIn(signal);
+      if (!signal.aborted && generation === sessionGeneration) { currentSession = value; quantityChanged(); }
+      return value;
+    },
   } } : {}),
   subscribe(changed: () => void) {
     events.addEventListener("changed", changed);
