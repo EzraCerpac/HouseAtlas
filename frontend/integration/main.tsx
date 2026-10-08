@@ -44,6 +44,7 @@ const sessions: AtlasSessionClient = {
   async session(signal) {
     const generation = ++sessionGeneration;
     currentSession = null;
+    currentQuantityScope = null;
     quantityChanged();
     const value = await nativeSessions.session(signal);
     if (!signal.aborted && generation === sessionGeneration) { currentSession = value; quantityChanged(); }
@@ -52,6 +53,7 @@ const sessions: AtlasSessionClient = {
   async signIn(credentials, signal) {
     const generation = ++sessionGeneration;
     currentSession = null;
+    currentQuantityScope = null;
     quantityChanged();
     const value = await nativeSessions.signIn(credentials, signal);
     if (!signal.aborted && generation === sessionGeneration) { currentSession = value; quantityChanged(); }
@@ -60,6 +62,7 @@ const sessions: AtlasSessionClient = {
   ...(nativeSignOut ? { async signOut(signal: AbortSignal) {
     ++sessionGeneration;
     currentSession = null;
+    currentQuantityScope = null;
     quantityChanged();
     await nativeSignOut(signal);
   } } : {}),
@@ -87,6 +90,10 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
     let generation = 0;
     const load = async (operation: (signal: AbortSignal) => Promise<AtlasView>, signal: AbortSignal) => {
       const attempt = ++generation;
+      const originalSession = currentSession;
+      const originalSessionGeneration = sessionGeneration;
+      const sameSession = () => originalSession !== null && currentSession === originalSession
+        && sessionGeneration === originalSessionGeneration;
       currentQuantityScope = null;
       quantityChanged();
       setAdmission(null);
@@ -102,7 +109,7 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
             const row: unknown = await response.json();
             if (row && typeof row === "object" && "schemaVersion" in row && row.schemaVersion === 3 && "scope" in row && "commandIds" in row && "revision" in row) {
               const candidate = row as { scope: { workspaceId?: unknown; homeId?: unknown }; commandIds: unknown; revision: unknown };
-              if (candidate.scope?.workspaceId === scope.workspaceId && candidate.scope.homeId === scope.homeId && Array.isArray(candidate.commandIds) && candidate.commandIds.every(id => typeof id === "string") && typeof candidate.revision === "string" && !signal.aborted && attempt === generation)
+              if (candidate.scope?.workspaceId === scope.workspaceId && candidate.scope.homeId === scope.homeId && Array.isArray(candidate.commandIds) && candidate.commandIds.every(id => typeof id === "string") && typeof candidate.revision === "string" && !signal.aborted && attempt === generation && sameSession())
                 setAdmission({ scope, commandIds: candidate.commandIds, revision: candidate.revision });
             }
           }
@@ -112,7 +119,7 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
           // an actual admitted catalog arrives on a later successful load.
         }
       }
-      if (!signal.aborted && attempt === generation) {
+      if (!signal.aborted && attempt === generation && sameSession()) {
         currentQuantityScope = view.status === "ready" ? view.scope : null;
         quantityChanged();
       }
