@@ -374,10 +374,10 @@ Non-root API-prefix deployments and unreviewed builds remain unsupported.
 If policy requires human approval, the original receipt must bind issuer and
 caller class, actor/home/session, exact target/intent/quantity/effect scope,
 policy and authority epochs, expiry and single-use state. A receipt UUID alone
-is insufficient; this source does not issue or consume one. `HumanRequired`
-therefore remains unavailable here. An explicitly configured bounded no-human
-rule also requires genuine original policy admission; Editor membership does
-not select it.
+is insufficient. The human-required activity consumer described below borrows
+the root's actual closed receipt, while receipt issuance belongs to the genuine
+authenticated approval flow. An explicitly configured bounded no-human rule also
+requires genuine original policy admission; Editor membership does not select it.
 
 A sanitized installed detail sample must retain all key presence, nulls, arrays,
 unknown fields and numeric/date lexemes, with consistently replaced relationship
@@ -531,12 +531,14 @@ no request; actual dispatch remains the existing consuming transport operation.
 Staged uploads are unavailable for this quantity-only JSON plan. The concrete
 root activity authorizer remains mandatory for admission and invocation; the
 provider supplies no permissive authorizer or approval callback. A human-required
-policy still needs genuine receipt issuance and spend composition. These source
+policy requires the root's genuine explicit-consent receipt and the same
+Storage session's atomic spend composition. These source
 bindings do not create operator configuration, grants, credentials or activation.
 
 `QuantityActivityAuthorization::new` is a closed consumer of the same original
-root preparation. It admits only the explicit reviewed `NoHuman` quantity policy
-and maximum. It correlates the original request, native plan and preflight,
+root preparation. This constructor admits only the explicit reviewed `NoHuman`
+quantity policy and maximum; the separate `new_with_approval` path below borrows
+a genuine human receipt. Both correlate the original request, native plan and preflight,
 registered physical/source epochs, current source metadata and original grants.
 The private activity capture check retains the original observation registry,
 raw capture/evidence and monotonic artifact/capture windows; it neither renews
@@ -547,7 +549,8 @@ reserve API calls outside a transaction, the authorizer acquires only the
 configured Access owner for a fresh original mutation guard. With a supplied
 guard it acquires neither Store nor Access.
 
-This policy peer refuses human-required policy, rejection and handoff evidence.
+Without a genuine root receipt this policy peer refuses human-required
+admission and invocation. It always refuses rejection and handoff evidence.
 Its dispatch, never-invoked and observation journal actions accept only the
 private consuming native evidence owner described below. Public transport facts
 or a synthetic changed GET cannot establish a completed effect or release the
@@ -604,3 +607,38 @@ slot held. Fresh disclosure still requires current original grants, metadata
 and capture windows. These source mechanics have compile and static-review
 validation only in this successor; no new transport, PATCH, journal or control
 runtime case has run. The earlier named positive above remains an unsent case.
+
+### Human-required preparation and admission
+
+A `HumanRequired` preview retains a non-nil reserved approval UUID in the original
+immutable request before native preparation. That identifier is data; it issues
+no approval. `NoHuman` retains a null identifier and its explicit quantity
+maximum. Both branches preserve exact safe-u64 quantity, original source and
+target, captured native bytes, installed build/routes, policy, account/group,
+current metadata, physical Store owner, source/dispatcher epochs and finite
+capture windows. A human policy's optional maximum remains literal reviewed
+policy data, with no inferred maximum or no-human grant.
+
+The installation preparation receipt can qualify this human preview under the
+same original mutation guard and physical context. It establishes original
+native/physical preparation custody and creates neither human consent nor an
+invocation permit. The ordinary `QuantityActivityAuthorization::new` remains
+NoHuman-only. `new_with_approval` borrows the actual root `HumanQuantityApproval`
+for the same original prepared bundle, configured allocation and reserved ID;
+matching serialized IDs or digests cannot construct that receipt.
+
+The root issues that closed receipt only after an authenticated explicit approval
+POST and requalification of the original mutation/physical phase. Provider
+admission performs all existing current checks, then asks that same receipt to
+claim the actual operation and supply `StockActivityApproval` data to Storage.
+Storage's existing receipt-ID equality, journal identity and unique atomic
+approval spend remain unchanged. Invoke revalidates the already-claimed exact
+operation under the fresh original guard without claiming, renewing or reissuing
+approval. No provider callback reenters Store or Access.
+
+Completed native evidence recording remains independent of later approval
+freshness so retained actual I/O facts are not discarded. Current disclosure
+checks remain separate. This successor has source compilation and review only;
+no human approval, admission, invocation, transport or control runtime case ran.
+Actual authenticated route/server ownership and configuration remain root peers,
+and live installation credentials and grants remain external inputs.

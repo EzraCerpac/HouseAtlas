@@ -419,6 +419,8 @@ impl NativeQuantityInstallationOwner {
         Ok(())
     }
 
+    /// Qualify original native/physical preparation custody, including a Human
+    /// preview. This receipt does not issue explicit consent or a write permit.
     pub(super) fn admit_original<'owner, 'p>(
         &'owner self,
         original: &'p OriginalStockActivityPrincipal,
@@ -478,11 +480,20 @@ impl NativeQuantityInstallationOwner {
                 .configured
                 .source()
                 .contains(original.original_activity_source().reference())
-            || self.policy.approval_requirement != ApprovalRequirement::NoHuman
-            || self.policy.maximum.is_none_or(|maximum| quantity > maximum)
+            || self
+                .policy
+                .maximum
+                .is_some_and(|maximum| quantity > maximum)
             || quantity > 9_007_199_254_740_991
         {
             return Err(StockErrorCode::CapabilityDenied);
+        }
+        match (e.policy, &self.policy.approval_requirement) {
+            (QuantityPolicy::NoHuman { .. }, ApprovalRequirement::NoHuman)
+                if command.approval_receipt_id.is_none() => {}
+            (QuantityPolicy::HumanRequired, ApprovalRequirement::HumanRequired)
+                if command.approval_receipt_id.is_some_and(|id| !id.is_nil()) => {}
+            _ => return Err(StockErrorCode::CapabilityDenied),
         }
         let queue = observation.queue_config().clone();
         let registration = observation.registration().clone();
@@ -568,25 +579,28 @@ impl NativeQuantityInstallationOwner {
         {
             return Err(StockErrorCode::ProviderUnqualified);
         }
-        match (
-            &e.authority.qualification,
-            e.policy,
-            &p.approval_requirement,
-            p.maximum,
-        ) {
-            (
-                NativeQualification::Qualified {
-                    catalog_digest,
-                    registered_build_digest,
-                    route_qualification_digest,
-                },
-                QuantityPolicy::NoHuman { maximum },
-                ApprovalRequirement::NoHuman,
-                Some(actual_maximum),
-            ) if catalog_digest == &self.catalog_digest
-                && registered_build_digest == &self.executable.sha256
-                && route_qualification_digest == &self.route_digest
-                && maximum == actual_maximum =>
+        let NativeQualification::Qualified {
+            catalog_digest,
+            registered_build_digest,
+            route_qualification_digest,
+        } = &e.authority.qualification
+        else {
+            return Err(StockErrorCode::UnsupportedCapability);
+        };
+        if catalog_digest != &self.catalog_digest
+            || registered_build_digest != &self.executable.sha256
+            || route_qualification_digest != &self.route_digest
+        {
+            return Err(StockErrorCode::UnsupportedCapability);
+        }
+        match (e.policy, &p.approval_requirement, p.maximum) {
+            (QuantityPolicy::NoHuman { maximum }, ApprovalRequirement::NoHuman, Some(actual))
+                if maximum == actual =>
+            {
+                Ok(())
+            }
+            (QuantityPolicy::HumanRequired, ApprovalRequirement::HumanRequired, maximum)
+                if maximum.is_none_or(|value| value <= 9_007_199_254_740_991) =>
             {
                 Ok(())
             }

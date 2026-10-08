@@ -153,9 +153,17 @@ impl QuantityProfile {
         if quantity > 9_007_199_254_740_991 {
             return Err(StockErrorCode::InvalidArgument);
         }
+        // A reserved identifier keeps the original preview wire immutable.
+        // It is DATA only; the activity owner separately requires real consent.
         match self.expected.policy {
-            QuantityPolicy::HumanRequired => return Err(StockErrorCode::UnsupportedCapability),
-            QuantityPolicy::NoHuman { maximum } if quantity > maximum => {
+            QuantityPolicy::HumanRequired
+                if command.approval_receipt_id.is_none_or(|id| id.is_nil()) =>
+            {
+                return Err(StockErrorCode::CapabilityDenied);
+            }
+            QuantityPolicy::NoHuman { maximum }
+                if command.approval_receipt_id.is_some() || quantity > maximum =>
+            {
                 return Err(StockErrorCode::CapabilityDenied);
             }
             _ => {}
