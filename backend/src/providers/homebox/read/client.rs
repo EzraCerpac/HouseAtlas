@@ -437,6 +437,8 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                             self.scope.clone(),
                             generation_id,
                             native_responses,
+                            self.limits,
+                            self.stock_navigation.clone(),
                         ))
                     }),
                 })
