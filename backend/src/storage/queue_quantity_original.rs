@@ -13,7 +13,15 @@ use journal_custody::QueueOriginalJournalCapture;
 use original_owner::{QueueOriginalClaimCapture, QueueOriginalEnqueueCapture};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// An upload-only prebuilt observation seam. It grants no source/native authority.
+pub(super) trait UploadCommitContext {
+    fn prepare_enqueue_commit(&self, snapshot: &JobSnapshot) -> Result<()>;
+    fn record_enqueue_committed(&self);
+    fn prepare_claim_commit(&self, job: &LeasedJob) -> Result<()>;
+    fn record_claim_committed(&self);
+}
 pub(super) trait OwnedQuantityContext {
+    fn upload_commit_context(&self) -> Option<&dyn UploadCommitContext>;
     fn revalidate(&self, db: &Connection) -> Result<()>;
     fn validate_fresh(
         &self,
@@ -116,6 +124,9 @@ impl<T: read::Transport, K: read::Clock + Send + Sync>
 impl<T: read::Transport, K: read::Clock + Send + Sync> OwnedQuantityContext
     for QuantityContext<'_, '_, '_, '_, '_, '_, '_, T, K>
 {
+    fn upload_commit_context(&self) -> Option<&dyn UploadCommitContext> {
+        None
+    }
     fn revalidate(&self, db: &Connection) -> Result<()> {
         self.revalidate_journal_lease()?;
         if db.is_autocommit() {
