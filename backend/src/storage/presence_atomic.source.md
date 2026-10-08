@@ -210,16 +210,17 @@ Production Cargo dependencies and lockfile remain unchanged.
 The test-only configured HTTPS loopback constructor and original publication
 preparation helper compile with the unit sources. They retain the actual TLS,
 Access and Store fences. The named single ordinary configured
-publication/Binding/history case has run against a fresh synthetic database and
+publication/Binding/history case passed against a fresh synthetic database and
 real numeric loopback TLS provider. Its native capture and publication completed.
 Earlier failures exposed missing Identity preconditions and a location/item
 mismatch in the synthetic fixture. After those fixture corrections the genuine
-Binding SQL commit and accepted-history capture completed, but final Domain
-dispatch returned AuthorityChanged. Committed data and accepted history are now
-retained; no successful final response or same-file reopen is claimed. The actual
-postcommit result/disclosure consumer is being diagnosed separately. Previous
-failed receipts remain preserved. Ordinary validators and current authority
-checks remain strict.
+Binding SQL commit and accepted-history capture completed. A postcommit mismatch
+then exposed whole-snapshot canonicalization rewriting two native projection
+numbers. The durable pin now canonicalizes only Record bodies, matching their
+storage format, and preserves the exact native projection numbers. Final Domain
+result/disclosure and same-file reopen through retained history now pass with
+full snapshot equality. Previous failed receipts remain preserved. Ordinary
+validators and current authority checks remain strict.
 
 `checks/presence-metadata-healthy.rs` inspects three published positive wire
 witness/qualification representation pairs, accepted integral numeric spellings,
@@ -239,7 +240,7 @@ path = "src/storage/checks/presence-metadata-healthy.rs"
 ```
 
 Fresh schema installation and configured native capture/publication were exercised
-by that single ordinary case. The final Binding response and history reopen
-still have no passing runtime receipt. Lifecycle, revocation, replay and other
+by that single ordinary case, including the final Binding response and history
+reopen. Lifecycle, revocation, replay and other
 held controls remain unrun; the representation positive does not certify those
 behaviors.

@@ -794,3 +794,25 @@ remains in the historical log and is not erased by removing its invocation from
 the retained check. The final run compares receipt bytes only; the preliminary
 run supplies no replay qualification. Earlier logs remain unchanged; these
 healthy checks do not supply Rust integration/CI acceptance.
+
+## Installed original queued upload
+
+`OriginalQueuedUploadAdmission` consumes the real staged body through the typed
+native preparation and Media binding under the same original Access phase. The
+installed-origin marker and source-preparation matcher correlate the actual
+private custody allocation; copied multipart metadata cannot supply that origin.
+The distinct Storage owner issues enqueue and first-claim custody after fresh
+SQL commit, current Store/native Release and the complete Access commit. DATA is
+prepared before SQL commit and recorded immediately afterward, so a later error
+retains the committed observation without promoting it into released proof.
+
+Media's direct original and unprepared-attempt validators require the actual
+released Storage proof and the same installed upload allocation before comparing
+request, scope, body size and known positive reservation facts. The detached
+lookup is process-local and grants no current authorization or restart custody.
+The initial claim reserves nonzero bytes. The recovery adapter still rejects its
+retained claim-liability event pending an exact proof-bound consumer refinement;
+compilation does not establish that retained path. Prepared journal, native
+invocation, generated attachment readback, outcome and cold-start administrative
+intake remain separate source dependencies. No runtime upload or provider write
+is established by these source checks.
