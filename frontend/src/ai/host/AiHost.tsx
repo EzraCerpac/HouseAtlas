@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { AiPanelView } from '../AiPanel.js';
+import { AiPanelView, type AiModelsBinding } from '../AiPanel.js';
 import { failureMessages } from '../model.js';
 import { useAiSession } from '../useAiSession.js';
 import type { AiClient, AiReceiptIdentity } from '../types.js';
@@ -15,6 +15,7 @@ export interface AiHostContext {
 }
 type Session = ReturnType<typeof useAiSession>;
 interface Display {
+  readonly modelsBinding: AiModelsBinding;
   readonly session: Session;
   readonly scopeLabel: string;
   readonly prompt: string;
@@ -51,7 +52,7 @@ function BoundHost({ context, children }: {
     reconciledReviewCancellation.current = request.requestId;
     void session.recover();
   }, [request, recoveryAction.status, reviewAction.status, session.recover]);
-  return <HostContext.Provider value={{ session, scopeLabel: context.scopeLabel, prompt, setPrompt }}>
+  return <HostContext.Provider value={{ modelsBinding: { client: context.client, scopeKey: context.scopeKey, renderIdentity: context, ...(context.receiptIdentity ? { receiptIdentity: context.receiptIdentity } : {}) }, session, scopeLabel: context.scopeLabel, prompt, setPrompt }}>
     {children}
   </HostContext.Provider>;
 }
@@ -65,6 +66,7 @@ export function AiSettingsSection() {
   const { session } = host;
   return <div className="setting ai-host">
     <AiPanelView
+      modelsBinding={host.modelsBinding}
       state={session.state} scopeLabel={host.scopeLabel} prompt={host.prompt}
       onPromptChange={host.setPrompt} onSubmit={() => { void session.submit(host.prompt); }}
       onCancel={() => { void session.cancel(); }} onRefresh={() => { void session.refresh(); }}

@@ -64,3 +64,13 @@
 .ha-ai__review {
   margin-block: 1rem;
 }
+
+.ha-ai__models {
+  margin-block: 1rem;
+}
+
+.ha-ai__model-list {
+  max-height: 18rem;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}

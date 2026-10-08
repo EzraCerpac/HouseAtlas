@@ -1,12 +1,15 @@
-import { useId, useState } from 'react';
+import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { cancellationMessage, canInfer, failureMessages, readinessMessage, tokenCount } from './model.js';
 import type {
   AiClient, AiReceiptIdentity, AiSessionState, ConnectionAction, ConnectionSnapshot, DomainHeld, RunOutcome, RuntimeRoute, UnresolvedConnectionAction, Usage,
 } from './types.js';
+import { AiModelsUnauthorizedError } from './types.js';
+import type { ModelDiscovery } from './types.js';
 import { hasObservedUnconfirmedReceipt, useAiSession, useConnectionActionCapacity } from './useAiSession.js';
 
 export interface AiPanelProps {
+  readonly renderIdentity?: object | string | number | null;
   readonly client: AiClient;
   readonly scopeLabel: string;
   /** Host-provided full context/epoch identity; labels are not identities. */
@@ -20,10 +23,11 @@ export function AiPanel(props: AiPanelProps) {
   return <AiPanelSession key={props.scopeKey} {...props} />;
 }
 
-function AiPanelSession({ client, scopeLabel, scopeKey, receiptIdentity }: AiPanelProps) {
+function AiPanelSession({ client, scopeLabel, scopeKey, receiptIdentity, renderIdentity }: AiPanelProps) {
   const session = useAiSession(client, scopeKey, receiptIdentity);
   const [prompt, setPrompt] = useState('');
   return <AiPanelView
+    modelsBinding={{ client, scopeKey, renderIdentity: renderIdentity ?? receiptIdentity ?? null, ...(receiptIdentity ? { receiptIdentity } : {}) }}
     state={session.state}
     scopeLabel={scopeLabel}
     prompt={prompt}
@@ -38,7 +42,15 @@ function AiPanelSession({ client, scopeLabel, scopeKey, receiptIdentity }: AiPan
   />;
 }
 
+export interface AiModelsBinding {
+  readonly renderIdentity?: object | string | number | null;
+  readonly client: AiClient;
+  readonly scopeKey: string;
+  readonly receiptIdentity?: AiReceiptIdentity;
+}
+
 export interface AiPanelViewProps {
+  readonly modelsBinding?: AiModelsBinding;
   readonly state: AiSessionState;
   readonly scopeLabel: string;
   readonly prompt: string;
@@ -87,7 +99,7 @@ const heldMessages: Record<DomainHeld['state'], string> = {
 };
 
 export function AiPanelView({
-  state, scopeLabel, prompt, onPromptChange, onSubmit, onCancel, onRefresh, onConnectionAction, onReview, onRecover, unresolvedConnectionActions,
+  state, scopeLabel, prompt, onPromptChange, onSubmit, onCancel, onRefresh, onConnectionAction, onReview, onRecover, unresolvedConnectionActions, modelsBinding,
 }: AiPanelViewProps) {
   const id = useId();
   const [selectedRoute, setSelectedRoute] = useState<RuntimeRoute>('unset');
@@ -128,6 +140,7 @@ export function AiPanelView({
     {state.connection.status === 'available'
       ? <ConnectionDetails connection={state.connection.snapshot} />
       : <p role="status">{state.connection.status === 'loading' ? 'Checking connection.' : 'Connection status is unavailable.'}</p>}
+    <ModelsSection binding={modelsBinding} state={state} />
     <fieldset className="ha-ai__connection">
       <legend>Connection actions</legend>
       <label htmlFor={`${id}-route`}>Candidate runtime</label>
@@ -186,6 +199,72 @@ export function AiPanelView({
         {state.reviewAction.status === 'unavailable' && <p role="status">Human review is unavailable. Proposed calls remain retained.</p>}
       </>}
     </div>
+  </section>;
+}
+
+type ModelsRead = { readonly identity: object; readonly status: 'loading' | 'available' | 'unavailable' | 'unauthorized'; readonly result?: ModelDiscovery };
+
+/** This read has its own observer and never changes inference/session admission. */
+function ModelsSection({ binding, state }: { readonly binding: AiModelsBinding | undefined; readonly state: AiSessionState }) {
+  const client = binding?.client;
+  const scopeKey = binding?.scopeKey;
+  const receipt = binding?.receiptIdentity;
+  const registrationId = receipt?.registrationId;
+  const snapshot = state.connection.status === 'available' ? state.connection.snapshot : null;
+  const disconnecting = state.connectionAction.action === 'disconnect'
+    && (state.connectionAction.status === 'working' || state.connectionAction.status === 'pending' || state.connectionAction.status === 'unconfirmed');
+  const authorized = snapshot?.authorization === 'connected' && snapshot.account !== null && !disconnecting;
+  const bound = Boolean(client?.models && scopeKey && registrationId?.trim()
+    && new TextEncoder().encode(registrationId).length <= 4096);
+  // Object identity masks retained data in this render, before effect cleanup.
+  const identity = useMemo(() => ({}), [binding?.renderIdentity, client, scopeKey, registrationId,
+    receipt?.actorId, receipt?.workspaceId, receipt?.homeId, receipt?.authorityEpoch, snapshot, authorized, bound]);
+  const current = useRef<object | null>(null);
+  const controller = useRef<AbortController | null>(null);
+  const [read, setRead] = useState<ModelsRead | null>(null);
+  useLayoutEffect(() => {
+    current.current = identity;
+    return () => {
+      current.current = null;
+      controller.current?.abort();
+      controller.current = null;
+    };
+  }, [identity]);
+  const visible = read?.identity === identity && bound && authorized ? read : null;
+  const refresh = async () => {
+    if (!bound || !authorized || !client?.models || !registrationId || current.current !== identity) return;
+    controller.current?.abort();
+    const request = new AbortController();
+    controller.current = request;
+    setRead({ identity, status: 'loading' });
+    try {
+      const result = await client.models(request.signal);
+      if (request.signal.aborted || current.current !== identity || controller.current !== request) return;
+      if (result.registrationId !== registrationId) throw new TypeError('Unexpected AI model registration');
+      setRead({ identity, status: 'available', result });
+    } catch (error: unknown) {
+      if (request.signal.aborted || current.current !== identity || controller.current !== request) return;
+      setRead({ identity, status: error instanceof AiModelsUnauthorizedError ? 'unauthorized' : 'unavailable' });
+    } finally {
+      if (controller.current === request) controller.current = null;
+    }
+  };
+  return <section className="ha-ai__models" aria-label="Models">
+    <div className="ha-ai__header"><h3>Models</h3>
+      <button type="button" disabled={!bound || !authorized || visible?.status === 'loading'} onClick={() => { void refresh(); }}>Refresh models</button>
+    </div>
+    <p>Informational model list. It does not select a model or establish eligibility, inference permission, paid use or consumer subscription access.</p>
+    {!bound ? <p role="status">Model discovery is unavailable. Models are unknown.</p>
+      : !authorized ? <p role="status">Model discovery requires a current authorized connection. Models are unknown.</p>
+      : visible === null ? <p role="status">Models are unknown. Refresh models to check.</p>
+      : visible.status === 'loading' ? <p role="status">Checking models.</p>
+      : visible.status === 'unauthorized' ? <p role="status">Model discovery is unauthorized. Models are unknown.</p>
+      : visible.status === 'unavailable' ? <p role="status">Model discovery is unavailable. Models are unknown.</p>
+      : visible.result && <>
+        <dl className="ha-ai__facts"><dt>Models checked</dt><dd><time dateTime={visible.result.checkedAt}>{visible.result.checkedAt}</time></dd></dl>
+        {visible.result.modelSlugs.length === 0 ? <p>No models were reported.</p>
+          : <ol className="ha-ai__model-list" aria-label="Reported model slugs">{visible.result.modelSlugs.map(slug => <li key={slug}>{slug}</li>)}</ol>}
+      </>}
   </section>;
 }
 
