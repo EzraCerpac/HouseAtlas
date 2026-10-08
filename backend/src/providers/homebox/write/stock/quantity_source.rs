@@ -34,6 +34,28 @@ pub struct QuantityCaptureEvidence<'p, T, K> {
     readback_plan: Option<ReadbackPlan>,
 }
 impl<'p, T: read::Transport, K: read::Clock + Send + Sync> QuantitySource<'p, T, K> {
+    pub fn from_installed(
+        owner: &'p OriginalStockActivityPrincipal,
+        registry: &'p QuantityObservationRegistry<'p, T, K>,
+        reader: &QuantityInstalledReader<'p, T, K>,
+    ) -> Result<Self, StockErrorCode> {
+        if !std::ptr::eq(reader.preview, registry.preview)
+            || !registry
+                .preview
+                .profile
+                .installation
+                .as_ref()
+                .is_some_and(|installation| Arc::ptr_eq(installation, &reader.installation))
+        {
+            return Err(StockErrorCode::ProviderUnqualified);
+        }
+        Self::new(
+            owner,
+            registry,
+            Arc::clone(&reader.reader),
+            Arc::clone(reader.installation.configured().access()),
+        )
+    }
     pub fn new(
         owner: &'p OriginalStockActivityPrincipal,
         registry: &'p QuantityObservationRegistry<'p, T, K>,
@@ -54,6 +76,15 @@ impl<'p, T: read::Transport, K: read::Clock + Send + Sync> QuantitySource<'p, T,
         if !Arc::ptr_eq(&observation.access, &access) || !Arc::ptr_eq(&observation.reader, &reader)
         {
             return Err(StockErrorCode::PreflightConflict);
+        }
+        if let Some(installation) = &preview.profile.installation
+            && (!observation
+                .installation
+                .as_ref()
+                .is_some_and(|issued| Arc::ptr_eq(issued, installation))
+                || !Arc::ptr_eq(installation.configured().access(), &access))
+        {
+            return Err(StockErrorCode::ProviderUnqualified);
         }
         {
             let configured = reader
@@ -287,16 +318,21 @@ impl<'p, T: read::Transport, K: read::Clock + Send + Sync> FreshPreparationSourc
         {
             return Err(StockErrorCode::UnsupportedCapability);
         }
-        self.registry
+        let admission = self
+            .registry
             .preview
             .profile
-            .require_installed_authority()?;
+            .require_installed_authority(self.owner, context)?;
+        let proof_digest = match admission {
+            Some(receipt) => receipt.bind_capture(capture.capture_digest())?,
+            None => capture.capture_digest().clone(),
+        };
         Ok(StockPreflight {
             preparation,
             provider_observation: command.provider_observation,
             request_digest: command.request_digest.clone(),
             source_epoch: authority.source_epoch,
-            preflight_digest: capture.capture_digest().clone(),
+            preflight_digest: proof_digest,
         })
     }
 }
@@ -412,11 +448,15 @@ impl<'p, T: read::Transport, K: read::Clock + Send + Sync> FreshReadbackSourcePo
         {
             return None;
         }
-        self.registry
+        let admission = self
+            .registry
             .preview
             .profile
-            .require_installed_authority()
+            .require_installed_authority(self.owner, context)
             .ok()?;
+        if let Some(receipt) = admission {
+            receipt.bind_capture(&capture.evidence().raw_digest).ok()?;
+        }
         Some(NativeObservation::Present {
             context: operation.command.context.clone(),
             target: plan.target.clone(),

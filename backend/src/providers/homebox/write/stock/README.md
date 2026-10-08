@@ -297,11 +297,11 @@ These getters are data, not an admission capability. A queue consumer must call
 its original principal, graph, access handles, source ownership and atomic
 persistence rules. Capture awaits must occur without Store or Access guards.
 Equality of `StockAuthority` values does not establish original principal/grant
-provenance or current authority. The production source qualifier for genuine
-providerObservation, finite freshness, registered build/route, complete write
-reference/impact graph, approval and hidden-field preservation remains absent.
-This handoff supplies retention mechanics, not those missing source peers, queue
-schema changes, credential admission, dispatch or activation.
+provenance or current authority. The bounded quantity installation source below now supplies original capture
+and guarded qualifier mechanics for its reviewed one-field PATCH. Other write
+families still require their genuine source qualifiers, complete reference/impact
+graphs, approval and hidden-field contracts. Retention alone supplies none of
+those facts, queue admission, dispatch or activation.
 
 One exact ordinary positive fixture can be run independently:
 
@@ -321,14 +321,12 @@ provider invocation, new grant, mismatch/denial/expiry/revocation or held contro
 
 ## Guarded quantity capture mechanics
 
-The quantity source is a bounded mechanical successor, not a fully qualified
-production write source. `QuantityProfile::production` retains explicit expected
-installation data. No public descriptor, hash, `NativeQualification` value,
-Editor role or `X-Tenant` header proves an installed route or approval policy.
-Production qualification remains unavailable until an original installation and
-policy admission producer supplies those missing facts. A private test-only
-profile permits the named ordinary synthetic positive; it cannot be constructed
-in a production build.
+`QuantityProfile::production` retains expected installation data without
+issuing admission. The configured installation owner described below supplies
+the bounded original artifact/policy admission path. No public descriptor, hash,
+`NativeQualification` value, Editor role or `X-Tenant` header proves an installed
+route or approval policy. The earlier private test-only profile remains useful
+for the mechanical fixture and cannot be constructed in a production build.
 
 `OriginalQuantityPreview` borrows the actual mutation principal and already
 captured source/partition grants. `QuantityObservationRegistry` issues a handle
@@ -413,3 +411,91 @@ plan across three successful guarded revalidations. It maps the actual one-field
 PATCH but sends no native mutation. Supplied historical operation data is neither
 queued nor admitted; causality, CAS and remote completion remain unproven. No
 queue/replay/denial/expiry/revocation or other held control is executed.
+
+
+## Configured quantity installation custody
+
+`NativeQuantityInstallationOwner::capture_configured` consumes the actual root
+`Arc<OriginalQuantityConfigured>` allocation. It opens only the five explicit
+absolute artifact paths: executable, build provenance, entity repository,
+entity handler and Swagger. It retains original bytes, paths, retrieval times,
+SHA256 and opened-file metadata before/after each bounded read. The executable
+is never executed. Bounds are 64 MiB for executable, 64 KiB for provenance,
+and exact pinned lengths 87660/19776/216647 for the three source artifacts.
+Unix regular-file device/inode/size/mtime must remain equal across capture;
+other platform metadata contracts are unavailable in this slice.
+
+The closed provenance schema requires schemaVersion=1, release=v0.26.2,
+sourceCommit=e01dd737238a3fa7e1a6454b37de6c6fc88c86e4, executableSha256,
+sourceArtifacts with exactly the three reviewed path/SHA256/byte-length pins,
+an empty customPatches array and reviewedQuantityPolicy. These actual bytes
+must match the configured descriptor and root-reviewed policy. The catalog
+uses the canonical digest of the complete stock-wire3 operation catalog; the
+route digest is the canonical digest of the captured, pinned Swagger JSON;
+the build digest is SHA256 of the captured executable bytes. The exact schema
+and reference pins are defined in quantity_installation.rs. These comparisons
+validate supplied artifact consistency; they do not attest which remote binary
+is running or authenticate a HomeBox account.
+
+The reviewed policy explicitly names policyId/version/epoch, actorId, exact
+context and target, accountId/groupId, deploymentId/physicalDatabaseId/
+configurationDigest, dispatcherOwnerId/epoch, sourceEpoch, approvalRequirement,
+maximum and freshnessMillis. The source supports explicit bounded no-human
+quantity rules only. The descriptor source epoch must equal the actual persisted
+source registration version in this slice; no physical row or elapsed time
+invents that mapping. Human-required remains unavailable until original receipt
+issuance and single-use spend composition exists.
+
+The owner issues a private admission only under
+`FreshQualification::with_quantity_installation`. This borrows the root's
+`OriginalQuantityPhysical`, which retains the actual mutable Store borrow and
+fresh original observation through the synchronous qualifier. Admission checks
+pointer equality of the configured allocation and original activity wrapper,
+actual Store identity, persisted queue/physical registration, original mutation
+principal and grants, current source metadata, command and reviewed policy.
+No Access or Store lock is reentered by the source. Callers acquire Store before
+Access for this phase, then drop both before native GET awaits. Admission is
+bound to the retained raw capture; the Domain consumer must preserve its
+unchanged same-G/carrier linkage and checks before and after each phase.
+
+Configured artifact custody has the same finite descriptor freshness window,
+at most 60 seconds, measured from original capture. After that window the
+caller must recapture from the same original configured artifact paths. A DATA
+value, hash or renewed timestamp cannot refresh that owner. The GET observation
+and preparation/readback captures independently retain their original finite
+freshness and exact route/scope/byte correlation.
+
+`owner.create_reader(preview, clock)` builds the real configured HttpTransport
+with `NativeReadCredentialConfig::bind_original` and the same original Access,
+principal and source/partition grants. The sealed QuantityInstalledReader has
+no public data constructor or mutable reader getter. The installed observation
+issuer and `QuantitySource::from_installed` preserve this owner allocation.
+Production capture/guarded qualification/readback therefore have concrete
+implementations when original configured custody is supplied. Unguarded DTO
+qualification and unbound descriptor-only profiles remain unavailable. This
+slice does not mount a route, enqueue an operation or send a native PATCH.
+
+The named ordinary positive is:
+
+```sh
+HOUSEATLAS_QUANTITY_REFERENCE_DIR=/absolute/path/to/pinned-public-files cargo test --offline --locked -p houseatlas-backend --lib providers::homebox::write::stock::quantity_installation_healthy::healthy_native_quantity_installation_capture_guard_and_readback -- --exact --test-threads=1
+```
+
+The directory must contain the exact reviewed repo_entities.go,
+v1_ctrl_entities.go and swagger.json; the fixture downloads nothing. It uses a
+synthetic never-executed executable and explicit synthetic reviewed policy,
+real disposable Core/Store/Access producers and startup registration rows, and
+only a private test transport substitution for three fixed in-process GETs.
+It checks guarded preparation, three fresh physical revalidations, preserved
+raw numeric/date bytes, quantity2 PATCH mapping, guarded readback and zero
+queue/activity entries. It proves configured artifact/policy and phase mechanics,
+not remote deployment qualification, causality, CAS or write execution.
+
+Ordinary operator setup supplies the HomeBox HTTPS URL and root API layout,
+installed release/build and exported original source/provenance bundle,
+account/group-to-workspace/home/source/opaque collection mapping, deployment
+and physical database configuration, and the explicit reviewed quantity policy
+with exact limits and epochs. Credential custody and original Atlas access
+membership/grants are separate actions. A human-required policy also needs its
+original receipt issuer/spend integration. URL/build/mapping alone creates no
+account, grants, storage mount, approval or provider activation.

@@ -78,6 +78,7 @@ pub(super) struct IssuedQuantityObservation<'p, T, K> {
     pub(super) issued_at: Instant,
     pub(super) access: Arc<Mutex<a::AccessBoundary>>,
     pub(super) reader: Arc<tokio::sync::Mutex<read::HomeBoxReader<T, K>>>,
+    pub(super) installation: Option<Arc<NativeQuantityInstallationOwner>>,
 }
 pub struct QuantityObservationRegistry<'p, T, K> {
     pub(super) preview: &'p OriginalQuantityPreview<'p>,
@@ -95,6 +96,35 @@ impl<'p, T: read::Transport, K: read::Clock + Send + Sync> QuantityObservationRe
         &self,
         reader: &'p Arc<tokio::sync::Mutex<read::HomeBoxReader<T, K>>>,
         access: &Arc<Mutex<a::AccessBoundary>>,
+    ) -> Result<uuid::Uuid, StockErrorCode> {
+        self.issue(reader, access, None).await
+    }
+    pub async fn issue_installed_observation(
+        &self,
+        reader: &'p QuantityInstalledReader<'p, T, K>,
+    ) -> Result<uuid::Uuid, StockErrorCode> {
+        if !std::ptr::eq(reader.preview, self.preview)
+            || !self
+                .preview
+                .profile
+                .installation
+                .as_ref()
+                .is_some_and(|installation| Arc::ptr_eq(installation, &reader.installation))
+        {
+            return Err(StockErrorCode::ProviderUnqualified);
+        }
+        self.issue(
+            &reader.reader,
+            reader.installation.configured().access(),
+            Some(Arc::clone(&reader.installation)),
+        )
+        .await
+    }
+    async fn issue(
+        &self,
+        reader: &'p Arc<tokio::sync::Mutex<read::HomeBoxReader<T, K>>>,
+        access: &Arc<Mutex<a::AccessBoundary>>,
+        installation: Option<Arc<NativeQuantityInstallationOwner>>,
     ) -> Result<uuid::Uuid, StockErrorCode> {
         let metadata = self.fence(access)?;
         let id = read::Uuid::parse(
@@ -133,6 +163,7 @@ impl<'p, T: read::Transport, K: read::Clock + Send + Sync> QuantityObservationRe
             issued_at,
             access: Arc::clone(access),
             reader: Arc::clone(reader),
+            installation,
         });
         let mut registry = self
             .issued

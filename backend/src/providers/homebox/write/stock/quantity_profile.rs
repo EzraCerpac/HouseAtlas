@@ -1,9 +1,11 @@
 //! Quantity-only expectations. Descriptor equality is never installed authority.
+use super::quantity_installation::{NativeQuantityInstallationOwner, QuantityInstalledAdmission};
 use super::*;
 use crate::access::SourceAuthorityMetadata;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 /// Explicit expectations supplied by the source owner, not a qualification proof.
+#[derive(Clone, PartialEq, Eq)]
 pub struct QuantityProfileDescriptor {
     pub source_commit: String,
     pub version: String,
@@ -21,7 +23,7 @@ pub struct QuantityProfileDescriptor {
     pub policy: QuantityPolicy,
     pub freshness: Duration,
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum QuantityPolicy {
     HumanRequired,
     /// Exact target and bounded quantity, explicitly configured by the owner.
@@ -32,6 +34,7 @@ pub enum QuantityPolicy {
 pub struct QuantityProfile {
     pub(super) expected: QuantityProfileDescriptor,
     fixture: bool,
+    pub(super) installation: Option<Arc<NativeQuantityInstallationOwner>>,
 }
 impl QuantityProfile {
     pub fn production(expected: QuantityProfileDescriptor) -> Result<Self, StockErrorCode> {
@@ -45,6 +48,26 @@ impl QuantityProfile {
         Ok(Self {
             expected,
             fixture: false,
+            installation: None,
+        })
+    }
+    pub(super) fn from_installation(
+        installation: Arc<NativeQuantityInstallationOwner>,
+        expected: QuantityProfileDescriptor,
+    ) -> Result<Self, StockErrorCode> {
+        Self::validate(&expected)?;
+        if &expected != installation.configured().descriptor()
+            || matches!(
+                expected.authority.qualification,
+                NativeQualification::SyntheticFixture
+            )
+        {
+            return Err(StockErrorCode::ProviderUnqualified);
+        }
+        Ok(Self {
+            expected,
+            fixture: false,
+            installation: Some(installation),
         })
     }
     fn validate(e: &QuantityProfileDescriptor) -> Result<(), StockErrorCode> {
@@ -105,6 +128,7 @@ impl QuantityProfile {
         Ok(Self {
             expected,
             fixture: true,
+            installation: None,
         })
     }
     pub(super) fn check_data(
@@ -138,12 +162,17 @@ impl QuantityProfile {
         }
         Ok(())
     }
-    pub(super) fn require_installed_authority(&self) -> Result<(), StockErrorCode> {
-        // No opaque installed-build/policy receipt producer is available here.
-        // Public Qualified fields, profile hashes, role and tenant are not proof.
-        if !self.fixture {
-            return Err(StockErrorCode::UnsupportedCapability);
+    pub(super) fn require_installed_authority<'owner, 'p>(
+        &'owner self,
+        original: &'p crate::app::stock_activity_principal::OriginalStockActivityPrincipal,
+        context: &FreshQualification<'_, '_, '_>,
+    ) -> Result<Option<QuantityInstalledAdmission<'owner, 'p>>, StockErrorCode> {
+        if let Some(installation) = &self.installation {
+            return installation.admit_original(original, context).map(Some);
         }
-        Ok(())
+        if self.fixture {
+            return Ok(None);
+        }
+        Err(StockErrorCode::UnsupportedCapability)
     }
 }
