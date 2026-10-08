@@ -111,6 +111,30 @@ where
         self,
         limits: write_transport::Limits,
     ) -> Result<write_transport::HttpDispatcher<Self>, write_transport::TransportFault> {
+        let endpoint = self.source_endpoint()?;
+        write_transport::HttpDispatcher::new(endpoint, self, limits)
+    }
+
+    /// Test-only TLS trust for an explicitly configured HTTPS loopback source.
+    /// All source and physical binding data follow the production path.
+    #[cfg(test)]
+    pub(crate) fn into_http_with_loopback_certificate(
+        self,
+        limits: write_transport::Limits,
+        certificate_der: &[u8],
+    ) -> Result<write_transport::HttpDispatcher<Self>, write_transport::TransportFault> {
+        let endpoint = self.source_endpoint()?;
+        write_transport::HttpDispatcher::new_with_loopback_certificate(
+            endpoint,
+            self,
+            limits,
+            certificate_der,
+        )
+    }
+
+    fn source_endpoint(
+        &self,
+    ) -> Result<write_transport::SourceEndpoint, write_transport::TransportFault> {
         let configured = self.preparation.configured();
         let descriptor = configured.descriptor();
         let physical = configured.physical();
@@ -128,8 +152,7 @@ where
             source_epoch: descriptor.authority.source_epoch,
             qualification: descriptor.authority.qualification.clone(),
         };
-        let endpoint = write_transport::SourceEndpoint::https(origin.origin().as_str(), binding)?;
-        write_transport::HttpDispatcher::new(endpoint, self, limits)
+        write_transport::SourceEndpoint::https(origin.origin().as_str(), binding)
     }
 }
 
