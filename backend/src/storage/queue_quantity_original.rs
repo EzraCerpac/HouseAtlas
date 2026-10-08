@@ -5,9 +5,13 @@ use super::*;
 use crate::{
     access,
     app::homebox_queued_quantity::{OriginalQueuedQuantityPreparation, QueuedQuantityPhase},
-    providers::homebox::read,
+    providers::homebox::{
+        read, write::stock::quantity_queue_prepared::NativeQueuedQuantityPrepared,
+    },
 };
+use journal_custody::QueueOriginalJournalCapture;
 use original_owner::{QueueOriginalClaimCapture, QueueOriginalEnqueueCapture};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(super) trait OwnedQuantityContext {
     fn revalidate(&self, db: &Connection) -> Result<()>;
@@ -56,6 +60,7 @@ impl PhaseFailure {
 enum Capture<'phase, 'capture> {
     Enqueue(&'phase QueueOriginalEnqueueCapture<'capture>),
     Claim(&'phase QueueOriginalClaimCapture<'capture>),
+    Journal(&'phase LeasedJob),
 }
 
 struct QuantityContext<'phase, 'capture, 'tx, 'bundle, 'native, 'p, 'owner, T, K>
@@ -93,21 +98,36 @@ impl<T: read::Transport, K: read::Clock + Send + Sync>
         self.preparation
             .revalidate_queue_transaction(self.guard, &transaction)
     }
+
+    fn revalidate_journal_lease(&self) -> Result<()> {
+        if let Capture::Journal(job) = self.capture {
+            let elapsed = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(|_| unavailable())?;
+            let now = u64::try_from(elapsed.as_millis()).map_err(|_| unavailable())?;
+            if job.lease.expires_at <= now {
+                return Err(stale());
+            }
+        }
+        Ok(())
+    }
 }
 
 impl<T: read::Transport, K: read::Clock + Send + Sync> OwnedQuantityContext
     for QuantityContext<'_, '_, '_, '_, '_, '_, '_, T, K>
 {
     fn revalidate(&self, db: &Connection) -> Result<()> {
+        self.revalidate_journal_lease()?;
         if db.is_autocommit() {
             // Release observes a fresh native read-only transaction after the
             // actual write commit. It never reuses the precommit observation.
             let transaction = db.unchecked_transaction()?;
             self.active(&transaction)?;
             transaction.commit()?;
-            Ok(())
+            self.revalidate_journal_lease()
         } else {
-            self.active(db)
+            self.active(db)?;
+            self.revalidate_journal_lease()
         }
     }
     fn validate_fresh(
@@ -118,7 +138,7 @@ impl<T: read::Transport, K: read::Clock + Send + Sync> OwnedQuantityContext
     ) -> Result<()> {
         match self.capture {
             Capture::Enqueue(capture) => capture.validate_fresh(request, scope, config),
-            Capture::Claim(_) => Err(conflict()),
+            Capture::Claim(_) | Capture::Journal(_) => Err(conflict()),
         }
     }
     fn validate_initial(
@@ -136,20 +156,20 @@ impl<T: read::Transport, K: read::Clock + Send + Sync> OwnedQuantityContext
         }
         match self.capture {
             Capture::Claim(capture) => capture.validate_initial(row, config),
-            Capture::Enqueue(_) => Err(conflict()),
+            Capture::Enqueue(_) | Capture::Journal(_) => Err(conflict()),
         }
     }
     fn enqueue_committed(&self, snapshot: &JobSnapshot) -> Result<()> {
         match self.capture {
             Capture::Enqueue(capture) => capture.record_committed(snapshot),
-            Capture::Claim(_) => Err(conflict()),
+            Capture::Claim(_) | Capture::Journal(_) => Err(conflict()),
         }
     }
 
     fn claim_committed(&self, job: &LeasedJob) -> Result<()> {
         match self.capture {
             Capture::Claim(capture) => capture.record_committed(job),
-            Capture::Enqueue(_) => Err(conflict()),
+            Capture::Enqueue(_) | Capture::Journal(_) => Err(conflict()),
         }
     }
 }
@@ -279,5 +299,70 @@ impl crate::app::Store {
             capture.record_released(job)?;
         }
         Ok(outcome)
+    }
+
+    pub(super) fn commit_original_quantity_journal_inner<'bundle, 'native, 'p, 'owner, T, K>(
+        &mut self,
+        preparation: &OriginalQueuedQuantityPreparation<'bundle, 'native, 'p, 'owner, T, K>,
+        attempt: &OriginalQueuedQuantityAttempt,
+        prepared: &Arc<NativeQueuedQuantityPrepared>,
+        capture: &QueueOriginalJournalCapture<'_>,
+    ) -> Result<NativeJournalReceipt>
+    where
+        T: read::Transport,
+        K: read::Clock + Send + Sync,
+    {
+        let boundary = Arc::clone(&self.configured_authorization().0);
+        if !Arc::ptr_eq(
+            &boundary,
+            preparation.quantity_preparation().configured().access(),
+        ) || !prepared.matches_source(preparation.source_cut())
+            || attempt.job().request != *preparation.request()
+            || attempt.job().canonical_scope != *preparation.scope()
+            || attempt.job().lease.physical_identity != preparation.config().registration.identity
+            || attempt.job().lease.owner_id != preparation.config().registration.dispatcher_owner_id
+            || attempt.job().attempt != 1
+        {
+            return Err(unavailable());
+        }
+        let identity = self.quantity_installation_store_identity();
+        let mut boundary = boundary.try_lock().map_err(|_| unavailable())?;
+        let mut receipt = None;
+        boundary
+            .with_mutation_authorization(preparation.principal().principal.principal(), |guard| {
+                let context = QuantityContext {
+                    preparation,
+                    guard,
+                    identity,
+                    capture: Capture::Journal(attempt.job()),
+                };
+                context.revalidate(&self.db)?;
+                let authority =
+                    QueuedQuantityPhase::for_journal(preparation, guard, attempt.job(), prepared)?;
+                let config = preparation.config().clone();
+                let mut session = self.queue_session(
+                    config,
+                    QueueSessionBinding {
+                        receipt: &preparation.request().receipt,
+                        original: preparation.original(),
+                        principal: preparation.principal(),
+                        witness: preparation,
+                    },
+                    &authority,
+                    QueueEvidenceInbox::default(),
+                )?;
+                capture.validate_session(&session, attempt.job(), prepared.prepared())?;
+                receipt = Some(session.commit_native_inner_with_owned(
+                    attempt.job(),
+                    prepared.prepared(),
+                    Some(capture),
+                    Some(&context),
+                )?);
+                Ok::<(), PhaseFailure>(())
+            })
+            .map_err(PhaseFailure::storage)?;
+        let receipt = receipt.ok_or_else(unavailable)?;
+        capture.record_released(&receipt)?;
+        Ok(receipt)
     }
 }

@@ -259,11 +259,13 @@ pub(crate) fn observe_quantity_installation_in_transaction<'tx, 'p, P: StockActi
     })
 }
 
-impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
+impl<C, A, R> AtlasStore<C, A, R> {
     pub fn quantity_installation_store_identity(&self) -> QuantityInstallationStoreIdentity {
         QuantityInstallationStoreIdentity(Arc::clone(&self.instance))
     }
+}
 
+impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
     pub fn observe_quantity_installation_with_authorization<'p, P: StockActivityPrincipal>(
         &mut self,
         original: &'p P,
