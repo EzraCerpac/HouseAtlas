@@ -13,6 +13,26 @@ pub(crate) fn validate_profile(connection: &Connection, activity: bool) -> Resul
     } else {
         DATABASE_VERSION
     };
+    validate_catalog(connection, &migrations, target, DATABASE_LINEAGE)
+}
+
+/// The distinct fresh presence lineage is checked against every compiled SQL
+/// definition, not merely the ledger or the added witness table.
+pub(crate) fn validate_presence(connection: &Connection) -> Result<()> {
+    validate_catalog(
+        connection,
+        &presence_profile(),
+        PRESENCE_DATABASE_VERSION,
+        PRESENCE_DATABASE_LINEAGE,
+    )
+}
+
+fn validate_catalog(
+    connection: &Connection,
+    migrations: &[(u32, &'static str)],
+    target: u32,
+    lineage: &str,
+) -> Result<()> {
     let incompatible = || {
         Error::new(
             "schema-incompatible",
@@ -38,7 +58,7 @@ pub(crate) fn validate_profile(connection: &Connection, activity: bool) -> Resul
             || metadata
                 != vec![
                     ("contractVersion".into(), CONTRACT_VERSION.into()),
-                    ("lineage".into(), DATABASE_LINEAGE.into()),
+                    ("lineage".into(), lineage.into()),
                 ]
         {
             return Ok(false);
@@ -52,7 +72,7 @@ pub(crate) fn validate_profile(connection: &Connection, activity: bool) -> Resul
                 .collect()
         }
         let expected_db = Connection::open_in_memory()?;
-        for (_, sql) in &migrations {
+        for (_, sql) in migrations {
             expected_db.execute_batch(sql)?;
         }
         let equal = catalog(connection)? == catalog(&expected_db)?;
@@ -68,7 +88,9 @@ pub(crate) fn validate_profile(connection: &Connection, activity: bool) -> Resul
 
 pub const DATABASE_VERSION: u32 = 5;
 pub const STOCK_ACTIVITY_DATABASE_VERSION: u32 = 6;
+pub const PRESENCE_DATABASE_VERSION: u32 = 7;
 pub const DATABASE_LINEAGE: &str = "houseatlas-rust-storage/1";
+pub const PRESENCE_DATABASE_LINEAGE: &str = "houseatlas-rust-storage/presence/1";
 const MIGRATIONS: &[(u32, &str)] = &[
     (1, include_str!("../../migrations/0001_rust_core.sql")),
     (2, include_str!("../../migrations/0002_stock_intents.sql")),
@@ -93,6 +115,43 @@ fn profile(activity: bool) -> Vec<(u32, &'static str)> {
         migrations.push((6, include_str!("../../migrations/0006_stock_activity.sql")));
     }
     migrations
+}
+
+fn presence_profile() -> Vec<(u32, &'static str)> {
+    let mut migrations = profile(true);
+    migrations.push((7, super::presence_profile::FRESH_PRESENCE_SCHEMA));
+    migrations
+}
+
+/// A distinct installer, never an extension of migrate(5/6). Even a valid
+/// version-7 database is refused here; existing state uses strict reopen.
+pub(crate) fn migrate_presence_fresh(connection: &mut Connection) -> Result<()> {
+    let incompatible = || {
+        Error::new(
+            "schema-incompatible",
+            "Fresh presence database is not empty",
+        )
+    };
+    let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let version: u32 = tx.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+    let existing: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE name NOT GLOB 'sqlite_*')",
+        [],
+        |r| r.get(0),
+    )?;
+    if version != 0 || existing {
+        return Err(incompatible());
+    }
+    for (next, sql) in presence_profile() {
+        tx.execute_batch(sql)?;
+        tx.execute(
+            "INSERT INTO atlas_rust_migrations VALUES(?1,?2)",
+            rusqlite::params![next, sha256(sql)],
+        )?;
+        tx.pragma_update(None, "user_version", next)?;
+    }
+    tx.commit()?;
+    validate_presence(connection)
 }
 
 pub(crate) fn migrate(connection: &mut Connection, activity: bool) -> Result<()> {

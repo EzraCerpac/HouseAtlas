@@ -17,6 +17,9 @@ mod commands;
 mod homebox_stock_history;
 #[path = "presence_engine.rs"]
 pub(crate) mod presence_engine;
+#[path = "presence_history.rs"]
+mod presence_history;
+pub use presence_history::PresenceHistoryCatalog;
 #[path = "presence_transaction.rs"]
 pub(crate) mod presence_transaction;
 #[path = "recovery.rs"]
@@ -39,7 +42,7 @@ mod stock_retained_read;
 #[path = "upload_queries.rs"]
 mod upload_queries;
 pub use homebox_stock_history::NativeHomeBoxStockHistory;
-pub use recovery::{RecoveryImage, RecoveryValidationPeers};
+pub use recovery::{PresenceOpenPeers, RecoveryImage, RecoveryValidationPeers};
 
 use rusqlite::{Connection, TransactionBehavior};
 use serde::Serialize;
@@ -81,6 +84,78 @@ pub struct AtlasStore<C, A, R> {
     pub(super) options: StoreOptions,
 }
 impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
+    /// Explicit fresh-only presence installer. Ordinary open still rejects v7.
+    /// A historical catalog cannot seed a new database, even if its rows are
+    /// internally consistent; this installer never upgrades existing storage.
+    pub fn open_presence(
+        path: impl AsRef<Path>,
+        contract: C,
+        authorization: A,
+        runtime: R,
+        options: StoreOptions,
+        catalog: &PresenceHistoryCatalog,
+    ) -> Result<Self> {
+        options.require_explicit_presence_profile()?;
+        if !catalog.is_empty() {
+            return Err(Error::new(
+                "invalid-contract",
+                "Fresh presence catalog must be empty",
+            ));
+        }
+        let mut db = Connection::open_with_flags(
+            path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE
+                | rusqlite::OpenFlags::SQLITE_OPEN_CREATE
+                | rusqlite::OpenFlags::SQLITE_OPEN_NOFOLLOW,
+        )?;
+        db.busy_timeout(Duration::from_millis(options.busy_timeout_ms))?;
+        db.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;")?;
+        migrations::migrate_presence_fresh(&mut db)?;
+        db.pragma_update(None, "journal_mode", "WAL")?;
+        Ok(Self {
+            db,
+            instance: Arc::new(()),
+            cache_pins: cache_custody::CachePinRegistry::default(),
+            contract,
+            authorization,
+            runtime,
+            options,
+        })
+    }
+
+    /// Populated v7 reopen delegates the exact same-handle, query-only native,
+    /// stock, activity, queue and complete history checks to Root Recovery.
+    pub fn open_existing_presence<S, D, E, W, AD, AE>(
+        path: &Path,
+        contract: C,
+        authorization: A,
+        runtime: R,
+        options: StoreOptions,
+        peers: &PresenceOpenPeers<'_, S, D, E, W, AD, AE>,
+        check: &mut dyn FnMut() -> Result<()>,
+    ) -> Result<Self>
+    where
+        S: crate::domain::stock::StockContractPort,
+        D: QueueDiscovery,
+        E: QueueRecoveryEvidence,
+        W: crate::providers::homebox::write::stock::StockContractPort,
+        AD: StockActivityRecoveryDiscovery,
+        AE: StockActivityRecoveryEvidence,
+    {
+        options.require_explicit_presence_profile()?;
+        let db =
+            recovery::open_existing_presence_connection(path, &contract, &options, peers, check)?;
+        Ok(Self {
+            db,
+            instance: Arc::new(()),
+            cache_pins: cache_custody::CachePinRegistry::default(),
+            contract,
+            authorization,
+            runtime,
+            options,
+        })
+    }
+
     /// Borrow the original authorizer supplied when this Store was opened.
     /// Composition can check its owner identity without acquiring an authority
     /// lock. This borrow does not authorize any read, mutation or disclosure.
@@ -173,7 +248,9 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         })
     }
     pub fn database_version(&self) -> u32 {
-        if self.options.stock_activity_profile {
+        if self.options.presence_profile == PresenceProfileSelection::FreshV7 {
+            migrations::PRESENCE_DATABASE_VERSION
+        } else if self.options.stock_activity_profile {
             migrations::STOCK_ACTIVITY_DATABASE_VERSION
         } else {
             DATABASE_VERSION
@@ -192,6 +269,17 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             return Err(Error::new(
                 "invalid-contract",
                 "Published synthetic snapshot is required",
+            ));
+        }
+        if self.options.presence_profile == PresenceProfileSelection::FreshV7
+            && snapshot
+                .records
+                .iter()
+                .any(|record| record.record_type == RecordType::Binding)
+        {
+            return Err(Error::new(
+                "invalid-contract",
+                "Presence profile cannot bootstrap Binding history",
             ));
         }
         let tx = self
