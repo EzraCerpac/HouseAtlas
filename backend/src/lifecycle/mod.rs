@@ -57,14 +57,28 @@ pub fn fixture() -> Result<Value, Failure> {
     fixture_with_profile(crate::config::FixtureProfile::Standard)
 }
 pub fn fixture_with_profile(profile: crate::config::FixtureProfile) -> Result<Value, Failure> {
-    let mut v: Value = serde_json::from_str(include_str!(
-        "../../../packages/contracts/fixtures/plan-free.snapshot.json"
-    ))?;
+    let geometry_metadata = profile == crate::config::FixtureProfile::GeometryMetadata;
+    let snapshot = if geometry_metadata {
+        include_str!("../../../packages/contracts/fixtures/optional-geometry.snapshot.json")
+    } else {
+        include_str!("../../../packages/contracts/fixtures/plan-free.snapshot.json")
+    };
+    let mut v: Value = serde_json::from_str(snapshot)?;
     v["sources"]
         .as_array_mut()
         .ok_or("Missing sources")?
-        .retain(|s| s["sourceInstanceId"] == "00000000-0000-4000-8000-000000000010");
-    let ids = ["100", "200", "201", "300", "301", "400"];
+        .retain(|s| {
+            s["sourceInstanceId"] == "00000000-0000-4000-8000-000000000010"
+                || (geometry_metadata
+                    && s["sourceInstanceId"] == "00000000-0000-4000-8000-000000000013")
+        });
+    // Keep the standard six records and the public missing/blocked original
+    // plus its unchanged metadata only. No original file or shapes are added.
+    let ids: &[&str] = if geometry_metadata {
+        &["100", "200", "201", "300", "301", "400", "600", "601"]
+    } else {
+        &["100", "200", "201", "300", "301", "400"]
+    };
     v["records"]
         .as_array_mut()
         .ok_or("Missing records")?

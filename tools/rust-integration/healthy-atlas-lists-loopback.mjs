@@ -10,6 +10,11 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 assert.equal(process.version, 'v26.10.0');
+const fixtureProfile = process.env.HOUSEATLAS_FIXTURE_PROFILE ?? 'standard';
+assert(['standard','geometry-metadata'].includes(fixtureProfile), 'Explicit approved positive fixture profile');
+const geometryMetadataProfile = fixtureProfile === 'geometry-metadata';
+const expectedRecordCount = geometryMetadataProfile ? 8 : 6;
+if (geometryMetadataProfile) assert.match(process.env.SOURCE_SHA ?? '', /^[0-9a-f]{40}$/, 'Pin the composed candidate for geometry metadata QA');
 const binary = process.env.HOUSEATLAS_BINARY;
 assert(binary && existsSync(binary), 'Supply the locked compiled HOUSEATLAS_BINARY');
 const chromium = process.env.HOUSEATLAS_CHROMIUM ?? ['/usr/bin/google-chrome', '/usr/bin/chromium'].find(existsSync);
@@ -58,7 +63,7 @@ class Pipe {
   }
 }
 try {
-  service = spawn(resolve(binary), ['--disposable-dir', data, '--frontend-dist', join(root, 'frontend/dist'), '--tls-cert', cert, '--tls-key', key], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
+  service = spawn(resolve(binary), ['--disposable-dir', data, '--frontend-dist', join(root, 'frontend/dist'), '--tls-cert', cert, '--tls-key', key, ...(geometryMetadataProfile ? ['--fixture-profile','geometry-metadata'] : [])], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
   service.stdout.on('data', b => { serviceOutput += b; }); service.stderr.on('data', b => { serviceError += b; });
   await until(() => {
     if (service.exitCode !== null) throw new Error('Rust startup failed: ' + serviceError);
@@ -146,7 +151,7 @@ try {
   assert.equal(result.admission.commandIds.length,35,'HTTP viewer admits 30 Atlas reads, four cached HomeBox reads and managed download');
   assert.deepEqual(result.admission.commandIds.filter(id=>id.startsWith('homebox.')).sort(), ['homebox.entity.get','homebox.entity.list','homebox.location.get','homebox.location.list']);
   assert(result.admission.commandIds.every(id=>!id.startsWith('network.')));
-  assert.equal(result.collections.reduce((sum,item)=>sum+item.wire.data.records.length,0),6);
+  assert.equal(result.collections.reduce((sum,item)=>sum+item.wire.data.records.length,0),expectedRecordCount);
   const native=await evaluate("({modelContext:typeof document.modelContext,registerTool:typeof document.modelContext?.registerTool,getTools:typeof document.modelContext?.getTools,executeTool:typeof document.modelContext?.executeTool})");
   assert.equal(native.getTools,'function','Actual document WebMCP discovery');
   await until(async()=>await evaluate("document.modelContext.getTools().then(tools=>tools.some(tool=>tool.name==='atlas_records'))"),'Actual admitted list registration');
@@ -163,10 +168,49 @@ try {
   assert.notEqual(result.first.data.records[0].target.recordId,second.wire.data.records[0].target.recordId);
   const sql="import sqlite3,json,sys;c=sqlite3.connect('file:'+sys.argv[1]+'?mode=ro',uri=True);print(json.dumps({'counts':{t:c.execute('SELECT COUNT(*) FROM '+t).fetchone()[0] for t in ['records','audits','stock_operations','stock_history_cursors']},'records':[json.loads(r[0]) for r in c.execute('SELECT body FROM records ORDER BY record_id')]}));c.close()";
   const rows=spawnSync('python3',['-c',sql,join(data,'atlas.sqlite')],{encoding:'utf8'});assert.equal(rows.status,0);
-  const persisted=JSON.parse(rows.stdout);assert.deepEqual(persisted.counts,{records:6,audits:0,stock_operations:0,stock_history_cursors:0});
+  const persisted=JSON.parse(rows.stdout);assert.deepEqual(persisted.counts,{records:expectedRecordCount,audits:0,stock_operations:0,stock_history_cursors:0});
   for(const collection of result.collections){
     const expected=persisted.records.filter(record=>record.recordType===collection.kind&&record.lifecycle!=='tombstoned').map(record=>{const payload=structuredClone(record.payload);if(collection.kind==='asset')delete payload.storageKey;return {target:{authority:'atlas',recordType:record.recordType,recordId:record.recordId},revision:record.revision,lifecycle:record.lifecycle,payload};});
     assert.deepEqual(collection.wire.data.records,expected,'Exact stored rows disclosed for '+collection.kind);
+  }
+  let geometryMetadata=null;
+  if(geometryMetadataProfile){
+    const fixture=JSON.parse(readFileSync(join(root,'packages/contracts/fixtures/optional-geometry.snapshot.json'),'utf8'));
+    const U=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
+    const originalGeometry=fixture.records.find(record=>record.recordId===U(601));
+    const originalAsset=fixture.records.find(record=>record.recordId===U(600));
+    assert.deepEqual(persisted.records.find(record=>record.recordId===U(601)),originalGeometry,'Unchanged public geometry metadata persisted through actual bootstrap');
+    assert.deepEqual(persisted.records.find(record=>record.recordId===U(600)),originalAsset,'Unchanged missing/blocked public original metadata');
+    assert.equal(originalAsset.payload.availability,'missing');assert.equal(originalAsset.payload.previewPolicy,'blocked');
+    const geometryRows=result.collections.find(item=>item.kind==='geometry').wire.data.records;
+    assert.deepEqual(geometryRows,[{target:{authority:'atlas',recordType:'geometry',recordId:U(601)},revision:1,lifecycle:'active',payload:originalGeometry.payload}]);
+    const sourceSql="import sqlite3,json,sys;c=sqlite3.connect('file:'+sys.argv[1]+'?mode=ro',uri=True);print(json.dumps({'sources':[json.loads(r[0]) for r in c.execute('SELECT body FROM sources ORDER BY source_instance_id')],'manifests':[json.loads(r[0]) for r in c.execute('SELECT body FROM asset_manifests ORDER BY record_id')]}));c.close()";
+    const sourceRows=spawnSync('python3',['-c',sourceSql,join(data,'atlas.sqlite')],{encoding:'utf8'});assert.equal(sourceRows.status,0);
+    const retained=JSON.parse(sourceRows.stdout);
+    assert.deepEqual(retained.sources,fixture.sources.filter(source=>[U(10),U(13)].includes(source.sourceInstanceId)),'Actual native graph retains the exact public source registrations');
+    assert.deepEqual(retained.manifests,[originalAsset.payload],'Only the missing public original manifest is persisted');
+    await until(async()=>await evaluate("document.modelContext.getTools().then(tools=>tools.some(tool=>tool.name==='atlas_media_geometry'))"),'Actual admitted geometry metadata registration');
+    const geometryRequest={schemaVersion:3,commandId:'atlas.geometry.list',requestId:U(2300),context:view.scope,target:{authority:'atlas',recordType:'geometry'},payload:{pageSize:100,cursor:null,includeArchived:false}};
+    const nativeGeometry=await evaluate(`(async()=>{const tool=(await document.modelContext.getTools()).find(tool=>tool.name==='atlas_media_geometry');const value=await document.modelContext.executeTool(tool,${JSON.stringify(JSON.stringify(geometryRequest))});return {wire:typeof value==='string'?JSON.parse(value):value,visible:document.querySelector('.stock-completion pre')?.textContent};})()`);
+    assert.equal(nativeGeometry.wire.commandId,geometryRequest.commandId);assert.equal(nativeGeometry.wire.requestId,geometryRequest.requestId);assert.equal(nativeGeometry.wire.status,'read');assert.equal(nativeGeometry.wire.replayed,false);assert.deepEqual(nativeGeometry.wire.resolvedScope,view.scope);
+    assert.deepEqual(nativeGeometry.wire.data,{records:geometryRows,nextCursor:null,sourceStatus:'current'});
+    assert.deepEqual(JSON.parse(nativeGeometry.visible),nativeGeometry.wire,'Actual geometry metadata committed visibly before native tool return');
+    const roomsPoint=await evaluate(`(()=>{const button=Array.from(document.querySelectorAll('.nav-btn')).find(node=>node.textContent.trim()==='Rooms & places');const rect=button.getBoundingClientRect();return {x:rect.x+rect.width/2,y:rect.y+rect.height/2};})()`);
+    await send('Input.dispatchMouseEvent',{type:'mousePressed',...roomsPoint,button:'left',clickCount:1});
+    await send('Input.dispatchMouseEvent',{type:'mouseReleased',...roomsPoint,button:'left',clickCount:1});
+    await until(async()=>await evaluate(`document.querySelector('[aria-labelledby="geometry-metadata-heading"] summary')?.textContent.includes('${U(601)}')`),'Rooms renders actual saved geometry metadata');
+    const detailPoint=await evaluate(`(()=>{const rect=document.querySelector('[aria-labelledby="geometry-metadata-heading"] summary').getBoundingClientRect();return {x:rect.x+rect.width/2,y:rect.y+rect.height/2};})()`);
+    await send('Input.dispatchMouseEvent',{type:'mousePressed',...detailPoint,button:'left',clickCount:1});
+    await send('Input.dispatchMouseEvent',{type:'mouseReleased',...detailPoint,button:'left',clickCount:1});
+    const ui=await evaluate(`(()=>{const section=document.querySelector('[aria-labelledby="geometry-metadata-heading"]');return {currentRooms:Array.from(document.querySelectorAll('.nav-btn')).find(node=>node.textContent.trim()==='Rooms & places')?.getAttribute('aria-current'),text:section.innerText,open:section.querySelector('details').open,summary:section.querySelector('summary').textContent,facts:Array.from(section.querySelectorAll('details dl')).map(dl=>Object.fromEntries(Array.from(dl.children).map(row=>[row.querySelector('dt').textContent,row.querySelector('dd').textContent]))),shapes:Array.from(document.querySelectorAll('.ledger-shape')).map(node=>node.textContent)};})()`);
+    assert.equal(ui.currentRooms,'page');assert.equal(ui.open,true);
+    assert.equal(ui.summary,'Magicplan version 1 · active · '+U(601));
+    assert(ui.text.includes('Plan unavailable: this read does not supply room shapes or positions.'));assert(ui.text.includes('Source status: current'));
+    const payload=originalGeometry.payload,mapping=payload.mappings[0],ref=mapping.homeboxEntity;
+    assert.deepEqual(ui.facts,[{'Record revision':'1','Producer version':'Not supplied','Export format':payload.exportFormat,'Imported':payload.importedAt,'Original asset ID':payload.originalAssetId+' · file availability not supplied by this read','Previous geometry ID':'Not supplied','Coordinate units':'unknown','Source scale':'Not supplied','Source transform':'Not supplied','Evidence IDs':payload.evidenceIds.join(', ')},{'Producer room':mapping.producerRoomId,'Mapping status':'proposed','Atlas identity ID':mapping.atlasId,'HomeBox source reference':[ref.workspaceId,ref.homeId,ref.key.sourceInstanceId,ref.key.collectionId,ref.key.sourceKind,ref.key.externalId].join(' / '),'Saved place match':'Synthetic cabinet','Mapping evidence IDs':mapping.evidenceIds.join(', ')}]);
+    assert(ui.shapes.length>0&&ui.shapes.every(shape=>shape==='No shape'),'Metadata does not fabricate a reviewed shape');
+    geometryMetadata={profile:fixtureProfile,nativeGeometry,retained,ui,originalGeometry,originalAsset};
+    if(process.env.HOUSEATLAS_SCREENSHOT_PREFIX){const screenshot=await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});writeFileSync(process.env.HOUSEATLAS_SCREENSHOT_PREFIX+'-geometry-metadata.png',Buffer.from(screenshot.data,'base64'));}
   }
   assert.equal(runtimeErrors.length,0);
   assert(observedUrls.every(url=>url.startsWith(origin+'/')),'All observed page requests stay on loopback');
@@ -178,7 +222,7 @@ try {
     binarySha256: createHash('sha256').update(readFileSync(resolve(binary))).digest('hex'),
     frontendIndexSha256: createHash('sha256').update(readFileSync(join(root,'frontend/dist/index.html'))).digest('hex'),
     inputTrace: [{ event:'native mouse click', target:'.search-trigger' }, { event:'native keyDown', key:'Escape', code:'Escape', focused:'input[role=combobox]' }, { event:'native keyUp', key:'Escape', code:'Escape' }] };
-  const evidence={browser:version.product,provenance,native,lantern:{responsive,searchInputEscape:true,restoredFocus:true},admittedReads:result.admission.commandIds.length,listHandlers:result.collections.map(item=>({kind:item.kind,count:item.wire.data.records.length,commandId:item.wire.commandId})),exactEnvelopeInvokes:result.invokes,continuation:{freshFirstNonNull:true,nextNull:true,pageSize:1,distinctRecords:2,restToNativeWebMcp:true,exactVisibleBeforeReturn:true},filtered:{q:'ITEM',includeArchived:true,records:1},persisted:persisted.counts,observedRequests:observedUrls.length,scope:'Actual Rust/Access/SQLite/React healthy synthetic loopback TLS: all ten REST lists, exact ten invoke envelopes, one fresh nonnull cursor continuation through native WebMCP, one literal positive filter. No login/logout/write/MCP/provider/stopped control. Populated asset and archived rows remain unqualified.'};
+  const evidence={browser:version.product,provenance,fixtureProfile,geometryMetadata,native,lantern:{responsive,searchInputEscape:true,restoredFocus:true},admittedReads:result.admission.commandIds.length,listHandlers:result.collections.map(item=>({kind:item.kind,count:item.wire.data.records.length,commandId:item.wire.commandId})),exactEnvelopeInvokes:result.invokes,continuation:{freshFirstNonNull:true,nextNull:true,pageSize:1,distinctRecords:2,restToNativeWebMcp:true,exactVisibleBeforeReturn:true},filtered:{q:'ITEM',includeArchived:true,records:1},persisted:persisted.counts,observedRequests:observedUrls.length,scope:'Actual Rust/Access/SQLite/React healthy synthetic loopback TLS: all ten REST lists, exact ten invoke envelopes, one fresh nonnull cursor continuation through native WebMCP, one literal positive filter. No login/logout/write/MCP/provider/stopped control. '+(geometryMetadataProfile?' Public missing/blocked original and geometry metadata match exact native SQLite rows and actual native WebMCP; Rooms displays supplied metadata and exact proposed mapping while shape/position projection stays unavailable. Available original delivery and reviewed shapes remain unqualified.':' Populated asset and archived rows remain unqualified.')};
   if(process.env.HOUSEATLAS_EVIDENCE)writeFileSync(process.env.HOUSEATLAS_EVIDENCE,JSON.stringify(evidence,null,2)+'\n');
   console.log(JSON.stringify(evidence,null,2));
 
