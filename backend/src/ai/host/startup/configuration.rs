@@ -31,6 +31,9 @@ pub struct RegistrationConfiguration {
     /// An explicit candidate. Discovery of this same credential session must
     /// still establish membership before the host can select it.
     model_slug: Option<String>,
+    /// Optional application-owned display metadata. It is never an account or
+    /// workspace identity, a provider observation, or an admission decision.
+    account_label: Option<String>,
 }
 
 /// Neither Deserialize nor Clone: request JSON cannot instantiate the captured
@@ -98,6 +101,10 @@ impl StartupConfiguration {
                 .model_slug
                 .as_ref()
                 .is_some_and(|model| !valid_field(model, 256))
+                || row
+                    .account_label
+                    .as_ref()
+                    .is_some_and(|label| !valid_field(label, 256))
                 || !scopes.insert((&row.actor_id, &row.workspace_id, &row.home_id))
             {
                 return Err(AiError::InvalidInput);
@@ -181,6 +188,9 @@ impl RegistrationConfiguration {
     }
     pub(super) fn model(&self) -> Option<&str> {
         self.model_slug.as_deref()
+    }
+    pub(super) fn account_label(&self) -> Option<&str> {
+        self.account_label.as_deref()
     }
 }
 fn valid_field(value: &str, maximum: usize) -> bool {
