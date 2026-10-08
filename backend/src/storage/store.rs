@@ -22,6 +22,8 @@ mod stock_asset_review;
 mod stock_asset_upload;
 #[path = "stock_history.rs"]
 mod stock_history;
+#[path = "stock_replay_preparation.rs"]
+mod stock_replay_preparation;
 #[path = "stock_retained_read.rs"]
 mod stock_retained_read;
 #[path = "upload_queries.rs"]

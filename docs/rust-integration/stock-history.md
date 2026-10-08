@@ -75,3 +75,25 @@ and WAL across reads, and ordinary reopen. The separately inspected
 `healthy-operation-events-loopback.mjs` covers actual HTTP paging over real saved
 stock/audit linkage. Neither runner executes replay, recovery, expired cursors,
 revocation or concurrency controls.
+
+## Saved intent preparation
+
+The authenticated `/api/atlas/retained-intent` reconciliation route now uses
+`StockAtlasReplayPreparation`. Its first read transaction retains the validated
+saved root and native plan alongside the original Store, request principal and
+semantic owner bindings. The existing current and historical disclosure checks
+run before preparation returns and again before the saved result is released.
+The response preserves the original saved request IDs and canonical wire;
+original Media release, HTTP delivery and retry safety remain not established.
+
+Preparation getters are internal qualification facts. Hosts must not serialize
+them before the matching Disclosure and Release checks. The carrier has no
+execution method and supplies no mutation or replay authority. A separate stock
+mutation owner must bind the saved plan to actual Replay and ReplayPrecommit
+checks; the existing fresh-only transaction owner remains unchanged.
+
+The inspected source positive creates one direct record through the actual fresh
+stock adapter, then prepares and discloses its saved source under a fresh Access
+read guard. It preserves the saved root, plan and receipt and leaves SQLite and
+WAL bytes unchanged. Its independently checked source closure is empty; it does
+not qualify source-bearing replay, replay execution or any held control.

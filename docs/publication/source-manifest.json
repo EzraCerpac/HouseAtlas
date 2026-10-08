@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "fb68427f94cde0d3d011d424f8414364f948e78eabf19eacba8044238d126b20",
+  "sourceDigestSha256": "1053e98e750df68da00cb78f5e99fa2a58d52bf2ac93255eca8baf19978eeace",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -1708,8 +1708,8 @@
     {
       "path": "backend/src/http/operation_events.rs",
       "mode": "100644",
-      "bytes": 26146,
-      "sha256": "58eded2577ff0096531fc20569a7f276819fdfd7b73ebda88b6ff4c8600b8c25",
+      "bytes": 26144,
+      "sha256": "beaef1bc9ecfb10bd9daa74d94fd59b642e7ec57dbb40a5823384a606327f79d",
       "owner": "core-integration"
     },
     {
@@ -3584,8 +3584,8 @@
     {
       "path": "backend/src/storage/mod.rs",
       "mode": "100644",
-      "bytes": 2512,
-      "sha256": "6ec8f65758e2a6f1fb6877258287a194000c73ee7e71cfb61d2a3f3f85ff8b1a",
+      "bytes": 2617,
+      "sha256": "3176ecc5f0252bd8940420eb04816c02af4dfe73a4faf93159a33a49be544737",
       "owner": "storage"
     },
     {
@@ -3906,8 +3906,8 @@
     {
       "path": "backend/src/storage/stock_projection.rs",
       "mode": "100644",
-      "bytes": 4237,
-      "sha256": "436b502c64f6a4e470e0c93ca82e22db7c493546641cee8bf56166a088d2e65e",
+      "bytes": 4771,
+      "sha256": "65db8faad6e113c5cecc7b90725fded91f4d674a18cea3072c02a52523183126",
       "owner": "storage"
     },
     {
@@ -3915,6 +3915,20 @@
       "mode": "100644",
       "bytes": 18568,
       "sha256": "2d58a2920d443add9040098dcdf8b26d008660fa6a33527aea1ad5f100c532d9",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/stock_replay_preparation.rs",
+      "mode": "100644",
+      "bytes": 2323,
+      "sha256": "392a9bbac1b44749791c8011900ee8f0e70ea4c7a348497031d00f214df495fd",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/stock_replay_preparation_types.rs",
+      "mode": "100644",
+      "bytes": 2047,
+      "sha256": "8c477cf96f50a05f0c118a2a46b88c88b2f0ebaaafeab1bf820dba24e128a19f",
       "owner": "storage"
     },
     {
@@ -3927,8 +3941,8 @@
     {
       "path": "backend/src/storage/stock_retained_read.rs",
       "mode": "100644",
-      "bytes": 31423,
-      "sha256": "308a15a1cccb3b19fbc91ce157d180af24404bfef7840b4e80e643e7e5ead4e2",
+      "bytes": 32898,
+      "sha256": "2ab582ce8d05f01f89dc74b1821093a7efa325b560a5059dc59db819093a9a0b",
       "owner": "storage"
     },
     {
@@ -3948,8 +3962,8 @@
     {
       "path": "backend/src/storage/store.rs",
       "mode": "100644",
-      "bytes": 16484,
-      "sha256": "60572b2ee820c383736ee56e5daf41676006c02a5c67d6bba27596eeba92daff",
+      "bytes": 16554,
+      "sha256": "a736b27ff59d9560d7733e265e7d39e3b914438884fb40725a2065d1bafd5735",
       "owner": "storage"
     },
     {
@@ -4585,8 +4599,8 @@
     {
       "path": "docs/rust-integration/stock-history.md",
       "mode": "100644",
-      "bytes": 4950,
-      "sha256": "6821a5975a977ef7691d185909afaf541808092c32e8967c732658da7fb4178c",
+      "bytes": 6303,
+      "sha256": "4cd0332aa645fac3cbc9e3ef62b12ee51c55fb1f4a4865a403179cd8c4b2f000",
       "owner": "core-integration"
     },
     {

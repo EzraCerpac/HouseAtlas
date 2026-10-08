@@ -644,7 +644,7 @@ pub(super) async fn reconcile_intent(
         let contracts =
             d::stock::NativeStockContract::new().map_err(super::stock_reads::http_error)?;
         let prepared = store
-            .prepare_stock_retained_intent_with_authorization(
+            .prepare_stock_atlas_replay_source_with_authorization(
                 &authority,
                 &principal,
                 &contracts,
@@ -653,7 +653,7 @@ pub(super) async fn reconcile_intent(
             )
             .map_err(|error| domain_error(crate::app::storage_error(error)))?;
         let result = store
-            .disclose_stock_retained_committed_result_with_authorization(
+            .disclose_stock_atlas_replay_source_with_authorization(
                 &authority, &principal, &contracts, &prepared,
             )
             .map_err(|error| domain_error(crate::app::storage_error(error)))?;
