@@ -213,6 +213,8 @@ impl<'p> PreparedConfiguredNativePresence<'p> {
             native_identity: capture.retain_native_identity(),
             allocation: allocation.clone(),
             principal: self.owner.principal,
+            source: self.owner.source,
+            partition: self.owner.partition,
             configured: self.owner.configured,
             endpoint: self.owner.endpoint,
             metadata: self.owner.metadata,
@@ -253,6 +255,8 @@ pub struct ConfiguredNativePresenceOrigin<'p> {
     native_identity: NativePresenceIdentity,
     allocation: Arc<()>,
     principal: &'p a::Principal,
+    source: a::SourceGrant,
+    partition: a::PartitionGrant,
     configured: Arc<TrustedHomeBoxSource>,
     endpoint: String,
     metadata: a::SourceAuthorityMetadata,
@@ -269,6 +273,12 @@ impl ConfiguredNativePresenceOrigin<'_> {
     }
     pub fn original_principal(&self) -> &a::Principal {
         self.principal
+    }
+    pub fn original_source(&self) -> &a::SourceGrant {
+        &self.source
+    }
+    pub fn original_partition(&self) -> &a::PartitionGrant {
+        &self.partition
     }
     pub fn configured(&self) -> &Arc<TrustedHomeBoxSource> {
         &self.configured
