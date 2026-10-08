@@ -1,4 +1,5 @@
 //! Private transaction hooks; never exported to consumers.
+use super::store::StockPresenceQualifiedPhase;
 use super::store::presence_engine::{ActiveCommandFrame, assert_core_presence_hold};
 use super::*;
 use rusqlite::Connection;
@@ -7,6 +8,18 @@ pub(crate) trait CommandExtension<C: Contract> {
     fn stock(&self) -> bool;
     fn after_candidate(&mut self, frame: &ActiveCommandFrame<'_, '_, C>) -> Result<()>;
     fn after_precommit(&mut self, frame: &ActiveCommandFrame<'_, '_, C>) -> Result<()>;
+    fn uses_qualified_presence(&self) -> bool;
+    fn qualified_presence<'phase>(
+        &'phase self,
+        frame: &'phase ActiveCommandFrame<'_, '_, C>,
+    ) -> Result<StockPresenceQualifiedPhase<'phase>>;
+    fn authorize_qualified_presence(
+        &self,
+        frame: &ActiveCommandFrame<'_, '_, C>,
+        actor: &VerifiedActor,
+        qualified: &StockPresenceQualifiedPhase<'_>,
+    ) -> Result<()>;
+    fn finish_qualified_precommit(&mut self, frame: &ActiveCommandFrame<'_, '_, C>) -> Result<()>;
     fn authorize(
         &mut self,
         facts: &MutationAuthorizationContext,
@@ -33,6 +46,35 @@ pub(crate) trait CommandExtension<C: Contract> {
 }
 pub(crate) struct Core;
 impl<C: Contract> CommandExtension<C> for Core {
+    fn uses_qualified_presence(&self) -> bool {
+        false
+    }
+    fn qualified_presence<'phase>(
+        &'phase self,
+        _: &'phase ActiveCommandFrame<'_, '_, C>,
+    ) -> Result<StockPresenceQualifiedPhase<'phase>> {
+        Err(Error::new(
+            "upstream-unavailable",
+            "Core has no qualified presence",
+        ))
+    }
+    fn authorize_qualified_presence(
+        &self,
+        _: &ActiveCommandFrame<'_, '_, C>,
+        _: &VerifiedActor,
+        _: &StockPresenceQualifiedPhase<'_>,
+    ) -> Result<()> {
+        Err(Error::new(
+            "upstream-unavailable",
+            "Core has no qualified presence",
+        ))
+    }
+    fn finish_qualified_precommit(&mut self, _: &ActiveCommandFrame<'_, '_, C>) -> Result<()> {
+        Err(Error::new(
+            "upstream-unavailable",
+            "Core has no qualified presence",
+        ))
+    }
     fn after_candidate(&mut self, frame: &ActiveCommandFrame<'_, '_, C>) -> Result<()> {
         assert_core_presence_hold(frame)
     }

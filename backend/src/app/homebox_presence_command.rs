@@ -10,6 +10,19 @@ pub enum PresenceCommandError {
     Storage(s::Error),
     Unavailable,
 }
+
+/// The concrete HTTP stock owner constructs its native Transaction from this
+/// exact held Access guard, Prepared request, and Store-issued invocation.
+/// The executor cannot return authority from the short Access phase.
+pub(crate) trait OriginalPresenceCommandExecutor<'call, 'origin, 'reader, W, G> {
+    fn execute<'phase, 'tx>(
+        &mut self,
+        store: &mut super::Store,
+        guard: &'phase a::TransactionAuthorization<'tx>,
+        peers: s::StockPresenceCommandPeers<'phase, 'call, 'tx, 'origin, 'reader>,
+        invocation: &s::StockPresenceCommandInvocation,
+    ) -> Result<s::StockPresenceStorageReleasedCut<'call, 'origin, 'reader>, PresenceCommandError>;
+}
 impl From<a::AccessError> for PresenceCommandError {
     fn from(value: a::AccessError) -> Self {
         Self::Access(value)
@@ -27,28 +40,30 @@ impl fmt::Display for PresenceCommandError {
 }
 impl std::error::Error for PresenceCommandError {}
 
-/// The caller supplies its genuine stock authorizer, validated preparation and
-/// already released configured publications. No fallback or replay is admitted.
-#[allow(clippy::too_many_arguments)]
-pub fn execute_configured_presence_command<'call, 'origin, 'reader, W, G, B, S>(
+/// Borrow the complete original captured grants, then hold the same Store and
+/// Access mutation transaction through the concrete stock executor. Its
+/// accepted cut is promoted only after the outer Access commit returns.
+pub(crate) fn execute_original_presence_command<'call, 'origin, 'reader, W, G, E>(
     core: &Core,
     principal: &'call RequestPrincipal,
     prepared: &'call domain::stock::PreparedRequest<W, G>,
-    original_access: &'call domain::qualified::OriginalPresenceAccess<'call>,
     publications: &'call [&'call super::homebox_presence::ConfiguredPresenceReleased<
         'origin,
         'reader,
     >],
-    age: &'call domain::qualified::ConfiguredCacheAge,
-    authorization: &B,
-    contracts: &S,
-    mapping: s::PresenceCommandMapping<'_>,
-    observation: &s::StockPresenceCommittedObservation,
+    age: &domain::qualified::ConfiguredCacheAge,
+    executor: &mut E,
 ) -> Result<s::StockPresenceAcceptedCut<'call, 'origin, 'reader>, PresenceCommandError>
 where
-    B: s::StockAuthorization<Principal = RequestPrincipal>,
-    S: domain::stock::StockContractPort,
+    E: OriginalPresenceCommandExecutor<'call, 'origin, 'reader, W, G>,
 {
+    let sources = principal.sources.borrow();
+    let partitions = principal.partitions.borrow();
+    let original_access = domain::qualified::OriginalPresenceAccess {
+        principal: principal.principal.principal(),
+        sources: &sources,
+        partitions: &partitions,
+    };
     let mut store = core
         .store
         .lock()
@@ -69,19 +84,11 @@ where
                 principal,
                 prepared,
                 guard,
-                original_access,
+                &original_access,
                 publications,
                 age,
             )?;
-            let released = store.execute_presence_stock_json_with_authorization(
-                authorization,
-                principal,
-                contracts,
-                prepared.request().raw(),
-                mapping,
-                peers,
-                observation,
-            )?;
+            let released = executor.execute(&mut store, guard, peers, &issued)?;
             pending = Some(released);
             invocation = Some(issued);
             Ok(())

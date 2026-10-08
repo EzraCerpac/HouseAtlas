@@ -179,8 +179,8 @@ fn hold_presence(context: &s::MutationAuthorizationContext) -> d::DomainResult<(
     }
     Ok(())
 }
-pub(super) struct MutateAuthority<'g, 'p> {
-    guard: &'g a::TransactionAuthorization<'g>,
+pub(super) struct MutateAuthority<'g, 'tx, 'p> {
+    guard: &'g a::TransactionAuthorization<'tx>,
     principal: &'p RequestPrincipal,
     scope: s::Scope,
     entries: Vec<s::MutationEntry>,
@@ -188,11 +188,27 @@ pub(super) struct MutateAuthority<'g, 'p> {
     context_id: RefCell<Option<String>>,
     failure: RefCell<Option<d::DomainError>>,
 }
-impl MutateAuthority<'_, '_> {
+impl MutateAuthority<'_, '_, '_> {
     pub(super) fn verify(
         &self,
         p: &RequestPrincipal,
         request: s::AuthorizationRequest<'_>,
+    ) -> d::DomainResult<s::VerifiedActor> {
+        self.verify_inner(p, request, None)
+    }
+    pub(super) fn verify_presence(
+        &self,
+        p: &RequestPrincipal,
+        request: s::AuthorizationRequest<'_>,
+        qualified: &s::StockPresenceQualifiedPhase<'_>,
+    ) -> d::DomainResult<s::VerifiedActor> {
+        self.verify_inner(p, request, Some(qualified))
+    }
+    fn verify_inner(
+        &self,
+        p: &RequestPrincipal,
+        request: s::AuthorizationRequest<'_>,
+        qualified: Option<&s::StockPresenceQualifiedPhase<'_>>,
     ) -> d::DomainResult<s::VerifiedActor> {
         if !std::ptr::eq(p, self.principal)
             || request.capability != s::Capability::Mutate
@@ -213,6 +229,24 @@ impl MutateAuthority<'_, '_> {
             || !same(&context.batch, &self.batch)?
         {
             return Err(d::DomainError::UpstreamUnavailable);
+        }
+        if let Some(qualified) = qualified {
+            let phase_matches = matches!(
+                (qualified.phase(), context.phase),
+                (
+                    s::StockPresenceAuthorizationPhase::Candidate,
+                    s::MutationPhase::Candidate
+                ) | (
+                    s::StockPresenceAuthorizationPhase::Precommit,
+                    s::MutationPhase::Precommit
+                ) | (
+                    s::StockPresenceAuthorizationPhase::Release,
+                    s::MutationPhase::Precommit
+                )
+            );
+            if !phase_matches || !qualified.matches_principal_and_guard(self.guard, p, context) {
+                return Err(d::DomainError::UpstreamUnavailable);
+            }
         }
         let mut saved = self.context_id.borrow_mut();
         match saved.as_ref() {
@@ -243,7 +277,9 @@ impl MutateAuthority<'_, '_> {
         if context.phase == s::MutationPhase::Validate {
             preconditions(context)?;
         }
-        hold_presence(context)?;
+        if qualified.is_none() {
+            hold_presence(context)?;
+        }
         Ok(s::VerifiedActor {
             workspace_id: self.scope.workspace_id.clone(),
             home_id: self.scope.home_id.clone(),
@@ -251,9 +287,9 @@ impl MutateAuthority<'_, '_> {
         })
     }
 }
-impl<'g, 'p> MutateAuthority<'g, 'p> {
+impl<'g, 'tx, 'p> MutateAuthority<'g, 'tx, 'p> {
     pub(super) fn new(
-        guard: &'g a::TransactionAuthorization<'g>,
+        guard: &'g a::TransactionAuthorization<'tx>,
         principal: &'p RequestPrincipal,
         scope: s::Scope,
         entries: Vec<s::MutationEntry>,
@@ -273,7 +309,7 @@ impl<'g, 'p> MutateAuthority<'g, 'p> {
         self.failure.borrow_mut().take()
     }
 }
-impl s::Authorization for MutateAuthority<'_, '_> {
+impl s::Authorization for MutateAuthority<'_, '_, '_> {
     type Principal = RequestPrincipal;
     fn authorize(
         &self,
@@ -284,6 +320,21 @@ impl s::Authorization for MutateAuthority<'_, '_> {
             *self.failure.borrow_mut() = Some(error);
             s::Error::new("upstream-unavailable", "Mutation context was not accepted")
         })
+    }
+    fn authorize_presence_mutation(
+        &self,
+        p: &RequestPrincipal,
+        request: s::AuthorizationRequest<'_>,
+        qualified: &s::StockPresenceQualifiedPhase<'_>,
+    ) -> s::Result<s::VerifiedActor> {
+        self.verify_presence(p, request, qualified)
+            .map_err(|error| {
+                *self.failure.borrow_mut() = Some(error);
+                s::Error::new(
+                    "upstream-unavailable",
+                    "Qualified mutation context was not accepted",
+                )
+            })
     }
 }
 pub(super) fn access_domain(error: a::AccessError) -> d::DomainError {
