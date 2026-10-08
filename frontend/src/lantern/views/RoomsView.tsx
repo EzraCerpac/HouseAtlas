@@ -11,6 +11,7 @@ export function RoomsView() {
         <h1>Rooms &amp; places</h1>
 
       </header>
+      <GeometryMetadata />
       <RoomIndex />
     </div>
   );
@@ -65,6 +66,7 @@ export function RoomIndex() {
                         <span className="ledger-facts">
                           {c.items.length > 0 && <span>{c.items.length} belongings recorded here</span>}
                           <span>{c.docs.length} documents</span>
+                          {projection.geometryMappings.get(r.id)?.map(({ record, mapping }, index) => <span key={`${record.target.recordId}-${index}`}>Magicplan mapping: {mapping.reviewStatus}; version {record.payload.geometryVersion}; producer room {mapping.producerRoomId}</span>)}
                           {projection.entries.get(r.id) && <span>Source: {projection.entries.get(r.id)?.sourceState}; cache: {projection.entries.get(r.id)?.cacheStatus}</span>}
                           {c.outlets.length > 0 && <span>{c.outlets.length} outlets</span>}
                           {c.valves.length > 0 && <span>{c.valves.length} valves</span>}
@@ -179,4 +181,57 @@ export function RoomIndex() {
       </section>
     </div>
   );
+}
+
+function GeometryMetadata() {
+  const { projection } = useStore();
+  const read = projection.geometryMetadata;
+  return <section className="ledger" aria-labelledby="geometry-metadata-heading" style={{ overflowWrap: 'anywhere' }}>
+    <div className="ledger-floor" aria-hidden="true">—</div>
+    <div className="ledger-body">
+      <h2 id="geometry-metadata-heading" className="ledger-title">Geometry metadata</h2>
+      <p className="body-text muted">Plan unavailable: this read does not supply room shapes or positions.</p>
+      {read.status === 'loading' && <p role="status" className="body-text">Loading geometry metadata…</p>}
+      {read.status === 'unavailable' && <p role="status" className="body-text">Geometry metadata could not be loaded. Reload the saved view to retry.</p>}
+      {read.status === 'denied' && <p role="status" className="body-text">Access to geometry metadata is denied.</p>}
+      {read.status === 'expired' && <p role="status" className="body-text">The session for this geometry read has expired.</p>}
+      {read.status === 'ready' && <>
+        <p className="body-text muted">Source status: {read.sourceStatus}</p>
+        {!read.records.length && <Empty>No geometry records returned by this read.</Empty>}
+        {read.records.map((record) => {
+          const p = record.payload;
+          return <details key={record.target.recordId}>
+            <summary>Magicplan version {p.geometryVersion} · {record.lifecycle} · {record.target.recordId}</summary>
+            <dl className="facts">
+              <div><dt>Record revision</dt><dd>{record.revision}</dd></div>
+              <div><dt>Producer version</dt><dd>{p.producerVersion ?? 'Not supplied'}</dd></div>
+              <div><dt>Export format</dt><dd>{p.exportFormat}</dd></div>
+              <div><dt>Imported</dt><dd>{p.importedAt}</dd></div>
+              <div><dt>Original asset ID</dt><dd>{p.originalAssetId} · file availability not supplied by this read</dd></div>
+              <div><dt>Previous geometry ID</dt><dd>{p.previousGeometryId ?? 'Not supplied'}</dd></div>
+              <div><dt>Coordinate units</dt><dd>{p.coordinateUnits}</dd></div>
+              <div><dt>Source scale</dt><dd>{p.scale ?? 'Not supplied'}</dd></div>
+              <div><dt>Source transform</dt><dd>{p.transform?.join(', ') ?? 'Not supplied'}</dd></div>
+              <div><dt>Evidence IDs</dt><dd>{p.evidenceIds.join(', ')}</dd></div>
+            </dl>
+            <h3>Producer room mappings</h3>
+            {!p.mappings.length && <Empty>No producer room mappings supplied.</Empty>}
+            {p.mappings.map((mapping, index) => {
+              const ref = mapping.homeboxEntity;
+              const matched = [...projection.geometryMappings.entries()].find(([, matches]) => matches.some((match) => match.record === record && match.mapping === mapping));
+              const place = matched ? projection.entries.get(matched[0]) : undefined;
+              return <dl className="facts" key={index}>
+                <div><dt>Producer room</dt><dd>{mapping.producerRoomId}</dd></div>
+                <div><dt>Mapping status</dt><dd>{mapping.reviewStatus}</dd></div>
+                <div><dt>Atlas identity ID</dt><dd>{mapping.atlasId}</dd></div>
+                <div><dt>HomeBox source reference</dt><dd>{ref ? `${ref.workspaceId} / ${ref.homeId} / ${ref.key.sourceInstanceId} / ${ref.key.collectionId} / ${ref.key.sourceKind} / ${ref.key.externalId}` : 'Not supplied'}</dd></div>
+                <div><dt>Saved place match</dt><dd>{place ? place.entity.name : 'No exact HomeBox place reference in this view'}</dd></div>
+                <div><dt>Mapping evidence IDs</dt><dd>{mapping.evidenceIds.join(', ')}</dd></div>
+              </dl>;
+            })}
+          </details>;
+        })}
+      </>}
+    </div>
+  </section>;
 }

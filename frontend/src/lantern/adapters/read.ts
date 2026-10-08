@@ -1,3 +1,5 @@
+import type { GeometryPayloadMappingsItem } from '../../api/generated/contracts';
+import type { GeometryPublicRecord, GeometryRead } from '../../api/geometry-client';
 import type { Attachment, Entry, ReadyView } from '../../app/types';
 import type { Doc, HouseData, Item, Space, Task } from '../data/types';
 
@@ -16,6 +18,8 @@ export interface LanternProjection {
   attachments: ReadonlyMap<string, Attachment>;
   docAccess: ReadonlyMap<string, DocAccess>;
   view: ReadyView;
+  geometryMetadata: GeometryRead;
+  geometryMappings: ReadonlyMap<string, Array<{ record: GeometryPublicRecord; mapping: GeometryPayloadMappingsItem }>>;
 }
 
 type Prefix = 'sp' | 'it' | 'uk' | 'doc' | 'mt';
@@ -50,7 +54,7 @@ function documentKind(attachment: Attachment): Doc['kind'] {
   return 'note';
 }
 
-export function projectView(view: ReadyView): LanternProjection {
+export function projectView(view: ReadyView, geometryMetadata: GeometryRead = { status: 'loading' }): LanternProjection {
   const entries = new Map<string, Entry>();
   const attachments = new Map<string, Attachment>();
   const docAccess = new Map<string, DocAccess>();
@@ -172,5 +176,26 @@ export function projectView(view: ReadyView): LanternProjection {
     people: [],
   };
 
-  return { house, entries, attachments, docAccess, view };
+  const geometryMappings = new Map<string, Array<{ record: GeometryPublicRecord; mapping: GeometryPayloadMappingsItem }>>();
+  if (geometryMetadata.status === 'ready') {
+    for (const space of spaces) {
+      const entry = entries.get(space.id)!;
+      for (const record of geometryMetadata.records) {
+        for (const mapping of record.payload.mappings) {
+          const ref = mapping.homeboxEntity;
+          if (ref && ref.workspaceId === entry.workspaceId && ref.homeId === entry.homeId
+            && ref.key.sourceKind === 'homebox-entity'
+            && ref.key.sourceInstanceId === entry.source.sourceInstanceId
+            && ref.key.collectionId === entry.source.collectionId
+            && ref.key.sourceKind === entry.source.sourceKind
+            && ref.key.externalId === entry.source.externalId) {
+            const matches = geometryMappings.get(space.id) ?? [];
+            matches.push({ record, mapping });
+            geometryMappings.set(space.id, matches);
+          }
+        }
+      }
+    }
+  }
+  return { house, entries, attachments, docAccess, view, geometryMetadata, geometryMappings };
 }
