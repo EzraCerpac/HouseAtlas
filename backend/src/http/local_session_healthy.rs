@@ -23,6 +23,7 @@ fn request(method: &str, path: &str, body: &str) -> Request<Body> {
     let mut request = Request::builder()
         .method(method)
         .uri(path)
+        .header("host", "127.0.0.1:48743")
         .header("origin", "https://127.0.0.1:48743")
         .header("sec-fetch-site", "same-origin")
         .header("content-type", "application/json")
