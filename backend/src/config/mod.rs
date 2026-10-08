@@ -3,6 +3,7 @@ pub mod providers {
     pub mod homebox;
     pub mod network;
     pub mod network_host;
+    pub mod quantity_installation;
     pub mod registry;
 }
 pub mod provider_dispatch;

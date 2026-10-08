@@ -61,6 +61,15 @@ use std::{
 
 const MAX_METADATA_BYTES: usize = 1_048_576;
 
+/// Read-only correlation with the original complete queue registration. This
+/// creates no row, dispatch permit, occupation claim or replacement authority.
+pub(crate) fn validate_quantity_installation_queue(
+    db: &Connection,
+    config: &QueueConfig,
+) -> Result<()> {
+    assert_registered(db, config)
+}
+
 /// Exact immutable cross-lane reference only. Independent activity evidence
 /// must already qualify occupancy at the native queued cut; current/final
 /// Jobs state is deliberately not substituted for that historical observation.

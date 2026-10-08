@@ -22,7 +22,11 @@ mod presence_witness_repository;
 pub use presence_profile::{
     PresenceProfileDefinition, PresenceProfileSelection, presence_profile_definition,
 };
+mod quantity_installation_types;
 mod queue;
+pub use quantity_installation_types::{
+    QuantityInstallationObservation, QuantityInstallationStoreIdentity,
+};
 mod queue_original_profile;
 pub use queue_original_profile::{
     QueueOriginalPreparationProfileDefinition, QueueOriginalPreparationProfileSelection,

@@ -3,6 +3,8 @@ use super::{migrations, repository as repo, *};
 mod cache;
 #[path = "cache_custody.rs"]
 mod cache_custody;
+#[path = "quantity_installation.rs"]
+mod quantity_installation;
 pub use cache_custody::*;
 #[path = "commands.rs"]
 mod commands;

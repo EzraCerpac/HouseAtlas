@@ -69,6 +69,29 @@ impl<
     pub fn prepared(&self) -> &PreparedRequest<W, G> {
         self.prepared
     }
+
+    /// Bind an installed quantity source while the host retains its actual
+    /// Store borrow and the original mutation guard for this phase.
+    pub fn bind_with_quantity_installation<'phase>(
+        guard: &'phase access::TransactionAuthorization<'_>,
+        prepared: &'a PreparedRequest<W, G>,
+        captured: &'a CapturedAccess<'p>,
+        graph: &'a F,
+        native: &'a native::RetainedFreshPreparation<'owner, C, S>,
+        physical: &'phase crate::app::homebox_quantity_startup::OriginalQuantityPhysical<
+            'phase,
+            'p,
+        >,
+    ) -> StockResult<Self> {
+        let bound = Self {
+            prepared,
+            captured,
+            graph,
+            native,
+        };
+        bound.revalidate_with_quantity_installation(guard, native.authority(), physical)?;
+        Ok(bound)
+    }
     pub fn captured(&self) -> &CapturedAccess<'p> {
         self.captured
     }
@@ -88,9 +111,36 @@ impl<
         self.check_original(guard)?;
         let qualification = native::FreshQualification::new(guard, self.captured)
             .map_err(|_| StockError::AuthorityChanged)?;
+        self.finish_revalidation(guard, &qualification, current_original_authority)
+    }
+
+    /// Fresh physical observation is supplied by the already-held Store owner;
+    /// the native qualifier performs no Store or Access lock acquisition.
+    pub fn revalidate_with_quantity_installation<'phase>(
+        &self,
+        guard: &'phase access::TransactionAuthorization<'_>,
+        current_original_authority: &native::StockAuthority,
+        physical: &'phase crate::app::homebox_quantity_startup::OriginalQuantityPhysical<
+            'phase,
+            'p,
+        >,
+    ) -> StockResult<()> {
+        self.check_original(guard)?;
+        let qualification =
+            native::FreshQualification::with_quantity_installation(guard, self.captured, physical)
+                .map_err(|_| StockError::AuthorityChanged)?;
+        self.finish_revalidation(guard, &qualification, current_original_authority)
+    }
+
+    fn finish_revalidation(
+        &self,
+        guard: &access::TransactionAuthorization<'_>,
+        qualification: &native::FreshQualification<'_, '_, 'p>,
+        current_original_authority: &native::StockAuthority,
+    ) -> StockResult<()> {
         self.native
             .revalidate_in_guard(
-                &qualification,
+                qualification,
                 self.native.command(),
                 current_original_authority,
             )
