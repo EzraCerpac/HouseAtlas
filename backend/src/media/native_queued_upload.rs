@@ -42,6 +42,9 @@ const MAX_RESERVATION_BYTES: usize = 32 * 1024;
 const MAX_ORIGINAL_FACT_BYTES: usize = 1024 * 1024;
 const MAX_QUEUE_ALIASES: usize = 64;
 const RESERVATION_FORMAT: &str = "houseatlas-homebox-upload-reservation/1";
+pub const NATIVE_QUEUED_UPLOAD_PREPARED_CODEC: &str = "houseatlas-homebox-upload-queued-prepared/1";
+const QUEUED_UPLOAD_MEDIA_FORMAT: &str = "houseatlas-homebox-upload-queued-media/1";
+const MAX_PREPARED_FIELD_BYTES: usize = 1024 * 1024;
 
 /// Caller metadata is DATA. Filename and framing are checked against measured
 /// bytes; MIME alone never qualifies a stage or a source owner.
@@ -1274,7 +1277,8 @@ impl NativeQueuedUploadOriginal {
 
 /// Concrete offline comparison only for the genuine released original enqueue
 /// and its unprepared initial claim. Prepared bytes, journals, step/liability
-/// prefixes and outcomes remain unavailable; this issues no recovery permission
+/// prefixes beyond the exact claim reservation and outcomes remain unavailable;
+/// this issues no recovery permission
 /// or current native/Access authority and performs no I/O or native callbacks.
 impl QueuedMediaRecovery<RecordedOriginalUploadEnqueueProof> for NativeQueuedUploadOriginal {
     fn validate_original(
@@ -1312,7 +1316,10 @@ impl QueuedMediaRecovery<RecordedOriginalUploadEnqueueProof> for NativeQueuedUpl
             || attempt.prepared.is_some()
             || attempt.journal.is_some()
             || !attempt.steps.is_empty()
-            || !attempt.liabilities.is_empty()
+            || attempt.liabilities.len() != 1
+            || attempt.liabilities[0].0 != "claim"
+            || attempt.liabilities[0].1
+                != claim_reservation(self).map_err(|_| upload_provenance_unavailable())?
             || !attempt.outcomes.is_empty()
         {
             return Err(upload_provenance_unavailable());
@@ -1326,6 +1333,309 @@ impl QueuedMediaRecovery<RecordedOriginalUploadEnqueueProof> for NativeQueuedUpl
     ) -> s::Result<()> {
         Err(upload_provenance_unavailable())
     }
+}
+
+/// Local measured custody supplies a positive reservation, not evidence of
+/// remotely retained bytes, metadata commit or reference closure.
+fn claim_reservation(upload: &NativeQueuedUploadOriginal) -> MediaResult<jobs::StorageLiability> {
+    let pending = upload.known_nonzero.pending_byte_liability();
+    if !upload
+        .installed_origin()
+        .is_some_and(|origin| origin.matches_original(upload))
+        || !upload.known_nonzero.matches_original(upload)
+        || !pending.required
+        || pending.reserved_bytes != Some(upload.custody.staged.byte_size)
+        || pending.reserved_bytes != Some(upload.custody.body_bytes.len() as u64)
+        || upload.custody.staged.byte_size == 0
+        || pending != upload.enqueue_request.pending_byte_liability
+    {
+        return Err(MediaError::Unavailable);
+    }
+    Ok(jobs::StorageLiability {
+        accounting: jobs::ByteAccounting::Complete {
+            known_bytes: 0,
+            reserved_bytes: upload.custody.staged.byte_size,
+        },
+        metadata_commit_evidence: jobs::MetadataCommitEvidence::NotDispatched,
+        byte_disposition: jobs::ByteDisposition::None,
+        reference_closure_evidence: jobs::ReferenceClosureEvidence::Unassessed,
+        orphan_candidate_id: None,
+        unresolved_attempts: 1,
+    })
+}
+
+struct UploadPreparedIssuer {
+    custody: Arc<StageCustody>,
+}
+
+/// Captured only from the live original admission and its actual current
+/// installed phase. No Clone, serde, public DATA constructor, raw upload body,
+/// private filesystem path or descriptor access. Prepared bytes include exact
+/// native request route/metadata comparison DATA and cannot reconstruct this token.
+pub struct NativeQueuedUploadPrepared {
+    upload: Arc<NativeQueuedUploadOriginal>,
+    issuer: Arc<UploadPreparedIssuer>,
+    prepared: s::PreparedNativeIntent,
+}
+impl NativeQueuedUploadPrepared {
+    pub fn capture_original<'phase, 'tx, 'bundle, 'native: 'phase, 'owner, 'captured, 'p>(
+        admission: &crate::app::homebox_queued_upload_admission::OriginalQueuedUploadAdmission<
+            'bundle,
+            'native,
+            'owner,
+            'captured,
+            'p,
+        >,
+        guard: &'phase a::TransactionAuthorization<'tx>,
+        physical: &'phase crate::app::homebox_queued_upload::OriginalQueuedUploadPhysical<
+            'phase,
+            'p,
+        >,
+        budget: &WorkBudget,
+    ) -> MediaResult<Self> {
+        budget.check()?;
+        admission
+            .revalidate_phase(guard, physical)
+            .map_err(|_| MediaError::Unavailable)?;
+        let upload = admission.upload_cut();
+        let liability = claim_reservation(upload)?;
+        let prepared = encode_upload_prepared(upload, liability, budget)?;
+        let captured = Self {
+            upload: Arc::clone(upload),
+            issuer: Arc::new(UploadPreparedIssuer {
+                custody: Arc::clone(&upload.custody),
+            }),
+            prepared,
+        };
+        captured.revalidate_original_phase(admission, guard, physical, budget)?;
+        Ok(captured)
+    }
+
+    /// Recheck the actual live original installed phase and bounded descriptor
+    /// custody at Entry, Precommit or fresh Release. This performs local file
+    /// reads; matching prepared DATA alone supplies no current authority.
+    pub fn revalidate_original_phase<
+        'phase,
+        'tx,
+        'bundle,
+        'native: 'phase,
+        'owner,
+        'captured,
+        'p,
+    >(
+        &self,
+        admission: &crate::app::homebox_queued_upload_admission::OriginalQueuedUploadAdmission<
+            'bundle,
+            'native,
+            'owner,
+            'captured,
+            'p,
+        >,
+        guard: &'phase a::TransactionAuthorization<'tx>,
+        physical: &'phase crate::app::homebox_queued_upload::OriginalQueuedUploadPhysical<
+            'phase,
+            'p,
+        >,
+        budget: &WorkBudget,
+    ) -> MediaResult<()> {
+        budget.check()?;
+        let upload = admission.upload_cut();
+        if !self.matches_original(upload) {
+            return Err(MediaError::Unavailable);
+        }
+        admission
+            .revalidate_phase(guard, physical)
+            .map_err(|_| MediaError::Unavailable)?;
+        let native = admission.preparation().native();
+        let source = native.source();
+        let proof = native.capture().evidence().source_preparation();
+        if !upload.matches_source_preparation(proof) {
+            return Err(MediaError::Unavailable);
+        }
+        let liability = claim_reservation(upload)?;
+        if self.prepared.storage_liability != liability {
+            return Err(MediaError::Unavailable);
+        }
+        {
+            let _current = proof.current_under_guard(
+                guard,
+                source.original(),
+                source.original_source(),
+                budget,
+            )?;
+        }
+        // Bounded local descriptor I/O under Media custody; no Source mutex,
+        // native/Store callback, network work, await or reentry surrounds it.
+        {
+            let owner = &upload.custody.owner;
+            let _local = owner
+                .custody
+                .try_lock()
+                .map_err(|_| MediaError::Unavailable)?;
+            let _directory = owner.lock()?;
+            let before = owner.scan(budget)?;
+            revalidate_body(&upload.custody, budget)?;
+            if before != owner.scan(budget)? {
+                return Err(MediaError::Unavailable);
+            }
+        }
+        // Root/Source/Access phase fences run only after Media locks release.
+        admission
+            .revalidate_phase(guard, physical)
+            .map_err(|_| MediaError::Unavailable)?;
+        {
+            let _current = proof.current_under_guard(
+                guard,
+                source.original(),
+                source.original_source(),
+                budget,
+            )?;
+        }
+        if !self.matches_original(admission.upload_cut())
+            || !upload.matches_source_preparation(proof)
+        {
+            return Err(MediaError::Unavailable);
+        }
+        budget.check()
+    }
+
+    pub fn upload_cut(&self) -> &Arc<NativeQueuedUploadOriginal> {
+        &self.upload
+    }
+    pub fn prepared(&self) -> &s::PreparedNativeIntent {
+        &self.prepared
+    }
+    /// Actual original/issuer custody correlation only, with no current grant.
+    pub fn matches_original(&self, upload: &Arc<NativeQueuedUploadOriginal>) -> bool {
+        Arc::ptr_eq(&self.upload, upload)
+            && Arc::ptr_eq(&self.issuer.custody, &upload.custody)
+            && Arc::ptr_eq(&self.issuer.custody.issuer, &upload.custody.issuer)
+            && upload
+                .installed_origin()
+                .is_some_and(|origin| origin.matches_original(upload))
+            && upload.known_nonzero.matches_original(upload)
+    }
+}
+
+#[derive(Serialize)]
+struct UploadPreparedPayload<'a> {
+    format: &'static str,
+    native_source_commit: &'static str,
+    contract_version: &'static str,
+    original_wire: &'a Value,
+    plan: &'a native::NativePlan,
+}
+#[derive(Serialize)]
+struct UploadPreparedPartition<'a> {
+    workspace_id: &'a str,
+    home_id: &'a str,
+    source_instance_id: &'a str,
+    collection_id: &'a str,
+}
+#[derive(Serialize)]
+struct UploadPreparedImpact<'a> {
+    partition: UploadPreparedPartition<'a>,
+    entity_id: &'a str,
+    staged: &'a native::StagedUpload,
+    snapshot_digest: &'a native::Digest,
+}
+#[derive(Serialize)]
+struct UploadPreparedMedia<'a> {
+    format: &'static str,
+    staged: &'a native::StagedUpload,
+    source: &'a a::SourceRef,
+    capture_digest: &'a native::Digest,
+    snapshot_scope: &'a read::SourceScope,
+    snapshot_target: &'a native::StockTarget,
+    snapshot_path: &'a str,
+    snapshot_query: &'a [(String, String)],
+    snapshot_observed_at: &'a str,
+    snapshot_digest: &'a native::Digest,
+    ordered_impact: [UploadPreparedImpact<'a>; 1],
+}
+fn encode_upload_prepared(
+    upload: &NativeQueuedUploadOriginal,
+    storage_liability: jobs::StorageLiability,
+    budget: &WorkBudget,
+) -> MediaResult<s::PreparedNativeIntent> {
+    let native::NativeBody::Multipart { stage, .. } = &upload.plan.request.body else {
+        return Err(MediaError::Unavailable);
+    };
+    if stage != &upload.custody.staged || upload.ordered_impact.len() != 1 {
+        return Err(MediaError::Unavailable);
+    }
+    let impact = &upload.ordered_impact[0];
+    let snapshot = &upload.snapshot;
+    let native_payload = encode_prepared_field(
+        &UploadPreparedPayload {
+            format: NATIVE_QUEUED_UPLOAD_PREPARED_CODEC,
+            native_source_commit: native::NATIVE_SOURCE_COMMIT,
+            contract_version: native::CONTRACT_VERSION,
+            original_wire: &upload.command.original_wire,
+            plan: &upload.plan,
+        },
+        budget,
+    )?;
+    let prepared_media_evidence = encode_prepared_field(
+        &UploadPreparedMedia {
+            format: QUEUED_UPLOAD_MEDIA_FORMAT,
+            staged: &upload.custody.staged,
+            source: &upload.source_reference,
+            capture_digest: &upload.capture_digest,
+            snapshot_scope: &snapshot.scope,
+            snapshot_target: &snapshot.target,
+            snapshot_path: &snapshot.path,
+            snapshot_query: &snapshot.query,
+            snapshot_observed_at: &snapshot.observed_at,
+            snapshot_digest: &snapshot.digest,
+            ordered_impact: [UploadPreparedImpact {
+                partition: UploadPreparedPartition {
+                    workspace_id: &impact.partition.workspace_id,
+                    home_id: &impact.partition.home_id,
+                    source_instance_id: &impact.partition.source_instance_id,
+                    collection_id: &impact.partition.collection_id,
+                },
+                entity_id: &impact.entity_id,
+                staged: &impact.staged,
+                snapshot_digest: &impact.snapshot_digest,
+            }],
+        },
+        budget,
+    )?;
+    Ok(s::PreparedNativeIntent {
+        codec: NATIVE_QUEUED_UPLOAD_PREPARED_CODEC.into(),
+        native_payload,
+        prepared_media_evidence,
+        storage_liability,
+    })
+}
+struct PreparedFieldWriter<'a> {
+    bytes: Vec<u8>,
+    budget: &'a WorkBudget,
+}
+impl Write for PreparedFieldWriter<'_> {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.budget.check().map_err(std::io::Error::other)?;
+        if bytes.len() > MAX_PREPARED_FIELD_BYTES.saturating_sub(self.bytes.len()) {
+            return Err(std::io::Error::other(MediaError::TooLarge));
+        }
+        self.bytes.extend_from_slice(bytes);
+        self.budget.check().map_err(std::io::Error::other)?;
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.budget.check().map_err(std::io::Error::other)
+    }
+}
+fn encode_prepared_field<T: Serialize>(value: &T, budget: &WorkBudget) -> MediaResult<Vec<u8>> {
+    budget.check()?;
+    let mut writer = PreparedFieldWriter {
+        bytes: Vec::new(),
+        budget,
+    };
+    serde_json::to_writer(&mut writer, value).map_err(|_| MediaError::Unavailable)?;
+    budget.check()?;
+    Ok(writer.bytes)
 }
 
 #[allow(clippy::too_many_arguments)]
