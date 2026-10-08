@@ -205,6 +205,22 @@ impl CurrentPinnedFileSnapshot<'_, '_, '_> {
     pub fn local_snapshot_identity(&self) -> &LocalPinnedFileSnapshotIdentity {
         &self.state.identity
     }
+    /// Retain only this existing local allocation, never a provider version.
+    pub fn retain_local_identity(&self) -> LocalPinnedFileSnapshotIdentity {
+        LocalPinnedFileSnapshotIdentity {
+            allocation: Arc::clone(&self.state.identity.allocation),
+        }
+    }
+    pub(crate) fn local_snapshot_deadline(&self, budget: &WorkBudget) -> MediaResult<Instant> {
+        self.revalidate(budget)?;
+        let deadline = self
+            .state
+            .started_at
+            .checked_add(CAPTURE_WINDOW)
+            .ok_or(MediaError::Unavailable)?;
+        self.revalidate(budget)?;
+        Ok(deadline)
+    }
     pub fn content_type(&self) -> Option<&str> {
         self.state.capture.content_type()
     }
