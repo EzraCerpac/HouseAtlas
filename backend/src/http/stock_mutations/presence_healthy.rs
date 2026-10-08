@@ -511,6 +511,12 @@ async fn healthy_body() {
     payload.as_object_mut().unwrap().remove("sourceState");
     payload["source"]["collectionId"] = json!(id(11));
     payload["source"]["externalId"] = json!(id(2));
+    let identity = published
+        .records
+        .iter()
+        .find(|record| record.record_type == s::RecordType::Identity && record.record_id == id(200))
+        .expect("seeded Binding atlasId identity");
+    assert_eq!(payload["atlasId"], identity.record_id);
     let raw = json!({
         "schemaVersion":3,"commandId":"atlas.binding.create","requestId":id(900),
         "context":{"workspaceId":id(1),"homeId":id(2)},
@@ -519,6 +525,9 @@ async fn healthy_body() {
         "preconditions":{"target":null,"guards":[{
             "target":{"authority":"atlas","recordType":"evidence","recordId":id(100)},
             "revision":{"kind":"atlas","value":1}
+        },{
+            "target":{"authority":"atlas","recordType":"identity","recordId":identity.record_id},
+            "revision":{"kind":"atlas","value":identity.revision}
         }]},"approvalReceiptId":null,
     });
     let committed = s::StockPresenceCommittedObservation::new();
