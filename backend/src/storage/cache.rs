@@ -494,6 +494,26 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
         homebox_entities: &[Value],
         network_relations: &[Value],
     ) -> Result<CacheStatus> {
+        self.publish_prepared_generation_ref_with_capture(
+            principal,
+            fence,
+            cache,
+            homebox_entities,
+            network_relations,
+            None,
+        )
+    }
+    pub(super) fn publish_prepared_generation_ref_with_capture(
+        &mut self,
+        principal: &A::Principal,
+        fence: &CachePublicationFence,
+        cache: &CacheStatus,
+        homebox_entities: &[Value],
+        network_relations: &[Value],
+        capture: Option<
+            &super::cache_presence_publication::NativePresencePublicationCapture<'_, A::Principal>,
+        >,
+    ) -> Result<CacheStatus> {
         if !std::sync::Arc::ptr_eq(self.instance, &fence.issuer)
             || fence.registration.partition() != fence.partition
             || cache.partition() != fence.partition
@@ -516,6 +536,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
                 expected_cache_epoch: fence.baseline_cache_epoch.value(),
             },
             Some(fence),
+            capture,
         )
     }
 
@@ -525,7 +546,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
         scope: &Scope,
         generation: &CacheGeneration,
     ) -> Result<CacheStatus> {
-        self.replace_cache_generation_inner(principal, scope, generation, None)
+        self.replace_cache_generation_inner(principal, scope, generation, None, None)
     }
     fn replace_cache_generation_inner(
         &mut self,
@@ -533,7 +554,13 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
         scope: &Scope,
         generation: &CacheGeneration,
         fence: Option<&CachePublicationFence>,
+        capture: Option<
+            &super::cache_presence_publication::NativePresencePublicationCapture<'_, A::Principal>,
+        >,
     ) -> Result<CacheStatus> {
+        if let Some(capture) = capture {
+            capture.validate_inputs(principal, fence, generation)?;
+        }
         let input = serde_json::to_value(&generation.cache)?;
         let tx = self
             .db
@@ -546,6 +573,9 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
             Capability::PublishCache,
             &input,
         )?;
+        if let Some(capture) = capture {
+            capture.record_actor(&actor);
+        }
         let original = repo::snapshot(&tx)?;
         shape(self.contract, "cacheStatus", &generation.cache)?;
         let partition = generation.cache.partition();
@@ -680,7 +710,22 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
             &input,
             &actor,
         )?;
+        if let Some(capture) = capture {
+            let current = trusted_authorize(
+                self.contract,
+                self.authorization,
+                principal,
+                scope,
+                Capability::PublishCache,
+                &input,
+            )?;
+            capture.validate_actor(&current)?;
+            capture.stage_committed(&tx, &source)?;
+        }
         tx.commit()?;
+        if let Some(capture) = capture {
+            capture.record_committed();
+        }
         Ok(generation.cache.clone())
     }
     /// This is an internal envelope, not a new client mutation language. Its
@@ -879,7 +924,7 @@ fn validate_partition<C: Contract>(contract: &C, partition: &SourcePartition) ->
     }
     Ok(())
 }
-fn trusted_authorize<C: Contract, A: Authorization>(
+pub(super) fn trusted_authorize<C: Contract, A: Authorization>(
     contract: &C,
     authorization: &A,
     principal: &A::Principal,
