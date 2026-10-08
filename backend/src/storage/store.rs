@@ -87,14 +87,72 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         runtime: R,
         options: StoreOptions,
     ) -> Result<Self> {
+        Self::open_selected(
+            path.as_ref(),
+            contract,
+            authorization,
+            runtime,
+            options,
+            true,
+        )
+    }
+
+    /// Normal persistent startup: the existing native database must already
+    /// have the exact selected compiled schema. No CREATE, DDL or upgrade.
+    pub fn open_existing(
+        path: impl AsRef<Path>,
+        contract: C,
+        authorization: A,
+        runtime: R,
+        options: StoreOptions,
+    ) -> Result<Self> {
+        Self::open_selected(
+            path.as_ref(),
+            contract,
+            authorization,
+            runtime,
+            options,
+            false,
+        )
+    }
+
+    fn open_selected(
+        path: &Path,
+        contract: C,
+        authorization: A,
+        runtime: R,
+        options: StoreOptions,
+        initialize: bool,
+    ) -> Result<Self> {
         options.require_available_profile()?;
         if options.busy_timeout_ms > 60_000 {
             return Err(Error::new("invalid-contract", "Invalid storage timeout"));
         }
-        let mut db = Connection::open(path)?;
+        let mut db = if initialize {
+            Connection::open(path)?
+        } else {
+            let metadata = std::fs::symlink_metadata(path)
+                .map_err(|_| Error::new("storage-unavailable", "Existing database unavailable"))?;
+            if !metadata.is_file() || metadata.file_type().is_symlink() {
+                return Err(Error::new(
+                    "storage-unavailable",
+                    "Existing database unavailable",
+                ));
+            }
+            Connection::open_with_flags(
+                path,
+                rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE
+                    | rusqlite::OpenFlags::SQLITE_OPEN_NOFOLLOW,
+            )?
+        };
         db.busy_timeout(Duration::from_millis(options.busy_timeout_ms))?;
+        if !initialize {
+            migrations::validate_profile(&db, options.stock_activity_profile)?;
+        }
         db.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;")?;
-        migrations::migrate(&mut db, options.stock_activity_profile)?;
+        if initialize {
+            migrations::migrate(&mut db, options.stock_activity_profile)?;
+        }
         db.pragma_update(None, "journal_mode", "WAL")?;
         Ok(Self {
             db,

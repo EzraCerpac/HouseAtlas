@@ -8,6 +8,7 @@ pub mod providers {
 }
 pub mod provider_dispatch;
 pub mod recovery;
+pub mod server;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum FixtureProfile {
     Standard,

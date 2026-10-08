@@ -58,7 +58,7 @@ fn frontend(directory: &Path) -> Result<BTreeMap<String, (String, Vec<u8>)>, lif
     Ok(files)
 }
 fn main() -> Result<(), lifecycle::Failure> {
-    // This binary creates only explicitly configured private disposable state.
+    // This binary creates only explicitly selected private application state.
     // Establish the file-creation policy before starting runtime worker threads.
     rustix::process::umask(rustix::fs::Mode::from_raw_mode(0o077));
     run()
@@ -66,7 +66,33 @@ fn main() -> Result<(), lifecycle::Failure> {
 
 #[tokio::main]
 async fn run() -> Result<(), lifecycle::Failure> {
+    use houseatlas_backend::config::server::ServerCommand;
+    let arguments = std::env::args().skip(1).collect::<Vec<_>>();
+    if let Some(command) = ServerCommand::from_arguments(&arguments)
+        .map_err(|error| format!("HouseAtlas settings: {error}"))?
+    {
+        return match command {
+            ServerCommand::Initialize {
+                config,
+                provisioning,
+            } => {
+                tokio::task::spawn_blocking(move || {
+                    lifecycle::persistent::initialize(&config, &provisioning)
+                })
+                .await??;
+                println!(
+                    "HouseAtlas persistent state initialized; no listener or login session created"
+                );
+                Ok(())
+            }
+            ServerCommand::Serve(config) => run_persistent(config).await,
+        };
+    }
     let config = Config::from_args().map_err(|e| format!("HouseAtlas settings: {e}"))?;
+    run_disposable(config).await
+}
+
+async fn run_disposable(config: Config) -> Result<(), lifecycle::Failure> {
     let files = Arc::new(frontend(&config.frontend)?);
     let profile = config.fixture_profile;
     let homebox_cache_sources = lifecycle::cached_homebox_sources_with_profile(profile)?;
@@ -156,5 +182,58 @@ async fn run() -> Result<(), lifecycle::Failure> {
         .handle(handle)
         .serve(router(host).into_make_service_with_connect_info::<std::net::SocketAddr>())
         .await?;
+    Ok(())
+}
+
+async fn run_persistent(
+    config: houseatlas_backend::config::server::ServerConfig,
+) -> Result<(), lifecycle::Failure> {
+    use houseatlas_backend::{
+        config::server::read_tls_files,
+        lifecycle::persistent::{self, ServerEvent},
+    };
+    let config = Arc::new(config);
+    if std::fs::canonicalize(&config.frontend_directory)? != config.frontend_directory {
+        return Err("Persistent frontend directory must be canonical".into());
+    }
+    let files = Arc::new(frontend(&config.frontend_directory)?);
+    let (certificate, key) = read_tls_files(&config)?;
+    let tls = axum_server::tls_rustls::RustlsConfig::from_pem(certificate, key).await?;
+    let selected = Arc::clone(&config);
+    let (core, lease) =
+        tokio::task::spawn_blocking(move || persistent::reopen(&selected)).await??;
+    let host = Host::new(core, config.origin.clone(), files, Vec::new())?
+        .with_mcp_command_profile(config.command_profile());
+    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+    let listener = TcpListener::bind(config.listen)?;
+    listener.set_nonblocking(true)?;
+    println!(
+        "HouseAtlas persistent server listening on {} for {}",
+        listener.local_addr()?,
+        config.origin
+    );
+    println!(
+        "HomeBox, Network and AI providers unconfigured; historical Media admission unavailable"
+    );
+    lease.event(ServerEvent::Listening)?;
+    let handle = axum_server::Handle::new();
+    let shutdown = handle.clone();
+    let signal = tokio::spawn(async move {
+        tokio::select! { result = tokio::signal::ctrl_c() => { result?; }, _ = terminate.recv() => {} }
+        shutdown.graceful_shutdown(Some(std::time::Duration::from_secs(5)));
+        Ok::<_, std::io::Error>(())
+    });
+    let mut server = axum_server::from_tcp_rustls(listener, tls)?;
+    server
+        .http_builder()
+        .http2()
+        .max_header_list_size(256 * 1024);
+    let result = server
+        .handle(handle)
+        .serve(router(host).into_make_service_with_connect_info::<std::net::SocketAddr>())
+        .await;
+    signal.abort();
+    result?;
+    lease.event(ServerEvent::Shutdown)?;
     Ok(())
 }
