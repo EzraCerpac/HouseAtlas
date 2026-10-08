@@ -92,6 +92,30 @@ impl<
         bound.revalidate_with_quantity_installation(guard, native.authority(), physical)?;
         Ok(bound)
     }
+    /// Bind the installed upload source during its actual Store-borrowed phase.
+    /// The physical observation is used here only; the bound carrier retains no
+    /// Store borrow or mutation guard beyond this call.
+    pub fn bind_with_queued_upload_installation<'phase>(
+        guard: &'phase access::TransactionAuthorization<'_>,
+        prepared: &'a PreparedRequest<W, G>,
+        captured: &'a CapturedAccess<'p>,
+        graph: &'a F,
+        native: &'a native::RetainedFreshPreparation<'owner, C, S>,
+        physical: &'phase crate::app::homebox_queued_upload::OriginalQueuedUploadPhysical<
+            'phase,
+            'p,
+        >,
+    ) -> StockResult<Self> {
+        let bound = Self {
+            prepared,
+            captured,
+            graph,
+            native,
+        };
+        bound.revalidate_with_queued_upload_installation(guard, native.authority(), physical)?;
+        Ok(bound)
+    }
+
     pub fn captured(&self) -> &CapturedAccess<'p> {
         self.captured
     }
@@ -129,6 +153,28 @@ impl<
         let qualification =
             native::FreshQualification::with_quantity_installation(guard, self.captured, physical)
                 .map_err(|_| StockError::AuthorityChanged)?;
+        self.finish_revalidation(guard, &qualification, current_original_authority)
+    }
+
+    /// Revalidate using the upload owner's current physical phase observation.
+    /// Qualification borrows the same guard and captured original handles;
+    /// native and Domain owners both remain mandatory.
+    pub fn revalidate_with_queued_upload_installation<'phase>(
+        &self,
+        guard: &'phase access::TransactionAuthorization<'_>,
+        current_original_authority: &native::StockAuthority,
+        physical: &'phase crate::app::homebox_queued_upload::OriginalQueuedUploadPhysical<
+            'phase,
+            'p,
+        >,
+    ) -> StockResult<()> {
+        self.check_original(guard)?;
+        let qualification = native::FreshQualification::with_queued_upload_installation(
+            guard,
+            self.captured,
+            physical,
+        )
+        .map_err(|_| StockError::AuthorityChanged)?;
         self.finish_revalidation(guard, &qualification, current_original_authority)
     }
 
