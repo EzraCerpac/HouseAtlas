@@ -168,6 +168,8 @@ export interface UnresolvedConnectionAction {
   readonly status: 'pending' | 'unconfirmed';
   /** Last accepted host receipt; local transport failure is not an observation. */
   readonly hostStatus: 'pending' | 'unconfirmed' | null;
+  /** Derived by the hook for current-runtime admission; absence keeps legacy blocking. */
+  readonly admissionBlocking?: boolean;
 }
 
 export type RequestState =

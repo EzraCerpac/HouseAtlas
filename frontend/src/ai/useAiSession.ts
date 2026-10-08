@@ -110,11 +110,20 @@ export function useConnectionActionCapacity(unresolvedCount: number): boolean {
   return hasConnectionActionCapacity(unresolvedCount, globalCount);
 }
 
+/** Receipt retention is broader than current-runtime admission. Only older
+ * settled Connect/Consent workflows stop blocking after scopeKey rotation.
+ * Active opening transport always retains its shared progress and guard. */
+export function isConnectionActionAdmissionBlocking(
+  action: { readonly action: ConnectionAction['action']; readonly scopeKey: string; readonly opening?: boolean }, scopeKey: string,
+): boolean {
+  return action.opening === true || action.scopeKey === scopeKey || (action.action !== 'connect' && action.action !== 'consent');
+}
+
 function retainedConnectionState(
   actions: Iterable<PendingConnectionAction>, scope: Scope, fallback: ConnectionActionState,
 ): ConnectionActionState {
   let latest: PendingConnectionAction | null = null;
-  for (const action of actions) if (action.receiptKey === scope.receiptKey && !latest?.opening) latest = action;
+  for (const action of actions) if (action.receiptKey === scope.receiptKey && isConnectionActionAdmissionBlocking(action, scope.key) && !latest?.opening) latest = action;
   return latest === null ? fallback : { status: latest.opening ? 'working' : latest.status, action: latest.action, actionId: latest.actionId };
 }
 
@@ -357,6 +366,9 @@ export function useAiSession(client: AiClient, scopeKey: string, receiptIdentity
     if (activeScope.current !== scope || actionController.current !== null
       || (pendingRun.current !== null && input.action !== 'manage-usage' && input.action !== 'disconnect')) return;
     const retained = [...pendingConnectionActions.values()].filter(action => action.receiptKey === scope.receiptKey);
+    // Retained rows still consume capacity and remain recoverable. Admission
+    // excludes only older Connect/Consent; Disconnect and usage keep all guards.
+    const admission = retained.filter(action => isConnectionActionAdmissionBlocking(action, scope.key));
     if (retained.some(action => action.opening)) return;
     if (scope.key.length === 0 || scope.key.length > MAX_SCOPE_KEY_LENGTH
       || scope.receiptKey.length === 0 || scope.receiptKey.length > MAX_RECEIPT_KEY_LENGTH
@@ -370,9 +382,9 @@ export function useAiSession(client: AiClient, scopeKey: string, receiptIdentity
     }
     // An observed unconfirmed disconnect needs a new explicit host action to
     // retry revocation. Keep its original receipt; never replay its action ID.
-    if (retained.some(action => action.action === input.action
+    if (admission.some(action => action.action === input.action
       && !(input.action === 'disconnect' && hasObservedUnconfirmedReceipt(action)))
-      || ((input.action === 'connect' || input.action === 'consent') && retained.length > 0)) return;
+      || ((input.action === 'connect' || input.action === 'consent') && admission.length > 0)) return;
     connectionController.current?.abort();
     if (input.action === 'disconnect') void cancel();
     let actionId: string;
@@ -541,7 +553,10 @@ export function useAiSession(client: AiClient, scopeKey: string, receiptIdentity
   }, [scope, refresh, recover, watchRequest, unwatchRequest]);
 
   const unresolvedConnectionActions: readonly UnresolvedConnectionAction[] = [...pendingConnectionActions.values()]
-    .filter(action => action.receiptKey === scope.receiptKey).map(({ actionId, action, status, hostStatus }) => ({ actionId, action, status, hostStatus }));
-  const pendingConnectionKinds = unresolvedConnectionActions.map(action => action.action);
+    .filter(action => action.receiptKey === scope.receiptKey).map(action => ({
+      actionId: action.actionId, action: action.action, status: action.status, hostStatus: action.hostStatus,
+      admissionBlocking: isConnectionActionAdmissionBlocking(action, scope.key),
+    }));
+  const pendingConnectionKinds = unresolvedConnectionActions.filter(action => action.admissionBlocking !== false).map(action => action.action);
   return { state, refresh, submit, cancel, connectionAction, review, recover, pendingConnectionKinds, unresolvedConnectionActions };
 }
