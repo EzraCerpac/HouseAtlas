@@ -64,8 +64,9 @@ impl CachePresenceCommittedObservation {
     }
 }
 
-/// Pending Storage limb only. It retains the original staged native owner
-/// borrow and cannot be reconstructed from durable rows or committed DATA.
+/// Pending Storage limb only. It owns the source-issued fence, complete
+/// generation and native custody, borrowing only the original principal.
+/// It cannot be reconstructed from durable rows or committed DATA.
 pub struct CachePresenceStorageReleasedCut<'original, P> {
     instance: Arc<()>,
     capture: NativePresenceCapture<'original, P>,

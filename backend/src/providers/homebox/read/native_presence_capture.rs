@@ -2,8 +2,8 @@
 //!
 //! This is provenance input only. A capture does not qualify historical
 //! authority, source completeness outside the reader checks, publication, or
-//! admission. Its public view is borrowed from the exact staged generation and
-//! store-issued publication fence.
+//! admission. Its carrier takes ownership of the exact staged generation and
+//! store-issued publication fence while borrowing the original principal.
 use super::{CompleteGeneration, SourceRegistration, SourceScope, Timestamp, Uuid};
 use crate::storage::CachePublicationFence;
 use std::{fmt, sync::Arc};
