@@ -146,3 +146,7 @@ path = "src/media/healthy_native_policy_archive.rs"
 [[example]]
 name = "healthy-native-upload-policy-archive"
 path = "src/media/healthy_native_upload_policy_archive.rs"
+
+[[example]]
+name = "healthy-native-policy-reference"
+path = "src/media/healthy_native_policy_reference.rs"

@@ -1,5 +1,9 @@
 //! Native HomeBox activity journal on the original Atlas connection.
 //! Original host handles are retained in memory; database rows are data only.
+mod quantity_admission;
+pub use quantity_admission::{
+    OriginalQuantityAdmission, OriginalQuantityInvocation, QuantityAdmissionCommittedObservation,
+};
 mod baseline;
 pub(crate) mod codec;
 #[path = "../homebox_stock_history_repository.rs"]

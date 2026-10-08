@@ -522,3 +522,5 @@ fn source_denied(result: Result<VerifiedActor>) -> Result<bool> {
         Err(e) => Err(e),
     }
 }
+
+pub(crate) use quantity_installation::observe_quantity_installation_in_transaction;

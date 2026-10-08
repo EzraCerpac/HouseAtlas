@@ -6,6 +6,9 @@ mod features;
 mod fresh;
 mod outcome;
 mod ports;
+mod quantity_activity;
+mod quantity_bindings;
+mod quantity_dispatch;
 mod quantity_installation;
 mod quantity_observation;
 mod quantity_profile;
@@ -16,6 +19,9 @@ mod workflow;
 pub use fresh::*;
 pub use outcome::*;
 pub use ports::*;
+pub use quantity_activity::*;
+pub use quantity_bindings::*;
+pub use quantity_dispatch::*;
 pub use quantity_installation::*;
 pub use quantity_observation::*;
 pub use quantity_profile::*;
@@ -60,3 +66,6 @@ pub fn map_stock(
 
 #[path = "../../recovery/stock_bridge.rs"]
 pub(crate) mod retained_bridge;
+
+#[cfg(test)]
+mod quantity_flow_healthy;

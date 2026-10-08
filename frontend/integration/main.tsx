@@ -9,6 +9,8 @@ import { createStockSchemas } from "./stock-schemas";
 import { createStockDispatch } from "./stock-dispatch";
 import { createAtlasGatewayDownloadResolver } from "../src/api/managed-download-client";
 import { createEditingClient } from "./editing-client";
+import { createQuantityClient } from "./quantity-client";
+import type { Scope } from "../src/api/generated/contracts";
 import type { AtlasSessionClient, AtlasSessionInfo } from "../src/app/session";
 import "../src/styles/atlas.css";
 import "../src/styles/session.css";
@@ -33,26 +35,32 @@ const nativeSessions = createAtlasSessionClient({
   logout: root.dataset.logoutUrl ?? "/api/atlas/auth/logout",
 });
 let currentSession: AtlasSessionInfo | null = null;
+let currentQuantityScope: Scope | null = null;
+const quantityEvents = new EventTarget();
+const quantityChanged = () => quantityEvents.dispatchEvent(new Event("changed"));
 let sessionGeneration = 0;
 const nativeSignOut = nativeSessions.signOut;
 const sessions: AtlasSessionClient = {
   async session(signal) {
     const generation = ++sessionGeneration;
     currentSession = null;
+    quantityChanged();
     const value = await nativeSessions.session(signal);
-    if (!signal.aborted && generation === sessionGeneration) currentSession = value;
+    if (!signal.aborted && generation === sessionGeneration) { currentSession = value; quantityChanged(); }
     return value;
   },
   async signIn(credentials, signal) {
     const generation = ++sessionGeneration;
     currentSession = null;
+    quantityChanged();
     const value = await nativeSessions.signIn(credentials, signal);
-    if (!signal.aborted && generation === sessionGeneration) currentSession = value;
+    if (!signal.aborted && generation === sessionGeneration) { currentSession = value; quantityChanged(); }
     return value;
   },
   ...(nativeSignOut ? { async signOut(signal: AbortSignal) {
     ++sessionGeneration;
     currentSession = null;
+    quantityChanged();
     await nativeSignOut(signal);
   } } : {}),
   subscribe(changed: () => void) {
@@ -61,6 +69,14 @@ const sessions: AtlasSessionClient = {
   },
 };
 const editing = createEditingClient(schemas, () => currentSession);
+const quantity = createQuantityClient({
+  getSessionBinding: () => currentSession && currentQuantityScope
+    ? { identity: currentSession, session: currentSession, scope: currentQuantityScope } : null,
+  subscribeSessionBinding: changed => {
+    quantityEvents.addEventListener("changed", changed);
+    return () => quantityEvents.removeEventListener("changed", changed);
+  },
+});
 const nativeClient = createAtlasClient({
   bootstrap: root.dataset.bootstrapUrl ?? "/api/atlas/view",
   home: scope => `/api/atlas/homes/${encodeURIComponent(scope.workspaceId)}/${encodeURIComponent(scope.homeId)}/view`,
@@ -71,6 +87,8 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
     let generation = 0;
     const load = async (operation: (signal: AbortSignal) => Promise<AtlasView>, signal: AbortSignal) => {
       const attempt = ++generation;
+      currentQuantityScope = null;
+      quantityChanged();
       setAdmission(null);
       const view = await operation(signal);
       if (view.status === "ready") {
@@ -94,6 +112,10 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
           // an actual admitted catalog arrives on a later successful load.
         }
       }
+      if (!signal.aborted && attempt === generation) {
+        currentQuantityScope = view.status === "ready" ? view.scope : null;
+        quantityChanged();
+      }
       return view;
     };
     return {
@@ -103,6 +125,6 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
   }, []);
   // Keep the concrete editing port stable through view/catalog refreshes.
   // Each place admission and command obtains the actual request authority.
-  return <div className="lantern-integration"><SessionApp renderContent={(view, content, actions) => view.status === "ready" ? <LanternHost view={view} actions={actions} nativeContent={content} /> : content} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></div>;
+  return <div className="lantern-integration"><SessionApp renderContent={(view, content, actions) => view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} /> : content} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></div>;
 }
 createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);

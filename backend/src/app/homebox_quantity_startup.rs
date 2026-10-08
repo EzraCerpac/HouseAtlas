@@ -31,8 +31,21 @@ impl Core {
 /// cannot be reconstructed from a detached observation or carried across GET.
 pub struct OriginalQuantityPhysical<'store, 'p> {
     configured: &'store Arc<OriginalQuantityConfigured>,
-    observation: storage::QuantityInstallationObservation<'p, OriginalStockActivityPrincipal>,
-    _store: &'store mut Store,
+    phase: QuantityPhysicalPhase<'store, 'p>,
+}
+enum QuantityPhysicalPhase<'store, 'p> {
+    Store {
+        observation:
+            Box<storage::QuantityInstallationObservation<'p, OriginalStockActivityPrincipal>>,
+        _store: &'store mut Store,
+    },
+    Transaction(
+        &'store storage::QuantityInstallationTransaction<
+            'store,
+            'p,
+            OriginalStockActivityPrincipal,
+        >,
+    ),
 }
 impl<'store, 'p> OriginalQuantityPhysical<'store, 'p> {
     pub fn configured(&self) -> &Arc<OriginalQuantityConfigured> {
@@ -41,7 +54,68 @@ impl<'store, 'p> OriginalQuantityPhysical<'store, 'p> {
     pub fn observation(
         &self,
     ) -> &storage::QuantityInstallationObservation<'p, OriginalStockActivityPrincipal> {
-        &self.observation
+        match &self.phase {
+            QuantityPhysicalPhase::Store { observation, .. } => observation,
+            QuantityPhysicalPhase::Transaction(transaction) => transaction.observation(),
+        }
+    }
+
+    /// Bind only the native Store-issued current transaction carrier. No
+    /// detached physical DATA or connection handle can enter this phase.
+    pub(super) fn from_activity_transaction(
+        configured: &'store Arc<OriginalQuantityConfigured>,
+        transaction: &'store storage::QuantityInstallationTransaction<
+            'store,
+            'p,
+            OriginalStockActivityPrincipal,
+        >,
+        guard: &access::TransactionAuthorization<'_>,
+    ) -> storage::Result<Self> {
+        use storage::StockActivityPrincipal as _;
+        let observation = transaction.observation();
+        let original = observation.original();
+        if !configured.store_identity().matches_observation(observation)
+            || !std::ptr::eq(guard.principal(), original.original_activity_principal())
+            || observation.source_metadata() != configured.metadata()
+            || observation.queue_config() != configured.queue()
+            || observation.registration().physical_binding != configured.physical().physical_binding
+            || observation.registration().owner_id != configured.physical().owner_id
+            || observation.registration().dispatcher_epoch != configured.physical().dispatcher_epoch
+            || observation.source_reference() != original.original_activity_source().reference()
+            || observation.source_partition() != original.original_activity_partition().partition()
+        {
+            return Err(storage::Error::new(
+                "identity-conflict",
+                "Current quantity transaction unavailable",
+            ));
+        }
+        let unavailable = |_| {
+            storage::Error::new(
+                "identity-conflict",
+                "Current quantity authority unavailable",
+            )
+        };
+        guard.assert_mutation().map_err(unavailable)?;
+        guard
+            .revalidate_source(original.original_activity_source())
+            .map_err(unavailable)?;
+        guard
+            .revalidate_source_partition(original.original_activity_partition())
+            .map_err(unavailable)?;
+        if guard
+            .persisted_source_metadata(original.original_activity_partition())
+            .map_err(unavailable)?
+            != *configured.metadata()
+        {
+            return Err(storage::Error::new(
+                "identity-conflict",
+                "Current quantity source unavailable",
+            ));
+        }
+        Ok(Self {
+            configured,
+            phase: QuantityPhysicalPhase::Transaction(transaction),
+        })
     }
 }
 impl OriginalQuantityConfigured {
@@ -75,8 +149,10 @@ impl OriginalQuantityConfigured {
         }
         Ok(OriginalQuantityPhysical {
             configured: self,
-            observation,
-            _store: store,
+            phase: QuantityPhysicalPhase::Store {
+                observation: Box::new(observation),
+                _store: store,
+            },
         })
     }
 }

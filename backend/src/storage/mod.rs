@@ -77,3 +77,6 @@ pub use upload_types::{
 };
 
 pub(crate) use stock_activity::retained_native_codec_bridge;
+
+pub use quantity_installation_types::QuantityInstallationTransaction;
+pub(crate) use store::observe_quantity_installation_in_transaction;
