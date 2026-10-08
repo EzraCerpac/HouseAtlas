@@ -436,6 +436,51 @@ async fn main() -> Result<(), Failure> {
         .ok_or("Missing viewer cookie")?
         .to_owned();
     let _: Value = serde_json::from_slice(&response.bytes().await?)?;
+    let projected = {
+        let read_url = format!(
+            "{origin}/api/atlas/v1/workspaces/{}/homes/{}/network/relations",
+            registration.workspace_id, registration.home_id
+        );
+        let current = canonical
+            .try_lock()
+            .map_err(|_| "Canonical access unexpectedly locked")?
+            .authorize(
+                &evidence(
+                    &read_url,
+                    origin,
+                    a::Method::Get,
+                    Some(&viewer_cookie),
+                    None,
+                ),
+                &scope,
+                a::Action::Read,
+            )?;
+        let selected: s::Scope = serde_json::from_value(serde_json::to_value(&scope)?)?;
+        let locked = core.try_lock().map_err(|_| "Core unexpectedly locked")?;
+        locked
+            .store
+            .lock()
+            .map_err(|_| "Store unexpectedly locked")?
+            .read_snapshot(&app::RequestPrincipal::new(current), &selected)?
+    };
+    s::Contract::validate_snapshot(&NativeContracts, &projected)?;
+    let resolved = projected
+        .network_relations
+        .iter()
+        .map(|row| row["externalId"].as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        resolved,
+        [
+            Some("member-a"),
+            Some("association-a"),
+            Some("connection-a")
+        ]
+    );
+    let registration_row = serde_json::to_value(&registration)?;
+    let cache_row = serde_json::to_value(&cache)?;
+    assert!(projected.sources.contains(&registration_row));
+    assert!(projected.caches.contains(&cache_row));
     let collection: String =
         url::form_urlencoded::byte_serialize(registration.collection_id.as_bytes()).collect();
     let path = format!(
@@ -507,6 +552,7 @@ async fn main() -> Result<(), Failure> {
     let admitted: Value = serde_json::from_slice(&response.bytes().await?)?;
     let contracts = d::stock::NativeStockContract::new()?;
     let mut saved_queries = Vec::new();
+    let mut raw_unknown_seen = false;
     for support in &n::SAVED_NETWORK_QUERY_SUPPORT {
         assert!(
             admitted["commandIds"]
@@ -563,8 +609,20 @@ async fn main() -> Result<(), Failure> {
                 .len(),
             expected
         );
+        if let Some(gap) = wire["data"]["relations"]
+            .as_array()
+            .and_then(|rows| rows.iter().find(|row| row["externalId"] == "gap-a"))
+        {
+            assert_eq!(gap["to"]["kind"], "unresolved");
+            assert_eq!(gap["to"]["id"], Value::Null);
+            raw_unknown_seen = true;
+        }
         saved_queries.push((support.agent_operation, request, wire["data"].clone()));
     }
+    assert!(
+        raw_unknown_seen,
+        "Qualified Network query lost the unresolved original"
+    );
     // Mounted MCP uses a fresh genuine Editor POST identity and current CSRF.
     // It delegates to the same saved-query owner, with no additional inventory GET.
     let response = client
@@ -678,9 +736,8 @@ async fn main() -> Result<(), Failure> {
             &[],
         )?;
     }
-    // Snapshot-backed routes use the private selector's actual typed AT11 link
-    // path. Projected unresolved ends remain concealed here; the dedicated
-    // cached facet above preserves them using its original raw-member evidence.
+    // Snapshot-backed routes retain qualified resolved relations while the
+    // unresolved projected end remains withheld from this selector path.
     for path in [
         format!(
             "/api/atlas/v1/workspaces/{}/homes/{}/network/relations",
@@ -699,6 +756,15 @@ async fn main() -> Result<(), Failure> {
         assert_eq!(response.status(), StatusCode::OK);
         let body: Value = serde_json::from_slice(&response.bytes().await?)?;
         assert!(body.is_object() || body.is_array());
+        if path.ends_with("network/relations") {
+            assert_eq!(body["items"], json!(projected.network_relations));
+            assert!(
+                body["sourceStatuses"]
+                    .as_array()
+                    .ok_or("Missing source statuses")?
+                    .contains(&cache_row)
+            );
+        }
     }
     let epoch_after: i64 = db.query_row(
         "SELECT epoch FROM cache_epochs WHERE source_instance_id=?1",
@@ -718,7 +784,7 @@ async fn main() -> Result<(), Failure> {
         .close()?;
     drop(core);
     println!(
-        "PASS healthy root Network router: one actual TLS inventory GET/custody-aware native publication; immutable Native archive reopen matches original response bytes/hash and exact registration/generation; genuine viewer HTTP saved queries and cached reads; genuine editor/current-CSRF mounted MCP initialization, discovery and all three saved queries with exact canonical HTTP data; original issuer/disclosure and unchanged epochs/reservations; unresolved snapshot endpoints remain concealed. Seventeen actual Root TLS requests; no browser qualification or held controls."
+        "PASS healthy root Network router: one actual TLS inventory GET/custody-aware native publication; immutable Native archive reopen matches original response bytes/hash and exact registration/generation; genuine viewer HTTP saved queries and cached reads; genuine editor/current-CSRF mounted MCP initialization, discovery and all three saved queries with exact canonical HTTP data; original issuer/disclosure and unchanged epochs/reservations; resolved snapshot relations retained, unresolved relation withheld, cache metadata unchanged. Seventeen actual Root TLS requests; no browser qualification or held controls."
     );
     Ok(())
 }

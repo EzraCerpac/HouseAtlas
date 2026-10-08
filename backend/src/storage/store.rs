@@ -268,8 +268,13 @@ fn read_snapshot<C: Contract, B: Authorization>(
             vec![json!({"workspaceId":scope.workspace_id,"homeId":scope.home_id,"key":source})],
         )?;
     }
-    for relation in &snapshot.network_relations {
+    drop(check);
+    let mut withheld_relations = BTreeSet::new();
+    for (index, relation) in snapshot.network_relations.iter().enumerate() {
         let partition = repo::partition(relation)?;
+        if denied.contains(&partition_key(&partition)) {
+            continue;
+        }
         let base = json!({"sourceInstanceId":partition.source_instance_id,"collectionId":partition.collection_id,
                 "sourceKind":"network-link","externalId":relation["externalId"]});
         // Private selector retains the exact cached endpoint binding. Entity
@@ -289,7 +294,22 @@ fn read_snapshot<C: Contract, B: Authorization>(
                 );
             }
         }
-        check(partition, refs)?;
+        // A projected unresolved end cannot be converted to the raw-member
+        // selector. Withhold this relation alone; the actual partition grant
+        // and other exact, resolved link grants remain independently valid.
+        let mut qualified = Vec::new();
+        for source in refs {
+            let mut request = read_request(scope, Capability::ReadCache, &[]);
+            request.source = Some(&source);
+            if source_denied(authorize(contract, authorization, principal, request))? {
+                withheld_relations.insert(index);
+                break;
+            }
+            qualified.push((None, Some(source)));
+        }
+        if !withheld_relations.contains(&index) {
+            accepted.extend(qualified);
+        }
     }
     snapshot.homebox_entities = snapshot
         .homebox_entities
@@ -311,7 +331,14 @@ fn read_snapshot<C: Contract, B: Authorization>(
     snapshot.network_relations = snapshot
         .network_relations
         .into_iter()
-        .map(|r| Ok((!denied.contains(&partition_key(&repo::partition(&r)?)), r)))
+        .enumerate()
+        .map(|(index, r)| {
+            Ok((
+                !denied.contains(&partition_key(&repo::partition(&r)?))
+                    && !withheld_relations.contains(&index),
+                r,
+            ))
+        })
         .collect::<Result<Vec<_>>>()?
         .into_iter()
         .filter_map(|(visible, r)| visible.then_some(r))

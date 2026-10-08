@@ -10,6 +10,7 @@ compile_error!("The private media filesystem currently supports Linux and macOS"
 
 mod budget;
 pub mod content;
+pub mod homebox_artifacts;
 pub mod native;
 pub mod native_recovery;
 mod platform_fs;
