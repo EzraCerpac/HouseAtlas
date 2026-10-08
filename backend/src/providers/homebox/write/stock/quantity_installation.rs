@@ -340,6 +340,39 @@ impl NativeQuantityInstallationOwner {
         })
     }
     #[cfg(test)]
+    pub(crate) fn create_reader_with_loopback_certificate<'p, K: read::Clock + Send + Sync>(
+        self: &Arc<Self>,
+        preview: &'p OriginalQuantityPreview<'p>,
+        clock: K,
+        certificate_der: &[u8],
+    ) -> Result<
+        QuantityInstalledReader<'p, read::HttpTransport<read::NativeReadCredentials<'p>>, K>,
+        StockErrorCode,
+    > {
+        self.check_preview(preview)?;
+        let credentials = self
+            .configured
+            .credentials()
+            .bind_original(
+                Arc::clone(self.configured.access()),
+                preview.principal,
+                preview.source.clone(),
+                preview.partition.clone(),
+            )
+            .map_err(|_| StockErrorCode::ProviderUnqualified)?;
+        let reader = self
+            .configured
+            .homebox()
+            .reader_with_loopback_certificate(credentials, clock, certificate_der)
+            .map_err(|_| StockErrorCode::ProviderUnqualified)?;
+        super::quantity_observation::quantity_reader_check(&reader, self.configured.metadata())?;
+        Ok(QuantityInstalledReader {
+            installation: Arc::clone(self),
+            preview,
+            reader: Arc::new(tokio::sync::Mutex::new(reader)),
+        })
+    }
+    #[cfg(test)]
     pub(super) fn fixture_reader<'p, T: read::Transport, K: read::Clock + Send + Sync>(
         self: &Arc<Self>,
         preview: &'p OriginalQuantityPreview<'p>,

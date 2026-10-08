@@ -169,6 +169,48 @@ impl<'b, 'n, 'p, 'o, T: read::Transport, K: read::Clock + Send + Sync>
         deadline: Instant,
         cancellation: CancellationToken,
     ) -> Result<Self, StockPortFault> {
+        Self::from_original_bound(
+            session,
+            preparation,
+            invocation,
+            limits,
+            deadline,
+            cancellation,
+            #[cfg(test)]
+            None,
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_original_with_loopback_certificate(
+        session: &'b Session<'b, 'n, 'p, 'o, T, K>,
+        preparation: &'b OriginalPreparation<'n, 'p, 'o, T, K>,
+        invocation: storage::OriginalQuantityInvocation<'b, OriginalPreparation<'n, 'p, 'o, T, K>>,
+        limits: write_transport::Limits,
+        deadline: Instant,
+        cancellation: CancellationToken,
+        certificate_der: &[u8],
+    ) -> Result<Self, StockPortFault> {
+        Self::from_original_bound(
+            session,
+            preparation,
+            invocation,
+            limits,
+            deadline,
+            cancellation,
+            Some(certificate_der),
+        )
+    }
+
+    fn from_original_bound(
+        session: &'b Session<'b, 'n, 'p, 'o, T, K>,
+        preparation: &'b OriginalPreparation<'n, 'p, 'o, T, K>,
+        invocation: storage::OriginalQuantityInvocation<'b, OriginalPreparation<'n, 'p, 'o, T, K>>,
+        limits: write_transport::Limits,
+        deadline: Instant,
+        cancellation: CancellationToken,
+        #[cfg(test)] certificate_der: Option<&[u8]>,
+    ) -> Result<Self, StockPortFault> {
         if !session.owns_original_quantity_invocation(&invocation, preparation) {
             return Err(StockPortFault::EvidenceConflict);
         }
@@ -179,7 +221,15 @@ impl<'b, 'n, 'p, 'o, T: read::Transport, K: read::Clock + Send + Sync>
         g.check_original(preparation.original())?;
         let operation = invocation.operation().clone();
         let permit = invocation.permit().clone();
-        let dispatcher = QuantityDispatchResources::new(session, preparation, invocation)?
+        let resources = QuantityDispatchResources::new(session, preparation, invocation)?;
+        #[cfg(test)]
+        let dispatcher = match certificate_der {
+            Some(der) => resources.into_http_with_loopback_certificate(limits, der),
+            None => resources.into_http(limits),
+        }
+        .map_err(|_| StockPortFault::Unavailable)?;
+        #[cfg(not(test))]
+        let dispatcher = resources
             .into_http(limits)
             .map_err(|_| StockPortFault::Unavailable)?;
         let mut evidence = g.evidence.lock().map_err(|_| StockPortFault::Unavailable)?;
