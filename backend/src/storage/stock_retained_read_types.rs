@@ -99,6 +99,29 @@ pub struct StockRetainedInspection {
     pub command_id: String,
     pub request_digest: String,
 }
+/// The immutable original public command receipt, after genuine SQL validation
+/// and fresh authorized disclosure. Historical SafeRendered metadata is not a
+/// live preview grant or a rehydrated renderer proof. These release facts are
+/// deliberately unknown: retained SQL does not record delivery/Media release.
+#[derive(Clone, Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct StockRetainedCommittedResult {
+    pub original_request_id: String,
+    pub wire: Value,
+    pub children: Vec<Value>,
+    pub original_media_release: &'static str,
+    pub original_http_delivery: &'static str,
+}
+/// A separate read response: lookup transport correlation never rewrites the
+/// original receipt. Absence is not proof of rollback or permission to retry.
+#[derive(Clone, Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct StockRetainedReconciliation {
+    pub format: &'static str,
+    pub lookup_request_id: String,
+    pub inspection: StockRetainedInspection,
+    pub committed_result: Option<StockRetainedCommittedResult>,
+}
 // Retaining this actual Arc prevents principal-address reuse from qualifying a
 // different Access allocation. Host also retains the ENTIRE original Box; no
 // replacement wrapper or deserialized identity can use these data carriers.

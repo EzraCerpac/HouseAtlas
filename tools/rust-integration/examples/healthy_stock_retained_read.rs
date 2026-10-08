@@ -201,6 +201,32 @@ fn write(
 
 fn assert_send_sync<T: Send + Sync>() {}
 
+fn assert_committed_result(
+    result: &s::StockRetainedReconciliation,
+    lookup_request_id: &str,
+    original_request_id: &str,
+    original_wire: &Value,
+) {
+    assert!(!result.format.is_empty());
+    assert_eq!(result.lookup_request_id.as_str(), lookup_request_id);
+    assert_eq!(result.inspection.outcome, "retained-commit");
+    assert_eq!(result.inspection.retry_safety, "not-established");
+    let committed = result
+        .committed_result
+        .as_ref()
+        .expect("Genuine retained result");
+    assert_eq!(committed.original_request_id.as_str(), original_request_id);
+    assert_eq!(&committed.wire, original_wire);
+    assert!(committed.children.is_empty());
+    assert_eq!(
+        committed.wire["requestId"].as_str(),
+        Some(original_request_id)
+    );
+    assert_eq!(committed.wire["replayed"], false);
+    assert_eq!(committed.original_media_release, "not-established");
+    assert_eq!(committed.original_http_delivery, "not-established");
+}
+
 fn main() -> Result<(), Failure> {
     rustix::process::umask(rustix::fs::Mode::from_raw_mode(0o077));
     assert_send_sync::<s::StockRetainedContinuation>();
@@ -366,7 +392,11 @@ fn main() -> Result<(), Failure> {
     let stock = NativeStockContract::new()?;
     let original = original_box.principal.retained();
     let mut store = core.store.lock().map_err(|_| "Store unavailable")?;
-    for (raw, result) in [(&direct, &direct_result), (&derived, &derived_result)] {
+    for (raw, result) in [
+        (&direct, &direct_result),
+        (&derived, &derived_result),
+        (&third, &third_result),
+    ] {
         let prepared = store.prepare_stock_retained_intent_with_authorization(
             &read_authority,
             &original_box,
@@ -395,7 +425,42 @@ fn main() -> Result<(), Failure> {
             Some(disclosed.request_digest.as_str()),
             result["data"]["requestDigest"].as_str()
         );
+        let reconciled = store.disclose_stock_retained_committed_result_with_authorization(
+            &read_authority,
+            &original_box,
+            &stock,
+            &prepared,
+        )?;
+        assert_eq!(reconciled.inspection, disclosed);
+        assert_committed_result(
+            &reconciled,
+            raw["requestId"]
+                .as_str()
+                .ok_or("Missing original request ID")?,
+            raw["requestId"]
+                .as_str()
+                .ok_or("Missing original request ID")?,
+            result,
+        );
     }
+    // This is a lookup only. A new requestId is not a write or a replay;
+    // disclosure must still return the exact first committed stock result.
+    let mut direct_lookup = direct.clone();
+    direct_lookup["requestId"] = json!(id(940));
+    let prepared = store.prepare_stock_retained_intent_with_authorization(
+        &read_authority,
+        &original_box,
+        &stock,
+        &direct_lookup,
+        original,
+    )?;
+    let reconciled = store.disclose_stock_retained_committed_result_with_authorization(
+        &read_authority,
+        &original_box,
+        &stock,
+        &prepared,
+    )?;
+    assert_committed_result(&reconciled, &id(940), &id(921), &direct_result);
     let mut continuation = None;
     let mut collected = Vec::new();
     let mut pinned_watermark = None;
@@ -527,8 +592,16 @@ fn main() -> Result<(), Failure> {
         disclosed.operation_id.as_deref(),
         derived_result["operationId"].as_str()
     );
+    let reconciled = store.disclose_stock_retained_committed_result_with_authorization(
+        &fresh_authority,
+        &fresh,
+        &stock,
+        &prepared,
+    )?;
+    assert_eq!(reconciled.inspection, disclosed);
+    assert_committed_result(&reconciled, &id(922), &id(922), &derived_result);
     println!(
-        "healthy-stock-retained-read: three genuine writes, full pinned closure, three event pages and ordinary reopen verified"
+        "healthy-stock-retained-read: three genuine writes, exact committed results, alternate lookup ID, three event pages and ordinary reopen verified"
     );
     Ok(())
 }

@@ -188,7 +188,16 @@ fn lookup<C: Contract, S: StockContractPort>(
         }
         None => (&commit.original_request, &commit.request_digest),
     };
-    if raw["idempotencyKey"] != key || digest != request.intent_digest() {
+    // Only an actual root transport may renew its two excluded root IDs.
+    // A saved batch child envelope remains wholly bound inside the root intent.
+    let intent_matches = match ordinal {
+        Some(_) => {
+            stock::canonical_bytes(request.raw()).map_err(stock_error)?
+                == stock::canonical_bytes(raw).map_err(stock_error)?
+        }
+        None => stock::retained_atlas_intent_matches(request.raw(), raw).map_err(stock_error)?,
+    };
+    if raw["idempotencyKey"] != key || digest != request.intent_digest() || !intent_matches {
         return Err(stock_repo::conflict());
     }
     Ok((Some(commit), ordinal))
@@ -468,6 +477,89 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         S: StockContractPort,
         A::Principal: StagedUploadPrincipal,
     {
+        self.disclose_retained_with_authorization(
+            b,
+            principal,
+            stock,
+            preparation,
+            |inspection, _, _, _| Ok(inspection),
+        )
+    }
+    /// Fresh read-only exact-intent resolution. Returns the original validated
+    /// receipt, without executing a command, altering correlation/replay flags,
+    /// or claiming the original Media release/HTTP delivery was established.
+    pub fn disclose_stock_retained_committed_result_with_authorization<B, S>(
+        &mut self,
+        b: &B,
+        principal: &A::Principal,
+        stock: &S,
+        preparation: &StockRetainedPreparation,
+    ) -> Result<StockRetainedReconciliation>
+    where
+        B: StockRetainedReadAuthorization<Principal = A::Principal>,
+        S: StockContractPort,
+        A::Principal: StagedUploadPrincipal,
+    {
+        self.disclose_retained_with_authorization(
+            b,
+            principal,
+            stock,
+            preparation,
+            |inspection, commit, group, request| {
+                let committed_result = commit
+                    .map(|commit| -> Result<StockRetainedCommittedResult> {
+                        let result = match group {
+                            Some(index) => stock::OwnerResult {
+                                wire: commit
+                                    .children
+                                    .get(index)
+                                    .ok_or_else(stock_repo::incompatible)?
+                                    .clone(),
+                                children: Vec::new(),
+                            },
+                            None => commit.owner_result(),
+                        };
+                        let original_request_id = result.wire["requestId"]
+                            .as_str()
+                            .ok_or_else(stock_repo::incompatible)?
+                            .to_owned();
+                        Ok(StockRetainedCommittedResult {
+                            original_request_id,
+                            wire: result.wire,
+                            children: result.children,
+                            original_media_release: "not-established",
+                            original_http_delivery: "not-established",
+                        })
+                    })
+                    .transpose()?;
+                Ok(StockRetainedReconciliation {
+                    format: "atlas-retained-reconciliation/1",
+                    lookup_request_id: request.request_id().into(),
+                    inspection,
+                    committed_result,
+                })
+            },
+        )
+    }
+    fn disclose_retained_with_authorization<B, S, O>(
+        &mut self,
+        b: &B,
+        principal: &A::Principal,
+        stock: &S,
+        preparation: &StockRetainedPreparation,
+        make_output: impl FnOnce(
+            StockRetainedInspection,
+            Option<&StockAtlasCommit>,
+            Option<usize>,
+            &ValidatedRequest,
+        ) -> Result<O>,
+    ) -> Result<O>
+    where
+        B: StockRetainedReadAuthorization<Principal = A::Principal>,
+        S: StockContractPort,
+        A::Principal: StagedUploadPrincipal,
+        O: serde::Serialize,
+    {
         bound(self, principal, &preparation.binding, b)?;
         let actor = check(
             &self.contract,
@@ -535,6 +627,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             command_id: preparation.request.id().as_str().into(),
             request_digest: preparation.request.intent_digest().into(),
         };
+        let output = make_output(output, commit.as_ref(), group, &preparation.request)?;
         let wire = serde_json::to_value(&output)?;
         for phase in [
             StockRetainedReadPhase::Disclosure,
