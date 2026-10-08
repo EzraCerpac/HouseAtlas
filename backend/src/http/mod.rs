@@ -7,6 +7,8 @@ mod auth;
 pub mod contracts;
 mod editing;
 mod headers;
+mod homebox_pinned_files;
+pub use homebox_pinned_files::PinnedHomeBoxFileBinding;
 mod intake;
 mod media;
 mod mutations;
@@ -69,6 +71,8 @@ pub struct Host {
     pub files: Arc<BTreeMap<String, (String, Vec<u8>)>>,
     homebox_cache_sources: Arc<Vec<crate::config::providers::homebox::TrustedHomeBoxSource>>,
     native_homebox_reads: Arc<Vec<providers::homebox_native::NativeHomeBoxReadBinding>>,
+    pinned_homebox_file_bindings: Arc<Vec<homebox_pinned_files::PinnedHomeBoxFileBinding>>,
+    pinned_homebox_artifacts: Arc<Mutex<crate::media::homebox_pinned_artifacts::NativePinnedArtifactBroker>>,
     network_bindings: Arc<Vec<crate::config::providers::network_host::NetworkBinding>>,
     atlas_download_handles: d::stock::AtlasDownloadHandles,
     response_ids: Arc<ResponseIds>,
@@ -116,6 +120,8 @@ impl Host {
             files,
             homebox_cache_sources: Arc::new(homebox_cache_sources),
             native_homebox_reads: Arc::new(Vec::new()),
+            pinned_homebox_file_bindings: Arc::new(Vec::new()),
+            pinned_homebox_artifacts: Arc::new(Mutex::new(Default::default())),
             network_bindings: Arc::new(Vec::new()),
             atlas_download_handles: d::stock::AtlasDownloadHandles::default(),
             response_ids: Arc::new(ResponseIds::new()?),
@@ -236,6 +242,26 @@ impl Host {
             }
         }
         self.native_homebox_reads = Arc::new(bindings);
+        Ok(self)
+    }
+    /// Explicit optional local file source selection; default is empty.
+    pub fn with_pinned_homebox_files(
+        mut self,
+        bindings: Vec<homebox_pinned_files::PinnedHomeBoxFileBinding>,
+    ) -> crate::storage::Result<Self> {
+        let mut partitions = std::collections::BTreeSet::new();
+        if bindings.len() > 64 {
+            return Err(crate::storage::Error::new("invalid-contract", "Pinned HomeBox source unavailable"));
+        }
+        for binding in &bindings {
+            let partition = binding.source().partition();
+            if !self.mcp_scopes.iter().any(|scope| scope.workspace_id == partition.workspace_id && scope.home_id == partition.home_id)
+                || !partitions.insert(serde_json::to_string(&partition)?)
+            {
+                return Err(crate::storage::Error::new("invalid-contract", "Pinned HomeBox source unavailable"));
+            }
+        }
+        self.pinned_homebox_file_bindings = Arc::new(bindings);
         Ok(self)
     }
 
@@ -833,6 +859,9 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/place", get(editing::place).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/places/{record_id}/evidence", post(upload::command))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/admission", get(agents::admission).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/homebox-pinned-file", get(homebox_pinned_files::capture).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/media/pinned-homebox/{workspace_id}/{home_id}/{token}", get(homebox_pinned_files::redeem).head(homebox_pinned_files::redeem).fallback(auth::session_head))
+        .route("/api/atlas/media/pinned-homebox/{workspace_id}/{home_id}/{token}/availability", get(homebox_pinned_files::availability).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/quantity-tool-admission", get(quantity_tool_admission::admission).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/invoke", get(agents::invoke).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/commands", post(stock_mutations::command))
