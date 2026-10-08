@@ -19,10 +19,15 @@ pub(crate) const HOMEBOX_HISTORY_CURSOR_FORMAT: &str = "homebox-stock-activity-c
 
 // Paging and strict cursor validation must use exactly the same immutable-cut
 // eligibility predicate, including generated actual targets and query filters.
+// NOT INDEXED still permits the INTEGER PRIMARY KEY sequence range; it prevents
+// the operation/version index from scanning an unbounded post-watermark suffix
+// merely to satisfy GROUP BY. Pin the existing operation TEXT primary-key index
+// for each bounded event lookup. No schema/index is installed by this reader.
 const SELECTED_CUTS: &str = "WITH selected AS (
                 SELECT e.operation_id, MAX(e.sequence) AS sequence
-                FROM stock_activity_events AS e
-                JOIN stock_activity_operations AS o ON o.operation_id=e.operation_id
+                FROM stock_activity_events AS e NOT INDEXED
+                CROSS JOIN stock_activity_operations AS o INDEXED BY sqlite_autoindex_stock_activity_operations_1
+                  ON o.operation_id=e.operation_id
                 WHERE e.sequence<=?1
                   AND o.workspace_id=?2 AND o.home_id=?3
                   AND json_extract(e.operation_json,'$.payload.command.context.workspaceId')=?2
@@ -36,8 +41,8 @@ const SELECTED_CUTS: &str = "WITH selected AS (
              )
              SELECT e.operation_id, e.sequence
              FROM selected AS s
-             JOIN stock_activity_events AS e
-               ON e.operation_id=s.operation_id AND e.sequence=s.sequence
+             CROSS JOIN stock_activity_events AS e NOT INDEXED
+               ON e.sequence=s.sequence AND e.operation_id=s.operation_id
              WHERE s.sequence>?8
                -- Never select an earlier matching actualTarget when the
                -- operation's latest cut under this watermark differs.
@@ -58,6 +63,52 @@ const SELECTED_CUTS: &str = "WITH selected AS (
                     OR instr(json_extract(e.operation_json,'$.payload.outcome.state'),?9)>0)
              ORDER BY s.sequence ASC
              LIMIT ?10";
+
+// Bound the ENTIRE indexed event range before JSON predicates, joins, GROUP
+// BY or sorting. Scope/target filters must not hide work from this ceiling.
+const MAX_SELECTION_EVENTS: i64 = 4096;
+const MAX_SELECTION_JSON_BYTES: i64 = 16 * 1024 * 1024;
+
+// Data-only input accounting on the caller's existing read snapshot. It issues
+// no authority, grants, permits or ability to skip retained-chain validation.
+struct BoundedSelection<'a> {
+    db: &'a Connection,
+    watermark: i64,
+}
+fn bounded_selection<'a>(
+    db: &'a Connection,
+    watermark: i64,
+    check: &mut dyn FnMut() -> s::Result<()>,
+) -> s::Result<BoundedSelection<'a>> {
+    check()?;
+    // INTEGER PRIMARY KEY sequence supplies the ordered range. There are no
+    // JSON/scope predicates or grouping before LIMIT; the extra row means
+    // unavailable, never a silently truncated selected history.
+    let mut statement = db.prepare(
+        "SELECT length(CAST(operation_json AS BLOB)) FROM stock_activity_events NOT INDEXED
+         WHERE sequence<=?1 ORDER BY sequence LIMIT ?2",
+    )?;
+    let mut rows = statement.query(params![watermark, MAX_SELECTION_EVENTS + 1])?;
+    let mut count = 0_i64;
+    let mut bytes = 0_i64;
+    while let Some(row) = rows.next()? {
+        check()?;
+        count += 1;
+        let size: i64 = row.get(0)?;
+        bytes = bytes.checked_add(size).ok_or_else(selection_unavailable)?;
+        if count > MAX_SELECTION_EVENTS || size < 0 || bytes > MAX_SELECTION_JSON_BYTES {
+            return Err(selection_unavailable());
+        }
+    }
+    check()?;
+    Ok(BoundedSelection { db, watermark })
+}
+fn selection_unavailable() -> s::Error {
+    s::Error::new(
+        "upstream-unavailable",
+        "Native HomeBox history selection exceeds its work budget",
+    )
+}
 
 const MAX_EVENTS_PER_OPERATION: i64 = 128;
 const MAX_BYTES_PER_OPERATION: i64 = 2 * 1024 * 1024;
@@ -110,6 +161,36 @@ pub(crate) fn page<S: StockContractPort>(
         return Err(StockPortFault::EvidenceConflict);
     }
 
+    let selection = bounded_selection(db, watermark, &mut || Ok(()))
+        .map_err(|_| StockPortFault::Unavailable)?;
+    page_in_selection(
+        &selection,
+        schemas,
+        scope,
+        target,
+        location_route,
+        query,
+        after_sequence,
+        page_size,
+    )
+}
+
+// Both callers must first account for the complete range on the SAME snapshot.
+// The private descriptor binds the actual connection and pinned watermark so
+// recovery's boundary/lookahead read reuses its preflight without rescanning.
+#[allow(clippy::too_many_arguments)]
+fn page_in_selection<S: StockContractPort>(
+    selection: &BoundedSelection<'_>,
+    schemas: &S,
+    scope: &native::Context,
+    target: &native::StockTarget,
+    location_route: bool,
+    query: Option<&str>,
+    after_sequence: i64,
+    page_size: usize,
+) -> PortResult<Page> {
+    let db = selection.db;
+    let watermark = selection.watermark;
     let route_prefix = if location_route {
         "homebox.location."
     } else {
@@ -470,7 +551,8 @@ pub(crate) fn validate_cursor<
     // Already validated retained chains supply these selected rows. Scan only
     // sequence metadata, with progress per row; never decode every prior page
     // again for each cursor. SQL eligibility is shared verbatim with paging.
-    let mut statement = db.prepare(SELECTED_CUTS)?;
+    let selection = bounded_selection(db, watermark, check)?;
+    let mut statement = selection.db.prepare(SELECTED_CUTS)?;
     let mut rows = statement.query(params![
         watermark,
         scope.workspace_id,
@@ -502,14 +584,13 @@ pub(crate) fn validate_cursor<
     check()?;
     // Validate the exact original operation cuts at the boundary and lookahead
     // through the existing bounded retained-chain decoder and native contracts.
-    let cuts = page(
-        db,
+    let cuts = page_in_selection(
+        &selection,
         activity,
         &context,
         &target,
         location_route,
         q,
-        Some(watermark),
         after_sequence - 1,
         1,
     )
