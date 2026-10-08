@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "ad5d4fe2b43ef1aa9d0ad3ea0e1610df6dcda9e29508bf9ecfb7097abc2abeab",
+  "sourceDigestSha256": "a86dad3d1038ee28fcd4abfb108e8b65ac9cc84e8f0065785e4d0b5c9d12c299",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -350,8 +350,8 @@
     {
       "path": "backend/src/access/historical_presence.rs",
       "mode": "100644",
-      "bytes": 4478,
-      "sha256": "359104a089e631deb24c4d25b4911ae78015aa1b989d7eec930face74d79d1b0",
+      "bytes": 15697,
+      "sha256": "549b8ad59412e38df95117815b9ac88a9ded46fd464938ce9a0d6d5230390b07",
       "owner": "access"
     },
     {
@@ -854,8 +854,8 @@
     {
       "path": "backend/src/app/homebox_presence.rs",
       "mode": "100644",
-      "bytes": 6182,
-      "sha256": "464894fa06652f56dc286fc571db3e61241f0f3442f90b81920d7d1d3250f87b",
+      "bytes": 12021,
+      "sha256": "8b883647eda4bc6488b5f6d3d7352a46c275378f90c549c7e72022758c60817c",
       "owner": "core-integration"
     },
     {
@@ -2695,8 +2695,8 @@
     {
       "path": "backend/src/providers/homebox/read/native_presence_owner.rs",
       "mode": "100644",
-      "bytes": 17081,
-      "sha256": "c9240677cc610fb1dc5c31db26c288ce4c2a90657c2ef44733b390b214d7091d",
+      "bytes": 17400,
+      "sha256": "c7690a5a4eef0125d82773d062bf7af3af971ca9508c47eb009f71e428c445db",
       "owner": "homebox"
     },
     {
