@@ -246,12 +246,12 @@ impl<'bind, 'p, T: read::Transport, K: read::Clock + Send + Sync>
     pub fn native(&self) -> &DecodedStockReadback<NativeWriterContracts, QuantitySource<'p, T, K>> {
         self.readback
     }
-    async fn read_current(
+    pub(super) async fn capture_current(
         &self,
         operation: &StoredOperation,
         plan: &ReadbackPlan,
         authority: &StockAuthority,
-    ) -> Option<NativeObservation> {
+    ) -> Option<RetainedFreshReadback<'_, NativeWriterContracts, QuantitySource<'p, T, K>>> {
         self.custody.check_original().ok()?;
         self.custody.check_source(self.readback.source()).ok()?;
         if &operation.command != self.custody.original.command()
@@ -286,7 +286,7 @@ impl<'bind, 'p, T: read::Transport, K: read::Clock + Send + Sync>
                         &physical,
                     )
                     .map_err(BindingFailure)?;
-                    observation = pending.finish_in_guard(&context);
+                    observation = pending.finish_in_guard_retained(&context);
                     if observation.is_none() {
                         return Err(BindingFailure(StockErrorCode::ResourceUnavailable));
                     }
@@ -295,6 +295,16 @@ impl<'bind, 'p, T: read::Transport, K: read::Clock + Send + Sync>
             )
             .ok()?;
         observation
+    }
+    async fn read_current(
+        &self,
+        operation: &StoredOperation,
+        plan: &ReadbackPlan,
+        authority: &StockAuthority,
+    ) -> Option<NativeObservation> {
+        self.capture_current(operation, plan, authority)
+            .await
+            .map(|receipt| receipt.observation().clone())
     }
 }
 impl<T: read::Transport, K: read::Clock + Send + Sync> StockReadbackPort

@@ -52,6 +52,22 @@ impl<'p, T: read::Transport, K: read::Clock + Send + Sync> QuantitySource<'p, T,
             .map(|owner| owner.configured())
     }
 
+    /// Exact retained installation, original owner, and native reader custody.
+    pub(super) fn same_custody(&self, other: &Self) -> bool {
+        let (Some(left), Some(right)) = (
+            self.registry.preview.profile.installation.as_ref(),
+            other.registry.preview.profile.installation.as_ref(),
+        ) else {
+            return false;
+        };
+        std::ptr::eq(self.owner, other.owner)
+            && std::ptr::eq(self.registry, other.registry)
+            && Arc::ptr_eq(&self.reader, &other.reader)
+            && Arc::ptr_eq(&self.access, &other.access)
+            && Arc::ptr_eq(left, right)
+            && Arc::ptr_eq(left.configured(), right.configured())
+    }
+
     /// Revalidate original raw/evidence custody and finite capture age. The
     /// activity transaction must separately qualify its actual physical owner.
     pub(super) fn revalidate_activity_capture(

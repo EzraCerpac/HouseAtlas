@@ -547,11 +547,11 @@ reserve API calls outside a transaction, the authorizer acquires only the
 configured Access owner for a fresh original mutation guard. With a supplied
 guard it acquires neither Store nor Access.
 
-This policy peer refuses human-required policy and native dispatch, observation,
-never-invoked, rejection and handoff evidence actions. Public transport facts or
-a synthetic changed GET cannot establish a completed effect or release the
-physical hold. A genuine privately retained transport-evidence producer and
-original completion/disclosure composition remain required for those actions.
+This policy peer refuses human-required policy, rejection and handoff evidence.
+Its dispatch, never-invoked and observation journal actions accept only the
+private consuming native evidence owner described below. Public transport facts
+or a synthetic changed GET cannot establish a completed effect or release the
+physical hold.
 
 The directly scoped original-flow positive uses the real closed policy peer and
 actual disposable Store admission. It is a separate exact named case:
@@ -568,3 +568,39 @@ unsent HTTP request and guarded readback. The activity row and its physical hold
 remain retained, with no queue job or dispatch/observation event. It sends no
 PATCH and does not attest a remote installation or establish causality, CAS,
 completed native execution, hold release or a human approval receipt.
+
+### Consuming quantity evidence owner
+
+`QuantityNativeAttempt::from_original` consumes the actual invocation from the
+same Storage session and original root preparation. It verifies the actual
+session brand before creating its own existing HTTPS dispatcher. It accepts no
+injected dispatcher, public report or facts constructor. `execute` consumes the
+attempt and stores the actual full `DispatchReport` in that session's original
+activity authorizer before any journal or disclosure await. Dropping a future
+or losing a journal result never restores an invocation or provides a retry.
+
+`CapturedQuantityDispatch::record` consumes that capture and journals only its
+exact permit, prior operation and one-step activity version. Never-invoked facts
+require the actual driver's `NotStarted`; invoked facts retain `EndUnproven`.
+Entry and Precommit must match the same private expectation exactly once.
+Successful recording returns a closed `CapturedQuantityRecorded`; public row
+or receipt data cannot construct it.
+
+The recorded owner can consume one guarded readback through
+`QuantityReadbackBinding`. Separate preparation/readback adapter values must
+share the original principal and registry pointers, reader/Access Arcs, sealed
+installation owner and configured allocation. This custody check supplies no
+current qualification. The actual GET completes before Store or Access locks;
+finishing rechecks the genuine original mutation guard and borrowed physical
+Store owner. `RetainedFreshReadback` moves the exact native bytes, decoded
+capture and original opaque evidence alongside operation, plan, authority and
+qualified observation. The existing `finish_in_guard` still returns only its
+observation. The consuming evidence path retains the full receipt privately in
+the original authorizer before deriving or journaling observation facts.
+
+Readback agreement, a returned success status and journal commit do not establish
+provider termination, causality or CAS. Unproven activity keeps its physical
+slot held. Fresh disclosure still requires current original grants, metadata
+and capture windows. These source mechanics have compile and static-review
+validation only in this successor; no new transport, PATCH, journal or control
+runtime case has run. The earlier named positive above remains an unsent case.
