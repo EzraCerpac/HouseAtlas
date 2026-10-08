@@ -6,12 +6,14 @@ mod detail;
 mod native_features;
 mod native_resources;
 mod observations;
+mod owned_file_source;
 mod selection;
 mod types;
 
 pub use adapter::{HomeBoxQueries, HomeBoxReadOwner};
 pub use cache::cached_entity_page;
 pub use observations::{DecodedReadObservation, DecodedReadOwner, TemplateDetailCapture};
+pub use owned_file_source::*;
 pub use selection::{HomeBoxReadQuery, REQUIRED_READ_OPERATIONS};
 pub use types::*;
 
@@ -19,3 +21,5 @@ pub use types::*;
 mod healthy;
 #[cfg(test)]
 mod observations_healthy;
+#[cfg(test)]
+mod owned_file_source_healthy;
