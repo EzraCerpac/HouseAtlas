@@ -11,6 +11,17 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
         config: &QueueConfig,
         now: u64,
     ) -> Result<EnqueueOutcome> {
+        self.enqueue_inner_with_original(input, scope, config, now, None)
+    }
+
+    pub(super) fn enqueue_inner_with_original(
+        &mut self,
+        input: &EnqueueRequest,
+        scope: &CanonicalScope,
+        config: &QueueConfig,
+        now: u64,
+        original_preparation: Option<&dyn super::original_preparation::InitialPreparationContext>,
+    ) -> Result<EnqueueOutcome> {
         if config != &self.config
             || input.receipt != *self.receipt
             || input.intent.request_digest.as_hex() != self.original.intent_digest()
@@ -48,6 +59,9 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
             QueuePhase::Entry,
             QueueAction::Enqueue(input),
         )?;
+        if let Some(preparation) = original_preparation {
+            preparation.revalidate()?;
+        }
         let tx = self
             .store
             .db
@@ -56,6 +70,10 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
         let identity = &config.registration.identity;
         let prior:Option<String>=tx.query_row("SELECT job_id FROM queue_jobs WHERE workspace_id=?1 AND home_id=?2 AND actor_id=?3 AND mutation_id=?4",params![r.workspace_id,r.home_id,r.actor_id,r.mutation_id],|x|x.get(0)).optional()?;
         if let Some(id) = prior {
+            // Fresh evidence cannot promote a retained receipt to replay authority.
+            if original_preparation.is_some() {
+                return Err(conflict());
+            }
             let row = load(&tx, &id)?;
             if row.request != *input
                 || row.scope != *scope
@@ -118,6 +136,9 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
                 QueuePhase::Precommit,
                 QueueAction::Enqueue(input),
             )?;
+            if let Some(preparation) = original_preparation {
+                preparation.revalidate()?;
+            }
             tx.commit()?;
             authorize_session(
                 self.authority,
@@ -128,6 +149,9 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
                 QueuePhase::Release,
                 QueueAction::Enqueue(input),
             )?;
+            if let Some(preparation) = original_preparation {
+                preparation.revalidate()?;
+            }
             return Ok(EnqueueOutcome::RejectedBeforeDispatch { reason });
         }
         let sequence:String=tx.query_row("SELECT next_sequence FROM queue_physical WHERE deployment_id=?1 AND physical_database_id=?2",params![identity.deployment_id,identity.physical_database_id],|x|x.get(0))?;
@@ -148,6 +172,9 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
         tx.execute("UPDATE queue_physical SET next_sequence=?1 WHERE deployment_id=?2 AND physical_database_id=?3",params![decimal(sequence),identity.deployment_id,identity.physical_database_id])?;
         tx.execute("INSERT INTO queue_jobs(job_id,deployment_id,physical_database_id,sequence,workspace_id,home_id,actor_id,mutation_id,intent_digest,original_json,request_json,canonical_scope_json,status,attempts,created_at,updated_at,next_attempt_at,body_accepted,activity,logical_fence,liability_json,codec_version) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,'queued',0,?13,?14,?15,0,'not-dispatched',0,?16,1)",params![id,identity.deployment_id,identity.physical_database_id,decimal(sequence),r.workspace_id,r.home_id,r.actor_id,r.mutation_id,input.intent.request_digest.as_hex(),encoded(self.original.raw())?,encoded(&request_value(input))?,encoded(&scope_value(scope))?,decimal(now),decimal(now),decimal(now),encoded(&liability_value(&zero_liability()))?])?;
         let output = load(&tx, &id)?.snapshot();
+        let retained_preparation = original_preparation
+            .map(|preparation| preparation.insert(&tx, &id))
+            .transpose()?;
         self.authority.validate_enqueue(
             self.principal,
             self.witness,
@@ -164,7 +191,15 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
             QueuePhase::Precommit,
             QueueAction::Enqueue(input),
         )?;
+        if let Some(preparation) = original_preparation {
+            preparation.revalidate()?;
+        }
         tx.commit()?;
+        // The actual queue and preparation rows are durable even when a later
+        // original authority/release check fails. Observation is DATA only.
+        if let (Some(preparation), Some(retained)) = (original_preparation, retained_preparation) {
+            preparation.committed(&output, retained);
+        }
         authorize_session(
             self.authority,
             self.principal,
@@ -174,6 +209,9 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
             QueuePhase::Release,
             QueueAction::Enqueue(input),
         )?;
+        if let Some(preparation) = original_preparation {
+            preparation.revalidate()?;
+        }
         Ok(EnqueueOutcome::Enqueued(output))
     }
     pub(super) fn claim_next_inner(
