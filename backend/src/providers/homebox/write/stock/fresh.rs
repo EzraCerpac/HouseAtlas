@@ -2,7 +2,10 @@
 //! Parsing establishes neither freshness, completeness, authority nor safe PUT.
 use super::*;
 use crate::providers::homebox::{read, wire};
-use crate::{access as a, domain::stock as st};
+use crate::{
+    access as a, app::homebox_quantity_startup::OriginalQuantityPhysical, domain::stock as st,
+    storage::StockActivityPrincipal as _,
+};
 use serde_json::{Value, json};
 use sha2::{Digest as _, Sha256};
 use std::{collections::BTreeSet, future::Future};
@@ -31,13 +34,34 @@ pub struct FreshReadbackCapture<E> {
 pub struct FreshQualification<'g, 'tx, 'p> {
     guard: &'g a::TransactionAuthorization<'tx>,
     captured: &'g st::CapturedAccess<'p>,
+    quantity_installation: Option<&'g OriginalQuantityPhysical<'g, 'p>>,
 }
 impl<'g, 'tx, 'p> FreshQualification<'g, 'tx, 'p> {
     pub fn new(
         guard: &'g a::TransactionAuthorization<'tx>,
         captured: &'g st::CapturedAccess<'p>,
     ) -> Result<Self, StockErrorCode> {
-        let context = Self { guard, captured };
+        let context = Self {
+            guard,
+            captured,
+            quantity_installation: None,
+        };
+        context.revalidate()?;
+        Ok(context)
+    }
+    /// Retain the actual Store-borrowed physical observation with the original
+    /// source wrapper. This checks only existing handles through the held
+    /// guard; Store identity and queue checks remain with the source owner.
+    pub fn with_quantity_installation(
+        guard: &'g a::TransactionAuthorization<'tx>,
+        captured: &'g st::CapturedAccess<'p>,
+        physical: &'g OriginalQuantityPhysical<'g, 'p>,
+    ) -> Result<Self, StockErrorCode> {
+        let context = Self {
+            guard,
+            captured,
+            quantity_installation: Some(physical),
+        };
         context.revalidate()?;
         Ok(context)
     }
@@ -46,6 +70,9 @@ impl<'g, 'tx, 'p> FreshQualification<'g, 'tx, 'p> {
     }
     pub fn captured(&self) -> &st::CapturedAccess<'p> {
         self.captured
+    }
+    pub fn quantity_installation(&self) -> Option<&OriginalQuantityPhysical<'g, 'p>> {
+        self.quantity_installation
     }
 
     /// Recheck the original handles using this same held authorization. This
@@ -62,6 +89,61 @@ impl<'g, 'tx, 'p> FreshQualification<'g, 'tx, 'p> {
             self.guard
                 .revalidate_source_partition(grant)
                 .map_err(access_error)?;
+        }
+        if let Some(physical) = self.quantity_installation {
+            let observation = physical.observation();
+            let original = observation.original();
+            let principal = original.original_activity_principal();
+            let source = original.original_activity_source();
+            let partition = original.original_activity_partition();
+            if !std::ptr::eq(principal, self.guard.principal())
+                || !std::ptr::eq(principal, self.captured.principal())
+                || source.reference() != observation.source_reference()
+                || partition.partition() != observation.source_partition()
+                || source.reference().partition() != *partition.partition()
+                || !self
+                    .captured
+                    .source_grants()
+                    .iter()
+                    .any(|grant| grant.reference() == source.reference())
+                || !self
+                    .captured
+                    .partition_grants()
+                    .iter()
+                    .any(|grant| grant.partition() == partition.partition())
+            {
+                return Err(StockErrorCode::CapabilityDenied);
+            }
+            let command = original.command();
+            let owner_id = match command.target.resource_kind {
+                ResourceKind::Entity => command.target.id(),
+                _ => command.target.owner(),
+            }
+            .map_err(|_| StockErrorCode::PreflightConflict)?;
+            let reference = source.reference();
+            if reference.workspace_id.as_str() != command.context.workspace_id.to_string()
+                || reference.home_id.as_str() != command.context.home_id.to_string()
+                || reference.key.source_kind != a::SourceKind::HomeboxEntity
+                || reference.key.source_instance_id.as_str()
+                    != command.target.source_instance_id.to_string()
+                || reference.key.collection_id != command.target.collection_id.to_string()
+                || reference.key.external_id != owner_id.to_string()
+            {
+                return Err(StockErrorCode::PreflightConflict);
+            }
+            self.guard.revalidate_source(source).map_err(access_error)?;
+            self.guard
+                .revalidate_source_partition(partition)
+                .map_err(access_error)?;
+            let metadata = self
+                .guard
+                .persisted_source_metadata(partition)
+                .map_err(access_error)?;
+            if &metadata != observation.source_metadata()
+                || metadata.registration().partition() != *partition.partition()
+            {
+                return Err(StockErrorCode::PreflightConflict);
+            }
         }
         self.guard.revalidate().map_err(access_error)?;
         Ok(())
