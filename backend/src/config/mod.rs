@@ -11,6 +11,7 @@ pub mod recovery;
 pub enum FixtureProfile {
     Standard,
     OpaqueCachedHomebox,
+    GeometryMetadata,
 }
 use std::{
     net::{Ipv4Addr, SocketAddr},
@@ -70,6 +71,7 @@ impl Config {
         let fixture_profile = match values.get("--fixture-profile").map(String::as_str) {
             None | Some("standard") => FixtureProfile::Standard,
             Some("opaque-cached-homebox") => FixtureProfile::OpaqueCachedHomebox,
+            Some("geometry-metadata") => FixtureProfile::GeometryMetadata,
             _ => return Err("Unsupported disposable fixture profile".into()),
         };
         Ok(Self {
