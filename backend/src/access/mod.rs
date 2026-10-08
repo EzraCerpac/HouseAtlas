@@ -8,6 +8,7 @@ mod credentials;
 mod error;
 mod existing;
 mod lifecycle;
+mod metadata;
 mod network;
 mod read;
 mod recovery;
@@ -20,6 +21,7 @@ pub use boundary::{AccessBoundary, AccessConfig, AccessLimits, TransactionAuthor
 pub use credentials::{PasswordVerifier, hash_password};
 pub use error::{AccessError, AccessResult};
 pub use lifecycle::{LifecycleCapability, LifecycleGrant, LifecyclePolicy, LifecycleRule};
+pub use metadata::SourceAuthorityMetadata;
 pub use network::{
     NetworkLinkGrant, NetworkLinkRef, NetworkObservationGrant, NetworkObservationRef,
 };
@@ -45,3 +47,6 @@ mod network_healthy;
 
 #[cfg(test)]
 mod shared_healthy;
+
+#[cfg(test)]
+mod metadata_healthy;
