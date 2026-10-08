@@ -43,8 +43,14 @@ pub use original_preparation::{
 };
 #[path = "queue_admission.rs"]
 mod admission;
+#[path = "queue_journal_custody.rs"]
+mod journal_custody;
 #[path = "queue_original_owner.rs"]
 mod original_owner;
+pub use journal_custody::{
+    OriginalQueueJournalCut, QueueOriginalJournalCommittedData,
+    QueueOriginalJournalCommittedObservation,
+};
 pub use original_owner::{
     OriginalQueuedQuantityAttempt, OriginalQueuedQuantityClaim, OriginalQueuedQuantityEnqueue,
     OriginalQueuedQuantityOwner, QueueOriginalCommittedData, QueueOriginalCommittedObservation,

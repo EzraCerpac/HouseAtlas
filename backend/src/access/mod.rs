@@ -7,6 +7,7 @@ mod boundary;
 mod credentials;
 mod error;
 mod existing;
+pub mod historical_presence;
 mod lifecycle;
 mod metadata;
 mod network;

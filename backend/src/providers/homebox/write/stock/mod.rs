@@ -13,8 +13,12 @@ mod quantity_installation;
 mod quantity_observation;
 mod quantity_profile;
 pub(crate) mod quantity_queue_original;
+pub(crate) mod quantity_queue_prepared;
 mod quantity_source;
 pub use quantity_queue_original::{NativeQuantityKnownZeroAdmission, NativeQueuedQuantityOriginal};
+pub use quantity_queue_prepared::{
+    NATIVE_QUEUED_QUANTITY_PREPARED_CODEC, NativeQueuedQuantityPrepared,
+};
 mod resources;
 mod types;
 mod workflow;

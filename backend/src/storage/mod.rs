@@ -59,15 +59,16 @@ pub use ports::{
     AssetProof, Authorization, AuthorizationRequest, Capability, Contract, Prior, Runtime,
 };
 pub use queue::{
-    JournalEvidenceView, NativeJournalReceipt, OriginalQueuedQuantityAttempt,
-    OriginalQueuedQuantityClaim, OriginalQueuedQuantityEnqueue, OriginalQueuedQuantityOwner,
-    PreparedNativeIntent, QueueAction, QueueAuthorization, QueueDiscovery, QueueEvidenceInbox,
-    QueueHandles, QueueJournalHandle, QueueJournalPort, QueueOriginalCommittedData,
-    QueueOriginalCommittedObservation, QueueOriginalIntent, QueueOriginalPreparationCommittedData,
-    QueueOriginalPreparationData, QueueOriginalPreparationObservation, QueuePhase,
-    QueueRecoveryAttempt, QueueRecoveryEvidence, QueueRecoveryOutcome, QueueSession,
-    QueueSessionBinding, QueueStepEvidence, QueueStoreHandle, RecordedOriginalEnqueue,
-    RecordedOriginalEnqueueProof, StepKind,
+    JournalEvidenceView, NativeJournalReceipt, OriginalQueueJournalCut,
+    OriginalQueuedQuantityAttempt, OriginalQueuedQuantityClaim, OriginalQueuedQuantityEnqueue,
+    OriginalQueuedQuantityOwner, PreparedNativeIntent, QueueAction, QueueAuthorization,
+    QueueDiscovery, QueueEvidenceInbox, QueueHandles, QueueJournalHandle, QueueJournalPort,
+    QueueOriginalCommittedData, QueueOriginalCommittedObservation, QueueOriginalIntent,
+    QueueOriginalJournalCommittedData, QueueOriginalJournalCommittedObservation,
+    QueueOriginalPreparationCommittedData, QueueOriginalPreparationData,
+    QueueOriginalPreparationObservation, QueuePhase, QueueRecoveryAttempt, QueueRecoveryEvidence,
+    QueueRecoveryOutcome, QueueSession, QueueSessionBinding, QueueStepEvidence, QueueStoreHandle,
+    RecordedOriginalEnqueue, RecordedOriginalEnqueueProof, StepKind,
 };
 pub use stock_activity::*;
 pub use stock_asset_review_types::*;
