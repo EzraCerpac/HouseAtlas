@@ -1,6 +1,11 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createEvidenceClient, isEvidenceId, type EvidenceRead } from '../../api/evidence-client';
 import { useStore } from '../state/store';
+import type { SourceRef } from '../../api/generated/contracts';
+
+function sourceReference(ref: SourceRef): string {
+  return `${ref.workspaceId} / ${ref.homeId} / ${ref.key.sourceInstanceId} / ${ref.key.collectionId} / ${ref.key.sourceKind} / ${ref.key.externalId}`;
+}
 
 /** Read only when the user activates the linked UUID. References remain plain text. */
 export function LinkedEvidence({ evidenceId }: { evidenceId: string }) {
@@ -58,6 +63,7 @@ export function LinkedEvidence({ evidenceId }: { evidenceId: string }) {
   };
   if (!isEvidenceId(evidenceId)) return null;
   const record = read.status === 'ready' ? read.record : null;
+  const provenance = record?.payload.provenance;
   return <div className="linked-evidence" data-evidence-id={evidenceId} style={{ overflowWrap: 'anywhere' }}>
     <button type="button" className="btn" aria-label={`View evidence ${evidenceId}`}
       disabled={!sessionCurrent || read.status === 'loading'} onClick={() => void load()}>View evidence</button>
@@ -77,9 +83,25 @@ export function LinkedEvidence({ evidenceId }: { evidenceId: string }) {
         <div><dt>Supersedes evidence IDs</dt><dd>{record.payload.supersedesEvidenceIds.length ? record.payload.supersedesEvidenceIds.join(', ') : 'None supplied'}</dd></div>
       </dl>
       <h4>Original provenance</h4>
-      <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(record.payload.provenance, null, 2)}</pre>
+      {provenance && <dl className="facts">
+        <div><dt>Evidence basis</dt><dd>{provenance.evidenceBasis}</dd></div>
+        <div><dt>Original fact date</dt><dd>{provenance.factAt ?? 'Not supplied'}</dd></div>
+        <div><dt>Retrieved</dt><dd>{provenance.retrievedAt}</dd></div>
+        <div><dt>Source reference</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{provenance.source ? sourceReference(provenance.source) : 'Not supplied'}</dd></div>
+        <div><dt>Source revision</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{provenance.sourceRevision ?? 'Not supplied'}</dd></div>
+        <div><dt>Source confidence</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{provenance.sourceConfidence ?? 'Not supplied'}</dd></div>
+        <div><dt>Vantage</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{provenance.vantage ?? 'Not supplied'}</dd></div>
+        <div><dt>Uncertainty status</dt><dd>{provenance.uncertainty.status}</dd></div>
+        <div><dt>Uncertainty explanation</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{provenance.uncertainty.explanation ?? 'Not supplied'}</dd></div>
+      </dl>}
       <h4>Original references</h4>
-      <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(record.payload.references, null, 2)}</pre>
+      {record.payload.references.length ? <ul aria-label="Original evidence references">
+        {record.payload.references.map((reference, index) => <li key={index} style={{ whiteSpace: 'pre-wrap' }}>
+          {reference.kind === 'atlas-asset' && <>Atlas asset ID: {reference.assetId}</>}
+          {reference.kind === 'homebox-attachment' && <>HomeBox attachment ID: {reference.attachmentId}<br />Source reference: {sourceReference(reference.entity)}</>}
+          {reference.kind === 'external-link' && <>External URL: {reference.url}<br />Not archived</>}
+        </li>)}
+      </ul> : <p className="body-text">None supplied</p>}
     </details>}
   </div>;
 }
