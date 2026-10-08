@@ -121,16 +121,27 @@ impl<
             guard,
         )
         .map_err(|_| changed())?;
-        let authority = QuantityGraphAuthority::new(guard, self.captured, self.native, &physical)?;
+        self.revalidate_original_phase(guard, &physical)
+    }
+
+    pub(crate) fn revalidate_original_phase<'phase>(
+        &self,
+        guard: &'phase access::TransactionAuthorization<'_>,
+        physical: &'phase OriginalQuantityPhysical<'phase, 'p>,
+    ) -> domain::StockResult<()>
+    where
+        'native: 'phase,
+    {
+        let authority = QuantityGraphAuthority::new(guard, self.captured, self.native, physical)?;
         let retained = domain::NativeQueueOriginalPreparation::bind_with_quantity_installation(
             guard,
             self.prepared,
             self.captured,
             &authority,
             self.native,
-            &physical,
+            physical,
         )?;
-        retained.revalidate_with_quantity_installation(guard, self.native.authority(), &physical)
+        retained.revalidate_with_quantity_installation(guard, self.native.authority(), physical)
     }
 }
 
@@ -251,8 +262,12 @@ impl<
             || target.resource_kind != native::ResourceKind::Entity
             || target.entity_id.is_some()
             || command.native_sync_behavior.is_some()
-            || command.approval_receipt_id.is_some()
-            || !matches!(expected.policy, native::QuantityPolicy::NoHuman { .. })
+            || match expected.policy {
+                native::QuantityPolicy::NoHuman { .. } => command.approval_receipt_id.is_some(),
+                native::QuantityPolicy::HumanRequired => {
+                    command.approval_receipt_id.is_none_or(|id| id.is_nil())
+                }
+            }
             || self.captured.source_grants().len() != 1
             || self.captured.partition_grants().len() != 1
             || self.captured.source_grants()[0].reference() != source.reference()

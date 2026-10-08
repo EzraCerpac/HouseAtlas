@@ -3,6 +3,7 @@ pub mod homebox_quantity_graph;
 pub mod homebox_quantity_startup;
 pub mod homebox_stock_host;
 pub mod media_policy_recovery;
+pub mod quantity_approval;
 pub mod stock_activity_principal;
 use crate::{access as a, domain as d, http::contracts::NativeContracts, storage as s};
 use std::{

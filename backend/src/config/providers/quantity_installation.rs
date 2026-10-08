@@ -215,6 +215,9 @@ impl OriginalQuantityConfigured {
             input,
         }))
     }
+    pub(crate) fn belongs_to_core(&self, core: &app::Core) -> bool {
+        Arc::ptr_eq(&self.access, &core.access) && Arc::ptr_eq(&self._store_owner, &core.store)
+    }
     pub fn source(&self) -> &Arc<ConfiguredSource> {
         &self.source
     }

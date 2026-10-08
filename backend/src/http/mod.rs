@@ -14,6 +14,8 @@ mod operation_events;
 mod pages;
 pub mod providers;
 pub mod qualified_upload_plan;
+mod quantity;
+mod quantity_worker;
 mod query;
 mod reads;
 mod response;
@@ -76,6 +78,9 @@ pub struct Host {
     native_media_archive:
         Option<Arc<Mutex<crate::media::native_policy_archive::NativeMediaArchiveOwner>>>,
     operation_events: Arc<Mutex<operation_events::EventRegistry>>,
+    quantity_installations:
+        Arc<Vec<Arc<crate::config::providers::quantity_installation::OriginalQuantityConfigured>>>,
+    quantity_previews: Arc<Mutex<quantity::Registry>>,
 }
 impl Host {
     pub fn new(
@@ -90,6 +95,8 @@ impl Host {
             mcp_scopes: Arc::new(core.homes.iter().map(|home| home.scope.clone()).collect()),
             asset_reviews: Arc::new(Mutex::new(asset_reviews::ReviewRegistry::default())),
             native_media_archive: None,
+            quantity_installations: Arc::new(Vec::new()),
+            quantity_previews: Arc::new(Mutex::new(quantity::Registry::default())),
             operation_events: Arc::new(Mutex::new(operation_events::EventRegistry::default())),
             core: Arc::new(Mutex::new(core)),
             origin,
@@ -106,6 +113,40 @@ impl Host {
             )),
         })
     }
+    /// Explicit original startup selections; no provider or artifact I/O here.
+    pub fn with_quantity_installations(
+        mut self,
+        selected: Vec<
+            Arc<crate::config::providers::quantity_installation::OriginalQuantityConfigured>,
+        >,
+    ) -> crate::storage::Result<Self> {
+        let core = self.core.lock().map_err(|_| {
+            crate::storage::Error::new("owner-unavailable", "Quantity host unavailable")
+        })?;
+        let mut targets = std::collections::BTreeSet::new();
+        for configuration in &selected {
+            let descriptor = configuration.descriptor();
+            if !targets.insert(serde_json::to_string(&(
+                descriptor.scope.clone(),
+                descriptor.target.clone(),
+            ))?) {
+                return Err(crate::storage::Error::new(
+                    "identity-conflict",
+                    "Duplicate quantity target",
+                ));
+            }
+        }
+        if selected.len() > 64 || selected.iter().any(|s| !s.belongs_to_core(&core)) {
+            return Err(crate::storage::Error::new(
+                "identity-conflict",
+                "Original quantity configuration required",
+            ));
+        }
+        drop(core);
+        self.quantity_installations = Arc::new(selected);
+        Ok(self)
+    }
+
     /// Select admission only for subsequently initialized sessions. This data
     /// grants no authority or approval and cannot broaden an existing session.
     /// The default binary retains ReadOnly.
@@ -709,6 +750,10 @@ pub fn router(host: Host) -> Router {
 /// The caller supplies an AI router bound to actual session and enrollment peers.
 pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
     let base = Router::new()
+        .route("/api/atlas/homebox/quantity/availability", get(quantity::availability).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/homebox/quantity/preview", post(quantity::preview).fallback(auth::session_head))
+        .route("/api/atlas/homebox/quantity/approval", post(quantity::approval).fallback(auth::session_head))
+        .route("/api/atlas/homebox/quantity/dispatch", post(quantity::dispatch).fallback(auth::session_head))
         .route("/api/atlas/retained-intent", get(operation_events::reconcile_intent).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/operation-events", get(operation_events::events).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/collections/{collection_id}/cached", get(providers::cached_homebox).head(auth::session_head).fallback(auth::session_head))
