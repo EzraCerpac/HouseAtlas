@@ -111,6 +111,7 @@ struct EventAuthority<'a> {
     original_graph: &'a s::Snapshot,
     captured: OnceCell<crate::contracts::semantics::ReferenceClosure>,
     initial: bool,
+    intent: Option<&'a serde_json::Value>,
 }
 impl s::Authorization for EventAuthority<'_> {
     type Principal = RequestPrincipal;
@@ -215,8 +216,19 @@ impl s::StockRetainedReadAuthorization for EventAuthority<'_> {
                 mutation: None,
             },
         )?;
-        if frame.intent.is_some() || frame.commit.is_some() || frame.scope != self.scope {
+        if frame.scope != self.scope {
             return Err(unavailable());
+        }
+        match self.intent {
+            None if frame.intent.is_some() || frame.commit.is_some() => return Err(unavailable()),
+            Some(raw)
+                if frame.intent.map(d::stock::ValidatedRequest::raw) != Some(raw)
+                    || !frame.events.is_empty()
+                    || !frame.retained_commits.is_empty() =>
+            {
+                return Err(unavailable());
+            }
+            _ => {}
         }
         let expected = match self.phase.get() {
             0 | 2 => s::StockRetainedReadPhase::Intake,
@@ -250,7 +262,11 @@ impl s::StockRetainedReadAuthorization for EventAuthority<'_> {
         }
         let mut graph = self.original_graph.clone();
         graph.records.extend(self.graph.records.iter().cloned());
-        let closure = closure(&graph, frame.scope, frame.retained_commits)?;
+        let commits = frame
+            .commit
+            .map(std::slice::from_ref)
+            .unwrap_or(frame.retained_commits);
+        let closure = closure(&graph, frame.scope, commits)?;
         if serde_json::to_vec(&closure)?.len() > MAX_GRAPH_BYTES
             || closure.record_refs.len() > MAX_CLOSURE_REFS
             || closure.source_refs.len() > MAX_CLOSURE_REFS
@@ -436,6 +452,7 @@ pub(super) async fn events(
             original_graph: &original_graph,
             captured,
             initial,
+            intent: None,
         };
         let contracts =
             d::stock::NativeStockContract::new().map_err(super::stock_reads::http_error)?;
@@ -521,6 +538,158 @@ pub(super) async fn events(
                     closure,
                 });
         }
+        response.ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))
+    })
+    .await
+    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
+}
+
+/// Complete submitted intent is a bounded selector, never execution authority.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct IntentQuery {
+    home_id: a::CanonicalId,
+    intent: String,
+}
+pub(super) async fn reconcile_intent(
+    State(host): State<Host>,
+    Query(query): Query<IntentQuery>,
+    Extension(headers): Extension<CheckedHeaders>,
+    uri: Uri,
+) -> HttpResult {
+    if query.intent.is_empty() || query.intent.len() > 16 * 1024 {
+        return Err(failure(StatusCode::PAYLOAD_TOO_LARGE));
+    }
+    let raw = super::intake::json(query.intent.as_bytes())?;
+    tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
+        let mut core = host
+            .core
+            .lock()
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        let matches: Vec<_> = core
+            .homes
+            .iter()
+            .filter(|home| home.scope.home_id == query.home_id.as_str())
+            .collect();
+        let scope = match matches.as_slice() {
+            [home] => home.scope.clone(),
+            [] => return Err(failure(StatusCode::NOT_FOUND)),
+            _ => return Err(failure(StatusCode::SERVICE_UNAVAILABLE)),
+        };
+        let native_scope = crate::app::access_scope(&scope).map_err(access_error)?;
+        let storage_scope: s::Scope = serde_json::from_value(
+            serde_json::to_value(&scope).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
+        )
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        if raw["context"]
+            != serde_json::to_value(&storage_scope)
+                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
+        {
+            return Err(failure(StatusCode::FORBIDDEN));
+        }
+        let url = format!(
+            "{}{}",
+            host.origin,
+            uri.path_and_query().map_or("/", |path| path.as_str())
+        );
+        let request =
+            evidence(&host.origin, &headers, &uri, &url, &Method::GET).map_err(access_error)?;
+        let (principal, session) = {
+            let mut access = core
+                .access
+                .lock()
+                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+            let principal = access
+                .authorize(&request, &native_scope, a::Action::Read)
+                .map_err(access_error)?;
+            access
+                .authorize_storage(&principal, &native_scope, a::Capability::ReadHistory)
+                .map_err(access_error)?;
+            let session = access
+                .authenticated_session_binding(&principal)
+                .map_err(access_error)?;
+            (Box::new(RequestPrincipal::new(principal)), session)
+        };
+        let graph =
+            super::reads::retained_read_snapshot(&mut core, &host, &principal, &storage_scope)?;
+        if serde_json::to_vec(&graph)
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
+            .len()
+            > MAX_GRAPH_BYTES
+        {
+            return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+        }
+        let owner = s::StockRetainedReadOwner::new();
+        let access = Arc::clone(&core.access);
+        let store = core
+            .store
+            .get_mut()
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        if !Arc::ptr_eq(&store.configured_authorization().0, &access) {
+            return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+        }
+        let authority = EventAuthority {
+            principal: &principal,
+            scope: &storage_scope,
+            access: &access,
+            owner: &owner,
+            graph: &graph,
+            phase: Cell::new(0),
+            original_graph: &graph,
+            captured: OnceCell::new(),
+            initial: true,
+            intent: Some(&raw),
+        };
+        let contracts =
+            d::stock::NativeStockContract::new().map_err(super::stock_reads::http_error)?;
+        let prepared = store
+            .prepare_stock_retained_intent_with_authorization(
+                &authority,
+                &principal,
+                &contracts,
+                &raw,
+                principal.principal.retained(),
+            )
+            .map_err(|error| domain_error(crate::app::storage_error(error)))?;
+        let result = store
+            .disclose_stock_retained_committed_result_with_authorization(
+                &authority, &principal, &contracts, &prepared,
+            )
+            .map_err(|error| domain_error(crate::app::storage_error(error)))?;
+        if authority.phase.get() != 5 {
+            return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+        }
+        let mut response = None;
+        let mut access_guard = access
+            .lock()
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        if access_guard
+            .authenticated_session_binding(&principal.principal)
+            .map_err(access_error)?
+            != session
+        {
+            return Err(failure(StatusCode::FORBIDDEN));
+        }
+        access_guard
+            .with_read_authorization(
+                principal.principal.principal(),
+                |guard| -> a::AccessResult<()> {
+                    guard.authorize(principal.principal.scope(), a::Capability::ReadHistory)?;
+                    let final_closure = authority
+                        .captured
+                        .get()
+                        .ok_or(a::AccessError::Unavailable)?;
+                    principal.release_guard(guard, final_closure)?;
+                    let value =
+                        serde_json::to_value(&result).map_err(|_| a::AccessError::Unavailable)?;
+                    // This is a reconciliation wrapper containing the saved envelope;
+                    // ordinary current-command result validation would relabel its ID.
+                    response = Some(super::json_response(value));
+                    Ok(())
+                },
+            )
+            .map_err(access_error)?;
         response.ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))
     })
     .await

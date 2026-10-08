@@ -595,6 +595,7 @@ pub fn router(host: Host) -> Router {
 /// The caller supplies an AI router bound to actual session and enrollment peers.
 pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
     let base = Router::new()
+        .route("/api/atlas/retained-intent", get(operation_events::reconcile_intent).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/operation-events", get(operation_events::events).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/collections/{collection_id}/cached", get(providers::cached_homebox).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/cached", get(providers::cached_homebox_query).head(auth::session_head).fallback(auth::session_head))

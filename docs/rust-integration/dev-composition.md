@@ -58,8 +58,21 @@ An optional request-local Store observer now captures the actual canonical commi
 after the SQL transaction returns, before postcommit Media release. The host
 keeps that data privately under the existing session/scope/actor and capacity/TTL
 bounds, with separate Store-qualified and final HTTP-release states. This data
-grants no disclosure, proof reconstruction or retry. A fresh authorized exact-intent
-reconciliation API remains a source gap; normal record/history reads are available.
+grants no disclosure, proof reconstruction or retry. The read-only `GET /api/atlas/retained-intent?homeId=UUID&intent=ENCODED_JSON`
+now resolves a complete submitted Atlas stock intent under a fresh actual
+ReadHistory principal. The decoded intent is limited to 16 KiB and must match the
+resolved home scope. Same-Store preparation and fresh disclosure validate the
+saved canonical receipt, complete historical/current source closure and original
+boxed principal. Historical source grants are captured before sealing; release
+uses a fresh current Access guard. The response format is
+`atlas-retained-reconciliation/1`, with the submitted lookup envelope's
+`lookupRequestId` and the unchanged saved canonical wire/ordered children.
+Root lookup IDs may differ from the saved ID; child keys require their complete
+saved child envelope. No server-generated ID or replay relabeling is claimed.
+Both original Media release and original HTTP delivery remain not-established.
+A missing retained receipt gives no retry-safety conclusion. The ordinary
+stock-write fixture adds four positive GET lookups for its already committed
+synthetic singles/batches; it executes no retry, missing-key or failure control.
 Four cached HomeBox
 entity/location reads are mounted in native stock and HTTP/MCP. The remaining
 HomeBox read families and durable writer host require genuine owner peers. PR119
@@ -84,7 +97,7 @@ complete references/impact/hidden-field proof and private retained-proof handoff
 with admission-time revalidation remain required. Digests provide integrity
 binding and do not grant authority, release credentials or activate a writer.
 Missing product areas include Core-only MCP download admission, Core-only MCP Network query mounts, complete
-provider setup and UI, trusted AI configuration/startup callers and receipt identity,
+provider setup and UI, trusted AI production configuration/approval provenance,
 and composed populated recovery. The HTTP saved Network query adapter now uses
 lock-per-phase orchestration around the original runtime, with configured member
 grants captured before source capture is sealed. It retains the same original
@@ -201,3 +214,34 @@ The Rooms view renders producer/version/units/scale/transform/provenance facts.
 Plan shapes and placements remain absent because the stored payload contains
 no coordinates. The optional Rust-backed fixture keeps its original asset
 missing and blocked, with no inferred file availability.
+
+
+The explicit `ai::host::trusted_startup::TrustedAiStartup` source assembler now
+connects the actual AiHost, NativeHostAuthority, ReceiptEnrollment and HTTP router.
+It requires the identical Access allocation and StatusJournal owner from the
+EnrollmentOwner plus genuine caller-supplied HostPeers. Its Serialize-only
+camelCase receipt identity is projected between actual receipt revalidations;
+identity fields are correlation data. Approval provenance, model/credential
+origins and production peer configuration remain mandatory external owner inputs.
+The default binary supplies none and keeps AI unavailable. This composition runs
+no enrollment, credential, provider or approval operation.
+
+The default owned MCP lifecycle keeps its read-only admission set. A separate
+unmounted Editor startup binding accepts only the existing opaque authenticated
+POST mutation identity, then uses actual current Editor capabilities and the same
+finite typed stock service, approval consumption and native transaction/result
+adapters. It holds no Core lock across async binding. Admission does not supply
+missing specialized owner peers. The existing WebMCP adapter already uses scoped
+same-origin HTTP commands and canonical result validation; no replacement adapter
+or authority DTO is introduced.
+
+
+HomeBoxReader now supplies sealed fixed-native entity and maintenance GET
+captures through its actual configured Transport, Clock, registration allowlist
+and existing byte/decoder limits. Captures retain original bytes, source JSON,
+native scope, target, status and retrieval time; they establish neither complete
+snapshot consistency nor hidden-field PUT qualification, credentials, current
+Access custody or file version. The named source harness covers two bounded
+in-process synthetic GETs. The supplied chunked HTTP test source remains unrun:
+baseline library-test compilation lacks the existing Network fixture's rcgen
+and tokio-rustls dev dependencies. No dependency or Network source was changed.

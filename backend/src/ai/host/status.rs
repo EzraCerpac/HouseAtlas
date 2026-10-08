@@ -24,6 +24,10 @@ pub struct StatusJournal {
     active: Arc<Mutex<BTreeMap<Key, Cancellation>>>,
 }
 impl StatusJournal {
+    /// Both durable status and live cancellation state must have one owner.
+    pub(crate) fn same_owner(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.db, &other.db) && Arc::ptr_eq(&self.active, &other.active)
+    }
     /// Supply a dedicated, securely opened private SQLite database. The host
     /// does not choose a path, migrate the Atlas schema or store credentials.
     /// Its caller owns canonical-path/no-follow/permission and retention policy.

@@ -54,18 +54,52 @@ pub(crate) async fn bind_owned_lifecycle(
     context: McpStockContext,
     identity: m::lifecycle::AuthenticatedIdentity,
 ) -> Result<OwnedLifecycle, m::PortError> {
-    let schemas = m::NativeSchemas::from_bytes(
-        include_bytes!("../../../../contracts/stock-wire3/agent/agent.schema.json"),
-        include_bytes!("../../../../packages/contracts/schemas/atlas.schema.json"),
-    )?;
-    let mut admitted = context
+    let admitted = context
         .core
         .try_lock()
         .ok()
         .map_or_else(super::capabilities::reads, |core| {
             super::capabilities::reads_for(&core)
         });
-    admitted.push(crate::contracts::stock::OperationId::AtlasAssetDownload);
+    bind_owned_admission(context, identity, admitted).await
+}
+
+/// Explicit source-only Editor composition. The default transport continues to
+/// bind read admission. A trusted application caller must select this variant;
+/// metadata creates no approval, original principal or execution authority.
+#[expect(
+    dead_code,
+    reason = "Editor MCP command startup selection remains unmounted"
+)]
+pub(crate) async fn bind_owned_editor_lifecycle(
+    context: McpStockContext,
+    identity: m::lifecycle::AuthenticatedIdentity,
+) -> Result<OwnedLifecycle, m::PortError> {
+    if identity.original().role() != crate::access::Role::Editor {
+        return Err(m::PortError::Forbidden);
+    }
+    let admitted = {
+        let core = context
+            .core
+            .try_lock()
+            .map_err(|_| m::PortError::Unavailable)?;
+        super::capabilities::admitted(&core, identity.original())
+    };
+    bind_owned_admission(context, identity, admitted).await
+}
+
+async fn bind_owned_admission(
+    context: McpStockContext,
+    identity: m::lifecycle::AuthenticatedIdentity,
+    mut admitted: Vec<crate::contracts::stock::OperationId>,
+) -> Result<OwnedLifecycle, m::PortError> {
+    let schemas = m::NativeSchemas::from_bytes(
+        include_bytes!("../../../../contracts/stock-wire3/agent/agent.schema.json"),
+        include_bytes!("../../../../packages/contracts/schemas/atlas.schema.json"),
+    )?;
+    if !admitted.contains(&crate::contracts::stock::OperationId::AtlasAssetDownload) {
+        admitted.push(crate::contracts::stock::OperationId::AtlasAssetDownload);
+    }
     if context.network_bindings.iter().any(|binding| {
         binding
             .runtime()

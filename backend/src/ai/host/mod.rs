@@ -12,6 +12,7 @@ pub mod native;
 pub mod service;
 pub mod status;
 pub mod transport;
+pub mod trusted_startup;
 mod verification;
 
 use crate::ai::{AiError, oauth::RegistrationBinding};

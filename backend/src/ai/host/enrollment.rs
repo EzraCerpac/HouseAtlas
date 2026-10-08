@@ -126,6 +126,14 @@ struct Row {
     configuration: String,
 }
 impl EnrollmentOwner {
+    /// Check the owners supplied to trusted startup without reading either DB.
+    pub(crate) fn owns(
+        &self,
+        access: &Arc<Mutex<access::AccessBoundary>>,
+        journal: &StatusJournal,
+    ) -> bool {
+        Arc::ptr_eq(&self.access, access) && self.journal.same_owner(journal)
+    }
     pub fn new(
         connection: Connection,
         access: Arc<Mutex<access::AccessBoundary>>,
