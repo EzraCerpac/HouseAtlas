@@ -7,6 +7,7 @@ mod http_transport;
 mod native_capture;
 mod native_file_capture;
 mod native_presence_capture;
+pub mod native_presence_owner;
 mod native_query;
 mod navigation;
 mod publication;
@@ -25,6 +26,10 @@ pub use native_capture::{CapturedStockEntity, CapturedStockMaintenance, NativeCa
 pub use native_file_capture::CapturedNativeFileSnapshot;
 pub use native_presence_capture::{
     NativePresenceCapture, NativePresenceGeneration, NativePresenceIdentity, NativePresenceResponse,
+};
+pub use native_presence_owner::{
+    ConfiguredNativePresenceCapture, ConfiguredNativePresenceOrigin, NativePresenceCaptureError,
+    NativePresenceOwnerError, NativePresenceReader, PreparedConfiguredNativePresence,
 };
 pub use native_query::{NativeReadCapture, NativeReadOwner};
 pub use navigation::{NativeNavigation, NativeRoute};

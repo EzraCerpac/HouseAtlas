@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "6fb371be9f72e621d44970b574612739c9256972b66c74dd65c2be78d17861c9",
+  "sourceDigestSha256": "ad5d4fe2b43ef1aa9d0ad3ea0e1610df6dcda9e29508bf9ecfb7097abc2abeab",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -840,8 +840,8 @@
     {
       "path": "backend/src/app.rs",
       "mode": "100644",
-      "bytes": 27363,
-      "sha256": "d7cc913355809dfaaaa1b00b7808f4377b967285182d6431c02b16a2e39311aa",
+      "bytes": 27389,
+      "sha256": "f0ec08c21fb661aae08af23800dd34e3d15755bf4220abc75435a05646bb419d",
       "owner": "core-integration"
     },
     {
@@ -849,6 +849,13 @@
       "mode": "100644",
       "bytes": 2089,
       "sha256": "bf489fe541a9e47593e2eb7bad20ff3132683f359ee8f52c5dbba1c1e9303aed",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/app/homebox_presence.rs",
+      "mode": "100644",
+      "bytes": 6182,
+      "sha256": "464894fa06652f56dc286fc571db3e61241f0f3442f90b81920d7d1d3250f87b",
       "owner": "core-integration"
     },
     {
@@ -1839,6 +1846,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/http/homebox_pinned_files.rs",
+      "mode": "100644",
+      "bytes": 13963,
+      "sha256": "e01b3c9cf291affb1bc217ff1da15f2a0c246c456fac36b48b9dd606c6d1c9f6",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/http/intake.rs",
       "mode": "100644",
       "bytes": 3562,
@@ -1862,8 +1876,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 36939,
-      "sha256": "6c9a3388bf68f2259e1760bca932945df7c83932f77543291db24afc4160deaf",
+      "bytes": 39056,
+      "sha256": "658ede65492699d7e0cf3f77a3f9c978bd1779b795e4768ce251dd77fdd23f1b",
       "owner": "core-integration"
     },
     {
@@ -2646,8 +2660,8 @@
     {
       "path": "backend/src/providers/homebox/read/mod.rs",
       "mode": "100644",
-      "bytes": 1692,
-      "sha256": "a8d4ee70923ccb4041402f19e55f47254aa49e728852c28cfb6d273b8949a46c",
+      "bytes": 1942,
+      "sha256": "df675c272babe0743b6981febc67a4fbe059878acb161875910d695862557632",
       "owner": "homebox"
     },
     {
@@ -2676,6 +2690,13 @@
       "mode": "100644",
       "bytes": 5230,
       "sha256": "729e9c6ca4538ef75e91eac0199d01b77663d825cc2d6aca5e924b3c77fafb28",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/read/native_presence_owner.rs",
+      "mode": "100644",
+      "bytes": 17081,
+      "sha256": "c9240677cc610fb1dc5c31db26c288ce4c2a90657c2ef44733b390b214d7091d",
       "owner": "homebox"
     },
     {
