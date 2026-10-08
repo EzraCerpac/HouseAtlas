@@ -68,7 +68,7 @@ export function mountGatewayWebMcp(options: GatewayMountOptions): WebMcpHandle {
           /[\\\u0000-\u0020\u007f]/u.test(resolvedDownload.href)))
           throw new TypeError("Download must use an issued same-origin path");
         const remainingMs = resolvedDownload?.lifetime?.remainingMs;
-        const cutoff = remainingMs !== undefined && Number.isSafeInteger(remainingMs) && remainingMs > 0
+        const cutoff = remainingMs !== undefined && Number.isSafeInteger(remainingMs) && remainingMs > 0 && remainingMs <= 300_000
           ? downloadStartedAt + remainingMs : null;
         const download = cutoff !== null && Number.isFinite(cutoff) && performance.now() < cutoff
           ? resolvedDownload : null;

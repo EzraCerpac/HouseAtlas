@@ -79,7 +79,7 @@ export async function runGatewayHealthyReact(container: HTMLElement,
       events.push(`download:${name}`);
       return name === "fixture_gateway_download" ? { href: "/synthetic-issued-download/healthy.json",
         filename: "healthy.json", mediaType: "application/json", label: "Download file",
-        lifetime: { remainingMs: 60_000 } } : null;
+        lifetime: { remainingMs: 299_999 } } : null;
     },
   };
   function HealthyHost({ publishRevision, ...props }: GatewayWebMcpBoundaryProps & { readonly publishRevision?: string }) {

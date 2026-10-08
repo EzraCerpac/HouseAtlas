@@ -35,7 +35,8 @@ export interface GatewayDownload {
   readonly mediaType: string;
   readonly label: string;
   /** Actual available Media owner's floored remaining monotonic budget after
-   * final authenticated checks. Never infer this from a token, URL or clock. */
+   * final authenticated checks, at most 300000ms for the owner's five-minute
+   * handle. Never infer this from a token, URL or clock. */
   readonly lifetime: { readonly remainingMs: number };
 }
 export interface GatewayDownloadPort {

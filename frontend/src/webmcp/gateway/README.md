@@ -24,8 +24,8 @@ from actual host-issued availability. The adapter accepts a same-origin absolute
 no download URL and retrieves no bytes. The resolver owns current authorization,
 availability and the association with the confirmed result. Only Media's actual
 `{state: 'available', lifetime: {remainingMs}}` status can supply a link;
-`unavailable` and `unbound` resolve null. The positive integer millisecond budget
-is floored from the retained owner's monotonic deadline after its final
+`unavailable` and `unbound` resolve null. The positive integer millisecond budget is at most 300000ms
+for the owner's five-minute handle and is floored from the retained owner's monotonic deadline after its final
 authenticated current-record/bytes checks. It is not inferred from a token, URL,
 request time or wall clock, and the browser never renews it.
 
