@@ -67,6 +67,22 @@ impl<C, A: Authorization, R, Q: QueueAuthorization<Principal = A::Principal>>
         job: &LeasedJob,
         prepared: &PreparedNativeIntent,
     ) -> Result<NativeJournalReceipt> {
+        self.commit_native_inner_with_owned(job, prepared, None, None)
+    }
+
+    pub(super) fn commit_native_inner_with_owned(
+        &mut self,
+        job: &LeasedJob,
+        prepared: &PreparedNativeIntent,
+        capture: Option<&super::journal_custody::QueueOriginalJournalCapture<'_>>,
+        owned: Option<&dyn super::quantity_original::OwnedQuantityContext>,
+    ) -> Result<NativeJournalReceipt> {
+        if capture.is_some() != owned.is_some() {
+            return Err(conflict());
+        }
+        if let Some(capture) = capture {
+            capture.validate_session(self, job, prepared)?;
+        }
         if prepared.codec.is_empty()
             || prepared.codec.len() > 128
             || prepared.native_payload.is_empty()
@@ -75,19 +91,34 @@ impl<C, A: Authorization, R, Q: QueueAuthorization<Principal = A::Principal>>
         {
             return Err(invalid());
         }
-        authorize_session(
-            self.authority,
-            self.principal,
-            self.witness,
-            self.original,
-            self.receipt,
-            QueuePhase::Entry,
-            QueueAction::Journal(job, prepared),
-        )?;
+        if owned.is_none() {
+            authorize_session(
+                self.authority,
+                self.principal,
+                self.witness,
+                self.original,
+                self.receipt,
+                QueuePhase::Entry,
+                QueueAction::Journal(job, prepared),
+            )?;
+        }
         let tx = self
             .store
             .db
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        if let Some(owned) = owned {
+            owned.revalidate(&tx)?;
+            authorize_session(
+                self.authority,
+                self.principal,
+                self.witness,
+                self.original,
+                self.receipt,
+                QueuePhase::Entry,
+                QueueAction::Journal(job, prepared),
+            )?;
+            owned.revalidate(&tx)?;
+        }
         let row = validate_job(&tx, &self.config, job)?;
         matches_original(self.receipt, self.original, &row, &self.config)?;
         validate_prepared_liability(job, &prepared.storage_liability)?;
@@ -108,6 +139,9 @@ impl<C, A: Authorization, R, Q: QueueAuthorization<Principal = A::Principal>>
             "SELECT native_codec,native_payload_digest,prepared_media_digest,prepared_liability_json,journal_evidence_digest,native_payload,prepared_media FROM queue_journal WHERE job_id=?1 AND fence=?2",
             params![job.lease.job_id.0,decimal(job.lease.fence)],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?))).optional()?;
         let new_journal = existing.is_none();
+        if capture.is_some() && !new_journal {
+            return Err(conflict());
+        }
         if let Some((codec, n, m, l, j, np, pm)) = existing {
             if (codec, n, m, l, j, np, pm)
                 != (
@@ -147,6 +181,17 @@ impl<C, A: Authorization, R, Q: QueueAuthorization<Principal = A::Principal>>
                 &prepared.storage_liability,
             )?;
         }
+        let receipt = if capture.is_some() {
+            Some(NativeJournalReceipt {
+                native_payload_digest: Digest::from_hex(native.clone()).map_err(|_| bad())?,
+                journal_evidence_digest: Digest::from_hex(journal.clone()).map_err(|_| bad())?,
+            })
+        } else {
+            None
+        };
+        if let Some(owned) = owned {
+            owned.revalidate(&tx)?;
+        }
         authorize_session(
             self.authority,
             self.principal,
@@ -156,19 +201,47 @@ impl<C, A: Authorization, R, Q: QueueAuthorization<Principal = A::Principal>>
             QueuePhase::Precommit,
             QueueAction::Journal(job, prepared),
         )?;
+        if let Some(owned) = owned {
+            owned.revalidate(&tx)?;
+        }
         tx.commit()?;
-        authorize_session(
-            self.authority,
-            self.principal,
-            self.witness,
-            self.original,
-            self.receipt,
-            QueuePhase::Release,
-            QueueAction::Journal(job, prepared),
-        )?;
-        Ok(NativeJournalReceipt {
-            native_payload_digest: Digest::from_hex(native).map_err(|_| bad())?,
-            journal_evidence_digest: Digest::from_hex(journal).map_err(|_| bad())?,
-        })
+        if let Some(capture) = capture {
+            capture.record_committed(job, prepared, receipt.as_ref().ok_or_else(bad)?)?;
+        }
+        if let Some(owned) = owned {
+            let release = self
+                .store
+                .db
+                .transaction_with_behavior(TransactionBehavior::Deferred)?;
+            owned.revalidate(&release)?;
+            authorize_session(
+                self.authority,
+                self.principal,
+                self.witness,
+                self.original,
+                self.receipt,
+                QueuePhase::Release,
+                QueueAction::Journal(job, prepared),
+            )?;
+            owned.revalidate(&release)?;
+            release.commit()?;
+        } else {
+            authorize_session(
+                self.authority,
+                self.principal,
+                self.witness,
+                self.original,
+                self.receipt,
+                QueuePhase::Release,
+                QueueAction::Journal(job, prepared),
+            )?;
+        }
+        match receipt {
+            Some(receipt) => Ok(receipt),
+            None => Ok(NativeJournalReceipt {
+                native_payload_digest: Digest::from_hex(native).map_err(|_| bad())?,
+                journal_evidence_digest: Digest::from_hex(journal).map_err(|_| bad())?,
+            }),
+        }
     }
 }
