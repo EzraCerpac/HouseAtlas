@@ -77,6 +77,15 @@ pub struct ApplicationAuthority<R> {
     host: Host,
     registrations: Arc<R>,
 }
+impl<R> ApplicationAuthority<R> {
+    /// Same supplied native Host and enrollment owner; no default authority.
+    pub(super) fn new(host: Host, registrations: Arc<R>) -> Self {
+        Self {
+            host,
+            registrations,
+        }
+    }
+}
 impl<R> Clone for ApplicationAuthority<R> {
     fn clone(&self) -> Self {
         Self {
@@ -254,10 +263,7 @@ where
     H: HostApi<Context = NativeHostContext> + 'static,
     R: EnrollmentPort + 'static,
 {
-    let application = ApplicationAuthority {
-        host,
-        registrations,
-    };
+    let application = ApplicationAuthority::new(host, registrations);
     crate::ai::host::http::router(
         Arc::new(NativeApi(api)),
         SessionHttpGate {
