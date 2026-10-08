@@ -28,6 +28,8 @@ pub(crate) trait CommandExtension<C: Contract> {
         actor: &VerifiedActor,
     ) -> Result<()>;
     fn persist(&self, db: &Connection, hashes: &[String]) -> Result<()>;
+    /// Infallible observation only after the fresh command SQL commit returns.
+    fn record_committed(&mut self);
 }
 pub(crate) struct Core;
 impl<C: Contract> CommandExtension<C> for Core {
@@ -63,4 +65,5 @@ impl<C: Contract> CommandExtension<C> for Core {
     fn persist(&self, _: &Connection, _: &[String]) -> Result<()> {
         Ok(())
     }
+    fn record_committed(&mut self) {}
 }
