@@ -55,21 +55,93 @@ pub struct AssetReviewCommitPeers<'a, 'g> {
 /// SQL commit; Store qualification is marked after its postcommit release.
 /// Neither state grants disclosure or a retry.
 #[derive(Default)]
-pub struct AssetReviewCommitObservation(RefCell<Option<(StockAtlasCommit, bool)>>);
+pub struct AssetReviewCommitObservation(RefCell<Option<AssetReviewCompletion>>);
+enum AssetReviewCompletion {
+    Committed(StockAtlasCommit),
+    Qualified(AssetReviewQualifiedCompletion),
+}
+
+/// Completion issued only after this Store's durable receipt and successor
+/// checks and the original Media proof's release. This retains live custody;
+/// it grants no disclosure, archive admission, replay or invocation authority.
+/// No constructor, Clone or serde can adopt a serialized commit as completion.
+pub struct AssetReviewQualifiedCompletion {
+    instance: Arc<()>,
+    original: media::native::RetainedPrincipal,
+    commit: StockAtlasCommit,
+}
+impl AssetReviewQualifiedCompletion {
+    pub fn commit(&self) -> &StockAtlasCommit {
+        &self.commit
+    }
+    pub fn original_principal(&self) -> &media::native::RetainedPrincipal {
+        &self.original
+    }
+}
+
+/// Identity of one actual Store allocation, including across moves/borrows.
+/// Reopening the same database issues a different identity. Identity alone
+/// establishes no qualification, disclosure or authority.
+#[derive(Clone)]
+pub struct AssetReviewStoreIdentity(Arc<()>);
+impl AssetReviewStoreIdentity {
+    pub fn matches_completion(&self, completion: &AssetReviewQualifiedCompletion) -> bool {
+        Arc::ptr_eq(&self.0, &completion.instance)
+    }
+    pub(super) fn from_instance(instance: &Arc<()>) -> Self {
+        Self(instance.clone())
+    }
+}
+
+// Compile-only carrier properties for the configured cross-owner handoff.
+const _: fn() = || {
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<AssetReviewQualifiedCompletion>();
+    assert_send_sync::<AssetReviewStoreIdentity>();
+};
+
 impl AssetReviewCommitObservation {
     pub fn new() -> Self {
         Self::default()
     }
     pub fn take(&self) -> Option<(StockAtlasCommit, bool)> {
-        self.0.borrow_mut().take()
+        self.0
+            .borrow_mut()
+            .take()
+            .map(|completion| match completion {
+                AssetReviewCompletion::Committed(commit) => (commit, false),
+                AssetReviewCompletion::Qualified(completion) => (completion.commit, true),
+            })
+    }
+    /// Consume the actual qualified completion once. An unqualified SQL
+    /// observation remains available to take() for honest reconciliation data.
+    pub fn take_qualified(&self) -> Option<AssetReviewQualifiedCompletion> {
+        let mut observed = self.0.borrow_mut();
+        match observed.take() {
+            Some(AssetReviewCompletion::Qualified(completion)) => Some(completion),
+            other => {
+                *observed = other;
+                None
+            }
+        }
     }
     pub(super) fn committed(&self, commit: &StockAtlasCommit) {
-        self.0.replace(Some((commit.clone(), false)));
+        self.0
+            .replace(Some(AssetReviewCompletion::Committed(commit.clone())));
     }
-    pub(super) fn store_qualified(&self) {
-        if let Some((_, qualified)) = self.0.borrow_mut().as_mut() {
-            *qualified = true;
-        }
+    pub(super) fn store_qualified(
+        &self,
+        commit: &StockAtlasCommit,
+        instance: &Arc<()>,
+        original: &media::native::RetainedPrincipal,
+    ) {
+        self.0.replace(Some(AssetReviewCompletion::Qualified(
+            AssetReviewQualifiedCompletion {
+                instance: instance.clone(),
+                original: original.clone(),
+                commit: commit.clone(),
+            },
+        )));
     }
 }
 impl<'a, 'g> AssetReviewCommitPeers<'a, 'g> {

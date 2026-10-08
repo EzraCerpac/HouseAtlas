@@ -18,6 +18,12 @@ pub(super) fn media_error(error: media::MediaError) -> Error {
 }
 
 impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
+    /// Pin this actual Store instance for a separately configured completion
+    /// consumer. The token grants no access and cannot qualify a data receipt.
+    pub fn asset_review_store_identity(&self) -> AssetReviewStoreIdentity {
+        AssetReviewStoreIdentity::from_instance(&self.instance)
+    }
+
     pub fn capture_asset_review_original(
         &mut self,
         principal: &A::Principal,
@@ -208,7 +214,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             .map_err(media_error)?;
         tx.commit()?;
         if let Some(observation) = peers.observation {
-            observation.store_qualified();
+            observation.store_qualified(&commit, &self.instance, &bound.original.principal);
         }
         Ok(commit)
     }
