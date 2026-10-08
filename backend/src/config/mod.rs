@@ -12,6 +12,7 @@ pub enum FixtureProfile {
     Standard,
     OpaqueCachedHomebox,
     GeometryMetadata,
+    NativeMediaArchive,
 }
 use std::{
     net::{Ipv4Addr, SocketAddr},
@@ -72,6 +73,7 @@ impl Config {
             None | Some("standard") => FixtureProfile::Standard,
             Some("opaque-cached-homebox") => FixtureProfile::OpaqueCachedHomebox,
             Some("geometry-metadata") => FixtureProfile::GeometryMetadata,
+            Some("native-media-archive") => FixtureProfile::NativeMediaArchive,
             _ => return Err("Unsupported disposable fixture profile".into()),
         };
         Ok(Self {

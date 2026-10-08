@@ -88,6 +88,50 @@ async fn run() -> Result<(), lifecycle::Failure> {
         .map_err(|_| "Storage unavailable")?
         .database_version();
     let host = Host::new(core, origin.clone(), files, homebox_cache_sources)?;
+    let host = if profile == houseatlas_backend::config::FixtureProfile::NativeMediaArchive {
+        use houseatlas_backend::{
+            config::provider_dispatch::archive::TrustedStockArchiveConfig,
+            lifecycle::provider_dispatch::archive::PrivateStockArchive,
+            media::{
+                Cancellation, WorkBudget,
+                recovery_policy_archive::{
+                    MAX_MEDIA_POLICY_ARCHIVE_MEMBER_BYTES, MediaPolicyArchiveOrigin,
+                },
+                types::Scope,
+            },
+        };
+        // Explicit fresh synthetic native custody input for this disposable
+        // fixture only. It selects the just-created physical DB and dedicated
+        // empty directory, never adopts candidate historical archive bytes.
+        let path = config.directory.join("media-policy-archive");
+        fs::create_dir(&path)?;
+        let archive = PrivateStockArchive::open(TrustedStockArchiveConfig::new(
+            path.canonicalize()?,
+            MAX_MEDIA_POLICY_ARCHIVE_MEMBER_BYTES,
+        )?)?;
+        let scopes = host
+            .core
+            .lock()
+            .map_err(|_| "Core unavailable")?
+            .homes
+            .iter()
+            .map(|home| Scope {
+                workspace_id: home.scope.workspace_id.clone(),
+                home_id: home.scope.home_id.clone(),
+            })
+            .collect();
+        let selected = config.directory.to_str().ok_or("Invalid fixture path")?;
+        let archive_origin = MediaPolicyArchiveOrigin::new(
+            "disposable-native-media",
+            selected,
+            "media-policy-archive",
+            "fresh",
+        )?;
+        let budget = WorkBudget::new(std::time::Duration::from_secs(10), Cancellation::default())?;
+        host.with_native_media_archive(archive, archive_origin, scopes, None, &budget)?
+    } else {
+        host
+    };
     println!(
         "SQLite {} / record database schema {}",
         rusqlite::version(),

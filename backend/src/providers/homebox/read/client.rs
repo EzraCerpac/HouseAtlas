@@ -176,7 +176,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
     pub fn scope(&self) -> &SourceScope {
         &self.scope
     }
-    pub(super) fn registration(&self) -> &SourceRegistration {
+    pub(crate) fn registration(&self) -> &SourceRegistration {
         &self.registration
     }
     fn authorized(&self, id: &Uuid) -> bool {

@@ -13,6 +13,7 @@ pub mod content;
 pub mod download_lifetime;
 pub mod homebox_artifacts;
 pub mod native;
+pub mod native_policy_archive;
 pub mod native_recovery;
 mod platform_fs;
 mod private_fs;

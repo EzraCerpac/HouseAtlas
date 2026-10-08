@@ -60,7 +60,8 @@ pub use stock_types::*;
 pub use store::*;
 pub use types::*;
 pub use upload_types::{
-    ConsumedUpload, ExistingOriginalAsset, MediaPolicyRecoveryFrame, StagedUploadPrincipal,
+    AssetUploadCommitObservation, AssetUploadQualifiedCompletion, ConsumedUpload,
+    ExistingOriginalAsset, MediaPolicyRecoveryFrame, StagedUploadPrincipal,
 };
 
 pub(crate) use stock_activity::retained_native_codec_bridge;

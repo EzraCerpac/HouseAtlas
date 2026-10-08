@@ -138,3 +138,11 @@ path = "../tools/rust-integration/examples/healthy_stock_retained_read.rs"
 [[example]]
 name = "presence-metadata-healthy"
 path = "src/storage/checks/presence-metadata-healthy.rs"
+
+[[example]]
+name = "healthy-native-policy-archive"
+path = "src/media/healthy_native_policy_archive.rs"
+
+[[example]]
+name = "healthy-native-upload-policy-archive"
+path = "src/media/healthy_native_upload_policy_archive.rs"

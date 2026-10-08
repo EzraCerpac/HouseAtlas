@@ -186,7 +186,7 @@ pub(super) async fn command(
             &principal, &selection, &input.metadata, &staged, &inputs,
         ).map_err(stock_reads::http_error)?;
         let raw = plan.plan().original_request().clone();
-        let result = stock_mutations::execute_staged(&core, &principal, &selection, raw, &staged, &schemas)
+        let result = stock_mutations::execute_staged(&host, &core, &principal, &selection, raw, &staged, &schemas)
             .map_err(stock_reads::http_error)?;
         // The owner has already committed and qualified this canonical result.
         // Metadata retirement cannot turn that commit into an unconfirmed write.

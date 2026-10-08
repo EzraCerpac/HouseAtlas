@@ -61,6 +61,7 @@ pub struct Host {
     pub origin: String,
     pub files: Arc<BTreeMap<String, (String, Vec<u8>)>>,
     homebox_cache_sources: Arc<Vec<crate::config::providers::homebox::TrustedHomeBoxSource>>,
+    native_homebox_reads: Arc<Vec<providers::homebox_native::NativeHomeBoxReadBinding>>,
     network_bindings: Arc<Vec<crate::config::providers::network_host::NetworkBinding>>,
     atlas_download_handles: d::stock::AtlasDownloadHandles,
     response_ids: Arc<ResponseIds>,
@@ -72,6 +73,8 @@ pub struct Host {
     mcp_access: crate::app::Access,
     mcp_scopes: Arc<Vec<d::Scope>>,
     pub(crate) asset_reviews: Arc<Mutex<asset_reviews::ReviewRegistry>>,
+    native_media_archive:
+        Option<Arc<Mutex<crate::media::native_policy_archive::NativeMediaArchiveOwner>>>,
     operation_events: Arc<Mutex<operation_events::EventRegistry>>,
 }
 impl Host {
@@ -86,11 +89,13 @@ impl Host {
             mcp_access: core.access.clone(),
             mcp_scopes: Arc::new(core.homes.iter().map(|home| home.scope.clone()).collect()),
             asset_reviews: Arc::new(Mutex::new(asset_reviews::ReviewRegistry::default())),
+            native_media_archive: None,
             operation_events: Arc::new(Mutex::new(operation_events::EventRegistry::default())),
             core: Arc::new(Mutex::new(core)),
             origin,
             files,
             homebox_cache_sources: Arc::new(homebox_cache_sources),
+            native_homebox_reads: Arc::new(Vec::new()),
             network_bindings: Arc::new(Vec::new()),
             atlas_download_handles: d::stock::AtlasDownloadHandles::default(),
             response_ids: Arc::new(ResponseIds::new()?),
@@ -107,6 +112,96 @@ impl Host {
     pub fn with_mcp_command_profile(mut self, profile: McpCommandProfile) -> Self {
         self.mcp_command_profile = profile;
         self
+    }
+
+    /// Trusted optional native GET and credential custody configuration. No
+    /// provider request or source grant is issued at startup; each request must
+    /// qualify the exact current Store registration and original Access handles.
+    pub fn with_native_homebox_reads(
+        mut self,
+        bindings: Vec<providers::homebox_native::NativeHomeBoxReadBinding>,
+    ) -> crate::storage::Result<Self> {
+        let mut partitions = std::collections::BTreeSet::new();
+        for binding in &bindings {
+            let partition = binding.source().partition();
+            if !self.mcp_scopes.iter().any(|scope| {
+                scope.workspace_id == partition.workspace_id && scope.home_id == partition.home_id
+            }) || !partitions.insert(serde_json::to_string(&partition)?)
+            {
+                return Err(crate::storage::Error::new(
+                    "invalid-contract",
+                    "Native HomeBox read scope is unavailable",
+                ));
+            }
+        }
+        self.native_homebox_reads = Arc::new(bindings);
+        Ok(self)
+    }
+
+    /// Trusted optional Media-only custody. Startup supplies the actual native
+    /// deployment/physical-DB/archive mapping and retention scopes. Existing
+    /// generations require complete independently admitted references; candidate
+    /// archive scans and recovered SQL cannot supply those configuration inputs.
+    /// No directory is opened, grant issued or recovery performed here.
+    pub fn with_native_media_archive(
+        mut self,
+        archive: Arc<crate::lifecycle::provider_dispatch::archive::PrivateStockArchive>,
+        origin: crate::media::recovery_policy_archive::MediaPolicyArchiveOrigin,
+        scopes: Vec<crate::media::types::Scope>,
+        independent_members: Option<
+            Vec<crate::media::native_policy_archive::NativeMediaArchiveExpectedMember>,
+        >,
+        budget: &crate::media::WorkBudget,
+    ) -> crate::media::MediaResult<Self> {
+        use crate::media::{
+            MediaError,
+            native_policy_archive::{
+                NativeMediaArchiveBinding, NativeMediaArchiveGeneration, NativeMediaArchiveOwner,
+            },
+        };
+        let identity = {
+            let core = self.core.try_lock().map_err(|_| MediaError::Unavailable)?;
+            if scopes.iter().any(|scope| {
+                !core.homes.iter().any(|home| {
+                    home.scope.workspace_id == scope.workspace_id
+                        && home.scope.home_id == scope.home_id
+                })
+            }) {
+                return Err(MediaError::Forbidden);
+            }
+            let store = core.store.try_lock().map_err(|_| MediaError::Unavailable)?;
+            store.asset_review_store_identity()
+        };
+        let binding = NativeMediaArchiveBinding::new(identity, archive, origin, scopes)?;
+        let owner = match independent_members {
+            Some(members) => {
+                let generation = NativeMediaArchiveGeneration::from_trusted_configuration(
+                    &binding, members, budget,
+                )?;
+                NativeMediaArchiveOwner::configured(binding, generation)?
+            }
+            None => NativeMediaArchiveOwner::fresh(binding),
+        };
+        self.native_media_archive = Some(Arc::new(Mutex::new(owner)));
+        Ok(self)
+    }
+
+    /// Detached immutable custody reference emitted by genuine publication.
+    /// This grants no recovery, replay or output disclosure authority.
+    pub fn native_media_archive_generation(
+        &self,
+    ) -> crate::media::MediaResult<
+        Option<crate::media::native_policy_archive::NativeMediaArchiveGeneration>,
+    > {
+        self.native_media_archive
+            .as_ref()
+            .map(|owner| {
+                owner
+                    .try_lock()
+                    .map(|owner| owner.generation())
+                    .map_err(|_| crate::media::MediaError::Unavailable)
+            })
+            .transpose()
     }
 
     /// Trusted optional native mounts. Opening a binding issues no grants and

@@ -131,7 +131,7 @@ pub(super) async fn command(
             return Err(unavailable());
         }
         let result = stock_mutations::execute_staged_asset(
-            &core, &principal, staged.request().raw().clone(), &staged, &contracts,
+            &host, &core, &principal, staged.request().raw().clone(), &staged, &contracts,
         ).map_err(stock_reads::http_error)?;
         // A successful stock commit is final. Retirement is best-effort, using
         // the real consumed-token carrier and the same original principal.

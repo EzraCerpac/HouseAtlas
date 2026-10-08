@@ -40,6 +40,14 @@ pub(super) async fn admission(
             if host.network_bindings.iter().any(|binding| binding.runtime().settings().configured_source().partition().scope() == *p.principal.scope()) {
                 admitted.extend(crate::providers::network::SAVED_NETWORK_QUERY_SUPPORT.iter().map(|support| support.agent_operation));
             }
+            if host.native_homebox_reads.iter().any(|binding| {
+                let partition = binding.source().partition();
+                partition.workspace_id == home.scope.workspace_id && partition.home_id == home.scope.home_id
+            }) {
+                admitted.extend(super::providers::homebox_native::OPERATIONS.into_iter().filter_map(|id| {
+                    crate::contracts::stock::OperationId::parse(id.as_str())
+                }));
+            }
             Ok(json_response(json!({"schemaVersion":3,"scope":home.scope,"commandIds":admitted.iter().map(|id|id.as_str()).collect::<Vec<_>>(),"revision":"native-stock-host:3","maximumReasonCodePoints":1024})))
         })
     }).await.map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
@@ -54,6 +62,7 @@ pub(super) async fn invoke(
 ) -> HttpResult {
     // Auth checks precede decoding the bounded envelope. Query is transport only;
     // no session, principal, scope grant or credential is accepted from it.
+    let runtime = tokio::runtime::Handle::current();
     tokio::task::spawn_blocking(move || {
         let _admitted = headers.admission_permit()?;
         authorized_read_unlocked(
@@ -92,6 +101,8 @@ pub(super) async fn invoke(
                     .is_some()
                 {
                     super::stock_network_reads::execute(&host, p, raw, &contracts)
+                } else if super::providers::homebox_native::OPERATIONS.contains(&request.id()) {
+                    super::providers::homebox_native::execute_configured(&host, p, raw, &runtime)
                 } else {
                     let core = host
                         .core

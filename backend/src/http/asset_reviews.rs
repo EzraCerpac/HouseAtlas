@@ -137,6 +137,7 @@ fn execute_validated(
             .map_err(|_| unavailable())?
     };
     let observation = s::AssetReviewCommitObservation::new();
+    let qualified_commit = std::cell::RefCell::new(None);
     let mut http_released = false;
     let released = (|| -> HttpResult {
         let result = match super::stock_mutations::execute_verified_asset_review(
@@ -145,7 +146,11 @@ fn execute_validated(
             request.raw().clone(),
             &plan,
             &budget,
-            &observation,
+            super::stock_mutations::ReviewCapture {
+                observation: &observation,
+                archive: host.native_media_archive.as_deref(),
+                qualified_commit: &qualified_commit,
+            },
             contracts,
         ) {
             Ok(result) => result,
@@ -166,7 +171,11 @@ fn execute_validated(
         http_released = true;
         Ok(json_response(result.wire))
     })();
-    if let Some((commit, store_qualified)) = observation.take() {
+    let disposition = qualified_commit
+        .into_inner()
+        .map(|commit| (commit, true))
+        .or_else(|| observation.take());
+    if let Some((commit, store_qualified)) = disposition {
         host.asset_reviews
             .lock()
             .map_err(|_| unavailable())?
@@ -228,6 +237,31 @@ pub(crate) struct ReviewRegistry {
     dispositions: VecDeque<Disposition>,
 }
 impl ReviewRegistry {
+    /// Called by the synchronous upload route under its owning Core lock.
+    /// Capacity is checked before mutation, and the exact committed DATA is
+    /// retained even when later archive publication withholds output.
+    pub(super) fn upload_room(&mut self, binding: &[u8; 32]) -> bool {
+        self.room(binding)
+    }
+    pub(super) fn record_upload(
+        &mut self,
+        binding: [u8; 32],
+        scope: d::Scope,
+        asset_id: String,
+        commit: s::StockAtlasCommit,
+        store_qualified: bool,
+    ) -> Result<(), super::HttpFailure> {
+        self.record(Disposition {
+            issued: Instant::now(),
+            binding,
+            scope,
+            asset_id,
+            actor_id: commit.actor_id.clone(),
+            commit,
+            store_qualified,
+            http_released: false,
+        })
+    }
     fn prune(&mut self) {
         let now = Instant::now();
         self.entries

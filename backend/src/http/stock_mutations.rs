@@ -57,19 +57,34 @@ fn supported(request: &st::ValidatedRequest) -> st::StockResult<()> {
     }
 }
 #[derive(Clone, Copy)]
+pub(super) struct ReviewCapture<'a> {
+    pub observation: &'a s::AssetReviewCommitObservation,
+    pub archive: Option<&'a Mutex<m::native_policy_archive::NativeMediaArchiveOwner>>,
+    pub qualified_commit: &'a RefCell<Option<s::StockAtlasCommit>>,
+}
+#[derive(Clone, Copy)]
+struct UploadCapture<'a> {
+    observation: &'a s::AssetUploadCommitObservation,
+    archive: &'a Mutex<m::native_policy_archive::NativeMediaArchiveOwner>,
+    qualified_commit: &'a RefCell<Option<s::StockAtlasCommit>>,
+}
+#[derive(Clone, Copy)]
 enum UploadPlan<'a, 'u> {
-    Staged(&'a st::StagedAtlasCommandPlan<'u>),
+    Staged(
+        &'a st::StagedAtlasCommandPlan<'u>,
+        Option<UploadCapture<'a>>,
+    ),
     Existing(&'a st::ExistingAssetAttachmentPlan<'u>),
     Review(
         &'a s::VerifiedAssetReviewPlan<'u>,
         &'a m::WorkBudget,
-        &'a s::AssetReviewCommitObservation,
+        ReviewCapture<'a>,
     ),
 }
 impl<'a, 'u> UploadPlan<'a, 'u> {
     fn plan(self) -> &'a st::AtlasCommandPlan {
         match self {
-            Self::Staged(plan) => plan.plan(),
+            Self::Staged(plan, _) => plan.plan(),
             Self::Existing(plan) => plan.plan(),
             Self::Review(plan, _, _) => plan.plan(),
         }
@@ -652,17 +667,28 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
                     phase: Cell::new(None),
                     failure: RefCell::new(None),
                 };
-                let result = if let Some(UploadPlan::Staged(upload)) = self.upload {
-                    store.execute_staged_stock_json_with_authorization(
-                        &authorization,
-                        p,
-                        &self.contracts,
-                        prepared.request().raw(),
-                        upload.staged(),
-                    )
-                } else if let Some(UploadPlan::Review(plan, budget, observation)) = self.upload {
-                    let peers =
-                        s::AssetReviewCommitPeers::new(plan, guard, budget).observing(observation);
+                let result = if let Some(UploadPlan::Staged(upload, capture)) = self.upload {
+                    match capture {
+                        Some(capture) => store
+                            .execute_staged_stock_json_observing_with_authorization(
+                                &authorization,
+                                p,
+                                &self.contracts,
+                                prepared.request().raw(),
+                                upload.staged(),
+                                capture.observation,
+                            ),
+                        None => store.execute_staged_stock_json_with_authorization(
+                            &authorization,
+                            p,
+                            &self.contracts,
+                            prepared.request().raw(),
+                            upload.staged(),
+                        ),
+                    }
+                } else if let Some(UploadPlan::Review(plan, budget, capture)) = self.upload {
+                    let peers = s::AssetReviewCommitPeers::new(plan, guard, budget)
+                        .observing(capture.observation);
                     store.execute_verified_asset_review_stock_json_with_authorization(
                         &authorization,
                         p,
@@ -718,7 +744,7 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
                 // held. DTO consistency alone cannot supply provenance.
                 // Retention failure withholds output; the SQL commit remains.
                 match self.upload {
-                    Some(UploadPlan::Staged(upload))
+                    Some(UploadPlan::Staged(upload, capture))
                         if upload.staged().payload().preview_policy
                             == m::types::PreviewPolicy::SafeRendered =>
                     {
@@ -727,8 +753,33 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
                             .map_err(|_| WriteFailure(d::DomainError::UpstreamUnavailable))?
                             .retain_upload(upload.staged(), &commit)
                             .map_err(|_| WriteFailure(d::DomainError::UpstreamUnavailable))?;
+                        if let Some(capture) = capture {
+                            let completion = capture
+                                .observation
+                                .take_qualified()
+                                .ok_or(WriteFailure(d::DomainError::UpstreamUnavailable))?;
+                            *capture.qualified_commit.borrow_mut() =
+                                Some(completion.commit().clone());
+                            capture
+                                .archive
+                                .try_lock()
+                                .map_err(|_| WriteFailure(d::DomainError::UpstreamUnavailable))?
+                                .publish_upload(
+                                    completion,
+                                    upload.staged(),
+                                    guard,
+                                    &m::WorkBudget::new(
+                                        std::time::Duration::from_secs(10),
+                                        m::Cancellation::default(),
+                                    )
+                                    .map_err(|_| {
+                                        WriteFailure(d::DomainError::UpstreamUnavailable)
+                                    })?,
+                                )
+                                .map_err(|_| WriteFailure(d::DomainError::UpstreamUnavailable))?;
+                        }
                     }
-                    Some(UploadPlan::Review(plan, budget, _)) => {
+                    Some(UploadPlan::Review(plan, budget, capture)) => {
                         let asset_id = prepared.request().target()["recordId"]
                             .as_str()
                             .ok_or(WriteFailure(d::DomainError::UpstreamUnavailable))?;
@@ -753,6 +804,22 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
                                 budget,
                             )
                             .map_err(|_| WriteFailure(d::DomainError::UpstreamUnavailable))?;
+                        if let Some(archive) = capture.archive {
+                            let completion = capture
+                                .observation
+                                .take_qualified()
+                                .ok_or(WriteFailure(d::DomainError::UpstreamUnavailable))?;
+                            // Preserve exact committed DATA before the one-shot
+                            // opaque carrier is consumed, including on errors
+                            // after SQL/archive publication. No rollback/retry.
+                            *capture.qualified_commit.borrow_mut() =
+                                Some(completion.commit().clone());
+                            archive
+                                .try_lock()
+                                .map_err(|_| WriteFailure(d::DomainError::UpstreamUnavailable))?
+                                .publish_review(completion, plan.media_proof(), guard, budget)
+                                .map_err(|_| WriteFailure(d::DomainError::UpstreamUnavailable))?;
+                        }
                     }
                     _ => {}
                 }
@@ -786,6 +853,7 @@ pub(super) fn execute_raw(
     execute_profile(core, p, raw, contracts, None)
 }
 pub(super) fn execute_staged(
+    host: &Host,
     core: &Core,
     p: &RequestPrincipal,
     selection: &super::qualified_upload_plan::ResolvedPlace<'_, '_>,
@@ -795,17 +863,12 @@ pub(super) fn execute_staged(
 ) -> st::StockResult<st::OwnerResult> {
     let request = st::ValidatedRequest::parse(contracts, raw.clone())?;
     let qualified = super::qualified_upload_plan::qualify(p, selection, &request, staged)?;
-    execute_profile(
-        core,
-        p,
-        raw,
-        contracts,
-        Some(UploadPlan::Staged(&qualified)),
-    )
+    execute_staged_profile(host, core, p, raw, contracts, &qualified)
 }
 /// A standalone asset has no place selection or client-supplied attachment
 /// graph. The live Media seal and original principal qualify this exact root.
 pub(super) fn execute_staged_asset(
+    host: &Host,
     core: &Core,
     p: &RequestPrincipal,
     raw: Value,
@@ -819,13 +882,89 @@ pub(super) fn execute_staged_asset(
             && request.children().is_empty(),
     )?;
     let qualified = st::plan_staged_atlas_commands(&request, staged, &NativeContracts)?;
-    execute_profile(
+    execute_staged_profile(host, core, p, raw, contracts, &qualified)
+}
+/// Only the owning synchronous Core route can call this composition. No lock
+/// is held over network I/O. The live stage remains borrowed until publication.
+fn execute_staged_profile(
+    host: &Host,
+    core: &Core,
+    p: &RequestPrincipal,
+    raw: Value,
+    contracts: &st::NativeStockContract,
+    qualified: &st::StagedAtlasCommandPlan<'_>,
+) -> st::StockResult<st::OwnerResult> {
+    let archive = host.native_media_archive.as_deref().filter(|_| {
+        qualified.staged().payload().preview_policy == m::types::PreviewPolicy::SafeRendered
+    });
+    let Some(archive) = archive else {
+        return execute_profile(
+            core,
+            p,
+            raw,
+            contracts,
+            Some(UploadPlan::Staged(qualified, None)),
+        );
+    };
+    let binding = {
+        let access = core.access.lock().map_err(|_| unavailable())?;
+        p.release(&access).map_err(|_| changed())?;
+        access
+            .authenticated_session_binding(p.principal.principal())
+            .map_err(|_| changed())?
+    };
+    if !host
+        .asset_reviews
+        .try_lock()
+        .map_err(|_| unavailable())?
+        .upload_room(&binding)
+    {
+        return Err(unavailable());
+    }
+    let observation = s::AssetUploadCommitObservation::new();
+    let qualified_commit = RefCell::new(None);
+    let capture = UploadCapture {
+        observation: &observation,
+        archive,
+        qualified_commit: &qualified_commit,
+    };
+    let output = execute_profile(
         core,
         p,
         raw,
         contracts,
-        Some(UploadPlan::Staged(&qualified)),
-    )
+        Some(UploadPlan::Staged(qualified, Some(capture))),
+    );
+    let disposition = qualified_commit
+        .into_inner()
+        .map(|commit| (commit, true))
+        .or_else(|| observation.take());
+    if let Some((commit, qualified)) = disposition {
+        host.asset_reviews
+            .try_lock()
+            .map_err(|_| unavailable())?
+            .record_upload(
+                binding,
+                d::Scope {
+                    workspace_id: p.principal.scope().workspace_id.as_str().into(),
+                    home_id: p.principal.scope().home_id.as_str().into(),
+                },
+                qualified_staged_asset_id(&commit)?,
+                commit,
+                qualified,
+            )
+            .map_err(|_| unavailable())?;
+    }
+    output
+}
+fn qualified_staged_asset_id(commit: &s::StockAtlasCommit) -> st::StockResult<String> {
+    commit
+        .groups
+        .iter()
+        .flat_map(|group| &group.native_results)
+        .find(|result| result.record.record_type == s::RecordType::Asset)
+        .map(|result| result.record.record_id.clone())
+        .ok_or_else(unavailable)
 }
 pub(super) fn execute_existing(
     core: &Core,
@@ -855,7 +994,7 @@ pub(super) fn execute_verified_asset_review(
     raw: Value,
     plan: &s::VerifiedAssetReviewPlan<'_>,
     budget: &m::WorkBudget,
-    observation: &s::AssetReviewCommitObservation,
+    capture: ReviewCapture<'_>,
     contracts: &st::NativeStockContract,
 ) -> st::StockResult<st::OwnerResult> {
     let request = st::ValidatedRequest::parse(contracts, raw.clone())?;
@@ -870,7 +1009,7 @@ pub(super) fn execute_verified_asset_review(
         p,
         raw,
         contracts,
-        Some(UploadPlan::Review(plan, budget, observation)),
+        Some(UploadPlan::Review(plan, budget, capture)),
     )
 }
 fn execute_profile(

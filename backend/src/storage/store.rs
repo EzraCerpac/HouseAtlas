@@ -18,6 +18,8 @@ mod recovery;
 mod stock;
 #[path = "stock_asset_review.rs"]
 mod stock_asset_review;
+#[path = "stock_asset_upload.rs"]
+mod stock_asset_upload;
 #[path = "stock_history.rs"]
 mod stock_history;
 #[path = "stock_retained_read.rs"]

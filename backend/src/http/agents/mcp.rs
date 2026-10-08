@@ -111,6 +111,17 @@ async fn bind_owned_admission(
                 .map(|support| support.agent_operation),
         );
     }
+    if context.native_homebox_reads.iter().any(|binding| {
+        let partition = binding.source().partition();
+        partition.workspace_id.as_str() == identity.original().scope().workspace_id.as_str()
+            && partition.home_id.as_str() == identity.original().scope().home_id.as_str()
+    }) {
+        admitted.extend(
+            super::super::providers::homebox_native::OPERATIONS
+                .into_iter()
+                .filter_map(|id| crate::contracts::stock::OperationId::parse(id.as_str())),
+        );
+    }
     m::lifecycle::NativeSession::new(
         identity,
         &schemas,
@@ -131,6 +142,8 @@ pub(crate) struct McpStockContext {
     pub(crate) core: Arc<Mutex<Core>>,
     pub(crate) download_handles: st::AtlasDownloadHandles,
     pub(crate) network_bindings: Arc<Vec<NetworkBinding>>,
+    native_homebox_reads:
+        Arc<Vec<super::super::providers::homebox_native::NativeHomeBoxReadBinding>>,
 }
 
 impl McpStockContext {
@@ -139,6 +152,7 @@ impl McpStockContext {
             core: host.core.clone(),
             download_handles: host.atlas_download_handles.clone(),
             network_bindings: host.network_bindings.clone(),
+            native_homebox_reads: host.native_homebox_reads.clone(),
         }
     }
 }
@@ -201,6 +215,37 @@ impl m::ServicePort<m::NativePrincipal, m::NativeOperation> for OwnedStockServic
         principal: &'a m::NativePrincipal,
         operation: m::NativeOperation,
     ) -> m::PortFuture<'a, Self::Output> {
+        if st::OperationId::parse(operation.request.id().as_str())
+            .is_some_and(|id| super::super::providers::homebox_native::OPERATIONS.contains(&id))
+        {
+            let original = principal.original().clone();
+            let core = Arc::clone(&self.context.core);
+            let bindings = Arc::clone(&self.context.native_homebox_reads);
+            let handle = tokio::runtime::Handle::current();
+            return Box::pin(async move {
+                tokio::task::spawn_blocking(move || {
+                    let p = RequestPrincipal::new(original);
+                    let request_id = operation.request.raw()["requestId"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .to_owned();
+                    super::super::providers::homebox_native::execute_configured_with_bindings(
+                        &core,
+                        &bindings,
+                        &p,
+                        operation.request.raw().clone(),
+                        &handle,
+                    )
+                    .map(|result| m::NativeOutput {
+                        request: operation.request,
+                        result,
+                    })
+                    .map_err(|error| stock_failure(error, &request_id))
+                })
+                .await
+                .map_err(|_| m::PortError::Unavailable)?
+            });
+        }
         // Finish synchronous native work and release Core before making a Send
         // ready future. No RefCell capture carrier survives across an await.
         let request_id = operation.request.raw()["requestId"]

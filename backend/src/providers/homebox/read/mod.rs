@@ -5,6 +5,7 @@ mod error;
 mod failure_publication;
 mod http_transport;
 mod native_capture;
+mod native_query;
 mod navigation;
 mod publication;
 pub mod query;
@@ -19,6 +20,7 @@ pub use http_transport::{
     AuthorizationHeader, CredentialProvider, HttpBody, HttpTransport, SourceEndpoint,
 };
 pub use native_capture::{CapturedStockEntity, CapturedStockMaintenance, NativeCapture};
+pub use native_query::{NativeReadCapture, NativeReadOwner};
 pub use navigation::{NativeNavigation, NativeRoute};
 pub use publication::{PreparedGeneration, PublishError, RefreshError, StagedPublication};
 pub use stock::StockNavigation;
@@ -38,3 +40,10 @@ mod healthy_numeric;
 
 #[cfg(test)]
 mod native_capture_healthy;
+
+mod credentials;
+#[cfg(test)]
+mod native_query_healthy;
+pub use credentials::{NativeReadCredentialConfig, NativeReadCredentials};
+#[cfg(test)]
+mod credentials_healthy;

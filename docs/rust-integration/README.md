@@ -222,10 +222,16 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     cargo run --locked -p houseatlas-backend --example healthy-download-lifetime
     cargo run --locked -p houseatlas-backend --example healthy-recovery-policy
     cargo run --locked -p houseatlas-backend --example healthy-recovery-policy-archive
+    cargo run --locked -p houseatlas-backend --example healthy-native-policy-archive
+    cargo run --locked -p houseatlas-backend --example healthy-native-upload-policy-archive
     cargo run --locked -p houseatlas-backend --example healthy-stock-retained-read
     cargo run --locked -p houseatlas-backend --example presence-metadata-healthy
     cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_capture_healthy::healthy_fixed_native_get_captures_preserve_originals -- --exact --test-threads=1
     cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_capture_healthy::healthy_captured_members_into_existing_fresh_inputs -- --exact --test-threads=1
+    cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_query_healthy::healthy_configured_native_queries_retain_original_authority -- --exact --test-threads=1
+    cargo test --locked -p houseatlas-backend --lib providers::homebox::read::credentials_healthy::healthy_original_credentials_deliver_two_native_gets -- --exact --test-threads=1
+    cargo test --locked -p houseatlas-backend --lib http::providers::homebox_native_healthy::healthy_native_homebox_root_reads_preserve_original_authority -- --exact --test-threads=1
+    cargo test --locked -p houseatlas-backend --lib providers::homebox::write::stock::fresh_healthy::healthy_retained_original_preparation_revalidates_same_owner -- --exact --test-threads=1
     cargo run --locked -p houseatlas-backend --example network-disclosure-pin
     cargo run --locked -p houseatlas-backend --example network-constructor-ownership
     cargo run --locked -p houseatlas-backend --example healthy-asset-review
@@ -245,6 +251,14 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-human-host-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-upload-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs
+
+The inspected stock-write and upload loopback positives also accept the explicit
+`HOUSEATLAS_FIXTURE_PROFILE=native-media-archive` selection. It opens a dedicated
+fresh synthetic descriptor for that disposable Store and checks genuine review
+or upload publication against its actual canonical receipt. This supplies no
+production origin mapping or historical generation. `HOUSEATLAS_SOURCE_SHA`
+requires the exact clean candidate and records binary, frontend and runner
+digests. Default application startup remains unconfigured.
 
 The source runner checks deterministic generation/history, actual locked Rust
 library/binary/module source, rustfmt, warnings-denied Clippy, strict TypeScript
@@ -542,3 +556,15 @@ namespace changes, refresh route, lifecycle activation or admission expansion ar
 introduced. Superseded sidecar retention, raw snapshot qualification and original
 Access composition holds remain unresolved; ordinary source and the existing
 healthy loopback do not qualify the held classes.
+
+
+The concrete native owner composition is documented in
+[native-owner-composition.md](native-owner-composition.md). For its explicit
+fresh synthetic HTTP publication fixture, set
+`HOUSEATLAS_FIXTURE_PROFILE=native-media-archive` and `SOURCE_SHA` to the clean
+candidate, then run the inspected healthy-stock-write-loopback command above.
+It uses the actual configured Host review publisher and one genuine qualified
+Store completion, verifies the sole fsynced 0600 Media packet against canonical
+HTTP wire, and reads Saved receipt through actual Chrome. The standard profile
+keeps its archive unbound. This fixture creates no historical custody authority,
+restore execution or production setting.
