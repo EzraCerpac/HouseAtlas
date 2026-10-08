@@ -145,3 +145,23 @@ comments despite the delegation’s 52-thread reference; no review state was
 closed. The unpublished Access `b1fbc9d` original read-fence donor remains absent
 from the accessible local object store and GitHub remote (commit lookup HTTP422).
 Its original authority is not replaced by fixtures or a manufactured grant.
+
+The owned HomeBox file-source adapter now decodes exact original entity/member
+observations, measures the captured local stream and revalidates current bytes
+inside the mandatory original owner's critical section. Its generic callback
+retains the inspection result. A production native membership/body/version
+owner remains absent, so this source does not activate file downloads.
+
+The immutable stock activity principal carrier preserves the actual retained
+Access allocation and existing source/partition grants after mutation-fence
+revalidation. Command and supplied authority facts remain data. No configured
+application call site or owner archive/activity policy is supplied by the
+carrier; actual writer ports, authority epochs and trusted configuration remain
+independent requirements.
+
+Lantern reads real geometry metadata through the scoped stock endpoint, matches
+complete original HomeBox source references and keeps mapping review status.
+The Rooms view renders producer/version/units/scale/transform/provenance facts.
+Plan shapes and placements remain absent because the stored payload contains
+no coordinates. The optional Rust-backed fixture keeps its original asset
+missing and blocked, with no inferred file availability.

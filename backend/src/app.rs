@@ -1,4 +1,5 @@
 //! The actual access/storage/domain composition and original request authority.
+pub mod stock_activity_principal;
 use crate::{access as a, domain as d, http::contracts::NativeContracts, storage as s};
 use std::{
     cell::{Cell, RefCell},

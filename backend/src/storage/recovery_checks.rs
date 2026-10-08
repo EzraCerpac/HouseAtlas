@@ -355,7 +355,15 @@ pub(super) fn validate_connection_with_activity_peers<
     check: Check<'_>,
 ) -> Result<RecoveryImage> {
     let image = validate_core_profile(db, contract, check, true)?;
-    super::super::super::stock_recovery::validate(db, contract, base.stock, base.evidence, check)?;
+    super::super::super::stock_activity::validate_recovery_activity(db, activity, check)?;
+    super::super::super::stock_recovery::validate_with_activity(
+        db,
+        contract,
+        base.stock,
+        base.evidence,
+        activity.contracts,
+        check,
+    )?;
     validate_media_policies(&image, base.evidence, check)?;
     check()?;
     // Independent Jobs rows keep their own registry, codecs and original claims.
@@ -369,7 +377,7 @@ pub(super) fn validate_connection_with_activity_peers<
         check,
     )?;
     check()?;
-    super::super::super::stock_activity::validate_recovery_activity(db, activity, check)?;
+
     check()?;
     Ok(image)
 }

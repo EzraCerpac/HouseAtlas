@@ -268,7 +268,23 @@ page. Each entry is one real saved operation cut with incomplete upstream
 coverage. Its Access disclosure peer is synthetic; default profile 5 remains
 unavailable. Ordinary reopen does not qualify strict recovery or generated
 create identity correlation. Application disclosure and HTTP admission require
-the actual original source and partition grants.
+the actual original source and partition grants. The root consumer captures
+those grants before sealing and revalidates them at each disclosure phase.
+HTTP/MCP admission uses the opened Store profile; profile 5 advertises neither
+mediated-history operation. The profile-six consumer has source validation,
+with no configured root runtime fixture claimed. Strict cursor recovery selects
+the HomeBox validator only after complete activity validation on the same
+snapshot. New cursor admissions are capped at 4096 globally and 256 per actor
+and scope; existing immutable cursors survive without expiration or reclamation.
+
+For the explicit geometry metadata read fixture, set
+`HOUSEATLAS_FIXTURE_PROFILE=geometry-metadata` and `SOURCE_SHA` to the clean
+composed candidate, then run the same healthy-atlas-lists-loopback script.
+It loads the original published optional-geometry snapshot through native
+bootstrap, retains eight records, compares the public geometry row with actual
+SQLite, and checks the Rooms metadata display. The original asset is missing
+and blocked. Geometry has no shape or placement; this qualifies metadata reads
+only. The standard six-record fixture remains unchanged.
 
 The separate standalone-asset runner uses no browser. It performs one actual
 editor HTTP login and fresh text/plain, unknown-license, download-only asset
