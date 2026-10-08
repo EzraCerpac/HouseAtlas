@@ -5,7 +5,7 @@ use std::io::Write;
 
 use flate2::{Compression, write::ZlibEncoder};
 
-use super::types::{ContentType, PreviewPolicy};
+use super::types::{BlobIdentity, ContentType, sha256};
 use super::{MAX_BYTES, MediaError, MediaResult, WorkBudget};
 
 const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
@@ -270,13 +270,12 @@ pub(super) fn qualify_original_preview(
     bytes: &[u8],
     content_type: ContentType,
     budget: &WorkBudget,
-) -> MediaResult<PreviewPolicy> {
+) -> MediaResult<Option<BlobIdentity>> {
     Ok(
-        if render_original_preview(bytes, content_type, budget)?.is_some() {
-            PreviewPolicy::SafeRendered
-        } else {
-            PreviewPolicy::DownloadOnly
-        },
+        render_original_preview(bytes, content_type, budget)?.map(|output| BlobIdentity {
+            sha256: sha256(&output),
+            byte_size: output.len() as u64,
+        }),
     )
 }
 

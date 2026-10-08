@@ -8,6 +8,7 @@ use crate::{access as a, domain::stock, storage as s};
 
 use super::content::{render_original_preview, validate_original_content};
 use super::native::{RetainedPrincipal, access_error, access_scope, project_asset};
+use super::recovery_policy::RendererQualification;
 use super::types::{
     AssetRecord, Availability, ContentType, Lifecycle, PreviewPolicy, Scope, sha256,
 };
@@ -56,6 +57,7 @@ pub struct RenderedAssetReview {
     original: RetainedPrincipal,
     record: AssetRecord,
     facts: ReviewReceiptFacts,
+    qualification: RendererQualification,
 }
 
 /// Sealed renderer evidence bound to the complete validated stock request.
@@ -150,12 +152,29 @@ impl AssetVault {
             rendered_byte_size: output.len() as u64,
             actor_id: original.principal().actor_id().as_str().to_owned(),
         };
+        let qualification = RendererQualification::produced(
+            &record.scope(),
+            &super::vault::PreparedOriginal {
+                purpose: record.payload.purpose,
+                storage_key: record.payload.storage_key.clone(),
+                identity: super::types::BlobIdentity {
+                    sha256: facts.original_sha256.clone(),
+                    byte_size: facts.original_byte_size,
+                },
+                content_type,
+            },
+            super::types::BlobIdentity {
+                sha256: facts.rendered_sha256.clone(),
+                byte_size: facts.rendered_byte_size,
+            },
+        );
         authorize(guard, original, &record.scope(), budget)?;
         Ok(RenderedAssetReview {
             vault: self.clone(),
             original: original.clone(),
             record,
             facts,
+            qualification,
         })
     }
 }
@@ -249,6 +268,9 @@ impl RenderedAssetReview {
 }
 
 impl VerifiedAssetReview {
+    pub(super) fn recovery_qualification(&self) -> &RendererQualification {
+        &self.rendered.qualification
+    }
     pub fn facts(&self) -> &ReviewReceiptFacts {
         self.rendered.facts()
     }
