@@ -145,6 +145,7 @@ pub(crate) struct NetworkArchiveReference {
     pub(crate) generation_id: String,
     pub(crate) state: NetworkArchiveReferenceState,
     pub(crate) body_sha256: Option<String>,
+    pub(crate) projected_receipt_sha256: Option<String>,
     pub(crate) protected_bytes: usize,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -500,7 +501,7 @@ impl NetworkImmutableArchive {
     /// guard; this list is never a default or complete cross-owner substitute.
     pub(crate) fn protected_references(&self) -> Result<Vec<NetworkArchiveReference>> {
         self.verify_complete_catalog()?;
-        let mut stmt = self.db.prepare("SELECT g.partition_key,g.generation_id,c.body_sha256,c.segment_bytes,r.reserved_bytes FROM network_archive_generation_ids g LEFT JOIN network_archive_catalog c USING(partition_key,generation_id) LEFT JOIN network_archive_reservations r USING(partition_key,generation_id) ORDER BY g.partition_key,g.generation_id").map_err(|_| err())?;
+        let mut stmt = self.db.prepare("SELECT g.partition_key,g.generation_id,c.body_sha256,c.segment_bytes,r.reserved_bytes,c.projected_receipt_sha256 FROM network_archive_generation_ids g LEFT JOIN network_archive_catalog c USING(partition_key,generation_id) LEFT JOIN network_archive_reservations r USING(partition_key,generation_id) ORDER BY g.partition_key,g.generation_id").map_err(|_| err())?;
         let mut rows = stmt.query([]).map_err(|_| err())?;
         let mut result = Vec::new();
         while let Some(row) = rows.next().map_err(|_| err())? {
@@ -512,6 +513,7 @@ impl NetworkImmutableArchive {
             let body_sha256: Option<String> = row.get(2).map_err(|_| err())?;
             let segment_bytes: Option<i64> = row.get(3).map_err(|_| err())?;
             let reserved_bytes: Option<i64> = row.get(4).map_err(|_| err())?;
+            let projected_receipt_sha256: Option<String> = row.get(5).map_err(|_| err())?;
             let (state, protected_bytes) =
                 match (body_sha256.is_some(), segment_bytes, reserved_bytes) {
                     (true, Some(bytes), None) if bytes > 0 => {
@@ -529,6 +531,7 @@ impl NetworkImmutableArchive {
                 generation_id,
                 state,
                 body_sha256,
+                projected_receipt_sha256,
                 protected_bytes,
             });
         }
