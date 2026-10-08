@@ -15,6 +15,7 @@ mod pages;
 pub mod providers;
 pub mod qualified_upload_plan;
 mod quantity;
+mod quantity_tool_admission;
 #[cfg(test)]
 mod quantity_fixture;
 #[cfg(test)]
@@ -832,6 +833,7 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/place", get(editing::place).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/places/{record_id}/evidence", post(upload::command))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/admission", get(agents::admission).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/quantity-tool-admission", get(quantity_tool_admission::admission).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/invoke", get(agents::invoke).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/commands", post(stock_mutations::command))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/assets", post(upload_asset::command))
