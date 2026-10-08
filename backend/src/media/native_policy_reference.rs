@@ -1,6 +1,7 @@
 //! Durable handoff of a genuinely published complete Media reference. Native
-//! selection and decoded files are DATA. Only a still-retained original issued
-//! carrier qualifies reads; no historical administrator or grant is invented.
+//! selection and decoded files are DATA. Producer-issued reads require their
+//! still-retained original carrier. The separate historical intake owner must
+//! supply explicit independently approved configuration for historical reads.
 use super::{
     MediaError, MediaResult, WorkBudget,
     native_policy_archive::{NativeMediaArchiveExpectedMember, NativeMediaArchiveGeneration},
@@ -83,6 +84,9 @@ impl NativeMediaPolicyReferenceSelection {
     }
     pub fn member_name(&self) -> String {
         reference_name(&self.audit_id)
+    }
+    pub fn audit_id(&self) -> &str {
+        &self.audit_id
     }
     pub fn origin(&self) -> &MediaPolicyArchiveOrigin {
         &self.origin
@@ -464,8 +468,42 @@ impl NativeMediaPolicyReferenceStore {
             byte_size: bytes.bytes.len(),
         })
     }
+    /// Exact comparison following a bounded stable filesystem read. The
+    /// expected generation must come from the separate intake owner's explicit
+    /// independent administrative configuration, never from this decoded DATA.
+    /// Matching provides no grant and cannot mint producer lineage. This
+    /// method performs filesystem I/O and must run before entering a Storage
+    /// callback; Storage receives only already-authenticated offline evidence.
+    pub(super) fn match_expected_generation(
+        &self,
+        selection: &NativeMediaPolicyReferenceSelection,
+        expected: &NativeMediaArchiveGeneration,
+        budget: &WorkBudget,
+    ) -> MediaResult<()> {
+        budget.check()?;
+        let (candidate, origin, scopes, members) = expected.reference_parts();
+        if candidate != &self.candidate || origin != selection.origin() {
+            return Err(MediaError::Unavailable);
+        }
+        let data = self.read_data(selection, budget)?;
+        if data.envelope.candidate != DestinationData::candidate(candidate)
+            || &data.envelope.origin != origin
+            || data.envelope.scopes != scopes
+            || data.envelope.members.len() != members.len()
+        {
+            return Err(MediaError::Unavailable);
+        }
+        for (actual, (name, bytes)) in data.envelope.members.iter().zip(members) {
+            budget.check()?;
+            if &actual.name != name || actual.packet.as_bytes() != bytes.as_slice() {
+                return Err(MediaError::Unavailable);
+            }
+        }
+        budget.check()
+    }
     /// Without the independently retained original issuer this is unavailable.
-    /// No cold-start administration owner is supplied by this implementation.
+    /// Explicit historical administrative intake is owned by the separate
+    /// historical authority, never inferred by this producer-issued read path.
     pub fn read_issued<'a>(
         &self,
         selection: &NativeMediaPolicyReferenceSelection,
