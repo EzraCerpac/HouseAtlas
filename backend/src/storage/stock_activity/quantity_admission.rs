@@ -77,6 +77,17 @@ impl<
         S,
     >
 {
+    /// Allocation membership only; current qualification remains mandatory.
+    pub(crate) fn owns_original_quantity_invocation<B>(
+        &self,
+        invocation: &OriginalQuantityInvocation<'_, B>,
+        preparation: &B,
+    ) -> bool {
+        Arc::ptr_eq(&self.session, &invocation.session)
+            && Arc::ptr_eq(&self.original, &invocation.original)
+            && std::ptr::eq(invocation.original_preparation, preparation)
+    }
+
     pub fn admit_original_quantity<'bundle, 'native, 'p, 'owner, T, K>(
         &self,
         reserved: &StoredOperation,
@@ -273,9 +284,7 @@ impl<
         if tokio::time::Instant::now() >= deadline {
             return Err(StockPortFault::Unavailable);
         }
-        if !std::ptr::eq(invocation.original_preparation, preparation)
-            || !Arc::ptr_eq(&invocation.original, &self.original)
-            || !Arc::ptr_eq(&invocation.session, &self.session)
+        if !self.owns_original_quantity_invocation(&invocation, preparation)
             || !std::ptr::eq(preparation.original(), &*self.original)
             || !Arc::ptr_eq(preparation.configured().access(), &self.access)
             || invocation.operation.command != *preparation.native().command()
