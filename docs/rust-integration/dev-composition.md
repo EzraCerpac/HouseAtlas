@@ -70,6 +70,12 @@ authority/graphs and do not
 qualify production intake or new HTTP/MCP mounts. Representation gaps remain in
 stored-file/document-link archive facts, field identity, calendar/date-time,
 UUID registration and asset/cursor producer correlation.
+Media's HomeBox file broker now provides measured immutable-byte custody,
+original source/session/allocation retention and opaque actual GET/HEAD Media
+admission. Its named positive local-file example exercises those source APIs.
+The production source port still needs exact retained attachment membership,
+current version and measured-byte revalidation. Stock prepared disclosure and
+HTTP issue/redemption routes remain unmounted; no new capability is advertised.
 Missing product areas include Core-only MCP download admission and download link
 UI, Core-only MCP Network query mounts, complete
 provider setup and UI, trusted AI configuration/startup callers and receipt identity,
@@ -77,6 +83,12 @@ and composed populated recovery. The HTTP saved Network query adapter now uses
 lock-per-phase orchestration around the original runtime, with configured member
 grants captured before source capture is sealed. It retains the same original
 disclosure lease through exact output recomputation and final authorization.
+Generic snapshots now withhold only an unqualified Network relation instead of
+marking its entire authorized partition access-revoked. Other resolved relations
+and original cache status remain visible under their exact rechecked selectors.
+The dedicated saved-query owner preserves explicit unknown endpoints through
+its retained raw-member evidence. A generic snapshot bridge to that evidence
+remains a separate source gap.
 Profile-6 recovery requires genuine activity
 registration discovery and original-media evidence; the retained synthetic test
 peers are not production substitutes. Gateway download execution/resolution is

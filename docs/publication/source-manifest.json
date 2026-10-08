@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "eb7d86801870c7f0c8f235b6f4bcc19c79e50bdf7ea033e50f85d7216eaac8b7",
+  "sourceDigestSha256": "edb9551c1d4f300894a9f07d6dc839bfb6101d27b6fe226de3c167e368cda3bc",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -245,8 +245,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 2343,
-      "sha256": "2d70770818c4ce35e91eb5406931af657f09f39f504a0ecce671b485364803f2",
+      "bytes": 2439,
+      "sha256": "d5ba04bad171b9a0c8580cd2b5a2d2ed3c73d2d802f2729058942913bf56e5a6",
       "owner": "core-integration"
     },
     {
@@ -2007,6 +2007,13 @@
       "owner": "media"
     },
     {
+      "path": "backend/src/media/healthy_homebox_artifacts.rs",
+      "mode": "100644",
+      "bytes": 10779,
+      "sha256": "ebb6faadee47149d01316221aa5d3627b7f2c512af4262e1bf82607e2c39dee6",
+      "owner": "media"
+    },
+    {
       "path": "backend/src/media/healthy_native_examples.rs",
       "mode": "100644",
       "bytes": 14394,
@@ -2028,10 +2035,17 @@
       "owner": "media"
     },
     {
+      "path": "backend/src/media/homebox_artifacts.rs",
+      "mode": "100644",
+      "bytes": 19129,
+      "sha256": "bcda104452e8e8837c6dbd3e880756c8aa5e427fde66bff712cb5f98725799c2",
+      "owner": "media"
+    },
+    {
       "path": "backend/src/media/mod.rs",
       "mode": "100644",
-      "bytes": 969,
-      "sha256": "f52a658eee52cca69a38b06f3458d42a3a62561180a2a90388be6391e98f6e1a",
+      "bytes": 996,
+      "sha256": "0e2ac11f8f8c567495bb0ecf3581f0eaeef59022e6763f95ad4407399618792f",
       "owner": "media"
     },
     {
@@ -3521,8 +3535,8 @@
     {
       "path": "backend/src/storage/store.rs",
       "mode": "100644",
-      "bytes": 14483,
-      "sha256": "2fc508f42690cdd6a508f0f12cbaedd96c1fff4ee126570f18075cb895b2cfb6",
+      "bytes": 15552,
+      "sha256": "c2746881007dad7c077e3e286c6c091a5f642803fc78df9c63a82f8644321b6e",
       "owner": "storage"
     },
     {
@@ -4004,8 +4018,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 32767,
-      "sha256": "7be80d3e9dfe06d8f5608d852d15ba87df458cb249c1d76f1beb9e5f333d8db8",
+      "bytes": 33321,
+      "sha256": "8f80de08b605373f60331e1fbb089d50c80b6d6a0e778d53ba49e320165eebd4",
       "owner": "core-integration"
     },
     {
@@ -4060,8 +4074,8 @@
     {
       "path": "docs/rust-integration/dev-composition.md",
       "mode": "100644",
-      "bytes": 8749,
-      "sha256": "0e136390d38fbf25a56d89ef9fee2a15d9342f03c0ef0ee63bfb752accc6ec81",
+      "bytes": 9639,
+      "sha256": "94ac140f578455f4c79aed2a73fb0211924d3aa3449f7ffbd9396479a56958f7",
       "owner": "core-integration"
     },
     {
@@ -4123,8 +4137,8 @@
     {
       "path": "docs/rust-integration/review-source-ledger.md",
       "mode": "100644",
-      "bytes": 19244,
-      "sha256": "13b8209c931c2db2063d5bd605bcd6d82adb11621259e1dc7ab7141c59d8b7d4",
+      "bytes": 19533,
+      "sha256": "5ea89d3fdce5b4a9d1e7519a59c8179fade53e658b474e1f38eb5ce2485a0642",
       "owner": "core-integration"
     },
     {
@@ -6048,8 +6062,8 @@
     {
       "path": "tools/rust-integration/examples/healthy_network_host.rs",
       "mode": "100644",
-      "bytes": 30175,
-      "sha256": "f002d43ae31f24b8312e2c05b349a6acdab09df5f960d8be73f71a59effa9306",
+      "bytes": 32542,
+      "sha256": "092f3a6006e980377943abc1fc9f2b491aee6fef54957ce43ad37bb808c092bc",
       "owner": "core-integration"
     },
     {

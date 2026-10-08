@@ -214,6 +214,7 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     cargo run --locked -p houseatlas-backend --example healthy-agent-stock
     cargo run --locked -p houseatlas-backend --example healthy-homebox-cache-stock
     cargo run --locked -p houseatlas-backend --example healthy-asset-review
+    cargo run --locked -p houseatlas-backend --example healthy-homebox-artifacts
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-atlas-lists-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-core-loopback.mjs
@@ -251,6 +252,13 @@ The healthy-asset-review example measures/render-strips one private retained
 synthetic PNG, binds an opaque proof to actual original Access authority, and
 checks exact native request/preimage/Domain-mapped successor. It proves neither
 original admission nor Store commit nor cross-request host receipt custody.
+
+The healthy-homebox-artifacts example uses one private synthetic local file and
+actual Access source grants, opaque issuance, and fresh same-session Media GET
+and HEAD admission. It verifies measured bytes and source-version correlation.
+Its local source port is explicitly synthetic. No production retained HomeBox
+attachment-membership/byte resolver, stock prepared-disclosure peer or HTTP route
+is installed; module compilation does not admit file-download capability.
 
 The separate standalone-asset runner uses no browser. It performs one actual
 editor HTTP login and fresh text/plain, unknown-license, download-only asset

@@ -100,3 +100,7 @@ path = "src/http/providers/homebox_stock_healthy.rs"
 [[example]]
 name = "healthy-asset-review"
 path = "src/media/healthy_asset_review.rs"
+
+[[example]]
+name = "healthy-homebox-artifacts"
+path = "src/media/healthy_homebox_artifacts.rs"
