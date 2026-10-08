@@ -7,6 +7,7 @@ use super::{
 };
 use crate::media::{
     Cancellation, MediaError, WorkBudget,
+    download_lifetime::{DownloadAvailability, project_issuer_lifetime},
     service::{
         DeliveryMode, MediaAccessPort, MediaResponse, MediaService, MediaStoragePort,
         OwnedDescriptor, ReadMethod, StoredAsset,
@@ -86,6 +87,64 @@ pub struct NativeAtlasAssetDownloads<'a, S, A, E, C> {
     handles: AtlasDownloadHandles,
 }
 impl<'a, S, A, E, C> NativeAtlasAssetDownloads<'a, S, A, E, C> {
+    /// Authenticated presentation resolution using the real managed Media HEAD
+    /// path, without HTTP/link fetches. Projects this issuer's existing deadline
+    /// only after current record/bytes/session checks. The host additionally
+    /// validates its original stock result/prepared witness/disclosure graph.
+    /// No frozen wire3 field is added and no deadline is renewed. Availability
+    /// may change sooner; no source-change subscription is manufactured here.
+    pub fn resolve_availability<P>(
+        &self,
+        principal: &P,
+        token: &str,
+        budget: &WorkBudget,
+    ) -> StockResult<DownloadAvailability>
+    where
+        S: MediaStoragePort<P>,
+        A: MediaAccessPort<P>,
+        E: AuthenticatedSessionPort<P>,
+    {
+        budget.check().map_err(media_error)?;
+        // Access validation precedes selector lookup. Missing/retired handles
+        // carry no link; permission failures remain owner errors.
+        let session = self.sessions.authenticated_session_binding(principal)?;
+        let present = self
+            .handles
+            .0
+            .lock()
+            .map_err(|_| StockError::OwnerUnavailable)?
+            .iter()
+            .any(|h| h.token == token && h.session == session && h.expires > Instant::now());
+        if !present {
+            return Ok(DownloadAvailability::Unavailable);
+        }
+        match self.redeem(principal, token, ReadMethod::Head, budget) {
+            Ok(_) => (),
+            Err(StockError::Domain(crate::domain::DomainError::NotFound)) => {
+                return Ok(DownloadAvailability::Unavailable);
+            }
+            Err(error) => return Err(error),
+        }
+        budget.check().map_err(media_error)?;
+        if self.sessions.authenticated_session_binding(principal)? != session {
+            return Err(StockError::AuthorityChanged);
+        }
+        let handles = self
+            .handles
+            .0
+            .lock()
+            .map_err(|_| StockError::OwnerUnavailable)?;
+        let lifetime = handles
+            .iter()
+            .find(|h| h.token == token && h.session == session)
+            .and_then(|h| project_issuer_lifetime(h.expires));
+        Ok(
+            lifetime.map_or(DownloadAvailability::Unavailable, |lifetime| {
+                DownloadAvailability::Available { lifetime }
+            }),
+        )
+    }
+
     pub fn new(
         media: &'a MediaService<'a, S, A>,
         storage: &'a S,

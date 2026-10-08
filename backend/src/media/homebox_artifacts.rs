@@ -11,6 +11,7 @@ use std::{
 use crate::{access as a, domain::stock as st, providers::homebox::read as hb};
 use hb::query::{FileDownload, HomeBoxReadQuery, ReadSelection};
 
+use super::download_lifetime::{DownloadAvailability, project_issuer_lifetime};
 use super::native::{RetainedPrincipal, access_error};
 use super::service::{MediaResponse, ReadMethod};
 use super::types::{is_digest, sha256};
@@ -252,6 +253,44 @@ fn check_version(version: &HomeboxFileVersion) -> MediaResult<()> {
 }
 
 impl HomeboxArtifactBroker {
+    /// Resolve presentation availability from this actual retained issuer.
+    /// No URL/HTTP fetch or byte response. Host still supplies the genuine source
+    /// owner; an unbound production source must not call this with a substitute.
+    /// Source/authority can change before expiry; re-resolve on host changes.
+    pub fn resolve_availability<S: HomeboxFileSource>(
+        &self,
+        access: &mut a::AccessBoundary,
+        redemption: &AuthenticatedHomeboxRedemption,
+        token: &str,
+        source: &S,
+        budget: &WorkBudget,
+    ) -> MediaResult<DownloadAvailability> {
+        budget.check()?;
+        let current = &redemption.principal;
+        access
+            .revalidate(current.principal())
+            .map_err(access_error)?;
+        let Some(file) = self
+            .files
+            .iter()
+            .find(|f| f.download.download_token.as_str() == token)
+        else {
+            return Ok(DownloadAvailability::Unavailable);
+        };
+        // Authenticate the exact session/scope/source and retained ORIGINAL
+        // before revealing even the lifetime of a found private handle.
+        match Self::current(access, current, file, source, budget) {
+            Ok(()) => (),
+            Err(MediaError::NotFound) => return Ok(DownloadAvailability::Unavailable),
+            Err(error) => return Err(error),
+        }
+        budget.check()?;
+        Ok(project_issuer_lifetime(file.expires)
+            .map_or(DownloadAvailability::Unavailable, |lifetime| {
+                DownloadAvailability::Available { lifetime }
+            }))
+    }
+
     /// Intake from the genuine retained source, never a request body or URL.
     /// Metadata is insufficient: the broker reads/measures the entire local
     /// stream, then checks original Access and current source bytes/version.
