@@ -29,14 +29,20 @@ const events = new EventTarget();
 /** Other confirmed host session actions notify this transient subscriber only.
  * Session GET itself emits nothing, preventing a rotation/reload cycle. */
 export function notifySessionChanged(): void { events.dispatchEvent(new Event("changed")); }
-// Root emits both attributes only when it mounts both routes; no defaults.
+// Root emits the mode attribute with each sign-in attribute it mounts; no
+// defaults. Each sign-in path is passed only when its own attribute exists.
 const authModeUrl = root.dataset.authModeUrl;
 const localSignInUrl = root.dataset.localSignInUrl;
+const proxySignInUrl = root.dataset.proxySignInUrl;
 const nativeSessions = createAtlasSessionClient({
   session: root.dataset.sessionUrl ?? "/api/atlas/auth/session",
   login: root.dataset.loginUrl ?? "/api/atlas/auth/login",
   logout: root.dataset.logoutUrl ?? "/api/atlas/auth/logout",
-  ...(authModeUrl && localSignInUrl ? { localAccess: { mode: authModeUrl, signIn: localSignInUrl } } : {}),
+  ...(authModeUrl && (localSignInUrl || proxySignInUrl) ? { localAccess: {
+    mode: authModeUrl,
+    ...(localSignInUrl ? { signIn: localSignInUrl } : {}),
+    ...(proxySignInUrl ? { proxySignIn: proxySignInUrl } : {}),
+  } } : {}),
 });
 let currentSession: AtlasSessionInfo | null = null;
 let currentQuantityScope: Scope | null = null;
@@ -45,6 +51,8 @@ const quantityChanged = () => quantityEvents.dispatchEvent(new Event("changed"))
 let sessionGeneration = 0;
 const nativeSignOut = nativeSessions.signOut;
 const nativeLocalAccess = nativeSessions.localAccess;
+const nativeLocalSignIn = nativeLocalAccess?.signIn;
+const nativeProxySignIn = nativeLocalAccess?.proxySignIn;
 const sessions: AtlasSessionClient = {
   async session(signal) {
     const generation = ++sessionGeneration;
@@ -71,19 +79,28 @@ const sessions: AtlasSessionClient = {
     quantityChanged();
     await nativeSignOut(signal);
   } } : {}),
-  // Mode is informational and writes no shared state; local sign-in publishes
-  // the returned session under the same fence as password sign-in.
+  // Mode is informational and writes no shared state; local and proxy sign-in
+  // publish the returned session under the same fence as password sign-in.
   ...(nativeLocalAccess ? { localAccess: {
     mode: (signal: AbortSignal) => nativeLocalAccess.mode(signal),
-    async signIn(signal: AbortSignal) {
+    ...(nativeLocalSignIn ? { async signIn(signal: AbortSignal) {
       const generation = ++sessionGeneration;
       currentSession = null;
       currentQuantityScope = null;
       quantityChanged();
-      const value = await nativeLocalAccess.signIn(signal);
+      const value = await nativeLocalSignIn(signal);
       if (!signal.aborted && generation === sessionGeneration) { currentSession = value; quantityChanged(); }
       return value;
-    },
+    } } : {}),
+    ...(nativeProxySignIn ? { async proxySignIn(signal: AbortSignal) {
+      const generation = ++sessionGeneration;
+      currentSession = null;
+      currentQuantityScope = null;
+      quantityChanged();
+      const value = await nativeProxySignIn(signal);
+      if (!signal.aborted && generation === sessionGeneration) { currentSession = value; quantityChanged(); }
+      return value;
+    } } : {}),
   } } : {}),
   subscribe(changed: () => void) {
     events.addEventListener("changed", changed);

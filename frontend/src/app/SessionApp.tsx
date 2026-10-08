@@ -133,15 +133,26 @@ export function SessionApp({
     active.current?.abort();
     setState({ status: "signed-out", mode: "password" });
   };
-  // Single POST per click; an unconfirmed outcome is resolved only by a
-  // session check, never by an automatic retry.
-  const openHome = async () => {
+  // Single POST per click on the action matching the decoded mode exactly; a
+  // missing action is a mode failure, never another route. An unconfirmed
+  // outcome is resolved only by a session check, never by an automatic retry.
+  const openHome = async (mode: AtlasAuthMode) => {
     const localAccess = sessions.localAccess;
     if (!localAccess) return;
+    const open =
+      mode === "loopback-local"
+        ? localAccess.signIn
+        : mode === "trusted-proxy"
+          ? localAccess.proxySignIn
+          : undefined;
     const { controller, attempt } = begin();
+    if (!open) {
+      setState({ status: "unavailable", action: "mode" });
+      return;
+    }
     setState({ status: "opening" });
     try {
-      const info = await localAccess.signIn(controller.signal);
+      const info = await open(controller.signal);
       if (!controller.signal.aborted && attempt === generation.current)
         setState({ status: "authenticated", info });
     } catch {
@@ -190,12 +201,14 @@ export function SessionApp({
       />
     );
   }
-  if (state.status === "signed-out")
-    return state.mode === "loopback-local" ? (
-      <OpenHomePanel openHome={() => void openHome()} />
+  if (state.status === "signed-out") {
+    const mode = state.mode;
+    return mode === "loopback-local" || mode === "trusted-proxy" ? (
+      <OpenHomePanel openHome={() => void openHome(mode)} />
     ) : (
       <SignInForm signIn={signIn} />
     );
+  }
   return (
     <SessionPanel
       focusHeading
