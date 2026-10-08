@@ -1,3 +1,4 @@
+import type { OperationHistoryRead } from '../../api/operation-history-client';
 import type { GeometryPayloadMappingsItem } from '../../api/generated/contracts';
 import type { GeometryPublicRecord, GeometryRead } from '../../api/geometry-client';
 import type { Attachment, Entry, ReadyView } from '../../app/types';
@@ -19,6 +20,8 @@ export interface LanternProjection {
   docAccess: ReadonlyMap<string, DocAccess>;
   view: ReadyView;
   geometryMetadata: GeometryRead;
+  operationHistory: OperationHistoryRead;
+  loadMoreOperations: (() => void) | null;
   geometryMappings: ReadonlyMap<string, Array<{ record: GeometryPublicRecord; mapping: GeometryPayloadMappingsItem }>>;
 }
 
@@ -54,7 +57,7 @@ function documentKind(attachment: Attachment): Doc['kind'] {
   return 'note';
 }
 
-export function projectView(view: ReadyView, geometryMetadata: GeometryRead = { status: 'loading' }): LanternProjection {
+export function projectView(view: ReadyView, geometryMetadata: GeometryRead = { status: 'loading' }, operationHistory: OperationHistoryRead = { status: 'loading' }, loadMoreOperations: (() => void) | null = null): LanternProjection {
   const entries = new Map<string, Entry>();
   const attachments = new Map<string, Attachment>();
   const docAccess = new Map<string, DocAccess>();
@@ -197,5 +200,5 @@ export function projectView(view: ReadyView, geometryMetadata: GeometryRead = { 
       }
     }
   }
-  return { house, entries, attachments, docAccess, view, geometryMetadata, geometryMappings };
+  return { house, entries, attachments, docAccess, view, geometryMetadata, geometryMappings, operationHistory, loadMoreOperations };
 }

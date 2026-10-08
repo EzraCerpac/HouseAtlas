@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { projectView } from '../src/lantern/adapters/read.ts';
 import { createGeometryClient } from '../src/api/geometry-client.ts';
+import { createOperationHistoryClient } from '../src/api/operation-history-client.ts';
 import { demoSnapshot, demoOptions } from '../../web/demo/fixtures.mjs';
 import { prepareAtlasView } from '../../web/src/prepare.mjs';
 
@@ -109,6 +110,89 @@ assert(geometryProjection.house.floors.every(floor => !floor.hasPlan));
 assert(geometryProjection.house.spaces.every(space => space.geometry === 'none' && !space.shape));
 assert(geometryProjection.house.items.every(item => !item.pos && !item.spaceId && !item.containerId));
 
+const operationScope = geometryScope;
+const operationEntries = [
+  {
+    eventId: '00000000-0000-4000-8000-000000000911',
+    rootOperationId: '00000000-0000-4000-8000-000000000921',
+    operationId: '00000000-0000-4000-8000-000000000931',
+    commandId: 'atlas.geometry.create',
+    actorId: '00000000-0000-4000-8000-000000000941',
+    at: '2026-10-08T13:05:00.123+02:00',
+    target: { authority: 'atlas', recordType: 'geometry', recordId: geometryRecord.recordId },
+    requestDigest: 'a'.repeat(64),
+    state: 'committed',
+  },
+  {
+    eventId: '00000000-0000-4000-8000-000000000912',
+    rootOperationId: '00000000-0000-4000-8000-000000000922',
+    operationId: '00000000-0000-4000-8000-000000000932',
+    commandId: 'atlas.geometry.tombstone',
+    actorId: '00000000-0000-4000-8000-000000000942',
+    at: '2026-10-08T09:00:00Z',
+    target: { authority: 'atlas', recordType: 'geometry', recordId: geometryRecord.recordId },
+    requestDigest: 'b'.repeat(64),
+    state: 'committed',
+  },
+];
+const operationPage = (entries, nextCursor) => ({
+  format: 'atlas-operation-events/1', resolvedScope: operationScope,
+  coverage: 'retained-atlas-stock-only', completeness: 'partial',
+  order: 'audit-sequence-ascending', entries, nextCursor,
+});
+const assertOperationRequest = (url, init, expectedCursor) => {
+  const parsed = new URL(url, 'https://atlas.invalid');
+  assert.equal(parsed.pathname, '/api/atlas/operation-events');
+  assert.equal(parsed.searchParams.get('homeId'), operationScope.homeId);
+  assert.equal(parsed.searchParams.get('pageSize'), '25');
+  assert.equal(parsed.searchParams.get('cursor'), expectedCursor);
+  assert.deepEqual([...parsed.searchParams.keys()].sort(), expectedCursor === null
+    ? ['homeId', 'pageSize'] : ['cursor', 'homeId', 'pageSize']);
+  assert.equal(init.method, 'GET');
+  assert.equal(init.credentials, 'same-origin');
+  assert.equal(init.cache, 'no-store');
+  assert.equal(init.redirect, 'error');
+  assert.equal(init.headers.Accept, 'application/json');
+  assert.equal(init.signal, signal);
+};
+let operationSingleCalls = 0;
+const operationSingleClient = createOperationHistoryClient(async (url, init) => {
+  operationSingleCalls++;
+  assertOperationRequest(url, init, null);
+  return { ok: true, json: async () => operationPage(operationEntries, null) };
+});
+const operationSingleRead = await operationSingleClient.read(operationScope, signal);
+assert.equal(operationSingleCalls, 1);
+assert.deepEqual(operationSingleRead, { status: 'ready', page: operationPage(operationEntries, null) });
+assert.deepEqual(operationSingleRead.page.entries.map(entry => entry.eventId), operationEntries.map(entry => entry.eventId));
+assert.equal(operationSingleRead.page.entries[0].at, operationEntries[0].at);
+const operationProjection = projectView(geometryView, geometryRead, operationSingleRead);
+assert.equal(operationProjection.operationHistory, operationSingleRead);
+assert.equal(operationProjection.house.history.length, 0);
+
+const operationCursor = 'opaque+/operation==';
+let operationPageCalls = 0;
+const operationPagedClient = createOperationHistoryClient(async (url, init) => {
+  const page = operationPageCalls++;
+  assertOperationRequest(url, init, page === 0 ? null : operationCursor);
+  return { ok: true, json: async () => page === 0
+    ? operationPage([operationEntries[0]], operationCursor)
+    : operationPage([operationEntries[1]], null) };
+});
+const operationFirstRead = await operationPagedClient.read(operationScope, signal);
+assert.equal(operationPageCalls, 1);
+assert.deepEqual(operationFirstRead, { status: 'ready', page: operationPage([operationEntries[0]], operationCursor) });
+const operationPagedRead = await operationPagedClient.read(operationScope, signal, operationFirstRead.page.nextCursor);
+assert.equal(operationPageCalls, 2);
+assert.deepEqual(operationPagedRead, { status: 'ready', page: operationPage([operationEntries[1]], null) });
+assert.deepEqual([operationFirstRead.page.entries[0], operationPagedRead.page.entries[0]], operationEntries);
+const emptyOperationClient = createOperationHistoryClient(async (url, init) => {
+  assertOperationRequest(url, init, null);
+  return { ok: true, json: async () => operationPage([], null) };
+});
+assert.deepEqual(await emptyOperationClient.read(operationScope, signal),
+  { status: 'ready', page: operationPage([], null) });
+
 const opaqueCursor = 'opaque+/cursor==';
 let pageCalls = 0;
 const pagedClient = createGeometryClient(async (url, init) => {
@@ -137,4 +221,4 @@ for (const [path, expected] of Object.entries(hashes)) {
   assert.equal(result.status, 0);
   assert.equal(digest(result.stdout), expected, path);
 }
-console.log('PASS synthetic scoped projection, geometry metadata read and mapping, opaque sequential pagination, arbitrary place kinds, unknown placement, retained source metadata, actual document handles, source dates, maintenance, and 44 unchanged authored reference hashes');
+console.log('PASS synthetic scoped projection, geometry and operation history reads, opaque sequential pagination, arbitrary place kinds, unknown placement, retained source metadata, actual document handles, source dates, maintenance, and 44 unchanged authored reference hashes');
