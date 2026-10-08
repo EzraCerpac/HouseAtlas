@@ -5,6 +5,7 @@ import type { AskEntry } from '../assistant/engine';
 import type { LanternProjection } from '../adapters/read';
 import type { AtlasEditingClient } from '../../app/editing';
 import type { QuantityClient } from '../../api/quantity-client';
+import type { PinnedFileClient } from '../../api/pinned-file-client';
 import type { Scope } from '../../app/types';
 import type { SessionSettings } from '../../app/session';
 export type ViewId = 'atlas' | 'rooms' | 'upkeep' | 'network' | 'library' | 'changes';
@@ -85,6 +86,8 @@ export interface LanternActions {
   session?: SessionSettings;
   editing?: AtlasEditingClient;
   quantity?: QuantityClient;
+  /** Optional local HomeBox file consumer; never a grant or quantity authority. */
+  pinnedFiles?: PinnedFileClient;
   nativeContent: ReactNode;
 }
 function initial(house: HouseData): AppState {

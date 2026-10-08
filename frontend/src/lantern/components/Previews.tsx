@@ -7,6 +7,7 @@ import { Modal } from './Modal';
 import { MediaScene } from './Art';
 import { Icon } from './Icon';
 import { Note, StorageTag, fmtSize } from './ui';
+import { PinnedFileAction } from './PinnedFileAction';
 
 // Previews of fictional demo documents, drawn as HTML and SVG.
 
@@ -74,6 +75,7 @@ export function PreviewDialog({ docId }: { docId: string }) {
               </dd>
             </div>
           </dl>
+          <PinnedFileAction docId={doc.id} />
           {doc.versions && (
             <ol className="history compact">
               {[...doc.versions].reverse().map((v) => (
