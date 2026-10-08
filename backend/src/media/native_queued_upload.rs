@@ -1122,6 +1122,19 @@ pub struct NativeQueuedUploadOriginal {
     canonical_scope: jobs::CanonicalScope,
 }
 impl NativeQueuedUploadOriginal {
+    /// Pure private-allocation correlation, with no I/O or current authority.
+    /// The host separately revalidates the same sealed E under its original
+    /// principal/exact grant and the actual Source/native/Domain/physical phase.
+    pub fn matches_source_preparation(
+        &self,
+        proof: &NativeQueuedUploadSourcePreparation<'_>,
+    ) -> bool {
+        self.installed_origin()
+            .is_some_and(|origin| origin.matches_original(self))
+            && Arc::ptr_eq(&self.custody, &proof.custody)
+            && Arc::ptr_eq(&self.custody.issuer, &proof.custody.issuer)
+    }
+
     /// Present only after the concrete installed binder's final checks. The
     /// borrowed receipt records producer origin, without current authority.
     pub fn installed_origin(&self) -> Option<InstalledNativeQueuedUploadOrigin<'_>> {
