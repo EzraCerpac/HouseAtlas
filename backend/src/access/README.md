@@ -431,6 +431,32 @@ genuine request after strict reopen verifies metadata persistence. It supplies
 no original Native Store, atomic presence transaction or witness lifecycle
 qualification and runs no revocation or other held controls.
 
+## Native producer version declaration
+
+`NATIVE_ACCESS_PACKAGE_VERSION` is the explicit Access-owned literal
+`"0.1.0-native.1"` for this Rust authority/metadata producer contract. It is a
+source proposal awaiting trusted integrator acceptance, not an accepted presence
+producer or permission to enable admission. The declaration is independent of
+Cargo/workspace versions, database schema versions, the JavaScript Access
+package and synthetic contract examples; none supplies or authenticates it.
+
+The declared compatibility policy is exact equality with this string, with no
+version ranges or inferred compatibility with other values. Root can use
+`access::NATIVE_ACCESS_PACKAGE_VERSION` as its fixed trusted
+`accepted_access_package_version` input after accepting this native producer
+seam. Storage's existing wire-pattern check validates spelling only; accepting
+an arbitrary caller-selected string would not implement this owner policy.
+
+A semantically incompatible change to native principal/grant provenance or the
+persisted epoch/source-version/full-registration digest contract requires an
+explicit owner version change and reconciliation. This string is not an epoch,
+session key, schema migration, current authority check or Store binding. It
+creates no grant and changes neither the held guard nor original principal.
+Historical witness version strings stay preserved; accepting or reading other
+producer versions, profile/recovery compatibility and engine composition remain
+their actual owners' separate work. No compatibility with the JS package or
+fixture producer is declared here, and presence admission remains held.
+
 ## Dependencies for AT51
 
 Direct dependency versions proposed for the shared application manifest:
