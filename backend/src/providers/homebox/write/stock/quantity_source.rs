@@ -34,6 +34,59 @@ pub struct QuantityCaptureEvidence<'p, T, K> {
     readback_plan: Option<ReadbackPlan>,
 }
 impl<'p, T: read::Transport, K: read::Clock + Send + Sync> QuantitySource<'p, T, K> {
+    /// The retained original allocation, never an authority reconstructed from DATA.
+    pub fn original(&self) -> &OriginalStockActivityPrincipal {
+        self.owner
+    }
+    /// Configured ownership exists only on the original sealed installation.
+    /// An unbound or fixture profile yields None; no descriptor/hash is adopted.
+    pub fn configured(
+        &self,
+    ) -> Option<&Arc<crate::config::providers::quantity_installation::OriginalQuantityConfigured>>
+    {
+        self.registry
+            .preview
+            .profile
+            .installation
+            .as_ref()
+            .map(|owner| owner.configured())
+    }
+
+    /// Revalidate original raw/evidence custody and finite capture age. The
+    /// activity transaction must separately qualify its actual physical owner.
+    pub(super) fn revalidate_activity_capture(
+        &self,
+        guard: &a::TransactionAuthorization<'_>,
+        capture: &DecodedFreshPreparation<QuantityCaptureEvidence<'p, T, K>>,
+    ) -> Result<(), StockErrorCode> {
+        let installation = self
+            .registry
+            .preview
+            .profile
+            .installation
+            .as_ref()
+            .ok_or(StockErrorCode::ProviderUnqualified)?;
+        installation.check_capture_window()?;
+        if capture.snapshots().len() != 1
+            || !capture
+                .evidence()
+                .observation
+                .installation
+                .as_ref()
+                .is_some_and(|owner| Arc::ptr_eq(owner, installation))
+        {
+            return Err(StockErrorCode::ProviderUnqualified);
+        }
+        let snapshot = &capture.snapshots()[0];
+        self.qualify_capture(
+            capture.evidence(),
+            snapshot.original(),
+            snapshot.source(),
+            false,
+            guard,
+        )
+    }
+
     pub fn from_installed(
         owner: &'p OriginalStockActivityPrincipal,
         registry: &'p QuantityObservationRegistry<'p, T, K>,

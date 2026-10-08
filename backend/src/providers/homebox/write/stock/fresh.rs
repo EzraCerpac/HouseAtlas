@@ -343,6 +343,10 @@ impl<'owner, C: StockContractPort + Sync, S: FreshPreparationSourcePort>
 impl<'owner, C: StockContractPort + Sync, S: FreshPreparationSourcePort>
     RetainedFreshPreparation<'owner, C, S>
 {
+    /// Immutable original source identity; this getter issues no qualification.
+    pub fn source(&self) -> &S {
+        &self.owner.source
+    }
     pub fn command(&self) -> &StockCommand {
         &self.command
     }
@@ -628,6 +632,11 @@ impl<'owner, C: StockContractPort + Sync, S: FreshReadbackSourcePort>
     }
 }
 impl<C, S> DecodedStockReadback<C, S> {
+    /// Immutable source custody for exact original-owner checks before capture.
+    pub fn source(&self) -> &S {
+        &self.source
+    }
+
     pub fn new(contracts: C, source: S, limits: wire::DecodeLimits) -> Self {
         Self {
             contracts,

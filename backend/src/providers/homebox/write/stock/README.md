@@ -499,3 +499,72 @@ with exact limits and epochs. Credential custody and original Atlas access
 membership/grants are separate actions. A human-required policy also needs its
 original receipt issuer/spend integration. URL/build/mapping alone creates no
 account, grants, storage mount, approval or provider activation.
+
+## Original quantity flow bindings
+
+`QuantityPreparationBinding` implements the existing `StockPreparationPort`
+using the same retained native preparation, original principal, captured grants
+and configured installation allocation. It revalidates under a current Store
+then Access mutation phase and returns the correlated preflight. It acquires no
+native capture during that phase. `QuantityReadbackBinding` implements the
+existing `StockReadbackPort`: it captures the fixed entity GET outside both
+locks, then finishes against fresh original mutation and physical Store guards.
+The bindings check the actual retained source owner before any readback GET.
+Neither a matching descriptor nor public authority data substitutes for that
+owner or the root's same-graph authorization.
+
+`QuantityDispatchResources` accepts only the opaque invocation returned by the
+original Storage session's fresh atomic admission. That admission checks the
+initial `bodyAccepted=false` preimage, commits the accepted successor and its
+permit, and retains the same original root preparation. `bodyAccepted` records
+Storage admission; it does not record an HTTP body, native effect or completion.
+The resource consumes that invocation on its first authorization attempt and
+asks the same session to revalidate the actual current transaction, original
+graph, grants, physical registration, permit and plan. Inside that phase the
+selected credential configuration delivers a transient sensitive header for
+the exact configured endpoint and quantity-only PATCH. There is no invocation
+constructor from rows, serialized data or a permit, and no reissue or retry.
+
+`into_http` binds these resources to the existing HTTPS `HttpDispatcher` and its
+fixed quantity request builder. Constructing or preparing this dispatcher sends
+no request; actual dispatch remains the existing consuming transport operation.
+Staged uploads are unavailable for this quantity-only JSON plan. The concrete
+root activity authorizer remains mandatory for admission and invocation; the
+provider supplies no permissive authorizer or approval callback. A human-required
+policy still needs genuine receipt issuance and spend composition. These source
+bindings do not create operator configuration, grants, credentials or activation.
+
+`QuantityActivityAuthorization::new` is a closed consumer of the same original
+root preparation. It admits only the explicit reviewed `NoHuman` quantity policy
+and maximum. It correlates the original request, native plan and preflight,
+registered physical/source epochs, current source metadata and original grants.
+The private activity capture check retains the original observation registry,
+raw capture/evidence and monotonic artifact/capture windows; it neither renews
+them nor supplies physical qualification. Storage's quantity admission and
+invocation still revalidate the original root preparation against their actual
+current transaction before and after the policy checks. When the existing
+reserve API calls outside a transaction, the authorizer acquires only the
+configured Access owner for a fresh original mutation guard. With a supplied
+guard it acquires neither Store nor Access.
+
+This policy peer refuses human-required policy and native dispatch, observation,
+never-invoked, rejection and handoff evidence actions. Public transport facts or
+a synthetic changed GET cannot establish a completed effect or release the
+physical hold. A genuine privately retained transport-evidence producer and
+original completion/disclosure composition remain required for those actions.
+
+The directly scoped original-flow positive uses the real closed policy peer and
+actual disposable Store admission. It is a separate exact named case:
+
+```sh
+HOUSEATLAS_QUANTITY_REFERENCE_DIR=/absolute/path/to/pinned-public-files cargo test --offline --locked -p houseatlas-backend --lib providers::homebox::write::stock::quantity_flow_healthy::healthy_native_quantity_original_flow_admission_authorization_and_readback -- --exact --test-threads=1
+```
+
+It uses the same reviewed public reference bytes, synthetic never-executed
+executable/configuration/policy, original Core/Store/Access allocations and only
+three in-process GET responses. It checks actual reservation and atomic
+admission, one original invocation consumed for transient header delivery, an
+unsent HTTP request and guarded readback. The activity row and its physical hold
+remain retained, with no queue job or dispatch/observation event. It sends no
+PATCH and does not attest a remote installation or establish causality, CAS,
+completed native execution, hold release or a human approval receipt.

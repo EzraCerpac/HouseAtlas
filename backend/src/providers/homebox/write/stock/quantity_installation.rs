@@ -410,6 +410,15 @@ impl NativeQuantityInstallationOwner {
         &self.configured
     }
 
+    /// Original artifact custody age only; this issues no physical qualification.
+    pub(super) fn check_capture_window(&self) -> Result<(), StockErrorCode> {
+        self.check_configuration()?;
+        if self.captured_at.elapsed() > self.configured.descriptor().freshness {
+            return Err(StockErrorCode::ProviderUnqualified);
+        }
+        Ok(())
+    }
+
     pub(super) fn admit_original<'owner, 'p>(
         &'owner self,
         original: &'p OriginalStockActivityPrincipal,

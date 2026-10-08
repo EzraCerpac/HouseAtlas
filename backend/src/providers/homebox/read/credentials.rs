@@ -3,7 +3,13 @@
 use super::{
     AuthorizationHeader, CredentialProvider, ErrorCode, ReadError, SourceEndpoint, SourceScope,
 };
-use crate::access as a;
+use crate::{
+    access as a,
+    app::stock_activity_principal::OriginalStockActivityPrincipal,
+    providers::homebox::{write::stock, write_transport},
+    storage::StockActivityPrincipal as _,
+};
+use serde_json::json;
 use std::{
     future::{Future, ready},
     sync::{Arc, Mutex},
@@ -45,6 +51,126 @@ impl NativeReadCredentialConfig {
     /// Safe configuration correlation; this exposes no header bytes.
     pub fn matches_endpoint(&self, endpoint: &SourceEndpoint) -> bool {
         self.origin == *endpoint.origin() && self.scope == *endpoint.scope()
+    }
+
+    /// Deliver the original configured header only inside the caller's held
+    /// mutation guard, after its concrete Store admission has succeeded. This
+    /// helper neither issues that admission nor opens another access lock.
+    pub(crate) fn deliver_quantity_header_in_guard(
+        &self,
+        selected: &SourceEndpoint,
+        endpoint: &write_transport::SourceEndpoint,
+        original: &OriginalStockActivityPrincipal,
+        guard: &a::TransactionAuthorization<'_>,
+        plan: &stock::NativePlan,
+        deadline: Instant,
+    ) -> Result<write_transport::AuthorizationHeader, write_transport::TransportFault> {
+        use stock::{
+            GeneratedIdentity, NativeBody, NativeMethod, NativeQualification, ReadbackSelector,
+            ResourceKind, ResponseKind,
+        };
+        use write_transport::TransportFault as Fault;
+
+        if Instant::now() >= deadline {
+            return Err(Fault::Deadline);
+        }
+        let command = original.command();
+        let authority = original.captured_authority();
+        let source = original.original_activity_source();
+        let partition = original.original_activity_partition();
+        let reference = source.reference();
+        let binding = endpoint.binding();
+        if !self.matches_endpoint(selected)
+            || selected.origin() != endpoint.origin()
+            || !std::ptr::eq(guard.principal(), original.original_activity_principal())
+            || command.command_id != "homebox.entity.quantity.set"
+            || command.target.resource_kind != ResourceKind::Entity
+            || command.context != binding.context
+            || command.target.source_instance_id != binding.source_instance_id
+            || command.target.collection_id != binding.collection_id
+            || selected.scope().workspace_id.as_str() != binding.context.workspace_id.to_string()
+            || selected.scope().home_id.as_str() != binding.context.home_id.to_string()
+            || selected.scope().source_instance_id.as_str()
+                != binding.source_instance_id.to_string()
+            || selected.scope().collection_id != binding.collection_id.to_string()
+            || authority.actor_id.to_string() != guard.principal().actor_id().as_str()
+            || authority.physical_binding != binding.physical_binding
+            || authority.source_epoch != binding.source_epoch
+            || authority.qualification != binding.qualification
+            || !matches!(
+                authority.qualification,
+                NativeQualification::Qualified { .. }
+            )
+            || partition.partition() != &reference.partition()
+            || partition.partition().workspace_id.as_str() != selected.scope().workspace_id.as_str()
+            || partition.partition().home_id.as_str() != selected.scope().home_id.as_str()
+            || partition.partition().source_instance_id.as_str()
+                != selected.scope().source_instance_id.as_str()
+            || partition.partition().collection_id != selected.scope().collection_id
+            || reference.key.source_kind != a::SourceKind::HomeboxEntity
+            || reference.key.external_id
+                != command.target.id().map_err(|_| Fault::Binding)?.to_string()
+        {
+            return Err(Fault::Binding);
+        }
+        guard.assert_mutation().map_err(|_| Fault::Binding)?;
+        guard
+            .revalidate_source(source)
+            .map_err(|_| Fault::Binding)?;
+        guard
+            .revalidate_source_partition(partition)
+            .map_err(|_| Fault::Binding)?;
+        let metadata = guard
+            .persisted_source_metadata(partition)
+            .map_err(|_| Fault::Binding)?;
+        if metadata.source_registration_version() != authority.source_epoch
+            || metadata.registration().partition() != *partition.partition()
+        {
+            return Err(Fault::Binding);
+        }
+        let quantity = command
+            .payload
+            .get("quantity")
+            .and_then(|v| v.as_u64())
+            .filter(|v| *v <= 9_007_199_254_740_991)
+            .ok_or(Fault::Binding)?;
+        if command
+            .payload
+            .as_object()
+            .is_none_or(|payload| payload.len() != 1)
+        {
+            return Err(Fault::Binding);
+        }
+        let target_id = command.target.id().map_err(|_| Fault::Binding)?;
+        let path = format!("/api/v1/entities/{target_id}");
+        let body = json!({"quantity": quantity});
+        if plan.request.method != NativeMethod::Patch
+            || plan.request.path != path
+            || !plan.request.query.is_empty()
+            || plan.request.body != NativeBody::Json(body.clone())
+            || plan.response != ResponseKind::Entity
+            || plan.success_status != 200
+            || plan.max_response_bytes.is_some()
+            || plan.readback.path != path
+            || !plan.readback.query.is_empty()
+            || plan.readback.target != command.target
+            || plan.readback.selector != ReadbackSelector::Whole
+            || plan.readback.expected != body
+            || plan.readback.absence
+            || plan.generated != GeneratedIdentity::None
+            || plan.requires_complete_impact
+        {
+            return Err(Fault::Binding);
+        }
+        guard.revalidate().map_err(|_| Fault::Binding)?;
+        if Instant::now() >= deadline {
+            return Err(Fault::Deadline);
+        }
+        let header = write_transport::AuthorizationHeader::from_bytes(&self.header)?;
+        if Instant::now() >= deadline {
+            return Err(Fault::Deadline);
+        }
+        Ok(header)
     }
 
     /// Retain exactly the host's original opaque read handles. No principal or
