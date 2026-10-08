@@ -205,20 +205,27 @@ fn matches_registration(
                 .map(String::as_str)
                 .collect::<BTreeSet<_>>()
 }
-impl<P> StagedPublication<'_, P> {
+impl<'a, P> StagedPublication<'a, P> {
     pub fn generation(&self) -> &CompleteGeneration {
         &self.generation
     }
-    /// Borrow raw bytes from the same stock-dialect generation while it is
-    /// still pinned to this principal and Store-issued publication fence.
-    /// The returned carrier grants no historical authority and cannot outlive
-    /// this staged publication.
-    pub fn native_presence_capture(
-        &self,
-    ) -> Result<Option<NativePresenceCapture<'_, P>>, PublishError> {
-        let Some(native) = self.generation.native_presence.as_ref() else {
-            return Ok(None);
-        };
+    /// Whether this staged complete read retained original native bytes.
+    /// This metadata grants no authority and leaves ordinary commit available.
+    pub fn has_native_presence_capture(&self) -> bool {
+        self.generation.native_presence.is_some()
+    }
+    /// Consume the stage into a source carrier for the actual Storage presence
+    /// publication path. This moves the original fence and normalized
+    /// generation, including the exact reader-issued raw allocation; the
+    /// original principal remains borrowed. It creates no historical authority.
+    pub fn into_native_presence_capture(
+        self,
+    ) -> Result<NativePresenceCapture<'a, P>, PublishError> {
+        let native = self
+            .generation
+            .native_presence
+            .as_deref()
+            .ok_or(PublishError::InvalidRetainedState)?;
         let generation_id = self
             .generation
             .cache()
@@ -243,12 +250,11 @@ impl<P> StagedPublication<'_, P> {
         {
             return Err(PublishError::InvalidRetainedState);
         }
-        Ok(Some(NativePresenceCapture {
+        Ok(NativePresenceCapture {
             principal: self.principal,
-            fence: &self.fence,
-            generation: &self.generation,
-            native,
-        }))
+            fence: self.fence,
+            generation: self.generation,
+        })
     }
     pub fn commit<C: Contract, A: Authorization<Principal = P>, R: Runtime>(
         self,

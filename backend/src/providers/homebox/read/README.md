@@ -35,14 +35,18 @@ A successful empty collection is a complete fresh generation.
 For the concrete stock dialect, a successful full generation privately retains
 the original ordered fixed-GET response bodies, exact paths/query/status/scope,
 lexical retrieval timestamps, complete reader registration and generated ID.
-`StagedPublication::native_presence_capture()` borrows that exact bundle with
-the same normalized generation, original principal and Store-issued fence.
-The raw bytes never serialize into cache/publication DTOs, are not Clone, and the
-borrow cannot outlive the staged publication. This is source evidence only; it
-does not create historical authority or admission. The Access original-source
-cut and Storage postcommit/full-release owner join remain required before an
-original-history consumer may admit such evidence. The synthetic normalized
-dialect keeps its existing fetch behavior and returns no native capture.
+`StagedPublication::into_native_presence_capture()` consumes the stage into a
+carrier that owns the exact bundle, normalized generation and Store-issued
+fence while retaining the original principal borrow. Its opaque
+`NativePresenceIdentity` is backed by the same private `Arc` allocation and can
+be compared only with another actual capture; it is not a public constructor,
+serialized value or content-derived identity. Raw bytes never serialize into
+cache/publication DTOs and the capture is not Clone. This is source evidence
+only; it does not create historical authority or admission. The Access
+original-source cut and Storage postcommit/full-release owner join remain
+required before an original-history consumer may admit such evidence. The
+synthetic normalized dialect keeps its existing fetch behavior and cannot be
+transferred as a native capture.
 
 `fetch_view(parent_ids)` returns a separate `FilteredView` with only projections
 and stats. It has no generation, complete cache or publication method; successful

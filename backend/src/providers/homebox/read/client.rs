@@ -432,12 +432,12 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                     quarantine: previous.quarantine || previous.cache.quarantined(),
                     stats,
                     native_presence: self.stock_dialect.then(|| {
-                        NativePresenceGeneration::new(
+                        std::sync::Arc::new(NativePresenceGeneration::new(
                             self.registration.clone(),
                             self.scope.clone(),
                             generation_id,
                             native_responses,
-                        )
+                        ))
                     }),
                 })
             });

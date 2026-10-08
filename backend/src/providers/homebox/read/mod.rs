@@ -24,7 +24,7 @@ pub use http_transport::{
 pub use native_capture::{CapturedStockEntity, CapturedStockMaintenance, NativeCapture};
 pub use native_file_capture::CapturedNativeFileSnapshot;
 pub use native_presence_capture::{
-    NativePresenceCapture, NativePresenceGeneration, NativePresenceResponse,
+    NativePresenceCapture, NativePresenceGeneration, NativePresenceIdentity, NativePresenceResponse,
 };
 pub use native_query::{NativeReadCapture, NativeReadOwner};
 pub use navigation::{NativeNavigation, NativeRoute};
