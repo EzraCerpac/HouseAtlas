@@ -226,11 +226,15 @@ origins and production peer configuration remain mandatory external owner inputs
 The default binary supplies none and keeps AI unavailable. This composition runs
 no enrollment, credential, provider or approval operation.
 
-The default owned MCP lifecycle keeps its read-only admission set. A separate
-unmounted Editor startup binding accepts only the existing opaque authenticated
+The default owned MCP lifecycle keeps its read-only admission set. An explicit
+`Host::with_mcp_command_profile(McpCommandProfile::ExistingEditorCommands)`
+startup selector now connects initialization to the Editor binding. It accepts only the existing opaque authenticated
 POST mutation identity, then uses actual current Editor capabilities and the same
 finite typed stock service, approval consumption and native transaction/result
-adapters. It holds no Core lock across async binding. Admission does not supply
+adapters. Viewer initialization and the default binary retain read admission; existing
+sessions retain their initial catalog. No client metadata selects this profile
+and the Editor profile was not executed by this source lane. It holds no Core
+lock across async binding. Admission does not supply
 missing specialized owner peers. The existing WebMCP adapter already uses scoped
 same-origin HTTP commands and canonical result validation; no replacement adapter
 or authority DTO is introduced.
@@ -250,3 +254,27 @@ transport's empty-query `?`; the owner corrected only empty-query construction,
 retaining nonempty maintenance `status=both` unchanged. No other test was run;
 the test build retains an existing Mac test-only unused SecretKey warning.
 Production library/binary/examples pass warnings-denied Clippy.
+
+
+Test-only TLS dependencies use the existing AWS Rustls backend. An earlier
+Ring feature selection also enabled a second Rustls backend through example
+feature unification and caused the Network example to fail before its request.
+The corrected Tokio-Rustls test wiring and existing Network test-only provider
+selection preserve the production backend. The real ordinary Network fixture
+then passed one passive synthetic inventory GET and seventeen root TLS/MCP reads.
+rcgen uses Ring solely for disposable certificate generation. Existing version
+and checksum pins remain unchanged; no process-global provider override or
+production runtime/security setting is introduced.
+
+
+Sealed HomeBox entity and maintenance captures now convert directly into the
+existing fresh adapter input after exact context/source/collection/target and
+fixed route checks. Field, attachment and maintenance conversions require one
+actual original matching member. The original opaque collection string must
+exactly equal the stock UUID spelling; no identity normalization is inferred.
+Original response bytes and retrieval spelling are preserved. A separate named
+positive tests four in-process captures/conversions; the two-GET socket fixture
+remains separate. The conversion issues no qualifier proof or authority and
+implements no production preparation/readback port. Mandatory owner evidence
+for current authority, freshness, build/route, completeness, hidden-field PUT
+preservation and file membership/version remains unavailable.

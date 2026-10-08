@@ -64,13 +64,9 @@ pub(crate) async fn bind_owned_lifecycle(
     bind_owned_admission(context, identity, admitted).await
 }
 
-/// Explicit source-only Editor composition. The default transport continues to
+/// Explicit Editor startup composition. The default transport continues to
 /// bind read admission. A trusted application caller must select this variant;
 /// metadata creates no approval, original principal or execution authority.
-#[expect(
-    dead_code,
-    reason = "Editor MCP command startup selection remains unmounted"
-)]
 pub(crate) async fn bind_owned_editor_lifecycle(
     context: McpStockContext,
     identity: m::lifecycle::AuthenticatedIdentity,

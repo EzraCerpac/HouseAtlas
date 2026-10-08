@@ -46,6 +46,15 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+/// Trusted startup selection only. Every session still requires its actual
+/// original authenticated native identity and current capability checks.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub enum McpCommandProfile {
+    #[default]
+    ReadOnly,
+    ExistingEditorCommands,
+}
+
 #[derive(Clone)]
 pub struct Host {
     pub core: Arc<Mutex<Core>>,
@@ -58,6 +67,7 @@ pub struct Host {
     pages: Arc<Mutex<pages::Pages>>,
     admission: Arc<admission::Admission>,
     mcp: Arc<Mutex<agents::mcp_transport::TransportSessions>>,
+    mcp_command_profile: McpCommandProfile,
     // Same native Access owner; immutable configured scopes copied at startup.
     mcp_access: crate::app::Access,
     mcp_scopes: Arc<Vec<d::Scope>>,
@@ -72,6 +82,7 @@ impl Host {
         homebox_cache_sources: Vec<crate::config::providers::homebox::TrustedHomeBoxSource>,
     ) -> crate::storage::Result<Self> {
         Ok(Self {
+            mcp_command_profile: McpCommandProfile::ReadOnly,
             mcp_access: core.access.clone(),
             mcp_scopes: Arc::new(core.homes.iter().map(|home| home.scope.clone()).collect()),
             asset_reviews: Arc::new(Mutex::new(asset_reviews::ReviewRegistry::default())),
@@ -90,6 +101,14 @@ impl Host {
             )),
         })
     }
+    /// Select admission only for subsequently initialized sessions. This data
+    /// grants no authority or approval and cannot broaden an existing session.
+    /// The default binary retains ReadOnly.
+    pub fn with_mcp_command_profile(mut self, profile: McpCommandProfile) -> Self {
+        self.mcp_command_profile = profile;
+        self
+    }
+
     /// Trusted optional native mounts. Opening a binding issues no grants and
     /// performs no provider request; existing configured authority is required.
     pub fn with_network_bindings(

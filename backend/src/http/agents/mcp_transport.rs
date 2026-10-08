@@ -455,12 +455,18 @@ fn handle(
         return Err(failure(StatusCode::BAD_REQUEST));
     }
     revalidate(&auth.access, &auth.original)?;
-    let session = runtime
-        .block_on(mcp::bind_owned_lifecycle(
-            mcp::McpStockContext::from_host(host),
-            identity.clone(),
-        ))
-        .map_err(port_failure)?;
+    // Selection affects only this new session's catalog. Existing sessions keep
+    // their original owner and admitted set; no client metadata selects a profile.
+    let context = mcp::McpStockContext::from_host(host);
+    let session = if host.mcp_command_profile
+        == super::super::McpCommandProfile::ExistingEditorCommands
+        && identity.original().role() == a::Role::Editor
+    {
+        runtime.block_on(mcp::bind_owned_editor_lifecycle(context, identity.clone()))
+    } else {
+        runtime.block_on(mcp::bind_owned_lifecycle(context, identity.clone()))
+    }
+    .map_err(port_failure)?;
     let mut entry = Entry {
         session,
         original: auth.original,

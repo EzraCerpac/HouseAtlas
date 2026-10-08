@@ -196,7 +196,7 @@ impl Drop for TempDirectory {
 async fn healthy_verified_tls_inventory_stream_durable_stage_and_consuming_fence() {
     let cert = rcgen::generate_simple_self_signed(vec!["127.0.0.1".into()]).unwrap();
     let server = rustls::ServerConfig::builder_with_provider(Arc::new(
-        rustls::crypto::ring::default_provider(),
+        rustls::crypto::aws_lc_rs::default_provider(),
     ))
     .with_safe_default_protocol_versions()
     .unwrap()

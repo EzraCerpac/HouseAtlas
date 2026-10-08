@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "ccf25f726686e1dd9fd7bf731c9b1a706c6b2915c67fa2f853c14b838de0267c",
+  "sourceDigestSha256": "77a473792cdf24f5e9e7fa73f731af300f2ef074dd77a4db9cb79e7a198d5031",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -77,15 +77,15 @@
     {
       "path": "Cargo.lock",
       "mode": "100644",
-      "bytes": 83519,
-      "sha256": "fc1e0f3d85957d72522b5536f6274ed93129bde7a90648c93bdf91d77a5db398",
+      "bytes": 83510,
+      "sha256": "81f0db6b7eadcec28c2501cf46e8342c2737d2c1d326bdde74134577fcebb4ff",
       "owner": "core-integration"
     },
     {
       "path": "Cargo.toml",
       "mode": "100644",
-      "bytes": 2309,
-      "sha256": "434f21272d4dea6f9658958deddca3a4d3fa27167c0a2f87fe9c943bb1204b45",
+      "bytes": 2314,
+      "sha256": "c432bb4c0f98ad9f429dd74cc8b26c76152ca01246bdf76bc15b3b73cb08d3b9",
       "owner": "core-integration"
     },
     {
@@ -1589,15 +1589,15 @@
     {
       "path": "backend/src/http/agents/mcp.rs",
       "mode": "100644",
-      "bytes": 8774,
-      "sha256": "978bba6e7c67d8365a93dd902fe0795d167ec377663cb7a36a94415b906386ef",
+      "bytes": 8672,
+      "sha256": "7f0ed7bb999148c4ddd329acd370f9d60c991e7907a62b3c496ed3e9bd1c308d",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/http/agents/mcp_transport.rs",
       "mode": "100644",
-      "bytes": 25803,
-      "sha256": "7d56bce4b5c558bb0c80b28b3e485c13d23df13f313f897a300ec9ce4dbd8f46",
+      "bytes": 26218,
+      "sha256": "2a3ddf72f458e4cd65f661f7ec8d05579a6a39697a728301b46ad320b691feb4",
       "owner": "core-integration"
     },
     {
@@ -1673,8 +1673,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 26381,
-      "sha256": "bb100416d573cb95d5a340de18d2dbd9b57059d84d426b7d0fd1746ca53e3f57",
+      "bytes": 27125,
+      "sha256": "19186d799abfb70b0fc6ab1004e767fbe2d514ae8a6630e89ca8ba2908866d7b",
       "owner": "core-integration"
     },
     {
@@ -2261,8 +2261,8 @@
     {
       "path": "backend/src/providers/homebox/read/README.md",
       "mode": "100644",
-      "bytes": 18919,
-      "sha256": "738298988a22070517aa79ebd64bfecd8528c16751eb537464c9ae9f665cabc0",
+      "bytes": 21217,
+      "sha256": "40e1576bf5fa1b6b1a94aa8739ae8fb796c381d644930d3cd3f861cb88eb07cb",
       "owner": "homebox"
     },
     {
@@ -2324,15 +2324,15 @@
     {
       "path": "backend/src/providers/homebox/read/native_capture.rs",
       "mode": "100644",
-      "bytes": 2676,
-      "sha256": "2672ca42823e9b7eb7b8d71d4ddfabf77fc69759ea5a4477514ab58ec462b3bb",
+      "bytes": 7507,
+      "sha256": "d3b58246236603cf77ac9a1e298c59604fe72b1fabbba8bd98c37910db018db1",
       "owner": "homebox"
     },
     {
       "path": "backend/src/providers/homebox/read/native_capture_healthy.rs",
       "mode": "100644",
-      "bytes": 7537,
-      "sha256": "e2a37d0f5c69034c303219fa1abe88eb10038398448573796de9d36ac433f571",
+      "bytes": 13940,
+      "sha256": "c37184e3fd16371b92e50e92f471fdc08df1ebba188257aca8f96eaca384ba60",
       "owner": "homebox"
     },
     {
@@ -3269,8 +3269,8 @@
     {
       "path": "backend/src/providers/network/transport_healthy.rs",
       "mode": "100644",
-      "bytes": 10331,
-      "sha256": "1956fb54e3bfaa330ec30f8504a8b161ce5e139a227c2d2705980887413239c6",
+      "bytes": 10336,
+      "sha256": "101dff14c50b4da8a6f4b9b4cce973e2cc9aa7095c78e64568db4bd6c26cdd3e",
       "owner": "network"
     },
     {
@@ -4326,8 +4326,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 36845,
-      "sha256": "1565dcb9aa7316b78df5f6ef24eb1eaebd5dd273a09612ed2187f13dc1773a5b",
+      "bytes": 37027,
+      "sha256": "6d9a8cfd120c4044622c4e704f5ad2675cf0ee94f7f0c92b6d08618b5f7010b7",
       "owner": "core-integration"
     },
     {
@@ -4382,8 +4382,8 @@
     {
       "path": "docs/rust-integration/dev-composition.md",
       "mode": "100644",
-      "bytes": 17628,
-      "sha256": "e52423aee73287d7f6ccf5ad7bd216806cf968a6ab16e6db5b5fe6f70183d168",
+      "bytes": 19476,
+      "sha256": "08a824545618a79a940cc3d0371aa91095d6314734d2452adf7848a39b8450d1",
       "owner": "core-integration"
     },
     {
