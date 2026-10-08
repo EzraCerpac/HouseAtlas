@@ -1,6 +1,6 @@
 //! Closed original quantity activity consumer. Same-transaction physical/graph
 //! qualification belongs to Storage's Root B path before these callbacks.
-//! Native dispatch, readback and never-invoked facts have no issuer here.
+//! Native evidence is accepted only from the private consuming effect owner.
 use super::*;
 use crate::{
     access,
@@ -12,7 +12,7 @@ use crate::{
     providers::homebox::read,
     storage::{self, StockActivityPrincipal},
 };
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 pub struct QuantityActivityAuthorization<'bundle, 'native, 'p, 'owner, T, K>
 where
@@ -21,6 +21,7 @@ where
 {
     preparation: &'bundle OriginalQuantityPreparation<'native, 'p, 'owner, T, K>,
     plan_digest: Digest,
+    pub(super) evidence: Mutex<super::quantity_evidence::QuantityEvidenceState<'bundle, 'p, T, K>>,
 }
 impl<'bundle, 'native, 'p, 'owner, T: read::Transport, K: read::Clock + Send + Sync>
     QuantityActivityAuthorization<'bundle, 'native, 'p, 'owner, T, K>
@@ -32,11 +33,18 @@ impl<'bundle, 'native, 'p, 'owner, T: read::Transport, K: read::Clock + Send + S
         let consumer = Self {
             preparation,
             plan_digest,
+            evidence: Mutex::new(super::quantity_evidence::QuantityEvidenceState::default()),
         };
         consumer.check_original(preparation.original())?;
         Ok(consumer)
     }
-    fn check_original(
+    pub(super) fn owns_preparation(
+        &self,
+        preparation: &OriginalQuantityPreparation<'native, 'p, 'owner, T, K>,
+    ) -> bool {
+        std::ptr::eq(self.preparation, preparation)
+    }
+    pub(super) fn check_original(
         &self,
         original: &OriginalStockActivityPrincipal,
     ) -> Result<(), StockPortFault> {
@@ -331,6 +339,15 @@ impl<'bundle, 'native, 'p, 'owner, T: read::Transport, K: read::Clock + Send + S
                 // cannot establish those facts or issue an invocation carrier.
                 Ok(())
             }
+            Action::Disclose(operation)
+                if self
+                    .evidence
+                    .lock()
+                    .map_err(|_| StockPortFault::Unavailable)?
+                    .disclosable(operation) =>
+            {
+                Ok(())
+            }
             Action::Disclose(operation) => self.operation(
                 operation,
                 matches!(operation.outcome.state, OutcomeState::Dispatching),
@@ -351,6 +368,28 @@ impl<T: read::Transport, K: read::Clock + Send + Sync>
         phase: storage::StockActivityPhase,
         action: storage::StockActivityAction<'_>,
     ) -> Result<(), StockPortFault> {
+        if matches!(
+            action,
+            storage::StockActivityAction::Dispatch(..)
+                | storage::StockActivityAction::NeverInvoked(..)
+                | storage::StockActivityAction::Observation(..)
+        ) {
+            self.check_original(original)?;
+            let physical = self.preparation.configured().physical();
+            if registration.physical_binding != physical.physical_binding
+                || registration.owner_id != physical.owner_id
+                || registration.dispatcher_epoch != physical.dispatcher_epoch
+                || registration.source_epoch != self.preparation.native().authority().source_epoch
+                || registration.qualification != self.preparation.native().authority().qualification
+            {
+                return Err(StockPortFault::EvidenceConflict);
+            }
+            return self
+                .evidence
+                .lock()
+                .map_err(|_| StockPortFault::Unavailable)?
+                .authorize(phase, action);
+        }
         if let Some(guard) = guard {
             self.check_guard(original, registration, guard)?;
             return self.check_action(phase, action);

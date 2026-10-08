@@ -613,6 +613,36 @@ pub struct PendingFreshReadback<'owner, C, S: FreshReadbackSourcePort> {
     authority: StockAuthority,
     capture: DecodedFreshReadback<S::Evidence>,
 }
+/// Qualified readback with the same original decoded GET and opaque evidence
+/// still retained. Observation getters are data, not an admission permit.
+pub struct RetainedFreshReadback<'owner, C, S: FreshReadbackSourcePort> {
+    owner: &'owner DecodedStockReadback<C, S>,
+    operation: StoredOperation,
+    plan: ReadbackPlan,
+    authority: StockAuthority,
+    capture: DecodedFreshReadback<S::Evidence>,
+    observation: NativeObservation,
+}
+impl<'owner, C, S: FreshReadbackSourcePort> RetainedFreshReadback<'owner, C, S> {
+    pub fn operation(&self) -> &StoredOperation {
+        &self.operation
+    }
+    pub fn plan(&self) -> &ReadbackPlan {
+        &self.plan
+    }
+    pub fn authority(&self) -> &StockAuthority {
+        &self.authority
+    }
+    pub fn observation(&self) -> &NativeObservation {
+        &self.observation
+    }
+    pub fn capture(&self) -> &DecodedFreshReadback<S::Evidence> {
+        &self.capture
+    }
+    pub fn source(&self) -> &S {
+        &self.owner.source
+    }
+}
 impl<'owner, C: StockContractPort + Sync, S: FreshReadbackSourcePort>
     PendingFreshReadback<'owner, C, S>
 {
@@ -620,6 +650,13 @@ impl<'owner, C: StockContractPort + Sync, S: FreshReadbackSourcePort>
         self,
         context: &FreshQualification<'_, '_, '_>,
     ) -> Option<NativeObservation> {
+        Some(self.finish_in_guard_retained(context)?.observation)
+    }
+
+    pub fn finish_in_guard_retained(
+        self,
+        context: &FreshQualification<'_, '_, '_>,
+    ) -> Option<RetainedFreshReadback<'owner, C, S>> {
         context.revalidate().ok()?;
         let observation = self.owner.source.qualify_readback_in_guard(
             &self.operation,
@@ -628,7 +665,16 @@ impl<'owner, C: StockContractPort + Sync, S: FreshReadbackSourcePort>
             &self.capture,
             context,
         )?;
-        check_readback_observation(&self.operation, &self.plan, &self.capture, observation)
+        let observation =
+            check_readback_observation(&self.operation, &self.plan, &self.capture, observation)?;
+        Some(RetainedFreshReadback {
+            owner: self.owner,
+            operation: self.operation,
+            plan: self.plan,
+            authority: self.authority,
+            capture: self.capture,
+            observation,
+        })
     }
 }
 impl<C, S> DecodedStockReadback<C, S> {
