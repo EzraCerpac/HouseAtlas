@@ -47,6 +47,29 @@ npm run build --prefix frontend
 node frontend/lantern-tests/healthy-read.mjs
 ```
 
+A separately named topology read example uses generic Alpha/Beta records and
+injected transports only. It checks the existing native invoke envelope,
+pagination, exact binding joins, recorded elevation datums and unknown access.
+Inspect its body and imports before running this local command:
+
+```sh
+node frontend/lantern-tests/topology-read.mjs
+```
+
+Its visual harness uses the same synthetic records, an injected topology client
+and a stub for all other application fetches. After inspecting the harness,
+use an unused loopback port and stop the server after the desktop and narrow
+screenshots (at most 20 minutes):
+
+```sh
+cd frontend
+./node_modules/.bin/vite lantern-tests/topology-visual --config vite.config.ts --host 127.0.0.1 --port 4178 --strictPort
+```
+
+These named examples are outside automatic ordinary CI. They establish only
+the reported synthetic read and visual behavior, without provider, recovery,
+private-house import or actual-user acceptance.
+
 Ordinary CI uses its explicit workflow allowlist, pinned actions/runtime and
 lockfiles. Separately named local checks are not automatic CI entrypoints.
 Concurrency, denial and failure-injection tests are permitted only in the

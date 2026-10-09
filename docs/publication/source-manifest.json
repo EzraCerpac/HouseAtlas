@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0500dbd5850462a674f33b0174ab7ebedc41bc484727d8378f8bd962c9271085",
+  "sourceDigestSha256": "9c7971d935850512b98751893f6f93c635981635e130d4eb468a867f4e1fd6e4",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 9670,
-      "sha256": "d2ce8baab7b99ce8bf2163678af3d2f46686f9f97ce92e9801d6f075a1858d64",
+      "bytes": 10635,
+      "sha256": "d1699d6386dac1875e2a6774f438112a986b14f0942218d931baf39d67d68862",
       "owner": "core-integration"
     },
     {
@@ -5558,8 +5558,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 15260,
-      "sha256": "2b8bab91e1ab942ad1f602e64414d58749f63e4f11edaa86db59466c93d55c61",
+      "bytes": 15714,
+      "sha256": "41ad5cdad99c5c851c6a43256fac2a3a3ab17748bcac60b582c284a0efa2ead9",
       "owner": "core-integration"
     },
     {
@@ -5623,6 +5623,27 @@
       "mode": "100644",
       "bytes": 30327,
       "sha256": "8e68f80614e8a148bdd58018c338a13535ba873e78a5fedd1d2f072cdb678e13",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/topology-read.mjs",
+      "mode": "100644",
+      "bytes": 66392,
+      "sha256": "e7e9a26cca5eb742c9177f2198a6b46d17f57bd5005fc93160bb96b9eb400e53",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/topology-visual/index.html",
+      "mode": "100644",
+      "bytes": 279,
+      "sha256": "60ee658e8beb5132c3ec11e2d2e1cdb786b6e5a5de24aa954ac989d0de2089af",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/topology-visual/main.tsx",
+      "mode": "100644",
+      "bytes": 62821,
+      "sha256": "ff7e77a9aea85f15439c7e5a82e0adfd79e16bc4fb6efce29965e76b686d14fc",
       "owner": "web"
     },
     {
@@ -5878,6 +5899,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/api/topology-client.ts",
+      "mode": "100644",
+      "bytes": 10758,
+      "sha256": "76be250a68902a9bb32f575d356ae7c6c23d3118b6ccf54ab962093197327e6e",
+      "owner": "core-integration"
+    },
+    {
       "path": "frontend/src/app/App.tsx",
       "mode": "100644",
       "bytes": 16323,
@@ -6020,8 +6048,8 @@
     {
       "path": "frontend/src/lantern/Host.tsx",
       "mode": "100644",
-      "bytes": 6349,
-      "sha256": "be67b1efd979ba0adbcf03762a3ee1f2f3a3d810b5e9192f6db2788b0e0c62d0",
+      "bytes": 6693,
+      "sha256": "3f2544655ee9f327e2555aaa9afd80a5780b525bb59b00c00cf6e139fe742b59",
       "owner": "web"
     },
     {
@@ -6375,6 +6403,34 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/styles/topology.css",
+      "mode": "100644",
+      "bytes": 2539,
+      "sha256": "7f8b526422bcfcd2748a13d7af1decf81e9281b46e488135e71911adb1d772c0",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/topology/BuildingScope.tsx",
+      "mode": "100644",
+      "bytes": 11786,
+      "sha256": "176c2c12e2ff6c5ad3d13425be019a2a2ab191e5c7894586259c8f3c365c537f",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/topology/TopologyProvider.tsx",
+      "mode": "100644",
+      "bytes": 6297,
+      "sha256": "1238c6256e929d94cb5a0e3007d83bae310c7f594878867a6855cedee9e8bc21",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/topology/model.ts",
+      "mode": "100644",
+      "bytes": 8874,
+      "sha256": "d65495b0b21d54420060a6837fb927b4126ff722cc3a8f8e04b74dca622934a0",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/views/ChangesView.tsx",
       "mode": "100644",
       "bytes": 3292,
@@ -6398,8 +6454,8 @@
     {
       "path": "frontend/src/lantern/views/RoomsView.tsx",
       "mode": "100644",
-      "bytes": 12685,
-      "sha256": "f1b71fe82151af58067b57d3ba38ac8a6907f1bc8447a13c8f2e13d450bae4a7",
+      "bytes": 13044,
+      "sha256": "3165494c0acd17a7f9d72a756a7bab79c98b3d6eac6a93b007bd5c9df1520c10",
       "owner": "web"
     },
     {
@@ -6678,8 +6734,8 @@
     {
       "path": "packages/access/src/check-package.mjs",
       "mode": "100644",
-      "bytes": 1048,
-      "sha256": "1ccb9eb665c7f4297e83c980bae3893964e7bde6715bc1fcf9b78fe50678c7c4",
+      "bytes": 1219,
+      "sha256": "3fff0b529a7808c3fa71860df82c826646d0eed5106c859dae3d0f700ea41d7c",
       "owner": "access"
     },
     {
@@ -6790,8 +6846,8 @@
     {
       "path": "packages/contracts/history/check-history.mjs",
       "mode": "100644",
-      "bytes": 6409,
-      "sha256": "4d4da5b555506428d6d90e64868f4c9427f66897b7e32959089494de4159e1df",
+      "bytes": 6733,
+      "sha256": "fc66f8fcfae34ec7a6870a46d317eb0ad23866f64522875d6d35eb17e3c0d02c",
       "owner": "contracts"
     },
     {
@@ -6958,8 +7014,8 @@
     {
       "path": "packages/media/src/recovery.mjs",
       "mode": "100644",
-      "bytes": 10042,
-      "sha256": "1914d07d71a8bc2c0f65e3f93fe7b25b9417719645072e4085073796eeb0cc0c",
+      "bytes": 10069,
+      "sha256": "cb68c14a157c00319f4d8445e4dbd33d7a3f97cc8a593cb9900eb15d60e1a7a0",
       "owner": "media"
     },
     {
@@ -7014,8 +7070,8 @@
     {
       "path": "packages/media/tools/check-package.mjs",
       "mode": "100644",
-      "bytes": 1314,
-      "sha256": "fea1eda555b4de4a0b16dba07d360638ec84cc69fe4c4f1c2284c52540a0ef73",
+      "bytes": 1483,
+      "sha256": "3e0d5fe51b4c5695315dc51c3a8cc6adb2f5d84455fa4b066d405912e67f4415",
       "owner": "media"
     },
     {
@@ -7147,8 +7203,8 @@
     {
       "path": "packages/storage/src/migrations.mjs",
       "mode": "100644",
-      "bytes": 8903,
-      "sha256": "ba135a25c6e02f164849ded8b29fe12c03d2e4b15e5b034d76455e0a97399d50",
+      "bytes": 9033,
+      "sha256": "73bcf7b708e8706dd15ad0cd0e650938b1688675ff2adebe0ee7273437ad3908",
       "owner": "storage"
     },
     {
