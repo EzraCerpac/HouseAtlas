@@ -61,11 +61,24 @@ fn main() -> Result<(), lifecycle::Failure> {
     // This binary creates only explicitly selected private application state.
     // Establish the file-creation policy before starting runtime worker threads.
     rustix::process::umask(rustix::fs::Mode::from_raw_mode(0o077));
-    run()
+    // The lease outlives the complete runtime, including blocking work whose
+    // HTTP coordinator has already returned an error. Declaration order also
+    // retains it through runtime destruction while unwinding.
+    let mut persistent_lease = None;
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    let result = runtime.block_on(run(&mut persistent_lease));
+    // Full destruction waits for blocking tasks; a timeout/background shutdown
+    // here would release the data-directory lock before their work ended.
+    drop(runtime);
+    drop(persistent_lease);
+    result
 }
 
-#[tokio::main]
-async fn run() -> Result<(), lifecycle::Failure> {
+async fn run(
+    persistent_lease: &mut Option<Arc<lifecycle::persistent::ServerLease>>,
+) -> Result<(), lifecycle::Failure> {
     use houseatlas_backend::config::server::ServerCommand;
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     let (arguments, ai_account) =
@@ -89,7 +102,9 @@ async fn run() -> Result<(), lifecycle::Failure> {
                 );
                 Ok(())
             }
-            ServerCommand::Serve(config) => run_persistent(config, ai_account).await,
+            ServerCommand::Serve(config) => {
+                run_persistent(config, ai_account, persistent_lease).await
+            }
             ServerCommand::Rebind { previous, config } => {
                 tokio::task::spawn_blocking(move || {
                     lifecycle::persistent::rebind_origin(&previous, &config)
@@ -202,6 +217,7 @@ async fn run_disposable(config: Config) -> Result<(), lifecycle::Failure> {
 async fn run_persistent(
     config: houseatlas_backend::config::server::ServerConfig,
     ai_account: Option<houseatlas_backend::config::ai_account::ServerAccountSelection>,
+    persistent_lease: &mut Option<Arc<lifecycle::persistent::ServerLease>>,
 ) -> Result<(), lifecycle::Failure> {
     use houseatlas_backend::{
         config::server::read_tls_files,
@@ -211,7 +227,7 @@ async fn run_persistent(
         config.authentication,
         houseatlas_backend::config::server::ServerAuthentication::TrustedProxy { .. }
     ) {
-        return run_gateway(config, ai_account).await;
+        return run_gateway(config, ai_account, persistent_lease).await;
     }
     let config = Arc::new(config);
     if std::fs::canonicalize(&config.frontend_directory)? != config.frontend_directory {
@@ -223,6 +239,8 @@ async fn run_persistent(
     let selected = Arc::clone(&config);
     let (core, lease) =
         tokio::task::spawn_blocking(move || persistent::reopen(&selected)).await??;
+    let lease = Arc::new(lease);
+    *persistent_lease = Some(Arc::clone(&lease));
     let mut host = Host::new(core, config.origin.clone(), files, Vec::new())?
         .with_mcp_command_profile(config.command_profile());
     if !config.authentication.is_password() {
@@ -269,6 +287,7 @@ async fn run_persistent(
 async fn run_gateway(
     config: houseatlas_backend::config::server::ServerConfig,
     ai_account: Option<houseatlas_backend::config::ai_account::ServerAccountSelection>,
+    persistent_lease: &mut Option<Arc<lifecycle::persistent::ServerLease>>,
 ) -> Result<(), lifecycle::Failure> {
     use houseatlas_backend::{
         app::trusted_gateway::{GatewayConnection, GatewaySocket},
@@ -283,6 +302,8 @@ async fn run_gateway(
     let selected = Arc::clone(&config);
     let (core, lease) =
         tokio::task::spawn_blocking(move || persistent::reopen(&selected)).await??;
+    let lease = Arc::new(lease);
+    *persistent_lease = Some(Arc::clone(&lease));
     let policy = core
         .access
         .lock()

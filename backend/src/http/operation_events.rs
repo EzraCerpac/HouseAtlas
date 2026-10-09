@@ -16,9 +16,11 @@ use std::{
     cell::{Cell, OnceCell},
     collections::VecDeque,
     sync::Arc,
+    time::{Duration, Instant},
 };
 
 const MAX_ENTRIES: usize = 8;
+const CONTINUATION_LIFETIME: Duration = Duration::from_secs(5 * 60);
 const MAX_GRAPH_BYTES: usize = 16 * 1024 * 1024;
 const MAX_CLOSURE_REFS: usize = 4096;
 const MAX_SESSION_ENTRIES: usize = 4;
@@ -35,6 +37,7 @@ fn default_page_size() -> usize {
     25
 }
 struct RetainedPage {
+    expires: Instant,
     principal: Box<RequestPrincipal>,
     continuation: s::StockRetainedContinuation,
     scope: s::Scope,
@@ -55,6 +58,9 @@ pub(super) struct EventRegistry {
     entries: VecDeque<RetainedPage>,
 }
 impl EventRegistry {
+    fn reclaim_expired(&mut self, now: Instant) {
+        self.entries.retain(|entry| entry.expires > now);
+    }
     fn reserve(
         &self,
         cursor: &str,
@@ -414,6 +420,10 @@ pub(super) async fn events(
             .operation_events
             .lock()
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        // Resource custody has a fixed process-local lifetime. Reclamation
+        // precedes cursor lookup and slot accounting under this same guard;
+        // it neither evicts live entries nor grants replacement authority.
+        registry.reclaim_expired(Instant::now());
         let reserved = query
             .cursor
             .as_ref()
@@ -564,9 +574,16 @@ pub(super) async fn events(
             let slot = continuation_slot.ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
             let owner =
                 reserved.map_or(initial_owner, |index| registry.entries[index].owner.clone());
+            // Following pages preserve the sequence's original deadline.
+            // Only a successfully disclosed new sequence starts a lifetime.
+            let expires = reserved.map_or_else(
+                || Instant::now() + CONTINUATION_LIFETIME,
+                |index| registry.entries[index].expires,
+            );
             registry.commit_continuation(
                 slot,
                 RetainedPage {
+                    expires,
                     principal: initial_principal,
                     continuation,
                     scope: storage_scope,

@@ -61,8 +61,15 @@ Storage bounds the global audit preflight to 4096 events/16 MiB, scoped roots to
 128, aggregate saved root SQL bytes to 32 MiB, targets to 256 and current JSON to
 16 MiB. Detached fact representations are bounded to 48 MiB; these are serialized
 representation limits, not a peak-memory guarantee. The HTTP registry holds at
-most eight continuations and four per session. Missing qualification or exceeded
-bounds returns unavailable, with no truncated complete-history claim.
+most eight continuations and four per session. Each sequence has a fixed
+five-minute monotonic process-local lifetime starting at its first successful
+retention after disclosure and final authorization release. Following pages
+preserve that deadline. Under the registry lock, the next operation-event read
+reclaims elapsed entries before cursor lookup and capacity accounting. An elapsed
+cursor is unavailable; cleanup drops its saved custody without adoption,
+reissuance or changes to native session policy. Live continuations are never
+evicted to admit another sequence. Missing qualification or exceeded bounds
+returns unavailable, with no truncated complete-history claim.
 
 Lantern displays this projection separately from authored per-record history.
 It keeps server sequence, raw saved timestamps and native identities, exposes
