@@ -129,6 +129,8 @@ struct ObservationIdentity<'captured, 'p> {
     scope: read::SourceScope,
     path: String,
     observed_at: String,
+    observed_method: &'static str,
+    observed_status: u16,
 }
 /// Issued only after the actual configured reader and original mutation fences.
 /// No Clone/serde/constructor or reader adoption API exists.
@@ -260,6 +262,8 @@ impl<'captured, 'p> QueuedUploadSource<'captured, 'p> {
             scope: capture.scope().clone(),
             path: capture.path().to_owned(),
             observed_at: capture.retrieved_at().as_str().to_owned(),
+            observed_method: capture.method(),
+            observed_status: capture.status(),
             bindings,
         });
         Ok(ConfiguredQueuedUploadObservation {
@@ -896,5 +900,63 @@ pub(super) fn upload_access_error(error: a::AccessError) -> StockErrorCode {
             StockErrorCode::CapabilityDenied
         }
         _ => StockErrorCode::ResourceUnavailable,
+    }
+}
+
+pub(super) struct QueuedUploadHistoricalLiveFacts<'a> {
+    pub(super) issuer: &'a Arc<()>,
+    pub(super) installation: &'a NativeQueuedUploadInstallationOwner,
+    pub(super) metadata: &'a a::SourceAuthorityMetadata,
+    pub(super) reference: &'a a::SourceRef,
+    pub(super) partition: &'a a::SourcePartition,
+    pub(super) actor: &'a str,
+    pub(super) workspace: &'a str,
+    pub(super) home: &'a str,
+    pub(super) role: a::Role,
+    pub(super) method: &'static str,
+    pub(super) status: u16,
+    pub(super) snapshot: &'a DecodedFreshSnapshot,
+}
+impl<'captured, 'p> QueuedUploadSource<'captured, 'p> {
+    pub(super) fn historical_live_facts<'a>(
+        &'a self,
+        native: &'a RetainedFreshPreparation<'_, NativeWriterContracts, Self>,
+    ) -> Result<QueuedUploadHistoricalLiveFacts<'a>, StockErrorCode> {
+        let evidence = native.capture().evidence();
+        if !std::ptr::eq(native.source(), self)
+            || native.command() != &self.command
+            || native.authority() != &self.authority
+            || !Arc::ptr_eq(&evidence.identity, &self.identity)
+            || !Arc::ptr_eq(&evidence.identity.issuer, &self.identity.issuer)
+            || native.capture().snapshots().len() != 1
+        {
+            return Err(StockErrorCode::PreflightConflict);
+        }
+        let snapshot = &native.capture().snapshots()[0];
+        let raw = snapshot.original();
+        if raw.scope != self.identity.scope
+            || raw.target != self.identity.bindings.installation.descriptor().owner
+            || raw.path != self.identity.path
+            || !raw.query.is_empty()
+            || raw.observed_at != self.identity.observed_at
+            || upload_bytes_digest(&raw.original)? != self.identity.raw_digest
+        {
+            return Err(StockErrorCode::PreflightConflict);
+        }
+        let p = self.original().principal();
+        Ok(QueuedUploadHistoricalLiveFacts {
+            issuer: &self.identity.issuer,
+            installation: &self.identity.bindings.installation,
+            metadata: &self.identity.metadata,
+            reference: self.original_source().reference(),
+            partition: self.original_partition().partition(),
+            actor: p.actor_id().as_str(),
+            workspace: p.scope().workspace_id.as_str(),
+            home: p.scope().home_id.as_str(),
+            role: p.role(),
+            method: self.identity.observed_method,
+            status: self.identity.observed_status,
+            snapshot,
+        })
     }
 }
