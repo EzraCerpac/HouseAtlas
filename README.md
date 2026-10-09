@@ -47,7 +47,8 @@ npm run build --prefix frontend
 node frontend/lantern-tests/healthy-read.mjs
 ```
 
-Ordinary CI uses the same scoped commands, pinned actions/runtime and lockfiles.
+Ordinary CI uses its explicit workflow allowlist, pinned actions/runtime and
+lockfiles. Separately named local checks are not automatic CI entrypoints.
 Concurrency, denial and failure-injection tests are permitted only in the
 separate regression lane below; they remain excluded from ordinary CI.
 Guard reversal, mutation/omission controls, adversarial and private-intake checks
