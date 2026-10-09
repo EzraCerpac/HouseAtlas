@@ -21,10 +21,81 @@ use axum::{
     response::IntoResponse,
 };
 use serde_json::Value;
-use std::{sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 const QUERY_MAX_BYTES: usize = 32_768;
 const WIRE_MAX_BYTES: usize = 16_384;
+const MAX_CAPTURE_REQUESTS: usize = 1024;
+
+type CaptureRequestKey = ([u8; 32], String, String, String);
+struct ConsumedCaptureRequest {
+    wire: Vec<u8>,
+    session_expires_at_ms: i64,
+}
+/// Process-local at-most-once admission, not a delivery or issuance receipt.
+/// Spent IDs survive every later failure until the original session expires.
+/// Capacity exhaustion refuses new work rather than evicting a live spent ID.
+#[derive(Default)]
+pub(super) struct CaptureRequests {
+    spent: BTreeMap<CaptureRequestKey, ConsumedCaptureRequest>,
+    observed_wall_time_ms: i64,
+}
+impl CaptureRequests {
+    fn consume(
+        &mut self,
+        session: [u8; 32],
+        session_expires_at_ms: i64,
+        request: &st::ValidatedRequest,
+    ) -> Result<(), super::HttpFailure> {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .ok()
+            .and_then(|time| i64::try_from(time.as_millis()).ok())
+            .ok_or_else(unavailable)?;
+        // Once expired tombstones are reclaimed, a backward wall-clock change
+        // must not make their original sessions admissible again.
+        let now = now.max(self.observed_wall_time_ms);
+        self.observed_wall_time_ms = now;
+        if session_expires_at_ms <= now {
+            return Err(unavailable());
+        }
+        self.spent
+            .retain(|_, spent| spent.session_expires_at_ms > now);
+        let key = (
+            session,
+            request.context().workspace_id.clone(),
+            request.context().home_id.clone(),
+            request.request_id().to_owned(),
+        );
+        let wire = serde_json::to_vec(request.raw()).map_err(|_| unavailable())?;
+        if wire.len() > WIRE_MAX_BYTES {
+            return Err(failure(StatusCode::PAYLOAD_TOO_LARGE));
+        }
+        if let Some(spent) = self.spent.get(&key) {
+            // A repeat carries no assertion about how the first attempt ended.
+            return Err(if spent.wire == wire {
+                failure(StatusCode::CONFLICT)
+            } else {
+                invalid()
+            });
+        }
+        if self.spent.len() >= MAX_CAPTURE_REQUESTS {
+            return Err(unavailable());
+        }
+        self.spent.insert(
+            key,
+            ConsumedCaptureRequest {
+                wire,
+                session_expires_at_ms,
+            },
+        );
+        Ok(())
+    }
+}
 
 /// Explicit startup selection only. No source, credential or handle is created
 /// by an HTTP selector; each capture uses the current original request grants.
@@ -176,8 +247,21 @@ pub(super) async fn capture(
                         external_id: owner.to_owned(),
                     },
                 };
-                let (source_grant, partition_grant) = {
-                    let boundary = access.lock().map_err(|_| unavailable())?;
+                let (source_grant, partition_grant, session, session_expires_at_ms) = {
+                    let mut boundary = access.lock().map_err(|_| unavailable())?;
+                    let url = format!(
+                        "{}{}",
+                        host.origin,
+                        uri.path_and_query().map_or("/", |path| path.as_str())
+                    );
+                    let request_evidence = evidence(&host.origin, &headers, &uri, &url, &method)
+                        .map_err(access_error)?;
+                    let session_info = boundary
+                        .session_info(&request_evidence)
+                        .map_err(access_error)?;
+                    if session_info.actor_id() != principal.principal.actor_id() {
+                        return Err(failure(StatusCode::FORBIDDEN));
+                    }
                     principal
                         .capture_partition(&boundary, &partition)
                         .map_err(access_error)?;
@@ -189,10 +273,20 @@ pub(super) async fn capture(
                         principal
                             .captured_partition(&partition)
                             .map_err(access_error)?,
+                        boundary
+                            .authenticated_session_binding(&principal.principal)
+                            .map_err(access_error)?,
+                        session_info.expires_at_ms(),
                     )
                 };
                 principal.seal_source_capture();
                 let original = principal.principal.retained().clone();
+                // Burn admission before the first provider GET. No gate guard
+                // crosses I/O, and no error or cancellation resets this entry.
+                host.pinned_homebox_capture_requests
+                    .lock()
+                    .map_err(|_| unavailable())?
+                    .consume(session, session_expires_at_ms, &request)?;
                 // No Core/Store/Access/Broker guard survives these three real GETs.
                 let owner = Arc::new(
                     runtime

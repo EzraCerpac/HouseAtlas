@@ -76,6 +76,7 @@ pub struct Host {
     pinned_homebox_file_bindings: Arc<Vec<homebox_pinned_files::PinnedHomeBoxFileBinding>>,
     pinned_homebox_artifacts:
         Arc<Mutex<crate::media::homebox_pinned_artifacts::NativePinnedArtifactBroker>>,
+    pinned_homebox_capture_requests: Arc<Mutex<homebox_pinned_files::CaptureRequests>>,
     network_bindings: Arc<Vec<crate::config::providers::network_host::NetworkBinding>>,
     atlas_download_handles: d::stock::AtlasDownloadHandles,
     response_ids: Arc<ResponseIds>,
@@ -125,6 +126,7 @@ impl Host {
             native_homebox_reads: Arc::new(Vec::new()),
             pinned_homebox_file_bindings: Arc::new(Vec::new()),
             pinned_homebox_artifacts: Arc::new(Mutex::new(Default::default())),
+            pinned_homebox_capture_requests: Arc::new(Mutex::new(Default::default())),
             network_bindings: Arc::new(Vec::new()),
             atlas_download_handles: d::stock::AtlasDownloadHandles::default(),
             response_ids: Arc::new(ResponseIds::new()?),
