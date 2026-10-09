@@ -1,4 +1,7 @@
 import { useState, type KeyboardEvent } from 'react';
+import type { Entry, NetworkEndpoint } from '../../app/types';
+import { text } from '../../app/copy';
+import { visibleEntries } from '../../app/model';
 import type { Device } from '../data/types';
 import { latestObservation, nameOf } from '../data/query';
 import { fmtDateTime, rel } from '../data/time';
@@ -10,6 +13,12 @@ import { DocList } from '../components/rows';
 export function NetworkView() {
   const { house, projection } = useStore();
   const [tab, setTab] = useState<'logical' | 'cabling'>('logical');
+  // ReadyView may retain other homes and archived records; only current
+  // records in the selected scope are shown, as in the Lantern projection.
+  const { scope } = projection.view;
+  const networkEntries = visibleEntries(projection.view, false).filter((entry) =>
+    entry.workspaceId === scope.workspaceId && entry.homeId === scope.homeId
+    && (entry.networkBound || entry.networkRelations.length > 0));
   return (
     <div className="view">
       <header className="view-head">
@@ -27,7 +36,7 @@ export function NetworkView() {
         </button>
       </div>
       <div id="net-panel" role="tabpanel">
-        {tab === 'logical' ? projection.view.entries.some(entry => entry.networkRelations.length) ? <SavedRelations /> : <Empty>No Network relation projection is supplied.</Empty> : <Cabling />}
+        {tab === 'logical' ? networkEntries.length ? <SavedRelations entries={networkEntries} /> : <Empty>No Network relation projection is supplied.</Empty> : <Cabling />}
         {house.devices.length > 0 && <Topology />}
       </div>
       {house.devices.length > 0 && <Observations />}
@@ -229,11 +238,32 @@ function Observations() {
   );
 }
 
-function SavedRelations() {
-  const { projection } = useStore();
-  return <div className="table-wrap"><table className="data-table"><thead><tr><th scope="col">Record</th><th scope="col">Relation</th><th scope="col">Status</th><th scope="col">Observed</th><th scope="col">Retrieved</th><th scope="col">Confidence / basis</th></tr></thead><tbody>
-    {projection.view.entries.flatMap(entry => entry.networkRelations.map((relation, index) => <tr key={`${entry.key}:${index}`}>
-      <th scope="row">{entry.entity.name}</th><td>{relation.kind}</td><td>{relation.temporalStatus}</td><td>{relation.factAt ? fmtDateTime(relation.factAt) : 'Unknown'}</td><td>{fmtDateTime(relation.retrievedAt)}</td><td>{relation.sourceConfidence ?? 'Unknown'} / {relation.evidenceBasis ?? 'Unknown'}<p>{relation.notes}</p></td>
-    </tr>))}
-  </tbody></table></div>;
+function endpointText(endpoint: NetworkEndpoint): string {
+  const kind = endpoint.kind[0]!.toUpperCase() + endpoint.kind.slice(1);
+  return [kind, endpoint.id ?? 'ID unknown', endpoint.description?.trim()].filter(Boolean).join(' · ');
+}
+
+/** Same freshness reading as the record Network section, per bound record. */
+function networkNotice(entry: Entry): string {
+  const states = entry.networkStates;
+  const freshness = !states.length || states.some((state) => state === 'empty' || state === 'error')
+    ? text('networkUnavailable')
+    : states.includes('stale') ? text('networkSaved') : '';
+  // A revoked source must not conceal the state of other bound sources.
+  return [states.includes('access-revoked') ? text('networkDenied') : '', freshness].filter(Boolean).join(' ');
+}
+
+function SavedRelations({ entries }: { entries: Entry[] }) {
+  return <>{entries.map((entry) => {
+    const notice = networkNotice(entry);
+    return <section key={entry.key} className="section">
+      <header className="section-head"><h3>{entry.entity.name}</h3></header>
+      {notice && <Note tone="warn">{notice}</Note>}
+      {entry.networkRelations.length ? <div className="table-wrap"><table className="data-table"><thead><tr><th scope="col">Relation</th><th scope="col">From</th><th scope="col">To</th><th scope="col">Medium</th><th scope="col">Status</th><th scope="col">Observed</th><th scope="col">Retrieved</th><th scope="col">Source snapshot</th><th scope="col">Source revision</th><th scope="col">Vantage</th><th scope="col">Confidence / basis</th></tr></thead><tbody>
+        {entry.networkRelations.map((relation, index) => <tr key={`${entry.key}:${index}`}>
+          <th scope="row">{relation.kind}</th><td>{endpointText(relation.from)}</td><td>{endpointText(relation.to)}</td><td>{relation.medium === 'unknown' ? 'Unknown' : relation.medium}</td><td>{relation.temporalStatus}</td><td>{relation.factAt ? fmtDateTime(relation.factAt) : 'Unknown'}</td><td>{fmtDateTime(relation.retrievedAt)}</td><td>{relation.sourceSnapshotAt ? fmtDateTime(relation.sourceSnapshotAt) : 'Unknown'}</td><td>{relation.sourceRevision ?? 'Unknown'}</td><td>{relation.vantage ?? 'Unknown'}</td><td>{relation.sourceConfidence ?? 'Unknown'} / {relation.evidenceBasis ?? 'Unknown'}{relation.notes && <p>{relation.notes}</p>}</td>
+        </tr>)}
+      </tbody></table></div> : <Empty>No saved relations for this record.</Empty>}
+    </section>;
+  })}</>;
 }

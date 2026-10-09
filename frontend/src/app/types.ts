@@ -69,9 +69,17 @@ export interface NativeLink {
   href: string;
   verifiedRoute: boolean;
 }
+export interface NetworkEndpoint {
+  kind: "device" | "interface" | "segment" | "unresolved";
+  id: string | null;
+  description: string | null;
+}
 export interface NetworkRelation {
   kind:
     "network-segment-membership" | "network-association" | "network-connection";
+  from: NetworkEndpoint;
+  to: NetworkEndpoint;
+  medium: "ethernet" | "wifi" | "powerline" | "wan" | "other" | "unknown";
   temporalStatus: "current-claim" | "historical" | "withdrawn" | "disputed";
   sourceRevision: number | null;
   sourceConfidence: string | null;
