@@ -79,7 +79,7 @@ export function AiSettingsSection() {
 }
 
 /** Small factual notice outside Settings; canonical output stays in the panel. */
-export function AiActivityStatus() {
+export function AiActivityStatus({ onOpenSettings }: { readonly onOpenSettings?: (() => void) | undefined } = {}) {
   const host = useContext(HostContext);
   if (!host || host.session.state.request.status === 'idle') return null;
   const request = host.session.state.request;
@@ -104,6 +104,6 @@ export function AiActivityStatus() {
     }
   }
   return <div className="ai-host-activity" role="status" aria-live="polite">
-    <p>{message} <a href="#settings">AI in Settings</a></p>
+    <p>{message} {onOpenSettings ? <button type="button" onClick={onOpenSettings}>AI in Settings</button> : <a href="#settings">AI in Settings</a>}</p>
   </div>;
 }
