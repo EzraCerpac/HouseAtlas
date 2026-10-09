@@ -9,6 +9,7 @@ pub mod providers {
 }
 pub mod recovery {
     pub mod host;
+    pub mod queued_upload_catalog_media_policy;
     pub mod queued_upload_catalog_reopen;
     pub mod reopen;
     pub mod upload_history_intake;
