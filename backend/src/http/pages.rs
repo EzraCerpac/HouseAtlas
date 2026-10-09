@@ -17,8 +17,6 @@ struct Cursor {
 #[derive(Default)]
 pub(super) struct Pages {
     cursors: BTreeMap<String, Cursor>,
-    order: u64,
-    insertion_order: BTreeMap<u64, String>,
 }
 fn digest(value: &Value) -> Result<[u8; 32], HttpFailure> {
     let canonical = NativeContracts
@@ -62,6 +60,10 @@ impl Pages {
         if !(1..=100).contains(&limit) {
             return Err(invalid());
         }
+        let followed = params.get("cursor");
+        if followed.is_some_and(|token| token.len() > 64) {
+            return Err(invalid());
+        }
         let snapshot_digest = digest(&json!({"items":items,"sourceStatuses":statuses}))?;
         let session: [u8; 32] = Sha256::digest(cookie.unwrap_or("").as_bytes()).into();
         let scope = principal.principal.scope();
@@ -72,14 +74,9 @@ impl Pages {
         }))?;
         let now = Instant::now();
         self.cursors.retain(|_, value| value.expires > now);
-        self.insertion_order
-            .retain(|_, token| self.cursors.contains_key(token));
-        let offset = match params.get("cursor") {
+        let offset = match followed {
             None => 0,
             Some(token) => {
-                if token.len() > 64 {
-                    return Err(invalid());
-                }
                 let cursor = self.cursors.get(token).ok_or_else(invalid)?;
                 if cursor.context != context {
                     return Err(invalid());
@@ -95,33 +92,40 @@ impl Pages {
             return Err(invalid());
         }
         let next = if end < items.len() {
-            while self.cursors.len() >= 1000 {
-                let Some((_, token)) = self.insertion_order.pop_first() else {
-                    return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
-                };
-                self.cursors.remove(&token);
+            // A validated continuation replaces its own live reservation. New
+            // sequences must fit without evicting another advertised cursor.
+            if followed.is_none() && self.cursors.len() >= 1000 {
+                return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
             }
             let token =
                 crate::app::new_id().map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-            let order = self
-                .order
-                .checked_add(1)
-                .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-            self.order = order;
+            if self.cursors.contains_key(&token) {
+                return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+            }
+            Some(token)
+        } else {
+            None
+        };
+        // Prepare the complete response and all fallible token work before
+        // consuming a validated followed token. This map is exclusively held
+        // by the caller through the single replacement/completion transition.
+        // This commits response preparation only; the caller still releases
+        // the original Access principal independently before disclosure.
+        let response = json!({"contractVersion":crate::storage::CONTRACT_VERSION,
+            "items":items[offset..end],"nextCursor":next,"sourceStatuses":statuses});
+        if let Some(token) = followed {
+            self.cursors.remove(token);
+        }
+        if let Some(token) = next {
             self.cursors.insert(
-                token.clone(),
+                token,
                 Cursor {
                     context,
                     offset: end,
                     expires: now + Duration::from_millis(300_000),
                 },
             );
-            self.insertion_order.insert(order, token.clone());
-            Some(token)
-        } else {
-            None
-        };
-        Ok(json!({"contractVersion":crate::storage::CONTRACT_VERSION,
-            "items":items[offset..end],"nextCursor":next,"sourceStatuses":statuses}))
+        }
+        Ok(response)
     }
 }
