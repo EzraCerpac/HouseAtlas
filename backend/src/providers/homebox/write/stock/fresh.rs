@@ -406,6 +406,9 @@ impl<'owner, C: StockContractPort + Sync, S: FreshPreparationSourcePort>
 impl<'owner, C: StockContractPort + Sync, S: FreshPreparationSourcePort>
     RetainedFreshPreparation<'owner, C, S>
 {
+    pub(super) fn original_decode_limits(&self) -> wire::DecodeLimits {
+        self.owner.limits
+    }
     /// Immutable original source identity; this getter issues no qualification.
     pub fn source(&self) -> &S {
         &self.owner.source

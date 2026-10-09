@@ -572,3 +572,83 @@ const PINS: &[Pin] = &[
         bytes: 11921,
     },
 ];
+
+pub(super) struct QueuedUploadHistoricalArtifactFacts<'a> {
+    pub(super) role: super::queued_upload_history::QueuedUploadHistoricalArtifactRole,
+    pub(super) logical_pin: Option<&'static str>,
+    pub(super) bytes: &'a [u8],
+    pub(super) digest: &'a Digest,
+    pub(super) before: &'a Metadata,
+    pub(super) after: &'a Metadata,
+    pub(super) retrieved_at: SystemTime,
+}
+impl NativeQueuedUploadInstallationOwner {
+    pub(super) fn historical_policy(&self) -> &Value {
+        &self.policy_value
+    }
+    pub(super) fn historical_catalog_digest(&self) -> &Digest {
+        &self.catalog_digest
+    }
+    pub(super) fn historical_route_digest(&self) -> &Digest {
+        &self.route_digest
+    }
+    pub(super) fn historical_artifacts(
+        &self,
+    ) -> impl Iterator<Item = QueuedUploadHistoricalArtifactFacts<'_>> {
+        use super::queued_upload_history::QueuedUploadHistoricalArtifactRole as Role;
+        let top = [
+            (&self.executable, Role::Executable),
+            (&self.provenance, Role::BuildProvenance),
+            (&self.effective, Role::EffectiveConfiguration),
+        ];
+        top.into_iter()
+            .map(|(a, role)| QueuedUploadHistoricalArtifactFacts {
+                role,
+                logical_pin: None,
+                bytes: &a.bytes,
+                digest: &a.sha256,
+                before: &a.before,
+                after: &a.after,
+                retrieved_at: a.retrieved_at,
+            })
+            .chain(self.artifacts.iter().zip(PINS).map(|(a, p)| {
+                QueuedUploadHistoricalArtifactFacts {
+                    role: Role::ReviewedSource,
+                    logical_pin: Some(p.path),
+                    bytes: &a.bytes,
+                    digest: &a.sha256,
+                    before: &a.before,
+                    after: &a.after,
+                    retrieved_at: a.retrieved_at,
+                }
+            }))
+    }
+    pub(super) fn validate_historical_artifacts(&self) -> Result<(), StockErrorCode> {
+        if self.artifacts.len() != 9
+            || PINS.len() != 9
+            || self.executable.bytes.len() > 64 * 1024 * 1024
+            || self.provenance.bytes.len() > 64 * 1024
+            || self.effective.bytes.len() > 64 * 1024
+        {
+            return Err(StockErrorCode::ResourceUnavailable);
+        }
+        for a in [&self.executable, &self.provenance, &self.effective]
+            .into_iter()
+            .chain(self.artifacts.iter())
+        {
+            if a.bytes.is_empty()
+                || a.bytes.len() as u64 != a.before.len()
+                || !same_file(&a.before, &a.after)
+                || upload_bytes_digest(&a.bytes)? != a.sha256
+            {
+                return Err(StockErrorCode::ProviderUnqualified);
+            }
+        }
+        for (artifact, pin) in self.artifacts.iter().zip(PINS) {
+            if artifact.bytes.len() as u64 != pin.bytes || artifact.sha256.as_str() != pin.sha256 {
+                return Err(StockErrorCode::ProviderUnqualified);
+            }
+        }
+        Ok(())
+    }
+}
