@@ -15,6 +15,7 @@ mod quantity_profile;
 pub(crate) mod quantity_queue_original;
 pub(crate) mod quantity_queue_prepared;
 mod quantity_source;
+pub mod queued_upload_dispatch;
 mod queued_upload_installation;
 mod queued_upload_source;
 pub use quantity_queue_original::{NativeQuantityKnownZeroAdmission, NativeQueuedQuantityOriginal};
@@ -25,7 +26,8 @@ pub use queued_upload_installation::{
     NativeQueuedUploadInstallationOwner, QueuedUploadProfileDescriptor,
 };
 pub use queued_upload_source::{
-    ConfiguredQueuedUploadObservation, QueuedUploadCaptureEvidence, QueuedUploadSource,
+    ConfiguredQueuedUploadObservation, QualifiedQueuedUploadReadback, QueuedUploadCaptureEvidence,
+    QueuedUploadSource,
 };
 mod resources;
 mod types;

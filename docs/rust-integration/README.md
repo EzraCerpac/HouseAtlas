@@ -456,9 +456,18 @@ resource grants. Its owning Store/Access identity correction and one root health
 TLS flow are integrated; exact-candidate review and CI remain required. No actual Network UI, source setup or provider refresh
 is enabled in the default host, and no runner calls a real provider.
 
-Provider stock preparation, original whole-collection approval, verified
-route/build binding, durable operation activity/liability and qualified physical
-dispatch/readback remain unbound. The root supports ten Atlas record-get arms,
+The installed queued-upload continuation now has concrete source producers for
+original enqueue, first claim, measured-body preparation, journal, one native
+attempt, generated-member readback and finish. Each phase retains the same
+original admission, native preparation and execution; committed finish DATA
+survives later release failures. Logical application does not prove remote
+termination or byte persistence: invoked byte disposition stays unknown and
+EndUnproven retains its physical blocker. This path has compilation and source
+review only. No upload invocation or readback runtime was exercised, and no
+descriptor-free cold-start owner or independent archive intake is supplied.
+
+Broader provider stock preparation, original whole-collection approval and
+durable operation activity remain incomplete. The root supports ten Atlas record-get arms,
 thirty list/record/history reads, the closed 31-form direct-write map,
 nonempty batches of mapped children, and
 the ordered genuine-stage asset/evidence/location-identity upload batch.

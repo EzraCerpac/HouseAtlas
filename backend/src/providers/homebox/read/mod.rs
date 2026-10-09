@@ -23,7 +23,9 @@ pub use failure_publication::FailedPublication;
 pub use http_transport::{
     AuthorizationHeader, CredentialProvider, HttpBody, HttpTransport, SourceEndpoint,
 };
-pub use native_capture::{CapturedStockEntity, CapturedStockMaintenance, NativeCapture};
+pub use native_capture::{
+    CapturedStockEntity, CapturedStockEntityObservation, CapturedStockMaintenance, NativeCapture,
+};
 pub use native_file_capture::CapturedNativeFileSnapshot;
 pub use native_presence_capture::{
     NativePresenceCapture, NativePresenceGeneration, NativePresenceIdentity, NativePresenceResponse,
