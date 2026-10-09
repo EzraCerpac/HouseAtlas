@@ -471,6 +471,19 @@ exact prepared frame with its ordered claim/journal reservation prefix; all
 steps and outcomes remain unsupported. It supplies no discovery, resume or
 restart authority and has source validation only.
 
+The closed historical transfer separately copies the actual released original
+enqueue, first claim and journal into handle-free Storage, Media and Source
+carriers. Root joins their genuine original issuer markers while the live
+preparation and cuts are still present. Copied facts include the original owner
+GET, measured reservation, exact prepared intent, captured installed artifacts
+and original decoder settings. The result retains no stage owner, file,
+upload body, principal, grant, reader, execution or configured owner. Each
+producer bounds its copies before allocation. This is source-only same-process
+provenance: serialized facts cannot reconstruct a seal after restart. Finish
+and effects are outside this transfer; missing effects do not imply that no
+invocation occurred. Complete archive coverage, authenticated administrative
+intake and independent discovery permission remain separate requirements.
+
 Broader provider stock preparation, original whole-collection approval and
 durable operation activity remain incomplete. The root supports ten Atlas record-get arms,
 thirty list/record/history reads, the closed 31-form direct-write map,

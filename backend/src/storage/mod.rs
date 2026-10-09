@@ -69,7 +69,8 @@ pub use queue::{
     QueueUploadCommittedData, QueueUploadCommittedObservation, QueueUploadFinishCommittedData,
     QueueUploadFinishCommittedObservation, QueueUploadJournalCommittedData,
     QueueUploadJournalCommittedObservation, RecordedOriginalEnqueue, RecordedOriginalEnqueueProof,
-    RecordedOriginalUploadEnqueue, RecordedOriginalUploadEnqueueProof, StepKind,
+    RecordedOriginalUploadEnqueue, RecordedOriginalUploadEnqueueProof,
+    ReleasedQueuedUploadOriginalHistory, StepKind,
 };
 pub use stock_activity::*;
 pub use stock_asset_review_types::*;
