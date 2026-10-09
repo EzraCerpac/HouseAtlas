@@ -24,6 +24,7 @@ use std::{
 };
 
 const CAPTURES: usize = 32;
+const SESSION_CAPTURES: usize = 4;
 pub(super) const TOKENS: usize = 1000;
 const BYTES: usize = 64 * 1024 * 1024;
 const WINDOW: Duration = Duration::from_secs(300);
@@ -448,6 +449,11 @@ impl NativeListPages {
         }
         let mut registry = self.registry.lock().map_err(|_| unavailable())?;
         prune(&mut registry);
+        let session_captures = registry
+            .entries
+            .iter()
+            .filter(|entry| entry.snapshot.binding.session == snapshot.binding.session)
+            .count();
         let used_tokens: usize = registry.entries.iter().map(|e| e.cursors.len()).sum();
         let used_bytes: usize = registry.entries.iter().map(|e| e.bytes).sum();
         let bytes = bytes
@@ -458,6 +464,7 @@ impl NativeListPages {
             )
             .ok_or_else(unavailable)?;
         if registry.entries.len() >= CAPTURES
+            || session_captures >= SESSION_CAPTURES
             || slots > TOKENS.saturating_sub(used_tokens)
             || bytes > BYTES.saturating_sub(used_bytes)
         {

@@ -473,7 +473,12 @@ No old principal/grants/credentials/prepared witness/guard/Access or Store handl
 retained in the registry, and no second GET is made for a continuation.
 
 The local registry bounds are 32 captures, 1000 cursor slots and 64 MiB aggregate
-retained logical bytes, counted before original/context/baseline clones. It reserves
+retained logical bytes, counted before original/context/baseline clones. Each actual
+authenticated session may retain at most four paginated captures. Admission counts
+that session's chains after pruning genuinely expired captures and rejects before
+insertion. Completed chains remain retained until their original expiry; reading
+the terminal page does not free capacity. This per-session capture-count limit
+does not provide global byte/token fairness or guarantee availability. It reserves
 all continuation slots atomically before returning the first nextCursor and never
 evicts unexpired chains. Insufficient capacity fails unavailable without truncation.
 The five-minute monotonic window starts before native retrieval and never renews.
