@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "e72c538c61cc6440a5a61ab89a0afd053f6d0c89c694fb736279091e67de6fcf",
+  "sourceDigestSha256": "42ba3bbcd114b0efb9eebdc1a567172bb7c90a80be7174023d2991079ab59471",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -1946,8 +1946,8 @@
     {
       "path": "backend/src/http/asset_reviews.rs",
       "mode": "100644",
-      "bytes": 21621,
-      "sha256": "a8b52115ff85d20ab2f2fd2f316847f4f3683243f1a0cb58a0438f39dd599c2e",
+      "bytes": 23041,
+      "sha256": "620b3a890532fafa4b69f5b39b540e39bd94d52efacd6da9ed52daa62e88db3b",
       "owner": "core-integration"
     },
     {
@@ -2016,8 +2016,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 39848,
-      "sha256": "5ffb0f0cee6cf734c4b78809cb0ba4cc276b2f090514b30bc6250ab8f03ab6e6",
+      "bytes": 40376,
+      "sha256": "e91cae740c8be65cb23c1e2e81b30597f47a38499c3e04f5bd277a118bcc5e11",
       "owner": "core-integration"
     },
     {
@@ -2758,8 +2758,8 @@
     {
       "path": "backend/src/media/review.rs",
       "mode": "100644",
-      "bytes": 13683,
-      "sha256": "3ba55234096af17848faa7588c59f0c4818e224512b72d6b9b49e00a7334333f",
+      "bytes": 16015,
+      "sha256": "5cd5547e11731337b6bf0794c9f3665819b6048ae3923ab5f8a49b7658c975da",
       "owner": "media"
     },
     {
@@ -5621,8 +5621,8 @@
     {
       "path": "frontend/lantern-tests/healthy-read.mjs",
       "mode": "100644",
-      "bytes": 30327,
-      "sha256": "8e68f80614e8a148bdd58018c338a13535ba873e78a5fedd1d2f072cdb678e13",
+      "bytes": 33726,
+      "sha256": "cafd2f2ae93119e7a07c76596cfe5ec3cd5c20681e5a6023cd6e3ea458727a26",
       "owner": "web"
     },
     {
@@ -5964,8 +5964,8 @@
     {
       "path": "frontend/src/app/decode.ts",
       "mode": "100644",
-      "bytes": 8276,
-      "sha256": "b3342e63c40b808daf17b237a44c452772c608309e10757e64dd783e28baea70",
+      "bytes": 9355,
+      "sha256": "9d8e71066ae1086579c2fb4112f3368d431fa295aff402230ef09a7dad5e5e13",
       "owner": "web"
     },
     {
@@ -6034,8 +6034,8 @@
     {
       "path": "frontend/src/app/types.ts",
       "mode": "100644",
-      "bytes": 3773,
-      "sha256": "1b3d71333c9ddd1af303fc81283f2ff65cc913a1925a18ac55ad80dac8ff0efd",
+      "bytes": 3852,
+      "sha256": "b96aab4ebd469aed4fa42e1afdee2c9c133bb1a5640f38b31d45b87254b9b3fa",
       "owner": "web"
     },
     {
