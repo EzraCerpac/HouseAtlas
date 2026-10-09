@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { stripTypeScriptTypes } from 'node:module';
+import { transformWithOxc } from 'vite';
 import { projectView } from '../src/lantern/adapters/read.ts';
 import { createGeometryClient } from '../src/api/geometry-client.ts';
 import { createEvidenceClient } from '../src/api/evidence-client.ts';
@@ -60,6 +61,59 @@ const options = demoOptions(snapshot, 'normal');
 options.now = '2026-10-08T00:00:00Z';
 const view = prepareAtlasView(snapshot, options);
 assert.equal(view.status, 'ready');
+
+// Exercise the actual browser decoder and client offline. Only module import
+// specifiers are adapted for Node; no decoder/client implementation is replaced.
+const quantityModule = async (path, imports = []) => {
+  const file = new URL(path, import.meta.url);
+  // The installed Vite compiler supports the actual client's parameter property;
+  // pinned Node's strip-only API does not. No server or bundler is started.
+  let { code: source } = await transformWithOxc(readFileSync(file, 'utf8'), file.pathname,
+    { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
+  for (const [specifier, module] of imports) {
+    assert(source.includes(JSON.stringify(specifier)));
+    source = source.replace(JSON.stringify(specifier), JSON.stringify(module));
+  }
+  return 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+};
+const quantityModelModule = await quantityModule('../src/app/model.ts');
+const quantitySessionModule = await quantityModule('../src/app/session.ts');
+const quantityDecoderModule = await quantityModule('../src/app/decode.ts', [['./model', quantityModelModule]]);
+const quantityClientModule = await quantityModule('../src/api/client.ts', [
+  ['../app/decode', quantityDecoderModule], ['../app/session', quantitySessionModule],
+]);
+const { decodeAtlasView } = await import(quantityDecoderModule);
+const { createAtlasClient } = await import(quantityClientModule);
+const quantityOriginalView = JSON.stringify(view);
+// Clone the synthetic prepared view into the paired native browser DTO. The
+// original demo's numeric quantities and all existing projection cases remain.
+for (const token of ['9007199254740993', '1e-1000', null]) {
+  const quantityDto = structuredClone(view);
+  quantityDto.entries.forEach((entry, index) => { entry.entity.quantity = index === 0 ? token : null; });
+  const decoded = decodeAtlasView(quantityDto);
+  assert.equal(decoded.status, 'ready');
+  assert.equal(decoded.entries[0].entity.quantity, token);
+  assert(decoded.entries.slice(1).every(entry => entry.entity.quantity === null));
+  assert.deepEqual(decoded.scope, view.scope);
+  assert.deepEqual(decoded.entries.map(entry => [entry.key, entry.source, entry.sourceState, entry.cacheStatus]),
+    view.entries.map(entry => [entry.key, entry.source, entry.sourceState, entry.cacheStatus]));
+  const quantitySignal = new AbortController().signal;
+  const quantityHomeUrl = `/api/atlas/homes/${encodeURIComponent(view.scope.workspaceId)}/${encodeURIComponent(view.scope.homeId)}/view`;
+  let quantityCalls = 0;
+  const client = createAtlasClient({ bootstrap: '/api/atlas/view', home: scope => {
+    assert.deepEqual(scope, view.scope); return quantityHomeUrl;
+  } }, async (url, init) => {
+    assert.equal(url, quantityCalls++ === 0 ? '/api/atlas/view' : quantityHomeUrl);
+    assert.deepEqual(init, { method: 'GET', credentials: 'same-origin', cache: 'no-store',
+      redirect: 'error', headers: { Accept: 'application/json' }, signal: quantitySignal });
+    return new Response(JSON.stringify(quantityDto), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  });
+  assert.deepEqual(await client.load(quantitySignal), decoded);
+  assert.deepEqual(await client.loadHome(view.scope, quantitySignal), decoded);
+  assert.equal(quantityCalls, 2);
+}
+assert.equal(JSON.stringify(view), quantityOriginalView);
+
 const projected = projectView(view);
 assert.equal(projected.house.name, view.homeLabel);
 assert.equal(projected.view, view);
