@@ -295,7 +295,7 @@ async fn list(
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
         let _admitted = headers.admission_permit()?;
-        authorized_read(
+        let (mut pages, prepared) = authorized_read(
             &host,
             &headers,
             &uri,
@@ -401,21 +401,28 @@ async fn list(
                 } else {
                     snapshot.caches
                 };
-                let page = host
+                // Retain the exact exclusive registry guard through the
+                // existing authorized_read final principal release. Pending
+                // DATA dropping on release failure leaves live tokens intact.
+                let mut pages = host
                     .pages
                     .lock()
-                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
-                    .page(
-                        &uri,
-                        p,
-                        headers.cookie.as_deref(),
-                        collection,
-                        items,
-                        statuses,
-                    )?;
-                Ok(json_response(page))
+                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+                let prepared = pages.prepare(
+                    &uri,
+                    p,
+                    headers.cookie.as_deref(),
+                    collection,
+                    items,
+                    statuses,
+                )?;
+                Ok((pages, prepared))
             },
-        )
+        )?;
+        // Authority has actually released; commit cannot fail or reacquire
+        // the registry, and normal response construction follows directly.
+        let page = pages.commit(prepared);
+        Ok(json_response(page))
     })
     .await
     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?

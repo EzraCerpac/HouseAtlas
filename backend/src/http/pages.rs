@@ -18,6 +18,13 @@ struct Cursor {
 pub(super) struct Pages {
     cursors: BTreeMap<String, Cursor>,
 }
+/// Owned pending response DATA. Only this module constructs its transition;
+/// it grants no authority and retains no principal/Core reference.
+pub(super) struct PreparedPage {
+    followed: Option<String>,
+    next: Option<(String, Cursor)>,
+    response: Value,
+}
 fn digest(value: &Value) -> Result<[u8; 32], HttpFailure> {
     let canonical = NativeContracts
         .canonical_json(value)
@@ -25,7 +32,7 @@ fn digest(value: &Value) -> Result<[u8; 32], HttpFailure> {
     Ok(Sha256::digest(canonical.as_bytes()).into())
 }
 impl Pages {
-    pub fn page(
+    pub fn prepare(
         &mut self,
         uri: &Uri,
         principal: &RequestPrincipal,
@@ -33,7 +40,7 @@ impl Pages {
         collection: &str,
         items: Vec<Value>,
         statuses: Vec<Value>,
-    ) -> Result<Value, HttpFailure> {
+    ) -> Result<PreparedPage, HttpFailure> {
         let invalid = || failure(StatusCode::UNPROCESSABLE_ENTITY);
         let query = uri.query().unwrap_or("");
         if query.len() > 1024 {
@@ -106,26 +113,37 @@ impl Pages {
         } else {
             None
         };
-        // Prepare the complete response and all fallible token work before
-        // consuming a validated followed token. This map is exclusively held
-        // by the caller through the single replacement/completion transition.
-        // This commits response preparation only; the caller still releases
-        // the original Access principal independently before disclosure.
+        // Prepare response DATA without consuming the live followed token.
+        // The caller retains this exact registry guard through its original
+        // final principal release before committing this prepared transition.
         let response = json!({"contractVersion":crate::storage::CONTRACT_VERSION,
             "items":items[offset..end],"nextCursor":next,"sourceStatuses":statuses});
-        if let Some(token) = followed {
-            self.cursors.remove(token);
+        Ok(PreparedPage {
+            followed: followed.cloned(),
+            next: next.map(|token| {
+                (
+                    token,
+                    Cursor {
+                        context,
+                        offset: end,
+                        expires: now + Duration::from_millis(300_000),
+                    },
+                )
+            }),
+            response,
+        })
+    }
+
+    /// Infallible transition after the caller's actual final authority release.
+    /// The SAME exclusive registry guard must span prepare/release/commit so
+    /// capacity, collision and followed-token validation cannot be invalidated.
+    pub fn commit(&mut self, prepared: PreparedPage) -> Value {
+        if let Some(token) = prepared.followed {
+            self.cursors.remove(&token);
         }
-        if let Some(token) = next {
-            self.cursors.insert(
-                token,
-                Cursor {
-                    context,
-                    offset: end,
-                    expires: now + Duration::from_millis(300_000),
-                },
-            );
+        if let Some((token, cursor)) = prepared.next {
+            self.cursors.insert(token, cursor);
         }
-        Ok(response)
+        prepared.response
     }
 }
