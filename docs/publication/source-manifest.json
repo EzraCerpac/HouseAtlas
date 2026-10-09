@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "42ba3bbcd114b0efb9eebdc1a567172bb7c90a80be7174023d2991079ab59471",
+  "sourceDigestSha256": "acc5c3d95f7987a88971a7abbe3311d79a4112f8213b8f9a6dbb495cbb47f84f",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -1659,15 +1659,15 @@
     {
       "path": "backend/src/domain/stock/atlas_lists.md",
       "mode": "100644",
-      "bytes": 8175,
-      "sha256": "44c9b89f98d4493de20e47b1315f78b58f08c9b207c339aa75d00874a9351346",
+      "bytes": 8968,
+      "sha256": "0241bfa49fcd4d8f691c2be5c73112074c7b5a23c3a90e73c79bcdfa2827afa7",
       "owner": "domain"
     },
     {
       "path": "backend/src/domain/stock/atlas_lists.rs",
       "mode": "100644",
-      "bytes": 9659,
-      "sha256": "4e5719fd5d354b47ed4dae8897a212e9e02fcacee39ed89c5c4c697304aea985",
+      "bytes": 10265,
+      "sha256": "c8f70788f77d25241ff890d9518a6a1d85f8145cd1532d10abfba4a2515c3482",
       "owner": "domain"
     },
     {
@@ -6055,8 +6055,8 @@
     {
       "path": "frontend/src/lantern/adapters/read.ts",
       "mode": "100644",
-      "bytes": 8728,
-      "sha256": "0c4e1a3cccf741df2985da69bfe20d71e6d6bea3ff4f2ed6205450c852560d7c",
+      "bytes": 8742,
+      "sha256": "4302dcbd10321c2d99367178d96a7092cad2e8546f2ef5a5a5d2ef290ba9e6fd",
       "owner": "web"
     },
     {
@@ -6202,8 +6202,8 @@
     {
       "path": "frontend/src/lantern/components/RealPreview.tsx",
       "mode": "100644",
-      "bytes": 3440,
-      "sha256": "64b30ce80ed85d0fb058513e64bd64a83f2050d1e518b859e2cf3a837180acef",
+      "bytes": 3455,
+      "sha256": "cae29bbbf89498dca8c3a1d1f36c9b996e0b993d9fafe8748154574c0b2960a5",
       "owner": "web"
     },
     {
@@ -6230,8 +6230,8 @@
     {
       "path": "frontend/src/lantern/components/rows.tsx",
       "mode": "100644",
-      "bytes": 7500,
-      "sha256": "d823e3d16fcd319e2963c7cf4e302388a4bb78b28629a0fada3e82a314771f09",
+      "bytes": 7622,
+      "sha256": "7a0df18ecd48b6fa7eeb5f2748d298aadb065cf8b3abeac15c34e7a7467b27a2",
       "owner": "web"
     },
     {
