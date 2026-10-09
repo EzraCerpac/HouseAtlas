@@ -254,10 +254,7 @@ export function decodeAtlasView(value: unknown): AtlasView {
       const h = object(value);
       return { ...scope(h), label: string(h.label) };
     });
-  if (
-    entries.some((p) => !sameScope(p, currentScope)) ||
-    homes.some((h) => h.workspaceId !== currentScope.workspaceId)
-  )
+  if (entries.some((p) => !sameScope(p, currentScope)))
     throw new TypeError("Inconsistent view scope");
   if (!homes.some((h) => sameScope(h, currentScope)))
     throw new TypeError("Current home missing");
