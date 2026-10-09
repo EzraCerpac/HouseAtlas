@@ -332,26 +332,27 @@ const retainedReceipt = {
   },
 };
 const retainedRequestJson = JSON.stringify(retainedRequest);
+// The existing synthetic session supplies the current CSRF for the selected scope.
+const retainedContext = () => ({ ...nativeHomeboxContext, scope: operationScope });
+const retainedHeaders = { Accept: 'application/json', 'Content-Type': 'application/json',
+  'x-atlas-csrf': nativeHomeboxContext.session.csrfToken };
 let retainedCalls = 0;
 const retainedClient = createRetainedIntentClient(async (url, init) => {
   retainedCalls++;
-  const parsed = new URL(url, 'https://atlas.invalid');
-  assert.equal(parsed.pathname, '/api/atlas/retained-intent');
-  assert.equal(parsed.searchParams.get('workspaceId'), retainedRequest.context.workspaceId);
-  assert.equal(parsed.searchParams.get('homeId'), operationScope.homeId);
-  assert.equal(parsed.searchParams.get('intent'), retainedRequestJson);
-  assert.deepEqual(JSON.parse(parsed.searchParams.get('intent')), retainedRequest);
-  assert.deepEqual([...parsed.searchParams.keys()].sort(), ['homeId', 'intent', 'workspaceId']);
-  assert.equal(init.method, 'GET');
+  assert.equal(url, '/api/atlas/retained-intent');
+  assert.equal(new URL(url, 'https://atlas.invalid').search, '');
+  assert.equal(init.method, 'POST');
   assert.equal(init.credentials, 'same-origin');
   assert.equal(init.cache, 'no-store');
   assert.equal(init.redirect, 'error');
-  assert.equal(init.headers.Accept, 'application/json');
+  assert.deepEqual(init.headers, retainedHeaders);
+  assert.equal(init.body, retainedRequestJson);
+  assert.deepEqual(JSON.parse(init.body), retainedRequest);
   assert.equal(init.signal, signal);
   return { ok: true, json: async () => retainedReceipt };
 });
 assert.equal(canReadRetainedIntent(retainedRequest), true);
-const retainedRead = await retainedClient.read(retainedRequest, operationScope, signal);
+const retainedRead = await retainedClient.read(retainedRequest, retainedContext, signal);
 assert.equal(retainedCalls, 1);
 assert.deepEqual(retainedRead, { status: 'ready', receipt: retainedReceipt });
 assert.equal(JSON.stringify(retainedRequest), retainedRequestJson);
@@ -392,22 +393,20 @@ const retainedBatchReceipt = {
 let retainedBatchCalls = 0;
 const retainedBatchClient = createRetainedIntentClient(async (url, init) => {
   retainedBatchCalls++;
-  const parsed = new URL(url, 'https://atlas.invalid');
-  assert.equal(parsed.pathname, '/api/atlas/retained-intent');
-  assert.equal(parsed.searchParams.get('workspaceId'), retainedBatchRequest.context.workspaceId);
-  assert.equal(parsed.searchParams.get('homeId'), operationScope.homeId);
-  assert.equal(parsed.searchParams.get('intent'), JSON.stringify(retainedBatchRequest));
-  assert.deepEqual([...parsed.searchParams.keys()].sort(), ['homeId', 'intent', 'workspaceId']);
-  assert.equal(init.method, 'GET');
+  assert.equal(url, '/api/atlas/retained-intent');
+  assert.equal(new URL(url, 'https://atlas.invalid').search, '');
+  assert.equal(init.method, 'POST');
   assert.equal(init.credentials, 'same-origin');
   assert.equal(init.cache, 'no-store');
   assert.equal(init.redirect, 'error');
-  assert.equal(init.headers.Accept, 'application/json');
+  assert.deepEqual(init.headers, retainedHeaders);
+  assert.equal(init.body, JSON.stringify(retainedBatchRequest));
+  assert.deepEqual(JSON.parse(init.body), retainedBatchRequest);
   assert.equal(init.signal, signal);
   return { ok: true, json: async () => retainedBatchReceipt };
 });
 assert.equal(canReadRetainedIntent(retainedBatchRequest), true);
-assert.deepEqual(await retainedBatchClient.read(retainedBatchRequest, operationScope, signal),
+assert.deepEqual(await retainedBatchClient.read(retainedBatchRequest, retainedContext, signal),
   { status: 'ready', receipt: retainedBatchReceipt });
 assert.equal(retainedBatchCalls, 1);
 assert.deepEqual(retainedBatchReceipt.committedResult.children.map(child => child.requestId),
