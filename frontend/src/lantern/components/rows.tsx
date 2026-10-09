@@ -72,6 +72,7 @@ export function TaskRow({ task, showTarget }: { task: Task; showTarget?: boolean
               {task.due ? <>{st === 'overdue' ? 'Overdue, was due ' : 'Due '}{fmtShortDate(task.due, house.displayNow)} ({rel(task.due, house.displayNow)})</> : 'No schedule supplied'}
             </span>
           )}
+          {task.cost !== undefined && <span>Recorded cost {task.cost}, currency not recorded</span>}
           {showTarget && <span>{nameOf(house, task.targetId)}</span>}
         </span>
       </span>

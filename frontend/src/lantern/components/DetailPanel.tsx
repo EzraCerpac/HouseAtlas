@@ -894,6 +894,7 @@ function TaskDetail({ t }: { t: Task }) {
             ['Due', t.due ? `${fmtDate(t.due)} (${rel(t.due, house.displayNow)})` : undefined],
             ['Completed', t.completedAt ? `${fmtDate(t.completedAt)}${t.completedBy ? ` by ${t.completedBy}` : ''}` : undefined],
             ['Repeats', t.cadence ?? 'Not supplied'],
+            ['Recorded cost', t.cost !== undefined ? `${t.cost}, currency not recorded` : undefined],
             ['Note', t.note],
           ]}
         />

@@ -3,6 +3,7 @@ import type { GeometryPayloadMappingsItem } from '../../api/generated/contracts'
 import type { GeometryPublicRecord, GeometryRead } from '../../api/geometry-client';
 import type { Attachment, Entry, ReadyView } from '../../app/types';
 import type { Doc, HouseData, Item, Space, Task } from '../data/types';
+import { visibleEntries } from '../../app/model';
 
 /** Access is issued by the source. A stored file can exist without an issued URL. */
 export interface DocAccess {
@@ -66,9 +67,10 @@ export function projectView(view: ReadyView, geometryMetadata: GeometryRead = { 
   const docs: Doc[] = [];
   const tasks: Task[] = [];
 
-  // ReadyView may retain records for other homes. Only the selected scope is
-  // projected into this house; the complete view is retained above.
-  for (const entry of view.entries) {
+  // ReadyView may retain records for other homes and archived records. Only
+  // current records in the selected scope are projected into this house; the
+  // complete view is retained above.
+  for (const entry of visibleEntries(view, false)) {
     if (entry.workspaceId !== view.scope.workspaceId || entry.homeId !== view.scope.homeId) continue;
 
     const id = scopedId(kindOf(entry), entry);
@@ -144,6 +146,7 @@ export function projectView(view: ReadyView, geometryMetadata: GeometryRead = { 
         status: maintenance.completedDate ? 'done' : maintenance.scheduledDate ? 'scheduled' : 'unknown',
         ...(maintenance.completedDate ? { completedAt: maintenance.completedDate } : {}),
         ...(maintenance.description ? { note: maintenance.description } : {}),
+        ...(maintenance.cost !== null ? { cost: maintenance.cost } : {}),
         evidenceIds: [],
       });
     });

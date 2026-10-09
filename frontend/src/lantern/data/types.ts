@@ -288,6 +288,8 @@ export interface Task {
   completedBy?: string;
   note?: string | undefined;
   cadence?: string | undefined;
+  /** HomeBox maintenance cost, including zero. The source records no currency. */
+  cost?: number | undefined;
   evidenceIds: string[];
   docIds?: string[] | undefined;
 }

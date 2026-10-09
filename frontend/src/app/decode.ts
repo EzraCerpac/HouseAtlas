@@ -7,6 +7,7 @@ import type {
   Entry,
   Maintenance,
   NativeLink,
+  NetworkEndpoint,
   NetworkRelation,
   Scope,
   SourceKey,
@@ -135,6 +136,14 @@ function native(value: unknown): NativeLink {
     verifiedRoute: boolean(o.verifiedRoute),
   };
 }
+function endpoint(value: unknown): NetworkEndpoint {
+  const o = object(value);
+  return {
+    kind: choice(o.kind, ["device", "interface", "segment", "unresolved"]),
+    id: nullableString(o.id),
+    description: nullableString(o.description),
+  };
+}
 function network(value: unknown): NetworkRelation {
   const o = object(value);
   return {
@@ -142,6 +151,16 @@ function network(value: unknown): NetworkRelation {
       "network-segment-membership",
       "network-association",
       "network-connection",
+    ]),
+    from: endpoint(o.from),
+    to: endpoint(o.to),
+    medium: choice(o.medium, [
+      "ethernet",
+      "wifi",
+      "powerline",
+      "wan",
+      "other",
+      "unknown",
     ]),
     temporalStatus: choice(o.temporalStatus, [
       "current-claim",
