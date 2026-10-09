@@ -18,6 +18,7 @@ use axum::{
 use serde_json::{json, to_value};
 use std::{
     collections::VecDeque,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -439,6 +440,9 @@ pub(super) async fn issue(
             return Err(failure(StatusCode::NOT_FOUND));
         }
         let original = Box::new(RequestPrincipal::new(original));
+        let access_owner = Arc::clone(&core.access);
+        let store_owner = Arc::clone(&core.store);
+        let vault_owner = Arc::clone(&core.vault);
         let budget = m::WorkBudget::new(Duration::from_secs(10), m::Cancellation::default())
             .map_err(media_error)?;
         let binding = {
@@ -499,7 +503,7 @@ pub(super) async fn issue(
         stock_reads::capture_graph(&core.access, &original, &snapshot)
             .map_err(stock_reads::http_error)?;
         budget.check().map_err(media_error)?;
-        let rendered = {
+        let prepared_render = {
             let mut access = core.access.lock().map_err(|_| unavailable())?;
             original.release(&access).map_err(access_error)?;
             let mut proof = None;
@@ -507,8 +511,8 @@ pub(super) async fn issue(
                 original.principal.principal(),
                 |guard| {
                     proof = Some(
-                        core.vault
-                            .qualify_asset_review(
+                        vault_owner
+                            .prepare_asset_review_render(
                                 guard,
                                 original.principal.retained(),
                                 current,
@@ -522,7 +526,20 @@ pub(super) async fn issue(
             original.release(&access).map_err(access_error)?;
             proof.ok_or_else(unavailable)?
         };
+        // No Core, Access, Store or registry guard spans retained I/O/rendering.
+        drop(core);
+        let unqualified = prepared_render.render(&budget).map_err(media_error)?;
         budget.check().map_err(media_error)?;
+        // Rejoin the same owners and final HTTP serialization before checking
+        // the complete current graph or retaining any renderer receipt.
+        let core = host.core.lock().map_err(|_| unavailable())?;
+        if !Arc::ptr_eq(&access_owner, &core.access)
+            || !Arc::ptr_eq(&store_owner, &core.store)
+            || !Arc::ptr_eq(&vault_owner, &core.vault)
+            || !core.homes.iter().any(|home| home.scope == scope)
+        {
+            return Err(unavailable());
+        }
         let latest = {
             let mut store = core.store.lock().map_err(|_| unavailable())?;
             store
@@ -535,7 +552,7 @@ pub(super) async fn issue(
         }
         stock_reads::capture_graph(&core.access, &original, &latest)
             .map_err(stock_reads::http_error)?;
-        let access = core.access.lock().map_err(|_| unavailable())?;
+        let mut access = core.access.lock().map_err(|_| unavailable())?;
         original.release(&access).map_err(access_error)?;
         access
             .assert_mutation(original.principal.principal())
@@ -550,7 +567,21 @@ pub(super) async fn issue(
         {
             return Err(failure(StatusCode::FORBIDDEN));
         }
+        let mut rendered = None;
+        access.with_mutation_authorization::<super::HttpFailure>(
+            original.principal.principal(),
+            |guard| {
+                rendered = Some(
+                    unqualified
+                        .qualify(guard, original.principal.retained(), &budget)
+                        .map_err(media_error)?,
+                );
+                Ok(())
+            },
+        )?;
+        original.release(&access).map_err(access_error)?;
         budget.check().map_err(media_error)?;
+        let rendered = rendered.ok_or_else(unavailable)?;
         let facts = to_value(rendered.facts()).map_err(|_| unavailable())?;
         let actor_id = original.principal.actor_id().as_str().to_owned();
         let entry = Entry {

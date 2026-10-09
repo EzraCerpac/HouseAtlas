@@ -60,6 +60,25 @@ pub struct RenderedAssetReview {
     qualification: RendererQualification,
 }
 
+/// Authenticated selection of the exact original and vault for local rendering.
+/// Private move-only custody; no transaction guard survives this stage.
+pub(crate) struct PreparedAssetReviewRender {
+    vault: Arc<AssetVault>,
+    original: RetainedPrincipal,
+    record: AssetRecord,
+    original_record_digest: String,
+}
+
+/// Locally measured renderer output, withheld until fresh original authority.
+/// No facts accessor or review consumer accepts this unqualified stage.
+pub(crate) struct UnqualifiedAssetReview {
+    vault: Arc<AssetVault>,
+    original: RetainedPrincipal,
+    record: AssetRecord,
+    facts: ReviewReceiptFacts,
+    qualification: RendererQualification,
+}
+
 /// Sealed renderer evidence bound to the complete validated stock request.
 /// Losing the original owner/handle loses this capability. Persisted facts
 /// cannot adopt a later RequestPrincipal, authorize replay or grant access.
@@ -119,6 +138,18 @@ impl AssetVault {
         current: &s::Record,
         budget: &WorkBudget,
     ) -> MediaResult<RenderedAssetReview> {
+        self.prepare_asset_review_render(guard, original, current, budget)?
+            .render(budget)?
+            .qualify(guard, original, budget)
+    }
+
+    pub(crate) fn prepare_asset_review_render(
+        self: &Arc<Self>,
+        guard: &a::TransactionAuthorization<'_>,
+        original: &RetainedPrincipal,
+        current: &s::Record,
+        budget: &WorkBudget,
+    ) -> MediaResult<PreparedAssetReviewRender> {
         let scope = Scope {
             workspace_id: current.workspace_id.clone(),
             home_id: current.home_id.clone(),
@@ -131,7 +162,29 @@ impl AssetVault {
         {
             return Err(MediaError::NotFound);
         }
-        let bytes = self.read_retained(&record, budget)?;
+        Ok(PreparedAssetReviewRender {
+            vault: Arc::clone(self),
+            original: original.clone(),
+            record,
+            original_record_digest: digest(
+                &serde_json::to_value(current).map_err(|_| MediaError::Unavailable)?,
+            )?,
+        })
+    }
+}
+
+impl PreparedAssetReviewRender {
+    /// Expensive retained-byte validation/rendering needs no shared host locks.
+    /// The result cannot become a receipt without a fresh original fence.
+    pub(crate) fn render(self, budget: &WorkBudget) -> MediaResult<UnqualifiedAssetReview> {
+        let Self {
+            vault,
+            original,
+            record,
+            original_record_digest,
+        } = self;
+        let scope = record.scope();
+        let bytes = vault.read_retained(&record, budget)?;
         let content_type = ContentType::parse(&record.payload.content_type)?;
         validate_original_content(&bytes, content_type, budget)?;
         let output = render_original_preview(&bytes, content_type, budget)?
@@ -143,9 +196,7 @@ impl AssetVault {
             scope,
             asset_id: record.record_id.clone(),
             revision: record.revision,
-            original_record_digest: digest(
-                &serde_json::to_value(current).map_err(|_| MediaError::Unavailable)?,
-            )?,
+            original_record_digest,
             original_sha256: sha256(&bytes),
             original_byte_size: bytes.len() as u64,
             rendered_sha256: sha256(&output),
@@ -168,13 +219,34 @@ impl AssetVault {
                 byte_size: facts.rendered_byte_size,
             },
         );
-        authorize(guard, original, &record.scope(), budget)?;
-        Ok(RenderedAssetReview {
-            vault: self.clone(),
-            original: original.clone(),
+        budget.check()?;
+        Ok(UnqualifiedAssetReview {
+            vault,
+            original,
             record,
             facts,
             qualification,
+        })
+    }
+}
+
+impl UnqualifiedAssetReview {
+    pub(crate) fn qualify(
+        self,
+        guard: &a::TransactionAuthorization<'_>,
+        original: &RetainedPrincipal,
+        budget: &WorkBudget,
+    ) -> MediaResult<RenderedAssetReview> {
+        if !self.original.same_original(original) {
+            return Err(MediaError::Forbidden);
+        }
+        authorize(guard, &self.original, &self.record.scope(), budget)?;
+        Ok(RenderedAssetReview {
+            vault: self.vault,
+            original: self.original,
+            record: self.record,
+            facts: self.facts,
+            qualification: self.qualification,
         })
     }
 }
