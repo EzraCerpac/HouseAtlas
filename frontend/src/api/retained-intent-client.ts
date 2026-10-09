@@ -4,7 +4,7 @@ import agent from '../../../contracts/stock-wire3/agent/agent.schema.json' with 
 import atlas from '../../../packages/contracts/schemas/atlas.schema.json' with { type: 'json' };
 import catalog from '../../../contracts/stock-wire3/agent/operation-catalog.json' with { type: 'json' };
 import type { Scope } from '../app/types';
-import type { StockRequestEnvelope, StockResultEnvelope } from '../webmcp/stock';
+import type { StockHostContext, StockRequestEnvelope, StockResultEnvelope } from '../webmcp/stock';
 
 export interface RetainedIntentInspection {
   format: 'atlas-retained-intent-inspection/1';
@@ -83,21 +83,16 @@ function operationFor(request: StockRequestEnvelope) {
   if (!check || !check(request)) throw new TypeError('Original stock request is incompatible');
   return operation;
 }
-function intentQuery(request: StockRequestEnvelope): string {
+function intentBody(request: StockRequestEnvelope): string {
   operationFor(request);
   const original = JSON.stringify(request);
   if (new TextEncoder().encode(original).length > maximumBytes)
     throw new TypeError('Original stock request exceeds retained intent bound');
-  const query = new URLSearchParams({
-    workspaceId: request.context.workspaceId, homeId: request.context.homeId, intent: original,
-  }).toString();
-  if (new TextEncoder().encode(query).length > maximumBytes)
-    throw new TypeError('Retained intent query exceeds transport bound');
-  return query;
+  return original;
 }
 /** Eligibility only; the original complete envelope is never reconstructed. */
 export function canReadRetainedIntent(request: StockRequestEnvelope): boolean {
-  try { intentQuery(request); return true; } catch { return false; }
+  try { intentBody(request); return true; } catch { return false; }
 }
 function equalJson(left: unknown, right: unknown): boolean {
   if (left === right) return true;
@@ -118,24 +113,32 @@ function validateWire(request: StockRequestEnvelope, wire: StockResultEnvelope, 
 /** Passive lookup of a genuine submitted envelope; no retries or media release. */
 export function createRetainedIntentClient(transport: typeof fetch = globalThis.fetch) {
   return {
-    async read(request: StockRequestEnvelope, scope: Scope, signal: AbortSignal): Promise<RetainedIntentRead> {
-      const query = intentQuery(request);
+    async read(request: StockRequestEnvelope, current: () => StockHostContext, signal: AbortSignal): Promise<RetainedIntentRead> {
+      const body = intentBody(request);
       // Snapshot the exact serialized input for correlation across the await.
-      const original = JSON.parse(new URLSearchParams(query).get('intent')!) as StockRequestEnvelope;
+      const original = JSON.parse(body) as StockRequestEnvelope;
+      signal.throwIfAborted();
+      const { session, scope } = current();
       if (!validateScope(scope) || !sameScope(original.context, scope))
         throw new TypeError('Retained intent scope differs from selected scope');
       const selected = { workspaceId: scope.workspaceId, homeId: scope.homeId };
-      signal.throwIfAborted();
-      const response = await transport(`/api/atlas/retained-intent?${query}`, {
-        method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
-        headers: { Accept: 'application/json' }, signal,
+      const csrf = session.csrfToken;
+      if (typeof csrf !== 'string' || csrf === '') throw new TypeError('Retained intent requires a current session');
+      // A changed session (current() throws) or selected scope discards the result.
+      const check = () => {
+        if (!sameScope(original.context, current().scope))
+          throw new TypeError('Retained intent scope is no longer current');
+      };
+      const response = await transport('/api/atlas/retained-intent', {
+        method: 'POST', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'x-atlas-csrf': csrf }, body, signal,
       });
-      signal.throwIfAborted();
+      signal.throwIfAborted(); check();
       if (response.status === 401) return { status: 'expired' };
       if (response.status === 403) return { status: 'denied' };
       if (!response.ok) return { status: 'unavailable' };
       const value: unknown = await response.json();
-      signal.throwIfAborted();
+      signal.throwIfAborted(); check();
       if (!validateReceipt(value)) throw new TypeError('Retained intent receipt is incompatible');
       const inspection = value.inspection;
       if (value.lookupRequestId !== original.requestId || inspection.commandId !== original.commandId

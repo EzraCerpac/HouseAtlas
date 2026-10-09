@@ -36,8 +36,7 @@ export function SavedReceipt({ completion, sessions, renderIdentity }: {
   const read = current && entry?.identity === identity ? entry.read : null;
   const inspect = () => {
     if (!supported || controller.current) return;
-    let scope;
-    try { scope = context().scope; } catch { return; }
+    try { context(); } catch { return; }
     const pending = new AbortController();
     controller.current = pending;
     setEntry({ identity, read: { status: "loading" } });
@@ -45,7 +44,7 @@ export function SavedReceipt({ completion, sessions, renderIdentity }: {
       if (pending.signal.aborted || currentIdentity.current !== identity) return false;
       try { context(); return true; } catch { return false; }
     };
-    void client.read(completion.request, scope, pending.signal).then(result => {
+    void client.read(completion.request, context, pending.signal).then(result => {
       if (active()) setEntry({ identity, read: result });
     }).catch(() => {
       if (active()) setEntry({ identity, read: { status: "unavailable" } });
