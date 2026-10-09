@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "2d0e5c7a8d6ca345142a34ce2974247738bf6ac057a3b0b85505ca637f3adf43",
+  "sourceDigestSha256": "5ed6bcde354789cbf2b94580a5832bfeac5062faf1b96f95bed4ef460cc7c6b3",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5824,8 +5824,8 @@
     {
       "path": "frontend/src/api/generated/contracts.ts",
       "mode": "100644",
-      "bytes": 21445,
-      "sha256": "033a1657a343e3bf917e9d29067cfdbb0e1b74a7c5cba9a922658700fbadbbce",
+      "bytes": 23747,
+      "sha256": "c84841e210591620d3708be6dfe5711e063de696f75bc93adaa5ee30eb7052b9",
       "owner": "contracts"
     },
     {
@@ -5894,8 +5894,8 @@
     {
       "path": "frontend/src/app/PlaceEditor.tsx",
       "mode": "100644",
-      "bytes": 13007,
-      "sha256": "ca8fc04d441a7393cc590f0ec18fb81ee4d9a4fe41dd84323650658922dfba44",
+      "bytes": 13166,
+      "sha256": "e7de8c9d57b69ace4b4cd29db5c5f11c01d3bd9f8f8bc80487c4b606a7f2f68b",
       "owner": "web"
     },
     {
