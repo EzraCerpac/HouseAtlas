@@ -652,3 +652,235 @@ impl NativeQueuedUploadInstallationOwner {
         Ok(())
     }
 }
+
+/// Reuse original private schemas and source pins for archived installation
+/// DATA. No configured owner, current window, credential or filesystem enters.
+pub(super) fn validate_archived_original_installation(
+    input: &super::queued_upload_archived_original::QueuedUploadArchivedInstallationInput<'_>,
+) -> Result<(), StockErrorCode> {
+    use super::queued_upload_history::QueuedUploadHistoricalArtifactRole as Role;
+    let unavailable = || StockErrorCode::ProviderUnqualified;
+    input.budget.check().map_err(|_| unavailable())?;
+    let install = input.installation;
+    let e = install.descriptor();
+    let artifacts = install.artifacts();
+    if artifacts.len() != 12 || PINS.len() != 9 {
+        return Err(unavailable());
+    }
+    for (i, artifact) in artifacts.iter().enumerate() {
+        input.budget.check().map_err(|_| unavailable())?;
+        let expected_role = match i {
+            0 => Role::Executable,
+            1 => Role::BuildProvenance,
+            2 => Role::EffectiveConfiguration,
+            _ => Role::ReviewedSource,
+        };
+        let maximum = match i {
+            0 => 64 * 1024 * 1024,
+            1 | 2 => 64 * 1024,
+            _ => PINS[i - 3].bytes,
+        };
+        let mut hash = Sha256::new();
+        for part in artifact.bytes().chunks(64 * 1024) {
+            input.budget.check().map_err(|_| unavailable())?;
+            hash.update(part);
+        }
+        input.budget.check().map_err(|_| unavailable())?;
+        let computed =
+            Digest::parse(format!("{:x}", hash.finalize())).map_err(|_| unavailable())?;
+        let before = artifact.before();
+        let after = artifact.after();
+        if artifact.role() != expected_role
+            || artifact.bytes().is_empty()
+            || artifact.bytes().len() as u64 > maximum
+            || before.length() != artifact.bytes().len() as u64
+            || !before.is_file()
+            || !after.is_file()
+            || before != after
+            || computed != *artifact.digest()
+            || (i < 3 && artifact.logical_pin().is_some())
+            || (i >= 3
+                && (artifact.logical_pin() != Some(PINS[i - 3].path)
+                    || artifact.digest().as_str() != PINS[i - 3].sha256
+                    || artifact.bytes().len() as u64 != PINS[i - 3].bytes))
+        {
+            return Err(unavailable());
+        }
+    }
+    // Source lexically checked all Values and charged these typed reparses,
+    // registration serialization and helper temporary allocations beforehand.
+    let parsed: BuildProvenance =
+        serde_json::from_value(input.provenance.clone()).map_err(|_| unavailable())?;
+    let effective: EffectiveConfiguration =
+        serde_json::from_value(input.effective.clone()).map_err(|_| unavailable())?;
+    input.budget.check().map_err(|_| unavailable())?;
+    let p = &parsed.reviewed_upload_policy;
+    let binding = &e.authority.physical_binding;
+    let queue = input.queue;
+    let identity = &queue.registration.identity;
+    let metadata = input.metadata;
+    let registration = metadata.registration();
+    let scope = input.scope;
+    let origin = url::Url::parse(&effective.endpoint_origin).map_err(|_| unavailable())?;
+    if parsed.schema_version != 1
+        || parsed.release != e.installed_release
+        || parsed.source_commit != NATIVE_SOURCE_COMMIT
+        || parsed.source_commit != e.source_commit
+        || e.installed_release != read::HOMEBOX_REFERENCE_VERSION
+        || parsed.executable_sha256 != *artifacts[0].digest()
+        || e.executable_sha256 != *artifacts[0].digest()
+        || parsed.effective_configuration_sha256 != *artifacts[2].digest()
+        || !parsed.custom_patches.is_empty()
+        || parsed.source_artifacts.len() != PINS.len()
+        || input.provenance.get("reviewedUploadPolicy") != Some(install.reviewed_policy())
+        || upload_value_digest(install.reviewed_policy())? != e.policy_digest
+        || e.context.workspace_id.is_nil()
+        || e.context.home_id.is_nil()
+        || e.owner.resource_kind != ResourceKind::Entity
+        || e.owner.entity_id.is_some()
+        || e.owner.id().is_err()
+        || e.owner.id().is_ok_and(|id| id.is_nil())
+        || e.owner.source_instance_id.is_nil()
+        || e.owner.collection_id.is_nil()
+        || e.account_id.is_empty()
+        || e.group_id.is_empty()
+        || e.account_id.len() > 4096
+        || e.group_id.len() > 4096
+        || p.schema_version != 1
+        || p.kind != "homebox-queued-file-upload"
+        || p.policy_id != e.policy_id
+        || p.policy_id.is_empty()
+        || p.policy_id.len() > 4096
+        || p.policy_version != e.policy_version
+        || p.policy_epoch != e.policy_epoch
+        || !(1..=9_007_199_254_740_991).contains(&p.policy_version)
+        || !(1..=9_007_199_254_740_991).contains(&p.policy_epoch)
+        || p.actor_id != e.authority.actor_id
+        || p.actor_id.is_nil()
+        || p.context != e.context
+        || p.owner != e.owner
+        || p.account_id != e.account_id
+        || p.group_id != e.group_id
+        || p.approval_requirement != "no-human"
+        || p.allowed_types != e.allowed_types
+        || !valid_types(&p.allowed_types)
+        || p.maximum_bytes != e.maximum_bytes
+        || !(1..=10 * 1024 * 1024).contains(&p.maximum_bytes)
+        || !(1..=60000).contains(&p.freshness_millis)
+        || e.freshness != Duration::from_millis(p.freshness_millis)
+        || p.physical_binding.deployment_id != binding.deployment_id
+        || p.physical_binding.physical_database_id != binding.physical_database_id
+        || p.physical_binding.configuration_digest != binding.configuration_digest
+        || binding.deployment_id.is_nil()
+        || binding.physical_database_id.is_nil()
+        || p.dispatcher_owner_id.is_nil()
+        || p.dispatcher_epoch == 0
+        || p.source_epoch != e.authority.source_epoch
+        || p.source_epoch == 0
+        || queue.validate().is_err()
+        || identity.deployment_id != binding.deployment_id.to_string()
+        || identity.physical_database_id != binding.physical_database_id.to_string()
+        || identity.configuration_digest.as_hex() != binding.configuration_digest.as_str()
+        || queue.registration.dispatcher_owner_id != p.dispatcher_owner_id.to_string()
+        || effective.schema_version != 1
+        || origin.scheme() != "https"
+        || origin.host_str().is_none()
+        || !origin.username().is_empty()
+        || origin.password().is_some()
+        || origin.path() != "/"
+        || origin.query().is_some()
+        || origin.fragment().is_some()
+        || effective.endpoint_origin != origin.as_str()
+        || effective.account_id != e.account_id
+        || effective.group_id != e.group_id
+        || effective.thumbnail.enabled
+        || effective.web.max_file_upload == 0
+        || effective
+            .web
+            .max_file_upload
+            .checked_mul(1024 * 1024)
+            .is_none_or(|n| n < p.maximum_bytes)
+        || registration.owner != a::SourceOwner::Homebox
+        || metadata.registration_version() != e.authority.source_epoch
+        || !(1..=9_007_199_254_740_991).contains(&metadata.registration_version())
+        || metadata.access_epoch().is_empty()
+        || metadata.access_epoch().len() > 4096
+        || registration.workspace_id.as_str() != scope.workspace_id.as_str()
+        || registration.home_id.as_str() != scope.home_id.as_str()
+        || registration.source_instance_id.as_str() != scope.source_instance_id.as_str()
+        || registration.collection_id != scope.collection_id
+        || scope.workspace_id.as_str() != e.context.workspace_id.to_string()
+        || scope.home_id.as_str() != e.context.home_id.to_string()
+        || scope.source_instance_id.as_str() != e.owner.source_instance_id.to_string()
+        || scope.collection_id != e.owner.collection_id.to_string()
+        || input.reference.partition() != registration.partition()
+        || input.reference.key.source_kind != a::SourceKind::HomeboxEntity
+        || input.reference.key.external_id != e.owner.id().map_err(|_| unavailable())?.to_string()
+    {
+        return Err(unavailable());
+    }
+    for (artifact, pin) in parsed.source_artifacts.iter().zip(PINS) {
+        input.budget.check().map_err(|_| unavailable())?;
+        if artifact.path != pin.path
+            || artifact.sha256.as_str() != pin.sha256
+            || artifact.bytes != pin.bytes
+        {
+            return Err(unavailable());
+        }
+    }
+    if serde_json::to_value(registration).map_err(|_| unavailable())? != *input.registration_value
+        || upload_value_digest(input.registration_value)?.as_str() != metadata.registration_sha256()
+        || upload_value_digest(input.catalog)? != *install.catalog_digest()
+        || upload_value_digest(input.swagger)? != *install.route_digest()
+    {
+        return Err(unavailable());
+    }
+    let aliases = &queue.registration.aliases;
+    if aliases.len() > 1000
+        || aliases
+            .iter()
+            .filter(|alias| {
+                let p = &alias.partition;
+                p.workspace_id == scope.workspace_id.as_str()
+                    && p.home_id == scope.home_id.as_str()
+                    && p.source_instance_id == scope.source_instance_id.as_str()
+                    && p.collection_id == scope.collection_id
+            })
+            .count()
+            != 1
+    {
+        return Err(unavailable());
+    }
+    // Source charged 64 bytes per borrowed-string set entry BEFORE this
+    // allocation. No quadratic scan of the archived registration is needed.
+    let mut seen = std::collections::BTreeSet::new();
+    for external_id in &registration.allowed_external_ids {
+        input.budget.check().map_err(|_| unavailable())?;
+        if external_id.is_empty() || external_id.len() > 4096 || !seen.insert(external_id.as_str())
+        {
+            return Err(unavailable());
+        }
+    }
+    match registration.partition_mode {
+        a::PartitionMode::ExclusiveHome if registration.allowed_external_ids.is_empty() => {}
+        a::PartitionMode::ReviewedEntityAllowlist
+            if registration
+                .allowed_external_ids
+                .contains(&input.reference.key.external_id) => {}
+        _ => return Err(unavailable()),
+    }
+    input.budget.check().map_err(|_| unavailable())?;
+    match &e.authority.qualification {
+        NativeQualification::Qualified {
+            catalog_digest,
+            registered_build_digest,
+            route_qualification_digest,
+        } if catalog_digest == install.catalog_digest()
+            && registered_build_digest == artifacts[0].digest()
+            && route_qualification_digest == install.route_digest() =>
+        {
+            Ok(())
+        }
+        _ => Err(unavailable()),
+    }
+}
