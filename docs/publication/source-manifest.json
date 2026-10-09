@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "e44100656e66a4cc7aad744013b66192c9357c8283b10d69c41fbc6b268a84a6",
+  "sourceDigestSha256": "4d4e1e62d5d4b6588cacfd2730143ceb839932a397d765f446ae4c6e11dfed4b",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -6118,8 +6118,8 @@
     {
       "path": "frontend/src/lantern/components/QuantityPreview.tsx",
       "mode": "100644",
-      "bytes": 15393,
-      "sha256": "bc04e6739c9027f88fb6baafc7cb0fe15d4bad851488981e127a51f14f780978",
+      "bytes": 15425,
+      "sha256": "59c310f30d5f80830cf9ff04842eb1f4a7c89555801647e660da47fbcddf929a",
       "owner": "web"
     },
     {
@@ -6132,8 +6132,8 @@
     {
       "path": "frontend/src/lantern/components/SearchPalette.tsx",
       "mode": "100644",
-      "bytes": 7410,
-      "sha256": "40af1cc0e459ecdd6e91b7db6d942357fb6c222743f5320e4fc59e6bb5504376",
+      "bytes": 7414,
+      "sha256": "379d151b138f8d6071f7c9fcc02975f0024cde63d20f1601585d3f076ba940b1",
       "owner": "web"
     },
     {
@@ -6160,8 +6160,8 @@
     {
       "path": "frontend/src/lantern/components/ui.tsx",
       "mode": "100644",
-      "bytes": 5009,
-      "sha256": "f30418801215ebc258316dfa22fec0354573651861e28b793b418a69a3f2caec",
+      "bytes": 5051,
+      "sha256": "c9ebd5c4a5ec25068583e4c5bba53c2727889ed982cd4a10545beace413ee074",
       "owner": "web"
     },
     {
