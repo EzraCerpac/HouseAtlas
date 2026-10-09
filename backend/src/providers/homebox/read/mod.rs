@@ -6,6 +6,7 @@ mod failure_publication;
 mod http_transport;
 mod native_capture;
 mod native_file_capture;
+pub mod native_list_pages;
 mod native_presence_capture;
 pub mod native_presence_owner;
 mod native_presence_retained;
@@ -27,6 +28,7 @@ pub use native_capture::{
     CapturedStockEntity, CapturedStockEntityObservation, CapturedStockMaintenance, NativeCapture,
 };
 pub use native_file_capture::CapturedNativeFileSnapshot;
+pub use native_list_pages::{NativeListPages, NativeListReadRequest, NativeListSnapshot};
 pub use native_presence_capture::{
     NativePresenceCapture, NativePresenceGeneration, NativePresenceIdentity, NativePresenceResponse,
 };
