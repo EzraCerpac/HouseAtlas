@@ -45,6 +45,11 @@ struct RetainedPage {
     owner: s::StockRetainedReadOwner,
     graph: s::Snapshot,
 }
+#[derive(Clone, Copy)]
+enum ContinuationSlot {
+    Existing(usize),
+    New,
+}
 #[derive(Default)]
 pub(super) struct EventRegistry {
     entries: VecDeque<RetainedPage>,
@@ -79,26 +84,38 @@ impl EventRegistry {
         // leaves this exact original principal, owner and cursor in custody.
         Ok(index)
     }
-    fn retain(&mut self, entry: RetainedPage) {
-        while self
+    fn reserve_continuation_slot(
+        &self,
+        session: &[u8; 32],
+        existing: Option<usize>,
+    ) -> Result<ContinuationSlot, super::HttpFailure> {
+        if let Some(index) = existing {
+            let entry = self
+                .entries
+                .get(index)
+                .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+            if entry.session != *session {
+                return Err(failure(StatusCode::FORBIDDEN));
+            }
+            return Ok(ContinuationSlot::Existing(index));
+        }
+        let session_entries = self
             .entries
             .iter()
-            .filter(|old| old.session == entry.session)
-            .count()
-            >= MAX_SESSION_ENTRIES
-        {
-            if let Some(index) = self
-                .entries
-                .iter()
-                .position(|old| old.session == entry.session)
-            {
-                self.entries.remove(index);
-            }
+            .filter(|entry| entry.session == *session)
+            .count();
+        if self.entries.len() >= MAX_ENTRIES || session_entries >= MAX_SESSION_ENTRIES {
+            return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
         }
-        while self.entries.len() >= MAX_ENTRIES {
-            self.entries.pop_front();
+        // The caller holds this registry mutex through disclosure and commit,
+        // so this New slot remains reserved against every concurrent request.
+        Ok(ContinuationSlot::New)
+    }
+    fn commit_continuation(&mut self, slot: ContinuationSlot, entry: RetainedPage) {
+        match slot {
+            ContinuationSlot::Existing(index) => self.entries[index] = entry,
+            ContinuationSlot::New => self.entries.push_back(entry),
         }
-        self.entries.push_back(entry);
     }
 }
 struct EventAuthority<'a> {
@@ -492,11 +509,19 @@ pub(super) async fn events(
         if authority.captured.get() != Some(&snapshot_closure) {
             return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
         }
+        let continuation_slot = if prepared.has_more() {
+            Some(registry.reserve_continuation_slot(&session, reserved)?)
+        } else {
+            None
+        };
         let result = store
             .disclose_stock_operation_events_with_authorization(
                 &authority, principal, &contracts, &prepared,
             )
             .map_err(|error| domain_error(crate::app::storage_error(error)))?;
+        if prepared.has_more() != result.continuation.is_some() {
+            return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+        }
         if authority.phase.get() != 5 {
             return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
         }
@@ -535,31 +560,26 @@ pub(super) async fn events(
         // no intervening fallible operation. The next cut retains this page's
         // exact Box; a failed page leaves the prior Box and cursor untouched.
         let response = response.ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-        let previous = match reserved {
-            Some(index) => Some(
-                registry
-                    .entries
-                    .remove(index)
-                    .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?,
-            ),
-            None => None,
-        };
         if let Some(continuation) = result.continuation {
-            let owner = match previous {
-                Some(entry) => entry.owner,
-                None => initial_owner,
-            };
-            registry.retain(RetainedPage {
-                principal: initial_principal,
-                continuation,
-                scope: storage_scope,
-                session,
-                actor,
-                page_size: query.page_size,
-                access,
-                owner,
-                graph: original_graph,
-            });
+            let slot = continuation_slot.ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+            let owner =
+                reserved.map_or(initial_owner, |index| registry.entries[index].owner.clone());
+            registry.commit_continuation(
+                slot,
+                RetainedPage {
+                    principal: initial_principal,
+                    continuation,
+                    scope: storage_scope,
+                    session,
+                    actor,
+                    page_size: query.page_size,
+                    access,
+                    owner,
+                    graph: original_graph,
+                },
+            );
+        } else if let Some(index) = reserved {
+            let _removed = registry.entries.remove(index);
         }
         Ok(response)
     })
