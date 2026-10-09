@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "4d4e1e62d5d4b6588cacfd2730143ceb839932a397d765f446ae4c6e11dfed4b",
+  "sourceDigestSha256": "007ad181da359b28f94699e578e663a9ec9d1bb16d869162a597d482b5c2c90e",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5509,8 +5509,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 13661,
-      "sha256": "c85f63ba0f2bd793023292deb13a2f08b7189391ebb49e6c0c85886724cd26ca",
+      "bytes": 15260,
+      "sha256": "2b8bab91e1ab942ad1f602e64414d58749f63e4f11edaa86db59466c93d55c61",
       "owner": "core-integration"
     },
     {
@@ -5642,8 +5642,8 @@
     {
       "path": "frontend/src/ai/host/account-client.ts",
       "mode": "100644",
-      "bytes": 8345,
-      "sha256": "4e82524ba39ab6cfa28fda4aaadf4276b0e8cfb3a1901a367119c0ad3f9bbe9d",
+      "bytes": 10255,
+      "sha256": "ec206b238a1c85fb7b99218adc0085d6fbdf1947156eb9f5b0e1d861b7909a46",
       "owner": "web"
     },
     {
