@@ -79,6 +79,13 @@ fn references<C: Contract>(
     ] {
         add_ref(&mut refs, kind, &payload[field]);
     }
+    if payload["elevation"]["status"] == "known" {
+        add_ref(
+            &mut refs,
+            RecordType::Identity,
+            &payload["elevation"]["datumAtlasId"],
+        );
+    }
     for field in ["panel", "from", "to"] {
         if payload[field]["kind"] == "atlas-record" {
             refs.push(serde_json::from_value(payload[field]["ref"].clone())?);
