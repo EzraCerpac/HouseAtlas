@@ -650,16 +650,24 @@ fn query_view(
 /// Deliberate narrow projection for AT10's browser wire proposal. Unimplemented
 /// extension facts stay unknown/absent; the read-only graph excludes Network.
 fn browser_view(view: d::CurrentOutput) -> Result<Value, HttpFailure> {
-    let mut v = serde_json::to_value(view).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-    for entry in v["entries"]
+    let mut v =
+        serde_json::to_value(&view).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    for (entry, original) in v["entries"]
         .as_array_mut()
         .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?
+        .iter_mut()
+        .zip(&view.entries)
     {
-        browser_entry(entry);
+        browser_entry(entry, original.entity.quantity.as_ref());
     }
     Ok(v)
 }
-fn browser_entry(entry: &mut Value) {
+fn browser_entry(entry: &mut Value, quantity: Option<&serde_json::Number>) {
+    // Use the original retained Number representation before any Value reparse.
+    // This browser read DTO is separate from canonical storage and stock wire.
+    entry["entity"]["quantity"] = quantity
+        .map(|number| Value::String(number.to_string()))
+        .unwrap_or(Value::Null);
     entry["key"] = Value::String(
         json!([
             entry["source"]["sourceInstanceId"],
@@ -677,12 +685,14 @@ fn browser_entry(entry: &mut Value) {
 }
 fn browser_entries(entries: Vec<&d::CurrentEntry>) -> Result<Value, HttpFailure> {
     let mut values =
-        serde_json::to_value(entries).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-    for entry in values
+        serde_json::to_value(&entries).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    for (entry, original) in values
         .as_array_mut()
         .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?
+        .iter_mut()
+        .zip(&entries)
     {
-        browser_entry(entry);
+        browser_entry(entry, original.entity.quantity.as_ref());
     }
     Ok(values)
 }
