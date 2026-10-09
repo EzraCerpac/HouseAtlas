@@ -56,8 +56,11 @@ pub(super) enum Command {
 struct Entry {
     sender: SyncSender<Command>,
     source: a::SourceRef,
+    session_binding: [u8; 32],
     expires: Instant,
 }
+const MAX_PREVIEWS: usize = 16;
+const MAX_SESSION_PREVIEWS: usize = 4;
 #[derive(Default)]
 pub(super) struct Registry {
     entries: BTreeMap<Uuid, Entry>,
@@ -235,11 +238,26 @@ pub(super) async fn preview(State(host): State<Host>, request: Request) -> HttpR
     let (sender, inbox) = mpsc::sync_channel(4);
     let (reply, result) = oneshot::channel();
     {
+        let session_binding = host
+            .mcp_access
+            .lock()
+            .map_err(|_| unavailable())?
+            .authenticated_session_binding(principal.principal.principal())
+            .map_err(access_error)?;
         let mut registry = host
             .quantity_previews
             .try_lock()
             .map_err(|_| unavailable())?;
-        if registry.entries.len() >= 16 {
+        // Count all retained workers, including entries awaiting worker cleanup.
+        // A session cannot consume the entire finite process allowance.
+        if registry.entries.len() >= MAX_PREVIEWS
+            || registry
+                .entries
+                .values()
+                .filter(|entry| entry.session_binding == session_binding)
+                .count()
+                >= MAX_SESSION_PREVIEWS
+        {
             return Err(unavailable());
         }
         registry.entries.insert(
@@ -247,6 +265,7 @@ pub(super) async fn preview(State(host): State<Host>, request: Request) -> HttpR
             Entry {
                 sender,
                 source: input.source.clone(),
+                session_binding,
                 expires: Instant::now() + selected.descriptor().freshness,
             },
         );
