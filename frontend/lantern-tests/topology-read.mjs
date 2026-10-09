@@ -1906,6 +1906,7 @@ addFormats(ajv); ajv.addSchema(atlas); ajv.addSchema(agent);
 const schemas = { validate(ref, value) { const check=ajv.getSchema(agent.$id+ref); assert(check); assert(check(value), JSON.stringify(check.errors)); } };
 const session = { schemaVersion: 1, actorId: '00000000-0000-4000-8000-000000000802', csrfToken:'synthetic-unused', expiresAt:'2099-01-01T00:00:00Z' };
 const calls = [];
+const snapshotSha256 = 'a'.repeat(64); // Shared synthetic positive-fixture comparison metadata.
 const client = createTopologyClient({ schemas, getSessionBinding:()=>({session,scope:fixture.scope}), subscribeSessionBinding:()=>()=>{},
   transport:async (url, init)=>{
     const parsed=new URL(url,'https://atlas.invalid');
@@ -1922,16 +1923,17 @@ const client = createTopologyClient({ schemas, getSessionBinding:()=>({session,s
     if (continued) assert.equal(request.payload.cursor,'opaque+/topology==');
     const result={schemaVersion:3,commandId:request.commandId,requestId:request.requestId,resolvedScope:fixture.scope,status:'read',replayed:false,
       data:{records:continued?rows.slice(midpoint):rows.slice(0,midpoint),nextCursor:continued?null:'opaque+/topology==',sourceStatus:'current'}};
-    return new Response(JSON.stringify(result),{status:200,headers:{'Content-Type':'application/json'}});
+    return new Response(JSON.stringify(result),{status:200,headers:{'Content-Type':'application/json','x-atlas-snapshot-sha256':snapshotSha256}});
   } });
 const binding=client.getBinding(),signal=new AbortController().signal;
 const [identity,bindings,semantics,relations] = await Promise.all(['identity','binding','location-semantics','relation'].map(k=>client.listAll(binding,k,signal)));
-for (const result of [identity,bindings,semantics,relations]) assert.equal(result.status,'ready');
+for (const result of [identity,bindings,semantics,relations]) { assert.equal(result.status,'ready'); assert.equal(result.snapshotSha256,snapshotSha256); }
 const projection=projectView(fixture.view);
 const selectable=new Map(projection.house.spaces.map(s=>[s.id,projection.entries.get(s.id)]));
 const index=buildTopologyIndex({identities:identity.records,bindings:bindings.records,semantics:semantics.records,relations:relations.records,sourceStatuses:['current']},fixture.view,selectable);
 assert.equal(index.buildings.length,3);assert.notEqual(index.buildings[1].label,index.buildings[2].label);
 const selected=await client.buildingMembers(binding,fixture.members[0],signal);assert.equal(selected.status,'ready');
+assert.equal(selected.snapshotSha256,snapshotSha256);
 const model=buildBuildingModel(index,fixture.members[0],selected.records);assert(model);
 assert.deepEqual(selected.records.map(r=>r.target.recordId),fixture.members);
 assert.equal(model.memberCount,10);assert.equal(model.levels.length,5);

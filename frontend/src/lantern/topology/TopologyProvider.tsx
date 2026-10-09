@@ -28,7 +28,7 @@ export function TopologyProvider({ client, children }: { client?: TopologyClient
   const binding = client?.getBinding() ?? null;
   const key = useMemo(() => ({ view, session, binding, epoch, lease }), [view, session, binding, epoch, lease]);
   const current = useRef(key); current.current = key;
-  const [loaded, setLoaded] = useState<{ key: typeof key; data: TopologyData | null; status: TopologyContext['status'] } | null>(null);
+  const [loaded, setLoaded] = useState<{ key: typeof key; data: TopologyData | null; status: TopologyContext['status']; snapshotSha256?: string } | null>(null);
   const [buildingId, setBuildingId] = useState<string | null>(null), [levelId, setLevelId] = useState('all');
   const [members, setMembers] = useState<{ key: typeof key; binding: TopologyBinding; buildingId: string; read: TopologyRead<'identity'> } | null>(null);
   const [notice, setNotice] = useState('');
@@ -71,7 +71,10 @@ export function TopologyProvider({ client, children }: { client?: TopologyClient
       const failure = [identity, bindings, semantics, relations].find(read => read.status !== 'ready');
       if (failure) { setLoaded({ key, status: failure.status, data: null }); return; }
       if (identity.status !== 'ready' || bindings.status !== 'ready' || semantics.status !== 'ready' || relations.status !== 'ready') return;
-      setLoaded({ key, status: 'ready', data: { identities: identity.records, bindings: bindings.records, semantics: semantics.records,
+      if ([bindings, semantics, relations].some(read => read.snapshotSha256 !== identity.snapshotSha256)) {
+        setLoaded({ key, status: 'changed', data: null }); return;
+      }
+      setLoaded({ key, status: 'ready', snapshotSha256: identity.snapshotSha256, data: { identities: identity.records, bindings: bindings.records, semantics: semantics.records,
         relations: relations.records, sourceStatuses: [identity.sourceStatus, bindings.sourceStatus, semantics.sourceStatus, relations.sourceStatus] } });
     }).catch(() => { if (live()) setLoaded({ key, status: 'unavailable', data: null }); });
     return () => { controller.abort(); pending.current.delete(controller); };
@@ -97,8 +100,9 @@ export function TopologyProvider({ client, children }: { client?: TopologyClient
     setNotice(''); setBuildingId(id); setLevelId('all');
   }, []);
   const read = members?.key === key && members.binding === binding && members.buildingId === buildingId ? members.read : null;
-  const model = useMemo(() => index && buildingId && read?.status === 'ready'
-    ? buildBuildingModel(index, buildingId, read.records) : null, [index, buildingId, read]);
+  const snapshotSha256 = loaded?.key === key ? loaded.snapshotSha256 : undefined;
+  const model = useMemo(() => index && buildingId && read?.status === 'ready' && read.snapshotSha256 === snapshotSha256
+    ? buildBuildingModel(index, buildingId, read.records) : null, [index, buildingId, read, snapshotSha256]);
   const memberStatus = read?.status === 'ready' ? model ? 'ready' : 'changed' : read?.status ?? 'loading';
   const value: TopologyContext = { activate, index, status, buildingId, chooseBuilding, levelId, chooseLevel: setLevelId, model, memberStatus, notice, memberSourceStatus: read?.status === 'ready' ? read.sourceStatus : null };
   return <Context.Provider value={value}>{children}</Context.Provider>;
