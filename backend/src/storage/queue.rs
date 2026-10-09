@@ -56,6 +56,8 @@ pub use original_owner::{
     OriginalQueuedQuantityOwner, QueueOriginalCommittedData, QueueOriginalCommittedObservation,
     RecordedOriginalEnqueue, RecordedOriginalEnqueueProof,
 };
+#[path = "queue_upload_archived_original.rs"]
+mod archived_upload_original;
 #[path = "queue_finish.rs"]
 mod finish;
 #[path = "queue_journal.rs"]
@@ -70,6 +72,11 @@ mod upload_execution_custody;
 mod upload_finish_history;
 #[path = "queue_upload_history.rs"]
 mod upload_history;
+pub(crate) use archived_upload_original::ArchivedQueuedUploadOriginalFactsIdentity;
+pub use archived_upload_original::{
+    ArchivedQueuedUploadOriginalFacts, ArchivedQueuedUploadOriginalOwner,
+    ArchivedQueuedUploadOriginalProof,
+};
 #[path = "queue_upload_journal_custody.rs"]
 mod upload_journal_custody;
 pub use upload_execution_custody::{

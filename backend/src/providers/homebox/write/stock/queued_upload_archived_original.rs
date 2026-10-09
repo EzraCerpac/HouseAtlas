@@ -340,7 +340,7 @@ impl<'permit, 'bytes> ArchivedQueuedUploadSourceFacts<'permit, 'bytes> {
         r.heap
             .charge(12 * size_of::<ArchivedQueuedUploadArtifactFacts<'_>>())?;
         let mut artifacts = Vec::with_capacity(12);
-        for i in 0..12 {
+        for artifact_name in ARTIFACT_NAMES {
             let role = match r.text()?.as_str() {
                 "executable" => QueuedUploadHistoricalArtifactRole::Executable,
                 "build-provenance" => QueuedUploadHistoricalArtifactRole::BuildProvenance,
@@ -355,7 +355,7 @@ impl<'permit, 'bytes> ArchivedQueuedUploadSourceFacts<'permit, 'bytes> {
             let retrieved_at = r.time()?;
             let before = r.file()?;
             let after = r.file()?;
-            let bytes = section(ARTIFACT_NAMES[i])?;
+            let bytes = section(artifact_name)?;
             artifacts.push(ArchivedQueuedUploadArtifactFacts {
                 role,
                 logical_pin,

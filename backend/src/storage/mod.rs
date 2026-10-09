@@ -54,7 +54,12 @@ pub use native::NativeContract;
 pub use ports::{
     AssetProof, Authorization, AuthorizationRequest, Capability, Contract, Prior, Runtime,
 };
+pub(crate) use queue::ArchivedQueuedUploadOriginalFactsIdentity;
 pub(crate) use queue::QueuedUploadFinishHistoryIdentity;
+pub use queue::{
+    ArchivedQueuedUploadOriginalFacts, ArchivedQueuedUploadOriginalOwner,
+    ArchivedQueuedUploadOriginalProof,
+};
 pub use queue::{
     JournalEvidenceView, NativeJournalReceipt, OriginalQueueJournalCut,
     OriginalQueuedQuantityAttempt, OriginalQueuedQuantityClaim, OriginalQueuedQuantityEnqueue,
