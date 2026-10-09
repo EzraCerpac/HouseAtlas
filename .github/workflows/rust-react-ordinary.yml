@@ -80,6 +80,8 @@ jobs:
         run: npm run verify:publication
       - name: Compile actual Rust and React source and named healthy examples
         run: node tools/rust-integration/check-source.mjs
+      - name: Verify the named Lantern healthy read
+        run: node frontend/lantern-tests/healthy-read.mjs
       - name: Genuine native MCP stock get and audit page after fresh circuit commit
         if: runner.os == 'Linux'
         run: cargo run --locked -p houseatlas-backend --example healthy-agent-stock

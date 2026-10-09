@@ -496,7 +496,20 @@ by the strict native opener. Legacy JavaScript persistence uses schema3. No
 modified-image probe, surrogate validator, JavaScript database migration or
 adoption is supplied.
 
-Other missing product areas include atomic presence witness admission/recovery,
+The mounted Lantern File details consumer can discover eligible local HomeBox
+sources, explicitly capture a process-local file snapshot, and display a
+download-only link after its one availability observation. It preserves the
+original source, attachment, session and scope. Every error after a capture is
+sent retains an unknown issuance notice; availability does not prove delivery or
+remote currentness. This consumer has source TypeScript/build validation only;
+no configured provider, capture or download browser runtime was exercised.
+
+Operation-history pages and retained-intent queries now carry the original
+workspace as well as home. The ordinary fake-transport healthy-read checks
+assert the full query scope; a same-home collision across real workspaces was
+not exercised.
+
+Other missing product areas include complete predecessor/cold-start presence recovery,
 trusted real source setup/refresh, actual Network facets, qualified source-native
 links and HomeBox editing, HomeBox media, complete editing beyond the demonstrated
 classification and attachment forms, recovery/export runtime,

@@ -97,7 +97,7 @@ fn execute_validated(
     let taken = {
         let access = core.access.lock().map_err(|_| unavailable())?;
         host.asset_reviews
-            .lock()
+            .try_lock()
             .map_err(|_| unavailable())?
             .take(&access, current, scope, asset_id, receipt_id)?
     };
@@ -231,35 +231,71 @@ struct Disposition {
     http_released: bool,
 }
 
+/// A private reservation borrowing the still-held registry mutex. No other
+/// consumer can change capacity between this reservation and its disposition.
+pub(super) struct UploadDispositionReservation<'a> {
+    registry: &'a mut ReviewRegistry,
+    binding: [u8; 32],
+    scope: d::Scope,
+    asset_id: String,
+    actor_id: String,
+    issued: Instant,
+}
+impl UploadDispositionReservation<'_> {
+    /// All owned fields and deque capacity were prepared before SQL commit.
+    /// Preserve unexpected committed DATA too, withholding its qualification.
+    pub(super) fn record(self, commit: s::StockAtlasCommit, store_qualified: bool) {
+        let matches_original = commit.actor_id == self.actor_id
+            && commit
+                .groups
+                .iter()
+                .flat_map(|group| &group.native_results)
+                .any(|result| {
+                    result.record.record_type == s::RecordType::Asset
+                        && result.record.record_id == self.asset_id
+                });
+        self.registry.dispositions.push_back(Disposition {
+            issued: self.issued,
+            binding: self.binding,
+            scope: self.scope,
+            asset_id: self.asset_id,
+            actor_id: self.actor_id,
+            commit,
+            store_qualified: store_qualified && matches_original,
+            http_released: false,
+        });
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct ReviewRegistry {
     entries: VecDeque<Entry>,
     dispositions: VecDeque<Disposition>,
 }
 impl ReviewRegistry {
-    /// Called by the synchronous upload route under its owning Core lock.
-    /// Capacity is checked before mutation, and the exact committed DATA is
-    /// retained even when later archive publication withholds output.
-    pub(super) fn upload_room(&mut self, binding: &[u8; 32]) -> bool {
-        self.room(binding)
-    }
-    pub(super) fn record_upload(
+    /// Reserve exclusive disposition custody and its allocation before the
+    /// synchronous mutation. Access-held consumers use try_lock so this guard
+    /// cannot create an Access -> registry -> Store lock cycle.
+    pub(super) fn reserve_upload(
         &mut self,
         binding: [u8; 32],
         scope: d::Scope,
         asset_id: String,
-        commit: s::StockAtlasCommit,
-        store_qualified: bool,
-    ) -> Result<(), super::HttpFailure> {
-        self.record(Disposition {
-            issued: Instant::now(),
+        actor_id: String,
+    ) -> Result<UploadDispositionReservation<'_>, super::HttpFailure> {
+        if !self.room(&binding) {
+            return Err(unavailable());
+        }
+        self.dispositions
+            .try_reserve(1)
+            .map_err(|_| unavailable())?;
+        Ok(UploadDispositionReservation {
+            registry: self,
             binding,
             scope,
             asset_id,
-            actor_id: commit.actor_id.clone(),
-            commit,
-            store_qualified,
-            http_released: false,
+            actor_id,
+            issued: Instant::now(),
         })
     }
     fn prune(&mut self) {
@@ -528,7 +564,7 @@ pub(super) async fn issue(
             rendered,
         };
         host.asset_reviews
-            .lock()
+            .try_lock()
             .map_err(|_| unavailable())?
             .insert(entry)?;
         Ok(json_response(json!({"receipt":facts})))

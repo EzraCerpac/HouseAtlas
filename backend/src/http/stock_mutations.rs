@@ -1201,14 +1201,20 @@ fn execute_staged_profile(
             .authenticated_session_binding(p.principal.principal())
             .map_err(|_| changed())?
     };
-    if !host
-        .asset_reviews
-        .try_lock()
-        .map_err(|_| unavailable())?
-        .upload_room(&binding)
-    {
-        return Err(unavailable());
-    }
+    // Keep the exact reserved registry guard through this synchronous Store
+    // mutation. Recording the committed disposition cannot reacquire or fail.
+    let mut registry = host.asset_reviews.try_lock().map_err(|_| unavailable())?;
+    let reservation = registry
+        .reserve_upload(
+            binding,
+            d::Scope {
+                workspace_id: p.principal.scope().workspace_id.as_str().into(),
+                home_id: p.principal.scope().home_id.as_str().into(),
+            },
+            qualified.staged().asset_id().to_owned(),
+            p.principal.actor_id().as_str().to_owned(),
+        )
+        .map_err(|_| unavailable())?;
     let observation = s::AssetUploadCommitObservation::new();
     let qualified_commit = RefCell::new(None);
     let capture = UploadCapture {
@@ -1229,31 +1235,9 @@ fn execute_staged_profile(
         .map(|commit| (commit, true))
         .or_else(|| observation.take());
     if let Some((commit, qualified)) = disposition {
-        host.asset_reviews
-            .try_lock()
-            .map_err(|_| unavailable())?
-            .record_upload(
-                binding,
-                d::Scope {
-                    workspace_id: p.principal.scope().workspace_id.as_str().into(),
-                    home_id: p.principal.scope().home_id.as_str().into(),
-                },
-                qualified_staged_asset_id(&commit)?,
-                commit,
-                qualified,
-            )
-            .map_err(|_| unavailable())?;
+        reservation.record(commit, qualified);
     }
     output
-}
-fn qualified_staged_asset_id(commit: &s::StockAtlasCommit) -> st::StockResult<String> {
-    commit
-        .groups
-        .iter()
-        .flat_map(|group| &group.native_results)
-        .find(|result| result.record.record_type == s::RecordType::Asset)
-        .map(|result| result.record.record_id.clone())
-        .ok_or_else(unavailable)
 }
 pub(super) fn execute_existing(
     core: &Core,

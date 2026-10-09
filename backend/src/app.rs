@@ -624,7 +624,6 @@ impl d::AccessPort<RequestPrincipal> for HomeAuthority {
             other_homes: p
                 .home_choices
                 .iter()
-                .filter(|choice| choice.summary.scope.workspace_id == self.home.scope.workspace_id)
                 .map(|choice| choice.summary.clone())
                 .collect(),
             can_edit_homebox: false,

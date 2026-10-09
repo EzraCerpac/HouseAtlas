@@ -24,9 +24,17 @@ Current authorization additionally requires the saved access credential and a
 known future expiry. Original granted scopes determine direct-use permission.
 No workspace is inferred: the shared account display stays absent, and workspace,
 eligibility, runtime qualification and paid admission remain held or unknown.
-This source branch still needs the application's authenticated bootstrap
-projection and startup/router composition; no credential or inference runtime
-was exercised for its source validation.
+`NativeAccountStartup` also provides an account reader without runtime, browser,
+provider or human-review peers. The application account route is an authenticated
+`GET /api/atlas/v1/workspaces/{workspaceId}/homes/{homeId}/ai/account`, with the
+original session/enrollment capture and final authority revalidation. Persistent
+serve can explicitly select existing state with `--ai-account-selection` and its
+separate `--ai-account-selection-sha256` pin. The private schema1 selection names
+the existing AI configuration and its digest, plus distinct enrollment/journal
+SQLite paths and original device/inode pins under the retained data-root lease.
+Startup uses SELECT-only owners, rejects WAL/sidecars and performs no enrollment,
+schema migration or credential provisioning. This hookup has source validation;
+no account, credential or inference runtime was exercised.
 
 `StockCatalog` projects the shared stock `0.3.0-at34.stock.2`, wire3, across ten
 original families and 164 retained command metadata entries. Authorized tool
