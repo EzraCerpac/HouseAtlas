@@ -11,11 +11,12 @@ use crate::{
     providers::homebox::wire,
 };
 use serde_json::{Value, json};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 fn selected<'a>(
     query: &'a HomeBoxReadQuery,
     allowed: &[Op],
+    complete_list: bool,
 ) -> st::StockResult<(Op, Option<&'a ListQuery>, &'a str, Option<&'a str>)> {
     let ReadSelection::Resources { operation, page } = query.selection() else {
         return Err(st::StockError::OwnerUnavailable);
@@ -23,7 +24,7 @@ fn selected<'a>(
     if !allowed.contains(operation)
         || page
             .as_ref()
-            .is_some_and(|p| p.cursor.is_some() || p.q.is_some())
+            .is_some_and(|p| p.q.is_some() || (p.cursor.is_some() && !complete_list))
     {
         return Err(st::StockError::OwnerUnavailable);
     }
@@ -78,8 +79,9 @@ fn page(
     selected: Option<&ListQuery>,
     resources: Vec<ResourceView>,
     status: SourceStatus,
+    complete_list: bool,
 ) -> st::StockResult<ResourcePage> {
-    if resources.len() > selected.map_or(100, |p| p.page_size as usize) {
+    if !complete_list && resources.len() > selected.map_or(100, |p| p.page_size as usize) {
         return Err(st::StockError::OwnerUnavailable);
     }
     Ok(ResourcePage {
@@ -150,6 +152,33 @@ pub fn detail_resources(
     retrieved_at: &Timestamp,
     status: SourceStatus,
 ) -> st::StockResult<ResourcePage> {
+    detail_resources_impl(query, decoded, retrieved_at, status, false)
+}
+
+pub(super) fn complete_fields(
+    query: &HomeBoxReadQuery,
+    decoded: &wire::Decoded<wire::Detail>,
+    retrieved_at: &Timestamp,
+) -> st::StockResult<ResourcePage> {
+    if !matches!(
+        query.selection(),
+        ReadSelection::Resources {
+            operation: Op::HomeboxFieldList,
+            page: Some(_)
+        }
+    ) {
+        return Err(st::StockError::OwnerUnavailable);
+    }
+    detail_resources_impl(query, decoded, retrieved_at, SourceStatus::Unresolved, true)
+}
+
+fn detail_resources_impl(
+    query: &HomeBoxReadQuery,
+    decoded: &wire::Decoded<wire::Detail>,
+    retrieved_at: &Timestamp,
+    status: SourceStatus,
+    complete_list: bool,
+) -> st::StockResult<ResourcePage> {
     let (operation, selected_page, owner, requested) = selected(
         query,
         &[
@@ -161,6 +190,7 @@ pub fn detail_resources(
             Op::HomeboxDocumentLinkList,
             Op::HomeboxDocumentLinkGet,
         ],
+        complete_list,
     )?;
     let owner_id = super::super::Uuid::parse(owner).map_err(|_| st::StockError::InvalidContract)?;
     let fresh = wire::decode_detail(&decoded.original, &owner_id, wire::DecodeLimits::default())
@@ -195,7 +225,7 @@ pub fn detail_resources(
             *entity_id = None;
         }
         let resources = vec![resource];
-        return page(query, selected_page, resources, status);
+        return page(query, selected_page, resources, status, complete_list);
     }
     if matches!(operation, Op::HomeboxFileList | Op::HomeboxFileGet) {
         // Frozen file results demand archived:boolean. Native stored files
@@ -253,12 +283,16 @@ pub fn detail_resources(
         if get && resources.len() != 1 {
             return Err(st::StockError::OwnerUnavailable);
         }
-        return page(query, selected_page, resources, status);
+        return page(query, selected_page, resources, status, complete_list);
     }
     let get = operation == Op::HomeboxFieldGet;
     let mut resources = Vec::new();
     let mut seen = BTreeSet::new();
-    for raw in rows(&fresh.source, "fields")? {
+    let fields = rows(&fresh.source, "fields")?;
+    if complete_list && fields.len() > wire::DecodeLimits::default().max_entries {
+        return Err(st::StockError::OwnerUnavailable);
+    }
+    for raw in fields {
         let field_id = id(raw)?;
         if !seen.insert(field_id) {
             return Err(st::StockError::InvalidContract);
@@ -279,7 +313,7 @@ pub fn detail_resources(
     if get && resources.len() != 1 {
         return Err(st::StockError::OwnerUnavailable);
     }
-    page(query, selected_page, resources, status)
+    page(query, selected_page, resources, status, complete_list)
 }
 
 fn decimal_cost(s: &str) -> bool {
@@ -303,9 +337,37 @@ pub fn maintenance_resources(
     retrieved_at: &Timestamp,
     status: SourceStatus,
 ) -> st::StockResult<ResourcePage> {
+    maintenance_resources_impl(query, decoded, retrieved_at, status, false)
+}
+
+pub(super) fn complete_maintenance(
+    query: &HomeBoxReadQuery,
+    decoded: &wire::Decoded<wire::MaintenanceLog>,
+    retrieved_at: &Timestamp,
+) -> st::StockResult<ResourcePage> {
+    if !matches!(
+        query.selection(),
+        ReadSelection::Resources {
+            operation: Op::HomeboxMaintenanceList,
+            page: Some(_)
+        }
+    ) {
+        return Err(st::StockError::OwnerUnavailable);
+    }
+    maintenance_resources_impl(query, decoded, retrieved_at, SourceStatus::Unresolved, true)
+}
+
+fn maintenance_resources_impl(
+    query: &HomeBoxReadQuery,
+    decoded: &wire::Decoded<wire::MaintenanceLog>,
+    retrieved_at: &Timestamp,
+    status: SourceStatus,
+    complete_list: bool,
+) -> st::StockResult<ResourcePage> {
     let (operation, selected_page, owner, requested) = selected(
         query,
         &[Op::HomeboxMaintenanceList, Op::HomeboxMaintenanceGet],
+        complete_list,
     )?;
     let owner_id = super::super::Uuid::parse(owner).map_err(|_| st::StockError::InvalidContract)?;
     let fresh =
@@ -319,16 +381,54 @@ pub fn maintenance_resources(
         .source
         .as_array()
         .ok_or(st::StockError::InvalidContract)?;
+    // Complete retained lists can reach the existing decoder entry cap.
+    // Index raw membership once rather than repeatedly scanning the list.
+    let indexed = if complete_list {
+        let mut indexed = BTreeMap::new();
+        for raw in raw_rows {
+            if indexed.insert(id(raw)?, raw).is_some() {
+                return Err(st::StockError::InvalidContract);
+            }
+        }
+        Some(indexed)
+    } else {
+        None
+    };
+    // The shared decoder sorts its typed entries by ID. The new retained
+    // producer instead joins those typed facts back to actual native order.
+    let ordered: Vec<_> = if complete_list {
+        let by_id: BTreeMap<_, _> = fresh
+            .value
+            .entries()
+            .iter()
+            .map(|entry| (entry.entry_id.as_str(), entry))
+            .collect();
+        raw_rows
+            .iter()
+            .map(|raw| {
+                by_id
+                    .get(id(raw)?)
+                    .copied()
+                    .ok_or(st::StockError::InvalidContract)
+            })
+            .collect::<st::StockResult<_>>()?
+    } else {
+        fresh.value.entries().iter().collect()
+    };
     let mut resources = Vec::new();
-    for entry in fresh.value.entries() {
+    for entry in ordered {
         let entry_id = entry.entry_id.as_str();
         if get && requested != Some(entry_id) {
             continue;
         }
-        let raw = raw_rows
-            .iter()
-            .find(|r| r.get("id").and_then(Value::as_str) == Some(entry_id))
-            .ok_or(st::StockError::InvalidContract)?;
+        let raw = if let Some(indexed) = &indexed {
+            indexed.get(entry_id).copied()
+        } else {
+            raw_rows
+                .iter()
+                .find(|r| r.get("id").and_then(Value::as_str) == Some(entry_id))
+        }
+        .ok_or(st::StockError::InvalidContract)?;
         let cost = raw
             .get("cost")
             .and_then(Value::as_str)
@@ -353,5 +453,5 @@ pub fn maintenance_resources(
     if get && resources.len() != 1 {
         return Err(st::StockError::OwnerUnavailable);
     }
-    page(query, selected_page, resources, status)
+    page(query, selected_page, resources, status, complete_list)
 }

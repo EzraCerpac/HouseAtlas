@@ -17,6 +17,7 @@ use std::sync::{Arc, Mutex};
 struct OriginalSource<'a, 'p> {
     access: Arc<Mutex<a::AccessBoundary>>,
     captured: &'a st::CapturedAccess<'p>,
+    list: Option<Arc<super::native_list_pages::NativeListSnapshot>>,
 }
 struct OriginalRead<'a, 'p, W, G, F> {
     source: OriginalSource<'a, 'p>,
@@ -25,7 +26,7 @@ struct OriginalRead<'a, 'p, W, G, F> {
 }
 impl OriginalSource<'_, '_> {
     fn access_check(&self) -> st::StockResult<()> {
-        let access = self
+        let mut access = self
             .access
             .lock()
             .map_err(|_| st::StockError::OwnerUnavailable)?;
@@ -39,6 +40,9 @@ impl OriginalSource<'_, '_> {
             access
                 .revalidate_source_partition(grant)
                 .map_err(access_error)?;
+        }
+        if let Some(list) = &self.list {
+            list.revalidate_captured(&mut access, self.captured)?;
         }
         Ok(())
     }
@@ -86,21 +90,24 @@ impl<W, G, F: st::GraphAuthorization<W, G>> OriginalRead<'_, '_, W, G, F> {
     }
 }
 
-enum RetainedCapture {
+pub(super) enum RetainedCapture {
     Detail(Box<CapturedStockEntity>),
     Maintenance(Box<CapturedStockMaintenance>),
+    List(Arc<super::native_list_pages::NativeListSnapshot>),
 }
 impl RetainedCapture {
-    fn original_bytes(&self) -> &[u8] {
+    pub(super) fn original_bytes(&self) -> &[u8] {
         match self {
             Self::Detail(c) => c.original_bytes(),
             Self::Maintenance(c) => c.original_bytes(),
+            Self::List(c) => c.original_bytes(),
         }
     }
-    fn retrieved_at(&self) -> &Timestamp {
+    pub(super) fn retrieved_at(&self) -> &Timestamp {
         match self {
             Self::Detail(c) => c.retrieved_at(),
             Self::Maintenance(c) => c.retrieved_at(),
+            Self::List(c) => c.retrieved_at(),
         }
     }
 }
@@ -115,6 +122,28 @@ pub struct NativeReadCapture<'a, 'p> {
     observation: DecodedReadObservation,
 }
 impl<'a, 'p> NativeReadCapture<'a, 'p> {
+    pub fn retained_list(&self) -> Option<&Arc<super::native_list_pages::NativeListSnapshot>> {
+        self.source.list.as_ref()
+    }
+    pub(super) fn from_list(
+        access: &Arc<Mutex<a::AccessBoundary>>,
+        captured: &'a st::CapturedAccess<'p>,
+        list: Arc<super::native_list_pages::NativeListSnapshot>,
+        observation: DecodedReadObservation,
+    ) -> st::StockResult<Self> {
+        let source = OriginalSource {
+            access: Arc::clone(access),
+            captured,
+            list: Some(Arc::clone(&list)),
+        };
+        source.access_check()?;
+        Ok(Self {
+            source,
+            capture: RetainedCapture::List(list),
+            observation,
+        })
+    }
+
     pub fn original_bytes(&self) -> &[u8] {
         self.capture.original_bytes()
     }
@@ -220,6 +249,7 @@ impl<T: Transport, K: Clock> HomeBoxReader<T, K> {
             source: OriginalSource {
                 access: Arc::clone(access),
                 captured,
+                list: None,
             },
             prepared,
             graph_owner,
@@ -266,6 +296,7 @@ impl<T: Transport, K: Clock> HomeBoxReader<T, K> {
         let original = OriginalSource {
             access: Arc::clone(access),
             captured,
+            list: None,
         };
         original.source(self.scope(), &owner)?;
         original.access_check()?;

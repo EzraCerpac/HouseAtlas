@@ -37,6 +37,12 @@ pub struct DecodedReadObservation {
     template_list_retrieved_at: Option<Timestamp>,
 }
 
+type NativeListProjection = (
+    ResourcePage,
+    Vec<StockTarget>,
+    Vec<(StockTarget, StockTarget)>,
+);
+
 impl DecodedReadObservation {
     /// Join a complete bounded native summary list with its actual captured
     /// per-ID details. No details are fetched, synthesized or borrowed from an
@@ -248,6 +254,96 @@ impl DecodedReadObservation {
             _ => return Err(st::StockError::OwnerUnavailable),
         };
         Self::finish(contracts, request, &query, result, original, &source)
+    }
+
+    /// Complete projection is private to the actual native Source intake. It
+    /// neither accepts a cursor as authority nor publishes an over-sized page.
+    pub(in crate::providers::homebox::read) fn complete_native_list<C: StockContractPort>(
+        contracts: &C,
+        request: &st::ValidatedRequest,
+        capture: &super::super::native_query::RetainedCapture,
+    ) -> st::StockResult<NativeListProjection> {
+        use super::super::native_query::RetainedCapture;
+        let query = HomeBoxReadQuery::from_request(request)?;
+        let (page, owner, parent) = match capture {
+            RetainedCapture::Detail(c) => (
+                detail::complete_fields(&query, c.wire_decoded(), c.retrieved_at())?,
+                c.entity_id(),
+                c.decoded().entity.parent.as_ref().map(|p| &p.id),
+            ),
+            RetainedCapture::Maintenance(c) => (
+                detail::complete_maintenance(&query, c.wire_decoded(), c.retrieved_at())?,
+                c.entity_id(),
+                None,
+            ),
+            RetainedCapture::List(_) => return Err(st::StockError::OwnerUnavailable),
+        };
+        // Validate every projected member before the first continuation is
+        // admitted, using bounded wire-sized batches, without changing input.
+        let ReadSelection::Resources {
+            page: Some(selection),
+            ..
+        } = query.selection()
+        else {
+            return Err(st::StockError::InvalidContract);
+        };
+        let page_size = usize::try_from(selection.page_size)
+            .ok()
+            .filter(|n| (1..=100).contains(n))
+            .ok_or(st::StockError::InvalidContract)?;
+        if page.resources.len().saturating_sub(1) / page_size
+            > super::super::native_list_pages::TOKENS
+        {
+            return Err(st::StockError::OwnerUnavailable);
+        }
+        for chunk in page.resources.chunks(page_size) {
+            let result = HomeBoxReadResult::Resources(ResourcePage {
+                scope: page.scope.clone(),
+                resources: chunk.to_vec(),
+                next_cursor: None,
+                source_status: SourceStatus::Unresolved,
+            });
+            let envelope = adapter::envelope(request, &query, result)?;
+            contracts.validate(request.operation().output_schema, &envelope)?;
+        }
+        let entity = |id: &str| StockTarget::Homebox {
+            source_instance_id: query.scope().source_instance_id.as_str().into(),
+            collection_id: query.scope().collection_id.clone(),
+            resource_kind: HomeboxResourceKind::Entity,
+            entity_id: None,
+            resource_id: Some(id.into()),
+        };
+        let owner = entity(owner.as_str());
+        let mut refs = vec![owner.clone()];
+        refs.extend(page.resources.iter().map(|r| r.target.clone()));
+        let mut parents = Vec::new();
+        if let Some(parent) = parent {
+            let parent = entity(parent.as_str());
+            if !refs.contains(&parent) {
+                refs.push(parent.clone());
+            }
+            parents.push((owner, parent));
+        }
+        Ok((page, refs, parents))
+    }
+
+    /// Only the sealed configured producer can supply this retained snapshot.
+    /// The exact current request is independently validated/bound to its owner.
+    pub(in crate::providers::homebox::read) fn from_native_list_page<C: StockContractPort>(
+        contracts: &C,
+        request: &st::ValidatedRequest,
+        snapshot: &super::super::native_list_pages::NativeListSnapshot,
+        page: ResourcePage,
+    ) -> st::StockResult<Self> {
+        let query = scoped(request, snapshot.scope())?;
+        Self::finish(
+            contracts,
+            request,
+            &query,
+            HomeBoxReadResult::Resources(page),
+            snapshot.original_bytes(),
+            snapshot.source_json(),
+        )
     }
 
     fn finish<C: StockContractPort>(
