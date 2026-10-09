@@ -14,14 +14,19 @@ use std::{
 use crate::{
     access::{OfflineRecoveryApproval, OfflineRecoveryAuthority, RecoveryDiscoveryGrant},
     app::{
-        homebox_queued_upload_history_catalog::{equal_bytes, hash_bytes, registry_bytes},
+        homebox_queued_upload_history_catalog::{
+            MAX_CATALOG_MEMBERS, equal_bytes, hash_bytes, registry_bytes,
+        },
         homebox_queued_upload_history_publication::UnadmittedQueuedUploadOriginalFrame,
     },
     config::recovery::{RecoveryConfig, upload_history_origin::VerifiedQueuedUploadHistoryCatalog},
     domain::queue_recovery::TrustedQueueRegistry,
     jobs::QueueConfig,
     lifecycle::provider_dispatch::queued_upload_history_archive::UnadmittedQueuedUploadHistoryArchive,
-    media::{WorkBudget, recovery::MAX_DATABASE},
+    media::{
+        WorkBudget,
+        recovery::{DatabaseMember, MAX_DATABASE},
+    },
     storage,
 };
 
@@ -534,6 +539,176 @@ impl<'borrow, 'origin, 'config> PreparedQueuedUploadHistoryIntake<'borrow, 'orig
             job_id: declared.job_id(),
             registry: self.registry(),
             frame_sha256: declared.sha256(),
+        })
+    }
+}
+
+// A consuming export is private to this module. The explicit external
+// referents must be the very same immutable owners joined by prepare; they
+// supply the permit lifetime independently of the short image/config borrow.
+fn export_prepared<'external, 'origin>(
+    prepared: PreparedQueuedUploadHistoryIntake<'_, 'origin, '_>,
+    approval: &'external VerifiedUploadHistoryStartupApproval,
+    origin: &'external VerifiedQueuedUploadHistoryCatalog<'origin>,
+    archive: &'external UnadmittedQueuedUploadHistoryArchive,
+    budget: &WorkBudget,
+) -> storage::Result<ExportedIntake<'external>> {
+    checkpoint(budget)?;
+    if !std::ptr::eq(prepared.approval, approval)
+        || !std::ptr::eq(prepared.origin, origin)
+        || !std::ptr::eq(prepared.archive, archive)
+    {
+        return Err(unavailable());
+    }
+    prepared.image.revalidate(budget)?;
+    let members = origin.catalog().members();
+    if members.len() > MAX_CATALOG_MEMBERS || members.len() != archive.members().len() {
+        return Err(unavailable());
+    }
+    let registry = approval.expectations().queues();
+    let mut frames = Vec::new();
+    frames
+        .try_reserve_exact(members.len())
+        .map_err(|_| unavailable())?;
+    for (declared, observed) in members.iter().zip(archive.members()) {
+        checkpoint(budget)?;
+        if declared.queue_index() >= registry.len()
+            || declared.name() != observed.name()
+            || declared.byte_size() != observed.bytes().len() as u64
+            || declared.sha256() != observed.sha256()
+            || declared.sha256() != hash_bytes(observed.bytes(), budget)?
+        {
+            return Err(unavailable());
+        }
+        UnadmittedQueuedUploadOriginalFrame::parse(observed.bytes(), budget)?;
+        frames.push(AuthenticatedQueuedUploadOriginalFrame {
+            original_bytes: observed.bytes(),
+            catalog_digest: origin.digest(),
+            generation: origin.generation(),
+            queue_index: declared.queue_index(),
+            job_id: declared.job_id(),
+            registry,
+            frame_sha256: declared.sha256(),
+        });
+    }
+    prepared.image.revalidate(budget)?;
+    let identity = ImageIdentity::from_metadata(
+        prepared
+            .image
+            .configuration()
+            .database
+            .file()
+            .metadata()
+            .map_err(|_| unavailable())?,
+    )?;
+    if identity != prepared.image.identity {
+        return Err(unavailable());
+    }
+    checkpoint(budget)?;
+    Ok(ExportedIntake {
+        frames,
+        registry,
+        authority: prepared.authority,
+        grant: prepared.grant,
+        pin: FullImagePin {
+            identity,
+            sha256: prepared.image.sha256(),
+        },
+    })
+}
+
+struct ExportedIntake<'external> {
+    frames: Vec<AuthenticatedQueuedUploadOriginalFrame<'external>>,
+    registry: &'external [QueueConfig],
+    authority: OfflineRecoveryAuthority,
+    grant: RecoveryDiscoveryGrant,
+    pin: FullImagePin,
+}
+
+/// Config-independent closed-image pin. No metadata or digest setter exists.
+pub(super) struct FullImagePin {
+    identity: ImageIdentity,
+    sha256: [u8; 32],
+}
+impl FullImagePin {
+    pub(super) fn revalidate(
+        &self,
+        config: &RecoveryConfig,
+        budget: &WorkBudget,
+    ) -> storage::Result<()> {
+        // Reuse capture's bounded positional read and full metadata/config
+        // checks on the ORIGINAL descriptor, without creating a path or DB.
+        let observed = SelectedQueuedUploadHistoryImage::capture_existing(config, budget)?;
+        if observed.identity != self.identity || observed.sha256 != self.sha256 {
+            return Err(unavailable());
+        }
+        let expected = config.expected_database.as_ref().ok_or_else(unavailable)?;
+        if expected.file != "atlas.sqlite"
+            || expected.byte_size != self.identity.byte_size
+            || expected.sha256 != hex_digest(self.sha256)
+        {
+            return Err(unavailable());
+        }
+        checkpoint(budget)
+    }
+}
+
+fn hex_digest(digest: [u8; 32]) -> String {
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+/// Own the original selected configuration; permits borrow only immutable
+/// external verified inputs. No self-reference or authority reissuance exists.
+pub(super) struct OwnedQueuedUploadHistoryIntake<'external> {
+    pub(super) config: RecoveryConfig,
+    pub(super) frames: Vec<AuthenticatedQueuedUploadOriginalFrame<'external>>,
+    pub(super) registry: &'external [QueueConfig],
+    pub(super) authority: OfflineRecoveryAuthority,
+    pub(super) grant: RecoveryDiscoveryGrant,
+    pub(super) pin: FullImagePin,
+}
+impl<'external> OwnedQueuedUploadHistoryIntake<'external> {
+    pub(super) fn new<'origin>(
+        mut config: RecoveryConfig,
+        approval: &'external VerifiedUploadHistoryStartupApproval,
+        origin: &'external VerifiedQueuedUploadHistoryCatalog<'origin>,
+        archive: &'external UnadmittedQueuedUploadHistoryArchive,
+        budget: &WorkBudget,
+    ) -> storage::Result<Self> {
+        checkpoint(budget)?;
+        let expected = approval.expectations();
+        let binding = DatabaseMember {
+            file: "atlas.sqlite".to_owned(),
+            sha256: hex_digest(*expected.selected_image_sha256()),
+            byte_size: expected.selected_image_byte_size(),
+        };
+        if config
+            .expected_database
+            .as_ref()
+            .is_some_and(|old| old != &binding)
+        {
+            return Err(unavailable());
+        }
+        // Bind verified approval bytes before any capture/semantic/open work.
+        config.expected_database = Some(binding);
+        let image = SelectedQueuedUploadHistoryImage::capture_existing(&config, budget)?;
+        let prepared =
+            PreparedQueuedUploadHistoryIntake::prepare(approval, origin, archive, &image, budget)?;
+        let ExportedIntake {
+            frames,
+            registry,
+            authority,
+            grant,
+            pin,
+        } = export_prepared(prepared, approval, origin, archive, budget)?;
+        pin.revalidate(&config, budget)?;
+        Ok(Self {
+            config,
+            frames,
+            registry,
+            authority,
+            grant,
+            pin,
         })
     }
 }

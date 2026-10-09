@@ -278,7 +278,7 @@ fn reopen_selected<D: QueueDiscovery, E: QueueRecoveryEvidence>(
     )
 }
 
-fn close_source(source: Core) -> Result<(), ReopenError> {
+pub(super) fn close_source(source: Core) -> Result<(), ReopenError> {
     let Core {
         access,
         store,
