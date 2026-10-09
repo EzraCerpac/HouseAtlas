@@ -51,7 +51,8 @@ export type Attachment =
       title: string | null;
       kind: "stored-file";
       contentType: string | null;
-      byteSize: number | null;
+      /** Original retained integral JSON-number token; not an issued copy size. */
+      byteSize: string | null;
       downloadHref: string | null;
       previewHref: string | null;
     };
@@ -61,7 +62,8 @@ export interface Maintenance {
   description: string;
   scheduledDate: string | null;
   completedDate: string | null;
-  cost: number | null;
+  /** Original retained JSON-number token; no currency is inferred. */
+  cost: string | null;
 }
 export interface NativeLink {
   kind: "homebox-native";

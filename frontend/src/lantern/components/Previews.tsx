@@ -6,7 +6,7 @@ import { useSelect, useStore } from '../state/store';
 import { Modal } from './Modal';
 import { MediaScene } from './Art';
 import { Icon } from './Icon';
-import { Note, StorageTag, fmtSize } from './ui';
+import { Note, StorageTag, fmtDocSize } from './ui';
 import { PinnedFileAction } from './PinnedFileAction';
 
 // Previews of fictional demo documents, drawn as HTML and SVG.
@@ -43,7 +43,7 @@ export function PreviewDialog({ docId }: { docId: string }) {
           <dl className="facts">
             <div>
               <dt>Kind</dt>
-              <dd>{doc.storage === 'link' ? 'External link, address only' : `Stored ${doc.kind}${doc.sizeKb ? `, ${fmtSize(doc.sizeKb)}` : ''}`}</dd>
+              <dd>{doc.storage === 'link' ? 'External link, address only' : `Stored ${doc.kind}${fmtDocSize(doc) ? `, ${fmtDocSize(doc)}` : ''}`}</dd>
             </div>
             <div>
               <dt>Source</dt>

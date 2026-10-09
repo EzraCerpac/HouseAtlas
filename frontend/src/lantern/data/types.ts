@@ -263,6 +263,8 @@ export interface Doc {
   storage: 'stored' | 'link';
   fileName?: string;
   sizeKb?: number;
+  /** Actual retained source byte token; null means unknown. Mock KB is separate. */
+  byteSize?: string | null;
   pages?: number;
   url?: string;
   linkCheckedAt?: string;
@@ -294,7 +296,7 @@ export interface Task {
   note?: string | undefined;
   cadence?: string | undefined;
   /** HomeBox maintenance cost, including zero. The source records no currency. */
-  cost?: number | undefined;
+  cost?: string | undefined;
   evidenceIds: string[];
   docIds?: string[] | undefined;
 }

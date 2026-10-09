@@ -59,6 +59,27 @@ function nullableQuantity(value: unknown): string | null {
     throw new TypeError("Retained quantity decimal shift exceeds processing limit");
   return value;
 }
+function nullableByteSize(value: unknown): string | null {
+  // Share the existing retained-number grammar/work bounds, then mirror the
+  // native stored-file minimum/integrality constraint using only its digits.
+  const token = nullableQuantity(value);
+  if (token === null) return null;
+  const parts = /^-?(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([+-]?)([0-9]+))?$/.exec(token)!;
+  const digits = parts[1]! + (parts[2] ?? "");
+  const zero = !/[1-9]/.test(digits);
+  let exponent = 0;
+  for (const digit of parts[4] ?? "")
+    exponent = exponent * 10 + digit.charCodeAt(0) - 48;
+  if (parts[3] === "-") exponent = -exponent;
+  const shift = exponent - (parts[2]?.length ?? 0);
+  let trailingZeros = 0;
+  for (let i = digits.length - 1; i >= 0 && digits[i] === "0"; i--)
+    trailingZeros++;
+  // All zero spellings, including negative zero, are mathematically zero.
+  if (!zero && (token.startsWith("-") || (shift < 0 && trailingZeros < -shift)))
+    throw new TypeError("Expected nonnegative integral retained byte-size token");
+  return token;
+}
 function list<T>(value: unknown, decode: (value: unknown) => T): T[] {
   if (!Array.isArray(value)) throw new TypeError("Expected view list");
   return value.map(decode);
@@ -130,7 +151,7 @@ function attachment(value: unknown): Attachment {
         ...base,
         kind,
         contentType: nullableString(o.contentType),
-        byteSize: nullableNumber(o.byteSize),
+        byteSize: nullableByteSize(o.byteSize),
         downloadHref: nullableString(o.downloadHref),
         previewHref: nullableString(o.previewHref),
       };
@@ -143,7 +164,8 @@ function maintenance(value: unknown): Maintenance {
     description: string(o.description),
     scheduledDate: nullableString(o.scheduledDate),
     completedDate: nullableString(o.completedDate),
-    cost: nullableNumber(o.cost),
+    // Cost uses the same retained-number envelope, with no value rounding.
+    cost: nullableQuantity(o.cost),
   };
 }
 function native(value: unknown): NativeLink {
