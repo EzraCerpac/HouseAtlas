@@ -23,6 +23,9 @@ use std::{
 
 const MAX_RECEIPTS: usize = 64;
 const MAX_PER_SESSION: usize = 4;
+// Completed custody has its own finite backlog. It never consumes a live
+// receipt permit; a full backlog blocks writes before their owners are taken.
+const MAX_DISPOSITIONS: usize = 64;
 const RECEIPT_TTL: Duration = Duration::from_secs(300);
 
 fn unavailable() -> super::HttpFailure {
@@ -94,12 +97,14 @@ fn execute_validated(
     let receipt_id = request.payload()["rendererReceiptId"]
         .as_str()
         .ok_or_else(|| failure(StatusCode::UNPROCESSABLE_ENTITY))?;
+    // Keep the registry guard from the pre-write capacity reservation in take
+    // through disposition recording. Postcommit custody neither reacquires the
+    // mutex nor performs a fallible allocation or quota check. Access-held
+    // registry consumers use try_lock, preserving the existing lock order.
+    let mut registry = host.asset_reviews.try_lock().map_err(|_| unavailable())?;
     let taken = {
         let access = core.access.lock().map_err(|_| unavailable())?;
-        host.asset_reviews
-            .try_lock()
-            .map_err(|_| unavailable())?
-            .take(&access, current, scope, asset_id, receipt_id)?
+        registry.take(&access, current, scope, asset_id, receipt_id)?
     };
     let TakenReview {
         issued,
@@ -176,19 +181,16 @@ fn execute_validated(
         .map(|commit| (commit, true))
         .or_else(|| observation.take());
     if let Some((commit, store_qualified)) = disposition {
-        host.asset_reviews
-            .lock()
-            .map_err(|_| unavailable())?
-            .record(Disposition {
-                issued,
-                binding,
-                scope: retained_scope,
-                asset_id: retained_asset_id,
-                actor_id,
-                commit,
-                store_qualified,
-                http_released,
-            })?;
+        registry.record(Disposition {
+            issued,
+            binding,
+            scope: retained_scope,
+            asset_id: retained_asset_id,
+            actor_id,
+            commit,
+            store_qualified,
+            http_released,
+        });
     }
     released
 }
@@ -283,12 +285,8 @@ impl ReviewRegistry {
         asset_id: String,
         actor_id: String,
     ) -> Result<UploadDispositionReservation<'_>, super::HttpFailure> {
-        if !self.room(&binding) {
-            return Err(unavailable());
-        }
-        self.dispositions
-            .try_reserve(1)
-            .map_err(|_| unavailable())?;
+        self.prune();
+        self.reserve_disposition()?;
         Ok(UploadDispositionReservation {
             registry: self,
             binding,
@@ -307,18 +305,19 @@ impl ReviewRegistry {
     }
     fn room(&mut self, binding: &[u8; 32]) -> bool {
         self.prune();
-        self.entries.len() + self.dispositions.len() < MAX_RECEIPTS
+        self.entries.len() < MAX_RECEIPTS
             && self
                 .entries
                 .iter()
                 .filter(|entry| &entry.binding == binding)
                 .count()
-                + self
-                    .dispositions
-                    .iter()
-                    .filter(|entry| &entry.binding == binding)
-                    .count()
                 < MAX_PER_SESSION
+    }
+    fn reserve_disposition(&mut self) -> Result<(), super::HttpFailure> {
+        if self.dispositions.len() >= MAX_DISPOSITIONS {
+            return Err(unavailable());
+        }
+        self.dispositions.try_reserve(1).map_err(|_| unavailable())
     }
     fn insert(&mut self, entry: Entry) -> Result<(), super::HttpFailure> {
         if !self.room(&entry.binding) {
@@ -327,12 +326,10 @@ impl ReviewRegistry {
         self.entries.push_back(entry);
         Ok(())
     }
-    fn record(&mut self, disposition: Disposition) -> Result<(), super::HttpFailure> {
-        if !self.room(&disposition.binding) {
-            return Err(unavailable());
-        }
+    // The caller holds this registry continuously from take, which reserved
+    // the slot and allocation before moving the original receipt owner.
+    fn record(&mut self, disposition: Disposition) {
         self.dispositions.push_back(disposition);
-        Ok(())
     }
 
     /// Call only after freshly authorizing this POST as Mutate against the same
@@ -389,6 +386,9 @@ impl ReviewRegistry {
         {
             return Err(failure(StatusCode::FORBIDDEN));
         }
+        // Capacity failure leaves the authenticated live owner untouched.
+        // The consumer must keep this registry guard until recording completes.
+        self.reserve_disposition()?;
         let entry = self.entries.remove(index).ok_or_else(unavailable)?;
         Ok(TakenReview {
             issued: entry.issued,
