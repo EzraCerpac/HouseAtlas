@@ -18,6 +18,8 @@ use crate::{
     contracts,
     domain::{DomainError, ReadPort, Record, RecordRef, RecordType, Scope},
 };
+use std::collections::{HashMap, HashSet};
+
 use serde::Serialize;
 use serde_json::{Value, json};
 
@@ -117,6 +119,13 @@ where
                 let include_archived = request.payload()["includeArchived"]
                     .as_bool()
                     .ok_or(StockError::InvalidContract)?;
+                let building_members = match request.payload().get("buildingId") {
+                    None => None,
+                    Some(Value::String(id)) if record_type == RecordType::Identity => {
+                        Some(building_members(&snapshot, &scope, id)?)
+                    }
+                    Some(_) => return Err(StockError::InvalidContract),
+                };
                 let mut records = Vec::new();
                 for record in &snapshot.records {
                     if record.scope != scope {
@@ -126,6 +135,12 @@ where
                         || !include_archived
                             && record.lifecycle == crate::domain::Lifecycle::Tombstoned
                     {
+                        continue;
+                    }
+                    if building_members.as_ref().is_some_and(|members| {
+                        record.lifecycle != crate::domain::Lifecycle::Active
+                            || !members.contains(record.target.record_id.as_str())
+                    }) {
                         continue;
                     }
                     let target = json!({"authority":"atlas","recordType":record_type,
@@ -320,4 +335,78 @@ pub fn atlas_list_record_type(id: OperationId) -> Option<RecordType> {
         Some((kind, ReadMode::List)) => Some(kind),
         _ => None,
     }
+}
+
+// This consumes only the already authorized, shape-validated full snapshot.
+// The selected building and grouping come from current reviewed Atlas facts;
+// source parentage and archived membership never participate.
+fn building_members<'a>(
+    snapshot: &'a crate::domain::Snapshot,
+    scope: &Scope,
+    building_id: &str,
+) -> StockResult<HashSet<&'a str>> {
+    if snapshot.records.iter().any(|record| &record.scope != scope) {
+        return Err(StockError::CorrelationMismatch);
+    }
+    let active_locations: HashSet<_> = snapshot
+        .records
+        .iter()
+        .filter(|record| {
+            record.target.record_type == RecordType::Identity
+                && record.lifecycle == crate::domain::Lifecycle::Active
+                && record.payload["kind"] == "location"
+        })
+        .map(|record| record.target.record_id.as_str())
+        .collect();
+    if !active_locations.contains(building_id)
+        || !snapshot.records.iter().any(|record| {
+            record.target.record_type == RecordType::LocationSemantics
+                && record.lifecycle == crate::domain::Lifecycle::Active
+                && record.payload["atlasId"] == building_id
+                && record.payload["reviewStatus"] == "accepted"
+                && record.payload["semanticKind"] == "building"
+        })
+    {
+        return Err(StockError::InvalidContract);
+    }
+    let mut children: HashMap<&str, Vec<&str>> = HashMap::new();
+    for record in &snapshot.records {
+        if record.target.record_type != RecordType::Relation
+            || record.lifecycle != crate::domain::Lifecycle::Active
+            || record.payload["kind"] != "location-membership"
+            || record.payload["reviewStatus"] != "accepted"
+        {
+            continue;
+        }
+        let endpoint_id = |field: &str| -> StockResult<&'a str> {
+            let endpoint = &record.payload[field];
+            if endpoint["kind"] != "atlas-record" || endpoint["ref"]["recordType"] != "identity" {
+                return Err(StockError::Domain(DomainError::UpstreamIncomplete));
+            }
+            endpoint["ref"]["recordId"]
+                .as_str()
+                .filter(|id| active_locations.contains(*id))
+                .ok_or(StockError::Domain(DomainError::UpstreamIncomplete))
+        };
+        children
+            .entry(endpoint_id("from")?)
+            .or_default()
+            .push(endpoint_id("to")?);
+    }
+    let root = active_locations
+        .get(building_id)
+        .copied()
+        .ok_or(StockError::InvalidContract)?;
+    let mut members = HashSet::from([root]);
+    let mut pending = vec![root];
+    while let Some(parent) = pending.pop() {
+        if let Some(descendants) = children.get(parent) {
+            for child in descendants {
+                if members.insert(*child) {
+                    pending.push(*child);
+                }
+            }
+        }
+    }
+    Ok(members)
 }

@@ -309,6 +309,11 @@ pub(super) fn payload_references(
             add_reference(&mut refs, target, record_type, id)?;
         }
     }
+    if let Some(elevation) = payload.get("elevation")
+        && elevation["status"] == "known"
+    {
+        add_reference(&mut refs, target, "identity", &elevation["datumAtlasId"])?;
+    }
     if let Some(panel) = payload.get("panel") {
         add_endpoint_reference(&mut refs, target, panel)?;
     }
