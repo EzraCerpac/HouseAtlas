@@ -395,8 +395,8 @@ function ItemDetail({ item }: { item: Item }) {
           <Facts
             rows={[
               [isUnknown ? 'Source type' : 'Category', item.category],
-              ['Model', item.model],
-              ['Serial', item.serial],
+              ['Model', item.model ?? 'Unknown'],
+              ['Serial', item.serial ?? 'Unknown'],
               ['Acquired', item.acquired ? fmtDate(item.acquired) : undefined],
               ['Note', item.note],
             ]}
