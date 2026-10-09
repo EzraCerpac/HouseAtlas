@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "a00e472cc9f705acfee7c0d904f167950c9a61e56e9bfc2269a422b5ac5c95ce",
+  "sourceDigestSha256": "372ad7e48e1aec03550fe4696cce9ebb5b287d2225ca848b389eed9419366902",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5495,8 +5495,8 @@
     {
       "path": "frontend/lantern-tests/healthy-read.mjs",
       "mode": "100644",
-      "bytes": 30134,
-      "sha256": "86d5cb3fdee9c74fd24274664ce5540fcb67982f047f3ea753a88a0ebba162b0",
+      "bytes": 30561,
+      "sha256": "0a06e04121a718b38168655b8ffd0e1e6fd3455bab3f586fd1d980821b5b6b64",
       "owner": "web"
     },
     {
@@ -5880,8 +5880,8 @@
     {
       "path": "frontend/src/lantern/adapters/read.ts",
       "mode": "100644",
-      "bytes": 8437,
-      "sha256": "efe6f73ab048e9816338e8e8231a8593ff58861d918147d5a914976e94b301ca",
+      "bytes": 8440,
+      "sha256": "20835d7dbae4642a43deab69aeab0f86ed3ba3664666d2538135c2ead1a7070b",
       "owner": "web"
     },
     {
@@ -6475,8 +6475,8 @@
     {
       "path": "frontend/tsconfig.json",
       "mode": "100644",
-      "bytes": 1241,
-      "sha256": "62dbaffa76899e07d07e82f4f1aba13202f12a1850155c50ae035937aef1894f",
+      "bytes": 1281,
+      "sha256": "7598ac838d8178b83f3c3dbb338be81234490eeef09e838d1843f0037a44c8b6",
       "owner": "core-integration"
     },
     {
