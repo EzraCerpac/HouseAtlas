@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 use super::{StockError, catalog};
 
 pub const AGENT_URI: &str = "urn:houseatlas:agent:stock:3";
-pub const ATLAS_URI: &str = "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json";
+pub const ATLAS_URI: &str = "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json";
 pub const WITNESS_URI: &str =
     "file:///houseatlas/contracts/stock-wire3/presence/witness.v1.schema.json";
 pub const QUALIFICATION_URI: &str =

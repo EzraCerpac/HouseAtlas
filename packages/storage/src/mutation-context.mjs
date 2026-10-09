@@ -19,6 +19,7 @@ function references(payload,target,graph) {
   for(const id of p.evidenceIds??[]) add('evidence',id);
   for(const id of p.supersedesEvidenceIds??[]) add('evidence',id);
   if(p.atlasId) add('identity',p.atlasId);
+  if(p.elevation?.status==='known') add('identity',p.elevation.datumAtlasId);
   if(p.originalAssetId) add('asset',p.originalAssetId);
   if(p.previousGeometryId) add('geometry',p.previousGeometryId);
   if(p.fromBindingId) add('binding',p.fromBindingId);
