@@ -10,6 +10,7 @@ pub mod providers {
 pub mod recovery {
     pub mod host;
     pub mod reopen;
+    pub mod upload_history_intake;
 }
 use crate::{
     access as a,

@@ -12,6 +12,7 @@ pub mod durable_stock;
 #[cfg(test)]
 mod healthy;
 pub mod media_policy_archive;
+pub mod queued_upload_history_archive;
 mod retention;
 pub mod stock_http;
 

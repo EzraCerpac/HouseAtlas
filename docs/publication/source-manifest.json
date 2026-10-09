@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "abd6a67c84cd523eb4687a657369fb0113d7f3e3d2f54501f65391079f62fef1",
+  "sourceDigestSha256": "726fcf5301083d65c9639a8637a06b293c580e8c6397a9842ba7dc9b52797529",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -847,8 +847,8 @@
     {
       "path": "backend/src/app.rs",
       "mode": "100644",
-      "bytes": 27643,
-      "sha256": "3b83916ab5d9b68b55cfaafeef8f91264c54c302e8adb305f100da92b70523da",
+      "bytes": 27690,
+      "sha256": "be9757036dbdcbde9c86c4609f944ec006f07917e2eb79f260078fbc46770296",
       "owner": "core-integration"
     },
     {
@@ -943,10 +943,17 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/app/homebox_queued_upload_history_catalog.rs",
+      "mode": "100644",
+      "bytes": 15015,
+      "sha256": "dd3d550f45731d37d470367d659b50a54311c35643644febd131b56c1b0ce327",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/app/homebox_queued_upload_history_publication.rs",
       "mode": "100644",
-      "bytes": 25991,
-      "sha256": "59eb5c5b237c0582b7f6ba2777fb736d7487976260be7b749ea19e49122f8420",
+      "bytes": 27489,
+      "sha256": "f4961d74964ec0c1f4b09c1de4144905059a15b6954f357aa020d601959b4979",
       "owner": "core-integration"
     },
     {
@@ -1071,8 +1078,15 @@
     {
       "path": "backend/src/config/recovery/mod.rs",
       "mode": "100644",
-      "bytes": 20676,
-      "sha256": "a315ab293fef596522b93dafcd12ccd84005fd1925239c5864033e91b48b02e2",
+      "bytes": 20707,
+      "sha256": "ccf9952cd515f22baea8344e246d058ec47aa84e4dc8ac750cce48f670573273",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/config/recovery/upload_history_origin.rs",
+      "mode": "100644",
+      "bytes": 14060,
+      "sha256": "a96b1456556416668762ca982da5bc39b8bb3c71d9ef0f2f0c0aa8a87584a00d",
       "owner": "core-integration"
     },
     {
@@ -2275,8 +2289,8 @@
     {
       "path": "backend/src/lifecycle/mod.rs",
       "mode": "100644",
-      "bytes": 12330,
-      "sha256": "ed6795e69faa9159f57e792618501cf74432a05a6eea90f4c219d48e31c52d2b",
+      "bytes": 12365,
+      "sha256": "7f63159eeab755f72febb5d4b9a0bfdcc766acab527a6bb6a7355728d0249f5a",
       "owner": "core-integration"
     },
     {
@@ -2296,8 +2310,8 @@
     {
       "path": "backend/src/lifecycle/provider_dispatch/archive.rs",
       "mode": "100644",
-      "bytes": 17365,
-      "sha256": "f57d0d4c707eabea94557becf6b824fdbad1eb7758f42123ec39e8e49f494189",
+      "bytes": 22078,
+      "sha256": "dd36de1ff50a2716126bb3f0e5f9a99d46f8a7d4d9ae48dbefaea480cd68a287",
       "owner": "core-integration"
     },
     {
@@ -2338,8 +2352,15 @@
     {
       "path": "backend/src/lifecycle/provider_dispatch/mod.rs",
       "mode": "100644",
-      "bytes": 5248,
-      "sha256": "a9747b96213e97a115f22ff49c380b9a1693e5b8d21147c7741e6535502517e0",
+      "bytes": 5287,
+      "sha256": "966e6176f50c156995f5a52e7978833b8d466aa5fca449c27a0d55350a9e6778",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/lifecycle/provider_dispatch/queued_upload_history_archive.rs",
+      "mode": "100644",
+      "bytes": 15779,
+      "sha256": "8fbc92da2d4c98d50e40f03da5be9ac1a8db6251c6cd7406203fd2bc481655ed",
       "owner": "core-integration"
     },
     {
@@ -2396,6 +2417,13 @@
       "mode": "100644",
       "bytes": 17806,
       "sha256": "49697ead810232c8d2e84c1831ef36036b58b494a8277a66d26e8e1c051cc8b6",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/lifecycle/recovery/upload_history_intake.rs",
+      "mode": "100644",
+      "bytes": 22872,
+      "sha256": "3f99913fc5220c9f146125511bb2649ab8a4c617d83c7f77be9936b9c6a5cf65",
       "owner": "core-integration"
     },
     {

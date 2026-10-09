@@ -4,6 +4,7 @@
 //! persistence and configuration are separate operator-selected inputs. The
 //! caller owns and drains the selected directories throughout recovery.
 pub mod media_policy;
+pub mod upload_history_origin;
 use crate::{
     access::{AccessConfig, OfflineRecoveryAuthority, RecoveryDiscoveryGrant},
     app::access_scope,
