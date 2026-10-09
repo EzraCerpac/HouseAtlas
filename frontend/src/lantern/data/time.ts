@@ -24,11 +24,18 @@ function referenceDate(now?: string): Date | undefined {
   return now === undefined ? new Date() : validDate(now);
 }
 
+// Display the recorded calendar, not the browser's conversion of its instant.
+function recordedCalendar(iso: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:$|[Tt ])/u.exec(iso);
+  return match ? { year: match[1]!, month: Number(match[2]) - 1, day: Number(match[3]) } : null;
+}
+
 export function fmtDate(iso?: string): string {
   if (!iso) return 'No date';
   const d = validDate(iso);
   if (!d) return 'Unknown';
-  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  const recorded = recordedCalendar(iso);
+  return recorded ? `${recorded.day} ${MONTHS[recorded.month]} ${recorded.year}` : iso;
 }
 
 export function fmtShortDate(iso?: string, now?: string): string {
@@ -36,19 +43,25 @@ export function fmtShortDate(iso?: string, now?: string): string {
   const d = validDate(iso);
   const reference = referenceDate(now);
   if (!d || !reference) return 'Unknown';
-  const sameYear = d.getFullYear() === reference.getFullYear();
-  return sameYear ? `${d.getDate()} ${MONTHS[d.getMonth()]}` : `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  const recorded = recordedCalendar(iso);
+  if (!recorded) return iso;
+  const referenceYear = now === undefined ? String(reference.getFullYear()) : recordedCalendar(now)?.year;
+  return recorded.year === referenceYear ? `${recorded.day} ${MONTHS[recorded.month]}`
+    : `${recorded.day} ${MONTHS[recorded.month]} ${recorded.year}`;
 }
 
 export function fmtTime(iso: string): string {
   const d = validDate(iso);
   if (!d) return 'Unknown';
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const clock = /^\d{4}-\d{2}-\d{2}[Tt ](.+)$/u.exec(iso);
+  // Keep supplied seconds, fractional precision and offset; no zone is inferred.
+  return clock ? clock[1]! : iso;
 }
 
 export function fmtDateTime(iso?: string): string {
   if (!iso) return 'Unknown time';
-  return `${fmtDate(iso)}, ${fmtTime(iso)}`;
+  // Source/retrieval timestamps retain their complete original text and offset.
+  return validDate(iso) ? iso : 'Unknown';
 }
 
 /** "3 h ago", "yesterday", "in 4 days". */
