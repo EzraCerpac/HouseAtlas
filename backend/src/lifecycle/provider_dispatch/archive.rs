@@ -469,3 +469,117 @@ impl PrivateStockArchive {
         Ok(result)
     }
 }
+
+impl PrivateStockArchive {
+    /// Publish only the catalog sealed by the explicit configured signing
+    /// capability for this exact archive descriptor and original path pin.
+    /// Files linked before an error remain immutable DATA; errors do not claim
+    /// rollback, approval or a released historical recovery owner.
+    pub fn publish_queued_upload_history(
+        &self,
+        signed: &crate::config::recovery::upload_history_origin::SignedQueuedUploadHistoryCatalog,
+        budget: &crate::media::WorkBudget,
+    ) -> Result<
+        super::queued_upload_history_archive::PublishedQueuedUploadHistoryCatalog,
+        ArchiveError,
+    > {
+        use super::queued_upload_history_archive as upload;
+        upload::check(budget)?;
+        if !signed.matches_destination(self.destination()) {
+            return Err(ArchiveError::Configuration);
+        }
+        let catalog = signed.catalog();
+        if catalog.members().len() > upload::MEMBER_LIMIT
+            || catalog.catalog_bytes().len() > upload::CATALOG_LIMIT
+            || signed.envelope_bytes().len() > upload::ENVELOPE_LIMIT
+        {
+            return Err(ArchiveError::TooLarge);
+        }
+        let mut total = 0usize;
+        for (index, member) in catalog.members().iter().enumerate() {
+            upload::check(budget)?;
+            if member.name() != upload::frame_name(member.sha256())
+                || catalog.members()[..index]
+                    .iter()
+                    .any(|old| old.name() == member.name())
+                || member.byte_size() != member.frame_bytes().len() as u64
+                || member.frame_bytes().len() > self.max_frame_bytes.min(upload::FRAME_LIMIT)
+                || upload::digest(member.frame_bytes(), budget)? != member.sha256()
+            {
+                return Err(ArchiveError::Conflict);
+            }
+            crate::app::homebox_queued_upload_history_publication::UnadmittedQueuedUploadOriginalFrame::parse(member.frame_bytes(),budget)
+                .map_err(|_| ArchiveError::Conflict)?;
+            total = total
+                .checked_add(member.frame_bytes().len())
+                .ok_or(ArchiveError::TooLarge)?;
+            if total > upload::TOTAL_LIMIT {
+                return Err(ArchiveError::TooLarge);
+            }
+        }
+        let hash = upload::digest(signed.envelope_bytes(), budget)?;
+        let name = upload::catalog_name(catalog.generation(), hash);
+        let _local = self
+            .custody
+            .try_lock()
+            .map_err(|_| ArchiveError::Unavailable)?;
+        let _lock = self.custody_lock()?;
+        upload::destination_current(&self.directory, self.destination())?;
+        if !signed.matches_destination(self.destination()) {
+            return Err(ArchiveError::Configuration);
+        }
+        // Immutable member data reaches durable storage before the catalog
+        // becomes visible as the final publication commit marker.
+        for member in catalog.members() {
+            upload::retain_member(
+                &self.directory,
+                member.name(),
+                member.frame_bytes(),
+                self.max_frame_bytes.min(upload::FRAME_LIMIT),
+                budget,
+            )?;
+        }
+        upload::destination_current(&self.directory, self.destination())?;
+        upload::retain_member(
+            &self.directory,
+            &name,
+            signed.envelope_bytes(),
+            upload::ENVELOPE_LIMIT,
+            budget,
+        )?;
+        upload::check(budget)?;
+        upload::destination_current(&self.directory, self.destination())?;
+        Ok(upload::PublishedQueuedUploadHistoryCatalog::completed(
+            name,
+            hash,
+            catalog.generation(),
+        ))
+    }
+}
+impl PrivateStockArchive {
+    /// Read only the explicitly selected catalog and its complete declared
+    /// ordered members. This constructs unadmitted DATA, never recovery grants.
+    pub fn read_queued_upload_history(
+        &self,
+        expected: &super::queued_upload_history_archive::TrustedUploadHistoryArchiveReference<'_>,
+        budget: &crate::media::WorkBudget,
+    ) -> Result<
+        super::queued_upload_history_archive::UnadmittedQueuedUploadHistoryArchive,
+        ArchiveError,
+    > {
+        use super::queued_upload_history_archive as upload;
+        upload::check(budget)?;
+        let _local = self
+            .custody
+            .try_lock()
+            .map_err(|_| ArchiveError::Unavailable)?;
+        let _lock = self.custody_lock()?;
+        upload::read_archive(
+            &self.directory,
+            self.destination(),
+            expected,
+            self.max_frame_bytes,
+            budget,
+        )
+    }
+}
