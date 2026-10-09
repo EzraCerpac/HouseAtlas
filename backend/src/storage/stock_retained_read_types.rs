@@ -24,7 +24,9 @@ pub struct StockRetainedReadFrame<'a> {
     pub commit: Option<&'a StockAtlasCommit>,
     pub audits: &'a [Audit],
     pub events: &'a [StockOperationEvent],
-    /// Complete validated immutable root closures across the fixed watermark.
+    /// Complete validated immutable root closures for this selected page,
+    /// including lookahead, within the fixed watermark. Unseen roots are not
+    /// qualified by this frame.
     /// Original request/source refs and native saved records require qualification.
     pub retained_commits: &'a [StockAtlasCommit],
     pub output: Option<&'a Value>,
@@ -154,18 +156,30 @@ impl StockRetainedPreparation {
         &self.current_records
     }
 }
-/// Authorized internal qualification facts, including complete historical
-/// source closure. Getters serve host sealing, never external disclosure.
+/// Borrowed continuation custody input, not current authority. Storage checks
+/// its private old binding against the actual prior Box allocation. Root also
+/// retains that Box and verifies the same current session/actor/full query.
+pub struct StockOperationEventContinuationInput<'a, P> {
+    pub continuation: &'a StockRetainedContinuation,
+    pub prior_principal: &'a P,
+}
+/// Actual current page principal and fixed query input. Every authorization
+/// phase uses that current principal; the prior principal is correlation only.
+pub struct StockOperationEventPageInput<'a, P> {
+    pub original: &'a RetainedPrincipal,
+    pub scope: &'a Scope,
+    pub page_size: usize,
+    pub continuation: Option<StockOperationEventContinuationInput<'a, P>>,
+}
+/// Authorized complete selected-page source closure. Getters serve current
+/// page sealing, never external disclosure or permission for unseen history.
 pub struct StockOperationEventPreparation {
     pub(super) binding: StockReadBinding,
     pub(super) scope: Scope,
     pub(super) page_size: usize,
     pub(super) watermark: i64,
     pub(super) after: i64,
-    pub(super) rows: Vec<(i64, StockOperationEvent)>,
-    pub(super) audits: Vec<Audit>,
     pub(super) snapshot: Arc<StockOperationEventSnapshot>,
-    pub(super) targets: Vec<RecordRef>,
     pub(super) current_records: Vec<Record>,
 }
 impl StockOperationEventPreparation {
@@ -176,7 +190,7 @@ impl StockOperationEventPreparation {
         self.page_size
     }
     pub fn targets(&self) -> &[RecordRef] {
-        &self.targets
+        &self.snapshot.targets
     }
     pub fn current_records(&self) -> &[Record] {
         &self.current_records
@@ -188,21 +202,25 @@ impl StockOperationEventPreparation {
         &self.snapshot
     }
     pub fn audits(&self) -> &[Audit] {
-        &self.audits
+        &self.snapshot.audits
     }
     pub fn events(&self) -> impl Iterator<Item = &StockOperationEvent> {
-        self.rows.iter().map(|(_, e)| e)
+        self.snapshot.rows.iter().map(|(_, e)| e)
     }
     pub fn has_more(&self) -> bool {
-        self.rows.len() > self.page_size
+        self.snapshot.rows.len() > self.page_size || self.snapshot.more_unscanned
     }
 }
-/// Bounded detached fixed-watermark facts for initial historical source capture.
+/// Bounded detached complete PAGE closure at a fixed watermark and scan range.
 /// Not an authority, replay handle, serialized cursor, or mutable SQL snapshot.
-/// Host qualifies this entire closure before sealing the original principal.
+/// Host qualifies this page before sealing its actual current principal. Roots
+/// outside this page have not been validated or authorized by this snapshot.
 #[derive(PartialEq)]
 pub struct StockOperationEventSnapshot {
     pub(super) watermark: i64,
+    pub(super) after: i64,
+    pub(super) scan_end: i64,
+    pub(super) more_unscanned: bool,
     pub(super) retained_commits: Vec<StockAtlasCommit>,
     pub(super) targets: Vec<RecordRef>,
     pub(super) rows: Vec<(i64, StockOperationEvent)>,
@@ -219,9 +237,9 @@ impl StockOperationEventSnapshot {
         &self.targets
     }
 }
-/// Same Store/original wrapper/actual Access allocation, fixed audit snapshot.
-/// Non-serializable, no clone/default/authority/replay methods. Registry keeps
-/// the full original Box and performs fresh actual current-session checks.
+/// Private Store/owner/prior page wrapper custody plus fixed query watermark
+/// and scan progress. No cumulative roots/grants or current authority. Registry
+/// retains the exact prior Box until a freshly authorized page fully releases.
 pub struct StockRetainedContinuation {
     pub(super) binding: StockReadBinding,
     pub(super) id: String,
@@ -229,7 +247,6 @@ pub struct StockRetainedContinuation {
     pub(super) page_size: usize,
     pub(super) watermark: i64,
     pub(super) after: i64,
-    pub(super) snapshot: Arc<StockOperationEventSnapshot>,
 }
 impl StockRetainedContinuation {
     pub fn cursor_id(&self) -> &str {

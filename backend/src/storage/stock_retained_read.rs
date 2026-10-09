@@ -219,7 +219,7 @@ fn lookup_with_plan<C: Contract, S: StockContractPort>(
     }
     Ok((Some(commit), ordinal, Some(saved_plan)))
 }
-const MAX_RETAINED_SNAPSHOT_ROOTS: usize = 128;
+const MAX_RETAINED_PAGE_ROOTS: usize = 101;
 const MAX_RETAINED_SNAPSHOT_SQL_BYTES: usize = 32 * 1024 * 1024;
 const MAX_RETAINED_SNAPSHOT_FACT_BYTES: usize = 48 * 1024 * 1024;
 
@@ -248,6 +248,10 @@ fn fact_budget(snapshot: &StockOperationEventSnapshot, records: &[Record]) -> Re
     serde_json::to_writer(
         &mut budget,
         &(
+            snapshot.watermark,
+            snapshot.after,
+            snapshot.scan_end,
+            snapshot.more_unscanned,
             &snapshot.retained_commits,
             &snapshot.targets,
             &snapshot.rows,
@@ -265,17 +269,19 @@ fn snapshot_rows<C: Contract, S: StockContractPort>(
     stock: &S,
     scope: &Scope,
     watermark: i64,
+    after: i64,
+    page_size: usize,
 ) -> Result<(StockOperationEventSnapshot, Vec<Record>)> {
-    let links = stock_repo::retained_snapshot_event_links(db, scope, watermark)?;
+    let window = stock_repo::retained_event_window(db, scope, watermark, after, page_size)?;
     let mut validated = std::collections::BTreeMap::new();
     let mut budget = 0_usize;
     let mut rows = Vec::new();
     let mut audits = Vec::new();
     let mut targets = Vec::new();
-    for link in links {
+    for link in window.links {
         let identity = (link.actor_id.clone(), link.root_operation_id.clone());
         if !validated.contains_key(&identity) {
-            if validated.len() >= MAX_RETAINED_SNAPSHOT_ROOTS {
+            if validated.len() >= MAX_RETAINED_PAGE_ROOTS {
                 return Err(unavailable());
             }
             budget = budget
@@ -344,6 +350,9 @@ fn snapshot_rows<C: Contract, S: StockContractPort>(
     let records = current_records(db, contract, scope, &targets)?;
     let snapshot = StockOperationEventSnapshot {
         watermark,
+        after,
+        scan_end: window.scan_end,
+        more_unscanned: window.more_unscanned,
         rows,
         audits,
         targets,
@@ -351,21 +360,6 @@ fn snapshot_rows<C: Contract, S: StockContractPort>(
     };
     fact_budget(&snapshot, &records)?;
     Ok((snapshot, records))
-}
-
-fn snapshot_page(
-    snapshot: &StockOperationEventSnapshot,
-    after: i64,
-    size: usize,
-) -> (Vec<(i64, StockOperationEvent)>, Vec<Audit>) {
-    snapshot
-        .rows
-        .iter()
-        .zip(&snapshot.audits)
-        .filter(|((sequence, _), _)| *sequence > after)
-        .take(size + 1)
-        .map(|(row, audit)| (row.clone(), audit.clone()))
-        .unzip()
 }
 
 impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
@@ -697,6 +691,9 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         tx.commit()?;
         Ok(output)
     }
+    /// Compatibility for genuine same-principal callers. Continuation custody
+    /// is checked against that supplied P; all page qualification still runs
+    /// through the grouped API. Hosts needing fresh page grants use that API.
     #[allow(clippy::too_many_arguments)]
     pub fn prepare_stock_operation_events_with_authorization<B, S>(
         &mut self,
@@ -713,19 +710,57 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         S: StockContractPort,
         A::Principal: StagedUploadPrincipal,
     {
-        same_original(principal, original)?;
+        self.prepare_stock_operation_events_page_with_authorization(
+            b,
+            principal,
+            stock,
+            StockOperationEventPageInput {
+                original,
+                scope,
+                page_size,
+                continuation: continuation.map(|continuation| {
+                    StockOperationEventContinuationInput {
+                        continuation,
+                        prior_principal: principal,
+                    }
+                }),
+            },
+        )
+    }
+    /// Qualify one complete selected page under its actual current principal.
+    /// Prior continuation custody is checked without authorizing that old P.
+    pub fn prepare_stock_operation_events_page_with_authorization<B, S>(
+        &mut self,
+        b: &B,
+        principal: &A::Principal,
+        stock: &S,
+        input: StockOperationEventPageInput<'_, A::Principal>,
+    ) -> Result<StockOperationEventPreparation>
+    where
+        B: StockRetainedReadAuthorization<Principal = A::Principal>,
+        S: StockContractPort,
+        A::Principal: StagedUploadPrincipal,
+    {
+        let StockOperationEventPageInput {
+            original,
+            scope,
+            page_size,
+            continuation,
+        } = input;
         if !(1..=100).contains(&page_size) {
             return Err(Error::new(
                 "invalid-contract",
                 "Operation-event page size is incompatible",
             ));
         }
-        if let Some(c) = continuation {
-            bound(self, principal, &c.binding, b)?;
+        if let Some(previous) = &continuation {
+            let c = previous.continuation;
+            bound(self, previous.prior_principal, &c.binding, b)?;
             if &c.scope != scope || c.page_size != page_size {
                 return Err(Error::new("invalid-contract", "Continuation query differs"));
             }
         }
+        same_original(principal, original)?;
         let actor = check(
             &self.contract,
             b,
@@ -743,6 +778,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                 output: None,
             },
         )?;
+        let continuation = continuation.as_ref().map(|previous| previous.continuation);
         if continuation.is_some_and(|c| c.binding.actor != actor) {
             return Err(changed());
         }
@@ -756,19 +792,20 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         if watermark > max {
             return Err(stock_repo::incompatible());
         }
-        let (actual_snapshot, records) =
-            snapshot_rows(&tx, &self.contract, stock, scope, watermark)?;
-        let snapshot = if let Some(c) = continuation {
-            if actual_snapshot != *c.snapshot {
-                return Err(changed());
-            }
-            Arc::clone(&c.snapshot)
-        } else {
-            Arc::new(actual_snapshot)
-        };
-        let (rows, audits) = snapshot_page(&snapshot, after, page_size);
-        let targets = snapshot.targets.clone();
-        let events = rows.iter().map(|(_, e)| e.clone()).collect::<Vec<_>>();
+        let (snapshot, records) = snapshot_rows(
+            &tx,
+            &self.contract,
+            stock,
+            scope,
+            watermark,
+            after,
+            page_size,
+        )?;
+        let events = snapshot
+            .rows
+            .iter()
+            .map(|(_, e)| e.clone())
+            .collect::<Vec<_>>();
         if check(
             &self.contract,
             b,
@@ -777,10 +814,10 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                 phase: StockRetainedReadPhase::Prepare,
                 scope,
                 intent: None,
-                targets: &targets,
+                targets: &snapshot.targets,
                 current_records: &records,
                 commit: None,
-                audits: &audits,
+                audits: &snapshot.audits,
                 events: &events,
                 retained_commits: &snapshot.retained_commits,
                 output: None,
@@ -796,10 +833,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             page_size,
             watermark,
             after,
-            rows,
-            audits,
-            snapshot,
-            targets,
+            snapshot: Arc::new(snapshot),
             current_records: records,
         })
     }
@@ -824,7 +858,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                 phase: StockRetainedReadPhase::Intake,
                 scope: &preparation.scope,
                 intent: None,
-                targets: &preparation.targets,
+                targets: &preparation.snapshot.targets,
                 current_records: &[],
                 commit: None,
                 audits: &[],
@@ -843,21 +877,24 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             stock,
             &preparation.scope,
             preparation.watermark,
+            preparation.after,
+            preparation.page_size,
         )?;
-        if actual_snapshot != *preparation.snapshot {
+        if actual_snapshot != *preparation.snapshot || records != preparation.current_records {
             return Err(changed());
         }
         let snapshot = &preparation.snapshot;
-        let (rows, audits) = snapshot_page(snapshot, preparation.after, preparation.page_size);
+        let rows = &snapshot.rows;
+        let audits = &snapshot.audits;
         let targets = &snapshot.targets;
-        if rows != preparation.rows
-            || audits != preparation.audits
-            || targets != &preparation.targets
-        {
-            return Err(changed());
-        }
-        let has_more = rows.len() > preparation.page_size;
-        let next = if has_more {
+        let next_after = if rows.len() > preparation.page_size {
+            Some(rows[preparation.page_size - 1].0)
+        } else if snapshot.more_unscanned {
+            Some(snapshot.scan_end)
+        } else {
+            None
+        };
+        let next = if let Some(after) = next_after {
             let id = self.runtime.new_id()?;
             shape(
                 &self.contract,
@@ -867,7 +904,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                     record_id: id.clone(),
                 },
             )?;
-            Some((id, rows[preparation.page_size - 1].0))
+            Some((id, after))
         } else {
             None
         };
@@ -901,7 +938,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                     targets,
                     current_records: &records,
                     commit: None,
-                    audits: &audits,
+                    audits,
                     events: &events,
                     retained_commits: &snapshot.retained_commits,
                     output: Some(&wire),
@@ -924,7 +961,6 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             page_size: preparation.page_size,
             watermark: preparation.watermark,
             after,
-            snapshot: Arc::clone(&preparation.snapshot),
         });
         Ok(StockOperationEvents {
             page: output,
