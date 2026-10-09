@@ -11,6 +11,7 @@ pub mod recovery {
     pub mod host;
     pub mod reopen;
     pub mod upload_history_intake;
+    pub mod upload_history_validation;
 }
 use crate::{
     access as a,

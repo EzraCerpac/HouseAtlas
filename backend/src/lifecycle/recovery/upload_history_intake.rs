@@ -385,7 +385,7 @@ impl<'config> SelectedQueuedUploadHistoryImage<'config> {
         self.identity.byte_size
     }
 
-    fn revalidate(&self, budget: &WorkBudget) -> storage::Result<()> {
+    pub(crate) fn revalidate(&self, budget: &WorkBudget) -> storage::Result<()> {
         checkpoint(budget)?;
         self.config.check().map_err(|_| unavailable())?;
         if ImageIdentity::from_metadata(
