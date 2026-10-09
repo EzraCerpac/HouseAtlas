@@ -10,6 +10,14 @@ Use the accompanying `resource-map.json` offline resource map. Register the froz
 
 ## Runtime correlation required beyond schema shape
 
+The configured complete-capture implementations of `homebox.field.list` and
+`homebox.maintenance.list` use the explicit local member selector in
+[homebox-member-search.md](homebox-member-search.md). That document defines
+empty/omitted query handling, names, available field values and maintenance
+descriptions, Unicode/whitespace rules
+and full-observation pagination custody. It does not imply upstream search
+support or provider/runtime qualification.
+
 Every committed Atlas result, including remap and batch, must carry `data.requestDigest` equal to the accepted request's intent digest. The intent includes its operation key, payload and local guards; renewable observation, human receipt and transport request IDs do not create a new intent. Root and ordered child request IDs, keys, targets, guards and payloads must remain lossless in native batch storage and result mapping. Only the requestDigest call's root requestId and approvalReceiptId are excluded; a HomeBox target also excludes its renewable preconditions.providerObservation. Child requestIds remain inside the parent batch intent digest. Do not recursively strip child transport IDs from the parent intent or normalize ordered arrays. A declared schema arm alone does not qualify its implementation.
 
 Correlate `data.target`, each `resources[].target` and each targeted `rows[]` result with the authorized command. Check authority, source/collection partition, declared result kind, actual owner and exact existing identity. Atlas asset media results must name the exact requested target. New provider identities and ancestor-path results use only their specifically defined exceptions; generic resource acceptance cannot replace output graph authorization. Preserve the distinction between input/source authority and output disclosure authority.
