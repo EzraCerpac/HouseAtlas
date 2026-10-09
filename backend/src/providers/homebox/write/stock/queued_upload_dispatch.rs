@@ -1,5 +1,6 @@
 //! Closed one-shot native upload effects. Channel requests are phase inputs,
 //! never authority; the original root pump owns all current qualification.
+pub(crate) use super::queued_upload_source::PendingReadbackIdentity;
 use super::queued_upload_source::{
     PendingQueuedUploadReadback, QualifiedQueuedUploadReadback, QueuedUploadSource,
 };
@@ -207,7 +208,11 @@ pub struct QueuedUploadNativeAttempt<'native, 'owner, 'captured, 'p> {
     deadline: Instant,
     cancellation: CancellationToken,
 }
+pub(crate) struct QueuedUploadEffectsIdentity {
+    _private: (),
+}
 pub struct CapturedQueuedUploadEffects<'native, 'owner, 'captured, 'p> {
+    historical_identity: Arc<QueuedUploadEffectsIdentity>,
     proxy: QueuedUploadExecutionPhaseProxy<'native, 'owner, 'captured, 'p>,
     permit: InvocationPermit,
     transport: write_transport::DispatchReport,
@@ -221,11 +226,20 @@ pub struct CapturedQueuedUploadEffects<'native, 'owner, 'captured, 'p> {
     deadline: Instant,
 }
 pub struct QueuedUploadFinishEvidence<'a> {
+    effects_identity: &'a Arc<QueuedUploadEffectsIdentity>,
+    qualified_readback_identity: Option<&'a Arc<PendingReadbackIdentity>>,
     execution: &'a Arc<Execution>,
     report: &'a jobs::FinishReport,
     steps: &'a [storage::QueueStepEvidence],
 }
 impl QueuedUploadFinishEvidence<'_> {
+    pub(crate) fn effects_identity(&self) -> &Arc<QueuedUploadEffectsIdentity> {
+        self.effects_identity
+    }
+    pub(crate) fn qualified_readback_identity(&self) -> Option<&Arc<PendingReadbackIdentity>> {
+        self.qualified_readback_identity
+    }
+
     pub fn execution(&self) -> &Arc<Execution> {
         self.execution
     }
@@ -311,6 +325,7 @@ impl<'native, 'owner, 'captured, 'p> QueuedUploadNativeAttempt<'native, 'owner, 
             .await;
         // Preserve the actual transport result before any journal, GET or output await.
         Arc::new(CapturedQueuedUploadEffects {
+            historical_identity: Arc::new(QueuedUploadEffectsIdentity { _private: () }),
             proxy: self.proxy,
             permit: self.permit,
             transport: report,
@@ -326,6 +341,22 @@ impl<'native, 'owner, 'captured, 'p> QueuedUploadNativeAttempt<'native, 'owner, 
     }
 }
 impl<'native, 'owner, 'captured, 'p> CapturedQueuedUploadEffects<'native, 'owner, 'captured, 'p> {
+    pub(crate) fn historical_identity(&self) -> &Arc<QueuedUploadEffectsIdentity> {
+        &self.historical_identity
+    }
+    pub(crate) fn matches_qualified_readback_identity(
+        &self,
+        expected: Option<&Arc<PendingReadbackIdentity>>,
+    ) -> bool {
+        match (self.qualified.get(), expected) {
+            (None, None) => true,
+            (Some(qualified), Some(expected)) => self.pending.get().is_some_and(|pending| {
+                qualified.matches_capture(pending)
+                    && Arc::ptr_eq(pending.historical_identity(), expected)
+            }),
+            _ => false,
+        }
+    }
     pub fn matches_execution(&self, execution: &Arc<Execution>) -> bool {
         Arc::ptr_eq(&self.proxy.execution, execution)
     }
@@ -481,6 +512,11 @@ impl<'native, 'owner, 'captured, 'p> CapturedQueuedUploadEffects<'native, 'owner
         }
         self.check_current(context)?;
         Ok(QueuedUploadFinishEvidence {
+            effects_identity: &self.historical_identity,
+            qualified_readback_identity: self
+                .qualified
+                .get()
+                .and_then(|_| self.pending.get().map(|p| p.historical_identity())),
             execution: &self.proxy.execution,
             report: self.report().ok_or(StockPortFault::Unavailable)?,
             steps: self.steps(),
@@ -794,4 +830,56 @@ fn generated_match(
 }
 fn job_digest(digest: &Digest) -> PortResult<jobs::Digest> {
     jobs::Digest::from_hex(digest.as_str().to_owned()).map_err(|_| StockPortFault::EvidenceConflict)
+}
+
+pub(super) struct QueuedUploadHistoricalEffectFacts<'a, 'captured, 'p> {
+    pub(super) permit: &'a InvocationPermit,
+    pub(super) native_command: &'a StockCommand,
+    pub(super) native_plan: &'a NativePlan,
+    pub(super) native_authority: &'a StockAuthority,
+    pub(super) report: &'a write_transport::DispatchReport,
+    pub(super) finish: &'a jobs::FinishReport,
+    pub(super) steps: &'a [storage::QueueStepEvidence],
+    pub(super) pending: Option<&'a PendingQueuedUploadReadback<'captured, 'p>>,
+    pub(super) qualified: Option<&'a QualifiedQueuedUploadReadback<'captured, 'p>>,
+}
+impl<'native, 'owner, 'captured, 'p> CapturedQueuedUploadEffects<'native, 'owner, 'captured, 'p> {
+    pub(super) fn historical_facts(
+        &self,
+    ) -> PortResult<QueuedUploadHistoricalEffectFacts<'_, 'captured, 'p>> {
+        check_execution(&self.proxy.execution, self.proxy.native)?;
+        self.check_report()?;
+        if let Some(pending) = self.pending.get()
+            && !pending.matches_source(self.proxy.native.source())
+        {
+            return Err(StockPortFault::EvidenceConflict);
+        }
+        if let Some(qualified) = self.qualified.get()
+            && !self
+                .pending
+                .get()
+                .is_some_and(|pending| qualified.matches_capture(pending))
+        {
+            return Err(StockPortFault::EvidenceConflict);
+        }
+        Ok(QueuedUploadHistoricalEffectFacts {
+            permit: &self.permit,
+            native_command: self.proxy.native.command(),
+            native_plan: self.proxy.native.plan(),
+            native_authority: self.proxy.native.authority(),
+            report: &self.transport,
+            finish: self.report().ok_or(StockPortFault::EvidenceConflict)?,
+            steps: self.steps(),
+            pending: self.pending.get().map(Arc::as_ref),
+            qualified: self.qualified.get(),
+        })
+    }
+    // Call only after bounded historical input and derivation-work accounting.
+    pub(super) fn validate_historical_frozen(&self) -> PortResult<()> {
+        let (report, steps) = self.derive_finish()?;
+        if self.report() != Some(&report) || self.steps() != steps {
+            return Err(StockPortFault::EvidenceConflict);
+        }
+        Ok(())
+    }
 }

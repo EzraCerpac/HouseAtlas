@@ -394,11 +394,26 @@ impl<'captured, 'p> QueuedUploadSource<'captured, 'p> {
     }
 }
 /// Exact real GET retained before any fallible post-I/O qualification.
+pub(crate) struct PendingReadbackIdentity {
+    _private: (),
+}
 pub(super) struct PendingQueuedUploadReadback<'captured, 'p> {
+    historical_identity: Arc<PendingReadbackIdentity>,
     identity: Arc<ObservationIdentity<'captured, 'p>>,
     capture: read::CapturedStockEntityObservation,
 }
-impl PendingQueuedUploadReadback<'_, '_> {
+impl<'captured, 'p> PendingQueuedUploadReadback<'captured, 'p> {
+    pub(super) fn historical_identity(&self) -> &Arc<PendingReadbackIdentity> {
+        &self.historical_identity
+    }
+    pub(super) fn historical_observation(&self) -> &read::CapturedStockEntityObservation {
+        &self.capture
+    }
+    pub(super) fn matches_source(&self, source: &QueuedUploadSource<'captured, 'p>) -> bool {
+        Arc::ptr_eq(&self.identity, &source.identity)
+            && Arc::ptr_eq(&self.identity.issuer, &source.identity.issuer)
+    }
+
     pub(super) fn original_bytes(&self) -> &[u8] {
         self.capture.original_bytes()
     }
@@ -495,6 +510,7 @@ impl<'captured, 'p> QueuedUploadSource<'captured, 'p> {
                     .map_err(|_| StockErrorCode::ResourceUnavailable)?;
             // Preserve original lexical bytes before reader, Source or Media postchecks.
             let pending = Arc::new(PendingQueuedUploadReadback {
+                historical_identity: Arc::new(PendingReadbackIdentity { _private: () }),
                 identity: self.identity.clone(),
                 capture,
             });
