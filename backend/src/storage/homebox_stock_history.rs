@@ -84,42 +84,43 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         let query_json = self.contract.canonical_json(&json!({
             "format":history_repository::HOMEBOX_HISTORY_CURSOR_FORMAT,"commandId":request.id().as_str(),
             "target":request.target(),"payload":query}))?;
-        let check =
-            |phase, registration: Option<&SourceRegistration>, entries: &[Value], result| {
-                let history = authorize(
-                    &self.contract,
-                    authorization,
-                    principal,
-                    read_request(&scope, Capability::ReadHistory, &[]),
-                )?;
-                let mut partition_request = read_request(&scope, Capability::ReadCache, &[]);
-                partition_request.source_partition = Some(&partition);
-                let actor = authorize(&self.contract, authorization, principal, partition_request)?;
-                let mut source_request = read_request(&scope, Capability::ReadCache, &[]);
-                source_request.source = Some(&source);
-                let source_actor =
-                    authorize(&self.contract, authorization, principal, source_request)?;
-                let history_actor = authorization.authorize_homebox_stock_history(
-                    principal,
-                    HomeBoxStockHistoryFrame {
-                        phase,
-                        request: raw,
-                        scope: &scope,
-                        target: &target,
-                        partition: &partition,
-                        registration,
-                        entries,
-                        result,
-                    },
-                )?;
-                if actor != history || actor != source_actor || actor != history_actor {
-                    return Err(Error::new(
-                        "unauthenticated",
-                        "Verified history principal changed",
-                    ));
-                }
-                Ok(actor)
-            };
+        let check = |phase,
+                     registration: Option<&SourceRegistration>,
+                     entries: &[Value],
+                     result: Option<&OwnerResult>| {
+            let history = authorize(
+                &self.contract,
+                authorization,
+                principal,
+                read_request(&scope, Capability::ReadHistory, &[]),
+            )?;
+            let mut partition_request = read_request(&scope, Capability::ReadCache, &[]);
+            partition_request.source_partition = Some(&partition);
+            let actor = authorize(&self.contract, authorization, principal, partition_request)?;
+            let mut source_request = read_request(&scope, Capability::ReadCache, &[]);
+            source_request.source = Some(&source);
+            let source_actor = authorize(&self.contract, authorization, principal, source_request)?;
+            let history_actor = authorization.authorize_homebox_stock_history(
+                principal,
+                HomeBoxStockHistoryFrame {
+                    phase,
+                    request: raw,
+                    scope: &scope,
+                    target: &target,
+                    partition: &partition,
+                    registration,
+                    entries,
+                    result,
+                },
+            )?;
+            if actor != history || actor != source_actor || actor != history_actor {
+                return Err(Error::new(
+                    "unauthenticated",
+                    "Verified history principal changed",
+                ));
+            }
+            Ok(actor)
+        };
         let actor = check(HomeBoxStockHistoryPhase::Entry, None, &[], None)?;
         if !self.options.stock_activity_profile {
             return Err(Error::new(
@@ -178,8 +179,64 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                 "target":request.target()})
             })
             .collect();
-        let next = if page.has_more {
-            let id = self.runtime.new_id()?;
+        let next_after = if page.has_more {
+            Some(
+                i64::try_from(
+                    page.items
+                        .get(page_size - 1)
+                        .ok_or_else(incompatible)?
+                        .sequence(),
+                )
+                .map_err(|_| incompatible())?,
+            )
+        } else {
+            None
+        };
+        let make_output = |cursor: Option<&str>| -> Result<OwnerResult> {
+            let output = OwnerResult {
+                wire: json!({"schemaVersion":3,"commandId":request.id().as_str(),"requestId":request.request_id(),
+                "resolvedScope":request.context(),"status":"read","replayed":false,
+                "data":{"entries":entries.iter().take(page_size).collect::<Vec<_>>(),
+                    "nextCursor":cursor,"completeness":"atlas-mediated-only",
+                    "coverage":"atlas-mediated-only"}}),
+                children: Vec::new(),
+            };
+            contracts
+                .validate(request.operation().output_schema, &output.wire)
+                .map_err(stock_error)?;
+            Ok(output)
+        };
+        let recheck = |phase, output: &OwnerResult| -> Result<()> {
+            if check(phase, Some(&registration), &entries, Some(output))? != actor {
+                return Err(Error::new(
+                    "unauthenticated",
+                    "Verified history principal changed",
+                ));
+            }
+            Ok(())
+        };
+        let output = if let Some(last) = next_after {
+            // Selection remains read-only. Resolve the winning immutable DATA
+            // cursor under writer admission before authorizing the final output.
+            tx.commit()?;
+            let tx = self
+                .db
+                .transaction_with_behavior(TransactionBehavior::Immediate)?;
+            if cache_repository::source(&tx, &partition)? != registration {
+                return Err(incompatible());
+            }
+            let key = history_repository::NativeHistoryCursorKey {
+                scope: &scope,
+                actor: &actor.actor_id,
+                canonical_query: &query_json,
+                watermark: page.watermark,
+                after: last,
+            };
+            let existing = history_repository::identical_cursor(&tx, &key)?;
+            let (id, insert) = match existing {
+                Some(id) => (id, false),
+                None => (self.runtime.new_id()?, true),
+            };
             shape(
                 &self.contract,
                 "recordRef",
@@ -188,68 +245,34 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                     record_id: id.clone(),
                 },
             )?;
-            Some((
-                id,
-                i64::try_from(
-                    page.items
-                        .get(page_size - 1)
-                        .ok_or_else(incompatible)?
-                        .sequence(),
-                )
-                .map_err(|_| incompatible())?,
-            ))
-        } else {
-            None
-        };
-        let output = OwnerResult {
-            wire: json!({"schemaVersion":3,"commandId":request.id().as_str(),"requestId":request.request_id(),
-                "resolvedScope":request.context(),"status":"read","replayed":false,
-                "data":{"entries":entries.iter().take(page_size).collect::<Vec<_>>(),
-                    "nextCursor":next.as_ref().map(|(id,_)|id),"completeness":"atlas-mediated-only",
-                    "coverage":"atlas-mediated-only"}}),
-            children: Vec::new(),
-        };
-        contracts
-            .validate(request.operation().output_schema, &output.wire)
-            .map_err(stock_error)?;
-        let recheck = |phase| -> Result<()> {
-            if check(phase, Some(&registration), &entries, Some(&output))? != actor {
-                return Err(Error::new(
-                    "unauthenticated",
-                    "Verified history principal changed",
-                ));
+            let output = make_output(Some(&id))?;
+            recheck(HomeBoxStockHistoryPhase::Page, &output)?;
+            recheck(HomeBoxStockHistoryPhase::CursorPrecommit, &output)?;
+            if insert {
+                history_repository::admit_cursor(&tx, &scope, &actor.actor_id)?;
+                tx.execute(
+                    "INSERT INTO stock_history_cursors VALUES(?1,?2,?3,?4,?5,?6,?7,1)",
+                    params![
+                        id,
+                        scope.workspace_id,
+                        scope.home_id,
+                        actor.actor_id,
+                        query_json,
+                        page.watermark,
+                        last
+                    ],
+                )?;
             }
-            Ok(())
-        };
-        recheck(HomeBoxStockHistoryPhase::Page)?;
-        tx.commit()?;
-        if let Some((id, last)) = next {
-            // Cursor rows are data. Bind the original actor and entire query,
-            // persist under a separate write transaction, and release freshly.
-            let tx = self
-                .db
-                .transaction_with_behavior(TransactionBehavior::Immediate)?;
-            if cache_repository::source(&tx, &partition)? != registration {
-                return Err(incompatible());
-            }
-            recheck(HomeBoxStockHistoryPhase::CursorPrecommit)?;
-            history_repository::admit_cursor(&tx, &scope, &actor.actor_id)?;
-            tx.execute(
-                "INSERT INTO stock_history_cursors VALUES(?1,?2,?3,?4,?5,?6,?7,1)",
-                params![
-                    id,
-                    scope.workspace_id,
-                    scope.home_id,
-                    actor.actor_id,
-                    query_json,
-                    page.watermark,
-                    last
-                ],
-            )?;
-            recheck(HomeBoxStockHistoryPhase::CursorPrecommit)?;
+            recheck(HomeBoxStockHistoryPhase::CursorPrecommit, &output)?;
             tx.commit()?;
-        }
-        recheck(HomeBoxStockHistoryPhase::Release)?;
+            output
+        } else {
+            let output = make_output(None)?;
+            recheck(HomeBoxStockHistoryPhase::Page, &output)?;
+            tx.commit()?;
+            output
+        };
+        recheck(HomeBoxStockHistoryPhase::Release, &output)?;
         Ok(output)
     }
 }
