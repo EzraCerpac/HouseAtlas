@@ -604,6 +604,7 @@ impl<'native, 'owner, 'captured, 'p> CapturedQueuedUploadEffects<'native, 'owner
             }
             NativeDispatch::Invoked(receipt) => {
                 liability.metadata_commit_evidence = jobs::MetadataCommitEvidence::Unknown;
+                liability.byte_disposition = jobs::ByteDisposition::Unknown;
                 let contracts =
                     NativeWriterContracts::new().map_err(|_| StockPortFault::Unavailable)?;
                 let facts = super::evidence::dispatch_facts(
