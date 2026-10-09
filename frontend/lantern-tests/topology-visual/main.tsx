@@ -1903,6 +1903,7 @@ const fixture = {
 globalThis.fetch = async () => new Response(null, { status: 404 });
 const session: AtlasSessionInfo = { schemaVersion: 1, actorId: '00000000-0000-4000-8000-000000000802', csrfToken: 'synthetic-unused', expiresAt: '2099-01-01T00:00:00Z' };
 const records = fixture.records as Record<string, readonly unknown[]>;
+const snapshotSha256 = 'a'.repeat(64); // Shared synthetic positive-fixture comparison metadata.
 const topology = createTopologyClient({ schemas:createStockSchemas(), getSessionBinding:()=>({session,scope:fixture.scope}), subscribeSessionBinding:()=>()=>{},
   transport:async (url)=>{
     const query=new URL(String(url),'https://atlas.invalid').searchParams;
@@ -1910,7 +1911,7 @@ const topology = createTopologyClient({ schemas:createStockSchemas(), getSession
     const rows=records[request.target.recordType]!;
     const filtered=request.payload.buildingId === undefined ? rows : rows.filter((r:any)=>r.target.recordId===request.payload.buildingId || request.payload.buildingId===fixture.members[0] && fixture.members.includes(r.target.recordId));
     return new Response(JSON.stringify({schemaVersion:3,commandId:request.commandId,requestId:request.requestId,resolvedScope:fixture.scope,status:'read',replayed:false,
-      data:{records:filtered,nextCursor:null,sourceStatus:'current'}}),{status:200,headers:{'Content-Type':'application/json'}});
+      data:{records:filtered,nextCursor:null,sourceStatus:'current'}}),{status:200,headers:{'Content-Type':'application/json','x-atlas-snapshot-sha256':snapshotSha256}});
   } });
 createRoot(document.getElementById('root')!).render(<LanternHost view={fixture.view as ReadyView} actions={{reload:async()=>true,switchHome:()=>{},busy:false,notice:'',
   session:{...session,signOut:async()=>{}}}} nativeContent={null} {...(new URLSearchParams(window.location.search).get('mode') === 'unavailable' ? {} : {topology})}/>);

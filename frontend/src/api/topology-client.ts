@@ -17,9 +17,9 @@ export interface TopologyRecord<K extends TopologyKind> {
   readonly payload: TopologyPayloads[K];
 }
 export type AtlasReadStatus = 'current' | 'stale' | 'unavailable' | 'unresolved';
-export type TopologyFailure = 'unavailable' | 'expired' | 'denied' | 'timedOut' | 'tooLarge' | 'continuationUnavailable';
+export type TopologyFailure = 'unavailable' | 'expired' | 'denied' | 'timedOut' | 'tooLarge' | 'continuationUnavailable' | 'changed';
 export type TopologyRead<K extends TopologyKind> =
-  | { readonly status: 'ready'; readonly records: readonly TopologyRecord<K>[]; readonly sourceStatus: AtlasReadStatus }
+  | { readonly status: 'ready'; readonly records: readonly TopologyRecord<K>[]; readonly sourceStatus: AtlasReadStatus; readonly snapshotSha256: string }
   | { readonly status: TopologyFailure };
 /** Opaque allocation correlation, not a grant or session credential. */
 export interface TopologyBinding { readonly scope: Readonly<Scope> }
@@ -115,7 +115,7 @@ export function createTopologyClient(options: {
       return await deadline(changed.signal, topologyPolicy.sequenceTimeoutMs, async signal => {
         const records: TopologyRecord<K>[] = [];
         const seen = new Set<string>(), ids = new Set<string>();
-        let cursor: string | null = null, sourceStatus: AtlasReadStatus | undefined, totalBytes = 0;
+        let cursor: string | null = null, sourceStatus: AtlasReadStatus | undefined, snapshotSha256: string | undefined, totalBytes = 0;
         for (let page = 0; page < topologyPolicy.maxPages; page++) {
           current(signal);
           const commandId = `atlas.${kind}.list`;
@@ -127,7 +127,7 @@ export function createTopologyClient(options: {
           options.schemas.validate(`#/$defs/request_atlas_${commandKind[kind]}_list`, request);
           const raw = JSON.stringify(request), query = `request=${encodeURIComponent(raw)}`;
           if (new TextEncoder().encode(raw).byteLength > 16384 || query.length > 32768) throw new ReadFailure('tooLarge');
-          const { value, bytes } = await deadline(signal, topologyPolicy.pageTimeoutMs, async pageSignal => {
+          const { value, bytes, snapshotSha256: pageSnapshot } = await deadline(signal, topologyPolicy.pageTimeoutMs, async pageSignal => {
             current(pageSignal);
             const url = `/api/atlas/stock/v3/workspaces/${encodeURIComponent(binding.scope.workspaceId)}/homes/${encodeURIComponent(binding.scope.homeId)}/invoke?${query}`;
             const response = await transport(url, { method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
@@ -138,7 +138,12 @@ export function createTopologyClient(options: {
               throw new ReadFailure(response.status === 401 ? 'expired' : response.status === 403 ? 'denied'
                 : response.status === 422 && cursor !== null ? 'continuationUnavailable' : 'unavailable');
             }
-            return receive(response, pageSignal);
+            // Equality metadata for retained content, never authority or provider freshness.
+            const snapshot = response.headers.get('x-atlas-snapshot-sha256');
+            if (snapshot === null || snapshot.length !== 64 || !/^[0-9a-f]{64}$/.test(snapshot)) {
+              discard(response); throw new ReadFailure('unavailable');
+            }
+            return { ...await receive(response, pageSignal), snapshotSha256: snapshot };
           });
           current(signal);
           totalBytes += bytes;
@@ -150,6 +155,8 @@ export function createTopologyClient(options: {
           if (result.requestId !== requestId || result.commandId !== commandId || result.status !== 'read'
             || result.resolvedScope.workspaceId !== binding.scope.workspaceId || result.resolvedScope.homeId !== binding.scope.homeId)
             throw new ReadFailure('unavailable');
+          if (snapshotSha256 !== undefined && snapshotSha256 !== pageSnapshot) throw new ReadFailure('changed');
+          snapshotSha256 = pageSnapshot;
           if (sourceStatus !== undefined && sourceStatus !== result.data.sourceStatus) throw new ReadFailure('continuationUnavailable');
           sourceStatus = result.data.sourceStatus;
           for (const record of result.data.records) {
@@ -162,7 +169,7 @@ export function createTopologyClient(options: {
           const next = result.data.nextCursor;
           if (next === null) {
             if (buildingId !== undefined && !ids.has(buildingId)) throw new ReadFailure('unavailable');
-            return { status: 'ready' as const, records, sourceStatus };
+            return { status: 'ready' as const, records, sourceStatus, snapshotSha256 };
           }
           if (seen.has(next)) throw new ReadFailure('continuationUnavailable');
           seen.add(next); cursor = next;
