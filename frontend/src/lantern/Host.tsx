@@ -8,6 +8,7 @@ import type { ModelContextPort } from '../webmcp/ports';
 import type { QuantityAdmissionPort } from '../webmcp/quantity/tool';
 import { QuantityHandoffLeaf } from '../webmcp/quantity/QuantityHandoff';
 import type { PinnedFileClient } from '../api/pinned-file-client';
+import type { NetworkRelationsClient } from '../api/network-relations-client';
 import { projectView } from './adapters/read';
 import { StoreProvider } from './state/store';
 import { NativeActions } from './components/NativeActions';
@@ -20,11 +21,13 @@ import './styles/panels.css';
 import './styles/integration.css';
 
 /** The existing session/view/stock owners remain above this presentation seam. */
-export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinnedFiles }: {
+export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinnedFiles, networkRelations }: {
   view: ReadyView; actions: AtlasContentActions; nativeContent: ReactNode;
   quantityWebMcp?: { readonly admission: QuantityAdmissionPort; readonly modelContext: ModelContextPort };
   /** Optional local HomeBox file consumer; its actions are explicit user reads. */
   pinnedFiles?: PinnedFileClient;
+  /** Optional saved Network relations reader; each page is an explicit user read. */
+  networkRelations?: NetworkRelationsClient;
 }) {
   const client = useMemo(() => createGeometryClient(), []);
   const historyClient = useMemo(() => createOperationHistoryClient(), []);
@@ -85,7 +88,7 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   const currentHistory = history?.view === view && history.session === session ? history.read : { status: 'loading' as const };
   const current = geometry?.view === view && geometry.session === session ? geometry.read : { status: 'loading' as const };
   const projection = useMemo(() => projectView(view, current, currentHistory, loadMoreOperations), [view, current, currentHistory, loadMoreOperations]);
-  const ports = useMemo(() => ({ ...actions, nativeContent, ...(pinnedFiles ? { pinnedFiles } : {}) }), [actions, nativeContent, pinnedFiles]);
+  const ports = useMemo(() => ({ ...actions, nativeContent, ...(pinnedFiles ? { pinnedFiles } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, nativeContent, pinnedFiles, networkRelations]);
   return <StoreProvider key={projection.house.id} projection={projection} actions={ports}>
     <App />
     <NativeActions />
