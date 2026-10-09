@@ -14,6 +14,7 @@ use axum::{
     http::{Method, StatusCode, Uri},
 };
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::{
     cell::{Cell, OnceCell},
     sync::{Arc, Mutex},
@@ -68,6 +69,33 @@ pub(super) fn snapshot(
 fn digest(snapshot: &s::Snapshot) -> st::StockResult<String> {
     c::semantics::canonical_digest(&serde_json::to_value(snapshot).map_err(|_| unavailable())?)
         .map_err(|_| unavailable())
+}
+fn snapshot_content_digest(
+    context: &st::StockContext,
+    snapshot: &s::Snapshot,
+) -> st::StockResult<String> {
+    struct HashWriter(Sha256);
+    impl std::io::Write for HashWriter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.update(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut writer = HashWriter(Sha256::new());
+    // Pinned serde_json preserves arbitrary-precision number spellings and
+    // uses sorted Value object keys. Borrow the actual original scoped graph;
+    // no floating-point canonicalization or full serialization buffer.
+    serde_json::to_writer(&mut writer, &(context, snapshot)).map_err(|_| unavailable())?;
+    let mut digest = String::with_capacity(64);
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    for byte in writer.0.finalize() {
+        digest.push(char::from(HEX[usize::from(byte >> 4)]));
+        digest.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    Ok(digest)
 }
 fn read_operation(request: &st::ValidatedRequest) -> st::StockResult<()> {
     if request.is_mutation()
@@ -693,6 +721,43 @@ pub(super) fn execute_raw_qualified(
     contracts: &st::NativeStockContract,
     handles: Option<&st::AtlasDownloadHandles>,
 ) -> st::StockResult<st::OwnerResult> {
+    execute_raw_with_snapshot(core, p, raw, contracts, handles, false).map(|result| result.owner)
+}
+
+/// HTTP-only correlation from the original prepared graph, never authority.
+pub(super) struct QualifiedResult {
+    pub owner: st::OwnerResult,
+    pub snapshot_sha256: Option<String>,
+}
+
+impl From<st::OwnerResult> for QualifiedResult {
+    fn from(owner: st::OwnerResult) -> Self {
+        Self {
+            owner,
+            snapshot_sha256: None,
+        }
+    }
+}
+
+pub(super) fn qualified_response(result: QualifiedResult) -> HttpResult {
+    let mut response = json_response(result.owner.wire);
+    if let Some(digest) = result.snapshot_sha256 {
+        response.headers_mut().insert(
+            "x-atlas-snapshot-sha256",
+            axum::http::HeaderValue::from_str(&digest).map_err(|_| http_error(unavailable()))?,
+        );
+    }
+    Ok(response)
+}
+
+pub(super) fn execute_raw_with_snapshot(
+    core: &Core,
+    p: &RequestPrincipal,
+    raw: Value,
+    contracts: &st::NativeStockContract,
+    handles: Option<&st::AtlasDownloadHandles>,
+    http_snapshot: bool,
+) -> st::StockResult<QualifiedResult> {
     let list_binding = {
         let access = core.access.lock().map_err(|_| unavailable())?;
         p.release(&access).map_err(|_| changed())?;
@@ -719,14 +784,29 @@ pub(super) fn execute_raw_qualified(
         },
         super::stock_downloads::Downloads::for_core(core, handles),
     )?;
-    st::dispatch(
+    let owner = st::dispatch_prepared(
         p,
-        prepared,
+        &prepared,
         contracts,
         &authority,
         &mut queries,
         &mut CommandsUnavailable,
-    )
+    )?;
+    let snapshot_sha256 =
+        if http_snapshot && st::atlas_list_record_type(prepared.request().id()).is_some() {
+            // Hash the same complete original graph only after disclosure,
+            // recomputation and final current-Storage checks have succeeded.
+            Some(snapshot_content_digest(
+                prepared.request().context(),
+                &prepared.graph().0,
+            )?)
+        } else {
+            None
+        };
+    Ok(QualifiedResult {
+        owner,
+        snapshot_sha256,
+    })
 }
 pub(super) fn http_error(error: st::StockError) -> super::HttpFailure {
     match error {
@@ -799,8 +879,8 @@ pub(super) async fn list(
                 if st::atlas_list_record_type(request.id()).is_none() {
                     return Err(failure(StatusCode::UNPROCESSABLE_ENTITY));
                 }
-                let result = execute_raw(core, p, raw, &contracts).map_err(http_error)?;
-                Ok(json_response(result.wire))
+                let result = execute_raw_with_snapshot(core, p, raw, &contracts, None, true).map_err(http_error)?;
+                qualified_response(result)
             })
     }).await.map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
 }
