@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { AiPanelView, type AiModelsBinding } from '../AiPanel.js';
 import { failureMessages } from '../model.js';
 import { useAiSession } from '../useAiSession.js';
+import { AccountObservationSection } from '../AccountObservation.js';
 import type { AiClient, AiReceiptIdentity } from '../types.js';
 
 /** Supplied by the authenticated host; a home label or role is not a scope key. */
@@ -60,11 +61,11 @@ function BoundHost({ context, children }: {
 /** Mount only in the existing Settings list. All policy/status copy is donor-owned. */
 export function AiSettingsSection() {
   const host = useContext(HostContext);
-  if (!host) return <section className="setting ai-host" aria-label="AI">
+  if (!host) return <><section className="setting ai-host" aria-label="AI">
     <div className="setting-text"><h2>AI</h2><p role="status">AI host is unavailable.</p></div>
-  </section>;
+  </section><AccountObservationSection /></>;
   const { session } = host;
-  return <div className="setting ai-host">
+  return <><div className="setting ai-host">
     <AiPanelView
       modelsBinding={host.modelsBinding}
       state={session.state} scopeLabel={host.scopeLabel} prompt={host.prompt}
@@ -74,7 +75,7 @@ export function AiSettingsSection() {
       onReview={() => { void session.review(); }} onRecover={() => { void session.recover(); }}
       unresolvedConnectionActions={session.unresolvedConnectionActions}
     />
-  </div>;
+  </div><AccountObservationSection /></>;
 }
 
 /** Small factual notice outside Settings; canonical output stays in the panel. */
