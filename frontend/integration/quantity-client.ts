@@ -8,6 +8,8 @@ export interface QuantityClientOptions {
   transport?: typeof fetch;
 }
 const root = '/api/atlas/homebox/quantity';
+// Local settlement budget only; a sent POST can still have been admitted or applied.
+const requestTimeoutMs = 30_000;
 const freeze = <T,>(value: T): T => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
 /** Private custody data only; grants no proof, approval or reconciliation authority. A null approval means no decoded receipt, not non-issuance. */
 interface DispatchCustody { readonly prepared: QuantityPrepared; readonly approval: QuantityApproval | null }
@@ -88,34 +90,64 @@ export function createQuantityClient(options: QuantityClientOptions): QuantityCl
   async function request(action: string, binding: QuantitySessionBinding, signal: AbortSignal, body?: object, query = '', originalSource?: SourceRef, custody?: DispatchCustody) {
     if (!isCurrent(binding)) throw new QuantityActionError('expired', 'Session');
     const controller = new AbortController();
-    const abort = () => controller.abort(); signal.addEventListener('abort', abort, { once: true });
+    const abort = () => controller.abort(signal.reason); signal.addEventListener('abort', abort, { once: true });
     const unsubscribe = subscribe(() => { if (!isCurrent(binding)) controller.abort(); });
+    let reject!: (reason: unknown) => void;
+    const stopped = new Promise<never>((_, no) => { reject = no; });
+    const stop = () => reject(controller.signal.reason);
+    controller.signal.addEventListener('abort', stop, { once: true });
+    const timer = setTimeout(() => controller.abort(new QuantityActionError('unavailable', action)), requestTimeoutMs);
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     let posted = false, status: number | null = null;
     try {
-      signal.throwIfAborted(); if (!isCurrent(binding)) throw new QuantityActionError('expired', 'Session');
-      const raw = body ? JSON.stringify(body) : undefined;
-      if (raw && new TextEncoder().encode(raw).length > (action === 'preview' ? 16384 : 4096)) throw new TypeError('Quantity request exceeds transport bound');
-      posted = !!body;
-      const response = await transport(`${root}/${action}${query}`, { method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: controller.signal,
-        headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json', 'X-Atlas-CSRF': binding.session.csrfToken } : {}) }, ...(raw ? { body: raw } : {}) });
-      status = response.status;
+      const exchange = async () => {
+        signal.throwIfAborted(); if (!isCurrent(binding)) throw new QuantityActionError('expired', 'Session');
+        controller.signal.throwIfAborted();
+        const raw = body ? JSON.stringify(body) : undefined;
+        if (raw && new TextEncoder().encode(raw).length > (action === 'preview' ? 16384 : 4096)) throw new TypeError('Quantity request exceeds transport bound');
+        posted = !!body;
+        const response = await transport(`${root}/${action}${query}`, { method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: controller.signal,
+          headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json', 'X-Atlas-CSRF': binding.session.csrfToken } : {}) }, ...(raw ? { body: raw } : {}) });
+        if (controller.signal.aborted) { void response.body?.cancel().catch(() => undefined); controller.signal.throwIfAborted(); }
+        status = response.status;
+        controller.signal.throwIfAborted();
+        if (!isCurrent(binding)) {
+          void response.body?.cancel().catch(() => undefined);
+          throw new QuantityActionError('expired', 'Session');
+        }
+        // Posted dispatch 503 may be overloaded before or after native admission: outcome unconfirmed.
+        // Posted approval 503 may follow actual receipt issuance then an output/currentness failure: outcome unconfirmed.
+        if (!response.ok) {
+          void response.body?.cancel().catch(() => undefined);
+          throw new QuantityActionError(posted && (action === 'dispatch' || action === 'approval') && response.status === 503 ? 'unknown' : ({401:'expired',403:'denied',404:'absent',409:'changed',503:'unavailable'} as const)[response.status as 401] ?? 'unknown', action);
+        }
+        reader = response.body?.getReader(); if (!reader) throw new TypeError('Quantity response missing');
+        const chunks: Uint8Array[] = []; let length = 0;
+        while (true) { const next = await reader.read(); controller.signal.throwIfAborted(); if (next.done) break; length += next.value.byteLength; if (length > 1048576) { await reader.cancel(); throw new TypeError('Quantity response exceeds bound'); } chunks.push(next.value); }
+        const bytes = new Uint8Array(length); let offset = 0; for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+        const value: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+        controller.signal.throwIfAborted();
+        if (!isCurrent(binding)) throw new QuantityActionError('expired', 'Session');
+        return value;
+      };
+      const value = await Promise.race([exchange(), stopped]);
       controller.signal.throwIfAborted();
       if (!isCurrent(binding)) throw new QuantityActionError('expired', 'Session');
-      // Posted dispatch 503 may be overloaded before or after native admission: outcome unconfirmed.
-      // Posted approval 503 may follow actual receipt issuance then an output/currentness failure: outcome unconfirmed.
-      if (!response.ok) throw new QuantityActionError(posted && (action === 'dispatch' || action === 'approval') && response.status === 503 ? 'unknown' : ({401:'expired',403:'denied',404:'absent',409:'changed',503:'unavailable'} as const)[response.status as 401] ?? 'unknown', action);
-      const reader = response.body?.getReader(); if (!reader) throw new TypeError('Quantity response missing');
-      const chunks: Uint8Array[] = []; let length = 0;
-      while (true) { const next = await reader.read(); controller.signal.throwIfAborted(); if (next.done) break; length += next.value.byteLength; if (length > 1048576) { await reader.cancel(); throw new TypeError('Quantity response exceeds bound'); } chunks.push(next.value); }
-      const bytes = new Uint8Array(length); let offset = 0; for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-      if (!isCurrent(binding)) throw new QuantityActionError('expired', 'Session');
-      return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown;
+      return value;
     } catch (error) {
       if (posted && originalSource && (!(error instanceof QuantityActionError) || error.state === 'unknown' || controller.signal.aborted || !isCurrent(binding))) throw unknown(originalSource, binding, action, custody, status);
       if (error instanceof QuantityActionError && !controller.signal.aborted) throw error;
       if (posted) throw new QuantityActionError('unknown', action);
       throw error;
-    } finally { unsubscribe(); signal.removeEventListener('abort', abort); }
+    } finally {
+      clearTimeout(timer);
+      unsubscribe(); signal.removeEventListener('abort', abort);
+      controller.signal.removeEventListener('abort', stop);
+      if (reader) {
+        void reader.cancel().catch(() => undefined);
+        reader.releaseLock();
+      }
+    }
   }
   return {
     getBindingIdentity: getPublicIdentity,
