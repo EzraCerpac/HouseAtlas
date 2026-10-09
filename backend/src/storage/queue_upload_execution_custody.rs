@@ -1,19 +1,32 @@
 //! Process-local execution custody for one released original upload journal.
 //! Construction correlates original cuts; it does not authorize transport or
 //! infer that a native invocation has started or ended.
+use super::upload_finish_history::QueuedUploadFinishHistoryIdentity;
 use super::*;
 use crate::{
     app::homebox_queued_upload_admission::OriginalQueuedUploadAdmission,
     media::native_queued_upload::{NativeQueuedUploadOriginal, NativeQueuedUploadPrepared},
     providers::homebox::write::stock::queued_upload_dispatch::{
-        CapturedQueuedUploadEffects, QueuedUploadFinishEvidence,
+        CapturedQueuedUploadEffects, PendingReadbackIdentity, QueuedUploadEffectsIdentity,
+        QueuedUploadFinishEvidence,
     },
 };
 use std::cell::Cell;
-use std::sync::MutexGuard;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::{MutexGuard, OnceLock};
 use upload_journal_custody::OriginalUploadJournalCut;
 use upload_original_owner::OriginalQueuedUploadAttempt;
+
+fn same_readback_identity(
+    expected: Option<&Arc<PendingReadbackIdentity>>,
+    actual: Option<&Arc<PendingReadbackIdentity>>,
+) -> bool {
+    match (expected, actual) {
+        (None, None) => true,
+        (Some(expected), Some(actual)) => Arc::ptr_eq(expected, actual),
+        _ => false,
+    }
+}
 
 const READY: u8 = 0;
 const DISPATCH_ENTERED: u8 = 1;
@@ -46,12 +59,16 @@ pub struct QueueUploadFinishCommittedData {
     journal_receipt: NativeJournalReceipt,
     outcome_at: Timestamp,
     outcome: QueueUploadFinishOutcomeData,
+    finish_identity: Arc<QueuedUploadFinishHistoryIdentity>,
+    effects_identity: Arc<QueuedUploadEffectsIdentity>,
+    qualified_readback_identity: Option<Arc<PendingReadbackIdentity>>,
 }
 /// The exact SQLite outcome inserted by this finish transaction.
 pub struct QueueUploadFinishOutcomeData {
     event_id: i64,
     body: String,
     digest: String,
+    codec_version: u32,
 }
 impl QueueUploadFinishOutcomeData {
     pub fn event_id(&self) -> i64 {
@@ -63,11 +80,15 @@ impl QueueUploadFinishOutcomeData {
     pub fn digest(&self) -> &str {
         &self.digest
     }
+    pub fn codec_version(&self) -> u32 {
+        self.codec_version
+    }
     fn retained_data(&self) -> Self {
         Self {
             event_id: self.event_id,
             body: self.body.clone(),
             digest: self.digest.clone(),
+            codec_version: self.codec_version,
         }
     }
 }
@@ -107,6 +128,7 @@ pub(super) fn load_new_finish_outcome(
         event_id,
         body,
         digest: stored_digest,
+        codec_version: u32::try_from(codec).map_err(|_| bad())?,
     })
 }
 impl QueueUploadFinishCommittedData {
@@ -140,7 +162,19 @@ impl QueueUploadFinishCommittedData {
             journal_receipt: self.journal_receipt.clone(),
             outcome_at: self.outcome_at,
             outcome: self.outcome.retained_data(),
+            finish_identity: Arc::clone(&self.finish_identity),
+            effects_identity: Arc::clone(&self.effects_identity),
+            qualified_readback_identity: self.qualified_readback_identity.as_ref().map(Arc::clone),
         }
+    }
+    pub(super) fn finish_identity(&self) -> &Arc<QueuedUploadFinishHistoryIdentity> {
+        &self.finish_identity
+    }
+    pub(super) fn effects_identity(&self) -> &Arc<QueuedUploadEffectsIdentity> {
+        &self.effects_identity
+    }
+    pub(super) fn qualified_readback_identity(&self) -> Option<&Arc<PendingReadbackIdentity>> {
+        self.qualified_readback_identity.as_ref()
     }
     fn matches(
         &self,
@@ -218,6 +252,7 @@ pub struct OriginalQueuedUploadExecution {
     // Independent one-way finish header. Its entry requires the sealed Source
     // effect and is intentionally not exposed through a raw report API.
     finish_state: AtomicU8,
+    finish_history_identity: OnceLock<Arc<QueuedUploadFinishHistoryIdentity>>,
 }
 
 impl OriginalQueuedUploadExecution {
@@ -251,6 +286,7 @@ impl OriginalQueuedUploadExecution {
             ledger: Mutex::new(Cell::new(ExecutionLedger::Ready)),
             finish_ledger: Mutex::new(Cell::new(FinishLedger::Ready)),
             finish_state: AtomicU8::new(READY),
+            finish_history_identity: OnceLock::new(),
         })
     }
 
@@ -285,6 +321,51 @@ impl OriginalQueuedUploadExecution {
             ledger.set(current);
             released
         })
+    }
+
+    pub(super) fn matches_finish_history_identity(
+        &self,
+        identity: &Arc<QueuedUploadFinishHistoryIdentity>,
+    ) -> bool {
+        self.finish_history_identity
+            .get()
+            .is_some_and(|own| Arc::ptr_eq(own, identity))
+    }
+
+    /// Borrow only the genuine fully released Finish. Restore the Cell on every
+    /// Result path; a committed observation cannot enter this helper.
+    pub(super) fn with_released_finish_history_facts<T>(
+        self: &Arc<Self>,
+        effects: &CapturedQueuedUploadEffects<'_, '_, '_, '_>,
+        copy: impl FnOnce(&QueueUploadFinishCommittedData) -> Result<T>,
+    ) -> Result<T> {
+        if !effects.matches_execution(self) {
+            return Err(conflict());
+        }
+        let ledger = self.finish_ledger.try_lock().map_err(|_| conflict())?;
+        let current = ledger.take();
+        let result = match &current {
+            FinishLedger::ReleaseQualified(data)
+                if self.finish_state.load(Ordering::Acquire) == DISPATCH_RELEASED
+                    && self.matches_finish_history_identity(&data.finish_identity)
+                    && Arc::ptr_eq(&data.effects_identity, effects.historical_identity())
+                    && effects.matches_qualified_readback_identity(
+                        data.qualified_readback_identity.as_ref(),
+                    )
+                    && effects.report() == Some(&data.report)
+                    && effects.steps() == data.steps
+                    && data.job == *self.attempt.job()
+                    && data.journal_receipt.native_payload_digest
+                        == self.journal.receipt().native_payload_digest
+                    && data.journal_receipt.journal_evidence_digest
+                        == self.journal.receipt().journal_evidence_digest =>
+            {
+                copy(data)
+            }
+            _ => Err(conflict()),
+        };
+        ledger.set(current);
+        result
     }
 
     /// Burns the dispatch entry before any fallible provenance or Access check.
@@ -344,6 +425,7 @@ pub(super) struct QueueUploadFinishCapture<'a, 'native, 'owner, 'captured, 'p> {
     native: &'a Arc<NativeQueuedUploadPrepared>,
     report: &'a FinishReport,
     steps: &'a [QueueStepEvidence],
+    accepted_readback_identity: Cell<Option<Option<Arc<PendingReadbackIdentity>>>>,
     observation: &'a QueueUploadFinishCommittedObservation,
     ledger: MutexGuard<'a, Cell<FinishLedger>>,
     prepared: Cell<Option<PreparedFinishCommit>>,
@@ -416,6 +498,7 @@ impl<'a, 'native, 'owner, 'captured, 'p>
             native: execution.native_preparation(),
             report,
             steps,
+            accepted_readback_identity: Cell::new(None),
             observation,
             ledger,
             prepared: Cell::new(None),
@@ -435,6 +518,21 @@ impl<'a, 'native, 'owner, 'captured, 'p>
             || !std::ptr::eq(view.report(), self.report)
             || !std::ptr::eq(view.steps(), self.steps)
         {
+            return Err(conflict());
+        }
+        if !Arc::ptr_eq(view.effects_identity(), self.effects.historical_identity()) {
+            return Err(conflict());
+        }
+        let prior = self.accepted_readback_identity.take();
+        let valid = match &prior {
+            None => true,
+            Some(expected) => {
+                same_readback_identity(expected.as_ref(), view.qualified_readback_identity())
+            }
+        };
+        self.accepted_readback_identity
+            .set(prior.or_else(|| Some(view.qualified_readback_identity().map(Arc::clone))));
+        if !valid {
             return Err(conflict());
         }
         Ok(())
@@ -517,6 +615,21 @@ impl<'a, 'native, 'owner, 'captured, 'p>
         {
             return Err(conflict());
         }
+        let readback = self.accepted_readback_identity.take();
+        let qualified_readback_identity = readback.as_ref().cloned().ok_or_else(conflict);
+        self.accepted_readback_identity.set(readback);
+        let qualified_readback_identity = qualified_readback_identity?;
+        if !self
+            .effects
+            .matches_qualified_readback_identity(qualified_readback_identity.as_ref())
+        {
+            return Err(conflict());
+        }
+        let finish_identity = Arc::clone(
+            self.execution
+                .finish_history_identity
+                .get_or_init(|| Arc::new(QueuedUploadFinishHistoryIdentity::new())),
+        );
         let data = QueueUploadFinishCommittedData {
             job: input.job.clone(),
             report: input.report.clone(),
@@ -525,6 +638,9 @@ impl<'a, 'native, 'owner, 'captured, 'p>
             journal_receipt: actual_receipt.clone(),
             outcome_at,
             outcome,
+            finish_identity,
+            effects_identity: Arc::clone(self.effects.historical_identity()),
+            qualified_readback_identity,
         };
         self.prepared.set(Some(PreparedFinishCommit {
             ledger: data.retained_data(),
@@ -558,7 +674,7 @@ impl<'a, 'native, 'owner, 'captured, 'p>
             )?;
             Ok(stored.0 == data.outcome.body
                 && stored.1 == data.outcome.digest
-                && stored.2 == 1
+                && u32::try_from(stored.2).ok() == Some(data.outcome.codec_version)
                 && digest(stored.0.as_bytes()) == stored.1)
         })();
         self.ledger.set(current);
@@ -578,7 +694,13 @@ impl<'a, 'native, 'owner, 'captured, 'p>
                     snapshot,
                     self.execution.journal.receipt(),
                     data.outcome_at,
-                ) =>
+                ) && Arc::ptr_eq(&data.effects_identity, self.effects.historical_identity())
+                    && self.effects.matches_qualified_readback_identity(
+                        data.qualified_readback_identity.as_ref(),
+                    )
+                    && self
+                        .execution
+                        .matches_finish_history_identity(&data.finish_identity) =>
             {
                 if self
                     .execution
