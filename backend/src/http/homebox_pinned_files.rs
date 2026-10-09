@@ -30,6 +30,7 @@ use std::{
 const QUERY_MAX_BYTES: usize = 32_768;
 const WIRE_MAX_BYTES: usize = 16_384;
 const MAX_CAPTURE_REQUESTS: usize = 1024;
+const MAX_SESSION_CAPTURE_REQUESTS: usize = 128;
 
 type CaptureRequestKey = ([u8; 32], String, String, String);
 struct ConsumedCaptureRequest {
@@ -39,6 +40,8 @@ struct ConsumedCaptureRequest {
 /// Process-local at-most-once admission, not a delivery or issuance receipt.
 /// Spent IDs survive every later failure until the original session expires.
 /// Capacity exhaustion refuses new work rather than evicting a live spent ID.
+/// Each authenticated session has a smaller quota so one session cannot spend
+/// the entire shared budget. The global bound still limits aggregate retention.
 #[derive(Default)]
 pub(super) struct CaptureRequests {
     spent: BTreeMap<CaptureRequestKey, ConsumedCaptureRequest>,
@@ -83,7 +86,15 @@ impl CaptureRequests {
                 invalid()
             });
         }
-        if self.spent.len() >= MAX_CAPTURE_REQUESTS {
+        if self.spent.len() >= MAX_CAPTURE_REQUESTS
+            || self
+                .spent
+                .keys()
+                .filter(|key| key.0 == session)
+                .take(MAX_SESSION_CAPTURE_REQUESTS)
+                .count()
+                >= MAX_SESSION_CAPTURE_REQUESTS
+        {
             return Err(unavailable());
         }
         self.spent.insert(
