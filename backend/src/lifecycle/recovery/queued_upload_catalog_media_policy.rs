@@ -17,7 +17,7 @@ use crate::{
         WorkBudget, native_policy_archive::NativeMediaArchiveReadOwner,
         recovery_policy_archive::AuthenticatedMediaPolicyArchive,
     },
-    storage::{self, QueueRecoveryEvidence},
+    storage::{self, QueueDiscovery, QueueRecoveryEvidence},
 };
 
 fn unavailable() -> storage::Error {
@@ -34,7 +34,7 @@ fn checkpoint(budget: &WorkBudget) -> storage::Result<()> {
 // Private composition restricts Media to the actual native archive read owner.
 // Both delegates match immutable owner evidence; no filesystem, Storage,
 // Access or vault reentry occurs under the validation read transaction.
-struct CatalogMediaEvidence<'borrow, 'origin, E> {
+pub(super) struct CatalogMediaEvidence<'borrow, 'origin, E> {
     jobs: &'borrow E,
     archive: &'borrow AuthenticatedMediaPolicyArchive<'origin, NativeMediaArchiveReadOwner>,
 }
@@ -54,6 +54,32 @@ impl<E: QueueRecoveryEvidence> QueueRecoveryEvidence for CatalogMediaEvidence<'_
     ) -> storage::Result<()> {
         self.archive.validate_frame(frame)
     }
+}
+
+// Borrow the exact actual catalog Jobs/discovery references. The native
+// archive is independently authenticated beforehand; no generic Media auth
+// port, grant refresh or archive construction enters this factory.
+pub(super) fn with_native_media_policy_peers<D, E, R>(
+    peers: &RecoveryPeers<'_, D, E>,
+    archive: &AuthenticatedMediaPolicyArchive<'_, NativeMediaArchiveReadOwner>,
+    budget: &WorkBudget,
+    operation: impl FnOnce(&RecoveryPeers<'_, D, CatalogMediaEvidence<'_, '_, E>>) -> storage::Result<R>,
+) -> storage::Result<R>
+where
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+{
+    checkpoint(budget)?;
+    let actual = peers.storage();
+    let evidence = CatalogMediaEvidence {
+        jobs: actual.evidence,
+        archive,
+    };
+    let composed = RecoveryPeers::new(actual.queues, actual.discovery, &evidence)
+        .map_err(|_| unavailable())?;
+    let result = operation(&composed)?;
+    checkpoint(budget)?;
+    Ok(result)
 }
 
 /// Validate the original selected image with all authenticated catalog frames
@@ -92,14 +118,9 @@ pub fn validate_catalog_image_with_media_policy(
         intake.grant(),
         budget,
         |peers| {
-            let actual = peers.storage();
-            let evidence = CatalogMediaEvidence {
-                jobs: actual.evidence,
-                archive,
-            };
-            let composed = RecoveryPeers::new(actual.queues, actual.discovery, &evidence)
-                .map_err(|_| unavailable())?;
-            upload_history_validation::validate_selected_image(intake.image(), &composed, budget)
+            with_native_media_policy_peers(peers, archive, budget, |composed| {
+                upload_history_validation::validate_selected_image(intake.image(), composed, budget)
+            })
         },
     )
 }
