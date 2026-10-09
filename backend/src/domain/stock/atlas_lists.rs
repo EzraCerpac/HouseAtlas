@@ -68,11 +68,13 @@ impl AtlasListPrincipal for crate::media::native::RetainedPrincipal {
 struct Cursor {
     token: String,
     context: String,
+    session: [u8; 32],
     offset: usize,
     expires: Instant,
 }
 /// Share one instance across request adapters and authenticated transports.
-/// At most 1000 cursors, five-minute lifetime and no restart persistence. An
+/// At most 1000 cursors, with at most 100 per authenticated session,
+/// five-minute lifetime and no restart persistence. An
 /// admitted query reserves its continuation chain atomically; unexpired tokens
 /// are never evicted, including during another query's output release.
 #[derive(Clone)]
@@ -91,6 +93,8 @@ impl Default for AtlasListPages {
 impl AtlasListPages {
     /// A host may choose a smaller bounded cache. Two slots retain the consumed
     /// predecessor and its successor throughout ordinary result recomputation.
+    /// The session ceiling is min(100, capacity); a capacity of 100 or fewer
+    /// slots can therefore be consumed by one authenticated session.
     pub fn with_capacity(capacity: usize) -> StockResult<Self> {
         if !(2..=1000).contains(&capacity) {
             return Err(StockError::InvalidContract);
@@ -175,7 +179,14 @@ impl AtlasListPages {
                     .map(|n| n * limit)
                     .filter(|offset| !offsets.contains(offset))
                     .collect();
-                if missing.len() > self.capacity.saturating_sub(cursors.len()) {
+                let session_used = cursors
+                    .iter()
+                    .filter(|cursor| cursor.session == binding.session)
+                    .count();
+                let session_capacity = self.capacity.min(100);
+                if missing.len() > self.capacity.saturating_sub(cursors.len())
+                    || missing.len() > session_capacity.saturating_sub(session_used)
+                {
                     return Err(StockError::OwnerUnavailable);
                 }
                 let mut tokens: BTreeSet<_> = cursors.iter().map(|c| c.token.clone()).collect();
@@ -190,6 +201,7 @@ impl AtlasListPages {
                     reserved.push(Cursor {
                         token,
                         context: context.clone(),
+                        session: binding.session,
                         offset,
                         expires: now + Duration::from_secs(300),
                     });
