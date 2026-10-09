@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "928fd2aad31475a81f86586fe07f157e947e96ea929166fa6f808fc674ea92eb",
+  "sourceDigestSha256": "1ffe1d585b7c31482457316887166388d3b56010ea348eaf00e409610f18159c",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -847,8 +847,8 @@
     {
       "path": "backend/src/app.rs",
       "mode": "100644",
-      "bytes": 27507,
-      "sha256": "e5556c66ce3c92bbb158f9646c75317e0ae2cf0cf59c16ef8aa71d45159030c8",
+      "bytes": 27546,
+      "sha256": "4d120ccad4ad0e697203eaf371ce54cef585e4bca5ebbca8b8ae1d4788994fec",
       "owner": "core-integration"
     },
     {
@@ -926,6 +926,13 @@
       "mode": "100644",
       "bytes": 20909,
       "sha256": "8b9add929b7f7ae47a45b8cbea181c437548be6a9c6e7b852d90b2f7f28cd1f6",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/app/homebox_queued_upload_history.rs",
+      "mode": "100644",
+      "bytes": 4889,
+      "sha256": "069ec1cc95f86a833fcd6b167fd930d52dac6cd1c8427be607b2152a616a577b",
       "owner": "core-integration"
     },
     {
@@ -2569,8 +2576,8 @@
     {
       "path": "backend/src/media/native_queued_upload.rs",
       "mode": "100644",
-      "bytes": 81712,
-      "sha256": "47003c5977b6103a6a7235425df80b52f1d97a3ff5f044c28eeaa2a2e15b192b",
+      "bytes": 95716,
+      "sha256": "3fc6c8dbe385b9b3cc2acf92934b13b051a198bea7f5e02a0de0bd9274b579d2",
       "owner": "media"
     },
     {
@@ -3325,8 +3332,8 @@
     {
       "path": "backend/src/providers/homebox/write/stock/fresh.rs",
       "mode": "100644",
-      "bytes": 42644,
-      "sha256": "52d9bcc544145cd2329f3c06b03808219c3da8de6002f8a7c6a6ec1c3f15deac",
+      "bytes": 42748,
+      "sha256": "78446879c16e1673163dba42704518c4b39ec695f5574b01bd3e7ac9995e49c3",
       "owner": "homebox"
     },
     {
@@ -3353,8 +3360,8 @@
     {
       "path": "backend/src/providers/homebox/write/stock/mod.rs",
       "mode": "100644",
-      "bytes": 2735,
-      "sha256": "a2c5175a236684fcca7051e2cf54a7f6decbed870edbeab06743650c2450ba54",
+      "bytes": 2796,
+      "sha256": "917e074ba958a6a2522e3dcfe61d64306814935c6d1d7d17aa4b54fddcd72ce1",
       "owner": "homebox"
     },
     {
@@ -3470,17 +3477,24 @@
       "owner": "homebox"
     },
     {
+      "path": "backend/src/providers/homebox/write/stock/queued_upload_history.rs",
+      "mode": "100644",
+      "bytes": 27482,
+      "sha256": "15d913f64baed2725e4dc1914989e1d59ed23f3724d2e2635b818fb5adb4a527",
+      "owner": "homebox"
+    },
+    {
       "path": "backend/src/providers/homebox/write/stock/queued_upload_installation.rs",
       "mode": "100644",
-      "bytes": 22888,
-      "sha256": "b0d1f80451629acbdd1b56d92ecf2be846e645db8d9f093bcc329a2e64274b69",
+      "bytes": 25947,
+      "sha256": "bd15334b812a09fd33c66733ae9bb854598a2a31151ebbb06c99510fccaa5f75",
       "owner": "homebox"
     },
     {
       "path": "backend/src/providers/homebox/write/stock/queued_upload_source.rs",
       "mode": "100644",
-      "bytes": 35995,
-      "sha256": "64633979c7d2851248e85ebe291eae33890cea7eab776bb365a9a21649a6187b",
+      "bytes": 38660,
+      "sha256": "7fca3cad06f9aba8fb4c86c08ac899d5ea48884e339fbdb372301b6cea05921d",
       "owner": "homebox"
     },
     {
@@ -4123,8 +4137,8 @@
     {
       "path": "backend/src/storage/mod.rs",
       "mode": "100644",
-      "bytes": 3664,
-      "sha256": "9849999c31542b969bbb5e35e00b6eb9cce608ef1d6e7a99b7e9b53c8290faa2",
+      "bytes": 3705,
+      "sha256": "dad321e2a41cbfd7d616f3d2e3c57708539b0fdb992b7845ca45621395c032b0",
       "owner": "storage"
     },
     {
@@ -4214,8 +4228,8 @@
     {
       "path": "backend/src/storage/queue.rs",
       "mode": "100644",
-      "bytes": 24880,
-      "sha256": "373a64e6c26aa7f6407d33dba0b9d62e71500abc2e72366e5c409a4768354ced",
+      "bytes": 24997,
+      "sha256": "6f39e29d8a5196469bf02af5a9114a9ebf4d9141b6135e3a0ba7b07f3c226594",
       "owner": "storage"
     },
     {
@@ -4366,10 +4380,17 @@
       "owner": "storage"
     },
     {
+      "path": "backend/src/storage/queue_upload_history.rs",
+      "mode": "100644",
+      "bytes": 15353,
+      "sha256": "b3c2a9da7b287db7a3908f129a92de27f49d3bbbbff6774990786c2f524b403c",
+      "owner": "storage"
+    },
+    {
       "path": "backend/src/storage/queue_upload_journal_custody.rs",
       "mode": "100644",
-      "bytes": 11318,
-      "sha256": "2efa5853e382566519cb2141484be62db8a95102d207ddba548211d717950ee2",
+      "bytes": 13271,
+      "sha256": "e64bbcb32c9a3faadfa1c6a1e0681b6937e9ae7e1586a7f0f118fc76c98ccb12",
       "owner": "storage"
     },
     {
@@ -4382,8 +4403,8 @@
     {
       "path": "backend/src/storage/queue_upload_original_owner.rs",
       "mode": "100644",
-      "bytes": 24762,
-      "sha256": "c33d26880eeffe7cb77a7eeaf1810aba9e484292f1363dfc1bed1917e0066577",
+      "bytes": 29147,
+      "sha256": "28c2121bddfc7611d699483f40a4673c55d0180fc7665617359f22810ff5e57a",
       "owner": "storage"
     },
     {
@@ -5110,8 +5131,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 42631,
-      "sha256": "4674fa4394ebb72620f1e07c47f7c19b1f13317f5df28d2b96ed34b09835686a",
+      "bytes": 43549,
+      "sha256": "0c64d9be956361d06a239aeb24109ba8b32c08b31db8d74581a1e1c39f4febea",
       "owner": "core-integration"
     },
     {
