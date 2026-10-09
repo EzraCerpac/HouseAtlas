@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "1511c1e036c1b4513728b6791462bb535d149b5022ea34e8827f2ed1dfc4383f",
+  "sourceDigestSha256": "457d8747cd7cdf39d84dd301a53e2da1610dd54e610ab10f42cdb9c2c8a2c0b1",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5992,8 +5992,8 @@
     {
       "path": "frontend/src/lantern/components/DetailPanel.tsx",
       "mode": "100644",
-      "bytes": 35750,
-      "sha256": "387ac427f60ddf1d66a7cd6fe56ac0213c5a783f375e508b342cd1f84f758a56",
+      "bytes": 35776,
+      "sha256": "b9f873a764fd473143a94d473d8cf360bc66edb118dbf8ad33902e63cea2e77d",
       "owner": "web"
     },
     {
@@ -6209,8 +6209,8 @@
     {
       "path": "frontend/src/lantern/state/store.tsx",
       "mode": "100644",
-      "bytes": 8783,
-      "sha256": "86bb5ea2dbdb218317490dec497ee7e968898c01ccc9fe418e8d2767f36f7235",
+      "bytes": 9411,
+      "sha256": "660aec34027d1e44ef5803b7e9f33489a372e1e5123c723d106fac0b7e25398e",
       "owner": "web"
     },
     {
