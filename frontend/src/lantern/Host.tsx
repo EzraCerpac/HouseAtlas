@@ -37,6 +37,8 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   const client = useMemo(() => createGeometryClient(), []);
   const historyClient = useMemo(() => createOperationHistoryClient(), []);
   const session = actions.session?.expiresAt;
+  const [archive, setArchive] = useState<{ view: ReadyView; session: typeof session; included: boolean } | null>(null);
+  const includeArchived = archive?.view === view && archive.session === session ? archive.included : false;
   const [geometry, setGeometry] = useState<{ view: ReadyView; session: typeof session; read: GeometryRead } | null>(null);
   useEffect(() => {
     const controller = new AbortController();
@@ -92,8 +94,12 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   }, [historyClient, history, view, session]);
   const currentHistory = history?.view === view && history.session === session ? history.read : { status: 'loading' as const };
   const current = geometry?.view === view && geometry.session === session ? geometry.read : { status: 'loading' as const };
-  const projection = useMemo(() => projectView(view, current, currentHistory, loadMoreOperations), [view, current, currentHistory, loadMoreOperations]);
-  const ports = useMemo(() => ({ ...actions, nativeContent, ...(pinnedFiles ? { pinnedFiles } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, nativeContent, pinnedFiles, networkRelations]);
+  const projection = useMemo(() => projectView(view, current, currentHistory, loadMoreOperations, includeArchived), [view, current, currentHistory, loadMoreOperations, includeArchived]);
+  const archiveVisibility = useMemo(() => ({ included: includeArchived, setIncluded: (included: boolean) => {
+    if (renderedHistoryScope.current.view !== view || renderedHistoryScope.current.session !== session) return;
+    setArchive({ view, session, included });
+  } }), [view, session, includeArchived]);
+  const ports = useMemo(() => ({ ...actions, nativeContent, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, nativeContent, archiveVisibility, pinnedFiles, networkRelations]);
   return <StoreProvider key={projection.house.id} projection={projection} actions={ports}>
     <TopologyProvider client={topology}><App /></TopologyProvider>
     <NativeActions />
