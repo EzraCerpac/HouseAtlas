@@ -18,8 +18,10 @@ initialize/initialized/tools-list, one circuit create, and canonical get/history
 audit readback across seven POSTs. It uses only private generated synthetic
 credentials and closes the native session through normal Host teardown before
 fixture cleanup. Inspect the complete example and review its scope before running;
-this command is not part of ordinary CI and has not been executed by this source
-addition. No listener, provider, denial, replay, expiry, revocation, rotation,
+this command is not part of ordinary CI. The inspected development composition
+passed this exact disposable example on 2026-10-09, including native commit,
+get/history readback and normal fixture cleanup. No listener, provider, denial,
+replay, expiry, revocation, rotation,
 cancellation, injection, concurrency or other control is included.
 
 ## Module composition
