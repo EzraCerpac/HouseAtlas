@@ -45,6 +45,7 @@ pub(crate) struct ArchivedQueuedUploadOriginalFactsIdentity {
 /// Bounded semantic DATA. Caller-supplied contracts never issue an owner proof.
 pub struct ArchivedQueuedUploadOriginalFacts<'permit, 'bytes> {
     frame: &'permit AuthenticatedQueuedUploadOriginalFrame<'bytes>,
+    decoded_allocation_charge: usize,
     identity: Arc<ArchivedQueuedUploadOriginalFactsIdentity>,
     original: ValidatedRequest,
     config: QueueConfig,
@@ -219,6 +220,7 @@ impl<'permit, 'bytes> ArchivedQueuedUploadOriginalFacts<'permit, 'bytes> {
         check(budget)?;
         let facts = Self {
             frame,
+            decoded_allocation_charge: allocations.bytes,
             identity: Arc::new(ArchivedQueuedUploadOriginalFactsIdentity { _private: () }),
             original,
             config,
@@ -231,6 +233,9 @@ impl<'permit, 'bytes> ArchivedQueuedUploadOriginalFacts<'permit, 'bytes> {
         };
         check(budget)?;
         Ok(facts)
+    }
+    pub(crate) fn decoded_allocation_charge(&self) -> usize {
+        self.decoded_allocation_charge
     }
     pub fn original(&self) -> &ValidatedRequest {
         &self.original

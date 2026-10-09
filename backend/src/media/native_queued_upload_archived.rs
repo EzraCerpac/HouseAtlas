@@ -77,6 +77,7 @@ impl ArchivedQueuedUploadMediaImpact {
 /// custody. Raw sections borrow the SAME genuine authenticated input permit.
 pub struct ArchivedQueuedUploadMediaFacts<'permit, 'bytes> {
     frame: &'permit AuthenticatedQueuedUploadOriginalFrame<'bytes>,
+    decoded_allocation_charge: usize,
     identity: Arc<ArchivedQueuedUploadMediaFactsIdentity>,
     storage_identity: Arc<s::ArchivedQueuedUploadOriginalFactsIdentity>,
     source_identity: Arc<native::ArchivedQueuedUploadSourceFactsIdentity>,
@@ -254,6 +255,7 @@ impl<'permit, 'bytes> ArchivedQueuedUploadMediaFacts<'permit, 'bytes> {
         // succeeded. These clones do not capture Source/Storage/live owners.
         let facts = Self {
             frame,
+            decoded_allocation_charge: charged,
             identity: Arc::new(ArchivedQueuedUploadMediaFactsIdentity { _private: () }),
             storage_identity: Arc::clone(storage.identity()),
             source_identity: Arc::clone(source.identity()),
@@ -287,6 +289,9 @@ impl<'permit, 'bytes> ArchivedQueuedUploadMediaFacts<'permit, 'bytes> {
         };
         check(budget)?;
         Ok(facts)
+    }
+    pub(crate) fn decoded_allocation_charge(&self) -> usize {
+        self.decoded_allocation_charge
     }
     pub fn matches_authenticated(
         &self,

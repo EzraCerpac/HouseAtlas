@@ -1,7 +1,11 @@
 //! Pure catalog validation with actual archived owners. No recovery action,
 //! live original authority, body custody or remote-effect proof is created.
-use super::homebox_queued_upload_history_catalog_admission::AdmittedQueuedUploadOriginalCatalogEntry;
+use super::{
+    homebox_queued_upload_history_catalog::{MAX_CATALOG_MEMBERS, MAX_CATALOG_QUEUES},
+    homebox_queued_upload_history_catalog_admission::AdmittedQueuedUploadOriginalCatalogEntry,
+};
 use crate::{
+    access::{OfflineRecoveryAuthority, RecoveryDiscoveryGrant},
     config::recovery::RecoveryPeers,
     domain::{
         queue_recovery::{
@@ -11,9 +15,11 @@ use crate::{
         },
         stock::{NativeStockContract, ValidatedRequest},
     },
-    jobs::{JobId, LeasedJob, QueueRegistration, ReceiptKey},
+    jobs::{JobId, LeasedJob, QueueConfig, QueueRegistration, ReceiptKey},
     lifecycle::recovery::{
-        upload_history_intake::PreparedQueuedUploadHistoryIntake,
+        upload_history_intake::{
+            AuthenticatedQueuedUploadOriginalFrame, PreparedQueuedUploadHistoryIntake,
+        },
         upload_history_validation::{self, ValidatedQueuedUploadHistoryImage},
     },
     media::{
@@ -31,17 +37,21 @@ use crate::{
 };
 use std::sync::Arc;
 
-const MAX_QUEUES: usize = 256;
-// Before any deep decode, reserve each owner's entire conservative ceiling:
-// Storage 96 MiB + Source 64 MiB + Media 64 MiB + 32 MiB admission,
-// catalog metadata and delegation headroom. This is a decoding allowance,
-// not a measurement of process RSS or the already captured archive/image.
+// Admission accounting, not process RSS or the already captured archive/image.
+// Before each deep decode, reserve all current decoder ceilings together:
+// Storage 96 MiB + Source 64 MiB + Media 64 MiB + 32 MiB transient headroom.
 const FRAME_DECODE_ALLOWANCE: usize = 256 * 1024 * 1024;
 const CATALOG_DECODE_ALLOWANCE: usize = 512 * 1024 * 1024;
-const MAX_FRAMES: usize = CATALOG_DECODE_ALLOWANCE / FRAME_DECODE_ALLOWANCE;
+// Covers bounded contract construction, complete registry copies, vectors and
+// peer metadata. Per-record lookup owns four receipt strings (allowing up to
+// five at 16 KiB each), a 16 KiB request ID, a 64-byte digest and object overhead.
+// Immutable borrowed archive frames have their separate existing 512 MiB cap.
+const FIXED_ALLOWANCE: usize = 32 * 1024 * 1024;
+const RECORD_ALLOWANCE: usize = 128 * 1024;
+const LOOKUP_TEXT_LIMIT: usize = 16 * 1024;
 
 struct CatalogIdentity;
-struct CatalogProof<'p, 'b> {
+pub(crate) struct CatalogProof<'p, 'b> {
     identity: Arc<CatalogIdentity>,
     slot: usize,
     original: ArchivedQueuedUploadOriginalProof<'p, 'b>,
@@ -55,7 +65,7 @@ struct Record<'p, 'b, 'w> {
     request_id: String,
     intent_digest: String,
 }
-struct Catalog<'p, 'b, 'w> {
+pub(crate) struct Catalog<'p, 'b, 'w> {
     identity: Arc<CatalogIdentity>,
     records: Vec<Record<'p, 'b, 'w>>,
     budget: &'w WorkBudget,
@@ -240,38 +250,56 @@ impl<'p, 'b> NativeRetainedEvidence<CatalogProof<'p, 'b>> for Catalog<'p, 'b, '_
     }
 }
 
-pub fn validate_catalog_image(
-    intake: &PreparedQueuedUploadHistoryIntake<'_, '_, '_>,
+pub(crate) type CatalogDiscovery<'a, 'p, 'b, 'w> = NativeQueueDiscovery<
+    'a,
+    NativeStockContract,
+    OfflineRecoveryAuthority,
+    Catalog<'p, 'b, 'w>,
+    Catalog<'p, 'b, 'w>,
+>;
+pub(crate) type CatalogEvidence<'a, 'peer, 'p, 'b, 'w> = NativeQueueRecoveryEvidence<
+    'a,
+    'peer,
+    NativeStockContract,
+    OfflineRecoveryAuthority,
+    Catalog<'p, 'b, 'w>,
+    Catalog<'p, 'b, 'w>,
+    Catalog<'p, 'b, 'w>,
+>;
+
+/// Compose only genuine archived peers for the complete supplied authenticated
+/// frame group. The caller supplies the independently trusted full registry and
+/// authority/grant; neither catalog DATA nor recovered actor IDs issues them.
+/// The callback borrows operation-scoped peers and cannot retain their owners.
+pub(crate) fn with_authenticated_catalog_peers<R>(
+    frames: &[AuthenticatedQueuedUploadOriginalFrame<'_>],
+    registry: &[QueueConfig],
+    authority: &OfflineRecoveryAuthority,
+    grant: &RecoveryDiscoveryGrant,
     budget: &WorkBudget,
-) -> storage::Result<ValidatedQueuedUploadHistoryImage> {
+    operation: impl FnOnce(
+        &RecoveryPeers<'_, CatalogDiscovery<'_, '_, '_, '_>, CatalogEvidence<'_, '_, '_, '_, '_>>,
+    ) -> storage::Result<R>,
+) -> storage::Result<R> {
     check(budget)?;
-    let registry = intake.registry();
-    let members = intake.origin().catalog().members();
-    let allowance = members
-        .len()
-        .checked_mul(FRAME_DECODE_ALLOWANCE)
-        .ok_or_else(unavailable)?;
-    if registry.len() > MAX_QUEUES
-        || members.len() > MAX_FRAMES
-        || allowance > CATALOG_DECODE_ALLOWANCE
-        || members.len() != intake.archive().members().len()
-    {
+    if registry.len() > MAX_CATALOG_QUEUES || frames.len() > MAX_CATALOG_MEMBERS {
         return Err(unavailable());
     }
     for queue in registry {
         check(budget)?;
-        intake
-            .authority()
-            .revalidate(intake.grant(), registry, &queue.registration)?;
+        authority.revalidate(grant, registry, &queue.registration)?;
     }
-    // Complete immutable permit storage precedes every decoder borrow. No Vec
-    // growth, permit move or subset selection occurs after these borrows begin.
-    let mut frames = Vec::new();
-    frames
-        .try_reserve_exact(members.len())
-        .map_err(|_| unavailable())?;
-    for slot in 0..members.len() {
-        frames.push(intake.frame(slot, budget)?);
+    for frame in frames {
+        check(budget)?;
+        if !std::ptr::eq(frame.registry(), registry)
+            || frame.generation() == 0
+            || frames.first().is_some_and(|first| {
+                first.generation() != frame.generation()
+                    || first.catalog_digest() != frame.catalog_digest()
+            })
+        {
+            return Err(unavailable());
+        }
     }
     let contracts = NativeStockContract::new().map_err(|_| unavailable())?;
     let mut catalog = Catalog {
@@ -283,8 +311,10 @@ pub fn validate_catalog_image(
         .records
         .try_reserve_exact(frames.len())
         .map_err(|_| unavailable())?;
+    let mut retained = FIXED_ALLOWANCE;
     for (slot, frame) in frames.iter().enumerate() {
         check(budget)?;
+        reserve_transient(retained)?;
         if frames[..slot].iter().any(|previous| {
             previous.queue_index() == frame.queue_index() && previous.job_id() == frame.job_id()
         }) {
@@ -305,11 +335,34 @@ pub fn validate_catalog_image(
         let admitted = AdmittedQueuedUploadOriginalCatalogEntry::admit(
             frame, &storage, &source, &media, budget,
         )?;
+        // Successful monotonic leaf charges include every retained deep copy.
+        // Source DATA dies after this admission, so its entire transient ceiling
+        // is reserved above but never accumulated as retained catalog memory.
+        retained = retained
+            .checked_add(storage.decoded_allocation_charge())
+            .and_then(|n| n.checked_add(media.decoded_allocation_charge()))
+            .and_then(|n| n.checked_add(RECORD_ALLOWANCE))
+            .filter(|n| *n <= CATALOG_DECODE_ALLOWANCE)
+            .ok_or_else(unavailable)?;
         let registration = &frame
             .registry()
             .get(frame.queue_index())
             .ok_or_else(unavailable)?
             .registration;
+        let receipt = &storage.request().receipt;
+        if [
+            &receipt.workspace_id,
+            &receipt.home_id,
+            &receipt.actor_id,
+            &receipt.mutation_id,
+        ]
+        .iter()
+        .any(|value| value.len() > LOOKUP_TEXT_LIMIT)
+            || storage.original().request_id().len() > LOOKUP_TEXT_LIMIT
+            || storage.original().intent_digest().len() != 64
+        {
+            return Err(unavailable());
+        }
         let receipt = storage.request().receipt.clone();
         let request_id = storage.original().request_id().to_owned();
         let intent_digest = storage.original().intent_digest().to_owned();
@@ -325,27 +378,65 @@ pub fn validate_catalog_image(
         });
     }
     check(budget)?;
+    // The same bounded working allowance covers callback owner delegation and
+    // validation clones. It remains available even after the final frame.
+    reserve_transient(retained)?;
     let discovery = NativeQueueDiscovery::new(
         registry,
         QueueRecoveryBindings {
             stock_contract_id: crate::contracts::stock::CONTRACT_VERSION,
             contracts: &contracts,
-            authority: intake.authority(),
-            grant: intake.grant(),
+            authority,
+            grant,
             original_owner: &catalog,
             media: &catalog,
         },
     )?;
     let evidence = NativeQueueRecoveryEvidence::new(&discovery, &catalog);
     let peers = RecoveryPeers::new(registry, &discovery, &evidence).map_err(|_| unavailable())?;
-    let validated =
-        upload_history_validation::validate_selected_image(intake.image(), &peers, budget)?;
+    let result = operation(&peers)?;
     for queue in registry {
         check(budget)?;
-        intake
-            .authority()
-            .revalidate(intake.grant(), registry, &queue.registration)?;
+        authority.revalidate(grant, registry, &queue.registration)?;
     }
     check(budget)?;
-    Ok(validated)
+    Ok(result)
+}
+fn reserve_transient(retained: usize) -> storage::Result<()> {
+    retained
+        .checked_add(FRAME_DECODE_ALLOWANCE)
+        .filter(|n| *n <= CATALOG_DECODE_ALLOWANCE)
+        .map(|_| ())
+        .ok_or_else(unavailable)
+}
+
+pub fn validate_catalog_image(
+    intake: &PreparedQueuedUploadHistoryIntake<'_, '_, '_>,
+    budget: &WorkBudget,
+) -> storage::Result<ValidatedQueuedUploadHistoryImage> {
+    check(budget)?;
+    let members = intake.origin().catalog().members();
+    if intake.registry().len() > MAX_CATALOG_QUEUES
+        || members.len() > MAX_CATALOG_MEMBERS
+        || members.len() != intake.archive().members().len()
+    {
+        return Err(unavailable());
+    }
+    // Complete immutable permit storage precedes every decoder borrow. No Vec
+    // growth, permit move or subset selection occurs after these borrows begin.
+    let mut frames = Vec::new();
+    frames
+        .try_reserve_exact(members.len())
+        .map_err(|_| unavailable())?;
+    for slot in 0..members.len() {
+        frames.push(intake.frame(slot, budget)?);
+    }
+    with_authenticated_catalog_peers(
+        &frames,
+        intake.registry(),
+        intake.authority(),
+        intake.grant(),
+        budget,
+        |peers| upload_history_validation::validate_selected_image(intake.image(), peers, budget),
+    )
 }
