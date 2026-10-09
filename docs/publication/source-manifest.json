@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "007ad181da359b28f94699e578e663a9ec9d1bb16d869162a597d482b5c2c90e",
+  "sourceDigestSha256": "5b5362f2af587694b67630d3ea80670d501d9be3307c70eed469cc9c1201da1c",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -847,8 +847,8 @@
     {
       "path": "backend/src/app.rs",
       "mode": "100644",
-      "bytes": 27747,
-      "sha256": "1149a7aee32cd4385293d6afe5f9b6a9d1bc533a1312ba9c99101eef1632bee8",
+      "bytes": 27803,
+      "sha256": "0cf1ed5c56facf00ff14b2874c796fa255310d2398e7e4610e93a270271aeb41",
       "owner": "core-integration"
     },
     {
@@ -954,6 +954,13 @@
       "mode": "100644",
       "bytes": 6559,
       "sha256": "78c19fe903ba317f37c242a92dfa34ef71c88e8ef72862c3dfa690620ec7db29",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/app/homebox_queued_upload_history_catalog_recovery.rs",
+      "mode": "100644",
+      "bytes": 12842,
+      "sha256": "15062cc86543fb68ed49b88571f554ce8495cb05082270f8fdeffffc9bd291f1",
       "owner": "core-integration"
     },
     {
@@ -2296,8 +2303,8 @@
     {
       "path": "backend/src/lifecycle/mod.rs",
       "mode": "100644",
-      "bytes": 12365,
-      "sha256": "7f63159eeab755f72febb5d4b9a0bfdcc766acab527a6bb6a7355728d0249f5a",
+      "bytes": 12404,
+      "sha256": "6ea1fa5a79c6919edb5169791e2469fb5cbf96a5039730dc8c9c45576fe1cdfa",
       "owner": "core-integration"
     },
     {
@@ -2429,8 +2436,15 @@
     {
       "path": "backend/src/lifecycle/recovery/upload_history_intake.rs",
       "mode": "100644",
-      "bytes": 22872,
-      "sha256": "3f99913fc5220c9f146125511bb2649ab8a4c617d83c7f77be9936b9c6a5cf65",
+      "bytes": 22883,
+      "sha256": "8cf12263f311a5cb7ab3a9a427f6feb08aefb2bc627b373afc475f6b2710f4e4",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/lifecycle/recovery/upload_history_validation.rs",
+      "mode": "100644",
+      "bytes": 5318,
+      "sha256": "ad6ae816d18f2f83dfa74905471d4d90c6f252c6194c12ad99edfc949560d17a",
       "owner": "core-integration"
     },
     {
