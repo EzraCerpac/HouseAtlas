@@ -4,6 +4,8 @@ import { useSelect, useStore } from '../state/store';
 import { ROOM_TINT } from '../atlas/palette';
 import { EntityLink, Empty } from '../components/ui';
 import { LinkedEvidence } from '../components/LinkedEvidence';
+import { BuildingScope } from '../topology/BuildingScope';
+import { useTopology } from '../topology/TopologyProvider';
 
 export function RoomsView() {
   return (
@@ -21,6 +23,7 @@ export function RoomsView() {
 export function RoomIndex() {
   const { house, state, projection } = useStore();
   const select = useSelect();
+  const topology = useTopology();
   const [floorFilter, setFloorFilter] = useState<string>('all');
   const floors = [...house.floors].sort((a, b) => b.order - a.order);
   const shown = floorFilter === 'all' ? floors : floors.filter((f) => f.id === floorFilter);
@@ -30,7 +33,8 @@ export function RoomIndex() {
 
   return (
     <div className="room-index">
-      <div className="filter-row" role="group" aria-label="Filter places">
+      <BuildingScope />
+      {topology.buildingId === null && <div className="filter-row" role="group" aria-label="Filter places">
         <button type="button" className="chip-btn" aria-pressed={floorFilter === 'all'} onClick={() => setFloorFilter('all')}>
           All places
         </button>
@@ -39,9 +43,9 @@ export function RoomIndex() {
             {f.name}
           </button>
         ))}
-      </div>
+      </div>}
 
-      {shown.map((f) => {
+      {topology.buildingId === null && shown.map((f) => {
         const rooms = house.spaces.filter((s) => s.floorId === f.id && s.kind !== 'stair');
         return (
           <section key={f.id} className="ledger" aria-labelledby={`ledger-${f.id}`}>
@@ -102,6 +106,7 @@ export function RoomIndex() {
           <h2 id="ledger-unplaced" className="ledger-title">
             No reviewed placement
           </h2>
+          {topology.buildingId !== null && <p className="body-text muted">Whole home, not filtered by building</p>}
           <p className="body-text muted">These records have no reviewed position on a plan in the saved view.</p>
           <div className="unplaced-grid">
             <div>

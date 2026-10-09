@@ -13,21 +13,26 @@ import { projectView } from './adapters/read';
 import { StoreProvider } from './state/store';
 import { NativeActions } from './components/NativeActions';
 import { App } from './App';
+import type { TopologyClient } from '../api/topology-client';
+import { TopologyProvider } from './topology/TopologyProvider';
 import './styles/fonts.css';
 import './styles/tokens.css';
 import './styles/app.css';
 import './styles/atlas.css';
 import './styles/panels.css';
 import './styles/integration.css';
+import './styles/topology.css';
 
 /** The existing session/view/stock owners remain above this presentation seam. */
-export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinnedFiles, networkRelations }: {
+export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinnedFiles, networkRelations, topology }: {
   view: ReadyView; actions: AtlasContentActions; nativeContent: ReactNode;
   quantityWebMcp?: { readonly admission: QuantityAdmissionPort; readonly modelContext: ModelContextPort };
   /** Optional local HomeBox file consumer; its actions are explicit user reads. */
   pinnedFiles?: PinnedFileClient;
   /** Optional saved Network relations reader; each page is an explicit user read. */
   networkRelations?: NetworkRelationsClient;
+  /** Optional reviewed Atlas topology reader, scoped independently of source parentage. */
+  topology?: TopologyClient;
 }) {
   const client = useMemo(() => createGeometryClient(), []);
   const historyClient = useMemo(() => createOperationHistoryClient(), []);
@@ -90,7 +95,7 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   const projection = useMemo(() => projectView(view, current, currentHistory, loadMoreOperations), [view, current, currentHistory, loadMoreOperations]);
   const ports = useMemo(() => ({ ...actions, nativeContent, ...(pinnedFiles ? { pinnedFiles } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, nativeContent, pinnedFiles, networkRelations]);
   return <StoreProvider key={projection.house.id} projection={projection} actions={ports}>
-    <App />
+    <TopologyProvider client={topology}><App /></TopologyProvider>
     <NativeActions />
     {quantityWebMcp && actions.quantity && <QuantityHandoffLeaf client={actions.quantity} admission={quantityWebMcp.admission} modelContext={quantityWebMcp.modelContext} />}
     {actions.notice && <p className="lantern-reload-notice" role="status">{actions.notice}</p>}
