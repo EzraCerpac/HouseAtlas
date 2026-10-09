@@ -301,18 +301,18 @@ export function search(h: HouseData, query: string): SearchHit[] {
 
   for (const s of h.spaces) {
     const former = (s.formerNames ?? []).map((f) => f.name).join(' ');
-    push(s.id, 'space', s.name, `room ${s.kind} ${former} ${s.note ?? ''}`, h.floors.find((f) => f.id === s.floorId)?.name ?? '');
+    push(s.id, 'space', s.name, `${s.semanticKind ?? ''} ${former} ${s.note ?? ''}`, h.floors.find((f) => f.id === s.floorId)?.name ?? '');
   }
   for (const c of h.containers) push(c.id, 'container', c.name, `${c.kind} storage cupboard`, where(c.id));
   for (const i of h.items) {
     const kind = kindOf(i.id);
     if (kind === 'item' || kind === 'unknown') {
-      push(i.id, kind, i.name, `${i.category} ${i.model ?? ''} ${i.note ?? ''}`, where(i.id));
+      push(i.id, kind, i.name, `${i.category} ${i.manufacturer ?? ''} ${i.model ?? ''} ${i.note ?? ''}`, where(i.id));
     }
   }
   for (const d of h.docs) {
     const linked = d.linkedTo.map((l) => nameOf(h, l)).join(' ');
-    push(d.id, 'doc', d.title, `${d.kind} ${d.storage === 'link' ? 'link external' : 'stored file'} ${linked} ${d.summary ?? ''}`, d.storage === 'link' ? 'External link' : `Stored ${d.kind}`);
+    push(d.id, 'doc', d.title, `${d.kind === 'unknown' ? '' : d.kind} ${d.storage === 'link' ? 'link external' : 'stored file'} ${linked} ${d.summary ?? ''}`, d.storage === 'link' ? 'External link' : d.kind === 'unknown' ? 'Stored file' : `Stored ${d.kind}`);
   }
   for (const t of h.tasks) {
     push(t.id, 'task', t.title, `maintenance upkeep ${t.status} ${nameOf(h, t.targetId)}`, `${t.status === 'done' ? 'Done' : t.status === 'scheduled' ? 'Scheduled' : 'No schedule supplied'}, ${nameOf(h, t.targetId)}`);

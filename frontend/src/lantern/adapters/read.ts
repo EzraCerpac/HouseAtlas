@@ -55,7 +55,7 @@ function documentKind(attachment: Attachment): Doc['kind'] {
   if (attachment.kind === 'stored-file' && attachment.contentType?.startsWith('image/')) {
     return 'photo';
   }
-  return 'note';
+  return 'unknown';
 }
 
 export function projectView(view: ReadyView, geometryMetadata: GeometryRead = { status: 'loading' }, operationHistory: OperationHistoryRead = { status: 'loading' }, loadMoreOperations: (() => void) | null = null): LanternProjection {
@@ -96,6 +96,7 @@ export function projectView(view: ReadyView, geometryMetadata: GeometryRead = { 
         name: entry.entity.name,
         category: entry.entity.entityType?.name || 'Unknown',
         locationClaim: 'unknown',
+        ...(entry.entity.manufacturer ? { manufacturer: entry.entity.manufacturer } : {}),
         ...(entry.entity.modelNumber ? { model: entry.entity.modelNumber } : {}),
         ...(entry.entity.serialNumber ? { serial: entry.entity.serialNumber } : {}),
         ...(sourceText(entry) ? { note: sourceText(entry) } : {}),

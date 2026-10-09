@@ -56,6 +56,7 @@ export interface Space {
   formerNames?: { name: string; until: string }[];
   homeboxRef?: string;
   note?: string | undefined;
+  semanticKind?: import('../../app/types').Entry['semanticKind'] | undefined;
 }
 
 export interface Opening {
@@ -111,6 +112,7 @@ export interface Item {
   pos?: Pt | undefined;
   locationClaim: Claim;
   locationNote?: string;
+  manufacturer?: string | undefined;
   model?: string | undefined;
   serial?: string | undefined;
   acquired?: string;
@@ -234,7 +236,8 @@ export type DocKind =
   | 'report'
   | 'export'
   | 'note'
-  | 'schedule';
+  | 'schedule'
+  | 'unknown';
 
 export type PreviewKind =
   | 'manual'
