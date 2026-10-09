@@ -1,4 +1,5 @@
 import type { Doc, Observation, Task } from '../data/types';
+import { RecordStatus } from '../../app/components';
 import { dueState, historyFor, nameOf, writesFor } from '../data/query';
 import { fmtDateTime, fmtShortDate, rel } from '../data/time';
 import { useCanWrite, useSelect, useStore } from '../state/store';
@@ -49,7 +50,8 @@ export function DocList({ docs, empty, showLinked }: { docs: Doc[]; empty?: stri
 }
 
 export function TaskRow({ task, showTarget }: { task: Task; showTarget?: boolean | undefined }) {
-  const { dispatch, house } = useStore();
+  const { dispatch, house, projection } = useStore();
+  const entry = projection.entries.get(task.id);
   const select = useSelect();
   const can = useCanWrite('HomeBox');
   const st = dueState(task, house.displayNow);
@@ -74,6 +76,8 @@ export function TaskRow({ task, showTarget }: { task: Task; showTarget?: boolean
               {task.due ? <>{st === 'overdue' ? 'Overdue, was due ' : 'Due '}{fmtShortDate(task.due, house.displayNow)} ({rel(task.due, house.displayNow)})</> : 'No schedule supplied'}
             </span>
           )}
+          {entry ? <><RecordStatus entry={entry} compact /><span>Source cache: {entry.cacheStatus}</span></>
+            : <span>Source status not supplied</span>}
           {task.cost !== undefined && <span>Recorded cost {task.cost}, currency not recorded</span>}
           {showTarget && <span>{nameOf(house, task.targetId)}</span>}
         </span>
