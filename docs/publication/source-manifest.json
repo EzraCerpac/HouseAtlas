@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "ad284b34305b9b934aa615a2045dea9369ce8d85dc028aa11b772358e8d885c1",
+  "sourceDigestSha256": "7528e8bc6a12f637ff0b0a53290b957894920eeaabd7416e363931366b83e324",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -1939,8 +1939,8 @@
     {
       "path": "backend/src/http/homebox_pinned_files.rs",
       "mode": "100644",
-      "bytes": 17714,
-      "sha256": "c95f9f7d80dd143708cf7f35f63020544d9decf163f923520d0788ff232dfa6d",
+      "bytes": 18171,
+      "sha256": "21a69973bed029accd62e1ea2780e715c892102d904aa1dd215319413a6f8306",
       "owner": "core-integration"
     },
     {
