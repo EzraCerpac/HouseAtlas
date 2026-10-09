@@ -279,6 +279,8 @@ export interface Doc {
   mediaVariant?: string | undefined;
   summary?: string;
   owner: System;
+  /** HomeBox external-link archive flag. Absent for stored files: the source supplies none. */
+  linkArchived?: boolean;
 }
 
 export interface Task {

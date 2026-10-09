@@ -68,8 +68,9 @@ export function projectView(view: ReadyView, geometryMetadata: GeometryRead = { 
   const tasks: Task[] = [];
 
   // ReadyView may retain records for other homes and archived records. Only
-  // current records in the selected scope are projected into this house; the
-  // complete view is retained above.
+  // records in the selected scope whose entity is not flagged archived are
+  // projected into this house; their sourceState is kept as supplied and may
+  // still be archived. The complete view is retained above.
   for (const entry of visibleEntries(view, false)) {
     if (entry.workspaceId !== view.scope.workspaceId || entry.homeId !== view.scope.homeId) continue;
 
@@ -125,6 +126,7 @@ export function projectView(view: ReadyView, geometryMetadata: GeometryRead = { 
           ? { sizeKb: attachment.byteSize / 1024 }
           : {}),
         ...(href ? { url: href } : {}),
+        ...(attachment.kind === 'external-link' ? { linkArchived: attachment.archived } : {}),
         source: 'HomeBox',
         addedBy: 'Unknown',
         addedAt: '',
