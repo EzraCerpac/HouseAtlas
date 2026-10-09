@@ -5,7 +5,7 @@ import { useStore } from '../state/store';
 import { buildTopologyIndex, buildBuildingModel, type BuildingModel, type TopologyData, type TopologyIndex } from './model';
 
 interface TopologyContext {
-  readonly activate: () => void;
+  readonly activate: () => () => void;
   readonly index: TopologyIndex | null;
   readonly status: 'loading' | 'ready' | TopologyFailure;
   readonly buildingId: string | null;
@@ -21,16 +21,35 @@ const Context = createContext<TopologyContext | null>(null);
 export function TopologyProvider({ client, children }: { client?: TopologyClient | undefined; children: ReactNode }) {
   const { projection, actions } = useStore();
   const view = projection.view, session = actions.session?.expiresAt;
-  const [active, setActive] = useState(false), [epoch, setEpoch] = useState(0);
+  const [lease, setLease] = useState<object | null>(null), [epoch, setEpoch] = useState(0);
+  const consumers = useRef(new Set<symbol>());
+  const liveLease = useRef<object | null>(null);
+  const pending = useRef(new Set<AbortController>());
   const binding = client?.getBinding() ?? null;
-  const key = useMemo(() => ({ view, session, binding, epoch }), [view, session, binding, epoch]);
+  const key = useMemo(() => ({ view, session, binding, epoch, lease }), [view, session, binding, epoch, lease]);
   const current = useRef(key); current.current = key;
   const [loaded, setLoaded] = useState<{ key: typeof key; data: TopologyData | null; status: TopologyContext['status'] } | null>(null);
   const [buildingId, setBuildingId] = useState<string | null>(null), [levelId, setLevelId] = useState('all');
   const [members, setMembers] = useState<{ key: typeof key; binding: TopologyBinding; buildingId: string; read: TopologyRead<'identity'> } | null>(null);
   const [notice, setNotice] = useState('');
   useEffect(() => client?.subscribe(() => setEpoch(e => e + 1)), [client]);
-  const activate = useCallback(() => setActive(true), []);
+  // Each mounted consumer owns one idempotent release; a new lifetime gets a new fence.
+  const activate = useCallback(() => {
+    const consumer = Symbol();
+    if (consumers.current.size === 0) {
+      const next = {};
+      liveLease.current = next; setLease(next);
+    }
+    consumers.current.add(consumer);
+    return () => {
+      if (!consumers.current.delete(consumer) || consumers.current.size !== 0) return;
+      // Fence completions and abort immediately, before a batched render or remount.
+      liveLease.current = null;
+      for (const controller of pending.current) controller.abort();
+      pending.current.clear();
+      setLease(null);
+    };
+  }, []);
   // Optional geometry/history presentation changes do not restart topology reads.
   const sourceProjection = useMemo(() => projectView(view), [view]);
   const selectable = useMemo(() => new Map(sourceProjection.house.spaces.flatMap(space => {
@@ -40,10 +59,11 @@ export function TopologyProvider({ client, children }: { client?: TopologyClient
     ? buildTopologyIndex(loaded.data, view, selectable) : null, [loaded, key, view, selectable]);
   const status = loaded?.key === key ? loaded.status : client && binding ? 'loading' : 'unavailable';
   useEffect(() => {
-    if (!active || !client || !binding) return;
+    if (!lease || liveLease.current !== lease || !client || !binding) return;
     if (binding.scope.workspaceId !== view.scope.workspaceId || binding.scope.homeId !== view.scope.homeId) return;
     const controller = new AbortController();
-    const live = () => !controller.signal.aborted && current.current === key && client.getBinding() === binding;
+    pending.current.add(controller);
+    const live = () => !controller.signal.aborted && liveLease.current === lease && current.current === key && client.getBinding() === binding;
     setLoaded({ key, status: 'loading', data: null });
     void Promise.all([client.listAll(binding, 'identity', controller.signal), client.listAll(binding, 'binding', controller.signal),
       client.listAll(binding, 'location-semantics', controller.signal), client.listAll(binding, 'relation', controller.signal)]).then(([identity, bindings, semantics, relations]) => {
@@ -54,8 +74,8 @@ export function TopologyProvider({ client, children }: { client?: TopologyClient
       setLoaded({ key, status: 'ready', data: { identities: identity.records, bindings: bindings.records, semantics: semantics.records,
         relations: relations.records, sourceStatuses: [identity.sourceStatus, bindings.sourceStatus, semantics.sourceStatus, relations.sourceStatus] } });
     }).catch(() => { if (live()) setLoaded({ key, status: 'unavailable', data: null }); });
-    return () => controller.abort();
-  }, [active, client, key, binding, view]);
+    return () => { controller.abort(); pending.current.delete(controller); };
+  }, [lease, client, key, binding, view]);
   useEffect(() => {
     if (index && buildingId !== null && !index.buildings.some(b => b.id === buildingId)) {
       setNotice('The selected building is not a reviewed building in the current read.');
@@ -63,15 +83,16 @@ export function TopologyProvider({ client, children }: { client?: TopologyClient
     }
   }, [index, buildingId]);
   useEffect(() => {
-    if (!index || !client || !binding || buildingId === null || !index.buildings.some(b => b.id === buildingId)) return;
+    if (!lease || liveLease.current !== lease || !index || !client || !binding || buildingId === null || !index.buildings.some(b => b.id === buildingId)) return;
     const controller = new AbortController();
-    const live = () => !controller.signal.aborted && current.current === key && client.getBinding() === binding;
+    pending.current.add(controller);
+    const live = () => !controller.signal.aborted && liveLease.current === lease && current.current === key && client.getBinding() === binding;
     setMembers(null); setLevelId('all');
     void client.buildingMembers(binding, buildingId, controller.signal).then(read => {
       if (live()) setMembers({ key, binding, buildingId, read });
     }).catch(() => { if (live()) setMembers({ key, binding, buildingId, read: { status: 'unavailable' } }); });
-    return () => controller.abort();
-  }, [index, client, binding, buildingId, key]);
+    return () => { controller.abort(); pending.current.delete(controller); };
+  }, [lease, index, client, binding, buildingId, key]);
   const chooseBuilding = useCallback((id: string | null) => {
     setNotice(''); setBuildingId(id); setLevelId('all');
   }, []);

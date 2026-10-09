@@ -72,7 +72,7 @@ function Level({ group, index, selected }: { group: LevelGroup; index: TopologyI
 }
 export function BuildingScope() {
   const topology = useTopology();
-  useEffect(() => { topology.activate(); }, [topology.activate]);
+  useEffect(() => topology.activate(), [topology.activate]);
   const { index, status, buildingId, model, memberStatus, levelId } = topology;
   const selection = model ? new Set([model.building.id, ...model.levels.flatMap(l => [l.location.id, ...l.members.map(m => m.id)]), ...model.direct.map(m => m.id)]) : new Set<string>();
   let priorDatum: string | null = null;
