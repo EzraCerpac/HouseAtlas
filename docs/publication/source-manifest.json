@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "10d69d56fdc2c075c25e8b95a2d526ec3a30b9ea2cc9cb7c32c8035445d21114",
+  "sourceDigestSha256": "715d7c602ae8a6c76aa56c0d4f32a65a67c1a407ecbd00a15fb2941945595287",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -1981,8 +1981,8 @@
     {
       "path": "backend/src/http/operation_events.rs",
       "mode": "100644",
-      "bytes": 27862,
-      "sha256": "011d86fdb3182d43a0088a764436c2c6a50ea9b7a5a58b650e8624cb49c1b782",
+      "bytes": 28985,
+      "sha256": "1440cdf5388db72000ef1628a595b852950e8f35614b3fea7fa1b30e21784728",
       "owner": "core-integration"
     },
     {
@@ -2093,8 +2093,8 @@
     {
       "path": "backend/src/http/reads.rs",
       "mode": "100644",
-      "bytes": 15890,
-      "sha256": "1e23c2f5aaca21532898d05110f8d351ef0b9e6db5a7ce43b1edd6d5609277d2",
+      "bytes": 17852,
+      "sha256": "8e8281233be342146eb0550327f35a68d44fe4fe48132b60da88cf47618053ad",
       "owner": "core-integration"
     },
     {
@@ -2801,8 +2801,8 @@
       "owner": "homebox",
       "path": "backend/src/providers/homebox/read/native_list_pages.rs",
       "mode": "100644",
-      "bytes": 22742,
-      "sha256": "eb6deeaa191151595196d3fc982efff1b5e4018f0a350909f5c1b210ce1683a3"
+      "bytes": 26608,
+      "sha256": "2ee3bdcaaedc11536e1c4eca4455c99d60f77c0534ef9b6e7eb9b9665feaa6f6"
     },
     {
       "path": "backend/src/providers/homebox/read/native_presence_capture.rs",
@@ -2863,8 +2863,8 @@
     {
       "path": "backend/src/providers/homebox/read/query/README.md",
       "mode": "100644",
-      "bytes": 31118,
-      "sha256": "56b162a0381c9333b3ca7b7e4b96b7f6aab29825c8a2738fb6867b805a96068c",
+      "bytes": 32713,
+      "sha256": "c949489876461a0e5d9b7d2a646e15d1045c6711d2ed10f771ef3a0d7297609d",
       "owner": "homebox"
     },
     {
@@ -2885,7 +2885,7 @@
       "path": "backend/src/providers/homebox/read/query/detail.rs",
       "mode": "100644",
       "bytes": 15807,
-      "sha256": "4446fc09097104cf61289d938c9bd3bbb72138340c6c7a27acf165e19c98e735",
+      "sha256": "62fa1c0be15bd75271e4a4a653371d27637a2e9fe8950a9378b50e84201f4747",
       "owner": "homebox"
     },
     {
@@ -2926,8 +2926,8 @@
     {
       "path": "backend/src/providers/homebox/read/query/observations.rs",
       "mode": "100644",
-      "bytes": 24786,
-      "sha256": "69884132e1a0d47da350fb08e8d45c07c065452d505f25a206965750ed44aa9e",
+      "bytes": 25049,
+      "sha256": "19e2897dbd7d23265c96a5e2ec2e18e07b6899c82af86042b87b747a174c244f",
       "owner": "homebox"
     },
     {
@@ -4865,8 +4865,8 @@
     {
       "path": "contracts/stock-wire3/SEMANTICS.md",
       "mode": "100644",
-      "bytes": 13036,
-      "sha256": "e6da333b5d7c28dc66317aa2d7165590d307ca3a22c3a066e8f8fe6309bd8f2d",
+      "bytes": 13491,
+      "sha256": "17aef5850f313c4984d880cfaa55af4764103d3e7022cd025e9c824b83478a62",
       "owner": "contracts"
     },
     {
@@ -4916,6 +4916,13 @@
       "mode": "100644",
       "bytes": 10757,
       "sha256": "6aceccd2e90a3e506bbfb2c2f8843f96e82bb2bea8faf26a6dc3e65649079cb7",
+      "owner": "contracts"
+    },
+    {
+      "path": "contracts/stock-wire3/homebox-member-search.md",
+      "mode": "100644",
+      "bytes": 4451,
+      "sha256": "e667a4cafbb3a2d6a5859296d534fda7c0a243ef2724a2fa86613f0f7939318f",
       "owner": "contracts"
     },
     {
