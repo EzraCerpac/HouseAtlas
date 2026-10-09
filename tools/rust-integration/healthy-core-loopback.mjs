@@ -104,7 +104,7 @@ try {
       button.click();
       return true;
     })()`), 'Visible Atlas tools action');
-    await until(async () => await evaluate("Boolean(document.querySelector('[role=region][aria-label=\"Atlas tools\"]:not([hidden])'))"), 'Visible Atlas tools region');
+    await until(async () => await evaluate("Boolean(document.querySelector('[role=dialog][aria-modal=true][aria-label=\"Atlas tools\"]:not([hidden])'))"), 'Visible Atlas tools dialog');
   };
   await send('Page.navigate', { url: origin });
   await openAtlasTools();
@@ -130,6 +130,15 @@ try {
   assert(item.attachments.filter(a => a.kind === 'stored-file').every(a => a.downloadHref === null && a.previewHref === null));
   // Lantern uses its visible navigation state; the retained Atlas hash route
   // remains separately exercised below.
+  await until(async () => await evaluate(`(() => {
+    const panel = document.querySelector('[role=dialog][aria-modal=true][aria-label="Atlas tools"]:not([hidden])');
+    const button = [...(panel?.querySelectorAll('button') ?? [])]
+      .find(button => button.textContent?.trim() === 'Close Atlas tools' && button.getClientRects().length);
+    if (!button) return false;
+    button.click();
+    return true;
+  })()`), 'Visible Close Atlas tools action');
+  await until(async () => await evaluate("!document.querySelector('[aria-label=\"Atlas tools\"]:not([hidden])')"), 'Atlas tools closed before section navigation');
   const topologyResponseStart = nativeListResponses.length;
   await until(async () => await evaluate(`(() => {
     const button = [...document.querySelectorAll('nav[aria-label="Sections"] button')]
