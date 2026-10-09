@@ -13,6 +13,35 @@ The existing `atlasRead` result schema and stock dispatch correlation/disclosure
 checks are unchanged. `sourceStatus=current` means the local canonical Atlas
 read; it makes no assertion of provider freshness or media bytes availability.
 
+Successful native Atlas list HTTP invoke and REST collection responses include
+`x-atlas-snapshot-sha256`, exactly 64 lowercase hexadecimal characters. After
+the shared dispatch completes disclosure, result recomputation and final
+current-Storage/authority revalidation, the host streams the original prepared
+scope and complete validated snapshot through SHA-256. The pinned serde_json
+serializer preserves retained arbitrary-precision number spellings, uses
+deterministic declaration field order for derived structs and sorted serde_json
+Value-map keys, and retains snapshot array ordering. No later Store capture,
+result-subset digest or full serialization buffer supplies this header. The
+existing floating-point canonical witness digest and graph equality checks
+remain unchanged; this separate comparison digest avoids their numeric rounding.
+
+Within the pinned serializer, matching digests correlate equal serialized scoped
+snapshot content, subject to SHA-256 collision resistance. Unchanged content has
+the same digest across record types and pages; changed content, including retained
+source/cache/provenance data or number spellings, changes the comparison input.
+Different spellings or array order can produce different digests even when an
+application treats their values as equivalent. The digest is not a monotonic
+generation, revision, original source-byte archive, principal, credential or
+authorization grant. Every read still requires its own original authority checks.
+
+Before assembling a topology frame, callers must require a present, well-formed,
+equal header on every page of every independent R1–R4 list read, and on R5 if
+that list participates in the frame. A missing or differing header leaves the
+combined frame unqualified; a caller must obtain a complete matching read set
+before joining it. HTTP responses for non-list, provider, history, mutation and
+byte operations carry no invented stamp. MCP results and all stock wire3 JSON
+schemas and common OwnerResult APIs are unchanged.
+
 The host retains one `AtlasListPages::default()` for all requests/transports.
 `AtlasListBinding::capture(access, original_principal)` calls AT11's
 `authenticated_session_binding` on the original principal and retains

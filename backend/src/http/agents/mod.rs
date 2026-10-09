@@ -100,15 +100,16 @@ pub(super) async fn invoke(
                 let result = if crate::providers::network::saved_network_query_support(request.id())
                     .is_some()
                 {
-                    super::stock_network_reads::execute(&host, p, raw, &contracts)
+                    super::stock_network_reads::execute(&host, p, raw, &contracts).map(Into::into)
                 } else if super::providers::homebox_native::OPERATIONS.contains(&request.id()) {
                     super::providers::homebox_native::execute_configured(&host, p, raw, &runtime)
+                        .map(Into::into)
                 } else {
                     let core = host
                         .core
                         .lock()
                         .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-                    stock_dispatch::execute_with_downloads(
+                    stock_dispatch::execute_http_with_downloads(
                         &core,
                         p,
                         raw,
@@ -116,7 +117,7 @@ pub(super) async fn invoke(
                     )
                 };
                 match result {
-                    Ok(result) => Ok(json_response(result.wire)),
+                    Ok(result) => super::stock_reads::qualified_response(result),
                     Err(error) => errors::response(error, id),
                 }
             },
