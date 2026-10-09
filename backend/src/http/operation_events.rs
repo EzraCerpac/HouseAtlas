@@ -8,7 +8,7 @@ use crate::{
     domain as d, storage as s,
 };
 use axum::{
-    extract::{Extension, Query, State},
+    extract::{Extension, Query, Request, State},
     http::{Method, StatusCode, Uri},
 };
 use serde::Deserialize;
@@ -567,26 +567,29 @@ pub(super) async fn events(
     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
 }
 
-/// Complete submitted intent is a bounded selector, never execution authority.
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(super) struct IntentQuery {
-    workspace_id: Option<a::CanonicalId>,
-    home_id: a::CanonicalId,
-    intent: String,
-}
-pub(super) async fn reconcile_intent(
-    State(host): State<Host>,
-    Query(query): Query<IntentQuery>,
-    Extension(headers): Extension<CheckedHeaders>,
-    uri: Uri,
-) -> HttpResult {
-    if query.intent.is_empty() || query.intent.len() > 16 * 1024 {
-        return Err(failure(StatusCode::PAYLOAD_TOO_LARGE));
+/// Complete submitted intent is a bounded body selector, never execution
+/// authority. It is deliberately not accepted in a URL query.
+const MAX_INTENT_BODY_BYTES: usize = 16 * 1024;
+pub(super) async fn reconcile_intent(State(host): State<Host>, request: Request) -> HttpResult {
+    let headers = request
+        .extensions()
+        .get::<CheckedHeaders>()
+        .cloned()
+        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    let admitted = headers.admission_permit()?;
+    super::intake::metadata(&request, MAX_INTENT_BODY_BYTES as u64)?;
+    let uri = request.uri().clone();
+    let method = request.method().clone();
+    if method != Method::POST || uri.query().is_some() {
+        return Err(failure(StatusCode::UNPROCESSABLE_ENTITY));
     }
-    let raw = super::intake::json(query.intent.as_bytes())?;
+    let bytes = super::admission::body(request.into_body(), MAX_INTENT_BODY_BYTES).await?;
+    if bytes.is_empty() {
+        return Err(failure(StatusCode::UNPROCESSABLE_ENTITY));
+    }
+    let raw = super::intake::json(&bytes)?;
     tokio::task::spawn_blocking(move || {
-        let _admitted = headers.admission_permit()?;
+        let _admitted = admitted;
         let mut core = host
             .core
             .lock()
@@ -595,14 +598,6 @@ pub(super) async fn reconcile_intent(
         // before authorization rather than selecting an ambiguous home ID.
         let storage_scope: s::Scope = serde_json::from_value(raw["context"].clone())
             .map_err(|_| failure(StatusCode::UNPROCESSABLE_ENTITY))?;
-        if storage_scope.home_id != query.home_id.as_str()
-            || query
-                .workspace_id
-                .as_ref()
-                .is_some_and(|workspace| storage_scope.workspace_id != workspace.as_str())
-        {
-            return Err(failure(StatusCode::FORBIDDEN));
-        }
         let scope = d::Scope {
             workspace_id: storage_scope.workspace_id.clone(),
             home_id: storage_scope.home_id.clone(),
@@ -623,14 +618,14 @@ pub(super) async fn reconcile_intent(
             uri.path_and_query().map_or("/", |path| path.as_str())
         );
         let request =
-            evidence(&host.origin, &headers, &uri, &url, &Method::GET).map_err(access_error)?;
+            evidence(&host.origin, &headers, &uri, &url, &method).map_err(access_error)?;
         let (principal, session) = {
             let mut access = core
                 .access
                 .lock()
                 .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
             let principal = access
-                .authorize(&request, &native_scope, a::Action::Read)
+                .authorize_post_read(&request, &native_scope)
                 .map_err(access_error)?;
             access
                 .authorize_storage(&principal, &native_scope, a::Capability::ReadHistory)
