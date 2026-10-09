@@ -22,6 +22,13 @@ fn unavailable() -> Error {
     Error::new("owner-unavailable", "Original upload execution unavailable")
 }
 
+// Only the actual sealed Source owner and held custody are borrowed. Every
+// current check obtains a fresh Source view; no phase view is retained here.
+struct UploadFinishSource<'phase, 'native, 'owner, 'captured, 'p> {
+    effects: &'phase CapturedQueuedUploadEffects<'native, 'owner, 'captured, 'p>,
+    capture: &'phase QueueUploadFinishCapture<'phase, 'native, 'owner, 'captured, 'p>,
+}
+
 /// Reuses only the private engine context SHAPE, never quantity authority.
 struct UploadExecutionContext<'phase, 'tx, 'bundle, 'native, 'owner, 'captured, 'p> {
     admission: &'phase OriginalQueuedUploadAdmission<'bundle, 'native, 'owner, 'captured, 'p>,
@@ -29,6 +36,7 @@ struct UploadExecutionContext<'phase, 'tx, 'bundle, 'native, 'owner, 'captured, 
     identity: crate::storage::QuantityInstallationStoreIdentity,
     execution: &'phase Arc<OriginalQueuedUploadExecution>,
     finish: Option<(&'phase FinishReport, &'phase [QueueStepEvidence])>,
+    finish_source: Option<UploadFinishSource<'phase, 'native, 'owner, 'captured, 'p>>,
     deadline: std::time::Instant,
     budget: &'phase WorkBudget,
 }
@@ -88,6 +96,31 @@ impl UploadExecutionContext<'_, '_, '_, '_, '_, '_, '_> {
         native
             .revalidate_original_phase(admission, self.guard, &physical, self.budget)
             .map_err(|_| unavailable())?;
+        if let Some(source) = &self.finish_source {
+            if !source.effects.matches_execution(self.execution)
+                || !source.effects.matches_native(prepared.native())
+            {
+                return Err(conflict());
+            }
+            let qualification = native::FreshQualification::with_queued_upload_installation(
+                self.guard,
+                prepared.captured(),
+                &physical,
+            )
+            .map_err(|_| unavailable())?;
+            let view = source
+                .effects
+                .finish_evidence_in_guard(&qualification)
+                .map_err(|_| unavailable())?;
+            source.capture.validate_source_view(&view)?;
+            if self.finish.is_some_and(|(report, steps)| {
+                !std::ptr::eq(view.report(), report) || !std::ptr::eq(view.steps(), steps)
+            }) {
+                return Err(conflict());
+            }
+        } else if self.finish.is_some() {
+            return Err(conflict());
+        }
         self.validate_queue(db)?;
         self.clock()?;
         Ok(())
@@ -336,6 +369,7 @@ impl crate::app::Store {
                     identity,
                     execution,
                     finish: None,
+                    finish_source: None,
                     deadline,
                     budget,
                 };
@@ -442,6 +476,7 @@ impl crate::app::Store {
                     identity,
                     execution,
                     finish: None,
+                    finish_source: None,
                     deadline,
                     budget,
                 };
@@ -574,6 +609,10 @@ impl crate::app::Store {
                     identity: identity.clone(),
                     execution,
                     finish: None,
+                    finish_source: Some(UploadFinishSource {
+                        effects,
+                        capture: &capture,
+                    }),
                     deadline,
                     budget,
                 };
@@ -626,6 +665,10 @@ impl crate::app::Store {
                     identity,
                     execution,
                     finish,
+                    finish_source: Some(UploadFinishSource {
+                        effects,
+                        capture: &capture,
+                    }),
                     deadline,
                     budget,
                 };
