@@ -7,7 +7,7 @@
 use super::*;
 use crate::providers::homebox::write::stock as native;
 use crate::{domain::stock as domain, storage as s};
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, OptionalExtension, params};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
@@ -629,7 +629,52 @@ fn cursor_fault(fault: StockPortFault) -> s::Error {
     }
 }
 
-/// Called only within the same Immediate transaction as cursor insertion.
+/// Exact immutable cursor DATA. This key grants no disclosure authority.
+pub(crate) struct NativeHistoryCursorKey<'a> {
+    pub scope: &'a s::Scope,
+    pub actor: &'a str,
+    pub canonical_query: &'a str,
+    pub watermark: i64,
+    pub after: i64,
+}
+
+/// Resolve under the same Immediate admission as a possible insert. Existing
+/// duplicates select one deterministic UUID; reuse does not consume capacity.
+/// The schema has no tuple index, so this bounds returned metadata, not scan CPU.
+pub(crate) fn identical_cursor(
+    db: &Connection,
+    key: &NativeHistoryCursorKey<'_>,
+) -> s::Result<Option<String>> {
+    if key.watermark < 0 || key.after < 0 || key.after > key.watermark {
+        return Err(cursor_incompatible());
+    }
+    Ok(db
+        .query_row(
+            "SELECT cursor_id,length(CAST(cursor_id AS BLOB))
+             FROM stock_history_cursors
+             WHERE workspace_id=?1 AND home_id=?2 AND actor_id=?3
+               AND query_json=?4 AND watermark=?5 AND after_seq=?6 AND codec_version=1
+             ORDER BY cursor_id LIMIT 1",
+            params![
+                key.scope.workspace_id,
+                key.scope.home_id,
+                key.actor,
+                key.canonical_query,
+                key.watermark,
+                key.after
+            ],
+            |row| {
+                if row.get::<_, i64>(1)? != 36 {
+                    return Err(rusqlite::Error::InvalidQuery);
+                }
+                row.get(0)
+            },
+        )
+        .optional()?)
+}
+
+/// Called only for an absent tuple within the same Immediate transaction as
+/// cursor insertion. Identical immutable cursor reuse skips this admission.
 /// Caps apply to future HomeBox-format admissions; existing rows are retained,
 /// and Atlas cursors neither consume nor acquire these native-reader budgets.
 pub(crate) fn admit_cursor(db: &Connection, scope: &s::Scope, actor: &str) -> s::Result<()> {
