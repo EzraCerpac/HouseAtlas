@@ -1,6 +1,6 @@
 //! Aggregate retained event transport. Registry selectors never carry authority.
-//! Genuine retained payloads supply selectors to the actual original Access
-//! producer before sealing; subsequent pages cannot acquire new grants.
+//! Each complete selected page supplies selectors to that page's actual
+//! original Access producer before sealing. Cursors retain query custody only.
 use super::{CheckedHeaders, Host, HttpResult, access_error, domain_error, evidence, failure};
 use crate::{
     access as a,
@@ -44,7 +44,6 @@ struct RetainedPage {
     access: Access,
     owner: s::StockRetainedReadOwner,
     graph: s::Snapshot,
-    closure: crate::contracts::semantics::ReferenceClosure,
 }
 #[derive(Default)]
 pub(super) struct EventRegistry {
@@ -415,10 +414,26 @@ pub(super) async fn events(
         let initial_principal = Box::new(current);
         let initial_owner = s::StockRetainedReadOwner::new();
         let retained = reserved.map(|index| &registry.entries[index]);
-        let initial = retained.is_none();
-        let principal =
-            retained.map_or(initial_principal.as_ref(), |entry| entry.principal.as_ref());
-        let continuation = retained.map(|entry| &entry.continuation);
+        // The prior Box proves the private continuation's allocation custody;
+        // all permission and source capture belong to this new page's Box.
+        if let Some(entry) = retained {
+            let access = core
+                .access
+                .lock()
+                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+            if access
+                .authenticated_session_binding(&entry.principal.principal)
+                .map_err(access_error)?
+                != session
+            {
+                return Err(failure(StatusCode::FORBIDDEN));
+            }
+        }
+        let principal = initial_principal.as_ref();
+        let continuation = retained.map(|entry| s::StockOperationEventContinuationInput {
+            continuation: &entry.continuation,
+            prior_principal: entry.principal.as_ref(),
+        });
         let owner = retained.map_or(&initial_owner, |entry| &entry.owner);
         let graph =
             super::reads::retained_read_snapshot(&mut core, &host, principal, &storage_scope)?;
@@ -431,11 +446,6 @@ pub(super) async fn events(
         }
         let original_graph = retained.map_or_else(|| graph.clone(), |entry| entry.graph.clone());
         let captured = OnceCell::new();
-        if let Some(closure) = retained.map(|entry| entry.closure.clone()) {
-            captured
-                .set(closure)
-                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-        }
         let access = Arc::clone(&core.access);
         let mut store = core
             .store
@@ -453,20 +463,22 @@ pub(super) async fn events(
             phase: Cell::new(0),
             original_graph: &original_graph,
             captured,
-            initial,
+            initial: true,
             intent: None,
         };
         let contracts =
             d::stock::NativeStockContract::new().map_err(super::stock_reads::http_error)?;
         let prepared = store
-            .prepare_stock_operation_events_with_authorization(
+            .prepare_stock_operation_events_page_with_authorization(
                 &authority,
                 principal,
                 &contracts,
-                principal.principal.retained(),
-                &storage_scope,
-                query.page_size,
-                continuation,
+                s::StockOperationEventPageInput {
+                    original: principal.principal.retained(),
+                    scope: &storage_scope,
+                    page_size: query.page_size,
+                    continuation,
+                },
             )
             .map_err(|error| domain_error(crate::app::storage_error(error)))?;
         let mut full_graph = original_graph.clone();
@@ -517,15 +529,11 @@ pub(super) async fn events(
             )
             .map_err(access_error)?;
         drop(access_guard);
-        let closure = authority
-            .captured
-            .get()
-            .cloned()
-            .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
         drop(authority);
         // Commit registry custody only after native disclosure and the final
         // current-session/read fence succeeded. Removal and replacement have
-        // no intervening fallible operation and preserve the original Box.
+        // no intervening fallible operation. The next cut retains this page's
+        // exact Box; a failed page leaves the prior Box and cursor untouched.
         let response = response.ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
         let previous = match reserved {
             Some(index) => Some(
@@ -537,12 +545,12 @@ pub(super) async fn events(
             None => None,
         };
         if let Some(continuation) = result.continuation {
-            let (principal, owner) = match previous {
-                Some(entry) => (entry.principal, entry.owner),
-                None => (initial_principal, initial_owner),
+            let owner = match previous {
+                Some(entry) => entry.owner,
+                None => initial_owner,
             };
             registry.retain(RetainedPage {
-                principal,
+                principal: initial_principal,
                 continuation,
                 scope: storage_scope,
                 session,
@@ -551,7 +559,6 @@ pub(super) async fn events(
                 access,
                 owner,
                 graph: original_graph,
-                closure,
             });
         }
         Ok(response)
