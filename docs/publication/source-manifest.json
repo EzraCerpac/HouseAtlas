@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "7ee922206fd07d6fcddc104c3429b2ee8bdb5e60e8d84c9e7462f3e86ff31b89",
+  "sourceDigestSha256": "7f395c5550b7bfcde6f82173c31817d767165e6c88e0d36c23a5b8b5477079f0",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -7581,15 +7581,15 @@
     {
       "path": "tools/rust-integration/healthy-agent-host-loopback.mjs",
       "mode": "100644",
-      "bytes": 31361,
-      "sha256": "91417dd3b9dfc335f4581ae6f539adff24a37cefd6ecb028357b50b7a8f2171a",
+      "bytes": 31378,
+      "sha256": "7efe35f02856bf168d8f69af1bd0e2b8c9b877e7866b45018763f735b380b36b",
       "owner": "core-integration"
     },
     {
       "path": "tools/rust-integration/healthy-agent-loopback.mjs",
       "mode": "100644",
-      "bytes": 17642,
-      "sha256": "c06397f34e9c4a9d782eb5d03c55e3184cb86b2814b16f40fa0eb9505433fbd2",
+      "bytes": 17659,
+      "sha256": "295e4caab89f85e87da203f6aae2b9d849b09bd1a44c152aa15809a1f5fc7b21",
       "owner": "core-integration"
     },
     {
@@ -7609,22 +7609,22 @@
     {
       "path": "tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs",
       "mode": "100644",
-      "bytes": 20522,
-      "sha256": "fcd20f10178980e364c9a8d50b2a0e20919fc7a403056be673fbe52f8a8fa39c",
+      "bytes": 20539,
+      "sha256": "af76191ec122e8924afdd4ee6735cd3d8b974582223bc54af0ce51895b798b53",
       "owner": "core-integration"
     },
     {
       "path": "tools/rust-integration/healthy-human-host-loopback.mjs",
       "mode": "100644",
-      "bytes": 36226,
-      "sha256": "f67d4a059ef77b4c7330e334f7c109d3bbad7164af2391e38a4e78c2c70ef87a",
+      "bytes": 36243,
+      "sha256": "2ee56a645f7e8d7299c2a77663f8771496d4e7fbb1e2b71ce8d0d490c8f50d75",
       "owner": "core-integration"
     },
     {
       "path": "tools/rust-integration/healthy-loopback.mjs",
       "mode": "100644",
-      "bytes": 15275,
-      "sha256": "c5fdd9527f923866e6d8fa388640d14a6b530075a8a1d3a9097a6a3d5d601d89",
+      "bytes": 15292,
+      "sha256": "199ed42ed1aa26a23b497d98303d2f53fea640fa3ace8cde3e20a3ce94108b8f",
       "owner": "core-integration"
     },
     {
@@ -7637,8 +7637,8 @@
     {
       "path": "tools/rust-integration/healthy-media-loopback.mjs",
       "mode": "100644",
-      "bytes": 26184,
-      "sha256": "2ac44c1a44c22608aa1c5c4aada740ffae7930206b8c37bc7589645f230dd9f7",
+      "bytes": 26201,
+      "sha256": "96e249a02d3b4643b91938e8b76737f0ec33d532a5d1498941540272767e1f42",
       "owner": "core-integration"
     },
     {
@@ -7665,29 +7665,29 @@
     {
       "path": "tools/rust-integration/healthy-stock-history-loopback.mjs",
       "mode": "100644",
-      "bytes": 34958,
-      "sha256": "e5a572d0fc012e95ca3d5cd4d5eaea0476c8670ff6b7124515ef9d40a2277ab3",
+      "bytes": 34975,
+      "sha256": "f340cd940add6ec8697b94fb9d0a17eed60aeeff06894b19495b1c53654a8bd2",
       "owner": "core-integration"
     },
     {
       "path": "tools/rust-integration/healthy-stock-loopback.mjs",
       "mode": "100644",
-      "bytes": 28163,
-      "sha256": "8694dcde0afd96a209822f0cc7d9e1e64780788115b393255c63bbbe8fc329c2",
+      "bytes": 28180,
+      "sha256": "3f0ca3026daba5293a672be91386097141e72c1995be641a95b3951ffb293fca",
       "owner": "core-integration"
     },
     {
       "path": "tools/rust-integration/healthy-stock-write-loopback.mjs",
       "mode": "100644",
-      "bytes": 61352,
-      "sha256": "7353468a9a93670577003640371e99bc449b2e738cf311232cf9cdcb04450256",
+      "bytes": 61369,
+      "sha256": "34bff29358ca46eca003410608951a8b2adb7cc68f70072554e40db1856501c9",
       "owner": "core-integration"
     },
     {
       "path": "tools/rust-integration/healthy-upload-loopback.mjs",
       "mode": "100644",
-      "bytes": 56234,
-      "sha256": "40500540e07c2ad3d4ad755757bf195521a20e2a74bb7d8b0bd2eef047262708",
+      "bytes": 56251,
+      "sha256": "cad23346fceec06e5b9e546fac7bc5713e20c0383408c39d76b5832dc67ab087",
       "owner": "core-integration"
     },
     {

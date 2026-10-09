@@ -107,7 +107,7 @@ try {
       button.click();
       return true;
     })()`), 'Visible Atlas tools action');
-    await until(async () => await evaluate("Boolean(document.querySelector('[role=region][aria-label=\"Atlas tools\"]:not([hidden])'))"), 'Visible Atlas tools region');
+    await until(async () => await evaluate("Boolean(document.querySelector('[role=dialog][aria-modal=true][aria-label=\"Atlas tools\"]:not([hidden])'))"), 'Visible Atlas tools dialog');
   };
   await send('Page.navigate', { url: origin });
   await openAtlasTools();
