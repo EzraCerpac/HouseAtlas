@@ -27,6 +27,7 @@ import {
 type SessionState =
   | { status: "loading" }
   | { status: "opening" }
+  | { status: "expired" }
   | { status: "signed-out"; mode: AtlasAuthMode }
   | { status: "authenticated"; info: AtlasSessionInfo }
   | { status: "unavailable"; action: "load" | "sign-out" | "mode" | "local" };
@@ -107,6 +108,39 @@ export function SessionApp({
       }),
     [sessions, load],
   );
+  useLayoutEffect(() => {
+    if (state.status !== "authenticated") return;
+    const expiresAt = Date.parse(state.info.expiresAt);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const check = () => {
+      if (stopped) return;
+      if (timer !== undefined) clearTimeout(timer);
+      const remaining = expiresAt - Date.now();
+      if (!Number.isFinite(remaining) || remaining <= 0) {
+        stopped = true;
+        generation.current++;
+        active.current?.abort();
+        setState({ status: "expired" });
+      } else {
+        timer = setTimeout(check, Math.min(remaining, 2_147_483_647));
+      }
+    };
+    const visible = () => {
+      if (document.visibilityState === "visible") check();
+    };
+    document.addEventListener("visibilitychange", visible);
+    window.addEventListener("focus", check);
+    window.addEventListener("pageshow", check);
+    check();
+    return () => {
+      stopped = true;
+      if (timer !== undefined) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", visible);
+      window.removeEventListener("focus", check);
+      window.removeEventListener("pageshow", check);
+    };
+  }, [state]);
   useLayoutEffect(() => {
     if (state.status !== "authenticated") {
       document.title = "HouseAtlas";
@@ -199,6 +233,15 @@ export function SessionApp({
         {...(editing ? { editing } : {})}
         {...(ai ? { resolveAi: (scope: Scope, label: string) => ai.resolve(state.info, scope, label) } : {})}
       />
+    );
+  }
+  if (state.status === "expired") {
+    return (
+      <SessionPanel focusHeading title="Session expired.">
+        <div className="access-actions">
+          <button type="button" onClick={() => void load()}>Check session</button>
+        </div>
+      </SessionPanel>
     );
   }
   if (state.status === "signed-out") {

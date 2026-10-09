@@ -2,6 +2,7 @@ import { safeMediaUrl, safeWebUrl } from '../../app/model';
 import { useState } from 'react';
 import { useStore } from '../state/store';
 import { Modal } from './Modal';
+import { PinnedFileAction } from './PinnedFileAction';
 import { Note, StorageTag } from './ui';
 import { fmtDateTime } from '../data/time';
 
@@ -36,7 +37,9 @@ export function RealPreview() {
         {attachment.kind === 'external-link' && <div><dt>Archive state</dt><dd>{attachment.archived ? 'Archived' : 'Current source link'}</dd></div>}
         <div><dt>Source updated</dt><dd>{entry?.sourceUpdatedAt ? fmtDateTime(entry.sourceUpdatedAt) : 'Unknown'}</dd></div>
         <div><dt>Retrieved</dt><dd>{entry ? fmtDateTime(entry.retrievedAt) : 'Unknown'}</dd></div>
-      </dl></aside>
+      </dl>
+        {attachment.kind === 'stored-file' && <PinnedFileAction key={id} docId={id} />}
+      </aside>
     </div>
   </Modal>;
 }
