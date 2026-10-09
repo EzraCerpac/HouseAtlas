@@ -85,6 +85,23 @@ Existing stopped/unrun descriptions for these three classes record ordinary or
 historical coverage; they do not prohibit an exact case satisfying this separate
 lane. Descriptions of other held classes retain their existing force.
 
+A separately named native topology positive uses the actual disposable Store,
+Editor HTTP login and mounted MCP stock commands. It creates generic Alpha/Beta
+locations and reviewed memberships, preserves known zero and unknown elevation,
+records typed access facts, and checks canonical get/history/audit lineage and
+exact building-list pagination. It opens no listener or provider and contains no
+household import, recovery or control scenario. After inspecting its full body
+and invoked helpers, run only this named local example:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-place-topology
+```
+
+This example is outside automatic ordinary CI entrypoints. Its result does not
+establish visual, security, operator, pilot or deployment acceptance.
+Observed local run on 2026-10-09: PASS, 95 MCP POSTs and 28 native commits,
+with exact Alpha/Beta pagination and private fixture cleanup.
+
 The core exports embeddable request/service modules; it provisions no service.
 `config/deployment.example.json` is a typed unfilled template, not runtime
 configuration or authority. Supply real settings privately only after the

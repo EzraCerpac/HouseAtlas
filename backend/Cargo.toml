@@ -161,5 +161,9 @@ name = "healthy-mcp-editor-http"
 path = "examples/healthy-mcp-editor-http.rs"
 
 [[example]]
+name = "healthy-place-topology"
+path = "examples/healthy-place-topology.rs"
+
+[[example]]
 name = "healthy-trusted-gateway"
 path = "src/http/trusted_gateway_healthy.rs"
