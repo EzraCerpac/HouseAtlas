@@ -257,20 +257,23 @@ for (const lifecycle of ['active', 'tombstoned']) {
     assert.equal(init.cache, 'no-store');
     assert.equal(init.redirect, 'error');
     assert.deepEqual(init.headers, { Accept: 'application/json' });
-    assert.equal(init.signal, signal);
+    assert.equal(signal.aborted, false);
+    assert(init.signal instanceof AbortSignal);
+    assert.notEqual(init.signal, signal);
+    assert.equal(init.signal.aborted, false);
     assert.equal(init.body, undefined);
-    return { ok: true, json: async () => ({
+    return new Response(JSON.stringify({
       schemaVersion: 3, commandId: 'atlas.evidence.get',
       requestId: '00000000-0000-4000-8000-000000000983', resolvedScope: geometryScope,
       status: 'read', replayed: false,
       data: { records: [publicEvidence], nextCursor: null, sourceStatus: 'current' },
-    }) };
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   });
   const evidenceRead = await evidenceClient.read(geometryScope, evidenceRecord.recordId, signal);
   assert.equal(evidenceCalls, 1);
   assert.deepEqual(evidenceRead, { status: 'ready', record: publicEvidence, sourceStatus: 'current' });
-  assert.equal(evidenceRead.record, publicEvidence);
-  assert.equal(evidenceRead.record.payload, evidencePayload);
+  assert.deepEqual(evidenceRead.record, publicEvidence);
+  assert.deepEqual(evidenceRead.record.payload, evidencePayload);
   assert.equal(JSON.stringify(evidenceRead.record.payload), evidenceOriginal);
 }
 
@@ -318,13 +321,16 @@ const assertOperationRequest = (url, init, expectedCursor) => {
   assert.equal(init.cache, 'no-store');
   assert.equal(init.redirect, 'error');
   assert.equal(init.headers.Accept, 'application/json');
-  assert.equal(init.signal, signal);
+  assert.equal(signal.aborted, false);
+  assert(init.signal instanceof AbortSignal);
+  assert.notEqual(init.signal, signal);
+  assert.equal(init.signal.aborted, false);
 };
 let operationSingleCalls = 0;
 const operationSingleClient = createOperationHistoryClient(async (url, init) => {
   operationSingleCalls++;
   assertOperationRequest(url, init, null);
-  return { ok: true, json: async () => operationPage(operationEntries, null) };
+  return new Response(JSON.stringify(operationPage(operationEntries, null)), { status: 200, headers: { 'Content-Type': 'application/json' } });
 });
 const operationSingleRead = await operationSingleClient.read(operationScope, signal);
 assert.equal(operationSingleCalls, 1);
@@ -341,9 +347,9 @@ let operationPageCalls = 0;
 const operationPagedClient = createOperationHistoryClient(async (url, init) => {
   const page = operationPageCalls++;
   assertOperationRequest(url, init, page === 0 ? null : operationCursor);
-  return { ok: true, json: async () => page === 0
+  return new Response(JSON.stringify(page === 0
     ? operationPage([operationEntries[0]], operationCursor)
-    : operationPage([operationEntries[1]], null) };
+    : operationPage([operationEntries[1]], null)), { status: 200, headers: { 'Content-Type': 'application/json' } });
 });
 const operationFirstRead = await operationPagedClient.read(operationScope, signal);
 assert.equal(operationPageCalls, 1);
@@ -354,7 +360,7 @@ assert.deepEqual(operationPagedRead, { status: 'ready', page: operationPage([ope
 assert.deepEqual([operationFirstRead.page.entries[0], operationPagedRead.page.entries[0]], operationEntries);
 const emptyOperationClient = createOperationHistoryClient(async (url, init) => {
   assertOperationRequest(url, init, null);
-  return { ok: true, json: async () => operationPage([], null) };
+  return new Response(JSON.stringify(operationPage([], null)), { status: 200, headers: { 'Content-Type': 'application/json' } });
 });
 assert.deepEqual(await emptyOperationClient.read(operationScope, signal),
   { status: 'ready', page: operationPage([], null) });
@@ -407,8 +413,11 @@ const retainedClient = createRetainedIntentClient(async (url, init) => {
   assert.deepEqual(init.headers, retainedHeaders);
   assert.equal(init.body, retainedRequestJson);
   assert.deepEqual(JSON.parse(init.body), retainedRequest);
-  assert.equal(init.signal, signal);
-  return { ok: true, json: async () => retainedReceipt };
+  assert.equal(signal.aborted, false);
+  assert(init.signal instanceof AbortSignal);
+  assert.notEqual(init.signal, signal);
+  assert.equal(init.signal.aborted, false);
+  return new Response(JSON.stringify(retainedReceipt), { status: 200, headers: { 'Content-Type': 'application/json' } });
 });
 assert.equal(canReadRetainedIntent(retainedRequest), true);
 const retainedRead = await retainedClient.read(retainedRequest, retainedContext, signal);
@@ -461,8 +470,11 @@ const retainedBatchClient = createRetainedIntentClient(async (url, init) => {
   assert.deepEqual(init.headers, retainedHeaders);
   assert.equal(init.body, JSON.stringify(retainedBatchRequest));
   assert.deepEqual(JSON.parse(init.body), retainedBatchRequest);
-  assert.equal(init.signal, signal);
-  return { ok: true, json: async () => retainedBatchReceipt };
+  assert.equal(signal.aborted, false);
+  assert(init.signal instanceof AbortSignal);
+  assert.notEqual(init.signal, signal);
+  assert.equal(init.signal.aborted, false);
+  return new Response(JSON.stringify(retainedBatchReceipt), { status: 200, headers: { 'Content-Type': 'application/json' } });
 });
 assert.equal(canReadRetainedIntent(retainedBatchRequest), true);
 assert.deepEqual(await retainedBatchClient.read(retainedBatchRequest, retainedContext, signal),

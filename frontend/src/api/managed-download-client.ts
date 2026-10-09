@@ -2,6 +2,54 @@ import type { GatewayDownloadPort } from '../webmcp/gateway/ports.js';
 import type { StockSchemaPort } from '../webmcp/stock.js';
 import { stockCatalog } from '../webmcp/stock-schema.js';
 
+// Local settlement covers headers and body, not server cancellation or retry safety.
+const readTimeoutMs = 15_000;
+class ReadDeadline extends Error {}
+function discard(response: Response) { void response.body?.cancel().catch(() => undefined); }
+async function withReadDeadline<T>(outer: AbortSignal, exchange: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  outer.throwIfAborted();
+  const controller = new AbortController();
+  const forward = () => controller.abort(outer.reason);
+  let reject!: (reason: unknown) => void;
+  const stopped = new Promise<never>((_, no) => { reject = no; });
+  const abort = () => reject(controller.signal.reason);
+  controller.signal.addEventListener('abort', abort, { once: true });
+  outer.addEventListener('abort', forward, { once: true });
+  const timer = setTimeout(() => controller.abort(new ReadDeadline('Response unavailable after local deadline')), readTimeoutMs);
+  try {
+    const value = await Promise.race([exchange(controller.signal), stopped]);
+    controller.signal.throwIfAborted();
+    return value;
+  } finally {
+    clearTimeout(timer);
+    outer.removeEventListener('abort', forward);
+    controller.signal.removeEventListener('abort', abort);
+  }
+}
+async function receive(response: Response, signal: AbortSignal): Promise<unknown> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new TypeError('Response body missing');
+  const cancel = () => { void reader.cancel().catch(() => undefined); };
+  signal.addEventListener('abort', cancel, { once: true });
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    for (;;) {
+      signal.throwIfAborted();
+      const part = await reader.read();
+      signal.throwIfAborted();
+      if (part.done) break;
+      length += part.value.byteLength;
+      chunks.push(part.value);
+    }
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+  } catch (error) { cancel(); throw error; }
+  finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
+}
+
 /** Resolve Atlas stock handles through the actual scoped owner route. Schema
  * and session context come from the existing host; this issues no permission,
  * guesses no provider URL, and leaves unbound artifact kinds unavailable. */
@@ -37,12 +85,15 @@ export function createAtlasGatewayDownloadResolver(
       const href = `/api/atlas/media/downloads/${encodeURIComponent(selected.workspaceId)}/${encodeURIComponent(selected.homeId)}/${encodeURIComponent(data.downloadToken)}`;
       let observed: unknown;
       try {
-        const response = await transport(`${href}/availability`, {
-          method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
-          headers: { Accept: 'application/json' }, signal: context.signal,
+        observed = await withReadDeadline(context.signal, async signal => {
+          const response = await transport(`${href}/availability`, {
+            method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
+            headers: { Accept: 'application/json' }, signal,
+          });
+          if (signal.aborted) { discard(response); signal.throwIfAborted(); }
+          if (!response.ok) { discard(response); return null; }
+          return await receive(response, signal);
         });
-        if (!response.ok) return null;
-        observed = await response.json();
       } catch {
         context.signal.throwIfAborted();
         return null;

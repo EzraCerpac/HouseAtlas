@@ -4,6 +4,54 @@ import { AiModelsUnauthorizedError } from '../types.js';
 import type { AiClient, ReviewInput } from '../types.js';
 import { decodeCancelReceipt, decodeConnectionSnapshot, decodeModelDiscovery, decodeRequestStatus, decodeRunOutcome } from './decode.js';
 
+// Local settlement covers headers and body, not server cancellation or retry safety.
+const readTimeoutMs = 15_000;
+class ReadDeadline extends Error {}
+function discard(response: Response) { void response.body?.cancel().catch(() => undefined); }
+async function withReadDeadline<T>(outer: AbortSignal, exchange: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  outer.throwIfAborted();
+  const controller = new AbortController();
+  const forward = () => controller.abort(outer.reason);
+  let reject!: (reason: unknown) => void;
+  const stopped = new Promise<never>((_, no) => { reject = no; });
+  const abort = () => reject(controller.signal.reason);
+  controller.signal.addEventListener('abort', abort, { once: true });
+  outer.addEventListener('abort', forward, { once: true });
+  const timer = setTimeout(() => controller.abort(new ReadDeadline('Response unavailable after local deadline')), readTimeoutMs);
+  try {
+    const value = await Promise.race([exchange(controller.signal), stopped]);
+    controller.signal.throwIfAborted();
+    return value;
+  } finally {
+    clearTimeout(timer);
+    outer.removeEventListener('abort', forward);
+    controller.signal.removeEventListener('abort', abort);
+  }
+}
+async function receive(response: Response, signal: AbortSignal): Promise<unknown> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new TypeError('Response body missing');
+  const cancel = () => { void reader.cancel().catch(() => undefined); };
+  signal.addEventListener('abort', cancel, { once: true });
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    for (;;) {
+      signal.throwIfAborted();
+      const part = await reader.read();
+      signal.throwIfAborted();
+      if (part.done) break;
+      length += part.value.byteLength;
+      chunks.push(part.value);
+    }
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+  } catch (error) { cancel(); throw error; }
+  finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
+}
+
 /** Every operation is already bound to the server's current actor/home/provider. */
 export interface AiHostWirePort extends AiLifecycleWirePort {
   models?(signal: AbortSignal): Promise<unknown>;
@@ -58,7 +106,7 @@ function localPath(path: string): string {
 export function createAiHostClient(options: AiHostHttpOptions): AiClient {
   const transport = options.fetch ?? globalThis.fetch;
   const endpoints = { ...options.endpoints };
-  async function request(path: string, signal: AbortSignal, body?: unknown, modelsRead = false): Promise<unknown> {
+  async function request(path: string, signal: AbortSignal, body?: unknown, modelsRead = false, cancelConfirmation = false): Promise<unknown> {
     const url = localPath(path);
     const headers = new Headers(body === undefined ? undefined : await options.mutationHeaders(signal));
     headers.set('Accept', 'application/json');
@@ -69,9 +117,11 @@ export function createAiHostClient(options: AiHostHttpOptions): AiClient {
       credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal, headers,
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
+    if (signal.aborted) { discard(response); signal.throwIfAborted(); }
+    if (!response.ok) discard(response);
     if (modelsRead && (response.status === 401 || response.status === 403)) throw new AiModelsUnauthorizedError(response.status);
     if (!response.ok) throw new Error('AI host response is unavailable');
-    const value: unknown = await response.json();
+    const value: unknown = cancelConfirmation ? await receive(response, signal) : await response.json();
     signal.throwIfAborted();
     return value;
   }
@@ -82,7 +132,7 @@ export function createAiHostClient(options: AiHostHttpOptions): AiClient {
     connectionActionStatus: (actionId, signal) => request(endpoints.connectionActionStatus(actionId), signal),
     run: (input, signal) => request(endpoints.run, signal, input),
     // The donor deliberately separates cancellation from the result's AbortSignal.
-    cancel: requestId => request(endpoints.cancel(requestId), new AbortController().signal, { requestId }),
+    cancel: requestId => withReadDeadline(new AbortController().signal, signal => request(endpoints.cancel(requestId), signal, { requestId }, false, true)),
     openReview: (input, signal) => request(endpoints.openReview, signal, input),
     resume: (input, signal) => request(endpoints.resume, signal, input),
     requestStatus: (requestId, signal) => request(endpoints.requestStatus(requestId), signal),

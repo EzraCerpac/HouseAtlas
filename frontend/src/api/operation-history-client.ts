@@ -39,6 +39,54 @@ export class OperationHistoryReadError extends Error {
   }
 }
 
+// Local settlement covers headers and body, not server cancellation or retry safety.
+const readTimeoutMs = 15_000;
+class ReadDeadline extends Error {}
+function discard(response: Response) { void response.body?.cancel().catch(() => undefined); }
+async function withReadDeadline<T>(outer: AbortSignal, exchange: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  outer.throwIfAborted();
+  const controller = new AbortController();
+  const forward = () => controller.abort(outer.reason);
+  let reject!: (reason: unknown) => void;
+  const stopped = new Promise<never>((_, no) => { reject = no; });
+  const abort = () => reject(controller.signal.reason);
+  controller.signal.addEventListener('abort', abort, { once: true });
+  outer.addEventListener('abort', forward, { once: true });
+  const timer = setTimeout(() => controller.abort(new ReadDeadline('Response unavailable after local deadline')), readTimeoutMs);
+  try {
+    const value = await Promise.race([exchange(controller.signal), stopped]);
+    controller.signal.throwIfAborted();
+    return value;
+  } finally {
+    clearTimeout(timer);
+    outer.removeEventListener('abort', forward);
+    controller.signal.removeEventListener('abort', abort);
+  }
+}
+async function receive(response: Response, signal: AbortSignal): Promise<unknown> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new TypeError('Response body missing');
+  const cancel = () => { void reader.cancel().catch(() => undefined); };
+  signal.addEventListener('abort', cancel, { once: true });
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    for (;;) {
+      signal.throwIfAborted();
+      const part = await reader.read();
+      signal.throwIfAborted();
+      if (part.done) break;
+      length += part.value.byteLength;
+      chunks.push(part.value);
+    }
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+  } catch (error) { cancel(); throw error; }
+  finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
+}
+
 const uuid = { type: 'string', format: 'uuid', pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' };
 const scopeSchema = {
   type: 'object', additionalProperties: false, required: ['workspaceId', 'homeId'],
@@ -94,25 +142,36 @@ export function createOperationHistoryClient(transport: typeof fetch = globalThi
       signal.throwIfAborted();
       const query = new URLSearchParams({ workspaceId: scope.workspaceId, homeId: scope.homeId, pageSize: '25' });
       if (cursor !== null) query.set('cursor', cursor);
-      const response = await transport(`/api/atlas/operation-events?${query}`, {
-        method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
-        headers: { Accept: 'application/json' }, signal,
-      });
-      signal.throwIfAborted();
-      if (response.status === 401) return { status: 'expired' };
-      if (response.status === 403) return { status: 'denied' };
-      if (!response.ok) throw new OperationHistoryReadError(response.status);
+      try {
+        return await withReadDeadline<OperationHistoryRead>(signal, async signal => {
+          const response = await transport(`/api/atlas/operation-events?${query}`, {
+            method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
+            headers: { Accept: 'application/json' }, signal,
+          });
+          if (signal.aborted) { discard(response); signal.throwIfAborted(); }
+          if (!response.ok) discard(response);
+          signal.throwIfAborted();
+          if (response.status === 401) return { status: 'expired' };
+          if (response.status === 403) return { status: 'denied' };
+          if (!response.ok) throw new OperationHistoryReadError(response.status);
 
-      const value: unknown = await response.json();
-      signal.throwIfAborted();
-      if (!validatePage(value)) throw new TypeError('Operation history page is incompatible');
-      if (value.resolvedScope.workspaceId !== scope.workspaceId || value.resolvedScope.homeId !== scope.homeId)
-        throw new TypeError('Operation history scope does not match request');
-      if (value.nextCursor !== null && new TextEncoder().encode(value.nextCursor).length > 128)
-        throw new TypeError('Operation history cursor exceeded byte bound');
-      if (new Set(value.entries.map(entry => entry.eventId)).size !== value.entries.length)
-        throw new TypeError('Operation history page repeated an event');
-      return { status: 'ready', page: value };
+          const value: unknown = await receive(response, signal);
+          signal.throwIfAborted();
+          if (!validatePage(value)) throw new TypeError('Operation history page is incompatible');
+          if (value.resolvedScope.workspaceId !== scope.workspaceId || value.resolvedScope.homeId !== scope.homeId)
+            throw new TypeError('Operation history scope does not match request');
+          if (value.nextCursor !== null && new TextEncoder().encode(value.nextCursor).length > 128)
+            throw new TypeError('Operation history cursor exceeded byte bound');
+          if (new Set(value.entries.map(entry => entry.eventId)).size !== value.entries.length)
+            throw new TypeError('Operation history page repeated an event');
+          return { status: 'ready', page: value };
+        });
+      } catch (error) {
+        signal.throwIfAborted();
+        // A rejected continuation lets the existing host retain earlier pages.
+        if (error instanceof ReadDeadline && cursor === null) return { status: 'unavailable' };
+        throw error;
+      }
     },
   };
 }

@@ -33,6 +33,54 @@ export type RetainedIntentRead =
   | { status: 'ready'; receipt: RetainedIntentReceipt }
   | { status: 'unavailable' | 'denied' | 'expired' };
 
+// Local settlement covers headers and body, not server cancellation or retry safety.
+const readTimeoutMs = 15_000;
+class ReadDeadline extends Error {}
+function discard(response: Response) { void response.body?.cancel().catch(() => undefined); }
+async function withReadDeadline<T>(outer: AbortSignal, exchange: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  outer.throwIfAborted();
+  const controller = new AbortController();
+  const forward = () => controller.abort(outer.reason);
+  let reject!: (reason: unknown) => void;
+  const stopped = new Promise<never>((_, no) => { reject = no; });
+  const abort = () => reject(controller.signal.reason);
+  controller.signal.addEventListener('abort', abort, { once: true });
+  outer.addEventListener('abort', forward, { once: true });
+  const timer = setTimeout(() => controller.abort(new ReadDeadline('Response unavailable after local deadline')), readTimeoutMs);
+  try {
+    const value = await Promise.race([exchange(controller.signal), stopped]);
+    controller.signal.throwIfAborted();
+    return value;
+  } finally {
+    clearTimeout(timer);
+    outer.removeEventListener('abort', forward);
+    controller.signal.removeEventListener('abort', abort);
+  }
+}
+async function receive(response: Response, signal: AbortSignal): Promise<unknown> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new TypeError('Response body missing');
+  const cancel = () => { void reader.cancel().catch(() => undefined); };
+  signal.addEventListener('abort', cancel, { once: true });
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    for (;;) {
+      signal.throwIfAborted();
+      const part = await reader.read();
+      signal.throwIfAborted();
+      if (part.done) break;
+      length += part.value.byteLength;
+      chunks.push(part.value);
+    }
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+  } catch (error) { cancel(); throw error; }
+  finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
+}
+
 const maximumBytes = 16 * 1024;
 const validator = new Ajv2020({ strict: true, allErrors: true, allowUnionTypes: true });
 addFormats(validator);
@@ -129,50 +177,62 @@ export function createRetainedIntentClient(transport: typeof fetch = globalThis.
         if (!sameScope(original.context, current().scope))
           throw new TypeError('Retained intent scope is no longer current');
       };
-      const response = await transport('/api/atlas/retained-intent', {
-        method: 'POST', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'x-atlas-csrf': csrf }, body, signal,
-      });
-      signal.throwIfAborted(); check();
-      if (response.status === 401) return { status: 'expired' };
-      if (response.status === 403) return { status: 'denied' };
-      if (!response.ok) return { status: 'unavailable' };
-      const value: unknown = await response.json();
-      signal.throwIfAborted(); check();
-      if (!validateReceipt(value)) throw new TypeError('Retained intent receipt is incompatible');
-      const inspection = value.inspection;
-      if (value.lookupRequestId !== original.requestId || inspection.commandId !== original.commandId
-        || !sameScope(inspection.resolvedScope, selected))
-        throw new TypeError('Retained intent inspection correlation differs');
-      const saved = value.committedResult;
-      if (inspection.outcome === 'not-retained-at-snapshot') {
-        if (saved !== null || inspection.rootOperationId !== null || inspection.operationId !== null)
-          throw new TypeError('Retained intent absence is incompatible');
-      } else {
-        if (!saved || saved.originalRequestId !== original.requestId
-          || inspection.rootOperationId === null || inspection.operationId === null)
-          throw new TypeError('Retained original receipt correlation differs');
-        validateWire(original, saved.wire, original.requestId, selected);
-        if (saved.wire['operationId'] !== inspection.operationId
-          || (saved.wire['data'] as Record<string, unknown>)['requestDigest'] !== inspection.requestDigest)
-          throw new TypeError('Retained operation correlation differs');
-        if (original.commandId === 'atlas.batch.execute') {
-          const commands = original.payload['commands'] as StockRequestEnvelope[];
-          if (saved.children.length !== commands.length || inspection.rootOperationId !== inspection.operationId)
-            throw new TypeError('Retained batch receipt differs');
-          saved.children.forEach((wire, index) => {
-            const command = commands[index]!;
-            if (!sameScope(command.context, selected)) throw new TypeError('Retained batch child scope differs');
-            validateWire(command, wire, command.requestId, selected);
+      try {
+        return await withReadDeadline<RetainedIntentRead>(signal, async signal => {
+          const response = await transport('/api/atlas/retained-intent', {
+            method: 'POST', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'x-atlas-csrf': csrf }, body, signal,
           });
-          const rootData = saved.wire['data'] as Record<string, unknown>;
-          for (const field of ['records', 'auditIds']) {
-            const flattened = saved.children.flatMap(child => (child['data'] as Record<string, unknown>)[field] as unknown[]);
-            if (!equalJson(rootData[field], flattened)) throw new TypeError('Retained batch receipt order differs');
+          if (signal.aborted) { discard(response); signal.throwIfAborted(); }
+          if (!response.ok) discard(response);
+          try { signal.throwIfAborted(); check(); }
+          catch (error) { discard(response); throw error; }
+          if (response.status === 401) return { status: 'expired' };
+          if (response.status === 403) return { status: 'denied' };
+          if (!response.ok) return { status: 'unavailable' };
+          const value: unknown = await receive(response, signal);
+          signal.throwIfAborted(); check();
+          if (!validateReceipt(value)) throw new TypeError('Retained intent receipt is incompatible');
+          const inspection = value.inspection;
+          if (value.lookupRequestId !== original.requestId || inspection.commandId !== original.commandId
+            || !sameScope(inspection.resolvedScope, selected))
+            throw new TypeError('Retained intent inspection correlation differs');
+          const saved = value.committedResult;
+          if (inspection.outcome === 'not-retained-at-snapshot') {
+            if (saved !== null || inspection.rootOperationId !== null || inspection.operationId !== null)
+              throw new TypeError('Retained intent absence is incompatible');
+          } else {
+            if (!saved || saved.originalRequestId !== original.requestId
+              || inspection.rootOperationId === null || inspection.operationId === null)
+              throw new TypeError('Retained original receipt correlation differs');
+            validateWire(original, saved.wire, original.requestId, selected);
+            if (saved.wire['operationId'] !== inspection.operationId
+              || (saved.wire['data'] as Record<string, unknown>)['requestDigest'] !== inspection.requestDigest)
+              throw new TypeError('Retained operation correlation differs');
+            if (original.commandId === 'atlas.batch.execute') {
+              const commands = original.payload['commands'] as StockRequestEnvelope[];
+              if (saved.children.length !== commands.length || inspection.rootOperationId !== inspection.operationId)
+                throw new TypeError('Retained batch receipt differs');
+              saved.children.forEach((wire, index) => {
+                const command = commands[index]!;
+                if (!sameScope(command.context, selected)) throw new TypeError('Retained batch child scope differs');
+                validateWire(command, wire, command.requestId, selected);
+              });
+              const rootData = saved.wire['data'] as Record<string, unknown>;
+              for (const field of ['records', 'auditIds']) {
+                const flattened = saved.children.flatMap(child => (child['data'] as Record<string, unknown>)[field] as unknown[]);
+                if (!equalJson(rootData[field], flattened)) throw new TypeError('Retained batch receipt order differs');
+              }
+            } else if (saved.children.length !== 0) throw new TypeError('Single retained receipt has children');
           }
-        } else if (saved.children.length !== 0) throw new TypeError('Single retained receipt has children');
+          return { status: 'ready', receipt: value };
+        });
+      } catch (error) {
+        signal.throwIfAborted();
+        check();
+        if (error instanceof ReadDeadline) return { status: 'unavailable' };
+        throw error;
       }
-      return { status: 'ready', receipt: value };
     },
   };
 }
