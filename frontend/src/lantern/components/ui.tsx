@@ -124,7 +124,7 @@ export function StorageTag({ doc }: { doc: Doc }) {
   return (
     <span className="storage storage-stored" title="A copy of the file is stored with the household records.">
       <Icon name={doc.kind === 'photo' ? 'photo' : 'file'} size={13} />
-      Stored {doc.sizeKb ? fmtSize(doc.sizeKb) : ''}
+      Stored {doc.sizeKb !== undefined ? fmtSize(doc.sizeKb) : ''}
     </span>
   );
 }
