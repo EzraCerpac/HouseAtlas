@@ -52,7 +52,7 @@ function sourceText(entry: Entry): string | undefined {
 }
 
 function documentKind(attachment: Attachment): Doc['kind'] {
-  if (attachment.kind === 'stored-file' && attachment.contentType?.startsWith('image/')) {
+  if (attachment.kind === 'stored-file' && attachment.contentType?.toLowerCase().startsWith('image/')) {
     return 'photo';
   }
   return 'unknown';

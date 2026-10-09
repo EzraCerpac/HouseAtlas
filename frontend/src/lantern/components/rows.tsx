@@ -19,7 +19,9 @@ export function DocRow({ doc, showLinked }: { doc: Doc; showLinked?: boolean | u
         </button>
         <span className="row-meta">
           <StorageTag doc={doc} />
-          <span>{doc.kind === 'photo' ? `Taken ${fmtShortDate(doc.capturedAt, house.displayNow)}` : `Added ${fmtShortDate(doc.addedAt, house.displayNow)}`}</span>
+          <span>{doc.kind === 'photo'
+            ? doc.capturedAt ? `Taken ${fmtShortDate(doc.capturedAt, house.displayNow)}` : 'Capture date not supplied'
+            : doc.addedAt ? `Added ${fmtShortDate(doc.addedAt, house.displayNow)}` : 'Attachment add date not supplied'}</span>
           {showLinked && doc.linkedTo.length > 0 && <span>{doc.linkedTo.slice(0, 2).map((l) => nameOf(house, l)).join(', ')}</span>}
         </span>
       </span>
