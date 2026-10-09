@@ -194,7 +194,8 @@ export function PlaceEditor({
     const reason = readReason(event.currentTarget);
     if (!reason) return;
     const requestId = crypto.randomUUID(),
-      record = admission.record;
+      record = admission.record,
+      { elevation, ...payload } = record.payload;
     void commit(async (signal) => {
       const result = await client.replacePlace(
         {
@@ -207,7 +208,11 @@ export function PlaceEditor({
             recordType: "location-semantics",
             recordId: record.recordId,
           },
-          payload: { ...record.payload, semanticKind: kind },
+          payload: {
+            ...payload,
+            semanticKind: kind,
+            ...(elevation === undefined ? {} : { elevation: { ...elevation } }),
+          },
           idempotencyKey: crypto.randomUUID(),
           reason,
           approvalReceiptId: null,
