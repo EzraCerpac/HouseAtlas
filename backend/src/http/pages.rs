@@ -11,6 +11,7 @@ use std::{
 
 struct Cursor {
     context: [u8; 32],
+    session: [u8; 32],
     offset: usize,
     expires: Instant,
 }
@@ -36,7 +37,7 @@ impl Pages {
         &mut self,
         uri: &Uri,
         principal: &RequestPrincipal,
-        cookie: Option<&str>,
+        session: [u8; 32],
         collection: &str,
         items: Vec<Value>,
         statuses: Vec<Value>,
@@ -72,7 +73,6 @@ impl Pages {
             return Err(invalid());
         }
         let snapshot_digest = digest(&json!({"items":items,"sourceStatuses":statuses}))?;
-        let session: [u8; 32] = Sha256::digest(cookie.unwrap_or("").as_bytes()).into();
         let scope = principal.principal.scope();
         let context = digest(&json!({
             "workspaceId":scope.workspace_id.as_str(), "homeId":scope.home_id.as_str(),
@@ -101,7 +101,15 @@ impl Pages {
         let next = if end < items.len() {
             // A validated continuation replaces its own live reservation. New
             // sequences must fit without evicting another advertised cursor.
-            if followed.is_none() && self.cursors.len() >= 1000 {
+            if followed.is_none()
+                && (self.cursors.len() >= 1000
+                    || self
+                        .cursors
+                        .values()
+                        .filter(|cursor| cursor.session == session)
+                        .count()
+                        >= 100)
+            {
                 return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
             }
             let token =
@@ -125,6 +133,7 @@ impl Pages {
                     token,
                     Cursor {
                         context,
+                        session,
                         offset: end,
                         expires: now + Duration::from_millis(300_000),
                     },

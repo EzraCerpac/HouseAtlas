@@ -401,6 +401,12 @@ async fn list(
                 } else {
                     snapshot.caches
                 };
+                let session = core
+                    .access
+                    .lock()
+                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
+                    .authenticated_session_binding(p.principal.principal())
+                    .map_err(super::access_error)?;
                 // Retain the exact exclusive registry guard through the
                 // existing authorized_read final principal release. Pending
                 // DATA dropping on release failure leaves live tokens intact.
@@ -408,14 +414,7 @@ async fn list(
                     .pages
                     .lock()
                     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-                let prepared = pages.prepare(
-                    &uri,
-                    p,
-                    headers.cookie.as_deref(),
-                    collection,
-                    items,
-                    statuses,
-                )?;
+                let prepared = pages.prepare(&uri, p, session, collection, items, statuses)?;
                 Ok((pages, prepared))
             },
         )?;
