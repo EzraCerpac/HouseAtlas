@@ -14,6 +14,7 @@ import { RealPreview } from './components/RealPreview';
 import { SourceDetails } from './components/SourceDetails';
 import { SearchPalette } from './components/SearchPalette';
 import { SettingsDialog } from './components/SettingsDialog';
+import { AiActivityStatus } from '../ai/host/index.js';
 
 const VIEWS: { id: ViewId; label: string; icon: string }[] = [
   { id: 'atlas', label: 'Atlas', icon: 'atlas' },
@@ -169,6 +170,11 @@ export function App() {
       </nav>
 
       <main id="main" className="main" tabIndex={-1}>
+        {!state.askOpen && !state.nativeOpen && (
+          <div hidden={state.settingsOpen}>
+            <AiActivityStatus onOpenSettings={() => dispatch({ type: 'settingsOpen', open: true })} />
+          </div>
+        )}
         {view}
       </main>
 
