@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
-import { useReducedMotion, useStore, type ViewId } from './state/store';
+import { useReducedMotion, useSelect, useStore, type ViewId } from './state/store';
 import { fmtDateTime } from './data/time';
 import { Icon } from './components/Icon';
 import { AtlasView } from './atlas/AtlasView';
@@ -52,6 +52,28 @@ function SyncChip() {
       <span className="sync-text">{text}</span>
     </button>
   );
+}
+
+function ArchiveFilter() {
+  const { actions, projection } = useStore();
+  const select = useSelect();
+  const visibility = actions.archiveVisibility;
+  if (!visibility) return null;
+  const archived = [...projection.house.spaces, ...projection.house.items].flatMap(record => {
+    const entry = projection.entries.get(record.id);
+    return entry?.entity.archived ? [{ record, entry }] : [];
+  });
+  return <section aria-label="Filter retained HomeBox records">
+    <label><input type="checkbox" checked={visibility.included}
+      onChange={event => visibility.setIncluded(event.currentTarget.checked)} /> Include archived HomeBox records</label>
+    {visibility.included && <details>
+      <summary>Archived HomeBox records in this saved view ({archived.length})</summary>
+      {archived.length ? <ul className="rows">{archived.map(({ record, entry }) => <li key={record.id}>
+        <button type="button" className="row-title" onClick={() => select(record.id)}>{record.name || 'Unnamed source record'}</button>
+        <span className="row-meta">Archived in HomeBox · Source: {entry.sourceState}; cache: {entry.cacheStatus}</span>
+      </li>)}</ul> : <p className="empty">No archived HomeBox records in this saved view.</p>}
+    </details>}
+  </section>;
 }
 
 function Toasts() {
@@ -176,6 +198,7 @@ export function App() {
             <AiActivityStatus onOpenSettings={() => dispatch({ type: 'settingsOpen', open: true })} />
           </div>
         )}
+        <ArchiveFilter />
         {view}
       </main>
 

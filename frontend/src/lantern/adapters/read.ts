@@ -58,7 +58,7 @@ function documentKind(attachment: Attachment): Doc['kind'] {
   return 'unknown';
 }
 
-export function projectView(view: ReadyView, geometryMetadata: GeometryRead = { status: 'loading' }, operationHistory: OperationHistoryRead = { status: 'loading' }, loadMoreOperations: (() => void) | null = null): LanternProjection {
+export function projectView(view: ReadyView, geometryMetadata: GeometryRead = { status: 'loading' }, operationHistory: OperationHistoryRead = { status: 'loading' }, loadMoreOperations: (() => void) | null = null, includeArchived = false): LanternProjection {
   const entries = new Map<string, Entry>();
   const attachments = new Map<string, Attachment>();
   const docAccess = new Map<string, DocAccess>();
@@ -67,11 +67,10 @@ export function projectView(view: ReadyView, geometryMetadata: GeometryRead = { 
   const docs: Doc[] = [];
   const tasks: Task[] = [];
 
-  // ReadyView may retain records for other homes and archived records. Only
-  // records in the selected scope whose entity is not flagged archived are
-  // projected into this house; their sourceState is kept as supplied and may
-  // still be archived. The complete view is retained above.
-  for (const entry of visibleEntries(view, false)) {
+  // Archive visibility is a local display choice over the original saved view.
+  // Full selected scope and all original source/archive/availability fields stay
+  // intact; including a retained record grants no source or physical placement.
+  for (const entry of visibleEntries(view, includeArchived)) {
     if (entry.workspaceId !== view.scope.workspaceId || entry.homeId !== view.scope.homeId) continue;
 
     const id = scopedId(kindOf(entry), entry);

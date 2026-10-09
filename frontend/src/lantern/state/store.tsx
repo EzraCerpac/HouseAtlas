@@ -85,6 +85,8 @@ export interface LanternActions {
   reload: () => Promise<boolean>;
   switchHome: (scope: Scope) => void;
   session?: SessionSettings;
+  /** Local retained-view filter only; never a read, grant or archive mutation. */
+  archiveVisibility?: { readonly included: boolean; readonly setIncluded: (included: boolean) => void };
   editing?: AtlasEditingClient;
   quantity?: QuantityClient;
   /** Optional local HomeBox file consumer; never a grant or quantity authority. */
