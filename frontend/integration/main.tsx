@@ -175,6 +175,30 @@ const nativeClient = createAtlasClient({
   bootstrap: root.dataset.bootstrapUrl ?? "/api/atlas/view",
   home: scope => `/api/atlas/homes/${encodeURIComponent(scope.workspaceId)}/${encodeURIComponent(scope.homeId)}/view`,
 });
+/** Internal deadline for each optional admission read, headers and body
+ * together. Expiry is no admission: the view is still returned, tools stay
+ * unregistered and nothing is retried. */
+const admissionTimeoutMs = 10000;
+/** Settles one optional read by its deadline even if the transport or body
+ * ignores the abort, so a late result is never returned. The caller's abort is
+ * forwarded with its own reason; the timer and listeners are always removed. */
+async function withAdmissionDeadline<T>(signal: AbortSignal, read: (deadline: AbortSignal) => Promise<T>): Promise<T> {
+  const timeout = new AbortController();
+  let expire!: () => void;
+  const expired = new Promise<never>((_, reject) => { expire = () => reject(timeout.signal.reason); });
+  const abort = () => timeout.abort(signal.reason);
+  timeout.signal.addEventListener("abort", expire, { once: true });
+  signal.addEventListener("abort", abort, { once: true });
+  if (signal.aborted) abort();
+  const timer = setTimeout(() => timeout.abort(), admissionTimeoutMs);
+  try {
+    return await Promise.race([read(timeout.signal), expired]);
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener("abort", abort);
+    timeout.signal.removeEventListener("abort", expire);
+  }
+}
 export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
   const [admission, setAdmission] = useState<StockAdmission | null>(null);
   const client = useMemo<AtlasClient>(() => {
@@ -193,17 +217,18 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
       if (view.status === "ready" && !signal.aborted && attempt === generation && sameSession()) {
         const scope = view.scope;
         try {
-          const response = await fetch(`/api/atlas/stock/v3/workspaces/${encodeURIComponent(scope.workspaceId)}/homes/${encodeURIComponent(scope.homeId)}/admission`, {
-            method: "GET", credentials: "same-origin", cache: "no-store", redirect: "error", signal,
-            headers: { Accept: "application/json" },
+          // Headers and body share one deadline; a late row is never used.
+          const row = await withAdmissionDeadline<unknown>(signal, async deadline => {
+            const response = await fetch(`/api/atlas/stock/v3/workspaces/${encodeURIComponent(scope.workspaceId)}/homes/${encodeURIComponent(scope.homeId)}/admission`, {
+              method: "GET", credentials: "same-origin", cache: "no-store", redirect: "error", signal: deadline,
+              headers: { Accept: "application/json" },
+            });
+            return response.ok ? await response.json() : null;
           });
-          if (response.ok) {
-            const row: unknown = await response.json();
-            if (row && typeof row === "object" && "schemaVersion" in row && row.schemaVersion === 3 && "scope" in row && "commandIds" in row && "revision" in row) {
-              const candidate = row as { scope: { workspaceId?: unknown; homeId?: unknown }; commandIds: unknown; revision: unknown };
-              if (candidate.scope?.workspaceId === scope.workspaceId && candidate.scope.homeId === scope.homeId && Array.isArray(candidate.commandIds) && candidate.commandIds.every(id => typeof id === "string") && typeof candidate.revision === "string" && !signal.aborted && attempt === generation && sameSession())
-                setAdmission({ scope, commandIds: candidate.commandIds, revision: candidate.revision });
-            }
+          if (row && typeof row === "object" && "schemaVersion" in row && row.schemaVersion === 3 && "scope" in row && "commandIds" in row && "revision" in row) {
+            const candidate = row as { scope: { workspaceId?: unknown; homeId?: unknown }; commandIds: unknown; revision: unknown };
+            if (candidate.scope?.workspaceId === scope.workspaceId && candidate.scope.homeId === scope.homeId && Array.isArray(candidate.commandIds) && candidate.commandIds.every(id => typeof id === "string") && typeof candidate.revision === "string" && !signal.aborted && attempt === generation && sameSession())
+              setAdmission({ scope, commandIds: candidate.commandIds, revision: candidate.revision });
           }
         } catch (error) {
           if (signal.aborted) throw error;
@@ -218,13 +243,16 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
         const quantityScope = currentQuantityScope;
         if (quantityScope && modelContext) {
           try {
-            const response = await fetch(quantityAdmissionUrl(quantityScope), {
-              method: "GET", credentials: "same-origin", cache: "no-store", redirect: "error", signal,
-              headers: { Accept: "application/json" },
+            // Headers and body share one deadline; a late row is never published.
+            const row = await withAdmissionDeadline(signal, async deadline => {
+              const response = await fetch(quantityAdmissionUrl(quantityScope), {
+                method: "GET", credentials: "same-origin", cache: "no-store", redirect: "error", signal: deadline,
+                headers: { Accept: "application/json" },
+              });
+              // Any non-success status is no admission; there is no fallback.
+              if (!response.ok) { await response.body?.cancel(); return null; }
+              return readQuantityAdmission(response, quantityScope, deadline);
             });
-            // Any non-success status is no admission; there is no fallback.
-            const row = response.ok ? await readQuantityAdmission(response, quantityScope, signal) : null;
-            if (!response.ok) await response.body?.cancel();
             if (row && !signal.aborted && attempt === generation && sameSession() && currentQuantityScope === quantityScope) {
               const bindingIdentity = quantity.getBindingIdentity();
               if (bindingIdentity !== null) {

@@ -32,6 +32,9 @@ export interface AccountObservationClient {
 }
 
 const responseLimit = 65536;
+/** Internal deadline over headers and body of one explicit read. Expiry is
+ * unavailable, so the manual refresh can be repeated; nothing is retried. */
+const readTimeoutMs = 15000;
 const denied: AccountRead = { status: 'denied' };
 const unavailable: AccountRead = { status: 'unavailable' };
 const encoder = new TextEncoder();
@@ -90,17 +93,35 @@ export function decodeAccountObservation(value: unknown): AccountObservation {
 function discard(response: Response): void {
   void response.body?.cancel().catch(() => undefined);
 }
-/** Bounded byte read. Overflow and stream failure yield null; a stale binding
- * or abort cancels the stream and throws. The lock is always released. */
-async function receive(body: ReadableStream<Uint8Array>, assertCurrent: () => void): Promise<Uint8Array | null> {
+/** Settles at the deadline even if the transport ignores its signal; a late
+ * response is discarded unread. */
+function within(pending: Promise<Response>, deadline: AbortSignal): Promise<Response> {
+  return new Promise<Response>((resolve, reject) => {
+    const expire = () => { void pending.then(discard, () => undefined); reject(deadline.reason); };
+    deadline.addEventListener('abort', expire, { once: true });
+    if (deadline.aborted) expire();
+    void pending.then(
+      response => { deadline.removeEventListener('abort', expire); resolve(response); },
+      (error: unknown) => { deadline.removeEventListener('abort', expire); reject(error); });
+  });
+}
+/** Bounded byte read. Overflow, stream failure and the deadline yield null; a
+ * stale binding or abort cancels the stream and throws. The deadline cancels
+ * the reader itself, since fetch abort alone need not settle a pending read of
+ * every body. The listener and lock are always released. */
+async function receive(body: ReadableStream<Uint8Array>, assertCurrent: () => void, deadline: AbortSignal): Promise<Uint8Array | null> {
   const reader = body.getReader();
+  const expire = () => { void reader.cancel().catch(() => undefined); };
+  deadline.addEventListener('abort', expire, { once: true });
+  if (deadline.aborted) expire();
   const chunks: Uint8Array[] = [];
   let received = 0;
   try {
     for (;;) {
       const chunk = await reader.read().catch(() => null);
       assertCurrent();
-      if (chunk === null) return null;
+      // A read settled by the deadline is incomplete even when it reports done.
+      if (chunk === null || deadline.aborted) return null;
       if (chunk.done) break;
       received += chunk.value.byteLength;
       if (received > responseLimit) {
@@ -113,6 +134,7 @@ async function receive(body: ReadableStream<Uint8Array>, assertCurrent: () => vo
     void reader.cancel().catch(() => undefined);
     throw error;
   } finally {
+    deadline.removeEventListener('abort', expire);
     reader.releaseLock();
   }
   const bytes = new Uint8Array(received);
@@ -145,27 +167,38 @@ export function createAccountObservationClient(options: {
     };
     assertCurrent();
     const { workspaceId, homeId } = binding.scope;
-    let response: Response;
+    // Internal deadline over headers and body. An external abort is forwarded
+    // with its own reason, so it still throws as before.
+    const timeout = new AbortController();
+    const abort = () => timeout.abort(signal.reason);
+    signal.addEventListener('abort', abort, { once: true });
+    const timer = setTimeout(() => timeout.abort(), readTimeoutMs);
     try {
-      response = await request(`/api/atlas/v1/workspaces/${encodeURIComponent(workspaceId)}/homes/${encodeURIComponent(homeId)}/ai/account`, {
-        method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal,
-        headers: { Accept: 'application/json' },
-      });
-    } catch (error) {
-      if (signal.aborted) throw error;
-      return unavailable;
+      let response: Response;
+      try {
+        response = await within(request(`/api/atlas/v1/workspaces/${encodeURIComponent(workspaceId)}/homes/${encodeURIComponent(homeId)}/ai/account`, {
+          method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: timeout.signal,
+          headers: { Accept: 'application/json' },
+        }), timeout.signal);
+      } catch (error) {
+        if (signal.aborted) throw error;
+        return unavailable;
+      }
+      try { assertCurrent(); } catch (error) { discard(response); throw error; }
+      // The host collapses every cause; nothing beyond denial is inferred here.
+      if (response.status === 401 || response.status === 403) { discard(response); return denied; }
+      if (response.status !== 200 || !response.body
+        || Number(response.headers.get('Content-Length')) > responseLimit) { discard(response); return unavailable; }
+      const bytes = await receive(response.body, assertCurrent, timeout.signal);
+      if (!bytes) return unavailable;
+      let value: unknown;
+      try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)); } catch { return unavailable; }
+      assertCurrent();
+      try { return { status: 'observed', observation: decodeAccountObservation(value) }; } catch { return unavailable; }
+    } finally {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', abort);
     }
-    try { assertCurrent(); } catch (error) { discard(response); throw error; }
-    // The host collapses every cause; nothing beyond denial is inferred here.
-    if (response.status === 401 || response.status === 403) { discard(response); return denied; }
-    if (response.status !== 200 || !response.body
-      || Number(response.headers.get('Content-Length')) > responseLimit) { discard(response); return unavailable; }
-    const bytes = await receive(response.body, assertCurrent);
-    if (!bytes) return unavailable;
-    let value: unknown;
-    try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)); } catch { return unavailable; }
-    assertCurrent();
-    try { return { status: 'observed', observation: decodeAccountObservation(value) }; } catch { return unavailable; }
   }
   return { getBinding, subscribe: changed => options.subscribeSessionBinding(changed), read };
 }
