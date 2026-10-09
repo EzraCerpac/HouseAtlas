@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "3622a43ef1658a6514114bd0cc53db88d6d57e738c37d8eb3aa399f556b5f58a",
+  "sourceDigestSha256": "928fd2aad31475a81f86586fe07f157e947e96ea929166fa6f808fc674ea92eb",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2527,8 +2527,8 @@
     {
       "path": "backend/src/media/mod.rs",
       "mode": "100644",
-      "bytes": 1414,
-      "sha256": "deb88b140cd87691445ddde4f8bee21ea5777497ade12bb2eec87f9bae7f5679",
+      "bytes": 1453,
+      "sha256": "97a029153b01a4eb473e6a25969aa598b36d985bc858fbda28d8f73c206e50b2",
       "owner": "media"
     },
     {
@@ -2571,6 +2571,13 @@
       "mode": "100644",
       "bytes": 81712,
       "sha256": "47003c5977b6103a6a7235425df80b52f1d97a3ff5f044c28eeaa2a2e15b192b",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/native_queued_upload_recovery.rs",
+      "mode": "100644",
+      "bytes": 8281,
+      "sha256": "7971026cb4b72af1a142945b8e894da61774047c62e982c92c6856efd6bd300b",
       "owner": "media"
     },
     {
@@ -5103,8 +5110,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 42274,
-      "sha256": "48aaade75b6111a68cb46f476291ef4025e5586c4f9381ca20a0296505bf5657",
+      "bytes": 42631,
+      "sha256": "4674fa4394ebb72620f1e07c47f7c19b1f13317f5df28d2b96ed34b09835686a",
       "owner": "core-integration"
     },
     {

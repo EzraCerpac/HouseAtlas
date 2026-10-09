@@ -465,6 +465,11 @@ termination or byte persistence: invoked byte disposition stays unknown and
 EndUnproven retains its physical blocker. This path has compilation and source
 review only. No upload invocation or readback runtime was exercised, and no
 descriptor-free cold-start owner or independent archive intake is supplied.
+The pure retained-frame consumer borrows the actual process-local execution,
+released attempt and journal, and original prepared token. It accepts only the
+exact prepared frame with its ordered claim/journal reservation prefix; all
+steps and outcomes remain unsupported. It supplies no discovery, resume or
+restart authority and has source validation only.
 
 Broader provider stock preparation, original whole-collection approval and
 durable operation activity remain incomplete. The root supports ten Atlas record-get arms,
