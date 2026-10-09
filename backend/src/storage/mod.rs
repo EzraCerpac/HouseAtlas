@@ -54,6 +54,7 @@ pub use native::NativeContract;
 pub use ports::{
     AssetProof, Authorization, AuthorizationRequest, Capability, Contract, Prior, Runtime,
 };
+pub(crate) use queue::QueuedUploadFinishHistoryIdentity;
 pub use queue::{
     JournalEvidenceView, NativeJournalReceipt, OriginalQueueJournalCut,
     OriginalQueuedQuantityAttempt, OriginalQueuedQuantityClaim, OriginalQueuedQuantityEnqueue,
@@ -70,7 +71,7 @@ pub use queue::{
     QueueUploadFinishCommittedObservation, QueueUploadJournalCommittedData,
     QueueUploadJournalCommittedObservation, RecordedOriginalEnqueue, RecordedOriginalEnqueueProof,
     RecordedOriginalUploadEnqueue, RecordedOriginalUploadEnqueueProof,
-    ReleasedQueuedUploadOriginalHistory, StepKind,
+    ReleasedQueuedUploadFinishHistory, ReleasedQueuedUploadOriginalHistory, StepKind,
 };
 pub use stock_activity::*;
 pub use stock_asset_review_types::*;

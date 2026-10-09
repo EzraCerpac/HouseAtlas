@@ -479,9 +479,17 @@ GET, measured reservation, exact prepared intent, captured installed artifacts
 and original decoder settings. The result retains no stage owner, file,
 upload body, principal, grant, reader, execution or configured owner. Each
 producer bounds its copies before allocation. This is source-only same-process
-provenance: serialized facts cannot reconstruct a seal after restart. Finish
-and effects are outside this transfer; missing effects do not imply that no
-invocation occurred. Complete archive coverage, authenticated administrative
+provenance: serialized facts cannot reconstruct a seal after restart. A separate
+closed Finish transfer consumes the actual full-Access-released Storage cut and
+the same Source effects, preserving the effects identity and qualified-readback
+option accepted at commit. Later raw capture or qualification cannot become
+evidence for an earlier Finish. It copies the exact accepted outcome, report and
+steps, parsed native response with its digest, and any retained lexical GET
+observation. Lexical native response bytes are unavailable. Invoked uploads keep
+Unknown byte disposition and EndUnproven activity; this history supplies no
+remote-end, byte-persistence, retry or CAS proof. Missing effects do not imply
+that no invocation occurred. These transfers have source validation only.
+Complete archive coverage, authenticated administrative
 intake and independent discovery permission remain separate requirements.
 
 Broader provider stock preparation, original whole-collection approval and

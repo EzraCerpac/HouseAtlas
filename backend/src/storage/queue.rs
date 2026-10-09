@@ -66,6 +66,8 @@ mod quantity_original;
 pub(crate) mod upload_execution;
 #[path = "queue_upload_execution_custody.rs"]
 mod upload_execution_custody;
+#[path = "queue_upload_finish_history.rs"]
+mod upload_finish_history;
 #[path = "queue_upload_history.rs"]
 mod upload_history;
 #[path = "queue_upload_journal_custody.rs"]
@@ -74,6 +76,8 @@ pub use upload_execution_custody::{
     OriginalQueuedUploadExecution, QueueUploadFinishCommittedData,
     QueueUploadFinishCommittedObservation,
 };
+pub(crate) use upload_finish_history::QueuedUploadFinishHistoryIdentity;
+pub use upload_finish_history::ReleasedQueuedUploadFinishHistory;
 pub use upload_history::ReleasedQueuedUploadOriginalHistory;
 #[path = "queue_upload_original.rs"]
 mod upload_original;
