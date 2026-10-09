@@ -230,29 +230,43 @@ fn reopen_selected<D: QueueDiscovery, E: QueueRecoveryEvidence>(
     peers: &RecoveryPeers<'_, D, E>,
     budget: &WorkBudget,
 ) -> Result<Core, ReopenError> {
-    checkpoint(budget)?;
-    configuration(&config)?;
-    let before = image_digest(&config.database, budget)?;
-    declared_image(&config, before)?;
-    let port = NativeMediaRecovery::<
-        NativeContracts,
-        ReadAuthority,
-        NativeMediaRuntime<ServerRuntime>,
-        NativeStockContract,
-        D,
-        E,
-    >::validator(&NativeContracts, peers.storage());
-    // Preserve the actual native return. The projected media assets cannot
-    // reconstruct its original numeric carriers, ordering or native payloads.
-    let image = port
-        .validate_image(config.database.path(), budget)
-        .map_err(|_| ReopenError::Image)?;
-    let validated = port
-        .validate_recovery_database(config.database.path(), budget)
-        .map_err(|_| ReopenError::Image)?;
-    if image_digest(&config.database, budget)? != before {
-        return Err(ReopenError::Image);
-    }
+    // Keep the consumed old Core outside all fallible preflight work.
+    // Every warm failure closes it explicitly; close failure takes precedence.
+    let preflight = (|| {
+        checkpoint(budget)?;
+        configuration(&config)?;
+        let before = image_digest(&config.database, budget)?;
+        declared_image(&config, before)?;
+        let port = NativeMediaRecovery::<
+            NativeContracts,
+            ReadAuthority,
+            NativeMediaRuntime<ServerRuntime>,
+            NativeStockContract,
+            D,
+            E,
+        >::validator(&NativeContracts, peers.storage());
+        // Preserve the actual native return. The projected media assets cannot
+        // reconstruct its original numeric carriers, ordering or native payloads.
+        let image = port
+            .validate_image(config.database.path(), budget)
+            .map_err(|_| ReopenError::Image)?;
+        let validated = port
+            .validate_recovery_database(config.database.path(), budget)
+            .map_err(|_| ReopenError::Image)?;
+        if image_digest(&config.database, budget)? != before {
+            return Err(ReopenError::Image);
+        }
+        Ok((before, image, validated))
+    })();
+    let (before, image, validated) = match preflight {
+        Ok(result) => result,
+        Err(phase) => {
+            if let Some(old) = source {
+                close_source(old)?;
+            }
+            return Err(phase);
+        }
+    };
     finish_reopen(
         source,
         config,
@@ -412,27 +426,42 @@ fn finish_reopen(
     validated: ValidatedDatabase,
     open: impl FnOnce(&Path, Arc<Mutex<AccessBoundary>>, Arc<AssetVault>) -> Result<Store, ReopenError>,
 ) -> Result<Core, ReopenError> {
-    let vault = Arc::new(AssetVault::open(config.vault.path()).map_err(|_| ReopenError::Vault)?);
-    configuration(&config)?;
-    for record in &validated.assets {
-        checkpoint(budget)?;
-        let payload = &record.payload;
-        let owned_key = record
-            .scope()
-            .storage_key(&payload.sha256)
-            .map_err(|_| ReopenError::Vault)?;
-        if payload.availability == Availability::Available {
-            vault
-                .verify_available_asset(record, budget)
+    // Source remains owned here until all retained-media preflight succeeds.
+    // Cleanup never checks budget or silently drops an unclosed warm Core.
+    let preflight = (|| {
+        let vault =
+            Arc::new(AssetVault::open(config.vault.path()).map_err(|_| ReopenError::Vault)?);
+        configuration(&config)?;
+        for record in &validated.assets {
+            checkpoint(budget)?;
+            let payload = &record.payload;
+            let owned_key = record
+                .scope()
+                .storage_key(&payload.sha256)
                 .map_err(|_| ReopenError::Vault)?;
-        } else if payload.storage_key == owned_key {
-            match vault.read_retained(record, budget) {
-                Ok(_) => (),
-                Err(MediaError::NotFound) if payload.availability == Availability::Missing => (),
-                Err(_) => return Err(ReopenError::Vault),
+            if payload.availability == Availability::Available {
+                vault
+                    .verify_available_asset(record, budget)
+                    .map_err(|_| ReopenError::Vault)?;
+            } else if payload.storage_key == owned_key {
+                match vault.read_retained(record, budget) {
+                    Ok(_) => (),
+                    Err(MediaError::NotFound) if payload.availability == Availability::Missing => {}
+                    Err(_) => return Err(ReopenError::Vault),
+                }
             }
         }
-    }
+        Ok(vault)
+    })();
+    let vault = match preflight {
+        Ok(vault) => vault,
+        Err(phase) => {
+            if let Some(old) = source {
+                close_source(old)?;
+            }
+            return Err(phase);
+        }
+    };
 
     // Closing storage drops its original ReadAuthority and media runtime clones.
     // Outstanding external access/vault clones mean the host was not drained.
