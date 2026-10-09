@@ -20,6 +20,7 @@ pub mod native_policy_reference;
 pub mod native_queued_quantity;
 pub mod native_queued_upload;
 pub mod native_queued_upload_archived;
+pub mod native_queued_upload_archived_body;
 pub mod native_queued_upload_recovery;
 pub mod native_recovery;
 mod platform_fs;
