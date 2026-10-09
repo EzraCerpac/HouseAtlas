@@ -211,7 +211,9 @@ export function PlaceEditor({
           payload: {
             ...payload,
             semanticKind: kind,
-            ...(elevation === undefined ? {} : { elevation: { ...elevation } }),
+            ...(kind === "floor" && elevation !== undefined
+              ? { elevation: { ...elevation } }
+              : {}),
           },
           idempotencyKey: crypto.randomUUID(),
           reason,
