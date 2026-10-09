@@ -69,10 +69,16 @@ assert(projected.house.spaces.every(s => s.geometry === 'none' && !s.shape));
 assert(projected.house.items.every(i => !i.pos && !i.spaceId && !i.containerId && i.locationClaim === 'unknown'));
 assert.equal(projected.house.history.length, 0);
 assert.equal(projected.house.writes.length, 0);
-assert.equal(new Set([...projected.house.spaces, ...projected.house.items].map(e => e.id)).size, view.entries.length);
+// The fixture's one archived record stays in the retained view but is not projected.
+const archivedDrawer = view.entries.find(e => e.entity.name === 'Archived drawer');
+assert(archivedDrawer);
+assert.equal(archivedDrawer.entity.archived, true);
+assert.deepEqual(view.entries.filter(e => e.entity.archived), [archivedDrawer]);
+assert(projected.view.entries.includes(archivedDrawer));
+assert.equal(new Set([...projected.house.spaces, ...projected.house.items].map(e => e.id)).size, view.entries.length - 1);
 for (const entry of view.entries) {
   const source = [...projected.entries.values()].find(e => e === entry);
-  assert.equal(source, entry);
+  assert.equal(source, entry === archivedDrawer ? undefined : entry);
 }
 assert(projected.house.docs.every(d => d.addedAt === '' && d.preview === 'none' && d.version === 0));
 const radio = view.entries.find(e => e.entity.name === 'Portable radio');
