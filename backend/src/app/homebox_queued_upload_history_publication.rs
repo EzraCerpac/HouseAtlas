@@ -142,6 +142,34 @@ impl<'a> UnadmittedQueuedUploadOriginalFrame<'a> {
     pub fn original_bytes(&self) -> &'a [u8] {
         self.bytes
     }
+    /// Borrowed section DATA after complete framing validation. This accessor
+    /// grants no semantic owner, catalog admission or recovery permission.
+    pub fn section(
+        &self,
+        requested: &str,
+        budget: &WorkBudget,
+    ) -> storage::Result<Option<&'a [u8]>> {
+        check(budget)?;
+        let mut rest = &self.bytes[MAGIC.len() + 2..];
+        for name in NAMES {
+            check(budget)?;
+            let name_len =
+                u16::from_be_bytes(take(&mut rest, 2)?.try_into().map_err(|_| unavailable())?)
+                    as usize;
+            take(&mut rest, name_len)?;
+            let size = usize::try_from(u64::from_be_bytes(
+                take(&mut rest, 8)?.try_into().map_err(|_| unavailable())?,
+            ))
+            .map_err(|_| unavailable())?;
+            let section = take(&mut rest, size)?;
+            if name == requested {
+                check(budget)?;
+                return Ok(Some(section));
+            }
+        }
+        check(budget)?;
+        Ok(None)
+    }
     /// Exact process-local DATA equality only; a candidate does not become an
     /// issued frame or an authenticated historical owner when this is true.
     pub fn matches_issued(
@@ -817,4 +845,18 @@ fn unavailable() -> storage::Error {
         "owner-unavailable",
         "Original upload publication frame unavailable",
     )
+}
+
+/// Exact bounded encoding of independently supplied queue configuration, DATA
+/// only. The actual catalog owner checks complete registry semantics separately.
+pub(crate) fn queue_registry_frame_bytes(
+    configs: &[jobs::QueueConfig],
+    budget: &WorkBudget,
+) -> storage::Result<Vec<u8>> {
+    check(budget)?;
+    let mut out = Encoder::new(budget);
+    out.limit = 4 * 1024 * 1024;
+    configs.encode(&mut out)?;
+    check(budget)?;
+    Ok(out.bytes)
 }
