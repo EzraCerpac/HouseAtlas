@@ -89,7 +89,14 @@ const quantityOriginalView = JSON.stringify(view);
 // original demo's numeric quantities and all existing projection cases remain.
 for (const token of ['9007199254740993', '1e-1000', null]) {
   const quantityDto = structuredClone(view);
-  quantityDto.entries.forEach((entry, index) => { entry.entity.quantity = index === 0 ? token : null; });
+  quantityDto.entries.forEach((entry, index) => {
+    entry.entity.quantity = index === 0 ? token : null;
+    // Paired native browser representation of the original safe synthetic facts.
+    entry.maintenance.forEach(item => { item.cost = item.cost === null ? null : String(item.cost); });
+    entry.attachments.filter(item => item.kind === 'stored-file').forEach(item => {
+      item.byteSize = item.byteSize === null ? null : String(item.byteSize);
+    });
+  });
   const decoded = decodeAtlasView(quantityDto);
   assert.equal(decoded.status, 'ready');
   assert.equal(decoded.entries[0].entity.quantity, token);
@@ -111,6 +118,59 @@ for (const token of ['9007199254740993', '1e-1000', null]) {
   assert.deepEqual(await client.load(quantitySignal), decoded);
   assert.deepEqual(await client.loadHome(view.scope, quantitySignal), decoded);
   assert.equal(quantityCalls, 2);
+}
+// Four explicitly reserved valid retained cost/byte pairs, parsed by the actual
+// decoder/client Response.json and projected without converting their tokens.
+for (const [cost, bytes] of [['9007199254740993', '9007199254740993'], ['1e-1000', '1e3'], ['0', '0'], [null, null]]) {
+  const metadataDto = structuredClone(view);
+  metadataDto.entries.forEach(entry => {
+    entry.entity.quantity = null;
+    entry.maintenance.forEach(item => { item.cost = item.cost === null ? null : String(item.cost); });
+    entry.attachments.filter(item => item.kind === 'stored-file').forEach(item => {
+      item.byteSize = item.byteSize === null ? null : String(item.byteSize);
+    });
+  });
+  const target = metadataDto.entries.find(entry => !entry.entity.archived && entry.maintenance.length
+    && entry.attachments.some(item => item.kind === 'stored-file'));
+  assert(target);
+  const maintenance = target.maintenance[0];
+  const attachment = target.attachments.find(item => item.kind === 'stored-file');
+  maintenance.cost = cost;
+  attachment.byteSize = bytes;
+  const decoded = decodeAtlasView(metadataDto);
+  const metadataSignal = new AbortController().signal;
+  const metadataHomeUrl = `/api/atlas/homes/${encodeURIComponent(view.scope.workspaceId)}/${encodeURIComponent(view.scope.homeId)}/view`;
+  let metadataCalls = 0;
+  const client = createAtlasClient({ bootstrap: '/api/atlas/view', home: scope => {
+    assert.deepEqual(scope, view.scope); return metadataHomeUrl;
+  } }, async (url, init) => {
+    assert.equal(url, metadataCalls++ === 0 ? '/api/atlas/view' : metadataHomeUrl);
+    assert.deepEqual(init, { method: 'GET', credentials: 'same-origin', cache: 'no-store',
+      redirect: 'error', headers: { Accept: 'application/json' }, signal: metadataSignal });
+    return new Response(JSON.stringify(metadataDto), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  });
+  for (const loaded of [await client.load(metadataSignal), await client.loadHome(view.scope, metadataSignal)]) {
+    assert.deepEqual(loaded, decoded);
+    assert.deepEqual(loaded.scope, view.scope);
+    assert.deepEqual(loaded.entries.map(entry => [entry.key, entry.source, entry.sourceState, entry.cacheStatus]),
+      view.entries.map(entry => [entry.key, entry.source, entry.sourceState, entry.cacheStatus]));
+    const source = loaded.entries.find(entry => entry.key === target.key);
+    assert.equal(source.maintenance[0].cost, cost);
+    const file = source.attachments.find(item => item.attachmentId === attachment.attachmentId);
+    assert.equal(file.byteSize, bytes);
+    const projection = projectView(loaded);
+    const docId = `doc-${JSON.stringify([source.workspaceId, source.homeId, source.key, attachment.attachmentId])}`;
+    const taskId = `mt-${JSON.stringify([source.workspaceId, source.homeId, source.key, maintenance.entryId])}`;
+    const doc = projection.house.docs.find(item => item.id === docId);
+    const task = projection.house.tasks.find(item => item.id === taskId);
+    assert.equal(doc.byteSize, bytes);
+    assert.equal(doc.sizeKb, undefined);
+    assert.equal(task.cost, cost === null ? undefined : cost);
+    assert.equal(projection.attachments.get(docId), file);
+    assert.equal(projection.entries.get(docId), source);
+    assert.equal(projection.entries.get(taskId), source);
+  }
+  assert.equal(metadataCalls, 2);
 }
 assert.equal(JSON.stringify(view), quantityOriginalView);
 
@@ -502,7 +562,7 @@ assert.equal(undated.house.tasks[0].due, undefined);
 const handleLink = { attachmentId: '00000000-0000-4000-8000-000000000a01', title: 'Synthetic manual',
   kind: 'external-link', url: 'https://example.invalid/manual', archived: false };
 const handleFile = { attachmentId: '00000000-0000-4000-8000-000000000a02', title: 'Synthetic photo',
-  kind: 'stored-file', contentType: 'image/png', byteSize: 2048,
+  kind: 'stored-file', contentType: 'image/png', byteSize: '2048',
   downloadHref: '/api/atlas/media/synthetic-photo', previewHref: null };
 const handleTask = { entryId: '00000000-0000-4000-8000-000000000a03', name: 'Synthetic filter check',
   description: '', scheduledDate: '2026-11-01', completedDate: null, cost: null };
