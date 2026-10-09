@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "ae84ac2c2cc7254b037903478a97717a35a3ed485aee3d177e01674ae84d0039",
+  "sourceDigestSha256": "49a3e12281fa3ba0af3420dce40683390e54728611cf329c897448ce062295b3",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -6412,15 +6412,15 @@
     {
       "path": "frontend/src/lantern/topology/BuildingScope.tsx",
       "mode": "100644",
-      "bytes": 11786,
-      "sha256": "176c2c12e2ff6c5ad3d13425be019a2a2ab191e5c7894586259c8f3c365c537f",
+      "bytes": 11781,
+      "sha256": "32341be59817ccbe9dd3754d157a93f19e66912aa1bb5371d2a979e3a9635601",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/topology/TopologyProvider.tsx",
       "mode": "100644",
-      "bytes": 6297,
-      "sha256": "1238c6256e929d94cb5a0e3007d83bae310c7f594878867a6855cedee9e8bc21",
+      "bytes": 7390,
+      "sha256": "fc835e061ede34fd473bddee8345eb73c00262316e7a7bacfadc76935b4442b4",
       "owner": "web"
     },
     {
@@ -7602,8 +7602,8 @@
     {
       "path": "tools/rust-integration/healthy-core-loopback.mjs",
       "mode": "100644",
-      "bytes": 20724,
-      "sha256": "4d347cae06b3c5b18817c23854959d59bfbfbe91a62dbbfa9472aa57a4adbf80",
+      "bytes": 20893,
+      "sha256": "45fc35449915f6336cad8f11ff0e8770f0f0a2773c07a586cd80d8a41d88e2a7",
       "owner": "core-integration"
     },
     {
