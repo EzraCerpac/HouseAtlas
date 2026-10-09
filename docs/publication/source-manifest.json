@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c7f7797df8d0ca5b4ada7651c8f07c7995ebbb87118f8d0757b24bf328882a28",
+  "sourceDigestSha256": "93827af2e3718d38af73ec477c173a7960afc9cc9fa3c9162918ff05879da77d",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 8753,
-      "sha256": "1b5a59faad2fa30a25793593c4f7dd6787e3b56e9539c49621ad6aa91fc550c1",
+      "bytes": 9670,
+      "sha256": "d2ce8baab7b99ce8bf2163678af3d2f46686f9f97ce92e9801d6f075a1858d64",
       "owner": "core-integration"
     },
     {
@@ -245,8 +245,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 4008,
-      "sha256": "ea18785b3c662680c5c2c5fa76722f443be7317296544a1e247f61cef57787df",
+      "bytes": 4097,
+      "sha256": "fa643e4baa0113acb326f718857635667253cf1fc0adc0d72c1cfdffb7958a53",
       "owner": "core-integration"
     },
     {
@@ -255,6 +255,13 @@
       "bytes": 12071,
       "sha256": "89c2e1bd0d26131c5fe51dc32d0f7c82e7090e336df8e34a40e843d60125683b",
       "owner": "mcp"
+    },
+    {
+      "path": "backend/examples/healthy-place-topology.rs",
+      "mode": "100644",
+      "bytes": 20611,
+      "sha256": "d519895504705d345f9dab43ace2982e85de5091bb6bcdf65a9dd23d7d94d01e",
+      "owner": "core-integration"
     },
     {
       "path": "backend/migrations/0001_rust_core.sql",
@@ -476,8 +483,8 @@
     {
       "path": "backend/src/ai/README.md",
       "mode": "100644",
-      "bytes": 14025,
-      "sha256": "1b101559b1e1aa452d4693727eda57c968ad5e96f20e12de844a7d9539471256",
+      "bytes": 14037,
+      "sha256": "6ec0cc610e22f4cd483e1037e8ca8a34a564c22097e1099f87e5568249aa5a87",
       "owner": "ai"
     },
     {
@@ -1134,8 +1141,8 @@
     {
       "path": "backend/src/contracts/generated.rs",
       "mode": "100644",
-      "bytes": 71357,
-      "sha256": "2976314a8ba81d45f22c4ca59ca2043d4d02001ad896951c39a682eb6b08ab2d",
+      "bytes": 77313,
+      "sha256": "a20500f410a3196287ed2c1738a9e177cef5050a8f4dda1e3418639c1cf7e7f3",
       "owner": "contracts"
     },
     {
@@ -1218,8 +1225,8 @@
     {
       "path": "backend/src/contracts/semantics/graph.rs",
       "mode": "100644",
-      "bytes": 30515,
-      "sha256": "d020490f95c3b90da282e2292da754f61171dc0924f593a0916c627474a7d9a1",
+      "bytes": 36664,
+      "sha256": "cdc15a1bea354a766fd4a1696fd2efc12851308d6576c23ad189699526f15ce6",
       "owner": "contracts"
     },
     {
@@ -1246,8 +1253,8 @@
     {
       "path": "backend/src/contracts/semantics/mutations.rs",
       "mode": "100644",
-      "bytes": 15827,
-      "sha256": "c19c26bfc93b0fff528ea1e842790d0eca32f4b7ed0cdc38867e6c02c9c330bb",
+      "bytes": 16018,
+      "sha256": "02e339d81cea1bc2b3a7c82038f5555945e0e8ae4d012ac04798b1d12a3a832e",
       "owner": "contracts"
     },
     {
@@ -1352,7 +1359,7 @@
       "path": "backend/src/contracts/stock/schema.rs",
       "mode": "100644",
       "bytes": 13758,
-      "sha256": "73c31f9ea8a4e86e10e1fcb279808ac5b00f99b1ed4ccc2076aab03cba25e106",
+      "sha256": "e3dfc5da23765ec78d37cdee8cd335fdb1720da40f5fce2190b4a81bd83d6d80",
       "owner": "contracts"
     },
     {
@@ -1666,8 +1673,8 @@
     {
       "path": "backend/src/domain/stock/atlas_reads.rs",
       "mode": "100644",
-      "bytes": 13064,
-      "sha256": "e3db486ae28f19526bae7c0ec03a8428c4dd081626ead7f51383b554d3e2ea09",
+      "bytes": 16737,
+      "sha256": "91d360687bffc63a451ea4e53dff84ae3d5c7934483be489d1c974e77ac6e2e1",
       "owner": "domain"
     },
     {
@@ -4214,8 +4221,8 @@
     {
       "path": "backend/src/storage/context.rs",
       "mode": "100644",
-      "bytes": 13542,
-      "sha256": "c4bd4dc56f29e71a77e4954be75cad5a6265aa86a7cfe84ba4e9d54a51017940",
+      "bytes": 13735,
+      "sha256": "71f9450bf5792d41941c7e8649e9beceab650f5efc5d46db0570297dee8772e9",
       "owner": "storage"
     },
     {
@@ -4915,7 +4922,7 @@
       "path": "backend/src/transports/mcp/native_schemas.rs",
       "mode": "100644",
       "bytes": 8341,
-      "sha256": "6ce982f435ebdb3f723bfc525d2e1ebf316422ee607f1f6b424dcc4277054065",
+      "sha256": "b25779cfbffbe0069ef52108b38448d3684fa38d7921ecbad6f6c6e1b934b82e",
       "owner": "mcp"
     },
     {
@@ -4970,22 +4977,22 @@
     {
       "path": "contracts/stock-wire3/SEMANTICS.md",
       "mode": "100644",
-      "bytes": 13491,
-      "sha256": "17aef5850f313c4984d880cfaa55af4764103d3e7022cd025e9c824b83478a62",
+      "bytes": 14032,
+      "sha256": "65183e6adfda0071a8c754cda810ca61e1886961bea9f94497f17ba0b92772a5",
       "owner": "contracts"
     },
     {
       "path": "contracts/stock-wire3/adoption-manifest.json",
       "mode": "100644",
-      "bytes": 5782,
-      "sha256": "f744024bf87db3aad4b5246aad8c548e7694e2feea1ee5600d8c06cabe6f58d4",
+      "bytes": 6036,
+      "sha256": "911794299b5cb5fd3584c770c09bf1a9797b9d5b079ad4b438f667b73badca79",
       "owner": "contracts"
     },
     {
       "path": "contracts/stock-wire3/agent/agent.schema.json",
       "mode": "100644",
-      "bytes": 940503,
-      "sha256": "314ee5f5effca941b3be92cb5cc37150aa17a3ab5dd8646255cebc74767b602d",
+      "bytes": 941486,
+      "sha256": "42174cebb9a7080cacb8231aba2bf80c4ab59fdb92085db1af3d5fe368cd5835",
       "owner": "contracts"
     },
     {
@@ -5013,7 +5020,7 @@
       "path": "contracts/stock-wire3/agent/operation-catalog.json",
       "mode": "100644",
       "bytes": 309045,
-      "sha256": "767cbaa866edbe4448f30bffcf778617234d6e4eae32eb620b8210bdeee9ebcc",
+      "sha256": "f369fdf13aaebf836760f5b5d2160214c16706f89e2ea5898e80c6a857d9ab4c",
       "owner": "contracts"
     },
     {
@@ -5054,8 +5061,8 @@
     {
       "path": "contracts/stock-wire3/presence/policy.v1.1.0.json",
       "mode": "100644",
-      "bytes": 4895,
-      "sha256": "e893838c0ef684a24fa92ac99da5773e1972d7c2d05d4623d531fd2a67f30d5b",
+      "bytes": 4934,
+      "sha256": "ef748246eea7b5d6b09c2c965568912c2f30073f8ef145f0ed814a7d2d580416",
       "owner": "contracts"
     },
     {
@@ -5076,14 +5083,14 @@
       "path": "contracts/stock-wire3/resource-map.json",
       "mode": "100644",
       "bytes": 1707,
-      "sha256": "d405b319f7e17b95ecebcbe3e089490fd8f02c5f5452e72f8ac58ee653b73d31",
+      "sha256": "2d9d0cdfd8b8e7448fe812885689e76895330e36acd5d812cd068cbfd079c6f3",
       "owner": "contracts"
     },
     {
       "path": "docs/contracts/adoption-and-open-decisions.md",
       "mode": "100644",
-      "bytes": 1665,
-      "sha256": "843245ba3af13dc0930ee81fb41af8f24011d5c82f6e273a5a2bcda0d0655bb0",
+      "bytes": 2279,
+      "sha256": "71891361021ea135a81a062d491c9e5599248a668fb43bd60462d47c95524315",
       "owner": "contracts"
     },
     {
@@ -5117,8 +5124,8 @@
     {
       "path": "docs/contracts/ownership-and-identity.md",
       "mode": "100644",
-      "bytes": 12160,
-      "sha256": "344ccc87e5b0ec5d08a7a509315d95e0efd12ce159e1fbc1f40d97a158ee27a7",
+      "bytes": 13708,
+      "sha256": "3e72be5ace260950087161d837e590096af013a51d990eab1676997fba1ae29a",
       "owner": "contracts"
     },
     {
@@ -6713,8 +6720,8 @@
     {
       "path": "packages/contracts/README.md",
       "mode": "100644",
-      "bytes": 1333,
-      "sha256": "ea79d3a1614454c364c16dccb043d56674b83a4c3c8ca063a8e08aecb16a32cc",
+      "bytes": 1807,
+      "sha256": "148f295a9f8be991e2317e8d8ce8cea5e2cb6808cdef50ca7ea164105efe82fa",
       "owner": "contracts"
     },
     {
@@ -6826,28 +6833,28 @@
       "path": "packages/contracts/package-lock.json",
       "mode": "100644",
       "bytes": 2941,
-      "sha256": "904e96bfd7e2418de36227de7663257eba624444d9b6bd4f2611668171cbbb21",
+      "sha256": "f4750c37d5ab00f1471840faf5a4fbce969889f43f1f53b85d2c549c1f75b984",
       "owner": "contracts"
     },
     {
       "path": "packages/contracts/package.json",
       "mode": "100644",
       "bytes": 389,
-      "sha256": "406e706dd4cfff1f1cd449e177f5fc6b888858e7dea2ac6bc7bd7259c487a9a0",
+      "sha256": "b7bf7afd24f64a46e8fca696ac2356a0773a1de34df3e7958a636bb78e06c667",
       "owner": "contracts"
     },
     {
       "path": "packages/contracts/policy/boundaries.json",
       "mode": "100644",
       "bytes": 3304,
-      "sha256": "c6e725464b8f94c2a214b0e623f603de0bb5b67a2236c24ba7eca541fb5e0c1c",
+      "sha256": "8cfdf5345f5a112f275af9fa2577d11b3bd725ddb7e5654d90268c41a87e69b0",
       "owner": "contracts"
     },
     {
       "path": "packages/contracts/schemas/atlas.schema.json",
       "mode": "100644",
-      "bytes": 80374,
-      "sha256": "ba73d972c87391fe06cd41d68e73bc2d73fc3fcac322889cfb3b8d909c3f3f72",
+      "bytes": 85917,
+      "sha256": "2ab4d43ca736b270209bce0711e2c46ba07d70c3b1db78eb1ee89f1a62985f47",
       "owner": "contracts"
     },
     {
@@ -6860,8 +6867,8 @@
     {
       "path": "packages/contracts/src/index.mjs",
       "mode": "100644",
-      "bytes": 26118,
-      "sha256": "adf3f7dc5eb886503c2e45c121a7cd8cc3e1030cb9ad49728a58f0b218b73f97",
+      "bytes": 30042,
+      "sha256": "b044dd7421f30d7afcddfc43bbb76c2e66312101bc1884ef53c8f02bf01615e5",
       "owner": "contracts"
     },
     {
@@ -7119,8 +7126,8 @@
     {
       "path": "packages/storage/src/frozen-types.d.ts",
       "mode": "100644",
-      "bytes": 14137,
-      "sha256": "ac6bc931df9bbc842ba890807915ed1448ceff2c53ac4805399b81b80c0d82e9",
+      "bytes": 15011,
+      "sha256": "987f7145a1079de9528e9e96b6d97ce30a8b6f6bf2a95eab7419fd1c380c2f76",
       "owner": "storage"
     },
     {
@@ -7147,8 +7154,8 @@
     {
       "path": "packages/storage/src/mutation-context.mjs",
       "mode": "100644",
-      "bytes": 7032,
-      "sha256": "9c80093625d464afb4379aa05c6f4ede77419b004ebd0e85a90894d637cf289e",
+      "bytes": 7110,
+      "sha256": "b91159f4bf8f157858edb43d26e7893d57cece73a6e7cd43a90fd1b4b9690160",
       "owner": "storage"
     },
     {
@@ -7427,8 +7434,8 @@
     {
       "path": "tools/rust-baseline/generate-contracts.mjs",
       "mode": "100644",
-      "bytes": 14527,
-      "sha256": "d4d49a0e5d92d8b0008afd6ab5981fd9abc91f42dd0d801d2abaabe96750da65",
+      "bytes": 14827,
+      "sha256": "19fe7cc77f61a6644c411ec7771c0ea56b680faab77ca0886b22ce3da1cbdeb7",
       "owner": "contracts"
     },
     {
