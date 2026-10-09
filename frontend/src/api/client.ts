@@ -64,6 +64,31 @@ export function createAtlasClient(
 const AUTH_MODE_MAX_BYTES = 1024;
 /** Proxy sign-in returns only the session DTO; anything larger is rejected. */
 const PROXY_SESSION_MAX_BYTES = 4096;
+/** Bound the complete native exchange, including response body decoding. */
+const LOCAL_ACCESS_TIMEOUT_MS = 15_000;
+async function withLocalAccessDeadline<T>(
+  signal: AbortSignal,
+  exchange: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  signal.throwIfAborted();
+  const deadline = new AbortController();
+  const bounded = AbortSignal.any([signal, deadline.signal]);
+  const timer = setTimeout(() => deadline.abort(), LOCAL_ACCESS_TIMEOUT_MS);
+  let onAbort = () => {};
+  const aborted = new Promise<never>((_, reject) => {
+    onAbort = () => reject(bounded.reason);
+    bounded.addEventListener("abort", onAbort, { once: true });
+    if (bounded.aborted) onAbort();
+  });
+  try {
+    const value = await Promise.race([exchange(bounded), aborted]);
+    bounded.throwIfAborted();
+    return value;
+  } finally {
+    clearTimeout(timer);
+    bounded.removeEventListener("abort", onAbort);
+  }
+}
 async function readBoundedJson(
   response: Response,
   limit: number,
@@ -188,7 +213,7 @@ export function createAtlasSessionClient(
     client.localAccess = {
       // Informational route: any non-2xx, including 401, is a mode failure. A
       // mode without its configured action is also a failure, never a fallback.
-      mode: async (signal) => {
+      mode: (signal) => withLocalAccessDeadline(signal, async (signal) => {
         const response = await request(localAccess.mode, signal, {
           method: "GET",
           headers: { Accept: "application/json" },
@@ -203,12 +228,12 @@ export function createAtlasSessionClient(
         )
           throw new TypeError("Unsupported sign-in method");
         return mode;
-      },
+      }),
       // Literal empty body: no credentials, CSRF or actor. The host issues the
       // native HttpOnly cookie and returns the actual session.
       ...(localSignIn
         ? {
-            signIn: async (signal: AbortSignal) => {
+            signIn: (signal: AbortSignal) => withLocalAccessDeadline(signal, async (signal) => {
               const response = await request(localSignIn, signal, {
                 method: "POST",
                 headers: {
@@ -220,14 +245,14 @@ export function createAtlasSessionClient(
               if (!response.ok) throw new AtlasReadError(response.status);
               const value: unknown = await response.json();
               return decodeSessionInfo(value);
-            },
+            }),
           }
         : {}),
       // Same literal empty body; no identity header. The host's gateway owns
       // identity and returns the actual session with its native cookie.
       ...(proxySignIn
         ? {
-            proxySignIn: async (signal: AbortSignal) => {
+            proxySignIn: (signal: AbortSignal) => withLocalAccessDeadline(signal, async (signal) => {
               const response = await request(proxySignIn, signal, {
                 method: "POST",
                 headers: {
@@ -240,7 +265,7 @@ export function createAtlasSessionClient(
               return decodeSessionInfo(
                 await readBoundedJson(response, PROXY_SESSION_MAX_BYTES),
               );
-            },
+            }),
           }
         : {}),
     };
