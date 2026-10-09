@@ -262,6 +262,7 @@ impl DecodedReadObservation {
         contracts: &C,
         request: &st::ValidatedRequest,
         capture: &super::super::native_query::RetainedCapture,
+        expires: std::time::Instant,
     ) -> st::StockResult<NativeListProjection> {
         use super::super::native_query::RetainedCapture;
         let query = HomeBoxReadQuery::from_request(request)?;
@@ -291,12 +292,12 @@ impl DecodedReadObservation {
             .ok()
             .filter(|n| (1..=100).contains(n))
             .ok_or(st::StockError::InvalidContract)?;
-        if page.resources.len().saturating_sub(1) / page_size
-            > super::super::native_list_pages::TOKENS
-        {
-            return Err(st::StockError::OwnerUnavailable);
-        }
+        // All captured members validate here. The configured producer applies
+        // the cursor-slot cap only after selecting the complete matching chain.
         for chunk in page.resources.chunks(page_size) {
+            if std::time::Instant::now() >= expires {
+                return Err(st::StockError::OwnerUnavailable);
+            }
             let result = HomeBoxReadResult::Resources(ResourcePage {
                 scope: page.scope.clone(),
                 resources: chunk.to_vec(),
@@ -305,6 +306,9 @@ impl DecodedReadObservation {
             });
             let envelope = adapter::envelope(request, &query, result)?;
             contracts.validate(request.operation().output_schema, &envelope)?;
+            if std::time::Instant::now() >= expires {
+                return Err(st::StockError::OwnerUnavailable);
+            }
         }
         let entity = |id: &str| StockTarget::Homebox {
             source_instance_id: query.scope().source_instance_id.as_str().into(),

@@ -437,8 +437,21 @@ configured HTTPS reader and original credential owner. The initial fixed entity
 GET (no query) or owner maintenance GET (`status=both`) retains the entire bounded
 successful response and original retrieval time. All members project and validate
 before the first page; native array order and unknown original bytes survive.
-`q`, including an explicitly supplied empty string, remains unsupported. Other
-operations and the older pure DTO projection paths retain their existing behavior.
+The configured producer applies the adopted local member-name selector in
+`contracts/stock-wire3/homebox-member-search.md`: omitted or empty `q` selects
+all members; nonempty `q` uses literal substring matching after Rust Unicode
+`str::to_lowercase` on the query and each independent public matching string.
+Fields match `data.name` or actual text value, signed base-10 integer value, or
+exact `true`/`false` boolean value. The native time-unavailable arm contributes
+no value string. Maintenance matches `data.name` or its actual description.
+No name/value concatenation, kind/reason tags, JSON serialization, trimming,
+normalization, operators, identifiers, costs, dates or hidden properties
+participate. No missing/unavailable value becomes a placeholder or zero/false.
+Lowercasing is temporary comparison work; original public values, names and the
+exact omitted/empty/nonempty query remain unchanged. Native/schema validation
+still rejects an invalid null description; search never normalizes it to empty.
+Other operations and older generic/DTO readers retain their explicit `q`
+exclusion and existing behavior.
 
 Host must share one registry across HTTP/MCP bindings using SAME configured Source
 Arc. `NativeListReadRequest::select` borrows the current immutable validated request,
@@ -469,3 +482,12 @@ and original retrievedAt survives every page. Native includeArchived projection
 semantics remain unchanged; no missing archive fact is inferred. Restart discards
 tokens. No persistence, recovery permission, live credentials, runtime case or
 provider activation is supplied by this source implementation.
+
+Search validates and retains the complete raw capture, every projected member
+and the full reference/parent graph before selecting ascending native positions.
+Pagination walks only those positions; the full decode/work/retention caps remain,
+while the cursor-slot cap applies to the selected continuation chain. Selected
+positions are counted before snapshot retention. Zero matches still require full
+native validation and current original authority/release fences, and disclose no
+absence proof outside that captured observation. No extra GET, filtered cache,
+window renewal, query rewriting or provider-side search claim is introduced.

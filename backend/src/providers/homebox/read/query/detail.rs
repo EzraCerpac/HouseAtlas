@@ -24,7 +24,7 @@ fn selected<'a>(
     if !allowed.contains(operation)
         || page
             .as_ref()
-            .is_some_and(|p| p.q.is_some() || (p.cursor.is_some() && !complete_list))
+            .is_some_and(|p| (p.q.is_some() || p.cursor.is_some()) && !complete_list)
     {
         return Err(st::StockError::OwnerUnavailable);
     }

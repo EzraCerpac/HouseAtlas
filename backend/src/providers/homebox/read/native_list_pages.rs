@@ -6,8 +6,12 @@ use super::{
     query::{DecodedReadObservation, HomeBoxReadQuery, ReadSelection, ResourcePage, SourceStatus},
 };
 use crate::{
-    access as a, config::providers::homebox::TrustedHomeBoxSource, contracts::stock::StockTarget,
-    domain::stock as st, providers::homebox::wire, storage as s,
+    access as a,
+    config::providers::homebox::TrustedHomeBoxSource,
+    contracts::stock::{HomeboxResourceKind, StockTarget},
+    domain::stock as st,
+    providers::homebox::wire,
+    storage as s,
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::Serialize;
@@ -51,9 +55,7 @@ impl<'a, 'p> NativeListReadRequest<'a, 'p> {
         if !matches!(
             operation,
             st::OperationId::HomeboxFieldList | st::OperationId::HomeboxMaintenanceList
-        ) || page.q.is_some()
-            || !(1..=100).contains(&page.page_size)
-            || request.payload().get("q").is_some()
+        ) || !(1..=100).contains(&page.page_size)
             || configured.metadata_dialect() != wire::DIALECT
             || query.scope() != &configured.scope()
             || baseline.registration != *configured.registration()
@@ -103,6 +105,7 @@ pub struct NativeListSnapshot {
     binding: Binding,
     baseline: s::RegisteredCacheRead,
     page: ResourcePage,
+    selected_positions: Vec<usize>,
     references: Vec<StockTarget>,
     parents: Vec<(StockTarget, StockTarget)>,
     owner: Uuid,
@@ -169,16 +172,19 @@ impl NativeListSnapshot {
         next: Option<String>,
     ) -> st::StockResult<ResourcePage> {
         self.check_window()?;
-        if size == 0 || offset > self.page.resources.len() {
+        if size == 0 || offset > self.selected_positions.len() {
             return Err(changed());
         }
         let end = offset
             .checked_add(size)
             .ok_or_else(unavailable)?
-            .min(self.page.resources.len());
+            .min(self.selected_positions.len());
         Ok(ResourcePage {
             scope: self.page.scope.clone(),
-            resources: self.page.resources[offset..end].to_vec(),
+            resources: self.selected_positions[offset..end]
+                .iter()
+                .map(|position| self.page.resources[*position].clone())
+                .collect(),
             next_cursor: next,
             source_status: SourceStatus::Unresolved,
         })
@@ -302,8 +308,12 @@ impl NativeListPages {
         // Validate unknown/native containers as well as all projected members.
         wire::parse_observation(capture.original_bytes(), wire::DecodeLimits::default())
             .map_err(|_| unavailable())?;
-        let (page, references, parents) =
-            DecodedReadObservation::complete_native_list(contracts, selected.request, &capture)?;
+        let (page, references, parents) = DecodedReadObservation::complete_native_list(
+            contracts,
+            selected.request,
+            &capture,
+            expires,
+        )?;
         let mut count = Count::new();
         count.add(context_bytes)?;
         // Raw, parsed source, typed decoder-owned strings/containers: a
@@ -321,6 +331,21 @@ impl NativeListPages {
         count.value(&metadata_data(&before.metadata))?;
         count.value(&before.actor)?;
         count.add(before.session.len())?;
+        // Full decode, member validation, graph and retained-byte accounting
+        // precede the adopted local selector. It cannot hide an invalid member.
+        let ReadSelection::Resources {
+            page: Some(query), ..
+        } = selected.query.selection()
+        else {
+            return Err(changed());
+        };
+        let selected_positions = selected_positions(query.q.as_deref(), &page, expires)?;
+        count.add(
+            selected_positions
+                .len()
+                .checked_mul(size_of::<usize>())
+                .ok_or_else(unavailable)?,
+        )?;
         let snapshot = Arc::new(NativeListSnapshot {
             issuer: Arc::new(()),
             configured: Arc::clone(selected.configured),
@@ -329,6 +354,7 @@ impl NativeListPages {
             binding: before,
             baseline: selected.baseline.clone(),
             page,
+            selected_positions,
             references,
             parents,
             owner: selected.owner.clone(),
@@ -413,7 +439,7 @@ impl NativeListPages {
         bytes: usize,
     ) -> st::StockResult<Option<String>> {
         snapshot.check_window()?;
-        let slots = snapshot.page.resources.len().saturating_sub(1) / size;
+        let slots = snapshot.selected_positions.len().saturating_sub(1) / size;
         if slots == 0 {
             return Ok(None);
         }
@@ -463,6 +489,90 @@ impl NativeListPages {
             bytes,
         });
         Ok(first)
+    }
+}
+
+/// The adopted stock.2 public-member selector, not upstream entity search.
+/// Only the configured producer calls it after validating the complete list.
+fn selected_positions(
+    q: Option<&str>,
+    complete: &ResourcePage,
+    expires: Instant,
+) -> st::StockResult<Vec<usize>> {
+    // Preserve the original optional string in intent; lowercase is temporary
+    // comparison work only. In particular, None and Some("") remain distinct.
+    let needle = q.filter(|q| !q.is_empty()).map(str::to_lowercase);
+    let mut selected = Vec::new();
+    for (position, resource) in complete.resources.iter().enumerate() {
+        if Instant::now() >= expires {
+            return Err(unavailable());
+        }
+        let matches = match &needle {
+            None => true,
+            Some(needle) => matches_public_member(resource, needle)?,
+        };
+        if matches {
+            selected.push(position);
+        }
+    }
+    Ok(selected)
+}
+
+/// Independent public strings only; this receives already validated members.
+fn matches_public_member(
+    resource: &super::query::ResourceView,
+    needle: &str,
+) -> st::StockResult<bool> {
+    let matches = |text: &str| text.to_lowercase().contains(needle);
+    let name = resource.data["name"]
+        .as_str()
+        .ok_or(st::StockError::InvalidContract)?;
+    if matches(name) {
+        return Ok(true);
+    }
+    match &resource.target {
+        StockTarget::Homebox {
+            resource_kind: HomeboxResourceKind::Field,
+            ..
+        } => {
+            let value = &resource.data["value"];
+            match value["kind"].as_str() {
+                Some("text") => Ok(matches(
+                    value["value"]
+                        .as_str()
+                        .ok_or(st::StockError::InvalidContract)?,
+                )),
+                Some("number") => Ok(matches(
+                    &value["value"]
+                        .as_i64()
+                        .ok_or(st::StockError::InvalidContract)?
+                        .to_string(),
+                )),
+                Some("boolean") => Ok(matches(
+                    if value["value"]
+                        .as_bool()
+                        .ok_or(st::StockError::InvalidContract)?
+                    {
+                        "true"
+                    } else {
+                        "false"
+                    },
+                )),
+                // The original native projection exposes no time value. Do
+                // not search the kind/reason or fabricate a value placeholder.
+                Some("time") => Ok(false),
+                _ => Err(st::StockError::InvalidContract),
+            }
+        }
+        StockTarget::Homebox {
+            resource_kind: HomeboxResourceKind::Maintenance,
+            ..
+        } => match resource.data.get("description") {
+            Some(Value::String(description)) => Ok(matches(description)),
+            None => Ok(false),
+            _ => Err(st::StockError::InvalidContract),
+        },
+        _ => Err(st::StockError::InvalidContract),
     }
 }
 
