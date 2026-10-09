@@ -31,7 +31,8 @@ export interface Entity {
   entityType: { id: string; name: string; isLocation: boolean } | null;
   parent: { id: string } | null;
   archived: boolean;
-  quantity: number | null;
+  /** Original retained JSON-number representation in the browser read DTO. */
+  quantity: string | null;
   manufacturer: string | null;
   modelNumber: string | null;
   serialNumber: string | null;
