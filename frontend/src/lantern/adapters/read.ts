@@ -3,7 +3,7 @@ import type { GeometryPayloadMappingsItem } from '../../api/generated/contracts'
 import type { GeometryPublicRecord, GeometryRead } from '../../api/geometry-client';
 import type { Attachment, Entry, ReadyView } from '../../app/types';
 import type { Doc, HouseData, Item, Space, Task } from '../data/types';
-import { visibleEntries } from '../../app/model';
+import { visibleEntries } from '../../app/model.ts';
 
 /** Access is issued by the source. A stored file can exist without an issued URL. */
 export interface DocAccess {
