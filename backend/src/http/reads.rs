@@ -364,6 +364,43 @@ async fn list(
                         .validate_shape("cacheStatus", status)
                         .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
                 }
+                // Cache statuses do not carry an owner. Join their partitions
+                // to exact configured Network registrations present in the
+                // authorized Store snapshot, including the persisted owner.
+                // This selects cache metadata, not new Source authority.
+                let statuses = if collection == "network/relations" {
+                    let registrations = host
+                        .network_bindings
+                        .iter()
+                        .map(|binding| {
+                            serde_json::to_value(
+                                binding
+                                    .runtime()
+                                    .settings()
+                                    .configured_source()
+                                    .registration(),
+                            )
+                            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    snapshot
+                        .caches
+                        .into_iter()
+                        .filter(|status| {
+                            registrations.iter().any(|registration| {
+                                snapshot.sources.contains(registration)
+                                    && registration["owner"] == "network"
+                                    && status["workspaceId"] == registration["workspaceId"]
+                                    && status["homeId"] == registration["homeId"]
+                                    && status["sourceInstanceId"]
+                                        == registration["sourceInstanceId"]
+                                    && status["collectionId"] == registration["collectionId"]
+                            })
+                        })
+                        .collect()
+                } else {
+                    snapshot.caches
+                };
                 let page = host
                     .pages
                     .lock()
@@ -374,7 +411,7 @@ async fn list(
                         headers.cookie.as_deref(),
                         collection,
                         items,
-                        snapshot.caches,
+                        statuses,
                     )?;
                 Ok(json_response(page))
             },
