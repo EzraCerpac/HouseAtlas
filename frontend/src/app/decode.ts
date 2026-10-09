@@ -38,6 +38,27 @@ function nullableNumber(value: unknown): number | null {
     throw new TypeError("Expected view number");
   return value;
 }
+function nullableQuantity(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  // Mirror contracts/numeric.rs's representation-work envelope, without
+  // converting or reformatting the retained quantity. JSON digits are ASCII,
+  // so a grammar-valid token's length is also its UTF-8 byte length.
+  if (typeof value !== "string" || value.length > 4096)
+    throw new TypeError("Expected retained quantity token");
+  const parts = /^-?(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([+-]?)([0-9]+))?$/.exec(value);
+  if (!parts || parts[0] !== value)
+    throw new TypeError("Invalid retained quantity token");
+  let exponent = 0;
+  for (const digit of parts[4] ?? "") {
+    exponent = exponent * 10 + digit.charCodeAt(0) - 48;
+    if (exponent > 4096)
+      throw new TypeError("Retained quantity exponent exceeds processing limit");
+  }
+  if (parts[3] === "-") exponent = -exponent;
+  if (Math.abs(exponent - (parts[2]?.length ?? 0)) > 4096)
+    throw new TypeError("Retained quantity decimal shift exceeds processing limit");
+  return value;
+}
 function list<T>(value: unknown, decode: (value: unknown) => T): T[] {
   if (!Array.isArray(value)) throw new TypeError("Expected view list");
   return value.map(decode);
@@ -84,7 +105,7 @@ function entity(value: unknown): Entity {
     },
     parent: parent && { id: string(parent.id) },
     archived: boolean(o.archived),
-    quantity: nullableNumber(o.quantity),
+    quantity: nullableQuantity(o.quantity),
     manufacturer: nullableString(o.manufacturer),
     modelNumber: nullableString(o.modelNumber),
     serialNumber: nullableString(o.serialNumber),
