@@ -427,3 +427,45 @@ unsupported by this owner. Media and root require a separate explicit pinned
 snapshot consumer; these files add no broker issuance/redemption, stage,
 reservation, mutation, quantity, Atlas or execution authority. No new runtime
 case has run.
+
+
+## Configured retained field/maintenance pagination
+
+`read::NativeListPages` provides a separate configured native list producer for
+`homebox.field.list` and `homebox.maintenance.list`. It constructs only the actual
+configured HTTPS reader and original credential owner. The initial fixed entity
+GET (no query) or owner maintenance GET (`status=both`) retains the entire bounded
+successful response and original retrieval time. All members project and validate
+before the first page; native array order and unknown original bytes survive.
+`q`, including an explicitly supplied empty string, remains unsupported. Other
+operations and the older pure DTO projection paths retain their existing behavior.
+
+Host must share one registry across HTTP/MCP bindings using SAME configured Source
+Arc. `NativeListReadRequest::select` borrows the current immutable validated request,
+its exact original CapturedAccess and current registered Store baseline DATA. The
+Root owner still obtains and freshly qualifies that baseline through the real
+Store; the DTO cannot authorize a read. First pages call `capture_configured`,
+continuations call `continue_original`, and each result uses its NEW request/P,
+original handles and own Prepared/W/G through the existing bind/dispatch/disclosure
+boundary. Snapshot Arc identity and full native references/parents must belong to
+that graph, even though output is one selected page.
+
+Opaque random cursors bind SAME retained capture/configured Arc, actual authenticated
+session/actor, full scope/source metadata and complete query except requestId/cursor.
+Only those two fields may differ; opaque collection spelling, optional omissions and
+all other values are compared without normalization. Source checks the current
+original principal/grants and persisted full registration/epoch before/after GET
+and again at request-local bind/read. Registry lookup alone supplies no permission.
+No old principal/grants/credentials/prepared witness/guard/Access or Store handle is
+retained in the registry, and no second GET is made for a continuation.
+
+The local registry bounds are 32 captures, 1000 cursor slots and 64 MiB aggregate
+retained logical bytes, counted before original/context/baseline clones. It reserves
+all continuation slots atomically before returning the first nextCursor and never
+evicts unexpired chains. Insufficient capacity fails unavailable without truncation.
+The five-minute monotonic window starts before native retrieval and never renews.
+It is local retention, not current provider freshness; sourceStatus stays unresolved
+and original retrievedAt survives every page. Native includeArchived projection
+semantics remain unchanged; no missing archive fact is inferred. Restart discards
+tokens. No persistence, recovery permission, live credentials, runtime case or
+provider activation is supplied by this source implementation.
