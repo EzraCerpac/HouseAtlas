@@ -190,13 +190,18 @@ const assertGeometryRequest = (url, init, expectedCursor) => {
   assert.equal(init.cache, 'no-store');
   assert.equal(init.redirect, 'error');
   assert.equal(init.headers.Accept, 'application/json');
-  assert.equal(init.signal, signal);
+  // The actual client composes this current caller with its sequence deadline.
+  assert.equal(signal.aborted, false);
+  assert(init.signal instanceof AbortSignal);
+  assert.notEqual(init.signal, signal);
+  assert.equal(init.signal.aborted, false);
 };
 let singleCalls = 0;
 const singleClient = createGeometryClient(async (url, init) => {
   singleCalls++;
   assertGeometryRequest(url, init, null);
-  return { ok: true, json: async () => geometryEnvelope([publicGeometry], null, 'stale') };
+  return new Response(JSON.stringify(geometryEnvelope([publicGeometry], null, 'stale')),
+    { status: 200, headers: { 'Content-Type': 'application/json' } });
 });
 const geometryRead = await singleClient.read(geometryScope, signal);
 assert.equal(singleCalls, 1);
@@ -471,9 +476,9 @@ let pageCalls = 0;
 const pagedClient = createGeometryClient(async (url, init) => {
   const page = pageCalls++;
   assertGeometryRequest(url, init, page === 0 ? null : opaqueCursor);
-  return { ok: true, json: async () => page === 0
+  return new Response(JSON.stringify(page === 0
     ? geometryEnvelope([publicGeometry], opaqueCursor)
-    : geometryEnvelope([], null) };
+    : geometryEnvelope([], null)), { status: 200, headers: { 'Content-Type': 'application/json' } });
 });
 const pagedRead = await pagedClient.read(geometryScope, signal);
 assert.equal(pageCalls, 2);
