@@ -6,8 +6,12 @@ use super::{
     query::{DecodedReadObservation, HomeBoxReadQuery, ReadSelection, ResourcePage, SourceStatus},
 };
 use crate::{
-    access as a, config::providers::homebox::TrustedHomeBoxSource, contracts::stock::StockTarget,
-    domain::stock as st, providers::homebox::wire, storage as s,
+    access as a,
+    config::providers::homebox::TrustedHomeBoxSource,
+    contracts::stock::{HomeboxResourceKind, StockTarget},
+    domain::stock as st,
+    providers::homebox::wire,
+    storage as s,
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::Serialize;
@@ -488,7 +492,7 @@ impl NativeListPages {
     }
 }
 
-/// The adopted stock.2 member-name selector, not upstream entity search.
+/// The adopted stock.2 public-member selector, not upstream entity search.
 /// Only the configured producer calls it after validating the complete list.
 fn selected_positions(
     q: Option<&str>,
@@ -505,17 +509,71 @@ fn selected_positions(
         }
         let matches = match &needle {
             None => true,
-            Some(needle) => resource.data["name"]
-                .as_str()
-                .ok_or(st::StockError::InvalidContract)?
-                .to_lowercase()
-                .contains(needle),
+            Some(needle) => matches_public_member(resource, needle)?,
         };
         if matches {
             selected.push(position);
         }
     }
     Ok(selected)
+}
+
+/// Independent public strings only; this receives already validated members.
+fn matches_public_member(
+    resource: &super::query::ResourceView,
+    needle: &str,
+) -> st::StockResult<bool> {
+    let matches = |text: &str| text.to_lowercase().contains(needle);
+    let name = resource.data["name"]
+        .as_str()
+        .ok_or(st::StockError::InvalidContract)?;
+    if matches(name) {
+        return Ok(true);
+    }
+    match &resource.target {
+        StockTarget::Homebox {
+            resource_kind: HomeboxResourceKind::Field,
+            ..
+        } => {
+            let value = &resource.data["value"];
+            match value["kind"].as_str() {
+                Some("text") => Ok(matches(
+                    value["value"]
+                        .as_str()
+                        .ok_or(st::StockError::InvalidContract)?,
+                )),
+                Some("number") => Ok(matches(
+                    &value["value"]
+                        .as_i64()
+                        .ok_or(st::StockError::InvalidContract)?
+                        .to_string(),
+                )),
+                Some("boolean") => Ok(matches(
+                    if value["value"]
+                        .as_bool()
+                        .ok_or(st::StockError::InvalidContract)?
+                    {
+                        "true"
+                    } else {
+                        "false"
+                    },
+                )),
+                // The original native projection exposes no time value. Do
+                // not search the kind/reason or fabricate a value placeholder.
+                Some("time") => Ok(false),
+                _ => Err(st::StockError::InvalidContract),
+            }
+        }
+        StockTarget::Homebox {
+            resource_kind: HomeboxResourceKind::Maintenance,
+            ..
+        } => match resource.data.get("description") {
+            Some(Value::String(description)) => Ok(matches(description)),
+            None => Ok(false),
+            _ => Err(st::StockError::InvalidContract),
+        },
+        _ => Err(st::StockError::InvalidContract),
+    }
 }
 
 fn prune(registry: &mut Registry) {
