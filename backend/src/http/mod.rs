@@ -652,20 +652,76 @@ fn query_view(
 fn browser_view(view: d::CurrentOutput) -> Result<Value, HttpFailure> {
     let mut v =
         serde_json::to_value(&view).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-    for (entry, original) in v["entries"]
+    let entries = v["entries"]
         .as_array_mut()
-        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?
-        .iter_mut()
-        .zip(&view.entries)
-    {
-        browser_entry(entry, original.entity.quantity.as_ref());
+        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    if entries.len() != view.entries.len() {
+        return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+    }
+    for (entry, original) in entries.iter_mut().zip(&view.entries) {
+        browser_entry(entry, original)?;
     }
     Ok(v)
 }
-fn browser_entry(entry: &mut Value, quantity: Option<&serde_json::Number>) {
+fn browser_entry(entry: &mut Value, original: &d::CurrentEntry) -> Result<(), HttpFailure> {
+    let object = entry
+        .as_object_mut()
+        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    let maintenance = object
+        .get_mut("maintenance")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    if maintenance.len() != original.maintenance.len() {
+        return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+    }
+    for (item, retained) in maintenance.iter_mut().zip(&original.maintenance) {
+        let cost = item
+            .as_object_mut()
+            .and_then(|item| item.get_mut("cost"))
+            .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        *cost = retained
+            .cost
+            .as_ref()
+            .map(|number| Value::String(number.to_string()))
+            .unwrap_or(Value::Null);
+    }
+    let attachments = object
+        .get_mut("attachments")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    if attachments.len() != original.attachments.len() {
+        return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+    }
+    for (item, retained) in attachments.iter_mut().zip(&original.attachments) {
+        let item = item
+            .as_object_mut()
+            .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        match retained {
+            d::CurrentAttachment::StoredFile { byte_size, .. } => {
+                if item.get("kind").and_then(Value::as_str) != Some("stored-file") {
+                    return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+                }
+                let bytes = item
+                    .get_mut("byteSize")
+                    .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+                *bytes = byte_size
+                    .as_ref()
+                    .map(|integer| Value::String(integer.as_number().to_string()))
+                    .unwrap_or(Value::Null);
+            }
+            d::CurrentAttachment::ExternalLink { .. } => {
+                if item.get("kind").and_then(Value::as_str) != Some("external-link") {
+                    return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+                }
+            }
+        }
+    }
     // Use the original retained Number representation before any Value reparse.
     // This browser read DTO is separate from canonical storage and stock wire.
-    entry["entity"]["quantity"] = quantity
+    entry["entity"]["quantity"] = original
+        .entity
+        .quantity
+        .as_ref()
         .map(|number| Value::String(number.to_string()))
         .unwrap_or(Value::Null);
     entry["key"] = Value::String(
@@ -682,17 +738,19 @@ fn browser_entry(entry: &mut Value, quantity: Option<&serde_json::Number>) {
     entry["networkBound"] = json!(false);
     entry["networkStates"] = json!([]);
     entry["networkRelations"] = json!([]);
+    Ok(())
 }
 fn browser_entries(entries: Vec<&d::CurrentEntry>) -> Result<Value, HttpFailure> {
     let mut values =
         serde_json::to_value(&entries).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-    for (entry, original) in values
+    let serialized = values
         .as_array_mut()
-        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?
-        .iter_mut()
-        .zip(&entries)
-    {
-        browser_entry(entry, original.entity.quantity.as_ref());
+        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    if serialized.len() != entries.len() {
+        return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+    }
+    for (entry, original) in serialized.iter_mut().zip(&entries) {
+        browser_entry(entry, original)?;
     }
     Ok(values)
 }
