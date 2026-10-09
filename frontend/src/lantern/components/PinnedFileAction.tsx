@@ -135,6 +135,7 @@ export function PinnedFileAction({ docId }: { docId: string }) {
     try {
       observed = await client.resolve(result, controller.signal);
     } catch {
+      if (current()) setCaptured({ key, value: { status: 'captured', capture: result, availability: Object.freeze({ state: 'none', observed: 'error', status: null }) } });
       return;
     }
     if (current()) setCaptured({ key, value: { status: 'captured', capture: result, availability: observed } });
