@@ -83,6 +83,7 @@ export function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || state.dialog || state.settingsOpen || state.nativeOpen || state.askOpen || state.searchOpen) return;
       const t = e.target as HTMLElement;
       const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -95,7 +96,7 @@ export function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [dispatch, state.dialog]);
+  }, [dispatch, state.dialog, state.settingsOpen, state.nativeOpen, state.askOpen, state.searchOpen]);
 
   useEffect(() => {
     if (state.selection) setSheetOpen(true);
@@ -179,7 +180,7 @@ export function App() {
       </main>
 
       <aside className={`detail-col${sheetExpanded ? ' is-expanded' : ''}`} aria-label="Details">
-        <button type="button" className="sheet-handle" aria-expanded={sheetExpanded} onClick={() => (state.selection ? dispatch({ type: 'select', sel: null }) : setSheetOpen(!sheetOpen))}>
+        <button id="detail-sheet-handle" type="button" className="sheet-handle" aria-expanded={sheetExpanded} onClick={() => (state.selection ? dispatch({ type: 'select', sel: null }) : setSheetOpen(!sheetOpen))}>
           <span className="sheet-grip" aria-hidden="true" />
           <span>{state.selection ? 'Close details' : sheetOpen ? 'Hide overview' : `${house.name} overview`}</span>
         </button>

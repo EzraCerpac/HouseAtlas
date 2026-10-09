@@ -78,7 +78,11 @@ function Shell({ id, kind, title, claim, actions, children, lead }: { id: string
         <div className="detail-kicker">
           {kind === 'space' && source ? <span className="kind-tag">{source.semanticKind === 'room' ? 'Room' : 'Place'}</span> : <KindTag kind={kind} />}
           {claim}
-          <button type="button" className="icon-btn detail-close" aria-label="Close details" onClick={() => select(null)}>
+          <button type="button" className="icon-btn detail-close" aria-label="Close details" onClick={() => {
+            const handle = document.getElementById('detail-sheet-handle');
+            (handle?.getClientRects().length ? handle : document.getElementById('main'))?.focus();
+            select(null);
+          }}>
             <Icon name="close" size={18} />
           </button>
         </div>
