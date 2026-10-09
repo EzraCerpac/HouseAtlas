@@ -3,7 +3,7 @@ use houseatlas_backend::{
     http::{Host, router},
     lifecycle,
 };
-use std::{collections::BTreeMap, fs, net::TcpListener, path::Path, sync::Arc};
+use std::{collections::BTreeMap, fs, future::IntoFuture, net::TcpListener, path::Path, sync::Arc};
 
 fn frontend(directory: &Path) -> Result<BTreeMap<String, (String, Vec<u8>)>, lifecycle::Failure> {
     fn walk(
@@ -312,14 +312,30 @@ async fn run_gateway(
         report_persistent_sources(account_selected);
         let mut terminate =
             tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
-        axum::serve(
+        let (drain_started, drain_signal) = tokio::sync::oneshot::channel();
+        let server = axum::serve(
             listener,
             application.into_make_service_with_connect_info::<GatewayConnection>(),
         )
         .with_graceful_shutdown(async move {
             tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {} }
+            let _ =
+                drain_started.send(tokio::time::Instant::now() + std::time::Duration::from_secs(5));
         })
-        .await?;
+        .into_future();
+        tokio::pin!(server);
+        tokio::select! {
+            result = &mut server => result?,
+            deadline = drain_signal => {
+                let deadline = deadline.map_err(|_| "Gateway shutdown signal unavailable")?;
+                // The deadline starts at the signal, not after a request finishes.
+                // Axum's connection tasks may outlive this coordinator. Expiry
+                // closes the listener but cannot attest that their work ended.
+                tokio::time::timeout_at(deadline, &mut server)
+                    .await
+                    .map_err(|_| "Gateway five-second HTTP drain deadline elapsed")??;
+            }
+        }
         Ok::<(), lifecycle::Failure>(())
     }
     .await;

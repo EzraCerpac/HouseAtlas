@@ -11,7 +11,7 @@ houseatlas serve --server-config /canonical/private/server.json
 
 `initialize` requires a new data directory and explicitly selected accounts, supplied passwords and exact home memberships. It creates no synthetic default users, login sessions, inventory, provider enrollment or historical authority. Failed initialization may leave partial private state; normal startup refuses an absent initialization receipt. There is no automatic cleanup/adoption/retry.
 
-`serve` requires existing private native state and the exact compiled Access and Atlas schemas. It does not provision accounts, reset sessions or apply database migrations. The receipt binds deployment configuration and original database file identities. One descriptor lock owns the data directory until graceful HTTP drain finishes. SIGINT/SIGTERM request a five-second drain. Existing disposable fixture CLI remains separate.
+`serve` requires existing private native state and the exact compiled Access and Atlas schemas. It does not provision accounts, reset sessions or apply database migrations. The receipt binds deployment configuration and original database file identities. One descriptor lock owns the data directory during serving and HTTP drain. SIGINT/SIGTERM request a five-second drain. In Unix gateway mode, deadline expiry closes the serving coordinator and removes its checked socket, returns an error, and skips the graceful-shutdown event. Detached request handlers or work already handed to blocking threads may still finish; this deadline does not prove their termination. Existing disposable fixture CLI remains separate.
 
 The configuration digest format `houseatlas-server-state/2` also binds the exact
 listener and MCP command selection. Earlier format-1 receipts fail strict reopen,

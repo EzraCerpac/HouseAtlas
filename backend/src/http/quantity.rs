@@ -128,9 +128,7 @@ fn output(value: Value) -> HttpResult {
 }
 async fn body(request: Request, maximum: usize) -> Result<Value, super::HttpFailure> {
     intake::metadata(&request, maximum as u64)?;
-    let bytes = axum::body::to_bytes(request.into_body(), maximum)
-        .await
-        .map_err(|_| failure(StatusCode::PAYLOAD_TOO_LARGE))?;
+    let bytes = super::admission::body(request.into_body(), maximum).await?;
     intake::json(&bytes)
 }
 fn headers(request: &Request) -> Result<CheckedHeaders, super::HttpFailure> {
