@@ -164,7 +164,15 @@ pub(crate) fn execute_configured_with_bindings(
         .source
         .reader(credentials, NativeClock)
         .map_err(|_| unavailable())?;
-    execute_with_core_reader(core, p, raw, &binding.source, &mut reader, Some(binding), handle)
+    execute_with_core_reader(
+        core,
+        p,
+        raw,
+        &binding.source,
+        &mut reader,
+        Some(binding),
+        handle,
+    )
 }
 fn changed() -> st::StockError {
     st::StockError::AuthorityChanged
@@ -612,12 +620,8 @@ fn execute_with_core_reader<T: r::Transport, K: r::Clock>(
         st::OperationId::HomeboxFieldList | st::OperationId::HomeboxMaintenanceList
     );
     let intake = if let Some(binding) = list_binding.filter(|_| list_operation) {
-        let selected = r::NativeListReadRequest::select(
-            binding.source_arc(),
-            &captured,
-            &request,
-            &baseline,
-        )?;
+        let selected =
+            r::NativeListReadRequest::select(binding.source_arc(), &captured, &request, &baseline)?;
         if request.payload()["cursor"].is_null() {
             handle.block_on(binding.pages.capture_configured(
                 &contracts,
