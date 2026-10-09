@@ -173,6 +173,183 @@ impl NativeReadCredentialConfig {
         Ok(header)
     }
 
+    /// Check original credential custody using only the caller's held guard.
+    /// This checks no transport response and opens no Access or Store lock.
+    pub(crate) fn validate_queued_upload_original_in_guard(
+        &self,
+        source: &stock::QueuedUploadSource<'_, '_>,
+        qualification: &stock::FreshQualification<'_, '_, '_>,
+    ) -> Result<(), stock::StockPortFault> {
+        use stock::StockPortFault as Fault;
+        let configured = source.configured();
+        let selected = configured
+            .homebox()
+            .endpoint()
+            .map_err(|_| Fault::Unavailable)?;
+        let guard = qualification.guard();
+        let captured = source.captured();
+        let original_source = source.original_source();
+        let partition = source.original_partition();
+        let physical = qualification
+            .queued_upload_installation()
+            .ok_or(Fault::EvidenceConflict)?;
+        if !std::ptr::eq(self, configured.credentials().as_ref())
+            || !self.matches_endpoint(&selected)
+            || !std::ptr::eq(qualification.captured(), captured)
+            || !std::ptr::eq(guard.principal(), captured.principal())
+            || !std::ptr::eq(guard.principal(), source.original().principal())
+            || !captured
+                .source_grants()
+                .iter()
+                .any(|grant| std::ptr::eq(grant, original_source))
+            || !captured
+                .partition_grants()
+                .iter()
+                .any(|grant| std::ptr::eq(grant, partition))
+            || !Arc::ptr_eq(physical.configured(), configured)
+            || !std::ptr::eq(physical.captured(), captured)
+            || !std::ptr::eq(physical.source(), original_source)
+            || !std::ptr::eq(physical.partition(), partition)
+            || physical.source_metadata() != configured.metadata()
+            || physical.queue_config() != configured.queue()
+            || physical.registration() != configured.physical()
+            || !physical.matches_configured_store()
+        {
+            return Err(Fault::EvidenceConflict);
+        }
+        guard
+            .assert_mutation()
+            .map_err(|_| Fault::EvidenceConflict)?;
+        guard
+            .revalidate_source(original_source)
+            .map_err(|_| Fault::EvidenceConflict)?;
+        guard
+            .revalidate_source_partition(partition)
+            .map_err(|_| Fault::EvidenceConflict)?;
+        let metadata = guard
+            .persisted_source_metadata(partition)
+            .map_err(|_| Fault::EvidenceConflict)?;
+        if &metadata != configured.metadata()
+            || original_source.reference().partition() != *partition.partition()
+            || partition.partition().workspace_id.as_str() != self.scope.workspace_id.as_str()
+            || partition.partition().home_id.as_str() != self.scope.home_id.as_str()
+            || partition.partition().source_instance_id.as_str()
+                != self.scope.source_instance_id.as_str()
+            || partition.partition().collection_id != self.scope.collection_id
+        {
+            return Err(Fault::EvidenceConflict);
+        }
+        guard
+            .revalidate()
+            .map(|_| ())
+            .map_err(|_| Fault::EvidenceConflict)
+    }
+
+    pub(crate) fn deliver_queued_upload_header_in_guard(
+        &self,
+        native: &stock::RetainedFreshPreparation<
+            '_,
+            crate::providers::homebox::recovery::NativeWriterContracts,
+            stock::QueuedUploadSource<'_, '_>,
+        >,
+        endpoint: &write_transport::SourceEndpoint,
+        permit: &stock::InvocationPermit,
+        deadline: std::time::Instant,
+        qualification: &stock::FreshQualification<'_, '_, '_>,
+    ) -> Result<write_transport::AuthorizationHeader, stock::StockPortFault> {
+        use stock::StockPortFault as Fault;
+        let source = native.source();
+        self.validate_queued_upload_original_in_guard(source, qualification)?;
+        source.check_queued_upload_in_guard(native, qualification)?;
+        let configured = source.configured();
+        let selected = configured
+            .homebox()
+            .endpoint()
+            .map_err(|_| Fault::Unavailable)?;
+        let physical = configured.physical();
+        let authority = native.authority();
+        let binding = endpoint.binding();
+        let contracts = crate::providers::homebox::recovery::NativeWriterContracts::new()
+            .map_err(|_| Fault::Unavailable)?;
+        let plan_digest = stock::StockContractPort::digest_native(
+            &contracts,
+            &serde_json::to_value(native.plan()).map_err(|_| Fault::EvidenceConflict)?,
+        )
+        .map_err(|_| Fault::EvidenceConflict)?;
+        if std::time::Instant::now() >= deadline
+            || !std::ptr::eq(self, configured.credentials().as_ref())
+            || !self.matches_endpoint(&selected)
+            || selected.origin() != endpoint.origin()
+            || binding.context != native.command().context
+            || binding.source_instance_id != native.command().target.source_instance_id
+            || binding.collection_id != native.command().target.collection_id
+            || binding.physical_binding != physical.physical_binding
+            || binding.owner_id != physical.owner_id
+            || binding.dispatcher_epoch != physical.dispatcher_epoch
+            || binding.source_epoch != authority.source_epoch
+            || binding.qualification != authority.qualification
+            || permit.operation_id != native.command().request_id
+            || permit.actor_id != authority.actor_id
+            || permit.physical_binding != physical.physical_binding
+            || permit.owner_id != physical.owner_id
+            || permit.dispatcher_epoch != physical.dispatcher_epoch
+            || permit.source_epoch != authority.source_epoch
+            || permit.qualification != authority.qualification
+            || permit.plan_digest != plan_digest
+            || !matches!(
+                authority.qualification,
+                stock::NativeQualification::Qualified { .. }
+            )
+        {
+            return Err(Fault::EvidenceConflict);
+        }
+        self.validate_queued_upload_original_in_guard(source, qualification)?;
+        source.check_queued_upload_in_guard(native, qualification)?;
+        let header = write_transport::AuthorizationHeader::from_bytes(&self.header)
+            .map_err(|_| Fault::Unavailable)?;
+        if std::time::Instant::now() >= deadline {
+            return Err(Fault::Unavailable);
+        }
+        Ok(header)
+    }
+
+    /// Bind original upload read credentials without reopening the held guard.
+    pub fn bind_queued_upload_original_in_guard<'native, 'owner, 'captured, 'p>(
+        self: &Arc<Self>,
+        native: &'native stock::RetainedFreshPreparation<
+            'owner,
+            crate::providers::homebox::recovery::NativeWriterContracts,
+            stock::QueuedUploadSource<'captured, 'p>,
+        >,
+        qualification: &stock::FreshQualification<'_, '_, '_>,
+    ) -> Result<NativeReadCredentials<'native>, stock::StockPortFault> {
+        use stock::StockPortFault as Fault;
+        let source = native.source();
+        self.validate_queued_upload_original_in_guard(source, qualification)?;
+        source.check_queued_upload_in_guard(native, qualification)?;
+        let configured = source.configured();
+        let selected = configured
+            .homebox()
+            .endpoint()
+            .map_err(|_| Fault::Unavailable)?;
+        if !Arc::ptr_eq(self, configured.credentials()) || !self.matches_endpoint(&selected) {
+            return Err(Fault::EvidenceConflict);
+        }
+        let credentials = NativeReadCredentials {
+            config: self.clone(),
+            access: configured.access().clone(),
+            principal: source.original().principal(),
+            source: source.original_source().clone(),
+            partition: source.original_partition().clone(),
+        };
+        credentials
+            .check_binding()
+            .map_err(|_| Fault::EvidenceConflict)?;
+        self.validate_queued_upload_original_in_guard(source, qualification)?;
+        source.check_queued_upload_in_guard(native, qualification)?;
+        Ok(credentials)
+    }
+
     /// Retain exactly the host's original opaque read handles. No principal or
     /// grant is issued. The native read producer must separately check its
     /// request owner and fixed route against these same original handles.
