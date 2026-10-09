@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useMemo, useReducer, useSyncExternalStore, type Dispatch, type ReactNode } from 'react';
-import { OVERLAY_FOR_KIND, kindOf as kindFromId, locate } from '../data/query';
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useSyncExternalStore, type Dispatch, type ReactNode } from 'react';
+import { OVERLAY_FOR_KIND, exists, kindOf as kindFromId, locate } from '../data/query';
 import type { ConflictInfo, HouseData, Overlay, Selection, System, WriteOp, WriteStatus } from '../data/types';
 import type { AskEntry } from '../assistant/engine';
 import type { LanternProjection } from '../adapters/read';
@@ -133,7 +133,15 @@ interface Ctx { state: AppState; dispatch: Dispatch<Action>; house: HouseData; p
 const StoreContext = createContext<Ctx | null>(null);
 export function StoreProvider({ children, projection, actions }: { children: ReactNode; projection: LanternProjection; actions: LanternActions }) {
   const [local, send] = useReducer(reducer, projection.house, initial);
-  const state = useMemo(() => ({ ...local, houseId: projection.house.id, houses: { [projection.house.id]: projection.house } }), [local, projection]);
+  const sel = local.selection;
+  const selectionLive = !sel || exists(projection.house, sel.id);
+  const dlg = local.dialog;
+  const dialogLive = dlg?.type !== 'preview' || (projection.attachments.has(dlg.docId) && projection.house.docs.some(d => d.id === dlg.docId));
+  const state = useMemo(() => ({ ...local, selection: selectionLive ? local.selection : null, dialog: dialogLive ? local.dialog : null, houseId: projection.house.id, houses: { [projection.house.id]: projection.house } }), [local, projection, selectionLive, dialogLive]);
+  useEffect(() => {
+    if (!selectionLive) send({ type: 'select', sel: null });
+    if (!dialogLive) send({ type: 'dialog', dialog: null });
+  }, [projection, local.selection, local.dialog, selectionLive, dialogLive]);
   const dispatch = useCallback<Dispatch<Action>>(a => {
     if (a.type === 'house') {
       const home = projection.view.homes.find(h => JSON.stringify([h.workspaceId, h.homeId]) === a.id);
