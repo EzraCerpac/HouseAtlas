@@ -357,8 +357,8 @@ fn main() -> Result<(), Failure> {
         "preconditions":{"target":null,"guards":[guard("asset",600,1),guard("identity",200,1),guard("evidence",100,1)]},
         "approvalReceiptId":null});
     let derived_result = write(&core, &cookie, &csrf, &derived, &schemas)?;
-    // Third root is beyond page1+lookahead. Initial preparation must still
-    // provide it for historical qualification before the host seals grants.
+    // The third root is beyond page1+lookahead. Its complete closure belongs
+    // to the later page that selects it, before that page's disclosure.
     let mut third = direct.clone();
     third["requestId"] = json!(id(923));
     third["target"] = target("identity", 922);
@@ -475,10 +475,15 @@ fn main() -> Result<(), Failure> {
             continuation.as_ref(),
         )?;
         let closure = prepared.snapshot_closure();
-        assert_eq!(closure.retained_commits().len(), 3);
-        assert!(closure.retained_commits().iter().any(
-            |commit| Some(commit.operation_id.as_str()) == third_result["operationId"].as_str()
-        ));
+        let expected_roots = [&direct_result, &derived_result, &third_result];
+        let selected_roots = &expected_roots[collected.len()..];
+        let selected_roots = &selected_roots[..selected_roots.len().min(2)];
+        assert_eq!(closure.retained_commits().len(), selected_roots.len());
+        for result in selected_roots {
+            assert!(closure.retained_commits().iter().any(|commit| {
+                Some(commit.operation_id.as_str()) == result["operationId"].as_str()
+            }));
+        }
         assert_eq!(closure.targets(), prepared.targets());
         if let Some(watermark) = pinned_watermark {
             assert_eq!(closure.watermark(), watermark);

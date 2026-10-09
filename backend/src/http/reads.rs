@@ -32,7 +32,8 @@ fn network_snapshot(
 
 /// Capture the genuine current read graph. The caller seals the original
 /// request after qualifying the bounded retained facts during preparation.
-/// Subsequent pages use that sealed request and cannot refresh its handles.
+/// Each event page seals its own current request; its cursor only correlates
+/// the prior allocation and fixed query. Exact-intent reads keep their request.
 pub(super) fn retained_read_snapshot(
     core: &mut Core,
     host: &Host,
