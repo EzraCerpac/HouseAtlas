@@ -6,6 +6,7 @@ import type { LanternProjection } from '../adapters/read';
 import type { AtlasEditingClient } from '../../app/editing';
 import type { QuantityClient } from '../../api/quantity-client';
 import type { PinnedFileClient } from '../../api/pinned-file-client';
+import type { NetworkRelationsClient } from '../../api/network-relations-client';
 import type { Scope } from '../../app/types';
 import type { SessionSettings } from '../../app/session';
 export type ViewId = 'atlas' | 'rooms' | 'upkeep' | 'network' | 'library' | 'changes';
@@ -88,6 +89,8 @@ export interface LanternActions {
   quantity?: QuantityClient;
   /** Optional local HomeBox file consumer; never a grant or quantity authority. */
   pinnedFiles?: PinnedFileClient;
+  /** Optional saved Network relations reader; never a source owner or currentness authority. */
+  networkRelations?: NetworkRelationsClient;
   nativeContent: ReactNode;
 }
 function initial(house: HouseData): AppState {
