@@ -559,6 +559,40 @@ impl AccessBoundary {
         Ok(principal)
     }
 
+    /// Authorize the retained-intent transport's explicitly read-only POST.
+    /// This requires the same origin and CSRF checks as a mutation request but
+    /// issues only a Read principal, so the caller cannot use it for writes.
+    pub fn authorize_post_read(
+        &mut self,
+        request: &RequestEvidence<'_>,
+        scope: &Scope,
+    ) -> AccessResult<Principal> {
+        if request.method != Method::Post {
+            return Err(AccessError::MethodNotAllowed);
+        }
+        let (session, user, now) = self.authenticate(request, true)?;
+        let member = store::membership(&self.store.db, &user.user_id, scope)?
+            .filter(|m| m.enabled)
+            .ok_or(AccessError::NotFound)?;
+        let principal = Principal {
+            instance: self.instance,
+            token_hash: session.token_hash.clone(),
+            origin: session.origin,
+            user_id: user.user_id,
+            actor_id: user.actor_id,
+            scope: scope.clone(),
+            role: member.role,
+            membership_version: member.version,
+            action: Action::Read,
+        };
+        self.revalidate(&principal)?;
+        self.store.db.execute(
+            "UPDATE access_sessions SET last_seen=MAX(last_seen,?1) WHERE token_hash=?2",
+            params![now, principal.token_hash],
+        )?;
+        Ok(principal)
+    }
+
     pub fn revalidate<'p>(&self, principal: &'p Principal) -> AccessResult<&'p Principal> {
         self.current().revalidate(principal)
     }

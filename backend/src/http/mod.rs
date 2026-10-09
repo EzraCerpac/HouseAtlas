@@ -869,7 +869,7 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/homebox/quantity/preview", post(quantity::preview).fallback(auth::session_head))
         .route("/api/atlas/homebox/quantity/approval", post(quantity::approval).fallback(auth::session_head))
         .route("/api/atlas/homebox/quantity/dispatch", post(quantity::dispatch).fallback(auth::session_head))
-        .route("/api/atlas/retained-intent", get(operation_events::reconcile_intent).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/retained-intent", post(operation_events::reconcile_intent).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/operation-events", get(operation_events::events).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/collections/{collection_id}/cached", get(providers::cached_homebox).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/cached", get(providers::cached_homebox_query).head(auth::session_head).fallback(auth::session_head))
