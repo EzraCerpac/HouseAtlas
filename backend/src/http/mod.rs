@@ -73,6 +73,7 @@ pub struct Host {
     pub files: Arc<BTreeMap<String, (String, Vec<u8>)>>,
     homebox_cache_sources: Arc<Vec<crate::config::providers::homebox::TrustedHomeBoxSource>>,
     native_homebox_reads: Arc<Vec<providers::homebox_native::NativeHomeBoxReadBinding>>,
+    native_homebox_list_pages: Arc<crate::providers::homebox::read::NativeListPages>,
     pinned_homebox_file_bindings: Arc<Vec<homebox_pinned_files::PinnedHomeBoxFileBinding>>,
     pinned_homebox_artifacts:
         Arc<Mutex<crate::media::homebox_pinned_artifacts::NativePinnedArtifactBroker>>,
@@ -124,6 +125,9 @@ impl Host {
             files,
             homebox_cache_sources: Arc::new(homebox_cache_sources),
             native_homebox_reads: Arc::new(Vec::new()),
+            native_homebox_list_pages: Arc::new(
+                crate::providers::homebox::read::NativeListPages::new(),
+            ),
             pinned_homebox_file_bindings: Arc::new(Vec::new()),
             pinned_homebox_artifacts: Arc::new(Mutex::new(Default::default())),
             pinned_homebox_capture_requests: Arc::new(Mutex::new(Default::default())),
@@ -231,7 +235,7 @@ impl Host {
     /// qualify the exact current Store registration and original Access handles.
     pub fn with_native_homebox_reads(
         mut self,
-        bindings: Vec<providers::homebox_native::NativeHomeBoxReadBinding>,
+        mut bindings: Vec<providers::homebox_native::NativeHomeBoxReadBinding>,
     ) -> crate::storage::Result<Self> {
         let mut partitions = std::collections::BTreeSet::new();
         for binding in &bindings {
@@ -245,6 +249,9 @@ impl Host {
                     "Native HomeBox read scope is unavailable",
                 ));
             }
+        }
+        for binding in &mut bindings {
+            binding.bind_pages(Arc::clone(&self.native_homebox_list_pages));
         }
         self.native_homebox_reads = Arc::new(bindings);
         Ok(self)

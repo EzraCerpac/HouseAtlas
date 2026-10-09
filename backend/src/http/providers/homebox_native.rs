@@ -31,8 +31,9 @@ pub(crate) const OPERATIONS: [st::OperationId; 5] = [
 /// source grant, installed build or writable provider capability.
 #[derive(Clone)]
 pub struct NativeHomeBoxReadBinding {
-    source: TrustedHomeBoxSource,
+    source: Arc<TrustedHomeBoxSource>,
     credentials: Arc<r::NativeReadCredentialConfig>,
+    pages: Arc<r::NativeListPages>,
 }
 impl NativeHomeBoxReadBinding {
     pub fn new(
@@ -49,12 +50,19 @@ impl NativeHomeBoxReadBinding {
             return Err(invalid_binding());
         }
         Ok(Self {
-            source,
+            source: Arc::new(source),
             credentials,
+            pages: Arc::new(r::NativeListPages::new()),
         })
     }
     pub(crate) fn source(&self) -> &TrustedHomeBoxSource {
+        self.source.as_ref()
+    }
+    pub(crate) fn source_arc(&self) -> &Arc<TrustedHomeBoxSource> {
         &self.source
+    }
+    pub(crate) fn bind_pages(&mut self, pages: Arc<r::NativeListPages>) {
+        self.pages = pages;
     }
     fn matches(&self, request: &st::ValidatedRequest) -> bool {
         let partition = self.source.partition();
@@ -156,7 +164,7 @@ pub(crate) fn execute_configured_with_bindings(
         .source
         .reader(credentials, NativeClock)
         .map_err(|_| unavailable())?;
-    execute_with_core_reader(core, p, raw, &binding.source, &mut reader, handle)
+    execute_with_core_reader(core, p, raw, &binding.source, &mut reader, Some(binding), handle)
 }
 fn changed() -> st::StockError {
     st::StockError::AuthorityChanged
@@ -180,6 +188,7 @@ struct Graph {
     retrieved_at: String,
     targets: Vec<StockTarget>,
     parent_relations: Vec<(StockTarget, StockTarget)>,
+    list: Option<Arc<r::NativeListSnapshot>>,
 }
 struct Witness<'a, 'p> {
     captured: &'a st::CapturedAccess<'p>,
@@ -209,7 +218,7 @@ impl Authority<'_, '_> {
         {
             return Err(changed());
         }
-        let access = self.access.lock().map_err(|_| unavailable())?;
+        let mut access = self.access.lock().map_err(|_| unavailable())?;
         access.revalidate(p).map_err(|_| changed())?;
         for grant in self.captured.source_grants() {
             access.revalidate_source(grant).map_err(|_| changed())?;
@@ -218,6 +227,9 @@ impl Authority<'_, '_> {
             access
                 .revalidate_source_partition(grant)
                 .map_err(|_| changed())?;
+        }
+        if let Some(snapshot) = &self.graph.list {
+            snapshot.revalidate_captured(&mut access, self.captured)?;
         }
         drop(access);
         let mut store = self.store.lock().map_err(|_| unavailable())?;
@@ -256,10 +268,29 @@ impl Authority<'_, '_> {
             || graph.retrieved_at != self.graph.retrieved_at
             || graph.targets != self.graph.targets
             || graph.parent_relations != self.graph.parent_relations
+            || !same_list(self.graph.list.as_ref(), graph.list.as_ref())
         {
             return Err(changed());
         }
         Ok(())
+    }
+}
+fn same_list(
+    expected: Option<&Arc<r::NativeListSnapshot>>,
+    actual: Option<&Arc<r::NativeListSnapshot>>,
+) -> bool {
+    match (expected, actual) {
+        (None, None) => true,
+        (Some(expected), Some(actual)) => {
+            Arc::ptr_eq(expected, actual)
+                && expected.same_capture(actual)
+                && expected.original_bytes() == actual.original_bytes()
+                && expected.retrieved_at().as_str() == actual.retrieved_at().as_str()
+                && expected.references() == actual.references()
+                && expected.parent_relations() == actual.parent_relations()
+                && expected.baseline() == actual.baseline()
+        }
+        _ => false,
     }
 }
 impl<'a, 'p> st::StockAuthorityPort<a::Principal> for Authority<'a, 'p> {
@@ -449,7 +480,7 @@ pub fn execute_with_reader<T: r::Transport, K: r::Clock>(
     reader: &mut r::HomeBoxReader<T, K>,
     handle: &tokio::runtime::Handle,
 ) -> st::StockResult<st::OwnerResult> {
-    execute_with_core_reader(&host.core, p, raw, configured, reader, handle)
+    execute_with_core_reader(&host.core, p, raw, configured, reader, None, handle)
 }
 fn execute_with_core_reader<T: r::Transport, K: r::Clock>(
     core: &Arc<Mutex<crate::app::Core>>,
@@ -457,6 +488,7 @@ fn execute_with_core_reader<T: r::Transport, K: r::Clock>(
     raw: Value,
     configured: &TrustedHomeBoxSource,
     reader: &mut r::HomeBoxReader<T, K>,
+    list_binding: Option<&NativeHomeBoxReadBinding>,
     handle: &tokio::runtime::Handle,
 ) -> st::StockResult<st::OwnerResult> {
     let contracts = st::NativeStockContract::new()?;
@@ -575,16 +607,50 @@ fn execute_with_core_reader<T: r::Transport, K: r::Clock>(
         .map_err(|_| changed())?
     };
     p.seal_source_capture();
-    let intake =
-        handle.block_on(reader.capture_native_read(&contracts, &access, &captured, &request))?;
+    let list_operation = matches!(
+        request.id(),
+        st::OperationId::HomeboxFieldList | st::OperationId::HomeboxMaintenanceList
+    );
+    let intake = if let Some(binding) = list_binding.filter(|_| list_operation) {
+        let selected = r::NativeListReadRequest::select(
+            binding.source_arc(),
+            &captured,
+            &request,
+            &baseline,
+        )?;
+        if request.payload()["cursor"].is_null() {
+            handle.block_on(binding.pages.capture_configured(
+                &contracts,
+                &access,
+                &binding.credentials,
+                selected,
+            ))?
+        } else {
+            binding
+                .pages
+                .continue_original(&contracts, &access, selected)?
+        }
+    } else {
+        handle.block_on(reader.capture_native_read(&contracts, &access, &captured, &request))?
+    };
+    let list = intake.retained_list().cloned();
     let graph = Graph {
         identity: Arc::new(()),
-        baseline,
+        // Keep the actual input alive while the intake and its prepared owner
+        // borrow it; the graph stores the same registered DATA value.
+        baseline: baseline.clone(),
         request: raw,
         original_bytes: intake.original_bytes().to_vec(),
         retrieved_at: intake.retrieved_at().as_str().to_owned(),
-        targets: intake.observation().references().to_vec(),
-        parent_relations: intake.observation().parent_relations().to_vec(),
+        targets: list.as_ref().map_or_else(
+            || intake.observation().references().to_vec(),
+            |snapshot| snapshot.references().to_vec(),
+        ),
+        parent_relations: list.as_ref().map_or_else(
+            || intake.observation().parent_relations().to_vec(),
+            |snapshot| snapshot.parent_relations().to_vec(),
+        ),
+        list,
     };
     let authority = Authority {
         outer: p,
