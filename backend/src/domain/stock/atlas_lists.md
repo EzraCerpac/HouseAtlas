@@ -66,13 +66,24 @@ list queries without this explicitly supplied session/cursor peer.
 
 Tokens contain 32 random bytes encoded base64url, not source data. State is local
 to the process, holds at most 1000 cursors and expires after five minutes.
+The default cache also limits each authenticated session to 100 retained
+continuation offsets across all its actors, scopes, queries and snapshots.
+Each cursor stores the existing opaque `binding.session` as its internal quota
+key; this key supplies no authority and is not caller input.
 An admitted session/query/snapshot reserves its entire bounded continuation
-chain atomically. Unexpired cursors are never evicted. Capacity exhaustion fails
+chain atomically against both the global and session budgets before insertion.
+Reusing a reserved token needs no new slot. Traversal does not consume tokens or
+release slots, and reuse does not extend the fixed five-minute expiry. Unexpired
+cursors are never evicted. Capacity exhaustion fails
 before issuing a new chain, so another first-page request cannot invalidate a
 token embedded in an unreleased result. A query needing more continuation slots
-than the configured bound must use a larger page size or await free capacity.
+than either available budget must use a larger page size or await free capacity.
 `with_capacity` permits a trusted host to choose 2–1000 slots; the default is
-1000. At full capacity, an already reserved chain can continue without insertion.
+1000, with a session ceiling of `min(100, capacity)`. A custom capacity of 100
+or fewer can therefore be consumed by one session. The default prevents one
+session from filling the global cache, but multiple sessions can collectively
+exhaust it; availability for every session is not guaranteed. At full capacity,
+an already reserved chain can continue without insertion.
 Continuations bind actor, authenticated session, scope, operation,
 page size, exact includeArchived/q query and the full authorized snapshot. No
 record/cursor persistence or recovery schema is added. Stock output authorization
