@@ -238,7 +238,6 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     cargo run --locked -p houseatlas-backend --example healthy-homebox-artifacts
     cargo run --locked -p houseatlas-backend --example healthy-homebox-stock-history
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-loopback.mjs
-    HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-atlas-lists-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-core-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-media-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-stock-loopback.mjs
@@ -251,6 +250,12 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-human-host-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-upload-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs
+
+The Atlas-list browser flow is a separately named local healthy check, outside
+ordinary CI. Inspect its complete body and use its exact scoped permission
+before execution; it has no automatic workflow entrypoint:
+
+    HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-atlas-lists-loopback.mjs
 
 The separate `frontend/src/lantern/quantity/uncertainty.regression.tsx` case
 passed with the actual React preview, quantity client and handoff store. One
@@ -430,8 +435,8 @@ relations, observation text and distinct fact/retrieval dates are preserved;
 cache epochs and generation reservations stay unchanged during browsing. Its
 listener supplies actual connection metadata; no transport extension is mocked.
 The native runtime binds read and disclosure to the exact owning Core and its
-current original issuer. This healthy flow passed and is separately named in
-Linux CI. It supplies no Network browser/UI, live-provider, rejection, revocation,
+current original issuer. This healthy flow passed as a separately named local
+check, outside ordinary CI. It supplies no Network browser/UI, live-provider, rejection, revocation,
 concurrency, recovery or deployment qualification.
 
 ```sh
