@@ -124,7 +124,7 @@ export function SearchPalette() {
             aria-label="Search names, models or documents"
             aria-expanded={flat.length > 0}
             aria-controls="palette-results"
-            aria-activedescendant={flat[active] ? `hit-${flat[active].id}` : undefined}
+            aria-activedescendant={flat[active] ? `palette-hit-${active}` : undefined}
             aria-autocomplete="list"
           />
           <button type="button" className="icon-btn" aria-label="Close search" onClick={close}>
@@ -158,7 +158,7 @@ export function SearchPalette() {
                 return (
                   <div
                     key={h.id}
-                    id={`hit-${h.id}`}
+                    id={`palette-hit-${i}`}
                     data-index={i}
                     role="option"
                     aria-selected={i === active}

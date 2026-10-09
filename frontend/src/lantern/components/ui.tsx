@@ -122,9 +122,9 @@ export function StorageTag({ doc }: { doc: Doc }) {
     );
   }
   return (
-    <span className="storage storage-stored" title="A copy of the file is stored with the household records.">
+    <span className="storage storage-stored" title={`Stored in ${doc.owner}. Does not indicate a HouseAtlas copy or file availability.`}>
       <Icon name={doc.kind === 'photo' ? 'photo' : 'file'} size={13} />
-      Stored {doc.sizeKb !== undefined ? fmtSize(doc.sizeKb) : ''}
+      Stored in {doc.owner} {doc.sizeKb !== undefined ? fmtSize(doc.sizeKb) : ''}
     </span>
   );
 }

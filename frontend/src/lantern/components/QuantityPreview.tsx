@@ -94,7 +94,7 @@ function QuantityPreviewCurrent({ client, source, handoff }: { client: QuantityC
   // A handoff result remains shown after preview expiry, bound to the original prepared object.
   const native = handoff
     ? ledger?.result && sessionCurrent && ledger.result.prepared === handoff.prepared ? ledger.result.value.result : null
-    : result && sessionCurrent && client.isCurrentPrepared(result.prepared) ? result.value.result : null;
+    : result && sessionCurrent && result.prepared === prepared && client.isCurrentPrepared(result.prepared) ? result.value.result : null;
   return <section ref={section} tabIndex={-1} className="quantity-preview" style={{ minWidth: 0, overflowWrap: 'anywhere' }} aria-label="HomeBox quantity" aria-busy={working}>
     <h3>HomeBox quantity</h3>
     {!handoff && <button type="button" className="btn" disabled={busy || !sessionCurrent} onClick={() => void run('Checking quantity availability…', async () => {
