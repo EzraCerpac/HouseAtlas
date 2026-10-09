@@ -37,6 +37,8 @@ interface Owner {
 interface Observed { sent: boolean; status: number | null }
 type NoOffer = Extract<PinnedFileAvailability, { state: 'none' }>['observed'];
 const MAX_TIMER = 2_147_483_647;
+// Local settlement only; a sent capture may have issued bytes without delivery.
+const EXCHANGE_TIMEOUT_MS = 30_000;
 const stockRoot = (scope: Readonly<Scope>) =>
   `/api/atlas/stock/v3/workspaces/${encodeURIComponent(scope.workspaceId)}/homes/${encodeURIComponent(scope.homeId)}`;
 const mediaHref = (scope: Readonly<Scope>, token: string) =>
@@ -45,10 +47,13 @@ const mediaHref = (scope: Readonly<Scope>, token: string) =>
 async function readJson(response: Response, limit: number, signal: AbortSignal): Promise<unknown> {
   const reader = response.body?.getReader();
   if (!reader) throw new TypeError('Response body missing');
+  const cancel = () => { void reader.cancel().catch(() => undefined); };
+  signal.addEventListener('abort', cancel, { once: true });
   const chunks: Uint8Array[] = [];
   let length = 0;
   try {
     for (;;) {
+      signal.throwIfAborted();
       const next = await reader.read();
       signal.throwIfAborted();
       if (next.done) break;
@@ -56,14 +61,12 @@ async function readJson(response: Response, limit: number, signal: AbortSignal):
       if (length > limit) throw new TypeError('Response exceeds bound');
       chunks.push(next.value);
     }
-  } catch (error) {
-    await reader.cancel().catch(() => undefined);
-    throw error;
-  }
-  const bytes = new Uint8Array(length);
-  let offset = 0;
-  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-  return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown;
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown;
+  } catch (error) { cancel(); throw error; }
+  finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
 }
 
 /** Local HomeBox file consumer. Discovery is informational, capture is one
@@ -141,30 +144,49 @@ export function createPinnedFileClient(options: PinnedFileClientOptions): Pinned
 
   const exchange = async (found: Owner, url: string, limit: number, signal: AbortSignal, observed: Observed): Promise<unknown> => {
     const controller = new AbortController();
-    const abort = () => controller.abort();
+    const abort = () => controller.abort(signal.reason);
+    let reject!: (reason: unknown) => void;
+    const stopped = new Promise<never>((_, no) => { reject = no; });
+    const stop = () => reject(controller.signal.reason);
+    controller.signal.addEventListener('abort', stop, { once: true });
     signal.addEventListener('abort', abort, { once: true });
     if (signal.aborted) abort();
     const unsubscribe = subscribeSessionBinding(() => { if (!isCurrent(found)) controller.abort(); });
+    const timer = setTimeout(() => controller.abort(new Error('Pinned file response unavailable after local deadline')), EXCHANGE_TIMEOUT_MS);
     try {
+      const operation = async () => {
+        controller.signal.throwIfAborted();
+        if (!isCurrent(found)) throw new TypeError('Session or home changed');
+        observed.sent = true;
+        const response = await transport(url, {
+          method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
+          headers: { Accept: 'application/json' }, signal: controller.signal,
+        });
+        if (controller.signal.aborted) { void response.body?.cancel().catch(() => undefined); controller.signal.throwIfAborted(); }
+        observed.status = response.status;
+        controller.signal.throwIfAborted();
+        if (!isCurrent(found)) {
+          void response.body?.cancel().catch(() => undefined);
+          throw new TypeError('Session or home changed');
+        }
+        if (!response.ok) {
+          void response.body?.cancel().catch(() => undefined);
+          throw new TypeError('Response status not usable');
+        }
+        const value = await readJson(response, limit, controller.signal);
+        controller.signal.throwIfAborted();
+        if (!isCurrent(found)) throw new TypeError('Session or home changed');
+        return value;
+      };
+      const value = await Promise.race([operation(), stopped]);
       controller.signal.throwIfAborted();
-      if (!isCurrent(found)) throw new TypeError('Session or home changed');
-      observed.sent = true;
-      const response = await transport(url, {
-        method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
-        headers: { Accept: 'application/json' }, signal: controller.signal,
-      });
-      observed.status = response.status;
-      controller.signal.throwIfAborted();
-      if (!response.ok) {
-        await response.body?.cancel().catch(() => undefined);
-        throw new TypeError('Response status not usable');
-      }
-      const value = await readJson(response, limit, controller.signal);
       if (!isCurrent(found)) throw new TypeError('Session or home changed');
       return value;
     } finally {
+      clearTimeout(timer);
       unsubscribe();
       signal.removeEventListener('abort', abort);
+      controller.signal.removeEventListener('abort', stop);
     }
   };
 
