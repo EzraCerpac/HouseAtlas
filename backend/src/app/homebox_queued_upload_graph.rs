@@ -62,7 +62,7 @@ impl<'native, 'owner, 'captured, 'p>
     pub fn prepared(&self) -> &PreparedUpload<'native, 'owner, 'captured, 'p> {
         self.prepared
     }
-    pub fn native(&self) -> &UploadNative<'owner, 'captured, 'p> {
+    pub fn native(&self) -> &'native UploadNative<'owner, 'captured, 'p> {
         self.native
     }
     pub fn captured(&self) -> &domain::CapturedAccess<'p> {
