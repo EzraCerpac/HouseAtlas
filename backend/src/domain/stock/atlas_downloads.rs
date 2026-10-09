@@ -21,6 +21,10 @@ use std::{
     time::{Duration, Instant},
 };
 
+// Engineering bound for each genuine Access-normalized session; the global
+// registry ceiling remains 1000. This is not a runtime capacity guarantee.
+const MAX_HANDLES_PER_SESSION: usize = 64;
+
 /// Access-owned normalized session correlation. Implementations must revalidate
 /// the original opaque principal, include the Access instance and expose no raw
 /// credential. Caller cookie text, actor/scope DTOs and transport IDs cannot
@@ -65,8 +69,9 @@ struct DownloadHandle {
 }
 
 /// Share once across the existing host's issuance and redemption adapters.
-/// At most 1000 five-minute handles and no restart persistence. Unexpired
-/// handles are retained; capacity failure occurs before a new handle is issued.
+/// At most 1000 five-minute handles globally and 64 per authenticated session,
+/// with no restart persistence. Unexpired handles remain; existing same-context
+/// handles are reused before checking capacity for a new issuance.
 #[derive(Clone, Default)]
 pub struct AtlasDownloadHandles(Arc<Mutex<VecDeque<DownloadHandle>>>);
 
@@ -314,7 +319,10 @@ where
                 .lock()
                 .map_err(|_| StockError::OwnerUnavailable)?;
             handles.retain(|h| h.expires > Instant::now());
-            handles.iter().find(|h| h.context == context).cloned()
+            handles
+                .iter()
+                .find(|h| h.session == session && h.context == context)
+                .cloned()
         };
         let data = if let Some(saved) = saved {
             saved.data
@@ -352,17 +360,19 @@ where
             // The same exact prepared read can be recomputed for disclosure.
             // Concurrent qualification is held; a matching immutable handle is
             // simply reused rather than minting a different result carrier.
-            if let Some(saved) = handles
-                .iter()
-                .find(|h| h.context == context && h.expires > Instant::now())
-            {
+            if let Some(saved) = handles.iter().find(|h| {
+                h.session == session && h.context == context && h.expires > Instant::now()
+            }) {
                 saved.data.clone()
             } else {
                 if handles.iter().any(|h| h.token == token) {
                     return Err(StockError::OwnerUnavailable);
                 }
                 handles.retain(|h| h.expires > Instant::now());
-                if handles.len() >= 1000 {
+                if handles.len() >= 1000
+                    || handles.iter().filter(|h| h.session == session).count()
+                        >= MAX_HANDLES_PER_SESSION
+                {
                     return Err(StockError::OwnerUnavailable);
                 }
                 handles.push_back(DownloadHandle {
