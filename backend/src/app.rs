@@ -12,6 +12,7 @@ pub mod homebox_queued_upload_execution;
 pub mod homebox_queued_upload_finish_history;
 pub mod homebox_queued_upload_graph;
 pub mod homebox_queued_upload_history;
+pub mod homebox_queued_upload_history_publication;
 pub mod homebox_stock_host;
 pub mod media_policy_recovery;
 pub mod quantity_approval;
