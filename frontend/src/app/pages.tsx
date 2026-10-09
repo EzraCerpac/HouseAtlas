@@ -32,6 +32,8 @@ import type { AtlasEditingClient } from "./editing";
 import { PlaceEditor } from "./PlaceEditor";
 import { AiSettingsSection } from "../ai/host/index.js";
 
+const homeChoiceKey = (scope: Scope) => JSON.stringify([scope.workspaceId, scope.homeId]);
+
 export interface PageProps {
   view: ReadyView;
   route: Route;
@@ -67,17 +69,17 @@ export function AtlasPage({
             </div>
             <select
               aria-label={text("homeSelect")}
-              value={view.scope.homeId}
+              value={homeChoiceKey(view.scope)}
               disabled={busy || view.homes.length < 2}
               onChange={(event) => {
                 const next = view.homes.find(
-                  (h) => h.homeId === event.target.value,
+                  (h) => homeChoiceKey(h) === event.target.value,
                 );
                 if (next) switchHome(next);
               }}
             >
               {view.homes.map((h) => (
-                <option key={h.homeId} value={h.homeId}>
+                <option key={homeChoiceKey(h)} value={homeChoiceKey(h)}>
                   {h.label}
                 </option>
               ))}
