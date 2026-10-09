@@ -124,13 +124,19 @@ export function StorageTag({ doc }: { doc: Doc }) {
   return (
     <span className="storage storage-stored" title={`Stored in ${doc.owner}. Does not indicate a HouseAtlas copy or file availability.`}>
       <Icon name={doc.kind === 'photo' ? 'photo' : 'file'} size={13} />
-      Stored in {doc.owner} {doc.sizeKb !== undefined ? fmtSize(doc.sizeKb) : ''}
+      Stored in {doc.owner} {fmtDocSize(doc)}
     </span>
   );
 }
 
 export function fmtSize(kb: number) {
   return kb >= 1000 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`;
+}
+
+export function fmtDocSize(doc: Doc): string {
+  if (doc.byteSize !== undefined)
+    return doc.byteSize === null ? 'Recorded byte size unknown' : `${doc.byteSize} recorded bytes`;
+  return doc.sizeKb !== undefined ? fmtSize(doc.sizeKb) : '';
 }
 
 export function Section({ title, count, children, action }: { title: string; count?: number; children: ReactNode; action?: ReactNode }) {

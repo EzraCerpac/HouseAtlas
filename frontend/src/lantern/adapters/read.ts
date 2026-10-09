@@ -121,8 +121,8 @@ export function projectView(view: ReadyView, geometryMetadata: GeometryRead = { 
         title: attachment.title?.trim() || 'Untitled attachment',
         kind: documentKind(attachment),
         storage,
-        ...(attachment.kind === 'stored-file' && attachment.byteSize !== null
-          ? { sizeKb: attachment.byteSize / 1024 }
+        ...(attachment.kind === 'stored-file'
+          ? { byteSize: attachment.byteSize }
           : {}),
         ...(href ? { url: href } : {}),
         ...(attachment.kind === 'external-link' ? { linkArchived: attachment.archived } : {}),
