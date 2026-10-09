@@ -10,7 +10,18 @@ use crate::{
 use std::cell::Cell;
 use std::sync::MutexGuard;
 
+struct JournalHistoryBrand;
+
+/// Closed pure journal identity, issued only from ReleaseQualified custody.
+pub(super) struct JournalHistoryIdentity(Arc<JournalHistoryBrand>);
+impl JournalHistoryIdentity {
+    pub(super) fn matches(&self, journal: &OriginalUploadJournalCut) -> bool {
+        Arc::ptr_eq(&self.0, &journal.data.identity)
+    }
+}
+
 pub struct QueueUploadJournalCommittedData {
+    identity: Arc<JournalHistoryBrand>,
     job: LeasedJob,
     prepared: PreparedNativeIntent,
     receipt: NativeJournalReceipt,
@@ -27,6 +38,7 @@ impl QueueUploadJournalCommittedData {
     }
     fn retained_data(&self) -> Self {
         Self {
+            identity: Arc::clone(&self.identity),
             job: self.job.clone(),
             prepared: self.prepared.clone(),
             receipt: self.receipt.clone(),
@@ -99,12 +111,49 @@ impl OriginalUploadJournalCut {
     pub fn upload_cut(&self) -> &Arc<NativeQueuedUploadOriginal> {
         self.record.upload_cut()
     }
+    /// Bounded borrowed-facts transfer from the exact qualified ledger.
+    pub(super) fn with_released_history_facts<T>(
+        &self,
+        attempt: &OriginalQueuedUploadAttempt,
+        copy: impl FnOnce(
+            &PreparedNativeIntent,
+            &NativeJournalReceipt,
+            JournalHistoryIdentity,
+        ) -> Result<T>,
+    ) -> Result<T> {
+        if !Arc::ptr_eq(&self.record, attempt.record())
+            || self.job() != attempt.job()
+            || !Arc::ptr_eq(self.native.upload_cut(), self.upload_cut())
+            || !self.native.matches_original(self.upload_cut())
+            || self.prepared() != self.native.prepared()
+        {
+            return Err(conflict());
+        }
+        let ledger = attempt.journal_ledger().try_lock().map_err(|_| bad())?;
+        let current = ledger.take();
+        let result = match &current {
+            OriginalUploadJournalLedger::ReleaseQualified(data)
+                if data.matches(self.job(), self.prepared(), self.receipt())
+                    && Arc::ptr_eq(&data.identity, &self.data.identity) =>
+            {
+                copy(
+                    data.prepared(),
+                    data.receipt(),
+                    JournalHistoryIdentity(Arc::clone(&data.identity)),
+                )
+            }
+            _ => Err(conflict()),
+        };
+        ledger.set(current);
+        result
+    }
     pub fn matches_attempt(&self, attempt: &OriginalQueuedUploadAttempt) -> bool {
         Arc::ptr_eq(&self.record, attempt.record())
             && attempt.journal_ledger().try_lock().is_ok_and(|ledger| {
                 let current = ledger.take();
                 let qualified = matches!(&current, OriginalUploadJournalLedger::ReleaseQualified(data)
-                    if data.matches(self.job(), self.prepared(), self.receipt()));
+                    if data.matches(self.job(), self.prepared(), self.receipt())
+                        && Arc::ptr_eq(&data.identity, &self.data.identity));
                 ledger.set(current);
                 qualified
             })
@@ -225,6 +274,7 @@ impl<'a> QueueUploadJournalCapture<'a> {
             return Err(conflict());
         }
         let data = QueueUploadJournalCommittedData {
+            identity: Arc::new(JournalHistoryBrand),
             job: job.clone(),
             prepared: prepared.clone(),
             receipt: receipt.clone(),

@@ -55,8 +55,8 @@ enum EnqueueLedger {
 enum InitialClaimLedger {
     #[default]
     Empty,
-    CommittedData(LeasedJob),
-    ReleaseQualified(LeasedJob),
+    CommittedData(LeasedJob, Arc<InitialClaimHistoryBrand>),
+    ReleaseQualified(LeasedJob, Arc<InitialClaimHistoryBrand>),
 }
 struct PreparedEnqueueCommit {
     ledger: JobSnapshot,
@@ -64,9 +64,28 @@ struct PreparedEnqueueCommit {
 }
 struct PreparedClaimCommit {
     ledger: LeasedJob,
+    identity: Arc<InitialClaimHistoryBrand>,
     observation: QueueUploadCommittedData,
 }
 struct OriginalUploadCustodyBrand;
+struct InitialClaimHistoryBrand;
+
+/// Closed descriptor-free identity; only qualified custody can issue it.
+pub(super) struct OriginalUploadHistoryIdentity {
+    original: Arc<OriginalUploadCustodyBrand>,
+    claim: Arc<InitialClaimHistoryBrand>,
+}
+impl OriginalUploadHistoryIdentity {
+    pub(super) fn matches(
+        &self,
+        recorded: &RecordedOriginalUploadEnqueue,
+        attempt: &OriginalQueuedUploadAttempt,
+    ) -> bool {
+        Arc::ptr_eq(&self.original, &recorded.0.custody)
+            && Arc::ptr_eq(&self.original, &attempt.custody)
+            && Arc::ptr_eq(&self.claim, &attempt.claim_identity)
+    }
+}
 
 /// Private engine sink. The exact output is checked and all copies are staged
 /// before COMMIT. The postcommit method only moves owned values into Cells.
@@ -237,6 +256,7 @@ impl QueueUploadClaimCapture<'_> {
         }
         self.prepared.set(Some(PreparedClaimCommit {
             ledger: job.clone(),
+            identity: Arc::new(InitialClaimHistoryBrand),
             observation: QueueUploadCommittedData::InitialClaim(job.clone()),
         }));
         Ok(())
@@ -247,8 +267,10 @@ impl QueueUploadClaimCapture<'_> {
             .prepared
             .take()
             .expect("original upload claim commit must be prepared before COMMIT");
-        self.ledger
-            .set(InitialClaimLedger::CommittedData(prepared.ledger));
+        self.ledger.set(InitialClaimLedger::CommittedData(
+            prepared.ledger,
+            prepared.identity,
+        ));
         self.observation.data.set(Some(prepared.observation));
         self.observation.occupied.set(true);
     }
@@ -256,9 +278,9 @@ impl QueueUploadClaimCapture<'_> {
     pub(super) fn record_released(&self, job: &LeasedJob) -> Result<()> {
         let current = self.ledger.take();
         match current {
-            InitialClaimLedger::CommittedData(committed) if &committed == job => {
+            InitialClaimLedger::CommittedData(committed, identity) if &committed == job => {
                 self.ledger
-                    .set(InitialClaimLedger::ReleaseQualified(committed));
+                    .set(InitialClaimLedger::ReleaseQualified(committed, identity));
                 Ok(())
             }
             other => {
@@ -268,9 +290,14 @@ impl QueueUploadClaimCapture<'_> {
         }
     }
 
-    fn release_qualified(&self, job: &LeasedJob) -> bool {
+    fn release_qualified(&self, job: &LeasedJob) -> Option<Arc<InitialClaimHistoryBrand>> {
         let current = self.ledger.take();
-        let qualified = matches!(&current, InitialClaimLedger::ReleaseQualified(cut) if cut == job);
+        let qualified = match &current {
+            InitialClaimLedger::ReleaseQualified(cut, identity) if cut == job => {
+                Some(Arc::clone(identity))
+            }
+            _ => None,
+        };
         self.ledger.set(current);
         qualified
     }
@@ -313,6 +340,7 @@ pub enum OriginalQueuedUploadClaim {
 /// Exactly the initial claim returned through the same successful Release.
 pub struct OriginalQueuedUploadAttempt {
     job: LeasedJob,
+    claim_identity: Arc<InitialClaimHistoryBrand>,
     custody: Arc<OriginalUploadCustodyBrand>,
     record: Arc<OriginalUploadEnqueueRecord>,
 }
@@ -373,6 +401,82 @@ impl RecordedOriginalUploadEnqueue {
     pub fn upload_cut(&self) -> &Arc<NativeQueuedUploadOriginal> {
         &self.0.upload
     }
+    /// Borrow only the actual qualified first claim; restore the Cell even
+    /// when the bounded transfer closure rejects the facts.
+    pub(super) fn with_released_history_facts<T>(
+        &self,
+        attempt: &OriginalQueuedUploadAttempt,
+        copy: impl FnOnce(
+            &ValidatedRequest,
+            &QueueConfig,
+            &EnqueueRequest,
+            &CanonicalScope,
+            &JobSnapshot,
+            &LeasedJob,
+            OriginalUploadHistoryIdentity,
+        ) -> Result<T>,
+    ) -> Result<T> {
+        let record = &self.0;
+        if !Arc::ptr_eq(record, &attempt.record)
+            || !Arc::ptr_eq(&record.custody, &attempt.custody)
+            || record.config != *record.upload.queue_config()
+            || record.original.raw() != record.upload.original().raw()
+            || record.original.id() != record.upload.original().id()
+            || record.original.request_id() != record.upload.original().request_id()
+            || record.original.context() != record.upload.original().context()
+            || record.original.route() != record.upload.original().route()
+            || record.original.intent_digest() != record.upload.original().intent_digest()
+            || !record.original.children().is_empty()
+        {
+            return Err(conflict());
+        }
+        record.upload.validate_original(
+            &self.proof(),
+            &record.config.registration,
+            &record.original,
+            &record.request,
+            &record.scope,
+        )?;
+        let ledger = record.claim.try_lock().map_err(|_| bad())?;
+        let current = ledger.take();
+        let result = match &current {
+            InitialClaimLedger::ReleaseQualified(job, identity)
+                if job == attempt.job()
+                    && Arc::ptr_eq(identity, &attempt.claim_identity)
+                    && job.lease.job_id == record.snapshot.job_id
+                    && record.snapshot.receipt == record.request.receipt
+                    && record.snapshot.partition == record.request.partition
+                    && job.request == record.request
+                    && job.canonical_scope == record.scope
+                    && job.attempt == 1
+                    && job.lease.fence > 0
+                    && job.lease.physical_identity == record.config.registration.identity
+                    && job.lease.owner_id == record.config.registration.dispatcher_owner_id
+                    && job.pending_byte_liability == record.request.pending_byte_liability
+                    && job.pending_byte_liability.required
+                    && job
+                        .pending_byte_liability
+                        .reserved_bytes
+                        .is_some_and(|n| n > 0) =>
+            {
+                copy(
+                    &record.original,
+                    &record.config,
+                    &record.request,
+                    &record.scope,
+                    &record.snapshot,
+                    job,
+                    OriginalUploadHistoryIdentity {
+                        original: Arc::clone(&record.custody),
+                        claim: Arc::clone(identity),
+                    },
+                )
+            }
+            _ => Err(conflict()),
+        };
+        ledger.set(current);
+        result
+    }
     pub fn proof(&self) -> RecordedOriginalUploadEnqueueProof {
         RecordedOriginalUploadEnqueueProof {
             record: Arc::clone(&self.0),
@@ -388,7 +492,7 @@ impl RecordedOriginalUploadEnqueueProof {
             return false;
         };
         let current = ledger.take();
-        let qualified = matches!(&current, InitialClaimLedger::ReleaseQualified(cut)
+        let qualified = matches!(&current, InitialClaimLedger::ReleaseQualified(cut, _)
             if cut == job
                 && job.lease.job_id == self.record.snapshot.job_id
                 && job.attempt == 1
@@ -466,7 +570,7 @@ impl OriginalEnqueueOwner for RecordedOriginalUploadEnqueue {
         let ledger = record.claim.try_lock().map_err(|_| bad())?;
         let current = ledger.take();
         let qualified = match &current {
-            InitialClaimLedger::ReleaseQualified(job)
+            InitialClaimLedger::ReleaseQualified(job, _)
                 if &job.lease.job_id == job_id
                     && job.lease.fence == fence
                     && job.attempt == attempt
@@ -643,12 +747,11 @@ impl<'bundle, 'native, 'owner, 'captured, 'p>
         )?;
         match outcome {
             ClaimOutcome::Claimed(job) => {
-                if !capture.release_qualified(&job) {
-                    return Err(conflict());
-                }
+                let claim_identity = capture.release_qualified(&job).ok_or_else(conflict)?;
                 Ok(OriginalQueuedUploadClaim::Claimed(
                     OriginalQueuedUploadAttempt {
                         job,
+                        claim_identity,
                         custody: Arc::clone(&self.record.custody),
                         record: Arc::clone(&self.record),
                     },
