@@ -62,6 +62,92 @@ impl<C, A: Authorization, R, Q: QueueAuthorization<Principal = A::Principal>>
             journal_evidence_digest: journal.journal_evidence_digest,
         })
     }
+    /// The original upload corridor. Its owned context and exact execution
+    /// capture remain borrowed across both current SQLite read transactions.
+    pub(super) fn authorize_dispatch_inner_with_upload_owned(
+        &mut self,
+        job: &LeasedJob,
+        now: Timestamp,
+        capture: &super::upload_execution_custody::QueueUploadExecutionCapture<'_>,
+        owned: &dyn super::quantity_original::OwnedQuantityContext,
+    ) -> Result<NativeJournalReceipt> {
+        capture.validate_session(self, job)?;
+        let entry = self
+            .store
+            .db
+            .transaction_with_behavior(TransactionBehavior::Deferred)?;
+        owned.revalidate(&entry)?;
+        authorize_session(
+            self.authority,
+            self.principal,
+            self.witness,
+            self.original,
+            self.receipt,
+            QueuePhase::Entry,
+            QueueAction::Lease(&job.lease),
+        )?;
+        owned.revalidate(&entry)?;
+        let row = validate_job(&entry, &self.config, job)?;
+        matches_original(self.receipt, self.original, &row, &self.config)?;
+        if row.status != JobStatus::Running || now >= job.lease.expires_at {
+            return Err(stale());
+        }
+        let journal = load_journal_view(&entry, job)?.ok_or_else(invalid)?;
+        capture.validate_journal(job, &journal)?;
+        owned.revalidate(&entry)?;
+        authorize_session(
+            self.authority,
+            self.principal,
+            self.witness,
+            self.original,
+            self.receipt,
+            QueuePhase::Precommit,
+            QueueAction::Dispatch {
+                job,
+                journal: &journal,
+                now,
+            },
+        )?;
+        owned.revalidate(&entry)?;
+        capture.validate_journal(job, &journal)?;
+        entry.commit()?;
+
+        // Release is a fresh view of the same database. Current physical and
+        // native authority must hold throughout this second read transaction.
+        let release = self
+            .store
+            .db
+            .transaction_with_behavior(TransactionBehavior::Deferred)?;
+        owned.revalidate(&release)?;
+        let row = validate_job(&release, &self.config, job)?;
+        matches_original(self.receipt, self.original, &row, &self.config)?;
+        if row.status != JobStatus::Running || now >= job.lease.expires_at {
+            return Err(stale());
+        }
+        let current = load_journal_view(&release, job)?.ok_or_else(invalid)?;
+        capture.validate_journal(job, &current)?;
+        owned.revalidate(&release)?;
+        authorize_session(
+            self.authority,
+            self.principal,
+            self.witness,
+            self.original,
+            self.receipt,
+            QueuePhase::Release,
+            QueueAction::Dispatch {
+                job,
+                journal: &current,
+                now,
+            },
+        )?;
+        owned.revalidate(&release)?;
+        capture.validate_journal(job, &current)?;
+        release.commit()?;
+        Ok(NativeJournalReceipt {
+            native_payload_digest: current.native_payload_digest,
+            journal_evidence_digest: current.journal_evidence_digest,
+        })
+    }
     pub fn commit_native(
         &mut self,
         job: &LeasedJob,

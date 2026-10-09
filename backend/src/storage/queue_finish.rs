@@ -191,6 +191,174 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
     ) -> Result<JobSnapshot> {
         self.finish_evidence(&job.lease, now, report, evidence, Some(job))
     }
+
+    /// Closed upload finish engine. The input and capture can only be formed
+    /// by the sealed original Source-effect adapter, never a copied report.
+    pub(super) fn finish_evidence_inner_with_upload_owned(
+        &mut self,
+        input: &super::upload_execution_custody::QueueUploadFinishInput<'_>,
+        capture: &super::upload_execution_custody::QueueUploadFinishCapture<'_, '_, '_, '_, '_>,
+        owned: &dyn super::quantity_original::OwnedQuantityContext,
+    ) -> Result<JobSnapshot> {
+        capture.validate_session(self, input)?;
+        let job = input.job();
+        let report = input.report();
+        let evidence = input.steps();
+        let now = input.now();
+        if evidence.len() > 64
+            || evidence.iter().any(|step| {
+                step.codec.is_empty()
+                    || step.codec.len() > 128
+                    || step.payload.is_empty()
+                    || step.payload.len() > MAX_METADATA_BYTES
+            })
+        {
+            return Err(invalid());
+        }
+        let tx = self
+            .store
+            .db
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        owned.revalidate(&tx)?;
+        authorize_session(
+            self.authority,
+            self.principal,
+            self.witness,
+            self.original,
+            self.receipt,
+            QueuePhase::Entry,
+            QueueAction::Snapshot(self.receipt),
+        )?;
+        owned.revalidate(&tx)?;
+        let row = validate_lease(&tx, &self.config, &job.lease, true)?;
+        matches_original(self.receipt, self.original, &row, &self.config)?;
+        if row.leased(&self.config)? != *job {
+            return Err(stale());
+        }
+        let journal = load_journal_view(&tx, job)?.ok_or_else(invalid)?;
+        capture.validate_journal(job, &journal)?;
+        owned.revalidate(&tx)?;
+        authorize_session(
+            self.authority,
+            self.principal,
+            self.witness,
+            self.original,
+            self.receipt,
+            QueuePhase::Entry,
+            QueueAction::Finish {
+                job,
+                report,
+                journal: Some(&journal),
+                steps: evidence,
+            },
+        )?;
+        owned.revalidate(&tx)?;
+        if !matches!(
+            row.status,
+            JobStatus::Running | JobStatus::NeedsReconciliation
+        ) {
+            return Err(stale());
+        }
+        let prior_finish: i64 = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM queue_outcomes WHERE job_id=?1 AND fence=?2 AND json_extract(body,'$.kind')='finish')",
+            params![job.lease.job_id.0, decimal(job.lease.fence)],
+            |r| r.get(0),
+        )?;
+        if prior_finish != 0 {
+            return Err(stale());
+        }
+        let prior_event_id: i64 = tx.query_row(
+            "SELECT COALESCE(MAX(event_id),0) FROM queue_outcomes WHERE job_id=?1 AND fence=?2",
+            params![job.lease.job_id.0, decimal(job.lease.fence)],
+            |r| r.get(0),
+        )?;
+        check_finish_evidence(report, evidence)?;
+        insert_evidence(&tx, job, evidence)?;
+        disposition(&tx, &row, now, &report.disposition, None)?;
+        store_activity(&tx, &row.id, &report.remote_activity)?;
+        append_liability(
+            &tx,
+            &row,
+            job.lease.fence,
+            "finish",
+            &report.storage_liability,
+        )?;
+        let outcome_at = now.max(row.updated);
+        append_outcome(&tx, job, outcome_at, report, "finish", None)?;
+        let outcome = super::upload_execution_custody::load_new_finish_outcome(
+            &tx,
+            job,
+            prior_event_id,
+            report,
+            outcome_at,
+        )?;
+        if matches!(
+            report.remote_activity,
+            RemoteActivity::NotDispatched
+                | RemoteActivity::Invoked(InvokedRemoteActivity::EndedProven { .. })
+        ) {
+            update_active(&tx, &self.config, None, None, None)?;
+        }
+        let output = load(&tx, &row.id)?.snapshot();
+        owned.revalidate(&tx)?;
+        authorize_session(
+            self.authority,
+            self.principal,
+            self.witness,
+            self.original,
+            self.receipt,
+            QueuePhase::Precommit,
+            QueueAction::Finish {
+                job,
+                report,
+                journal: Some(&journal),
+                steps: evidence,
+            },
+        )?;
+        owned.revalidate(&tx)?;
+        capture.prepare_committed(
+            input,
+            &output,
+            &NativeJournalReceipt {
+                native_payload_digest: journal.native_payload_digest.clone(),
+                journal_evidence_digest: journal.journal_evidence_digest.clone(),
+            },
+            outcome_at,
+            outcome,
+        )?;
+        tx.commit()?;
+        capture.record_committed();
+        let release = self
+            .store
+            .db
+            .transaction_with_behavior(TransactionBehavior::Deferred)?;
+        owned.revalidate(&release)?;
+        let successor = load(&release, &row.id)?.snapshot();
+        if successor != output {
+            return Err(stale());
+        }
+        capture.validate_successor_outcome(&release)?;
+        let current_journal = load_journal_view(&release, job)?.ok_or_else(invalid)?;
+        capture.validate_journal(job, &current_journal)?;
+        owned.revalidate(&release)?;
+        authorize_session(
+            self.authority,
+            self.principal,
+            self.witness,
+            self.original,
+            self.receipt,
+            QueuePhase::Release,
+            QueueAction::Finish {
+                job,
+                report,
+                journal: Some(&current_journal),
+                steps: evidence,
+            },
+        )?;
+        owned.revalidate(&release)?;
+        release.commit()?;
+        Ok(output)
+    }
 }
 
 impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal = A::Principal>>
