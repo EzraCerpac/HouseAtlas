@@ -11,9 +11,10 @@ Use the accompanying `resource-map.json` offline resource map. Register the froz
 ## Runtime correlation required beyond schema shape
 
 The configured complete-capture implementations of `homebox.field.list` and
-`homebox.maintenance.list` use the explicit local member-name selector in
+`homebox.maintenance.list` use the explicit local member selector in
 [homebox-member-search.md](homebox-member-search.md). That document defines
-empty/omitted query handling, exact matching fields, Unicode/whitespace rules
+empty/omitted query handling, names, available field values and maintenance
+descriptions, Unicode/whitespace rules
 and full-observation pagination custody. It does not imply upstream search
 support or provider/runtime qualification.
 
