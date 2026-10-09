@@ -182,8 +182,8 @@ held. Ordinary compilation and healthy examples are not acceptance.
 Application semantics use the supplied **HouseAtlas portable language-neutral
 stock.2/wire3 inputs**, **Language-neutral cloud supplement semantics**, and
 **Cloud-transferable write and AI integration policy**. Schema identity is
-`urn:houseatlas:agent:stock:3`; frozen Atlas resources resolve offline at
-`https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json`, never by network.
+`urn:houseatlas:agent:stock:3`; Atlas public schema1.1.0 resources resolve offline at
+`https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json`, never by network.
 Archive delivery metadata and private origin mappings are excluded from source.
 
 Official references reviewed on 2026-10-06:

@@ -5,14 +5,14 @@
   "networkResolution": false,
   "resources": [
     {
-      "uri": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json",
+      "uri": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json",
       "path": "packages/contracts/schemas/atlas.schema.json",
-      "sha256": "ba73d972c87391fe06cd41d68e73bc2d73fc3fcac322889cfb3b8d909c3f3f72"
+      "sha256": "2ab4d43ca736b270209bce0711e2c46ba07d70c3b1db78eb1ee89f1a62985f47"
     },
     {
       "uri": "urn:houseatlas:agent:stock:3",
       "path": "contracts/stock-wire3/agent/agent.schema.json",
-      "sha256": "314ee5f5effca941b3be92cb5cc37150aa17a3ab5dd8646255cebc74767b602d"
+      "sha256": "42174cebb9a7080cacb8231aba2bf80c4ab59fdb92085db1af3d5fe368cd5835"
     },
     {
       "path": "contracts/stock-wire3/presence/witness.v1.schema.json",

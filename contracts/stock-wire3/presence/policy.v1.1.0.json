@@ -129,5 +129,6 @@
   },
   "runtimeCapability": "held-until-reviewed-typed-witness-and-metadata-seams",
   "productionSecurityAcceptance": false,
-  "downstreamRelease": false
+  "downstreamRelease": false,
+  "atlasPublicSchemaVersion": "1.1.0"
 }

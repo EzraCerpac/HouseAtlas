@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json",
-  "title": "HouseAtlas AT-02 contracts 1.0.0",
+  "$id": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json",
+  "title": "HouseAtlas AT-02 contracts 1.1.0",
   "description": "Canonical normalized Atlas records and boundary shapes. Wire HomeBox schema is a tested minimum, not its full API specification.",
   "oneOf": [
     {
@@ -524,6 +524,9 @@
           },
           "minItems": 1,
           "uniqueItems": true
+        },
+        "elevation": {
+          "$ref": "#/$defs/locationElevation"
         }
       },
       "required": [
@@ -532,7 +535,26 @@
         "reviewStatus",
         "evidenceIds"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "elevation": {}
+            },
+            "required": [
+              "elevation"
+            ]
+          },
+          "then": {
+            "properties": {
+              "semanticKind": {
+                "const": "floor"
+              }
+            }
+          }
+        }
+      ]
     },
     "circuitPayload": {
       "type": "object",
@@ -621,58 +643,182 @@
       "additionalProperties": false
     },
     "relationPayload": {
-      "type": "object",
-      "properties": {
-        "kind": {
-          "type": "string",
-          "enum": [
-            "circuit-supplies",
-            "valve-controls",
-            "documented-connection"
-          ]
-        },
-        "from": {
-          "$ref": "#/$defs/endpoint"
-        },
-        "to": {
-          "$ref": "#/$defs/endpoint"
-        },
-        "medium": {
-          "type": "string",
-          "enum": [
-            "electricity",
-            "water",
-            "gas",
-            "heating",
-            "ethernet",
-            "wifi",
-            "other",
-            "unknown"
-          ]
-        },
-        "uncertainty": {
-          "$ref": "#/$defs/uncertainty"
-        },
-        "evidenceIds": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "circuit-supplies",
+                "valve-controls",
+                "documented-connection"
+              ]
+            },
+            "from": {
+              "$ref": "#/$defs/endpoint"
+            },
+            "to": {
+              "$ref": "#/$defs/endpoint"
+            },
+            "medium": {
+              "type": "string",
+              "enum": [
+                "electricity",
+                "water",
+                "gas",
+                "heating",
+                "ethernet",
+                "wifi",
+                "other",
+                "unknown"
+              ]
+            },
+            "uncertainty": {
+              "$ref": "#/$defs/uncertainty"
+            },
+            "evidenceIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
           },
-          "minItems": 1,
-          "uniqueItems": true
+          "required": [
+            "kind",
+            "from",
+            "to",
+            "medium",
+            "uncertainty",
+            "evidenceIds"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "location-membership"
+            },
+            "membershipKind": {
+              "type": "string",
+              "enum": [
+                "building",
+                "level"
+              ]
+            },
+            "from": {
+              "$ref": "#/$defs/locationEndpoint"
+            },
+            "to": {
+              "$ref": "#/$defs/locationEndpoint"
+            },
+            "reviewStatus": {
+              "type": "string",
+              "enum": [
+                "proposed",
+                "accepted"
+              ]
+            },
+            "uncertainty": {
+              "$ref": "#/$defs/uncertainty"
+            },
+            "evidenceIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "kind",
+            "membershipKind",
+            "from",
+            "to",
+            "reviewStatus",
+            "uncertainty",
+            "evidenceIds"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "physical-access"
+            },
+            "accessKind": {
+              "type": "string",
+              "enum": [
+                "door",
+                "stair",
+                "opening"
+              ]
+            },
+            "assertion": {
+              "type": "string",
+              "enum": [
+                "present",
+                "absent",
+                "unknown"
+              ]
+            },
+            "direction": {
+              "type": "string",
+              "enum": [
+                "bidirectional",
+                "from-to"
+              ]
+            },
+            "from": {
+              "$ref": "#/$defs/locationEndpoint"
+            },
+            "to": {
+              "$ref": "#/$defs/locationEndpoint"
+            },
+            "reviewStatus": {
+              "type": "string",
+              "enum": [
+                "proposed",
+                "accepted"
+              ]
+            },
+            "uncertainty": {
+              "$ref": "#/$defs/uncertainty"
+            },
+            "evidenceIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "kind",
+            "accessKind",
+            "assertion",
+            "direction",
+            "from",
+            "to",
+            "reviewStatus",
+            "uncertainty",
+            "evidenceIds"
+          ],
+          "additionalProperties": false
         }
-      },
-      "required": [
-        "kind",
-        "from",
-        "to",
-        "medium",
-        "uncertainty",
-        "evidenceIds"
-      ],
-      "additionalProperties": false
+      ]
     },
     "license": {
       "type": "object",
@@ -3054,7 +3200,11 @@
       "type": "object",
       "properties": {
         "contractVersion": {
-          "const": "1.0.0"
+          "type": "string",
+          "enum": [
+            "1.0.0",
+            "1.1.0"
+          ]
         },
         "synthetic": {
           "const": true
@@ -3283,6 +3433,75 @@
           "type": "boolean"
         }
       }
+    },
+    "locationElevation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "unknown"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "known"
+            },
+            "metres": {
+              "type": "number"
+            },
+            "datumAtlasId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          "required": [
+            "status",
+            "metres",
+            "datumAtlasId"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "locationEndpoint": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "atlas-record"
+        },
+        "ref": {
+          "type": "object",
+          "properties": {
+            "recordType": {
+              "const": "identity"
+            },
+            "recordId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          "required": [
+            "recordType",
+            "recordId"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "ref"
+      ],
+      "additionalProperties": false
     }
   }
 }

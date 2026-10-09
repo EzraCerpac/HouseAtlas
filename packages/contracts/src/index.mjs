@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 
-export const CONTRACT_VERSION = '1.0.0';
+export const CONTRACT_VERSION = '1.1.0';
 export const schema = JSON.parse(readFileSync(new URL('../schemas/atlas.schema.json', import.meta.url)));
 export const boundaries = JSON.parse(readFileSync(new URL('../policy/boundaries.json', import.meta.url)));
 const ajv = new Ajv2020({ allErrors: true, strict: true, allowUnionTypes: true });
@@ -120,6 +120,14 @@ export function validateSnapshot(snapshot) {
       if (r.lifecycle === 'active' && p.reviewStatus === 'accepted' && identity.lifecycle !== 'active') fail('invalid-transition', 'Accepted binding needs active identity');
     }
     if (r.recordType === 'location-semantics') {
+      if (p.elevation) {
+        if (p.semanticKind !== 'floor') fail('invalid-contract', 'Elevation requires floor semantics');
+        if (p.elevation.status === 'known') {
+          const datum = get(r, 'identity', p.elevation.datumAtlasId);
+          if (datum.payload.kind !== 'location') fail('invalid-contract', 'Elevation datum requires location identity');
+          if (r.lifecycle === 'active' && p.reviewStatus === 'accepted' && datum.lifecycle !== 'active') fail('invalid-transition', 'Accepted known elevation needs active datum');
+        }
+      }
       if (get(r, 'identity', p.atlasId).payload.kind !== 'location') fail('invalid-contract', 'Semantic classification requires location identity');
       if (r.lifecycle === 'active' && p.reviewStatus === 'accepted') {
         const key = JSON.stringify([r.workspaceId, r.homeId, p.atlasId]);
@@ -174,6 +182,49 @@ export function validateSnapshot(snapshot) {
       const from = get(r, 'binding', p.fromBindingId), to = get(r, 'binding', p.toBindingId);
       if (from.recordId === to.recordId || from.payload.atlasId !== p.atlasId || to.payload.atlasId !== p.atlasId) fail('invalid-contract', 'Remap journal requires retained compatible bindings for the same permanent identity');
     }
+  }
+  // Current physical grouping is reviewed Atlas evidence, independent of source trees.
+  const classifications = new Map(snapshot.records
+    .filter(r => r.recordType === 'location-semantics' && r.lifecycle === 'active' && r.payload.reviewStatus === 'accepted')
+    .map(r => [recordKey({ ...r, recordType: 'identity', recordId: r.payload.atlasId }), r.payload.semanticKind]));
+  const buildingParents = new Map(), levelParents = new Map(), membershipParents = new Map();
+  for (const r of snapshot.records.filter(r => r.recordType === 'relation' && ['location-membership', 'physical-access'].includes(r.payload.kind))) {
+    const p = r.payload;
+    const endpoints = [p.from, p.to].map(e => {
+      if (e.kind !== 'atlas-record' || e.ref.recordType !== 'identity') fail('invalid-contract', 'Topology endpoint requires resolved location identity');
+      const identity = get(r, 'identity', e.ref.recordId);
+      if (identity.payload.kind !== 'location') fail('invalid-contract', 'Topology endpoint requires location identity');
+      return identity;
+    });
+    if (p.kind === 'physical-access' && endpoints[0].recordId === endpoints[1].recordId) fail('invalid-contract', 'Physical access endpoints must be distinct');
+    if (r.lifecycle !== 'active' || p.reviewStatus !== 'accepted') continue;
+    if (endpoints.some(e => e.lifecycle !== 'active')) fail('invalid-transition', 'Accepted topology needs active endpoints');
+    if (p.kind !== 'location-membership') continue;
+    const parentKey = recordKey(endpoints[0]), childKey = recordKey(endpoints[1]);
+    const parentKind = classifications.get(parentKey), childKind = classifications.get(childKey);
+    if (parentKind !== (p.membershipKind === 'building' ? 'building' : 'floor')) fail('invalid-contract', 'Accepted membership requires matching parent classification');
+    if (childKind === 'building' || (p.membershipKind === 'level' && childKind === 'floor')) fail('invalid-contract', 'Invalid classified membership child');
+    const parents = p.membershipKind === 'building' ? buildingParents : levelParents;
+    if (parents.has(childKey)) fail('identity-conflict', 'Only one active accepted parent per membership kind');
+    parents.set(childKey, parentKey);
+    if (!membershipParents.has(childKey)) membershipParents.set(childKey, []);
+    membershipParents.get(childKey).push(parentKey);
+  }
+  // Iterative traversal remains bounded by the finite snapshot, without call-stack growth.
+  for (const child of membershipParents.keys()) {
+    const pending = [[child, false]], visiting = new Set(), visited = new Set();
+    while (pending.length) {
+      const [key, leaving] = pending.pop();
+      if (leaving) { visiting.delete(key); visited.add(key); continue; }
+      if (visiting.has(key)) fail('invalid-contract', 'Accepted membership cycle');
+      if (visited.has(key)) continue;
+      visiting.add(key); pending.push([key, true]);
+      for (const parent of membershipParents.get(key) ?? []) pending.push([parent, false]);
+    }
+  }
+  for (const [child, level] of levelParents) {
+    const direct = buildingParents.get(child), derived = buildingParents.get(level);
+    if (direct && derived && direct !== derived) fail('invalid-contract', 'Direct and level-derived building membership disagree');
   }
   // Supersession and version history remain acyclic, even when all refs exist.
   for (const start of snapshot.records.filter(r => r.recordType === 'evidence')) {
@@ -285,6 +336,7 @@ export function assertGuards(snapshot, current, command, target, createdInBatch 
     for (const id of p.evidenceIds ?? []) add('evidence', id);
     for (const id of p.supersedesEvidenceIds ?? []) add('evidence', id);
     if (p.atlasId) add('identity', p.atlasId);
+    if (p.elevation?.status === 'known') add('identity', p.elevation.datumAtlasId);
     if (p.originalAssetId) add('asset', p.originalAssetId);
     if (p.previousGeometryId) add('geometry', p.previousGeometryId);
     if (p.fromBindingId) add('binding', p.fromBindingId);

@@ -1,6 +1,6 @@
 {
   "contractVersion": "0.3.0-at34.stock.2",
-  "baseContractVersion": "1.0.0",
+  "baseContractVersion": "1.1.0",
   "baseRecordSchemaVersion": 1,
   "agentWireSchemaVersion": 3,
   "candidateOnly": true,

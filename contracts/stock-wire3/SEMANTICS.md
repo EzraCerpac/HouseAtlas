@@ -4,7 +4,7 @@ These are implementation requirements accompanying the stock.2 wire3 JSON contra
 
 ## Contract identity and offline resolution
 
-The active stock contract is `0.3.0-at34.stock.2`, agent wire3, with frozen Atlas contract1.0.0 and record/audit schema1. Preserve the 158 historical command IDs and six additional typed groups, their 164 request/result arms, ten proposed tool families and all route dispositions. Families are transport groupings, not permission to expose arbitrary HTTP. Historical wire2 metadata does not override current stock dispositions. The stock schema's historical `$comment` is not its adopted package identity; the adoption manifest and catalog identify stock.2.
+The active stock contract is `0.3.0-at34.stock.2`, agent wire3, with Atlas public schema1.1.0 and record/audit schema1 (legacy native storage envelope1.0.0). Preserve the 158 historical command IDs and six additional typed groups, their 164 request/result arms, ten proposed tool families and all route dispositions. Families are transport groupings, not permission to expose arbitrary HTTP. Historical wire2 metadata does not override current stock dispositions. The stock schema's historical `$comment` is not its adopted package identity; the adoption manifest and catalog identify stock.2.
 
 Use the accompanying `resource-map.json` offline resource map. Register the frozen Atlas schema by its exact canonical `$id`; resolve source-presence relative references offline to the same bytes. Keep draft2020-12 semantics, union arms, required fields, nullability, closed properties and scalar constraints. JSON Schema string lengths count Unicode code points; Rust/TypeScript ports must not replace these with UTF-8 byte or UTF-16 code-unit limits. Preserve safe-integer bounds and exact canonical JSON/SHA256 conventions across languages. Static adoption does not establish generator or runtime conformance.
 
@@ -67,3 +67,12 @@ The AI interface uses official SIWC/Responses. Actual server registration/accoun
 Keep a supported sign-in helper distinct from a persistent inference companion. Server-hosted inference and mobile usability remain product goals. A local OAuth result or official open-source remote-VM example does not qualify server credentials or inference. Any awake-client, phone, pairing, network or protected-credential dependency requires an explicit runtime decision before becoming a requirement; Rust must not silently turn the product into an always-awake client backend. Official documentation and actual eligibility require separate verification; this static policy does not verify current external availability.
 
 Guard, mutation, omission, reversal, adversarial, denial, rejection, replay, expiry, revocation, failure, crash and concurrency controls remain unrun in this integration. Contract adoption does not release stopped checks. Ordinary source/compile/healthy-example work and full security/provider/product qualification remain distinct.
+
+### Reviewed topology
+
+Atlas public schema 1.1.0 adds reviewed building/level membership, typed physical
+access and optional measured floor elevation. Original relation arms remain valid.
+Only atlas.identity.list adds optional buildingId; every other list query is
+unchanged. Grouping uses current accepted membership in the authorized snapshot,
+never HomeBox parentage. Old readers reject new fields/variants; legacy 1.0.0
+input envelopes remain admissible, and native storage/recovery tags stay 1.0.0.
