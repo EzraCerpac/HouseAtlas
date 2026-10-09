@@ -11,6 +11,17 @@ the running Rust service invokes no JavaScript semantic oracle.
 Development composition and ordinary healthy evidence do not establish product,
 security, operational recovery or target acceptance.
 
+The exact `cargo run --offline --locked -p houseatlas-backend --example healthy-mcp-editor-http`
+command selects one disposable in-process Axum HTTP Editor MCP happy path: actual
+native fixture/session issuance, explicit existing Editor command profile,
+initialize/initialized/tools-list, one circuit create, and canonical get/history
+audit readback across seven POSTs. It uses only private generated synthetic
+credentials and closes the native session through normal Host teardown before
+fixture cleanup. Inspect the complete example and review its scope before running;
+this command is not part of ordinary CI and has not been executed by this source
+addition. No listener, provider, denial, replay, expiry, revocation, rotation,
+cancellation, injection, concurrency or other control is included.
+
 ## Module composition
 
 The service compiles the actual Access, Contracts, Domain, Storage, Jobs, Media,
