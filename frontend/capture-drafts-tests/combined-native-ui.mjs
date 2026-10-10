@@ -10,12 +10,13 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateShape } from '../../packages/contracts/src/index.mjs';
 
+const runStartedAt = Date.now();
 const root = resolve(process.env.HOUSEATLAS_SOURCE_ROOT ?? fileURLToPath(new URL('../../', import.meta.url)));
 assert(existsSync(join(root, 'AGENTS.md')) && existsSync(join(root, 'frontend/dist/index.html')), 'Supply inspected source root and actual React bundle');
 assert.equal(process.version, 'v26.10.0');
 const binary = process.env.HOUSEATLAS_BINARY;
 assert(binary && existsSync(binary), 'Supply the locked compiled HOUSEATLAS_BINARY');
-const git = args => spawnSync('git', args, {cwd:root, encoding:'utf8'});
+const git = args => spawnSync('git', args, {cwd:root, encoding:'utf8', timeout:5000, killSignal:'SIGKILL'});
 const head = git(['rev-parse','HEAD']); assert.equal(head.status,0);
 const status = git(['status','--porcelain']); assert.equal(status.status,0);
 const frozenSchema=git(['show','4ca610d8a21752277beafdc03bec2e62a93a65b7:packages/contracts/schemas/atlas.schema.json']);
@@ -33,27 +34,103 @@ const args=process.argv.slice(2);
 assert(args.length===2 && args[0]==='--case' && args[1]==='healthy-save-reopen-confirm', 'Only the exact named positive entrypoint');
 const chromium = process.env.HOUSEATLAS_CHROMIUM ?? ['/usr/bin/google-chrome', '/usr/bin/chromium'].find(existsSync);
 assert(chromium && existsSync(chromium), 'A real Chromium executable is required');
-const scratch = mkdtempSync(join(tmpdir(), 'houseatlas-combined-capture-drafts-'));
-const data = join(scratch, 'data');
-const cert = join(scratch, 'cert.pem'), key = join(scratch, 'key.pem');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const runAbort = new AbortController();
+const owned = [], lifecycle = new Map();
+let scratch, service, browser, cdp, runDeadline, stopPromise;
+let primaryError, cleanupError, serviceOutput = '', serviceError = '';
+function spawnOwned(label, executable, arguments_, options) {
+  runAbort.signal.throwIfAborted();
+  // A separate group is owned by this runner, including Chromium subprocesses.
+  const child = spawn(executable, arguments_, { ...options, detached: true });
+  const entry = { label, child, closed: false, groupGone: false, error: undefined };
+  child.once('close', () => { entry.closed = true; });
+  child.on('error', error => { entry.error ??= error; });
+  for (const stream of child.stdio) stream?.on('error', error => { entry.error ??= error; });
+  owned.push(entry); lifecycle.set(child, entry);
+  return child;
+}
+function groupIsGone(entry) {
+  // Once absence is observed, never probe or signal a possibly reused PGID.
+  if (entry.groupGone) return true;
+  if (!entry.child.pid) return entry.groupGone = true;
+  try { process.kill(-entry.child.pid, 0); }
+  catch (error) {
+    if (error.code === 'ESRCH') return entry.groupGone = true;
+    entry.error ??= error;
+  }
+  return false;
+}
+async function waitForStopped(entry, ms) {
+  const deadline = Date.now() + ms;
+  while (true) {
+    if (entry.closed && groupIsGone(entry)) return true;
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return false;
+    await delay(Math.min(50, remaining));
+  }
+}
+async function stopOwned(entry) {
+  if (await waitForStopped(entry, 0)) return;
+  if (entry.child === browser && cdp && !entry.closed) {
+    // Browser.close is only a bounded graceful request; closure is separate proof.
+    await cdp.send('Browser.close', {}, undefined, true, 1000).catch(() => {});
+    if (await waitForStopped(entry, 0)) return;
+  }
+  const stages = entry.child === browser ? ['SIGTERM', 'SIGKILL'] : ['SIGINT', 'SIGTERM', 'SIGKILL'];
+  let signalError;
+  for (const signal of stages) {
+    if (!groupIsGone(entry) && entry.child.pid) {
+      try { process.kill(-entry.child.pid, signal); }
+      catch (error) { if (error.code !== 'ESRCH') signalError = error; }
+    }
+    // Require leader exit/stdio close AND absence of its owned process group.
+    if (await waitForStopped(entry, 2000)) return;
+  }
+  throw new Error('Owned child/group exit and pipe completion unconfirmed: ' + entry.label, { cause: signalError ?? entry.error });
+}
+function stopAll() {
+  return stopPromise ??= (async () => {
+    const serviceWasRunning = service && !lifecycle.get(service).closed;
+    const results = await Promise.allSettled(owned.map(stopOwned));
+    const failures = results.filter(result => result.status === 'rejected').map(result => result.reason);
+    cdp?.dispose(new Error('Harness cleanup'));
+    if (owned.every(entry => entry.closed && groupIsGone(entry))) {
+      if (serviceWasRunning) {
+        try { assert.equal(service.exitCode, 0, 'Healthy service shutdown'); }
+        catch (error) { failures.push(error); }
+      }
+      if (scratch) {
+        try { rmSync(scratch, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }); }
+        catch (error) { failures.push(error); }
+      }
+    } else {
+      // Retain state if exit cannot be proved; release runner handles, never claim cleanup.
+      for (const entry of owned.filter(entry => !(entry.closed && groupIsGone(entry)))) {
+        for (const stream of entry.child.stdio) stream?.destroy();
+        entry.child.unref();
+      }
+      failures.push(new Error('Scratch retained after unconfirmed child shutdown: ' + scratch));
+    }
+    if (failures.length) throw new AggregateError(failures, 'Harness cleanup failed');
+  })();
+}
 async function until(check, label, ms = 20000) {
   const deadline = Date.now() + ms;
-  while (Date.now() < deadline) { const result = await check(); if (result) return result; await delay(50); }
+  while (Date.now() < deadline) {
+    runAbort.signal.throwIfAborted();
+    const result = await check(); runAbort.signal.throwIfAborted();
+    if (result) return result; await delay(50);
+  }
   throw new Error('Timed out: ' + label);
 }
-const openssl = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', key, '-out', cert, '-days', '1', '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1'], { encoding: 'utf8' });
-assert.equal(openssl.status, 0, 'Disposable certificate creation');
-let service, browser, cdp, serviceOutput = '', serviceError = '';
 const observedUrls = [], responses = [], runtimeErrors = [], uploadRequests = [];
 const loaded = new Set();
-// A bounded harness deadline owns only the disposable children it created.
-const runDeadline = setTimeout(() => { service?.kill('SIGINT'); browser?.kill('SIGTERM'); }, 90_000);
 class Pipe {
-  next = 0; pending = new Map(); buffer = Buffer.alloc(0);
+  next = 0; pending = new Map(); buffer = Buffer.alloc(0); closed = false;
   constructor(process) {
     this.process = process;
-    process.stdio[4].on('data', bytes => {
+    this.onData = bytes => {
       this.buffer = Buffer.concat([this.buffer, bytes]);
       let end;
       while ((end = this.buffer.indexOf(0)) !== -1) {
@@ -82,28 +159,60 @@ class Pipe {
         else if (message.method === 'Network.loadingFinished') loaded.add(message.params.requestId);
         else if (message.method === 'Runtime.exceptionThrown') runtimeErrors.push(message.params.exceptionDetails.text);
       }
-    });
+    };
+    this.onError = error => this.cancelPending(error);
+    this.onClose = () => { this.closed = true; this.cancelPending(new Error('CDP child closed')); };
+    process.stdio[4].on('data', this.onData);
+    process.stdio[3].on('error', this.onError); process.stdio[4].on('error', this.onError);
+    process.once('close', this.onClose);
   }
-  send(method, params = {}, sessionId) {
+  cancelPending(error) {
+    for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(error); }
+    this.pending.clear();
+  }
+  dispose(error) {
+    this.closed = true; this.cancelPending(error);
+    this.process.stdio[4].removeListener('data', this.onData);
+    this.process.stdio[3].removeListener('error', this.onError); this.process.stdio[4].removeListener('error', this.onError);
+    this.process.removeListener('close', this.onClose);
+  }
+  send(method, params = {}, sessionId, cleanup = false, timeoutMs = 15000) {
+    if (this.closed) return Promise.reject(new Error('CDP pipe closed'));
+    if (!cleanup && runAbort.signal.aborted) return Promise.reject(runAbort.signal.reason);
     const id = ++this.next;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('CDP timeout: ' + method)); }, 15000);
+      const fail = error => { const pending = this.pending.get(id); if (!pending) return; this.pending.delete(id); clearTimeout(pending.timer); reject(error); };
+      const timer = setTimeout(() => fail(new Error('CDP timeout: ' + method)), timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
-      this.process.stdio[3].write(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + '\0');
+      try { this.process.stdio[3].write(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + '\0', error => { if (error) fail(error); }); }
+      catch (error) { fail(error); }
     });
   }
 }
 try {
-  service = spawn(resolve(binary), ['--disposable-dir', data, '--frontend-dist', join(root, 'frontend/dist'), '--tls-cert', cert, '--tls-key', key,
+  // Reserve seven seconds of the 90-second budget for parallel bounded teardown.
+  const deadline = new Promise((_, reject) => { runDeadline = setTimeout(() => {
+    const error = new Error('Harness run deadline');
+    runAbort.abort(error); cdp?.cancelPending(error); reject(error);
+  }, Math.max(0, 83_000 - (Date.now() - runStartedAt))); });
+  await Promise.race([deadline, (async () => {
+  scratch = mkdtempSync(join(tmpdir(), 'houseatlas-combined-capture-drafts-'));
+  const data = join(scratch, 'data');
+  const cert = join(scratch, 'cert.pem'), key = join(scratch, 'key.pem');
+  const openssl = spawnOwned('OpenSSL', 'openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', key, '-out', cert, '-days', '1', '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1'], { stdio: ['ignore', 'ignore', 'ignore'] });
+  assert(await waitForStopped(lifecycle.get(openssl), 10000), 'Disposable certificate creation deadline');
+  runAbort.signal.throwIfAborted();
+  assert.equal(openssl.exitCode, 0, 'Disposable certificate creation');
+  service = spawnOwned('Rust service', resolve(binary), ['--disposable-dir', data, '--frontend-dist', join(root, 'frontend/dist'), '--tls-cert', cert, '--tls-key', key,
 ], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
   service.stdout.on('data', b => { serviceOutput += b; }); service.stderr.on('data', b => { serviceError += b; });
   await until(() => {
-    if (service.exitCode !== null) throw new Error('Rust startup failed: ' + serviceError);
+    if (lifecycle.get(service).error || lifecycle.get(service).closed) throw new Error('Rust startup failed: ' + serviceError, { cause: lifecycle.get(service).error });
     return existsSync(join(data, 'smoke-session.json')) && serviceOutput.includes('listening at');
   }, 'actual Rust TLS listener', 30000);
   const { origin, cookie, editorLogin } = JSON.parse(readFileSync(join(data, 'smoke-session.json')));
   assert.match(origin, /^https:\/\/127\.0\.0\.1:\d+$/);
-  browser = spawn(chromium, ['--headless=new', '--enable-experimental-web-platform-features', '--enable-features=WebMCP', '--no-sandbox', '--disable-gpu', '--remote-debugging-pipe', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-features=MediaRouter,OptimizationHints', '--ignore-certificate-errors', '--user-data-dir=' + join(scratch, 'browser'), 'about:blank'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
+  browser = spawnOwned('Chromium', chromium, ['--headless=new', '--enable-experimental-web-platform-features', '--enable-features=WebMCP', '--no-sandbox', '--disable-gpu', '--remote-debugging-pipe', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-features=MediaRouter,OptimizationHints', '--ignore-certificate-errors', '--user-data-dir=' + join(scratch, 'browser'), 'about:blank'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
   cdp = new Pipe(browser); cdp.allowedOrigin=origin; cdp.blocked=0;
   const version = await cdp.send('Browser.getVersion');
   // Both inspected release IDLs take DOMString input_arguments. A browser
@@ -247,9 +356,15 @@ try {
   const result={source,browser:version.product,rows,controls,observedRequests:observedUrls.length,scope:'Source-only proposed actual React/native loopback TLS; synthetic Files only; no camera permission or iPhone claim'};
   if(process.env.HOUSEATLAS_EVIDENCE)writeFileSync(process.env.HOUSEATLAS_EVIDENCE,JSON.stringify(result,null,2)+'\n');
   console.log(JSON.stringify(result,null,2));
-}finally{
+  })()]);
+} catch (error) { primaryError = error; }
+finally {
   clearTimeout(runDeadline);
-  try{if(cdp&&browser?.exitCode===null)await cdp.send('Browser.close').catch(()=>{});if(browser?.exitCode===null)await until(()=>browser.exitCode!==null,'Browser shutdown',10000);}
-  finally{try{if(service?.exitCode===null){service.kill('SIGINT');await until(()=>service.exitCode!==null,'Service shutdown',10000);assert.equal(service.exitCode,0);}}
-    finally{rmSync(scratch,{recursive:true,force:true,maxRetries:3,retryDelay:100});}}
+  const stopped = new Error('Harness run ended');
+  if (!runAbort.signal.aborted) runAbort.abort(stopped);
+  cdp?.cancelPending(stopped);
+  try { await stopAll(); } catch (error) { cleanupError = error; }
 }
+if (primaryError && cleanupError) throw new AggregateError([primaryError, cleanupError], 'Harness run and cleanup failed');
+if (primaryError) throw primaryError;
+if (cleanupError) throw cleanupError;

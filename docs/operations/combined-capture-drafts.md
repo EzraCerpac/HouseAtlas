@@ -107,8 +107,17 @@ committed receipt, local deletion, native evidence/asset/download readback, then
 a second unsent local save and consented normal logout cleanup with zero additional
 uploads. It requires independently pinned source, actual locked binary and build,
 inspected Chromium and OpenSSL. Requests stay on the disposable loopback origin;
-the only additional URL is its local original blob. A 90-second harness deadline
-owns its children and cleanup. This is mobile emulation, not physical capture.
+the only additional URL is its local original blob. Owning cleanup covers scratch
+allocation and OpenSSL preparation, with a 10-second preparation deadline. The
+90-second harness budget reserves 83 seconds for preflight/body and seven for
+parallel child cleanup; each synchronous Git preflight is bounded to five seconds:
+bounded Browser.close or SIGINT, SIGTERM/SIGKILL escalation, and process/stdio
+close confirmation plus owned process-group absence before scratch removal.
+Unconfirmed shutdown retains scratch and reports cleanup failure; run failures
+survive alongside any cleanup failure.
+Scratch removal is synchronous; filesystem stalls can extend total wall time.
+Use a registered `/tmp` TMPDIR for the native disposable-path requirement.
+This is mobile emulation, not physical capture.
 
 Strict TypeScript and Vite source checks are permitted separately. Runtime
 composition, actual cross-tab browser qualification, Safari/iPhone Camera/Photos/
