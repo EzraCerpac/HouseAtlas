@@ -49,20 +49,25 @@ format validator; relative and due-time arithmetic remains unchanged:
 node frontend/lantern-tests/source-time-display.mjs
 ```
 
-Two bounded provisional mesh examples use one generic synthetic triangle and
+Bounded provisional mesh examples use one generic synthetic triangle and
 the actual lossless profile reader, transform preparation and React components:
 
 ```sh
 node frontend/lantern-tests/scan-mesh-read.mjs
 node frontend/lantern-tests/scan-mesh-view-visual.mjs
+node frontend/lantern-tests/scan-plan-orientation.mjs
 ```
 
-Inspect both complete bodies and their source-loader imports first. These checks
+Inspect the complete bodies and their source-loader imports first. These checks
 cover preserved authored tokens, exact transform chains, display buffers and
 static accessible markup. They open no browser or listener and exercise no
-WebGL effects, picking, GPU disposal or actual private export. The viewer remains
-unmounted; original and derivative admission, physical scale, floor alignment
-and guarded native import remain unqualified.
+WebGL effects, picking, GPU disposal or actual private export. These examples
+establish no native availability, physical scale, floor alignment or actual
+guarded native import.
+
+The orientation example uses 48 asymmetric synthetic camera configurations to
+compare the shared SVG and WebGL scan projection. It preserves source tokens
+and checks only the display basis; it performs no native import or private read.
 
 A separate native geometry read example uses only two synthetic streamed
 Responses and the actual closed native descriptor client and profile reader.

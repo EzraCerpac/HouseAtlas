@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { TopologyBinding, TopologyClient, TopologyFailure, TopologyRead } from '../../api/topology-client';
 import type { NativePlaceBinding, NativePlaceClient } from '../../api/native-place-client';
+import type { NativeEvidenceDocumentClient } from '../scans/native-evidence-document-types';
 import { projectView } from '../adapters/read';
 import { useStore } from '../state/store';
 import { buildTopologyIndex, buildBuildingModel, type BuildingModel, type TopologyData, type TopologyIndex } from './model';
@@ -8,6 +9,7 @@ import { buildTopologyIndex, buildBuildingModel, type BuildingModel, type Topolo
 interface TopologyContext {
   readonly activate: () => () => void;
   readonly nativePlaces: NativePlaceClient | undefined;
+  readonly nativeEvidenceDocuments: NativeEvidenceDocumentClient | undefined;
   readonly nativeBinding: NativePlaceBinding | null;
   readonly reload: () => void;
   readonly index: TopologyIndex | null;
@@ -22,7 +24,7 @@ interface TopologyContext {
   readonly memberSourceStatus: string | null;
 }
 const Context = createContext<TopologyContext | null>(null);
-export function TopologyProvider({ client, nativePlaces, children }: { client?: TopologyClient | undefined; nativePlaces?: NativePlaceClient | undefined; children: ReactNode }) {
+export function TopologyProvider({ client, nativePlaces, nativeEvidenceDocuments, children }: { client?: TopologyClient | undefined; nativePlaces?: NativePlaceClient | undefined; nativeEvidenceDocuments?: NativeEvidenceDocumentClient | undefined; children: ReactNode }) {
   const { projection, actions } = useStore();
   const view = projection.view, session = actions.session?.expiresAt;
   const [lease, setLease] = useState<object | null>(null), [epoch, setEpoch] = useState(0);
@@ -111,7 +113,7 @@ export function TopologyProvider({ client, nativePlaces, children }: { client?: 
   const model = useMemo(() => index && buildingId && read?.status === 'ready' && read.snapshotSha256 === snapshotSha256
     ? buildBuildingModel(index, buildingId, read.records) : null, [index, buildingId, read, snapshotSha256]);
   const memberStatus = read?.status === 'ready' ? model ? 'ready' : 'changed' : read?.status ?? 'loading';
-  const value: TopologyContext = { activate, nativePlaces, nativeBinding: nativeBinding && nativeBinding.scope.workspaceId === view.scope.workspaceId && nativeBinding.scope.homeId === view.scope.homeId ? nativeBinding : null, reload, index, status, buildingId, chooseBuilding, levelId, chooseLevel: setLevelId, model, memberStatus, notice, memberSourceStatus: read?.status === 'ready' ? read.sourceStatus : null };
+  const value: TopologyContext = { activate, nativePlaces, nativeEvidenceDocuments, nativeBinding: nativeBinding && nativeBinding.scope.workspaceId === view.scope.workspaceId && nativeBinding.scope.homeId === view.scope.homeId ? nativeBinding : null, reload, index, status, buildingId, chooseBuilding, levelId, chooseLevel: setLevelId, model, memberStatus, notice, memberSourceStatus: read?.status === 'ready' ? read.sourceStatus : null };
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 export function useTopology(): TopologyContext {

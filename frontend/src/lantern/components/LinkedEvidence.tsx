@@ -2,6 +2,8 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createEvidenceClient, isEvidenceId, type EvidenceRead } from '../../api/evidence-client';
 import { useStore } from '../state/store';
 import type { SourceRef } from '../../api/generated/contracts';
+import { useTopology } from '../topology/TopologyProvider';
+import { NativeEvidenceDocument } from './NativeEvidenceDocument';
 
 function sourceReference(ref: SourceRef): string {
   return `${ref.workspaceId} / ${ref.homeId} / ${ref.key.sourceInstanceId} / ${ref.key.collectionId} / ${ref.key.sourceKind} / ${ref.key.externalId}`;
@@ -10,6 +12,7 @@ function sourceReference(ref: SourceRef): string {
 /** Read only when the user activates the linked UUID. References remain plain text. */
 export function LinkedEvidence({ evidenceId }: { evidenceId: string }) {
   const { projection, actions } = useStore();
+  const { nativeEvidenceDocuments } = useTopology();
   const view = projection.view;
   const scope = view.scope;
   const session = actions.session;
@@ -64,6 +67,8 @@ export function LinkedEvidence({ evidenceId }: { evidenceId: string }) {
   if (!isEvidenceId(evidenceId)) return null;
   const record = read.status === 'ready' ? read.record : null;
   const provenance = record?.payload.provenance;
+  const nativeOriginal = read.status === 'ready' && read.sourceStatus === 'current' && record?.lifecycle === 'active'
+    && record.payload.references.length === 1 && record.payload.references[0]?.kind === 'atlas-asset';
   return <div className="linked-evidence" data-evidence-id={evidenceId} style={{ overflowWrap: 'anywhere' }}>
     <button type="button" className="btn" aria-label={`View evidence ${evidenceId}`}
       disabled={!sessionCurrent || read.status === 'loading'} onClick={() => void load()}>View evidence</button>
@@ -94,6 +99,8 @@ export function LinkedEvidence({ evidenceId }: { evidenceId: string }) {
         <div><dt>Uncertainty status</dt><dd>{provenance.uncertainty.status}</dd></div>
         <div><dt>Uncertainty explanation</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{provenance.uncertainty.explanation ?? 'Not supplied'}</dd></div>
       </dl>}
+      {nativeEvidenceDocuments && nativeOriginal && <NativeEvidenceDocument key={`${key.workspaceId}/${key.homeId}/${evidenceId}/${record.revision}`}
+        client={nativeEvidenceDocuments} evidenceId={evidenceId} />}
       <h4>Original references</h4>
       {record.payload.references.length ? <ul aria-label="Original evidence references">
         {record.payload.references.map((reference, index) => <li key={index} style={{ whiteSpace: 'pre-wrap' }}>

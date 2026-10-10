@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "1c35e80fd252b01c5cdd6f244ad3ad8c3ea87d8ba9c2db85fd79cf3891201841",
+  "sourceDigestSha256": "b19be1c409f965c6c256aaaa5a64dda6a2278aa2a6ec3790f7a7fa2dc4d6b7d9",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 30834,
-      "sha256": "0f2bbf6d02a7e19b9205d160a76d3968acd0aa5398de76d4c9e69db538772246",
+      "bytes": 31091,
+      "sha256": "bd0f713e4ff0c2bcc50e7bf303368da3e699266b5ec5bd58ff9483faf4a12c98",
       "owner": "core-integration"
     },
     {
@@ -5325,6 +5325,13 @@
       "owner": "web"
     },
     {
+      "path": "docs/geometry/native-evidence-document-ui.md",
+      "mode": "100644",
+      "bytes": 1624,
+      "sha256": "34667ea09baec57c7ef6eaa7650cf090ff722cf50ebf3104c92ab18ee1184897",
+      "owner": "web"
+    },
+    {
       "path": "docs/geometry/native-geometry-association.md",
       "mode": "100644",
       "bytes": 4484,
@@ -5696,6 +5703,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/scan-plan-orientation.md",
+      "mode": "100644",
+      "bytes": 1616,
+      "sha256": "cb2db0efba5b67fdd789a86bf0cb37953d3f049c68164f3c1683668b5191f58b",
+      "owner": "web"
+    },
+    {
       "path": "docs/ux/reference/at04-room-first.html",
       "mode": "100644",
       "bytes": 33858,
@@ -5859,8 +5873,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 27913,
-      "sha256": "5501f50690d387ccadaadcbad9b27f9db19621416b19bf79ed6dcb0cf882cd81",
+      "bytes": 28580,
+      "sha256": "21aa8546eb88aa104492a07cf23f7c05737e80698b4b83d46ea429e2b73b79ce",
       "owner": "core-integration"
     },
     {
@@ -5868,6 +5882,13 @@
       "mode": "100644",
       "bytes": 20391,
       "sha256": "2a9513a0da2fed82bc15e8ea05179382847e139d29ae734a34a030328f81a42e",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/integration/native-evidence-document-client.ts",
+      "mode": "100644",
+      "bytes": 19230,
+      "sha256": "eafcc599fcf26ad0591a2828fe407099f0e9602d2d45e9e7c2fc8ab9de085046",
       "owner": "web"
     },
     {
@@ -6043,6 +6064,13 @@
       "mode": "100644",
       "bytes": 3846,
       "sha256": "e5439fffcff20404691c91ef0be16d8762d7f21d04b60fec6f18169a1895bafe",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/scan-plan-orientation.mjs",
+      "mode": "100644",
+      "bytes": 5138,
+      "sha256": "1336f529f927cc5876021f7b3d69bd6ce2cf0ffef0d7c48c3cec81fe0b44ca91",
       "owner": "web"
     },
     {
@@ -6601,8 +6629,8 @@
     {
       "path": "frontend/src/lantern/Host.tsx",
       "mode": "100644",
-      "bytes": 8149,
-      "sha256": "b661ddf3fa7c6bfaaaa38bccbd7b77ed7d8324656b1c356c2567f875861a0f92",
+      "bytes": 8374,
+      "sha256": "5789b0a948cee0ca390c8e4f01c8f28c0fd5e50d1581e2fd40ddeb21a69ac113",
       "owner": "web"
     },
     {
@@ -6713,8 +6741,8 @@
     {
       "path": "frontend/src/lantern/components/LinkedEvidence.tsx",
       "mode": "100644",
-      "bytes": 6564,
-      "sha256": "ac4ee87c28e9d9fdb16a7b756316d586daf7302b4a0ae675717fee1c9650e2af",
+      "bytes": 7184,
+      "sha256": "9c696d96d7efa3fe928c2bcc4f055de80894015d93ca620bbafb5280132cfb8f",
       "owner": "web"
     },
     {
@@ -6729,6 +6757,13 @@
       "mode": "100644",
       "bytes": 3591,
       "sha256": "ff3bd0d14a4c06fc9120f454b9b83e553919cf9b30bdb7f0b106b672b28f34d5",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/components/NativeEvidenceDocument.tsx",
+      "mode": "100644",
+      "bytes": 6105,
+      "sha256": "06e03f96d7af6fd2f261300d1123d9b2126e4f911bd8e1bde63b5ea8f1f40d0e",
       "owner": "web"
     },
     {
@@ -7019,6 +7054,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/scans/native-evidence-document-types.ts",
+      "mode": "100644",
+      "bytes": 866,
+      "sha256": "14282f341710b2223918919e21a551c2e2e1f6007f3953fc3d08fb63040b1beb",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/scans/native-read-types.ts",
       "mode": "100644",
       "bytes": 2617,
@@ -7049,8 +7091,8 @@
     {
       "path": "frontend/src/lantern/scans/presentation/HouseScanScene.tsx",
       "mode": "100644",
-      "bytes": 22182,
-      "sha256": "9958db28fc92931c209166e77083dcee437abd21cd2f0fd9f4d08562dc6a7dcd",
+      "bytes": 22185,
+      "sha256": "1dca4d175f642f110736711a9d1f9acf43866f0d97e3745b29f58436de88e482",
       "owner": "web"
     },
     {
@@ -7070,8 +7112,8 @@
     {
       "path": "frontend/src/lantern/scans/presentation/SceneMeshCanvas.tsx",
       "mode": "100644",
-      "bytes": 17049,
-      "sha256": "deef4642dfc0fc20f7e882a639a05d2014cf7e26a442084cd17b82276d917ed7",
+      "bytes": 17144,
+      "sha256": "56c30b6321a268011335811dc3a289424e72dc5114201717cc734f0c0f9ff643",
       "owner": "web"
     },
     {
@@ -7107,6 +7149,13 @@
       "mode": "100644",
       "bytes": 1343,
       "sha256": "e6750acad99f83c627f8f903e2cb05c2911d82436d56ba11740539429490ce0c",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/presentation/scan-projection.ts",
+      "mode": "100644",
+      "bytes": 1416,
+      "sha256": "a0aa2a7a5c16924fdd99f87ad9ccf3eead588b449c8cf8b17c2cbbad93f14aab",
       "owner": "web"
     },
     {
@@ -7210,8 +7259,8 @@
     {
       "path": "frontend/src/lantern/topology/TopologyProvider.tsx",
       "mode": "100644",
-      "bytes": 8537,
-      "sha256": "7edf063761f4d930e132950bb4dfaca77850fc52c4d1b789144c581a4459b95d",
+      "bytes": 8826,
+      "sha256": "614be82453653d10ad2ceab3fe57cc42f074024cdd73625d222761313929b9da",
       "owner": "web"
     },
     {

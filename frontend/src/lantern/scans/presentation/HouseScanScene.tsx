@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { makeProjector } from '../../atlas/projection';
+import { makeScanProjector } from './scan-projection';
 import { useEased } from '../../atlas/useCamera';
 import { MESH_LIMITS, prepareMeshRender } from '../mesh-profile';
 import { yieldTask } from './yield-task';
@@ -125,7 +125,7 @@ export function HouseScanScene(props: HouseScanSceneProps) {
       publish(); });
     return () => { disposed = true; abort.abort(); drag.current = null; };
   }, [owner]);
-  const projector = useMemo(() => makeProjector(cam, [0, 0]), [cam]);
+  const projector = useMemo(() => makeScanProjector(cam, [0, 0]), [cam]);
   const plan = mode === 'plan';
   useEffect(() => { if (plan && floors.length && !floors.some(f => f.key === selectedFloorKey)) setFloor(floors[0]!.key); }, [plan, floors, selectedFloorKey]);
   const viewBox = useMemo<readonly [number, number, number, number]>(() => {

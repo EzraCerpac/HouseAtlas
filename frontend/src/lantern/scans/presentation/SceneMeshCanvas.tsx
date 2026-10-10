@@ -3,6 +3,7 @@ import { MESH_LIMITS } from '../mesh-profile';
 import type { RenderScene } from '../mesh-profile';
 import type { Projector } from '../../atlas/projection';
 import { createFloorCompositor } from './floor-compositor';
+import { SCAN_PLAN_Y_TO_CAMERA } from './scan-projection';
 import type { FloorCompositor } from './floor-compositor';
 import { triangulateRoomRing } from './room-region-triangles';
 import type { DisplayRoomRegion } from './types';
@@ -22,7 +23,7 @@ interface Props {
 const vertexSource = `attribute vec3 position;attribute vec3 normal;
 uniform vec4 rotation;uniform vec4 viewport;uniform vec4 floorTransform;uniform vec2 center;uniform vec2 depthRange;
 varying vec3 faceNormal;varying float height;
-void main(){vec3 p=vec3((position.x-center.x)*floorTransform.x, -(position.z-center.y)*floorTransform.x, (position.y-floorTransform.y)*floorTransform.x+floorTransform.z);
+void main(){vec3 p=vec3((position.x-center.x)*floorTransform.x, -(position.z-center.y)*floorTransform.x*${SCAN_PLAN_Y_TO_CAMERA.toFixed(1)}, (position.y-floorTransform.y)*floorTransform.x+floorTransform.z);
 float rx=p.x*rotation.x-p.y*rotation.y;float ry=p.x*rotation.y+p.y*rotation.x;
 vec2 screen=vec2(rx,ry*rotation.z-p.z*rotation.w)*40.0;
 float d=ry*rotation.w+p.z*rotation.z;
