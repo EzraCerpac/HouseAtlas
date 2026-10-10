@@ -158,7 +158,7 @@ impl Client {
         };
         // Keep the exact submitted batch selector for passive retained disclosure.
         let original_body = body.clone();
-        if parsed.is_batch() {
+        if parsed.id().as_str() == "atlas.batch.execute" {
             assert!(original_body.len() <= 16 * 1024);
         }
         let response = self
@@ -181,7 +181,7 @@ impl Client {
             String::from_utf8_lossy(&bytes)
         );
         let result: Value = serde_json::from_slice(&bytes)?;
-        let children = if parsed.is_batch() {
+        let children = if parsed.id().as_str() == "atlas.batch.execute" {
             // This existing POST reads genuine durable wire envelopes; it never
             // resubmits the command or establishes original delivery/retry safety.
             let response = self
