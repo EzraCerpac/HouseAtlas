@@ -54,14 +54,52 @@ assert(isAbsolute(output) && realpathSync(output) === output);
 const outputMeta = lstatSync(output);
 assert(outputMeta.isDirectory() && outputMeta.uid === process.getuid() && (outputMeta.mode & 0o777) === 0o700);
 assert(!existsSync(join(output, 'result.json')), 'Never overwrite prior evidence');
+assert(!existsSync(join(output, 'failure.json')), 'Never overwrite prior failure evidence');
 
 const began = Date.now(), scratch = realpathSync(mkdtempSync(join(tmpdir(), 'houseatlas-native-evidence-')));
 chmodSync(scratch, 0o700);
 const configPath = join(scratch, 'server.json'), cert = join(scratch, 'cert.pem'), key = join(scratch, 'key.pem');
 const frontend = join(scratch, 'frontend'); mkdirSync(frontend, { mode: 0o700 });
-writeFileSync(join(frontend, 'index.html'), '<!doctype html><title>Synthetic native evidence example</title>', { mode: 0o600, flag: 'wx' });
+writeFileSync(join(frontend, 'index.html'), '<!doctype html><title>Synthetic native evidence example</title><div id="root"></div>', { mode: 0o600, flag: 'wx' });
 const owned = [], exchanges = [], proofs = [];
 let origin, ca, cookie, csrf, service, timedOut = false, completed = false;
+let phase = 'preparation', failedPhase = null, failedCode = null, spawnCode = null;
+let primaryFailure = null, cleanupFailed = false, cleanupErrorCode = null;
+const startupLimit = 8192, startupOutput = { stdout: { chunks: [], observed: 0, captured: 0 }, stderr: { chunks: [], observed: 0, captured: 0 } };
+let startupCaptured = 0;
+const publicStartupLines = new Set([
+  'HouseAtlas persistent server listening on 127.0.0.1:48743 for https://127.0.0.1:48743',
+  'HomeBox, Network and AI providers unconfigured; historical Media admission unavailable',
+  ...['Expected one React root', 'Persistent frontend directory must be canonical',
+    'Frontend output cannot contain symlinks', 'Unsupported frontend asset',
+    'Unsupported frontend asset type', 'Invalid frontend path', 'Missing compiled React application']
+    .map(message => `Error: "${message}"`),
+]);
+function publicErrorCode(error) {
+  return ['ERR_ASSERTION', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOENT', 'EACCES', 'EADDRINUSE'].includes(error?.code) ? error.code : null;
+}
+function captureStartup(stream, chunk) {
+  // Only pre-auth startup bytes from this owned synthetic server are retained.
+  // Both pipes keep draining after this phase; no later bytes enter evidence.
+  if (phase !== 'serve-readiness') return;
+  const entry = startupOutput[stream]; entry.observed += chunk.length;
+  const count = Math.min(chunk.length, startupLimit - startupCaptured);
+  if (count > 0) { entry.chunks.push(Buffer.from(chunk.subarray(0, count))); entry.captured += count; startupCaptured += count; }
+}
+function startupEvidence() {
+  const streams = {};
+  for (const [name, entry] of Object.entries(startupOutput)) {
+    const prefix = Buffer.concat(entry.chunks), lines = prefix.toString('utf8').split(/\r?\n/).filter(line => line.length > 0);
+    // Persist only exact public owner strings. Unknown error/path/header/key
+    // content is withheld, not blindly sanitized and released as raw logs.
+    streams[name] = { observedBytes: entry.observed, capturedPrefixBytes: prefix.length,
+      capturedPrefixSha256: sha(prefix), publicText: lines.filter(line => publicStartupLines.has(line)).join('\n'),
+      withheldLines: lines.filter(line => !publicStartupLines.has(line)).length,
+      readError: entry.readError === true, readErrorCode: entry.readErrorCode ?? null };
+  }
+  return { scope: 'owned synthetic serve startup before authentication only', maximumCombinedBytes: startupLimit,
+    capturedCombinedBytes: startupCaptured, truncated: Object.values(startupOutput).reduce((n, item) => n + item.observed, 0) > startupCaptured, streams };
+}
 const deadline = setTimeout(() => { timedOut = true; for (const child of owned) if (child.exitCode === null) child.kill('SIGTERM'); }, wholeLimitMs);
 const delay = ms => new Promise(yes => setTimeout(yes, ms));
 function liveBudget() { assert(!timedOut && Date.now() - began < wholeLimitMs, 'Bounded whole example'); }
@@ -79,14 +117,16 @@ async function selectedPort() {
 }
 function stopped(child) { return child.exitCode !== null || child.signalCode !== null || child.failedToStart; }
 async function stopOwned(child) {
-  if (stopped(child)) return;
-  child.kill('SIGTERM'); const until = Date.now() + 12000;
-  while (!stopped(child) && Date.now() < until) await delay(25);
-  if (!stopped(child)) {
-    child.kill('SIGKILL'); const forcedUntil = Date.now() + 3000;
-    while (!stopped(child) && Date.now() < forcedUntil) await delay(25);
+  const released = () => stopped(child) && child.stdioClosed !== false;
+  if (released()) return;
+  if (!stopped(child)) child.kill('SIGTERM'); const until = Date.now() + 12000;
+  while (!released() && Date.now() < until) await delay(25);
+  if (!released()) {
+    if (!stopped(child)) child.kill('SIGKILL'); const forcedUntil = Date.now() + 3000;
+    while (!released() && Date.now() < forcedUntil) await delay(25);
   }
   assert(stopped(child), 'Only the owned process stopped');
+  assert(child.stdioClosed !== false, 'Owned stdout/stderr reached child close');
 }
 async function exchange(method, path, body = null, contentType = 'application/json', includeSession = true) {
   liveBudget(); assert(typeof path === 'string' && path.startsWith('/api/atlas/') && !path.startsWith('//'));
@@ -167,8 +207,15 @@ try {
     authentication: { mode: 'loopback-local', identity: { userId: U(4), actorId, username: 'synthetic-local', scope } } };
   writeFileSync(configPath, JSON.stringify(config), { mode: 0o600, flag: 'wx' });
   synchronous(binary.path, ['initialize', '--server-config', configPath], 30000);
-  service = spawn(binary.path, ['serve', '--server-config', configPath], { cwd: scratch, stdio: 'ignore' }); owned.push(service);
-  service.on('error', () => { service.failedToStart = true; });
+  phase = 'serve-readiness';
+  service = spawn(binary.path, ['serve', '--server-config', configPath], { cwd: scratch, stdio: ['ignore', 'pipe', 'pipe'] }); owned.push(service);
+  service.stdioClosed = false;
+  service.stdout.on('data', chunk => captureStartup('stdout', chunk));
+  service.stderr.on('data', chunk => captureStartup('stderr', chunk));
+  service.stdout.on('error', error => { startupOutput.stdout.readError = true; startupOutput.stdout.readErrorCode = publicErrorCode(error); });
+  service.stderr.on('error', error => { startupOutput.stderr.readError = true; startupOutput.stderr.readErrorCode = publicErrorCode(error); });
+  service.once('close', () => { service.stdioClosed = true; });
+  service.on('error', error => { service.failedToStart = true; spawnCode = publicErrorCode(error); });
   const readyUntil = Date.now() + 30000; let ready = false;
   while (!ready && Date.now() < readyUntil) {
     liveBudget(); assert(!stopped(service), 'Owned service is running');
@@ -176,10 +223,13 @@ try {
     catch (error) { if (!['ECONNREFUSED', 'ECONNRESET'].includes(error.code)) throw error; await delay(50); }
   }
   assert(ready, 'Bounded readiness');
+  assert(Object.values(startupOutput).every(entry => !entry.readError), 'Owned startup pipes captured without read errors');
+  phase = 'authentication-started'; // Stop retaining output before native cookie/CSRF issuance.
   const sessionResponse = await exchange('POST', '/api/atlas/auth/local', {}, 'application/json', false), session = json(sessionResponse);
   assert.equal(session.schemaVersion, 1); assert.equal(session.actorId, actorId);
   assert(typeof session.expiresAt === 'string' && session.expiresAt.length > 0);
   cookie = sessionResponse.headers['set-cookie'][0].split(';')[0]; csrf = session.csrfToken; assert(typeof cookie === 'string' && typeof csrf === 'string');
+  phase = 'authenticated-positive';
   const emptyPayload = { cursor: null, pageSize: 100, includeArchived: false };
   for (const kind of ['identity', 'binding']) assert.deepEqual((await read(kind, 'list', null, emptyPayload)).data.records, []);
   const initialEvidenceId = U(100), identityId = U(101), semanticsId = U(201);
@@ -234,7 +284,10 @@ try {
   const delivery = await exchange('GET', `/api/atlas/media/downloads/${scope.workspaceId}/${scope.homeId}/${download.data.downloadToken}`);
   assert.equal(delivery.status, 200); assert.deepEqual(delivery.bytes, pdf); assert.equal(sha(delivery.bytes), pdfSha256);
   assert.equal(delivery.headers['content-type'], 'application/pdf'); assert.equal(delivery.headers['cache-control'], 'private, no-store'); assert.match(delivery.headers['content-disposition'], /^attachment;/);
+  phase = 'graceful-stop';
   await stopOwned(service); assert.equal(service.exitCode, 0, 'Graceful native lease release');
+  assert(Object.values(startupOutput).every(entry => !entry.readError), 'Owned startup pipes captured without read errors');
+  phase = 'result';
   result = { format: 'houseatlas-native-place-evidence-positive/1', status: 'passed', runnerSha256: sha(selected(fileURLToPath(import.meta.url), 128 * 1024)), selectionSha256: sha(packetBytes),
     binary, openssl, scope, actorId, sourceFreeCreation: { request: create, wire: created }, nativeAdmission: admission, upload: { metadata, wire: upload, pdfSha256, bytes: pdf.length },
     nativeAfter: afterAdmission, proofs, download: { ...downloadEvidence(download), sha256: pdfSha256, bytes: delivery.bytes.length }, exchanges,
@@ -242,10 +295,37 @@ try {
     cleanup: { ownedServiceStopped: true, gracefulExit: 0, scratchRemoved: false, elapsedMs: Date.now() - began } };
   liveBudget(); // A late graceful stop cannot convert a timed-out example to success.
   completed = true;
+} catch (error) {
+  primaryFailure = { error }; failedPhase = phase; failedCode = publicErrorCode(error);
 } finally {
-  clearTimeout(deadline); for (const child of owned) await stopOwned(child);
-  assert(owned.every(stopped), 'No owned listener remains'); rmSync(scratch, { recursive: true }); assert(!existsSync(scratch));
-  cookie = undefined; csrf = undefined;
-  if (completed) { result.cleanup.scratchRemoved = true; result.cleanup.elapsedMs = Date.now() - began; writeFileSync(join(output, 'result.json'), JSON.stringify(result, null, 2) + '\n', { mode: 0o600, flag: 'wx' }); }
+  clearTimeout(deadline);
+  try {
+    for (const child of owned) await stopOwned(child);
+    assert(owned.every(stopped), 'No owned listener remains'); rmSync(scratch, { recursive: true }); assert(!existsSync(scratch));
+    if (completed) { result.cleanup.scratchRemoved = true; result.cleanup.elapsedMs = Date.now() - began; writeFileSync(join(output, 'result.json'), JSON.stringify(result, null, 2) + '\n', { mode: 0o600, flag: 'wx' }); }
+  } catch (error) {
+    cleanupFailed = true; cleanupErrorCode = publicErrorCode(error);
+    if (primaryFailure === null) { primaryFailure = { error }; failedPhase = 'cleanup'; failedCode = cleanupErrorCode; }
+  } finally {
+    cookie = undefined; csrf = undefined;
+    if (primaryFailure !== null) {
+      try {
+        const failed = { format: 'houseatlas-native-place-evidence-failure/1', status: 'failed',
+          runnerSha256: sha(selected(fileURLToPath(import.meta.url), 128 * 1024)), selectionSha256: sha(packetBytes),
+          binarySha256: binary.sha256, binarySourceCommit: binary.sourceCommit, binarySourceTree: binary.sourceTree,
+          failurePhase: failedPhase, failureCode: failedCode, startupOutput: startupEvidence(),
+          service: { pid: service?.pid ?? null, exitCode: service?.exitCode ?? null, signalCode: service?.signalCode ?? null,
+            failedToStart: service?.failedToStart === true, spawnCode, stdioClosed: service?.stdioClosed === true },
+          cleanup: { failed: cleanupFailed, errorCode: cleanupErrorCode, ownedProcessesStopped: owned.every(stopped),
+            ownedStdioClosed: owned.every(child => child.stdioClosed !== false), scratchRemoved: !existsSync(scratch), elapsedMs: Date.now() - began },
+          qualification: 'Observed ordinary positive failure only; no pass, injected scenario, retry or diagnosis inferred. Only exact public pre-auth owner output is persisted; non-allowlisted lines and all post-auth output are withheld.' };
+        writeFileSync(join(output, 'failure.json'), JSON.stringify(failed, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
+      } catch (error) {
+        // Evidence failure never replaces the original error or releases success.
+        console.error('Private failure evidence could not be written; original failure retained.', publicErrorCode(error));
+      }
+    }
+  }
 }
+if (primaryFailure !== null) throw primaryFailure.error;
 console.log('PASS successful synthetic native place PDF evidence, exact receipt and original download; owned state removed');
