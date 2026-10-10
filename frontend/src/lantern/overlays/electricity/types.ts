@@ -57,6 +57,18 @@ export interface ElectricityOverlayData {
 
 export interface ElectricitySelection { readonly kind: 'electricity-evidence'; readonly id: string }
 
+/** Geometry-owned, reviewed source-anchor association. Package identities stay
+ * separate from native places and from electrical symbol/device placement. */
+export interface ElectricityPackagePlaceSelection {
+  readonly viewKey: string;
+  readonly status: 'accepted' | 'proposed' | 'unmatched';
+  readonly receiptId: string;
+  readonly receiptSha256: string;
+  readonly sourceAnchorIds: readonly string[];
+  readonly targets: readonly { readonly packagePlaceKey: string; readonly packagePlaceUuid: string }[];
+  readonly unresolvedLabels: readonly string[];
+}
+
 export interface ElectricityOverlayPanelProps {
   readonly active: boolean;
   readonly viewKey: string;
@@ -64,6 +76,8 @@ export interface ElectricityOverlayPanelProps {
   /** Raw export context only; this is not accepted room or floor membership. */
   readonly selectedFloor?: { readonly id: string; readonly label: string } | null;
   readonly selectedPlaceId?: string | null;
+  /** Supplied only by the canonical mapping owner; never inferred from labels. */
+  readonly selectedPackagePlaces?: ElectricityPackagePlaceSelection | null;
   readonly onSelectionChange?: (selection: ElectricitySelection | null) => void;
   /** Explicit owner action; it must resolve current native file availability. */
   readonly onOpenSource?: (sheetId: string, pdfPage: number) => void;

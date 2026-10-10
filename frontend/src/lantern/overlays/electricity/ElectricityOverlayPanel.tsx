@@ -2,49 +2,65 @@ import { useId, useLayoutEffect, useRef, useState, type CSSProperties } from 're
 import { Icon } from '../../components/Icon';
 import { ClaimBadge, Note, Section } from '../../components/ui';
 import { LAYER } from '../../atlas/palette';
-import { electricityLabels, electricitySheets } from './documentary-adapter';
+import { electricityLabels, electricitySheets, hasAcceptedPackageSelection } from './documentary-adapter';
 import type { ElectricityOverlayPanelProps, ElectricitySheet } from './types';
 import './electricity.css';
 
 /** Adapts Lantern's original electrical legend/list, retaining its real palette,
  * Icon, ClaimBadge, Note and Section. It does not call mock buildPins or a port. */
 export function ElectricityOverlayPanel(props: ElectricityOverlayPanelProps) {
-  const { active, viewKey, data, selectedFloor = null, selectedPlaceId = null, onOpenSource } = props;
+  const { active, viewKey, data, selectedFloor = null, selectedPlaceId = null, selectedPackagePlaces = null, onOpenSource } = props;
   const headingId = useId();
-  const [choice, setChoice] = useState<{ data: typeof data; label: string | null; sheetId: string | null } | null>(null);
+  const [choice, setChoice] = useState<{ data: typeof data; placeId: typeof selectedPlaceId;
+    packageSelection: typeof selectedPackagePlaces; label: string | null; sheetId: string | null } | null>(null);
   const current = useRef(props); current.current = props;
   const available = active && data !== null && data.viewKey === viewKey;
   const live = () => current.current.active && current.current.viewKey === viewKey && current.current.data === data
-    && (current.current.selectedPlaceId ?? null) === selectedPlaceId && data?.viewKey === viewKey;
+    && (current.current.selectedPlaceId ?? null) === selectedPlaceId
+    && (current.current.selectedPackagePlaces ?? null) === selectedPackagePlaces && data?.viewKey === viewKey;
   useLayoutEffect(() => {
-    if (choice !== null && (!available || choice.data !== data)) {
+    if (choice !== null && (!available || choice.data !== data || choice.placeId !== selectedPlaceId
+      || choice.packageSelection !== selectedPackagePlaces)) {
       setChoice(null);
       current.current.onSelectionChange?.(null);
     }
-  }, [available, data, choice]);
+  }, [available, data, selectedPlaceId, selectedPackagePlaces, choice]);
   if (!active) return null;
   if (!available || !data) return <section aria-labelledby={headingId} className="electricity-overlay legend">
     <h3 id={headingId} className="legend-head"><Icon name="plug" />Electrical drawings</h3>
     <p className="legend-body" role="status">Electrical evidence is unavailable for the current view.</p>
   </section>;
-  const chosen = choice?.data === data ? choice : null;
+  const chosen = choice?.data === data && choice.placeId === selectedPlaceId && choice.packageSelection === selectedPackagePlaces ? choice : null;
   const label = chosen?.label ?? null, selected = chosen?.sheetId ?? null;
-  const sheets = electricitySheets(data, selectedPlaceId, label);
+  const sheets = electricitySheets(data, selectedPlaceId, label, selectedPackagePlaces);
+  const acceptedPackageSelection = selectedPackagePlaces !== null && hasAcceptedPackageSelection(data, selectedPackagePlaces);
   const select = (sheet: ElectricitySheet) => {
     if (!live()) return;
     const id = selected === sheet.id ? null : sheet.id;
-    setChoice({ data, label, sheetId: id });
+    setChoice({ data, placeId: selectedPlaceId, packageSelection: selectedPackagePlaces, label, sheetId: id });
     current.current.onSelectionChange?.(id === null ? null : { kind: 'electricity-evidence', id });
   };
   const filter = (next: string | null) => {
     if (!live()) return;
-    setChoice({ data, label: next, sheetId: null }); current.current.onSelectionChange?.(null);
+    setChoice({ data, placeId: selectedPlaceId, packageSelection: selectedPackagePlaces, label: next, sheetId: null }); current.current.onSelectionChange?.(null);
   };
   return <section aria-labelledby={headingId} className="electricity-overlay legend" style={{ '--layer': LAYER.electrical.color } as CSSProperties}>
     <h3 id={headingId} className="legend-head"><Icon name="plug" />Electrical drawings<span className="section-count">{data.sheets.length}</span></h3>
     <div className="legend-body">
       <Note>Historical drawings. Current wiring and circuit continuity are unverified; positions and cable routes are unknown.</Note>
-      {selectedFloor && <p className="legend-foot">Export context: {selectedFloor.label}. Package room associations are shown across exports; scan placement is unmatched.</p>}
+      {selectedFloor && <p className="legend-foot">Export context: {selectedFloor.label}. Electrical positions remain unmatched.</p>}
+      {selectedPackagePlaces && (acceptedPackageSelection ? <div className="legend-foot">
+        <p>Owner-matched plan selection filters documentary room associations. Their original confidence is unchanged.</p>
+        {selectedPackagePlaces.unresolvedLabels.length > 0 && <p>Unresolved parts: {selectedPackagePlaces.unresolvedLabels.join(' · ')}. Only matched parts filter drawings.</p>}
+        <details>
+          <summary>Source selection provenance</summary>
+          <dl className="facts">
+            <div><dt>Mapping receipt</dt><dd>{selectedPackagePlaces.receiptId}</dd></div>
+            <div><dt>Receipt SHA256</dt><dd><code>{selectedPackagePlaces.receiptSha256}</code></dd></div>
+            <div><dt>Source anchors</dt><dd><code>{selectedPackagePlaces.sourceAnchorIds.join(' · ')}</code></dd></div>
+          </dl>
+        </details>
+      </div> : <p className="legend-foot" role="status">A reviewed room association is unavailable for this plan selection.</p>)}
       <Section title="Labels on drawings">
         <button type="button" className="text-btn" aria-pressed={label === null} onClick={() => filter(null)}>All labels</button>
         <ul className="legend-circuits" aria-label="Documentary label filters">
