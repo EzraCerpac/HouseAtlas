@@ -113,10 +113,15 @@ fn validate_metadata(bytes: &[u8]) -> Result<UploadMetadata, IntakeError> {
             return Err(invalid());
         }
     }
+    let capture_present = raw.get("capture").is_some();
     let metadata: UploadMetadata = serde_json::from_value(raw).map_err(|_| invalid())?;
     if !matches!(
-        (metadata.schema_version, metadata.capture.is_some()),
-        (1, false) | (2, true)
+        (
+            metadata.schema_version,
+            capture_present,
+            metadata.capture.is_some()
+        ),
+        (1, false, false) | (2, true, true)
     ) || !(1..=storage::MAX_REVISION).contains(&metadata.expected_revision)
         || metadata.reason.trim().is_empty()
         || metadata.reason.chars().count() > 1024
