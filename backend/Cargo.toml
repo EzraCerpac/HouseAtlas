@@ -184,3 +184,7 @@ path = "examples/healthy-native-place-labels.rs"
 [[example]]
 name = "healthy-contextual-evidence-capture"
 path = "examples/healthy-contextual-evidence-capture.rs"
+
+[[example]]
+name = "healthy-native-offline-backup"
+path = "examples/healthy-native-offline-backup.rs"

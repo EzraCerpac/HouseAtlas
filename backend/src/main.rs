@@ -90,6 +90,16 @@ async fn run(
         .map_err(|error| format!("HouseAtlas settings: {error}"))?
     {
         return match command {
+            ServerCommand::Backup(selection) => {
+                if ai_account.is_some() {
+                    return Err("Offline backup accepts no AI account selection".into());
+                }
+                let report =
+                    tokio::task::spawn_blocking(move || lifecycle::backup::capture(&selection))
+                        .await??;
+                println!("{}", serde_json::to_string(&report)?);
+                Ok(())
+            }
             ServerCommand::Initialize {
                 config,
                 provisioning,

@@ -100,6 +100,27 @@ official remote-client acceptance. The original legacy binary is unsuitable
 after label-bearing writes; immediate legacy receipt rollback is limited to an
 unchanged physical cut before any serving.
 
+The native offline backup example creates a source-free synthetic building through
+canonical HTTP and an owned DownloadOnly PDF through the actual native mutation
+owner under its original Access transaction fence. It captures a closed,
+queue-free image, validates the full native manifest and retained original, then
+restores and reopens only a separate disposable state. It compares source Atlas,
+Access and receipt bytes unchanged. The direct PDF commit is not an HTTP upload
+claim. Inspect the complete body and recovery owners before this exact command:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision --example healthy-native-offline-backup
+```
+
+The explicit `houseatlas backup` command requires a separately quiesced,
+sidecar-free original state and an absent private destination. Its
+`native-stock-queue-free` profile includes Atlas records and owned originals;
+Access, sessions, credentials, configuration and provider originals are excluded.
+Unexpected queues or unsupported Media policy owners refuse capture. Failure
+can leave destination bytes and establishes no safe retry. This example does
+not stop an installed service, schedule backups or qualify populated production
+restoration.
+
 These named local examples remain outside automatic ordinary CI and establish
 only their reported synthetic behavior.
 

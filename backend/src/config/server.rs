@@ -64,6 +64,7 @@ pub enum ServerCommands {
 }
 
 pub enum ServerCommand {
+    Backup(crate::lifecycle::backup::Selection),
     Initialize {
         config: ServerConfig,
         provisioning: Option<PathBuf>,
@@ -83,6 +84,11 @@ impl ServerCommand {
         let Some(mode) = arguments.first().map(String::as_str) else {
             return Ok(None);
         };
+        if mode == "backup" {
+            return crate::lifecycle::backup::Selection::from_arguments(&arguments[1..])
+                .map(Self::Backup)
+                .map(Some);
+        }
         if matches!(mode, "upgrade-state-receipt" | "rollback-state-receipt") {
             let selection = crate::lifecycle::receipt_compatibility::Selection::from_arguments(
                 &arguments[1..],

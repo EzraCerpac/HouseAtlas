@@ -121,9 +121,18 @@ pub trait AvailableAssetVerifier {
 
 impl AssetVault {
     pub fn open(root: &Path) -> MediaResult<Self> {
-        let root = PrivateDir::open(root, true)?;
-        let blobs = root.child("blobs", true)?;
-        let staging = root.child("staging", true)?;
+        Self::open_selected(root, true)
+    }
+
+    /// Offline existing custody only; never creates or synchronizes directories.
+    pub fn open_existing(root: &Path) -> MediaResult<Self> {
+        Self::open_selected(root, false)
+    }
+
+    fn open_selected(root: &Path, create: bool) -> MediaResult<Self> {
+        let root = PrivateDir::open(root, create)?;
+        let blobs = root.child("blobs", create)?;
+        let staging = root.child("staging", create)?;
         let mut scopes = BTreeMap::new();
         for name in blobs.members()? {
             if !is_digest(&name) {
