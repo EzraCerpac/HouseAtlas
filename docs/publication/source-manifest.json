@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "6c326391d1621425932ca9f220848722f798f405cd0f0ac5a9f7f6d0294c8c6b",
+  "sourceDigestSha256": "0db7965f5854e1c79559feda7a3b84eadab7267a9dbd3be140efc78e332e269c",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5929,8 +5929,8 @@
     {
       "path": "frontend/src/api/managed-download-client.ts",
       "mode": "100644",
-      "bytes": 5989,
-      "sha256": "e0079eef7f5e061d7bbf671a6484866da695e800b703c0ddf7f8a819fe3afbca",
+      "bytes": 6584,
+      "sha256": "c0fa4f6ae869e6839a940795acec7245a973cf1568f6cc76fe4f7e692e7ad013",
       "owner": "web"
     },
     {
