@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "1973d02a5ace7e43eb9ebbd8a0039cd8f5dfaca9c9b524d6efa462e738ca50e6",
+  "sourceDigestSha256": "7b40d4e3a9c35ad689c12e69632047b7fe95777fbe681fe23c37b1ebfb141898",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2163,8 +2163,8 @@
     {
       "path": "backend/src/http/stock_downloads.rs",
       "mode": "100644",
-      "bytes": 10026,
-      "sha256": "6b3e940ab6376f41af04445bacb6b83d1ca00f2a55d2fd4b869a0a1c57a84c02",
+      "bytes": 12027,
+      "sha256": "963204183188ad0f935ab0272a571559cf94da7356d355789cb7719a3e159f11",
       "owner": "core-integration"
     },
     {
@@ -5901,8 +5901,8 @@
     {
       "path": "frontend/src/api/client.ts",
       "mode": "100644",
-      "bytes": 10023,
-      "sha256": "4aa988696b8dd3ac040b0f3334533e784fe7a269386af47d88cded7e53e4842a",
+      "bytes": 10235,
+      "sha256": "4801bcff3d33bc73f5176c44880959a32e3e7ac81288c63535ceb290eede678d",
       "owner": "web"
     },
     {
@@ -6244,8 +6244,8 @@
     {
       "path": "frontend/src/lantern/components/NativeActions.tsx",
       "mode": "100644",
-      "bytes": 2589,
-      "sha256": "a77db611144e08f5da00401f2e547fd35a4220a2c82ec03768eeacc19dbd9e2c",
+      "bytes": 3591,
+      "sha256": "ff3bd0d14a4c06fc9120f454b9b83e553919cf9b30bdb7f0b106b672b28f34d5",
       "owner": "web"
     },
     {
