@@ -321,7 +321,12 @@ impl HostNetworkRuntime {
         cache: &n::CacheMetadata,
         relations: &[n::NetworkRelation],
     ) -> std::result::Result<n::RetainedState, n::NetworkError> {
-        let state = if let Some(id) = &cache.generation_id {
+        let state = if cache.status == n::CacheStatus::AccessRevoked {
+            n::RetainedState {
+                cache: cache.clone(),
+                generation: None,
+            }
+        } else if let Some(id) = &cache.generation_id {
             let sidecar = self.sidecar.try_lock().map_err(|_| unavailable())?;
             let original = sidecar.reopen_original_capture(self.settings.source(), id)?;
             if !original.is_from_reviewed_origin(self.settings.transport().reviewed_origin()) {
