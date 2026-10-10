@@ -7,6 +7,7 @@ import type { DecodedLocationSemanticsPayload } from '../numeric/stock-decoded';
 import { isExactDecimal } from '../numeric/decimal';
 import { parseLosslessJson, stringifyLosslessJson, type JsonForSerialization, type LosslessJson } from '../numeric/lossless-json';
 import { createExactStockResultValidator, exactStockSafeInteger } from '../numeric/schema-validator';
+import { createNativeEvidenceClient, type NativeEvidenceClient } from './native-evidence-client';
 
 export interface NativePlaceBinding { readonly scope: Readonly<Scope> }
 type Guard = { target: { authority: 'atlas'; recordType: string; recordId: string }; revision: { kind: 'atlas'; value: number } };
@@ -29,6 +30,7 @@ export interface NativePlacePending {
   readonly inspection?: RetainedIntentRead;
 }
 export interface NativePlaceClient {
+  readonly evidence: NativeEvidenceClient;
   getBinding(): NativePlaceBinding | null;
   subscribe(changed: () => void): () => void;
   subscribePending(changed: () => void): () => void;
@@ -178,7 +180,30 @@ export function createNativePlaceClient(options: {
       idempotencyKey: id(), reason, approvalReceiptId: null, preconditions: { target: null, guards } });
     return Object.freeze({ binding, requestId, commandId: 'atlas.batch.execute', body });
   };
+  const evidenceOwners = new WeakMap<AtlasSessionInfo, object>();
+  const evidenceClient = createNativeEvidenceClient({
+    getBinding, subscribe: options.subscribe,
+    owner(binding) {
+      current(binding);
+      const session = cached!.session;
+      if (!Number.isFinite(Date.parse(session.expiresAt)) || Date.parse(session.expiresAt) <= Date.now()) throw new Error('Native evidence session expired');
+      let owner = evidenceOwners.get(session);
+      if (!owner) { owner = Object.freeze({}); evidenceOwners.set(session, owner); }
+      return owner;
+    },
+    async exchange(binding, url, method, signal, body) {
+      current(binding, signal);
+      const session = cached!.session;
+      if (Date.parse(session.expiresAt) <= Date.now()) throw new Error('Native evidence session expired');
+      const response = await transport(url, { method, signal, credentials: 'same-origin', cache: 'no-store', redirect: 'error',
+        headers: { Accept: 'application/json', ...(method === 'POST' ? { 'X-Atlas-CSRF': session.csrfToken } : {}) }, ...(body ? { body } : {}) });
+      try { current(binding, signal); if (cached!.session !== session || Date.parse(session.expiresAt) <= Date.now()) throw new Error('Native evidence session changed'); }
+      catch (error) { cancel(response); throw error; }
+      return response;
+    },
+  });
   return {
+    evidence: evidenceClient,
     getBinding, subscribe: options.subscribe, canCreate, canRename,
     subscribePending(changed) { listeners.add(changed); return () => { listeners.delete(changed); }; },
     pending(binding) { return selectedEntries(binding).map(([prepared, entry]) => ({ prepared, outcome: entry.outcome, ...(entry.receipt ? { receipt: entry.receipt } : {}), ...(entry.inspection ? { inspection: entry.inspection } : {}) })); },

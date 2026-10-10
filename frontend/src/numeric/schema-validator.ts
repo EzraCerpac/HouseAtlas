@@ -79,6 +79,12 @@ const nativeReads = Object.freeze({
   'atlas.evidence.get': 'result_atlas_evidence_get',
   'atlas.location-semantics.get': 'result_atlas_location_semantics_get',
 });
+// Actual flattened Atlas records/guards returned by the native evidence DTO.
+const nativeEvidenceShapes = Object.freeze({
+  identity: 'identityRecord',
+  'location-semantics': 'location-semanticsRecord',
+  guard: 'guard',
+});
 const agentId = 'urn:houseatlas:agent:stock:3';
 const atlasId = 'https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json';
 const dialect = 'https://json-schema.org/draft/2020-12/schema';
@@ -233,7 +239,7 @@ export function createExactStockResultValidator() {
     const index = ref.indexOf('#');
     const id = index === 0 ? source : index < 0 ? '' : ref.slice(0, index);
     const fragment = index < 0 ? '' : ref.slice(index);
-    if (!has(documents, id) || !/^#\/\$defs\/[A-Za-z0-9_]+$/.test(fragment)) fail(`reference ${ref}`);
+    if (!has(documents, id) || !/^#\/\$defs\/(?:[A-Za-z0-9_]+|location-semanticsRecord)$/.test(fragment)) fail(`reference ${ref}`);
     const name = fragment.slice('#/$defs/'.length);
     const definition = (documents[id]!.$defs as Record<string, unknown> | undefined)?.[name];
     if (!schemaNode(definition)) fail(`missing definition ${ref}`);
@@ -308,6 +314,8 @@ export function createExactStockResultValidator() {
     [command, resolve(`${agentId}#/$defs/${name}`, agentId)])) as Record<string, Compiled>;
   const compiledNativeReads = Object.fromEntries(Object.entries(nativeReads).map(([command, name]) =>
     [command, resolve(`${agentId}#/$defs/${name}`, agentId)])) as Record<string, Compiled>;
+  const compiledNativeEvidence = Object.fromEntries(Object.entries(nativeEvidenceShapes).map(([kind, name]) =>
+    [kind, resolve(`${atlasId}#/$defs/${name}`, atlasId)])) as Record<keyof typeof nativeEvidenceShapes, Compiled>;
   const evaluate = (node: Compiled, value: LosslessJson): boolean => {
       if (typeof node.schema === 'boolean') return node.schema;
       const schema = node.schema;
@@ -382,6 +390,10 @@ export function createExactStockResultValidator() {
     validateNativeRead(commandId: string, value: LosslessJson): boolean {
       if (!has(nativeReads, commandId)) throw new TypeError('Unsupported native place read');
       return evaluate(compiledNativeReads[commandId]!, value);
+    },
+    validateNativeEvidenceShape(kind: keyof typeof nativeEvidenceShapes, value: LosslessJson): boolean {
+      if (!has(nativeEvidenceShapes, kind)) throw new TypeError('Unsupported native evidence shape');
+      return evaluate(compiledNativeEvidence[kind], value);
     },
     validateMutation(commandId: string, schemaRef: string, value: LosslessJson): boolean {
       if (!has(mutationRoots, commandId) || mutationRoots[commandId] !== schemaRef)
