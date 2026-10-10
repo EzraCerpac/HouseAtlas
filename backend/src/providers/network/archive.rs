@@ -148,10 +148,13 @@ impl ReopenedNetworkCapture {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct NetworkArchiveReference {
     pub(crate) partition_key: String,
+    pub(crate) scope: SourceScope,
+    pub(crate) original_registration: Option<SourceRegistration>,
     pub(crate) generation_id: String,
     pub(crate) state: NetworkArchiveReferenceState,
     pub(crate) body_sha256: Option<String>,
     pub(crate) projected_receipt_sha256: Option<String>,
+    pub(crate) segment_sha256: Option<String>,
     pub(crate) protected_bytes: usize,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -159,6 +162,20 @@ pub(crate) enum NetworkArchiveReferenceState {
     PermanentlyReserved,
     CapacityReserved,
     Sealed,
+}
+
+/// Verified archive-local inventory while the original database and segment
+/// owner leases are held. Byte capacity includes sealed segments and active
+/// reservations; permanent IDs remain consumed after cancellation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct NetworkArchiveCapacitySnapshot {
+    pub(crate) permanent_id_count: usize,
+    pub(crate) remaining_id_slots: usize,
+    pub(crate) sealed_segment_bytes: usize,
+    pub(crate) active_reservation_count: usize,
+    pub(crate) active_reservation_bytes: usize,
+    pub(crate) remaining_byte_capacity: usize,
+    pub(crate) references: Vec<NetworkArchiveReference>,
 }
 
 pub struct NetworkImmutableArchive {
@@ -491,7 +508,7 @@ impl NetworkImmutableArchive {
     /// guard; this list is never a default or complete cross-owner substitute.
     pub(crate) fn protected_references(&self) -> Result<Vec<NetworkArchiveReference>> {
         self.verify_complete_catalog()?;
-        let mut stmt = self.db.prepare("SELECT g.partition_key,g.generation_id,c.body_sha256,c.segment_bytes,r.reserved_bytes,c.projected_receipt_sha256 FROM network_archive_generation_ids g LEFT JOIN network_archive_catalog c USING(partition_key,generation_id) LEFT JOIN network_archive_reservations r USING(partition_key,generation_id) ORDER BY g.partition_key,g.generation_id").map_err(|_| err())?;
+        let mut stmt = self.db.prepare("SELECT g.partition_key,g.generation_id,c.body_sha256,c.segment_bytes,r.reserved_bytes,c.projected_receipt_sha256,c.segment_sha256,c.header_json FROM network_archive_generation_ids g LEFT JOIN network_archive_catalog c USING(partition_key,generation_id) LEFT JOIN network_archive_reservations r USING(partition_key,generation_id) ORDER BY g.partition_key,g.generation_id").map_err(|_| err())?;
         let mut rows = stmt.query([]).map_err(|_| err())?;
         let mut result = Vec::new();
         while let Some(row) = rows.next().map_err(|_| err())? {
@@ -499,35 +516,112 @@ impl NetworkImmutableArchive {
                 return Err(size());
             }
             let partition_key: String = row.get(0).map_err(|_| err())?;
+            let scope: SourceScope = serde_json::from_str(&partition_key).map_err(|_| invalid())?;
+            ensure(super::partition_key(&scope)? == partition_key)?;
             let generation_id: String = row.get(1).map_err(|_| err())?;
             let body_sha256: Option<String> = row.get(2).map_err(|_| err())?;
             let segment_bytes: Option<i64> = row.get(3).map_err(|_| err())?;
             let reserved_bytes: Option<i64> = row.get(4).map_err(|_| err())?;
             let projected_receipt_sha256: Option<String> = row.get(5).map_err(|_| err())?;
-            let (state, protected_bytes) =
-                match (body_sha256.is_some(), segment_bytes, reserved_bytes) {
-                    (true, Some(bytes), None) if bytes > 0 => {
-                        (NetworkArchiveReferenceState::Sealed, bytes as usize)
-                    }
-                    (false, None, Some(bytes)) if bytes > 0 => (
-                        NetworkArchiveReferenceState::CapacityReserved,
-                        bytes as usize,
-                    ),
-                    (false, None, None) => (NetworkArchiveReferenceState::PermanentlyReserved, 0),
-                    _ => return Err(invalid()),
-                };
+            let segment_sha256: Option<String> = row.get(6).map_err(|_| err())?;
+            let header_json: Option<String> = row.get(7).map_err(|_| err())?;
+            let (state, protected_bytes) = match (
+                body_sha256.is_some(),
+                segment_bytes,
+                reserved_bytes,
+                projected_receipt_sha256.is_some(),
+                segment_sha256.is_some(),
+                header_json.is_some(),
+            ) {
+                (true, Some(bytes), None, true, true, true) if bytes > 0 => {
+                    (NetworkArchiveReferenceState::Sealed, bytes as usize)
+                }
+                (false, None, Some(bytes), false, false, false) if bytes > 0 => {
+                    (NetworkArchiveReferenceState::CapacityReserved, bytes as usize)
+                }
+                (false, None, None, false, false, false) => {
+                    (NetworkArchiveReferenceState::PermanentlyReserved, 0)
+                }
+                _ => return Err(invalid()),
+            };
+            // verify_complete_catalog authenticated this exact stored header
+            // against its segment. A reservation or burned ID has no header and
+            // therefore no provable original full registration.
+            let original_registration = match header_json {
+                Some(json) => {
+                    let header: SegmentHeader =
+                        serde_json::from_str(&json).map_err(|_| invalid())?;
+                    ensure(
+                        header.registration.scope == scope
+                            && header.generation_id == generation_id,
+                    )?;
+                    Some(header.registration)
+                }
+                None => None,
+            };
             result.push(NetworkArchiveReference {
                 partition_key,
+                scope,
+                original_registration,
                 generation_id,
                 state,
                 body_sha256,
                 projected_receipt_sha256,
+                segment_sha256,
                 protected_bytes,
             });
         }
         drop(rows);
         drop(stmt);
         Ok(result)
+    }
+
+    /// A single bounded inventory derived from the same verified reference
+    /// census used by admission. It does not establish external custody,
+    /// publication disposition, or permission to reclaim a segment.
+    pub(crate) fn capacity_snapshot(&self) -> Result<NetworkArchiveCapacitySnapshot> {
+        let references = self.protected_references()?;
+        let permanent_id_count = references.len();
+        let mut sealed_segment_bytes = 0usize;
+        let mut active_reservation_count = 0usize;
+        let mut active_reservation_bytes = 0usize;
+        for reference in &references {
+            match reference.state {
+                NetworkArchiveReferenceState::Sealed => {
+                    sealed_segment_bytes = sealed_segment_bytes
+                        .checked_add(reference.protected_bytes)
+                        .ok_or_else(size)?;
+                }
+                NetworkArchiveReferenceState::CapacityReserved => {
+                    active_reservation_count = active_reservation_count
+                        .checked_add(1)
+                        .ok_or_else(size)?;
+                    active_reservation_bytes = active_reservation_bytes
+                        .checked_add(reference.protected_bytes)
+                        .ok_or_else(size)?;
+                }
+                NetworkArchiveReferenceState::PermanentlyReserved => {}
+            }
+        }
+        let accounted = sealed_segment_bytes
+            .checked_add(active_reservation_bytes)
+            .ok_or_else(size)?;
+        let remaining_byte_capacity = MAX_RETAINED_SEGMENT_BYTES
+            .checked_sub(accounted)
+            .ok_or_else(size)?;
+        let remaining_id_slots = MAX_ARCHIVE_ENTRIES
+            .checked_sub(permanent_id_count)
+            .ok_or_else(size)?;
+        self.check_owner()?;
+        Ok(NetworkArchiveCapacitySnapshot {
+            permanent_id_count,
+            remaining_id_slots,
+            sealed_segment_bytes,
+            active_reservation_count,
+            active_reservation_bytes,
+            remaining_byte_capacity,
+            references,
+        })
     }
 
     /// Enumerate and verify every catalog row. Bounded at 10,000 and fail-closed

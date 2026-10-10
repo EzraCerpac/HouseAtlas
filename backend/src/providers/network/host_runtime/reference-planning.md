@@ -20,6 +20,21 @@ origin. An original owner's `History` reference remains a payload protection.
 Every permanent Core/archive identifier remains reserved: planning changes no
 ID, table, trigger, capacity setting, catalog, reservation or byte.
 
+`SqliteNetworkSidecar::archive_custody_snapshot` is a private read-only view
+of the verified original archive under its existing database and segment owner
+leases. It reports permanent burned IDs and remaining slots, sealed segment
+bytes, active reservation count and bytes, and remaining bytes against the
+unchanged 10,000-ID and 256-MiB ceilings. Its per-reference protected bytes
+are segment bytes when sealed, reserved bytes while active, or zero for an ID
+whose byte reservation was cancelled. Each row carries its exact persisted
+partition and scope, generation, state, and available raw/projected/segment
+digests. A sealed row carries the original full registration from its verified
+segment header. Reservation-only and cancelled-ID rows have no persisted full
+registration, so that field is unknown; any current configured registration is
+reported separately and may differ from the historical original. The
+snapshot does not combine Store history or external custody and carries no
+release operation, retention decision, or reclamation authority.
+
 The owner policy names a revision and exact full registration, generation UUID
 and raw digest for each requested archived payload. No implicit policy, age/count
 window, partition wildcard or oldest-row rule exists. The planner retains all
