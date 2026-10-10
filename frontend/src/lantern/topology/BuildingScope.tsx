@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { NativePlaceEditor, NativePlaceReceipts } from './NativePlaceEditor';
 import { useTopology } from './TopologyProvider';
 import { metres, type Access, type Location, type Membership, type TopologyIndex, type LevelGroup } from './model';
 import { useSelect, useStore } from '../state/store';
@@ -28,6 +29,7 @@ function Facts({ location, index, selected }: { location: Location; index: Topol
   </div>;
   return <details className="topology-facts"><summary>Physical facts</summary>
     <p>Atlas identity: {location.id}</p>
+    {location.entry && <p>HomeBox name: {location.entry.entity.name}</p>}
     {location.entry && <p>HomeBox source updated: {location.entry.sourceUpdatedAt ?? 'Not supplied'} · retrieved: {location.entry.retrievedAt}</p>}
     {location.bindings.map(b => <div key={b.target.recordId}><p>HomeBox binding: {b.target.recordId} · {b.payload.reviewStatus} · source {b.payload.sourceState}</p>
       <p>Source key: {b.payload.source.sourceInstanceId} / {b.payload.source.collectionId} / {b.payload.source.sourceKind} / {b.payload.source.externalId}</p>
@@ -36,6 +38,7 @@ function Facts({ location, index, selected }: { location: Location; index: Topol
       {s.payload.semanticKind === 'floor' && <p>{s.payload.elevation?.status === 'known'
         ? `Elevation: ${metres(s.payload.elevation.metres)}, measured from ${name(s.payload.elevation.datumAtlasId)} (${s.payload.elevation.datumAtlasId})`
         : s.payload.elevation?.status === 'unknown' ? 'Elevation recorded as unknown' : 'Elevation not recorded'}</p>}
+      {s.payload.label !== undefined && <p>Atlas name: {s.payload.label}</p>}
       <Evidence ids={s.payload.evidenceIds} /></div>)}
     <h4>Membership</h4>{memberships.length ? memberships.map(edge) : <p>No reviewed membership recorded.</p>}
     <h4>Access</h4><p>Recorded access is evidence, not a route or safety check.</p>
@@ -45,14 +48,16 @@ function Facts({ location, index, selected }: { location: Location; index: Topol
 }
 function Row({ location, index, selected, note }: { location: Location; index: TopologyIndex; selected: ReadonlySet<string>; note?: string }) {
   const select = useSelect(), { state } = useStore();
+  const topology = useTopology();
   const classifications = location.semantics.map(s => s.payload.semanticKind);
   const content = <><span className="ledger-name" title={location.id}>{location.label}</span>
-    <span className="ledger-facts"><span>{classifications.length ? `Reviewed: ${classifications.join(', ')}` : 'Classification not reviewed'}</span>
+    <span className="ledger-facts"><span>{location.labelOwner === 'atlas' ? 'Atlas name' : location.labelOwner === 'homebox' ? 'HomeBox name' : location.labelOwner === 'conflict' ? 'Naming withheld: multiple reviewed classifications' : 'Name not supplied'}</span><span>{classifications.length ? `Reviewed: ${classifications.join(', ')}` : 'Classification not reviewed'}</span>
       {location.entry ? <span>HomeBox source: {location.entry.sourceState}; cache: {location.entry.cacheStatus}</span> : <span>No bound HomeBox record in this view</span>}
       {location.entry && !location.selectId && <span>Not in the current place list</span>}{note && <span>{note}</span>}</span></>;
   return <li className={`ledger-row${state.selection?.id === location.selectId && location.selectId ? ' is-selected' : ''}`}>
     {location.selectId ? <button type="button" className="ledger-main topology-row" aria-label={`${location.label}, Atlas identity ${location.id}`} onClick={() => select(location.selectId!)}>{content}</button>
       : <div className="ledger-main topology-row">{content}</div>}
+    {topology.nativePlaces && topology.nativeBinding && <NativePlaceEditor key={location.id} client={topology.nativePlaces} binding={topology.nativeBinding} index={index} location={location} refresh={topology.reload} />}
     <Facts location={location} index={index} selected={selected} />
   </li>;
 }
@@ -86,6 +91,9 @@ export function BuildingScope() {
         aria-pressed={buildingId === b.id} onClick={() => topology.chooseBuilding(b.id)}>{b.label}</button>)}
     </div>
     <p className="body-text" role="status">{status !== 'ready' ? messages[status] : buildingId && memberStatus !== 'ready' ? messages[memberStatus] : topology.notice || (model ? `${model.building.label}: ${model.memberCount} locations in reviewed membership` : index?.buildings.length ? '' : 'No reviewed buildings in this home.')}</p>
+    {topology.nativePlaces && topology.nativeBinding && <NativePlaceReceipts client={topology.nativePlaces} binding={topology.nativeBinding} refresh={topology.reload} />}
+    {status === 'ready' && index && topology.nativePlaces && topology.nativeBinding && <NativePlaceEditor client={topology.nativePlaces} binding={topology.nativeBinding} index={index} refresh={topology.reload} />}
+    {buildingId === null && index && <ul className="ledger-rows">{[...index.locations.values()].map(location => <Row key={location.id} location={location} index={index} selected={new Set()} />)}</ul>}
     {buildingId && model && index && <>
       <p className="body-text muted">Selected membership read: {topology.memberSourceStatus}</p>
       <section className="ledger topology-building"><div className="ledger-floor topology-glyph" aria-hidden="true">BLD</div><div className="ledger-body">

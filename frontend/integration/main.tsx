@@ -11,6 +11,7 @@ import { createAtlasGatewayDownloadResolver } from "../src/api/managed-download-
 import { createEditingClient } from "./editing-client";
 import { createQuantityClient } from "./quantity-client";
 import { createPinnedFileClient } from "./pinned-file-client";
+import { createNativePlaceClient } from "../src/api/native-place-client";
 import { createTopologyClient } from "../src/api/topology-client";
 import { createNetworkRelationsClient } from "../src/api/network-relations-client";
 import { createAccountObservationClient } from "../src/ai/host/account-client";
@@ -53,6 +54,7 @@ const nativeSessions = createAtlasSessionClient({
 });
 let currentSession: AtlasSessionInfo | null = null;
 let currentQuantityScope: Scope | null = null;
+let currentStockAdmission: StockAdmission | null = null;
 /** Read-only tool admission for the current scope; cleared with every scope clear. */
 let currentQuantityAdmission: QuantityToolAdmission | null = null;
 const quantityEvents = new EventTarget();
@@ -181,6 +183,14 @@ const topology = createTopologyClient({
     return () => quantityEvents.removeEventListener("changed", changed);
   },
 });
+const nativePlaces = createNativePlaceClient({
+  getContext: () => currentSession && currentQuantityScope && currentStockAdmission
+    ? { session: currentSession, scope: currentQuantityScope, admission: currentStockAdmission } : null,
+  subscribe: changed => {
+    quantityEvents.addEventListener("changed", changed);
+    return () => quantityEvents.removeEventListener("changed", changed);
+  },
+});
 const nativeClient = createAtlasClient({
   bootstrap: root.dataset.bootstrapUrl ?? "/api/atlas/view",
   home: scope => `/api/atlas/homes/${encodeURIComponent(scope.workspaceId)}/${encodeURIComponent(scope.homeId)}/view`,
@@ -261,9 +271,18 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
       currentQuantityScope = null;
       quantityChanged();
       setAdmission(null);
+      currentStockAdmission = null;
       const view = await operation(signal);
+      if (!signal.aborted && attempt === generation && sameSession()) {
+        currentQuantityAdmission = null;
+        currentQuantityScope = view.status === "ready" ? view.scope : null;
+        quantityChanged();
+      }
       if (view.status === "ready" && !signal.aborted && attempt === generation && sameSession()) {
         const scope = view.scope;
+        // Independent optional admissions start together; the ready view waits
+        // for at most one admission deadline rather than two serial deadlines.
+        const stockRead = (async () => {
         try {
           // Headers and body share one deadline; a late row is never used.
           const row = await withAdmissionDeadline<unknown>(signal, async deadline => {
@@ -278,32 +297,32 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
           if (row && typeof row === "object" && "schemaVersion" in row && row.schemaVersion === 3 && "scope" in row && "commandIds" in row && "revision" in row) {
             const candidate = row as { scope: { workspaceId?: unknown; homeId?: unknown }; commandIds: unknown; revision: unknown };
             if (candidate.scope?.workspaceId === scope.workspaceId && candidate.scope.homeId === scope.homeId && Array.isArray(candidate.commandIds) && candidate.commandIds.every(id => typeof id === "string") && typeof candidate.revision === "string" && !signal.aborted && attempt === generation && sameSession())
-              setAdmission({ scope, commandIds: candidate.commandIds, revision: candidate.revision });
+              {
+                currentStockAdmission = Object.freeze({ scope, commandIds: candidate.commandIds, revision: candidate.revision });
+                setAdmission(currentStockAdmission);
+                quantityChanged();
+              }
           }
         } catch (error) {
           if (signal.aborted) throw error;
           // Keep the authorized home visible; tools remain unregistered until
           // an actual admitted catalog arrives on a later successful load.
         }
-      }
-      if (!signal.aborted && attempt === generation && sameSession()) {
-        currentQuantityAdmission = null;
-        currentQuantityScope = view.status === "ready" ? view.scope : null;
-        quantityChanged();
-        const quantityScope = currentQuantityScope;
-        if (quantityScope && modelContext) {
+        })();
+        const quantityRead = (async () => {
+        if (modelContext) {
           try {
             // Headers and body share one deadline; a late row is never published.
             const row = await withAdmissionDeadline(signal, async deadline => {
-              const response = await fetch(quantityAdmissionUrl(quantityScope), {
+              const response = await fetch(quantityAdmissionUrl(scope), {
                 method: "GET", credentials: "same-origin", cache: "no-store", redirect: "error", signal: deadline,
                 headers: { Accept: "application/json" },
               });
               // Any non-success status is no admission; there is no fallback.
               if (!response.ok) { await response.body?.cancel(); return null; }
-              return readQuantityAdmission(response, quantityScope, deadline);
+              return readQuantityAdmission(response, scope, deadline);
             });
-            if (row && !signal.aborted && attempt === generation && sameSession() && currentQuantityScope === quantityScope) {
+            if (row && !signal.aborted && attempt === generation && sameSession() && currentQuantityScope === scope) {
               const bindingIdentity = quantity.getBindingIdentity();
               if (bindingIdentity !== null) {
                 currentQuantityAdmission = Object.freeze({ ...row, bindingIdentity });
@@ -315,6 +334,8 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
             // Keep the view; the quantity tool stays unregistered.
           }
         }
+        })();
+        await Promise.all([stockRead, quantityRead]);
       }
       return view;
     };
@@ -325,6 +346,6 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
   }, []);
   // Keep the concrete editing port stable through view/catalog refreshes.
   // Each place admission and command obtains the actual request authority.
-  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp renderContent={(view, content, actions) => view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
+  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp renderContent={(view, content, actions) => view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
 }
 createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);

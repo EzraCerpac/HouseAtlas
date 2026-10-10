@@ -17,7 +17,12 @@ This package does not complete those prerequisites or release their consumers.
 Atlas has no editable inventory name, manufacturer, quantity, serial, location
 parent, photo, URL attachment or item-maintenance field in its mutation schema.
 A location semantic annotation records reviewed meaning such as room or floor.
-It neither renames the HomeBox entity nor establishes a second parent tree.
+It may also carry an optional Atlas-owned display label supplied by a person,
+with the same evidence, review status, revision checks and audit as the annotation.
+This label is independent of any HomeBox name; it neither renames the HomeBox
+entity nor establishes a second parent tree. An omitted label remains unnamed
+in Atlas. Removing a label omits it from the new annotation while preserving
+prior revisions and evidence. Labels are not identity keys or physical placement.
 Arbitrary HomeBox containers remain arbitrary containers until reviewed.
 Neither names nor tree depth identify a building, floor or room.
 
@@ -236,3 +241,8 @@ and unchanged original record shapes. Record schema remains 1. Native storage,
 domain projection and recovery lineage metadata retain their original 1.0.0 tag;
 this amendment changes no on-disk schema or image authority. Old closed readers
 reject amended payloads even when their envelope retains the legacy tag.
+
+The optional native place label is compatible with existing records that omit
+it. Older closed-schema binaries cannot read annotations containing that field.
+After labeled records are written, rollback requires a compatible binary or an
+explicitly reconciled restore; labels and history must not be silently stripped.

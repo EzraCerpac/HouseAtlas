@@ -492,6 +492,11 @@
     "locationSemanticsPayload": {
       "type": "object",
       "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
         "atlasId": {
           "type": "string",
           "format": "uuid",

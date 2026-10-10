@@ -11,6 +11,10 @@ const agentSchema = rawSchema('../../contracts/stock-wire3/agent/agent.schema.js
 const atlasSchema = rawSchema('../../packages/contracts/schemas/atlas.schema.json');
 const agentJson = jsonSchema('../../contracts/stock-wire3/agent/agent.schema.json');
 const atlasJson = jsonSchema('../../packages/contracts/schemas/atlas.schema.json');
+// This existing client retains native JSON import attributes after compilation.
+const retainedAgentJson = `data:application/json;base64,${readFileSync(new URL('../../contracts/stock-wire3/agent/agent.schema.json', import.meta.url)).toString('base64')}`;
+const retainedAtlasJson = `data:application/json;base64,${readFileSync(new URL('../../packages/contracts/schemas/atlas.schema.json', import.meta.url)).toString('base64')}`;
+const retainedCatalogJson = `data:application/json;base64,${readFileSync(new URL('../../contracts/stock-wire3/agent/operation-catalog.json', import.meta.url)).toString('base64')}`;
 const pinnedV4Json = jsonSchema('../../contracts/stock-wire4/pinned-homebox-file.v4.schema.json');
 const formats = new URL('../node_modules/ajv-formats/dist/formats.js', import.meta.url).href;
 const ajv = new URL('../node_modules/ajv/dist/2020.js', import.meta.url).href;
@@ -37,6 +41,21 @@ const links = Object.freeze({
     '../numeric/lossless-json': 'numeric/lossless-json.ts',
     '../numeric/schema-validator': 'numeric/schema-validator.ts',
     '../numeric/stock-decoded': 'numeric/stock-decoded.ts',
+  },
+  'api/native-place-client.ts': {
+    './retained-intent-client': 'api/retained-intent-client.ts',
+    '../numeric/decimal': 'numeric/decimal.ts',
+    '../numeric/lossless-json': 'numeric/lossless-json.ts',
+    '../numeric/schema-validator': 'numeric/schema-validator.ts',
+  },
+  'api/retained-intent-client.ts': {
+    'ajv/dist/2020.js': ajv, 'ajv-formats': addFormats,
+    '../../../contracts/stock-wire3/agent/agent.schema.json': retainedAgentJson,
+    '../../../packages/contracts/schemas/atlas.schema.json': retainedAtlasJson,
+    '../../../contracts/stock-wire3/agent/operation-catalog.json': retainedCatalogJson,
+    '../numeric/decimal': 'numeric/decimal.ts',
+    '../numeric/lossless-json': 'numeric/lossless-json.ts',
+    '../numeric/schema-validator': 'numeric/schema-validator.ts',
   },
   'api/topology-client.ts': {
     '../numeric/lossless-json': 'numeric/lossless-json.ts',
