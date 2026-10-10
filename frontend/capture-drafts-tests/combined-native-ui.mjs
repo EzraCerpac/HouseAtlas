@@ -82,7 +82,7 @@ async function stopOwned(entry) {
   for (const signal of stages) {
     if (!groupIsGone(entry) && entry.child.pid) {
       try { process.kill(-entry.child.pid, signal); }
-      catch (error) { if (error.code !== 'ESRCH') signalError = error; }
+      catch (error) { if (error.code === 'ESRCH') entry.groupGone = true; else signalError = error; }
     }
     // Require leader exit/stdio close AND absence of its owned process group.
     if (await waitForStopped(entry, 2000)) return;
