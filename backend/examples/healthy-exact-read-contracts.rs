@@ -2,8 +2,10 @@
 //! Synthetic schema values only: no listener, provider, credential, populated
 //! archive deletion, release decision, retained capture or runtime grant.
 use houseatlas_backend::{
-    contracts::{self, Contract, GeometryRecord, LocationElevation, LocationSemanticsRecord,
-        NetworkRelation, Optional, stock::StockValidation},
+    contracts::{
+        self, Contract, GeometryRecord, LocationElevation, LocationSemanticsRecord,
+        NetworkRelation, Optional, stock::StockValidation,
+    },
     domain::stock::{NativeStockContract, ValidatedRequest, request_digest},
     providers::network::{MAX_ARCHIVE_ENTRIES, MAX_RETAINED_SEGMENT_BYTES, SqliteNetworkSidecar},
 };
@@ -40,7 +42,10 @@ fn pinned_contracts() -> Result<()> {
     )?;
     assert_eq!(parsed.raw(), &original);
     assert_eq!(parsed.target(), &target);
-    assert_eq!(parsed.target().as_object().ok_or("Missing target")?.len(), 6);
+    assert_eq!(
+        parsed.target().as_object().ok_or("Missing target")?.len(),
+        6
+    );
     assert_eq!(parsed.context().workspace_id, id(1));
     assert_eq!(parsed.context().home_id, id(2));
     assert_eq!(parsed.request_id(), id(5000));
@@ -48,7 +53,10 @@ fn pinned_contracts() -> Result<()> {
     assert_eq!(parsed.payload(), &json!({}));
     assert_eq!(parsed.intent_digest(), request_digest(&original)?);
     assert_eq!(serde_json::to_vec(parsed.raw())?, sealed_wire);
-    assert_eq!(Sha256::digest(serde_json::to_vec(parsed.raw())?), sealed_wire_sha256);
+    assert_eq!(
+        Sha256::digest(serde_json::to_vec(parsed.raw())?),
+        sealed_wire_sha256
+    );
 
     // This is a schema/correlation example, not an issued artifact or proof of
     // a provider capture. Every token, time and body below is synthetic.
@@ -76,10 +84,16 @@ fn pinned_contracts() -> Result<()> {
     assert_eq!(result["requestId"], parsed.raw()["requestId"]);
     assert_eq!(result["artifact"]["target"], parsed.raw()["target"]);
     for field in ["workspaceId", "homeId"] {
-        assert_eq!(result["artifact"]["scope"][field], parsed.raw()["context"][field]);
+        assert_eq!(
+            result["artifact"]["scope"][field],
+            parsed.raw()["context"][field]
+        );
     }
     for field in ["sourceInstanceId", "collectionId"] {
-        assert_eq!(result["artifact"]["scope"][field], parsed.raw()["target"][field]);
+        assert_eq!(
+            result["artifact"]["scope"][field],
+            parsed.raw()["target"][field]
+        );
     }
 
     // The old UUID-only v3 request remains on the actual generic v3 port.
@@ -130,15 +144,24 @@ fn exact_retained_numbers() -> Result<()> {
     assert!(null_geometry.payload.scale.is_none());
     assert!(null_geometry.payload.transform.is_none());
     geometry["payload"]["scale"] = serde_json::from_str("1e-1000")?;
-    geometry["payload"]["transform"] = serde_json::from_str(
-        "[9007199254740993,0,0,1,1e-1000,-1e-1000]",
-    )?;
+    geometry["payload"]["transform"] =
+        serde_json::from_str("[9007199254740993,0,0,1,1e-1000,-1e-1000]")?;
     let exact_geometry = canonical_roundtrip::<GeometryRecord>(&geometry)?;
     assert_eq!(
-        exact_geometry.payload.scale.as_ref().ok_or("Missing scale")?.as_number().to_string(),
+        exact_geometry
+            .payload
+            .scale
+            .as_ref()
+            .ok_or("Missing scale")?
+            .as_number()
+            .to_string(),
         "1e-1000",
     );
-    let transform = exact_geometry.payload.transform.as_ref().ok_or("Missing transform")?;
+    let transform = exact_geometry
+        .payload
+        .transform
+        .as_ref()
+        .ok_or("Missing transform")?;
     assert_eq!(transform.len(), 6);
     assert_eq!(transform[0].as_number().to_string(), "9007199254740993");
     assert_eq!(transform[4].as_number().to_string(), "1e-1000");
@@ -154,7 +177,8 @@ fn exact_retained_numbers() -> Result<()> {
             "datumAtlasId":id(200)
         });
         let exact_location = canonical_roundtrip::<LocationSemanticsRecord>(&location)?;
-        let Optional::Present(LocationElevation::Known(elevation)) = &exact_location.payload.elevation
+        let Optional::Present(LocationElevation::Known(elevation)) =
+            &exact_location.payload.elevation
         else {
             return Err("Missing decoded known elevation".into());
         };
@@ -173,11 +197,20 @@ fn exact_retained_numbers() -> Result<()> {
     network["sourceRevision"] = serde_json::from_str("9007199254740993")?;
     let exact_network = canonical_roundtrip::<NetworkRelation>(&network)?;
     assert_eq!(
-        exact_network.source_revision.as_ref().ok_or("Missing Network revision")?.as_number().to_string(),
+        exact_network
+            .source_revision
+            .as_ref()
+            .ok_or("Missing Network revision")?
+            .as_number()
+            .to_string(),
         "9007199254740993",
     );
     network["sourceRevision"] = Value::Null;
-    assert!(canonical_roundtrip::<NetworkRelation>(&network)?.source_revision.is_none());
+    assert!(
+        canonical_roundtrip::<NetworkRelation>(&network)?
+            .source_revision
+            .is_none()
+    );
     Ok(())
 }
 
@@ -210,6 +243,8 @@ fn main() -> Result<()> {
     pinned_contracts()?;
     exact_retained_numbers()?;
     empty_archive_census()?;
-    println!("PASS synthetic native exact read contracts: opaque v4 and UUID v3, canonical retained numeric tokens, fresh empty archive census; no provider or populated archive operation");
+    println!(
+        "PASS synthetic native exact read contracts: opaque v4 and UUID v3, canonical retained numeric tokens, fresh empty archive census; no provider or populated archive operation"
+    );
     Ok(())
 }

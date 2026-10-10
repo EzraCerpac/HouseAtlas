@@ -75,6 +75,33 @@ validation. These results preserve retained tokens; they cannot recover earlier
 provider rounding or spelling changes and establish no capture, human-review,
 security or deployment acceptance. Existing UUID v3 capture remains supported.
 
+A native successful example validates v3/v4 pinned-file envelopes and exact
+canonical retained numbers, then inspects only a fresh empty archive owner.
+Inspect its body before this named command. The empty census establishes no
+populated archive release, deletion or recovery authority:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision --example healthy-exact-read-contracts
+```
+
+A separate core visual harness uses the unchanged Home, Rooms & places and
+Network UI with the original generic topology fixture. It uses production read
+clients with synthetic responses; Network loads only through its visible action.
+After inspecting the three harness files and their imports, its scoped typecheck
+uses a private config extending frontend/tsconfig.json with main.tsx included,
+and its build uses the installed Vite compiler. For a manual preview, choose an
+unused loopback port, capture the requested states and stop within 20 minutes:
+
+```sh
+cd frontend
+./node_modules/.bin/vite build lantern-tests/core-read-visual --config vite.config.ts --outDir /tmp/houseatlas-core-read-visual-dist
+./node_modules/.bin/vite lantern-tests/core-read-visual --config vite.config.ts --host 127.0.0.1 --port 4179 --strictPort
+```
+
+All other application fetches return unavailable in this dedicated page. Its
+retained Network revision does not widen native provider admission or certify
+authentication, source freshness, runtime security or actual-user acceptance.
+
 Its visual harness uses the same synthetic records, an injected topology client
 and a stub for all other application fetches. After inspecting the harness,
 use an unused loopback port and stop the server after the desktop and narrow

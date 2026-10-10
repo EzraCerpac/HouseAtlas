@@ -167,3 +167,7 @@ path = "examples/healthy-place-topology.rs"
 [[example]]
 name = "healthy-trusted-gateway"
 path = "src/http/trusted_gateway_healthy.rs"
+
+[[example]]
+name = "healthy-exact-read-contracts"
+path = "examples/healthy-exact-read-contracts.rs"
