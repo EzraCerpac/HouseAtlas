@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { NativePlaceEditor, NativePlaceReceipts } from './NativePlaceEditor';
+import { NativePlaceEvidence } from './NativePlaceEvidence';
 import { useTopology } from './TopologyProvider';
 import { metres, type Access, type Location, type Membership, type TopologyIndex, type LevelGroup } from './model';
 import { useSelect, useStore } from '../state/store';
@@ -58,6 +59,7 @@ function Row({ location, index, selected, note }: { location: Location; index: T
     {location.selectId ? <button type="button" className="ledger-main topology-row" aria-label={`${location.label}, Atlas identity ${location.id}`} onClick={() => select(location.selectId!)}>{content}</button>
       : <div className="ledger-main topology-row">{content}</div>}
     {topology.nativePlaces && topology.nativeBinding && <NativePlaceEditor key={location.id} client={topology.nativePlaces} binding={topology.nativeBinding} index={index} location={location} refresh={topology.reload} />}
+    {topology.nativePlaces && topology.nativeBinding && <NativePlaceEvidence client={topology.nativePlaces.evidence} binding={topology.nativeBinding} location={location} index={index} refresh={topology.reload} />}
     <Facts location={location} index={index} selected={selected} />
   </li>;
 }
