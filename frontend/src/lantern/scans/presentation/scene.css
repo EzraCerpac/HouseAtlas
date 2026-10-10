@@ -1,0 +1,20 @@
+.lantern-host .scan-presentation {height:100%;min-height:480px}
+.lantern-host .scene-mesh-canvas,.lantern-host .scene-svg {position:absolute;inset:0;width:100%;height:100%;display:block}
+.lantern-host .scene-svg {pointer-events:none}
+.lantern-host .scene-svg [role=button],.lantern-host .scene-svg button,.lantern-host .scene-svg .pin {pointer-events:auto}
+.lantern-host .scan-presentation .stage {touch-action:none}
+.lantern-host .scan-source-status {left:18px;top:204px;display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted)}
+.lantern-host .scan-source-status>span {border:1px solid var(--hair-2);background:#fcfbf8b8;padding:4px 8px;border-radius:999px}
+.lantern-host .scan-source-status button {background:none;border:0;text-decoration:underline;font-size:12px;padding:5px}
+.lantern-host .source-disclosure {top:240px;left:18px;max-width:340px;width:calc(100% - 36px);max-height:50%;overflow:auto;background:var(--card);padding:14px;border-radius:14px;box-shadow:var(--shadow-float);border:1px solid var(--hair-2);display:grid;gap:10px;font-size:12px}
+.lantern-host .source-disclosure h2 {font-size:17px}
+.lantern-host .source-disclosure code {overflow-wrap:anywhere;white-space:normal;font-size:10px}
+.lantern-host .source-disclosure details {border-top:1px solid var(--hair);padding-top:8px}
+.lantern-host .scene-failure {left:50%;top:45%;transform:translate(-50%,-50%);max-width:360px;padding:15px;border-radius:14px;background:var(--card);box-shadow:var(--shadow-float)}
+.lantern-host .scan-presentation .stage-bottom {bottom:34px;justify-content:flex-end}
+.lantern-host .scan-presentation .demo-note {bottom:10px}
+.lantern-host .schematic-room-anchor {cursor:pointer}
+.lantern-host .schematic-room-anchor:focus-visible {outline:none}
+.lantern-host .schematic-room-anchor:focus-visible circle:first-child {stroke:var(--focus);stroke-width:3}
+@media(max-width:359px){.lantern-host .scan-presentation .layer-bar{gap:2px;padding:4px;max-width:100%;box-sizing:border-box}.lantern-host .scan-presentation .layer-chip{gap:5px;padding:7px 6px;font-size:12px}}
+@media(max-width:759px){.lantern-host .scan-presentation {min-height:500px}.lantern-host .scan-source-status{top:134px;left:10px}.lantern-host .source-disclosure{top:170px;left:10px}.lantern-host .scan-presentation .stage-bottom{left:10px;right:10px;bottom:36px}.lantern-host .scan-presentation .demo-note{bottom:9px;font-size:10px}.lantern-host .floor-tag-name{display:none}.lantern-host .floor-tag-short{font-size:18px}}
