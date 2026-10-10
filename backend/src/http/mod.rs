@@ -15,6 +15,7 @@ mod capture_claim;
 mod intake;
 mod media;
 mod mutations;
+mod native_upload_admission;
 mod operation_events;
 mod pages;
 pub mod providers;
@@ -946,6 +947,8 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/mcp/workspaces/{workspace_id}/homes/{home_id}", post(agents::mcp_transport::post).get(agents::mcp_transport::unsupported).head(agents::mcp_transport::unsupported).delete(agents::mcp_transport::unsupported).fallback(agents::mcp_transport::unsupported))
         .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/place", get(editing::place).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/places/{record_id}/evidence", post(upload::command))
+        .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/native-places/{record_id}", get(native_upload_admission::place).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/native-places/{record_id}/evidence", post(upload::native_command))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/admission", get(agents::admission).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/homebox-pinned-file", get(homebox_pinned_files::capture).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v4/workspaces/{workspace_id}/homes/{home_id}/homebox-pinned-file", get(homebox_pinned_files::capture_v4).head(auth::session_head).fallback(auth::session_head))

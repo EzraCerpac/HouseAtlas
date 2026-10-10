@@ -183,15 +183,18 @@ fn main() -> Result<(), Failure> {
     let selection = planning::resolve(&mut core, &principal, &home, &metadata)
         .map_err(|error| format!("Healthy canonical resolution failed: {error}"))?;
     assert!(std::ptr::eq(selection.metadata(), &metadata));
-    assert_eq!(selection.source(), &source);
+    assert_eq!(selection.source(), Some(&source));
     assert_eq!(selection.semantics().target.record_id, metadata.record_id);
     assert_eq!(selection.semantics().revision, metadata.expected_revision);
     assert_eq!(selection.semantics().payload["semanticKind"], "room");
     assert_eq!(selection.identity().target.record_id, id(200));
     assert_eq!(selection.identity().revision, identity_revision);
     assert_eq!(selection.identity().payload, original_identity.payload);
-    assert_eq!(selection.binding().target.record_id, id(300));
-    assert_eq!(selection.binding().payload["atlasId"], id(200));
+    let source_binding = selection
+        .binding()
+        .ok_or("Missing genuine source-backed binding")?;
+    assert_eq!(source_binding.target.record_id, id(300));
+    assert_eq!(source_binding.payload["atlasId"], id(200));
     assert_eq!(selection.guards().len(), 4);
     assert_eq!(&selection.guards()[..3], metadata.guards.as_slice());
     assert_eq!(

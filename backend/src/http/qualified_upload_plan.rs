@@ -14,7 +14,7 @@ use crate::{
 };
 use s::Contract;
 use serde_json::{Value, json};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Privately resolved current data, borrowing the exact original selection.
 /// This is neither upload authorization nor a persisted consumption carrier.
@@ -23,9 +23,18 @@ pub struct ResolvedPlace<'p, 'm> {
     metadata: &'m UploadMetadata,
     semantics: d::Record,
     identity: d::Record,
-    binding: d::Record,
-    source: d::SourceRef,
+    proof: PlaceProof,
     guards: Vec<s::Guard>,
+}
+
+/// Explicit selection provenance; native admission never rescues a failed
+/// binding/projection resolution. Both constructors retain real native records.
+enum PlaceProof {
+    SourceBacked {
+        binding: Box<d::Record>,
+        source: d::SourceRef,
+    },
+    Native,
 }
 
 fn unavailable() -> st::StockError {
@@ -256,8 +265,184 @@ pub fn resolve<'p, 'm>(
         metadata,
         semantics: semantics.clone(),
         identity: identity.clone(),
-        binding: binding.clone(),
-        source,
+        proof: PlaceProof::SourceBacked {
+            binding: Box::new(binding.clone()),
+            source,
+        },
+        guards,
+    })
+}
+
+/// Snapshot-derived native-only admission data, never mutation authority.
+struct NativePlace {
+    semantics: d::Record,
+    identity: d::Record,
+    guards: Vec<s::Guard>,
+}
+
+fn native_place(
+    core: &mut Core,
+    principal: &RequestPrincipal,
+    home: &d::HomeSummary,
+    record_id: &str,
+) -> st::StockResult<NativePlace> {
+    read_scope(core, principal, home)?;
+    let snapshot = d::ReadPort::snapshot(
+        &mut Reads(&mut *core.store.lock().map_err(|_| unavailable())?),
+        principal,
+        &home.scope,
+    )
+    .map_err(st::StockError::Domain)?;
+    let semantics = one_record(
+        &snapshot,
+        &home.scope,
+        d::RecordType::LocationSemantics,
+        record_id,
+    )?;
+    validate::<contracts::LocationSemanticsRecord>(semantics)?;
+    if semantics.payload["reviewStatus"] != "accepted" {
+        return Err(held());
+    }
+    let identity_id = semantics.payload["atlasId"]
+        .as_str()
+        .ok_or_else(unavailable)?;
+    let identity = one_record(&snapshot, &home.scope, d::RecordType::Identity, identity_id)?;
+    validate::<contracts::IdentityRecord>(identity)?;
+    if identity.payload["kind"] != "location"
+        || snapshot
+            .records
+            .iter()
+            .filter(|record| {
+                record.scope == home.scope
+                    && record.lifecycle == d::Lifecycle::Active
+                    && record.target.record_type == d::RecordType::LocationSemantics
+                    && record.payload["atlasId"].as_str() == Some(identity_id)
+                    && record.payload["reviewStatus"] == "accepted"
+            })
+            .count()
+            != 1
+        || snapshot.records.iter().any(|record| {
+            record.scope == home.scope
+                && record.lifecycle == d::Lifecycle::Active
+                && record.target.record_type == d::RecordType::Binding
+                && record.payload["atlasId"].as_str() == Some(identity_id)
+        })
+    {
+        return Err(held());
+    }
+    // Complete original identity/evidence guards in the same deterministic
+    // record-type/record-id order as source admission. The selected semantics
+    // revision is supplied separately and is added to the executed root below.
+    let mut guards = BTreeMap::new();
+    guards.insert(
+        ("identity", identity_id.to_owned()),
+        s::Guard {
+            record: s::RecordRef {
+                record_type: s::RecordType::Identity,
+                record_id: identity_id.to_owned(),
+            },
+            expected_revision: identity.revision,
+        },
+    );
+    for owner in [semantics, identity] {
+        for id in owner.payload["evidenceIds"]
+            .as_array()
+            .ok_or_else(unavailable)?
+        {
+            let id = id.as_str().ok_or_else(unavailable)?;
+            let evidence = one_record(&snapshot, &home.scope, d::RecordType::Evidence, id)?;
+            validate::<contracts::EvidenceRecord>(evidence)?;
+            guards.insert(
+                ("evidence", id.to_owned()),
+                s::Guard {
+                    record: s::RecordRef {
+                        record_type: s::RecordType::Evidence,
+                        record_id: id.to_owned(),
+                    },
+                    expected_revision: evidence.revision,
+                },
+            );
+        }
+    }
+    let guards: Vec<_> = guards.into_values().collect();
+    // Reserve one root guard slot for the original selected semantics record.
+    if guards.len() >= 100 {
+        return Err(held());
+    }
+    for guard in &guards {
+        validate::<contracts::Guard>(guard)?;
+    }
+    read_scope(core, principal, home)?;
+    Ok(NativePlace {
+        semantics: semantics.clone(),
+        identity: identity.clone(),
+        guards,
+    })
+}
+
+/// A new explicit native-only read namespace. It discloses real owner records
+/// and current role-derived affordance data; the POST still obtains real AT11
+/// mutation authority and Media's original principal allocation.
+pub(super) fn native_admission(
+    core: &mut Core,
+    principal: &RequestPrincipal,
+    home: &d::HomeSummary,
+    record_id: &str,
+) -> st::StockResult<Value> {
+    let place = native_place(core, principal, home, record_id)?;
+    let editor = principal.principal.role() == access::Role::Editor;
+    let mut result = json!({
+        "schemaVersion":1,"admissionKind":"native-location","scope":home.scope,
+        "record":place.semantics,"identity":place.identity,"guards":place.guards,
+        "canAttachEvidence":editor,"maximumReasonCodePoints":1024
+    });
+    if editor {
+        result["attachmentPolicy"] = super::upload::policy();
+    }
+    read_scope(core, principal, home)?;
+    Ok(result)
+}
+
+/// Only the explicit native POST calls this constructor. It neither accepts a
+/// caller source/binding nor falls back from the source-backed resolver above.
+pub(super) fn resolve_native<'p, 'm>(
+    core: &mut Core,
+    principal: &'p RequestPrincipal,
+    home: &d::HomeSummary,
+    metadata: &'m UploadMetadata,
+) -> st::StockResult<ResolvedPlace<'p, 'm>> {
+    read_scope(core, principal, home)?;
+    validate::<contracts::Scope>(&metadata.context)?;
+    if metadata.context.workspace_id != home.scope.workspace_id
+        || metadata.context.home_id != home.scope.home_id
+        || metadata.guards.len() > 100
+    {
+        return Err(invalid());
+    }
+    let place = native_place(core, principal, home, &metadata.record_id)?;
+    if place.semantics.revision != metadata.expected_revision {
+        return Err(st::StockError::Domain(d::DomainError::RevisionConflict {
+            current_revision: Some(place.semantics.revision),
+        }));
+    }
+    if value(&metadata.guards)? != value(&place.guards)? {
+        return Err(changed());
+    }
+    let mut guards = place.guards;
+    guards.push(s::Guard {
+        record: s::RecordRef {
+            record_type: s::RecordType::LocationSemantics,
+            record_id: metadata.record_id.clone(),
+        },
+        expected_revision: metadata.expected_revision,
+    });
+    read_scope(core, principal, home)?;
+    Ok(ResolvedPlace {
+        principal,
+        metadata,
+        semantics: place.semantics,
+        identity: place.identity,
+        proof: PlaceProof::Native,
         guards,
     })
 }
@@ -272,11 +457,18 @@ impl ResolvedPlace<'_, '_> {
     pub fn identity(&self) -> &d::Record {
         &self.identity
     }
-    pub fn binding(&self) -> &d::Record {
-        &self.binding
+    /// Native selection has no source binding; no synthetic value is supplied.
+    pub fn binding(&self) -> Option<&d::Record> {
+        match &self.proof {
+            PlaceProof::SourceBacked { binding, .. } => Some(binding),
+            PlaceProof::Native => None,
+        }
     }
-    pub fn source(&self) -> &d::SourceRef {
-        &self.source
+    pub fn source(&self) -> Option<&d::SourceRef> {
+        match &self.proof {
+            PlaceProof::SourceBacked { source, .. } => Some(source),
+            PlaceProof::Native => None,
+        }
     }
     pub fn guards(&self) -> &[s::Guard] {
         &self.guards
