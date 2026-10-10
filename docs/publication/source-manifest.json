@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "6b6600b27a9999258332fe83b44ef68ddcd7b266ba88131098ccef34f768fd88",
+  "sourceDigestSha256": "0c7bfce7480e9b13cab3914b35458b5d11d8131b80029ffbb42ecf1d74d8d99c",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2905,8 +2905,8 @@
     {
       "path": "backend/src/providers/homebox/read/native_list_pages.rs",
       "mode": "100644",
-      "bytes": 26886,
-      "sha256": "201839c7a4830a5566d157ee839afc8b6e4b2e15ef67d8ebb8b43525cd455006",
+      "bytes": 27448,
+      "sha256": "faf9a65679d9d50774d78e6c9fa0b16838444aa89c428321969576bba5e17932",
       "owner": "homebox"
     },
     {
@@ -5796,8 +5796,8 @@
     {
       "path": "frontend/src/ai/host/client.ts",
       "mode": "100644",
-      "bytes": 8102,
-      "sha256": "1d325613bab8f446b91b111ba7bbd5ec1d15995de0231645cf48531beab8ea04",
+      "bytes": 8159,
+      "sha256": "de3d998d9a151c122accd51cc2d9dec41d1203edf1258395e82ec35e9263a9a8",
       "owner": "ai"
     },
     {
@@ -6062,8 +6062,8 @@
     {
       "path": "frontend/src/app/model.ts",
       "mode": "100644",
-      "bytes": 5712,
-      "sha256": "16c723c2516cfb2a1bd3b4d141f8dcdae22e2ce8f922497614ecbd3ed62bc80e",
+      "bytes": 5832,
+      "sha256": "82df2d258e194e3b8c5aacfb79ff8e01a733932f84ada34cd83ba022dc39a7ee",
       "owner": "web"
     },
     {
@@ -6111,8 +6111,8 @@
     {
       "path": "frontend/src/lantern/App.tsx",
       "mode": "100644",
-      "bytes": 10255,
-      "sha256": "2ebea5a5c70081df2ea5407d08daed98c152c0a64cd659cbbaaec12d7521f26e",
+      "bytes": 10348,
+      "sha256": "7066abca45c63730e006f1b01f5d5b9dddb8d233d3dce3cf66adbcd979b76d56",
       "owner": "web"
     },
     {
