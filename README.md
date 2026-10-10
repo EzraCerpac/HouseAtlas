@@ -49,6 +49,21 @@ format validator; relative and due-time arithmetic remains unchanged:
 node frontend/lantern-tests/source-time-display.mjs
 ```
 
+Two bounded provisional mesh examples use one generic synthetic triangle and
+the actual lossless profile reader, transform preparation and React components:
+
+```sh
+node frontend/lantern-tests/scan-mesh-read.mjs
+node frontend/lantern-tests/scan-mesh-view-visual.mjs
+```
+
+Inspect both complete bodies and their source-loader imports first. These checks
+cover preserved authored tokens, exact transform chains, display buffers and
+static accessible markup. They open no browser or listener and exercise no
+WebGL effects, picking, GPU disposal or actual private export. The viewer remains
+unmounted; original and derivative admission, physical scale, floor alignment
+and guarded native import remain unqualified.
+
 A source-free native place example creates a building and room with explicit
 reviewed membership, then renames and clears only an Atlas classification label.
 The browser fixture uses injected synthetic responses and exact retained tokens.

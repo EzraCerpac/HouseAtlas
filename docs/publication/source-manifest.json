@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "412ce87a8e88519516388096e909c747123dcda4a5ec048fee9dded1e9c061ed",
+  "sourceDigestSha256": "4b0d6562253a0bbd3a514947690240db4f5881b3bbe9c0183138c65aa31baf0b",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 22967,
-      "sha256": "f44eedba1987f0ce023edeb4acc9f0ad8c81537f59a932da31df77daca2eec87",
+      "bytes": 23677,
+      "sha256": "0d000d1e16c96bd4141713e73c71ff8bcf82f45a659715cda7654edf2b920820",
       "owner": "core-integration"
     },
     {
@@ -5304,6 +5304,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/operations/provisional-scan-preview.md",
+      "mode": "100644",
+      "bytes": 6622,
+      "sha256": "c324b2f723896281341db1fa88ccf9654d1df3c41bc3470e14e180d8bdcf2b6a",
+      "owner": "core-integration"
+    },
+    {
       "path": "docs/operations/qualification-and-rollout.md",
       "mode": "100644",
       "bytes": 1552,
@@ -5861,6 +5868,20 @@
       "mode": "100644",
       "bytes": 5883,
       "sha256": "adea415bfcef2fb7a2ed4f2af505d882d2d8d75df2bb317e30a4421f46fc34fc",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/scan-mesh-read.mjs",
+      "mode": "100644",
+      "bytes": 6545,
+      "sha256": "05d9e29b862971b77d7bdc7014bcea13adfad6ccfa90f614905ee95c4ebc3095",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/scan-mesh-view-visual.mjs",
+      "mode": "100644",
+      "bytes": 3846,
+      "sha256": "e5439fffcff20404691c91ef0be16d8762d7f21d04b60fec6f18169a1895bafe",
       "owner": "web"
     },
     {
@@ -6722,6 +6743,27 @@
       "mode": "100644",
       "bytes": 9739,
       "sha256": "809da85c90d2d5f3dc446f82fe4727810f38cfb71c34598b37fbaf9f3838907e",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/MeshCanvas.tsx",
+      "mode": "100644",
+      "bytes": 18329,
+      "sha256": "6739f69fc1dea318689f21e6b0c72ccec656a9f11aa41eb1fe1d90df66264b16",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/ScanPreview.tsx",
+      "mode": "100644",
+      "bytes": 8117,
+      "sha256": "1d1f52232116c45f21e04a5a3386bcaadaa5ea8cb8112e5fd2f48f2264765c6f",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/mesh-profile.ts",
+      "mode": "100644",
+      "bytes": 31786,
+      "sha256": "ca9d894a3e51ab5b633d86de09d63d4fe1f43baa980b1556382e9df42bdd1ae9",
       "owner": "web"
     },
     {
