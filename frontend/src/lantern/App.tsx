@@ -39,7 +39,12 @@ function SyncChip() {
   const { dispatch, projection } = useStore();
   const caches = projection.view.caches.filter(c => c.owner === 'homebox');
   const warning = !caches.length || caches.some(c => c.displayStatus !== 'fresh');
-  const text = caches.length ? caches.map(c => `HomeBox ${c.displayStatus}, last successful update ${c.lastSuccessfulFetchAt ? fmtDateTime(c.lastSuccessfulFetchAt) : 'unknown'}`).join('; ') : 'HomeBox cache unavailable';
+  const text = caches.length ? caches.map(c => {
+    const source = c.status === 'access-revoked' || c.displayStatus === 'access-revoked'
+      ? 'HomeBox'
+      : `HomeBox source instance ${c.sourceInstanceId ?? 'unknown'}, collection ${c.collectionId ?? 'unknown'}`;
+    return `${source} ${c.displayStatus}, last successful update ${c.lastSuccessfulFetchAt ? fmtDateTime(c.lastSuccessfulFetchAt) : 'unknown'}`;
+  }).join('; ') : 'HomeBox cache unavailable';
   return (
     <button
       type="button"

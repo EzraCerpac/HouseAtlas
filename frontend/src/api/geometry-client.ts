@@ -36,9 +36,15 @@ interface GeometryListResult {
 
 // One budget covers headers, every body and all continuation pages.
 const sequenceTimeoutMs = 60_000;
+const maxResponseBytes = 4 * 1024 * 1024;
+const maxAggregateBytes = 16 * 1024 * 1024;
 class GeometryDeadline extends Error {}
 function discard(response: Response) { void response.body?.cancel().catch(() => undefined); }
-async function receive(response: Response, signal: AbortSignal): Promise<unknown> {
+async function receive(response: Response, signal: AbortSignal, remainingBytes: number): Promise<{ value: unknown; bytes: number }> {
+  const byteLimit = Math.min(maxResponseBytes, remainingBytes);
+  if (Number(response.headers.get('Content-Length')) > byteLimit) {
+    discard(response); throw new TypeError('Geometry response exceeded byte bound');
+  }
   const reader = response.body?.getReader();
   if (!reader) throw new TypeError('Geometry response missing');
   const cancel = () => { void reader.cancel().catch(() => undefined); };
@@ -52,12 +58,13 @@ async function receive(response: Response, signal: AbortSignal): Promise<unknown
       signal.throwIfAborted();
       if (part.done) break;
       length += part.value.byteLength;
+      if (length > byteLimit) throw new TypeError('Geometry response exceeded byte bound');
       chunks.push(part.value);
     }
     const bytes = new Uint8Array(length);
     let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+    return { value: JSON.parse(new TextDecoder().decode(bytes)) as unknown, bytes: length };
   } catch (error) { cancel(); throw error; }
   finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
 }
@@ -88,6 +95,7 @@ export function createGeometryClient(transport: typeof fetch = globalThis.fetch)
         const seenCursors = new Set<string>();
         let cursor: string | null = null;
         let sourceStatus: GeometrySourceStatus | undefined;
+        let totalBytes = 0;
 
         // Bound a malformed or indefinitely changing continuation stream.
         for (let page = 0; page < 100; page++) {
@@ -107,7 +115,8 @@ export function createGeometryClient(transport: typeof fetch = globalThis.fetch)
           if (response.status === 403) { discard(response); return { status: 'denied' }; }
           if (!response.ok) { discard(response); throw new GeometryReadError(response.status); }
 
-          const value = await receive(response, signal);
+          const { value, bytes } = await receive(response, signal, maxAggregateBytes - totalBytes);
+          totalBytes += bytes;
           signal.throwIfAborted();
           if (!validateResult(value)) throw new TypeError('Stock envelope is incompatible');
           const result = value as GeometryListResult;
