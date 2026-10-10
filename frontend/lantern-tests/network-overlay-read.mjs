@@ -233,4 +233,55 @@ assert.deepEqual(danglingGraph.nodes.find(node => node.id === 'dangling-source-e
 });
 assert.equal(JSON.stringify(data), sourceSnapshot, 'handling an input with a dangling endpoint does not mutate the source input');
 
-console.log(`PASS network overlay model and graph: ${devices.length} synthetic devices, ${links.length} source edges, explicit accepted policy, preserved unknown source confidence, unbound named endpoints, source identity grouping, dangling endpoint recovery, dates, and no invented placement/routes`);
+const planAssociations = [{ sourceAnchorId: 'synthetic-source:TEXT:HANDLE', sourceFloorKey: 'reviewed-export', sourceFloorLabel: 'Reviewed upper plan',
+  sourceReference: 'R4', sourceHandle: 'SYNTHETIC-TEXT-HANDLE', sourceSHA256: 'synthetic-source-hash', mappingReceiptSHA256: 'synthetic-receipt-hash' }];
+const canonical = data.devices.slice(0, 3).map((device, index) => ({ ...device, place: { ...device.place,
+  sourceRoomId: `document-room-${index}`, sourcePlaceId: index < 2 ? 'canonical-room-A' : 'canonical-room-B',
+  sourcePlaceUUID: index < 2 ? 'stable-document-uuid-A' : 'stable-document-uuid-B', planAssociations,
+} }));
+const canonicalSnapshot = JSON.stringify(canonical);
+const canonicalGroups = model.groupNetworkDevices(canonical);
+assert.equal(canonicalGroups.rooms.length, 2, 'reviewed canonical identities group documented aliases; equal labels do not merge different places');
+assert.equal(canonicalGroups.rooms[0].key, 'documentary:canonical-room-A');
+assert.equal(canonicalGroups.rooms[0].devices.length, 2);
+const namespaceGroups = model.groupNetworkDevices([
+  canonical[0], { ...canonical[2], place: { ...canonical[2].place, sourcePlaceId: null, sourceRoomId: 'canonical-room-A' } },
+  { ...canonical[1], place: { ...canonical[1].place, placeId: 'canonical-room-A' } },
+]);
+assert.equal(namespaceGroups.rooms.length, 3, 'native, canonical documentary and network source room identities have separate namespaces');
+const withPlans = { ...data, devices: [...canonical, ...data.devices.slice(3)] };
+const withPlanGraph = model.networkGraph(withPlans);
+assert.deepEqual([...withPlanGraph.positions], [...graph.positions], 'reviewed plan references never become graph or device coordinates');
+assert(canonical.every(device => device.place.placeId === null && device.place.coordinate === null && device.place.floorKey === null));
+assert.equal(JSON.stringify(canonical), canonicalSnapshot, 'canonical grouping and graph leave evidence unchanged');
+
+const reviewedData = { ...withPlans, source: { ...data.source, roomMappingReceipt: { id: 'synthetic-receipt', sha256: 'synthetic-receipt-hash' } } };
+assert.equal(model.networkPlanReferences(reviewedData, canonical[0]).length, 1);
+assert.equal(model.networkPlanReferences(data, canonical[0]).length, 0, 'missing source receipt cannot present a reviewed plan');
+assert.equal(model.networkPlanReferences({ ...reviewedData, source: { ...reviewedData.source, roomMappingReceipt: { id: 'other', sha256: 'other-hash' } } }, canonical[0]).length, 0);
+const context = { viewKey: data.viewKey, status: 'accepted', receiptId: 'synthetic-receipt', receiptSha256: 'synthetic-receipt-hash',
+  sourceAnchorIds: ['synthetic-source:TEXT:HANDLE'], targets: [{ packagePlaceKey: 'canonical-room-A', packagePlaceUuid: 'stable-document-uuid-A' }],
+  unresolvedLabels: ['Unknown span component'] };
+assert.equal(model.networkReviewedPlaces(reviewedData, null), null, 'no documentary context preserves building behavior');
+assert.deepEqual(model.networkReviewedPlaces(reviewedData, context).devices.map(device => device.id), canonical.slice(0, 2).map(device => device.id));
+const multiTarget = { ...context, targets: [...context.targets, { packagePlaceKey: 'canonical-room-B', packagePlaceUuid: 'stable-document-uuid-B' }] };
+assert.equal(model.networkReviewedPlaces(reviewedData, multiTarget).devices.length, 3, 'reviewed spans retain multiple targets');
+assert.deepEqual(multiTarget.unresolvedLabels, ['Unknown span component']);
+for (const fenced of [{ ...context, viewKey: 'other-view' }, { ...context, status: 'proposed' },
+  { ...context, status: 'unmatched' }, { ...context, receiptSha256: 'changed-receipt' }, { ...context, receiptId: 'other-receipt' }]) {
+  const result = model.networkReviewedPlaces(reviewedData, fenced);
+  assert.equal(result.eligible, false);
+  assert.equal(result.devices.length, 0);
+}
+assert.equal(model.networkReviewedPlaces(reviewedData, { ...context, targets: [{ packagePlaceKey: 'canonical-room-A', packagePlaceUuid: 'wrong-uuid' }] }).devices.length, 0);
+assert.equal(model.networkReviewedPlaces(reviewedData, { ...context, sourceAnchorIds: ['other-source-anchor'] }).devices.length, 0);
+assert.equal(model.networkReviewedPlaces(data, context).eligible, false, 'a source without the receipt cannot accept its selection');
+const extendedPlans = { ...canonical[0], place: { ...canonical[0].place, planAssociations: [...planAssociations, { ...planAssociations[0], sourceAnchorId: 'different-anchor', sourceReference: 'P1' }] } };
+const extendedData = { ...reviewedData, devices: [extendedPlans, ...reviewedData.devices.slice(1)] };
+assert.equal(model.networkPlanReferences(extendedData, extendedPlans, context).length, 1, 'selected source anchors bound reviewed reference details');
+assert.equal(model.networkPlanReferences(extendedData, extendedPlans).length, 2, 'building context retains all reviewed aliases');
+assert.equal(model.networkPlanReferences(extendedData, extendedPlans, { ...context, receiptSha256: 'stale' }).length, 0);
+assert.equal(model.networkPlanReferences(extendedData, canonical[2], context).length, 0, 'exact key and UUID also fence plan details');
+assert.equal(JSON.stringify(canonical), canonicalSnapshot, 'selection matching never writes evidence or unresolved span components');
+
+console.log(`PASS network overlay model and graph: ${devices.length} synthetic devices, ${links.length} topology edges, explicit accepted policy, preserved source confidence, endpoint ownership, canonical/native identity separation, reviewed plan references without placement, dates, and source immutability`);
