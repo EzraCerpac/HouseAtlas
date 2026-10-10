@@ -62,11 +62,28 @@ const mutationRoots: Readonly<Record<string, string>> = Object.freeze({
   "atlas.reconciliation.replace": "#/$defs/result_atlas_reconciliation_replace",
   "atlas.batch.execute": "#/$defs/result_atlas_batch_execute",
 });
+// The native place form admits only these existing canonical arms. No dynamic roots.
+const nativeRequests = Object.freeze({
+  'atlas.identity.get': 'request_atlas_identity_get',
+  'atlas.evidence.get': 'request_atlas_evidence_get',
+  'atlas.location-semantics.get': 'request_atlas_location_semantics_get',
+  'atlas.evidence.create': 'request_atlas_evidence_create',
+  'atlas.identity.create': 'request_atlas_identity_create',
+  'atlas.location-semantics.create': 'request_atlas_location_semantics_create',
+  'atlas.location-semantics.replace': 'request_atlas_location_semantics_replace',
+  'atlas.relation.create': 'request_atlas_relation_create',
+  'atlas.batch.execute': 'request_atlas_batch_execute',
+});
+const nativeReads = Object.freeze({
+  'atlas.identity.get': 'result_atlas_identity_get',
+  'atlas.evidence.get': 'result_atlas_evidence_get',
+  'atlas.location-semantics.get': 'result_atlas_location_semantics_get',
+});
 const agentId = 'urn:houseatlas:agent:stock:3';
 const atlasId = 'https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json';
 const dialect = 'https://json-schema.org/draft/2020-12/schema';
 const agentHash = '42174cebb9a7080cacb8231aba2bf80c4ab59fdb92085db1af3d5fe368cd5835';
-const atlasHash = '2ab4d43ca736b270209bce0711e2c46ba07d70c3b1db78eb1ee89f1a62985f47';
+const atlasHash = 'b24f2d0ba25287ecbeb6618dd26728cb201875103edaede51804e00e26c3bc86';
 
 type Schema = boolean | Record<string, unknown>;
 type Document = Record<string, unknown>;
@@ -287,6 +304,10 @@ export function createExactStockResultValidator() {
   const compiled = Object.fromEntries(Object.entries(roots).map(([kind, name]) => [kind, resolve(`${agentId}#/$defs/${name}`, agentId)])) as Record<StockResultKind, Compiled>;
   const compiledMutations = Object.fromEntries(Object.entries(mutationRoots).map(([command, ref]) =>
     [command, resolve(`${agentId}${ref}`, agentId)])) as Record<string, Compiled>;
+  const compiledNativeRequests = Object.fromEntries(Object.entries(nativeRequests).map(([command, name]) =>
+    [command, resolve(`${agentId}#/$defs/${name}`, agentId)])) as Record<string, Compiled>;
+  const compiledNativeReads = Object.fromEntries(Object.entries(nativeReads).map(([command, name]) =>
+    [command, resolve(`${agentId}#/$defs/${name}`, agentId)])) as Record<string, Compiled>;
   const evaluate = (node: Compiled, value: LosslessJson): boolean => {
       if (typeof node.schema === 'boolean') return node.schema;
       const schema = node.schema;
@@ -353,6 +374,14 @@ export function createExactStockResultValidator() {
     validate(kind: StockResultKind, value: LosslessJson): boolean {
       if (!has(compiled, kind)) throw new TypeError('Unknown stock result kind');
       return evaluate(compiled[kind], value);
+    },
+    validateNativeRequest(commandId: string, value: LosslessJson): boolean {
+      if (!has(nativeRequests, commandId)) throw new TypeError('Unsupported native place request');
+      return evaluate(compiledNativeRequests[commandId]!, value);
+    },
+    validateNativeRead(commandId: string, value: LosslessJson): boolean {
+      if (!has(nativeReads, commandId)) throw new TypeError('Unsupported native place read');
+      return evaluate(compiledNativeReads[commandId]!, value);
     },
     validateMutation(commandId: string, schemaRef: string, value: LosslessJson): boolean {
       if (!has(mutationRoots, commandId) || mutationRoots[commandId] !== schemaRef)

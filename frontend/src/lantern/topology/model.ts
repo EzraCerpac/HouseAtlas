@@ -16,6 +16,7 @@ export interface Location {
   readonly id: string;
   readonly name: string;
   label: string;
+  readonly labelOwner: 'atlas' | 'homebox' | 'unknown' | 'conflict';
   readonly entry: Entry | undefined;
   readonly selectId: string | undefined;
   readonly bindings: readonly TopologyRecord<'binding'>[];
@@ -48,9 +49,11 @@ export function buildTopologyIndex(data: TopologyData, view: ReadyView, selectab
       if (entry) break;
     }
     const selectId = entry ? [...selectable].find(([, value]) => value === entry)?.[0] : undefined;
-    const name = entry?.entity.name.trim() || 'Unnamed Atlas location';
-    locations.set(id, { id, name, label: name, entry, selectId, bindings,
-      semantics: data.semantics.filter(s => s.lifecycle === 'active' && s.payload.reviewStatus === 'accepted' && s.payload.atlasId === id) });
+    const semantics = data.semantics.filter(s => s.lifecycle === 'active' && s.payload.reviewStatus === 'accepted' && s.payload.atlasId === id);
+    const native = semantics.length === 1 ? semantics[0]!.payload.label : undefined;
+    const labelOwner = semantics.length > 1 ? 'conflict' : native !== undefined ? 'atlas' : entry?.entity.name.trim() ? 'homebox' : 'unknown';
+    const name = labelOwner === 'conflict' ? 'Conflicting reviewed classifications' : native ?? (entry?.entity.name.trim() || 'Unnamed Atlas location');
+    locations.set(id, { id, name, label: name, labelOwner, entry, selectId, bindings, semantics });
   }
   for (const location of locations.values()) {
     const sameName = [...locations.values()].filter(l => l.name === location.name);
@@ -65,7 +68,7 @@ export function buildTopologyIndex(data: TopologyData, view: ReadyView, selectab
     && r.payload.kind === 'location-membership' && r.payload.reviewStatus === 'accepted');
   const access = data.relations.filter((r): r is Access => r.lifecycle === 'active'
     && r.payload.kind === 'physical-access' && r.payload.reviewStatus === 'accepted');
-  return { data, locations, buildings: [...locations.values()].filter(l => l.semantics.some(s => s.payload.semanticKind === 'building')).sort(byId), membership, access };
+  return { data, locations, buildings: [...locations.values()].filter(l => l.semantics.length === 1 && l.semantics[0]!.payload.semanticKind === 'building').sort(byId), membership, access };
 }
 export type ElevationDisplay =
   | { readonly status: 'known'; readonly elevation: Extract<DecodedLocationElevation, { status: 'known' }> }

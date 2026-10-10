@@ -176,19 +176,22 @@ function equalJson(left: unknown, right: unknown): boolean {
   return Object.keys(a).length === Object.keys(b).length
     && Object.keys(a).every(key => Object.hasOwn(b, key) && equalJson(a[key], b[key]));
 }
-function validateWire(request: StockRequestEnvelope, wire: RetainedStockResultEnvelope, originalRequestId: string, scope: Scope) {
-  const operation = operationFor(request);
+function nativeOperationFor(request: StockRequestEnvelope) {
+  const operation = catalog.commands.find(row => row.commandId === request.commandId);
+  if (!operation || operation.authority !== 'atlas' || operation.effect !== 'write'
+    || !exactResult.validateNativeRequest(request.commandId, request as unknown as LosslessJson))
+    throw new TypeError('Exact native place request is incompatible');
+  return operation;
+}
+function validateWire(request: StockRequestEnvelope, wire: RetainedStockResultEnvelope, originalRequestId: string, scope: Scope, nativePlace = false) {
+  const operation = nativePlace ? nativeOperationFor(request) : operationFor(request);
   if (!exactResult.validateMutation(request.commandId, operation.outputSchema, wire) || wire.requestId !== originalRequestId
     || wire['commandId'] !== request.commandId || !sameScope(wire['resolvedScope'] as unknown as Scope, scope))
     throw new TypeError('Retained wire receipt correlation differs');
 }
 /** Passive lookup of a genuine submitted envelope; no retries or media release. */
 export function createRetainedIntentClient(transport: typeof fetch = globalThis.fetch) {
-  return {
-    async read(request: StockRequestEnvelope, current: () => StockHostContext, signal: AbortSignal): Promise<RetainedIntentRead> {
-      const body = intentBody(request);
-      // Snapshot the exact serialized input for correlation across the await.
-      const original = JSON.parse(body) as StockRequestEnvelope;
+  async function readBody(body: string, original: StockRequestEnvelope, current: () => StockHostContext, signal: AbortSignal, nativePlace: boolean): Promise<RetainedIntentRead> {
       signal.throwIfAborted();
       const { session, scope } = current();
       if (!validateScope(scope) || !sameScope(original.context, scope))
@@ -229,7 +232,7 @@ export function createRetainedIntentClient(transport: typeof fetch = globalThis.
             if (!saved || saved.originalRequestId !== original.requestId
               || inspection.rootOperationId === null || inspection.operationId === null)
               throw new TypeError('Retained original receipt correlation differs');
-            validateWire(original, saved.wire, original.requestId, selected);
+            validateWire(original, saved.wire, original.requestId, selected, nativePlace);
             if (saved.wire['operationId'] !== inspection.operationId
               || (saved.wire['data'] as Record<string, unknown>)['requestDigest'] !== inspection.requestDigest)
               throw new TypeError('Retained operation correlation differs');
@@ -240,7 +243,7 @@ export function createRetainedIntentClient(transport: typeof fetch = globalThis.
               saved.children.forEach((wire, index) => {
                 const command = commands[index]!;
                 if (!sameScope(command.context, selected)) throw new TypeError('Retained batch child scope differs');
-                validateWire(command, wire, command.requestId, selected);
+                validateWire(command, wire, command.requestId, selected, nativePlace);
               });
               const rootData = saved.wire['data'] as Record<string, unknown>;
               for (const field of ['records', 'auditIds']) {
@@ -257,6 +260,26 @@ export function createRetainedIntentClient(transport: typeof fetch = globalThis.
         if (error instanceof ReadDeadline) return { status: 'unavailable' };
         throw error;
       }
+  }
+  return {
+    async read(request: StockRequestEnvelope, current: () => StockHostContext, signal: AbortSignal): Promise<RetainedIntentRead> {
+      const body = intentBody(request);
+      // Existing object input and its eligibility behavior are unchanged.
+      const original = JSON.parse(body) as StockRequestEnvelope;
+      return readBody(body, original, current, signal, false);
+    },
+    /** Complete already-submitted native place bytes; never reconstruct or round an elevation. */
+    async readSerializedNativePlace(body: string, current: () => StockHostContext, signal: AbortSignal): Promise<RetainedIntentRead> {
+      if (typeof body !== 'string' || new TextEncoder().encode(body).byteLength > maximumBytes)
+        throw new TypeError('Original native place body exceeds retained intent bound');
+      const original = parseLosslessJson(body) as unknown as StockRequestEnvelope;
+      if (original.commandId !== 'atlas.batch.execute') throw new TypeError('Native place reconciliation requires its original batch');
+      nativeOperationFor(original);
+      for (const child of original.payload['commands'] as StockRequestEnvelope[]) {
+        nativeOperationFor(child);
+        if (!sameScope(child.context, original.context)) throw new TypeError('Original native place child scope differs');
+      }
+      return readBody(body, original, current, signal, true);
     },
   };
 }
