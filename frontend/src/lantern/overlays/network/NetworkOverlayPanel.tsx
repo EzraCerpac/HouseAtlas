@@ -43,9 +43,9 @@ export function NetworkOverlayPanel({ active, viewKey, data, selectedFloor = nul
     <header style={{ color: LAYER.network.color }}><Icon name="network" /><h3 id={`${id}-title`}>Internet network</h3><span className="network-overlay-badge">{accepted ? 'User-accepted configuration' : source.status === 'stale' ? 'Stale recorded data' : 'Recorded data'}</span></header>
     <dl className="network-overlay-source"><dt>Source</dt><dd>{source.label}</dd><dt>Revision</dt><dd>{stamp(source.revision)}</dd>
       <dt>Recorded</dt><dd>{stamp(source.recordedAt)}</dd><dt>Retrieved</dt><dd>{stamp(source.retrievedAt)}</dd>
-      <dt>Coverage</dt><dd>{source.coverage}</dd>{source.acceptedAt && <><dt>Configuration accepted</dt><dd>{source.acceptedAt}</dd></>}</dl>
+      <dt>Inventory coverage</dt><dd>{source.coverage}</dd>{source.acceptedAt && <><dt>Configuration accepted</dt><dd>{source.acceptedAt}</dd></>}</dl>
     {!accepted && source.notes && <p>{source.notes}</p>}
-    <Note>Room associations have no scan positions. Links describe topology; cable routes are unknown.</Note>
+    <Note>Room associations have no scan positions. Links describe topology; cable routes and wireless coverage are unknown.</Note>
     {selectedFloor !== null && <p>All room associations shown. The selected exported floor does not establish room placement.</p>}
     {selectedPlaceId !== null && <p>{current.devices.filter(device => device.mobility !== 'mobile' && device.mobility !== 'nonspatial'
       && device.place?.placeId === selectedPlaceId).length} device associations with the selected Atlas place. Other records remain visible.</p>}

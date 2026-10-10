@@ -9,6 +9,7 @@ export interface NetworkOverlaySource {
   readonly retrievedAt: string | null;
   readonly status: 'accepted' | 'recorded' | 'stale';
   readonly acceptedAt: string | null;
+  /** Inventory record coverage, never a radio coverage measurement. */
   readonly coverage: 'complete' | 'partial' | 'unknown';
   readonly notes: string;
 }
