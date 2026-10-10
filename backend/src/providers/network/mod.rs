@@ -20,8 +20,8 @@ mod sidecar;
 pub use adapter::*;
 pub use archive::{
     MAX_ACTIVE_SEGMENT_BYTES, MAX_ARCHIVE_ENTRIES, MAX_ARCHIVE_ROW_BYTES,
-    MAX_RETAINED_SEGMENT_BYTES, NetworkArchiveReceipt, NetworkArchiveReservation,
-    NetworkImmutableArchive, ReopenedNetworkCapture,
+    MAX_RETAINED_SEGMENT_BYTES, NetworkArchiveReceipt, NetworkArchiveReferenceState,
+    NetworkArchiveReservation, NetworkImmutableArchive, ReopenedNetworkCapture,
 };
 pub use durable::*;
 pub use facet::*;

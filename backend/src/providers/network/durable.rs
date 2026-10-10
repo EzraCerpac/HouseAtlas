@@ -27,28 +27,28 @@ pub struct DurableNetworkReceipt {
 /// Original full registration is known only for a verified sealed segment.
 /// A sealed byte count is an occupied segment, not a release grant.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct NetworkArchiveCustodyReference {
-    pub(crate) partition_key: String,
-    pub(crate) scope: SourceScope,
-    pub(crate) original_registration: Option<SourceRegistration>,
-    pub(crate) configured_registration: Option<SourceRegistration>,
-    pub(crate) generation_id: String,
-    pub(crate) state: super::archive::NetworkArchiveReferenceState,
-    pub(crate) body_sha256: Option<String>,
-    pub(crate) projected_receipt_sha256: Option<String>,
-    pub(crate) segment_sha256: Option<String>,
-    pub(crate) protected_bytes: usize,
+pub struct NetworkArchiveCustodyReference {
+    pub partition_key: String,
+    pub scope: SourceScope,
+    pub original_registration: Option<SourceRegistration>,
+    pub configured_registration: Option<SourceRegistration>,
+    pub generation_id: String,
+    pub state: super::archive::NetworkArchiveReferenceState,
+    pub body_sha256: Option<String>,
+    pub projected_receipt_sha256: Option<String>,
+    pub segment_sha256: Option<String>,
+    pub protected_bytes: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct NetworkArchiveCustodySnapshot {
-    pub(crate) permanent_id_count: usize,
-    pub(crate) remaining_id_slots: usize,
-    pub(crate) sealed_segment_bytes: usize,
-    pub(crate) active_reservation_count: usize,
-    pub(crate) active_reservation_bytes: usize,
-    pub(crate) remaining_byte_capacity: usize,
-    pub(crate) references: Vec<NetworkArchiveCustodyReference>,
+pub struct NetworkArchiveCustodySnapshot {
+    pub permanent_id_count: usize,
+    pub remaining_id_slots: usize,
+    pub sealed_segment_bytes: usize,
+    pub active_reservation_count: usize,
+    pub active_reservation_bytes: usize,
+    pub remaining_byte_capacity: usize,
+    pub references: Vec<NetworkArchiveCustodyReference>,
 }
 impl DurableNetworkReceipt {
     pub fn partition_key(&self) -> &str {
@@ -184,7 +184,7 @@ impl SqliteNetworkSidecar {
     /// Read the verified archive census while this sidecar still holds its
     /// original archive/database owner leases. External recovery/disclosure
     /// coverage and unpublished disposition remain unknown.
-    pub(crate) fn archive_custody_snapshot(&self) -> Result<NetworkArchiveCustodySnapshot> {
+    pub fn archive_custody_snapshot(&self) -> Result<NetworkArchiveCustodySnapshot> {
         self.check_owner()?;
         let snapshot = self.archive.capacity_snapshot()?;
         let mut references = Vec::with_capacity(snapshot.references.len());

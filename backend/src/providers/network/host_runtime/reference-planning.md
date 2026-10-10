@@ -20,8 +20,8 @@ origin. An original owner's `History` reference remains a payload protection.
 Every permanent Core/archive identifier remains reserved: planning changes no
 ID, table, trigger, capacity setting, catalog, reservation or byte.
 
-`SqliteNetworkSidecar::archive_custody_snapshot` is a private read-only view
-of the verified original archive under its existing database and segment owner
+`SqliteNetworkSidecar::archive_custody_snapshot` is a native owner read-only API
+for the verified original archive under its existing database and segment owner
 leases. It reports permanent burned IDs and remaining slots, sealed segment
 bytes, active reservation count and bytes, and remaining bytes against the
 unchanged 10,000-ID and 256-MiB ceilings. Its per-reference protected bytes

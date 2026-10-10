@@ -121,7 +121,6 @@ impl PinnedHomeBoxFileBinding {
         credentials: Arc<hb::NativeReadCredentialConfig>,
     ) -> storage::Result<Self> {
         let endpoint = source.endpoint().map_err(|_| binding_error())?;
-        let partition = source.partition();
         if source.metadata_dialect() != crate::providers::homebox::wire::DIALECT
             || !credentials.matches_endpoint(&endpoint)
         {

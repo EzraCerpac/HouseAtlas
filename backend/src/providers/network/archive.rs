@@ -158,7 +158,7 @@ pub(crate) struct NetworkArchiveReference {
     pub(crate) protected_bytes: usize,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum NetworkArchiveReferenceState {
+pub enum NetworkArchiveReferenceState {
     PermanentlyReserved,
     CapacityReserved,
     Sealed,
