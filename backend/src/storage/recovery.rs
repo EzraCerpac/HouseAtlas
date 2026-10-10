@@ -10,9 +10,11 @@ use rusqlite::{
     backup::{Backup, StepResult},
 };
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use std::{
     fs::{self, File, OpenOptions},
-    io::{ErrorKind, Read},
+    io::{ErrorKind, Read, Seek, SeekFrom},
+    os::unix::fs::MetadataExt,
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
@@ -101,6 +103,63 @@ type Verifier<'a, C> =
     &'a mut dyn FnMut(&Connection, &C, &mut dyn FnMut() -> Result<()>) -> Result<RecoveryImage>;
 
 impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
+    /// Explicit offline capture of existing closed state. The caller must hold
+    /// the live owner's exclusive lease for this entire operation. Immutable
+    /// SQLite is appropriate only after that exclusion and absent-sidecar proof;
+    /// this API never checkpoints a hot source, creates schema or enables WAL.
+    pub fn backup_existing_recovery_to_with_peers<
+        S: StockContractPort,
+        D: QueueDiscovery,
+        E: QueueRecoveryEvidence,
+    >(
+        source: &Path,
+        contract: &C,
+        destination: &Path,
+        peers: &RecoveryValidationPeers<'_, S, D, E>,
+        check: &mut dyn FnMut() -> Result<()>,
+    ) -> Result<RecoveryImage> {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        checkpoint(deadline, check)?;
+        let pin = ClosedSource::open(source, check)?;
+        let mut uri = url::Url::from_file_path(source).map_err(|_| unavailable())?;
+        uri.query_pairs_mut()
+            .append_pair("mode", "ro")
+            .append_pair("immutable", "1");
+        let mut db = Connection::open_with_flags(
+            uri.as_str(),
+            OpenFlags::SQLITE_OPEN_READ_ONLY
+                | OpenFlags::SQLITE_OPEN_URI
+                | OpenFlags::SQLITE_OPEN_NOFOLLOW
+                | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?;
+        let captured = (|| -> Result<RecoveryImage> {
+            db.busy_timeout(Duration::ZERO)?;
+            db.pragma_update(None, "query_only", true)?;
+            pin.check(check)?;
+            let tx = db.transaction()?;
+            let mut progress = || checkpoint(deadline, check);
+            let expected =
+                checks::validate_connection_with_peers(&tx, contract, peers, &mut progress)?;
+            let mut verify =
+                |copy: &Connection, native: &C, progress: &mut dyn FnMut() -> Result<()>| {
+                    checks::validate_connection_with_peers(copy, native, peers, progress)
+                };
+            let actual = backup_image(&tx, contract, destination, check, &mut verify)?;
+            if actual != expected {
+                return Err(checks::incompatible());
+            }
+            tx.commit()?;
+            Ok(actual)
+        })();
+        // Explicitly close even on validation failure. There is no writable
+        // source handle or checkpoint; only the separate output was normalized.
+        let closed = db.close().map_err(|(_, error)| Error::from(error));
+        let result = captured?;
+        closed?;
+        pin.check(check)?;
+        checkpoint(deadline, check)?;
+        Ok(result)
+    }
     /// Native-only compatibility API; populated images require explicit peers.
     pub fn backup_recovery_to(
         &mut self,
@@ -369,6 +428,117 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             runtime,
             options,
         }
+    }
+}
+
+/// Private source identity, exact bounded bytes and sidecar absence. This is
+/// an integrity fence under owner exclusion, not protection against a hostile
+/// same-user process that ignores the server lock.
+struct ClosedSource {
+    path: PathBuf,
+    file: File,
+    metadata: fs::Metadata,
+    digest: [u8; 32],
+}
+impl ClosedSource {
+    fn open(path: &Path, check: &mut dyn FnMut() -> Result<()>) -> Result<Self> {
+        if !path.is_absolute() || fs::canonicalize(path).map_err(|_| unavailable())? != path {
+            return Err(checks::incompatible());
+        }
+        let file = File::from(
+            rustix::fs::open(
+                path,
+                rustix::fs::OFlags::RDONLY
+                    | rustix::fs::OFlags::NOFOLLOW
+                    | rustix::fs::OFlags::NONBLOCK
+                    | rustix::fs::OFlags::CLOEXEC,
+                rustix::fs::Mode::empty(),
+            )
+            .map_err(|_| unavailable())?,
+        );
+        let metadata = file.metadata().map_err(|_| unavailable())?;
+        let mut pin = Self {
+            path: path.into(),
+            file,
+            metadata,
+            digest: [0; 32],
+        };
+        pin.check_identity()?;
+        let mut header = [0u8; 100];
+        (&pin.file)
+            .read_exact(&mut header)
+            .map_err(|_| checks::incompatible())?;
+        if &header[..16] != b"SQLite format 3\0"
+            || !matches!((header[18], header[19]), (1, 1) | (2, 2))
+        {
+            return Err(checks::incompatible());
+        }
+        pin.digest = pin.digest(check)?;
+        pin.check_identity()?;
+        Ok(pin)
+    }
+    fn check_identity(&self) -> Result<()> {
+        let matches = |m: &fs::Metadata| {
+            m.is_file()
+                && !m.file_type().is_symlink()
+                && m.nlink() == 1
+                && m.uid() == rustix::process::geteuid().as_raw()
+                && m.mode() & 0o777 == 0o600
+                && m.dev() == self.metadata.dev()
+                && m.ino() == self.metadata.ino()
+                && m.len() == self.metadata.len()
+                && m.len() <= 64 * 1024 * 1024
+                && m.mtime() == self.metadata.mtime()
+                && m.mtime_nsec() == self.metadata.mtime_nsec()
+                && m.ctime() == self.metadata.ctime()
+                && m.ctime_nsec() == self.metadata.ctime_nsec()
+        };
+        if !matches(&fs::symlink_metadata(&self.path).map_err(|_| unavailable())?)
+            || !matches(&self.file.metadata().map_err(|_| unavailable())?)
+            || fs::canonicalize(&self.path).map_err(|_| unavailable())? != self.path
+        {
+            return Err(checks::incompatible());
+        }
+        for suffix in ["-wal", "-shm", "-journal"] {
+            let mut name = self.path.as_os_str().to_os_string();
+            name.push(suffix);
+            match fs::symlink_metadata(PathBuf::from(name)) {
+                Err(e) if e.kind() == ErrorKind::NotFound => (),
+                Ok(_) => return Err(checks::incompatible()),
+                Err(_) => return Err(unavailable()),
+            }
+        }
+        Ok(())
+    }
+    fn digest(&self, check: &mut dyn FnMut() -> Result<()>) -> Result<[u8; 32]> {
+        let mut file = &self.file;
+        file.seek(SeekFrom::Start(0)).map_err(|_| unavailable())?;
+        let mut hasher = Sha256::new();
+        let mut buffer = [0u8; 64 * 1024];
+        let mut count = 0u64;
+        loop {
+            check()?;
+            let n = file.read(&mut buffer).map_err(|_| unavailable())?;
+            if n == 0 {
+                break;
+            }
+            count += n as u64;
+            if count > self.metadata.len() {
+                return Err(checks::incompatible());
+            }
+            hasher.update(&buffer[..n]);
+        }
+        if count != self.metadata.len() {
+            return Err(checks::incompatible());
+        }
+        Ok(hasher.finalize().into())
+    }
+    fn check(&self, progress: &mut dyn FnMut() -> Result<()>) -> Result<()> {
+        self.check_identity()?;
+        if self.digest(progress)? != self.digest {
+            return Err(checks::incompatible());
+        }
+        self.check_identity()
     }
 }
 
