@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "5037be8f63a7e3300c31ba5acbfd4e97c278219cb68319cdc328b2c74a711ff0",
+  "sourceDigestSha256": "f178cf4ba9150008a1b9ca452d4ade6c0c5f2fefa11e4cb2c9f01668094023e7",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5318,6 +5318,13 @@
       "owner": "web"
     },
     {
+      "path": "docs/geometry/native-geometry-association.md",
+      "mode": "100644",
+      "bytes": 4484,
+      "sha256": "192b99b10a7840f5df86678e63ef95ef28a4ea671d182e3cb4a872cc04c02b33",
+      "owner": "web"
+    },
+    {
       "path": "docs/geometry/native-geometry-read.md",
       "mode": "100644",
       "bytes": 5203,
@@ -5841,6 +5848,13 @@
       "bytes": 20806,
       "sha256": "be713f94faa6793b2927518b5d0f8329ca7147e3b1cfe89160f4649ebaec521b",
       "owner": "core-integration"
+    },
+    {
+      "path": "frontend/integration/native-geometry-association-client.ts",
+      "mode": "100644",
+      "bytes": 26311,
+      "sha256": "bffcabacde10d7ab9f62775fd20365820e56668f75bd39563fd990d37a0a9585",
+      "owner": "web"
     },
     {
       "path": "frontend/integration/native-geometry-read-client.ts",
@@ -6970,6 +6984,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/scans/native-association-types.ts",
+      "mode": "100644",
+      "bytes": 1900,
+      "sha256": "8fa73479f7c8c288bf91aab22e48e821cd1875880a48bb888f0015eba32894d0",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/scans/native-read-types.ts",
       "mode": "100644",
       "bytes": 2617,
@@ -7133,8 +7154,8 @@
     {
       "path": "frontend/src/numeric/schema-validator.ts",
       "mode": "100644",
-      "bytes": 24190,
-      "sha256": "b1306ef621cec69fbda6f97b83d5b0f12171422f3166a09e0ff1798578a09fd6",
+      "bytes": 24407,
+      "sha256": "731fc07d82b9b6a4c870d04eb5f7a7ed220fe8c6106e0a663cbe68848f1e4f53",
       "owner": "web"
     },
     {
