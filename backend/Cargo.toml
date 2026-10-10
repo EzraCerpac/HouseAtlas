@@ -179,3 +179,7 @@ path = "src/lifecycle/receipt_compatibility_healthy.rs"
 [[example]]
 name = "healthy-native-place-labels"
 path = "examples/healthy-native-place-labels.rs"
+
+[[example]]
+name = "healthy-native-offline-backup"
+path = "examples/healthy-native-offline-backup.rs"
