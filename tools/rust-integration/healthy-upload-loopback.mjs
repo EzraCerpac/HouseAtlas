@@ -278,8 +278,23 @@ try {
   const fileNode = await send('DOM.querySelector', { nodeId: documentNode.root.nodeId, selector: 'form[aria-label="Atlas attachment"] input[name=file]' });
   assert(fileNode.nodeId > 0, 'Actual rendered file input');
   await send('DOM.setFileInputFiles', { nodeId: fileNode.nodeId, files: [uploadFile] });
-  const selectedFile = await evaluate("(()=>{const file=document.querySelector('form[aria-label=\"Atlas attachment\"] input[name=file]').files[0];return {name:file.name,type:file.type,size:file.size};})()");
-  assert.deepEqual(selectedFile, { name: filename, type: 'image/png', size: uploadBytes.length });
+  // EvidencePicker clears its input while asynchronously retaining selection.
+  // Its completed visible facts use PNG as the label for image/png.
+  const waitForSelectedFile = async label => {
+    const selectedFacts = await until(async () => await evaluate(`(() => {
+      const form = document.querySelector('form[aria-label="Atlas attachment"]');
+      const facts = [...(form?.querySelectorAll('fieldset p') ?? [])]
+        .find(row => row.textContent?.startsWith('Selected: '));
+      const picker = facts?.closest('fieldset');
+      const ready = facts?.getClientRects().length
+        && picker?.querySelector('[role=status]')?.textContent === 'File selected. Review the evidence statement before uploading.'
+        && picker?.querySelector('input[name=file]:not(:disabled)')
+        && form?.querySelector('button[type=submit]:not(:disabled)');
+      return ready ? facts.textContent : false;
+    })()`), label);
+    assert.equal(selectedFacts, `Selected: ${filename} · PNG · ${uploadBytes.length} bytes`, 'Rendered original filename, image/png label and byte size');
+  };
+  await waitForSelectedFile('Actual completed evidence selection');
   await evaluate(`(()=>{const form=document.querySelector('form[aria-label="Atlas attachment"]');for(const [name,value] of Object.entries(${JSON.stringify({ statement, reason })})){const field=form.querySelector('input[name='+name+']');field.value=value;field.dispatchEvent(new Event('input',{bubbles:true}));}const select=form.querySelector('select[name=license]');select.value='0';select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await until(async () => await evaluate("document.querySelector('form[aria-label=\"Atlas attachment\"] select[name=license]').value==='0'"), 'Actual offered source licence selected');
   assert.equal(await evaluate("document.querySelector('form[aria-label=\"Atlas attachment\"]').checkValidity()"), true);
@@ -589,6 +604,7 @@ finally:
   const secondDocument = await send('DOM.getDocument', { depth: 0 });
   const secondInput = await send('DOM.querySelector', { nodeId: secondDocument.root.nodeId, selector: 'form[aria-label="Atlas attachment"] input[name=file]' });
   await send('DOM.setFileInputFiles', { nodeId: secondInput.nodeId, files: [uploadFile] });
+  await waitForSelectedFile('Second completed evidence selection');
   await evaluate(`(()=>{const form=document.querySelector('form[aria-label="Atlas attachment"]');for(const [name,value] of Object.entries(${JSON.stringify({ statement:secondStatement, reason:secondReason })})){const field=form.querySelector('input[name='+name+']');field.value=value;field.dispatchEvent(new Event('input',{bubbles:true}));}const select=form.querySelector('select[name=license]');select.value='0';select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await evaluate("document.querySelector('form[aria-label=\"Atlas attachment\"]').requestSubmit()");
   await until(() => uploadRequests.length === 2, 'Second fresh actual multipart POST');
