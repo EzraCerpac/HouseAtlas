@@ -17,6 +17,10 @@ import { createNativePlaceClient } from "../src/api/native-place-client";
 import { createTopologyClient } from "../src/api/topology-client";
 import { createNetworkRelationsClient } from "../src/api/network-relations-client";
 import { createNativeGeometryReadClient } from "./native-geometry-read-client";
+import { createNativeGeometryWriteClient } from "./native-geometry-write-client";
+import { createNativeGeometryAssociationClient } from "./native-geometry-association-client";
+import type { NativeAssociationPending, NativeAssociationPrepared } from "../src/lantern/scans/native-association-types";
+import type { NativeGeometryIntakeAssociation } from "../src/lantern/scans/native-ui/NativeGeometryIntake";
 import { createAccountObservationClient } from "../src/ai/host/account-client";
 import { AccountObservationProvider } from "../src/ai/AccountObservation";
 import { detectModelContext } from "../src/webmcp/browser";
@@ -235,6 +239,95 @@ const nativeGeometry = createNativeGeometryReadClient({
     return () => quantityEvents.removeEventListener("changed", changed);
   },
 });
+// Custody and association share the read client's actual canonical owner,
+// completed view allocation and synchronous host change notifications. The
+// published command catalog is admission, never a label-edit capability.
+const nativeGeometryContext = () => currentSession && currentQuantityScope && currentStockAdmission
+  ? { sessionIdentity: currentSession, session: currentSession, scope: currentQuantityScope, admission: currentStockAdmission } : null;
+const subscribeNativeGeometry = (changed: () => void) => {
+  quantityEvents.addEventListener("changed", changed);
+  return () => quantityEvents.removeEventListener("changed", changed);
+};
+const nativeGeometryWrite = createNativeGeometryWriteClient({
+  getContext: nativeGeometryContext, subscribe: subscribeNativeGeometry,
+});
+const geometryAssociationCommands = ['atlas.identity.get', 'atlas.location-semantics.get', 'atlas.evidence.get', 'atlas.asset.get',
+  'atlas.batch.execute', 'atlas.evidence.create', 'atlas.geometry.create', 'atlas.identity.replace'] as const;
+const nativeGeometryAssociationOwner = createNativeGeometryAssociationClient({
+  getContext: () => {
+    const context = nativeGeometryContext();
+    return context && geometryAssociationCommands.every(command => context.admission.commandIds.includes(command)) ? context : null;
+  },
+  subscribe: subscribeNativeGeometry,
+});
+// Confirmations stay observable across command-catalog gaps. A missing or
+// uncorrelated result never proves that a batch was not dispatched/committed.
+// Retention has no admission role: every new call still uses the strict owner.
+type AssociationRetentionOwner = {
+  readonly identity: object; readonly session: AtlasSessionInfo; readonly actor: string;
+  readonly csrf: string; readonly expiry: string; readonly workspace: string; readonly home: string;
+};
+const associationConfirmations = new Map<NativeAssociationPrepared, {
+  readonly owner: AssociationRetentionOwner; readonly row: NativeAssociationPending;
+}>();
+const associationIntents = new WeakSet<NativeAssociationPrepared>();
+const associationRetentionListeners = new Set<() => void>();
+const notifyAssociationRetention = () => { for (const listener of associationRetentionListeners) queueMicrotask(listener); };
+let associationRetentionOwner: AssociationRetentionOwner | null = null;
+const sameAssociationOwner = (owner: AssociationRetentionOwner, session: AtlasSessionInfo, scope: Scope) =>
+  owner.session === session && owner.actor === session.actorId && owner.csrf === session.csrfToken
+  && owner.expiry === session.expiresAt && owner.workspace === scope.workspaceId && owner.home === scope.homeId;
+const getAssociationRetentionOwner = (scope: Scope): AssociationRetentionOwner | null => {
+  const session = currentSession, actualScope = currentQuantityScope;
+  if (!session || !actualScope || session.schemaVersion !== 1 || !session.actorId || !session.csrfToken
+    || !Number.isFinite(Date.parse(session.expiresAt)) || Date.parse(session.expiresAt) <= Date.now()
+    || actualScope.workspaceId !== scope.workspaceId || actualScope.homeId !== scope.homeId) return null;
+  if (!associationRetentionOwner || !sameAssociationOwner(associationRetentionOwner, session, scope)) {
+    // Restore the same canonical session/home's hold after a view/scope gap.
+    const retained = [...associationConfirmations.values()].find(entry => sameAssociationOwner(entry.owner, session, scope));
+    associationRetentionOwner = retained?.owner ?? { identity: Object.freeze({}), session, actor: session.actorId,
+      csrf: session.csrfToken, expiry: session.expiresAt, workspace: scope.workspaceId, home: scope.homeId };
+  }
+  return associationRetentionOwner;
+};
+const retainedAssociations = (owner: AssociationRetentionOwner) =>
+  [...associationConfirmations.values()].filter(entry => entry.owner === owner).map(entry => entry.row);
+const nativeGeometryAssociation: NativeGeometryIntakeAssociation = {
+  ...nativeGeometryAssociationOwner,
+  getRetention(scope) {
+    const owner = getAssociationRetentionOwner(scope);
+    return owner ? Object.freeze({ owner: owner.identity, rows: Object.freeze(retainedAssociations(owner)) }) : null;
+  },
+  subscribePending(changed) {
+    associationRetentionListeners.add(changed);
+    const stop = nativeGeometryAssociationOwner.subscribePending(changed);
+    return () => { associationRetentionListeners.delete(changed); stop(); };
+  },
+  prepare(admission, input) {
+    const owner = getAssociationRetentionOwner(admission.binding.scope);
+    if (!owner || associationConfirmations.size >= 16 || retainedAssociations(owner).some(row => row.outcome === 'unknown'))
+      throw new TypeError('Building association preparation is unavailable');
+    const prepared = nativeGeometryAssociationOwner.prepare(admission, input);
+    associationIntents.add(prepared);
+    return prepared;
+  },
+  async commit(prepared, signal) {
+    signal.throwIfAborted();
+    const owner = getAssociationRetentionOwner(prepared.binding.scope);
+    if (!owner || nativeGeometryAssociationOwner.getBinding() !== prepared.binding || !associationIntents.has(prepared)
+      || associationConfirmations.has(prepared) || associationConfirmations.size >= 16
+      || retainedAssociations(owner).some(row => row.outcome === 'unknown'))
+      throw new TypeError('Building association confirmation is unavailable');
+    // Record the deliberate confirmation before invoking any owner/transport
+    // callback. Reentrant admission loss cannot mask the unresolved hold.
+    associationConfirmations.set(prepared, { owner, row: Object.freeze({ prepared, outcome: 'unknown' }) });
+    notifyAssociationRetention();
+    const receipt = await nativeGeometryAssociationOwner.commit(prepared, signal);
+    associationConfirmations.set(prepared, { owner, row: Object.freeze({ prepared, outcome: 'committed', receipt }) });
+    notifyAssociationRetention();
+    return receipt;
+  },
+};
 const nativeClient = createAtlasClient({
   bootstrap: root.dataset.bootstrapUrl ?? "/api/atlas/view",
   home: scope => `/api/atlas/homes/${encodeURIComponent(scope.workspaceId)}/${encodeURIComponent(scope.homeId)}/view`,
@@ -392,6 +485,6 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
   }, []);
   // Keep the concrete editing port stable through view/catalog refreshes.
   // Each place admission and command obtains the actual request authority.
-  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} nativeGeometry={nativeGeometry} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
+  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} nativeGeometry={nativeGeometry} nativeGeometryWrite={nativeGeometryWrite} nativeGeometryAssociation={nativeGeometryAssociation} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
 }
 createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);

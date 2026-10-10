@@ -6,8 +6,12 @@ import type { PresentationFloor, SceneOverlay } from '../presentation/types';
 import { useStore } from '../../state/store';
 import { useTopology } from '../../topology/TopologyProvider';
 import { RoomIndex } from '../../views/RoomsView';
+import type { NativeGeometryWriteClient } from '../native-write-types';
+import { NativeGeometryIntake, type NativeGeometryIntakeAssociation } from './NativeGeometryIntake';
 
 const Context = createContext<NativeGeometryReadClient | undefined>(undefined);
+const IntakeContext = createContext<{ readonly write: NativeGeometryWriteClient | undefined;
+  readonly association: NativeGeometryIntakeAssociation | undefined }>({ write: undefined, association: undefined });
 const buildingReadMessages = {
   loading: 'Loading building records…', unavailable: 'Building records could not be loaded. Reload the saved view to retry.',
   denied: 'Access to building records is denied.', expired: 'The session for this read has expired.',
@@ -15,9 +19,13 @@ const buildingReadMessages = {
   continuationUnavailable: 'Building records could not be continued. Reload the saved view.',
   changed: 'Building records differ between reads. Reload the saved view.',
 };
-export function NativeGeometryProvider({ client, children }: {
+export function NativeGeometryProvider({ client, writeClient, associationClient, children }: {
   readonly client: NativeGeometryReadClient | undefined; readonly children: ReactNode;
-}) { return <Context.Provider value={client}>{children}</Context.Provider>; }
+  readonly writeClient?: NativeGeometryWriteClient | undefined; readonly associationClient?: NativeGeometryIntakeAssociation | undefined;
+}) {
+  const intake = useMemo(() => ({ write: writeClient, association: associationClient }), [writeClient, associationClient]);
+  return <Context.Provider value={client}><IntakeContext.Provider value={intake}>{children}</IntakeContext.Provider></Context.Provider>;
+}
 export function useNativeGeometryClient(): NativeGeometryReadClient | undefined { return useContext(Context); }
 
 type Loaded = { readonly owner: object; readonly frame: NativeGeometryFrame; readonly floors: readonly PresentationFloor[] };
@@ -26,6 +34,7 @@ type Loaded = { readonly owner: object; readonly frame: NativeGeometryFrame; rea
  * by this host presentation. The existing Rooms & places UI remains reachable. */
 export function NativeScanAtlas({ client }: { readonly client: NativeGeometryReadClient }) {
   const { projection } = useStore(), topology = useTopology();
+  const intake = useContext(IntakeContext);
   const view = projection.view;
   const [attempt, setAttempt] = useState(0), [overlay, setOverlay] = useState<SceneOverlay>('spaces');
   const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -105,6 +114,11 @@ export function NativeScanAtlas({ client }: { readonly client: NativeGeometryRea
         {observation.frame.floors.length > 3 && <p>{observation.frame.floors.length} exported floors retained; showing the first three in native descriptor order.</p>}
       </> : <p role="status">{status === 'empty' ? 'No committed scan association for this building.'
         : status === 'unavailable' ? 'Scans are unavailable for this current session and building. Refresh scans to check again.' : 'Loading building scans…'}</p>}
+    {intake.write && intake.association && <NativeGeometryIntake write={intake.write} association={intake.association}
+      buildingId={building?.id ?? null} onAssociated={() => {
+        if (current.current !== owner) return;
+        topology.reload(); setAttempt(value => value + 1);
+      }} />}
     <details><summary>Rooms &amp; places</summary><RoomIndex /></details>
   </div>;
 }
