@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "982718983cbee9e54a1359106b26f115eb3f94ba8208d6acdbd3e48ef11c5c97",
+  "sourceDigestSha256": "28799bf2b1e508f53a7dd837af9fae3aa0a138a1ab94f48d9f32255e72f6d976",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5278,15 +5278,15 @@
     {
       "path": "docs/geometry/electricity-overlay.md",
       "mode": "100644",
-      "bytes": 3751,
-      "sha256": "b35b42c6717fb77ac3262426df5a939830c9452a6e61ce954b9cd30aa3b6dcb3",
+      "bytes": 5654,
+      "sha256": "bbd3b0fda502133217d354a70e5910245797c77cc866d34fbbe2680b2e17f445",
       "owner": "web"
     },
     {
       "path": "docs/geometry/network-overlay.md",
       "mode": "100644",
-      "bytes": 3903,
-      "sha256": "c6588f62d399f069f5acc7f647b1c1d0c5aeb9ab4108ff45e82f8d11db040a77",
+      "bytes": 5807,
+      "sha256": "74a0c10f4775676b607560f1492c87595783361cc103cde5baba7a74db00639c",
       "owner": "web"
     },
     {
@@ -5866,8 +5866,8 @@
     {
       "path": "frontend/lantern-tests/electricity-overlay-read.mjs",
       "mode": "100644",
-      "bytes": 9085,
-      "sha256": "0924d999937643d160a4eb633279a791f01d41e16173f8fef3fb7293e61128b3",
+      "bytes": 11640,
+      "sha256": "3074fdd2edde7c6da9f1b7fc301c35a86dc78459ea304b90ed958307d1b9b255",
       "owner": "web"
     },
     {
@@ -5901,8 +5901,8 @@
     {
       "path": "frontend/lantern-tests/network-overlay-read.mjs",
       "mode": "100644",
-      "bytes": 13262,
-      "sha256": "9c48ec04fd1687eb4d6dcc3a943b5e9b51ca78d63ad7b375bb16f05a87273a88",
+      "bytes": 18553,
+      "sha256": "e82285e01be322f194daebed8417965d337592774a5a14fb3a3f361e38b74105",
       "owner": "web"
     },
     {
@@ -6776,15 +6776,15 @@
     {
       "path": "frontend/src/lantern/overlays/electricity/ElectricityOverlayPanel.tsx",
       "mode": "100644",
-      "bytes": 7864,
-      "sha256": "8e599946f22e2d05ec4d2600586c3e0514322eb633a79bd714e20626d724a0b7",
+      "bytes": 9907,
+      "sha256": "9a8ab917349109bc44eb151e7c46e2734bb03bc36005fbf0af77537b36fed5fc",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/overlays/electricity/documentary-adapter.ts",
       "mode": "100644",
-      "bytes": 11518,
-      "sha256": "10f95f07be057b9fe145935cb128e2e35d77aa98580c63e26c4117a859c490b1",
+      "bytes": 13378,
+      "sha256": "92ee8414b38fe2955e4a417f5abb43037045d8c420db125a3344117b1e0d6308",
       "owner": "web"
     },
     {
@@ -6797,29 +6797,29 @@
     {
       "path": "frontend/src/lantern/overlays/electricity/index.ts",
       "mode": "100644",
-      "bytes": 427,
-      "sha256": "b9bd3ccf846c5ff621a4963800cf85e907b4f325fe94f94f56081b173c6bf9c8",
+      "bytes": 461,
+      "sha256": "37f65b463cf953db7d4848a0983be9abccf1f69e4c31dc7e3fc4fe356bf2f045",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/overlays/electricity/types.ts",
       "mode": "100644",
-      "bytes": 3097,
-      "sha256": "c90cae6de11ca9cfc1126623b9808ebdcdec21c0daa787be1cbf7be51ebfa9c7",
+      "bytes": 3819,
+      "sha256": "65f4061cc750255cb5d9a2fc80b2d26cd50f0d6450b7b29ef964f717f3b63ad0",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/overlays/network/NetworkOverlayPanel.tsx",
       "mode": "100644",
-      "bytes": 10383,
-      "sha256": "3cf9503fbd3ecc68235de512f297f3d18af9b69131f02b011c8a3a88704f0fa1",
+      "bytes": 12952,
+      "sha256": "3c130d32ec179dc5e7664c531a1b733dec1aff8320d54ba11b3c279d6654c292",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/overlays/network/NetworkTopology.tsx",
       "mode": "100644",
-      "bytes": 6959,
-      "sha256": "7dc439c7b3f6dbe75b158aebf808a2c6123d81be4ac0d0dc752fa19d60b8ac6d",
+      "bytes": 7331,
+      "sha256": "d8dc628fa3a5bf5d02c0e3ac4c9925f387fcbe26c6c4969e48dd9333c47aa97b",
       "owner": "web"
     },
     {
@@ -6832,8 +6832,8 @@
     {
       "path": "frontend/src/lantern/overlays/network/model.ts",
       "mode": "100644",
-      "bytes": 5838,
-      "sha256": "5921ded16386e0a5492f4bc2235d2f7e249b3a66fcdccdd8a6689bca5e133e3d",
+      "bytes": 7451,
+      "sha256": "f81813ef8e1fbd37073032cbbb064f441d655bbef779443aadcce32d95dddb20",
       "owner": "web"
     },
     {
@@ -6846,8 +6846,8 @@
     {
       "path": "frontend/src/lantern/overlays/network/types.ts",
       "mode": "100644",
-      "bytes": 3476,
-      "sha256": "625c8808b0037fcc43febb4b37fe4cd7dadd7da67b9303453069fd5556e776b7",
+      "bytes": 4883,
+      "sha256": "3eeaf37645fa8031ac1da4fd79ade2765d44030d207cc445686b271e04a2d37c",
       "owner": "web"
     },
     {
