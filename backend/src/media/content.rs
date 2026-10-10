@@ -15,12 +15,12 @@ const MAX_PIXELS: u64 = 25_000_000;
 /// The pixel codec synchronously filters/transforms each preview row.
 pub const MAX_PNG_PREVIEW_ROW_BYTES: usize = 64 * 1024;
 
+#[path = "jpeg_original.rs"]
+mod jpeg_original;
 #[path = "png_decode.rs"]
 mod png_decode;
 #[path = "png_original.rs"]
 mod png_original;
-#[path = "jpeg_original.rs"]
-mod jpeg_original;
 
 pub fn validate_content(
     bytes: &[u8],

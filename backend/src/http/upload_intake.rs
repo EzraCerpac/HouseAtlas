@@ -137,10 +137,10 @@ fn validate_metadata(bytes: &[u8]) -> Result<UploadMetadata, IntakeError> {
         return Err(invalid());
     }
     media::types::ContentType::parse(&metadata.content_type).map_err(|_| invalid())?;
-    if let Some(capture) = &metadata.capture {
-        if !capture.validate(&metadata.filename) {
-            return Err(invalid());
-        }
+    if let Some(capture) = &metadata.capture
+        && !capture.validate(&metadata.filename)
+    {
+        return Err(invalid());
     }
     Ok(metadata)
 }
