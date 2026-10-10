@@ -172,6 +172,30 @@ establish visual, security, operator, pilot or deployment acceptance.
 Observed local run on 2026-10-09: PASS, 95 MCP POSTs and 28 native commits,
 with exact Alpha/Beta pagination and private fixture cleanup.
 
+A separate local building-selector browser qualification uses the actual Rust
+server, issued synthetic Editor session and native StockService. Six fresh
+Atlas creates add one generic building, one floor with unknown elevation and
+reviewed memberships to the original bound synthetic room. The real React
+consumer reads one coherent topology frame, selects the building, opens that
+room, and explicitly reads the native empty saved Network page. It uses a
+fresh loopback TLS/browser profile and removes disposable state. Inspect its
+complete source and helpers before this named positive-only local command:
+
+```sh
+TMPDIR=/tmp \
+SOURCE_SHA=7e450a12037a4be19b2fa0553a6cde3e08b3cdcf \
+HOUSEATLAS_CHROMIUM="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" \
+node tools/rust-integration/healthy-building-ui-loopback.mjs
+```
+
+Use the inspected Chrome 154.0.8037.98 and Node 26.10.0, with OpenSSL 3 on PATH.
+The binary and frontend/dist must have verified build provenance for the stated
+unchanged production pin. Optional HOUSEATLAS_EVIDENCE and
+HOUSEATLAS_SCREENSHOT_PREFIX select private output paths whose parents exist.
+This check is outside ordinary CI. It provides no populated Network/provider,
+actual-household, recovery, security, operator, pilot or deployment acceptance.
+
 The core exports embeddable request/service modules; it provisions no service.
 `config/deployment.example.json` is a typed unfilled template, not runtime
 configuration or authority. Supply real settings privately only after the
