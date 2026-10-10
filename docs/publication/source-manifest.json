@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "28799bf2b1e508f53a7dd837af9fae3aa0a138a1ab94f48d9f32255e72f6d976",
+  "sourceDigestSha256": "3558c7607867b1d8c952f3992a77eeaaf9cdb6811c9e38f66b8350773c5eab9b",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 28287,
-      "sha256": "13d4a28eb57ee0f0333cf270e7e28686c2e7c0120c5683bf5575f4357293afe1",
+      "bytes": 29323,
+      "sha256": "d4f22ca416e1f22a23c3b859b6d0125b4b39dcf0083e5abf4ec77274d3c34195",
       "owner": "core-integration"
     },
     {
@@ -245,8 +245,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 4650,
-      "sha256": "dbdaa0ca5e557ca9ed8bb550a71bd9753de1cd848d810cdf7c1459b7b59bc754",
+      "bytes": 4768,
+      "sha256": "90a93b5c9b8fcba8cebc0ae83cd67d7239822f665e3305089e96c1eb6fd5a3f1",
       "owner": "core-integration"
     },
     {
@@ -269,6 +269,13 @@
       "bytes": 12071,
       "sha256": "89c2e1bd0d26131c5fe51dc32d0f7c82e7090e336df8e34a40e843d60125683b",
       "owner": "mcp"
+    },
+    {
+      "path": "backend/examples/healthy-native-geometry-custody-first.rs",
+      "mode": "100644",
+      "bytes": 28629,
+      "sha256": "78300986d9eb3a1fe55e7c5ab160ca795f855ce104438fab944502b3df9399e4",
+      "owner": "core-integration"
     },
     {
       "path": "backend/examples/healthy-native-offline-backup.rs",
@@ -2051,8 +2058,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 43459,
-      "sha256": "9d60cdd47ad39d7bdffd2a17f88488f9738c9eeee7b4c362b7a7293fe16b2aac",
+      "bytes": 44329,
+      "sha256": "e10f1a509f2850689ce19454504a478cecccfbd607995f46044d9b5297f086db",
       "owner": "core-integration"
     },
     {
@@ -2060,6 +2067,13 @@
       "mode": "100644",
       "bytes": 21907,
       "sha256": "e1392c8d9de86ae18677d461d151767528d5232fef1ae32b7ee4f55990049ba1",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/http/native_geometry.rs",
+      "mode": "100644",
+      "bytes": 23152,
+      "sha256": "d3e2bb71fda5482e9ae5e9dc1e76fc30a8aadbfb029272644646bcde72dd848d",
       "owner": "core-integration"
     },
     {
@@ -2576,8 +2590,8 @@
     {
       "path": "backend/src/media/content.rs",
       "mode": "100644",
-      "bytes": 11691,
-      "sha256": "82647a15bdaa2d4f64c0eec67628a449b5009bf5521791745328d5150860933f",
+      "bytes": 11941,
+      "sha256": "f1a524a833ea68f5fbf675297eb4bac6ceac2a6629d058c9739ddf979278426c",
       "owner": "media"
     },
     {
@@ -2585,6 +2599,20 @@
       "mode": "100644",
       "bytes": 1954,
       "sha256": "ff5c6df08b50557a4bc00e016323f09a4ff607adc8e0d4dadafd8d62ead2ccc8",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/geometry_bundle.rs",
+      "mode": "100644",
+      "bytes": 14648,
+      "sha256": "7b01f57c9b603f2beffc382d9c06a29f049220768fb84e7463361123f0cc50cb",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/geometry_original.rs",
+      "mode": "100644",
+      "bytes": 6036,
+      "sha256": "67fa94f6e70b371f1f7d2bed9e8fbd871be22f6855e8a32f5db1322c1b122d6f",
       "owner": "media"
     },
     {
@@ -2693,17 +2721,24 @@
       "owner": "media"
     },
     {
+      "path": "backend/src/media/mesh_derivative.rs",
+      "mode": "100644",
+      "bytes": 33546,
+      "sha256": "fa649bd222a64c36efdda061698a6c67e82b1bf74300f00cf0570d17e9d1568f",
+      "owner": "media"
+    },
+    {
       "path": "backend/src/media/mod.rs",
       "mode": "100644",
-      "bytes": 1536,
-      "sha256": "efce9d366812dea78c1ca92ed9e0aa2d2f3ebd568555eeb5c950e4a292d90eba",
+      "bytes": 1613,
+      "sha256": "58aa1c16ed96386ec4e0ca507a2ba0b493098bc0089bb37b78193c884665d925",
       "owner": "media"
     },
     {
       "path": "backend/src/media/native.rs",
       "mode": "100644",
-      "bytes": 15250,
-      "sha256": "405761d724ed670ef1dea74f37fef3050a27273d1e7ec3652f661a260f60f4c9",
+      "bytes": 15399,
+      "sha256": "3c93213db7b1d24ebcbcaed6deee5ab35e69d8526e9689f05a84c74adda7e394",
       "owner": "media"
     },
     {
@@ -2800,8 +2835,8 @@
     {
       "path": "backend/src/media/recovery.rs",
       "mode": "100644",
-      "bytes": 16674,
-      "sha256": "6ec17bd217824a04fe44b6e04e860ef4c8ee074b0a3c8183e5f4e573889d959d",
+      "bytes": 18752,
+      "sha256": "60b149e8c7bbed64eb590a06d706d0b59ec36b3e43b1ac6e58f04bc1bfef5ba5",
       "owner": "media"
     },
     {
@@ -2835,36 +2870,36 @@
     {
       "path": "backend/src/media/service.rs",
       "mode": "100644",
-      "bytes": 7543,
-      "sha256": "f1a6b7de4cd5e674ba216fd92a8b26fc9c94c3f40602f0d99cf1b64695993bcb",
+      "bytes": 7626,
+      "sha256": "0817f0a8e1916c2ad132622581cb7e80775fba7010c006f129af56b6fd9fb710",
       "owner": "media"
     },
     {
       "path": "backend/src/media/staged_upload.rs",
       "mode": "100644",
-      "bytes": 17153,
-      "sha256": "8a1a30a368016444414b34a16a0ab79c92fa994965fcacb64981240501f79d87",
+      "bytes": 19864,
+      "sha256": "0d52107c292b6e8ff4e64829435c623d7c4f14d874f922fcb7e961cca8146629",
       "owner": "media"
     },
     {
       "path": "backend/src/media/types.rs",
       "mode": "100644",
-      "bytes": 8345,
-      "sha256": "786680ba18a9ee5e020ee79d1a48764d28b22c64769ab1504b9799a9d82a1d51",
+      "bytes": 9603,
+      "sha256": "05fed8b74aee4448a61e12b2d5d883645eb9df785116d89914994df6cd0078c5",
       "owner": "media"
     },
     {
       "path": "backend/src/media/upload_maintenance.rs",
       "mode": "100644",
-      "bytes": 13492,
-      "sha256": "1c2624b7244b7ac6c280669cf3cd1c055d853e595d4b50c62d061cb755db7f11",
+      "bytes": 13578,
+      "sha256": "3fef3ec2c6f3c5df40c945cc486324dda7e4e82a4b5165672ae1a0b7e24d3926",
       "owner": "media"
     },
     {
       "path": "backend/src/media/vault.rs",
       "mode": "100644",
-      "bytes": 20556,
-      "sha256": "00595ece07b25803e41a8a2d91720fae5305d83c8c551b1a0f3057fafa2d713e",
+      "bytes": 23007,
+      "sha256": "e868b9f9fc33229d8fb08cfe6abc95f86aa509ae2c2de0ef4cd1ed44c84188d2",
       "owner": "media"
     },
     {
@@ -4858,8 +4893,8 @@
     {
       "path": "backend/src/storage/upload_repository.rs",
       "mode": "100644",
-      "bytes": 21452,
-      "sha256": "a82f32ee21438eba7c35b68c52a2ad54b1872dfbe1f6c4e80e8c7bb732ef8c6e",
+      "bytes": 21630,
+      "sha256": "12c9bf72e8633a5bc9a0322b4c8d96aed7b5771284f007bc6c4afde1c49bd6bb",
       "owner": "storage"
     },
     {
@@ -5323,6 +5358,13 @@
       "bytes": 7256,
       "sha256": "cf1222e3de213a45fd378c415cadc78f686ae020d75afdd8550123c4b60a2896",
       "owner": "operations-policy"
+    },
+    {
+      "path": "docs/operations/native-geometry-custody-first.md",
+      "mode": "100644",
+      "bytes": 6782,
+      "sha256": "e258fe9a34d8729f75b593191f3fc6fe5e47cca0718ec6171e34e935347e1090",
+      "owner": "media"
     },
     {
       "path": "docs/operations/persistent-server.md",
