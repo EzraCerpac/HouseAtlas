@@ -115,6 +115,32 @@ async fn run(
                 );
                 Ok(())
             }
+            ServerCommand::UpgradeStateReceipt(selection) => {
+                if ai_account.is_some() {
+                    return Err(
+                        "Offline receipt compatibility accepts no AI account selection".into(),
+                    );
+                }
+                let report = tokio::task::spawn_blocking(move || {
+                    lifecycle::receipt_compatibility::upgrade(&selection)
+                })
+                .await??;
+                println!("{}", serde_json::to_string(&report)?);
+                Ok(())
+            }
+            ServerCommand::RollbackStateReceipt(selection) => {
+                if ai_account.is_some() {
+                    return Err(
+                        "Offline receipt compatibility accepts no AI account selection".into(),
+                    );
+                }
+                let report = tokio::task::spawn_blocking(move || {
+                    lifecycle::receipt_compatibility::rollback(&selection)
+                })
+                .await??;
+                println!("{}", serde_json::to_string(&report)?);
+                Ok(())
+            }
         };
     }
     let config = Config::from_args().map_err(|e| format!("HouseAtlas settings: {e}"))?;
