@@ -13,6 +13,13 @@ export async function loadScanProfileSource() {
     { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
   const specifier = '"../../numeric/decimal"'; assert(code.includes(specifier));
   code = code.replaceAll(specifier, JSON.stringify(await loadNumericSource('numeric/decimal.ts')));
+  const yieldFile = new URL('../src/lantern/scans/presentation/yield-task.ts', import.meta.url);
+  const { code: yieldCode } = await transformWithOxc(readFileSync(yieldFile, 'utf8'), yieldFile.pathname,
+    { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
+  assert(!/^\s*import\s+(?:[\w$\s{},*]+?\s+from\s+)?["']([^"']+)["']/m.test(yieldCode),
+    'Unexpected runtime import in yield-task source');
+  const yieldSpecifier = '"./presentation/yield-task"'; assert(code.includes(yieldSpecifier));
+  code = code.replaceAll(yieldSpecifier, JSON.stringify(dataUrl(yieldCode)));
   for (const match of code.matchAll(/^\s*import\s+(?:[\w$\s{},*]+?\s+from\s+)?["']([^"']+)["']/gm))
     assert(match[1].startsWith('data:'), `Unexpected runtime import ${match[1]}`);
   return dataUrl(code);

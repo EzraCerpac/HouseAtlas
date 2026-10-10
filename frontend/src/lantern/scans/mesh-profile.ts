@@ -1,3 +1,4 @@
+import { yieldTask } from './presentation/yield-task';
 import { ExactDecimal, isExactDecimal } from '../../numeric/decimal';
 
 /** Local presentation proposal. This is not a native schema or admission grant. */
@@ -173,7 +174,7 @@ async function decode(bytes: Uint8Array, signal: AbortSignal, started: number): 
   const checkpoint = async (): Promise<void> => {
     signal.throwIfAborted();
     requireValue(performance.now() - started <= MESH_LIMITS.workMs, 'Mesh work budget exceeded');
-    if (nodes % 2048 === 0) { await new Promise<void>(resolve => setTimeout(resolve, 0)); signal.throwIfAborted(); }
+    if (nodes % 2048 === 0) { await yieldTask(signal); signal.throwIfAborted(); }
   };
   const space = (): void => { while (/\s/.test(source[offset] ?? '') && offset < source.length) {
     requireValue(' \r\n\t'.includes(source[offset]!), 'Invalid JSON whitespace'); offset++;
@@ -253,7 +254,7 @@ export async function parseMeshProfile(bytes: Uint8Array, signal: AbortSignal): 
   const started = performance.now(), decoded = await decode(bytes, signal, started);
   const checkpoint = async (): Promise<void> => {
     signal.throwIfAborted(); requireValue(performance.now() - started <= MESH_LIMITS.workMs, 'Mesh work budget exceeded');
-    await new Promise<void>(resolve => setTimeout(resolve, 0)); signal.throwIfAborted();
+    await yieldTask(signal); signal.throwIfAborted();
   };
   const root = object(decoded, ['profile', 'source', 'converter', 'authoredCoordinates', 'qualification', 'nodes', 'meshes', 'counts']);
   requireValue(root.profile === MESH_PROFILE, 'Unsupported mesh profile');
@@ -393,7 +394,7 @@ export async function prepareMeshRender(profile: MeshProfile, signal: AbortSigna
     const matrix = mesh.composedLocalToStageMatrixTokens.map(Number);
     for (let vertex = 0; vertex < mesh.positionsLocalTokens.length; vertex += 3) {
       if (vertex % 6144 === 0) {
-        signal.throwIfAborted(); await new Promise<void>(resolve => setTimeout(resolve, 0));
+        signal.throwIfAborted(); await yieldTask(signal);
         requireValue(performance.now() - started <= MESH_LIMITS.workMs, 'Render work budget exceeded');
       }
       const local = [0, 1, 2].map(axis => Number(mesh.positionsLocalTokens[vertex + axis]!));
@@ -421,7 +422,7 @@ export async function prepareMeshRender(profile: MeshProfile, signal: AbortSigna
     };
     for (let triangle = 0; triangle < count; triangle++) {
       if (triangle % 1024 === 0) {
-        signal.throwIfAborted(); await new Promise<void>(resolve => setTimeout(resolve, 0));
+        signal.throwIfAborted(); await yieldTask(signal);
         requireValue(performance.now() - started <= MESH_LIMITS.workMs, 'Render work budget exceeded');
       }
       const p = [0, 1, 2].map(corner => point(mesh.triangleIndicesTokens[triangle * 3 + corner]!));
