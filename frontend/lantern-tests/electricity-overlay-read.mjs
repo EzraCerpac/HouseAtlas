@@ -118,7 +118,13 @@ for (const text of ['Electrical drawings', 'Documentary label filters', 'Former 
   'Owner reported', 'Inferred association', 'Room association unknown', 'coordinates unknown', 'Source date', 'Unknown', 'Placeholder export']) assert(markup.includes(text), text);
 assert(markup.includes('aria-pressed="false"') && markup.includes('<details>'));
 assert.equal(renderToStaticMarkup(createElement(ElectricityOverlayPanel, { ...props, active: false })), '');
+const sourceSheetBeforeMappedRender = JSON.stringify(data.sheets[1]);
 const mappedMarkup = renderToStaticMarkup(createElement(ElectricityOverlayPanel, { ...props, selectedPackagePlaces: reviewedSelection }));
+assert(mappedMarkup.includes('<span>Former washroom → Beta</span>'), 'the selected Beta annotation remains visible');
+assert(!mappedMarkup.includes('<span>Former washroom → Alpha</span>') && !mappedMarkup.includes('<span>Former passage → Stairs</span>'),
+  'the matched split drawing does not show annotations for unselected Alpha or Stairs');
+assert(!mappedMarkup.includes('Owner-confirmed names: Former Alpha'), 'an unselected association alias stays out of the room results');
+assert.equal(JSON.stringify(data.sheets[1]), sourceSheetBeforeMappedRender, 'the complete original split drawing remains unchanged');
 for (const text of ['Owner-matched plan selection', 'synthetic-source#anchor-beta', 'Unresolved passage component',
   'Former washroom', 'Their original confidence is unchanged', 'Electrical positions remain unmatched']) assert(mappedMarkup.includes(text), text);
 console.log('PASS healthy synthetic electricity adapter, owner aliases/layout changes, reviewed package selection, unmatched electrical placement, literal filters and original Lantern static panel');

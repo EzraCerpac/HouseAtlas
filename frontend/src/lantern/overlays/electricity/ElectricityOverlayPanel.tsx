@@ -34,6 +34,10 @@ export function ElectricityOverlayPanel(props: ElectricityOverlayPanelProps) {
   const label = chosen?.label ?? null, selected = chosen?.sheetId ?? null;
   const sheets = electricitySheets(data, selectedPlaceId, label, selectedPackagePlaces);
   const acceptedPackageSelection = selectedPackagePlaces !== null && hasAcceptedPackageSelection(data, selectedPackagePlaces);
+  const visibleRoomAssociations = (sheet: ElectricitySheet) => acceptedPackageSelection && selectedPackagePlaces !== null
+    ? sheet.roomAssociations.filter(room => selectedPackagePlaces.targets.some(target =>
+      room.packagePlaceKey === target.packagePlaceKey && room.packagePlaceUuid === target.packagePlaceUuid))
+    : sheet.roomAssociations;
   const select = (sheet: ElectricitySheet) => {
     if (!live()) return;
     const id = selected === sheet.id ? null : sheet.id;
@@ -82,8 +86,8 @@ export function ElectricityOverlayPanel(props: ElectricityOverlayPanelProps) {
               <Icon name="file" size={16} /><span>{sheet.titleAsRead}</span><span className="row-meta">PDF p. {sheet.source.pdfPage}</span>
             </button>
             <p className="row-meta">{sheet.documentaryLabels.join(' · ') || 'No group label read'}</p>
-            {sheet.roomAssociations.length === 0 ? <p className="legend-foot">Room association unknown.</p> : <ul className="electricity-rooms">
-              {sheet.roomAssociations.map(room => <li key={room.packagePlaceKey}>
+            {visibleRoomAssociations(sheet).length === 0 ? <p className="legend-foot">Room association unknown.</p> : <ul className="electricity-rooms">
+              {visibleRoomAssociations(sheet).map(room => <li key={room.packagePlaceKey}>
                 <span>{room.historicalLabel ? `${room.historicalLabel} → ${room.label}` : room.label}</span>{' '}
                 <ClaimBadge claim={room.status === 'owner-reported' ? 'owner' : 'unknown'} {...(room.status === 'inferred' ? { prefix: 'Inferred association' } : {})} />
                 {room.statement && <p className="legend-foot">{room.statement}</p>}
