@@ -130,7 +130,7 @@ pub(super) async fn command(
         {
             return Err(unavailable());
         }
-        let result = stock_mutations::execute_staged_asset(
+        let (result, release) = stock_mutations::execute_staged_asset(
             &host, &core, &principal, staged.request().raw().clone(), &staged, &contracts,
         ).map_err(stock_reads::http_error)?;
         // A successful stock commit is final. Retirement is best-effort, using
@@ -161,6 +161,10 @@ pub(super) async fn command(
         })();
         let access = core.access.lock().map_err(|_| unavailable())?;
         principal.release(&access).map_err(access_error)?;
+        drop(access);
+        if let Some(release) = release {
+            release.mark_released();
+        }
         Ok(json_response(result.wire))
     }).await.map_err(|_| unavailable())?
 }
