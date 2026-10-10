@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "4cda69ade880910ba2f04dd8fcf9f5cbeb76231c0bcc266923f42b5bb7c98a3b",
+  "sourceDigestSha256": "412ce87a8e88519516388096e909c747123dcda4a5ec048fee9dded1e9c061ed",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 22968,
-      "sha256": "cf577aec07740b7861ea39bd077ff55030829bb5ce7853e91f2380a8ed320d9b",
+      "bytes": 22967,
+      "sha256": "f44eedba1987f0ce023edeb4acc9f0ad8c81537f59a932da31df77daca2eec87",
       "owner": "core-integration"
     },
     {
@@ -2058,9 +2058,9 @@
     {
       "path": "backend/src/http/native_upload_admission.rs",
       "mode": "100644",
-      "owner": "core-integration",
       "bytes": 1328,
-      "sha256": "024768d17b73a74ff7357a2105a59e9da2f8ef5e56c1a66d8c501449c98a1dd4"
+      "sha256": "024768d17b73a74ff7357a2105a59e9da2f8ef5e56c1a66d8c501449c98a1dd4",
+      "owner": "core-integration"
     },
     {
       "path": "backend/src/http/operation_events.rs",
@@ -6144,10 +6144,17 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/api/native-evidence-client.ts",
+      "mode": "100644",
+      "bytes": 26243,
+      "sha256": "f59bc543a937694ebefc8e6040a0d6eb7d7ea24a9a6b03f8a8e646bd43b3484f",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/api/native-place-client.ts",
       "mode": "100644",
-      "bytes": 24210,
-      "sha256": "0b59ccdb5f4fc5c20d76122bc6aae49d1226d80fe6ac4bf2a3633ff52ffcdd3a",
+      "bytes": 25722,
+      "sha256": "b088c47f561ddfe56aac20a42a76fccacefc4368e46f0c2ea2b52cd58c46a809",
       "owner": "web"
     },
     {
@@ -6776,8 +6783,8 @@
     {
       "path": "frontend/src/lantern/topology/BuildingScope.tsx",
       "mode": "100644",
-      "bytes": 13080,
-      "sha256": "8ae1fe87ceabc98368cc7f44a2fac2e5dae4b2cd9600ee8200132dbcb7c37691",
+      "bytes": 13355,
+      "sha256": "9cd88f9a2916718ba3f6a82473db7d725c917e67ba8d90ac064e4fbf96ff0a85",
       "owner": "web"
     },
     {
@@ -6785,6 +6792,13 @@
       "mode": "100644",
       "bytes": 10664,
       "sha256": "f546c824c3122cc05b5f89439589fe2c47bd4835bccea1f073b80ee3696fbd3d",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/topology/NativePlaceEvidence.tsx",
+      "mode": "100644",
+      "bytes": 12745,
+      "sha256": "df4a0ffcb12d6430775e66932d5d1bea17a8078d27422001710de72753e56eca",
       "owner": "web"
     },
     {
@@ -6860,8 +6874,8 @@
     {
       "path": "frontend/src/numeric/schema-validator.ts",
       "mode": "100644",
-      "bytes": 23379,
-      "sha256": "0260d2e582c64704b41a714b0cbe669d3d738d66c3dc1b5ff49103768fc8ae55",
+      "bytes": 24136,
+      "sha256": "4022889b68e2902e2262dbe910a61c30459a4a1a51b9a7a056f021415b55b9a0",
       "owner": "web"
     },
     {
@@ -8057,9 +8071,9 @@
     {
       "path": "tools/rust-integration/healthy-native-place-evidence-loopback.mjs",
       "mode": "100644",
-      "owner": "core-integration",
-      "bytes": 22508,
-      "sha256": "abf4528b141f0515f32bcfa9dacb25ec0d21060f1910cdcd4d6aca658858ff93"
+      "bytes": 28460,
+      "sha256": "b40b6917f81d675b7b2d6cb391429a79ee4cc677b81eb796a1a5d5379a0357e2",
+      "owner": "core-integration"
     },
     {
       "path": "tools/rust-integration/healthy-native-place-ui-loopback.mjs",

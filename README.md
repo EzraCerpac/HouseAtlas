@@ -326,7 +326,7 @@ reference directory contains the explicitly pinned public HomeBox source bytes.
 HOUSEATLAS_QUANTITY_REFERENCE_DIR=/tmp/houseatlas-quantity-reference-e01dd737 TMPDIR=/tmp cargo test --offline --locked -p houseatlas-backend --lib http::quantity_http_healthy::healthy_quantity_human_http_preview_approval_native_journal_and_readback -- --exact --nocapture
 ```
 
-#The native place evidence positive uses one fresh disposable numeric-loopback TLS
+The native place evidence positive uses one fresh disposable numeric-loopback TLS
 service and generated one-page PDF. It creates a source-free native building,
 loads actual Editor admission, commits one guarded evidence/asset/identity batch,
 and checks original receipt, native reads/history and byte-identical download.
