@@ -1,7 +1,7 @@
 import { ExactDecimal, isExactDecimal } from './decimal';
 import type { LosslessJson } from './lossless-json';
 import { exactStockSafeInteger } from './schema-validator';
-import type { GeometryPayload, LocationSemanticsPayload, LocationElevation } from '../api/generated/contracts';
+import type { EvidencePayload, GeometryPayload, LocationSemanticsPayload, LocationElevation } from '../api/generated/contracts';
 
 /** Internal decoded shapes. Canonical wire and generated DTO types remain unchanged. */
 export type DecodedGeometryPayload = Omit<GeometryPayload, 'scale' | 'transform'> & {
@@ -12,6 +12,11 @@ export type DecodedLocationElevation = Exclude<LocationElevation, { status: 'kno
   { status: 'known'; metres: ExactDecimal; datumAtlasId: string };
 export type DecodedLocationSemanticsPayload = Omit<LocationSemanticsPayload, 'elevation'> & {
   elevation?: DecodedLocationElevation;
+};
+export type DecodedEvidencePayload = Omit<EvidencePayload, 'provenance'> & {
+  provenance: Omit<EvidencePayload['provenance'], 'sourceRevision'> & {
+    sourceRevision: string | null;
+  };
 };
 
 type ObjectNode = { [key: string]: unknown };
@@ -51,6 +56,19 @@ export function decodeTopologyResult(value: LosslessJson): void {
     if (payload.elevation !== undefined) {
       const elevation = object(payload.elevation);
       if (elevation.status === 'known') exact(elevation.metres!);
+    }
+  }
+}
+/** Primitive display text retains integer syntax without changing the canonical wire. */
+export function decodeEvidenceResult(value: LosslessJson): void {
+  const root = object(value);
+  const evidenceRecords = records(value);
+  root.schemaVersion = exactStockSafeInteger(root.schemaVersion as LosslessJson);
+  for (const record of evidenceRecords) {
+    record.revision = exactStockSafeInteger(record.revision as LosslessJson);
+    const provenance = object(object(record.payload).provenance);
+    if (provenance.sourceRevision !== null && typeof provenance.sourceRevision !== 'string') {
+      provenance.sourceRevision = exact(provenance.sourceRevision).token;
     }
   }
 }
