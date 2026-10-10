@@ -65,6 +65,9 @@ const mutationRoots: Readonly<Record<string, string>> = Object.freeze({
 // The native place form admits only these existing canonical arms. No dynamic roots.
 const nativeRequests = Object.freeze({
   'atlas.identity.get': 'request_atlas_identity_get',
+  'atlas.asset.get': 'request_atlas_asset_get',
+  'atlas.geometry.create': 'request_atlas_geometry_create',
+  'atlas.identity.replace': 'request_atlas_identity_replace',
   'atlas.evidence.get': 'request_atlas_evidence_get',
   'atlas.location-semantics.get': 'request_atlas_location_semantics_get',
   'atlas.evidence.create': 'request_atlas_evidence_create',
@@ -76,6 +79,7 @@ const nativeRequests = Object.freeze({
 });
 const nativeReads = Object.freeze({
   'atlas.identity.get': 'result_atlas_identity_get',
+  'atlas.asset.get': 'result_atlas_asset_get',
   'atlas.evidence.get': 'result_atlas_evidence_get',
   'atlas.location-semantics.get': 'result_atlas_location_semantics_get',
 });
