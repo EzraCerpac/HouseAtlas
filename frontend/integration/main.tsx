@@ -189,6 +189,44 @@ const nativeClient = createAtlasClient({
  * together. Expiry is no admission: the view is still returned, tools stay
  * unregistered and nothing is retried. */
 const admissionTimeoutMs = 10000;
+const stockAdmissionMaxBytes = 64 * 1024;
+function discardStockAdmission(response: Response): void {
+  void response.body?.cancel().catch(() => undefined);
+}
+async function readStockAdmission(response: Response, signal: AbortSignal): Promise<unknown> {
+  const declaredLength = response.headers.get("Content-Length");
+  if (declaredLength !== null) {
+    const contentLength = Number(declaredLength);
+    if (!/^[0-9]+$/.test(declaredLength) || !Number.isSafeInteger(contentLength) || contentLength > stockAdmissionMaxBytes) {
+      discardStockAdmission(response);
+      throw new TypeError("Stock admission response exceeded byte bound");
+    }
+  }
+  const reader = response.body?.getReader();
+  if (!reader) throw new TypeError("Stock admission response body missing");
+  const cancel = () => { void reader.cancel().catch(() => undefined); };
+  signal.addEventListener("abort", cancel, { once: true });
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    for (;;) {
+      signal.throwIfAborted();
+      const part = await reader.read();
+      signal.throwIfAborted();
+      if (part.done) break;
+      if (part.value.byteLength > stockAdmissionMaxBytes - length)
+        throw new TypeError("Stock admission response exceeded byte bound");
+      if (part.value.byteLength === 0) continue;
+      length += part.value.byteLength;
+      chunks.push(part.value);
+    }
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+  } catch (error) { cancel(); throw error; }
+  finally { signal.removeEventListener("abort", cancel); reader.releaseLock(); }
+}
 /** Settles one optional read by its deadline even if the transport or body
  * ignores the abort, so a late result is never returned. The caller's abort is
  * forwarded with its own reason; the timer and listeners are always removed. */
@@ -233,7 +271,9 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
               method: "GET", credentials: "same-origin", cache: "no-store", redirect: "error", signal: deadline,
               headers: { Accept: "application/json" },
             });
-            return response.ok ? await response.json() : null;
+            if (deadline.aborted) { discardStockAdmission(response); deadline.throwIfAborted(); }
+            if (!response.ok) { discardStockAdmission(response); return null; }
+            return await readStockAdmission(response, deadline);
           });
           if (row && typeof row === "object" && "schemaVersion" in row && row.schemaVersion === 3 && "scope" in row && "commandIds" in row && "revision" in row) {
             const candidate = row as { scope: { workspaceId?: unknown; homeId?: unknown }; commandIds: unknown; revision: unknown };
