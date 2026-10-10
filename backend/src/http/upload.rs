@@ -35,10 +35,33 @@ fn unavailable() -> super::HttpFailure {
     failure(StatusCode::SERVICE_UNAVAILABLE)
 }
 
+#[derive(Clone, Copy)]
+enum PlaceNamespace {
+    SourceBacked,
+    Native,
+}
+
 pub(super) async fn command(
     State(host): State<Host>,
-    Path((workspace_id, home_id, record_id)): Path<(String, String, String)>,
+    Path(path): Path<(String, String, String)>,
     request: Request,
+) -> HttpResult {
+    intake_command(host, path, request, PlaceNamespace::SourceBacked).await
+}
+
+pub(super) async fn native_command(
+    State(host): State<Host>,
+    Path(path): Path<(String, String, String)>,
+    request: Request,
+) -> HttpResult {
+    intake_command(host, path, request, PlaceNamespace::Native).await
+}
+
+async fn intake_command(
+    host: Host,
+    (workspace_id, home_id, record_id): (String, String, String),
+    request: Request,
+    namespace: PlaceNamespace,
 ) -> HttpResult {
     if request.uri().query().is_some() {
         return Err(failure(StatusCode::FORBIDDEN));
@@ -97,8 +120,10 @@ pub(super) async fn command(
         {
             return Err(failure(StatusCode::UNPROCESSABLE_ENTITY));
         }
-        let selection = qualified_upload_plan::resolve(&mut core, &principal, &home, &input.metadata)
-            .map_err(stock_reads::http_error)?;
+        let selection = match namespace {
+            PlaceNamespace::SourceBacked => qualified_upload_plan::resolve(&mut core, &principal, &home, &input.metadata),
+            PlaceNamespace::Native => qualified_upload_plan::resolve_native(&mut core, &principal, &home, &input.metadata),
+        }.map_err(stock_reads::http_error)?;
         let budget = m::WorkBudget::new(Duration::from_secs(10), m::Cancellation::default())
             .map_err(media_error)?;
         let runtime = ServerRuntime;
