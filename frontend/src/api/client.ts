@@ -62,8 +62,8 @@ export function createAtlasClient(
 
 /** The bare mode object is a few dozen bytes; anything larger is rejected. */
 const AUTH_MODE_MAX_BYTES = 1024;
-/** Proxy sign-in returns only the session DTO; anything larger is rejected. */
-const PROXY_SESSION_MAX_BYTES = 4096;
+/** Local and proxy sign-in return only the session DTO; anything larger is rejected. */
+const AUTH_SESSION_MAX_BYTES = 4096;
 /** Bound the complete native exchange, including response body decoding. */
 const LOCAL_ACCESS_TIMEOUT_MS = 15_000;
 async function withLocalAccessDeadline<T>(
@@ -98,23 +98,29 @@ async function readBoundedJson(
   const reader = body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > limit) {
-      await reader.cancel().catch(() => undefined);
-      throw new TypeError("Sign-in method response too large");
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value.byteLength > limit - size)
+        throw new TypeError("Sign-in method response too large");
+      if (value.byteLength === 0) continue;
+      chunks.push(value);
+      size += value.byteLength;
     }
-    chunks.push(value);
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch (error) {
+    void reader.cancel().catch(() => undefined);
+    throw error;
+  } finally {
+    reader.releaseLock();
   }
-  const bytes = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
 }
 
 export interface AtlasSessionEndpoints {
@@ -243,7 +249,7 @@ export function createAtlasSessionClient(
                 body: "{}",
               });
               if (!response.ok) throw new AtlasReadError(response.status);
-              const value: unknown = await response.json();
+              const value: unknown = await readBoundedJson(response, AUTH_SESSION_MAX_BYTES);
               return decodeSessionInfo(value);
             }),
           }
@@ -263,7 +269,7 @@ export function createAtlasSessionClient(
               });
               if (!response.ok) throw new AtlasReadError(response.status);
               return decodeSessionInfo(
-                await readBoundedJson(response, PROXY_SESSION_MAX_BYTES),
+                await readBoundedJson(response, AUTH_SESSION_MAX_BYTES),
               );
             }),
           }

@@ -14,6 +14,26 @@ export function NativeActions() {
     if (!state.nativeOpen) return;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const el = panel.current;
+    if (!el) return;
+    // Isolate sibling branches without hiding or unmounting native receipts.
+    const ownedInert = new Set<HTMLElement>();
+    const isolate = () => {
+      for (let branch: HTMLElement | null = el; branch && branch !== document.body; branch = branch.parentElement) {
+        const parent = branch.parentElement;
+        if (!parent) break;
+        for (const sibling of parent.children) {
+          if (sibling !== branch && sibling instanceof HTMLElement && !sibling.inert) {
+            sibling.inert = true;
+            ownedInert.add(sibling);
+          }
+        }
+      }
+    };
+    isolate();
+    const observer = new MutationObserver(isolate);
+    for (let branch: HTMLElement | null = el; branch && branch !== document.body; branch = branch.parentElement) {
+      if (branch.parentElement) observer.observe(branch.parentElement, { childList: true });
+    }
     (el?.querySelector<HTMLButtonElement>('button') ?? el)?.focus();
     const key = (event: KeyboardEvent) => {
       if (event.defaultPrevented || !el) return;
@@ -35,6 +55,8 @@ export function NativeActions() {
     document.addEventListener('keydown', key, true);
     return () => {
       document.removeEventListener('keydown', key, true);
+      observer.disconnect();
+      for (const sibling of ownedInert) sibling.inert = false;
       (previous?.isConnected && previous.getClientRects().length ? previous : document.getElementById('main'))?.focus();
     };
   }, [state.nativeOpen]);
