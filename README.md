@@ -94,6 +94,7 @@ unused loopback port, capture the requested states and stop within 20 minutes:
 
 ```sh
 cd frontend
+./node_modules/.bin/tsc --noEmit --project /tmp/houseatlas-core-read-visual-tsconfig.json
 ./node_modules/.bin/vite build lantern-tests/core-read-visual --config vite.config.ts --outDir /tmp/houseatlas-core-read-visual-dist
 ./node_modules/.bin/vite lantern-tests/core-read-visual --config vite.config.ts --host 127.0.0.1 --port 4179 --strictPort
 ```
@@ -102,7 +103,7 @@ All other application fetches return unavailable in this dedicated page. Its
 retained Network revision does not widen native provider admission or certify
 authentication, source freshness, runtime security or actual-user acceptance.
 
-Its visual harness uses the same synthetic records, an injected topology client
+The topology visual harness uses the same synthetic records, an injected topology client
 and a stub for all other application fetches. After inspecting the harness,
 use an unused loopback port and stop the server after the desktop and narrow
 screenshots (at most 20 minutes):
