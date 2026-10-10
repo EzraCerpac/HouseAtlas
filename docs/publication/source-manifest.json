@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "208f7c0c83f767544900bc59a3a265969b0607af3c3e14fa5a65057b14805971",
+  "sourceDigestSha256": "5ce1c954136a6c1a71b31ff8db3e1fe119ddbd7c79f251bc831d9cca9bc2bacf",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5943,8 +5943,8 @@
     {
       "path": "frontend/src/api/operation-history-client.ts",
       "mode": "100644",
-      "bytes": 8102,
-      "sha256": "3f2bc95bc856ee39d7a05c510197ac426f0e28efaaa392410ddb0ac69a67c37c",
+      "bytes": 8708,
+      "sha256": "7009dfbfa0c72c4b772a8ffb46a3805a2404b384df270046ff12e57e884f56a9",
       "owner": "web"
     },
     {
