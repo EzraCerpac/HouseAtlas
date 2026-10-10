@@ -388,10 +388,10 @@ function NetworkRelationsPanel({ client }: { readonly client: NetworkRelationsCl
     <p className="muted">Loading reads saved relations only; nothing is collected or refreshed.</p>
     <p role="status">{message}</p>
     <p>
-      <button type="button" aria-disabled={!qualified || loading !== null} onClick={load}>
+      <button className="btn btn-primary" type="button" aria-disabled={!qualified || loading !== null} onClick={load}>
         {loading === 'first' ? 'Loading Network relations' : sequence ? 'Reload from first page' : 'Load Network relations'}
       </button>
-      {(more || loading === 'more') && <>{' '}<button type="button" aria-disabled={loading !== null} onClick={loadMore}>
+      {(more || loading === 'more') && <>{' '}<button className="btn" type="button" aria-disabled={loading !== null} onClick={loadMore}>
         {loading === 'more' ? 'Loading more relations' : 'Load more'}
       </button></>}
     </p>
