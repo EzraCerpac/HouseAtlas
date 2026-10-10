@@ -1,0 +1,262 @@
+# AI host UI
+
+The checked-in frontend AI module supplies typed session, review, cancellation,
+usage and canonical result presentation. This host namespace binds that module
+to explicit Rust JSON endpoints and composes it with Settings. The application
+contains the Rust AI module and optional native HTTP mount boundary. Its default
+binary and browser entry supply no AI host, enrollment or bound UI port, so they
+do not enable AI use. Real account/runtime and trusted human-review peers remain
+required.
+
+## Client and session composition
+
+`createAiHostClient` implements all eight `AiClient` methods over explicit
+same-origin endpoints and actual application-session mutation headers supplied
+by the host. Requests use cookies, no-store and redirect-error. There is no
+default endpoint, provider URL, credential storage, login helper or request
+replay. `bindAiHostPort` also accepts explicit JSON ports without HTTP. Lifecycle
+responses use the shared AI decoder; the other Rust DTOs are structurally decoded
+before reaching React. Token counts must be exactly representable nonnegative
+JavaScript integers or null. Arbitrary tool JSON uses the existing JavaScript
+number model; full numeric fidelity remains unqualified.
+
+`AiHost` keeps one shared `useAiSession` above page navigation.
+`AiSettingsSection` renders `AiPanelView` in the existing Settings list.
+`AiActivityStatus` displays a factual pending/result notice and Settings link
+on other pages. Canonical output, typed errors, recorded operation IDs, usage,
+review previews and original-ID reconciliation use the shared AI module.
+Inference eligibility and paid-use policy are not reimplemented here.
+
+After cancellation of an idle review returns a matching `confirmed` receipt,
+the host composition performs one original-request status lookup through the
+existing hook. The backend owns continuation retirement and the persisted
+terminal cancellation with its original usage. The browser consumes that
+outcome; it does not construct a terminal result or replace usage with unknown
+counts. Consuming the terminal result clears the retained review and permits a
+fresh request. Requested acknowledgements still wait for their final result;
+domain-held operations retain their existing reconciliation semantics. An
+unavailable lookup remains visible and the user can use Refresh request status;
+there is no automatic polling loop.
+
+Keep the bound client stable while its full scopeKey is unchanged. The host must
+change scopeKey with actor, application session, qualified home, provider
+registration or cancellation epoch changes; a home label or browser role is
+insufficient. `AiApplicationPort.resolve(session, scope, homeLabel)` returns
+that actual context or null. It is a view binding, not authority or inference
+admission, and must not perform side effects during render. Removing the
+committed authorized context invokes shared cleanup. Transport abort and
+best-effort cancellation do not establish remote termination. Those invalidation
+paths are retained code, not newly qualified controls.
+
+When supplied, `receiptIdentity` is the explicit stable tuple
+`{actorId, workspaceId, homeId, registrationId, authorityEpoch}` from that same
+trusted binding. It excludes only the cancellation epoch. The full `scopeKey`
+continues to bind runtime, dispatch and cancellation. The stable tuple lets the
+browser keep bounded action/request identifiers visible and reconcile their
+original status after cancellation rotates; every read uses the current trusted
+host client and original identifier. It does not restore prompts or credentials,
+replay actions, resume inference, or authorize work. Omitting it preserves the
+older full-scope isolation behavior. Do not construct it from `scopeKey`, labels,
+or browser role.
+
+Connection facts come only from trusted connection/action DTOs. Null binding
+shows “AI host is unavailable.” The CSS uses the existing Settings geometry and
+HouseAtlas colour/type tokens. All interface copy is English.
+
+## Native host API
+
+The qualified native base is
+`/api/atlas/v1/workspaces/{workspaceId}/homes/{homeId}/ai`. Configure explicit
+endpoint paths only when the host is actually mounted. Responses are bare Rust
+serde JSON values with the existing camelCase fields and kebab-case enum values;
+there is no added success envelope or provider diagnostic disclosure.
+
+| Relative route | Method | Input | Response |
+| --- | --- | --- | --- |
+| `/connection` | GET | No body | `ConnectionSnapshot` |
+| `/connection/actions` | POST | `{actionId, command}` | `ConnectionActionResult` |
+| `/connection/actions/{id}` | GET | Original action ID in path | Matching `ConnectionActionResult` |
+| `/run` | POST | `{requestId, prompt}` | `RunOutcome` |
+| `/requests/{id}/cancel` | POST | `{requestId}` matching path | Matching `CancelReceipt` |
+| `/review` | POST | `{requestId, continuationId}` | `{status}` human review result |
+| `/resume` | POST | Same review input | `RunOutcome` |
+| `/requests/{id}` | GET | Original request ID in path | Matching `RequestStatus` |
+
+`command` is `{action:'connect', route}` or
+`{action:'consent'|'disconnect'|'manage-usage'}`. Connection actions use the host's
+reviewed human surface; this DTO contains no launch URL or token. A connected
+snapshot does not complete another pending workflow. The backend's persisted
+disconnect receipt can be read under the new current cancellation epoch, while
+request and continuation bindings keep both epochs.
+
+`CancelReceipt.status` distinguishes requested/confirmed/already-finished/
+unsupported. Human review status distinguishes pending/closed/ready-to-resume.
+The UI resumes only after ready-to-resume. No approval receipt, changed call
+arguments, policy epoch or actor authority is submitted. The separate trusted
+human UI owns retained approval; the backend revalidates and claims the existing
+continuation before dispatch.
+
+`RunOutcome` carries completed, review-required, domain-held, cancelled, stopped
+or failed state. New domain-held DTOs require `operationIds` alongside nullable
+current `operationId`, state and usage. The strict decoder preserves the ordered
+collection; the panel displays every correlation without inferring completion
+of earlier or current operations. Producer and consumer must be adopted together.
+The failed arm preserves its reason, earlier operationIds and
+usage. Non-2xx or invalid transport rejects the promise and remains unconfirmed
+in the shared hook; only an accepted terminal DTO is canonical completion/error.
+Status reads do not resubmit work. Browser domain-held states are prepared,
+queued, dispatching, rejected-before-dispatch, partial and unknown-held. The
+Rust dispatch enum's internal observed/resolved values are not browser holds.
+
+An observed unconfirmed disconnect can be retried explicitly with a new action
+ID. The previous receipt stays unresolved and remains queryable under its
+original ID. Opening/pending disconnects and existing retention capacity still
+bound admission. The button uses the hook's same scope/global capacity predicate
+and subscribes to registry updates, including changes from another mounted
+instance of the same or a different scope. Session hooks also subscribe and
+derive their current receipt-identity rows and pending/unconfirmed action state on
+each update, including same-size status changes and retirement. A private
+opening flag propagates active browser transport to aliases and blocks another
+same-scope action; it does not establish a retryable host receipt. Settlement
+or disposal clears that flag while retaining unresolved original IDs. Account
+facts stay local. Clearing browser opening progress does not acknowledge host
+completion: the separate last accepted `hostStatus` remains null/pending until
+the host actually supplies an unconfirmed receipt. UI and hook share that
+observed-receipt retry predicate. An original-ID read can reconcile a lost
+response without replay; a failed read preserves the last observed status.
+Status reconciliation skips active opening rows. Disposal removes those observers;
+correlation rows retain no view/client. Every new connection action uses the
+same capacity predicate. Matching completion retires revised metadata; stale
+nonterminal observations cannot replace a newer row or restore a retired one.
+Superseded opening transport clears local progress and reads current authority.
+It displays a full-capacity limitation. Refresh reads receipts; it never
+resubmits a disconnect.
+
+Current application authentication, original authority, home/provider binding,
+CSRF, bounds, workflow/request storage and termination evidence stay backend
+owned. The frontend issues no grants or inference admission. See the
+[backend host documentation](../../../../backend/src/ai/host/README.md) for the
+optional native mount, receipt release and continuation retirement contracts.
+
+## Settings mounting proposal
+
+`mounting.patch` is an unapplied additive proposal for four integrator-owned
+files: App, SessionApp, the Settings page and the browser integration entry.
+It places the provider around App's authorized view, adds AI before Session in
+Settings, displays activity only outside Settings, forwards the authenticated
+session to `AiApplicationPort` and imports the shared/host styles.
+HostApplication gains an optional `ai` prop; its existing createRoot call
+still supplies none. After providing the real host port, the integrator's
+root substitution is:
+
+```tsx
+createRoot(root).render(<StrictMode><HostApplication ai={rootOwnedAiPort} /></StrictMode>);
+```
+
+Construct stable clients with `createAiHostClient({endpoints, mutationHeaders})`.
+POST headers must use the actual current application nonce, for example
+`{'X-Atlas-CSRF': currentSession.csrfToken}`, after confirming the retained
+binding matches the current session. Labels and app authentication do not supply
+registration/epoch identity or qualify provider use. No synthetic/default host
+is exported from the production entrypoint.
+
+Remaining actual UI mounts are the integrator patch, real endpoints/human
+surfaces and full context/nonce port supplied to createRoot. Publication-manifest
+updates remain integrator-owned. This namespace changes no app/root file,
+backend policy, schema or manifest.
+
+## Standalone setup and verification
+
+Use the repository's pinned Node 26.10.0, npm 11.19.1 and Rust toolchain. Install
+the existing frontend dependency lock without scripts, audit or funding:
+
+```sh
+npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+npm run typecheck --prefix frontend
+npm run build --prefix frontend
+```
+
+These check the actual checked-in integrated source; they do not require copying
+another source tree. Vite retains the existing large-chunk advisory. Shared root
+mounts and full hosted integrity require the integrator's coordinated update.
+
+Inspect the backend's positive fixture before running its scoped example:
+
+```sh
+HOUSEATLAS_AI_HEALTHY_JSON=/tmp/houseatlas-ai-peer.json \
+  cargo run --locked -p houseatlas-backend --example healthy-ai-host
+```
+
+It uses actual Rust routing/journal/continuation code with disposable loopback
+and explicit synthetic account, security, credential and enrollment peers. Its
+idle-review dismissal retires an actual retained checkpoint and persists
+cancelled status with unchanged usage. Its no-token disconnect rotates the
+synthetic epoch and retrieves the persisted receipt after a healthy reopen.
+The exported JSON is synthetic evidence and belongs outside Git. It does not
+qualify real authentication, credentials, provider revocation, approval or domain
+dispatch.
+
+`healthy.examples.tsx` exports six sequential component groups and an explicit
+synthetic fixture. `review-cancellation.healthy.tsx` additionally exports
+`runHealthyReviewCancellationExample(container, peerJson)`. An isolated browser
+entry can import these functions, the shared `ai.css`, `host.css` and existing
+Atlas stylesheet, then pass the backend example's parsed JSON to the latter.
+It first decodes the unmodified actual receipt/status pair and original ID.
+The browser fixture rebinds only requestId to the hook's fresh synthetic request;
+terminal state and usage remain the exact persisted peer values. It checks one
+automatic status lookup, cleared review, preserved usage and a fresh request with
+another ID, without opening review, resuming or replaying the original command.
+
+These are healthy peer/browser checks, not a committed application root mount
+or live backend/browser authority qualification. The terminal-error display
+example supplies a typed DTO and injects no failure. Synthetic tool previews
+perform no mutation or approval and do not exercise shared stock validation.
+The correction passed the checked-in strict TypeScript/Vite checks and the
+inspected Rust healthy example. Chromium 151.0.7922.173 passed the six existing
+component groups and the persisted-dismissal group, retaining 2 input, 1 output
+and 3 total tokens from the actual peer with one status lookup. No browser
+runtime exception was observed; browser requests were static loopback assets
+and the exported synthetic peer JSON.
+`operation-receipts.healthy.tsx` exports
+`runHealthyOperationReceiptsExample(container, peerJson)`. Its peer object contains
+actual Rust-serde `domainHeld`, matching finished `requestStatus`, and seeded
+`disconnect`/`completedDisconnect` receipt projections. It passes the populated
+held DTO through the real client decoder, hook and panel, checks all three ordered
+operation correlations, current ID, queued state and unknown usage, then submits
+a fresh request. A subsequent explicit disconnect retry uses a fresh action ID
+while retaining and polling the original unconfirmed receipt. Only synthetic
+browser correlation IDs are rebound; no remote revocation or held-step execution
+is simulated. The existing six sequential browser groups and these two receipt
+groups passed in Chromium 151.0.7922.173 with no runtime exception. The Rust peer
+serializes the actual library DTOs; it supplies no credential or provider adapter.
+`runHealthyAliasPanelsExample(container)` adds three independent hook/panel
+instances. Two share an exact full synthetic scope; the third has the same
+display label and another full key. Two sequential Manage usage lifecycles
+observe shared opening progress/disabled controls, then propagate
+pending/unconfirmed status, retirement and state across
+both aliases, while the third remains untouched. Each status read uses the
+original action ID; the second workflow uses a fresh ID. Only one scope row
+exists at a time, with two submissions and four reads. A small state projection
+also verifies the returned session state, beyond rendered rows. All ten groups
+pass with zero runtime exceptions. Strict TypeScript checking and the
+production build also pass. Capacity exhaustion, negative/omitted DTO,
+overlapping opening/status calls, concurrency and all held controls remain
+unexecuted; superseded-call cleanup is source inspected only.
+
+`runFocusedTerminalWorkflowChecks(container, peerJson, prelaunchPeerJson)` is
+separate explicit validation requested for PR54 findings4210200212/4210200228.
+A returned Rust Stopped DTO releases the local active slot and retains the
+stopped/provider-unconfirmed display and usage; a fresh explicit request uses
+another ID. It does not interrupt provider I/O or confirm provider completion.
+A synthetic Connect rejection is reconciled using the actual Rust host's
+persisted prelaunch-failure receipt, with two explicit fresh IDs and two
+original-ID reads. The terminal workflow DTO grants no inference/runtime
+authority. These two narrow checks extend the ten healthy groups; historical
+failure, rejection/replay, expiry/revocation and concurrency controls outside
+these explicitly requested paths remain held.
+
+No live login/inference/provider/account operation, new credential/grant,
+spending or deployment occurs. Historical stopped rejection/replay/expiry/
+revocation, fault/corruption, adversarial/mutation and concurrency controls remain
+held. Product, security, actual user/runtime and production qualification remain
+open.

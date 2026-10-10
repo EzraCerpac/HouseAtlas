@@ -205,6 +205,7 @@ pub(super) fn map_group_with_payload(
 /// contract. Authority, current preimages and atomic execution remain external.
 pub(super) fn map_group_with_entries(
     request: &ValidatedRequest,
+    child_index: Option<usize>,
     contracts: &impl Contract,
     native_entries: Vec<MutationEntry>,
 ) -> StockResult<AtlasCommandGroup> {
@@ -227,7 +228,7 @@ pub(super) fn map_group_with_entries(
         )?;
     }
     let group = AtlasCommandGroup {
-        child_index: None,
+        child_index,
         original_request: request.raw().clone(),
         request_digest: request.intent_digest().into(),
         native_entries,

@@ -12,13 +12,13 @@ use sha2::{Digest, Sha256};
 use super::{JsonObject, PortError};
 
 pub const AGENT_SCHEMA_SHA256: &str =
-    "314ee5f5effca941b3be92cb5cc37150aa17a3ab5dd8646255cebc74767b602d";
+    "42174cebb9a7080cacb8231aba2bf80c4ab59fdb92085db1af3d5fe368cd5835";
 pub const ATLAS_SCHEMA_SHA256: &str =
-    "ba73d972c87391fe06cd41d68e73bc2d73fc3fcac322889cfb3b8d909c3f3f72";
+    "b24f2d0ba25287ecbeb6618dd26728cb201875103edaede51804e00e26c3bc86";
 
 const DIALECT: &str = "https://json-schema.org/draft/2020-12/schema";
 const AGENT_ID: &str = "urn:houseatlas:agent:stock:3";
-const ATLAS_ID: &str = "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json";
+const ATLAS_ID: &str = "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json";
 
 #[derive(Clone, Debug)]
 pub struct NativeSchemas {

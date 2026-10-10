@@ -25,18 +25,21 @@ const check = (name, body) => {
 
 const frozenApiUrl = new URL('../../../docs/contracts/atlas.openapi.json', import.meta.url);
 const sidecarApiUrl = new URL('../../../docs/contracts/atlas.openapi.v1.1.0.json', import.meta.url);
-const frozenSchemaUrl = new URL('../schemas/atlas.schema.json', import.meta.url);
+const atlasSchemaUrl = new URL('../schemas/atlas.schema.json', import.meta.url);
 const historySchemaUrl = new URL('./http-history.v1.1.0.schema.json', import.meta.url);
 const frozenApi = read(frozenApiUrl);
 const sidecar = read(sidecarApiUrl);
-const frozenSchema = read(frozenSchemaUrl);
+const atlasSchema = read(atlasSchemaUrl);
 const historySchema = read(historySchemaUrl);
 const recordPath = '/api/atlas/v1/workspaces/{workspaceId}/homes/{homeId}/records/{recordType}/{recordId}';
 const historyPath = `${recordPath}/history`;
 
-check('accepted OpenAPI and schema preimages', () => {
+check('accepted frozen OpenAPI, amended Atlas 1.1 schema and frozen audit preimages', () => {
   assert.equal(digest(frozenApiUrl), '4c161a9f2fad81cfbd7fa38b0d7476816163b390b5ee898fe3b80a37e7195351');
-  assert.equal(digest(frozenSchemaUrl), 'ba73d972c87391fe06cd41d68e73bc2d73fc3fcac322889cfb3b8d909c3f3f72');
+  assert.equal(digest(atlasSchemaUrl), 'b24f2d0ba25287ecbeb6618dd26728cb201875103edaede51804e00e26c3bc86');
+  // Frozen audit shape from published f67ec8f Atlas 1.0, retained in Atlas 1.1.
+  assert.equal(createHash('sha256').update(canonical(atlasSchema.$defs.audit)).digest('hex'),
+    'f2751df7a5c82c9748308134b410533cecc11dcf4bfccf865dfa05b79c0d21dc');
 });
 check('six accepted path objects are identical; seventh path is the sole addition', () => {
   assert.equal(Object.keys(frozenApi.paths).length, 6);
@@ -68,16 +71,16 @@ check('history reuses required record parameters, session and error responses', 
 check('bare array schema references unchanged schema 1 audit', () => {
   assert.equal(historySchema.type, 'array');
   assert.equal(historySchema.items.$ref, '../schemas/atlas.schema.json#/$defs/audit');
-  assert.equal(frozenSchema.$defs.audit.properties.schemaVersion.const, 1);
+  assert.equal(atlasSchema.$defs.audit.properties.schemaVersion.const, 1);
 });
 
 // Local URL registration resolves relative references without loading remote schemas.
 const ajv = new Ajv2020({ strict: true, allErrors: true, allowUnionTypes: true });
 addFormats(ajv);
-ajv.addSchema(frozenSchema, frozenSchemaUrl.href);
+ajv.addSchema(atlasSchema, atlasSchemaUrl.href);
 ajv.addSchema(historySchema, historySchemaUrl.href);
 const validateHistory = ajv.getSchema(historySchemaUrl.href);
-const validateRecord = ajv.compile({ $ref: `${frozenSchemaUrl.href}#/$defs/record` });
+const validateRecord = ajv.compile({ $ref: `${atlasSchemaUrl.href}#/$defs/record` });
 check('history and supporting record schemas compile', () => {
   assert.equal(typeof validateHistory, 'function');
   assert.equal(typeof validateRecord, 'function');
@@ -106,6 +109,7 @@ for (const fixture of contexts.cases) {
     check(`valid synthetic committed record and digest: ${fixture.file}`, () => {
       const record = fixture.committedRecord;
       assert.equal(validateRecord(record), true, JSON.stringify(validateRecord.errors));
+      assert.equal(record.schemaVersion, 1);
       assert.equal(record.lifecycle, fixture.recordLifecycle);
       assert.equal(record.workspaceId, contexts.workspaceId);
       assert.equal(record.homeId, contexts.homeId);

@@ -31,7 +31,8 @@ export interface Entity {
   entityType: { id: string; name: string; isLocation: boolean } | null;
   parent: { id: string } | null;
   archived: boolean;
-  quantity: number | null;
+  /** Original retained JSON-number representation in the browser read DTO. */
+  quantity: string | null;
   manufacturer: string | null;
   modelNumber: string | null;
   serialNumber: string | null;
@@ -50,7 +51,8 @@ export type Attachment =
       title: string | null;
       kind: "stored-file";
       contentType: string | null;
-      byteSize: number | null;
+      /** Original retained integral JSON-number token; not an issued copy size. */
+      byteSize: string | null;
       downloadHref: string | null;
       previewHref: string | null;
     };
@@ -60,7 +62,8 @@ export interface Maintenance {
   description: string;
   scheduledDate: string | null;
   completedDate: string | null;
-  cost: number | null;
+  /** Original retained JSON-number token; no currency is inferred. */
+  cost: string | null;
 }
 export interface NativeLink {
   kind: "homebox-native";
@@ -69,9 +72,17 @@ export interface NativeLink {
   href: string;
   verifiedRoute: boolean;
 }
+export interface NetworkEndpoint {
+  kind: "device" | "interface" | "segment" | "unresolved";
+  id: string | null;
+  description: string | null;
+}
 export interface NetworkRelation {
   kind:
     "network-segment-membership" | "network-association" | "network-connection";
+  from: NetworkEndpoint;
+  to: NetworkEndpoint;
+  medium: "ethernet" | "wifi" | "powerline" | "wan" | "other" | "unknown";
   temporalStatus: "current-claim" | "historical" | "withdrawn" | "disputed";
   sourceRevision: number | null;
   sourceConfidence: string | null;

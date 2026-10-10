@@ -1,22 +1,41 @@
 //! Loopback TLS routes and browser DTO projection. No source/provider transport.
 mod admission;
 pub mod agents;
+pub mod ai;
+pub(crate) mod ai_account;
+pub(crate) mod asset_reviews;
 mod auth;
 pub mod contracts;
 mod editing;
 mod headers;
+mod homebox_pinned_discovery;
+mod homebox_pinned_files;
+pub use homebox_pinned_files::PinnedHomeBoxFileBinding;
+mod capture_claim;
 mod intake;
 mod media;
 mod mutations;
+mod native_upload_admission;
+mod operation_events;
 mod pages;
 pub mod providers;
 pub mod qualified_upload_plan;
+mod quantity;
+#[cfg(test)]
+mod quantity_fixture;
+#[cfg(test)]
+mod quantity_http_healthy;
+mod quantity_tool_admission;
+mod quantity_worker;
 mod query;
 mod reads;
 mod response;
+mod stock_downloads;
 mod stock_mutations;
+mod stock_network_reads;
 mod stock_reads;
 mod upload;
+mod upload_asset;
 mod upload_batch;
 pub mod upload_intake;
 use crate::{
@@ -40,19 +59,48 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+/// Trusted startup selection only. Every session still requires its actual
+/// original authenticated native identity and current capability checks.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub enum McpCommandProfile {
+    #[default]
+    ReadOnly,
+    ExistingEditorCommands,
+}
+
 #[derive(Clone)]
 pub struct Host {
     pub core: Arc<Mutex<Core>>,
     pub origin: String,
     pub files: Arc<BTreeMap<String, (String, Vec<u8>)>>,
     homebox_cache_sources: Arc<Vec<crate::config::providers::homebox::TrustedHomeBoxSource>>,
+    native_homebox_reads: Arc<Vec<providers::homebox_native::NativeHomeBoxReadBinding>>,
+    native_homebox_list_pages: Arc<crate::providers::homebox::read::NativeListPages>,
+    pinned_homebox_file_bindings: Arc<Vec<homebox_pinned_files::PinnedHomeBoxFileBinding>>,
+    pinned_homebox_artifacts:
+        Arc<Mutex<crate::media::homebox_pinned_artifacts::NativePinnedArtifactBroker>>,
+    pinned_homebox_capture_requests: Arc<Mutex<homebox_pinned_files::CaptureRequests>>,
+    network_bindings: Arc<Vec<crate::config::providers::network_host::NetworkBinding>>,
+    atlas_download_handles: d::stock::AtlasDownloadHandles,
     response_ids: Arc<ResponseIds>,
     pages: Arc<Mutex<pages::Pages>>,
     admission: Arc<admission::Admission>,
     mcp: Arc<Mutex<agents::mcp_transport::TransportSessions>>,
+    mcp_command_profile: McpCommandProfile,
     // Same native Access owner; immutable configured scopes copied at startup.
     mcp_access: crate::app::Access,
     mcp_scopes: Arc<Vec<d::Scope>>,
+    pub(crate) asset_reviews: Arc<Mutex<asset_reviews::ReviewRegistry>>,
+    native_media_archive:
+        Option<Arc<Mutex<crate::media::native_policy_archive::NativeMediaArchiveOwner>>>,
+    operation_events: Arc<Mutex<operation_events::EventRegistry>>,
+    quantity_installations:
+        Arc<Vec<Arc<crate::config::providers::quantity_installation::OriginalQuantityConfigured>>>,
+    quantity_previews: Arc<Mutex<quantity::Registry>>,
+    #[cfg(test)]
+    quantity_tls_fixture: Option<Arc<quantity_fixture::PrivateLoopbackQuantityTls>>,
+    loopback_local: bool,
+    gateway: Option<Arc<crate::app::trusted_gateway::GatewaySocket>>,
 }
 impl Host {
     pub fn new(
@@ -62,12 +110,31 @@ impl Host {
         homebox_cache_sources: Vec<crate::config::providers::homebox::TrustedHomeBoxSource>,
     ) -> crate::storage::Result<Self> {
         Ok(Self {
+            mcp_command_profile: McpCommandProfile::ReadOnly,
             mcp_access: core.access.clone(),
             mcp_scopes: Arc::new(core.homes.iter().map(|home| home.scope.clone()).collect()),
+            asset_reviews: Arc::new(Mutex::new(asset_reviews::ReviewRegistry::default())),
+            native_media_archive: None,
+            quantity_installations: Arc::new(Vec::new()),
+            quantity_previews: Arc::new(Mutex::new(quantity::Registry::default())),
+            #[cfg(test)]
+            quantity_tls_fixture: None,
+            loopback_local: false,
+            gateway: None,
+            operation_events: Arc::new(Mutex::new(operation_events::EventRegistry::default())),
             core: Arc::new(Mutex::new(core)),
             origin,
             files,
             homebox_cache_sources: Arc::new(homebox_cache_sources),
+            native_homebox_reads: Arc::new(Vec::new()),
+            native_homebox_list_pages: Arc::new(
+                crate::providers::homebox::read::NativeListPages::new(),
+            ),
+            pinned_homebox_file_bindings: Arc::new(Vec::new()),
+            pinned_homebox_artifacts: Arc::new(Mutex::new(Default::default())),
+            pinned_homebox_capture_requests: Arc::new(Mutex::new(Default::default())),
+            network_bindings: Arc::new(Vec::new()),
+            atlas_download_handles: d::stock::AtlasDownloadHandles::default(),
             response_ids: Arc::new(ResponseIds::new()?),
             pages: Arc::new(Mutex::new(pages::Pages::default())),
             admission: Arc::new(admission::Admission::default()),
@@ -75,6 +142,244 @@ impl Host {
                 agents::mcp_transport::TransportSessions::default(),
             )),
         })
+    }
+    /// Explicit startup choice validated against the actual native local user.
+    pub fn with_loopback_local(mut self) -> crate::storage::Result<Self> {
+        if self.origin != "https://127.0.0.1:48743" {
+            return Err(crate::storage::Error::new(
+                "invalid-local-mode",
+                "Local mode requires the selected loopback origin",
+            ));
+        }
+        {
+            let mut access = self.mcp_access.lock().map_err(|_| {
+                crate::storage::Error::new("owner-unavailable", "Access unavailable")
+            })?;
+            access.validate_loopback_local_user().map_err(|e| {
+                crate::storage::Error::new(e.code(), "Explicit local identity unavailable")
+            })?;
+        }
+        self.loopback_local = true;
+        Ok(self)
+    }
+    /// Select only the native Access policy and the actual private Unix listener.
+    pub fn with_trusted_gateway(
+        mut self,
+        socket: Arc<crate::app::trusted_gateway::GatewaySocket>,
+    ) -> crate::storage::Result<Self> {
+        let mut access = self
+            .mcp_access
+            .lock()
+            .map_err(|_| crate::storage::Error::new("owner-unavailable", "Access unavailable"))?;
+        let policy = access.trusted_proxy_policy().ok_or_else(|| {
+            crate::storage::Error::new("invalid-proxy-mode", "Native proxy selection absent")
+        })?;
+        if !Arc::ptr_eq(policy, socket.policy())
+            || access.trusted_proxy_origin() != Some(self.origin.as_str())
+            || self.loopback_local
+        {
+            return Err(crate::storage::Error::new(
+                "invalid-proxy-mode",
+                "Selected gateway custody changed",
+            ));
+        }
+        access.validate_loopback_local_user().map_err(|e| {
+            crate::storage::Error::new(e.code(), "Selected native identity unavailable")
+        })?;
+        drop(access);
+        self.gateway = Some(socket);
+        Ok(self)
+    }
+    /// Explicit original startup selections; no provider or artifact I/O here.
+    pub fn with_quantity_installations(
+        mut self,
+        selected: Vec<
+            Arc<crate::config::providers::quantity_installation::OriginalQuantityConfigured>,
+        >,
+    ) -> crate::storage::Result<Self> {
+        let core = self.core.lock().map_err(|_| {
+            crate::storage::Error::new("owner-unavailable", "Quantity host unavailable")
+        })?;
+        let mut targets = std::collections::BTreeSet::new();
+        for configuration in &selected {
+            let descriptor = configuration.descriptor();
+            if !targets.insert(serde_json::to_string(&(
+                descriptor.scope.clone(),
+                descriptor.target.clone(),
+            ))?) {
+                return Err(crate::storage::Error::new(
+                    "identity-conflict",
+                    "Duplicate quantity target",
+                ));
+            }
+        }
+        if selected.len() > 64 || selected.iter().any(|s| !s.belongs_to_core(&core)) {
+            return Err(crate::storage::Error::new(
+                "identity-conflict",
+                "Original quantity configuration required",
+            ));
+        }
+        drop(core);
+        self.quantity_installations = Arc::new(selected);
+        Ok(self)
+    }
+
+    /// Select admission only for subsequently initialized sessions. This data
+    /// grants no authority or approval and cannot broaden an existing session.
+    /// The default binary retains ReadOnly.
+    pub fn with_mcp_command_profile(mut self, profile: McpCommandProfile) -> Self {
+        self.mcp_command_profile = profile;
+        self
+    }
+
+    /// Trusted optional native GET and credential custody configuration. No
+    /// provider request or source grant is issued at startup; each request must
+    /// qualify the exact current Store registration and original Access handles.
+    pub fn with_native_homebox_reads(
+        mut self,
+        mut bindings: Vec<providers::homebox_native::NativeHomeBoxReadBinding>,
+    ) -> crate::storage::Result<Self> {
+        let mut partitions = std::collections::BTreeSet::new();
+        for binding in &bindings {
+            let partition = binding.source().partition();
+            if !self.mcp_scopes.iter().any(|scope| {
+                scope.workspace_id == partition.workspace_id && scope.home_id == partition.home_id
+            }) || !partitions.insert(serde_json::to_string(&partition)?)
+            {
+                return Err(crate::storage::Error::new(
+                    "invalid-contract",
+                    "Native HomeBox read scope is unavailable",
+                ));
+            }
+        }
+        for binding in &mut bindings {
+            binding.bind_pages(Arc::clone(&self.native_homebox_list_pages));
+        }
+        self.native_homebox_reads = Arc::new(bindings);
+        Ok(self)
+    }
+    /// Explicit optional local file source selection; default is empty.
+    pub fn with_pinned_homebox_files(
+        mut self,
+        bindings: Vec<homebox_pinned_files::PinnedHomeBoxFileBinding>,
+    ) -> crate::storage::Result<Self> {
+        let mut partitions = std::collections::BTreeSet::new();
+        if bindings.len() > 64 {
+            return Err(crate::storage::Error::new(
+                "invalid-contract",
+                "Pinned HomeBox source unavailable",
+            ));
+        }
+        for binding in &bindings {
+            let partition = binding.source().partition();
+            if !self.mcp_scopes.iter().any(|scope| {
+                scope.workspace_id == partition.workspace_id && scope.home_id == partition.home_id
+            }) || !partitions.insert(serde_json::to_string(&partition)?)
+            {
+                return Err(crate::storage::Error::new(
+                    "invalid-contract",
+                    "Pinned HomeBox source unavailable",
+                ));
+            }
+        }
+        self.pinned_homebox_file_bindings = Arc::new(bindings);
+        Ok(self)
+    }
+
+    /// Trusted optional Media-only custody. Startup supplies the actual native
+    /// deployment/physical-DB/archive mapping and retention scopes. Existing
+    /// generations require complete independently admitted references; candidate
+    /// archive scans and recovered SQL cannot supply those configuration inputs.
+    /// No directory is opened, grant issued or recovery performed here.
+    pub fn with_native_media_archive(
+        mut self,
+        archive: Arc<crate::lifecycle::provider_dispatch::archive::PrivateStockArchive>,
+        origin: crate::media::recovery_policy_archive::MediaPolicyArchiveOrigin,
+        scopes: Vec<crate::media::types::Scope>,
+        independent_members: Option<
+            Vec<crate::media::native_policy_archive::NativeMediaArchiveExpectedMember>,
+        >,
+        budget: &crate::media::WorkBudget,
+    ) -> crate::media::MediaResult<Self> {
+        use crate::media::{
+            MediaError,
+            native_policy_archive::{
+                NativeMediaArchiveBinding, NativeMediaArchiveGeneration, NativeMediaArchiveOwner,
+            },
+        };
+        let identity = {
+            let core = self.core.try_lock().map_err(|_| MediaError::Unavailable)?;
+            if scopes.iter().any(|scope| {
+                !core.homes.iter().any(|home| {
+                    home.scope.workspace_id == scope.workspace_id
+                        && home.scope.home_id == scope.home_id
+                })
+            }) {
+                return Err(MediaError::Forbidden);
+            }
+            let store = core.store.try_lock().map_err(|_| MediaError::Unavailable)?;
+            store.asset_review_store_identity()
+        };
+        let binding = NativeMediaArchiveBinding::new(identity, archive, origin, scopes)?;
+        let owner = match independent_members {
+            Some(members) => {
+                let generation = NativeMediaArchiveGeneration::from_trusted_configuration(
+                    &binding, members, budget,
+                )?;
+                NativeMediaArchiveOwner::configured(binding, generation)?
+            }
+            None => NativeMediaArchiveOwner::fresh(binding),
+        };
+        self.native_media_archive = Some(Arc::new(Mutex::new(owner)));
+        Ok(self)
+    }
+
+    /// Detached immutable custody reference emitted by genuine publication.
+    /// This grants no recovery, replay or output disclosure authority.
+    pub fn native_media_archive_generation(
+        &self,
+    ) -> crate::media::MediaResult<
+        Option<crate::media::native_policy_archive::NativeMediaArchiveGeneration>,
+    > {
+        self.native_media_archive
+            .as_ref()
+            .map(|owner| {
+                owner
+                    .try_lock()
+                    .map(|owner| owner.generation())
+                    .map_err(|_| crate::media::MediaError::Unavailable)
+            })
+            .transpose()
+    }
+
+    /// Trusted optional native mounts. Opening a binding issues no grants and
+    /// performs no provider request; existing configured authority is required.
+    pub fn with_network_bindings(
+        mut self,
+        bindings: Vec<crate::config::providers::network_host::NetworkBinding>,
+    ) -> crate::storage::Result<Self> {
+        if bindings
+            .iter()
+            .any(|binding| !Arc::ptr_eq(binding.access().shared().as_existing(), &self.mcp_access))
+        {
+            return Err(crate::storage::Error::new(
+                "invalid-contract",
+                "Network canonical issuer does not match",
+            ));
+        }
+        let mut partitions = std::collections::BTreeSet::new();
+        for binding in &bindings {
+            let partition = binding.runtime().settings().configured_source().partition();
+            let key = serde_json::to_string(&partition)?;
+            if !partitions.insert(key) {
+                return Err(crate::storage::Error::new(
+                    "invalid-contract",
+                    "Network partition is configured more than once",
+                ));
+            }
+        }
+        self.network_bindings = Arc::new(bindings);
+        Ok(self)
     }
 }
 type HttpResult = Result<Response, HttpFailure>;
@@ -121,8 +426,18 @@ async fn response_adapter(State(host): State<Host>, mut request: Request, next: 
     let request_id = host.response_ids.next();
     let admitted = host.admission.admit();
     let checked = admitted.as_ref().map_err(Clone::clone).and_then(|permit| {
-        let headers =
+        let mut headers =
             CheckedHeaders::read(request.headers(), request.version()).map_err(access_error)?;
+        if let Some(socket) = &host.gateway {
+            let peer = request
+                .extensions()
+                .get::<axum::extract::ConnectInfo<crate::app::trusted_gateway::GatewayConnection>>()
+                .ok_or_else(|| failure(StatusCode::FORBIDDEN))?;
+            let identity = headers::single(request.headers(), "x-houseatlas-gateway-identity")
+                .map_err(access_error)?
+                .ok_or_else(|| failure(StatusCode::FORBIDDEN))?;
+            headers.gateway = Some(socket.admit(&peer.0, &identity).map_err(access_error)?);
+        }
         headers
             .check_authority(&host.origin, request.uri())
             .map_err(access_error)?;
@@ -261,17 +576,65 @@ fn authorized_read<T>(
     principal.release(&access).map_err(access_error)?;
     Ok(result)
 }
+/// Scoped stock reads may call native owners which acquire their owning Core.
+/// Retain the actual issuance and canonical allocation across the unlocked phase.
+fn authorized_read_unlocked<T>(
+    host: &Host,
+    headers: &CheckedHeaders,
+    uri: &Uri,
+    method: &Method,
+    scope: d::Scope,
+    operation: impl FnOnce(&RequestPrincipal) -> Result<T, HttpFailure>,
+) -> Result<T, HttpFailure> {
+    let access_scope =
+        crate::app::access_scope(&scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
+    let core = host
+        .core
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    if !core.homes.iter().any(|home| home.scope == scope) {
+        return Err(failure(StatusCode::NOT_FOUND));
+    }
+    let canonical = core.access.clone();
+    let url = format!(
+        "{}{}",
+        host.origin,
+        uri.path_and_query().map_or("/", |path| path.as_str())
+    );
+    let request = evidence(&host.origin, headers, uri, &url, method).map_err(access_error)?;
+    let principal = canonical
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
+        .authorize(&request, &access_scope, a::Action::Read)
+        .map_err(access_error)?;
+    let principal = RequestPrincipal::new(principal);
+    drop(core);
+    let result = operation(&principal)?;
+    let core = host
+        .core
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    if !Arc::ptr_eq(&canonical, &core.access) || !core.homes.iter().any(|home| home.scope == scope)
+    {
+        return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+    }
+    let access = canonical
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    principal.release(&access).map_err(access_error)?;
+    Ok(result)
+}
 fn query_view(
     core: &mut Core,
     principal: &RequestPrincipal,
     home: &d::HomeSummary,
 ) -> Result<d::CurrentOutput, HttpFailure> {
+    let mut store = core
+        .store
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
     let mut queries = d::Queries {
-        store: Reads(
-            core.store
-                .get_mut()
-                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
-        ),
+        store: Reads(&mut store),
         access: HomeAuthority {
             access: Arc::clone(&core.access),
             home: home.clone(),
@@ -289,16 +652,80 @@ fn query_view(
 /// Deliberate narrow projection for AT10's browser wire proposal. Unimplemented
 /// extension facts stay unknown/absent; the read-only graph excludes Network.
 fn browser_view(view: d::CurrentOutput) -> Result<Value, HttpFailure> {
-    let mut v = serde_json::to_value(view).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-    for entry in v["entries"]
+    let mut v =
+        serde_json::to_value(&view).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    let entries = v["entries"]
         .as_array_mut()
-        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?
-    {
-        browser_entry(entry);
+        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    if entries.len() != view.entries.len() {
+        return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+    }
+    for (entry, original) in entries.iter_mut().zip(&view.entries) {
+        browser_entry(entry, original)?;
     }
     Ok(v)
 }
-fn browser_entry(entry: &mut Value) {
+fn browser_entry(entry: &mut Value, original: &d::CurrentEntry) -> Result<(), HttpFailure> {
+    let object = entry
+        .as_object_mut()
+        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    let maintenance = object
+        .get_mut("maintenance")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    if maintenance.len() != original.maintenance.len() {
+        return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+    }
+    for (item, retained) in maintenance.iter_mut().zip(&original.maintenance) {
+        let cost = item
+            .as_object_mut()
+            .and_then(|item| item.get_mut("cost"))
+            .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        *cost = retained
+            .cost
+            .as_ref()
+            .map(|number| Value::String(number.to_string()))
+            .unwrap_or(Value::Null);
+    }
+    let attachments = object
+        .get_mut("attachments")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    if attachments.len() != original.attachments.len() {
+        return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+    }
+    for (item, retained) in attachments.iter_mut().zip(&original.attachments) {
+        let item = item
+            .as_object_mut()
+            .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        match retained {
+            d::CurrentAttachment::StoredFile { byte_size, .. } => {
+                if item.get("kind").and_then(Value::as_str) != Some("stored-file") {
+                    return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+                }
+                let bytes = item
+                    .get_mut("byteSize")
+                    .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+                *bytes = byte_size
+                    .as_ref()
+                    .map(|integer| Value::String(integer.as_number().to_string()))
+                    .unwrap_or(Value::Null);
+            }
+            d::CurrentAttachment::ExternalLink { .. } => {
+                if item.get("kind").and_then(Value::as_str) != Some("external-link") {
+                    return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+                }
+            }
+        }
+    }
+    // Use the original retained Number representation before any Value reparse.
+    // This browser read DTO is separate from canonical storage and stock wire.
+    entry["entity"]["quantity"] = original
+        .entity
+        .quantity
+        .as_ref()
+        .map(|number| Value::String(number.to_string()))
+        .unwrap_or(Value::Null);
     entry["key"] = Value::String(
         json!([
             entry["source"]["sourceInstanceId"],
@@ -313,15 +740,19 @@ fn browser_entry(entry: &mut Value) {
     entry["networkBound"] = json!(false);
     entry["networkStates"] = json!([]);
     entry["networkRelations"] = json!([]);
+    Ok(())
 }
 fn browser_entries(entries: Vec<&d::CurrentEntry>) -> Result<Value, HttpFailure> {
     let mut values =
-        serde_json::to_value(entries).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-    for entry in values
+        serde_json::to_value(&entries).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    let serialized = values
         .as_array_mut()
-        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?
-    {
-        browser_entry(entry);
+        .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    if serialized.len() != entries.len() {
+        return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+    }
+    for (entry, original) in serialized.iter_mut().zip(&entries) {
+        browser_entry(entry, original)?;
     }
     Ok(values)
 }
@@ -499,18 +930,42 @@ async fn static_file(State(host): State<Host>, uri: Uri) -> HttpResult {
     Ok(response)
 }
 pub fn router(host: Host) -> Router {
-    Router::new()
+    router_with_ai(host, None)
+}
+/// The caller supplies an AI router bound to actual session and enrollment peers.
+pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
+    let base = Router::new()
+        .route("/api/atlas/homebox/quantity/availability", get(quantity::availability).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/homebox/quantity/preview", post(quantity::preview).fallback(auth::session_head))
+        .route("/api/atlas/homebox/quantity/approval", post(quantity::approval).fallback(auth::session_head))
+        .route("/api/atlas/homebox/quantity/dispatch", post(quantity::dispatch).fallback(auth::session_head))
+        .route("/api/atlas/retained-intent", post(operation_events::reconcile_intent).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/operation-events", get(operation_events::events).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/collections/{collection_id}/cached", get(providers::cached_homebox).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/cached", get(providers::cached_homebox_query).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/providers/network/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/cached", get(providers::network::cached).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/mcp/workspaces/{workspace_id}/homes/{home_id}", post(agents::mcp_transport::post).get(agents::mcp_transport::unsupported).head(agents::mcp_transport::unsupported).delete(agents::mcp_transport::unsupported).fallback(agents::mcp_transport::unsupported))
         .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/place", get(editing::place).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/places/{record_id}/evidence", post(upload::command))
+        .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/native-places/{record_id}", get(native_upload_admission::place).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/native-places/{record_id}/evidence", post(upload::native_command))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/admission", get(agents::admission).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/homebox-pinned-file", get(homebox_pinned_files::capture).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/stock/v4/workspaces/{workspace_id}/homes/{home_id}/homebox-pinned-file", get(homebox_pinned_files::capture_v4).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/media/pinned-homebox/{workspace_id}/{home_id}/{token}", get(homebox_pinned_files::redeem).head(homebox_pinned_files::redeem).fallback(auth::session_head))
+        .route("/api/atlas/media/pinned-homebox/{workspace_id}/{home_id}/{token}/availability", get(homebox_pinned_files::availability).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/quantity-tool-admission", get(quantity_tool_admission::admission).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/homebox-pinned-file-admission", get(homebox_pinned_discovery::admission).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/invoke", get(agents::invoke).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/commands", post(stock_mutations::command))
+        .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/assets", post(upload_asset::command))
+        .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/assets/{asset_id}/review-proof", post(asset_reviews::issue))
+        .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}", get(stock_reads::list).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}", get(stock_reads::record).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}/history", get(stock_reads::history).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/media/{workspace_id}/{home_id}/{digest}/{mode}", get(media::deliver).fallback(media::other))
+        .route("/api/atlas/media/downloads/{workspace_id}/{home_id}/{token}", get(stock_downloads::redeem).fallback(media::other))
+        .route("/api/atlas/media/downloads/{workspace_id}/{home_id}/{token}/availability", get(stock_downloads::availability).head(auth::session_head).fallback(media::other))
         .route("/api/atlas/view", get(current))
         .route(
             "/api/atlas/homes/{workspace_id}/{home_id}/view",
@@ -520,6 +975,9 @@ pub fn router(host: Host) -> Router {
         .route("/api/atlas/items", get(items))
         .route("/api/atlas/homes", get(homes))
         .route("/api/atlas/auth/login", post(auth::login))
+        .route("/api/atlas/auth/mode", get(auth::mode))
+        .route("/api/atlas/auth/local", post(auth::local))
+        .route("/api/atlas/auth/proxy", post(auth::proxy))
         .route(
             "/api/atlas/auth/session",
             get(auth::session)
@@ -536,10 +994,17 @@ pub fn router(host: Host) -> Router {
         .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/network/relations", get(reads::network).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}", get(reads::record).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}/history", get(reads::history).head(auth::session_head).fallback(auth::session_head))
-        .fallback(get(static_file))
-        .layer(middleware::from_fn_with_state(
-            host.clone(),
-            response_adapter,
-        ))
-        .with_state(host)
+        .fallback(get(static_file));
+    let base = match ai {
+        Some(ai) => base.nest(
+            "/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/ai",
+            ai.with_state::<Host>(()),
+        ),
+        None => base,
+    };
+    base.layer(middleware::from_fn_with_state(
+        host.clone(),
+        response_adapter,
+    ))
+    .with_state(host)
 }

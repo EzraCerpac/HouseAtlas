@@ -80,7 +80,7 @@ try {
   const version = await cdp.send('Browser.getVersion');
   // Both inspected release IDLs take DOMString input_arguments. A browser
   // version change requires source inspection before this ordinary flow runs.
-  assert(['Chrome/151.0.7922.173', 'Chrome/154.0.8037.57', 'Chrome/154.0.8037.97'].includes(version.product), 'Inspected native WebMCP browser version');
+  assert(['Chrome/151.0.7922.173', 'Chrome/154.0.8037.57', 'Chrome/154.0.8037.97', 'Chrome/154.0.8037.98'].includes(version.product), 'Inspected native WebMCP browser version');
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params) => cdp.send(method, params, sessionId);
@@ -95,7 +95,27 @@ try {
     if (result.exceptionDetails) console.error(JSON.stringify({healthyException:result.exceptionDetails.exception?.description ?? result.exceptionDetails.text,responses,runtimeErrors}));
     assert(!result.exceptionDetails, 'Healthy browser evaluation'); return result.result.value;
   };
+  // Open the retained native Atlas surface through Lantern's visible controls.
+  const openAtlasTools = async () => {
+    await until(async () => await evaluate(`(() => {
+      const button = [...document.querySelectorAll('nav[aria-label="Sections"] button')]
+        .find(button => button.textContent?.trim() === 'Changes' && button.getClientRects().length);
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`), 'Visible Changes navigation');
+    await until(async () => await evaluate("document.querySelector('main#main h1')?.textContent === 'Changes'"), 'Changes view');
+    await until(async () => await evaluate(`(() => {
+      const button = [...document.querySelectorAll('main#main button')]
+        .find(button => button.textContent?.trim() === 'Atlas tools' && button.getClientRects().length);
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`), 'Visible Atlas tools action');
+    await until(async () => await evaluate("Boolean(document.querySelector('[role=dialog][aria-modal=true][aria-label=\"Atlas tools\"]:not([hidden])'))"), 'Visible Atlas tools dialog');
+  };
   await send('Page.navigate', { url: origin });
+  await openAtlasTools();
   try {
     await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'React authorized home rendering');
   } catch (error) {
@@ -125,6 +145,7 @@ try {
   await until(async()=>await evaluate("Boolean(document.getElementById('atlas-username'))"),'Ordinary successful logout form');
   await evaluate(`document.getElementById('atlas-username').value=${JSON.stringify(editorLogin.username)};document.getElementById('atlas-password').value=${JSON.stringify(editorLogin.password)};document.querySelector('.session-form').requestSubmit()`);
   await until(async()=> (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'),'Actual editor React session');
+  await openAtlasTools();
   await until(async()=> (await evaluate("document.modelContext.getTools().then(t=>t.some(x=>x.name==='atlas_records'))")), 'Actual editor registration');
   const getJson = path => evaluate(`fetch(${JSON.stringify(path)},{method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error',headers:{Accept:'application/json'}}).then(async r=>({status:r.status,body:await r.json()}))`);
   assert.equal(view.status, 'ready');
@@ -296,7 +317,7 @@ try {
   assert.deepEqual(initializeResult.serverInfo, { name: 'HouseAtlas', version: '0.1.0' });
   assert.equal(rpc.ready.status, 202); assert.equal(rpc.ready.empty, true); assert.equal(rpc.ready.body, null);
   const listed = assertRpc(rpc.listed, 'healthy-host-list');
-  assert.deepEqual(listed.tools.map(tool => tool.name).sort(), ['atlas_bindings', 'atlas_media_geometry', 'atlas_records']);
+  assert.deepEqual(listed.tools.map(tool => tool.name).sort(), ['atlas_bindings', 'atlas_media_geometry', 'atlas_records', 'homebox_entities_locations']);
   assert(listed.tools.every(tool => tool.annotations?.readOnlyHint === true));
   assert.equal(listed.nextCursor, undefined);
   const assertCanonicalCall = (response, id, request) => {

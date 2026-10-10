@@ -1,9 +1,20 @@
 # Fresh native stock writes
 
 POST `/api/atlas/stock/v3/workspaces/{workspaceId}/homes/{homeId}/commands`
-accepts the complete native stock wire3 envelope for a fresh `atlas.circuit.create`
-or an `atlas.batch.execute` containing only `atlas.identity.create` children.
-These are local Atlas operations. Other stock commands remain held.
+accepts the complete native stock wire3 envelope for the Domain owner’s closed
+31-form direct-write map, six single derived forms, or a nonempty
+`atlas.batch.execute` whose every ordered child maps directly. HTTP admission
+and the actual native planner share
+`atlas_direct_operation`; no copied catalog allowlist grants execution. An editor’s
+WebMCP catalog adds those 31 forms and the restricted batch arm to 31 HTTP Atlas reads.
+Mounted MCP retains its separate read-only profile.
+
+The map covers seven creates, five replacements, ten tombstones and nine restores.
+Binding create/review/restore/remap, geometry create and asset review use the
+separate retained derivation adapter in [specialized writes](atlas-specialized-writes.md).
+Asset create requires qualified Media evidence and remains outside generic stock
+admission. Staged attachment profiles retain their separate exact-request plans.
+Evidence/reconciliation replacement remain intentionally excluded by the catalog.
 
 The route captures the actual AT11 Mutate principal, trusted request evidence and
 CSRF before collecting the bounded body. It uses the existing duplicate-key JSON
@@ -33,18 +44,32 @@ targets use the retained real candidate. Frozen receipts are never promoted to
 stock receipts. Server operation IDs, audit IDs, times, revisions and digests
 come from their actual owners.
 
-The separate inspected `healthy-stock-write-loopback.mjs` runner adds ten
-ordinary requests to the 56-request media/read flow: two actual session reads,
-one circuit POST, one ordered identity-batch POST, and the three resulting frozen
-record/history pairs. Each root is submitted once. Read-only SQLite inspection
-also checks two stock operations, three groups, four permanent keys and three
-stock audit links. It makes no stock history, provider, replay or rejected call.
+The separate inspected `healthy-stock-write-loopback.mjs` runner adds nineteen
+ordinary requests to the media/read flow: two actual session reads, editor
+admission, circuit and identity singles, identity-only and mixed circuit/identity
+batches, and six resulting frozen record/history pairs. Each root is submitted
+once. Read-only SQLite inspection also checks four stock operations, six groups,
+eight permanent keys and six stock audit links. Only these fresh creates have
+runtime evidence; compilation and catalog admission do not qualify all 31 forms.
+It also issues PNG/text stock download handles through native WebMCP and HTTP,
+checks visible canonical issued metadata before native return, and redeems
+original bytes with authenticated GET/HEAD. These six additional requests do
+not establish the unmounted download link UI or MCP handle lifecycle. It makes
+no stock history, provider, replay or rejected call.
+
+The native `healthy-agent-loopback.mjs` runner also exercises the newly admitted
+identity single and mixed identity/circuit batch through actual
+`document.modelContext.executeTool`. Its 23-request flow checks canonical React
+completion before return, genuine readback, and SQLite retention of three stock
+operations, four groups and four linked audits. No model-context or business peer
+is substituted.
 
 Whole-home graph authority is deliberately conservative. Access and Atlas
 storage are separate databases; this fence is not a distributed atomic commit
 or crash qualification. There is no public independent durable stock-commit
 reread API. Native stock history is separately bound in [stock-history.md](stock-history.md).
-Record editing UI, other command families, queue
+Complete record editing UI, renderer-qualified reviews, standalone staged stock
+intake, mixed derived batches, queue
 admission, source-presence admission, physical effects and approval spending
 remain unbound. The domain owner's stock error-union ordering correction remains
 outstanding. All stopped controls remain unrun.

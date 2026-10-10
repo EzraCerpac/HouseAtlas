@@ -7,6 +7,7 @@ use rustix::fs::{AtFlags, Mode, linkat};
 
 use super::content::{qualify_original_preview, validate_original_content};
 use super::private_fs::PrivateDir;
+use super::recovery_policy::RendererQualification;
 use super::types::{
     AssetOwner, AssetPayload, AssetPurpose, AssetRecord, Availability, BlobIdentity, ContentType,
     PreviewPolicy, Scope, SourceLicense, is_digest, sha256,
@@ -38,6 +39,7 @@ pub struct PreparedOriginal {
 pub struct QualifiedOriginal {
     measured: PreparedOriginal,
     preview_policy: PreviewPolicy,
+    qualification: Option<RendererQualification>,
 }
 
 impl std::ops::Deref for QualifiedOriginal {
@@ -48,6 +50,9 @@ impl std::ops::Deref for QualifiedOriginal {
 }
 
 impl QualifiedOriginal {
+    pub fn renderer_qualification(&self) -> Option<&RendererQualification> {
+        self.qualification.as_ref()
+    }
     pub fn into_measured(self) -> PreparedOriginal {
         self.measured
     }
@@ -116,9 +121,18 @@ pub trait AvailableAssetVerifier {
 
 impl AssetVault {
     pub fn open(root: &Path) -> MediaResult<Self> {
-        let root = PrivateDir::open(root, true)?;
-        let blobs = root.child("blobs", true)?;
-        let staging = root.child("staging", true)?;
+        Self::open_selected(root, true)
+    }
+
+    /// Offline existing custody only; never creates or synchronizes directories.
+    pub fn open_existing(root: &Path) -> MediaResult<Self> {
+        Self::open_selected(root, false)
+    }
+
+    fn open_selected(root: &Path, create: bool) -> MediaResult<Self> {
+        let root = PrivateDir::open(root, create)?;
+        let blobs = root.child("blobs", create)?;
+        let staging = root.child("staging", create)?;
         let mut scopes = BTreeMap::new();
         for name in blobs.members()? {
             if !is_digest(&name) {
@@ -477,21 +491,29 @@ impl AssetVault {
         if let Some(limits) = policy.limits {
             self.enforce_upload_capacity(scope, &bytes, limits, budget)?;
         }
-        let preview_policy = if policy.qualify_preview {
+        let rendered = if policy.qualify_preview {
             qualify_original_preview(&bytes, content_type, budget)?
         } else {
-            PreviewPolicy::DownloadOnly
+            None
         };
         let prepared = self.install(scope, &bytes, budget)?;
         budget.check()?;
+        let measured = PreparedOriginal {
+            purpose,
+            storage_key: prepared.storage_key,
+            identity: prepared.identity,
+            content_type,
+        };
+        let qualification =
+            rendered.map(|output| RendererQualification::produced(scope, &measured, output));
         Ok(QualifiedOriginal {
-            measured: PreparedOriginal {
-                purpose,
-                storage_key: prepared.storage_key,
-                identity: prepared.identity,
-                content_type,
+            measured,
+            preview_policy: if qualification.is_some() {
+                PreviewPolicy::SafeRendered
+            } else {
+                PreviewPolicy::DownloadOnly
             },
-            preview_policy,
+            qualification,
         })
     }
 

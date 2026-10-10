@@ -1,6 +1,7 @@
 import { decodeAtlasView } from "../app/decode";
 import type { AtlasClient, AtlasView, Scope } from "../app/types";
 import {
+  decodeAuthMode,
   decodeSessionInfo,
   type AtlasSessionClient,
   type AtlasSessionInfo,
@@ -59,6 +60,69 @@ export function createAtlasClient(
   };
 }
 
+/** The bare mode object is a few dozen bytes; anything larger is rejected. */
+const AUTH_MODE_MAX_BYTES = 1024;
+/** Local and proxy sign-in return only the session DTO; anything larger is rejected. */
+const AUTH_SESSION_MAX_BYTES = 4096;
+/** Bound the complete native exchange, including response body decoding. */
+const LOCAL_ACCESS_TIMEOUT_MS = 15_000;
+async function withLocalAccessDeadline<T>(
+  signal: AbortSignal,
+  exchange: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  signal.throwIfAborted();
+  const deadline = new AbortController();
+  const bounded = AbortSignal.any([signal, deadline.signal]);
+  const timer = setTimeout(() => deadline.abort(), LOCAL_ACCESS_TIMEOUT_MS);
+  let onAbort = () => {};
+  const aborted = new Promise<never>((_, reject) => {
+    onAbort = () => reject(bounded.reason);
+    bounded.addEventListener("abort", onAbort, { once: true });
+    if (bounded.aborted) onAbort();
+  });
+  try {
+    const value = await Promise.race([exchange(bounded), aborted]);
+    bounded.throwIfAborted();
+    return value;
+  } finally {
+    clearTimeout(timer);
+    bounded.removeEventListener("abort", onAbort);
+  }
+}
+async function readBoundedJson(
+  response: Response,
+  limit: number,
+): Promise<unknown> {
+  const body = response.body;
+  if (!body) throw new TypeError("Expected sign-in method");
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value.byteLength > limit - size)
+        throw new TypeError("Sign-in method response too large");
+      if (value.byteLength === 0) continue;
+      chunks.push(value);
+      size += value.byteLength;
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch (error) {
+    void reader.cancel().catch(() => undefined);
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export interface AtlasSessionEndpoints {
   /** Canonical published paths: /api/atlas/auth/session and /api/atlas/auth/login.
    * The host explicitly supplies mounted routes; no route is enabled by default. */
@@ -66,6 +130,10 @@ export interface AtlasSessionEndpoints {
   login: string;
   /** Published logout acknowledgement: {schemaVersion:1,signedOut:true}. */
   logout?: string;
+  /** Canonical mode path /api/atlas/auth/mode with at least one sign-in path:
+   * /api/atlas/auth/local (signIn) and/or /api/atlas/auth/proxy (proxySignIn).
+   * Supplied only when the host mounts them; never enabled by default. */
+  localAccess?: { mode: string; signIn?: string; proxySignIn?: string };
 }
 /** Only application session operations, never account/source provisioning or
  * provider authentication. Cookies stay HttpOnly; CSRF remains transient. */
@@ -141,5 +209,72 @@ export function createAtlasSessionClient(
       )
         throw new TypeError("Invalid sign-out acknowledgement");
     };
+  const localAccess = endpoints.localAccess;
+  if (localAccess) {
+    const localSignIn = localAccess.signIn,
+      proxySignIn = localAccess.proxySignIn;
+    // A mode route without any sign-in action is a host configuration error.
+    if (!localSignIn && !proxySignIn)
+      throw new TypeError("Expected sign-in route");
+    client.localAccess = {
+      // Informational route: any non-2xx, including 401, is a mode failure. A
+      // mode without its configured action is also a failure, never a fallback.
+      mode: (signal) => withLocalAccessDeadline(signal, async (signal) => {
+        const response = await request(localAccess.mode, signal, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
+        if (!response.ok) throw new AtlasReadError(response.status);
+        const mode = decodeAuthMode(
+          await readBoundedJson(response, AUTH_MODE_MAX_BYTES),
+        );
+        if (
+          (mode === "trusted-proxy" && !proxySignIn) ||
+          (mode === "loopback-local" && !localSignIn)
+        )
+          throw new TypeError("Unsupported sign-in method");
+        return mode;
+      }),
+      // Literal empty body: no credentials, CSRF or actor. The host issues the
+      // native HttpOnly cookie and returns the actual session.
+      ...(localSignIn
+        ? {
+            signIn: (signal: AbortSignal) => withLocalAccessDeadline(signal, async (signal) => {
+              const response = await request(localSignIn, signal, {
+                method: "POST",
+                headers: {
+                  Accept: "application/json",
+                  "Content-Type": "application/json",
+                },
+                body: "{}",
+              });
+              if (!response.ok) throw new AtlasReadError(response.status);
+              const value: unknown = await readBoundedJson(response, AUTH_SESSION_MAX_BYTES);
+              return decodeSessionInfo(value);
+            }),
+          }
+        : {}),
+      // Same literal empty body; no identity header. The host's gateway owns
+      // identity and returns the actual session with its native cookie.
+      ...(proxySignIn
+        ? {
+            proxySignIn: (signal: AbortSignal) => withLocalAccessDeadline(signal, async (signal) => {
+              const response = await request(proxySignIn, signal, {
+                method: "POST",
+                headers: {
+                  Accept: "application/json",
+                  "Content-Type": "application/json",
+                },
+                body: "{}",
+              });
+              if (!response.ok) throw new AtlasReadError(response.status);
+              return decodeSessionInfo(
+                await readBoundedJson(response, AUTH_SESSION_MAX_BYTES),
+              );
+            }),
+          }
+        : {}),
+    };
+  }
   return client;
 }

@@ -1,4 +1,5 @@
 //! Private queue admission operations.
+use super::quantity_original::OwnedQuantityContext;
 use super::*;
 
 impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal = A::Principal>>
@@ -11,6 +12,47 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
         config: &QueueConfig,
         now: u64,
     ) -> Result<EnqueueOutcome> {
+        self.enqueue_inner_with_original(input, scope, config, now, None)
+    }
+
+    pub(super) fn enqueue_inner_with_original(
+        &mut self,
+        input: &EnqueueRequest,
+        scope: &CanonicalScope,
+        config: &QueueConfig,
+        now: u64,
+        original_preparation: Option<&dyn super::original_preparation::InitialPreparationContext>,
+    ) -> Result<EnqueueOutcome> {
+        self.enqueue_inner_contexts(input, scope, config, now, original_preparation, None)
+    }
+
+    pub(super) fn enqueue_inner_with_owned(
+        &mut self,
+        input: &EnqueueRequest,
+        scope: &CanonicalScope,
+        config: &QueueConfig,
+        now: u64,
+        owned: Option<&dyn OwnedQuantityContext>,
+    ) -> Result<EnqueueOutcome> {
+        self.enqueue_inner_contexts(input, scope, config, now, None, owned)
+    }
+
+    fn enqueue_inner_contexts(
+        &mut self,
+        input: &EnqueueRequest,
+        scope: &CanonicalScope,
+        config: &QueueConfig,
+        now: u64,
+        original_preparation: Option<&dyn super::original_preparation::InitialPreparationContext>,
+        owned: Option<&dyn OwnedQuantityContext>,
+    ) -> Result<EnqueueOutcome> {
+        if let Some(context) = owned {
+            if original_preparation.is_some() {
+                return Err(invalid());
+            }
+            context.validate_fresh(input, scope, config)?;
+            context.revalidate(&self.store.db)?;
+        }
         if config != &self.config
             || input.receipt != *self.receipt
             || input.intent.request_digest.as_hex() != self.original.intent_digest()
@@ -48,14 +90,24 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
             QueuePhase::Entry,
             QueueAction::Enqueue(input),
         )?;
+        if let Some(preparation) = original_preparation {
+            preparation.revalidate()?;
+        }
         let tx = self
             .store
             .db
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        if let Some(context) = owned {
+            context.revalidate(&tx)?;
+        }
         let r = &input.receipt;
         let identity = &config.registration.identity;
         let prior:Option<String>=tx.query_row("SELECT job_id FROM queue_jobs WHERE workspace_id=?1 AND home_id=?2 AND actor_id=?3 AND mutation_id=?4",params![r.workspace_id,r.home_id,r.actor_id,r.mutation_id],|x|x.get(0)).optional()?;
         if let Some(id) = prior {
+            // Fresh evidence cannot promote a retained receipt to replay authority.
+            if original_preparation.is_some() || owned.is_some() {
+                return Err(conflict());
+            }
             let row = load(&tx, &id)?;
             if row.request != *input
                 || row.scope != *scope
@@ -109,6 +161,9 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
         )
         .map_err(|_| invalid())?;
         if let QueueDecision::RejectedBeforeDispatch { reason } = decision {
+            if let Some(context) = owned {
+                context.revalidate(&tx)?;
+            }
             authorize_session(
                 self.authority,
                 self.principal,
@@ -118,7 +173,13 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
                 QueuePhase::Precommit,
                 QueueAction::Enqueue(input),
             )?;
+            if let Some(preparation) = original_preparation {
+                preparation.revalidate()?;
+            }
             tx.commit()?;
+            if let Some(context) = owned {
+                context.revalidate(&self.store.db)?;
+            }
             authorize_session(
                 self.authority,
                 self.principal,
@@ -128,6 +189,9 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
                 QueuePhase::Release,
                 QueueAction::Enqueue(input),
             )?;
+            if let Some(preparation) = original_preparation {
+                preparation.revalidate()?;
+            }
             return Ok(EnqueueOutcome::RejectedBeforeDispatch { reason });
         }
         let sequence:String=tx.query_row("SELECT next_sequence FROM queue_physical WHERE deployment_id=?1 AND physical_database_id=?2",params![identity.deployment_id,identity.physical_database_id],|x|x.get(0))?;
@@ -148,6 +212,12 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
         tx.execute("UPDATE queue_physical SET next_sequence=?1 WHERE deployment_id=?2 AND physical_database_id=?3",params![decimal(sequence),identity.deployment_id,identity.physical_database_id])?;
         tx.execute("INSERT INTO queue_jobs(job_id,deployment_id,physical_database_id,sequence,workspace_id,home_id,actor_id,mutation_id,intent_digest,original_json,request_json,canonical_scope_json,status,attempts,created_at,updated_at,next_attempt_at,body_accepted,activity,logical_fence,liability_json,codec_version) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,'queued',0,?13,?14,?15,0,'not-dispatched',0,?16,1)",params![id,identity.deployment_id,identity.physical_database_id,decimal(sequence),r.workspace_id,r.home_id,r.actor_id,r.mutation_id,input.intent.request_digest.as_hex(),encoded(self.original.raw())?,encoded(&request_value(input))?,encoded(&scope_value(scope))?,decimal(now),decimal(now),decimal(now),encoded(&liability_value(&zero_liability()))?])?;
         let output = load(&tx, &id)?.snapshot();
+        let retained_preparation = original_preparation
+            .map(|preparation| preparation.insert(&tx, &id))
+            .transpose()?;
+        if let Some(context) = owned {
+            context.revalidate(&tx)?;
+        }
         self.authority.validate_enqueue(
             self.principal,
             self.witness,
@@ -164,7 +234,39 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
             QueuePhase::Precommit,
             QueueAction::Enqueue(input),
         )?;
+        if let Some(preparation) = original_preparation {
+            preparation.revalidate()?;
+        }
+        if let Some(upload) = owned.and_then(|context| context.upload_commit_context()) {
+            upload.prepare_enqueue_commit(&output)?;
+        }
         tx.commit()?;
+        if let Some(context) = owned {
+            if let Some(upload) = context.upload_commit_context() {
+                upload.record_enqueue_committed();
+            } else {
+                context.enqueue_committed(&output)?;
+            }
+            let release = self.store.db.transaction()?;
+            context.revalidate(&release)?;
+            authorize_session(
+                self.authority,
+                self.principal,
+                self.witness,
+                self.original,
+                self.receipt,
+                QueuePhase::Release,
+                QueueAction::Enqueue(input),
+            )?;
+            context.revalidate(&release)?;
+            release.commit()?;
+            return Ok(EnqueueOutcome::Enqueued(output));
+        }
+        // The actual queue and preparation rows are durable even when a later
+        // original authority/release check fails. Observation is DATA only.
+        if let (Some(preparation), Some(retained)) = (original_preparation, retained_preparation) {
+            preparation.committed(&output, retained);
+        }
         authorize_session(
             self.authority,
             self.principal,
@@ -174,6 +276,9 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
             QueuePhase::Release,
             QueueAction::Enqueue(input),
         )?;
+        if let Some(preparation) = original_preparation {
+            preparation.revalidate()?;
+        }
         Ok(EnqueueOutcome::Enqueued(output))
     }
     pub(super) fn claim_next_inner(
@@ -181,11 +286,26 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
         now: u64,
         config: &QueueConfig,
     ) -> Result<ClaimOutcome> {
+        self.claim_next_inner_with_owned(now, config, None)
+    }
+
+    pub(super) fn claim_next_inner_with_owned(
+        &mut self,
+        now: u64,
+        config: &QueueConfig,
+        owned: Option<(&dyn OwnedQuantityContext, &JobSnapshot)>,
+    ) -> Result<ClaimOutcome> {
         if config != &self.config {
             return Err(invalid());
         }
-        self.expire_own_waiter(now)?;
-        let authorize_observation = |phase| {
+        // An original first claim never expires waiters or adopts retry rows.
+        if owned.is_none() {
+            self.expire_own_waiter(now)?;
+        }
+        let authorize_observation = |phase, db: &Connection| {
+            if let Some((context, _)) = owned {
+                context.revalidate(db)?;
+            }
             authorize_session(
                 self.authority,
                 self.principal,
@@ -196,20 +316,33 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
                 QueueAction::Snapshot(self.receipt),
             )
         };
-        authorize_observation(QueuePhase::Entry)?;
+        authorize_observation(QueuePhase::Entry, &self.store.db)?;
         let tx = self
             .store
             .db
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        if let Some((context, expected)) = owned {
+            context.revalidate(&tx)?;
+            let initial = load(&tx, &expected.job_id.0)?;
+            context.validate_initial(&initial, config, now)?;
+        }
         let (fence, active_id, active_fence, expires) = active(&tx, config)?;
         if let Some(id) = active_id {
             let expires = expires.ok_or_else(bad)?;
+            if owned.is_some() {
+                authorize_observation(QueuePhase::Precommit, &tx)?;
+                tx.commit()?;
+                authorize_observation(QueuePhase::Release, &self.store.db)?;
+                return Ok(ClaimOutcome::Busy {
+                    expires_at: expires,
+                });
+            }
             if now >= expires {
                 let row = load(&tx, &id)?;
                 if row.request.receipt != *self.receipt {
-                    authorize_observation(QueuePhase::Precommit)?;
+                    authorize_observation(QueuePhase::Precommit, &tx)?;
                     tx.commit()?;
-                    authorize_observation(QueuePhase::Release)?;
+                    authorize_observation(QueuePhase::Release, &self.store.db)?;
                     return Ok(ClaimOutcome::Busy {
                         expires_at: expires,
                     });
@@ -264,9 +397,9 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
             if active_fence.is_none() {
                 return Err(bad());
             }
-            authorize_observation(QueuePhase::Precommit)?;
+            authorize_observation(QueuePhase::Precommit, &tx)?;
             tx.commit()?;
-            authorize_observation(QueuePhase::Release)?;
+            authorize_observation(QueuePhase::Release, &self.store.db)?;
             return Ok(ClaimOutcome::Busy {
                 expires_at: expires,
             });
@@ -281,16 +414,30 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
             }
         }
         let Some(id) = candidate else {
-            authorize_observation(QueuePhase::Precommit)?;
+            authorize_observation(QueuePhase::Precommit, &tx)?;
             tx.commit()?;
-            authorize_observation(QueuePhase::Release)?;
+            authorize_observation(QueuePhase::Release, &self.store.db)?;
             return Ok(ClaimOutcome::Idle);
         };
+        let identity = &config.registration.identity;
+        if let Some(reason) = crate::storage::stock_activity::jobs_hold(
+            &tx,
+            self.store.options.stock_activity_profile,
+            &identity.physical_database_id,
+            &identity.deployment_id,
+            identity.configuration_digest.as_hex(),
+            &config.registration.dispatcher_owner_id,
+        )? {
+            authorize_observation(QueuePhase::Precommit, &tx)?;
+            tx.commit()?;
+            authorize_observation(QueuePhase::Release, &self.store.db)?;
+            return Ok(ClaimOutcome::Waiting { reason });
+        }
         let row = load(&tx, &id)?;
         if row.request.receipt != *self.receipt {
-            authorize_observation(QueuePhase::Precommit)?;
+            authorize_observation(QueuePhase::Precommit, &tx)?;
             tx.commit()?;
-            authorize_observation(QueuePhase::Release)?;
+            authorize_observation(QueuePhase::Release, &self.store.db)?;
             return Ok(ClaimOutcome::Waiting {
                 reason: QueueWaitReason::EarlierWaiter,
             });
@@ -298,6 +445,9 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
         matches_original(self.receipt, self.original, &row, &self.config)?;
         let policy = queue_snapshot(&tx, config, row.request.pending_byte_liability)?;
         validate_job_state(&row)?;
+        if let Some((context, _)) = owned {
+            context.validate_initial(&row, config, now)?;
+        }
         if row.status == JobStatus::RetryScheduled {
             validate_retry(&tx, &row, config)?;
         }
@@ -312,12 +462,15 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
         .map_err(|_| invalid())?
         {
             QueueDecision::QueueMetadata { reason } => {
-                authorize_observation(QueuePhase::Precommit)?;
+                authorize_observation(QueuePhase::Precommit, &tx)?;
                 tx.commit()?;
-                authorize_observation(QueuePhase::Release)?;
+                authorize_observation(QueuePhase::Release, &self.store.db)?;
                 return Ok(ClaimOutcome::Waiting { reason });
             }
             QueueDecision::RejectedBeforeDispatch { reason } => {
+                if let Some((context, _)) = owned {
+                    context.revalidate(&tx)?;
+                }
                 authorize_session(
                     self.authority,
                     self.principal,
@@ -355,6 +508,9 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
                     )?;
                 }
                 tx.execute("UPDATE queue_jobs SET status='failed',updated_at=?1,next_attempt_at=NULL,failure='Rejected' WHERE job_id=?2",params![decimal(now.max(row.updated)),id])?;
+                if let Some((context, _)) = owned {
+                    context.revalidate(&tx)?;
+                }
                 authorize_session(
                     self.authority,
                     self.principal,
@@ -368,6 +524,9 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
                     },
                 )?;
                 tx.commit()?;
+                if let Some((context, _)) = owned {
+                    context.revalidate(&self.store.db)?;
+                }
                 authorize_session(
                     self.authority,
                     self.principal,
@@ -403,6 +562,9 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
             canonical_scope: row.scope.clone(),
             pending_byte_liability: row.request.pending_byte_liability,
         };
+        if let Some((context, _)) = owned {
+            context.revalidate(&tx)?;
+        }
         authorize_session(
             self.authority,
             self.principal,
@@ -422,6 +584,9 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
         if let Some(liability) = reservation_liability(row.request.pending_byte_liability)? {
             append_liability(&tx, &row, fence, "claim", &liability)?;
         }
+        if let Some((context, _)) = owned {
+            context.revalidate(&tx)?;
+        }
         authorize_session(
             self.authority,
             self.principal,
@@ -431,7 +596,31 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
             QueuePhase::Precommit,
             QueueAction::Claim(&job),
         )?;
+        if let Some(upload) = owned.and_then(|(context, _)| context.upload_commit_context()) {
+            upload.prepare_claim_commit(&job)?;
+        }
         tx.commit()?;
+        if let Some((context, _)) = owned {
+            if let Some(upload) = context.upload_commit_context() {
+                upload.record_claim_committed();
+            } else {
+                context.claim_committed(&job)?;
+            }
+            let release = self.store.db.transaction()?;
+            context.revalidate(&release)?;
+            authorize_session(
+                self.authority,
+                self.principal,
+                self.witness,
+                self.original,
+                self.receipt,
+                QueuePhase::Release,
+                QueueAction::Claim(&job),
+            )?;
+            context.revalidate(&release)?;
+            release.commit()?;
+            return Ok(ClaimOutcome::Claimed(job));
+        }
         authorize_session(
             self.authority,
             self.principal,

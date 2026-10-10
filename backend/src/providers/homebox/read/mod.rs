@@ -4,8 +4,16 @@ mod decode;
 mod error;
 mod failure_publication;
 mod http_transport;
+mod native_capture;
+mod native_file_capture;
+pub mod native_list_pages;
+mod native_presence_capture;
+pub mod native_presence_owner;
+mod native_presence_retained;
+mod native_query;
 mod navigation;
 mod publication;
+pub mod query;
 mod retained;
 mod stock;
 mod types;
@@ -16,6 +24,19 @@ pub use failure_publication::FailedPublication;
 pub use http_transport::{
     AuthorizationHeader, CredentialProvider, HttpBody, HttpTransport, SourceEndpoint,
 };
+pub use native_capture::{
+    CapturedStockEntity, CapturedStockEntityObservation, CapturedStockMaintenance, NativeCapture,
+};
+pub use native_file_capture::CapturedNativeFileSnapshot;
+pub use native_list_pages::{NativeListPages, NativeListReadRequest, NativeListSnapshot};
+pub use native_presence_capture::{
+    NativePresenceCapture, NativePresenceGeneration, NativePresenceIdentity, NativePresenceResponse,
+};
+pub use native_presence_owner::{
+    ConfiguredNativePresenceCapture, ConfiguredNativePresenceOrigin, NativePresenceCaptureError,
+    NativePresenceOwnerError, NativePresenceReader, PreparedConfiguredNativePresence,
+};
+pub use native_query::{NativeReadCapture, NativeReadOwner};
 pub use navigation::{NativeNavigation, NativeRoute};
 pub use publication::{PreparedGeneration, PublishError, RefreshError, StagedPublication};
 pub use stock::StockNavigation;
@@ -29,3 +50,16 @@ pub const CONSISTENCY: &str = "non-transactional-offset-pages";
 mod healthy;
 #[cfg(test)]
 mod healthy_http;
+#[cfg(test)]
+#[path = "numeric_healthy.rs"]
+mod healthy_numeric;
+
+#[cfg(test)]
+mod native_capture_healthy;
+
+mod credentials;
+#[cfg(test)]
+mod native_query_healthy;
+pub use credentials::{NativeReadCredentialConfig, NativeReadCredentials};
+#[cfg(test)]
+mod credentials_healthy;

@@ -13,6 +13,7 @@ autobenches = false
 path = "src/lib.rs"
 
 [dependencies]
+jsonwebtoken.workspace = true
 axum.workspace = true
 tokio.workspace = true
 rusqlite.workspace = true
@@ -39,11 +40,19 @@ tokio-util.workspace = true
 flate2.workspace = true
 crc32fast.workspace = true
 png.workspace = true
+zune-jpeg.workspace = true
 rustix.workspace = true
 tempfile.workspace = true
+ring.workspace = true
+zeroize.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+secret-service.workspace = true
 
 [dev-dependencies]
 tower.workspace = true
+rcgen.workspace = true
+tokio-rustls.workspace = true
 
 [lints]
 workspace = true
@@ -73,9 +82,109 @@ name = "healthy-canonical-upload-plan"
 path = "../tools/rust-integration/examples/healthy_canonical_upload_plan.rs"
 
 [[example]]
+name = "healthy-ai-host"
+path = "src/ai/host/healthy.rs"
+
+[[example]]
 name = "healthy-mcp-lifecycle"
 path = "src/transports/mcp/lifecycle/healthy.rs"
 
 [[example]]
 name = "healthy-maintenance-calendar"
 path = "src/contracts/examples/healthy-maintenance-calendar.rs"
+
+[[example]]
+name = "healthy-network-root-router"
+path = "../tools/rust-integration/examples/healthy_network_host.rs"
+
+[[example]]
+name = "healthy-homebox-cache-stock"
+path = "src/http/providers/homebox_stock_healthy.rs"
+
+[[example]]
+name = "healthy-asset-review"
+path = "src/media/healthy_asset_review.rs"
+
+[[example]]
+name = "healthy-homebox-artifacts"
+path = "src/media/healthy_homebox_artifacts.rs"
+
+[[example]]
+name = "healthy-homebox-stock-history"
+path = "../tools/rust-integration/examples/healthy_homebox_stock_history.rs"
+
+[[example]]
+name = "healthy-download-lifetime"
+path = "src/media/healthy_download_lifetime.rs"
+
+[[example]]
+name = "healthy-recovery-policy"
+path = "src/media/healthy_recovery_policy.rs"
+
+[[example]]
+name = "healthy-recovery-policy-archive"
+path = "src/media/healthy_recovery_policy_archive.rs"
+
+[[example]]
+name = "network-disclosure-pin"
+path = "src/providers/network/host_runtime/examples/pin-lifetime.rs"
+
+[[example]]
+name = "network-constructor-ownership"
+path = "src/providers/network/host_runtime/examples/ownership.rs"
+
+[[example]]
+name = "healthy-stock-retained-read"
+path = "../tools/rust-integration/examples/healthy_stock_retained_read.rs"
+
+[[example]]
+name = "presence-metadata-healthy"
+path = "src/storage/checks/presence-metadata-healthy.rs"
+
+[[example]]
+name = "healthy-native-policy-archive"
+path = "src/media/healthy_native_policy_archive.rs"
+
+[[example]]
+name = "healthy-native-upload-policy-archive"
+path = "src/media/healthy_native_upload_policy_archive.rs"
+
+[[example]]
+name = "healthy-native-policy-reference"
+path = "src/media/healthy_native_policy_reference.rs"
+
+[[example]]
+name = "healthy-local-session"
+path = "src/http/local_session_healthy.rs"
+
+[[example]]
+name = "healthy-mcp-editor-http"
+path = "examples/healthy-mcp-editor-http.rs"
+
+[[example]]
+name = "healthy-place-topology"
+path = "examples/healthy-place-topology.rs"
+
+[[example]]
+name = "healthy-trusted-gateway"
+path = "src/http/trusted_gateway_healthy.rs"
+
+[[example]]
+name = "healthy-exact-read-contracts"
+path = "examples/healthy-exact-read-contracts.rs"
+
+[[example]]
+name = "healthy-receipt-compatibility"
+path = "src/lifecycle/receipt_compatibility_healthy.rs"
+
+[[example]]
+name = "healthy-native-place-labels"
+path = "examples/healthy-native-place-labels.rs"
+
+[[example]]
+name = "healthy-contextual-evidence-capture"
+path = "examples/healthy-contextual-evidence-capture.rs"
+
+[[example]]
+name = "healthy-native-offline-backup"
+path = "examples/healthy-native-offline-backup.rs"

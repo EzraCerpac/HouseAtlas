@@ -7,6 +7,7 @@ pub(super) struct CheckedHeaders {
     // Clones follow the actual blocking closure, retaining its admission slot
     // even if the caller drops the async HTTP future while that work runs.
     admission: Option<super::admission::Permit>,
+    pub(super) gateway: Option<crate::app::trusted_gateway::GatewayAdmission>,
     host: Option<String>,
     pub origin: Option<String>,
     pub sec_fetch_site: Option<String>,
@@ -58,6 +59,7 @@ impl CheckedHeaders {
         }
         Ok(Self {
             admission: None,
+            gateway: None,
             host: single(headers, "host")?,
             origin: single(headers, "origin")?,
             sec_fetch_site: single(headers, "sec-fetch-site")?,

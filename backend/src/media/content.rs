@@ -1,11 +1,11 @@
 //! Bounded original PNG validation and optional stripped RGBA preview encoding;
-//! PDF and UTF-8 text are originals
+//! JPEG is strictly decoded for validation, without a preview. PDF and UTF-8 text are originals
 //! for download only. This validates framing, not PDF document safety.
 use std::io::Write;
 
 use flate2::{Compression, write::ZlibEncoder};
 
-use super::types::{ContentType, PreviewPolicy};
+use super::types::{BlobIdentity, ContentType, sha256};
 use super::{MAX_BYTES, MediaError, MediaResult, WorkBudget};
 
 const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
@@ -15,6 +15,8 @@ const MAX_PIXELS: u64 = 25_000_000;
 /// The pixel codec synchronously filters/transforms each preview row.
 pub const MAX_PNG_PREVIEW_ROW_BYTES: usize = 64 * 1024;
 
+#[path = "jpeg_original.rs"]
+mod jpeg_original;
 #[path = "png_decode.rs"]
 mod png_decode;
 #[path = "png_original.rs"]
@@ -31,6 +33,7 @@ pub fn validate_content(
     }
     match content_type {
         ContentType::Png => render_png(bytes, budget).map(Some),
+        ContentType::Jpeg => jpeg_original::validate(bytes, budget).map(|()| None),
         ContentType::Pdf => {
             let version = bytes.get(..8).ok_or(MediaError::Unsupported)?;
             if &version[..5] != b"%PDF-"
@@ -270,16 +273,31 @@ pub(super) fn qualify_original_preview(
     bytes: &[u8],
     content_type: ContentType,
     budget: &WorkBudget,
-) -> MediaResult<PreviewPolicy> {
+) -> MediaResult<Option<BlobIdentity>> {
+    Ok(
+        render_original_preview(bytes, content_type, budget)?.map(|output| BlobIdentity {
+            sha256: sha256(&output),
+            byte_size: output.len() as u64,
+        }),
+    )
+}
+
+/// Retain the actual stripped renderer output for owner-created review proofs.
+/// Optional qualification and existing upload preparation share this one path.
+pub(super) fn render_original_preview(
+    bytes: &[u8],
+    content_type: ContentType,
+    budget: &WorkBudget,
+) -> MediaResult<Option<Vec<u8>>> {
     budget.check()?;
     if content_type != ContentType::Png || !preview_rows_fit(&inspect_png(bytes, budget)?) {
-        return Ok(PreviewPolicy::DownloadOnly);
+        return Ok(None);
     }
     let rendered = render_png(bytes, budget);
     budget.check()?;
     match rendered {
-        Ok(_) => Ok(PreviewPolicy::SafeRendered),
-        Err(MediaError::TooLarge | MediaError::Unsupported) => Ok(PreviewPolicy::DownloadOnly),
+        Ok(output) => Ok(Some(output)),
+        Err(MediaError::TooLarge | MediaError::Unsupported) => Ok(None),
         Err(error) => Err(error),
     }
 }

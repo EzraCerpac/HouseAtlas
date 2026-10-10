@@ -183,6 +183,280 @@ compiles against a thin external adapter. The host adapter, original request
 grant handoff, scoped methods on the actual store, and access-side quarantine
 orchestration remain consumer-owned integration inputs.
 
+## Offline recovery discovery
+
+`OfflineRecoveryAuthority::default()` is disabled. An explicitly approved trusted
+administrative startup path may construct the separate issuer:
+
+```rust
+// Synthetic example only; the owner must independently approve this operation.
+let approval = OfflineRecoveryApproval::discovery_validation(deployment_id, queues)?;
+let authority = OfflineRecoveryAuthority::from_trusted_administrative_approval(approval);
+let grant = authority.capture_discovery(queues)?;
+```
+
+The approval is a trusted host assertion, not administrator authentication. It
+permits only offline discovery/validation over that exact deployment and COMPLETE
+ordered `QueueConfig` registry, including empty queues. Construction reuses the
+domain's `TrustedQueueRegistry::new` structural checks and requires every queue
+to belong to the approved deployment. Revalidation compares every configuration
+field, physical identity/digest, dispatcher, retry/admission setting and ordered
+alias. It requires full requested registration membership. No subsets, sorting,
+normalization, actor IDs or restored image can issue or widen this permission.
+
+`RecoveryDiscoveryGrant` privately retains its independently allocated issuer
+and immutable approval. The handle has no constructor, serialization, clone,
+debug output or raw database access. Matching metadata on a different issuer
+cannot recreate its identity. Neither issuer nor grant depends on a browser
+session, restore epoch, `AccessBoundary` instance, SQL connection, vault or lock.
+Keep the SAME issuer/grant alive outside the old `Core` throughout source close,
+strict reopen and the host's explicit session reset. Recreating an issuer
+requires a new grant even when its configuration is equal.
+
+The concrete authority directly implements the existing
+`domain::queue_recovery::RecoveryDiscoveryAuthority`, with
+`type Grant = RecoveryDiscoveryGrant`. Supply it and the grant to the existing
+`QueueRecoveryBindings`; no new authority port or adapter is required. Inherent
+`revalidate_discovery(grant, queues, registration)` returns `AccessResult<()>`;
+the trait maps failures to sanitized `owner-unavailable` storage errors. Checks
+perform metadata work only and can run under the existing storage read lock.
+Discovery approval supplies no dispatch, resume, reconciliation, mutation or
+read-disclosure authority, nor original enqueue/media/native evidence.
+
+`recovery_healthy.rs` exercises explicit synthetic approval for two disposable
+queue configurations through both the inherent API and exact existing trait.
+No access persistence is changed, and no reset/invalidation/denial/race control
+is executed. Session-reset independence is established by the source structure;
+this example does not qualify the composed recovery host. Actual production
+issuer approval, complete registry and trusted physical database mapping remain
+unconfigured. No production call site is added.
+
+## Shared canonical issuer
+
+`SharedAccess` is a cloneable process-local host bridge over the exact existing
+`Arc<Mutex<AccessBoundary>>` used by Core/MCP. Its public interface is:
+
+```rust
+SharedAccess::from_existing(existing: Arc<Mutex<AccessBoundary>>) -> SharedAccess
+shared.as_existing() -> &Arc<Mutex<AccessBoundary>>
+shared.try_lock() -> AccessResult<MutexGuard<'_, AccessBoundary>>
+```
+
+The constructor moves the supplied Arc into the wrapper. Cloning shares that
+same allocation, mutex, database connection, issuer identity, configuration,
+sessions and versions. It opens no database, creates no policy and recreates no
+principal or grant. Equal configuration on another boundary still describes a
+different issuer. Pass the actual canonical handle; do not create another memory
+boundary to import root-issued principals. There is no global issuer registry,
+fallback, raw database access or private grant constructor.
+
+Root may pass `SharedAccess::from_existing(core.access.clone())` to the Network
+owner's shared-handle constructor. Existing `app::Access` and its `Arc::clone`
+call sites need no type migration. The Network owner keeps this bridge as its
+backing handle and delegates lock acquisition to `try_lock`. Its accepted
+`ProviderLease::retain_original` call can use `shared.as_existing()` to preserve
+the existing exact `&app::Access` ABI and original authority handles. This
+constructor/wiring remains provider/root-owned; no consumer files change here.
+
+Contention and poisoning return sanitized `Unavailable`; the bridge never
+waits for the mutex, clears poison or reopens a substitute issuer. Boundary
+operations still perform synchronous SQLite/filesystem/scrypt work. A shared
+file-backed canonical issuer does not inherit the Network leaf's former
+memory-only callback profile. Owners must reconcile worker scheduling and
+deadline bounds for their selected canonical boundary. Clone the handle into
+the synchronous worker, acquire/drop its guard there, and release it before
+provider I/O or an await. Trusted callers retain the boundary's existing
+administrative APIs; this bridge does not prohibit whole-boundary replacement
+or introduce a replacement/recovery shortcut.
+
+A callback holding the canonical guard must use the supplied held transaction
+authorizer. Calling a persistent authorizer that locks Core.access again would
+reenter the same mutex. Do not use that as a fallback for an actual Store read.
+Original provenance/version and entry/pre-release fence checks stay required.
+
+`shared_healthy.rs` issues the genuine session, principal, partition/entity and
+explicitly approved lifecycle grants through the original Core-shaped handle
+before wrapping it. Both cloned bridges retain the identical Arc and boundary;
+they check those exact original handles, use the exact principal in a held read
+fence and read the original session. A compile-time check verifies automatic
+Clone/Send/Sync. No reset, replacement, contention, poison, concurrency or
+rejection control is exercised. Actual Core/Network/Store composition remains
+owner integration work.
+
+## Network link and observation disclosure
+
+For cached stock reads, retain the already authenticated original principal,
+its exact `PartitionGrant`, and the `SourceGrant` for each trusted configured
+typed member before the request's capture seal. Existing
+`authorize_source_partition` and `authorize_source` issue these grants from the
+canonical Access boundary. Qualified partition identity includes workspace,
+home, source instance and collection; an external ID alone is insufficient.
+The owning runtime supplies the trusted typed members: a registry allowlist of
+untyped IDs does not establish source kinds or complete generation membership.
+
+```rust
+TransactionAuthorization::revalidate_source_read(
+    &self, original_partition: &PartitionGrant, original_members: &[SourceGrant],
+) -> AccessResult<()>;
+AccessBoundary::with_source_read_authorization<E: From<AccessError>>(
+    &mut self, original: &Principal, partition: &PartitionGrant,
+    members: &[SourceGrant],
+    operation: impl FnOnce(&TransactionAuthorization<'_>) -> Result<(), E>,
+) -> Result<(), E>;
+```
+
+The guard checks current read permission, the original partition version and
+full principal provenance, every member's exact partition, and every original
+member version and provenance. The convenience fence checks that same borrowed
+set before and after successful synchronous work. It issues no replacement
+principal or grant. An empty member set still requires the original partition
+grant and supplies metadata authority only. This set is not proof of configured
+completeness, Store ownership, retained generation membership, or source-presence
+admission. Consumers release captured output only after the fence returns `Ok`.
+
+The current Network host already accepts this principal/partition/member tuple
+in `HostNetworkRuntime::read` and retains its own `OriginalNetworkDisclosure`.
+Root constructs `NetworkAccess` from `SharedAccess::from_existing` with the
+canonical `Core.access`; the host checks the same owning Core, Store and Access
+allocation. Root calls `read` outside the Core mutex, then uses `disclose` and
+`SavedNetworkQueries` with the retained original authority through final release.
+The new helper does not replace that Network-owned handle or its membership and
+native baseline checks. The host currently uses `with_read_authorization` and
+checks its retained grants directly; adopting this convenience helper remains
+the Network owner's choice. `NetworkAccess::retain_original` additionally captures
+publication lifecycle authority and is not the cached-read binding path.
+
+`NetworkLinkRef` and `NetworkObservationRef` are distinct server-only selectors;
+the frozen `SourceKind` enum and wire contracts stay unchanged. A link selector
+names the exact partition, raw link ID and BOTH raw endpoint `SourceRef`s.
+Endpoint kinds are device, interface or segment. Retain original raw endpoints
+when projection reorders them or represents a reviewed endpoint as unresolved.
+An observation selector names its partition, observation ID, collector ID and
+every declared device/interface member. Observation IDs may share spelling with
+inventory/link IDs; the typed link and observation selectors remain distinct.
+
+| Operation | Access-owned method |
+| --- | --- |
+| Capture link read permission | `access.authorize_network_link(principal, reference, original_from, original_to)` |
+| Capture observation read permission | `access.authorize_network_observation(principal, reference, original_device, original_interface)` |
+| Check original link permission | `access.revalidate_network_link(grant)` or `guard.revalidate_network_link(grant)` |
+| Check original observation permission | `access.revalidate_network_observation(grant)` or `guard.revalidate_network_observation(grant)` |
+| Hold current read authority | `access.with_read_authorization(principal, operation)` |
+
+Capture requires a genuine current principal, an enabled Network-owned source
+and its existing read policy. Reviewed partitions require an approved row ID
+and at least one observation member; every declared member must have the exact
+supplied original `SourceGrant`. Exclusive-home partitions also permit
+collection-only observations. Each opaque grant privately retains its genuine
+partition version and original member grants. Guard checks bind it to the
+guard's complete original principal provenance and return the original handle;
+revalidation never captures replacement permission. None of these methods
+creates lifecycle/publication authority, accepted-generation membership or a
+source-presence admission witness.
+
+The collector ID is partition-qualified matching/provenance data. It is neither
+an issuer nor an independently approved collector capability. These checks use
+the pinned Network projection's existing row-ID/member read policy. An additional
+collector-specific authorization policy requires an explicit owner contract;
+none is invented here. The Network owner must validate the retained generation
+and match each selector, collector and raw member declaration to that generation
+before disclosure; caller-created selectors alone supply no membership proof.
+
+`with_read_authorization` holds an immediate access transaction around a bounded
+synchronous callback. It checks the exact borrowed principal at entry and after
+the callback and exposes no raw connection. The consumer must check its original
+partition/entity/link/observation handles through the guard before reading and
+immediately before releasing owned output. A callback may capture an owned
+result, but the caller must release it only after the fence returns `Ok(())`.
+The root runtime must put its actual same-Store authorized snapshot read inside
+this callback. Supplied metadata or a separate synthetic reader cannot establish
+that binding. Release the access fence before provider I/O or async work.
+
+PR #48's Network runtime can consume these grants directly in its original
+lease. Its generation validation and relation/observation disclosure callbacks
+remain Network-owned. AT07/AT51 must fix the existing reader's link selector:
+it currently relabels relation link IDs as `network-segment`. A genuine segment
+grant cannot authorize a link row. No storage/router/provider files are changed
+by this access lane.
+
+`network_healthy.rs` exercises a genuine viewer session, reviewed source, raw
+link endpoints, both observation members, same-spelled link/observation IDs,
+original-handle checks, the exact partition/member binding (including a
+partition-only authority check), and a disposable SQLite read inside the access
+fence.
+The reader is an explicit synthetic peer. This checkpoint does not qualify the
+actual Network generation, same-Store read composition or release pipeline.
+
+## Persisted source authority metadata
+
+```rust
+TransactionAuthorization::persisted_source_metadata(
+    &self, original: &PartitionGrant,
+) -> AccessResult<SourceAuthorityMetadata>;
+```
+
+This read-only export first revalidates the original partition grant against the
+held guard's exact original principal and source version. It reads the genuine
+`access_meta.epoch` and enabled `access_sources` row through that same Access
+transaction. The owned, getter-only result exposes `access_epoch()`,
+`source_registration_version()`, `source_registration_sha256()` and
+`registration()`. It has no public constructor or deserializer and exposes no
+connection, session material or administrative method. Export creates no grant,
+principal, epoch, source version, registration or database write.
+
+The epoch is the persisted opaque 64-character value, separate from the
+boundary's process instance and session binding. Source version comes from the
+actual enabled row and must be within `1..=9_007_199_254_740_991` for the frozen
+presence contract's safe integer representation. The full persisted typed
+registration is hashed with the existing
+`contracts::semantics::canonical_digest` representation (RFC 8785 JSON,
+SHA-256, lowercase hexadecimal). This digest is computed from durable state;
+there is no persisted digest column or new schema. Array order and exact Unicode
+spelling remain part of the registration preimage.
+
+Metadata equality grants no authority and does not establish a Native Store
+binding. The consumer must retain the same original principal/grants, compare
+the returned full registration with its exact owning Store's registration,
+and obtain/check metadata through the held guard at each required phase. Access
+has a separate database: this export does not create a cross-database transaction
+or implement `AtomicPresenceTransaction`, witness persistence or presence
+admission. The actual mutation context ID/version and accepted Access package
+version remain their existing owners' inputs; none is inferred from an actor,
+candidate, partition ID, database schema version or Rust package version.
+
+`metadata_healthy.rs` checks a genuine CSRF-authorized editor and its original
+partition grant, persisted epoch, independently configured source row version
+two, a golden canonical registration digest and zero export writes. A separate
+genuine request after strict reopen verifies metadata persistence. It supplies
+no original Native Store, atomic presence transaction or witness lifecycle
+qualification and runs no revocation or other held controls.
+
+## Native producer version declaration
+
+`NATIVE_ACCESS_PACKAGE_VERSION` is the explicit Access-owned literal
+`"0.1.0-native.1"` for this Rust authority/metadata producer contract. It is a
+source proposal awaiting trusted integrator acceptance, not an accepted presence
+producer or permission to enable admission. The declaration is independent of
+Cargo/workspace versions, database schema versions, the JavaScript Access
+package and synthetic contract examples; none supplies or authenticates it.
+
+The declared compatibility policy is exact equality with this string, with no
+version ranges or inferred compatibility with other values. Root can use
+`access::NATIVE_ACCESS_PACKAGE_VERSION` as its fixed trusted
+`accepted_access_package_version` input after accepting this native producer
+seam. Storage's existing wire-pattern check validates spelling only; accepting
+an arbitrary caller-selected string would not implement this owner policy.
+
+A semantically incompatible change to native principal/grant provenance or the
+persisted epoch/source-version/full-registration digest contract requires an
+explicit owner version change and reconciliation. This string is not an epoch,
+session key, schema migration, current authority check or Store binding. It
+creates no grant and changes neither the held guard nor original principal.
+Historical witness version strings stay preserved; accepting or reading other
+producer versions, profile/recovery compatibility and engine composition remain
+their actual owners' separate work. No compatibility with the JS package or
+fixture producer is declared here, and presence admission remains held.
+
 ## Dependencies for AT51
 
 Direct dependency versions proposed for the shared application manifest:
@@ -200,6 +474,10 @@ url = "=2.5.7"
 ```
 
 AT51 owns application manifests/locks and the shared contract import paths.
+Offline recovery additionally uses the existing `crate::jobs` queue types,
+`crate::domain::queue_recovery` trait/registry and `crate::storage` error type;
+the embedding monolith supplies those accepted modules. No new dependency or
+duplicate queue model is introduced.
 The small serde types mirror frozen `scope`, `sourceKey`,
 `sourceRef`, `sourceRegistration` spellings and reject unknown fields.
 Canonical IDs preserve lowercase UUID spelling, and opaque collection/external

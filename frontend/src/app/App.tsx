@@ -6,6 +6,7 @@ import {
   useState,
   type FormEvent,
   type MouseEvent,
+  type ReactNode,
 } from "react";
 import type { AtlasClient, AtlasView, ReadyView, Scope } from "./types";
 import {
@@ -21,7 +22,19 @@ import { AtlasPage } from "./pages";
 import { text } from "./copy";
 import type { SessionSettings } from "./session";
 import type { AtlasEditingClient } from "./editing";
+import type { QuantityClient } from "../api/quantity-client";
+import { AiHost, AiActivityStatus } from "../ai/host/index.js";
+import type { AiViewResolver } from "../ai/host/index.js";
 
+export interface AtlasContentActions {
+  reload: () => Promise<boolean>;
+  switchHome: (scope: Scope) => void;
+  busy: boolean;
+  notice: string;
+  session?: SessionSettings;
+  editing?: AtlasEditingClient;
+  quantity?: QuantityClient;
+}
 export interface AtlasAppProps {
   client: AtlasClient;
   /** Optional already authorized server view; never a raw source snapshot. */
@@ -33,6 +46,10 @@ export interface AtlasAppProps {
   /** Reports only the committed authorized scope, or unavailable context. */
   onScopeCommit?: (scope: Scope | null) => void;
   editing?: AtlasEditingClient;
+  quantity?: QuantityClient;
+  /** Wrap content with its current authorized view during the same render. */
+  renderContent?: (view: AtlasView, content: ReactNode, actions: AtlasContentActions) => ReactNode;
+  resolveAi?: AiViewResolver;
 }
 export const accessEventName = "atlas-access-invalidated";
 export function App({
@@ -43,6 +60,9 @@ export function App({
   session,
   onScopeCommit,
   editing,
+  quantity,
+  renderContent,
+  resolveAi,
 }: AtlasAppProps) {
   const [view, setView] = useState<AtlasView>(
     initialView ?? { status: "loading" },
@@ -240,7 +260,7 @@ export function App({
     view.status === "ready"
       ? ""
       : text(view.status === "unavailable" ? "viewUnavailable" : view.status);
-  return (
+  const content = (
     <div ref={root} onClick={onClick}>
       <a className="skip" href="#page-heading">
         {text("skip")}
@@ -324,6 +344,7 @@ export function App({
                     {text("networkDenied")}
                   </p>
                 )}
+                {route.page !== "settings" && <AiActivityStatus />}
                 <AtlasPage
                   view={view}
                   route={route}
@@ -341,6 +362,17 @@ export function App({
         )}
       </RouteContext.Provider>
     </div>
+  );
+  return (
+    <AiHost
+      context={
+        view.status === "ready"
+          ? resolveAi?.(view.scope, view.homeLabel) ?? null
+          : null
+      }
+    >
+      {renderContent ? renderContent(view, content, { reload: () => read(view.status === "ready" ? view.scope : undefined), switchHome, busy, notice, ...(session ? { session } : {}), ...(editing ? { editing } : {}), ...(quantity ? { quantity } : {}) }) : content}
+    </AiHost>
   );
 }
 function Shell({

@@ -188,7 +188,15 @@ fn check_retained_intent(
     }
     // Compare actual canonical intent as well as its digest. Only this root's
     // transport request ID and approval receipt may differ during replay.
-    require(canonical_bytes(&atlas_intent(current)?)? == canonical_bytes(&atlas_intent(retained)?)?)
+    require(retained_atlas_intent_matches(current, retained)?)
+}
+
+/// Compare the actual canonical Atlas intent, not only its digest. This pure
+/// data check excludes only this root's transport request and approval receipt
+/// IDs; all ordered child envelopes and submitted facts remain bound. It
+/// grants no replay, mutation, Media release or disclosure authority.
+pub fn retained_atlas_intent_matches(current: &Value, retained: &Value) -> StockResult<bool> {
+    Ok(canonical_bytes(&atlas_intent(current)?)? == canonical_bytes(&atlas_intent(retained)?)?)
 }
 
 fn atlas_intent(value: &Value) -> StockResult<Value> {

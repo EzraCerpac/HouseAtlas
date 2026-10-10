@@ -1,5 +1,7 @@
 //! Root cached-read mounting; provider refresh and credential bridges are separate.
+pub mod homebox_native;
 pub mod homebox_reads;
+pub mod homebox_stock;
 pub mod network;
 
 use super::{CheckedHeaders, Host, HttpResult, authorized_read, failure, json_response};
@@ -128,3 +130,6 @@ async fn cached(
     .await
     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
 }
+
+#[cfg(test)]
+mod homebox_native_healthy;

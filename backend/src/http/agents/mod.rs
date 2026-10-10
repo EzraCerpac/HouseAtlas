@@ -5,7 +5,10 @@ pub mod mcp;
 pub(crate) mod mcp_transport;
 pub mod stock_dispatch;
 
-use super::{CheckedHeaders, Host, HttpResult, authorized_read, failure, intake, json_response};
+use super::{
+    CheckedHeaders, Host, HttpResult, authorized_read, authorized_read_unlocked, failure, intake,
+    json_response,
+};
 use crate::{domain as d, domain::stock as st};
 use axum::{
     extract::{Extension, Path, State},
@@ -32,8 +35,20 @@ pub(super) async fn admission(
     }
     tokio::task::spawn_blocking(move || {
         let _admitted = headers.admission_permit()?;
-        authorized_read(&host, &headers, &uri, &method, Some(d::Scope { workspace_id, home_id }), false, |_, p, home| {
-            Ok(json_response(json!({"schemaVersion":3,"scope":home.scope,"commandIds":capabilities::admitted(&p.principal).iter().map(|id|id.as_str()).collect::<Vec<_>>(),"revision":"native-stock-host:2","maximumReasonCodePoints":1024})))
+        authorized_read(&host, &headers, &uri, &method, Some(d::Scope { workspace_id, home_id }), false, |core, p, home| {
+            let mut admitted = capabilities::admitted(core, &p.principal);
+            if host.network_bindings.iter().any(|binding| binding.runtime().settings().configured_source().partition().scope() == *p.principal.scope()) {
+                admitted.extend(crate::providers::network::SAVED_NETWORK_QUERY_SUPPORT.iter().map(|support| support.agent_operation));
+            }
+            if host.native_homebox_reads.iter().any(|binding| {
+                let partition = binding.source().partition();
+                partition.workspace_id == home.scope.workspace_id && partition.home_id == home.scope.home_id
+            }) {
+                admitted.extend(super::providers::homebox_native::OPERATIONS.into_iter().filter_map(|id| {
+                    crate::contracts::stock::OperationId::parse(id.as_str())
+                }));
+            }
+            Ok(json_response(json!({"schemaVersion":3,"scope":home.scope,"commandIds":admitted.iter().map(|id|id.as_str()).collect::<Vec<_>>(),"revision":"native-stock-host:3","maximumReasonCodePoints":1024})))
         })
     }).await.map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
 }
@@ -47,19 +62,19 @@ pub(super) async fn invoke(
 ) -> HttpResult {
     // Auth checks precede decoding the bounded envelope. Query is transport only;
     // no session, principal, scope grant or credential is accepted from it.
+    let runtime = tokio::runtime::Handle::current();
     tokio::task::spawn_blocking(move || {
         let _admitted = headers.admission_permit()?;
-        authorized_read(
+        authorized_read_unlocked(
             &host,
             &headers,
             &uri,
             &method,
-            Some(d::Scope {
+            d::Scope {
                 workspace_id,
                 home_id,
-            }),
-            false,
-            |core, p, _| {
+            },
+            |p| {
                 let query = uri
                     .query()
                     .ok_or_else(|| failure(StatusCode::UNPROCESSABLE_ENTITY))?;
@@ -82,8 +97,27 @@ pub(super) async fn invoke(
                 if request.is_mutation() {
                     return errors::response(st::StockError::CapabilityDenied, id);
                 }
-                match stock_dispatch::execute(core, p, raw) {
-                    Ok(result) => Ok(json_response(result.wire)),
+                let result = if crate::providers::network::saved_network_query_support(request.id())
+                    .is_some()
+                {
+                    super::stock_network_reads::execute(&host, p, raw, &contracts).map(Into::into)
+                } else if super::providers::homebox_native::OPERATIONS.contains(&request.id()) {
+                    super::providers::homebox_native::execute_configured(&host, p, raw, &runtime)
+                        .map(Into::into)
+                } else {
+                    let core = host
+                        .core
+                        .lock()
+                        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+                    stock_dispatch::execute_http_with_downloads(
+                        &core,
+                        p,
+                        raw,
+                        &host.atlas_download_handles,
+                    )
+                };
+                match result {
+                    Ok(result) => super::stock_reads::qualified_response(result),
                     Err(error) => errors::response(error, id),
                 }
             },
@@ -106,4 +140,10 @@ pub(super) fn command_response(
         Ok(result) => Ok(json_response(result.wire)),
         Err(error) => errors::response(error, id),
     }
+}
+
+/// Keep specialized root adapters on the same validated, sanitized wire3 error
+/// boundary as the ordinary command dispatcher.
+pub(super) fn command_error(error: st::StockError, request_id: &str) -> HttpResult {
+    errors::response(error, request_id)
 }

@@ -157,7 +157,7 @@ impl NetworkCachePublisher<HealthyLease> for HealthyPublisher {
             .unwrap();
         assert_eq!(count, 1); // The actual SQLite stage committed before this consuming port call.
         let (proposal, _receipt) = staged.into_parts();
-        let (state, _precondition) = proposal.into_parts();
+        let (state, _precondition, _original_capture) = proposal.into_parts();
         assert_eq!(
             state.cache.generation_id.as_deref(),
             Some(fence.reserved_generation_id())
@@ -196,7 +196,7 @@ impl Drop for TempDirectory {
 async fn healthy_verified_tls_inventory_stream_durable_stage_and_consuming_fence() {
     let cert = rcgen::generate_simple_self_signed(vec!["127.0.0.1".into()]).unwrap();
     let server = rustls::ServerConfig::builder_with_provider(Arc::new(
-        rustls::crypto::ring::default_provider(),
+        rustls::crypto::aws_lc_rs::default_provider(),
     ))
     .with_safe_default_protocol_versions()
     .unwrap()

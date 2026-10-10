@@ -1,4 +1,26 @@
 //! The actual access/storage/domain composition and original request authority.
+pub mod ai_native_startup;
+pub mod homebox_presence;
+pub mod homebox_presence_command;
+pub mod homebox_presence_history;
+pub mod homebox_quantity_graph;
+pub mod homebox_quantity_startup;
+pub mod homebox_queued_quantity;
+pub mod homebox_queued_upload;
+pub mod homebox_queued_upload_admission;
+pub mod homebox_queued_upload_execution;
+pub mod homebox_queued_upload_finish_history;
+pub mod homebox_queued_upload_graph;
+pub mod homebox_queued_upload_history;
+pub mod homebox_queued_upload_history_catalog;
+pub mod homebox_queued_upload_history_catalog_admission;
+pub mod homebox_queued_upload_history_catalog_recovery;
+pub mod homebox_queued_upload_history_publication;
+pub mod homebox_stock_host;
+pub mod media_policy_recovery;
+pub mod quantity_approval;
+pub mod stock_activity_principal;
+pub mod trusted_gateway;
 use crate::{access as a, domain as d, http::contracts::NativeContracts, storage as s};
 use std::{
     cell::{Cell, RefCell},
@@ -13,7 +35,13 @@ pub type Store = s::AtlasStore<
 >;
 pub struct Core {
     pub access: Access,
-    pub store: Mutex<Store>,
+    pub store: Arc<Mutex<Store>>,
+    /// One process-local owner cache shared by every request and transport.
+    /// A reopened application starts with fresh continuation state.
+    pub atlas_list_pages: d::stock::AtlasListPages,
+    /// Actual renderer provenance captured by this host after successful commits.
+    /// Process restart starts empty; it cannot reconstruct historical authority.
+    pub media_policy_evidence: Mutex<crate::media::recovery_policy::MediaPolicyEvidence>,
     pub vault: Arc<crate::media::AssetVault>,
     pub home: d::HomeSummary,
     /// Trusted configured summaries; no labels or membership come from a request.
@@ -63,8 +91,14 @@ pub struct RequestPrincipal {
     pub principal: OriginalPrincipal,
     partitions: RefCell<Vec<a::PartitionGrant>>,
     sources: RefCell<Vec<a::SourceGrant>>,
+    network_links: RefCell<Vec<a::NetworkLinkGrant>>,
     source_capture_sealed: Cell<bool>,
     pub home_choices: Vec<CapturedHome>,
+}
+impl d::stock::AtlasListPrincipal for RequestPrincipal {
+    fn atlas_list_principal(&self) -> &a::Principal {
+        self.principal.principal()
+    }
 }
 impl s::StagedUploadPrincipal for RequestPrincipal {
     fn original_upload_principal(&self) -> &a::Principal {
@@ -80,6 +114,7 @@ impl RequestPrincipal {
             principal: OriginalPrincipal(principal),
             partitions: RefCell::new(Vec::new()),
             sources: RefCell::new(Vec::new()),
+            network_links: RefCell::new(Vec::new()),
             source_capture_sealed: Cell::new(false),
             home_choices: Vec::new(),
         }
@@ -94,6 +129,9 @@ impl RequestPrincipal {
         }
         for grant in self.sources.borrow().iter() {
             access.revalidate_source(grant)?;
+        }
+        for grant in self.network_links.borrow().iter() {
+            access.revalidate_network_link(grant)?;
         }
         Ok(())
     }
@@ -162,6 +200,116 @@ impl RequestPrincipal {
             .push(access.authorize_source_partition(&self.principal, partition)?);
         Ok(())
     }
+    /// Clone only a handle captured by this original request before sealing.
+    pub(crate) fn captured_partition(
+        &self,
+        partition: &a::SourcePartition,
+    ) -> a::AccessResult<a::PartitionGrant> {
+        self.partitions
+            .borrow()
+            .iter()
+            .find(|grant| grant.partition() == partition)
+            .cloned()
+            .ok_or(a::AccessError::Unavailable)
+    }
+    pub(crate) fn captured_source(&self, source: &a::SourceRef) -> a::AccessResult<a::SourceGrant> {
+        self.sources
+            .borrow()
+            .iter()
+            .find(|grant| grant.reference() == source)
+            .cloned()
+            .ok_or(a::AccessError::Unavailable)
+    }
+    pub(crate) fn capture_network_link(
+        &self,
+        access: &a::AccessBoundary,
+        reference: &a::NetworkLinkRef,
+    ) -> a::AccessResult<()> {
+        self.release(access)?;
+        if self
+            .network_links
+            .borrow()
+            .iter()
+            .any(|grant| grant.reference() == reference)
+        {
+            return Ok(());
+        }
+        if self.source_capture_sealed.get() {
+            return Err(a::AccessError::Unavailable);
+        }
+        // Stage both original endpoint grants without mutating the request.
+        // A denied second endpoint or typed link must not leave a stray first
+        // grant that can suppress unrelated qualified relations at release.
+        let sources = self.sources.borrow();
+        let member = |member_ref: &a::SourceRef| {
+            sources
+                .iter()
+                .find(|grant| grant.reference() == member_ref)
+                .cloned()
+                .map(Ok)
+                .unwrap_or_else(|| access.authorize_source(&self.principal, member_ref))
+        };
+        let from = member(reference.from())?;
+        let to = if reference.from() == reference.to() {
+            from.clone()
+        } else {
+            member(reference.to())?
+        };
+        let grant = access.authorize_network_link(&self.principal, reference, &from, &to)?;
+        drop(sources);
+        let mut sources = self.sources.borrow_mut();
+        for staged in [from, to] {
+            if !sources
+                .iter()
+                .any(|existing| existing.reference() == staged.reference())
+            {
+                sources.push(staged);
+            }
+        }
+        drop(sources);
+        self.network_links.borrow_mut().push(grant);
+        Ok(())
+    }
+    pub(crate) fn has_captured_network_link(&self, reference: &a::NetworkLinkRef) -> bool {
+        self.network_links
+            .borrow()
+            .iter()
+            .any(|grant| grant.reference() == reference)
+    }
+    pub(crate) fn captured_network_members(
+        &self,
+        partition: &a::SourcePartition,
+    ) -> Vec<a::SourceGrant> {
+        self.sources
+            .borrow()
+            .iter()
+            .filter(|grant| grant.reference().partition() == *partition)
+            .cloned()
+            .collect()
+    }
+    /// Recheck the original partition, complete configured member set and
+    /// captured raw links under the canonical Access read transaction.
+    pub(crate) fn revalidate_network_snapshot(
+        &self,
+        access: &mut a::AccessBoundary,
+        partition: &a::PartitionGrant,
+        members: &[a::SourceGrant],
+    ) -> a::AccessResult<()> {
+        access.with_source_read_authorization(
+            self.principal.principal(),
+            partition,
+            members,
+            |guard| {
+                if !std::ptr::eq(guard.principal(), self.principal.principal()) {
+                    return Err(a::AccessError::Forbidden);
+                }
+                for grant in self.network_links.borrow().iter() {
+                    guard.revalidate_network_link(grant)?;
+                }
+                Ok(())
+            },
+        )
+    }
     pub(crate) fn seal_source_capture(&self) {
         self.source_capture_sealed.set(true);
     }
@@ -181,6 +329,9 @@ impl RequestPrincipal {
         }
         for grant in self.partitions.borrow().iter() {
             guard.revalidate_source_partition(grant)?;
+        }
+        for grant in self.network_links.borrow().iter() {
+            guard.revalidate_network_link(grant)?;
         }
         for source in &closure.source_refs {
             let source: a::SourceRef = serde_json::from_value(
@@ -232,6 +383,137 @@ pub fn access_scope(scope: &d::Scope) -> a::AccessResult<a::Scope> {
 }
 #[derive(Clone)]
 pub struct ReadAuthority(pub Access);
+
+/// Private Storage selector, distinct from the frozen public SourceRef carrier.
+/// Endpoint values select data; only actual AT11 member/link issuance grants use.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CachedNetworkLink {
+    workspace_id: a::CanonicalId,
+    home_id: a::CanonicalId,
+    key: CachedNetworkLinkKey,
+    from: serde_json::Value,
+    to: serde_json::Value,
+    #[serde(default)]
+    relation: Option<serde_json::Value>,
+}
+/// Per-call selectors from the actual retained generation. The map is data;
+/// each link must also have an original grant on the same RequestPrincipal.
+pub(crate) struct VerifiedNetworkSnapshotLink {
+    pub relation: serde_json::Value,
+    pub reference: a::NetworkLinkRef,
+}
+pub(crate) struct NetworkSnapshotAuthority<'a> {
+    pub base: &'a ReadAuthority,
+    pub links: &'a [VerifiedNetworkSnapshotLink],
+}
+impl s::Authorization for NetworkSnapshotAuthority<'_> {
+    type Principal = RequestPrincipal;
+    fn authorize(
+        &self,
+        p: &RequestPrincipal,
+        request: s::AuthorizationRequest<'_>,
+    ) -> s::Result<s::VerifiedActor> {
+        if request.capability == s::Capability::ReadCache
+            && request
+                .source
+                .is_some_and(|source| source["key"]["sourceKind"] == "network-link")
+        {
+            let selected: CachedNetworkLink = serde_json::from_value(
+                request
+                    .source
+                    .ok_or_else(|| s::Error::new("not-found", "Network link unavailable"))?
+                    .clone(),
+            )
+            .map_err(|_| s::Error::new("invalid-contract", "Invalid Network link selector"))?;
+            let relation = selected
+                .relation
+                .as_ref()
+                .ok_or_else(|| s::Error::new("not-found", "Network link unavailable"))?;
+            let selected_partition = a::SourcePartition {
+                workspace_id: selected.workspace_id,
+                home_id: selected.home_id,
+                source_instance_id: selected.key.source_instance_id,
+                collection_id: selected.key.collection_id,
+            };
+            let matched = self
+                .links
+                .iter()
+                .find(|link| {
+                    link.relation == *relation
+                        && selected.from == relation["from"]
+                        && selected.to == relation["to"]
+                        && link.reference.partition() == &selected_partition
+                        && link.reference.external_id() == selected.key.external_id
+                        && p.has_captured_network_link(&link.reference)
+                })
+                .ok_or_else(|| s::Error::new("not-found", "Network link unavailable"))?;
+            let access = self
+                .base
+                .0
+                .try_lock()
+                .map_err(|_| s::Error::new("unavailable", "Access unavailable"))?;
+            p.release(&access).map_err(storage_access)?;
+            access
+                .authorize_storage(&p.principal, p.principal.scope(), a::Capability::Read)
+                .map_err(storage_access)?;
+            if !p.has_captured_network_link(&matched.reference) {
+                return Err(s::Error::new("not-found", "Network link unavailable"));
+            }
+            return Ok(s::VerifiedActor {
+                workspace_id: p.principal.scope().workspace_id.as_str().into(),
+                home_id: p.principal.scope().home_id.as_str().into(),
+                actor_id: p.principal.actor_id().as_str().into(),
+            });
+        }
+        self.base.authorize(p, request)
+    }
+}
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CachedNetworkLinkKey {
+    source_instance_id: a::CanonicalId,
+    collection_id: String,
+    source_kind: String,
+    external_id: String,
+}
+impl CachedNetworkLink {
+    fn reference(self) -> a::AccessResult<a::NetworkLinkRef> {
+        if self.key.source_kind != "network-link" {
+            return Err(a::AccessError::NotFound);
+        }
+        let partition = a::SourcePartition {
+            workspace_id: self.workspace_id,
+            home_id: self.home_id,
+            source_instance_id: self.key.source_instance_id,
+            collection_id: self.key.collection_id,
+        };
+        let endpoint = |value: &serde_json::Value| -> a::AccessResult<a::SourceRef> {
+            let source_kind = match value["kind"].as_str() {
+                Some("group") => a::SourceKind::NetworkGroup,
+                Some("device") => a::SourceKind::NetworkDevice,
+                Some("interface") => a::SourceKind::NetworkInterface,
+                Some("segment") => a::SourceKind::NetworkSegment,
+                // Projected unresolved ends require original raw-member evidence.
+                // This snapshot adapter has none and issues no substitute grant.
+                _ => return Err(a::AccessError::NotFound),
+            };
+            Ok(a::SourceRef {
+                workspace_id: partition.workspace_id.clone(),
+                home_id: partition.home_id.clone(),
+                key: a::SourceKey {
+                    source_instance_id: partition.source_instance_id.clone(),
+                    collection_id: partition.collection_id.clone(),
+                    source_kind,
+                    external_id: value["id"].as_str().ok_or(a::AccessError::NotFound)?.into(),
+                },
+            })
+        };
+        let from = endpoint(&self.from)?;
+        let to = endpoint(&self.to)?;
+        a::NetworkLinkRef::new(partition, self.key.external_id, from, to)
+    }
+}
 impl s::Authorization for ReadAuthority {
     type Principal = RequestPrincipal;
     fn authorize(
@@ -284,11 +566,23 @@ impl s::Authorization for ReadAuthority {
                     p.capture_partition(&access, &partition)
                         .map_err(storage_access)?;
                 } else if let Some(source) = request.source {
-                    let source: a::SourceRef =
-                        serde_json::from_value(source.clone()).map_err(|_| {
-                            s::Error::new("invalid-contract", "Invalid source reference")
-                        })?;
-                    p.capture_source(&access, &source).map_err(storage_access)?;
+                    if source["key"]["sourceKind"] == "network-link" {
+                        let selected: CachedNetworkLink = serde_json::from_value(source.clone())
+                            .map_err(|_| {
+                                s::Error::new("invalid-contract", "Invalid Network link selector")
+                            })?;
+                        p.capture_network_link(
+                            &access,
+                            &selected.reference().map_err(storage_access)?,
+                        )
+                        .map_err(storage_access)?;
+                    } else {
+                        let source: a::SourceRef =
+                            serde_json::from_value(source.clone()).map_err(|_| {
+                                s::Error::new("invalid-contract", "Invalid source reference")
+                            })?;
+                        p.capture_source(&access, &source).map_err(storage_access)?;
+                    }
                 } else {
                     return Err(s::Error::new(
                         "forbidden",
@@ -337,7 +631,6 @@ impl d::AccessPort<RequestPrincipal> for HomeAuthority {
             other_homes: p
                 .home_choices
                 .iter()
-                .filter(|choice| choice.summary.scope.workspace_id == self.home.scope.workspace_id)
                 .map(|choice| choice.summary.clone())
                 .collect(),
             can_edit_homebox: false,

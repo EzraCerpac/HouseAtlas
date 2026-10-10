@@ -3,19 +3,64 @@
 mod entity;
 mod evidence;
 mod features;
+mod fresh;
 mod outcome;
 mod ports;
+mod quantity_activity;
+mod quantity_bindings;
+mod quantity_dispatch;
+mod quantity_installation;
+mod quantity_observation;
+mod quantity_profile;
+pub(crate) mod quantity_queue_original;
+pub(crate) mod quantity_queue_prepared;
+mod quantity_source;
+pub mod queued_upload_archived_original;
+pub mod queued_upload_dispatch;
+pub use queued_upload_archived_original::ArchivedQueuedUploadSourceFacts;
+pub(crate) use queued_upload_archived_original::ArchivedQueuedUploadSourceFactsIdentity;
+mod queued_upload_history;
+pub use queued_upload_history::*;
+mod queued_upload_finish_history;
+pub use queued_upload_finish_history::*;
+mod queued_upload_installation;
+mod queued_upload_source;
+pub use quantity_queue_original::{NativeQuantityKnownZeroAdmission, NativeQueuedQuantityOriginal};
+pub use quantity_queue_prepared::{
+    NATIVE_QUEUED_QUANTITY_PREPARED_CODEC, NativeQueuedQuantityPrepared,
+};
+pub use queued_upload_installation::{
+    NativeQueuedUploadInstallationOwner, QueuedUploadProfileDescriptor,
+};
+pub use queued_upload_source::{
+    ConfiguredQueuedUploadObservation, QualifiedQueuedUploadReadback, QueuedUploadCaptureEvidence,
+    QueuedUploadSource,
+};
 mod resources;
 mod types;
 mod workflow;
+pub use fresh::*;
 pub use outcome::*;
 pub use ports::*;
+pub use quantity_activity::*;
+pub use quantity_bindings::*;
+pub use quantity_dispatch::*;
+pub use quantity_installation::*;
+pub use quantity_observation::*;
+pub use quantity_profile::*;
+pub use quantity_source::*;
 pub use types::*;
 pub use workflow::*;
+#[cfg(test)]
+mod fresh_healthy;
 #[cfg(test)]
 mod healthy_examples;
 #[cfg(test)]
 mod healthy_workflow;
+#[cfg(test)]
+mod quantity_healthy;
+#[cfg(test)]
+mod quantity_installation_healthy;
 
 /// Complete supported write-family dispatch. No caller-supplied route or verb.
 pub fn map_stock(
@@ -41,3 +86,12 @@ pub fn map_stock(
     }
     Err(StockMappingError::UnsupportedOperation)
 }
+
+#[path = "../../recovery/stock_bridge.rs"]
+pub(crate) mod retained_bridge;
+
+#[cfg(test)]
+mod quantity_flow_healthy;
+
+mod quantity_evidence;
+pub use quantity_evidence::*;

@@ -1,14 +1,22 @@
 //! Explicit disposable loopback settings; no deployment settings are inferred.
+pub mod ai_account;
 pub mod providers {
     pub mod homebox;
     pub mod network;
+    pub mod network_host;
+    pub mod quantity_installation;
+    pub mod queued_upload;
     pub mod registry;
 }
+pub mod provider_dispatch;
 pub mod recovery;
+pub mod server;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum FixtureProfile {
     Standard,
     OpaqueCachedHomebox,
+    GeometryMetadata,
+    NativeMediaArchive,
 }
 use std::{
     net::{Ipv4Addr, SocketAddr},
@@ -68,6 +76,8 @@ impl Config {
         let fixture_profile = match values.get("--fixture-profile").map(String::as_str) {
             None | Some("standard") => FixtureProfile::Standard,
             Some("opaque-cached-homebox") => FixtureProfile::OpaqueCachedHomebox,
+            Some("geometry-metadata") => FixtureProfile::GeometryMetadata,
+            Some("native-media-archive") => FixtureProfile::NativeMediaArchive,
             _ => return Err("Unsupported disposable fixture profile".into()),
         };
         Ok(Self {

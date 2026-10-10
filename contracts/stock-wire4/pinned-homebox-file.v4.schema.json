@@ -1,0 +1,222 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:houseatlas:pinned-homebox-file:4",
+  "$defs": {
+    "request_homebox_file_download_v4": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 4
+        },
+        "commandId": {
+          "const": "homebox.file.download"
+        },
+        "context": {
+          "$ref": "urn:houseatlas:agent:stock:3#/$defs/contextSelection"
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "authority": {
+              "const": "homebox"
+            },
+            "sourceInstanceId": {
+              "$ref": "urn:houseatlas:agent:stock:3#/$defs/homeboxTarget/properties/sourceInstanceId"
+            },
+            "collectionId": {
+              "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/sourceKey/properties/collectionId"
+            },
+            "resourceKind": {
+              "const": "attachment"
+            },
+            "entityId": {
+              "$ref": "urn:houseatlas:agent:stock:3#/$defs/homeboxTarget/properties/entityId"
+            },
+            "resourceId": {
+              "$ref": "urn:houseatlas:agent:stock:3#/$defs/homeboxTarget/properties/resourceId"
+            }
+          },
+          "required": [
+            "authority",
+            "sourceInstanceId",
+            "collectionId",
+            "resourceKind",
+            "entityId",
+            "resourceId"
+          ],
+          "additionalProperties": false
+        },
+        "payload": {
+          "$ref": "urn:houseatlas:agent:stock:3#/$defs/empty"
+        },
+        "requestId": {
+          "$ref": "urn:houseatlas:agent:stock:3#/$defs/request_homebox_file_download/properties/requestId"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "commandId",
+        "context",
+        "target",
+        "payload",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "result_homebox_file_capture_v4": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 4
+        },
+        "commandId": {
+          "const": "homebox.file.download"
+        },
+        "requestId": {
+          "$ref": "urn:houseatlas:agent:stock:3#/$defs/result_homebox_file_download/properties/requestId"
+        },
+        "artifact": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "object",
+              "properties": {
+                "workspaceId": {
+                  "$ref": "urn:houseatlas:agent:stock:3#/$defs/contextSelection/properties/workspaceId"
+                },
+                "homeId": {
+                  "$ref": "urn:houseatlas:agent:stock:3#/$defs/contextSelection/properties/homeId"
+                },
+                "sourceInstanceId": {
+                  "$ref": "urn:houseatlas:agent:stock:3#/$defs/homeboxTarget/properties/sourceInstanceId"
+                },
+                "collectionId": {
+                  "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/sourceKey/properties/collectionId"
+                }
+              },
+              "required": [
+                "workspaceId",
+                "homeId",
+                "sourceInstanceId",
+                "collectionId"
+              ],
+              "additionalProperties": false
+            },
+            "target": {
+              "type": "object",
+              "properties": {
+                "authority": {
+                  "const": "homebox"
+                },
+                "sourceInstanceId": {
+                  "$ref": "urn:houseatlas:agent:stock:3#/$defs/homeboxTarget/properties/sourceInstanceId"
+                },
+                "collectionId": {
+                  "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/sourceKey/properties/collectionId"
+                },
+                "resourceKind": {
+                  "const": "attachment"
+                },
+                "entityId": {
+                  "$ref": "urn:houseatlas:agent:stock:3#/$defs/homeboxTarget/properties/entityId"
+                },
+                "resourceId": {
+                  "$ref": "urn:houseatlas:agent:stock:3#/$defs/homeboxTarget/properties/resourceId"
+                }
+              },
+              "required": [
+                "authority",
+                "sourceInstanceId",
+                "collectionId",
+                "resourceKind",
+                "entityId",
+                "resourceId"
+              ],
+              "additionalProperties": false
+            },
+            "downloadToken": {
+              "$ref": "urn:houseatlas:agent:stock:3#/$defs/result_homebox_file_download/properties/data/properties/downloadToken"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "byteSize": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10485760
+            },
+            "contentType": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 4096
+            },
+            "localCapture": {
+              "type": "object",
+              "properties": {
+                "semantics": {
+                  "const": "process-local-pinned-snapshot"
+                },
+                "beforeRetrievedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "bodyRetrievedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "afterRetrievedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "statuses": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "const": 200
+                    },
+                    {
+                      "const": 200
+                    },
+                    {
+                      "const": 200
+                    }
+                  ],
+                  "minItems": 3,
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "semantics",
+                "beforeRetrievedAt",
+                "bodyRetrievedAt",
+                "afterRetrievedAt",
+                "statuses"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "scope",
+            "target",
+            "downloadToken",
+            "sha256",
+            "byteSize",
+            "contentType",
+            "localCapture"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "commandId",
+        "requestId",
+        "artifact"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

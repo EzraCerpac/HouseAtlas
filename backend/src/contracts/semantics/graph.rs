@@ -477,6 +477,7 @@ pub(super) fn validate_snapshot(snapshot: &Value) -> Result<()> {
         }
     }
 
+    validate_topology(&graph, records)?;
     validate_evidence_cycles(&graph, records)?;
     // Journals retain historical endpoints irrespective of later retirement.
     validate_remap_cycles(&graph, records)?;
@@ -757,4 +758,153 @@ fn validate_remap_cycles(graph: &Graph<'_>, records: &[Value]) -> Result<()> {
         }
     }
     Ok(())
+}
+
+// Current reviewed classifications are indexed only after the full snapshot's
+// uniqueness checks. Relation meaning must not depend on record input order.
+fn validate_topology(graph: &Graph<'_>, records: &[Value]) -> Result<()> {
+    let mut classifications = HashMap::new();
+    for record in records {
+        if record["recordType"] == "location-semantics" {
+            let payload = &record["payload"];
+            if let Some(elevation) = payload.get("elevation") {
+                if payload["semanticKind"] != "floor" {
+                    return Err(SemanticError::invalid("Elevation requires floor semantics"));
+                }
+                if elevation["status"] == "known" {
+                    number(&elevation["metres"])?;
+                    let datum = graph.get(record, "identity", text(&elevation["datumAtlasId"])?)?;
+                    if datum["payload"]["kind"] != "location" {
+                        return Err(SemanticError::invalid(
+                            "Elevation datum requires location identity",
+                        ));
+                    }
+                    if current_accepted(record) && datum["lifecycle"] != "active" {
+                        return Err(SemanticError::new(
+                            SemanticCode::InvalidTransition,
+                            "Accepted elevation needs active datum",
+                        ));
+                    }
+                }
+            }
+            if current_accepted(record) {
+                classifications.insert(
+                    record_ref_key(record, "identity", text(&payload["atlasId"])?)?,
+                    text(&payload["semanticKind"])?,
+                );
+            }
+        }
+    }
+    let mut building_parents = HashMap::new();
+    let mut level_parents = HashMap::new();
+    for record in records {
+        let payload = &record["payload"];
+        if record["recordType"] != "relation"
+            || !["location-membership", "physical-access"]
+                .contains(&payload["kind"].as_str().unwrap_or(""))
+        {
+            continue;
+        }
+        let mut endpoints = Vec::with_capacity(2);
+        for field in ["from", "to"] {
+            if payload[field]["kind"] != "atlas-record"
+                || payload[field]["ref"]["recordType"] != "identity"
+            {
+                return Err(SemanticError::invalid(
+                    "Topology endpoints require resolved location identities",
+                ));
+            }
+            let endpoint = graph.get(
+                record,
+                "identity",
+                text(&payload[field]["ref"]["recordId"])?,
+            )?;
+            if endpoint["payload"]["kind"] != "location" {
+                return Err(SemanticError::invalid(
+                    "Topology endpoints require location identities",
+                ));
+            }
+            if current_accepted(record) && endpoint["lifecycle"] != "active" {
+                return Err(SemanticError::new(
+                    SemanticCode::InvalidTransition,
+                    "Accepted topology needs active endpoints",
+                ));
+            }
+            endpoints.push(record_key(endpoint)?);
+        }
+        if payload["kind"] == "physical-access" && endpoints[0] == endpoints[1] {
+            return Err(SemanticError::invalid(
+                "Topology endpoints must be distinct",
+            ));
+        }
+        if payload["kind"] != "location-membership" || !current_accepted(record) {
+            continue;
+        }
+        let parent_kind = classifications.get(&endpoints[0]).copied();
+        let child_kind = classifications.get(&endpoints[1]).copied();
+        let parents = if payload["membershipKind"] == "building" {
+            if parent_kind != Some("building") {
+                return Err(SemanticError::invalid(
+                    "Building membership needs accepted building parent",
+                ));
+            }
+            &mut building_parents
+        } else {
+            if parent_kind != Some("floor") {
+                return Err(SemanticError::invalid(
+                    "Level membership needs accepted floor parent",
+                ));
+            }
+            if child_kind == Some("floor") {
+                return Err(SemanticError::invalid("Floor cannot be a level member"));
+            }
+            &mut level_parents
+        };
+        if child_kind == Some("building") {
+            return Err(SemanticError::invalid("Building cannot be a member"));
+        }
+        if parents
+            .insert(endpoints[1].clone(), endpoints[0].clone())
+            .is_some()
+        {
+            return Err(SemanticError::new(
+                SemanticCode::IdentityConflict,
+                "Only one active accepted parent per membership kind",
+            ));
+        }
+    }
+    // Every walk is finite and keyed by the exact scoped identity. Follow both
+    // kinds to reject cycles, without deriving membership from source parents.
+    for start in building_parents.keys().chain(level_parents.keys()) {
+        let mut visited = HashSet::new();
+        let mut pending = vec![start];
+        while let Some(child) = pending.pop() {
+            for parent in [building_parents.get(child), level_parents.get(child)]
+                .into_iter()
+                .flatten()
+            {
+                if parent == start {
+                    return Err(SemanticError::invalid("Accepted membership cycle"));
+                }
+                if visited.insert(parent) {
+                    pending.push(parent);
+                }
+            }
+        }
+    }
+    for (child, level) in &level_parents {
+        if let (Some(direct), Some(derived)) =
+            (building_parents.get(child), building_parents.get(level))
+            && direct != derived
+        {
+            return Err(SemanticError::invalid(
+                "Direct and level-derived building membership conflict",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn current_accepted(record: &Value) -> bool {
+    record["lifecycle"] == "active" && record["payload"]["reviewStatus"] == "accepted"
 }

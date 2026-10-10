@@ -273,7 +273,7 @@ fn validate_current_asset<C: Contract>(
                 record_id: consumed.asset_id().into(),
             },
         ) && i64::try_from(current.revision).ok() == Some(revision)
-            && native.canonical_json(&current_value)? == record_json
+            && super::repository::retained_json_matches(native, &current_value, &record_json)?
             && native.canonical_json(&manifest)? == manifest_json
             && native.canonical_json(&current.payload)? == manifest_json
             && current.payload["storageKey"] == storage_key,
@@ -405,10 +405,11 @@ pub(crate) fn consume<C: Contract, S: stock::StockContractPort>(
     )?;
     Ok(())
 }
-pub(crate) fn validate_all<C: Contract, S: stock::StockContractPort>(
+pub(crate) fn validate_all<C: Contract, S: stock::StockContractPort, E: QueueRecoveryEvidence>(
     db: &Connection,
     native: &C,
     schemas: &S,
+    evidence: &E,
     check: &mut dyn FnMut() -> Result<()>,
 ) -> Result<()> {
     let mut query =
@@ -422,6 +423,12 @@ pub(crate) fn validate_all<C: Contract, S: stock::StockContractPort>(
         let commit = stock_repo::load(db, native, value.scope(), value.actor_id(), &id)?;
         validate_links(db, native, &value, &commit)?;
         super::stock_projection::validate_retained(db, &commit, schemas, native)?;
+        // Canonical image consistency does not prove the original Media stage
+        // rendered successfully. Qualify historical policy even if the current
+        // asset has since changed to a non-inline policy.
+        if value.binding.stage.payload.preview_policy == media::PreviewPolicy::SafeRendered {
+            evidence.validate_media_policy(MediaPolicyRecoveryFrame::Upload(&value))?;
+        }
         check()?;
     }
     Ok(())
@@ -492,7 +499,7 @@ pub(crate) fn existing_original<C: Contract>(
                 record_id: id,
             },
         ) && i64::try_from(record.revision).ok() == Some(revision)
-            && native.canonical_json(&serde_json::to_value(&record)?)? == record_json
+            && super::repository::retained_json_matches(native, &record, &record_json)?
             && native.canonical_json(&manifest)? == manifest_json
             && native.canonical_json(&record.payload)? == manifest_json,
     )?;

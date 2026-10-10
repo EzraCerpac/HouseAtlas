@@ -70,7 +70,7 @@ try {
   const version = await cdp.send('Browser.getVersion');
   // Both inspected release IDLs take DOMString input_arguments. A browser
   // version change requires source inspection before this ordinary flow runs.
-  assert(['Chrome/151.0.7922.173', 'Chrome/154.0.8037.57', 'Chrome/154.0.8037.97'].includes(version.product), 'Inspected native WebMCP browser version');
+  assert(['Chrome/151.0.7922.173', 'Chrome/154.0.8037.57', 'Chrome/154.0.8037.97', 'Chrome/154.0.8037.98'].includes(version.product), 'Inspected native WebMCP browser version');
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params) => cdp.send(method, params, sessionId);
@@ -85,7 +85,27 @@ try {
     if (result.exceptionDetails) console.error(JSON.stringify({healthyException:result.exceptionDetails.exception?.description ?? result.exceptionDetails.text,responses,runtimeErrors}));
     assert(!result.exceptionDetails, 'Healthy browser evaluation'); return result.result.value;
   };
+  // Open the retained native Atlas surface through Lantern's visible controls.
+  const openAtlasTools = async () => {
+    await until(async () => await evaluate(`(() => {
+      const button = [...document.querySelectorAll('nav[aria-label="Sections"] button')]
+        .find(button => button.textContent?.trim() === 'Changes' && button.getClientRects().length);
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`), 'Visible Changes navigation');
+    await until(async () => await evaluate("document.querySelector('main#main h1')?.textContent === 'Changes'"), 'Changes view');
+    await until(async () => await evaluate(`(() => {
+      const button = [...document.querySelectorAll('main#main button')]
+        .find(button => button.textContent?.trim() === 'Atlas tools' && button.getClientRects().length);
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`), 'Visible Atlas tools action');
+    await until(async () => await evaluate("Boolean(document.querySelector('[role=dialog][aria-modal=true][aria-label=\"Atlas tools\"]:not([hidden])'))"), 'Visible Atlas tools dialog');
+  };
   await send('Page.navigate', { url: origin });
+  await openAtlasTools();
   try {
     await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'React authorized home rendering');
   } catch (error) {
@@ -114,6 +134,7 @@ try {
   await until(async()=>await evaluate("Boolean(document.getElementById('atlas-username'))"),'Ordinary successful logout form');
   await evaluate(`document.getElementById('atlas-username').value=${JSON.stringify(editorLogin.username)};document.getElementById('atlas-password').value=${JSON.stringify(editorLogin.password)};document.querySelector('.session-form').requestSubmit()`);
   await until(async()=> (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'),'Actual editor React session');
+  await openAtlasTools();
   await until(async()=> (await evaluate("document.modelContext.getTools().then(t=>t.some(x=>x.name==='atlas_records'))")), 'Actual editor registration');
   const createdRequest={schemaVersion:3,commandId:'atlas.circuit.create',requestId:U(1601),context:view.scope,target:{authority:'atlas',recordType:'circuit',recordId:U(960)},payload:{label:null,panel:null,evidenceIds:[U(100)]},idempotencyKey:U(1602),reason:'Healthy disposable agent circuit',preconditions:{target:null,guards:[{target:{authority:'atlas',recordType:'evidence',recordId:U(100)},revision:{kind:'atlas',value:1}}]},approvalReceiptId:null};
   const created=await invoke(createdRequest);
@@ -124,13 +145,34 @@ try {
   const history={schemaVersion:3,commandId:'atlas.circuit.history',requestId:U(1604),context:view.scope,target:createdRequest.target,payload:{pageSize:1,cursor:null,includeArchived:false,q:'atlas.circuit.create'}};
   const events=await invoke(history);assert.equal(events.wire.requestId,history.requestId);assert.equal(events.wire.data.entries.length,1);assert.equal(events.wire.data.entries[0].eventId,created.wire.data.auditIds[0]);assert.equal(events.wire.data.entries[0].requestDigest,created.wire.data.requestDigest);
   assert.deepEqual(JSON.parse(events.visible),events.wire,'Actual native history committed before tool return');
+  // Exercise newly mounted direct identity and mixed batch arms through the
+  // genuine browser API, retaining the actual editor session and native guards.
+  const identity={...createdRequest,commandId:'atlas.identity.create',requestId:U(1605),target:{authority:'atlas',recordType:'identity',recordId:U(961)},payload:{kind:'item',evidenceIds:[U(100)]},idempotencyKey:U(1606)};
+  const identityResult=await invoke(identity);
+  assert.equal(identityResult.wire.status,'committed');assert.equal(identityResult.wire.replayed,false);
+  assert.deepEqual(JSON.parse(identityResult.visible),identityResult.wire,'Direct identity receipt visible before native completion');
+  const children=[{...identity,requestId:U(1607),target:{...identity.target,recordId:U(962)},idempotencyKey:U(1608)},{...createdRequest,requestId:U(1609),target:{...createdRequest.target,recordId:U(963)},idempotencyKey:U(1610)}];
+  const batch={...createdRequest,commandId:'atlas.batch.execute',requestId:U(1611),target:{authority:'atlas',kind:'batch',batchId:U(1613)},payload:{commands:children},idempotencyKey:U(1612),reason:'Healthy disposable native WebMCP mixed batch'};
+  const batchResult=await invoke(batch);
+  assert.equal(batchResult.wire.status,'committed');assert.equal(batchResult.wire.replayed,false);
+  assert.equal(batchResult.wire.requestId,batch.requestId);assert.equal(batchResult.wire.commandId,batch.commandId);
+  assert.deepEqual(JSON.parse(batchResult.visible),batchResult.wire,'Mixed batch receipt visible before native completion');
+  const directIntents=[identity,...children],directResults=[identityResult.wire.data.records[0],...batchResult.wire.data.records];
+  assert.equal(directResults.length,3);
+  for(const [index,intent] of directIntents.entries()){
+    const readback={schemaVersion:3,commandId:'atlas.'+intent.target.recordType+'.get',requestId:U(1614+index),context:view.scope,target:intent.target,payload:{}};
+    const actual=await invoke(readback);
+    assert.equal(actual.wire.requestId,readback.requestId);assert.deepEqual(actual.wire.data.records,[directResults[index]]);
+    assert.deepEqual(directResults[index],{target:intent.target,revision:1,lifecycle:'active',payload:intent.payload});
+    assert.deepEqual(JSON.parse(actual.visible),actual.wire,'New direct-map record readback visible before native completion');
+  }
   assert.equal(runtimeErrors.length, 0, 'No browser runtime exceptions in healthy flow');
   assert(observedUrls.every(url => url.startsWith(origin + '/')), 'Observed page requests stay on loopback');
   assert(responses.every(r => r.status === 200 || (r.status === 204 && r.url === origin + '/favicon.ico')), 'Observed healthy page responses');
   const sql="import sqlite3,json,sys; c=sqlite3.connect('file:'+sys.argv[1]+'?mode=ro',uri=True); print(json.dumps({t:c.execute('SELECT COUNT(*) FROM '+t).fetchone()[0] for t in ['records','audits','stock_operations','stock_groups','stock_keys','stock_audit_links','stock_history_cursors']})); c.close()";
   const rows=spawnSync('python3',['-c',sql,join(data,'atlas.sqlite')],{encoding:'utf8'});assert.equal(rows.status,0);const persisted=JSON.parse(rows.stdout);
-  assert.deepEqual(persisted,{records:7,audits:1,stock_operations:1,stock_groups:1,stock_keys:1,stock_audit_links:1,stock_history_cursors:0});
-  const evidence={rust:serviceOutput.trim(),browser:version.product,native,tools:first.tools,requests:[read,createdRequest,get,history].map(r=>({commandId:r.commandId,requestId:r.requestId})),correlation:true,visibleBeforeReturn:true,persisted,observedRequests:observedUrls.length,scope:'Actual native document WebMCP registration, shared offline schema, real Rust/AT11/SQLite stock read, one fresh circuit create, record readback and first history page. No synthetic peer, stopped control or provider.'};
+  assert.deepEqual(persisted,{records:10,audits:4,stock_operations:3,stock_groups:4,stock_keys:5,stock_audit_links:4,stock_history_cursors:0});
+  const evidence={rust:serviceOutput.trim(),browser:version.product,native,tools:first.tools,requests:[read,createdRequest,get,history,identity,batch].map(r=>({commandId:r.commandId,requestId:r.requestId})),correlation:true,visibleBeforeReturn:true,persisted,observedRequests:observedUrls.length,scope:'Actual native document WebMCP registration, shared offline schema, real Rust/AT11/SQLite stock reads, fresh circuit and identity singles, one atomic mixed identity/circuit batch, canonical React completion and actual readback, plus first circuit history page. Only exercised creates qualified; other mapped forms remain runtime-unqualified. No synthetic peer, stopped control or provider.'};
   if (process.env.HOUSEATLAS_EVIDENCE) writeFileSync(process.env.HOUSEATLAS_EVIDENCE, JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));
 } finally {

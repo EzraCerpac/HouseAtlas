@@ -1,0 +1,70 @@
+.lantern-host {
+  /* Materials */
+  --ground: #e9e4da;
+  --ground-2: #e2dccf;
+  --card: #fcfbf8;
+  --card-2: #f6f2ea;
+  --birch: #d8be8e;
+  --birch-dark: #a9864f;
+  --lantern: #ffe39a;
+  --lantern-edge: #e9a400;
+
+  /* Ink */
+  --ink: #1e2638;
+  --ink-2: #3a4256;
+  --muted: #596173;
+  --faint: #8a8f99;
+  --hair: #d8d0c2;
+  --hair-2: #c9bfae;
+
+  /* Layers */
+  --l-belongings: #9c3f8f;
+  --l-electrical: #2f56e0;
+  --l-water: #0b8f83;
+  --l-network: #b97a00;
+  --l-upkeep: #d93d2e;
+
+  /* Claims */
+  --c-confirmed: #217a45;
+  --c-owner: #3d4a66;
+  --c-source: #56508f;
+  --c-disputed: #a35a00;
+  --c-unknown: #6c707a;
+
+  --focus: #2f56e0;
+  --ok: #217a45;
+  --warn: #a35a00;
+  --alert: #c2321f;
+
+  /* Type */
+  --display: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  --text: 'Public Sans Variable', 'Public Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --fs-xs: 12px;
+  --fs-s: 13.5px;
+  --fs-m: 15px;
+  --fs-l: 17px;
+  --fs-xl: 20px;
+  --fs-2xl: 25px;
+  --fs-3xl: 32px;
+  --fs-4xl: 42px;
+
+  /* Shape */
+  --r-control: 9px;
+  --r-panel: 14px;
+  --r-sheet: 3px;
+  --shadow-float: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 10px 30px -12px rgba(60, 46, 22, 0.35);
+  --shadow-modal: 0 40px 90px -30px rgba(30, 38, 56, 0.45);
+
+  --topbar: 60px;
+  --nav: 84px;
+  --detail: 408px;
+
+  color-scheme: light;
+}
+
+@media (max-width: 759px) {
+  .lantern-host {
+    --topbar: 56px;
+    --fs-4xl: 34px;
+  }
+}

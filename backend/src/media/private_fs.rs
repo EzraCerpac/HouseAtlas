@@ -3,7 +3,7 @@
 //! inode checks also detect replaced configured hierarchies between operations.
 use std::fs::{self, File};
 use std::io::{Read, Write};
-use std::os::unix::fs::MetadataExt;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Component, Path, PathBuf};
 
 use rustix::fs::{self as rfs, AtFlags, Dir, Mode, OFlags};
@@ -273,6 +273,7 @@ impl PrivateDir {
         self.check()?;
         let temp = tempfile::Builder::new()
             .prefix(prefix)
+            .permissions(fs::Permissions::from_mode(0o700))
             .tempdir_in(&self.path)?;
         let path = temp.keep();
         let directory = Self::open(&path, false)?;

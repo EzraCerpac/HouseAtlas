@@ -23,7 +23,7 @@ use std::time::Duration;
 
 pub(super) fn policy() -> serde_json::Value {
     json!({
-        "contentTypes":["image/png","application/pdf","text/plain"],
+        "contentTypes":["image/png","image/jpeg","application/pdf","text/plain"],
         "maximumBytes":upload_intake::MAX_FILE_BYTES,
         "licenses":[{"label":"Unknown","value":{"status":"unknown","reference":null}}]
     })
@@ -35,10 +35,33 @@ fn unavailable() -> super::HttpFailure {
     failure(StatusCode::SERVICE_UNAVAILABLE)
 }
 
+#[derive(Clone, Copy)]
+enum PlaceNamespace {
+    SourceBacked,
+    Native,
+}
+
 pub(super) async fn command(
     State(host): State<Host>,
-    Path((workspace_id, home_id, record_id)): Path<(String, String, String)>,
+    Path(path): Path<(String, String, String)>,
     request: Request,
+) -> HttpResult {
+    intake_command(host, path, request, PlaceNamespace::SourceBacked).await
+}
+
+pub(super) async fn native_command(
+    State(host): State<Host>,
+    Path(path): Path<(String, String, String)>,
+    request: Request,
+) -> HttpResult {
+    intake_command(host, path, request, PlaceNamespace::Native).await
+}
+
+async fn intake_command(
+    host: Host,
+    (workspace_id, home_id, record_id): (String, String, String),
+    request: Request,
+    namespace: PlaceNamespace,
 ) -> HttpResult {
     if request.uri().query().is_some() {
         return Err(failure(StatusCode::FORBIDDEN));
@@ -97,8 +120,10 @@ pub(super) async fn command(
         {
             return Err(failure(StatusCode::UNPROCESSABLE_ENTITY));
         }
-        let selection = qualified_upload_plan::resolve(&mut core, &principal, &home, &input.metadata)
-            .map_err(stock_reads::http_error)?;
+        let selection = match namespace {
+            PlaceNamespace::SourceBacked => qualified_upload_plan::resolve(&mut core, &principal, &home, &input.metadata),
+            PlaceNamespace::Native => qualified_upload_plan::resolve_native(&mut core, &principal, &home, &input.metadata),
+        }.map_err(stock_reads::http_error)?;
         let budget = m::WorkBudget::new(Duration::from_secs(10), m::Cancellation::default())
             .map_err(media_error)?;
         let runtime = ServerRuntime;
@@ -186,7 +211,7 @@ pub(super) async fn command(
             &principal, &selection, &input.metadata, &staged, &inputs,
         ).map_err(stock_reads::http_error)?;
         let raw = plan.plan().original_request().clone();
-        let result = stock_mutations::execute_staged(&core, &principal, &selection, raw, &staged, &schemas)
+        let (result, release) = stock_mutations::execute_staged(&host, &core, &principal, &selection, raw, &staged, &schemas)
             .map_err(stock_reads::http_error)?;
         // The owner has already committed and qualified this canonical result.
         // Metadata retirement cannot turn that commit into an unconfirmed write.
@@ -215,6 +240,10 @@ pub(super) async fn command(
         // use a cleanup error to waive the original principal/source checks.
         let access = core.access.lock().map_err(|_| unavailable())?;
         principal.release(&access).map_err(access_error)?;
+        drop(access);
+        if let Some(release) = release {
+            release.mark_released();
+        }
         Ok(json_response(result.wire))
     }).await.map_err(|_| unavailable())?
 }

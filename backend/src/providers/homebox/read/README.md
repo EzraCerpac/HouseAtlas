@@ -32,6 +32,22 @@ projections, unresolved missing external IDs, stats and retained quarantine.
 Missing entities never delete Atlas identities or prove upstream deletion.
 A successful empty collection is a complete fresh generation.
 
+For the concrete stock dialect, a successful full generation privately retains
+the original ordered fixed-GET response bodies, exact paths/query/status/scope,
+lexical retrieval timestamps, complete reader registration and generated ID.
+`StagedPublication::into_native_presence_capture()` consumes the stage into a
+carrier that owns the exact bundle, normalized generation and Store-issued
+fence while retaining the original principal borrow. Its opaque
+`NativePresenceIdentity` is backed by the same private `Arc` allocation and can
+be compared only with another actual capture; it is not a public constructor,
+serialized value or content-derived identity. Raw bytes never serialize into
+cache/publication DTOs and the capture is not Clone. This is source evidence
+only; it does not create historical authority or admission. The Access
+original-source cut and Storage postcommit/full-release owner join remain
+required before an original-history consumer may admit such evidence. The
+synthetic normalized dialect keeps its existing fetch behavior and cannot be
+transferred as a native capture.
+
 `fetch_view(parent_ids)` returns a separate `FilteredView` with only projections
 and stats. It has no generation, complete cache or publication method; successful
 filtered reads never freshen the complete cache. Auth/scope failures propose
@@ -131,6 +147,37 @@ and depth 64. RawValue distinguishes actual JSON containers from arbitrary-preci
 Serde numeric maps. AT51 classifies integral lexical tokens before checked u64
 conversion; `.0`/exponent integer spellings remain accepted.
 
+Native maintenance costs adopt the wire bridge's exact `serde_json::Number`
+into `Maintenance.cost: Option<serde_json::Number>`. The workspace's existing
+arbitrary-precision JSON feature preserves decimal/exponent tokens through
+typed decoding and serialized cache-publication inputs. Retained-state decoding
+preserves the numeric tokens supplied by Storage. The finite
+admission check does not replace the stored number with its `f64` approximation;
+large integers, long fractions and underflowing exponents retain their amount.
+Normalized synthetic unknown costs remain null. Consumers should serialize the
+number directly rather than convert it to a float or a string. No wire API or
+contract/schema change is required; prior cache amounts already rounded by an
+older reader cannot be recovered without a new source observation.
+
+Maintenance validation reuses the actual contract `JsonNumber` deserializer for
+its lexical processing envelope: at most 4,096 token bytes, explicit decimal
+exponent magnitude at most 4,096, and exponent-minus-fraction-digit magnitude
+at most 4,096. Unsupported spellings fail reader validation before a complete
+generation is staged; they cannot first surface as a Store publication error.
+The same check runs when validating retained projections. Accepted numbers keep
+their exact tokens and the existing finite admission rule; no bound is copied
+into a separate provider policy. Ordinary positive examples cover the accepted
+token/exponent/decimal-shift limits; over-limit rejection controls remain unrun.
+
+Durable amount preservation additionally needs Storage/contract-owner
+reconciliation: `cache_repository::write_homebox` currently calls
+`repository::json`, which uses the native contract's RFC 8785 `canonical_json`.
+That canonicalizer intentionally applies the JavaScript `f64` model and can round
+an exact decimal before storing the projection body. This reader correction does
+not alter the published digest semantics or Storage's persistence codec. Its
+positive examples exercise native intake, projection serialization, the frozen
+contract codec and retained typed fields, not a SQLite persistence roundtrip.
+
 Identical repeated rows collapse; conflicts, count drift, list/detail changes and
 parent cycles abort staging. These guards are coded but rejection/fault/race controls
 remain deferred. Offset pages remain nontransactional upstream reads. UUID spelling
@@ -191,6 +238,11 @@ cargo test --manifest-path "$AT08_HARNESS/Cargo.toml" --locked homebox_read::hea
 cargo test --manifest-path "$AT08_HARNESS/Cargo.toml" --locked --test healthy_publication -- --test-threads=1
 ```
 
+The exact-cost examples are registered as `homebox_read::healthy_numeric`, so
+the documented `homebox_read::healthy` filter also selects both numeric tests.
+The source filename remains `numeric_healthy.rs` for the existing publication
+row; the test-only module name changes no production reader API.
+
 Eleven reader examples cover synthetic metadata, pagination, views, empty/minimal
 generations, provenance, allowlists, freshness, native navigation, integral spellings
 and valid URI representation. The HTTP example opens one ephemeral loopback listener,
@@ -210,3 +262,215 @@ Emitted snapshots pass published shape/semantic validation as additional evidenc
 no JavaScript oracle is used in the Rust publication path. Legacy broad aggregates,
 stopped rejection/guard-reversal/mutation/adversarial/fault/crash/concurrency/negative
 controls remain unrun. Ordinary success does not qualify deployment or security.
+
+## Original bounded native captures
+
+`HomeBoxReader::capture_stock_entity(&Uuid)` captures exactly
+`GET /api/v1/entities/{entityId}`. `capture_stock_maintenance(&Uuid)` captures
+exactly `GET /api/v1/entities/{entityId}/maintenance?status=both`. Both require
+the existing registered stock reader and its configured transport/clock/limits.
+They enforce the reader's allowlist, response scope, redirect/status policy,
+response/aggregate byte bounds and deadlines; detail parents retain the same
+registered partition restriction. There is no caller-selected origin or route.
+
+The returned sealed `NativeCapture<T>` exposes immutable scope, requested owner,
+fixed method/path/query, actual status, host retrieval time, original body bytes,
+parsed source JSON and native decoded value. Unknown fields, numeric spellings,
+calendar dates and original attachment membership metadata survive in the raw
+body/source. Captures can contain private inventory and belong in private owner
+custody. No public publication or serialization adapter is supplied.
+
+These are actual configured GET observations, not complete writable snapshots,
+provider/build qualification, freshness proofs, grants, approvals or receipts.
+The existing fresh writer adapter still requires its original qualified owner
+evidence for preparation/readback and hidden PUT fields. A body from a registered
+transport does not itself establish current credential custody or admission.
+
+The file successor still needs the original `NativeStoredFileOwner` critical
+section and correlated attachment body/version evidence. This source captures
+original detail membership but does not fetch attachment bodies or invent a
+version from paths, dates, hashes or cache generations. Media's original stage
+API presently binds Atlas asset creation; Atlas tokens do not admit HomeBox bytes.
+
+The integration owner must declare `mod native_capture` and export
+`NativeCapture`, `CapturedStockEntity`, `CapturedStockMaintenance` in `read/mod.rs`.
+The separate positive fixture requires `#[cfg(test)] mod native_capture_healthy`.
+Module/Cargo/manifest composition stays with that owner. Once declared, its exact
+permitted command is:
+
+```sh
+cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_capture_healthy::healthy_fixed_native_get_captures_preserve_originals -- --exact --test-threads=1
+```
+
+One ordinary synthetic case performs two successful chunked GETs over the actual
+credential-free ephemeral loopback `HttpTransport`, then closes the listener.
+It covers a reviewed entity/parent allowlist, exact paths/query/tenant, response
+status and retrieval time, byte equality, large integers/exponent spelling,
+original date spelling and maintenance costs. It creates no qualification owner,
+write approval, stage token or source authority and makes no live provider call.
+
+## Consuming conversion to existing fresh inputs
+
+Both sealed capture types provide
+`into_fresh(self, &write::stock::Context, write::stock::StockTarget)` returning
+the existing `write::stock::FreshNativeCapture`. Conversion checks exact
+workspace/home/source correlation, the successful fixed route/query and the
+requested resource/owner. The canonical stock collection UUID spelling must
+equal the original opaque registration `collection_id` string byte for byte;
+the adapter never parses, normalizes or replaces that registration string.
+
+An entity capture supports its exact entity target, or a field/attachment target
+under that entity only when the original captured array has exactly one matching
+member ID. A maintenance capture supports a matching maintenance member under
+its original owner. Missing or ambiguous members remain `ResourceUnavailable`;
+other resource kinds remain `UnsupportedCapability`. Entity targets must not
+carry a member-owner field. No create target or missing member is inferred.
+
+The consuming conversion moves the entire original body, scope, route and query
+into the existing DTO and preserves the retrieval timestamp spelling. It does
+not create qualification evidence, source freshness/completeness facts, hidden
+PUT guarantees, stage admission, credentials or authority. The existing fresh
+decoding/qualification adapters retain their mandatory original-owner inputs.
+`FreshNativeCapture` remains a publicly constructible input DTO; using this
+conversion does not certify every such DTO's provenance or implement a production
+preparation/readback owner port.
+
+The exact additional positive source case uses four in-process synthetic GETs
+through the actual registered reader/public Transport contract, consumes three
+detail captures for entity/field/attachment and one maintenance-owner capture,
+and checks exact scope/target/routes/bytes/time plus numeric/date retention:
+
+```sh
+cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_capture_healthy::healthy_captured_members_into_existing_fresh_inputs -- --exact --test-threads=1
+```
+
+This case uses only actually captured synthetic members and introduces no
+qualification owner, mismatch/denial control or provider write. The earlier
+two-request socket fixture stays unchanged.
+
+
+## Configured native read producer and retained owner
+
+`HomeBoxReader::capture_native_read` takes a frozen `ValidatedRequest`, the
+actual shared `Arc<Mutex<AccessBoundary>>` and the original `CapturedAccess`.
+It requires an original HomeBox entity `SourceGrant` and matching
+`SourcePartitionGrant`, with exact context/source/opaque collection/owner
+spelling. The configured reader supplies its existing endpoint, transport,
+credentials, limits and clock. Intake performs an actual fixed entity GET for
+`homebox.entity.tags.get`, `homebox.field.list` and `homebox.field.get`, or the
+fixed entity-maintenance GET with `status=both` for
+`homebox.maintenance.list` and `homebox.maintenance.get`. Other families remain
+unavailable. The original parser/projection/schema constraints apply unchanged.
+
+The sealed `NativeReadCapture` retains the original body, lexical retrieval time
+and validated observation. Its observation exposes actual resource selectors and
+source relations for the existing graph resolver before preparation. These are
+private source data, not grants or evidence of a complete/qualified graph. The
+application must use its real owner to resolve and authorize the full original
+graph, then consume the same capture through `bind_prepared`. That conversion
+requires the exact original request and the existing mandatory
+`GraphAuthorization`, revalidating the same original principal/grants/witness/G.
+It binds an existing `DecodedReadOwner` to that original prepared request.
+`NativeReadOwner` supplies the existing `HomeBoxReadOwner` interface for
+`HomeBoxQueries` and Domain `dispatch_prepared`, which retain final graph/result
+disclosure. The adapter never extends an already authorized graph.
+
+`capture_prepared_read` is a convenience for requests whose immutable original
+graph already independently qualifies every returned member. When native intake
+can discover members, use intake before original preparation. Shared Access
+locks are short phase checks before/after I/O and around synchronous semantic
+revalidation; no Access/Core/Store guard crosses GET await, and no Access guard
+is held while the graph owner enters its Store section. These checks do not
+claim an atomic provider/Store snapshot. No principal or grants are reissued,
+and no refreshed witness is sealed. Source status remains `unresolved`.
+
+This implements configured GET intake and retained read dispatch mechanics.
+Application reader/credential configuration, the original full-graph owner and
+HTTP async composition remain mandatory integration inputs. It supplies no
+production fresh writer qualification/readback source, installed-build facts,
+current credential provenance, hidden PUT/full-graph proof, file-body version or
+HomeBox stage admission. Response bytes, hashes and retrieval time provide none
+of those missing facts. There is no production provider activation.
+
+The integration owner declares `mod native_query`, exports `NativeReadCapture`
+and `NativeReadOwner`, and declares `#[cfg(test)] mod native_query_healthy` in
+`read/mod.rs`. Module/Cargo/manifest changes stay with that owner. The exact
+additional permitted positive command is:
+
+```sh
+cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_query_healthy::healthy_configured_native_queries_retain_original_authority -- --exact --test-threads=1
+```
+
+One ordinary case sends five actual chunked, credential-free ephemeral-loopback
+HTTP GETs, checks fixed paths/query/tenant, and acquires the actual shared Access
+lock while each response is pending. It uses a genuine synthetic Access login,
+principal and original source/partition grants. The explicitly synthetic graph
+owner resolves members from retained captured bytes before preparation and
+checks exact scope/member identities during graph and result authorization.
+All five forms dispatch through existing Domain contracts and final disclosure.
+The case preserves original bytes/time, a large integer extension, exponent
+purchase-price spelling, native calendar dates and two decimal maintenance
+costs. Existing empty native dates project to null while retained bytes keep
+the original empty spelling. Its two-row maintenance response is synthetic and makes no claim about
+the unsupported exponent-cost projection or provider-wide completeness.
+Only this positive case is executed; no mismatch/denial/revocation/expiry,
+concurrency control, held proof or provider write is exercised.
+
+
+## Original-authority native credential delivery
+
+`NativeReadCredentialConfig::from_trusted_header(&SourceEndpoint, Vec<u8>)`
+retains one explicit trusted host input for an exact endpoint and source scope.
+The nonempty authorization header is limited to 8192 bytes and validated by the
+existing sensitive `AuthorizationHeader` constructor. The owned buffer uses
+`Zeroizing<Vec<u8>>`; immutable `Arc` configuration reuse keeps it until the last
+owner drops. There is no Debug/serde/secret getter or configuration clone. The
+transient header and HTTP library allocations are not a secure-erasure proof.
+No environment, credential file, browser input or AI boundary is read.
+
+For each request, `Arc<NativeReadCredentialConfig>::bind_original` receives the
+actual shared Access owner, a borrow of the exact native original principal, and
+the original opaque HomeBox entity SourceGrant and PartitionGrant. It checks
+exact scope/source/opaque collection correlation and uses the existing
+`with_source_read_authorization` fence to validate complete principal provenance,
+read capability and the captured grant versions. No principal or grant is issued
+or replaced. `NativeReadCredentials::from_trusted_header` delegates for direct
+per-request use. `matches_endpoint` permits safe configuration correlation and
+exposes no authorization bytes.
+
+The concrete existing `CredentialProvider` implementation repeats this native
+read fence at every header delivery, checks the exact selected endpoint/scope and
+request deadline, and creates the transient sensitive header within that fence.
+Mutex acquisition is nonblocking. The original synchronous Access/SQLite fence
+retains its existing busy timeout and cannot be interrupted by an async timer;
+execute this source phase on the existing blocking worker. A post-fence deadline
+check refuses late delivery, but does not promise a preemptible wall-clock bound.
+It drops Access locks and transactions before transport socket awaits. A returned
+future contains only the result, not a request wrapper or lock. This supports the
+root's synchronous original RequestPrincipal handling and actual async GET I/O.
+
+These constructors handle explicit header custody; syntax/current native read
+checks do not authenticate a provider account or certify enrollment, credential
+provenance, expiry or source admission. Those remain genuine trusted host inputs.
+The existing CredentialProvider interface receives an endpoint and deadline,
+not a GET owner/path. Root must pair the SAME original principal/source handles
+with NativeReadCapture's exact request-owner/fixed-route checks. This credential
+peer supplies no write approval, provider qualification or activation.
+
+The integration owner declares `mod credentials`, exports
+`NativeReadCredentialConfig` and `NativeReadCredentials`, and declares
+`#[cfg(test)] mod credentials_healthy` in `read/mod.rs`. Once declared, the exact
+additional permitted positive command is:
+
+```sh
+cargo test --locked -p houseatlas-backend --lib providers::homebox::read::credentials_healthy::healthy_original_credentials_deliver_two_native_gets -- --exact --test-threads=1
+```
+
+One ordinary case reuses an immutable explicitly synthetic header configuration
+for two genuine Access-issued read requests and their original source/partition
+grants. Actual ephemeral-loopback HttpTransport sends two successful chunked
+GETs with the exact synthetic Authorization header, tenant, fixed routes and
+identity encoding. Original native detail/maintenance bytes and lexical retrieval
+time survive. The server successfully acquires the shared Access lock while each
+response is pending. No real credentials, accounts, inventory or live provider
+calls, mismatch/denial/revocation/expiry controls, writes or held proof tests run.

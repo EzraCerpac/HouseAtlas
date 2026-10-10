@@ -19,6 +19,7 @@
     "isolatedModules": true,
     "resolveJsonModule": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "types": [
       "node",
       "react",
@@ -50,6 +51,8 @@
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "src/lantern/data/alder.ts",
+    "src/lantern/data/quarry.ts"
   ]
 }

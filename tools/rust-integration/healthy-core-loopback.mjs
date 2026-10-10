@@ -25,7 +25,7 @@ async function until(check, label, ms = 20000) {
 const openssl = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', key, '-out', cert, '-days', '1', '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1'], { encoding: 'utf8' });
 assert.equal(openssl.status, 0, 'Disposable certificate creation');
 let service, browser, cdp, serviceOutput = '', serviceError = '';
-const observedUrls = [], responses = [], runtimeErrors = [];
+const observedUrls = [], responses = [], runtimeErrors = [], nativeListResponses = [];
 class Pipe {
   next = 0; pending = new Map(); buffer = Buffer.alloc(0);
   constructor(process) {
@@ -42,7 +42,13 @@ class Pipe {
           this.pending.delete(message.id); clearTimeout(pending.timer);
           message.error ? pending.reject(new Error(message.error.message)) : pending.resolve(message.result);
         } else if (message.method === 'Network.requestWillBeSent') observedUrls.push(message.params.request.url);
-        else if (message.method === 'Network.responseReceived') responses.push({ url: message.params.response.url, status: message.params.response.status });
+        else if (message.method === 'Network.responseReceived') {
+          const response = message.params.response;
+          responses.push({ url: response.url, status: response.status });
+          if (new URL(response.url).pathname.endsWith('/invoke') && nativeListResponses.length < 12)
+            nativeListResponses.push({ id: message.params.requestId, path: new URL(response.url).pathname, status: response.status,
+              snapshot: Object.entries(response.headers).find(([name]) => name.toLowerCase() === 'x-atlas-snapshot-sha256')?.[1] ?? null });
+        }
         else if (message.method === 'Runtime.exceptionThrown') runtimeErrors.push(message.params.exceptionDetails.text);
       }
     });
@@ -81,7 +87,27 @@ try {
     const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
     assert(!result.exceptionDetails, 'Healthy browser evaluation'); return result.result.value;
   };
+  // Open the retained native Atlas surface through Lantern's visible controls.
+  const openAtlasTools = async () => {
+    await until(async () => await evaluate(`(() => {
+      const button = [...document.querySelectorAll('nav[aria-label="Sections"] button')]
+        .find(button => button.textContent?.trim() === 'Changes' && button.getClientRects().length);
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`), 'Visible Changes navigation');
+    await until(async () => await evaluate("document.querySelector('main#main h1')?.textContent === 'Changes'"), 'Changes view');
+    await until(async () => await evaluate(`(() => {
+      const button = [...document.querySelectorAll('main#main button')]
+        .find(button => button.textContent?.trim() === 'Atlas tools' && button.getClientRects().length);
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`), 'Visible Atlas tools action');
+    await until(async () => await evaluate("Boolean(document.querySelector('[role=dialog][aria-modal=true][aria-label=\"Atlas tools\"]:not([hidden])'))"), 'Visible Atlas tools dialog');
+  };
   await send('Page.navigate', { url: origin });
+  await openAtlasTools();
   try {
     await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'React authorized home rendering');
   } catch (error) {
@@ -102,6 +128,47 @@ try {
   assert.equal(item.entity.parent, null); assert.equal(item.mobility, 'unknown');
   assert(view.entries.every(e => e.nativeLinks.length === 0 && e.networkRelations.length === 0), 'No unissued capabilities');
   assert(item.attachments.filter(a => a.kind === 'stored-file').every(a => a.downloadHref === null && a.previewHref === null));
+  // Lantern uses its visible navigation state; the retained Atlas hash route
+  // remains separately exercised below.
+  await until(async () => await evaluate(`(() => {
+    const panel = document.querySelector('[role=dialog][aria-modal=true][aria-label="Atlas tools"]:not([hidden])');
+    const button = [...(panel?.querySelectorAll('button') ?? [])]
+      .find(button => button.textContent?.trim() === 'Close Atlas tools' && button.getClientRects().length);
+    if (!button) return false;
+    button.click();
+    return true;
+  })()`), 'Visible Close Atlas tools action');
+  await until(async () => await evaluate("!document.querySelector('[aria-label=\"Atlas tools\"]:not([hidden])')"), 'Atlas tools closed before section navigation');
+  const topologyResponseStart = nativeListResponses.length;
+  await until(async () => await evaluate(`(() => {
+    const button = [...document.querySelectorAll('nav[aria-label="Sections"] button')]
+      .find(button => button.textContent?.trim() === 'Rooms & places' && button.getClientRects().length);
+    if (!button) return false;
+    button.click();
+    return true;
+  })()`), 'Visible Rooms & places navigation');
+  await until(async () => await evaluate("document.querySelector('main#main h1')?.textContent === 'Rooms & places'"), 'Lantern Rooms & places view');
+  try {
+    await until(async () => await evaluate("document.querySelector('.topology-scope [role=status]')?.textContent === 'No reviewed buildings in this home.'"), 'Actual native topology frame after matched snapshot reads');
+  } catch (error) {
+    const lists = [];
+    for (const response of nativeListResponses) {
+      let outcome;
+      try {
+        const body = JSON.parse((await send('Network.getResponseBody', { requestId: response.id })).body);
+        outcome = { commandId: body.commandId, status: body.status, errorCode: body.error?.code,
+          recordCount: Array.isArray(body.data?.records) ? body.data.records.length : null, sourceStatus: body.data?.sourceStatus };
+      } catch { outcome = { bodyUnavailable: true }; }
+      lists.push({ path: response.path, status: response.status, snapshot: response.snapshot, outcome });
+    }
+    console.error(JSON.stringify({ topologyStatus: await evaluate("document.querySelector('.topology-scope [role=status]')?.textContent ?? null"), lists }));
+    throw error;
+  }
+  const topologyReads = nativeListResponses.slice(topologyResponseStart).map(({ path, status, snapshot }) => ({ path, status, snapshot }));
+  assert.equal(topologyReads.length, 4, 'Four completed actual native topology list reads');
+  assert(topologyReads.every(read => read.status === 200 && /^[0-9a-f]{64}$/.test(read.snapshot ?? '')
+    && read.snapshot === topologyReads[0].snapshot), 'Actual native topology reads carry one matched retained snapshot identity');
+  await openAtlasTools();
   await evaluate("location.hash='#places'");
   await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes(room.entity.name), 'React Rooms & places');
   await evaluate('location.hash=' + JSON.stringify('#place?key=' + encodeURIComponent(room.key)));
@@ -139,6 +206,7 @@ try {
   await evaluate(`document.getElementById('atlas-username').value=${JSON.stringify(login.username)}; document.getElementById('atlas-password').value=${JSON.stringify(login.password)}; document.querySelector('.session-form').requestSubmit()`);
   assert.equal(await evaluate("document.getElementById('atlas-password')?.value ?? ''"), '');
   await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'Actual successful HTTP login and React home');
+  await openAtlasTools();
   const refreshedCookies = await send('Network.getCookies', {urls:[origin]});
   const actualSessionCookie = refreshedCookies.cookies.find(c=>c.name===cookie.slice(0,split));
   assert(actualSessionCookie?.secure && actualSessionCookie.httpOnly && actualSessionCookie.sameSite==='Strict', 'Actual login issues protected browser cookie');
@@ -171,7 +239,7 @@ try {
   assert.deepEqual(writes.single,{revision:1,replayed:false,recordMatches:true,historyCount:1,auditActor:'00000000-0000-4000-8000-000000000007',historyRevision:1});
   assert.deepEqual(writes.batch,{count:2,replayed:false,revisions:[1,1],recordsMatch:true,historyCounts:[1,1],auditActors:[writes.actorId,writes.actorId]});
   assert(observedUrls.every(url=>url.startsWith(origin+'/')), 'All auth, reads and fresh commands stay on loopback');
-  assert(responses.every(r=>r.status===200 || (r.status===204 && r.url===origin+'/favicon.ico')), 'All observed core flows remain successful ordinary responses');
+  assert(responses.every(r=>r.status===200 || (r.status===204 && r.url===origin+'/favicon.ico')), 'All observed core flows remain successful ordinary responses: ' + JSON.stringify(responses.filter(r=>!(r.status===200 || (r.status===204 && r.url===origin+'/favicon.ico'))).map(r=>({path:new URL(r.url).pathname,status:r.status}))));
   assert.equal(runtimeErrors.length,0);
   const sql = [
     'import sqlite3,json,sys', 'from pathlib import Path', 'root=Path(sys.argv[1])',
@@ -183,7 +251,7 @@ try {
   ].join('\n');
   const rows = spawnSync('python3', ['-c', sql, data], { encoding: 'utf8' });
   assert.equal(rows.status, 0); assert.deepEqual(JSON.parse(rows.stdout), {records:9,projections:2,audits:3,receipts:3,batchReceipts:1,sessions:1});
-  const evidence = { rust:serviceOutput.trim(), browser:version.product, apiReads:api.map(({path,status})=>({path,status})), coreReads, writes, authResponses:responses.filter(r=>r.url.startsWith(origin+'/api/atlas/auth/')).map(r=>({path:new URL(r.url).pathname,status:r.status})), scopedRead:result.status, rooms:1, items:1, persisted:JSON.parse(rows.stdout), observedRequests:observedUrls.length, scope:'Actual native schema/graph/JCS, Rust/SQLite/access/domain/React positive loopback TLS session/login/logout, canonical paged reads, fresh circuit create and atomic local identity batch. No rejected request, stopped control or external provider.' };
+  const evidence = { rust:serviceOutput.trim(), browser:version.product, apiReads:api.map(({path,status})=>({path,status})), coreReads, writes, authResponses:responses.filter(r=>r.url.startsWith(origin+'/api/atlas/auth/')).map(r=>({path:new URL(r.url).pathname,status:r.status})), scopedRead:result.status, topologyReads, rooms:1, items:1, persisted:JSON.parse(rows.stdout), observedRequests:observedUrls.length, scope:'Actual native schema/graph/JCS, Rust/SQLite/access/domain/React positive loopback TLS session/login/logout, canonical paged reads, fresh circuit create and atomic local identity batch. No rejected request, stopped control or external provider.' };
   if (process.env.HOUSEATLAS_EVIDENCE) writeFileSync(process.env.HOUSEATLAS_EVIDENCE, JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));
 } finally {

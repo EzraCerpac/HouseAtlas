@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, existsSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
+import { mkdtempSync, readFileSync, existsSync, writeFileSync, rmSync, readdirSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +17,19 @@ assert(existsSync(join(root, 'AGENTS.md')) && existsSync(join(root, 'frontend/di
 assert.equal(process.version, 'v26.10.0');
 const binary = process.env.HOUSEATLAS_BINARY;
 assert(binary && existsSync(binary), 'Supply the locked compiled HOUSEATLAS_BINARY');
+const git = args => spawnSync('git', args, {cwd:root, encoding:'utf8'});
+const head = git(['rev-parse','HEAD']); assert.equal(head.status,0);
+const status = git(['status','--porcelain']); assert.equal(status.status,0);
+const source = {head:head.stdout.trim(),clean:status.stdout.trim()==='',
+  binarySha256:createHash('sha256').update(readFileSync(binary)).digest('hex'),
+  frontendIndexSha256:createHash('sha256').update(readFileSync(join(root,'frontend/dist/index.html'))).digest('hex'),
+  scriptSha256:createHash('sha256').update(readFileSync(fileURLToPath(import.meta.url))).digest('hex')};
+if(process.env.HOUSEATLAS_SOURCE_SHA) {
+  assert.equal(source.head,process.env.HOUSEATLAS_SOURCE_SHA);
+  assert.equal(source.clean,true,'Exact candidate verification requires a clean source tree');
+}
+const fixtureProfile=process.env.HOUSEATLAS_FIXTURE_PROFILE;
+assert(!fixtureProfile || fixtureProfile==='native-media-archive','Only the inspected positive archive profile is accepted');
 const chromium = process.env.HOUSEATLAS_CHROMIUM ?? ['/usr/bin/google-chrome', '/usr/bin/chromium'].find(existsSync);
 assert(chromium && existsSync(chromium), 'A real Chromium executable is required');
 const scratch = mkdtempSync(join(tmpdir(), 'houseatlas-at52-healthy-'));
@@ -71,7 +84,8 @@ class Pipe {
   }
 }
 try {
-  service = spawn(resolve(binary), ['--disposable-dir', data, '--frontend-dist', join(root, 'frontend/dist'), '--tls-cert', cert, '--tls-key', key], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
+  service = spawn(resolve(binary), ['--disposable-dir', data, '--frontend-dist', join(root, 'frontend/dist'), '--tls-cert', cert, '--tls-key', key,
+    ...(fixtureProfile ? ['--fixture-profile',fixtureProfile] : [])], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
   service.stdout.on('data', b => { serviceOutput += b; }); service.stderr.on('data', b => { serviceError += b; });
   await until(() => {
     if (service.exitCode !== null) throw new Error('Rust startup failed: ' + serviceError);
@@ -84,7 +98,7 @@ try {
   const version = await cdp.send('Browser.getVersion');
   // Both inspected release IDLs take DOMString input_arguments. A browser
   // version change requires source inspection before this ordinary flow runs.
-  assert(['Chrome/151.0.7922.173', 'Chrome/154.0.8037.57', 'Chrome/154.0.8037.97'].includes(version.product), 'Inspected native WebMCP browser version');
+  assert(['Chrome/151.0.7922.173', 'Chrome/154.0.8037.57', 'Chrome/154.0.8037.97', 'Chrome/154.0.8037.98'].includes(version.product), 'Inspected native WebMCP browser version');
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params) => cdp.send(method, params, sessionId);
@@ -99,7 +113,27 @@ try {
     if (result.exceptionDetails) console.error(JSON.stringify({healthyException:result.exceptionDetails.exception?.description ?? result.exceptionDetails.text,responses,runtimeErrors}));
     assert(!result.exceptionDetails, 'Healthy browser evaluation'); return result.result.value;
   };
+  // Open the retained native Atlas surface through Lantern's visible controls.
+  const openAtlasTools = async () => {
+    await until(async () => await evaluate(`(() => {
+      const button = [...document.querySelectorAll('nav[aria-label="Sections"] button')]
+        .find(button => button.textContent?.trim() === 'Changes' && button.getClientRects().length);
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`), 'Visible Changes navigation');
+    await until(async () => await evaluate("document.querySelector('main#main h1')?.textContent === 'Changes'"), 'Changes view');
+    await until(async () => await evaluate(`(() => {
+      const button = [...document.querySelectorAll('main#main button')]
+        .find(button => button.textContent?.trim() === 'Atlas tools' && button.getClientRects().length);
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`), 'Visible Atlas tools action');
+    await until(async () => await evaluate("Boolean(document.querySelector('[role=dialog][aria-modal=true][aria-label=\"Atlas tools\"]:not([hidden])'))"), 'Visible Atlas tools dialog');
+  };
   await send('Page.navigate', { url: origin });
+  await openAtlasTools();
   try {
     await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'React authorized home rendering');
   } catch (error) {
@@ -129,6 +163,7 @@ try {
   await until(async()=>await evaluate("Boolean(document.getElementById('atlas-username'))"),'Ordinary successful logout form');
   await evaluate(`document.getElementById('atlas-username').value=${JSON.stringify(editorLogin.username)};document.getElementById('atlas-password').value=${JSON.stringify(editorLogin.password)};document.querySelector('.session-form').requestSubmit()`);
   await until(async()=> (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'),'Actual editor React session');
+  await openAtlasTools();
   await until(async()=> (await evaluate("document.modelContext.getTools().then(t=>t.some(x=>x.name==='atlas_records'))")), 'Actual editor registration');
   const getJson = path => evaluate(`fetch(${JSON.stringify(path)},{method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error',headers:{Accept:'application/json'}}).then(async r=>({status:r.status,body:await r.json()}))`);
   assert.equal(view.status, 'ready');
@@ -595,6 +630,17 @@ c.close()
   assert.deepEqual(repeated.commitWire,secondReceipt);
   assert.deepEqual(repeated.commands,['atlas.evidence.create','atlas.identity.replace']);
   assert.equal(repeated.freshKey,true); assert.equal(repeated.assetGuardBound,true); assert.equal(repeated.noNewStageConsumption,true);
+  let nativeMediaPublication=null;
+  if(fixtureProfile==='native-media-archive') {
+    const directory=join(data,'media-policy-archive'), members=readdirSync(directory);
+    assert.deepEqual(members,[receipt.data.auditIds[0]+'.media-policy.json']);
+    const file=join(directory,members[0]); assert.equal(statSync(file).mode&0o777,0o600);
+    const packet=JSON.parse(readFileSync(file,'utf8'));
+    assert.deepEqual(packet.entry.commit.wire,receipt);
+    assert.equal(packet.entry.commit.operationId,receipt.operationId);
+    nativeMediaPublication={member:members[0],mode:'0600',operationId:receipt.operationId,
+      qualifiedRootAndThreeChildReceipts:true,unchangedAfterSecondFreshIntent:true};
+  }
   // Observe only directory count; never record paths, stage tokens or bindings.
   const pendingStages = readdirSync(join(data,'media','uploads')).length;
   assert.equal(pendingStages,0,'Genuine committed stage metadata retired; reuse issued no stage');
@@ -604,6 +650,7 @@ c.close()
   assert(responses.some(response => response.url === origin + '/api/atlas/auth/logout' && response.status === 200));
   assert(responses.some(response => response.url === origin + '/api/atlas/auth/login' && response.status === 200));
   const evidence = {
+    source,nativeMediaPublication,
     flow: 'Two fresh healthy React attachment intents sharing one genuine original through Rust/SQLite/access/media/domain/stock peers',
     binarySha256: createHash('sha256').update(readFileSync(binary)).digest('hex'), browser: version.product,
     fixture: { initialRecords: 6, initialAudits: 0, preparedOriginals: preparedMedia.length, semanticsRecordId: U(400), identityRecordId: U(200) },

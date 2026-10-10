@@ -216,7 +216,9 @@ pub struct Maintenance {
     pub description: String,
     pub scheduled_date: Option<crate::providers::homebox::wire::MaintenanceDate>,
     pub completed_date: Option<crate::providers::homebox::wire::MaintenanceDate>,
-    pub cost: Option<f64>,
+    /// Keep the bridge's exact decimal token through publication and retention.
+    /// The workspace enables serde_json's arbitrary_precision feature.
+    pub cost: Option<serde_json::Number>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -330,6 +332,13 @@ impl PreviousGeneration {
             quarantine,
         }
     }
+    /// Validates retained state for a scoped read; grants no authority or refresh.
+    pub fn from_retained(
+        state: crate::storage::CachePublicationState,
+        scope: &SourceScope,
+    ) -> Result<Self, super::PublishError> {
+        super::retained::previous(state, scope)
+    }
     pub fn cache(&self) -> &CacheStatus {
         &self.cache
     }
@@ -360,6 +369,10 @@ pub struct CompleteGeneration {
     pub(super) missing_external_ids: Vec<Uuid>,
     pub(super) quarantine: bool,
     pub(super) stats: ReadStats,
+    /// Original native bytes remain private and never enter normal cache JSON.
+    #[serde(skip)]
+    pub(super) native_presence:
+        Option<std::sync::Arc<super::native_presence_capture::NativePresenceGeneration>>,
 }
 impl CompleteGeneration {
     pub fn cache(&self) -> &CacheStatus {

@@ -1,4 +1,9 @@
 //! Minimum healthy fixture setup through the actual module APIs.
+pub mod ai_account;
+pub mod backup;
+pub mod persistent;
+pub mod provider_dispatch;
+pub mod receipt_compatibility;
 pub mod providers {
     pub mod authority;
     pub mod homebox_refresh;
@@ -6,7 +11,11 @@ pub mod providers {
 }
 pub mod recovery {
     pub mod host;
+    pub mod queued_upload_catalog_media_policy;
+    pub mod queued_upload_catalog_reopen;
     pub mod reopen;
+    pub mod upload_history_intake;
+    pub mod upload_history_validation;
 }
 use crate::{
     access as a,
@@ -56,14 +65,28 @@ pub fn fixture() -> Result<Value, Failure> {
     fixture_with_profile(crate::config::FixtureProfile::Standard)
 }
 pub fn fixture_with_profile(profile: crate::config::FixtureProfile) -> Result<Value, Failure> {
-    let mut v: Value = serde_json::from_str(include_str!(
-        "../../../packages/contracts/fixtures/plan-free.snapshot.json"
-    ))?;
+    let geometry_metadata = profile == crate::config::FixtureProfile::GeometryMetadata;
+    let snapshot = if geometry_metadata {
+        include_str!("../../../packages/contracts/fixtures/optional-geometry.snapshot.json")
+    } else {
+        include_str!("../../../packages/contracts/fixtures/plan-free.snapshot.json")
+    };
+    let mut v: Value = serde_json::from_str(snapshot)?;
     v["sources"]
         .as_array_mut()
         .ok_or("Missing sources")?
-        .retain(|s| s["sourceInstanceId"] == "00000000-0000-4000-8000-000000000010");
-    let ids = ["100", "200", "201", "300", "301", "400"];
+        .retain(|s| {
+            s["sourceInstanceId"] == "00000000-0000-4000-8000-000000000010"
+                || (geometry_metadata
+                    && s["sourceInstanceId"] == "00000000-0000-4000-8000-000000000013")
+        });
+    // Keep the standard six records and the public missing/blocked original
+    // plus its unchanged metadata only. No original file or shapes are added.
+    let ids: &[&str] = if geometry_metadata {
+        &["100", "200", "201", "300", "301", "400", "600", "601"]
+    } else {
+        &["100", "200", "201", "300", "301", "400"]
+    };
     v["records"]
         .as_array_mut()
         .ok_or("Missing records")?
@@ -282,7 +305,9 @@ pub fn prepare_with_profile(
     )?;
     Ok(Core {
         access,
-        store: Mutex::new(store),
+        store: Arc::new(Mutex::new(store)),
+        atlas_list_pages: crate::domain::stock::AtlasListPages::default(),
+        media_policy_evidence: Mutex::default(),
         vault,
         homes: vec![home.clone()],
         home,

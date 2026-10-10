@@ -103,6 +103,23 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             .record_prepared_cache_failure(principal, fence, failure)
     }
 
+    /// Persist the provider adapter's captured attempt time under its original
+    /// pre-fetch fence. Native cache/snapshot validation checks the timestamp.
+    pub fn record_prepared_cache_failure_at(
+        &mut self,
+        principal: &A::Principal,
+        fence: CachePublicationFence,
+        failure: &CacheFailure,
+        attempted_at: &str,
+    ) -> Result<CacheStatus> {
+        self.cache_transaction().record_prepared_cache_failure_at(
+            principal,
+            fence,
+            failure,
+            attempted_at,
+        )
+    }
+
     /// Borrowed call authority; retains this store connection and fence issuer.
     pub fn register_source_with_authorization<B: Authorization>(
         &mut self,
@@ -112,6 +129,20 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
     ) -> Result<SourceRegistration> {
         self.cache_transaction_with_authorization(authorization)
             .register_source(principal, registration)
+    }
+
+    /// Read under an original borrowed authority fence on this open store.
+    /// Retained rows, including quarantined rows, remain internal matching data:
+    /// the host must qualify generation membership and exact entity disclosure.
+    pub fn read_cache_partition_with_authorization<B: Authorization>(
+        &mut self,
+        authorization: &B,
+        principal: &B::Principal,
+        scope: &Scope,
+        partition: &SourcePartition,
+    ) -> Result<RegisteredCacheRead> {
+        self.cache_transaction_with_authorization(authorization)
+            .read_cache_partition(principal, scope, partition)
     }
 
     /// Borrowed call authority; retains this store connection and fence issuer.
@@ -158,16 +189,31 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             .record_prepared_cache_failure(principal, fence, failure)
     }
 
-    fn cache_transaction(&mut self) -> CacheTransaction<'_, C, A, R> {
+    /// Captured attempt metadata with the original borrowed call authority,
+    /// connection and pre-fetch fence; does not infer any authorization grant.
+    pub fn record_prepared_cache_failure_at_with_authorization<B: Authorization>(
+        &mut self,
+        authorization: &B,
+        principal: &B::Principal,
+        fence: CachePublicationFence,
+        failure: &CacheFailure,
+        attempted_at: &str,
+    ) -> Result<CacheStatus> {
+        self.cache_transaction_with_authorization(authorization)
+            .record_prepared_cache_failure_at(principal, fence, failure, attempted_at)
+    }
+
+    pub(super) fn cache_transaction(&mut self) -> CacheTransaction<'_, C, A, R> {
         CacheTransaction {
             db: &mut self.db,
             contract: &self.contract,
             authorization: &self.authorization,
             runtime: &self.runtime,
             instance: &self.instance,
+            pins: &mut self.cache_pins,
         }
     }
-    fn cache_transaction_with_authorization<'a, B: Authorization>(
+    pub(super) fn cache_transaction_with_authorization<'a, B: Authorization>(
         &'a mut self,
         authorization: &'a B,
     ) -> CacheTransaction<'a, C, B, R> {
@@ -177,19 +223,92 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             authorization,
             runtime: &self.runtime,
             instance: &self.instance,
+            pins: &mut self.cache_pins,
         }
     }
 }
 
 /// One private transaction engine shared by configured and borrowed authority.
-struct CacheTransaction<'a, C, A, R> {
+pub(super) struct CacheTransaction<'a, C, A, R> {
     db: &'a mut Connection,
     contract: &'a C,
     authorization: &'a A,
     runtime: &'a R,
     instance: &'a Arc<()>,
+    pins: &'a mut super::cache_custody::CachePinRegistry,
 }
 impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
+    fn read_cache_partition(
+        &mut self,
+        principal: &A::Principal,
+        scope: &Scope,
+        partition: &SourcePartition,
+    ) -> Result<RegisteredCacheRead> {
+        shape(self.contract, "scope", scope)?;
+        validate_partition(self.contract, partition)?;
+        if partition.scope() != *scope {
+            return Err(Error::new("not-found", "Source unavailable"));
+        }
+        let tx = self.db.transaction()?;
+        let registration = cache_repo::source(&tx, partition)?;
+        shape(self.contract, "sourceRegistration", &registration)?;
+        if registration.partition() != *partition {
+            return Err(Error::new(
+                "schema-incompatible",
+                "Registered source is incompatible",
+            ));
+        }
+        let source = serde_json::to_value(&registration)?;
+        let check = || {
+            let mut request = read_request(scope, Capability::ReadCache, &[]);
+            request.source_partition = Some(partition);
+            request.source = Some(&source);
+            authorize(self.contract, self.authorization, principal, request)
+        };
+        let actor = check()?;
+        let state = cache_repo::publication_state(&tx, partition)?;
+        if let Some(cache) = &state.cache {
+            shape(self.contract, "cacheStatus", cache)?;
+            if cache.partition() != *partition {
+                return Err(Error::new("schema-incompatible", "Cache is incompatible"));
+            }
+        }
+        for row in &state.homebox_entities {
+            self.contract.validate_shape("homeboxProjection", row)?;
+            if registration.owner != SourceOwner::Homebox || homebox_partition(row)? != *partition {
+                return Err(Error::new(
+                    "schema-incompatible",
+                    "Projection is incompatible",
+                ));
+            }
+        }
+        for row in &state.network_relations {
+            self.contract.validate_shape("networkRelation", row)?;
+            if registration.owner != SourceOwner::Network || repo::partition(row)? != *partition {
+                return Err(Error::new(
+                    "schema-incompatible",
+                    "Relation is incompatible",
+                ));
+            }
+        }
+        let recheck = || -> Result<()> {
+            if check()? != actor {
+                return Err(Error::new(
+                    "unauthenticated",
+                    "Cache read principal changed",
+                ));
+            }
+            Ok(())
+        };
+        recheck()?;
+        tx.commit()?;
+        recheck()?;
+        Ok(RegisteredCacheRead {
+            registration,
+            state,
+        })
+    }
+
     pub fn register_source(
         &mut self,
         principal: &A::Principal,
@@ -340,6 +459,9 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
             &input,
             &actor,
         )?;
+        // Conservatively retain this issued candidate even if commit returns an
+        // ambiguous error or its owner later abandons the provider attempt.
+        self.pins.reserve(&fence)?;
         tx.commit()?;
         Ok(PreparedCachePublication { state, fence })
     }
@@ -354,6 +476,43 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
         cache: &CacheStatus,
         homebox_entities: &[Value],
         network_relations: &[Value],
+    ) -> Result<CacheStatus> {
+        self.publish_prepared_generation_ref(
+            principal,
+            &fence,
+            cache,
+            homebox_entities,
+            network_relations,
+        )
+    }
+
+    pub(super) fn publish_prepared_generation_ref(
+        &mut self,
+        principal: &A::Principal,
+        fence: &CachePublicationFence,
+        cache: &CacheStatus,
+        homebox_entities: &[Value],
+        network_relations: &[Value],
+    ) -> Result<CacheStatus> {
+        self.publish_prepared_generation_ref_with_capture(
+            principal,
+            fence,
+            cache,
+            homebox_entities,
+            network_relations,
+            None,
+        )
+    }
+    pub(super) fn publish_prepared_generation_ref_with_capture(
+        &mut self,
+        principal: &A::Principal,
+        fence: &CachePublicationFence,
+        cache: &CacheStatus,
+        homebox_entities: &[Value],
+        network_relations: &[Value],
+        capture: Option<
+            &super::cache_presence_publication::NativePresencePublicationCapture<'_, A::Principal>,
+        >,
     ) -> Result<CacheStatus> {
         if !std::sync::Arc::ptr_eq(self.instance, &fence.issuer)
             || fence.registration.partition() != fence.partition
@@ -376,7 +535,8 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
                 expected_generation_id: fence.baseline_generation_id.clone(),
                 expected_cache_epoch: fence.baseline_cache_epoch.value(),
             },
-            Some(&fence),
+            Some(fence),
+            capture,
         )
     }
 
@@ -386,7 +546,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
         scope: &Scope,
         generation: &CacheGeneration,
     ) -> Result<CacheStatus> {
-        self.replace_cache_generation_inner(principal, scope, generation, None)
+        self.replace_cache_generation_inner(principal, scope, generation, None, None)
     }
     fn replace_cache_generation_inner(
         &mut self,
@@ -394,7 +554,13 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
         scope: &Scope,
         generation: &CacheGeneration,
         fence: Option<&CachePublicationFence>,
+        capture: Option<
+            &super::cache_presence_publication::NativePresencePublicationCapture<'_, A::Principal>,
+        >,
     ) -> Result<CacheStatus> {
+        if let Some(capture) = capture {
+            capture.validate_inputs(principal, fence, generation)?;
+        }
         let input = serde_json::to_value(&generation.cache)?;
         let tx = self
             .db
@@ -407,6 +573,9 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
             Capability::PublishCache,
             &input,
         )?;
+        if let Some(capture) = capture {
+            capture.record_actor(&actor);
+        }
         let original = repo::snapshot(&tx)?;
         shape(self.contract, "cacheStatus", &generation.cache)?;
         let partition = generation.cache.partition();
@@ -541,7 +710,22 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
             &input,
             &actor,
         )?;
+        if let Some(capture) = capture {
+            let current = trusted_authorize(
+                self.contract,
+                self.authorization,
+                principal,
+                scope,
+                Capability::PublishCache,
+                &input,
+            )?;
+            capture.validate_actor(&current)?;
+            capture.stage_committed(&tx, &source)?;
+        }
         tx.commit()?;
+        if let Some(capture) = capture {
+            capture.record_committed();
+        }
         Ok(generation.cache.clone())
     }
     /// This is an internal envelope, not a new client mutation language. Its
@@ -569,7 +753,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
         partition: &SourcePartition,
         failure: &CacheFailure,
     ) -> Result<CacheStatus> {
-        self.record_cache_failure_inner(principal, scope, partition, failure, None)
+        self.record_cache_failure_inner(principal, scope, partition, failure, None, None)
     }
 
     /// Consume the original pre-fetch fence when publishing sanitized failure
@@ -579,6 +763,31 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
         principal: &A::Principal,
         fence: CachePublicationFence,
         failure: &CacheFailure,
+    ) -> Result<CacheStatus> {
+        self.record_prepared_cache_failure_with_attempt(principal, fence, failure, None)
+    }
+
+    pub fn record_prepared_cache_failure_at(
+        &mut self,
+        principal: &A::Principal,
+        fence: CachePublicationFence,
+        failure: &CacheFailure,
+        attempted_at: &str,
+    ) -> Result<CacheStatus> {
+        self.record_prepared_cache_failure_with_attempt(
+            principal,
+            fence,
+            failure,
+            Some(attempted_at),
+        )
+    }
+
+    fn record_prepared_cache_failure_with_attempt(
+        &mut self,
+        principal: &A::Principal,
+        fence: CachePublicationFence,
+        failure: &CacheFailure,
+        attempted_at: Option<&str>,
     ) -> Result<CacheStatus> {
         if !std::sync::Arc::ptr_eq(self.instance, &fence.issuer)
             || fence.registration.partition() != fence.partition
@@ -594,6 +803,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
             &fence.partition,
             failure,
             Some(&fence),
+            attempted_at,
         )
     }
 
@@ -604,6 +814,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
         partition: &SourcePartition,
         failure: &CacheFailure,
         fence: Option<&CachePublicationFence>,
+        attempted_at: Option<&str>,
     ) -> Result<CacheStatus> {
         validate_partition(self.contract, partition)?;
         let input = serde_json::to_value(partition)?;
@@ -648,7 +859,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CacheTransaction<'_, C, A, R> {
             }
         }
         let mut candidate = repo::snapshot(&tx)?;
-        let at = self.runtime.now()?;
+        let at = attempted_at.map_or_else(|| self.runtime.now(), |at| Ok(at.to_owned()))?;
         let quarantined = prior
             .as_ref()
             .is_some_and(|c| c.status == CacheState::AccessRevoked)
@@ -713,7 +924,7 @@ fn validate_partition<C: Contract>(contract: &C, partition: &SourcePartition) ->
     }
     Ok(())
 }
-fn trusted_authorize<C: Contract, A: Authorization>(
+pub(super) fn trusted_authorize<C: Contract, A: Authorization>(
     contract: &C,
     authorization: &A,
     principal: &A::Principal,

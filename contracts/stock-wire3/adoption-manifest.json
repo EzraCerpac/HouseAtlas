@@ -5,9 +5,9 @@
   "semanticAmendmentVersion": "1.1.0",
   "runtimeQualification": false,
   "frozenAtlasSchema": {
-    "uri": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json",
+    "uri": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json",
     "path": "packages/contracts/schemas/atlas.schema.json",
-    "sha256": "ba73d972c87391fe06cd41d68e73bc2d73fc3fcac322889cfb3b8d909c3f3f72"
+    "sha256": "b24f2d0ba25287ecbeb6618dd26728cb201875103edaede51804e00e26c3bc86"
   },
   "transformations": [
     "Remove catalog task-allocation fields and replace descriptive task labels with component/qualification names; retain command identities and historical/current restrictions.",
@@ -15,7 +15,8 @@
     "Replace witness descriptive concurrence narrative; rewrite its relative Atlas reference to the existing frozen repository schema.",
     "Remove coordination, personal runtime/outreach and implementation-approval narrative from application policy prose; retain normative rules, unqualified holds and stopped checks.",
     "Omit transfer manifests and replace archive resource layout with this repository offline map; retain public upstream reference pins.",
-    "Adopt the published maintenance calendar-date amendment d7b502106948cb955a81e8b280a837282663bb2c for scheduledDate/completedDate only; retain date-time/null compatibility and every other Atlas field constraint."
+    "Adopt the published maintenance calendar-date amendment d7b502106948cb955a81e8b280a837282663bb2c for scheduledDate/completedDate only; retain date-time/null compatibility and every other Atlas field constraint.",
+    "Adopt bounded reviewed topology schema1.1.0 and optional buildingId solely for atlas.identity.list; retain record/audit schema1, wire3, legacy1.0.0 input envelopes and strict native storage/recovery lineage."
   ],
   "files": [
     {
@@ -31,14 +32,14 @@
     },
     {
       "path": "contracts/stock-wire3/SEMANTICS.md",
-      "bytes": 13036,
-      "sha256": "e6da333b5d7c28dc66317aa2d7165590d307ca3a22c3a066e8f8fe6309bd8f2d",
+      "bytes": 14032,
+      "sha256": "65183e6adfda0071a8c754cda810ca61e1886961bea9f94497f17ba0b92772a5",
       "sourceContentSha256": "c3f85755080f85e3ca4a9dd50635c89910aa78c550dd140852b0403ab179bd86"
     },
     {
       "path": "contracts/stock-wire3/agent/agent.schema.json",
-      "bytes": 940503,
-      "sha256": "314ee5f5effca941b3be92cb5cc37150aa17a3ab5dd8646255cebc74767b602d",
+      "bytes": 941486,
+      "sha256": "42174cebb9a7080cacb8231aba2bf80c4ab59fdb92085db1af3d5fe368cd5835",
       "sourceContentSha256": "314ee5f5effca941b3be92cb5cc37150aa17a3ab5dd8646255cebc74767b602d"
     },
     {
@@ -62,7 +63,7 @@
     {
       "path": "contracts/stock-wire3/agent/operation-catalog.json",
       "bytes": 309045,
-      "sha256": "767cbaa866edbe4448f30bffcf778617234d6e4eae32eb620b8210bdeee9ebcc",
+      "sha256": "f369fdf13aaebf836760f5b5d2160214c16706f89e2ea5898e80c6a857d9ab4c",
       "sourceContentSha256": "55063c5d08f37c7c45f350b29b0aa60d788c34a4dfab154f6b6b69cb6f0ca6ad"
     },
     {
@@ -91,8 +92,8 @@
     },
     {
       "path": "contracts/stock-wire3/presence/policy.v1.1.0.json",
-      "bytes": 4895,
-      "sha256": "e893838c0ef684a24fa92ac99da5773e1972d7c2d05d4623d531fd2a67f30d5b",
+      "bytes": 4934,
+      "sha256": "ef748246eea7b5d6b09c2c965568912c2f30073f8ef145f0ed814a7d2d580416",
       "sourceContentSha256": "21d65af4acc776fe3e55002b59bbf35df5f5f3eb2fda5e0c5b51e8bb7c17b003"
     },
     {
@@ -110,7 +111,8 @@
     {
       "path": "contracts/stock-wire3/resource-map.json",
       "bytes": 1707,
-      "sha256": "d405b319f7e17b95ecebcbe3e089490fd8f02c5f5452e72f8ac58ee653b73d31"
+      "sha256": "5d608bc7e017c5d72a5485ac2373893a124246c5c659db7e7b446ec67687ec51"
     }
-  ]
+  ],
+  "atlasPublicSchemaVersion": "1.1.0"
 }

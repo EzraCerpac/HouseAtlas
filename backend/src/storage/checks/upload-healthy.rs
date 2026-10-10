@@ -5,13 +5,14 @@
 use houseatlas_at07_checkpoint::{
     access as a,
     domain::{self as d, native_semantics::NativeSemantics, stock},
+    jobs as j,
     media::{self as m, AssetVault, Cancellation, WorkBudget},
     storage as s,
 };
 use m::{
     native::{NativeMediaRuntime, NativeReadAuthority, RetainedPrincipal},
     staged_upload::{NativeUploadStages, UploadAdmission},
-    types::{AssetPurpose, ContentType, LicenseStatus, SourceLicense, sha256},
+    types::{AssetPurpose, ContentType, LicenseStatus, PreviewPolicy, SourceLicense, sha256},
 };
 use rusqlite::{Connection, OpenFlags, params};
 use serde_json::{Value, json};
@@ -33,6 +34,35 @@ fn budget() -> WorkBudget {
     WorkBudget::new(Duration::from_secs(10), Cancellation::default())
         .expect("synthetic positive budget")
 }
+
+// Successful ordinary originals only. Wide PNGs are valid downloadable
+// originals; no oversized preview request or stopped rejection is exercised.
+fn original_example(
+    mode: &str,
+) -> Result<(Vec<u8>, ContentType, PreviewPolicy), Box<dyn std::error::Error>> {
+    let (width, policy) = match mode {
+        "text" => {
+            return Ok((
+                b"Fresh synthetic evidence; no household content.\n".to_vec(),
+                ContentType::Text,
+                PreviewPolicy::DownloadOnly,
+            ));
+        }
+        "rendered-png" => (2, PreviewPolicy::SafeRendered),
+        "download-only-png" => (20_000, PreviewPolicy::DownloadOnly),
+        _ => return Err("Expected text, rendered-png or download-only-png".into()),
+    };
+    let mut bytes = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut bytes, width, 2);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header()?;
+        let pixels = [40, 80, 120, 255].repeat(width as usize * 2);
+        writer.write_image_data(&pixels)?;
+    }
+    Ok((bytes, ContentType::Png, policy))
+}
 fn request<'a>(cookie: Option<&'a str>, csrf: Option<&'a str>) -> a::RequestEvidence<'a> {
     a::RequestEvidence {
         method: a::Method::Post,
@@ -52,6 +82,98 @@ fn guard(record_type: &str, record: &str) -> Value {
 
 #[derive(Clone)]
 struct ServerIds(Rc<Cell<u32>>);
+
+// Independent original Media object and commit, kept before any image exists.
+// It qualifies this one original render only. The configured Jobs lane is empty;
+// these ports cannot qualify any job, grant or resumed invocation.
+struct OriginalMediaEvidence<'a> {
+    stage: &'a m::staged_upload::StagedAssetPlan,
+    commit: &'a s::StockAtlasCommit,
+    policy_checks: Cell<usize>,
+}
+impl s::QueueDiscovery for OriginalMediaEvidence<'_> {
+    fn authorize_discovery(&self, _: &j::QueueRegistration) -> s::Result<()> {
+        Err(s::Error::new(
+            "owner-unavailable",
+            "No Jobs owner in upload fixture",
+        ))
+    }
+    fn validate_retained_enqueue(
+        &self,
+        _: &stock::ValidatedRequest,
+        _: &j::EnqueueRequest,
+        _: &j::CanonicalScope,
+        _: &j::QueueConfig,
+    ) -> s::Result<()> {
+        Err(s::Error::new(
+            "owner-unavailable",
+            "No Jobs owner in upload fixture",
+        ))
+    }
+}
+impl s::QueueRecoveryEvidence for OriginalMediaEvidence<'_> {
+    fn validate_attempt(
+        &self,
+        _: &j::QueueConfig,
+        _: s::QueueRecoveryAttempt<'_>,
+    ) -> s::Result<()> {
+        Err(s::Error::new(
+            "owner-unavailable",
+            "No Jobs owner in upload fixture",
+        ))
+    }
+    fn validate_media_policy(&self, frame: s::MediaPolicyRecoveryFrame<'_>) -> s::Result<()> {
+        let principal = self.stage.original_principal().principal();
+        let expected = serde_json::to_value(self.stage.payload())?;
+        let matches = match frame {
+            s::MediaPolicyRecoveryFrame::Asset(asset) => {
+                asset.record_type == s::RecordType::Asset
+                    && asset.record_id == self.stage.asset_id()
+                    && asset.workspace_id == principal.scope().workspace_id.as_str()
+                    && asset.home_id == principal.scope().home_id.as_str()
+                    && [
+                        "owner",
+                        "purpose",
+                        "storageKey",
+                        "sha256",
+                        "byteSize",
+                        "contentType",
+                        "previewPolicy",
+                    ]
+                    .iter()
+                    .all(|field| asset.payload[field] == expected[field])
+            }
+            s::MediaPolicyRecoveryFrame::Upload(upload) => {
+                let group = self.commit.groups.first().ok_or_else(|| {
+                    s::Error::new("owner-unavailable", "Original native upload commit missing")
+                })?;
+                let native = group.native_results.first().ok_or_else(|| {
+                    s::Error::new("owner-unavailable", "Original native upload result missing")
+                })?;
+                upload.binding_digest() == self.stage.binding_digest()
+                    && upload.asset_id() == self.stage.asset_id()
+                    && upload.actor_id() == principal.actor_id().as_str()
+                    && upload.scope().workspace_id == principal.scope().workspace_id.as_str()
+                    && upload.scope().home_id == principal.scope().home_id.as_str()
+                    && upload.asset_request() == self.stage.request().raw()
+                    && upload.staged() == self.stage.staged()
+                    && upload.asset_payload() == &expected
+                    && upload.root_operation_id() == self.commit.operation_id
+                    && upload.group_ordinal() == 0
+                    && upload.group_operation_id() == group.operation_id
+                    && upload.asset_audit_id() == native.audit.audit_id
+            }
+        };
+        if self.stage.payload().preview_policy != PreviewPolicy::SafeRendered || !matches {
+            return Err(s::Error::new(
+                "owner-unavailable",
+                "Original Media qualification missing",
+            ));
+        }
+        self.policy_checks.set(self.policy_checks.get() + 1);
+        Ok(())
+    }
+}
 impl s::Runtime for ServerIds {
     fn now(&self) -> s::Result<String> {
         Ok("2026-10-07T12:00:00Z".into())
@@ -71,6 +193,54 @@ impl s::Runtime for ServerIds {
 struct MeasuredRuntime<R> {
     native: R,
     proof_calls: Rc<Cell<usize>>,
+    fail_proof: Rc<Cell<bool>>,
+}
+
+// Used only by explicitly selected isolated query regressions. This
+// narrows a synthetic query's capability; it creates no grant or principal.
+struct ManifestOnlyQuery<'a> {
+    native: &'a NativeReadAuthority,
+    target: &'a s::RecordRef,
+    granted_manifests: Cell<usize>,
+    denied_records: Cell<usize>,
+    record_checks: Cell<usize>,
+    deny_manifest: bool,
+    deny_at: usize,
+}
+impl s::Authorization for ManifestOnlyQuery<'_> {
+    type Principal = RetainedPrincipal;
+    fn authorize(
+        &self,
+        principal: &RetainedPrincipal,
+        request: s::AuthorizationRequest<'_>,
+    ) -> s::Result<s::VerifiedActor> {
+        let manifest = request.capability == s::Capability::ReadAssetManifest;
+        let record = request.capability == s::Capability::Read;
+        if !request.targets.is_empty() {
+            assert_eq!(request.targets, std::slice::from_ref(self.target));
+        }
+        let actor = s::Authorization::authorize(self.native, principal, request)?;
+        if manifest {
+            self.granted_manifests.set(self.granted_manifests.get() + 1);
+        }
+        if record {
+            self.record_checks.set(self.record_checks.get() + 1);
+        }
+        let selected = if self.deny_manifest { manifest } else { record };
+        let checks = if self.deny_manifest {
+            self.granted_manifests.get()
+        } else {
+            self.record_checks.get()
+        };
+        if selected && checks == self.deny_at {
+            self.denied_records.set(self.denied_records.get() + 1);
+            return Err(s::Error::new(
+                "forbidden",
+                "Synthetic selected query boundary refused",
+            ));
+        }
+        Ok(actor)
+    }
 }
 impl<R: s::Runtime> s::Runtime for MeasuredRuntime<R> {
     fn now(&self) -> s::Result<String> {
@@ -80,8 +250,14 @@ impl<R: s::Runtime> s::Runtime for MeasuredRuntime<R> {
         self.native.new_id()
     }
     fn verify_available_asset(&self, record: &s::Record) -> s::Result<s::AssetProof> {
-        let proof = self.native.verify_available_asset(record)?;
         self.proof_calls.set(self.proof_calls.get() + 1);
+        if self.fail_proof.replace(false) {
+            return Err(s::Error::new(
+                "asset-unavailable",
+                "Synthetic retained-byte proof failure",
+            ));
+        }
+        let proof = self.native.verify_available_asset(record)?;
         Ok(proof)
     }
 }
@@ -417,6 +593,18 @@ impl<'p, T: s::StockAuthorization<Principal = a::Principal>> s::StockAuthorizati
 }
 
 fn main() -> Check {
+    let regression = match std::env::args().nth(3).as_deref() {
+        None => None,
+        Some(
+            case @ ("isolated-record-read-regression"
+            | "isolated-manifest-denial-regression"
+            | "isolated-record-precommit-denial-regression"
+            | "isolated-record-release-denial-regression"
+            | "isolated-asset-proof-failure-regression"),
+        ) => Some(case.to_owned()),
+        Some(_) => return Err("Unknown isolated regression selection".into()),
+    };
+    let isolated_record_read = regression.is_some();
     let repository = PathBuf::from(std::env::var("HOUSEATLAS_ROOT")?);
     let output = PathBuf::from(
         std::env::args()
@@ -510,7 +698,9 @@ fn main() -> Check {
         .ok_or("Synthetic place identity 200 missing")?["payload"]
         .clone();
     assert_eq!(place_payload["kind"], "location");
-    let bytes = b"Fresh synthetic evidence; no household content.\n";
+    let example = std::env::args().nth(2).unwrap_or_else(|| "text".into());
+    let (original_bytes, content_type, preview_policy) = original_example(&example)?;
+    let bytes = original_bytes.as_slice();
     let license = SourceLicense {
         status: LicenseStatus::Unknown,
         reference: None,
@@ -521,18 +711,19 @@ fn main() -> Check {
     // stock preparation, native+stock commit and final output authorization.
     access.with_mutation_authorization(original.principal(), |fence| -> Check {
         assert!(std::ptr::eq(fence.principal(), original.principal()));
+        let mut body = bytes;
         let receipt = stages.stage_original(
             fence,
             &original,
             UploadAdmission {
                 request_id: id(210_000),
                 purpose: AssetPurpose::EvidenceOriginal,
-                content_type: ContentType::Text,
-                filename: "synthetic-evidence.txt".into(),
+                content_type,
+                filename: format!("synthetic-evidence.{}", content_type.extension()),
                 source_license: license.clone(),
                 evidence_ids: vec![id(100)],
             },
-            &mut bytes.as_slice(),
+            &mut body,
             &budget(),
         )?;
         assert_eq!(receipt.asset_id, id(200_001));
@@ -562,6 +753,7 @@ fn main() -> Check {
             validated_asset.intent_digest()
         );
         assert_eq!(staged.asset_id(), receipt.asset_id);
+        assert_eq!(staged.payload().preview_policy, preview_policy);
         assert!(std::ptr::eq(
             staged.original_principal().principal(),
             original.principal()
@@ -639,6 +831,7 @@ fn main() -> Check {
                 server: server.clone(),
             },
             proof_calls: Rc::clone(&proof_calls),
+            fail_proof: Rc::new(Cell::new(false)),
         };
         let mut store = s::AtlasStore::open(
             &database,
@@ -674,6 +867,10 @@ fn main() -> Check {
             &staged,
         )?;
         assert!(!commit.replayed);
+        assert_eq!(
+            commit.groups[0].native_results[0].record.payload["previewPolicy"],
+            serde_json::to_value(preview_policy)?
+        );
         assert_eq!(commit.original_request, root);
         assert_eq!(commit.request_digest, prepared.request().intent_digest());
         assert_eq!(commit.groups.len(), 3);
@@ -724,10 +921,11 @@ fn main() -> Check {
             staged.binding_digest().to_owned(),
             commit,
             validated_asset.intent_digest().to_owned(),
+            staged,
         ));
         Ok(())
     })?;
-    let (receipt, binding_digest, commit, asset_digest) =
+    let (receipt, binding_digest, commit, asset_digest, original_stage) =
         saved.ok_or("Committed upload missing")?;
 
     // Observe committed artifacts only after the writer has closed. The one
@@ -762,6 +960,10 @@ fn main() -> Check {
         commit.groups[0].original_request
     );
     assert_eq!(binding["stage"]["staged"]["sha256"], sha256(bytes));
+    assert_eq!(
+        binding["stage"]["payload"]["previewPolicy"],
+        serde_json::to_value(preview_policy)?
+    );
     assert_eq!(
         serde_json::from_str::<Value>(&root_json)?,
         commit.original_request
@@ -817,9 +1019,15 @@ fn main() -> Check {
 
     let access = Arc::new(Mutex::new(access));
     let reopened_vault = Arc::new(AssetVault::open(&output.join("media"))?);
-    let read_runtime = NativeMediaRuntime {
-        vault: reopened_vault,
-        server: server.clone(),
+    let read_proof_calls = Rc::new(Cell::new(0));
+    let fail_read_proof = Rc::new(Cell::new(false));
+    let read_runtime = MeasuredRuntime {
+        native: NativeMediaRuntime {
+            vault: reopened_vault,
+            server: server.clone(),
+        },
+        proof_calls: Rc::clone(&read_proof_calls),
+        fail_proof: Rc::clone(&fail_read_proof),
     };
     let mut reader = s::AtlasStore::open(
         &database,
@@ -848,6 +1056,10 @@ fn main() -> Check {
     assert_eq!(asset_record.payload["byteSize"], bytes.len() as u64);
     assert_eq!(asset_record.payload["availability"], "available");
     assert_eq!(
+        asset_record.payload["previewPolicy"],
+        serde_json::to_value(preview_policy)?
+    );
+    assert_eq!(
         evidence_record.payload["references"],
         json!([{"kind":"atlas-asset","assetId":receipt.asset_id}])
     );
@@ -868,6 +1080,7 @@ fn main() -> Check {
         )?
         .ok_or("Committed consumption missing")?;
     assert_eq!(consumed.asset_id(), receipt.asset_id);
+    assert_eq!(consumed.asset_payload(), &asset_record.payload);
     assert_eq!(consumed.staged(), &receipt.staged);
     assert_eq!(consumed.root_operation_id(), commit.operation_id);
     assert_eq!(
@@ -900,6 +1113,77 @@ fn main() -> Check {
         existing.payload()["evidenceIds"],
         asset_record.payload["evidenceIds"]
     );
+    if let Some(case) = &regression {
+        let before = serde_json::to_value(reader.read_snapshot(&original, &storage_scope)?)?;
+        let byte_checks = read_proof_calls.get();
+        let (deny_manifest, deny_at, expected_manifests, expected_records, expected_proofs) =
+            match case.as_str() {
+                "isolated-record-read-regression" => (false, 1, 2, 1, 0),
+                "isolated-manifest-denial-regression" => (true, 1, 1, 0, 0),
+                "isolated-record-precommit-denial-regression" => (false, 2, 3, 2, 1),
+                "isolated-record-release-denial-regression" => (false, 3, 4, 3, 1),
+                "isolated-asset-proof-failure-regression" => (false, usize::MAX, 2, 1, 1),
+                _ => return Err("Query case outside explicit allowlist".into()),
+            };
+        let proof_failure = case == "isolated-asset-proof-failure-regression";
+        fail_read_proof.set(proof_failure);
+        let narrowed = ManifestOnlyQuery {
+            native: &queries,
+            target: &asset_ref,
+            granted_manifests: Cell::new(0),
+            denied_records: Cell::new(0),
+            record_checks: Cell::new(0),
+            deny_manifest,
+            deny_at,
+        };
+        match reader.resolve_original_asset_with_authorization(
+            &narrowed,
+            &original,
+            &storage_scope,
+            &prepared,
+        ) {
+            Err(error) => assert_eq!(
+                error.code,
+                if proof_failure {
+                    "asset-unavailable"
+                } else {
+                    "forbidden"
+                }
+            ),
+            Ok(_) => return Err("Refused query must not disclose a full record".into()),
+        }
+        assert_eq!(narrowed.granted_manifests.get(), expected_manifests);
+        assert_eq!(narrowed.record_checks.get(), expected_records);
+        assert_eq!(narrowed.denied_records.get(), usize::from(!proof_failure));
+        assert_eq!(read_proof_calls.get(), byte_checks + expected_proofs);
+        assert!(!fail_read_proof.get());
+        assert_eq!(
+            serde_json::to_value(reader.read_snapshot(&original, &storage_scope)?)?,
+            before
+        );
+        // The genuine full-authority query still succeeds after the isolated
+        // one-shot refusal. No retained grant or record was changed.
+        assert_eq!(
+            reader
+                .resolve_original_asset_with_authorization(
+                    &queries,
+                    &original,
+                    &storage_scope,
+                    &prepared,
+                )?
+                .ok_or("Original disappeared after isolated query")?
+                .record(),
+            &asset_record
+        );
+        let result = json!({"case":case,"result":"pass","manifestChecks":expected_manifests,
+            "recordChecks":expected_records,"proofAttemptsBeforeRefusal":expected_proofs,
+            "fullRecordDisclosed":false,"snapshotUnchanged":true});
+        fs::write(
+            output.join("regression-evidence.json"),
+            serde_json::to_vec_pretty(&result)?,
+        )?;
+        println!("{result}");
+    }
     let manifest = reader.read_asset_manifest(&original, &storage_scope, &asset_ref)?;
     assert_eq!(manifest["sha256"], sha256(bytes));
     assert_eq!(manifest["byteSize"], bytes.len() as u64);
@@ -933,14 +1217,73 @@ fn main() -> Check {
     assert!(snapshot.records.iter().any(|row| row.record_id == id(200)
         && row.revision == 2
         && row.payload["evidenceIds"] == json!([id(100), id(200_020)])));
+    let media_evidence = OriginalMediaEvidence {
+        stage: &original_stage,
+        commit: &commit,
+        policy_checks: Cell::new(0),
+    };
+    let peers = s::RecoveryValidationPeers {
+        stock: &schemas,
+        queues: &[],
+        discovery: &media_evidence,
+        evidence: &media_evidence,
+    };
+    let mut check = || Ok(());
+    let image_path = output.join("recovery.sqlite");
+    let restored_path = output.join("restored.sqlite");
+    let image = reader.backup_recovery_to_with_peers(&image_path, &peers, &mut check)?;
+    let image_bytes = fs::read(&image_path)?;
+    assert_eq!(
+        reader.validate_recovery_image_with_peers(&image_path, &peers, &mut check)?,
+        image
+    );
+    assert_eq!(fs::read(&image_path)?, image_bytes);
     reader.close()?;
+    fs::copy(&image_path, &restored_path)?;
+    let mut restored = s::AtlasStore::open_existing_recovery_image_with_peers(
+        &restored_path,
+        s::NativeContract::new(NativeSemantics::native()),
+        NativeReadAuthority(Arc::clone(&access)),
+        NativeMediaRuntime {
+            vault: Arc::clone(&vault),
+            server: server.clone(),
+        },
+        s::StoreOptions::default(),
+        &image,
+        &peers,
+        &mut check,
+    )?;
+    assert_eq!(
+        restored.read_record(&original, &storage_scope, &asset_ref)?,
+        asset_record
+    );
+    let restored_consumed = restored
+        .committed_upload_with_authorization(
+            &queries,
+            &original,
+            &schemas,
+            &storage_scope,
+            &receipt.staged.upload_token,
+        )?
+        .ok_or("Restored consumption missing")?;
+    assert_eq!(restored_consumed.asset_payload(), consumed.asset_payload());
+    assert_eq!(
+        restored_consumed.binding_digest(),
+        consumed.binding_digest()
+    );
+    assert_eq!(restored_consumed.root_operation_id(), commit.operation_id);
+    restored.close()?;
+    assert_eq!(
+        media_evidence.policy_checks.get() > 0,
+        preview_policy == PreviewPolicy::SafeRendered
+    );
     fs::write(
         output.join("healthy-evidence.json"),
         serde_json::to_vec_pretty(&json!({
             "schemaVersion": 5, "scope": storage_scope,
             "ordinaryCommittedUploadTransactions": 1,
-            "stagedMediaPeer": "f0d6b10f00bb93fc1c1dd4eb3ae66ee1fbe3f873",
-            "qualifiedDomainPlanner": "external-proposal-against-d9",
+            "originalExample": example, "contentType": content_type.as_str(),
+            "boundPreviewPolicy": preview_policy,
             "principal": "same-genuine-access-handle-in-host-wrapper",
             "graphAuthority": "exact-synthetic-fixture-only",
             "commands": ["atlas.asset.create", "atlas.evidence.create", "atlas.identity.replace"],
@@ -951,9 +1294,15 @@ fn main() -> Check {
             "place": place_record, "manifest": manifest,
             "commit": commit,
             "reopen": "ordinary-original-authorized-reads-pass",
+            "fullRecovery": "native-stock-upload-closure-read-only-image-strict-profile5-reopen-pass",
+            "recoveryQueueScope": "independent-empty-registry-evidence-unavailable-no-job-callback",
+            "mediaPolicyChecks": media_evidence.policy_checks.get(),
+            "mediaPolicyEvidence": "independent-original-opaque-Media-stage-and-native-commit-only",
             "committedConsumptionLookup":"strict-native-stock-audit-links-pass",
             "existingOriginalResolution":{"assetId":existing.asset_id(),"revision":existing.revision(),"scope":existing.scope(),"provenance":"preserved","retainedBytes":"independently-verified"},
-            "heldControls": "deferred-and-unrun"
+            "isolatedRecordReadRegression":isolated_record_read,
+            "recordReadRegressionResult":regression.as_deref().unwrap_or("unrun"),
+            "heldControls":if isolated_record_read { "all other campaigns deferred-and-unrun; only separately selected isolated query case executed" } else { "deferred-and-unrun" }
         }))?,
     )?;
     println!(

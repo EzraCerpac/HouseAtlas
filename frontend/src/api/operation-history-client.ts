@@ -1,0 +1,189 @@
+import Ajv2020 from 'ajv/dist/2020.js';
+import addFormats from 'ajv-formats';
+import operationCatalog from '../../../contracts/stock-wire3/agent/operation-catalog.json' with { type: 'json' };
+import type { Scope } from '../app/types';
+import type { RecordRefRecordType } from './generated/contracts';
+
+export interface OperationHistoryEntry {
+  eventId: string;
+  rootOperationId: string;
+  operationId: string;
+  commandId: string;
+  actorId: string;
+  at: string;
+  target: { authority: 'atlas'; recordType: RecordRefRecordType; recordId: string };
+  requestDigest: string;
+  state: 'committed';
+}
+
+export interface OperationHistoryPage {
+  format: 'atlas-operation-events/1';
+  resolvedScope: Scope;
+  coverage: 'retained-atlas-stock-only';
+  completeness: 'partial';
+  order: 'audit-sequence-ascending';
+  entries: OperationHistoryEntry[];
+  nextCursor: string | null;
+}
+
+export type OperationHistoryRead =
+  | { status: 'loading' | 'unavailable' | 'denied' | 'expired' }
+  | { status: 'ready'; page: OperationHistoryPage;
+      earlierPages?: OperationHistoryPage[]; loadingMore?: boolean; moreUnavailable?: boolean };
+
+export class OperationHistoryReadError extends Error {
+  readonly status: number;
+  constructor(status: number) {
+    super('Operation history could not be loaded');
+    this.status = status;
+  }
+}
+
+// Local settlement covers headers and body, not server cancellation or retry safety.
+const readTimeoutMs = 15_000;
+const maxResponseBytes = 256 * 1024;
+class ReadDeadline extends Error {}
+function discard(response: Response) { void response.body?.cancel().catch(() => undefined); }
+async function withReadDeadline<T>(outer: AbortSignal, exchange: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  outer.throwIfAborted();
+  const controller = new AbortController();
+  const forward = () => controller.abort(outer.reason);
+  let reject!: (reason: unknown) => void;
+  const stopped = new Promise<never>((_, no) => { reject = no; });
+  const abort = () => reject(controller.signal.reason);
+  controller.signal.addEventListener('abort', abort, { once: true });
+  outer.addEventListener('abort', forward, { once: true });
+  const timer = setTimeout(() => controller.abort(new ReadDeadline('Response unavailable after local deadline')), readTimeoutMs);
+  try {
+    const value = await Promise.race([exchange(controller.signal), stopped]);
+    controller.signal.throwIfAborted();
+    return value;
+  } finally {
+    clearTimeout(timer);
+    outer.removeEventListener('abort', forward);
+    controller.signal.removeEventListener('abort', abort);
+  }
+}
+async function receive(response: Response, signal: AbortSignal): Promise<unknown> {
+  const declaredLength = response.headers.get('Content-Length');
+  if (declaredLength !== null) {
+    const contentLength = Number(declaredLength);
+    if (!/^[0-9]+$/.test(declaredLength) || !Number.isSafeInteger(contentLength) || contentLength > maxResponseBytes) {
+      discard(response);
+      throw new TypeError('Operation history response exceeded byte bound');
+    }
+  }
+  const reader = response.body?.getReader();
+  if (!reader) throw new TypeError('Response body missing');
+  const cancel = () => { void reader.cancel().catch(() => undefined); };
+  signal.addEventListener('abort', cancel, { once: true });
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    for (;;) {
+      signal.throwIfAborted();
+      const part = await reader.read();
+      signal.throwIfAborted();
+      if (part.done) break;
+      if (part.value.byteLength > maxResponseBytes - length)
+        throw new TypeError('Operation history response exceeded byte bound');
+      if (part.value.byteLength === 0) continue;
+      length += part.value.byteLength;
+      chunks.push(part.value);
+    }
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+  } catch (error) { cancel(); throw error; }
+  finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
+}
+
+const uuid = { type: 'string', format: 'uuid', pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' };
+const scopeSchema = {
+  type: 'object', additionalProperties: false, required: ['workspaceId', 'homeId'],
+  properties: { workspaceId: uuid, homeId: uuid },
+};
+const pageSchema = {
+  type: 'object', additionalProperties: false,
+  required: ['format', 'resolvedScope', 'coverage', 'completeness', 'order', 'entries', 'nextCursor'],
+  properties: {
+    format: { const: 'atlas-operation-events/1' },
+    resolvedScope: scopeSchema,
+    coverage: { const: 'retained-atlas-stock-only' },
+    completeness: { const: 'partial' },
+    order: { const: 'audit-sequence-ascending' },
+    entries: {
+      type: 'array', maxItems: 100,
+      items: {
+        type: 'object', additionalProperties: false,
+        required: ['eventId', 'rootOperationId', 'operationId', 'commandId', 'actorId', 'at', 'target', 'requestDigest', 'state'],
+        properties: {
+          eventId: uuid, rootOperationId: uuid, operationId: uuid,
+          commandId: { type: 'string', minLength: 1, maxLength: 255,
+            enum: operationCatalog.commands.map(command => command.commandId) },
+          actorId: uuid, at: { type: 'string', format: 'date-time' },
+          target: {
+            type: 'object', additionalProperties: false,
+            required: ['authority', 'recordType', 'recordId'],
+            properties: {
+              authority: { const: 'atlas' },
+              recordType: { enum: ['identity', 'binding', 'evidence', 'location-semantics', 'circuit', 'valve', 'relation', 'geometry', 'asset', 'reconciliation'] },
+              recordId: uuid,
+            },
+          },
+          requestDigest: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+          state: { const: 'committed' },
+        },
+      },
+    },
+    nextCursor: { anyOf: [{ type: 'string', minLength: 1, maxLength: 128 }, { type: 'null' }] },
+  },
+};
+
+/** Passive, scoped read of retained stock operation events. */
+export function createOperationHistoryClient(transport: typeof fetch = globalThis.fetch) {
+  const validator = new Ajv2020({ strict: true, allErrors: true });
+  addFormats(validator);
+  const validatePage = validator.compile<OperationHistoryPage>(pageSchema);
+  return {
+    async read(scope: Scope, signal: AbortSignal, cursor: string | null = null): Promise<OperationHistoryRead> {
+      if (cursor !== null && (typeof cursor !== 'string' || cursor.length === 0
+        || new TextEncoder().encode(cursor).length > 128))
+        throw new TypeError('Invalid operation history cursor');
+      signal.throwIfAborted();
+      const query = new URLSearchParams({ workspaceId: scope.workspaceId, homeId: scope.homeId, pageSize: '25' });
+      if (cursor !== null) query.set('cursor', cursor);
+      try {
+        return await withReadDeadline<OperationHistoryRead>(signal, async signal => {
+          const response = await transport(`/api/atlas/operation-events?${query}`, {
+            method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
+            headers: { Accept: 'application/json' }, signal,
+          });
+          if (signal.aborted) { discard(response); signal.throwIfAborted(); }
+          if (!response.ok) discard(response);
+          signal.throwIfAborted();
+          if (response.status === 401) return { status: 'expired' };
+          if (response.status === 403) return { status: 'denied' };
+          if (!response.ok) throw new OperationHistoryReadError(response.status);
+
+          const value: unknown = await receive(response, signal);
+          signal.throwIfAborted();
+          if (!validatePage(value)) throw new TypeError('Operation history page is incompatible');
+          if (value.resolvedScope.workspaceId !== scope.workspaceId || value.resolvedScope.homeId !== scope.homeId)
+            throw new TypeError('Operation history scope does not match request');
+          if (value.nextCursor !== null && new TextEncoder().encode(value.nextCursor).length > 128)
+            throw new TypeError('Operation history cursor exceeded byte bound');
+          if (new Set(value.entries.map(entry => entry.eventId)).size !== value.entries.length)
+            throw new TypeError('Operation history page repeated an event');
+          return { status: 'ready', page: value };
+        });
+      } catch (error) {
+        signal.throwIfAborted();
+        // A rejected continuation lets the existing host retain earlier pages.
+        if (error instanceof ReadDeadline && cursor === null) return { status: 'unavailable' };
+        throw error;
+      }
+    },
+  };
+}

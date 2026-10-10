@@ -50,6 +50,86 @@ impl<R> StagedNetworkPublication<R> {
         (self.proposal, self.receipt)
     }
 }
+/// Bind the original raw-body archive receipt to the actual native projected
+/// sidecar receipt. The specialized receiver prevents synthetic receipt types.
+impl StagedNetworkPublication<super::DurableNetworkReceipt> {
+    pub fn attach_original_archive(
+        self,
+        sidecar: &mut super::SqliteNetworkSidecar,
+        reservation: super::NetworkArchiveReservation,
+    ) -> Result<StagedNetworkPublication<NetworkStagingReceipt<super::DurableNetworkReceipt>>> {
+        let original =
+            sidecar.stage_original_capture(reservation, &self.proposal, &self.receipt)?;
+        let registration = serde_json::from_value(
+            serde_json::to_value(self.proposal.original_capture().registration())
+                .map_err(|_| NetworkError::new(ErrorCode::InvalidSchema))?,
+        )
+        .map_err(|_| NetworkError::new(ErrorCode::InvalidSchema))?;
+        let cache = serde_json::from_value(
+            serde_json::to_value(&self.proposal.state().cache)
+                .map_err(|_| NetworkError::new(ErrorCode::InvalidSchema))?,
+        )
+        .map_err(|_| NetworkError::new(ErrorCode::InvalidSchema))?;
+        let network_relations = self
+            .proposal
+            .state()
+            .generation
+            .as_ref()
+            .ok_or_else(|| NetworkError::new(ErrorCode::InvalidSchema))?
+            .network_relations
+            .iter()
+            .map(serde_json::to_value)
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|_| NetworkError::new(ErrorCode::InvalidSchema))?;
+        Ok(StagedNetworkPublication {
+            proposal: self.proposal,
+            receipt: NetworkStagingReceipt {
+                projected: self.receipt,
+                original,
+                registration,
+                cache,
+                network_relations,
+            },
+        })
+    }
+}
+pub struct NetworkStagingReceipt<R> {
+    projected: R,
+    original: super::NetworkArchiveReceipt,
+    registration: crate::storage::SourceRegistration,
+    cache: crate::storage::CacheStatus,
+    network_relations: Vec<serde_json::Value>,
+}
+impl<R> NetworkStagingReceipt<R> {
+    pub fn projected(&self) -> &R {
+        &self.projected
+    }
+    pub fn original(&self) -> &super::NetworkArchiveReceipt {
+        &self.original
+    }
+    pub fn into_parts(self) -> (R, super::NetworkArchiveReceipt) {
+        (self.projected, self.original)
+    }
+}
+impl crate::storage::OriginalStagedCachePublication
+    for StagedNetworkPublication<NetworkStagingReceipt<super::DurableNetworkReceipt>>
+{
+    fn registration(&self) -> &crate::storage::SourceRegistration {
+        &self.receipt.registration
+    }
+    fn cache(&self) -> &crate::storage::CacheStatus {
+        &self.receipt.cache
+    }
+    fn homebox_entities(&self) -> &[serde_json::Value] {
+        &[]
+    }
+    fn network_relations(&self) -> &[serde_json::Value] {
+        &self.receipt.network_relations
+    }
+    fn native_sha256(&self) -> &str {
+        self.receipt.original.body_sha256()
+    }
+}
 /// Synchronous stage for the phased native host adapter. The provider's opaque
 /// complete proposal is consumed only after actual durable row staging succeeds.
 /// Host authority is required independently before staging and at publication.

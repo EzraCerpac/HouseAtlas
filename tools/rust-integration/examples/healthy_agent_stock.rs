@@ -17,6 +17,9 @@ use houseatlas_backend::{
 use serde_json::{Value, json};
 use std::{fs, os::unix::fs::PermissionsExt};
 
+#[path = "healthy_specialized_atlas.rs"]
+mod healthy_specialized_atlas;
+
 const ORIGIN: &str = "https://atlas.synthetic.invalid";
 
 fn id(number: u32) -> String {
@@ -28,7 +31,11 @@ fn main() -> Result<(), Failure> {
     rustix::process::umask(rustix::fs::Mode::from_raw_mode(0o077));
     tokio::runtime::Builder::new_current_thread()
         .build()?
-        .block_on(healthy())
+        .block_on(async {
+            healthy().await?;
+            healthy_specialized_atlas::healthy()?;
+            Ok(())
+        })
 }
 
 async fn healthy() -> Result<(), Failure> {

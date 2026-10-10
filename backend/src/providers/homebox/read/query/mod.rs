@@ -1,0 +1,29 @@
+//! Stock read composition only. The existing Domain dispatcher owns authority
+//! capture/revalidation/result disclosure; provider and artifact owners own IO.
+mod adapter;
+mod cache;
+mod detail;
+mod native_features;
+mod native_file_owner;
+mod native_resources;
+mod observations;
+mod owned_file_source;
+mod selection;
+mod types;
+
+pub use adapter::{HomeBoxQueries, HomeBoxReadOwner};
+pub use cache::cached_entity_page;
+pub use native_file_owner::{
+    CurrentPinnedFileSnapshot, LocalPinnedFileSnapshotIdentity, NativePinnedFileOwner,
+};
+pub use observations::{DecodedReadObservation, DecodedReadOwner, TemplateDetailCapture};
+pub use owned_file_source::*;
+pub use selection::{HomeBoxReadQuery, REQUIRED_READ_OPERATIONS};
+pub use types::*;
+
+#[cfg(test)]
+mod healthy;
+#[cfg(test)]
+mod observations_healthy;
+#[cfg(test)]
+mod owned_file_source_healthy;

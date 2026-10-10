@@ -49,6 +49,23 @@ where
         self.store
             .record_prepared_cache_failure(lease.storage_principal(), fence, &failure)
     }
+    /// Publish the attempt time already captured by the original provider read.
+    /// The native transaction validates it with the same fence and lease.
+    pub fn record_prepared_cache_failure_at<L: NativeNetworkLease<A>>(
+        &mut self,
+        fence: storage::CachePublicationFence,
+        code: ErrorCode,
+        lease: &L,
+        attempted_at: &str,
+    ) -> storage::Result<storage::CacheStatus> {
+        let failure = failure_input(&fence, code)?;
+        self.store.record_prepared_cache_failure_at(
+            lease.storage_principal(),
+            fence,
+            &failure,
+            attempted_at,
+        )
+    }
     /// Consume the retained failed-read proposal with its original fence and
     /// original lease. Storage repeats the baseline comparisons IN its write
     /// transaction; checking these local carriers is never a CAS substitute.
@@ -56,8 +73,8 @@ where
         &mut self,
         pending: PendingNetworkFailure<storage::CachePublicationFence, L>,
     ) -> storage::Result<storage::CacheStatus> {
-        let (fence, code, lease) = pending_input(pending)?;
-        self.record_prepared_cache_failure(fence, code, lease.as_ref())
+        let (fence, code, lease, attempted_at) = pending_input(pending)?;
+        self.record_prepared_cache_failure_at(fence, code, lease.as_ref(), &attempted_at)
     }
 }
 impl NetworkPublicationFence for storage::CachePublicationFence {
@@ -127,6 +144,33 @@ where
     R: storage::Runtime,
     B: storage::Authorization,
 {
+    /// Commit the exact original staged object through Store's custody-aware
+    /// path. The Network archive guard verifies immutable raw bytes while the
+    /// Store holds its own IMMEDIATE transaction and pin registry.
+    pub fn publish_staged_generation_with_custody<L>(
+        &mut self,
+        fence: storage::CachePublicationFence,
+        staged: StagedNetworkPublication<NetworkStagingReceipt<DurableNetworkReceipt>>,
+        lease: &L,
+        references: &mut impl storage::OriginalCacheReferences<
+            Staged = StagedNetworkPublication<NetworkStagingReceipt<DurableNetworkReceipt>>,
+        >,
+    ) -> storage::Result<storage::CacheStatus>
+    where
+        L: NativeNetworkLease<B>,
+    {
+        let published = self
+            .store
+            .publish_staged_generation_with_authorization(
+                self.authorization,
+                lease.storage_principal(),
+                fence,
+                staged,
+                references,
+            )
+            .map_err(|rejected| rejected.into_parts().0)?;
+        Ok(published.cache().clone())
+    }
     pub fn record_prepared_cache_failure<L: NativeNetworkLease<B>>(
         &mut self,
         fence: storage::CachePublicationFence,
@@ -141,12 +185,30 @@ where
             &failure,
         )
     }
+    /// Preserve the captured attempt time through the original call authority.
+    pub fn record_prepared_cache_failure_at<L: NativeNetworkLease<B>>(
+        &mut self,
+        fence: storage::CachePublicationFence,
+        code: ErrorCode,
+        lease: &L,
+        attempted_at: &str,
+    ) -> storage::Result<storage::CacheStatus> {
+        let failure = failure_input(&fence, code)?;
+        self.store
+            .record_prepared_cache_failure_at_with_authorization(
+                self.authorization,
+                lease.storage_principal(),
+                fence,
+                &failure,
+                attempted_at,
+            )
+    }
     pub fn publish_pending_failure<L: NativeNetworkLease<B>>(
         &mut self,
         pending: PendingNetworkFailure<storage::CachePublicationFence, L>,
     ) -> storage::Result<storage::CacheStatus> {
-        let (fence, code, lease) = pending_input(pending)?;
-        self.record_prepared_cache_failure(fence, code, lease.as_ref())
+        let (fence, code, lease, attempted_at) = pending_input(pending)?;
+        self.record_prepared_cache_failure_at(fence, code, lease.as_ref(), &attempted_at)
     }
 }
 impl<C, A, R, B, L> NetworkCachePublisher<L> for BorrowedNativeNetworkPublisher<'_, '_, C, A, R, B>
@@ -241,11 +303,16 @@ fn failure_input(
 }
 fn pending_input<L>(
     pending: PendingNetworkFailure<storage::CachePublicationFence, L>,
-) -> storage::Result<(storage::CachePublicationFence, ErrorCode, Arc<L>)> {
+) -> storage::Result<(storage::CachePublicationFence, ErrorCode, Arc<L>, String)> {
     let (fence, expected, failure, lease) = pending.into_parts();
     matches_precondition(&fence, &expected)?;
     ensure(failure.state.cache.scope == NetworkPublicationFence::partition(&fence))?;
-    Ok((fence, failure.error.code, lease))
+    let cache_error = failure.state.cache.error.ok_or_else(conflict)?;
+    ensure(
+        cache_error.code == failure.error.code
+            && failure.state.cache.last_attempt_at.as_deref() == Some(cache_error.at.as_str()),
+    )?;
+    Ok((fence, failure.error.code, lease, cache_error.at))
 }
 fn matches_precondition(
     fence: &storage::CachePublicationFence,

@@ -1,0 +1,109 @@
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { AiPanelView, type AiModelsBinding } from '../AiPanel.js';
+import { failureMessages } from '../model.js';
+import { useAiSession } from '../useAiSession.js';
+import { AccountObservationSection } from '../AccountObservation.js';
+import type { AiClient, AiReceiptIdentity } from '../types.js';
+
+/** Supplied by the authenticated host; a home label or role is not a scope key. */
+export interface AiHostContext {
+  readonly client: AiClient;
+  /** Full actor/home/provider registration/session and cancellation epoch identity. */
+  readonly scopeKey: string;
+  /** Stable status-receipt identity excluding only the cancellation epoch. */
+  readonly receiptIdentity?: AiReceiptIdentity;
+  readonly scopeLabel: string;
+}
+type Session = ReturnType<typeof useAiSession>;
+interface Display {
+  readonly modelsBinding: AiModelsBinding;
+  readonly session: Session;
+  readonly scopeLabel: string;
+  readonly prompt: string;
+  readonly setPrompt: (prompt: string) => void;
+}
+const HostContext = createContext<Display | null>(null);
+
+/** Keep this above page navigation: leaving Settings must not lose a review/run.
+ * Remove the context immediately when the committed authorized view is absent. */
+export function AiHost({ context, children }: {
+  readonly context: AiHostContext | null;
+  readonly children: ReactNode;
+}) {
+  return context
+    ? <BoundHost key={context.scopeKey} context={context}>{children}</BoundHost>
+    : <HostContext.Provider value={null}>{children}</HostContext.Provider>;
+}
+function BoundHost({ context, children }: {
+  readonly context: AiHostContext;
+  readonly children: ReactNode;
+}) {
+  const session = useAiSession(context.client, context.scopeKey, context.receiptIdentity);
+  const [prompt, setPrompt] = useState('');
+  const reconciledReviewCancellation = useRef<string | null>(null);
+  const { request, recoveryAction, reviewAction } = session.state;
+  useEffect(() => {
+    if (request.status !== 'awaiting-review' || request.cancellation.status !== 'received'
+      || request.cancellation.receipt.status !== 'confirmed'
+      || request.cancellation.receipt.requestId !== request.requestId
+      || recoveryAction.status === 'working' || reviewAction.status === 'working'
+      || reconciledReviewCancellation.current === request.requestId) return;
+    // The host persisted the terminal dismissal and its original usage. Read it
+    // once through the existing hook; an acknowledgement cannot replace it.
+    reconciledReviewCancellation.current = request.requestId;
+    void session.recover();
+  }, [request, recoveryAction.status, reviewAction.status, session.recover]);
+  return <HostContext.Provider value={{ modelsBinding: { client: context.client, scopeKey: context.scopeKey, renderIdentity: context, ...(context.receiptIdentity ? { receiptIdentity: context.receiptIdentity } : {}) }, session, scopeLabel: context.scopeLabel, prompt, setPrompt }}>
+    {children}
+  </HostContext.Provider>;
+}
+
+/** Mount only in the existing Settings list. All policy/status copy is donor-owned. */
+export function AiSettingsSection() {
+  const host = useContext(HostContext);
+  if (!host) return <><section className="setting ai-host" aria-label="AI">
+    <div className="setting-text"><h2>AI</h2><p role="status">AI host is unavailable.</p></div>
+  </section><AccountObservationSection /></>;
+  const { session } = host;
+  return <><div className="setting ai-host">
+    <AiPanelView
+      modelsBinding={host.modelsBinding}
+      state={session.state} scopeLabel={host.scopeLabel} prompt={host.prompt}
+      onPromptChange={host.setPrompt} onSubmit={() => { void session.submit(host.prompt); }}
+      onCancel={() => { void session.cancel(); }} onRefresh={() => { void session.refresh(); }}
+      onConnectionAction={input => { void session.connectionAction(input); }}
+      onReview={() => { void session.review(); }} onRecover={() => { void session.recover(); }}
+      unresolvedConnectionActions={session.unresolvedConnectionActions}
+    />
+  </div><AccountObservationSection /></>;
+}
+
+/** Small factual notice outside Settings; canonical output stays in the panel. */
+export function AiActivityStatus({ onOpenSettings }: { readonly onOpenSettings?: (() => void) | undefined } = {}) {
+  const host = useContext(HostContext);
+  if (!host || host.session.state.request.status === 'idle') return null;
+  const request = host.session.state.request;
+  let message: string;
+  switch (request.status) {
+    case 'running': message = 'AI request is running.'; break;
+    case 'unconfirmed': message = 'AI request completion is unconfirmed.'; break;
+    case 'start-unavailable': message = 'AI request could not be started.'; break;
+    case 'awaiting-review': message = 'AI tool review is required.'; break;
+    case 'domain-held': message = 'AI domain operation remains held.'; break;
+    case 'finished': {
+      const outcome = request.outcome;
+      switch (outcome.status) {
+        case 'completed': message = 'AI response is available.'; break;
+        case 'cancelled': message = 'AI request was cancelled.'; break;
+        case 'stopped': message = 'AI local processing stopped. Provider completion is unconfirmed.'; break;
+        case 'failed': message = failureMessages[outcome.reason]; break;
+        case 'review-required': message = 'AI tool review is required.'; break;
+        case 'domain-held': message = 'AI domain operation remains held.'; break;
+      }
+      break;
+    }
+  }
+  return <div className="ai-host-activity" role="status" aria-live="polite">
+    <p>{message} {onOpenSettings ? <button type="button" onClick={onOpenSettings}>AI in Settings</button> : <a href="#settings">AI in Settings</a>}</p>
+  </div>;
+}

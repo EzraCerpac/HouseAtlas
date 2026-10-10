@@ -29,3 +29,10 @@ storage, a HomeBox editor, an importer or a service.
 Fixture names identify snapshots, commands, responses and raw wire pages.
 Every fixture is synthetic; `.invalid` URLs and `00000000-...` UUIDs are examples.
 Do not import these records into a real home.
+
+The current public Atlas schema is 1.1.0 (record schema 1); legacy 1.0.0 input
+envelopes remain valid. Old closed validators reject amended topology facts.
+Native storage/recovery lineage tags remain 1.0.0. Deterministic DTO generation
+supports `node tools/rust-baseline/generate-contracts.mjs --rust-only` and
+`--rust-only --check` from the repository root; default generation/check still
+covers Rust and both TypeScript outputs. Frontend adoption is separately reviewed.

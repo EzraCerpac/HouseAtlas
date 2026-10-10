@@ -3,8 +3,14 @@
 use crate::{
     access::AccessBoundary,
     app::{Core, ReadAuthority, ServerRuntime, Store},
-    config::recovery::{ExistingPath, RecoveryConfig, RecoveryPeers},
-    domain::stock::NativeStockContract,
+    config::recovery::{
+        ExistingPath, HomeboxRecoveryOwners, RecoveryConfig, RecoveryPeers,
+        StockActivityRecoveryOwners,
+    },
+    domain::{
+        queue_recovery::{OriginalEnqueueOwner, QueuedMediaRecovery},
+        stock::NativeStockContract,
+    },
     http::contracts::NativeContracts,
     media::{
         AssetVault, MediaError, WorkBudget,
@@ -14,7 +20,11 @@ use crate::{
         types::Availability,
         vault::AvailableAssetVerifier,
     },
-    storage::{self, QueueDiscovery, QueueRecoveryEvidence, StoreOptions},
+    providers::homebox::write::stock::StockContractPort,
+    storage::{
+        self, QueueDiscovery, QueueRecoveryEvidence, StockActivityRecoveryDiscovery,
+        StockActivityRecoveryEvidence, StoreOptions,
+    },
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -189,35 +199,74 @@ pub fn reopen_with_peers<D: QueueDiscovery, E: QueueRecoveryEvidence>(
     reopen_selected(Some(source), config, peers, budget)
 }
 
+/// Cold concrete composition. The independently retained access issuer/grant
+/// and writer/original/media owners survive the new boundary's session reset.
+/// Reconstructing those facts from the selected image is never an alternative.
+pub fn reopen_homebox_closed<O: OriginalEnqueueOwner, M: QueuedMediaRecovery<O::Proof>>(
+    config: RecoveryConfig,
+    owners: &HomeboxRecoveryOwners<'_, O, M>,
+    budget: &WorkBudget,
+) -> Result<Core, ReopenError> {
+    owners
+        .with_peers(|peers| reopen_closed(config, peers, budget))
+        .map_err(|_| ReopenError::Configuration)?
+}
+
+/// Consumes the old Core on all outcomes, including owner qualification errors.
+pub fn reopen_homebox_with_owners<O: OriginalEnqueueOwner, M: QueuedMediaRecovery<O::Proof>>(
+    source: Core,
+    config: RecoveryConfig,
+    owners: &HomeboxRecoveryOwners<'_, O, M>,
+    budget: &WorkBudget,
+) -> Result<Core, ReopenError> {
+    owners
+        .with_peers(|peers| reopen_with_peers(source, config, peers, budget))
+        .map_err(|_| ReopenError::Configuration)?
+}
+
 fn reopen_selected<D: QueueDiscovery, E: QueueRecoveryEvidence>(
     source: Option<Core>,
     config: RecoveryConfig,
     peers: &RecoveryPeers<'_, D, E>,
     budget: &WorkBudget,
 ) -> Result<Core, ReopenError> {
-    checkpoint(budget)?;
-    configuration(&config)?;
-    let before = image_digest(&config.database, budget)?;
-    declared_image(&config, before)?;
-    let port = NativeMediaRecovery::<
-        NativeContracts,
-        ReadAuthority,
-        NativeMediaRuntime<ServerRuntime>,
-        NativeStockContract,
-        D,
-        E,
-    >::validator(&NativeContracts, peers.storage());
-    // Preserve the actual native return. The projected media assets cannot
-    // reconstruct its original numeric carriers, ordering or native payloads.
-    let image = port
-        .validate_image(config.database.path(), budget)
-        .map_err(|_| ReopenError::Image)?;
-    let validated = port
-        .validate_recovery_database(config.database.path(), budget)
-        .map_err(|_| ReopenError::Image)?;
-    if image_digest(&config.database, budget)? != before {
-        return Err(ReopenError::Image);
-    }
+    // Keep the consumed old Core outside all fallible preflight work.
+    // Every warm failure closes it explicitly; close failure takes precedence.
+    let preflight = (|| {
+        checkpoint(budget)?;
+        configuration(&config)?;
+        let before = image_digest(&config.database, budget)?;
+        declared_image(&config, before)?;
+        let port = NativeMediaRecovery::<
+            NativeContracts,
+            ReadAuthority,
+            NativeMediaRuntime<ServerRuntime>,
+            NativeStockContract,
+            D,
+            E,
+        >::validator(&NativeContracts, peers.storage());
+        // Preserve the actual native return. The projected media assets cannot
+        // reconstruct its original numeric carriers, ordering or native payloads.
+        let image = port
+            .validate_image(config.database.path(), budget)
+            .map_err(|_| ReopenError::Image)?;
+        let validated = port
+            .validate_recovery_database(config.database.path(), budget)
+            .map_err(|_| ReopenError::Image)?;
+        if image_digest(&config.database, budget)? != before {
+            return Err(ReopenError::Image);
+        }
+        Ok((before, image, validated))
+    })();
+    let (before, image, validated) = match preflight {
+        Ok(result) => result,
+        Err(phase) => {
+            if let Some(old) = source {
+                close_source(old)?;
+            }
+            return Err(phase);
+        }
+    };
     finish_reopen(
         source,
         config,
@@ -243,14 +292,15 @@ fn reopen_selected<D: QueueDiscovery, E: QueueRecoveryEvidence>(
     )
 }
 
-fn close_source(source: Core) -> Result<(), ReopenError> {
+pub(super) fn close_source(source: Core) -> Result<(), ReopenError> {
     let Core {
         access,
         store,
         vault,
         ..
     } = source;
-    store
+    Arc::try_unwrap(store)
+        .map_err(|_| ReopenError::SourceClose)?
         .into_inner()
         .map_err(|_| ReopenError::SourceClose)?
         .close()
@@ -262,6 +312,112 @@ fn close_source(source: Core) -> Result<(), ReopenError> {
     Ok(())
 }
 
+/// Cold strict profile-6 opening with independently selected base and native
+/// activity owners. No producer brand, live source/session, queued handoff or
+/// original invocation authority is reconstructed from the validated image.
+pub fn reopen_stock_activity_closed<
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+    W: StockContractPort,
+    AD: StockActivityRecoveryDiscovery,
+    AE: StockActivityRecoveryEvidence,
+>(
+    config: RecoveryConfig,
+    base: &RecoveryPeers<'_, D, E>,
+    activity: &StockActivityRecoveryOwners<'_, W, AD, AE>,
+    budget: &WorkBudget,
+) -> Result<Core, ReopenError> {
+    reopen_stock_activity_selected(None, config, base, activity, budget)
+}
+
+/// Consumes the drained original Core on every outcome. Owners are held outside
+/// Core/session reset and must not retain source access/vault aliases. Image
+/// validity grants neither recovered execution nor physical-hold release.
+pub fn reopen_stock_activity_with_owners<
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+    W: StockContractPort,
+    AD: StockActivityRecoveryDiscovery,
+    AE: StockActivityRecoveryEvidence,
+>(
+    source: Core,
+    config: RecoveryConfig,
+    base: &RecoveryPeers<'_, D, E>,
+    activity: &StockActivityRecoveryOwners<'_, W, AD, AE>,
+    budget: &WorkBudget,
+) -> Result<Core, ReopenError> {
+    reopen_stock_activity_selected(Some(source), config, base, activity, budget)
+}
+
+fn reopen_stock_activity_selected<
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+    W: StockContractPort,
+    AD: StockActivityRecoveryDiscovery,
+    AE: StockActivityRecoveryEvidence,
+>(
+    source: Option<Core>,
+    config: RecoveryConfig,
+    base: &RecoveryPeers<'_, D, E>,
+    activity: &StockActivityRecoveryOwners<'_, W, AD, AE>,
+    budget: &WorkBudget,
+) -> Result<Core, ReopenError> {
+    checkpoint(budget)?;
+    configuration(&config)?;
+    activity
+        .revalidate()
+        .map_err(|_| ReopenError::Configuration)?;
+    let before = image_digest(&config.database, budget)?;
+    declared_image(&config, before)?;
+    let port = super::host::StockActivityRecoveryPort::validator(base, activity);
+    let image = port
+        .validate_image(config.database.path(), budget)
+        .map_err(|_| ReopenError::Image)?;
+    let validated = port
+        .validate_recovery_database(config.database.path(), budget)
+        .map_err(|_| ReopenError::Image)?;
+    if image_digest(&config.database, budget)? != before {
+        return Err(ReopenError::Image);
+    }
+    finish_reopen(
+        source,
+        config,
+        budget,
+        before,
+        validated,
+        |database, access, vault| {
+            activity
+                .revalidate()
+                .map_err(|_| ReopenError::Configuration)?;
+            let store = Store::open_existing_stock_activity_recovery_image_with_peers(
+                database,
+                NativeContracts,
+                ReadAuthority(access),
+                NativeMediaRuntime {
+                    vault,
+                    server: ServerRuntime,
+                },
+                StoreOptions {
+                    stock_activity_profile: true,
+                    ..StoreOptions::default()
+                },
+                &image,
+                &base.storage(),
+                &activity.storage(),
+                &mut || storage_checkpoint(budget),
+            )
+            .map_err(|_| ReopenError::Store)?;
+            // Recheck the SAME external issuer after access-session reset and
+            // strict opening. A new boundary or equal metadata is no substitute.
+            if activity.revalidate().is_err() {
+                store.close().map_err(|_| ReopenError::Store)?;
+                return Err(ReopenError::Configuration);
+            }
+            Ok(store)
+        },
+    )
+}
+
 fn finish_reopen(
     source: Option<Core>,
     config: RecoveryConfig,
@@ -270,27 +426,42 @@ fn finish_reopen(
     validated: ValidatedDatabase,
     open: impl FnOnce(&Path, Arc<Mutex<AccessBoundary>>, Arc<AssetVault>) -> Result<Store, ReopenError>,
 ) -> Result<Core, ReopenError> {
-    let vault = Arc::new(AssetVault::open(config.vault.path()).map_err(|_| ReopenError::Vault)?);
-    configuration(&config)?;
-    for record in &validated.assets {
-        checkpoint(budget)?;
-        let payload = &record.payload;
-        let owned_key = record
-            .scope()
-            .storage_key(&payload.sha256)
-            .map_err(|_| ReopenError::Vault)?;
-        if payload.availability == Availability::Available {
-            vault
-                .verify_available_asset(record, budget)
+    // Source remains owned here until all retained-media preflight succeeds.
+    // Cleanup never checks budget or silently drops an unclosed warm Core.
+    let preflight = (|| {
+        let vault =
+            Arc::new(AssetVault::open(config.vault.path()).map_err(|_| ReopenError::Vault)?);
+        configuration(&config)?;
+        for record in &validated.assets {
+            checkpoint(budget)?;
+            let payload = &record.payload;
+            let owned_key = record
+                .scope()
+                .storage_key(&payload.sha256)
                 .map_err(|_| ReopenError::Vault)?;
-        } else if payload.storage_key == owned_key {
-            match vault.read_retained(record, budget) {
-                Ok(_) => (),
-                Err(MediaError::NotFound) if payload.availability == Availability::Missing => (),
-                Err(_) => return Err(ReopenError::Vault),
+            if payload.availability == Availability::Available {
+                vault
+                    .verify_available_asset(record, budget)
+                    .map_err(|_| ReopenError::Vault)?;
+            } else if payload.storage_key == owned_key {
+                match vault.read_retained(record, budget) {
+                    Ok(_) => (),
+                    Err(MediaError::NotFound) if payload.availability == Availability::Missing => {}
+                    Err(_) => return Err(ReopenError::Vault),
+                }
             }
         }
-    }
+        Ok(vault)
+    })();
+    let vault = match preflight {
+        Ok(vault) => vault,
+        Err(phase) => {
+            if let Some(old) = source {
+                close_source(old)?;
+            }
+            return Err(phase);
+        }
+    };
 
     // Closing storage drops its original ReadAuthority and media runtime clones.
     // Outstanding external access/vault clones mean the host was not drained.
@@ -343,7 +514,9 @@ fn finish_reopen(
     }
     Ok(Core {
         access,
-        store: Mutex::new(store),
+        store: Arc::new(Mutex::new(store)),
+        atlas_list_pages: crate::domain::stock::AtlasListPages::default(),
+        media_policy_evidence: Mutex::default(),
         vault,
         home: config.home,
         homes: config.homes,

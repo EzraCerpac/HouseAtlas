@@ -4,7 +4,7 @@
 //! transaction and retain the derivation with the exact stock intent.
 
 use super::atlas_commands::{
-    map_group_with_entries, map_group_with_payload, plan_atlas_commands_with,
+    map_group, map_group_with_entries, map_group_with_payload, plan_atlas_commands_with,
 };
 use super::{AtlasCommandPlan, OperationId, StockError, StockResult, ValidatedRequest};
 use crate::{
@@ -17,11 +17,28 @@ use sha2::{Digest, Sha256};
 
 /// Storage must retain this mapping version with immutable derivation data.
 pub const ATLAS_DERIVATION_FORMAT: &str = "atlas-derived-command/1";
+/// Ordered child derivations; the single-command v1 format is unchanged.
+pub const ATLAS_BATCH_DERIVATION_FORMAT: &str = "atlas-derived-batch/1";
+
+/// Closed stock-catalogue predicate for the specialized derivation mapper.
+/// This declares mapping support only; it does not qualify evidence or grant
+/// execution authority.
+pub fn atlas_derived_operation(id: OperationId) -> bool {
+    matches!(
+        id,
+        OperationId::AtlasBindingCreate
+            | OperationId::AtlasBindingReview
+            | OperationId::AtlasBindingRestore
+            | OperationId::AtlasBindingRemap
+            | OperationId::AtlasGeometryCreate
+            | OperationId::AtlasAssetReview
+    )
+}
 
 /// Immutable inputs needed to reproduce a specialized mapping. They carry no
 /// authority. In particular SafeRendered requires the Media owner's actual
 /// renderer-receipt validation; supplying its enum or UUID cannot establish it.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum AtlasDerivation {
     BindingCreate {
@@ -48,8 +65,8 @@ pub enum AtlasDerivation {
 }
 
 /// The same planner and stock group linkage used by direct and staged commands.
-/// Single specialized forms are supported; staged asset.create keeps its
-/// existing media-sealed mapper. Mixed specialized batches need owner adoption.
+/// Single specialized forms keep their immutable v1 mapping. Staged
+/// asset.create keeps its existing media-sealed mapper.
 pub fn plan_derived_atlas_commands(
     request: &ValidatedRequest,
     derivation: &AtlasDerivation,
@@ -59,92 +76,125 @@ pub fn plan_derived_atlas_commands(
         return Err(StockError::CapabilityHeld);
     }
     plan_atlas_commands_with(request, native, |request, index| {
-        let (operation, payload) = match (request.id(), derivation) {
-            (OperationId::AtlasBindingCreate, AtlasDerivation::BindingCreate { source_state }) => {
-                let mut payload = request.payload().clone();
-                payload["sourceState"] = json!(source_state);
-                (Operation::Create, payload)
-            }
-            (OperationId::AtlasBindingReview, AtlasDerivation::BindingReview { original }) => {
-                check_original(
-                    request,
-                    original,
-                    RecordType::Binding,
-                    Lifecycle::Active,
-                    native,
-                )?;
-                let mut payload = original.payload.clone();
-                payload["reviewStatus"] = request.payload()["reviewStatus"].clone();
-                payload["evidenceIds"] = request.payload()["evidenceIds"].clone();
-                (Operation::Replace, payload)
-            }
-            (OperationId::AtlasBindingRestore, AtlasDerivation::BindingRestore { original }) => {
-                check_original(
-                    request,
-                    original,
-                    RecordType::Binding,
-                    Lifecycle::Tombstoned,
-                    native,
-                )?;
-                (Operation::Restore, Value::Null)
-            }
-            (
-                OperationId::AtlasBindingRemap,
-                AtlasDerivation::BindingRemap {
-                    original,
-                    source_state,
-                },
-            ) => {
-                check_original(
-                    request,
-                    original,
-                    RecordType::Binding,
-                    Lifecycle::Active,
-                    native,
-                )?;
-                return remap(request, original, *source_state, native);
-            }
-            (OperationId::AtlasGeometryCreate, AtlasDerivation::GeometryCreate { imported_at }) => {
-                super::operational_time(imported_at)?;
-                let mut payload = request.payload().clone();
-                payload["importedAt"] = json!(imported_at);
-                (Operation::Create, payload)
-            }
-            (
-                OperationId::AtlasAssetReview,
-                AtlasDerivation::AssetReview {
-                    original,
-                    preview_policy,
-                    renderer_receipt_id,
-                },
-            ) => {
-                check_original(
-                    request,
-                    original,
-                    RecordType::Asset,
-                    Lifecycle::Active,
-                    native,
-                )?;
-                let expected = match request.payload()["treatment"].as_str() {
-                    Some("block") => AssetPayloadPreviewPolicy::Blocked,
-                    Some("download-only") => AssetPayloadPreviewPolicy::DownloadOnly,
-                    Some("request-preview") => AssetPayloadPreviewPolicy::SafeRendered,
-                    _ => return Err(StockError::InvalidContract),
-                };
-                if *preview_policy != expected
-                    || request.payload()["rendererReceiptId"] != json!(renderer_receipt_id)
-                {
-                    return Err(StockError::CorrelationMismatch);
-                }
-                let mut payload = original.payload.clone();
-                payload["previewPolicy"] = json!(preview_policy);
-                payload["evidenceIds"] = request.payload()["evidenceIds"].clone();
-                (Operation::Replace, payload)
-            }
-            _ => return Err(StockError::CapabilityHeld),
-        };
-        map_group_with_payload(request, index, native, operation, &payload)
+        map_derived_group(request, index, derivation, native)
     })
+}
+
+/// Compose direct and specialized children through the existing group factory.
+/// The vector is aligned to the submitted child order: None maps a direct form;
+/// Some maps one specialized form. No stage, grant or renderer proof is created.
+pub fn plan_derived_atlas_batch_commands(
+    request: &ValidatedRequest,
+    derivations: &[Option<AtlasDerivation>],
+    native: &impl Contract,
+) -> StockResult<AtlasCommandPlan> {
+    if request.id() != OperationId::AtlasBatchExecute
+        || request.children().is_empty()
+        || request.children().len() != derivations.len()
+        || !derivations.iter().any(Option::is_some)
+    {
+        return Err(StockError::CapabilityHeld);
+    }
+    plan_atlas_commands_with(request, native, |child, index| {
+        let index = index.ok_or(StockError::CorrelationMismatch)?;
+        match &derivations[index] {
+            Some(derivation) => map_derived_group(child, Some(index), derivation, native),
+            None => map_group(child, Some(index), native),
+        }
+    })
+}
+
+fn map_derived_group(
+    request: &ValidatedRequest,
+    index: Option<usize>,
+    derivation: &AtlasDerivation,
+    native: &impl Contract,
+) -> StockResult<super::AtlasCommandGroup> {
+    let (operation, payload) = match (request.id(), derivation) {
+        (OperationId::AtlasBindingCreate, AtlasDerivation::BindingCreate { source_state }) => {
+            let mut payload = request.payload().clone();
+            payload["sourceState"] = json!(source_state);
+            (Operation::Create, payload)
+        }
+        (OperationId::AtlasBindingReview, AtlasDerivation::BindingReview { original }) => {
+            check_original(
+                request,
+                original,
+                RecordType::Binding,
+                Lifecycle::Active,
+                native,
+            )?;
+            let mut payload = original.payload.clone();
+            payload["reviewStatus"] = request.payload()["reviewStatus"].clone();
+            payload["evidenceIds"] = request.payload()["evidenceIds"].clone();
+            (Operation::Replace, payload)
+        }
+        (OperationId::AtlasBindingRestore, AtlasDerivation::BindingRestore { original }) => {
+            check_original(
+                request,
+                original,
+                RecordType::Binding,
+                Lifecycle::Tombstoned,
+                native,
+            )?;
+            (Operation::Restore, Value::Null)
+        }
+        (
+            OperationId::AtlasBindingRemap,
+            AtlasDerivation::BindingRemap {
+                original,
+                source_state,
+            },
+        ) => {
+            check_original(
+                request,
+                original,
+                RecordType::Binding,
+                Lifecycle::Active,
+                native,
+            )?;
+            return remap(request, index, original, *source_state, native);
+        }
+        (OperationId::AtlasGeometryCreate, AtlasDerivation::GeometryCreate { imported_at }) => {
+            super::operational_time(imported_at)?;
+            let mut payload = request.payload().clone();
+            payload["importedAt"] = json!(imported_at);
+            (Operation::Create, payload)
+        }
+        (
+            OperationId::AtlasAssetReview,
+            AtlasDerivation::AssetReview {
+                original,
+                preview_policy,
+                renderer_receipt_id,
+            },
+        ) => {
+            check_original(
+                request,
+                original,
+                RecordType::Asset,
+                Lifecycle::Active,
+                native,
+            )?;
+            let expected = match request.payload()["treatment"].as_str() {
+                Some("block") => AssetPayloadPreviewPolicy::Blocked,
+                Some("download-only") => AssetPayloadPreviewPolicy::DownloadOnly,
+                Some("request-preview") => AssetPayloadPreviewPolicy::SafeRendered,
+                _ => return Err(StockError::InvalidContract),
+            };
+            if *preview_policy != expected
+                || request.payload()["rendererReceiptId"] != json!(renderer_receipt_id)
+            {
+                return Err(StockError::CorrelationMismatch);
+            }
+            let mut payload = original.payload.clone();
+            payload["previewPolicy"] = json!(preview_policy);
+            payload["evidenceIds"] = request.payload()["evidenceIds"].clone();
+            (Operation::Replace, payload)
+        }
+        _ => return Err(StockError::CapabilityHeld),
+    };
+    map_group_with_payload(request, index, native, operation, &payload)
 }
 
 fn check_original(
@@ -174,6 +224,7 @@ fn check_original(
 
 fn remap(
     request: &ValidatedRequest,
+    child_index: Option<usize>,
     original: &Record,
     source_state: BindingPayloadSourceState,
     native: &impl Contract,
@@ -239,7 +290,7 @@ fn remap(
         });
         entries.push(entry);
     }
-    map_group_with_entries(request, native, entries)
+    map_group_with_entries(request, child_index, native, entries)
 }
 
 // Domain-separated UUIDv8 derivation, fixed for this mapping version. Transport

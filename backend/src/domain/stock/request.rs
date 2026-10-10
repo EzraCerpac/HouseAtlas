@@ -54,6 +54,35 @@ pub struct ValidatedRequest {
 }
 
 impl ValidatedRequest {
+    /// Local pinned capture only. The generic stock dispatcher keeps its wire3 catalog.
+    pub fn parse_pinned_homebox_download_v4(
+        contracts: &impl StockContractPort,
+        raw: Value,
+    ) -> StockResult<Self> {
+        if string(&raw, "commandId")? != "homebox.file.download" {
+            return Err(StockError::InvalidContract);
+        }
+        contracts.validate(
+            "urn:houseatlas:pinned-homebox-file:4#/$defs/request_homebox_file_download_v4",
+            &raw,
+        )?;
+        let id = OperationId::HomeboxFileDownload;
+        let route = route(id.operation(), &raw)?;
+        let context = serde_json::from_value(raw["context"].clone())
+            .map_err(|_| StockError::InvalidContract)?;
+        let request_id = string(&raw, "requestId")?.to_owned();
+        let digest = request_digest(&raw)?;
+        Ok(Self {
+            raw,
+            id,
+            context,
+            request_id,
+            digest,
+            route,
+            children: Vec::new(),
+        })
+    }
+
     pub fn parse(contracts: &impl StockContractPort, raw: Value) -> StockResult<Self> {
         let id =
             OperationId::parse(string(&raw, "commandId")?).ok_or(StockError::InvalidContract)?;
