@@ -2,6 +2,25 @@
 
 `frontend/src/lantern/overlays/network/index.ts` exports `NetworkOverlayPanel`, `NetworkTopology`, and their typed documentary data/selection interface. This module performs no source reads or writes. The integration owner mounts it beside the scan and supplies a bounded authorized projection; no household inventory is checked into this module.
 
+## Scene presentation
+
+The scene exports `NetworkSceneLayer`, `NetworkSceneInspector`, `NetworkSceneSummary`, and the pure `networkSceneProjection` join. The primary network presentation is the raw SVG layer injected into the same camera-aligned SVG as the actual floor meshes. The former documentary panel and standalone graph are secondary tools, not the product's primary floor-plan view.
+
+```tsx
+<NetworkSceneLayer
+  active={overlay === 'network'} viewKey={viewKey} data={networkData}
+  anchors={scene.anchors} unplacedDock={scene.unplacedDock} ui={scene.ui}
+  selection={networkSelection} onSelectionChange={setNetworkSelection}
+  onOpenUnplaced={() => setNetworkRecords('unplaced')}
+/>
+```
+
+The sole geometry/shell owner supplies display-only `NetworkSceneAnchor` values: exact view/receipt ID/hash, canonical package key/UUID, source anchor IDs, source floor key, current camera-projected `base`/`top`, visibility and `basis: 'schematic-room'`. `ui` is SVG units per CSS pixel. These points and `unplacedDock` share the host's SVG viewBox; network implements no camera or source-coordinate transform. The host owns the actual mesh presentation and provisional stacking. The join checks the current source receipt, exact canonical identity and matching hash-scoped source reference/floor, plus optional reviewed selection context. No room label, original Network room ID, graph position or mesh name substitutes for that join.
+
+Fixed devices sharing an accepted room anchor have separate selectable marker heads fanned in screen pixels. Their stems share the room anchor; this fan is UI spacing, never device geometry. Markers adapt the original Lantern `Model.PinMark` circular head, glyph, shadow, stem, halo and callout. Solid amber logical edges are selectable by pointer and Enter/Space only when both endpoint devices have valid, currently visible room markers. No edge is drawn to the unplaced records dock, an unknown endpoint or a hidden/unscanned floor. Cross-floor edges remain eligible when both anchors are shown. The complete topology is retained in stored data and secondary records. Mobile/nonspatial/unknown, unmatched and off-plan records receive no room marker. Hidden-floor records remain outside the currently shown markers. All source links are retained, and source coordinates, physical paths and native IDs remain unchanged.
+
+`NetworkSceneSummary` provides the compact original-style legend trigger. `NetworkSceneInspector` opens only for a selected device/link or requested records, with source dates and placement provenance behind a disclosure. The host controls overlay, selection, inspector placement, camera behavior and focus transfer/restoration; it clears selections and removes data on view/authorization changes. The scene join fences room context as above. A build or private visual rehearsal does not establish native mounting or user visual acceptance.
+
 ## Host contract
 
 ```tsx
@@ -43,3 +62,9 @@ npm run build --prefix frontend -- --configLoader runner
 ```
 
 The final private handoff carries exact base/commit, source and build pins, actual browser observations and prerequisite renderer fix. A successful standalone panel rehearsal does not establish native mounting, CI or deployment acceptance.
+
+## Shared-medium scene associations
+
+The scene derives a `shared-medium` selection (`{ kind, id }`) when two admitted device markers have accepted membership records for the same abstract segment and the same known medium. The stable ID encodes the segment, medium and sorted device IDs. Selection resolves against the current supplied source records; details show both devices, the segment and the original memberships. This is a logical association through a shared medium, not a direct cable, daisy chain, circuit or measured route. It does not add a stored connection.
+
+Each pair requires both current receipt-backed visible room markers, including pairs across shown floors. Unplaced members, rejected anchors and hidden room/floor context receive no scene line; their original records remain available. Different media or segments are not bridged through common members. The host accepts the additional selection kind without changing room, native identity or camera contracts.

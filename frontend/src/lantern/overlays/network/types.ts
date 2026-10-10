@@ -1,7 +1,7 @@
 /** Presentation data supplied by the authorized owner, not a native wire schema.
  * Network graph coordinates, device names and source mesh IDs never locate hardware. */
 export type NetworkConfidence = 'accepted' | 'recorded' | 'tentative' | 'unknown' | 'conflicting';
-export type NetworkOverlaySelection = { readonly kind: 'device' | 'link'; readonly id: string };
+export type NetworkOverlaySelection = { readonly kind: 'device' | 'link' | 'shared-medium'; readonly id: string };
 export interface NetworkOverlaySource {
   readonly label: string;
   readonly revision: string | null;
@@ -105,4 +105,48 @@ export interface NetworkOverlayPanelProps {
   /** Host validates full receipt membership and clears this on scope changes. */
   readonly selectedPackagePlaces?: NetworkPackagePlaceSelection | null;
   readonly onSelectionChange?: (selection: NetworkOverlaySelection | null) => void;
+}
+
+/** Camera-projected SVG presentation only. Never persisted as device geometry. */
+export type NetworkScenePoint = readonly [number, number];
+export interface NetworkSceneAnchor {
+  readonly id: string;
+  readonly viewKey: string;
+  readonly packagePlaceKey: string;
+  readonly packagePlaceUuid: string;
+  readonly sourceAnchorIds: readonly string[];
+  readonly receiptId: string;
+  readonly receiptSha256: string;
+  readonly floorKey: string;
+  readonly base: NetworkScenePoint;
+  readonly top: NetworkScenePoint;
+  readonly visible: boolean;
+  readonly basis: 'schematic-room';
+}
+export interface NetworkSceneLayerProps {
+  readonly active: boolean;
+  readonly viewKey: string;
+  readonly data: NetworkOverlayData | null;
+  /** Sole scene owner projects these with its current camera. */
+  readonly anchors: readonly NetworkSceneAnchor[];
+  readonly unplacedDock: NetworkScenePoint;
+  /** SVG viewBox units per CSS pixel, to keep markers usable while zooming. */
+  readonly ui: number;
+  readonly selection: NetworkOverlaySelection | null;
+  readonly selectedPackagePlaces?: NetworkPackagePlaceSelection | null;
+  readonly onSelectionChange: (selection: NetworkOverlaySelection) => void;
+  readonly onOpenUnplaced?: () => void;
+  readonly labelPoint?: NetworkScenePoint;
+  readonly label?: string;
+}
+export interface NetworkSceneInspectorProps {
+  readonly active: boolean;
+  readonly viewKey: string;
+  readonly data: NetworkOverlayData | null;
+  readonly selection: NetworkOverlaySelection | null;
+  readonly records?: 'devices' | 'links' | 'unplaced' | null;
+  readonly placedDeviceIds?: readonly string[];
+  readonly selectedPackagePlaces?: NetworkPackagePlaceSelection | null;
+  readonly onSelectionChange: (selection: NetworkOverlaySelection | null) => void;
+  readonly onClose: () => void;
 }

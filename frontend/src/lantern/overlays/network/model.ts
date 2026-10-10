@@ -23,6 +23,10 @@ export function networkSelection(data: NetworkOverlayData, selection: NetworkOve
     const device = data.devices.find(entry => entry.id === selection.id);
     return device ? { kind: 'device' as const, device } : null;
   }
+  if (selection.kind === 'shared-medium') {
+    const association = networkSharedMediumAssociations(data).find(entry => entry.id === selection.id);
+    return association ? { kind: 'shared-medium' as const, association } : null;
+  }
   const link = data.links.find(entry => entry.id === selection.id);
   return link ? { kind: 'link' as const, link } : null;
 }
@@ -51,6 +55,41 @@ export function endpointDeviceId(data: NetworkOverlayData, id: string): string |
   return data.devices.some(device => device.id === id) ? id : data.endpoints.find(endpoint => endpoint.id === id)?.ownerDeviceId ?? null;
 }
 
+/** A shared medium connects members logically, without asserting a direct cable,
+ * chain, circuit or physical segment location. Keep the original membership links. */
+export function networkSharedMediumAssociations(data: NetworkOverlayData) {
+  const associations: { id: string; segment: NetworkOverlayData['endpoints'][number]; medium: string;
+    from: string; to: string; devices: readonly [NetworkOverlayDevice, NetworkOverlayDevice];
+    memberships: readonly NetworkOverlayLink[] }[] = [];
+  for (const segment of data.endpoints) {
+    if (segment.kind !== 'segment' || segment.ownerDeviceId !== null) continue;
+    const media = new Map<string, Map<string, { device: NetworkOverlayDevice; links: NetworkOverlayLink[] }>>();
+    for (const link of data.links) {
+      if (link.kind !== 'segment-membership' || link.confidence !== 'accepted' || (!link.medium || link.medium === 'unknown')) continue;
+      const other = link.fromEndpointId === segment.id ? link.toEndpointId
+        : link.toEndpointId === segment.id ? link.fromEndpointId : null;
+      if (other === null) continue;
+      const deviceId = endpointDeviceId(data, other);
+      const device = data.devices.find(entry => entry.id === deviceId);
+      if (!device) continue;
+      const members = media.get(link.medium) ?? new Map<string, { device: NetworkOverlayDevice; links: NetworkOverlayLink[] }>();
+      const member = members.get(device.id) ?? { device, links: [] };
+      if (!member.links.some(entry => entry.id === link.id)) member.links.push(link);
+      members.set(device.id, member); media.set(link.medium, members);
+    }
+    for (const [medium, members] of media) {
+      const ordered = [...members.values()].sort((a, b) => a.device.id.localeCompare(b.device.id));
+      for (let i = 0; i < ordered.length; i++) for (let j = i + 1; j < ordered.length; j++) {
+        const a = ordered[i]!, b = ordered[j]!;
+        associations.push({ id: JSON.stringify(['shared-medium', segment.id, medium, a.device.id, b.device.id]),
+          segment, medium, from: a.device.id, to: b.device.id, devices: [a.device, b.device],
+          memberships: [...a.links, ...b.links].sort((a, b) => a.id.localeCompare(b.id)) });
+      }
+    }
+  }
+  return associations;
+}
+
 export function networkDevicePlace(device: NetworkOverlayDevice): NetworkPlaceAssociation | null {
   return device.mobility === 'mobile' || device.mobility === 'nonspatial' ? null : device.place;
 }
@@ -68,6 +107,17 @@ export function networkReviewedPlaces(data: NetworkOverlayData, context: Network
         && context.sourceAnchorIds.includes(reference.sourceAnchorId));
   }) : [];
   return { eligible, devices };
+}
+
+/** A scene-derived pair selection expires when either displayed member leaves
+ * the admitted marker set or the current documentary room context. */
+export function networkSceneSelection(data: NetworkOverlayData, selection: NetworkOverlaySelection | null,
+  placedDeviceIds: readonly string[], context: NetworkPackagePlaceSelection | null = null) {
+  const chosen = networkSelection(data, selection);
+  if (chosen?.kind !== 'shared-medium') return chosen;
+  const reviewed = networkReviewedPlaces(data, context);
+  return chosen.association.devices.every(device => placedDeviceIds.includes(device.id)
+    && (reviewed === null || reviewed.devices.some(entry => entry.id === device.id))) ? chosen : null;
 }
 
 export function networkPlanReferences(data: NetworkOverlayData, device: NetworkOverlayDevice, context: NetworkPackagePlaceSelection | null = null) {

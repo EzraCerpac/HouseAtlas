@@ -91,11 +91,14 @@ statements and owner-reported or inferred room associations separately:
 ```sh
 node frontend/lantern-tests/network-overlay-read.mjs
 node frontend/lantern-tests/electricity-overlay-read.mjs
+node frontend/lantern-tests/electricity-fixture-read.mjs
 ```
 
-Inspect both complete bodies and their installed Vite/source imports first. They
+Inspect all three complete bodies and their installed Vite/source imports first. They
 open no listener, call no provider and perform no native import. The modules
 require a separately qualified host/data seam before native availability.
+The fixture example uses synthetic source symbols and static React markup;
+an unmatched room has no implicitly selected drawing or source action.
 
 A separate successful in-process geometry example uses an empty disposable native
 state and its actual local Editor session. It saves a synthetic USDZ framing

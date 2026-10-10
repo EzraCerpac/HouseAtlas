@@ -284,4 +284,162 @@ assert.equal(model.networkPlanReferences(extendedData, extendedPlans, { ...conte
 assert.equal(model.networkPlanReferences(extendedData, canonical[2], context).length, 0, 'exact key and UUID also fence plan details');
 assert.equal(JSON.stringify(canonical), canonicalSnapshot, 'selection matching never writes evidence or unresolved span components');
 
-console.log(`PASS network overlay model and graph: ${devices.length} synthetic devices, ${links.length} topology edges, explicit accepted policy, preserved source confidence, endpoint ownership, canonical/native identity separation, reviewed plan references without placement, dates, and source immutability`);
+// Load the actual scene join against the same transformed model. This tests
+// documentary admission, not a replica of camera/layout implementation.
+const scenePath = resolve(frontendRoot, 'src/lantern/overlays/network/scene.ts');
+const sceneSource = await readFile(scenePath, 'utf8');
+const sceneCode = (await transformWithOxc(sceneSource, scenePath, { lang: 'ts', target: 'es2022' })).code
+  .replace(/from ["']\.\/model["']/g, `from "${modelUrl}"`);
+const sceneModel = await import(`data:text/javascript;base64,${Buffer.from(sceneCode).toString('base64')}`);
+const sceneAnchor = { id: 'display-room-A', viewKey: data.viewKey, packagePlaceKey: 'canonical-room-A',
+  packagePlaceUuid: 'stable-document-uuid-A', sourceAnchorIds: context.sourceAnchorIds, receiptId: context.receiptId,
+  receiptSha256: context.receiptSha256, floorKey: 'reviewed-export', base: [150, 200], top: [150, 170],
+  visible: true, basis: 'schematic-room' };
+// Two real endpoint-owning interfaces within room A and a connection to a
+// separately shown floor. Other source associations remain unplaced records.
+const sceneData = { ...reviewedData,
+  devices: reviewedData.devices.map((device, index) => index === 2 ? { ...device,
+    place: { ...device.place, planAssociations: planAssociations.map(ref => ({ ...ref, sourceFloorKey: 'second-export' })) } } : device),
+  links: reviewedData.links.map((link, index) => index < 2 ? { ...link, kind: 'connection',
+    fromEndpointId: index === 0 ? 'if-fixed-01' : 'if-fixed-02',
+    toEndpointId: index === 0 ? 'if-fixed-02' : canonical[2].id } : link),
+};
+const secondAnchor = { ...sceneAnchor, id: 'display-room-B', packagePlaceKey: 'canonical-room-B',
+  packagePlaceUuid: 'stable-document-uuid-B', floorKey: 'second-export', base: [160, 300], top: [160, 270] };
+const sceneSnapshot = JSON.stringify(sceneData);
+const sceneJoin = sceneModel.networkSceneProjection(sceneData, [sceneAnchor], [450, 80], 1, context);
+assert.deepEqual(sceneJoin.placed.map(entry => entry.device.id), canonical.slice(0, 2).map(device => device.id));
+assert(sceneJoin.placed.every(entry => entry.anchor === sceneAnchor && entry.base === sceneAnchor.base),
+  'devices share the reviewed room anchor; separate heads are display-only');
+assert.equal(sceneJoin.nodes.filter(node => node.kind === 'device').length, 20);
+assert.equal(sceneJoin.edges.length, 1, 'partial floor coverage admits only the within-room mapped pair');
+assert.deepEqual(sceneJoin.edges.map(edge => edge.link.id), [data.links[0].id]);
+assert.equal(sceneData.links.length, 21, 'scene filtering never drops stored topology records');
+assert.equal(sceneJoin.unplaced.length, 18);
+assert.equal(JSON.stringify(sceneData), sceneSnapshot);
+assert(sceneData.devices.every(device => !device.place || device.place.coordinate === null));
+assert(sceneData.links.every(link => link.path === null));
+for (const wrongAnchor of [{ ...sceneAnchor, viewKey: 'other-view' }, { ...sceneAnchor, receiptId: 'other-receipt' },
+  { ...sceneAnchor, receiptSha256: 'stale-hash' }, { ...sceneAnchor, packagePlaceKey: 'other-room' },
+  { ...sceneAnchor, packagePlaceUuid: 'other-uuid' }, { ...sceneAnchor, sourceAnchorIds: ['other-anchor'] },
+  { ...sceneAnchor, floorKey: 'other-export' }, { ...sceneAnchor, visible: false },
+  { ...sceneAnchor, basis: 'measured-device' }, { ...sceneAnchor, top: [Infinity, 170] }]) {
+  const joined = sceneModel.networkSceneProjection(sceneData, [wrongAnchor], [450, 80], 1, context);
+  assert.equal(joined.placed.length, 0);
+  assert.equal(joined.edges.length, 0, 'missing or rejected anchors cannot produce scene edges');
+}
+assert.equal(sceneModel.networkSceneProjection(sceneData, [sceneAnchor], [450, 80], 1, { ...context, status: 'proposed' }).placed.length, 0);
+assert.equal(sceneModel.networkSceneProjection(sceneData, [sceneAnchor, sceneAnchor], [450, 80]).placed.length, 2,
+  'duplicate display anchors never duplicate device pins');
+const portableScene = { ...sceneData, devices: sceneData.devices.map((device, index) => index < 2
+  ? { ...device, mobility: index === 0 ? 'mobile' : 'nonspatial' } : device) };
+assert.equal(sceneModel.networkSceneProjection(portableScene, [sceneAnchor], [450, 80]).placed.length, 0,
+  'contradictory mobile/nonspatial room fields never receive scene markers');
+const unknownScene = { ...sceneData, devices: sceneData.devices.map((device, index) => index < 2 ? { ...device, mobility: 'unknown' } : device) };
+assert.equal(sceneModel.networkSceneProjection(unknownScene, [sceneAnchor], [450, 80]).placed.length, 0);
+assert.equal(JSON.stringify(sceneData), sceneSnapshot, 'presentation never writes device/source geometry');
+
+const fullScene = sceneModel.networkSceneProjection(sceneData, [sceneAnchor, secondAnchor], [450, 80]);
+assert.equal(fullScene.placed.length, 3);
+assert.deepEqual(fullScene.edges.map(edge => edge.link.id), data.links.slice(0, 2).map(link => link.id),
+  'a cross-floor association is shown only when both endpoint anchors are visible');
+assert(fullScene.edges.every(edge => fullScene.placed.some(p => p.device.id === edge.from)
+  && fullScene.placed.some(p => p.device.id === edge.to)));
+assert(fullScene.edges.every(edge => edge.fromPoint !== fullScene.dock && edge.toPoint !== fullScene.dock),
+  'the unplaced records dock never serves as a topology endpoint');
+for (const visibleAnchors of [[], [secondAnchor], [{ ...sceneAnchor, visible: false }, secondAnchor]]) {
+  assert.equal(sceneModel.networkSceneProjection(sceneData, visibleAnchors, [450, 80]).edges.length, 0,
+    'missing first-floor coverage or selected-floor visibility removes every incomplete pair');
+}
+assert.equal(sceneModel.networkSceneProjection(sceneData, [sceneAnchor, { ...secondAnchor, visible: false }], [450, 80]).edges.length, 1);
+assert.equal(sceneModel.networkSceneProjection(sceneData, [sceneAnchor, secondAnchor], [450, 80], 1, context).edges.length, 1,
+  'documentary room selection cannot expose an edge to a device without a current admitted marker');
+assert.equal(sceneModel.networkSceneProjection(sceneData, [sceneAnchor, secondAnchor], [450, 80], 1, multiTarget).edges.length, 2);
+assert.equal(sceneModel.networkSceneProjection(portableScene, [sceneAnchor, secondAnchor], [450, 80]).edges.length, 0);
+assert.equal(sceneModel.networkSceneProjection(unknownScene, [sceneAnchor, secondAnchor], [450, 80]).edges.length, 0);
+const nativeOnlyScene = { ...sceneData, devices: sceneData.devices.map((device, index) => index < 2
+  ? { ...device, place: { ...device.place, placeId: sceneAnchor.packagePlaceKey,
+      sourcePlaceId: null, sourcePlaceUUID: null } } : device) };
+const nativeOnlyJoin = sceneModel.networkSceneProjection(nativeOnlyScene, [sceneAnchor, secondAnchor], [450, 80]);
+assert.equal(nativeOnlyJoin.placed.length, 1, 'matching native IDs cannot substitute for documentary key and UUID');
+assert.equal(nativeOnlyJoin.edges.length, 0);
+assert.equal(model.networkGraph(nativeOnlyScene).edges.length, 21, 'native-only records retain all source topology');
+assert.equal(JSON.stringify(sceneData), sceneSnapshot, 'scene edge visibility never mutates full topology or source geometry');
+
+// Shared-medium memberships are documentary associations, not direct cables.
+// Two reviewed members on separate floors can be connected without placing the
+// abstract segment or drawing a fanout to the third, unplaced member.
+const membership = (index, endpoint) => ({ ...sceneData.links[index], kind: 'segment-membership',
+  confidence: 'accepted', medium: 'powerline', fromEndpointId: endpoint, toEndpointId: 'seg-core' });
+const sharedData = { ...sceneData, links: sceneData.links.map((link, index) => index < 3
+  ? membership(index, [canonical[0].id, canonical[2].id, 'fixed-04'][index]) : link) };
+const sharedSnapshot = JSON.stringify(sharedData);
+const sharedAssociations = model.networkSharedMediumAssociations(sharedData).filter(pair => pair.medium === 'powerline');
+assert.equal(sharedAssociations.length, 3, 'three distinct accepted members share one medium; no chain order is asserted');
+const sharedPair = sharedAssociations.find(pair => pair.from === canonical[0].id && pair.to === canonical[2].id);
+assert(sharedPair);
+assert.deepEqual(sharedPair.memberships.map(link => link.id), sharedData.links.slice(0, 2).map(link => link.id));
+assert(sharedPair.memberships.every(link => sharedData.links.includes(link)), 'details retain actual source relation objects');
+const sharedSelection = { kind: 'shared-medium', id: sharedPair.id };
+assert.deepEqual(model.networkSelection(sharedData, sharedSelection), { kind: 'shared-medium', association: sharedPair });
+assert.equal(model.networkSelection(sharedData, { ...sharedSelection, id: 'unrecorded-pair' }), null);
+assert.equal(model.networkSceneSelection(sharedData, sharedSelection, [sharedPair.from, sharedPair.to]).kind, 'shared-medium');
+assert.equal(model.networkSceneSelection(sharedData, sharedSelection, [sharedPair.from]), null, 'a stale pair selection expires when a member leaves the scene');
+assert.equal(model.networkSceneSelection(sharedData, sharedSelection, [sharedPair.from, sharedPair.to], context), null);
+assert.equal(model.networkSceneSelection(sharedData, sharedSelection, [sharedPair.from, sharedPair.to], multiTarget).kind, 'shared-medium');
+assert.equal(model.networkSceneSelection(sharedData, sharedSelection, [sharedPair.from, sharedPair.to], { ...multiTarget, status: 'proposed' }), null);
+
+const sharedScene = sceneModel.networkSceneProjection(sharedData, [sceneAnchor, secondAnchor], [450, 80]);
+assert.equal(sharedScene.edges.filter(edge => edge.association).length, 1);
+assert.deepEqual(sharedScene.edges.find(edge => edge.association).selection, sharedSelection);
+assert(sharedScene.edges.every(edge => sharedScene.placed.some(pin => pin.device.id === edge.from)
+  && sharedScene.placed.some(pin => pin.device.id === edge.to)));
+assert(!sharedScene.edges.some(edge => edge.from === 'fixed-04' || edge.to === 'fixed-04'));
+assert.equal(model.networkGraph(sharedData).edges.length, 21);
+assert.equal(sharedData.links.length, 21, 'display pairs never become new stored links');
+for (const visibleAnchors of [[], [sceneAnchor], [secondAnchor], [sceneAnchor, { ...secondAnchor, visible: false }]]) {
+  assert.equal(sceneModel.networkSceneProjection(sharedData, visibleAnchors, [450, 80]).edges.filter(edge => edge.association).length, 0);
+}
+assert.equal(sceneModel.networkSceneProjection(sharedData, [sceneAnchor, secondAnchor], [450, 80], 1, context).edges.filter(edge => edge.association).length, 0);
+assert.equal(sceneModel.networkSceneProjection(sharedData, [sceneAnchor, secondAnchor], [450, 80], 1, multiTarget).edges.filter(edge => edge.association).length, 1);
+for (const change of [{ confidence: 'recorded' }, { kind: 'connection' }, { medium: 'ethernet' }, { medium: 'unknown' },
+  { fromEndpointId: 'unresolved-peer' }]) {
+  const changed = { ...sharedData, links: sharedData.links.map((link, index) => index === 0 ? { ...link, ...change } : link) };
+  assert.equal(model.networkSelection(changed, sharedSelection), null, 'selection must still resolve both accepted source memberships');
+  assert.equal(sceneModel.networkSceneProjection(changed, [sceneAnchor, secondAnchor], [450, 80]).edges.filter(edge => edge.association).length, 0);
+}
+const noSegment = { ...sharedData, endpoints: sharedData.endpoints.map(endpoint => endpoint.id === 'seg-core' ? { ...endpoint, kind: 'unresolved' } : endpoint) };
+assert.equal(model.networkSelection(noSegment, sharedSelection), null);
+const reversed = { ...sharedData, links: [...sharedData.links].reverse().map(link => ({ ...link,
+  fromEndpointId: link.toEndpointId, toEndpointId: link.fromEndpointId })) };
+assert.equal(model.networkSelection(reversed, sharedSelection).association.id, sharedPair.id, 'stable selection is independent of membership ordering and direction');
+const repeated = { ...sharedData, links: [...sharedData.links, { ...sharedData.links[0], id: 'alias-membership', fromEndpointId: 'seg-core', toEndpointId: 'if-fixed-01' }] };
+assert.equal(model.networkSharedMediumAssociations(repeated).filter(pair => pair.medium === 'powerline').length, 3, 'interface aliases and repeated memberships do not duplicate device pairs');
+assert.equal(model.networkSelection(repeated, sharedSelection).association.memberships.length, 3, 'additional original provenance stays available');
+const separateSegments = { ...sharedData, endpoints: [...sharedData.endpoints, { ...sharedData.endpoints[2], id: 'separate-segment' }],
+  links: [...sharedData.links, { ...membership(0, canonical[1].id), id: 'other-member-1', toEndpointId: 'separate-segment' },
+    { ...membership(1, canonical[2].id), id: 'other-member-2', toEndpointId: 'separate-segment' }] };
+assert(!model.networkSharedMediumAssociations(separateSegments).some(pair => pair.from === canonical[0].id && pair.to === canonical[1].id),
+  'sharing a member across two segments does not create a transitive route');
+const parallelScene = sceneModel.networkSceneProjection(separateSegments, [sceneAnchor, secondAnchor], [450, 80]);
+const pairLanes = parallelScene.edges.filter(edge => edge.association).map(edge => edge.index);
+assert.equal(new Set(pairLanes).size, pairLanes.length, 'separate displayed shared associations use distinct curve lanes');
+const twoMedia = { ...sharedData, links: [...sharedData.links,
+  { ...membership(0, canonical[0].id), id: 'ethernet-member-a', medium: 'ethernet' },
+  { ...membership(1, canonical[2].id), id: 'ethernet-member-b', medium: 'ethernet' }] };
+const parallelMedia = model.networkSharedMediumAssociations(twoMedia).filter(pair => pair.from === canonical[0].id && pair.to === canonical[2].id);
+assert.deepEqual(parallelMedia.map(pair => pair.medium).sort(), ['ethernet', 'powerline']);
+assert(parallelMedia.every(pair => pair.memberships.every(link => link.medium === pair.medium)), 'distinct shared media retain their own source membership sets');
+const sparseDirect = { ...sharedData, links: sharedData.links.map((link, index) => index === 17 ? { ...link,
+  kind: 'connection', fromEndpointId: canonical[0].id, toEndpointId: canonical[2].id } : link) };
+const sparseScene = sceneModel.networkSceneProjection(sparseDirect, [sceneAnchor, secondAnchor], [450, 80]);
+assert.equal(sparseScene.edges.length, 2);
+assert.equal(new Set(sparseScene.edges.map(edge => edge.index)).size, 2, 'shared curve lane remains distinct from a sparse direct source edge index');
+const orphanInterface = { ...sharedData, links: sharedData.links.map((link, index) => index === 0 ? { ...link, fromEndpointId: 'orphan-interface' } : link),
+  endpoints: [...sharedData.endpoints, { id: 'orphan-interface', kind: 'interface', label: 'Unbound interface', ownerDeviceId: null, notes: '' }] };
+assert.equal(model.networkSelection(orphanInterface, sharedSelection), null, 'unowned interfaces cannot invent device membership');
+assert.equal(JSON.stringify(sharedData), sharedSnapshot);
+assert(sharedData.devices.every(device => !device.place || device.place.coordinate === null));
+assert(sharedData.links.every(link => link.path === null));
+
+console.log(`PASS network overlay model and graph: ${devices.length} synthetic devices, ${links.length} topology edges, explicit accepted policy, preserved source confidence, endpoint ownership, canonical/native identity separation, reviewed plan references, camera-projected schematic room joins without source placement, accepted shared-medium cross-floor associations, dates, and source immutability`);

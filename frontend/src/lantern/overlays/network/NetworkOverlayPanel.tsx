@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react';
 import type { NetworkOverlayData, NetworkOverlayDevice, NetworkOverlayPanelProps, NetworkOverlaySelection } from './types';
-import { devicePlacement, endpointDeviceId, groupNetworkDevices, networkDevicePlace, networkEndpointLabel, networkLinkLabel, networkPlanReferences, networkReviewedPlaces, networkSelection } from './model';
+import { devicePlacement, endpointDeviceId, groupNetworkDevices, networkDevicePlace, networkEndpointLabel, networkLinkLabel, networkPlanReferences, networkReviewedPlaces, networkSceneSelection } from './model';
 import { Icon } from '../../components/Icon';
 import { ClaimBadge, Note } from '../../components/ui';
 import { LAYER } from '../../atlas/palette';
@@ -20,20 +20,28 @@ export function NetworkOverlayPanel(props: NetworkOverlayPanelProps) {
   const current = active && data?.viewKey === viewKey ? data : null;
   const selection = stored !== null && stored.data === current && stored.placeId === selectedPlaceId
     && stored.packageSelection === selectedPackagePlaces ? stored.selection : null;
-  const chosen = current ? networkSelection(current, selection) : null;
+  const selectionForContext = (next: NetworkOverlaySelection | null) => {
+    if (!current) return null;
+    const reviewed = networkReviewedPlaces(current, selectedPackagePlaces);
+    const eligible = reviewed !== null ? reviewed.devices.map(device => device.id)
+      : selectedPlaceId === null ? current.devices.map(device => device.id)
+        : current.devices.filter(device => networkDevicePlace(device)?.placeId === selectedPlaceId).map(device => device.id);
+    return networkSceneSelection(current, next, eligible, selectedPackagePlaces);
+  };
+  const chosen = selectionForContext(selection);
   const live = () => currentProps.current.active && currentProps.current.viewKey === viewKey
     && currentProps.current.data === current && (currentProps.current.selectedPlaceId ?? null) === selectedPlaceId
     && (currentProps.current.selectedPackagePlaces ?? null) === selectedPackagePlaces && current?.viewKey === viewKey;
   useLayoutEffect(() => {
     if (stored !== null && (current === null || stored.data !== current || stored.placeId !== selectedPlaceId
-      || stored.packageSelection !== selectedPackagePlaces || !networkSelection(current, stored.selection))) {
+      || stored.packageSelection !== selectedPackagePlaces || !selectionForContext(stored.selection))) {
       setStored(null);
       currentProps.current.onSelectionChange?.(null);
     }
   }, [current, selectedPlaceId, selectedPackagePlaces, stored]);
   if (!active) return null;
   const select = (next: NetworkOverlaySelection | null) => {
-    if (!current || !live() || (next !== null && !networkSelection(current, next))) return;
+    if (!current || !live() || (next !== null && !selectionForContext(next))) return;
     setStored(next ? { data: current, placeId: selectedPlaceId, packageSelection: selectedPackagePlaces, selection: next } : null);
     currentProps.current.onSelectionChange?.(next);
     if (next) requestAnimationFrame(() => { if (live()) detail.current?.focus(); });
@@ -95,7 +103,7 @@ export function NetworkOverlayPanel(props: NetworkOverlayPanelProps) {
         </section>;
       })}
     </div><div className="network-overlay-detail" ref={detail} tabIndex={-1} role="region" aria-labelledby={`${id}-selection`}>
-      {chosen ? <><h4 id={`${id}-selection`}>{chosen.kind === 'device' ? chosen.device.label : networkLinkLabel(current, chosen.link)}</h4>
+      {chosen ? <><h4 id={`${id}-selection`}>{chosen.kind === 'device' ? chosen.device.label : chosen.kind === 'shared-medium' ? chosen.association.segment.label : networkLinkLabel(current, chosen.link)}</h4>
         <button type="button" onClick={() => select(null)}>Clear network selection</button>
         {chosen.kind === 'device' ? <><dl><dt>Type</dt><dd>{chosen.device.kind}</dd><dt>Placement</dt><dd>{placement(chosen.device)}</dd>
           {!accepted && <><dt>Confidence</dt><dd>{chosen.device.confidence}</dd></>}
@@ -106,7 +114,10 @@ export function NetworkOverlayPanel(props: NetworkOverlayPanelProps) {
           <h5>Connected topology links</h5>{current.links.filter(link => endpointDeviceId(current, link.fromEndpointId) === chosen.device.id || endpointDeviceId(current, link.toEndpointId) === chosen.device.id)
             .map(link => <button key={link.id} type="button" className="network-overlay-record" onClick={() => select({ kind: 'link', id: link.id })}>
               {networkLinkLabel(current, link)}{link.confidence !== 'accepted' && ` · ${link.confidence}`}</button>)}</>
-          : <><dl><dt>Relation</dt><dd>{accepted ? chosen.link.kind === 'segment-membership' ? 'Segment membership' : 'Connection' : chosen.link.kind === 'hypothesis' ? 'Owner hypothesis; not a source link' : chosen.link.kind}</dd><dt>Medium</dt><dd>{accepted && chosen.link.medium === 'unknown' ? 'Type not recorded' : chosen.link.medium}</dd>{!accepted && <><dt>Confidence</dt><dd>{chosen.link.confidence}</dd><dt>Source confidence</dt><dd>{stamp(chosen.link.sourceConfidence)}</dd><dt>Temporal status</dt><dd>{chosen.link.temporalStatus}</dd></>}<dt>Recorded</dt><dd>{stamp(chosen.link.recordedAt)}</dd><dt>Date precision</dt><dd>{stamp(chosen.link.recordedAtPrecision)}</dd>
+          : chosen.kind === 'shared-medium' ? <><p>Shared {chosen.association.medium} network · Logical connection; physical route unknown.</p>
+            {chosen.association.devices.map(device => <button key={device.id} type="button" onClick={() => select({ kind: 'device', id: device.id })}>{device.label}</button>)}
+            {chosen.association.memberships.map(link => <button key={link.id} type="button" onClick={() => select({ kind: 'link', id: link.id })}>{networkLinkLabel(current, link)}</button>)}
+          </> : <><dl><dt>Relation</dt><dd>{accepted ? chosen.link.kind === 'segment-membership' ? 'Segment membership' : 'Connection' : chosen.link.kind === 'hypothesis' ? 'Owner hypothesis; not a source link' : chosen.link.kind}</dd><dt>Medium</dt><dd>{accepted && chosen.link.medium === 'unknown' ? 'Type not recorded' : chosen.link.medium}</dd>{!accepted && <><dt>Confidence</dt><dd>{chosen.link.confidence}</dd><dt>Source confidence</dt><dd>{stamp(chosen.link.sourceConfidence)}</dd><dt>Temporal status</dt><dd>{chosen.link.temporalStatus}</dd></>}<dt>Recorded</dt><dd>{stamp(chosen.link.recordedAt)}</dd><dt>Date precision</dt><dd>{stamp(chosen.link.recordedAtPrecision)}</dd>
             {!accepted && <><dt>Evidence</dt><dd>{chosen.link.basis || 'Unknown'}</dd></>}<dt>Physical route</dt><dd>Unknown</dd></dl>
             {!accepted && chosen.link.notes && <p>{chosen.link.notes}</p>}
             {[chosen.link.fromEndpointId, chosen.link.toEndpointId].map((endpoint, index) => {

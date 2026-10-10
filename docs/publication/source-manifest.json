@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "632e58521387b38a76d4e43351f5d4bf509375ea8d1817434436b1c309efdc94",
+  "sourceDigestSha256": "df2a8f427cea0c454cdbe7c2adf68e472b45ef5972dfad855916e87f7390d0bf",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 31091,
-      "sha256": "bd0f713e4ff0c2bcc50e7bf303368da3e699266b5ec5bd58ff9483faf4a12c98",
+      "bytes": 31299,
+      "sha256": "fae8f3cf3dbed2bdd45f79a2e2c0f681846eed18f47e71c0f329e2c9ce929ddc",
       "owner": "core-integration"
     },
     {
@@ -5313,8 +5313,8 @@
     {
       "path": "docs/geometry/electricity-overlay.md",
       "mode": "100644",
-      "bytes": 5654,
-      "sha256": "bbd3b0fda502133217d354a70e5910245797c77cc866d34fbbe2680b2e17f445",
+      "bytes": 14067,
+      "sha256": "9a8814f2cdd3917e10cac1d1acd4b574b9116b834657eed3a8af058e1136a920",
       "owner": "web"
     },
     {
@@ -5360,10 +5360,17 @@
       "owner": "web"
     },
     {
+      "path": "docs/geometry/native-scene-source.md",
+      "mode": "100644",
+      "bytes": 6219,
+      "sha256": "ea8aa341d35fcdb2d9767475f8c07f2db77640b493582319bde07b66b040d8f2",
+      "owner": "web"
+    },
+    {
       "path": "docs/geometry/network-overlay.md",
       "mode": "100644",
-      "bytes": 5807,
-      "sha256": "74a0c10f4775676b607560f1492c87595783361cc103cde5baba7a74db00639c",
+      "bytes": 9690,
+      "sha256": "0172b089a5a6ea4ab49dbc7c61944e1b6293485cba607b5469e83b8a39177d6c",
       "owner": "web"
     },
     {
@@ -5913,6 +5920,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "frontend/integration/native-scene-source-client.ts",
+      "mode": "100644",
+      "bytes": 36019,
+      "sha256": "b63b194a70ea6bae5b1629200b7c92f0a72a7b384ac87a65e98f41d97f705708",
+      "owner": "web"
+    },
+    {
       "path": "frontend/integration/pinned-file-client.ts",
       "mode": "100644",
       "bytes": 15112,
@@ -5990,6 +6004,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/electricity-fixture-read.mjs",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 7638,
+      "sha256": "117eab889843852392638fcd31e1cbba29e38cb96751ab7543b252a874f592e0"
+    },
+    {
       "path": "frontend/lantern-tests/electricity-overlay-read.mjs",
       "mode": "100644",
       "bytes": 11640,
@@ -6041,8 +6062,8 @@
     {
       "path": "frontend/lantern-tests/network-overlay-read.mjs",
       "mode": "100644",
-      "bytes": 18553,
-      "sha256": "e82285e01be322f194daebed8417965d337592774a5a14fb3a3f361e38b74105",
+      "bytes": 33724,
+      "sha256": "612919b82b1bb311e8dddd932390ce38dfd0d4bea60facd48469d6f0bc5732c1",
       "owner": "web"
     },
     {
@@ -6928,11 +6949,46 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/overlays/electricity/ElectricityDrawingViewer.tsx",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 4171,
+      "sha256": "223c29eda8358522068a7d0755b5a5a6d3628aa8a68fa0d8fffaaa5aac564227"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/electricity/ElectricityFixtureDiagram.tsx",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 26257,
+      "sha256": "2e6995d70d92af4e30577b656f6d1795b5fe9cacc02711dfe5334fe31602347a"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/electricity/ElectricityFixtureLayer.tsx",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 3788,
+      "sha256": "c87259cbb02d054c85acaade7eb925aa7253e813b29ecb3253825f8a6dc1fc9f"
+    },
+    {
       "path": "frontend/src/lantern/overlays/electricity/ElectricityOverlayPanel.tsx",
       "mode": "100644",
       "bytes": 9907,
       "sha256": "9a8ab917349109bc44eb151e7c46e2734bb03bc36005fbf0af77537b36fed5fc",
       "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/electricity/ElectricitySceneInspector.tsx",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 7118,
+      "sha256": "9f5e384c5d09860b6e10e52142528f0d2b883c81d6d3548366cf872bc5846b91"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/electricity/ElectricitySceneLayer.tsx",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 5848,
+      "sha256": "15dba37d998bb4024193ab59174c08069b9a7055dc5581efc55ecb23114fb223"
     },
     {
       "path": "frontend/src/lantern/overlays/electricity/documentary-adapter.ts",
@@ -6942,6 +6998,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/overlays/electricity/drawing-viewer.css",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 1922,
+      "sha256": "799ce3b95eeb21eeb892666381f219e4d4090d1fd2da2755a1c90f6ec2439fc9"
+    },
+    {
       "path": "frontend/src/lantern/overlays/electricity/electricity.css",
       "mode": "100644",
       "bytes": 1866,
@@ -6949,11 +7012,53 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/overlays/electricity/fixture-model.ts",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 3206,
+      "sha256": "e32bc72f7a238c185fe1ffa8848052e30d720b0219677d9a4b521be0bc88b337"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/electricity/fixture-types.ts",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 6587,
+      "sha256": "f06214442e3f2c24c12d4af9d3b093aace7e35562af6827bfaadabc4c9bde0aa"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/electricity/fixture.css",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 10972,
+      "sha256": "4ccbcaa69f8d6bd34290056b85bb2d4bd58c196ea62f59ce464557bc04d32a36"
+    },
+    {
       "path": "frontend/src/lantern/overlays/electricity/index.ts",
       "mode": "100644",
-      "bytes": 461,
-      "sha256": "37f65b463cf953db7d4848a0983be9abccf1f69e4c31dc7e3fc4fe356bf2f045",
+      "bytes": 1254,
+      "sha256": "d98ba67abd10f2daf968c88cd375a39493a607199e8724cadbde7f95b6121d3b",
       "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/electricity/scene-types.ts",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 2999,
+      "sha256": "5daaac27688bfa3e7a0d4b912cdd5a757c01e7493540933ee325e88404153e30"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/electricity/scene.css",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 3183,
+      "sha256": "670cdeb4e439bc7c8fe874a4a67f51d0afeddded20a903c01fd21c9e8755ffd7"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/electricity/scene.ts",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 4290,
+      "sha256": "1e025d2f03b142f22fd9eceb2784186c1a3f40f49bb99f4cdf692364e1f7f5e6"
     },
     {
       "path": "frontend/src/lantern/overlays/electricity/types.ts",
@@ -6965,8 +7070,22 @@
     {
       "path": "frontend/src/lantern/overlays/network/NetworkOverlayPanel.tsx",
       "mode": "100644",
-      "bytes": 12952,
-      "sha256": "3c130d32ec179dc5e7664c531a1b733dec1aff8320d54ba11b3c279d6654c292",
+      "bytes": 14060,
+      "sha256": "30464019c0c153e281d5dc046b2a80fb8e3f0ee71b525e7a6fedc1f42b9d0544",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/network/NetworkSceneInspector.tsx",
+      "mode": "100644",
+      "bytes": 8871,
+      "sha256": "d9de677f4bc109775866b324550293f372c265f7b1cdc2945abf26c1c2b800c6",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/network/NetworkSceneLayer.tsx",
+      "mode": "100644",
+      "bytes": 7447,
+      "sha256": "4216be9192618490139f93dc934dfd075714af75cc1e7637735d8b94c6354a40",
       "owner": "web"
     },
     {
@@ -6979,15 +7098,15 @@
     {
       "path": "frontend/src/lantern/overlays/network/index.ts",
       "mode": "100644",
-      "bytes": 144,
-      "sha256": "684cce26da8beb9c84aa835ed3abdefad1234a6e1aedee088c50caeb806e06ec",
+      "bytes": 337,
+      "sha256": "50b85fd945b178a9b7344728413f259bc1759671b979a6174a4e397f10079005",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/overlays/network/model.ts",
       "mode": "100644",
-      "bytes": 7451,
-      "sha256": "f81813ef8e1fbd37073032cbbb064f441d655bbef779443aadcce32d95dddb20",
+      "bytes": 10632,
+      "sha256": "def31aec5c4c000480189e4a1579ed28a653731efa462bee1784c3abd4bba3b8",
       "owner": "web"
     },
     {
@@ -6998,10 +7117,24 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/overlays/network/scene.css",
+      "mode": "100644",
+      "bytes": 6365,
+      "sha256": "7c2971d6d2dd425c7995debfcdb105bd4b6dbcfd50e23decbecb0e9a405f9d75",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/network/scene.ts",
+      "mode": "100644",
+      "bytes": 3943,
+      "sha256": "87c8c11b70a3bffd9f8a40f345857f73327fc0b94a2ff63c93a9194dc7026d04",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/overlays/network/types.ts",
       "mode": "100644",
-      "bytes": 4883,
-      "sha256": "3eeaf37645fa8031ac1da4fd79ade2765d44030d207cc445686b271e04a2d37c",
+      "bytes": 6703,
+      "sha256": "cb42f4213c36c4c3eea193ee21dd8c2940686d4ea6176949727f781f9c2714bb",
       "owner": "web"
     },
     {
@@ -7065,6 +7198,13 @@
       "mode": "100644",
       "bytes": 2617,
       "sha256": "5568395388c71f3f1a6fe332b5306b10f65fe5be504845f74cf11bb14c87a18a",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/native-scene-source-types.ts",
+      "mode": "100644",
+      "bytes": 3593,
+      "sha256": "daac63a68016cc55c2f97f60941b257c8c16998aca2980765bdd1ae558ea29d7",
       "owner": "web"
     },
     {
