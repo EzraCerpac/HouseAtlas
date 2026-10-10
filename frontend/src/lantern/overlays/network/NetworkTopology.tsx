@@ -54,7 +54,7 @@ export function NetworkTopology({ data, selection, onSelect, roomDeviceIds = nul
             <path className="network-topology-line" d={path} fill="none" stroke={lineColor} strokeWidth={selected ? 5 : 2.5}
               strokeDasharray={accepted ? undefined : link.kind === 'hypothesis' ? '7 5' : dash(link.medium)} />
             <text x={mx} y={(a[1] + b[1]) / 2 - 7} textAnchor="middle" className="network-topology-edge-label">
-              {accepted && link.medium === 'unknown' ? 'Connection' : link.kind === 'hypothesis' ? 'Tentative hypothesis' : link.medium === 'unknown' ? 'Unknown path' : link.medium}
+              {accepted ? link.medium === 'unknown' ? 'Connection' : link.medium : link.kind === 'hypothesis' ? 'Tentative hypothesis' : link.medium === 'unknown' ? 'Unknown path' : link.medium}
             </text>
           </g>;
         })}

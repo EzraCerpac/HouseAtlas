@@ -70,7 +70,7 @@ export function NetworkOverlayPanel({ active, viewKey, data, selectedFloor = nul
       <h4>Unsited ({groups.unsited.length})</h4>{groups.unsited.map(deviceButton)}
       <details><summary>Excluded from floor placement ({groups.excluded.length})</summary>{groups.excluded.map(deviceButton)}</details>
       {(accepted ? ['source'] as const : ['source', 'hypothesis'] as const).map(category => {
-        const links = current.links.filter(link => (link.kind === 'hypothesis') === (category === 'hypothesis'));
+        const links = accepted ? current.links : current.links.filter(link => (link.kind === 'hypothesis') === (category === 'hypothesis'));
         return <section key={category}><h4>{category === 'source' ? accepted ? 'Saved connections' : 'Topology links' : 'Owner hypotheses'} ({links.length})</h4>
           {category === 'hypothesis' && links.length > 0 && <p>Unverified and excluded from the source link count.</p>}
           {category === 'source' && links.length === 0 && <p>No topology links recorded.</p>}
