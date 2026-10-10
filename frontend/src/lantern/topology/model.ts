@@ -135,8 +135,8 @@ export function buildBuildingModel(index: TopologyIndex, buildingId: string, rec
   const floorIds = new Set(floors.map(f => f.id));
   const direct = [...members].filter(id => id !== buildingId && !floorIds.has(id) && !levelMembers.has(id)).map(id => index.locations.get(id)!).sort(byId);
   const outside = [...index.locations.values()].filter(l => !members.has(l.id)).sort(byId);
-  const assigned = (l: Location) => index.buildings.some(b => b.id === l.id) || index.membership.some(e => e.payload.to.ref.recordId === l.id);
-  return { building, memberCount: members.size, levels, direct,
+  const assigned = (l: Location) => index.membership.some(e => e.payload.to.ref.recordId === l.id);
+  return { building, memberCount: members.size - 1, levels, direct,
     outsideUnassigned: outside.filter(l => !assigned(l)), outsideElsewhere: outside.filter(assigned) };
 }
 export function metres(value: ExactDecimal): string {
