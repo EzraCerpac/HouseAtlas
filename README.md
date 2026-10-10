@@ -64,6 +64,27 @@ cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitra
 These examples preserve original evidence, exact elevations and revision guards.
 They establish no provider admission or actual-household acceptance.
 
+A separately reviewed native naming rehearsal uses a fresh empty synthetic
+local Editor state and an exact private artifact-selection packet. It creates
+and names Atlas places through the real frontend, checks explicit membership,
+then serves a label-compatible fallback with its own compiled frontend against
+the same database and v2 receipt before reopening the candidate. The packet pins
+both binaries, complete frontend file sets, build records, Chrome and OpenSSL.
+The runner confines all application requests to its disposable TLS loopback,
+captures desktop and narrow views, and removes its owned processes and state.
+Inspect the entire runner and exact artifact packet before this named command:
+
+```sh
+node --check tools/rust-integration/healthy-native-place-ui-loopback.mjs
+node tools/rust-integration/healthy-native-place-ui-loopback.mjs /absolute/private/artifact-selection.json
+```
+
+This proves only the reported synthetic naming and compatible-code transition.
+It does not update an installed service or establish household, provider or
+official remote-client acceptance. The original legacy binary is unsuitable
+after label-bearing writes; immediate legacy receipt rollback is limited to an
+unchanged physical cut before any serving.
+
 These named local examples remain outside automatic ordinary CI and establish
 only their reported synthetic behavior.
 
