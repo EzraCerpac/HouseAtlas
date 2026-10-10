@@ -15,6 +15,7 @@ mod capture_claim;
 mod intake;
 mod media;
 mod mutations;
+mod native_geometry;
 mod native_upload_admission;
 mod operation_events;
 mod pages;
@@ -963,6 +964,11 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}", get(stock_reads::list).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}", get(stock_reads::record).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}/history", get(stock_reads::history).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/geometry/v1/workspaces/{workspace_id}/homes/{home_id}/originals", post(native_geometry::original))
+        .route("/api/atlas/geometry/v1/workspaces/{workspace_id}/homes/{home_id}/originals/{original_id}/derivative", post(native_geometry::derivative))
+        .route("/api/atlas/geometry/v1/workspaces/{workspace_id}/homes/{home_id}/buildings/{building_id}/associations", post(native_geometry::associate))
+        .route("/api/atlas/geometry/v1/workspaces/{workspace_id}/homes/{home_id}/buildings/{building_id}", get(native_geometry::descriptors).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/geometry/v1/workspaces/{workspace_id}/homes/{home_id}/buildings/{building_id}/frames/{view_key}/meshes/{key}", get(native_geometry::mesh).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/media/{workspace_id}/{home_id}/{digest}/{mode}", get(media::deliver).fallback(media::other))
         .route("/api/atlas/media/downloads/{workspace_id}/{home_id}/{token}", get(stock_downloads::redeem).fallback(media::other))
         .route("/api/atlas/media/downloads/{workspace_id}/{home_id}/{token}/availability", get(stock_downloads::availability).head(auth::session_head).fallback(media::other))

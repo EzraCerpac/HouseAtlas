@@ -229,6 +229,8 @@ fn safe_integer(value: &dto::JsonInteger) -> MediaResult<u64> {
     }
 }
 
+// New geometry MIME data uses this same frozen AssetRecord projection; this
+// decoder issues no derivative, renderer, storage or access authority.
 pub(super) fn project_asset(record: &s::Record) -> MediaResult<AssetRecord> {
     let bytes = serde_json::to_vec(record).map_err(|_| MediaError::Unavailable)?;
     let typed = dto::decode::<dto::AssetRecord>(&bytes).map_err(|_| MediaError::Unavailable)?;

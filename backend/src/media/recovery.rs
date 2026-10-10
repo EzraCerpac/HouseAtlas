@@ -408,9 +408,51 @@ fn verify_directory<P: RecoveryDatabasePort>(
             {
                 return Err(MediaError::Unavailable);
             }
+            super::content::validate_original_content(
+                &original,
+                super::types::ContentType::parse_owned(&record.payload.content_type)?,
+                budget,
+            )?;
+            if !super::types::ContentType::parse_owned(&record.payload.content_type)?
+                .supports_purpose(record.payload.purpose)
+                || record.payload.preview_policy == PreviewPolicy::SafeRendered
+                    && record.payload.content_type != "image/png"
+            {
+                return Err(MediaError::Unavailable);
+            }
             add_total(&mut total, original.len())?;
             expected.push(member.clone());
         }
+    }
+    // A retained closed mesh also proves its original layer against this same
+    // validated image and the actual immutable original member. No private
+    // converter receipt or current live vault substitutes for recovery bytes.
+    for (record, entry) in assets.iter().zip(&manifest.assets) {
+        if record.payload.content_type != super::mesh_derivative::MIME {
+            continue;
+        }
+        let Some(member) = &entry.blob else {
+            continue;
+        };
+        let bytes = originals.read(member, MAX_BYTES, budget)?;
+        let lineage = super::mesh_derivative::validate(&bytes, budget)?;
+        let matching = assets
+            .iter()
+            .zip(&manifest.assets)
+            .filter(|(source, _)| {
+                source.scope() == record.scope()
+                    && source.payload.purpose == AssetPurpose::GeometryOriginal
+                    && source.payload.content_type == super::types::ContentType::Usdz.as_str()
+                    && source.payload.sha256 == lineage.original_sha256
+                    && source.payload.byte_size == lineage.original_bytes
+            })
+            .collect::<Vec<_>>();
+        if matching.len() != 1 {
+            return Err(MediaError::Unavailable);
+        }
+        let source_member = matching[0].1.blob.as_ref().ok_or(MediaError::Unavailable)?;
+        let source_bytes = originals.read(source_member, MAX_BYTES, budget)?;
+        super::mesh_derivative::qualify(&bytes, &source_bytes, budget)?;
     }
     expected.sort();
     if originals.members()? != expected
