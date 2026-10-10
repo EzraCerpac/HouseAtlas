@@ -255,6 +255,40 @@ impl Client {
         let command = json!({"schemaVersion":3,"commandId":format!("atlas.{kind}.{verb}"),"requestId":id(self.serial),"context":self.scope,"target":if verb == "list" { json!({"authority":"atlas","recordType":kind}) } else { target(kind,n) },"payload":payload});
         self.call(command).await
     }
+    async fn native_asset(
+        &self,
+    ) -> Result<
+        (
+            houseatlas_backend::storage::Record,
+            Vec<houseatlas_backend::storage::Audit>,
+        ),
+        Failure,
+    > {
+        // Actual frozen native GETs retain the full record and durable audit
+        // sequence under the original session/ReadAuthority; Stock's public
+        // record disclosure intentionally has a different closed DTO.
+        let base = format!(
+            "/api/atlas/v1/workspaces/{}/homes/{}/records/asset/{}",
+            id(2),
+            id(3),
+            id(610)
+        );
+        let mut values = Vec::new();
+        for path in [base.clone(), format!("{base}/history")] {
+            let response = self
+                .app
+                .clone()
+                .oneshot(request("GET", &path, Vec::new(), Some(&self.cookie), None)?)
+                .await?;
+            assert_eq!(response.status(), StatusCode::OK);
+            values.push(serde_json::from_slice::<Value>(
+                &to_bytes(response.into_body(), MAX_RESPONSE).await?,
+            )?);
+        }
+        let record = serde_json::from_value(values.remove(0))?;
+        let audits = serde_json::from_value(values.remove(0))?;
+        Ok((record, audits))
+    }
 }
 
 fn work() -> houseatlas_backend::media::WorkBudget {
@@ -490,11 +524,27 @@ async fn healthy() -> Result<(), Failure> {
     assert!(!asset_result.replayed);
     assert_eq!(asset_result.record.revision, 1);
     assert_eq!(asset_result.audit.actor_id, id(5));
+    let mut public_payload = asset_result.record.payload.clone();
+    assert!(
+        public_payload
+            .as_object_mut()
+            .ok_or("Missing native asset payload object")?
+            .remove("storageKey")
+            .is_some()
+    );
+    // Match the actual Stock owner disclosure: only these four fields, with
+    // the single private storageKey omitted from the otherwise exact payload.
+    let public_asset = json!({"target":target("asset",610),
+        "revision":asset_result.record.revision,"lifecycle":asset_result.record.lifecycle,
+        "payload":public_payload});
     let actual_asset = client.read("asset", "get", 610, json!({})).await?;
     assert_eq!(
-        actual_asset["data"]["records"][0],
-        serde_json::to_value(&asset_result.record)?
+        actual_asset["data"]["records"],
+        json!([public_asset.clone()])
     );
+    let (native_asset, native_audits) = client.native_asset().await?;
+    assert_eq!(native_asset, asset_result.record);
+    assert_eq!(native_audits, vec![asset_result.audit.clone()]);
     drop(client);
     drop(lease);
     // Source is now genuinely closed. No source checkpoint/Access opener is
@@ -596,10 +646,10 @@ async fn healthy() -> Result<(), Failure> {
         .await?;
     assert_eq!(history["data"], building_history["data"]);
     let actual = reopened.read("asset", "get", 610, json!({})).await?;
-    assert_eq!(
-        actual["data"]["records"][0],
-        serde_json::to_value(&asset_result.record)?
-    );
+    assert_eq!(actual["data"]["records"], json!([public_asset]));
+    let (reopened_asset, reopened_audits) = reopened.native_asset().await?;
+    assert_eq!(reopened_asset, native_asset);
+    assert_eq!(reopened_audits, native_audits);
     println!(
         "healthy native offline backup: actual Stock building/history and owned PDF; full owner-peer image validation and isolated strict reopen; source bytes unchanged"
     );
