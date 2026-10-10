@@ -2,6 +2,8 @@
  * scope. The session allocation stays private to this client. */
 import type { AtlasSessionInfo } from '../app/session';
 import type { Scope } from '../app/types';
+import { ExactDecimal, isExactDecimal } from '../numeric/decimal';
+import { parseLosslessJson } from '../numeric/lossless-json';
 
 /** Identity of one actual session allocation and completed view scope. It
  * carries no session token; only reference equality is meaningful. */
@@ -25,7 +27,8 @@ export interface NetworkRelationItem {
   readonly from: NetworkRelationEndpoint;
   readonly to: NetworkRelationEndpoint;
   readonly medium: 'ethernet' | 'wifi' | 'powerline' | 'wan' | 'other' | 'unknown';
-  readonly sourceRevision: number | null;
+  /** Exact canonical nonnegative integer token for display and serialization. */
+  readonly sourceRevision: string | null;
   readonly sourceSnapshotAt: string | null;
   readonly retrievedAt: string;
   readonly vantage: string | null;
@@ -153,8 +156,13 @@ function dateTime(value: unknown): string {
     || Number(match[7] ?? 0) > 23 || Number(match[8] ?? 0) > 59) invalid();
   return value;
 }
+function schemaVersion(value: unknown): void {
+  if (isExactDecimal(value)) {
+    if (value.compare(ExactDecimal.parse('1')) !== 0) invalid();
+  } else if (value !== 1) invalid();
+}
 function scoped(row: Record<string, unknown>, scope: Readonly<Scope>): { workspaceId: string; homeId: string } {
-  if (row['schemaVersion'] !== 1) invalid();
+  schemaVersion(row['schemaVersion']);
   const workspaceId = uuid(row['workspaceId']), homeId = uuid(row['homeId']);
   if (workspaceId !== scope.workspaceId || homeId !== scope.homeId) invalid();
   return { workspaceId, homeId };
@@ -168,10 +176,16 @@ function endpoint(value: unknown): NetworkRelationEndpoint {
   };
   return Object.freeze(decoded);
 }
-function revision(value: unknown): number | null {
+function revision(value: unknown): string | null {
   if (value === null) return null;
+  if (isExactDecimal(value)) {
+    if (!value.isInteger || value.compare(ExactDecimal.parse('0')) < 0) invalid();
+    return value.token;
+  }
+  // Direct synthetic callers can supply a Number only when it is provably exact.
+  // An already-rounded unsafe Number cannot recover its original HTTP token.
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) invalid();
-  return value;
+  return String(value);
 }
 function relation(value: unknown, scope: Readonly<Scope>): NetworkRelationItem {
   const row = object(value, relationKeys);
@@ -414,7 +428,7 @@ export function createNetworkRelationsClient(options: {
       if (bytes === 'tooLarge') return tooLarge;
       if (bytes === null) return expiredTimer ? timedOut : unavailable;
       let value: unknown;
-      try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)); } catch { return invalidRead; }
+      try { value = parseLosslessJson(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)); } catch { return invalidRead; }
       assertCurrent();
       try { return { status: 'ready', page: decodeNetworkRelationsPage(value, binding.scope), bytes: bytes.byteLength }; } catch { return invalidRead; }
     } finally {

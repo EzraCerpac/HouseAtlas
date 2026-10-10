@@ -3,6 +3,7 @@ import type { AiLifecycleWirePort } from '../wire.js';
 import { AiModelsUnauthorizedError } from '../types.js';
 import type { AiClient, ReviewInput } from '../types.js';
 import { decodeCancelReceipt, decodeConnectionSnapshot, decodeModelDiscovery, decodeRequestStatus, decodeRunOutcome } from './decode.js';
+import { JSON_LIMITS, parseLosslessJson } from '../../numeric/lossless-json';
 
 // Local settlement covers headers and body, not server cancellation or retry safety.
 const readTimeoutMs = 15_000;
@@ -28,7 +29,7 @@ async function withReadDeadline<T>(outer: AbortSignal, exchange: (signal: AbortS
     controller.signal.removeEventListener('abort', abort);
   }
 }
-async function receive(response: Response, signal: AbortSignal): Promise<unknown> {
+async function receive(response: Response, signal: AbortSignal, exactNumbers = false): Promise<unknown> {
   const reader = response.body?.getReader();
   if (!reader) throw new TypeError('Response body missing');
   const cancel = () => { void reader.cancel().catch(() => undefined); };
@@ -42,12 +43,14 @@ async function receive(response: Response, signal: AbortSignal): Promise<unknown
       signal.throwIfAborted();
       if (part.done) break;
       length += part.value.byteLength;
+      if (exactNumbers && length > JSON_LIMITS.textBytes) throw new RangeError('AI JSON response exceeds the processing limit');
       chunks.push(part.value);
     }
     const bytes = new Uint8Array(length);
     let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+    const body = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+    return exactNumbers ? parseLosslessJson(body) : JSON.parse(body) as unknown;
   } catch (error) { cancel(); throw error; }
   finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
 }
@@ -106,7 +109,7 @@ function localPath(path: string): string {
 export function createAiHostClient(options: AiHostHttpOptions): AiClient {
   const transport = options.fetch ?? globalThis.fetch;
   const endpoints = { ...options.endpoints };
-  async function request(path: string, signal: AbortSignal, body?: unknown, modelsRead = false, receiveBody = false): Promise<unknown> {
+  async function request(path: string, signal: AbortSignal, body?: unknown, modelsRead = false, receiveBody = false, exactNumbers = false): Promise<unknown> {
     const url = localPath(path);
     const headers = new Headers(body === undefined ? undefined : await options.mutationHeaders(signal));
     headers.set('Accept', 'application/json');
@@ -121,23 +124,23 @@ export function createAiHostClient(options: AiHostHttpOptions): AiClient {
     if (!response.ok) discard(response);
     if (modelsRead && (response.status === 401 || response.status === 403)) throw new AiModelsUnauthorizedError(response.status);
     if (!response.ok) throw new Error('AI host response is unavailable');
-    const value: unknown = receiveBody ? await receive(response, signal) : await response.json();
+    const value: unknown = receiveBody ? await receive(response, signal, exactNumbers) : await response.json();
     signal.throwIfAborted();
     return value;
   }
-  function read(path: string, signal: AbortSignal, modelsRead = false): Promise<unknown> {
-    return withReadDeadline(signal, bounded => request(path, bounded, undefined, modelsRead, true));
+  function read(path: string, signal: AbortSignal, modelsRead = false, exactNumbers = false): Promise<unknown> {
+    return withReadDeadline(signal, bounded => request(path, bounded, undefined, modelsRead, true, exactNumbers));
   }
   return bindAiHostPort({
     ...(endpoints.models === undefined ? {} : { models: (signal: AbortSignal) => read(endpoints.models!, signal, true) }),
     connection: signal => read(endpoints.connection, signal),
     connectionAction: (input, signal) => request(endpoints.connectionAction, signal, input),
     connectionActionStatus: (actionId, signal) => read(endpoints.connectionActionStatus(actionId), signal),
-    run: (input, signal) => request(endpoints.run, signal, input),
+    run: (input, signal) => request(endpoints.run, signal, input, false, true, true),
     // The donor deliberately separates cancellation from the result's AbortSignal.
     cancel: requestId => withReadDeadline(new AbortController().signal, signal => request(endpoints.cancel(requestId), signal, { requestId }, false, true)),
     openReview: (input, signal) => request(endpoints.openReview, signal, input),
-    resume: (input, signal) => request(endpoints.resume, signal, input),
-    requestStatus: (requestId, signal) => read(endpoints.requestStatus(requestId), signal),
+    resume: (input, signal) => request(endpoints.resume, signal, input, false, true, true),
+    requestStatus: (requestId, signal) => read(endpoints.requestStatus(requestId), signal, false, true),
   });
 }
