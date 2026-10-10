@@ -40,6 +40,7 @@ tokio-util.workspace = true
 flate2.workspace = true
 crc32fast.workspace = true
 png.workspace = true
+zune-jpeg.workspace = true
 rustix.workspace = true
 tempfile.workspace = true
 ring.workspace = true
@@ -179,3 +180,7 @@ path = "src/lifecycle/receipt_compatibility_healthy.rs"
 [[example]]
 name = "healthy-native-place-labels"
 path = "examples/healthy-native-place-labels.rs"
+
+[[example]]
+name = "healthy-contextual-evidence-capture"
+path = "examples/healthy-contextual-evidence-capture.rs"

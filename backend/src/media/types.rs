@@ -273,6 +273,7 @@ impl AssetRecord {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ContentType {
     Png,
+    Jpeg,
     Pdf,
     Text,
 }
@@ -281,6 +282,7 @@ impl ContentType {
     pub fn parse(value: &str) -> MediaResult<Self> {
         match value {
             "image/png" => Ok(Self::Png),
+            "image/jpeg" => Ok(Self::Jpeg),
             "application/pdf" => Ok(Self::Pdf),
             "text/plain" => Ok(Self::Text),
             _ => Err(MediaError::Unsupported),
@@ -290,6 +292,7 @@ impl ContentType {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Png => "image/png",
+            Self::Jpeg => "image/jpeg",
             Self::Pdf => "application/pdf",
             Self::Text => "text/plain",
         }
@@ -298,6 +301,7 @@ impl ContentType {
     pub fn extension(self) -> &'static str {
         match self {
             Self::Png => "png",
+            Self::Jpeg => "jpg",
             Self::Pdf => "pdf",
             Self::Text => "txt",
         }

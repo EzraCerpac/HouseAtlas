@@ -84,17 +84,7 @@ pub fn plan_fresh_upload_batch<'u>(
             "requestId": inputs.evidence_request_id, "context": metadata.context,
             "target": {"authority": "atlas", "recordType": "evidence",
                 "recordId": inputs.evidence_id},
-            "payload": {
-                "statement": metadata.statement,
-                "provenance": {
-                    "source": null, "sourceRevision": null, "sourceConfidence": null,
-                    "evidenceBasis": "unknown", "factAt": null,
-                    "retrievedAt": inputs.retrieved_at, "vantage": null,
-                    "uncertainty": {"status": "unknown", "explanation": null}
-                },
-                "supersedesEvidenceIds": [],
-                "references": [{"kind": "atlas-asset", "assetId": staged.asset_id()}]
-            },
+            "payload": evidence_payload(metadata, inputs, staged.asset_id()),
             "idempotencyKey": inputs.evidence_key, "reason": metadata.reason,
             "preconditions": {"target": null, "guards": guards},
             "approvalReceiptId": null
@@ -142,11 +132,7 @@ pub fn plan_existing_upload_batch<'u>(
             "schemaVersion":3,"commandId":"atlas.evidence.create",
             "requestId":inputs.evidence_request_id,"context":metadata.context,
             "target":{"authority":"atlas","recordType":"evidence","recordId":inputs.evidence_id},
-            "payload":{"statement":metadata.statement,"provenance":{
-                "source":null,"sourceRevision":null,"sourceConfidence":null,"evidenceBasis":"unknown",
-                "factAt":null,"retrievedAt":inputs.retrieved_at,"vantage":null,
-                "uncertainty":{"status":"unknown","explanation":null}},
-                "supersedesEvidenceIds":[],"references":[{"kind":"atlas-asset","assetId":asset.asset_id()}]},
+            "payload":evidence_payload(metadata, inputs, asset.asset_id()),
             "idempotencyKey":inputs.evidence_key,"reason":metadata.reason,
             "preconditions":{"target":null,"guards":guards},"approvalReceiptId":null
         }),
@@ -172,4 +158,20 @@ pub fn plan_existing_upload_batch<'u>(
         }),
     )?;
     qualified_upload_plan::qualify_existing(principal, selection, &root, asset, measured)
+}
+
+/// Preserve browser labels separately from server retrieval and unknown fact time.
+fn evidence_payload(
+    metadata: &UploadMetadata,
+    inputs: &FreshUploadInputs,
+    asset_id: &str,
+) -> serde_json::Value {
+    let payload = json!({
+        "statement":metadata.statement,"provenance":{
+            "source":null,"sourceRevision":null,"sourceConfidence":null,"evidenceBasis":"unknown",
+            "factAt":null,"retrievedAt":inputs.retrieved_at,"vantage":metadata.capture.as_ref().map(|capture| capture.vantage()),
+            "uncertainty":{"status":"unknown","explanation":null}},
+        "supersedesEvidenceIds":[],"references":[{"kind":"atlas-asset","assetId":asset_id}]
+    });
+    payload
 }

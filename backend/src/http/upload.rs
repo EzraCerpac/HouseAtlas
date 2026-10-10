@@ -23,7 +23,7 @@ use std::time::Duration;
 
 pub(super) fn policy() -> serde_json::Value {
     json!({
-        "contentTypes":["image/png","application/pdf","text/plain"],
+        "contentTypes":["image/png","image/jpeg","application/pdf","text/plain"],
         "maximumBytes":upload_intake::MAX_FILE_BYTES,
         "licenses":[{"label":"Unknown","value":{"status":"unknown","reference":null}}]
     })

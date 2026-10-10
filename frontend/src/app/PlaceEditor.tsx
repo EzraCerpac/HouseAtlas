@@ -9,6 +9,8 @@ import type { LocationSemanticsPayloadSemanticKind } from "../api/generated/cont
 import type { StockResultEnvelope } from "../webmcp/stock.js";
 import type { AtlasEditingClient, PlaceEditAdmission } from "./editing";
 import type { Entry } from "./types";
+import { EvidencePicker } from "../capture-evidence/EvidencePicker";
+import type { EvidenceSelection } from "../capture-evidence/selection";
 
 const kinds: readonly LocationSemanticsPayloadSemanticKind[] = [
   "unclassified",
@@ -65,15 +67,19 @@ export function PlaceEditor({
   const [status, setStatus] = useState(""),
     [receipt, setReceipt] = useState<StockResultEnvelope | null>(null);
   const [licenseSelection, setLicenseSelection] = useState("");
+  const [selection, setSelection] = useState<EvidenceSelection | null>(null);
+  const [evidenceOnly, setEvidenceOnly] = useState(false);
   const active = useRef<AbortController | null>(null);
+  const submitting = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
+  const evidenceOpener = useRef<HTMLButtonElement>(null);
   const restoreOpener = useRef(false);
   useEffect(() => () => active.current?.abort(), []);
   useLayoutEffect(() => {
     if (!open && restoreOpener.current) {
       restoreOpener.current = false;
-      opener.current?.focus();
+      (evidenceOnly ? evidenceOpener : opener).current?.focus();
     }
   }, [open]);
   const source = {
@@ -104,7 +110,9 @@ export function PlaceEditor({
     setStatus(progress);
     return controller;
   };
-  const show = async () => {
+  const show = async (forEvidence = false) => {
+    setEvidenceOnly(forEvidence);
+    setSelection(null);
     const controller = begin();
     setOpen(true);
     try {
@@ -133,6 +141,8 @@ export function PlaceEditor({
     action: (signal: AbortSignal) => Promise<StockResultEnvelope>,
     progress: string,
   ) => {
+    if (submitting.current) return;
+    submitting.current = true;
     const controller = begin(progress);
     setReceipt(null);
     let saved = false,
@@ -157,6 +167,7 @@ export function PlaceEditor({
         return;
       }
       saved = true;
+      setSelection(null);
       if (!(await refresh()) || controller.signal.aborted) {
         setAdmission(null);
         if (!controller.signal.aborted)
@@ -185,6 +196,7 @@ export function PlaceEditor({
         );
       }
     } finally {
+      submitting.current = false;
       if (!controller.signal.aborted) setBusy(false);
     }
   };
@@ -243,7 +255,7 @@ export function PlaceEditor({
     const reason = readReason(event.currentTarget);
     if (!reason) return;
     const fields = new FormData(event.currentTarget),
-      file = fields.get("file");
+      file = selection?.file;
     const policy = admission.attachmentPolicy,
       licenseValue = fields.get("license");
     const license =
@@ -277,6 +289,7 @@ export function PlaceEditor({
           statement,
           sourceLicense: license.value,
           reason,
+          ...(selection ? { capture: selection.capture } : {}),
         },
         signal,
       );
@@ -294,18 +307,19 @@ export function PlaceEditor({
         <button ref={opener} type="button" onClick={() => void show()}>
           Edit Atlas place
         </button>
+        {client.uploadPlaceEvidence && <button ref={evidenceOpener} type="button" onClick={() => void show(true)}>Add evidence</button>}
       </div>
     );
   const policy = admission?.attachmentPolicy;
   return (
     <section aria-label="Atlas place editing" aria-busy={busy}>
       <h2 ref={heading} tabIndex={-1}>
-        Atlas place
+        {evidenceOnly ? `Add evidence · ${entry.entity.name}` : "Atlas place"}
       </h2>
       <p role="status" aria-live="polite">
         {status}
       </p>
-      {admission?.canReplaceClassification && (
+      {admission?.canReplaceClassification && !evidenceOnly && (
         <div className="setting">
           <form
             className="session-form"
@@ -346,21 +360,8 @@ export function PlaceEditor({
             aria-label="Atlas attachment"
             onSubmit={upload}
           >
-            <h3>Atlas evidence attachment</h3>
-            <label>
-              <span>File</span>
-              <input
-                name="file"
-                type="file"
-                accept={policy.contentTypes.join(",")}
-                required
-                disabled={busy}
-              />
-            </label>
-            <p className="muted">
-              Maximum {policy.maximumBytes} bytes.{" "}
-              {policy.contentTypes.join(", ")}
-            </p>
+            <h3>Add evidence</h3>
+            <EvidencePicker key={receipt?.requestId ?? "unsubmitted"} policy={policy} busy={busy} value={selection} onChange={setSelection} />
             <label>
               <span>Evidence statement</span>
               <input
@@ -388,8 +389,8 @@ export function PlaceEditor({
               </select>
             </label>
             <ReasonField busy={busy} />
-            <button type="submit" disabled={busy}>
-              Upload attachment
+            <button type="submit" disabled={busy || !selection}>
+              Upload evidence
             </button>
           </form>
         </div>
@@ -408,6 +409,7 @@ export function PlaceEditor({
           setOpen(false);
           setAdmission(null);
           setReceipt(null);
+          setSelection(null);
         }}
       >
         Close

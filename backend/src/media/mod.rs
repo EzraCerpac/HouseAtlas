@@ -50,5 +50,5 @@ pub(crate) use private_fs::PrivateDir;
 pub use types::{MediaError, MediaResult};
 pub use vault::AssetVault;
 
-pub const MEDIA_VERSION: &str = "0.1.1";
+pub const MEDIA_VERSION: &str = "0.1.2";
 pub const MAX_BYTES: usize = 10 * 1024 * 1024;
