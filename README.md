@@ -64,6 +64,23 @@ WebGL effects, picking, GPU disposal or actual private export. The viewer remain
 unmounted; original and derivative admission, physical scale, floor alignment
 and guarded native import remain unqualified.
 
+A separate successful in-process geometry example uses an empty disposable native
+state and its actual local Editor session. It saves a synthetic USDZ framing
+original and its immutable closed-profile derivative as two distinct asset
+roots, then commits the three-child building association through canonical
+HTTP. It validates retained correlation, exact delivered bytes, server-owned
+import time, history and strict reopen. Inspect the complete example and native
+geometry/Media owners before this exact command:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision --example healthy-native-geometry-custody-first
+```
+
+The fixture has synthetic USDC-signature framing and does not execute usdcat or
+establish USD scene semantics, original/derivative conversion authenticity,
+physical placement, actual household intake or recovery/fallback compatibility.
+It opens no listener, contacts no provider and runs no failure or denial case.
+
 A source-free native place example creates a building and room with explicit
 reviewed membership, then renames and clears only an Atlas classification label.
 The browser fixture uses injected synthetic responses and exact retained tokens.
