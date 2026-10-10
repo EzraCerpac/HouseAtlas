@@ -3,8 +3,14 @@ import addFormats from 'ajv-formats';
 import agent from '../../../contracts/stock-wire3/agent/agent.schema.json' with { type: 'json' };
 import atlas from '../../../packages/contracts/schemas/atlas.schema.json' with { type: 'json' };
 import catalog from '../../../contracts/stock-wire3/agent/operation-catalog.json' with { type: 'json' };
+import { isExactDecimal } from '../numeric/decimal';
+import { JSON_LIMITS, parseLosslessJson, type LosslessJson } from '../numeric/lossless-json';
+import { createExactStockResultValidator } from '../numeric/schema-validator';
 import type { Scope } from '../app/types';
-import type { StockHostContext, StockRequestEnvelope, StockResultEnvelope } from '../webmcp/stock';
+import type { StockHostContext, StockRequestEnvelope } from '../webmcp/stock';
+
+/** Internal retained wire tree; canonical stock DTOs remain unchanged. */
+export type RetainedStockResultEnvelope = { readonly requestId: string; readonly [key: string]: LosslessJson };
 
 export interface RetainedIntentInspection {
   format: 'atlas-retained-intent-inspection/1';
@@ -17,14 +23,14 @@ export interface RetainedIntentInspection {
   commandId: string;
   requestDigest: string;
 }
-export interface RetainedIntentReceipt {
+export type RetainedIntentReceipt = LosslessJson & {
   format: 'atlas-retained-reconciliation/1';
   lookupRequestId: string;
   inspection: RetainedIntentInspection;
   committedResult: null | {
     originalRequestId: string;
-    wire: StockResultEnvelope;
-    children: StockResultEnvelope[];
+    wire: RetainedStockResultEnvelope;
+    children: RetainedStockResultEnvelope[];
     originalMediaRelease: 'not-established';
     originalHttpDelivery: 'not-established';
   };
@@ -57,26 +63,43 @@ async function withReadDeadline<T>(outer: AbortSignal, exchange: (signal: AbortS
     controller.signal.removeEventListener('abort', abort);
   }
 }
-async function receive(response: Response, signal: AbortSignal): Promise<unknown> {
+async function receive(response: Response, signal: AbortSignal): Promise<LosslessJson> {
+  const declaredLength = response.headers.get('Content-Length');
+  if (declaredLength !== null) {
+    const contentLength = Number(declaredLength);
+    if (!/^[0-9]+$/.test(declaredLength) || !Number.isSafeInteger(contentLength) || contentLength > JSON_LIMITS.textBytes) {
+      discard(response);
+      throw new TypeError('Retained intent response exceeded byte bound');
+    }
+  }
   const reader = response.body?.getReader();
   if (!reader) throw new TypeError('Response body missing');
   const cancel = () => { void reader.cancel().catch(() => undefined); };
   signal.addEventListener('abort', cancel, { once: true });
-  const chunks: Uint8Array[] = [];
   let length = 0;
   try {
+    // One owned buffer also bounds per-chunk metadata for the complete receipt.
+    let bytes = new Uint8Array(Math.min(16 * 1024, JSON_LIMITS.textBytes));
     for (;;) {
       signal.throwIfAborted();
       const part = await reader.read();
       signal.throwIfAborted();
       if (part.done) break;
-      length += part.value.byteLength;
-      chunks.push(part.value);
+      if (part.value.byteLength > JSON_LIMITS.textBytes - length)
+        throw new TypeError('Retained intent response exceeded byte bound');
+      if (part.value.byteLength === 0) continue;
+      const nextLength = length + part.value.byteLength;
+      if (nextLength > bytes.byteLength) {
+        let capacity = bytes.byteLength;
+        while (capacity < nextLength) capacity = Math.min(capacity * 2, JSON_LIMITS.textBytes);
+        const grown = new Uint8Array(capacity);
+        grown.set(bytes.subarray(0, length));
+        bytes = grown;
+      }
+      bytes.set(part.value, length);
+      length = nextLength;
     }
-    const bytes = new Uint8Array(length);
-    let offset = 0;
-    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+    return parseLosslessJson(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, length)));
   } catch (error) { cancel(); throw error; }
   finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
 }
@@ -86,6 +109,7 @@ const validator = new Ajv2020({ strict: true, allErrors: true, allowUnionTypes: 
 addFormats(validator);
 validator.addSchema(atlas);
 validator.addSchema(agent);
+const exactResult = createExactStockResultValidator();
 const uuid = { type: 'string', format: 'uuid', pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' };
 const nullableUuid = { anyOf: [uuid, { type: 'null' }] };
 const validateScope = validator.getSchema(`${agent.$id}#/$defs/contextSelection`)!;
@@ -143,6 +167,7 @@ export function canReadRetainedIntent(request: StockRequestEnvelope): boolean {
   try { intentBody(request); return true; } catch { return false; }
 }
 function equalJson(left: unknown, right: unknown): boolean {
+  if (isExactDecimal(left)) return isExactDecimal(right) && left.compare(right) === 0;
   if (left === right) return true;
   if (Array.isArray(left)) return Array.isArray(right) && left.length === right.length
     && left.every((value, index) => equalJson(value, right[index]));
@@ -151,10 +176,9 @@ function equalJson(left: unknown, right: unknown): boolean {
   return Object.keys(a).length === Object.keys(b).length
     && Object.keys(a).every(key => Object.hasOwn(b, key) && equalJson(a[key], b[key]));
 }
-function validateWire(request: StockRequestEnvelope, wire: StockResultEnvelope, originalRequestId: string, scope: Scope) {
+function validateWire(request: StockRequestEnvelope, wire: RetainedStockResultEnvelope, originalRequestId: string, scope: Scope) {
   const operation = operationFor(request);
-  const check = validator.getSchema(agent.$id + operation.outputSchema);
-  if (!check || !check(wire) || wire.requestId !== originalRequestId
+  if (!exactResult.validateMutation(request.commandId, operation.outputSchema, wire) || wire.requestId !== originalRequestId
     || wire['commandId'] !== request.commandId || !sameScope(wire['resolvedScope'] as unknown as Scope, scope))
     throw new TypeError('Retained wire receipt correlation differs');
 }
@@ -190,7 +214,7 @@ export function createRetainedIntentClient(transport: typeof fetch = globalThis.
           if (response.status === 401) return { status: 'expired' };
           if (response.status === 403) return { status: 'denied' };
           if (!response.ok) return { status: 'unavailable' };
-          const value: unknown = await receive(response, signal);
+          const value = await receive(response, signal);
           signal.throwIfAborted(); check();
           if (!validateReceipt(value)) throw new TypeError('Retained intent receipt is incompatible');
           const inspection = value.inspection;

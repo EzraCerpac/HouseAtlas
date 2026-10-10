@@ -15,6 +15,53 @@ const roots: Record<StockResultKind, string> = {
   relation: 'result_atlas_relation_list',
   evidence: 'result_atlas_evidence_get',
 };
+// Closed Atlas write outputs from catalog SHA-256 f369fdf13aaebf836760f5b5d2160214c16706f89e2ea5898e80c6a857d9ab4c.
+const mutationRoots: Readonly<Record<string, string>> = Object.freeze({
+  "atlas.identity.create": "#/$defs/result_atlas_identity_create",
+  "atlas.identity.replace": "#/$defs/result_atlas_identity_replace",
+  "atlas.identity.tombstone": "#/$defs/result_atlas_identity_tombstone",
+  "atlas.identity.restore": "#/$defs/result_atlas_identity_restore",
+  "atlas.binding.create": "#/$defs/result_atlas_binding_create",
+  "atlas.binding.review": "#/$defs/result_atlas_binding_review",
+  "atlas.binding.tombstone": "#/$defs/result_atlas_binding_tombstone",
+  "atlas.binding.restore": "#/$defs/result_atlas_binding_restore",
+  "atlas.evidence.create": "#/$defs/result_atlas_evidence_create",
+  "atlas.evidence.tombstone": "#/$defs/result_atlas_evidence_tombstone",
+  "atlas.evidence.restore": "#/$defs/result_atlas_evidence_restore",
+  "atlas.location-semantics.create": "#/$defs/result_atlas_location_semantics_create",
+  "atlas.location-semantics.replace": "#/$defs/result_atlas_location_semantics_replace",
+  "atlas.location-semantics.tombstone": "#/$defs/result_atlas_location_semantics_tombstone",
+  "atlas.location-semantics.restore": "#/$defs/result_atlas_location_semantics_restore",
+  "atlas.circuit.create": "#/$defs/result_atlas_circuit_create",
+  "atlas.circuit.replace": "#/$defs/result_atlas_circuit_replace",
+  "atlas.circuit.tombstone": "#/$defs/result_atlas_circuit_tombstone",
+  "atlas.circuit.restore": "#/$defs/result_atlas_circuit_restore",
+  "atlas.valve.create": "#/$defs/result_atlas_valve_create",
+  "atlas.valve.replace": "#/$defs/result_atlas_valve_replace",
+  "atlas.valve.tombstone": "#/$defs/result_atlas_valve_tombstone",
+  "atlas.valve.restore": "#/$defs/result_atlas_valve_restore",
+  "atlas.relation.create": "#/$defs/result_atlas_relation_create",
+  "atlas.relation.replace": "#/$defs/result_atlas_relation_replace",
+  "atlas.relation.tombstone": "#/$defs/result_atlas_relation_tombstone",
+  "atlas.relation.restore": "#/$defs/result_atlas_relation_restore",
+  "atlas.geometry.create": "#/$defs/result_atlas_geometry_create",
+  "atlas.geometry.tombstone": "#/$defs/result_atlas_geometry_tombstone",
+  "atlas.geometry.restore": "#/$defs/result_atlas_geometry_restore",
+  "atlas.asset.create": "#/$defs/result_atlas_asset_create",
+  "atlas.asset.review": "#/$defs/result_atlas_asset_review",
+  "atlas.asset.tombstone": "#/$defs/result_atlas_asset_tombstone",
+  "atlas.asset.restore": "#/$defs/result_atlas_asset_restore",
+  "atlas.reconciliation.create": "#/$defs/result_atlas_reconciliation_create",
+  "atlas.reconciliation.tombstone": "#/$defs/result_atlas_reconciliation_tombstone",
+  "atlas.reconciliation.restore": "#/$defs/result_atlas_reconciliation_restore",
+  "atlas.binding.remap": "#/$defs/result_atlas_binding_remap",
+  "atlas.binding.reassign-identity": "#/$defs/result_atlas_binding_reassign_identity",
+  "atlas.asset.hard-purge": "#/$defs/result_atlas_asset_hard_purge",
+  "atlas.evidence.replace": "#/$defs/result_atlas_evidence_replace",
+  "atlas.geometry.replace": "#/$defs/result_atlas_geometry_replace",
+  "atlas.reconciliation.replace": "#/$defs/result_atlas_reconciliation_replace",
+  "atlas.batch.execute": "#/$defs/result_atlas_batch_execute",
+});
 const agentId = 'urn:houseatlas:agent:stock:3';
 const atlasId = 'https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json';
 const dialect = 'https://json-schema.org/draft/2020-12/schema';
@@ -238,6 +285,8 @@ export function createExactStockResultValidator() {
     return result;
   };
   const compiled = Object.fromEntries(Object.entries(roots).map(([kind, name]) => [kind, resolve(`${agentId}#/$defs/${name}`, agentId)])) as Record<StockResultKind, Compiled>;
+  const compiledMutations = Object.fromEntries(Object.entries(mutationRoots).map(([command, ref]) =>
+    [command, resolve(`${agentId}${ref}`, agentId)])) as Record<string, Compiled>;
   const evaluate = (node: Compiled, value: LosslessJson): boolean => {
       if (typeof node.schema === 'boolean') return node.schema;
       const schema = node.schema;
@@ -304,6 +353,11 @@ export function createExactStockResultValidator() {
     validate(kind: StockResultKind, value: LosslessJson): boolean {
       if (!has(compiled, kind)) throw new TypeError('Unknown stock result kind');
       return evaluate(compiled[kind], value);
+    },
+    validateMutation(commandId: string, schemaRef: string, value: LosslessJson): boolean {
+      if (!has(mutationRoots, commandId) || mutationRoots[commandId] !== schemaRef)
+        throw new TypeError('Unsupported stock mutation result');
+      return evaluate(compiledMutations[commandId]!, value);
     },
   };
 }

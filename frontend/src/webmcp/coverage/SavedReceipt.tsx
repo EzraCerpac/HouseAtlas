@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { canReadRetainedIntent, createRetainedIntentClient, type RetainedIntentRead } from "../../api/retained-intent-client.js";
 import type { StockCompletion, StockSessionPort } from "../stock.js";
+import { stringifyLosslessJson } from "../../numeric/lossless-json";
 import { useSessionViewToken, type RenderIdentity } from "../useCommittedResult.js";
 
 /** An explicit passive lookup, independent of stock execution and its lease. */
@@ -64,7 +65,7 @@ export function SavedReceipt({ completion, sessions, renderIdentity }: {
       <p>Retained Atlas stock only. Retry safety is not established.</p>
       {!read.receipt.committedResult && <p>No matching retained commit was found at this snapshot. This does not establish rollback.</p>}
       {read.receipt.committedResult && <p>Original media release and HTTP delivery are not established.</p>}
-      <pre aria-label="Saved receipt response">{JSON.stringify(read.receipt, null, 2)}</pre>
+      <pre aria-label="Saved receipt response">{stringifyLosslessJson(read.receipt)}</pre>
     </>}
   </section>;
 }
