@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "3558c7607867b1d8c952f3992a77eeaaf9cdb6811c9e38f66b8350773c5eab9b",
+  "sourceDigestSha256": "921a139a09238339296698d182b08cf8f9c97ae717714e746e42be690e09c8d7",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 29323,
-      "sha256": "d4f22ca416e1f22a23c3b859b6d0125b4b39dcf0083e5abf4ec77274d3c34195",
+      "bytes": 30008,
+      "sha256": "c59930a0f20144851fdd2a8feac203d4b988047a24a87edf019daba6e895c867",
       "owner": "core-integration"
     },
     {
@@ -5318,6 +5318,13 @@
       "owner": "web"
     },
     {
+      "path": "docs/geometry/native-geometry-read.md",
+      "mode": "100644",
+      "bytes": 5203,
+      "sha256": "e2a79f5c2c2804662b2c031f88da38940ae95376201cbd81423208abccd3de0b",
+      "owner": "web"
+    },
+    {
       "path": "docs/geometry/network-overlay.md",
       "mode": "100644",
       "bytes": 5807,
@@ -5829,6 +5836,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "frontend/integration/native-geometry-read-client.ts",
+      "mode": "100644",
+      "bytes": 21735,
+      "sha256": "766f9607a77c703a24c6fd0cb31d118051eecc69d01a64ef303c3461456dd576",
+      "owner": "web"
+    },
+    {
       "path": "frontend/integration/pinned-file-client.ts",
       "mode": "100644",
       "bytes": 15112,
@@ -5931,6 +5945,13 @@
       "mode": "100644",
       "bytes": 6475,
       "sha256": "4cc816d4d876edef76fe1fa6653eb8c64c358a655a80eb3db0631fc59ec51276",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/native-geometry-read.mjs",
+      "mode": "100644",
+      "bytes": 7928,
+      "sha256": "e9ead8755763d0decb3c81d955bbb2471e1b2af53e5cd80fc2987b9ea2eca1ad",
       "owner": "web"
     },
     {
@@ -6925,6 +6946,13 @@
       "mode": "100644",
       "bytes": 31786,
       "sha256": "ca9d894a3e51ab5b633d86de09d63d4fe1f43baa980b1556382e9df42bdd1ae9",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/native-read-types.ts",
+      "mode": "100644",
+      "bytes": 2617,
+      "sha256": "5568395388c71f3f1a6fe332b5306b10f65fe5be504845f74cf11bb14c87a18a",
       "owner": "web"
     },
     {
