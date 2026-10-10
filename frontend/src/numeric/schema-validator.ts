@@ -31,7 +31,7 @@ const types = new Set(['null', 'boolean', 'object', 'array', 'number', 'integer'
 const has = (object: Record<string, unknown>, key: string): boolean => Object.prototype.hasOwnProperty.call(object, key);
 const object = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value) && !isExactDecimal(value);
 const schemaNode = (value: unknown): value is Schema => typeof value === 'boolean' || object(value);
-const fail = (message: string): never => { throw new TypeError(`Unsupported stock result schema: ${message}`); };
+const fail: (message: string) => never = (message) => { throw new TypeError(`Unsupported stock result schema: ${message}`); };
 
 // Synchronous SHA-256 of the exact imported source bytes. A changed schema cannot silently
 // broaden this closed evaluator, even when its reachable keyword list happens to be unchanged.

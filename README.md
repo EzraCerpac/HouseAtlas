@@ -56,6 +56,25 @@ Inspect its body and imports before running this local command:
 node frontend/lantern-tests/topology-read.mjs
 ```
 
+Two separately named successful read fixtures check exact retained number tokens
+and versioned pinned-file requests. The numeric example uses the actual parser,
+closed canonical result validator and geometry, topology, Network and AI clients.
+The capture example uses the actual client with UUID v3 and opaque-collection v4
+responses. Both use injected synthetic Response bodies, open no listener, and
+call no provider. Inspect their full bodies and the explicit source-loader map
+before running:
+
+```sh
+node frontend/lantern-tests/exact-numeric-read.mjs
+node frontend/lantern-tests/pinned-capture-read.mjs
+```
+
+The loader compiles listed TypeScript source with the installed Vite compiler
+and rewrites only imports for Node. It imports exact schema text for numeric
+validation. These results preserve retained tokens; they cannot recover earlier
+provider rounding or spelling changes and establish no capture, human-review,
+security or deployment acceptance. Existing UUID v3 capture remains supported.
+
 Its visual harness uses the same synthetic records, an injected topology client
 and a stub for all other application fetches. After inspecting the harness,
 use an unused loopback port and stop the server after the desktop and narrow
