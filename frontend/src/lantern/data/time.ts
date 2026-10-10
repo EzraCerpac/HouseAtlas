@@ -30,6 +30,10 @@ function recordedCalendar(iso: string) {
   return match ? { year: match[1]!, month: Number(match[2]) - 1, day: Number(match[3]) } : null;
 }
 
+function referenceCalendarDay(now: string | undefined, reference: Date): string | undefined {
+  return now === undefined ? localDay(reference) : recordedCalendar(now) ? now.slice(0, 10) : undefined;
+}
+
 export function fmtDate(iso?: string): string {
   if (!iso) return 'No date';
   const d = validDate(iso);
@@ -70,8 +74,10 @@ export function rel(iso?: string, now?: string): string {
   const d = validDate(iso);
   const reference = referenceDate(now);
   if (!d || !reference) return 'Unknown';
+  const referenceDay = referenceCalendarDay(now, reference);
   if (iso.length === 10) {
-    const days = daysBetween(localDay(reference), iso);
+    if (referenceDay === undefined) return 'Unknown';
+    const days = daysBetween(referenceDay, iso);
     if (days === 0) return 'today';
     if (days === 1) return 'tomorrow';
     if (days === -1) return 'yesterday';
@@ -91,7 +97,8 @@ export function rel(iso?: string, now?: string): string {
     const h = Math.round(abs / hr);
     return future ? `in ${h} h` : `${h} h ago`;
   }
-  const days = daysBetween(localDay(reference), iso.slice(0, 10));
+  if (referenceDay === undefined) return 'Unknown';
+  const days = daysBetween(referenceDay, iso.slice(0, 10));
   if (days === 0) return 'today';
   if (days === 1) return 'tomorrow';
   if (days === -1) return 'yesterday';
@@ -112,7 +119,9 @@ export function daysUntil(date?: string, now?: string): number | undefined {
   if (!date) return undefined;
   const reference = referenceDate(now);
   if (!reference || !validDate(date)) return undefined;
-  const days = daysBetween(localDay(reference), date);
+  const referenceDay = referenceCalendarDay(now, reference);
+  if (referenceDay === undefined) return undefined;
+  const days = daysBetween(referenceDay, date);
   return Number.isFinite(days) ? days : undefined;
 }
 
