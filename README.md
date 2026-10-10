@@ -64,6 +64,20 @@ WebGL effects, picking, GPU disposal or actual private export. The viewer remain
 unmounted; original and derivative admission, physical scale, floor alignment
 and guarded native import remain unqualified.
 
+A separate native geometry read example uses only two synthetic streamed
+Responses and the actual closed native descriptor client and profile reader.
+It preserves u64 revision tokens, native hash field names, owner-offered paths,
+current frame/floor identity and the existing unknown physical qualification:
+
+```sh
+node frontend/lantern-tests/native-geometry-read.mjs
+```
+
+Inspect its complete body and source-loader imports before this exact command.
+It opens no listener or browser, constructs no native authority, imports no
+private export and runs no timeout, denial or failure-control scenario. The
+host mount and actual native Media availability require separate qualification.
+
 Two documentary overlay examples use generic local data and the actual model or
 static React panel. Network connections remain schematic; the examples derive
 no floor positions or physical routes. Electrical labels preserve source
