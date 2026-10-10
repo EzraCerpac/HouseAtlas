@@ -6,12 +6,14 @@ import { spawnSync } from 'node:child_process';
 import { stripTypeScriptTypes } from 'node:module';
 import { transformWithOxc } from 'vite';
 import { projectView } from '../src/lantern/adapters/read.ts';
-import { createGeometryClient } from '../src/api/geometry-client.ts';
+import { loadNumericSource } from './load-numeric-source.mjs';
 import { createEvidenceClient } from '../src/api/evidence-client.ts';
 import { createOperationHistoryClient } from '../src/api/operation-history-client.ts';
 import { createRetainedIntentClient, canReadRetainedIntent } from '../src/api/retained-intent-client.ts';
 import { demoSnapshot, demoOptions } from '../../web/demo/fixtures.mjs';
 import { prepareAtlasView } from '../../web/src/prepare.mjs';
+const { createGeometryClient } = await import(await loadNumericSource('api/geometry-client.ts'));
+const { ExactDecimal } = await import(await loadNumericSource('numeric/decimal.ts'));
 
 // Compile the actual binder with its unchanged frozen catalog offline. Its
 // browser JSON imports have no Node import attributes; no runtime host is used.
@@ -267,7 +269,13 @@ const geometryRead = await singleClient.read(geometryScope, signal);
 assert.equal(singleCalls, 1);
 assert.equal(geometryRead.status, 'ready');
 assert.equal(geometryRead.sourceStatus, 'stale');
-assert.deepEqual(geometryRead.records, [publicGeometry]);
+// The canonical JSON response retains its numeric syntax internally.
+assert.deepEqual(geometryRead.records, [{ ...publicGeometry, payload: {
+  ...publicGeometry.payload,
+  scale: publicGeometry.payload.scale === null ? null : ExactDecimal.parse(String(publicGeometry.payload.scale)),
+  transform: publicGeometry.payload.transform === null ? null
+    : publicGeometry.payload.transform.map(value => ExactDecimal.parse(String(value))),
+} }]);
 const geometryProjection = projectView(geometryView, geometryRead);
 assert.equal(geometryProjection.geometryMetadata, geometryRead);
 const cabinet = geometryProjection.house.spaces.find(space => space.name === 'Synthetic cabinet');

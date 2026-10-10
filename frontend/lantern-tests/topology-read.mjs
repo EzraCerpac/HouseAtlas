@@ -4,9 +4,11 @@ import Ajv2020 from '../node_modules/ajv/dist/2020.js';
 import addFormats from '../node_modules/ajv-formats/dist/index.js';
 import atlas from '../../packages/contracts/schemas/atlas.schema.json' with { type: 'json' };
 import agent from '../../contracts/stock-wire3/agent/agent.schema.json' with { type: 'json' };
-import { createTopologyClient } from '../src/api/topology-client.ts';
-import { buildTopologyIndex, buildBuildingModel, metres } from '../src/lantern/topology/model.ts';
+import { loadNumericSource } from './load-numeric-source.mjs';
 import { projectView } from '../src/lantern/adapters/read.ts';
+const { createTopologyClient } = await import(await loadNumericSource('api/topology-client.ts'));
+const { buildTopologyIndex, buildBuildingModel, metres } = await import(await loadNumericSource('lantern/topology/model.ts'));
+const { ExactDecimal } = await import(await loadNumericSource('numeric/decimal.ts'));
 const fixture = {
   "scope": {
     "workspaceId": "00000000-0000-4000-8000-000000000800",
@@ -1938,14 +1940,14 @@ const model=buildBuildingModel(index,fixture.members[0],selected.records);assert
 assert.deepEqual(selected.records.map(r=>r.target.recordId),fixture.members);
 assert.equal(model.memberCount,10);assert.equal(model.levels.length,5);
 const sameDatum=model.levels.filter(l=>l.elevation.status==='known'&&l.elevation.elevation.datumAtlasId===fixture.members[0]);
-assert.deepEqual(sameDatum.map(l=>l.elevation.elevation.metres),[2.7,0]);
-assert(model.levels.some(l=>l.elevation.status==='known'&&l.elevation.elevation.metres===-0.45));
+assert.deepEqual(sameDatum.map(l=>l.elevation.elevation.metres.token),['2.7','0']);
+assert(model.levels.some(l=>l.elevation.status==='known'&&l.elevation.elevation.metres.token==='-0.45'));
 assert(model.levels.some(l=>l.elevation.status==='unknown'));assert(model.levels.some(l=>l.elevation.status==='omitted'));
 assert.equal(model.direct.length,2);assert.deepEqual(model.direct.map(l=>l.id),[fixture.members[4],fixture.members[8]]);assert.equal(model.direct.find(l=>l.entry?.entity.archived)?.selectId,undefined);
 assert(model.outsideUnassigned.some(l=>l.name==='Unassigned place'));assert.equal(model.outsideElsewhere.length,2);
 assert.equal(index.access.find(r=>r.payload.accessKind==='stair').payload.direction,'from-to');
 assert.equal(index.access.find(r=>r.payload.accessKind==='opening').payload.assertion,'unknown');
 assert.equal(index.access.filter(r=>r.payload.assertion==='absent').length,1);
-assert.equal(metres(0),'0 m');assert.equal(metres(-0.45),'−0.45 m');
+assert.equal(metres(ExactDecimal.parse('0')),'0 m');assert.equal(metres(ExactDecimal.parse('-0.45')),'−0.45 m');
 assert.equal(calls.length,10);assert(calls.filter(r=>r.payload.buildingId!==undefined).every(r=>r.commandId==='atlas.identity.list'));
 console.log('PASS bounded positive canonical topology invoke, two-page original IDs/correlation, exact source binding, separate Alpha/Beta names, zero/negative/same-datum elevations, unknown and omitted levels, direct and unassigned members, typed access, archived source without invented availability');
