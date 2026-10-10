@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "de27fda478f4fe33b46ecbc2d22a3cb0516e7d15e2c1a331f7bf951aba237ee0",
+  "sourceDigestSha256": "982718983cbee9e54a1359106b26f115eb3f94ba8208d6acdbd3e48ef11c5c97",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 24980,
-      "sha256": "c8dacafe0c9269afe1175981c729069976432a5b0c41cdc69eff8c41831a9170",
+      "bytes": 28287,
+      "sha256": "13d4a28eb57ee0f0333cf270e7e28686c2e7c0120c5683bf5575f4357293afe1",
       "owner": "core-integration"
     },
     {
@@ -5276,6 +5276,20 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/geometry/electricity-overlay.md",
+      "mode": "100644",
+      "bytes": 3751,
+      "sha256": "b35b42c6717fb77ac3262426df5a939830c9452a6e61ce954b9cd30aa3b6dcb3",
+      "owner": "web"
+    },
+    {
+      "path": "docs/geometry/network-overlay.md",
+      "mode": "100644",
+      "bytes": 3903,
+      "sha256": "c6588f62d399f069f5acc7f647b1c1d0c5aeb9ab4108ff45e82f8d11db040a77",
+      "owner": "web"
+    },
+    {
       "path": "docs/operations/adoption-and-decisions.md",
       "mode": "100644",
       "bytes": 1244,
@@ -5850,6 +5864,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/electricity-overlay-read.mjs",
+      "mode": "100644",
+      "bytes": 9085,
+      "sha256": "0924d999937643d160a4eb633279a791f01d41e16173f8fef3fb7293e61128b3",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/exact-numeric-read.mjs",
       "mode": "100644",
       "bytes": 14570,
@@ -5875,6 +5896,13 @@
       "mode": "100644",
       "bytes": 11406,
       "sha256": "a554da777f421d32d8cb45356aaf362e058e7208415d16dfea8629fbe664faaa",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/network-overlay-read.mjs",
+      "mode": "100644",
+      "bytes": 13262,
+      "sha256": "9c48ec04fd1687eb4d6dcc3a943b5e9b51ca78d63ad7b375bb16f05a87273a88",
       "owner": "web"
     },
     {
@@ -6746,6 +6774,83 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/overlays/electricity/ElectricityOverlayPanel.tsx",
+      "mode": "100644",
+      "bytes": 7864,
+      "sha256": "8e599946f22e2d05ec4d2600586c3e0514322eb633a79bd714e20626d724a0b7",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/electricity/documentary-adapter.ts",
+      "mode": "100644",
+      "bytes": 11518,
+      "sha256": "10f95f07be057b9fe145935cb128e2e35d77aa98580c63e26c4117a859c490b1",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/electricity/electricity.css",
+      "mode": "100644",
+      "bytes": 1866,
+      "sha256": "4981a0139e5ebbfc5c5bec1c3b0f0fd95a37500a131ae6f7f1113a30bfd4ba79",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/electricity/index.ts",
+      "mode": "100644",
+      "bytes": 427,
+      "sha256": "b9bd3ccf846c5ff621a4963800cf85e907b4f325fe94f94f56081b173c6bf9c8",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/electricity/types.ts",
+      "mode": "100644",
+      "bytes": 3097,
+      "sha256": "c90cae6de11ca9cfc1126623b9808ebdcdec21c0daa787be1cbf7be51ebfa9c7",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/network/NetworkOverlayPanel.tsx",
+      "mode": "100644",
+      "bytes": 10383,
+      "sha256": "3cf9503fbd3ecc68235de512f297f3d18af9b69131f02b011c8a3a88704f0fa1",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/network/NetworkTopology.tsx",
+      "mode": "100644",
+      "bytes": 6959,
+      "sha256": "7dc439c7b3f6dbe75b158aebf808a2c6123d81be4ac0d0dc752fa19d60b8ac6d",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/network/index.ts",
+      "mode": "100644",
+      "bytes": 144,
+      "sha256": "684cce26da8beb9c84aa835ed3abdefad1234a6e1aedee088c50caeb806e06ec",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/network/model.ts",
+      "mode": "100644",
+      "bytes": 5838,
+      "sha256": "5921ded16386e0a5492f4bc2235d2f7e249b3a66fcdccdd8a6689bca5e133e3d",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/network/network.css",
+      "mode": "100644",
+      "bytes": 3080,
+      "sha256": "46c90a1b2250f8170e8d14e9fd4623b0c6339db3f5cb5a4f1dba8d3eeee2b4f9",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/overlays/network/types.ts",
+      "mode": "100644",
+      "bytes": 3476,
+      "sha256": "625c8808b0037fcc43febb4b37fe4cd7dadd7da67b9303453069fd5556e776b7",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/quantity/healthy.examples.tsx",
       "mode": "100644",
       "bytes": 13724,
@@ -6762,15 +6867,15 @@
     {
       "path": "frontend/src/lantern/scans/MeshCanvas.tsx",
       "mode": "100644",
-      "bytes": 18329,
-      "sha256": "6739f69fc1dea318689f21e6b0c72ccec656a9f11aa41eb1fe1d90df66264b16",
+      "bytes": 18471,
+      "sha256": "f4e11777407b8f5484decf3e541973400f58f06f2bffcf0387469c1e62d43414",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/scans/ScanPreview.tsx",
       "mode": "100644",
-      "bytes": 8117,
-      "sha256": "1d1f52232116c45f21e04a5a3386bcaadaa5ea8cb8112e5fd2f48f2264765c6f",
+      "bytes": 8305,
+      "sha256": "92a47356c7e22d6575d6598560bcc1314b0d815b5d5ffc19e2018f434dd9c50f",
       "owner": "web"
     },
     {
@@ -8132,6 +8237,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "tools/rust-integration/healthy-native-place-evidence-ui-loopback.mjs",
+      "mode": "100644",
+      "bytes": 50858,
+      "sha256": "81ca3c4592c48721d64d48dfdaf42c71d74022b08a86761b16141b8ff6b94c8a",
+      "owner": "media"
+    },
+    {
       "path": "tools/rust-integration/healthy-native-place-ui-loopback.mjs",
       "mode": "100644",
       "bytes": 41386,
@@ -8183,8 +8295,8 @@
     {
       "path": "tools/rust-integration/healthy-upload-loopback.mjs",
       "mode": "100644",
-      "bytes": 56862,
-      "sha256": "0bc1b2a6816dc2d915d1443c7346420e14eb26ba9eaa273f733085cb15d5271c",
+      "bytes": 57778,
+      "sha256": "ce5f7bafaa69291954e73eee7776223911320e06d9d5f0bea3ffe274a5689df2",
       "owner": "core-integration"
     },
     {

@@ -64,6 +64,20 @@ WebGL effects, picking, GPU disposal or actual private export. The viewer remain
 unmounted; original and derivative admission, physical scale, floor alignment
 and guarded native import remain unqualified.
 
+Two documentary overlay examples use generic local data and the actual model or
+static React panel. Network connections remain schematic; the examples derive
+no floor positions or physical routes. Electrical labels preserve source
+statements and owner-reported or inferred room associations separately:
+
+```sh
+node frontend/lantern-tests/network-overlay-read.mjs
+node frontend/lantern-tests/electricity-overlay-read.mjs
+```
+
+Inspect both complete bodies and their installed Vite/source imports first. They
+open no listener, call no provider and perform no native import. The modules
+require a separately qualified host/data seam before native availability.
+
 A source-free native place example creates a building and room with explicit
 reviewed membership, then renames and clears only an Atlas classification label.
 The browser fixture uses injected synthetic responses and exact retained tokens.
@@ -379,6 +393,47 @@ OpenSSL executable, and an empty owned private evidence directory. Port 48743
 must be free; the positive stops if occupied. It never touches another service.
 A source pass or this synthetic success does not authorize actual household intake
 or establish PDF safety, frontend, device, rollback or installation acceptance.
+
+The native evidence UI positive exercises the actual React building form and
+native-only evidence admission with one generated PDF in fresh disposable state.
+It verifies the complete correlated commit, linked evidence, history and original
+download, and captures desktop and narrow views. It creates no source Binding:
+
+```sh
+node --check tools/rust-integration/healthy-native-place-evidence-ui-loopback.mjs
+node tools/rust-integration/healthy-native-place-evidence-ui-loopback.mjs /absolute/private/native-evidence-ui-artifact-selection.json
+```
+
+This command remains outside automatic CI. Inspect the full runner and exact
+private packet before each one-use release. The packet pins a compiled binary,
+build provenance, complete frontend output, a fresh private Chrome snapshot,
+OpenSSL and an empty private output directory. Port 48743 must be free. The
+runner observes network events without Fetch interception and confirms owned
+process exit before recording success. This synthetic flow establishes no
+household intake, real-device, PDF safety, rollback or deployment acceptance.
+
+Three separate synthetic mobile positives use a frozen private CUA preparation
+packet and the actual contextual editor: `mobile-direct-capture-select-submit-readback`,
+`mobile-local-draft-save-reopen-review-confirm-ack`, and
+`mobile-manifest-standalone-layout`.
+
+```sh
+node /absolute/private/mobile-positive-ui/serve.mjs --three-named-positives
+node /absolute/private/mobile-positive-ui/readback.mjs --ready /tmp/houseatlas-mobile-positive-ACTUAL/ready.json --case mobile-direct-capture-select-submit-readback
+node /absolute/private/mobile-positive-ui/readback.mjs --ready /tmp/houseatlas-mobile-positive-ACTUAL/ready.json --case mobile-local-draft-save-reopen-review-confirm-ack
+```
+
+Use only the inspected source, artifact and build-receipt packet under an exact
+one-use owner release. CUA owns visible actions; observation uses passive network
+events without Fetch interception. The supervisor owns fresh synthetic TLS state
+and children for at most 12 minutes including cleanup. First establish ordinary
+TLS trust and an independently isolated browser surface; stop on any certificate
+warning or unavailable isolation. Do not bypass security, install trust, alter
+cookies or clear existing browser storage. Close only the owned tab and send
+`finish` to confirm process/group exit and scratch removal. These commands are
+outside CI. Source ordering establishes the awaited local marker transaction;
+passive events do not prove pre-dispatch durability. Viewport and manifest checks
+establish no physical iPhone, Safari, installed launch or camera acceptance.
 
 ## Fresh synthetic trusted gateway positive
 
