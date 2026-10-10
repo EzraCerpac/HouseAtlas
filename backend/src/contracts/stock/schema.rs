@@ -10,6 +10,7 @@ use sha2::{Digest, Sha256};
 use super::{StockError, catalog};
 
 pub const AGENT_URI: &str = "urn:houseatlas:agent:stock:3";
+pub const PINNED_V4_URI: &str = "urn:houseatlas:pinned-homebox-file:4";
 pub const ATLAS_URI: &str = "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json";
 pub const WITNESS_URI: &str =
     "file:///houseatlas/contracts/stock-wire3/presence/witness.v1.schema.json";
@@ -23,6 +24,8 @@ const ATLAS_BYTES: &[u8] =
     include_bytes!("../../../../packages/contracts/schemas/atlas.schema.json");
 const AGENT_BYTES: &[u8] =
     include_bytes!("../../../../contracts/stock-wire3/agent/agent.schema.json");
+const PINNED_V4_BYTES: &[u8] =
+    include_bytes!("../../../../contracts/stock-wire4/pinned-homebox-file.v4.schema.json");
 const WITNESS_BYTES: &[u8] =
     include_bytes!("../../../../contracts/stock-wire3/presence/witness.v1.schema.json");
 const QUALIFICATION_BYTES: &[u8] =
@@ -136,6 +139,34 @@ fn check_resource_map() -> Result<(), String> {
             ));
         }
     }
+    let v4_map = parse_embedded(
+        include_bytes!("../../../../contracts/stock-wire4/resource-map.json"),
+        "pinned file v4 resource map",
+    )?;
+    if v4_map["format"] != "houseatlas-offline-schema-resources/1"
+        || v4_map["networkResolution"] != false
+        || v4_map["dialect"] != DIALECT
+    {
+        return Err("embedded pinned v4 resource map differs".to_owned());
+    }
+    let v4_resources = v4_map["resources"].as_array()
+        .ok_or_else(|| "pinned v4 resources must be an array".to_owned())?;
+    let v4_expected = [
+        ("contracts/stock-wire4/pinned-homebox-file.v4.schema.json", PINNED_V4_URI, PINNED_V4_BYTES),
+        ("packages/contracts/schemas/atlas.schema.json", ATLAS_URI, ATLAS_BYTES),
+        ("contracts/stock-wire3/agent/agent.schema.json", AGENT_URI, AGENT_BYTES),
+    ];
+    if v4_resources.len() != v4_expected.len() {
+        return Err("pinned v4 resource map must contain exactly three resources".to_owned());
+    }
+    for (path, uri, bytes) in v4_expected {
+        let resource = v4_resources.iter().find(|item| item["path"] == path)
+            .ok_or_else(|| format!("missing pinned v4 resource {path}"))?;
+        let digest = format!("{:x}", Sha256::digest(bytes));
+        if resource["uri"] != uri || resource["sha256"] != digest {
+            return Err(format!("pinned v4 resource identity differs for {path}"));
+        }
+    }
     Ok(())
 }
 
@@ -165,15 +196,17 @@ fn compile_resources() -> Result<Schemas, String> {
     check_resource_map()?;
     let atlas = parse_embedded(ATLAS_BYTES, "frozen Atlas schema")?;
     let agent = parse_embedded(AGENT_BYTES, "stock agent schema")?;
+    let pinned_v4 = parse_embedded(PINNED_V4_BYTES, "pinned file v4 schema")?;
     let witness = parse_embedded(WITNESS_BYTES, "source-presence witness schema")?;
     let qualification =
         parse_embedded(QUALIFICATION_BYTES, "source-presence qualification schema")?;
-    if atlas["$id"] != ATLAS_URI || agent["$id"] != AGENT_URI {
+    if atlas["$id"] != ATLAS_URI || agent["$id"] != AGENT_URI || pinned_v4["$id"] != PINNED_V4_URI {
         return Err("embedded Atlas/stock schema canonical identity differs".to_owned());
     }
     for (label, schema) in [
         (ATLAS_URI, &atlas),
         (AGENT_URI, &agent),
+        (PINNED_V4_URI, &pinned_v4),
         (WITNESS_URI, &witness),
         (QUALIFICATION_URI, &qualification),
     ] {
@@ -191,13 +224,18 @@ fn compile_resources() -> Result<Schemas, String> {
         add_definitions(&agent, AGENT_URI, true, &mut validators, &mut aliases)?;
     let atlas_definitions =
         add_definitions(&atlas, ATLAS_URI, false, &mut validators, &mut aliases)?;
-    for uri in [ATLAS_URI, AGENT_URI, WITNESS_URI, QUALIFICATION_URI] {
+    add_definitions(&pinned_v4, PINNED_V4_URI, false, &mut validators, &mut aliases)?;
+    for uri in [ATLAS_URI, AGENT_URI, PINNED_V4_URI, WITNESS_URI, QUALIFICATION_URI] {
         validators.insert(uri.to_owned(), OnceLock::new());
     }
     aliases.insert("#".to_owned(), AGENT_URI.to_owned());
     aliases.insert(
         "contracts/stock-wire3/agent/agent.schema.json".to_owned(),
         AGENT_URI.to_owned(),
+    );
+    aliases.insert(
+        "contracts/stock-wire4/pinned-homebox-file.v4.schema.json".to_owned(),
+        PINNED_V4_URI.to_owned(),
     );
     aliases.insert(
         "contracts/stock-wire3/presence/witness.v1.schema.json".to_owned(),
@@ -217,6 +255,8 @@ fn compile_resources() -> Result<Schemas, String> {
         .add(ATLAS_FILE_URI, atlas)
         .map_err(|error| error.to_string())?
         .add(AGENT_URI, agent)
+        .map_err(|error| error.to_string())?
+        .add(PINNED_V4_URI, pinned_v4)
         .map_err(|error| error.to_string())?
         .add(WITNESS_URI, witness)
         .map_err(|error| error.to_string())?

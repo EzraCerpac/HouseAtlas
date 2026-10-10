@@ -1,6 +1,7 @@
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import agent from '../../../contracts/stock-wire3/agent/agent.schema.json';
+import pinnedV4 from '../../../contracts/stock-wire4/pinned-homebox-file.v4.schema.json';
 import atlas from '../../../packages/contracts/schemas/atlas.schema.json';
 import type { AtlasSessionInfo } from '../app/session';
 import type { Scope } from '../app/types';
@@ -48,6 +49,10 @@ export interface PinnedFileRequest {
   readonly payload: Readonly<Record<string, never>>;
   readonly requestId: string;
 }
+export interface PinnedFileRequestV4 extends Omit<PinnedFileRequest, 'schemaVersion'> {
+  readonly schemaVersion: 4;
+}
+export type AnyPinnedFileRequest = PinnedFileRequest | PinnedFileRequestV4;
 /** Process-local capture facts with the server's exact lexical retrieval times.
  * They establish no provider version, causality or current remote availability. */
 export interface PinnedCaptureFacts {
@@ -70,7 +75,7 @@ export interface PinnedArtifactFacts {
 export interface PinnedFileCapture {
   readonly source: PinnedSourceRef;
   readonly attachmentId: string;
-  readonly request: PinnedFileRequest;
+  readonly request: AnyPinnedFileRequest;
   readonly artifact: PinnedArtifactFacts;
 }
 /** Display data only. expiresAt is in the performance.now() timebase, anchored at
@@ -124,7 +129,7 @@ const TARGET_KEYS = ['authority', 'sourceInstanceId', 'collectionId', 'resourceK
 const MAX_FILE_BYTES = 10_485_760;
 const encoder = new TextEncoder();
 const ajv = new Ajv2020({ strict: true, allErrors: true, allowUnionTypes: true });
-addFormats(ajv); ajv.addSchema(atlas); ajv.addSchema(agent);
+addFormats(ajv); ajv.addSchema(atlas); ajv.addSchema(agent); ajv.addSchema(pinnedV4);
 /** Resolved on first use; a missing contract refuses locally instead of failing module load. */
 function contract(ref: string): () => (value: unknown) => boolean {
   let check: ((value: unknown) => boolean) | null = null;
@@ -139,6 +144,8 @@ function contract(ref: string): () => (value: unknown) => boolean {
 }
 const sourceRefContract = contract(`${atlas.$id}#/$defs/sourceRef`);
 const requestContract = contract(`${agent.$id}#/$defs/request_homebox_file_download`);
+const requestV4Contract = contract(`${pinnedV4.$id}#/$defs/request_homebox_file_download_v4`);
+const resultV4Contract = contract(`${pinnedV4.$id}#/$defs/result_homebox_file_capture_v4`);
 
 function wellFormed(value: string): boolean {
   for (let i = 0; i < value.length; i++) {
@@ -186,6 +193,9 @@ const identityOf = (source: PinnedSourceRef) => [source.workspaceId, source.home
   source.key.collectionId, source.key.sourceKind, source.key.externalId];
 
 export const isPinnedUuid = (value: unknown): value is string => typeof value === 'string' && UUID.test(value);
+/** The Atlas collection selector is an exact, nonempty Unicode string. */
+export const isPinnedCollection = (value: unknown): value is string =>
+  text(value) && value.length > 0 && [...value].length <= 4096;
 /** Exact string equality on all six fields; no case folding or UUID equivalence. */
 export function samePinnedSource(a: PinnedSourceRef, b: PinnedSourceRef): boolean {
   return a.workspaceId === b.workspaceId && a.homeId === b.homeId
@@ -193,14 +203,14 @@ export function samePinnedSource(a: PinnedSourceRef, b: PinnedSourceRef): boolea
     && a.key.sourceKind === b.key.sourceKind && a.key.externalId === b.key.externalId;
 }
 export const pinnedAttemptKey = (source: PinnedSourceRef, attachmentId: string) => JSON.stringify([...identityOf(source), attachmentId]);
-/** Current capture requests require canonical lowercase UUIDs as supplied. */
+/** Other capture identities stay canonical UUIDs; collection may be opaque. */
 export function pinnedCapturable(source: PinnedSourceRef, attachmentId: string): boolean {
   return isPinnedUuid(source.workspaceId) && isPinnedUuid(source.homeId) && isPinnedUuid(source.key.sourceInstanceId)
-    && isPinnedUuid(source.key.collectionId) && source.key.sourceKind === 'homebox-entity'
+    && isPinnedCollection(source.key.collectionId) && source.key.sourceKind === 'homebox-entity'
     && isPinnedUuid(source.key.externalId) && isPinnedUuid(attachmentId);
 }
 export function buildPinnedFileRequest(source: PinnedSourceRef, attachmentId: string, requestId: string): PinnedFileRequest {
-  if (!pinnedCapturable(source, attachmentId) || !isPinnedUuid(requestId)) throw new TypeError('Capture request is incompatible');
+  if (!pinnedCapturable(source, attachmentId) || !isPinnedUuid(source.key.collectionId) || !isPinnedUuid(requestId)) throw new TypeError('Capture request is incompatible');
   const request: PinnedFileRequest = {
     schemaVersion: 3,
     commandId: 'homebox.file.download',
@@ -215,8 +225,22 @@ export function buildPinnedFileRequest(source: PinnedSourceRef, attachmentId: st
   if (!requestContract()(request)) throw new TypeError('Capture request is incompatible');
   return deepFreeze(request);
 }
+export function buildPinnedFileRequestV4(source: PinnedSourceRef, attachmentId: string, requestId: string): PinnedFileRequestV4 {
+  if (!pinnedCapturable(source, attachmentId) || isPinnedUuid(source.key.collectionId) || !isPinnedUuid(requestId))
+    throw new TypeError('Capture request is incompatible');
+  const request: PinnedFileRequestV4 = {
+    schemaVersion: 4, commandId: 'homebox.file.download',
+    context: { workspaceId: source.workspaceId, homeId: source.homeId },
+    target: { authority: 'homebox', sourceInstanceId: source.key.sourceInstanceId,
+      collectionId: source.key.collectionId, resourceKind: 'attachment',
+      entityId: source.key.externalId, resourceId: attachmentId },
+    payload: {}, requestId,
+  };
+  if (!requestV4Contract()(request)) throw new TypeError('Capture request is incompatible');
+  return deepFreeze(request);
+}
 /** Exactly one request field; the server's decoded and raw query bounds apply. */
-export function pinnedCaptureQuery(request: PinnedFileRequest): string {
+export function pinnedCaptureQuery(request: AnyPinnedFileRequest): string {
   const wire = JSON.stringify(request);
   if (utf8(wire) > 16_384) throw new TypeError('Capture request exceeds transport bound');
   const query = new URLSearchParams({ request: wire }).toString();
@@ -260,7 +284,7 @@ export function decodePinnedDiscovery(value: unknown, scope: Readonly<Scope>): P
 }
 /** Correlated by exact scope and the six original target fields; the artifact
  * carries no requestId. Any mismatch is a decode failure for the caller. */
-export function decodePinnedArtifact(value: unknown, request: PinnedFileRequest): { readonly facts: PinnedArtifactFacts; readonly downloadToken: string } {
+export function decodePinnedArtifact(value: unknown, request: AnyPinnedFileRequest): { readonly facts: PinnedArtifactFacts; readonly downloadToken: string } {
   const row = exact(value, ['scope', 'target', 'downloadToken', 'sha256', 'byteSize', 'contentType', 'localCapture']);
   const scope = exact(row['scope'], ['workspaceId', 'homeId', 'sourceInstanceId', 'collectionId']);
   const target = exact(row['target'], TARGET_KEYS);
@@ -293,6 +317,13 @@ export function decodePinnedArtifact(value: unknown, request: PinnedFileRequest)
     },
   });
   return Object.freeze({ facts, downloadToken: downloadToken as string });
+}
+export function decodePinnedCaptureV4(value: unknown, request: PinnedFileRequestV4): { readonly facts: PinnedArtifactFacts; readonly downloadToken: string } {
+  if (!resultV4Contract()(value)) throw new TypeError('Pinned v4 result is incompatible');
+  const row = exact(value, ['schemaVersion', 'commandId', 'requestId', 'artifact']);
+  if (row['schemaVersion'] !== 4 || row['commandId'] !== 'homebox.file.download' || row['requestId'] !== request.requestId)
+    throw new TypeError('Pinned v4 result correlation differs');
+  return decodePinnedArtifact(row['artifact'], request);
 }
 /** Owner availability DATA, not a capability. Positive floored budget <= 60 s. */
 export function decodePinnedAvailability(value: unknown): { readonly state: 'available'; readonly remainingMs: number } | { readonly state: 'unavailable' | 'unbound' } {

@@ -947,6 +947,7 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/places/{record_id}/evidence", post(upload::command))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/admission", get(agents::admission).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/homebox-pinned-file", get(homebox_pinned_files::capture).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/stock/v4/workspaces/{workspace_id}/homes/{home_id}/homebox-pinned-file", get(homebox_pinned_files::capture_v4).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/media/pinned-homebox/{workspace_id}/{home_id}/{token}", get(homebox_pinned_files::redeem).head(homebox_pinned_files::redeem).fallback(auth::session_head))
         .route("/api/atlas/media/pinned-homebox/{workspace_id}/{home_id}/{token}/availability", get(homebox_pinned_files::availability).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/quantity-tool-admission", get(quantity_tool_admission::admission).head(auth::session_head).fallback(auth::session_head))
