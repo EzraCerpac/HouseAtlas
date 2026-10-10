@@ -22,6 +22,34 @@ pub struct DurableNetworkReceipt {
     generation_id: String,
     sha256: String,
 }
+
+/// Archive-local custody accounting for one exact scope and generation.
+/// Original full registration is known only for a verified sealed segment.
+/// A sealed byte count is an occupied segment, not a release grant.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct NetworkArchiveCustodyReference {
+    pub(crate) partition_key: String,
+    pub(crate) scope: SourceScope,
+    pub(crate) original_registration: Option<SourceRegistration>,
+    pub(crate) configured_registration: Option<SourceRegistration>,
+    pub(crate) generation_id: String,
+    pub(crate) state: super::archive::NetworkArchiveReferenceState,
+    pub(crate) body_sha256: Option<String>,
+    pub(crate) projected_receipt_sha256: Option<String>,
+    pub(crate) segment_sha256: Option<String>,
+    pub(crate) protected_bytes: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct NetworkArchiveCustodySnapshot {
+    pub(crate) permanent_id_count: usize,
+    pub(crate) remaining_id_slots: usize,
+    pub(crate) sealed_segment_bytes: usize,
+    pub(crate) active_reservation_count: usize,
+    pub(crate) active_reservation_bytes: usize,
+    pub(crate) remaining_byte_capacity: usize,
+    pub(crate) references: Vec<NetworkArchiveCustodyReference>,
+}
 impl DurableNetworkReceipt {
     pub fn partition_key(&self) -> &str {
         &self.partition_key
@@ -152,6 +180,46 @@ impl SqliteNetworkSidecar {
     ) -> Result<Vec<super::archive::NetworkArchiveReference>> {
         self.check_owner()?;
         self.archive.protected_references()
+    }
+    /// Read the verified archive census while this sidecar still holds its
+    /// original archive/database owner leases. External recovery/disclosure
+    /// coverage and unpublished disposition remain unknown.
+    pub(crate) fn archive_custody_snapshot(&self) -> Result<NetworkArchiveCustodySnapshot> {
+        self.check_owner()?;
+        let snapshot = self.archive.capacity_snapshot()?;
+        let mut references = Vec::with_capacity(snapshot.references.len());
+        for reference in snapshot.references {
+            let configured_registration = self
+                .sources
+                .iter()
+                .find(|source| {
+                    super::partition_key(&source.scope).ok().as_deref()
+                        == Some(reference.partition_key.as_str())
+                })
+                .cloned();
+            references.push(NetworkArchiveCustodyReference {
+                partition_key: reference.partition_key,
+                scope: reference.scope,
+                original_registration: reference.original_registration,
+                configured_registration,
+                generation_id: reference.generation_id,
+                state: reference.state,
+                body_sha256: reference.body_sha256,
+                projected_receipt_sha256: reference.projected_receipt_sha256,
+                segment_sha256: reference.segment_sha256,
+                protected_bytes: reference.protected_bytes,
+            });
+        }
+        self.check_owner()?;
+        Ok(NetworkArchiveCustodySnapshot {
+            permanent_id_count: snapshot.permanent_id_count,
+            remaining_id_slots: snapshot.remaining_id_slots,
+            sealed_segment_bytes: snapshot.sealed_segment_bytes,
+            active_reservation_count: snapshot.active_reservation_count,
+            active_reservation_bytes: snapshot.active_reservation_bytes,
+            remaining_byte_capacity: snapshot.remaining_byte_capacity,
+            references,
+        })
     }
     /// Enumerate every separately persisted projection, including rows whose
     /// raw archive stage never completed. No absence-of-current-pointer filter.
