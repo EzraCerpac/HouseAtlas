@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { makeProjector } from '../../atlas/projection';
 import { useEased } from '../../atlas/useCamera';
 import { MESH_LIMITS, prepareMeshRender } from '../mesh-profile';
@@ -6,6 +6,8 @@ import { yieldTask } from './yield-task';
 import { displayEdges } from './display-edges';
 import { SceneControls } from './SceneControls';
 import { SceneMeshCanvas } from './SceneMeshCanvas';
+import { admittedRoomRegions, regionMatchesRoom } from './room-region-model';
+import { RoomRegions, RoomInspector } from './RoomRegions';
 import type { DisplayFloor } from './SceneMeshCanvas';
 import type { HouseScanSceneProps, ProjectedRoomAnchor } from './types';
 import './scene.css';
@@ -39,6 +41,8 @@ async function authoredBounds(profile: NonNullable<HouseScanSceneProps['floors']
 /** Original Lantern orthographic presentation over actual source triangles. No semantic room geometry is created. */
 export function HouseScanScene(props: HouseScanSceneProps) {
   const owner = useMemo(() => ({ viewKey: props.viewKey, inputs: props.floors, active: props.active }), [props.viewKey, props.floors, props.active]);
+  const roomOwner = useMemo(() => ({ owner, rooms: props.rooms, regions: props.roomRegions }), [owner, props.rooms, props.roomRegions]);
+  const [selection, setSelection] = useState<{ owner: typeof roomOwner; localId: string | null; blockedId: string | null }>(() => ({ owner: roomOwner, localId: null, blockedId: null }));
   const [yaw, setYaw] = useState(-32), [pitch, setPitch] = useState(36), [zoom, setZoom] = useState(1);
   const [mode, setMode] = useState<'3d' | 'plan'>('3d'), [exploded, setExploded] = useState(true), [cutaway, setCutaway] = useState(true);
   const [selectedFloorKey, setFloor] = useState(props.floors[1]?.key ?? props.floors[0]?.key ?? '');
@@ -46,6 +50,10 @@ export function HouseScanScene(props: HouseScanSceneProps) {
   const [renderFailure, setRenderFailure] = useState<{ owner: typeof owner; message: string } | null>(null), [detailsOpen, setDetailsOpen] = useState(false);
   const element = useRef<HTMLDivElement>(null), drag = useRef<{ id: number; x: number; y: number } | null>(null);
   const latestOwner = useRef(owner); latestOwner.current = owner;
+  const latestRoomOwner = useRef(roomOwner); latestRoomOwner.current = roomOwner;
+  const latestProps = useRef(props); latestProps.current = props;
+  const previousSelection = useRef<string | null>(null);
+  const selectionDispatch = useRef(0);
   const [size, setSize] = useState({ width: 1000, height: 760 }), [reduced, setReduced] = useState(false);
   const cam = useEased({ yaw, pitch: mode === 'plan' ? 90 : pitch, explode: exploded ? 1 : 0, zoom }, { reduced, tau: 130 });
   const currentPreparation = prepared?.owner === owner && props.active ? prepared : null;
@@ -103,7 +111,9 @@ export function HouseScanScene(props: HouseScanSceneProps) {
         }
         bytes += edgeBytes;
         const scale = metadata.size === 1 ? sourceBounds.get(input.key)!.radius * 12 / commonExtent : 12 / extent;
-        result.push({ key: input.key, scene, outlineBuffers, index, scale, minY: min[1]!, height: (max[1]! - min[1]!) * scale,
+        let surfaceY = min[1]!;
+        for (const mesh of scene.meshes) if (/WholeFloor/.test(mesh.sourceName)) for (let i = 1; i < mesh.vertices.length; i += 6) surfaceY = Math.max(surfaceY, mesh.vertices[i]!);
+        result.push({ key: input.key, scene, outlineBuffers, index, scale, surfaceY, minY: min[1]!, height: (max[1]! - min[1]!) * scale,
           width: (max[0]! - min[0]!) * scale, depth: (max[2]! - min[2]!) * scale, centerX: (max[0]! + min[0]!) / 2, centerZ: (max[2]! + min[2]!) / 2 });
         // Independent availability: publish every completed floor without waiting for all exports.
         states[index] = { state: 'ready', reason: null }; publish();
@@ -142,7 +152,47 @@ export function HouseScanScene(props: HouseScanSceneProps) {
       base: projector.p(x, y, z + .15), top: projector.p(x, y, z + .15 + (plan ? 0 : 1.8)),
       visible: !plan || f.key === selectedFloorKey, basis: 'schematic-room' }];
   }), [props.rooms, props.viewKey, floors, projector, plan, selectedFloorKey, cam.explode]);
-  const context = { viewKey: props.viewKey, anchors, ui, unplacedDock: [viewBox[0] + viewBox[2] - 65 * ui, viewBox[1] + viewBox[3] * .5] as const };
+  const admittedRegions = useMemo(() => admittedRoomRegions(props.roomRegions ?? [], props.rooms), [props.roomRegions, props.rooms]);
+  const selectedId = !props.active || selection.owner !== roomOwner ? null : props.selectedRoomId === undefined ? selection.localId
+    : props.selectedRoomId === selection.blockedId ? null : props.selectedRoomId;
+  const candidateRoom = props.rooms.find(room => room.id === selectedId) ?? null;
+  const selectedRegion = candidateRoom ? admittedRegions.find(region => regionMatchesRoom(region, candidateRoom)
+    && floors.some(floor => floor.key === region.floorKey && (!plan || floor.key === selectedFloorKey))) : undefined;
+  const selectedRoom = selectedRegion ? candidateRoom : null;
+  const roomCurrent = () => props.active && latestOwner.current === owner && latestRoomOwner.current === roomOwner && latestProps.current === props;
+  useLayoutEffect(() => {
+    if (selection.owner !== roomOwner || !props.active && (selection.localId !== null || previousSelection.current !== null)) {
+      selectionDispatch.current++;
+      setSelection({ owner: roomOwner, localId: null, blockedId: props.selectedRoomId ?? null });
+      const notify = previousSelection.current !== null || props.selectedRoomId != null;
+      previousSelection.current = null;
+      if (notify && latestProps.current === props && latestRoomOwner.current === roomOwner) props.onRoomSelectionChange?.(null);
+      return;
+    }
+    if (selection.blockedId !== null && props.selectedRoomId !== selection.blockedId) setSelection(value => value.owner === roomOwner ? { ...value, blockedId: null } : value);
+    if (selectedId !== null && !selectedRoom) {
+      selectionDispatch.current++;
+      setSelection({ owner: roomOwner, localId: null, blockedId: props.selectedRoomId ?? null });
+      previousSelection.current = null;
+      if (roomCurrent()) props.onRoomSelectionChange?.(null);
+      return;
+    }
+    previousSelection.current = selectedRoom?.id ?? null;
+  }, [roomOwner, selection.owner, selection.blockedId, props.active, props.selectedRoomId, selectedId, selectedRoom, props]);
+  const selectRoom = (room: typeof props.rooms[number]) => {
+    if (!roomCurrent() || !props.rooms.includes(room) || !admittedRegions.some(region => regionMatchesRoom(region, room))
+      || !floors.some(floor => floor.key === room.floorKey && (!plan || floor.key === selectedFloorKey))) return;
+    const dispatch = ++selectionDispatch.current;
+    setSelection({ owner: roomOwner, localId: room.id, blockedId: null }); setFloor(room.floorKey);
+    props.onRoomSelect?.(room); if (roomCurrent() && selectionDispatch.current === dispatch) props.onRoomSelectionChange?.(room);
+  };
+  const closeRoom = () => {
+    if (!roomCurrent() || !selectedRoom || previousSelection.current !== selectedRoom.id) return;
+    selectionDispatch.current++;
+    setSelection({ owner: roomOwner, localId: null, blockedId: props.selectedRoomId ?? null });
+    previousSelection.current = null; props.onRoomSelectionChange?.(null);
+  };
+  const context = { viewKey: props.viewKey, anchors, ui, selectedRoom, unplacedDock: [viewBox[0] + viewBox[2] - 65 * ui, viewBox[1] + viewBox[3] * .5] as const };
   const failure = renderFailure?.owner === owner ? renderFailure.message : null;
   const status = failure ?? (!props.floors.length ? 'No source floors are available.'
     : !floors.length ? floorStates.some(f => f.state === 'preparing') ? 'Preparing source floors…' : 'Source floors are unavailable. See source details.'
@@ -160,9 +210,12 @@ export function HouseScanScene(props: HouseScanSceneProps) {
         event.preventDefault(); if (event.key === 'ArrowLeft') setYaw(v => v - 15); if (event.key === 'ArrowRight') setYaw(v => v + 15);
         if (event.key === 'ArrowUp') setPitch(v => Math.min(64, v + 6)); if (event.key === 'ArrowDown') setPitch(v => Math.max(18, v - 6));
         if (event.key === '+' || event.key === '=') setZoom(v => Math.min(3.2, v * 1.15)); if (event.key === '-') setZoom(v => Math.max(.6, v / 1.15)); }}>
-      {floors.length > 0 && <SceneMeshCanvas owner={owner} floors={floors} projector={projector} viewBox={viewBox} exploded={cam.explode} selectedFloorKey={selectedFloorKey} plan={plan} cutaway={cutaway}
+      {floors.length > 0 && <SceneMeshCanvas owner={owner} roomRegions={admittedRegions} selectedRoomId={selectedRoom?.id ?? null} overlay={props.overlay} floors={floors} projector={projector} viewBox={viewBox} exploded={cam.explode} selectedFloorKey={selectedFloorKey} plan={plan} cutaway={cutaway}
         onUnavailable={message => { if (latestOwner.current === owner) setRenderFailure({ owner, message }); }} />}
       <svg className="model scene-svg" viewBox={viewBox.join(' ')} preserveAspectRatio="none" aria-label="Schematic room anchors and overlay connections">
+        <defs><linearGradient id="room-lantern-face" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stopColor="#FFE39A" stopOpacity={.7}/><stop offset="1" stopColor="#FFE39A" stopOpacity={.04}/></linearGradient></defs>
+        <RoomRegions regions={admittedRegions} rooms={props.rooms} floors={floors} projector={projector} ui={ui} plan={plan} exploded={cam.explode}
+          selectedFloorKey={selectedFloorKey} selectedRoomId={selectedRoom?.id ?? null} overlay={props.overlay} onSelect={selectRoom} />
         {floors.filter(f => !plan || f.key === selectedFloorKey).map(f => {
           const p = projector.p(f.width / 2 + .6, f.depth / 2, plan ? 0 : f.index * (3.2 + cam.explode * 3.4));
           return <g key={f.key} className={`floor-tag${f.key === selectedFloorKey ? ' is-current' : ''}`} transform={`translate(${p[0]} ${p[1]}) scale(${ui})`}
@@ -170,13 +223,6 @@ export function HouseScanScene(props: HouseScanSceneProps) {
             onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setFloor(f.key); } }}>
             <line x1={0} x2={25} y1={0} y2={0} /><circle cx={0} cy={0} r={2} /><text x={32} y={5} className="floor-tag-short">{props.floors.find(v => v.key === f.key)?.short}</text>
             <text x={32} y={24} className="floor-tag-name">{props.floors.find(v => v.key === f.key)?.label}</text></g>;
-        })}
-        {props.overlay === 'spaces' && anchors.filter(a => a.visible).map(anchor => {
-          const room = props.rooms.find(r => r.id === anchor.id)!;
-          return <g key={anchor.id} className="schematic-room-anchor" transform={`translate(${anchor.base[0]} ${anchor.base[1]}) scale(${ui})`}
-            role="button" tabIndex={0} aria-label={`${room.label}, schematic room anchor`} onClick={() => props.onRoomSelect?.(room)}
-            onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); props.onRoomSelect?.(room); } }}>
-            <circle r={4} fill="#8c6a3c" stroke="#fff" strokeWidth={1.3} /><text y={-10} textAnchor="middle" className="room-name" fontSize={12}>{room.label}</text><circle r={16} fill="transparent" /></g>;
         })}
         {props.renderLayer?.(context)}
       </svg>
@@ -193,5 +239,6 @@ export function HouseScanScene(props: HouseScanSceneProps) {
     </aside>}
     {status && <p className="stage-ui scene-failure" role="status">{status}</p>}
     {props.renderDetails?.(context)}
+    {selectedRoom && selectedRegion && <RoomInspector actions={props.renderRoomActions?.(selectedRoom)} room={selectedRoom} region={selectedRegion} onClose={closeRoom} />}
   </div>;
 }
