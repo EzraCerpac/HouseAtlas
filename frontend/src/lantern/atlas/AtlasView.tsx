@@ -20,6 +20,7 @@ import { LAYER, ROOM_KIND_LABEL, ROOM_TINT } from './palette';
 import { Icon } from '../components/Icon';
 import { EntityLink } from '../components/ui';
 import { RoomIndex } from '../views/RoomsView';
+import { NativeScanAtlas, useNativeGeometryClient } from '../scans/native-ui/NativeScanAtlas';
 
 const DEFAULT_YAW = -32;
 const DEFAULT_TILT = 36;
@@ -31,6 +32,8 @@ const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 
 export function AtlasView() {
   const { house } = useStore();
+  const nativeGeometry = useNativeGeometryClient();
+  if (house.geometry === 'none' && nativeGeometry) return <NativeScanAtlas client={nativeGeometry} />;
   if (house.geometry === 'none') return <NoGeometryAtlas />;
   return <Stage />;
 }
