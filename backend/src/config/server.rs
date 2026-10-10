@@ -73,6 +73,8 @@ pub enum ServerCommand {
         previous: ServerConfig,
         config: Box<ServerConfig>,
     },
+    UpgradeStateReceipt(crate::lifecycle::receipt_compatibility::Selection),
+    RollbackStateReceipt(crate::lifecycle::receipt_compatibility::Selection),
 }
 
 impl ServerCommand {
@@ -81,6 +83,17 @@ impl ServerCommand {
         let Some(mode) = arguments.first().map(String::as_str) else {
             return Ok(None);
         };
+        if matches!(mode, "upgrade-state-receipt" | "rollback-state-receipt") {
+            let selection = crate::lifecycle::receipt_compatibility::Selection::from_arguments(
+                &arguments[1..],
+                mode == "rollback-state-receipt",
+            )?;
+            return Ok(Some(if mode == "upgrade-state-receipt" {
+                Self::UpgradeStateReceipt(selection)
+            } else {
+                Self::RollbackStateReceipt(selection)
+            }));
+        }
         if !matches!(mode, "initialize" | "serve" | "rebind-origin") {
             return Ok(None);
         }
@@ -287,6 +300,20 @@ impl ServerConfig {
         let mut value = serde_json::json!({"format":"houseatlas-server-state/2", "deploymentId":self.deployment_id,
             "dataDirectory":self.data_directory, "listen":self.listen, "origin":self.origin,
             "homes":self.homes, "mcpCommands":self.mcp_commands});
+        if !self.authentication.is_password() {
+            value["authentication"] = serde_json::to_value(&self.authentication)
+                .map_err(|_| "Cannot encode local identity")?;
+        }
+        let bytes = serde_jcs::to_vec(&value).map_err(|_| "Cannot encode server state identity")?;
+        Ok(format!("{:x}", Sha256::digest(bytes)))
+    }
+
+    /// Exact original issuer calculation, used only by explicit offline receipt
+    /// compatibility. Serving and origin rebind continue to require format 2.
+    pub(crate) fn legacy_state_digest(&self) -> Result<String, String> {
+        use sha2::{Digest, Sha256};
+        let mut value = serde_json::json!({"format":"houseatlas-server-state/1", "deploymentId":self.deployment_id,
+            "dataDirectory":self.data_directory, "origin":self.origin, "homes":self.homes});
         if !self.authentication.is_password() {
             value["authentication"] = serde_json::to_value(&self.authentication)
                 .map_err(|_| "Cannot encode local identity")?;

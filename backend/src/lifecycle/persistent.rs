@@ -22,13 +22,13 @@ use zeroize::Zeroizing;
 /// Held until all HTTP requests finish. The lock is never removed/replaced.
 pub struct ServerLease {
     root: PathBuf,
-    directory: File,
+    pub(super) directory: File,
     _lock: File,
     log: Mutex<File>,
 }
 
 impl ServerLease {
-    fn acquire(config: &ServerConfig, initialize: bool) -> Result<Self, Failure> {
+    pub(super) fn acquire(config: &ServerConfig, initialize: bool) -> Result<Self, Failure> {
         if initialize {
             let parent = config
                 .data_directory
@@ -85,7 +85,7 @@ impl ServerLease {
         Ok(())
     }
 
-    fn check(&self) -> Result<(), Failure> {
+    pub(super) fn check(&self) -> Result<(), Failure> {
         let current = private_directory(&self.root)?;
         let original = self.directory.metadata()?;
         let named = current.metadata()?;
@@ -183,17 +183,17 @@ fn provisioning(path: &Path, config: &ServerConfig) -> Result<Vec<PreparedUser>,
     Ok(prepared)
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct State {
-    format: String,
-    configuration_digest: String,
-    atlas_schema: u32,
-    access_schema: i64,
-    access_device: u64,
-    access_inode: u64,
-    atlas_device: u64,
-    atlas_inode: u64,
+pub(super) struct State {
+    pub(super) format: String,
+    pub(super) configuration_digest: String,
+    pub(super) atlas_schema: u32,
+    pub(super) access_schema: i64,
+    pub(super) access_device: u64,
+    pub(super) access_inode: u64,
+    pub(super) atlas_device: u64,
+    pub(super) atlas_inode: u64,
 }
 
 /// Offline only. The operator supplies every account/password/membership.
@@ -301,6 +301,7 @@ fn initialize_selected(
 pub fn reopen(config: &ServerConfig) -> Result<(Core, ServerLease), Failure> {
     config.validate()?;
     let lease = ServerLease::acquire(config, false)?;
+    super::receipt_compatibility::require_no_pending(config)?;
     match fs::symlink_metadata(config.data_directory.join("server-state.rebind.pending")) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Ok(_) => return Err(
@@ -488,7 +489,7 @@ pub fn rebind_origin(previous: &ServerConfig, config: &ServerConfig) -> Result<(
     Ok(())
 }
 
-fn private_directory(path: &Path) -> Result<File, Failure> {
+pub(super) fn private_directory(path: &Path) -> Result<File, Failure> {
     if fs::canonicalize(path)? != path {
         return Err("Private directory must use its canonical path".into());
     }
@@ -509,7 +510,7 @@ fn private_directory(path: &Path) -> Result<File, Failure> {
     }
     Ok(file)
 }
-fn private_metadata(path: &Path) -> Result<fs::Metadata, Failure> {
+pub(super) fn private_metadata(path: &Path) -> Result<fs::Metadata, Failure> {
     let meta = fs::symlink_metadata(path)?;
     if !meta.is_file()
         || meta.file_type().is_symlink()
@@ -521,7 +522,7 @@ fn private_metadata(path: &Path) -> Result<fs::Metadata, Failure> {
     }
     Ok(meta)
 }
-fn open_private(path: &Path, create: bool, append: bool) -> Result<File, Failure> {
+pub(super) fn open_private(path: &Path, create: bool, append: bool) -> Result<File, Failure> {
     let file = OpenOptions::new()
         .read(true)
         .write(true)
@@ -537,7 +538,7 @@ fn open_private(path: &Path, create: bool, append: bool) -> Result<File, Failure
     }
     Ok(file)
 }
-fn sync(file: &File) -> Result<(), Failure> {
+pub(super) fn sync(file: &File) -> Result<(), Failure> {
     rustix::fs::fsync(file)?;
     #[cfg(target_os = "macos")]
     rustix::fs::fcntl_fullfsync(file)?;

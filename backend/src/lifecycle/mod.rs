@@ -2,6 +2,7 @@
 pub mod ai_account;
 pub mod persistent;
 pub mod provider_dispatch;
+pub mod receipt_compatibility;
 pub mod providers {
     pub mod authority;
     pub mod homebox_refresh;

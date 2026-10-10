@@ -7,6 +7,8 @@ mod cache_types;
 mod command_extension;
 mod context;
 mod error;
+mod existing_validation;
+pub(crate) use existing_validation::validate_existing_receipt_schema;
 mod homebox_stock_history_types;
 mod migrations;
 mod native;
