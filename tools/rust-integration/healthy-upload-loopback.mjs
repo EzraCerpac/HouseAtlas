@@ -160,6 +160,9 @@ try {
   await evaluate("location.hash='#settings'");
   await until(async()=> (await evaluate('document.body?.innerText ?? ""')).includes('Sign out'),'Actual session Settings');
   await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Sign out').click()");
+  await until(async () => await evaluate("Boolean(document.querySelector('section[role=dialog][aria-modal=true][aria-labelledby=capture-logout-heading]')?.getClientRects().length)"), 'Ordinary logout confirmation dialog');
+  assert.equal(await evaluate("document.querySelector('section[aria-labelledby=capture-logout-heading] input[type=checkbox]')?.checked"), false, 'Ordinary logout keeps local captures by default');
+  await evaluate("[...document.querySelectorAll('section[aria-labelledby=capture-logout-heading] button')].find(b=>b.textContent==='Keep local captures and sign out'&&!b.disabled).click()");
   await until(async()=>await evaluate("Boolean(document.getElementById('atlas-username'))"),'Ordinary successful logout form');
   await evaluate(`document.getElementById('atlas-username').value=${JSON.stringify(editorLogin.username)};document.getElementById('atlas-password').value=${JSON.stringify(editorLogin.password)};document.querySelector('.session-form').requestSubmit()`);
   await until(async()=> (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'),'Actual editor React session');
