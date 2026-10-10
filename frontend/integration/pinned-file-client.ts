@@ -2,7 +2,9 @@ import type { AtlasSessionInfo } from '../src/app/session';
 import type { Scope } from '../src/app/types';
 import {
   buildPinnedFileRequest,
+  buildPinnedFileRequestV4,
   decodePinnedArtifact,
+  decodePinnedCaptureV4,
   decodePinnedAvailability,
   decodePinnedDiscovery,
   isPinnedUuid,
@@ -214,7 +216,13 @@ export function createPinnedFileClient(options: PinnedFileClientOptions): Pinned
   const prepare = (source: PinnedSourceRef, attachmentId: string) => {
     try {
       // A fresh requestId only for this genuinely new read; never derived or reused.
-      const request = buildPinnedFileRequest(source, attachmentId, crypto.randomUUID());
+      const requestId = crypto.randomUUID();
+      if (!isPinnedUuid(source.key.collectionId)) {
+        const request = buildPinnedFileRequestV4(source, attachmentId, requestId);
+        const root = stockRoot(request.context).replace('/stock/v3/', '/stock/v4/');
+        return { request, url: `${root}/homebox-pinned-file${pinnedCaptureQuery(request)}` };
+      }
+      const request = buildPinnedFileRequest(source, attachmentId, requestId);
       return { request, url: `${stockRoot(request.context)}/homebox-pinned-file${pinnedCaptureQuery(request)}` };
     } catch {
       return null;
@@ -231,7 +239,10 @@ export function createPinnedFileClient(options: PinnedFileClientOptions): Pinned
     capturing = true;
     const observed: Observed = { sent: false, status: null };
     try {
-      const decoded = decodePinnedArtifact(await exchange(found, prepared.url, 65_536, signal, observed), prepared.request);
+      const response = await exchange(found, prepared.url, 65_536, signal, observed);
+      const decoded = prepared.request.schemaVersion === 4
+        ? decodePinnedCaptureV4(response, prepared.request)
+        : decodePinnedArtifact(response, prepared.request);
       if (!isCurrent(found)) throw new TypeError('Session or home changed');
       const result: PinnedFileCapture = Object.freeze({ source: original, attachmentId, request: prepared.request, artifact: decoded.facts });
       captures.set(result, Object.freeze({ owner: found, token: decoded.downloadToken }));

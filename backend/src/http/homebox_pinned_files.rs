@@ -122,9 +122,7 @@ impl PinnedHomeBoxFileBinding {
     ) -> storage::Result<Self> {
         let endpoint = source.endpoint().map_err(|_| binding_error())?;
         let partition = source.partition();
-        let collection = hb::Uuid::parse(&partition.collection_id).map_err(|_| binding_error())?;
-        if collection.as_str() != partition.collection_id
-            || source.metadata_dialect() != crate::providers::homebox::wire::DIALECT
+        if source.metadata_dialect() != crate::providers::homebox::wire::DIALECT
             || !credentials.matches_endpoint(&endpoint)
         {
             return Err(binding_error());
@@ -194,6 +192,23 @@ pub(super) async fn capture(
     uri: Uri,
     method: Method,
 ) -> HttpResult {
+    capture_selected(host, workspace_id, home_id, headers, uri, method, false).await
+}
+
+pub(super) async fn capture_v4(
+    State(host): State<Host>,
+    Path((workspace_id, home_id)): Path<(String, String)>,
+    Extension(headers): Extension<CheckedHeaders>,
+    uri: Uri,
+    method: Method,
+) -> HttpResult {
+    capture_selected(host, workspace_id, home_id, headers, uri, method, true).await
+}
+
+async fn capture_selected(
+    host: Host, workspace_id: String, home_id: String,
+    headers: CheckedHeaders, uri: Uri, method: Method, v4: bool,
+) -> HttpResult {
     let (_cancel, budget) = budget()?;
     let runtime = tokio::runtime::Handle::current();
     tokio::task::spawn_blocking(move || {
@@ -212,7 +227,11 @@ pub(super) async fn capture(
                 let raw = original_wire(&uri)?;
                 let contracts =
                     st::NativeStockContract::new().map_err(super::stock_reads::http_error)?;
-                let request = st::ValidatedRequest::parse(&contracts, raw)
+                let request = if v4 {
+                    st::ValidatedRequest::parse_pinned_homebox_download_v4(&contracts, raw)
+                } else {
+                    st::ValidatedRequest::parse(&contracts, raw)
+                }
                     .map_err(super::stock_reads::http_error)?;
                 if request.is_mutation() || request.id() != st::OperationId::HomeboxFileDownload {
                     return Err(invalid());
@@ -332,7 +351,22 @@ pub(super) async fn capture(
                 };
                 budget.check().map_err(media_error)?;
                 let output = serde_json::to_value(issued.artifact()).map_err(|_| unavailable())?;
-                Ok(json_response(output))
+                if v4 {
+                    let output = serde_json::json!({
+                        "schemaVersion": 4,
+                        "commandId": "homebox.file.download",
+                        "requestId": request.request_id(),
+                        "artifact": output,
+                    });
+                    st::StockContractPort::validate(
+                        &contracts,
+                        "urn:houseatlas:pinned-homebox-file:4#/$defs/result_homebox_file_capture_v4",
+                        &output,
+                    ).map_err(super::stock_reads::http_error)?;
+                    Ok(json_response(output))
+                } else {
+                    Ok(json_response(output))
+                }
             },
         )
     })

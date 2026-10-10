@@ -164,7 +164,7 @@ export function PinnedFileAction({ docId }: { docId: string }) {
     <>
       <h3>Local copy</h3>
       {!capturable ? (
-        <p className="fine">Unavailable: this source or attachment is not identified by HomeBox UUIDs.</p>
+        <p className="fine">Unavailable: this source or attachment has an invalid HomeBox identifier.</p>
       ) : !live ? (
         <p className="fine">Unavailable: session or home is not current.</p>
       ) : (
