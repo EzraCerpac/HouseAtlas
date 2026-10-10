@@ -11,6 +11,9 @@ import type { AtlasEditingClient, PlaceEditAdmission } from "./editing";
 import type { Entry } from "./types";
 import { EvidencePicker } from "../capture-evidence/EvidencePicker";
 import type { EvidenceSelection } from "../capture-evidence/selection";
+import { useCaptureDrafts } from "../capture-drafts-ui/Context";
+import { CaptureDraftPanel, captureTargetKey } from "../capture-drafts-ui/Panel";
+import type { CaptureDraftPort } from "../capture-drafts-ui/port";
 
 const kinds: readonly LocationSemanticsPayloadSemanticKind[] = [
   "unclassified",
@@ -50,15 +53,16 @@ function ReasonField({ busy }: { busy: boolean }) {
     </label>
   );
 }
-export function PlaceEditor({
+type Props = { entry: Entry; client: AtlasEditingClient; refresh: () => Promise<boolean> };
+export function PlaceEditor(props: Props) {
+  return <PlaceEditorForTarget key={captureTargetKey(props.entry, props.entry.source)} {...props} />;
+}
+function PlaceEditorForTarget({
   entry,
   client,
   refresh,
-}: {
-  entry: Entry;
-  client: AtlasEditingClient;
-  refresh: () => Promise<boolean>;
-}) {
+}: Props) {
+  const drafts = useCaptureDrafts();
   const [open, setOpen] = useState(false),
     [busy, setBusy] = useState(false);
   const [admission, setAdmission] = useState<PlaceEditAdmission | null>(null);
@@ -75,7 +79,16 @@ export function PlaceEditor({
   const opener = useRef<HTMLButtonElement>(null);
   const evidenceOpener = useRef<HTMLButtonElement>(null);
   const restoreOpener = useRef(false);
+  const evidenceForm = useRef<HTMLFormElement>(null);
+  const localSelection = useRef<{ selection: EvidenceSelection; id: string } | null>(null);
   useEffect(() => () => active.current?.abort(), []);
+  useEffect(() => drafts?.subscribeInvalidation(reason => {
+    if (reason === 'boundary') { setSelection(null); localSelection.current = null; }
+  }), [drafts]);
+  const selectEvidence = (next: EvidenceSelection | null) => {
+    setSelection(next);
+    localSelection.current = next ? { selection: next, id: crypto.randomUUID() } : null;
+  };
   useLayoutEffect(() => {
     if (!open && restoreOpener.current) {
       restoreOpener.current = false;
@@ -301,6 +314,38 @@ export function PlaceEditor({
       return result;
     }, "Uploading attachment…");
   };
+  const draftCandidate = (): Parameters<CaptureDraftPort['save']>[0] | null => {
+    const form = evidenceForm.current;
+    if (!form || !selection || !admission?.attachmentPolicy || !form.reportValidity()) return null;
+    const reason = readReason(form); if (!reason) return null;
+    const fields = new FormData(form), policy = admission.attachmentPolicy;
+    const selectedLicense = fields.get('license');
+    const license = typeof selectedLicense === 'string' && selectedLicense !== '' ? policy.licenses[Number(selectedLicense)] : undefined;
+    const statement = String(fields.get('statement') ?? '').trim();
+    if (!license || !statement || selection.file.size > policy.maximumBytes || !policy.contentTypes.includes(selection.file.type)) {
+      setStatus('Choose a supported file and a permitted licence within the displayed limits.'); return null;
+    }
+    if (localSelection.current?.selection !== selection) localSelection.current = { selection, id: crypto.randomUUID() };
+    return { localId: localSelection.current.id, selection, form: { statement, sourceLicense: license.value, reason },
+      targetSourceRef: source, recordId: admission.record.recordId, optedIn: true };
+  };
+  const draftSubmitted = async (result: StockResultEnvelope, cleanup: 'removed' | 'unconfirmed') => {
+    setReceipt(result);
+    if (result['status'] !== 'committed') { setStatus('The upload was not committed. The local attempt remains locked.'); return; }
+    selectEvidence(null);
+    const controller = begin('Saved. Refreshing information…');
+    const suffix = cleanup === 'unconfirmed' ? ' Local cleanup could not be confirmed; view local drafts before any further action.' : '';
+    try {
+      if (!(await refresh()) || controller.signal.aborted) {
+        setAdmission(null);
+        if (!controller.signal.aborted) setStatus(`Saved. Saved information could not be refreshed.${suffix}`);
+        return;
+      }
+      const next = await load(controller.signal);
+      if (!controller.signal.aborted) setStatus(`${next ? 'Saved. Information refreshed.' : 'Saved. Editing is unavailable.'}${suffix}`);
+    } catch { if (!controller.signal.aborted) { setAdmission(null); setStatus(`Saved. Editing information could not be refreshed.${suffix}`); } }
+    finally { if (!controller.signal.aborted) setBusy(false); }
+  };
   if (!open)
     return (
       <div className="actions">
@@ -356,12 +401,13 @@ export function PlaceEditor({
       {policy && policy.licenses.length > 0 && client.uploadPlaceEvidence && (
         <div className="setting">
           <form
+            ref={evidenceForm}
             className="session-form"
             aria-label="Atlas attachment"
             onSubmit={upload}
           >
             <h3>Add evidence</h3>
-            <EvidencePicker key={receipt?.requestId ?? "unsubmitted"} policy={policy} busy={busy} value={selection} onChange={setSelection} />
+            <EvidencePicker key={receipt?.requestId ?? "unsubmitted"} policy={policy} busy={busy} value={selection} onChange={selectEvidence} />
             <label>
               <span>Evidence statement</span>
               <input
@@ -395,6 +441,9 @@ export function PlaceEditor({
           </form>
         </div>
       )}
+      {drafts && client.uploadPlaceEvidence && <CaptureDraftPanel port={drafts} source={source} recordId={admission?.record.recordId}
+        candidate={draftCandidate} canSave={!!selection && !!policy} parentBusy={busy}
+        onBusy={value => { submitting.current = value; setBusy(value); }} onSaved={() => selectEvidence(null)} onSubmitted={draftSubmitted} />}
       {receipt && (
         <details className="command-receipt">
           <summary>Command receipt</summary>
@@ -405,6 +454,8 @@ export function PlaceEditor({
         type="button"
         disabled={busy}
         onClick={() => {
+          if (submitting.current) return;
+          drafts?.invalidate();
           restoreOpener.current = true;
           setOpen(false);
           setAdmission(null);

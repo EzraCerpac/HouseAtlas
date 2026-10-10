@@ -13,6 +13,7 @@ import { BrandMark, Heading } from "./components";
 import type { AtlasClient } from "./types";
 import type { AtlasEditingClient } from "./editing";
 import type { AiApplicationPort } from "../ai/host/index.js";
+import type { CaptureDraftPort } from "../capture-drafts-ui/port";
 import type {
   AtlasAuthMode,
   AtlasCredentials,
@@ -39,6 +40,8 @@ export interface SessionAppProps {
   editing?: AtlasEditingClient;
   ai?: AiApplicationPort;
   renderContent?: AtlasAppProps["renderContent"];
+  onScopeCommit?: AtlasAppProps["onScopeCommit"];
+  localCaptures?: Pick<CaptureDraftPort, 'invalidate' | 'clearBeforeSignOut'>;
 }
 /** Optional application-auth shell. It does not provision accounts, grant home
  * membership or authorize a source. Protected browsing is still owned by App. */
@@ -50,10 +53,20 @@ export function SessionApp({
   editing,
   ai,
   renderContent,
+  onScopeCommit,
+  localCaptures,
 }: SessionAppProps) {
   const [state, setState] = useState<SessionState>({ status: "loading" });
   const generation = useRef(0),
     active = useRef<AbortController | null>(null);
+  const [logoutChoice, setLogoutChoice] = useState(false), [loseLocal, setLoseLocal] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false), [logoutError, setLogoutError] = useState('');
+  const logoutLock = useRef(false), logoutHeading = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => { if (logoutChoice) logoutHeading.current?.focus(); }, [logoutChoice]);
+  useLayoutEffect(() => {
+    if (state.status !== 'authenticated') { onScopeCommit?.(null); localCaptures?.invalidate(); setLogoutChoice(false); }
+  }, [state.status, onScopeCommit, localCaptures]);
+  useEffect(() => () => { onScopeCommit?.(null); localCaptures?.invalidate(); }, [onScopeCommit, localCaptures]);
   const begin = () => {
     active.current?.abort();
     const controller = new AbortController();
@@ -121,6 +134,8 @@ export function SessionApp({
         stopped = true;
         generation.current++;
         active.current?.abort();
+        localCaptures?.invalidate();
+        onScopeCommit?.(null);
         setState({ status: "expired" });
       } else {
         timer = setTimeout(check, Math.min(remaining, 2_147_483_647));
@@ -140,7 +155,7 @@ export function SessionApp({
       window.removeEventListener("focus", check);
       window.removeEventListener("pageshow", check);
     };
-  }, [state]);
+  }, [state, localCaptures, onScopeCommit]);
   useLayoutEffect(() => {
     if (state.status !== "authenticated") {
       document.title = "HouseAtlas";
@@ -207,14 +222,32 @@ export function SessionApp({
         setState({ status: "unavailable", action: "sign-out" });
     }
   };
+  const chooseSignOut = () => {
+    if (!localCaptures) { void signOut(); return; }
+    setLoseLocal(false); setLogoutError(''); setLogoutChoice(true);
+  };
+  const confirmSignOut = async () => {
+    if (logoutLock.current) return;
+    logoutLock.current = true; setLogoutBusy(true); setLogoutError('');
+    try {
+      // Explicit cleanup runs while the authenticated home is still mounted.
+      // A failed cleanup never becomes a successful deletion or silent logout.
+      if (loseLocal) await localCaptures?.clearBeforeSignOut();
+      localCaptures?.invalidate(); setLogoutChoice(false);
+      await signOut();
+    } catch { setLogoutError('Local captures could not be removed. You are still signed in. Keep them and sign out, or cancel.'); }
+    finally { logoutLock.current = false; setLogoutBusy(false); }
+  };
   if (state.status === "authenticated") {
     return (
+      <>
+      <div inert={logoutChoice}>
       <App
         client={client}
         signIn={showSignIn}
         session={{
           expiresAt: state.info.expiresAt,
-          ...(sessions.signOut ? { signOut: () => void signOut() } : {}),
+          ...(sessions.signOut ? { signOut: chooseSignOut } : {}),
         }}
         {...(accessEvents ? { accessEvents } : {})}
         {...((stock || renderContent)
@@ -231,8 +264,20 @@ export function SessionApp({
             } satisfies Pick<AtlasAppProps, "renderContent">)
           : {})}
         {...(editing ? { editing } : {})}
+        {...(onScopeCommit ? { onScopeCommit } : {})}
         {...(ai ? { resolveAi: (scope: Scope, label: string) => ai.resolve(state.info, scope, label) } : {})}
       />
+      </div>
+      {logoutChoice && <section className="access-panel" role="dialog" aria-modal="true" aria-labelledby="capture-logout-heading" aria-busy={logoutBusy}>
+        <h2 id="capture-logout-heading" ref={logoutHeading} tabIndex={-1}>Sign out</h2>
+        <p>Local capture drafts stay in this browser unless you remove them. They are hidden from other signed-in accounts.</p>
+        <label><input type="checkbox" checked={loseLocal} disabled={logoutBusy} onChange={event => setLoseLocal(event.target.checked)} /> Delete my local captures in all homes before signing out, including unknown attempts</label>
+        {loseLocal && <p>This loses the local files and does not cancel any server operation.</p>}
+        <p role="alert">{logoutError}</p>
+        <div className="access-actions"><button type="button" disabled={logoutBusy} onClick={() => void confirmSignOut()}>{loseLocal ? 'Delete local captures and sign out' : 'Keep local captures and sign out'}</button>
+          <button type="button" disabled={logoutBusy} onClick={() => setLogoutChoice(false)}>Cancel</button></div>
+      </section>}
+      </>
     );
   }
   if (state.status === "expired") {
