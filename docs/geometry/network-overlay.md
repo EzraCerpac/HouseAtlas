@@ -11,11 +11,16 @@
   data={networkData}
   selectedFloor={selectedFloor /* { id, label } | null */}
   selectedPlaceId={selectedPlaceId /* native Atlas identity or null */}
+  selectedPackagePlaces={selectedPackagePlaces /* exact reviewed receipt context or null */}
   onSelectionChange={selection => { /* device/link { kind, id } or null */ }}
 />
 ```
 
 `data.viewKey` must equal the current host view. Supply a new immutable projection when authorization or scope changes, and remove data/unmount the panel when access is revoked. The host owns fencing its selection callback. Local selection is fenced to the supplied data object and view identity. The common overlay switch supports `none | network | electricity`; network never edits the shared scan renderer, route, source port, or native contracts.
+
+The optional documentary `selectedPackagePlaces` context has the geometry owner's common fields: `viewKey`, `status`, `receiptId`, `receiptSha256`, `sourceAnchorIds`, `targets` (exact `packagePlaceKey` + `packagePlaceUuid` pairs), and `unresolvedLabels`. The host validates complete receipt membership and clears context on authorization/source changes. The module checks current view, accepted status and the supplied source's `roomMappingReceipt` ID/hash, then matches exact target pairs and source anchor identities. Accepted documentary context takes precedence over a native room selection while the retained projection still lacks native bindings. Null documentary context uses exact native place filtering when provided; otherwise it shows the building. An invalid or proposed context exposes no room-specific list, labels or placement details; all authorized building topology remains visible. Devices outside the selected room retain their topology nodes and connections with an outside-context label. Reviewed plan details are bounded to the selected source anchor IDs as well as the exact canonical key/UUID pair. The host clears documentary context on independent native selection changes. Multiple targets and unresolved span labels remain distinct.
+
+A place may carry canonical documentary `sourcePlaceId`/`sourcePlaceUUID` plus reviewed `planAssociations` containing exact hash-scoped DXF anchor identity, source floor label/key, reference/handle and receipt hash. These optional fields preserve the original Network `sourceRoomId`, and never occupy native `placeId`. Reviewed text references remain separate from unmatched mesh mapping and null physical coordinates. Replacing source scans appends a new receipt; graph positions or text insertion points never carry forward device coordinates.
 
 The floor object is context only. It never filters documentary associations or supplies room matching. `placeId` is a reviewed native place identity; `sourceRoomId` is a documentary identity, never a scan prim path. Equal room labels do not merge separate identities. Mobile and nonspatial endpoints remain visible in the topology and excluded from floor placement even if a contradictory association is supplied.
 
