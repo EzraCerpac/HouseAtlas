@@ -326,7 +326,25 @@ reference directory contains the explicitly pinned public HomeBox source bytes.
 HOUSEATLAS_QUANTITY_REFERENCE_DIR=/tmp/houseatlas-quantity-reference-e01dd737 TMPDIR=/tmp cargo test --offline --locked -p houseatlas-backend --lib http::quantity_http_healthy::healthy_quantity_human_http_preview_approval_native_journal_and_readback -- --exact --nocapture
 ```
 
-### Fresh synthetic trusted gateway positive
+#The native place evidence positive uses one fresh disposable numeric-loopback TLS
+service and generated one-page PDF. It creates a source-free native building,
+loads actual Editor admission, commits one guarded evidence/asset/identity batch,
+and checks original receipt, native reads/history and byte-identical download.
+It creates no source Binding. It uses no household file, provider, real account,
+retry/replay, failure/denial/control, frontend DOM or deployment. Inspect the whole
+body, imports, owner APIs and the private artifact packet before this exact command:
+
+```sh
+node tools/rust-integration/healthy-native-place-evidence-loopback.mjs /absolute/private/native-evidence-artifact-selection.json
+```
+
+The packet pins one actually compiled native binary and build receipt, canonical
+OpenSSL executable, and an empty owned private evidence directory. Port 48743
+must be free; the positive stops if occupied. It never touches another service.
+A source pass or this synthetic success does not authorize actual household intake
+or establish PDF safety, frontend, device, rollback or installation acceptance.
+
+## Fresh synthetic trusted gateway positive
 
 The named ordinary example creates only private disposable state. It performs
 one fresh local-to-proxy origin rebind and native session checks over its actual

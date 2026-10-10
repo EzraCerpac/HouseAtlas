@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c5521936624d3fff44f1679f87f7545831f75edf3423dec7bb81b1ee624ebac0",
+  "sourceDigestSha256": "4cda69ade880910ba2f04dd8fcf9f5cbeb76231c0bcc266923f42b5bb7c98a3b",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 21853,
-      "sha256": "e263ce4daca0e91cac75043e6efbd0839d94fb73afd541d320d4a2495bbaa0b2",
+      "bytes": 22968,
+      "sha256": "cf577aec07740b7861ea39bd077ff55030829bb5ce7853e91f2380a8ed320d9b",
       "owner": "core-integration"
     },
     {
@@ -2044,8 +2044,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 43084,
-      "sha256": "05b33c93517e405ead23724b98c16c28ce7501ea8342d79cf36716adf43164a7",
+      "bytes": 43459,
+      "sha256": "9d60cdd47ad39d7bdffd2a17f88488f9738c9eeee7b4c362b7a7293fe16b2aac",
       "owner": "core-integration"
     },
     {
@@ -2054,6 +2054,13 @@
       "bytes": 21907,
       "sha256": "e1392c8d9de86ae18677d461d151767528d5232fef1ae32b7ee4f55990049ba1",
       "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/http/native_upload_admission.rs",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 1328,
+      "sha256": "024768d17b73a74ff7357a2105a59e9da2f8ef5e56c1a66d8c501449c98a1dd4"
     },
     {
       "path": "backend/src/http/operation_events.rs",
@@ -2121,8 +2128,8 @@
     {
       "path": "backend/src/http/qualified_upload_plan.rs",
       "mode": "100644",
-      "bytes": 17614,
-      "sha256": "ca90c10ef6af3a69485fdc428d87f1c24f505382758992f48ada88efcd7e8b56",
+      "bytes": 24563,
+      "sha256": "1c2cf539ead0012206b33e03c05ce30c490d85a0503b3ec00d625eb0e148cb70",
       "owner": "core-integration"
     },
     {
@@ -2226,8 +2233,8 @@
     {
       "path": "backend/src/http/upload.rs",
       "mode": "100644",
-      "bytes": 11404,
-      "sha256": "74272f8163577226f024ea237a9f85669499e56ed1f2e0b8f80bf2233a371cdc",
+      "bytes": 12120,
+      "sha256": "5e0a623a39941861ddfdc7e1e013ef69182bf4cbbab885f56798dbc14017fb04",
       "owner": "core-integration"
     },
     {
@@ -7924,8 +7931,8 @@
     {
       "path": "tools/rust-integration/examples/healthy_canonical_upload_plan.rs",
       "mode": "100644",
-      "bytes": 11822,
-      "sha256": "5ebf66e3ba9370b9591ea825b7af1caa70c59a3db018345e222c983cc616ca47",
+      "bytes": 11930,
+      "sha256": "e7620c300603fcb98a0e8b003160d364d648591e3aa075c80106d28d63f8e045",
       "owner": "core-integration"
     },
     {
@@ -8046,6 +8053,13 @@
       "bytes": 26201,
       "sha256": "96e249a02d3b4643b91938e8b76737f0ec33d532a5d1498941540272767e1f42",
       "owner": "core-integration"
+    },
+    {
+      "path": "tools/rust-integration/healthy-native-place-evidence-loopback.mjs",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 22508,
+      "sha256": "abf4528b141f0515f32bcfa9dacb25ec0d21060f1910cdcd4d6aca658858ff93"
     },
     {
       "path": "tools/rust-integration/healthy-native-place-ui-loopback.mjs",
