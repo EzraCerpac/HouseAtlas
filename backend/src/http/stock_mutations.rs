@@ -1147,7 +1147,7 @@ pub(super) fn execute_staged(
     raw: Value,
     staged: &crate::media::staged_upload::StagedAssetPlan,
     contracts: &st::NativeStockContract,
-) -> st::StockResult<st::OwnerResult> {
+) -> st::StockResult<(st::OwnerResult, Option<super::asset_reviews::UploadRelease>)> {
     let request = st::ValidatedRequest::parse(contracts, raw.clone())?;
     let qualified = super::qualified_upload_plan::qualify(p, selection, &request, staged)?;
     execute_staged_profile(host, core, p, raw, contracts, &qualified)
@@ -1161,7 +1161,7 @@ pub(super) fn execute_staged_asset(
     raw: Value,
     staged: &crate::media::staged_upload::StagedAssetPlan,
     contracts: &st::NativeStockContract,
-) -> st::StockResult<st::OwnerResult> {
+) -> st::StockResult<(st::OwnerResult, Option<super::asset_reviews::UploadRelease>)> {
     let request = st::ValidatedRequest::parse(contracts, raw.clone())?;
     require(
         request.id() == st::OperationId::AtlasAssetCreate
@@ -1180,7 +1180,7 @@ fn execute_staged_profile(
     raw: Value,
     contracts: &st::NativeStockContract,
     qualified: &st::StagedAtlasCommandPlan<'_>,
-) -> st::StockResult<st::OwnerResult> {
+) -> st::StockResult<(st::OwnerResult, Option<super::asset_reviews::UploadRelease>)> {
     let archive = host.native_media_archive.as_deref().filter(|_| {
         qualified.staged().payload().preview_policy == m::types::PreviewPolicy::SafeRendered
     });
@@ -1192,7 +1192,8 @@ fn execute_staged_profile(
             contracts,
             Some(UploadPlan::Staged(qualified, None)),
             None,
-        );
+        )
+        .map(|result| (result, None));
     };
     let binding = {
         let access = core.access.lock().map_err(|_| unavailable())?;
@@ -1215,6 +1216,7 @@ fn execute_staged_profile(
             p.principal.actor_id().as_str().to_owned(),
         )
         .map_err(|_| unavailable())?;
+    let release = reservation.release();
     let observation = s::AssetUploadCommitObservation::new();
     let qualified_commit = RefCell::new(None);
     let capture = UploadCapture {
@@ -1237,7 +1239,7 @@ fn execute_staged_profile(
     if let Some((commit, qualified)) = disposition {
         reservation.record(commit, qualified);
     }
-    output
+    output.map(|result| (result, Some(release)))
 }
 pub(super) fn execute_existing(
     core: &Core,

@@ -186,7 +186,7 @@ pub(super) async fn command(
             &principal, &selection, &input.metadata, &staged, &inputs,
         ).map_err(stock_reads::http_error)?;
         let raw = plan.plan().original_request().clone();
-        let result = stock_mutations::execute_staged(&host, &core, &principal, &selection, raw, &staged, &schemas)
+        let (result, release) = stock_mutations::execute_staged(&host, &core, &principal, &selection, raw, &staged, &schemas)
             .map_err(stock_reads::http_error)?;
         // The owner has already committed and qualified this canonical result.
         // Metadata retirement cannot turn that commit into an unconfirmed write.
@@ -215,6 +215,10 @@ pub(super) async fn command(
         // use a cleanup error to waive the original principal/source checks.
         let access = core.access.lock().map_err(|_| unavailable())?;
         principal.release(&access).map_err(access_error)?;
+        drop(access);
+        if let Some(release) = release {
+            release.mark_released();
+        }
         Ok(json_response(result.wire))
     }).await.map_err(|_| unavailable())?
 }

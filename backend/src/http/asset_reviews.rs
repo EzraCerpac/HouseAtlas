@@ -18,14 +18,17 @@ use axum::{
 use serde_json::{json, to_value};
 use std::{
     collections::VecDeque,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 
 const MAX_RECEIPTS: usize = 64;
 const MAX_PER_SESSION: usize = 4;
-// Completed custody has its own finite backlog. It never consumes a live
-// receipt permit; a full backlog blocks writes before their owners are taken.
+// Withheld committed custody has its own finite backlog. It never consumes a
+// live receipt permit; a full backlog blocks writes before owners are taken.
 const MAX_DISPOSITIONS: usize = 64;
 const RECEIPT_TTL: Duration = Duration::from_secs(300);
 
@@ -191,7 +194,9 @@ fn execute_validated(
             commit,
             store_qualified,
             http_released,
+            upload_release: None,
         });
+        registry.prune();
     }
     released
 }
@@ -232,6 +237,20 @@ struct Disposition {
     commit: s::StockAtlasCommit,
     store_qualified: bool,
     http_released: bool,
+    upload_release: Option<UploadRelease>,
+}
+
+/// One process-local allocation shared by a precommit reservation and its
+/// final HTTP release. It is never a grant or a serialized receipt.
+#[derive(Clone)]
+pub(super) struct UploadRelease(Arc<AtomicBool>);
+impl UploadRelease {
+    pub(super) fn mark_released(&self) {
+        self.0.store(true, Ordering::Release);
+    }
+    fn is_released(&self) -> bool {
+        self.0.load(Ordering::Acquire)
+    }
 }
 
 /// A private reservation borrowing the still-held registry mutex. No other
@@ -243,8 +262,12 @@ pub(super) struct UploadDispositionReservation<'a> {
     asset_id: String,
     actor_id: String,
     issued: Instant,
+    release: UploadRelease,
 }
 impl UploadDispositionReservation<'_> {
+    pub(super) fn release(&self) -> UploadRelease {
+        self.release.clone()
+    }
     /// All owned fields and deque capacity were prepared before SQL commit.
     /// Preserve unexpected committed DATA too, withholding its qualification.
     pub(super) fn record(self, commit: s::StockAtlasCommit, store_qualified: bool) {
@@ -266,6 +289,7 @@ impl UploadDispositionReservation<'_> {
             commit,
             store_qualified: store_qualified && matches_original,
             http_released: false,
+            upload_release: Some(self.release),
         });
     }
 }
@@ -295,14 +319,25 @@ impl ReviewRegistry {
             asset_id,
             actor_id,
             issued: Instant::now(),
+            release: UploadRelease(Arc::new(AtomicBool::new(false))),
         })
     }
     fn prune(&mut self) {
         let now = Instant::now();
         self.entries
             .retain(|entry| now.duration_since(entry.issued) < RECEIPT_TTL);
-        self.dispositions
-            .retain(|entry| now.duration_since(entry.issued) < RECEIPT_TTL);
+        self.prune_dispositions(now);
+    }
+    fn prune_dispositions(&mut self, now: Instant) {
+        self.dispositions.retain(|entry| {
+            now.duration_since(entry.issued) < RECEIPT_TTL
+                && !(entry.store_qualified
+                    && (entry.http_released
+                        || entry
+                            .upload_release
+                            .as_ref()
+                            .is_some_and(UploadRelease::is_released)))
+        });
     }
     fn room(&mut self, binding: &[u8; 32]) -> bool {
         self.prune();
@@ -315,6 +350,9 @@ impl ReviewRegistry {
                 < MAX_PER_SESSION
     }
     fn reserve_disposition(&mut self) -> Result<(), super::HttpFailure> {
+        // take has already validated an entry index under this registry guard.
+        // Reclaim only dispositions here so that index still names that Box.
+        self.prune_dispositions(Instant::now());
         if self.dispositions.len() >= MAX_DISPOSITIONS {
             return Err(unavailable());
         }
