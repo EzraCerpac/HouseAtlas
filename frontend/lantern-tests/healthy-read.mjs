@@ -7,12 +7,12 @@ import { stripTypeScriptTypes } from 'node:module';
 import { transformWithOxc } from 'vite';
 import { projectView } from '../src/lantern/adapters/read.ts';
 import { loadNumericSource } from './load-numeric-source.mjs';
-import { createEvidenceClient } from '../src/api/evidence-client.ts';
 import { createOperationHistoryClient } from '../src/api/operation-history-client.ts';
 import { createRetainedIntentClient, canReadRetainedIntent } from '../src/api/retained-intent-client.ts';
 import { demoSnapshot, demoOptions } from '../../web/demo/fixtures.mjs';
 import { prepareAtlasView } from '../../web/src/prepare.mjs';
 const { createGeometryClient } = await import(await loadNumericSource('api/geometry-client.ts'));
+const { createEvidenceClient } = await import(await loadNumericSource('api/evidence-client.ts'));
 const { ExactDecimal } = await import(await loadNumericSource('numeric/decimal.ts'));
 
 // Compile the actual binder with its unchanged frozen catalog offline. Its
@@ -344,6 +344,52 @@ for (const lifecycle of ['active', 'tombstoned']) {
   assert.deepEqual(evidenceRead.record.payload, evidencePayload);
   assert.equal(JSON.stringify(evidenceRead.record.payload), evidenceOriginal);
 }
+
+// A valid retained integer provenance revision arrives as raw numeric bytes.
+// Public record revision retains the frozen safe bound and its existing Number type.
+const exactEvidencePayload = { ...evidencePayload, provenance: {
+  ...evidencePayload.provenance, sourceRevision: '9007199254740993',
+} };
+const exactPublicEvidence = {
+  target: { authority: 'atlas', recordType: 'evidence', recordId: evidenceRecord.recordId },
+  revision: 9007199254740991, lifecycle: 'active', payload: exactEvidencePayload,
+};
+const exactEvidenceJson = JSON.stringify({
+  schemaVersion: 3, commandId: 'atlas.evidence.get',
+  requestId: '00000000-0000-4000-8000-000000000983', resolvedScope: geometryScope,
+  status: 'read', replayed: false,
+  data: { records: [exactPublicEvidence], nextCursor: null, sourceStatus: 'current' },
+});
+const exactEvidenceLexicalField = '"sourceRevision":"9007199254740993"';
+assert.equal(exactEvidenceJson.split(exactEvidenceLexicalField).length, 2);
+const exactEvidenceBody = exactEvidenceJson.replace(exactEvidenceLexicalField,
+  '"sourceRevision":9007199254740993');
+let exactEvidenceCalls = 0;
+const exactEvidenceClient = createEvidenceClient(async (url, init) => {
+  exactEvidenceCalls++;
+  assert.equal(url, `/api/atlas/stock/v3/workspaces/${geometryScope.workspaceId}/homes/${geometryScope.homeId}/records/evidence/${evidenceRecord.recordId}`);
+  assert.equal(new URL(url, 'https://atlas.invalid').search, '');
+  assert.equal(init.method, 'GET');
+  assert.equal(init.credentials, 'same-origin');
+  assert.equal(init.cache, 'no-store');
+  assert.equal(init.redirect, 'error');
+  assert.deepEqual(init.headers, { Accept: 'application/json' });
+  assert.equal(signal.aborted, false);
+  assert(init.signal instanceof AbortSignal);
+  assert.notEqual(init.signal, signal);
+  assert.equal(init.signal.aborted, false);
+  assert.equal(init.body, undefined);
+  return new Response(exactEvidenceBody, { status: 200, headers: {
+    'Content-Type': 'application/json',
+    'Content-Length': String(new TextEncoder().encode(exactEvidenceBody).length),
+  } });
+});
+const exactEvidenceRead = await exactEvidenceClient.read(geometryScope, evidenceRecord.recordId, signal);
+assert.equal(exactEvidenceCalls, 1);
+assert.deepEqual(exactEvidenceRead, { status: 'ready', record: exactPublicEvidence, sourceStatus: 'current' });
+assert.equal(exactEvidenceRead.record.payload.provenance.sourceRevision, '9007199254740993');
+assert.equal(exactEvidenceRead.record.revision, 9007199254740991);
+assert.equal(JSON.stringify(evidencePayload), evidenceOriginal);
 
 const operationScope = geometryScope;
 const operationEntries = [
