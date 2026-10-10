@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "4e5d3b716672eee5fb025e8377d9409d8995b554153833ddef6ae44a11fb626a",
+  "sourceDigestSha256": "26aea07c0e6c5dbdd9dd93ac8748e2887367fee04c847c8073d5e4b13354d1c9",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2177,8 +2177,8 @@
     {
       "path": "backend/src/http/stock_mutations.rs",
       "mode": "100644",
-      "bytes": 58554,
-      "sha256": "1864890c221f9d350978302b6c89dfce2335cf36b282a346599c75fabb2949bd",
+      "bytes": 57958,
+      "sha256": "d96e093e90680750edbace5471949e5c12285818556ce296e68a53274361555c",
       "owner": "core-integration"
     },
     {

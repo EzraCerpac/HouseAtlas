@@ -24,7 +24,7 @@ use axum::{
     extract::{Path, Request, State},
     http::StatusCode,
 };
-use s::{Contract, Runtime};
+use s::Runtime;
 use serde_json::Value;
 use std::{
     cell::{Cell, OnceCell, RefCell},
@@ -656,23 +656,13 @@ impl Transaction<'_, '_, '_, '_, '_> {
                 let mut pin = self.witness.pending.borrow_mut();
                 if expected == s::MutationPhase::Candidate {
                     require(pin.is_none())?;
-                    // Record bodies are persisted through the native JCS
-                    // contract. Existing source, cache, and projection bodies
-                    // retain their original JSON numbers in their own tables.
-                    // Keep the raw Candidate for the Precommit check and pin
-                    // the exact durable representation for final full equality.
-                    let mut durable = candidate.clone();
-                    for record in &mut durable.records {
-                        let encoded = NativeContracts
-                            .canonical_json(
-                                &serde_json::to_value(&*record).map_err(|_| unavailable())?,
-                            )
-                            .map_err(|e| domain(crate::app::storage_error(e)))?;
-                        *record = serde_json::from_str(&encoded).map_err(|_| unavailable())?;
-                    }
+                    // Native record bodies retain the candidate's JSON numbers.
+                    // Prior rows keep their actually read values, including
+                    // legacy rounded rows; no lost precision is reconstructed.
+                    // Pin the full candidate for final durable snapshot equality.
                     *pin = Some(Committed {
                         candidate: candidate.clone(),
-                        durable,
+                        durable: candidate.clone(),
                         receipt: receipt.clone(),
                     });
                 } else {
