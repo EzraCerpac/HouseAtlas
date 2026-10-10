@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "116077b236574f9743aa8fa67e873005c1696d12215f011229789d86aeb17d84",
+  "sourceDigestSha256": "40886b927b259c7c22be160836f5bb1be0566ba79b09d38df84a9a3be5e271b9",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 13289,
-      "sha256": "94ae2e25fbd23c4d9e43812888199f4822183bed73c1b1297af5b7be59fba6e0",
+      "bytes": 14636,
+      "sha256": "545e0c4dd468841039f8bdb58faf14faaa724ec9ba06e75578bbe168785d081a",
       "owner": "core-integration"
     },
     {
@@ -6517,8 +6517,8 @@
     {
       "path": "frontend/src/lantern/views/NetworkView.tsx",
       "mode": "100644",
-      "bytes": 23636,
-      "sha256": "bcf27808a6106fbad60afa191ed81da6d7690b4984b744bcc7c243b8662e4122",
+      "bytes": 23680,
+      "sha256": "8737898521ce6ac8e2b2969ff8a17865878605dafaf8e4faaa32de189d5817e7",
       "owner": "web"
     },
     {
@@ -7695,6 +7695,13 @@
       "mode": "100644",
       "bytes": 33558,
       "sha256": "c396ba6d4bdadf558af1486dbe149a60b4dcaed03bbc9f857e77a972117228d0",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/rust-integration/healthy-building-ui-loopback.mjs",
+      "mode": "100644",
+      "bytes": 38304,
+      "sha256": "95e37dc9003240a42b56f881f85459f43045f956c3b4e265578742b004f484b2",
       "owner": "core-integration"
     },
     {
