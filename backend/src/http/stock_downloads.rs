@@ -1,5 +1,5 @@
 //! Host-qualified stock handles over the original managed Media composition.
-use super::{CheckedHeaders, Host, HttpResult, authorized_read, failure};
+use super::{CheckedHeaders, Host, HttpResult, authorized_read_unlocked, failure};
 use crate::{
     app::{Access, Core, ReadAuthority, RequestPrincipal, ServerRuntime, Store},
     domain::{self as d, stock as st},
@@ -14,7 +14,10 @@ use axum::{
     response::IntoResponse,
 };
 use serde_json::Value;
-use std::{sync::Mutex, time::Duration};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 struct RequestMediaAccess(NativeMediaAccess);
 impl MediaAccessPort<RequestPrincipal> for RequestMediaAccess {
@@ -143,6 +146,70 @@ impl<W, G> AssetDownloadPort<RequestPrincipal, W, G> for Downloads<'_> {
         self.with_owner(|owner| st::StockQueryPort::query(owner, p, prepared))
     }
 }
+/// Keep the original host allocations while managed Media performs file I/O.
+struct DownloadOwners {
+    store: Arc<Mutex<Store>>,
+    access: Access,
+    vault: Arc<m::AssetVault>,
+}
+impl DownloadOwners {
+    fn capture(
+        host: &Host,
+        p: &RequestPrincipal,
+        scope: &d::Scope,
+    ) -> Result<Self, super::HttpFailure> {
+        let core = host
+            .core
+            .lock()
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        if !core.homes.iter().any(|home| home.scope == *scope) {
+            return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+        }
+        let owners = Self {
+            store: Arc::clone(&core.store),
+            access: Arc::clone(&core.access),
+            vault: Arc::clone(&core.vault),
+        };
+        let access = owners
+            .access
+            .lock()
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        p.release(&access).map_err(super::access_error)?;
+        drop(access);
+        Ok(owners)
+    }
+    fn downloads<'a>(&'a self, handles: &'a st::AtlasDownloadHandles) -> Downloads<'a> {
+        Downloads {
+            store: &self.store,
+            access: &self.access,
+            vault: &self.vault,
+            handles: Some(handles),
+        }
+    }
+    fn revalidate(
+        &self,
+        host: &Host,
+        p: &RequestPrincipal,
+        scope: &d::Scope,
+    ) -> Result<(), super::HttpFailure> {
+        let core = host
+            .core
+            .lock()
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        if !Arc::ptr_eq(&self.store, &core.store)
+            || !Arc::ptr_eq(&self.access, &core.access)
+            || !Arc::ptr_eq(&self.vault, &core.vault)
+            || !core.homes.iter().any(|home| home.scope == *scope)
+        {
+            return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+        }
+        let access = self
+            .access
+            .lock()
+            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+        p.release(&access).map_err(super::access_error)
+    }
+}
 struct CancelOnDrop(m::Cancellation);
 impl Drop for CancelOnDrop {
     fn drop(&mut self) {
@@ -169,29 +236,26 @@ pub(super) async fn availability(
         .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
     tokio::task::spawn_blocking(move || {
         let _admitted = headers.admission_permit()?;
-        authorized_read(
-            &host,
-            &headers,
-            &uri,
-            &method,
-            Some(d::Scope {
-                workspace_id,
-                home_id,
-            }),
-            false,
-            |core, p, _| {
-                let observed = Downloads::for_core(core, Some(&host.atlas_download_handles))
-                    .resolve_availability(p, &token, &budget)
-                    .map_err(super::stock_reads::http_error)?;
-                budget
-                    .check()
-                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-                Ok(super::json_response(
-                    serde_json::to_value(observed)
-                        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
-                ))
-            },
-        )
+        let scope = d::Scope {
+            workspace_id,
+            home_id,
+        };
+        authorized_read_unlocked(&host, &headers, &uri, &method, scope.clone(), |p| {
+            let owners = DownloadOwners::capture(&host, p, &scope)?;
+            let observed = owners
+                .downloads(&host.atlas_download_handles)
+                .resolve_availability(p, &token, &budget)
+                .map_err(super::stock_reads::http_error)?;
+            budget
+                .check()
+                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+            let response = super::json_response(
+                serde_json::to_value(observed)
+                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
+            );
+            owners.revalidate(&host, p, &scope)?;
+            Ok(response)
+        })
     })
     .await
     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
@@ -213,60 +277,56 @@ pub(super) async fn redeem(
         .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
     tokio::task::spawn_blocking(move || {
         let _admitted = headers.admission_permit()?;
-        authorized_read(
-            &host,
-            &headers,
-            &uri,
-            &method,
-            Some(d::Scope {
-                workspace_id,
-                home_id,
-            }),
-            false,
-            |core, p, home| {
-                let snapshot = {
-                    let mut store = core
-                        .store
-                        .lock()
-                        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-                    let scope = s::Scope {
-                        workspace_id: home.scope.workspace_id.clone(),
-                        home_id: home.scope.home_id.clone(),
-                    };
-                    store
-                        .read_snapshot(p, &scope)
-                        .map_err(|error| super::domain_error(crate::app::storage_error(error)))?
+        let scope = d::Scope {
+            workspace_id,
+            home_id,
+        };
+        authorized_read_unlocked(&host, &headers, &uri, &method, scope.clone(), |p| {
+            let owners = DownloadOwners::capture(&host, p, &scope)?;
+            let snapshot = {
+                let mut store = owners
+                    .store
+                    .lock()
+                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+                let scope = s::Scope {
+                    workspace_id: scope.workspace_id.clone(),
+                    home_id: scope.home_id.clone(),
                 };
-                NativeContracts
-                    .validate_snapshot(&snapshot)
-                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-                super::stock_reads::capture_graph(&core.access, p, &snapshot)
-                    .map_err(super::stock_reads::http_error)?;
-                p.seal_source_capture();
-                let method = if method == Method::HEAD {
-                    ReadMethod::Head
-                } else {
-                    ReadMethod::Get
-                };
-                let delivered = Downloads::for_core(core, Some(&host.atlas_download_handles))
-                    .redeem(p, &token, method, &budget)
-                    .map_err(super::stock_reads::http_error)?;
-                let mut response = delivered.body.into_response();
-                *response.status_mut() = StatusCode::from_u16(delivered.status)
-                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-                for (name, value) in delivered.headers {
-                    response.headers_mut().insert(
-                        HeaderName::from_static(name),
-                        HeaderValue::from_str(&value)
-                            .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
-                    );
-                }
-                budget
-                    .check()
-                    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-                Ok(response)
-            },
-        )
+                store
+                    .read_snapshot(p, &scope)
+                    .map_err(|error| super::domain_error(crate::app::storage_error(error)))?
+            };
+            NativeContracts
+                .validate_snapshot(&snapshot)
+                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+            super::stock_reads::capture_graph(&owners.access, p, &snapshot)
+                .map_err(super::stock_reads::http_error)?;
+            p.seal_source_capture();
+            let method = if method == Method::HEAD {
+                ReadMethod::Head
+            } else {
+                ReadMethod::Get
+            };
+            let delivered = owners
+                .downloads(&host.atlas_download_handles)
+                .redeem(p, &token, method, &budget)
+                .map_err(super::stock_reads::http_error)?;
+            let mut response = delivered.body.into_response();
+            *response.status_mut() = StatusCode::from_u16(delivered.status)
+                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+            for (name, value) in delivered.headers {
+                response.headers_mut().insert(
+                    HeaderName::from_static(name),
+                    HeaderValue::from_str(&value)
+                        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
+                );
+            }
+            budget
+                .check()
+                .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+            owners.revalidate(&host, p, &scope)?;
+            Ok(response)
+        })
     })
     .await
     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
