@@ -134,7 +134,8 @@ export function createAiHostClient(options: AiHostHttpOptions): AiClient {
   return bindAiHostPort({
     ...(endpoints.models === undefined ? {} : { models: (signal: AbortSignal) => read(endpoints.models!, signal, true) }),
     connection: signal => read(endpoints.connection, signal),
-    connectionAction: (input, signal) => request(endpoints.connectionAction, signal, input),
+    connectionAction: (input, signal) => withReadDeadline(signal,
+      bounded => request(endpoints.connectionAction, bounded, input, false, true)),
     connectionActionStatus: (actionId, signal) => read(endpoints.connectionActionStatus(actionId), signal),
     run: (input, signal) => request(endpoints.run, signal, input, false, true, true),
     // The donor deliberately separates cancellation from the result's AbortSignal.
