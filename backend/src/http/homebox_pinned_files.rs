@@ -206,8 +206,13 @@ pub(super) async fn capture_v4(
 }
 
 async fn capture_selected(
-    host: Host, workspace_id: String, home_id: String,
-    headers: CheckedHeaders, uri: Uri, method: Method, v4: bool,
+    host: Host,
+    workspace_id: String,
+    home_id: String,
+    headers: CheckedHeaders,
+    uri: Uri,
+    method: Method,
+    v4: bool,
 ) -> HttpResult {
     let (_cancel, budget) = budget()?;
     let runtime = tokio::runtime::Handle::current();

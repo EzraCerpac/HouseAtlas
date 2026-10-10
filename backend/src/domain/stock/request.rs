@@ -72,7 +72,15 @@ impl ValidatedRequest {
             .map_err(|_| StockError::InvalidContract)?;
         let request_id = string(&raw, "requestId")?.to_owned();
         let digest = request_digest(&raw)?;
-        Ok(Self { raw, id, context, request_id, digest, route, children: Vec::new() })
+        Ok(Self {
+            raw,
+            id,
+            context,
+            request_id,
+            digest,
+            route,
+            children: Vec::new(),
+        })
     }
 
     pub fn parse(contracts: &impl StockContractPort, raw: Value) -> StockResult<Self> {

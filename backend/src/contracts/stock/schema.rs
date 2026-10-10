@@ -149,18 +149,33 @@ fn check_resource_map() -> Result<(), String> {
     {
         return Err("embedded pinned v4 resource map differs".to_owned());
     }
-    let v4_resources = v4_map["resources"].as_array()
+    let v4_resources = v4_map["resources"]
+        .as_array()
         .ok_or_else(|| "pinned v4 resources must be an array".to_owned())?;
     let v4_expected = [
-        ("contracts/stock-wire4/pinned-homebox-file.v4.schema.json", PINNED_V4_URI, PINNED_V4_BYTES),
-        ("packages/contracts/schemas/atlas.schema.json", ATLAS_URI, ATLAS_BYTES),
-        ("contracts/stock-wire3/agent/agent.schema.json", AGENT_URI, AGENT_BYTES),
+        (
+            "contracts/stock-wire4/pinned-homebox-file.v4.schema.json",
+            PINNED_V4_URI,
+            PINNED_V4_BYTES,
+        ),
+        (
+            "packages/contracts/schemas/atlas.schema.json",
+            ATLAS_URI,
+            ATLAS_BYTES,
+        ),
+        (
+            "contracts/stock-wire3/agent/agent.schema.json",
+            AGENT_URI,
+            AGENT_BYTES,
+        ),
     ];
     if v4_resources.len() != v4_expected.len() {
         return Err("pinned v4 resource map must contain exactly three resources".to_owned());
     }
     for (path, uri, bytes) in v4_expected {
-        let resource = v4_resources.iter().find(|item| item["path"] == path)
+        let resource = v4_resources
+            .iter()
+            .find(|item| item["path"] == path)
             .ok_or_else(|| format!("missing pinned v4 resource {path}"))?;
         let digest = format!("{:x}", Sha256::digest(bytes));
         if resource["uri"] != uri || resource["sha256"] != digest {
@@ -224,8 +239,20 @@ fn compile_resources() -> Result<Schemas, String> {
         add_definitions(&agent, AGENT_URI, true, &mut validators, &mut aliases)?;
     let atlas_definitions =
         add_definitions(&atlas, ATLAS_URI, false, &mut validators, &mut aliases)?;
-    add_definitions(&pinned_v4, PINNED_V4_URI, false, &mut validators, &mut aliases)?;
-    for uri in [ATLAS_URI, AGENT_URI, PINNED_V4_URI, WITNESS_URI, QUALIFICATION_URI] {
+    add_definitions(
+        &pinned_v4,
+        PINNED_V4_URI,
+        false,
+        &mut validators,
+        &mut aliases,
+    )?;
+    for uri in [
+        ATLAS_URI,
+        AGENT_URI,
+        PINNED_V4_URI,
+        WITNESS_URI,
+        QUALIFICATION_URI,
+    ] {
         validators.insert(uri.to_owned(), OnceLock::new());
     }
     aliases.insert("#".to_owned(), AGENT_URI.to_owned());

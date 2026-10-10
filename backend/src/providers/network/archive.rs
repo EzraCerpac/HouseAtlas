@@ -536,9 +536,10 @@ impl NetworkImmutableArchive {
                 (true, Some(bytes), None, true, true, true) if bytes > 0 => {
                     (NetworkArchiveReferenceState::Sealed, bytes as usize)
                 }
-                (false, None, Some(bytes), false, false, false) if bytes > 0 => {
-                    (NetworkArchiveReferenceState::CapacityReserved, bytes as usize)
-                }
+                (false, None, Some(bytes), false, false, false) if bytes > 0 => (
+                    NetworkArchiveReferenceState::CapacityReserved,
+                    bytes as usize,
+                ),
                 (false, None, None, false, false, false) => {
                     (NetworkArchiveReferenceState::PermanentlyReserved, 0)
                 }
@@ -552,8 +553,7 @@ impl NetworkImmutableArchive {
                     let header: SegmentHeader =
                         serde_json::from_str(&json).map_err(|_| invalid())?;
                     ensure(
-                        header.registration.scope == scope
-                            && header.generation_id == generation_id,
+                        header.registration.scope == scope && header.generation_id == generation_id,
                     )?;
                     Some(header.registration)
                 }
@@ -593,9 +593,8 @@ impl NetworkImmutableArchive {
                         .ok_or_else(size)?;
                 }
                 NetworkArchiveReferenceState::CapacityReserved => {
-                    active_reservation_count = active_reservation_count
-                        .checked_add(1)
-                        .ok_or_else(size)?;
+                    active_reservation_count =
+                        active_reservation_count.checked_add(1).ok_or_else(size)?;
                     active_reservation_bytes = active_reservation_bytes
                         .checked_add(reference.protected_bytes)
                         .ok_or_else(size)?;
