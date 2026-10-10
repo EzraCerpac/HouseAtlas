@@ -7,6 +7,7 @@ import { GLYPH } from '../../atlas/glyphs';
 
 interface Props {
   readonly data: NetworkOverlayData;
+  readonly roomDeviceIds?: ReadonlySet<string> | null;
   readonly selection: NetworkOverlaySelection | null;
   readonly onSelect: (selection: NetworkOverlaySelection) => void;
 }
@@ -23,7 +24,7 @@ const dash = (medium: string) => medium === 'wifi' ? '3 5' : medium === 'powerli
 
 /** Reuses original Lantern Topology's BFS and Bezier edges with source endpoint
  * kinds, selectable links and an explicit schematic/physical distinction. */
-export function NetworkTopology({ data, selection, onSelect }: Props) {
+export function NetworkTopology({ data, selection, onSelect, roomDeviceIds = null }: Props) {
   const id = useId(), graph = useMemo(() => networkGraph(data), [data]);
   const color = LAYER.network.color;
   const key = (event: KeyboardEvent<SVGGElement>, next: NetworkOverlaySelection) => {
@@ -53,7 +54,7 @@ export function NetworkTopology({ data, selection, onSelect }: Props) {
             <path className="network-topology-line" d={path} fill="none" stroke={lineColor} strokeWidth={selected ? 5 : 2.5}
               strokeDasharray={accepted ? undefined : link.kind === 'hypothesis' ? '7 5' : dash(link.medium)} />
             <text x={mx} y={(a[1] + b[1]) / 2 - 7} textAnchor="middle" className="network-topology-edge-label">
-              {accepted && link.medium === 'unknown' ? 'Connection' : link.kind === 'hypothesis' ? 'Tentative hypothesis' : link.medium === 'unknown' ? 'Unknown path' : link.medium}
+              {accepted ? link.medium === 'unknown' ? 'Connection' : link.medium : link.kind === 'hypothesis' ? 'Tentative hypothesis' : link.medium === 'unknown' ? 'Unknown path' : link.medium}
             </text>
           </g>;
         })}
@@ -63,7 +64,9 @@ export function NetworkTopology({ data, selection, onSelect }: Props) {
           const next: NetworkOverlaySelection | null = node.device ? { kind: 'device', id: node.id }
             : incident ? { kind: 'link', id: incident.link.id } : null;
           const selected = next !== null && selection?.kind === next.kind && selection.id === next.id;
-          const placement = node.device ? devicePlacement(node.device) : `${node.kind} · No physical position`;
+          const showRoom = roomDeviceIds === null || roomDeviceIds.has(node.id);
+          const placement = node.device ? showRoom || node.device.place === null || node.device.mobility === 'mobile' || node.device.mobility === 'nonspatial'
+            ? devicePlacement(node.device) : 'Outside selected room context' : `${node.kind} · No physical position`;
           const labels = wrap(node.label);
           return <g key={node.id} className={`network-topology-node${selected ? ' is-selected' : ''}`}
             transform={`translate(${p[0]} ${p[1]})`} role={next ? 'button' : 'img'} tabIndex={next ? 0 : undefined}
@@ -76,7 +79,7 @@ export function NetworkTopology({ data, selection, onSelect }: Props) {
               : <text y={-12} textAnchor="middle" className="network-topology-sub">{node.kind}</text>}
             {labels.map((line, i) => <text key={i} y={6 + i * 15} textAnchor="middle" className="network-topology-name">{line}</text>)}
             <text y={48} textAnchor="middle" className="network-topology-sub">{node.device?.mobility === 'mobile' ? 'Mobile; no fixed position'
-              : node.device?.mobility === 'nonspatial' ? 'Nonspatial' : node.device?.place ? node.device.place.roomLabel.slice(0, 26) : 'Unsited / unbound'}</text>
+              : node.device?.mobility === 'nonspatial' ? 'Nonspatial' : node.device?.place ? showRoom ? node.device.place.roomLabel.slice(0, 26) : 'Outside room context' : 'Unsited / unbound'}</text>
           </g>;
         })}
       </svg>

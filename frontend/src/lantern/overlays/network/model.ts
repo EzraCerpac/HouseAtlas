@@ -1,4 +1,4 @@
-import type { NetworkOverlayData, NetworkOverlayDevice, NetworkOverlayLink, NetworkOverlaySelection, NetworkPlaceAssociation } from './types';
+import type { NetworkOverlayData, NetworkOverlayDevice, NetworkOverlayLink, NetworkOverlaySelection, NetworkPackagePlaceSelection, NetworkPlaceAssociation } from './types';
 
 export function groupNetworkDevices(devices: readonly NetworkOverlayDevice[]) {
   const rooms = new Map<string, { key: string; label: string; devices: NetworkOverlayDevice[] }>();
@@ -9,7 +9,8 @@ export function groupNetworkDevices(devices: readonly NetworkOverlayDevice[]) {
     // Native IDs and documentary source room IDs have distinct namespaces.
     // An association without either identity stays separate, even if labels match.
     const key = device.place.placeId !== null ? `atlas:${device.place.placeId}`
-      : device.place.sourceRoomId !== null ? `network:${device.place.sourceRoomId}` : `device:${device.id}`;
+      : device.place.sourcePlaceId ? `documentary:${device.place.sourcePlaceId}`
+        : device.place.sourceRoomId !== null ? `network:${device.place.sourceRoomId}` : `device:${device.id}`;
     const room = rooms.get(key);
     rooms.set(key, { key, label: room?.label ?? device.place.roomLabel, devices: [...(room?.devices ?? []), device] });
   }
@@ -52,6 +53,29 @@ export function endpointDeviceId(data: NetworkOverlayData, id: string): string |
 
 export function networkDevicePlace(device: NetworkOverlayDevice): NetworkPlaceAssociation | null {
   return device.mobility === 'mobile' || device.mobility === 'nonspatial' ? null : device.place;
+}
+
+export function networkReviewedPlaces(data: NetworkOverlayData, context: NetworkPackagePlaceSelection | null) {
+  if (context === null) return null;
+  const receipt = data.source.roomMappingReceipt;
+  const eligible = context.status === 'accepted' && context.viewKey === data.viewKey
+    && receipt?.id === context.receiptId && receipt.sha256 === context.receiptSha256;
+  const devices = eligible ? data.devices.filter(device => {
+    const place = networkDevicePlace(device);
+    return place && context.targets.some(target => target.packagePlaceKey === place.sourcePlaceId
+      && target.packagePlaceUuid === place.sourcePlaceUUID)
+      && place.planAssociations?.some(reference => reference.mappingReceiptSHA256 === context.receiptSha256
+        && context.sourceAnchorIds.includes(reference.sourceAnchorId));
+  }) : [];
+  return { eligible, devices };
+}
+
+export function networkPlanReferences(data: NetworkOverlayData, device: NetworkOverlayDevice, context: NetworkPackagePlaceSelection | null = null) {
+  const place = networkDevicePlace(device), receipt = data.source.roomMappingReceipt;
+  if (!place?.sourcePlaceId || !place.sourcePlaceUUID || !receipt) return [];
+  if (context !== null && !networkReviewedPlaces(data, context)?.devices.some(entry => entry.id === device.id)) return [];
+  return (place.planAssociations ?? []).filter(reference => reference.mappingReceiptSHA256 === receipt.sha256
+    && (context === null || context.sourceAnchorIds.includes(reference.sourceAnchorId)));
 }
 
 /** Adapts Lantern's breadth-first logical layout. These SVG pixels never become

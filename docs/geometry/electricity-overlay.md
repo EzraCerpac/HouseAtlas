@@ -12,6 +12,7 @@ or proof of current membership. No mock `buildPins` coordinates are used.
 
 Props are `active`, opaque authorized `viewKey`, nullable `data`, optional
 `selectedFloor:{id,label}|null`, `selectedPlaceId:string|null`, optional
+`selectedPackagePlaces:ElectricityPackagePlaceSelection|null`, optional
 `onSelectionChange({kind:'electricity-evidence',id}|null)`, and optional
 `onOpenSource(sheetId,pdfPage)`. The selection ID is the package documentary ID,
 not a native Evidence ID. The source callback must use the owner's actual current
@@ -25,6 +26,30 @@ All export selectors are source context only. No matching or floor filtering
 uses exported labels, ordinals, source ancestry, aliases or mesh names. Exact
 native place IDs can filter reconciled room associations; choosing the genuine
 building shows the complete collection, including unassigned drawings.
+
+`selectedPackagePlaces` is a separate geometry-owned canonical receipt
+projection: `{viewKey,status:'accepted'|'proposed'|'unmatched',receiptId,
+receiptSha256,sourceAnchorIds,targets:[{packagePlaceKey,packagePlaceUuid}],
+unresolvedLabels}`. The host verifies the actual receipt and source hashes;
+this module's field checks do not authenticate a hash. The stored canonical
+target's `stablePackagePlaceUuid` projects to `packagePlaceUuid`, never to a
+native ID. Accepted selections filter documentary associations by exact key and
+UUID pairs, unioning targets without merging room identities. Accepted package
+selection takes precedence over native filtering, since the documentary
+projection may not yet carry newly created room native IDs. Without package
+selection, exact native filtering retains its original behavior. The host must
+reconcile native and package selection through actual receipts and clear source
+context when changing to an independent native place selection. A partial multi-space anchor shows
+its unresolved parts explicitly and filters only its matched targets. Null means
+no source-room selection. Proposed, unmatched or unavailable selections show no
+room-specific sheets. The host must keep selection immutable, refresh it with
+the current view, and clear parent-owned selection on context invalidation.
+
+The geometry receipt authorizes a source-anchor-to-place association only.
+It does not promote an inferred drawing association, reconstruct a historical
+room footprint, establish physical mesh scale/alignment, or place electrical
+symbols, devices or cables. In particular a source anchor spanning two hallway
+components does not create a single room or equate a related landing identity.
 
 `adaptDocumentaryElectricity` accepts the prepared documentary v1 source,
 package room registry v1, an owner-reconciled native receipt map v1, and context.
@@ -56,6 +81,8 @@ node frontend/lantern-tests/electricity-overlay-read.mjs
 It uses generic synthetic drawings and local pure transforms/static real React
 markup only, with no listener, account, household data or mutation. It checks
 literal filters, owner alias/split/change-use records, unknown dates, independent
-package/native identities and unmatched placement. It does not qualify browser
+package/native identities, a healthy canonical package-selection projection
+including multiple targets/unresolved components, and unmatched electrical
+placement. It does not qualify browser
 interaction, access invalidation, native intake or deployment. Existing frontend
 typecheck/build commands remain in README; ordinary CI is unchanged.
