@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "ea00d67684856bee1b8ddf60cf7c55723d85168f66f5fcb26249d0ae4e03d8eb",
+  "sourceDigestSha256": "cc3a413a1bb82e0a0235e5a676fed7a13fe7c976fe4fa8f7f591acb53f03b31a",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5852,8 +5852,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 20806,
-      "sha256": "be713f94faa6793b2927518b5d0f8329ca7147e3b1cfe89160f4649ebaec521b",
+      "bytes": 21510,
+      "sha256": "b14de767278eeb0c03878ba91411b81de148f553b9698d12afcd54a7007803a6",
       "owner": "core-integration"
     },
     {
@@ -6027,8 +6027,8 @@
     {
       "path": "frontend/lantern-tests/scan-mesh-read.mjs",
       "mode": "100644",
-      "bytes": 6545,
-      "sha256": "05d9e29b862971b77d7bdc7014bcea13adfad6ccfa90f614905ee95c4ebc3095",
+      "bytes": 7138,
+      "sha256": "4d497ba1dc1e81657420802681650ff74a87935b88ff0888ef226da227890bd9",
       "owner": "web"
     },
     {
@@ -6594,8 +6594,8 @@
     {
       "path": "frontend/src/lantern/Host.tsx",
       "mode": "100644",
-      "bytes": 7450,
-      "sha256": "62c0ac75a15e956ba823ecf1c548b7b466174e31d60a155f0a5545514ab75adc",
+      "bytes": 7735,
+      "sha256": "801eb566f987de1ae63e90692c99765b734100577945a467936dfd38856a60fc",
       "owner": "web"
     },
     {
@@ -6615,8 +6615,8 @@
     {
       "path": "frontend/src/lantern/atlas/AtlasView.tsx",
       "mode": "100644",
-      "bytes": 19749,
-      "sha256": "fc6e3b3f95afab1c2045dafe5112d8f442f06535ba32e21b5e315d9ba88dbe1d",
+      "bytes": 19999,
+      "sha256": "0b108e4c872d0a7ec203876c577496d86e98a8801923e3ae00e473bf60ee9afe",
       "owner": "web"
     },
     {
@@ -6993,8 +6993,8 @@
     {
       "path": "frontend/src/lantern/scans/mesh-profile.ts",
       "mode": "100644",
-      "bytes": 31786,
-      "sha256": "ca9d894a3e51ab5b633d86de09d63d4fe1f43baa980b1556382e9df42bdd1ae9",
+      "bytes": 31701,
+      "sha256": "14ae79b600fb1e9c98b42c4e1077b0154d0effd06d6030f5fc35e80001184e18",
       "owner": "web"
     },
     {
@@ -7019,11 +7019,102 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/scans/native-ui/NativeScanAtlas.tsx",
+      "mode": "100644",
+      "bytes": 7994,
+      "sha256": "d6d7182d34a329bc99d87c587bd9561768d5cf8488f8a9f717211570a534c009",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/scans/native-write-types.ts",
       "mode": "100644",
       "bytes": 2799,
       "sha256": "38ed7041aa7f8ab64a3f03e2aa8af2aa0ff1bdcf2c3efe623857651ab3e6fd84",
       "owner": "core-integration"
+    },
+    {
+      "path": "frontend/src/lantern/scans/presentation/HouseScanScene.tsx",
+      "mode": "100644",
+      "bytes": 22182,
+      "sha256": "9958db28fc92931c209166e77083dcee437abd21cd2f0fd9f4d08562dc6a7dcd",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/presentation/RoomRegions.tsx",
+      "mode": "100644",
+      "bytes": 5252,
+      "sha256": "f1a9d46a7b7438cf1c17d6dabcacd785d020b4ff6f5ecf18c72ee8d1524e04e1",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/presentation/SceneControls.tsx",
+      "mode": "100644",
+      "bytes": 5515,
+      "sha256": "08389cfb8549bf764b29ad8620138e50cd48bd14a14eba4f9b1ad85b6f6e6c29",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/presentation/SceneMeshCanvas.tsx",
+      "mode": "100644",
+      "bytes": 17049,
+      "sha256": "deef4642dfc0fc20f7e882a639a05d2014cf7e26a442084cd17b82276d917ed7",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/presentation/display-edges.ts",
+      "mode": "100644",
+      "bytes": 7089,
+      "sha256": "d6248dcef89fba7e45f8d2cbc4a71424c647fcc0faaf1da3d4d92711fc4a6c9f",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/presentation/floor-compositor.ts",
+      "mode": "100644",
+      "bytes": 9232,
+      "sha256": "8a1f7a4433af854b1184fc97ac067a0a92019176af4d1323af3a675667130ee6",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/presentation/index.ts",
+      "mode": "100644",
+      "bytes": 191,
+      "sha256": "9aa88a55c8c4b431acb1c7cab874ce7c65a47423546f8b221e86e7b81de0cd3e",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/presentation/room-region-model.ts",
+      "mode": "100644",
+      "bytes": 3098,
+      "sha256": "ab0d2cda1fc0a072f47789d0f3a4781a151d72993b7f545ec8169c63d0dcb6ab",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/presentation/room-region-triangles.ts",
+      "mode": "100644",
+      "bytes": 1343,
+      "sha256": "e6750acad99f83c627f8f903e2cb05c2911d82436d56ba11740539429490ce0c",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/presentation/scene.css",
+      "mode": "100644",
+      "bytes": 3811,
+      "sha256": "18986043bc9738c0424770d76236573eccafa4e6b2c35cabc036f45a798c1874",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/presentation/types.ts",
+      "mode": "100644",
+      "bytes": 3117,
+      "sha256": "dcddd523eda59daeabe87d9f4a035b7b78292a94bce84a60d009d33291f56a91",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/presentation/yield-task.ts",
+      "mode": "100644",
+      "bytes": 1063,
+      "sha256": "c0478b06d38b70a0b9f5989355c7d159223329effb8a21b088a4c9462fed11d0",
+      "owner": "web"
     },
     {
       "path": "frontend/src/lantern/state/store.tsx",
