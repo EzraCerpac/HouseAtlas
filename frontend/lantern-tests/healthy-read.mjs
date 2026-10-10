@@ -626,8 +626,10 @@ assert.deepEqual(retainedBatchReceipt.committedResult.children.map(child => chil
   [retainedRequest.requestId, retainedSecondRequest.requestId]);
 
 // Successful decoder examples only: synthetic saved numeric output, no native mutation.
+const retainedNumericInput = { ...geometryRecord.payload };
+delete retainedNumericInput.importedAt;
 const retainedNumericRequest = { ...retainedRequest, commandId: 'atlas.geometry.create',
-  target: publicGeometry.target, payload: geometryRecord.payload };
+  target: publicGeometry.target, payload: retainedNumericInput };
 const retainedNumericRecord = { ...publicGeometry, payload: { ...geometryRecord.payload,
   scale: ExactDecimal.parse('1e-1000'),
   transform: [ExactDecimal.parse('9007199254740993'), 1, 0, 0, 1, 0] } };
