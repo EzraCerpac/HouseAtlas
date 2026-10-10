@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type CSSProperties } from 'react';
+import { useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { Icon } from '../../components/Icon';
 import { ClaimBadge, Note, Section } from '../../components/ui';
 import { LAYER } from '../../atlas/palette';
@@ -9,13 +9,19 @@ import './electricity.css';
 /** Adapts Lantern's original electrical legend/list, retaining its real palette,
  * Icon, ClaimBadge, Note and Section. It does not call mock buildPins or a port. */
 export function ElectricityOverlayPanel(props: ElectricityOverlayPanelProps) {
-  const { active, viewKey, data, selectedFloor = null, selectedPlaceId = null, onSelectionChange, onOpenSource } = props;
+  const { active, viewKey, data, selectedFloor = null, selectedPlaceId = null, onOpenSource } = props;
   const headingId = useId();
   const [choice, setChoice] = useState<{ data: typeof data; label: string | null; sheetId: string | null } | null>(null);
   const current = useRef(props); current.current = props;
   const available = active && data !== null && data.viewKey === viewKey;
   const live = () => current.current.active && current.current.viewKey === viewKey && current.current.data === data
     && (current.current.selectedPlaceId ?? null) === selectedPlaceId && data?.viewKey === viewKey;
+  useLayoutEffect(() => {
+    if (choice !== null && (!available || choice.data !== data)) {
+      setChoice(null);
+      current.current.onSelectionChange?.(null);
+    }
+  }, [available, data, choice]);
   if (!active) return null;
   if (!available || !data) return <section aria-labelledby={headingId} className="electricity-overlay legend">
     <h3 id={headingId} className="legend-head"><Icon name="plug" />Electrical drawings</h3>
@@ -28,11 +34,11 @@ export function ElectricityOverlayPanel(props: ElectricityOverlayPanelProps) {
     if (!live()) return;
     const id = selected === sheet.id ? null : sheet.id;
     setChoice({ data, label, sheetId: id });
-    onSelectionChange?.(id === null ? null : { kind: 'electricity-evidence', id });
+    current.current.onSelectionChange?.(id === null ? null : { kind: 'electricity-evidence', id });
   };
   const filter = (next: string | null) => {
     if (!live()) return;
-    setChoice({ data, label: next, sheetId: null }); onSelectionChange?.(null);
+    setChoice({ data, label: next, sheetId: null }); current.current.onSelectionChange?.(null);
   };
   return <section aria-labelledby={headingId} className="electricity-overlay legend" style={{ '--layer': LAYER.electrical.color } as CSSProperties}>
     <h3 id={headingId} className="legend-head"><Icon name="plug" />Electrical drawings<span className="section-count">{data.sheets.length}</span></h3>

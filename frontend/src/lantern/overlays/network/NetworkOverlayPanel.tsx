@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
 import type { NetworkOverlayData, NetworkOverlayDevice, NetworkOverlayPanelProps, NetworkOverlaySelection } from './types';
 import { devicePlacement, endpointDeviceId, groupNetworkDevices, networkDevicePlace, networkEndpointLabel, networkLinkLabel, networkSelection } from './model';
 import { Icon } from '../../components/Icon';
@@ -10,20 +10,29 @@ import './network.css';
 const stamp = (value: string | null) => value ?? 'Unknown';
 
 /** Pure documentary panel beside the scan. No reads, source writes or mesh placement. */
-export function NetworkOverlayPanel({ active, viewKey, data, selectedFloor = null,
-  selectedPlaceId = null, onSelectionChange }: NetworkOverlayPanelProps) {
+export function NetworkOverlayPanel(props: NetworkOverlayPanelProps) {
+  const { active, viewKey, data, selectedFloor = null, selectedPlaceId = null } = props;
   const id = useId();
   const detail = useRef<HTMLDivElement>(null);
   const [stored, setStored] = useState<{ data: NetworkOverlayData; selection: NetworkOverlaySelection } | null>(null);
+  const currentProps = useRef(props); currentProps.current = props;
   const current = active && data?.viewKey === viewKey ? data : null;
   const selection = stored?.data === current ? stored.selection : null;
   const chosen = current ? networkSelection(current, selection) : null;
+  const live = () => currentProps.current.active && currentProps.current.viewKey === viewKey
+    && currentProps.current.data === current && current?.viewKey === viewKey;
+  useLayoutEffect(() => {
+    if (stored !== null && (current === null || stored.data !== current || !networkSelection(current, stored.selection))) {
+      setStored(null);
+      currentProps.current.onSelectionChange?.(null);
+    }
+  }, [current, stored]);
   if (!active) return null;
   const select = (next: NetworkOverlaySelection | null) => {
-    if (!current) return;
+    if (!current || !live() || (next !== null && !networkSelection(current, next))) return;
     setStored(next ? { data: current, selection: next } : null);
-    onSelectionChange?.(next);
-    if (next) requestAnimationFrame(() => detail.current?.focus());
+    currentProps.current.onSelectionChange?.(next);
+    if (next) requestAnimationFrame(() => { if (live()) detail.current?.focus(); });
   };
   if (current === null) return <section className="network-overlay" aria-labelledby={`${id}-title`}>
     <h3 id={`${id}-title`}>Internet network</h3><p role="status">Network overlay unavailable for this view.</p>
