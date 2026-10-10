@@ -64,7 +64,7 @@
 
 .lantern-host .skip {
   position: absolute;
-  left: 12px;
+  left: max(12px, env(safe-area-inset-left));
   top: -60px;
   z-index: 100;
   padding: 8px 14px;
@@ -74,7 +74,7 @@
 }
 
 .lantern-host .skip:focus {
-  top: 10px;
+  top: calc(10px + env(safe-area-inset-top));
 }
 
 .lantern-host .muted {
@@ -94,6 +94,7 @@
 
 .lantern-host.app {
   height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   display: grid;
   grid-template-columns: var(--nav) minmax(0, 1fr) var(--detail);
   grid-template-rows: var(--topbar) minmax(0, 1fr);
@@ -960,12 +961,12 @@
 .lantern-host .toasts {
   position: fixed;
   left: 50%;
-  bottom: 22px;
+  bottom: calc(22px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   z-index: 95;
   display: grid;
   gap: 8px;
-  width: min(460px, calc(100% - 24px));
+  width: min(460px, calc(100% - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
   pointer-events: none;
 }
 
@@ -1047,8 +1048,8 @@
 
   .lantern-host .detail-col {
     position: fixed;
-    right: 16px;
-    bottom: 16px;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(16px, env(safe-area-inset-bottom));
     z-index: 40;
     border: 1px solid var(--hair-2);
     border-radius: 999px;
@@ -1079,10 +1080,10 @@
   }
 
   .lantern-host .detail-col.is-expanded {
-    top: calc(var(--topbar) + 10px);
-    right: 10px;
-    bottom: 10px;
-    width: min(var(--detail), calc(100% - 20px));
+    top: calc(var(--topbar) + 10px + env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+    bottom: max(10px, env(safe-area-inset-bottom));
+    width: min(var(--detail), calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));
     border-radius: var(--r-panel);
     animation: drawer-in 0.24s ease-out;
   }
@@ -1119,8 +1120,10 @@
 
 @media (max-width: 759px) {
   .lantern-host.app {
+    /* The navigation row owns the bottom inset in this layout. */
+    padding-bottom: 0;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: var(--topbar) minmax(0, 1fr) 64px;
+    grid-template-rows: var(--topbar) minmax(0, 1fr) calc(64px + env(safe-area-inset-bottom));
     grid-template-areas:
       'top'
       'main'
@@ -1190,8 +1193,8 @@
   }
 
   .lantern-host .detail-col {
-    left: 10px;
-    right: 10px;
+    left: max(10px, env(safe-area-inset-left));
+    right: max(10px, env(safe-area-inset-right));
     bottom: calc(72px + env(safe-area-inset-bottom));
     border-radius: 14px;
   }
@@ -1203,11 +1206,11 @@
 
   .lantern-host .detail-col.is-expanded {
     top: auto;
-    left: 0;
-    right: 0;
-    bottom: 64px;
-    width: 100%;
-    height: min(76dvh, calc(100dvh - var(--topbar) - 74px));
+    left: env(safe-area-inset-left);
+    right: env(safe-area-inset-right);
+    bottom: calc(64px + env(safe-area-inset-bottom));
+    width: auto;
+    height: min(76dvh, calc(100dvh - var(--topbar) - 74px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
     border-radius: 18px 18px 0 0;
     animation: sheet-in 0.24s ease-out;
   }
@@ -1253,7 +1256,7 @@
   }
 
   .lantern-host .toasts {
-    bottom: 80px;
+    bottom: calc(80px + env(safe-area-inset-bottom));
   }
 }
 

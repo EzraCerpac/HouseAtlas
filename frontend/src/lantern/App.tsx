@@ -1,13 +1,10 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { lazy, useEffect, useLayoutEffect, useState } from 'react';
 import { useReducedMotion, useSelect, useStore, type ViewId } from './state/store';
 import { fmtDateTime } from './data/time';
 import { Icon } from './components/Icon';
 import { AtlasView } from './atlas/AtlasView';
 import { RoomsView } from './views/RoomsView';
-import { UpkeepView } from './views/UpkeepView';
-import { NetworkView } from './views/NetworkView';
-import { LibraryView } from './views/LibraryView';
-import { ChangesView } from './views/ChangesView';
+import { DeferredView } from './DeferredView';
 import { DetailPanel } from './components/DetailPanel';
 import { AskPanel } from './components/AskPanel';
 import { RealPreview } from './components/RealPreview';
@@ -16,6 +13,13 @@ import { SearchPalette } from './components/SearchPalette';
 import { SettingsDialog } from './components/SettingsDialog';
 import { AiActivityStatus } from '../ai/host/index.js';
 import { isArchivedEntry } from '../app/model';
+
+// Keep the default Atlas/Rooms path and shared providers eager. These modules
+// load only when selected; no background prefetch or source reads are added.
+const UpkeepView = lazy(() => import('./views/UpkeepView').then(m => ({ default: m.UpkeepView })));
+const NetworkView = lazy(() => import('./views/NetworkView').then(m => ({ default: m.NetworkView })));
+const LibraryView = lazy(() => import('./views/LibraryView').then(m => ({ default: m.LibraryView })));
+const ChangesView = lazy(() => import('./views/ChangesView').then(m => ({ default: m.ChangesView })));
 
 const VIEWS: { id: ViewId; label: string; icon: string }[] = [
   { id: 'atlas', label: 'Atlas', icon: 'atlas' },
@@ -135,13 +139,13 @@ export function App() {
       case 'rooms':
         return <RoomsView />;
       case 'upkeep':
-        return <UpkeepView />;
+        return <DeferredView key="upkeep" label="Upkeep"><UpkeepView /></DeferredView>;
       case 'network':
-        return <NetworkView />;
+        return <DeferredView key="network" label="Network"><NetworkView /></DeferredView>;
       case 'library':
-        return <LibraryView />;
+        return <DeferredView key="library" label="Library"><LibraryView /></DeferredView>;
       case 'changes':
-        return <ChangesView />;
+        return <DeferredView key="changes" label="Changes"><ChangesView /></DeferredView>;
       default:
         return <AtlasView />;
     }
