@@ -106,7 +106,7 @@ function localPath(path: string): string {
 export function createAiHostClient(options: AiHostHttpOptions): AiClient {
   const transport = options.fetch ?? globalThis.fetch;
   const endpoints = { ...options.endpoints };
-  async function request(path: string, signal: AbortSignal, body?: unknown, modelsRead = false, cancelConfirmation = false): Promise<unknown> {
+  async function request(path: string, signal: AbortSignal, body?: unknown, modelsRead = false, receiveBody = false): Promise<unknown> {
     const url = localPath(path);
     const headers = new Headers(body === undefined ? undefined : await options.mutationHeaders(signal));
     headers.set('Accept', 'application/json');
@@ -121,20 +121,23 @@ export function createAiHostClient(options: AiHostHttpOptions): AiClient {
     if (!response.ok) discard(response);
     if (modelsRead && (response.status === 401 || response.status === 403)) throw new AiModelsUnauthorizedError(response.status);
     if (!response.ok) throw new Error('AI host response is unavailable');
-    const value: unknown = cancelConfirmation ? await receive(response, signal) : await response.json();
+    const value: unknown = receiveBody ? await receive(response, signal) : await response.json();
     signal.throwIfAborted();
     return value;
   }
+  function read(path: string, signal: AbortSignal, modelsRead = false): Promise<unknown> {
+    return withReadDeadline(signal, bounded => request(path, bounded, undefined, modelsRead, true));
+  }
   return bindAiHostPort({
-    ...(endpoints.models === undefined ? {} : { models: (signal: AbortSignal) => request(endpoints.models!, signal, undefined, true) }),
-    connection: signal => request(endpoints.connection, signal),
+    ...(endpoints.models === undefined ? {} : { models: (signal: AbortSignal) => read(endpoints.models!, signal, true) }),
+    connection: signal => read(endpoints.connection, signal),
     connectionAction: (input, signal) => request(endpoints.connectionAction, signal, input),
-    connectionActionStatus: (actionId, signal) => request(endpoints.connectionActionStatus(actionId), signal),
+    connectionActionStatus: (actionId, signal) => read(endpoints.connectionActionStatus(actionId), signal),
     run: (input, signal) => request(endpoints.run, signal, input),
     // The donor deliberately separates cancellation from the result's AbortSignal.
     cancel: requestId => withReadDeadline(new AbortController().signal, signal => request(endpoints.cancel(requestId), signal, { requestId }, false, true)),
     openReview: (input, signal) => request(endpoints.openReview, signal, input),
     resume: (input, signal) => request(endpoints.resume, signal, input),
-    requestStatus: (requestId, signal) => request(endpoints.requestStatus(requestId), signal),
+    requestStatus: (requestId, signal) => read(endpoints.requestStatus(requestId), signal),
   });
 }
