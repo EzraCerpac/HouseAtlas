@@ -3,7 +3,7 @@ import type { NativePlaceBinding } from '../../api/native-place-client';
 import type { NativeEvidenceAdmission, NativeEvidenceClient, NativeEvidencePending, NativeEvidencePrepared } from '../../api/native-evidence-client';
 import { EvidencePicker } from '../../capture-evidence/EvidencePicker';
 import type { EvidenceSelection } from '../../capture-evidence/selection';
-import { stringifyLosslessJson } from '../../numeric/lossless-json';
+import { stringifyLosslessJson, type JsonForSerialization } from '../../numeric/lossless-json';
 import type { Location, TopologyIndex } from './model';
 import { LinkedEvidence } from '../components/LinkedEvidence';
 
@@ -14,6 +14,7 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [status, setStatus] = useState('');
   const [admission, setAdmission] = useState<NativeEvidenceAdmission | null>(null), [selection, setSelection] = useState<EvidenceSelection | null>(null);
   const [offers, setOffers] = useState<ReadonlyMap<NativeEvidencePrepared, string>>(new Map());
+  const [inspections, setInspections] = useState<ReadonlyMap<NativeEvidencePrepared, NativeEvidenceAdmission>>(new Map());
   const [, changed] = useState(0);
   const active = useRef<AbortController | null>(null), submitting = useRef(false);
   const opener = useRef<HTMLButtonElement>(null), heading = useRef<HTMLHeadingElement>(null), restoreOpener = useRef(false);
@@ -31,7 +32,7 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
   useLayoutEffect(() => {
     const clear = () => {
       active.current?.abort(); active.current = null; submitting.current = false;
-      setOpen(false); setAdmission(null); setSelection(null); setOffers(new Map()); setBusy(false); setStatus('');
+      setOpen(false); setAdmission(null); setSelection(null); setOffers(new Map()); setInspections(new Map()); setBusy(false); setStatus('');
     };
     clear();
     const unsubscribe = client.subscribe(() => { if (!current()) clear(); });
@@ -92,10 +93,12 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
   const inspect = async (attempt: NativeEvidencePending) => {
     if (busy || !current()) return;
     const controller = start(); setStatus('Reading saved native information…');
+    setInspections(old => { const next = new Map(old); next.delete(attempt.prepared); return next; });
     try {
       const result = await client.inspect(binding, attempt.prepared, controller.signal);
       if (!live(controller)) return;
       if (result.admission.identity.recordId !== location.id) throw new Error('Selected native identity changed');
+      setInspections(old => new Map(old).set(attempt.prepared, result.admission));
       setAdmission(result.admission); setStatus('Saved native information read. Completion remains unknown; retry safety is not established.');
     } catch { if (live(controller)) setStatus('Saved native information could not be read. Completion remains unknown; do not resend.'); }
     finally { finish(controller); }
@@ -144,6 +147,11 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
       {attempt.outcome === 'unknown' ? <>
         <p>Do not resend this request. A saved-information read cannot establish rollback or safe retry. Attempt information is held in memory for this application session.</p>
         <button type="button" disabled={busy} onClick={() => void inspect(attempt)}>Inspect saved native information</button>
+        {inspections.get(attempt.prepared) && <details open><summary>Latest native saved-information read</summary>
+          <p>These validated records show saved information from the explicit read. They do not acknowledge this request or establish safe retry.</p>
+          <pre>{stringifyLosslessJson({ record: inspections.get(attempt.prepared)!.record,
+            identity: inspections.get(attempt.prepared)!.identity, guards: inspections.get(attempt.prepared)!.guards } as unknown as JsonForSerialization)}</pre>
+        </details>}
       </> : <>
         <p>Evidence ID: {attempt.evidenceId} · original asset ID: {attempt.assetId}</p>
         <button type="button" disabled={busy} onClick={() => void original(attempt)}>Check original download</button>
