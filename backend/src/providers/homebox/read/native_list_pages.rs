@@ -411,7 +411,24 @@ impl NativeListPages {
             (Arc::clone(&entry.snapshot), cursor.offset, next)
         };
         // No retained registry mutex while Access/Domain/Store owners run.
-        self.capture_page(contracts, access, selected, snapshot, offset, next)
+        let terminal = next.is_none();
+        let captured = self.capture_page(
+            contracts,
+            access,
+            selected,
+            Arc::clone(&snapshot),
+            offset,
+            next,
+        )?;
+        if terminal {
+            // The returned capture owns this same snapshot. Retire only its
+            // process-local cursor chain after successful final-page checks.
+            let mut registry = self.registry.lock().map_err(|_| unavailable())?;
+            registry
+                .entries
+                .retain(|entry| !Arc::ptr_eq(&entry.snapshot, &snapshot));
+        }
+        Ok(captured)
     }
 
     fn capture_page<'a, 'p, C: st::StockContractPort>(
