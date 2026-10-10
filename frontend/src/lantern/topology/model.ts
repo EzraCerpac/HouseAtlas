@@ -1,6 +1,9 @@
 import type { Entry, ReadyView } from '../../app/types';
 import type { TopologyRecord, AtlasReadStatus } from '../../api/topology-client';
-import type { LocationElevation, RelationPayloadLocationMembership, RelationPayloadPhysicalAccess } from '../../api/generated/contracts';
+import type { RelationPayloadLocationMembership, RelationPayloadPhysicalAccess } from '../../api/generated/contracts';
+import type { DecodedLocationElevation } from '../../numeric/stock-decoded';
+import { ExactDecimal } from '../../numeric/decimal';
+import { stringifyLosslessJson, type JsonForSerialization } from '../../numeric/lossless-json';
 
 export interface TopologyData {
   readonly identities: readonly TopologyRecord<'identity'>[];
@@ -64,7 +67,7 @@ export function buildTopologyIndex(data: TopologyData, view: ReadyView, selectab
   return { data, locations, buildings: [...locations.values()].filter(l => l.semantics.some(s => s.payload.semanticKind === 'building')).sort(byId), membership, access };
 }
 export type ElevationDisplay =
-  | { readonly status: 'known'; readonly elevation: Extract<LocationElevation, { status: 'known' }> }
+  | { readonly status: 'known'; readonly elevation: Extract<DecodedLocationElevation, { status: 'known' }> }
   | { readonly status: 'unknown' | 'omitted' | 'multiple' };
 export function elevationOf(location: Location): ElevationDisplay {
   const facts = location.semantics.filter(s => s.payload.semanticKind === 'floor');
@@ -92,7 +95,7 @@ export function buildBuildingModel(index: TopologyIndex, buildingId: string, rec
   for (const record of records) {
     const prior = original.get(record.target.recordId);
     if (!prior || !index.locations.has(record.target.recordId) || record.lifecycle !== 'active' || record.payload.kind !== 'location'
-      || record.revision !== prior.revision || JSON.stringify(record.payload) !== JSON.stringify(prior.payload)) return null;
+      || record.revision !== prior.revision || stringifyLosslessJson(record.payload as unknown as JsonForSerialization) !== stringifyLosslessJson(prior.payload as unknown as JsonForSerialization)) return null;
   }
   const endpoints = (r: Membership | Access) => [r.payload.from.ref.recordId, r.payload.to.ref.recordId];
   for (const relation of index.membership) if (endpoints(relation).some(id => !index.locations.has(id))) return null;
@@ -122,7 +125,7 @@ export function buildBuildingModel(index: TopologyIndex, buildingId: string, rec
     if (a.elevation.status === 'known' && b.elevation.status === 'known') {
       const datum = a.elevation.elevation.datumAtlasId.localeCompare(b.elevation.elevation.datumAtlasId);
       if (datum) return datum;
-      return b.elevation.elevation.metres - a.elevation.elevation.metres || byId(a.location, b.location);
+      return b.elevation.elevation.metres.compare(a.elevation.elevation.metres) || byId(a.location, b.location);
     }
     if (a.elevation.status === 'known') return -1;
     if (b.elevation.status === 'known') return 1;
@@ -135,4 +138,8 @@ export function buildBuildingModel(index: TopologyIndex, buildingId: string, rec
   return { building, memberCount: members.size, levels, direct,
     outsideUnassigned: outside.filter(l => !assigned(l)), outsideElsewhere: outside.filter(assigned) };
 }
-export function metres(value: number): string { return `${value > 0 ? '+' : ''}${String(value).replace('-', '−')} m`; }
+export function metres(value: ExactDecimal): string {
+  const zero = ExactDecimal.parse('0');
+  const token = value.toString();
+  return `${value.compare(zero) > 0 ? '+' : ''}${token.startsWith('-') ? `−${token.slice(1)}` : token} m`;
+}
