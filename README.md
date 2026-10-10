@@ -338,3 +338,53 @@ failure injection or populated restore case:
 ```sh
 cargo run --offline --locked -p houseatlas-backend --example healthy-trusted-gateway
 ```
+
+
+Opt-in local capture drafts are connected to the shared contextual Add evidence UI.
+The following exact healthy examples use generated files and fake memory/session/
+editing ports only, prohibit network, and remain outside automatic CI:
+
+```sh
+node frontend/capture-drafts-tests/combined-host.mjs --case healthy-save-review-commit
+node frontend/capture-drafts-tests/combined-host.mjs --case healthy-canonical-published-binding
+node frontend/capture-drafts-tests/combined-host.mjs --case explicit-clear-before-signout
+```
+
+These separately named cases are released only in the existing disposable,
+synthetic concurrency/denial/failure-injection regression lane. They use fake
+ports and storage, not actual accounts, sessions, provider calls or native outcomes:
+
+```sh
+node frontend/capture-drafts-tests/combined-host.mjs --case pending-canonical-late-context
+node frontend/capture-drafts-tests/combined-host.mjs --case home-change-denies-reviewed-submit
+node frontend/capture-drafts-tests/combined-host.mjs --case target-change-denies-submit
+node frontend/capture-drafts-tests/combined-host.mjs --case cross-tab-invalidation-signal
+node frontend/capture-drafts-tests/combined-host.mjs --case unavailable-probe-explicit-recheck
+node frontend/capture-drafts-tests/combined-host.mjs --case cleanup-failure-known-commit
+```
+
+The one native positive uses the actual composed React bundle and locked Rust
+binary with generated JPEG bytes, a new numeric-loopback TLS service and an owned
+Chromium profile. Review and pin the complete frontend file set, source HEAD/tree,
+binary, Node/npm, Chrome, OpenSSL and script/imports in a private exact-artifact
+packet before execution. Use a fresh one-use private inspected Chromium snapshot,
+an owned OpenSSL configuration if the installed tool requires one, and `/tmp`
+for the native disposable directory. The body has an 83-second deadline and
+bounded owned-child cleanup; synchronous filesystem stalls are separately
+qualified. No real camera/device/account or provider is used:
+
+```sh
+TMPDIR=/tmp HOUSEATLAS_SOURCE_ROOT=/absolute/clean/source \
+HOUSEATLAS_SOURCE_SHA=<verified-head> HOUSEATLAS_BINARY=/absolute/pinned/houseatlas \
+HOUSEATLAS_CHROMIUM=/absolute/owned/pinned/chromium \
+HOUSEATLAS_EVIDENCE=/absolute/private/result.json \
+node frontend/capture-drafts-tests/combined-native-ui.mjs --case healthy-save-reopen-confirm
+```
+
+This checks normal opt-in save, close/reload/reopen, fresh review and explicit
+one-shot confirmation, correlated acknowledgement, original download and consented
+logout cleanup. It establishes synthetic composition only. The four proposal
+cases `lost-fake-reply-inspect-only`, `malformed-receipt-keeps-original`,
+`noncommitted-receipt-keeps-original` and `wrong-correlation-keeps-original` remain
+held. No suite/alias, reply-loss, mutation-control, replay, expiry, revocation,
+crash, actual cross-tab or real iPhone/Safari acceptance is released here.
