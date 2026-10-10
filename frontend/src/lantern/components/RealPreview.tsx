@@ -7,10 +7,10 @@ import { Note, StorageTag } from './ui';
 import { fmtDateTime } from '../data/time';
 
 /** Each issued capability owns its failure state, including late image events. */
-function AuthorizedImagePreview({ href }: { href: string }) {
+function AuthorizedImagePreview({ href, title }: { href: string; title: string }) {
   const [failed, setFailed] = useState(false);
   return failed ? <Note>The issued preview could not be loaded.</Note> :
-    <img className="authorized-preview" src={href} alt="Image preview" onError={() => setFailed(true)} />;
+    <img className="authorized-preview" src={href} alt={title} onError={() => setFailed(true)} />;
 }
 
 /** No drawn demo pages: only existing authorized, decoded preview capabilities. */
@@ -26,7 +26,7 @@ export function RealPreview() {
   return <Modal wide title={doc.title} kicker={<StorageTag doc={doc} />} onClose={close} footer={<button className="btn btn-primary" type="button" onClick={close}>Done</button>}>
     <div className="preview-layout">
       <div className="preview-stage">
-        {image && attachment.kind === 'stored-file' ? <AuthorizedImagePreview key={JSON.stringify([id, attachment.attachmentId, attachment.previewHref])} href={safeMediaUrl(attachment.previewHref)!} /> : <Note>{attachment.kind === 'external-link' ? 'External address only. No stored copy is supplied.' : 'A safe image preview is unavailable.'}</Note>}
+        {image && attachment.kind === 'stored-file' ? <AuthorizedImagePreview key={JSON.stringify([id, attachment.attachmentId, attachment.previewHref])} href={safeMediaUrl(attachment.previewHref)!} title={doc.title} /> : <Note>{attachment.kind === 'external-link' ? 'External address only. No stored copy is supplied.' : 'A safe image preview is unavailable.'}</Note>}
         {href ? <a className="btn btn-primary" href={href} target="_blank" rel="noopener noreferrer">{attachment.kind === 'external-link' ? 'Open external link' : 'Download original'}</a> : <Note>File access is unavailable.</Note>}
       </div>
       <aside className="preview-aside" aria-label="Provenance"><h3>Provenance</h3><dl className="facts">
