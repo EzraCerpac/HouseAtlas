@@ -19,7 +19,7 @@ export function NativeActions() {
     const ownedInert = new Set<HTMLElement>();
     const isolate = () => {
       for (let branch: HTMLElement | null = el; branch && branch !== document.body; branch = branch.parentElement) {
-        const parent = branch.parentElement;
+        const parent: HTMLElement | null = branch.parentElement;
         if (!parent) break;
         for (const sibling of parent.children) {
           if (sibling !== branch && sibling instanceof HTMLElement && !sibling.inert) {
