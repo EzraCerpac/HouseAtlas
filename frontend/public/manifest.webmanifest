@@ -1,0 +1,16 @@
+{
+  "id": "./",
+  "name": "HouseAtlas",
+  "short_name": "HouseAtlas",
+  "lang": "en",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#e9e4da",
+  "theme_color": "#e9e4da",
+  "icons": [
+    { "src": "./icons/houseatlas-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/houseatlas-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/houseatlas-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
