@@ -36,7 +36,7 @@ pub(crate) fn check_final_rows<C: Contract>(
         || audit != result.audit
         || audit_body != repo::json(contract, &result.audit)?
         || receipt.hash != command_hash
-        || receipt.body != repo::json(contract, result)?
+        || !repo::retained_json_matches(contract, result, &receipt.body)?
     {
         return Err(incompatible());
     }
@@ -65,7 +65,9 @@ pub(crate) fn check_batch_receipt<C: Contract>(
         &batch.batch_id,
     )?
     .ok_or_else(incompatible)?;
-    if receipt.hash != original_hash || receipt.body != repo::json(contract, &results)? {
+    if receipt.hash != original_hash
+        || !repo::retained_json_matches(contract, &results, &receipt.body)?
+    {
         return Err(incompatible());
     }
     Ok(())

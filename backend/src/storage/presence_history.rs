@@ -240,7 +240,7 @@ impl PresenceHistoryCatalog {
             .ok_or_else(incompatible)?;
             if audit_body != repo::json(contract, &result.audit)?
                 || receipt.hash != *hash
-                || receipt.body != repo::json(contract, result)?
+                || !repo::retained_json_matches(contract, result, &receipt.body)?
             {
                 return Err(incompatible());
             }
@@ -256,7 +256,9 @@ impl PresenceHistoryCatalog {
                     &batch.batch_id,
                 )?
                 .ok_or_else(incompatible)?;
-                if receipt.hash != hash || receipt.body != repo::json(contract, &results)? {
+                if receipt.hash != hash
+                    || !repo::retained_json_matches(contract, &results, &receipt.body)?
+                {
                     return Err(incompatible());
                 }
             }

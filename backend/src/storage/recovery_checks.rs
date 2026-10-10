@@ -34,7 +34,11 @@ fn each(
 fn native<C: Contract, T: DeserializeOwned>(contract: &C, name: &str, body: &str) -> Result<T> {
     let value: Value = serde_json::from_str(body)?;
     contract.validate_shape(name, &value)?;
-    require(contract.canonical_json(&value)? == body)?;
+    if matches!(name, "record" | "mutationResult") {
+        require(repo::retained_json_matches(contract, &value, body)?)?;
+    } else {
+        require(contract.canonical_json(&value)? == body)?;
+    }
     Ok(serde_json::from_value(value)?)
 }
 fn hash(value: &str) -> Result<()> {
@@ -687,7 +691,7 @@ fn validate_history<C: Contract>(
             hash(&row.get::<_, String>(4)?)?;
             let body = row.get::<_, String>(5)?;
             let value: Value = serde_json::from_str(&body)?;
-            require(contract.canonical_json(&value)? == body)?;
+            require(repo::retained_json_matches(contract, &value, &body)?)?;
             let results: Vec<MutationResult> = serde_json::from_value(value)?;
             require(!results.is_empty() && results.len() <= 100)?;
             let scope = Scope {

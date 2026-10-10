@@ -7,6 +7,22 @@ use serde_json::Value;
 pub(crate) fn json<C: Contract, T: Serialize>(contract: &C, value: &T) -> Result<String> {
     contract.canonical_json(&serde_json::to_value(value)?)
 }
+/// Deterministic retained record/result bodies, separate from JCS hashing.
+/// The Value carrier makes object ordering identical during read validation;
+/// its arbitrary-precision numeric tokens are not converted to binary64.
+pub(crate) fn retained_json<T: Serialize>(value: &T) -> Result<String> {
+    Ok(serde_json::to_string(&serde_json::to_value(value)?)?)
+}
+/// Read the exact retained encoding or the published legacy JCS encoding.
+/// Accepting a legacy body does not reconstruct numbers previously rounded.
+/// Command, audit and idempotency digests keep their original JCS semantics.
+pub(crate) fn retained_json_matches<C: Contract, T: Serialize>(
+    contract: &C,
+    value: &T,
+    body: &str,
+) -> Result<bool> {
+    Ok(retained_json(value)? == body || json(contract, value)? == body)
+}
 pub(crate) fn digest<C: Contract, T: Serialize>(contract: &C, value: &T) -> Result<String> {
     Ok(super::migrations::sha256(json(contract, value)?))
 }
@@ -94,7 +110,7 @@ pub(crate) fn write_record<C: Contract, R: Runtime>(
     record: &Record,
     prior: Option<&Record>,
 ) -> Result<()> {
-    let body = json(contract, record)?;
+    let body = retained_json(record)?;
     let revision = sql_revision(record.revision)?;
     if let Some(prior) = prior {
         let count = db.execute("UPDATE records SET home_id=?1,record_type=?2,revision=?3,body=?4 WHERE workspace_id=?5 AND record_id=?6 AND home_id=?7 AND record_type=?8 AND revision=?9",

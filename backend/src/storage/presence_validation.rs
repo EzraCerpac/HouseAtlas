@@ -80,7 +80,7 @@ pub(crate) fn validate_all<C: Contract, E: OriginalPresenceHistoryEvidence>(
         require(
             result.audit == audit
                 && !result.replayed
-                && repo::json(contract, &result)? == result_body
+                && repo::retained_json_matches(contract, &result, &result_body)?
                 && repo::json(contract, &audit)? == audit_body,
         )?;
         contract.validate_result(&result, Prior::Unspecified)?;

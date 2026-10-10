@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0878b1626e176a6d60e7d120bd947c8376c452e3b1adb49fb56bf792695daf47",
+  "sourceDigestSha256": "4e5d3b716672eee5fb025e8377d9409d8995b554153833ddef6ae44a11fb626a",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -4242,8 +4242,8 @@
     {
       "path": "backend/src/storage/commands.rs",
       "mode": "100644",
-      "bytes": 26829,
-      "sha256": "c5e83db2a32b6f3b086f7e50c94a315ab2a4b7d42229b2817243a0cbe6b5ef9a",
+      "bytes": 26817,
+      "sha256": "ec7c1050d3e9f86087e3178ca2a4d9ddc807215cd9c39d4b7bdbf110f00ad7e7",
       "owner": "storage"
     },
     {
@@ -4340,8 +4340,8 @@
     {
       "path": "backend/src/storage/presence_history.rs",
       "mode": "100644",
-      "bytes": 12566,
-      "sha256": "1bf416fc89868834a3feb3549175dff071797bf07397899c4a6a66d745fd4cd8",
+      "bytes": 12636,
+      "sha256": "5deb37af2204b42bfcc75152b27c3ba87c0225f0b04e24d67c6bd2cd3c11f4a4",
       "owner": "storage"
     },
     {
@@ -4361,15 +4361,15 @@
     {
       "path": "backend/src/storage/presence_validation.rs",
       "mode": "100644",
-      "bytes": 7922,
-      "sha256": "299efcee315175ca296d28c705f48a968716bd72294ef6126a75674e9cfc2818",
+      "bytes": 7938,
+      "sha256": "6df797e64a68ef8dc53cfe131aa89c857646c8dff8719febc6cb09c855651cb1",
       "owner": "storage"
     },
     {
       "path": "backend/src/storage/presence_witness_repository.rs",
       "mode": "100644",
-      "bytes": 3305,
-      "sha256": "c59f013a1f10a0b385d2325c718fa441ca1aa8d3770deabbef5d808176f19223",
+      "bytes": 3351,
+      "sha256": "da5692b58b3de811e9d4ca67d6c8108868aecc407d2efeb8519d66925ec0d4c7",
       "owner": "storage"
     },
     {
@@ -4592,22 +4592,22 @@
     {
       "path": "backend/src/storage/recovery_checks.rs",
       "mode": "100644",
-      "bytes": 27571,
-      "sha256": "def94a6568babc4db396fe3f82404465c0cd6b290a52f4e0a6c012a678b61267",
+      "bytes": 27732,
+      "sha256": "948c6f19c98b21b8060306881949b9b9b7c87f2e615169e0eda1b362b27d731b",
       "owner": "storage"
     },
     {
       "path": "backend/src/storage/repository.rs",
       "mode": "100644",
-      "bytes": 10636,
-      "sha256": "c497cb4703f70ae0d581f447cbe24be3324a44bf8906fb19d0ad5e1951b8913a",
+      "bytes": 11437,
+      "sha256": "0899aa44c5021a7eb379077458afd2edca3fec40adc5572edd1a63d7a29f9ed0",
       "owner": "storage"
     },
     {
       "path": "backend/src/storage/stock.rs",
       "mode": "100644",
-      "bytes": 43169,
-      "sha256": "53e521c0e6d69e582773e80a2d7ea8f8263dbb900562d8cfef7b36667bf6e79b",
+      "bytes": 43186,
+      "sha256": "09835298b905ba5a3ff36b90e354c824a41965219ee9be19362513e27afe732f",
       "owner": "storage"
     },
     {
@@ -4816,8 +4816,8 @@
     {
       "path": "backend/src/storage/upload_repository.rs",
       "mode": "100644",
-      "bytes": 21424,
-      "sha256": "faa44fe2cbf0ee9a98d2521ec8dd1646928cea6d103cbfe010da90ef9e2907cf",
+      "bytes": 21452,
+      "sha256": "a82f32ee21438eba7c35b68c52a2ad54b1872dfbe1f6c4e80e8c7bb732ef8c6e",
       "owner": "storage"
     },
     {

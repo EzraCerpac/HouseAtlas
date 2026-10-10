@@ -1143,7 +1143,7 @@ fn release_presence_stock<C: Contract, B: StockAuthorization, S: StockContractPo
         if current != result.record
             || audit != repo::json(contract, &result.audit)?
             || receipt.hash != *hash
-            || receipt.body != repo::json(contract, result)?
+            || !repo::retained_json_matches(contract, result, &receipt.body)?
         {
             return Err(stock_repo::incompatible());
         }

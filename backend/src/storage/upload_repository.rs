@@ -273,7 +273,7 @@ fn validate_current_asset<C: Contract>(
                 record_id: consumed.asset_id().into(),
             },
         ) && i64::try_from(current.revision).ok() == Some(revision)
-            && native.canonical_json(&current_value)? == record_json
+            && super::repository::retained_json_matches(native, &current_value, &record_json)?
             && native.canonical_json(&manifest)? == manifest_json
             && native.canonical_json(&current.payload)? == manifest_json
             && current.payload["storageKey"] == storage_key,
@@ -499,7 +499,7 @@ pub(crate) fn existing_original<C: Contract>(
                 record_id: id,
             },
         ) && i64::try_from(record.revision).ok() == Some(revision)
-            && native.canonical_json(&serde_json::to_value(&record)?)? == record_json
+            && super::repository::retained_json_matches(native, &record, &record_json)?
             && native.canonical_json(&manifest)? == manifest_json
             && native.canonical_json(&record.payload)? == manifest_json,
     )?;

@@ -610,7 +610,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
                 &actor.actor_id,
                 &entry.command.mutation_id,
                 hash,
-                &repo::json(self.contract, result)?,
+                &repo::retained_json(result)?,
             )?;
         }
         if let Some(batch) = batch {
@@ -623,7 +623,7 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
                 batch_hash
                     .as_deref()
                     .ok_or(Error::new("schema-incompatible", "Batch digest is missing"))?,
-                &repo::json(self.contract, &results)?,
+                &repo::retained_json(&results)?,
             )?;
         }
         extension.persist(&tx, &hashes)?;
