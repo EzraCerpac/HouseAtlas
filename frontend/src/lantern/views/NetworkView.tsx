@@ -33,14 +33,14 @@ export function NetworkView() {
         </p>
       </header>
       <div className="seg seg-wide" role="tablist" aria-label="Network views">
-        <button type="button" role="tab" aria-selected={tab === 'logical'} aria-controls="net-panel" onClick={() => setTab('logical')}>
+        <button id="net-tab-logical" type="button" role="tab" aria-selected={tab === 'logical'} aria-controls="net-panel" onClick={() => setTab('logical')}>
           Observed links
         </button>
-        <button type="button" role="tab" aria-selected={tab === 'cabling'} aria-controls="net-panel" onClick={() => setTab('cabling')}>
+        <button id="net-tab-cabling" type="button" role="tab" aria-selected={tab === 'cabling'} aria-controls="net-panel" onClick={() => setTab('cabling')}>
           Documented cabling
         </button>
       </div>
-      <div id="net-panel" role="tabpanel">
+      <div id="net-panel" role="tabpanel" aria-labelledby={tab === 'logical' ? 'net-tab-logical' : 'net-tab-cabling'}>
         {tab === 'logical' ? <>
           {networkEntries.length ? <SavedRelations entries={networkEntries} /> : !actions.networkRelations && <Empty>No Network relation projection is supplied.</Empty>}
           {actions.networkRelations && <NetworkRelationsPanel client={actions.networkRelations} />}
