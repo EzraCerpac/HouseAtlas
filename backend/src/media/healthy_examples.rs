@@ -604,13 +604,13 @@ fn healthy_wide_original_identity_availability_restore_and_download() {
                 &budget(),
             )
             .unwrap();
-        source
-            .verify_prepared_original(&scope(), &prepared, &budget())
-            .unwrap();
         let asset = record(
             850 + index as u32,
             prepared.with_provenance(license(), vec![u(100)]).unwrap(),
         );
+        source
+            .verify_prepared_asset(&scope(), &asset.payload, &budget())
+            .unwrap();
         let unchanged = asset.clone();
         assert_eq!(asset.payload.availability, Availability::Available);
         assert_eq!(
