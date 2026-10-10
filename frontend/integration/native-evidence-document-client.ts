@@ -231,7 +231,7 @@ export function createNativeEvidenceDocumentClient(options: NativeEvidenceDocume
       const afterEvidence = assetReference(await abortable(evidence.read({ workspaceId: owner.workspaceId, homeId: owner.homeId }, evidenceId, controller.signal), controller.signal), evidenceId); guard();
       need(afterEvidence.assetId === beforeEvidence.assetId && afterEvidence.revision === beforeEvidence.revision
         && original.isCurrent(retained)); guard();
-      const frame: NativeEvidenceDocumentFrame = Object.freeze({ lease: Object.freeze({}), evidenceId, asset: beforeAsset, mode });
+      const frame: NativeEvidenceDocumentFrame = Object.freeze({ lease: Object.freeze({}), evidenceId, evidenceRevision: beforeEvidence.revision, asset: beforeAsset, mode });
       const live: Live = { owner, generation: reserved, frame, original: retained, blob, listeners: new Set() };
       current = live; pending = null; retained = null; published = frame;
       const remaining = Date.parse(owner.expiresAt) - Date.now(); need(remaining > 0);

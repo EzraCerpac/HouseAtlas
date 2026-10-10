@@ -4,6 +4,7 @@ import type { NativeDocumentAsset } from './native-document-types';
 export interface NativeEvidenceDocumentFrame {
   readonly lease: object;
   readonly evidenceId: string;
+  readonly evidenceRevision: number;
   readonly asset: NativeDocumentAsset;
   readonly mode: 'inline-png' | 'original-download';
 }
