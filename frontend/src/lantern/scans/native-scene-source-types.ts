@@ -4,6 +4,7 @@ import type { NativeEvidenceDocumentFrame } from './native-evidence-document-typ
 import type { SchematicRoom, DisplayRoomRegion } from './presentation/types';
 import type { NetworkOverlayData, NetworkPackagePlaceSelection } from '../overlays/network/types';
 import type { ElectricityOverlayData } from '../overlays/electricity/types';
+import type { ElectricalFixtureData } from '../overlays/electricity/fixture-types';
 
 /** Independently reviewed host selection. The retained text cannot issue this selection. */
 export interface NativeSceneSourceSelection {
@@ -62,6 +63,8 @@ export interface NativeSceneSourceFrame {
   readonly roomSelections: readonly Readonly<{ roomId: string; selection: NetworkPackagePlaceSelection }>[];
   readonly network: NativeSceneSubset<NetworkOverlayData>;
   readonly electricity: NativeSceneSubset<ElectricityOverlayData>;
+  /** Historical source symbols only; no accepted diagram registration or media grant. */
+  readonly electricalFixtures: NativeSceneSubset<ElectricalFixtureData>;
   readonly document: NativeEvidenceDocumentFrame;
   readonly geometry: NativeGeometryFrame;
 }

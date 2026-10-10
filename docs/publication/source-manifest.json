@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "df2a8f427cea0c454cdbe7c2adf68e472b45ef5972dfad855916e87f7390d0bf",
+  "sourceDigestSha256": "1498649c2a8e1ecbff5a75e1311e30576bd100efedd57627d656e7a1c3807458",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5362,8 +5362,8 @@
     {
       "path": "docs/geometry/native-scene-source.md",
       "mode": "100644",
-      "bytes": 6219,
-      "sha256": "ea8aa341d35fcdb2d9767475f8c07f2db77640b493582319bde07b66b040d8f2",
+      "bytes": 8908,
+      "sha256": "692ea328d4c57775e8c6f9de0cba2b387f36bb6a16c69bfafec90eccb39c1d41",
       "owner": "web"
     },
     {
@@ -5922,8 +5922,8 @@
     {
       "path": "frontend/integration/native-scene-source-client.ts",
       "mode": "100644",
-      "bytes": 36019,
-      "sha256": "b63b194a70ea6bae5b1629200b7c92f0a72a7b384ac87a65e98f41d97f705708",
+      "bytes": 46905,
+      "sha256": "d53cc3608e8335f8bc60c35a858fdddf67c997aa43f72a7bbbf1cd814e5feb01",
       "owner": "web"
     },
     {
@@ -7203,8 +7203,8 @@
     {
       "path": "frontend/src/lantern/scans/native-scene-source-types.ts",
       "mode": "100644",
-      "bytes": 3593,
-      "sha256": "daac63a68016cc55c2f97f60941b257c8c16998aca2980765bdd1ae558ea29d7",
+      "bytes": 3840,
+      "sha256": "455604eb29161c10867a3732d11dd41182212ea97d7d13fbf226ce69bf1ba672",
       "owner": "web"
     },
     {

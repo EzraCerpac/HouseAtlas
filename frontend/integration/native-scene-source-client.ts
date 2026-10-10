@@ -10,6 +10,8 @@ import type { SchematicRoom, DisplayRoomRegion } from '../src/lantern/scans/pres
 import type { NetworkOverlayData, NetworkOverlayDevice, NetworkOverlayEndpoint,
   NetworkOverlayLink, NetworkPlaceAssociation, NetworkOverlaySource } from '../src/lantern/overlays/network/types';
 import type { ElectricityOverlayData } from '../src/lantern/overlays/electricity/types';
+import type { ElectricalFixture, ElectricalFixtureData, ElectricalFixtureRegion,
+  ElectricalFixtureSheet, ElectricalDocumentaryGroup, FixtureBox, FixturePoint } from '../src/lantern/overlays/electricity/fixture-types';
 
 type Row = { [key: string]: LosslessJson };
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
@@ -54,6 +56,21 @@ function fraction(value: LosslessJson | undefined): number {
 }
 function page(value: LosslessJson | undefined): number {
   need(isExactDecimal(value)); const result = value.toSafeInteger(); need(result !== undefined && result >= 1 && result <= 10000); return result;
+}
+function count(value: LosslessJson | undefined): number | null {
+  if (value === null) return null;
+  need(isExactDecimal(value)); const result = value.toSafeInteger();
+  need(result !== undefined && result >= 1 && result <= 10000); return result;
+}
+function bool(value: LosslessJson | undefined): boolean { need(typeof value === 'boolean'); return value; }
+function sourcePoint(value: LosslessJson | undefined): FixturePoint {
+  const values = list(value, 2); need(values.length === 2);
+  return freeze([fraction(values[0]), fraction(values[1])] as const);
+}
+function sourceBox(value: LosslessJson | undefined): FixtureBox {
+  const values = list(value, 4); need(values.length === 4);
+  const result = [fraction(values[0]), fraction(values[1]), fraction(values[2]), fraction(values[3])] as const;
+  need(result[0] <= result[2] && result[1] <= result[3]); return freeze(result);
 }
 function identical(a: ExactDecimal, b: ExactDecimal): boolean { return a.compare(b) === 0; }
 function selectionStamp(value: NativeSceneSourceSelection): string {
@@ -348,6 +365,132 @@ function electricity(source: Row, viewKey: string): NativeSceneSubset<Electricit
   return freeze({ status: 'available' as const, data: result });
 }
 
+/** A separate historical symbol inventory. Embedded receipt text and drawing
+ * registration rows never grant room or fixture placement authority. */
+function electricalFixtures(source: Row, viewKey: string, receiptId: string | null,
+  receiptSha: string | null, anchors: ReadonlyMap<string, Anchor>): NativeSceneSubset<ElectricalFixtureData> {
+  if (source.status !== 'available') {
+    need(source.status === 'unavailable' && source.documentaryFixtures === null);
+    return unavailable(choice(source.reason, ['not-retained','not-qualified','source-unavailable']));
+  }
+  need(source.reason === null && receiptId !== null && receiptSha !== null && anchors.size > 0);
+  const input = row(source.documentaryFixtures, ['schema','viewKey','interpretationDate','symbolLegend',
+    'roomMappingReceipt','registrationReceipts','sheets','groups','regions','fixtures']);
+  need(input.schema === 'houseatlas.documentary-electrical-fixtures.v1');
+  str(input.viewKey); // Documentary source key; only the host supplies the current view key.
+  const legend = row(input.symbolLegend, ['xMeansSocket','socketsPerX','receiptId']);
+  const xMeansSocket = legend.xMeansSocket === null ? null : bool(legend.xMeansSocket);
+  const socketsPerX = count(legend.socketsPerX);
+  const symbolReceipt = optional(legend.receiptId);
+  const sourceReceipt = row(input.roomMappingReceipt, ['id','sha256']);
+  need(sourceReceipt.id === receiptId && sourceReceipt.sha256 === receiptSha);
+  // An actual reviewed registration is an independent host proof. This
+  // source-only format admits no embedded proposed or accepted registration.
+  need(list(input.registrationReceipts, 0).length === 0);
+  const sheets: ElectricalFixtureSheet[] = [], sheetIds = new Set<string>();
+  for (const item of list(input.sheets, 128)) {
+    const s = row(item, ['id','title','pdfPage','originalPhoto','originalPhotoSha256',
+      'renderedPhotoSha256','sourceDate','regionIds']);
+    const id = str(s.id), originalPhoto = str(s.originalPhoto, 512);
+    const photoParts = originalPhoto.split('/');
+    need(!sheetIds.has(id) && photoParts.length <= 8 && photoParts.every(part =>
+      /^[A-Za-z0-9][A-Za-z0-9._ -]{0,127}$/.test(part) && part !== '.' && part !== '..'
+      && !part.endsWith('.') && !part.endsWith(' ')));
+    sheetIds.add(id);
+    sheets.push(freeze({ id, title: str(s.title, 512), pdfPage: page(s.pdfPage), originalPhoto,
+      originalPhotoSha256: digest(s.originalPhotoSha256), renderedPhotoSha256: digest(s.renderedPhotoSha256),
+      sourceDate: optional(s.sourceDate), regionIds: strings(s.regionIds, 256) }));
+  }
+  const groups: ElectricalDocumentaryGroup[] = [], groupIds = new Set<string>();
+  for (const item of list(input.groups, 512)) {
+    const g = row(item, ['id','label','fixtureIds','evidenceBasis','currentCircuitId','verifiedWiring']);
+    const id = str(g.id); need(!groupIds.has(id) && g.currentCircuitId === null && g.verifiedWiring === false);
+    groupIds.add(id);
+    groups.push(freeze({ id, label: str(g.label, 512), fixtureIds: strings(g.fixtureIds, 2048),
+      evidenceBasis: choice(g.evidenceBasis, ['historic-drawing-label']), currentCircuitId: null,
+      verifiedWiring: false as const }));
+  }
+  const regions: ElectricalFixtureRegion[] = [], regionIds = new Set<string>();
+  const placeUuids = new Map<string, string>(), placeKeys = new Map<string, string>();
+  for (const item of list(input.regions, 512)) {
+    const r = row(item, ['id','sheetId','label','sourceOutline','outlineClosed','sourceBounds',
+      'outlineBasis','places','orientation','physicalTransform']);
+    const id = str(r.id), sheetId = str(r.sheetId);
+    need(!regionIds.has(id) && sheetIds.has(sheetId) && r.physicalTransform === null);
+    regionIds.add(id);
+    const places = list(r.places, 64).map(item => {
+      const p = row(item, ['packagePlaceKey','packagePlaceUuid','label','basis']);
+      const packagePlaceKey = str(p.packagePlaceKey), packagePlaceUuid = str(p.packagePlaceUuid);
+      need(UUID.test(packagePlaceUuid) && (!placeUuids.has(packagePlaceKey)
+        || placeUuids.get(packagePlaceKey) === packagePlaceUuid)
+        && (!placeKeys.has(packagePlaceUuid) || placeKeys.get(packagePlaceUuid) === packagePlaceKey));
+      placeUuids.set(packagePlaceKey, packagePlaceUuid);
+      placeKeys.set(packagePlaceUuid, packagePlaceKey);
+      return freeze({ packagePlaceKey, packagePlaceUuid, label: str(p.label, 512),
+        basis: choice(p.basis, ['owner-reported','inferred']) });
+    });
+    need(new Set(places.map(p => `${p.packagePlaceKey}\0${p.packagePlaceUuid}`)).size === places.length);
+    const outline = list(r.sourceOutline, 1024).map(sourcePoint);
+    const outlineClosed = bool(r.outlineClosed);
+    const outlineBasis = choice(r.outlineBasis, ['untraced','approximate-photo-trace']);
+    need(outlineBasis !== 'untraced' || outline.length === 0 && !outlineClosed);
+    regions.push(freeze({ id, sheetId, label: str(r.label, 512), sourceOutline: freeze(outline),
+      outlineClosed, sourceBounds: sourceBox(r.sourceBounds), outlineBasis, places: freeze(places),
+      orientation: choice(r.orientation, ['unregistered']), physicalTransform: null }));
+  }
+  for (const sheet of sheets) {
+    need(sheet.regionIds.every(id => regions.some(region => region.id === id && region.sheetId === sheet.id)));
+    need(regions.filter(region => region.sheetId === sheet.id).every(region => sheet.regionIds.includes(region.id)));
+  }
+  const fixtures: ElectricalFixture[] = [], fixtureIds = new Set<string>(), symbols = new Set<string>();
+  for (const item of list(input.fixtures, 2048)) {
+    const f = row(item, ['id','sheetId','regionId','clusterId','kind','label','glyph','source',
+      'group','glyphCount','fixtureCount','uncertainty','currentState','physicalCoordinate','wireRoute']);
+    const id = str(f.id), sheetId = str(f.sheetId), regionId = str(f.regionId);
+    need(!fixtureIds.has(id) && regions.some(region => region.id === regionId && region.sheetId === sheetId)
+      && f.physicalCoordinate === null && f.wireRoute === null);
+    fixtureIds.add(id);
+    const s = row(f.source, ['symbolKey','originalPhotoSha256','renderedPhotoSha256',
+      'normalizedBox','normalizedPoint','literalLabels','placementDescription']);
+    const symbolKey = str(s.symbolKey, 512), sheet = sheets.find(sheet => sheet.id === sheetId)!;
+    need(!symbols.has(symbolKey) && s.originalPhotoSha256 === sheet.originalPhotoSha256
+      && s.renderedPhotoSha256 === sheet.renderedPhotoSha256);
+    symbols.add(symbolKey);
+    const normalizedBox = sourceBox(s.normalizedBox), normalizedPoint = sourcePoint(s.normalizedPoint);
+    need(normalizedPoint[0] >= normalizedBox[0] && normalizedPoint[0] <= normalizedBox[2]
+      && normalizedPoint[1] >= normalizedBox[1] && normalizedPoint[1] <= normalizedBox[3]);
+    const g = row(f.group, ['id','label','basis','note']);
+    const groupId = optional(g.id), groupLabel = optional(g.label, 512);
+    need((groupId === null) === (groupLabel === null));
+    if (groupId !== null) need(groups.some(group => group.id === groupId && group.label === groupLabel));
+    fixtures.push(freeze({ id, sheetId, regionId, clusterId: optional(f.clusterId, 512),
+      kind: choice(f.kind, ['socket','socket-candidate','light','appliance','unresolved']),
+      label: str(f.label, 512), glyph: plain(f.glyph, 512),
+      source: freeze({ symbolKey, originalPhotoSha256: sheet.originalPhotoSha256,
+        renderedPhotoSha256: sheet.renderedPhotoSha256, normalizedBox, normalizedPoint,
+        literalLabels: strings(s.literalLabels, 32, 512), placementDescription: plain(s.placementDescription) }),
+      group: freeze({ id: groupId, label: groupLabel,
+        basis: choice(g.basis, ['label-adjacent','drawn-arrow','uncertain','unknown']),
+        note: plain(g.note) }),
+      glyphCount: count(f.glyphCount), fixtureCount: count(f.fixtureCount),
+      uncertainty: f.uncertainty === null ? null : plain(f.uncertainty),
+      currentState: choice(f.currentState, ['historic-unverified']),
+      physicalCoordinate: null, wireRoute: null }));
+  }
+  for (const group of groups) {
+    need(group.fixtureIds.every(id => fixtures.some(fixture => fixture.id === id && fixture.group.id === group.id)));
+    need(fixtures.filter(fixture => fixture.group.id === group.id).every(fixture => group.fixtureIds.includes(fixture.id)));
+  }
+  return freeze({ status: 'available' as const, data: freeze({
+    schema: 'houseatlas.documentary-electrical-fixtures.v1' as const, viewKey,
+    interpretationDate: str(input.interpretationDate),
+    symbolLegend: freeze({ xMeansSocket, socketsPerX, receiptId: symbolReceipt }),
+    roomMappingReceipt: freeze({ id: receiptId, sha256: receiptSha }),
+    registrationReceipts: Object.freeze([]), sheets: freeze(sheets), groups: freeze(groups),
+    regions: freeze(regions), fixtures: freeze(fixtures),
+  }) });
+}
+
 export interface NativeSceneSourceOptions {
   /** Dedicated evidence-document client instance; it owns one original lease at a time. */
   readonly documents: NativeEvidenceDocumentClient;
@@ -467,8 +610,13 @@ export function createNativeSceneSourceClient(options: NativeSceneSourceOptions)
       pinned();
       const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
       need(!text.startsWith('\uFEFF'));
-      const root = row(parse(text), ['schema','receiptCanonicalJson','rooms','network','electricity']);
-      need(root.schema === 'houseatlas.native-scene-source.v1');
+      const parsed = parse(text);
+      need(parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) && !isExactDecimal(parsed));
+      const version = parsed.schema;
+      const root = version === 'houseatlas.native-scene-source.v1'
+        ? row(parsed, ['schema','receiptCanonicalJson','rooms','network','electricity'])
+        : row(parsed, ['schema','receiptCanonicalJson','rooms','network','electricity','electricalFixtures']);
+      need(root.schema === 'houseatlas.native-scene-source.v1' || root.schema === 'houseatlas.native-scene-source.v2');
       const hasReceipt = selection.acceptedRoomReceiptId !== null && selection.acceptedRoomReceiptSha256 !== null;
       need((selection.acceptedRoomReceiptId === null) === (selection.acceptedRoomReceiptSha256 === null));
       if (hasReceipt) {
@@ -478,12 +626,15 @@ export function createNativeSceneSourceClient(options: NativeSceneSourceOptions)
         parse(canonical); // Validate exact retained receipt syntax without inventing its schema.
       } else need(root.receiptCanonicalJson === null);
       boundedTree(root.rooms!); boundedTree(root.network!); boundedTree(root.electricity!);
+      if (root.schema === 'houseatlas.native-scene-source.v2') boundedTree(root.electricalFixtures!);
       const anchors = receipt(selection);
       const roomSource = row(root.rooms, ['status','reason','receiptId','receiptSha256','entries','regions']);
       need(roomSource.receiptId === selection.acceptedRoomReceiptId
         && roomSource.receiptSha256 === selection.acceptedRoomReceiptSha256);
       const networkSource = row(root.network, ['status','reason','source','devices','endpoints','links']);
       const electricitySource = row(root.electricity, ['status','reason','documentarySource','roomRegistry','buildingPackageKey','retrievedAt']);
+      const fixtureSource = root.schema === 'houseatlas.native-scene-source.v2'
+        ? row(root.electricalFixtures, ['status','reason','documentaryFixtures']) : null;
       const roomSubset = rooms(roomSource, anchors, bound);
       const roomSelections = roomSubset.status === 'available' ? roomSubset.data.rooms.map(room => {
         const members = room.sourceAnchorIds.map(id => anchors.get(id)!);
@@ -503,7 +654,11 @@ export function createNativeSceneSourceClient(options: NativeSceneSourceOptions)
         receiptSha256: selection.acceptedRoomReceiptSha256, rooms: roomSubset, roomSelections: freeze(roomSelections),
         network: network(networkSource, selection.viewKey, selection.acceptedRoomReceiptId,
           selection.acceptedRoomReceiptSha256, anchors, bound),
-        electricity: electricity(electricitySource, selection.viewKey), document: frame, geometry });
+        electricity: electricity(electricitySource, selection.viewKey),
+        electricalFixtures: fixtureSource === null ? unavailable('not-retained')
+          : electricalFixtures(fixtureSource, selection.viewKey, selection.acceptedRoomReceiptId,
+            selection.acceptedRoomReceiptSha256, anchors),
+        document: frame, geometry });
       pinned();
       document = frame; current = result; currentSelection = selection; currentStamp = stamp;
       need(same(selection, geometry, reserved) && selectionStamp(selection) === stamp
