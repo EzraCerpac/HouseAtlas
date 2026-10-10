@@ -15,6 +15,7 @@ import { SourceDetails } from './components/SourceDetails';
 import { SearchPalette } from './components/SearchPalette';
 import { SettingsDialog } from './components/SettingsDialog';
 import { AiActivityStatus } from '../ai/host/index.js';
+import { isArchivedEntry } from '../app/model';
 
 const VIEWS: { id: ViewId; label: string; icon: string }[] = [
   { id: 'atlas', label: 'Atlas', icon: 'atlas' },
@@ -66,7 +67,7 @@ function ArchiveFilter() {
   if (!visibility) return null;
   const archived = [...projection.house.spaces, ...projection.house.items].flatMap(record => {
     const entry = projection.entries.get(record.id);
-    return entry?.entity.archived ? [{ record, entry }] : [];
+    return entry && isArchivedEntry(entry) ? [{ record, entry }] : [];
   });
   return <section aria-label="Filter retained HomeBox records">
     <label><input type="checkbox" checked={visibility.included}
@@ -75,7 +76,7 @@ function ArchiveFilter() {
       <summary>Archived HomeBox records in this saved view ({archived.length})</summary>
       {archived.length ? <ul className="rows">{archived.map(({ record, entry }) => <li key={record.id}>
         <button type="button" className="row-title" onClick={() => select(record.id)}>{record.name || 'Unnamed source record'}</button>
-        <span className="row-meta">Archived in HomeBox · Source: {entry.sourceState}; cache: {entry.cacheStatus}</span>
+        <span className="row-meta">Entity archived: {entry.entity.archived ? 'yes' : 'no'} · Source: {entry.sourceState}; cache: {entry.cacheStatus}</span>
       </li>)}</ul> : <p className="empty">No archived HomeBox records in this saved view.</p>}
     </details>}
   </section>;
