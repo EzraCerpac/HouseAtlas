@@ -136,7 +136,8 @@ impl<'a, S, A> MediaService<'a, S, A> {
             || record.lifecycle != Lifecycle::Active
             || record.payload.availability != Availability::Available
             || stored.manifest != record.payload
-            || !record.payload.purpose.is_original()
+            || !ContentType::parse_owned(&record.payload.content_type)?
+                .supports_purpose(record.payload.purpose)
         {
             return Err(MediaError::NotFound);
         }
@@ -144,7 +145,7 @@ impl<'a, S, A> MediaService<'a, S, A> {
             scope: scope.clone(),
             asset_id: record.record_id.clone(),
             revision: record.revision,
-            content_type: ContentType::parse(&record.payload.content_type)?,
+            content_type: ContentType::parse_owned(&record.payload.content_type)?,
             byte_size: record.payload.byte_size,
             preview_policy: record.payload.preview_policy,
         };

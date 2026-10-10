@@ -56,6 +56,10 @@ pub fn validate_content(
             budget.check()?;
             Ok(None)
         }
+        ContentType::Usdz | ContentType::Ifc => {
+            super::geometry_original::validate(bytes, content_type, budget).map(|_| None)
+        }
+        ContentType::AuthoredMesh => super::mesh_derivative::validate(bytes, budget).map(|_| None),
         ContentType::Text => {
             std::str::from_utf8(bytes).map_err(|_| MediaError::Unsupported)?;
             if bytes.contains(&0) {

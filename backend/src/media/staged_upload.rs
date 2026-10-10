@@ -214,7 +214,7 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
 
     fn validate_admission(&self, admission: &UploadAdmission) -> MediaResult<()> {
         if !is_uuid(&admission.request_id)
-            || !admission.purpose.is_original()
+            || !admission.content_type.supports_purpose(admission.purpose)
             || admission.filename.is_empty()
             || admission.filename.chars().count() > 255
             || admission
@@ -258,6 +258,54 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
         body: &mut impl Read,
         budget: &WorkBudget,
     ) -> MediaResult<UploadReceipt> {
+        if !admission.purpose.is_original() {
+            return Err(MediaError::InvalidInput);
+        }
+        self.stage_asset(guard, original, admission, body, budget, None)
+    }
+
+    /// The derivative seal is issued only after the actually retained original
+    /// archive and the entire immutable closed profile agree in this scope.
+    pub fn stage_mesh_derivative(
+        &self,
+        guard: &a::TransactionAuthorization<'_>,
+        original: &RetainedPrincipal,
+        admission: UploadAdmission,
+        source: &super::types::AssetRecord,
+        bytes: &[u8],
+        budget: &WorkBudget,
+    ) -> MediaResult<UploadReceipt> {
+        let scope = authorize(guard, original, budget)?;
+        if source.scope() != scope
+            || source.lifecycle != super::types::Lifecycle::Active
+            || source.payload.availability != super::types::Availability::Available
+            || source.payload.purpose != AssetPurpose::GeometryOriginal
+            || source.payload.content_type != ContentType::Usdz.as_str()
+            || source.payload.preview_policy != super::types::PreviewPolicy::DownloadOnly
+        {
+            return Err(MediaError::InvalidInput);
+        }
+        let original_bytes = self.vault.read_retained(source, budget)?;
+        let qualified = super::mesh_derivative::qualify(bytes, &original_bytes, budget)?;
+        self.stage_asset(
+            guard,
+            original,
+            admission,
+            &mut qualified.bytes(),
+            budget,
+            Some(&qualified),
+        )
+    }
+
+    fn stage_asset(
+        &self,
+        guard: &a::TransactionAuthorization<'_>,
+        original: &RetainedPrincipal,
+        admission: UploadAdmission,
+        body: &mut impl Read,
+        budget: &WorkBudget,
+        mesh: Option<&super::mesh_derivative::QualifiedMesh<'_>>,
+    ) -> MediaResult<UploadReceipt> {
         let scope = authorize(guard, original, budget)?;
         self.validate_admission(&admission)?;
         self.expire_pending(budget)?;
@@ -282,16 +330,36 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
         // reservations and immutable originals remain charged after reopen.
         let pending = self.directory.temporary(".upload-")?;
         self.write_reservation_lifetime(&pending.directory)?;
-        let prepared = self.vault.prepare_upload_original(
-            &scope,
-            admission.purpose,
-            admission.content_type,
-            body,
-            budget,
-            &self.limits,
-        )?;
-        let qualification = prepared.renderer_qualification().cloned();
-        let payload = prepared.with_provenance(admission.source_license, admission.evidence_ids)?;
+        let (payload, qualification) = match mesh {
+            Some(mesh)
+                if admission.purpose == AssetPurpose::DerivedPreview
+                    && admission.content_type == ContentType::AuthoredMesh =>
+            {
+                let prepared =
+                    self.vault
+                        .prepare_upload_mesh(&scope, mesh, budget, &self.limits)?;
+                (
+                    prepared.with_provenance(admission.source_license, admission.evidence_ids)?,
+                    None,
+                )
+            }
+            Some(_) => return Err(MediaError::InvalidInput),
+            None => {
+                let prepared = self.vault.prepare_upload_original(
+                    &scope,
+                    admission.purpose,
+                    admission.content_type,
+                    body,
+                    budget,
+                    &self.limits,
+                )?;
+                let qualification = prepared.renderer_qualification().cloned();
+                (
+                    prepared.with_provenance(admission.source_license, admission.evidence_ids)?,
+                    qualification,
+                )
+            }
+        };
         let staged = StagedFile {
             upload_token: token.clone(),
             sha256: payload.sha256.clone(),
@@ -414,7 +482,7 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
                 sha256: record.payload.sha256.clone(),
                 byte_size: record.payload.byte_size,
             },
-            content_type: ContentType::parse(&record.payload.content_type)?,
+            content_type: ContentType::parse_owned(&record.payload.content_type)?,
         };
         let qualification = retained.qualification.clone();
         if record.payload.preview_policy == super::types::PreviewPolicy::SafeRendered
@@ -426,7 +494,7 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
         }
         let identity = self
             .vault
-            .verify_prepared_original(&scope, &prepared, budget)?;
+            .verify_prepared_asset(&scope, &record.payload, budget)?;
         if identity.sha256 != record.staged.sha256
             || identity.byte_size != record.staged.byte_size
             || record.payload.content_type != record.staged.content_type

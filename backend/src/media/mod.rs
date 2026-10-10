@@ -11,8 +11,11 @@ compile_error!("The private media filesystem currently supports Linux and macOS"
 mod budget;
 pub mod content;
 pub mod download_lifetime;
+pub mod geometry_bundle;
+pub mod geometry_original;
 pub mod homebox_artifacts;
 pub mod homebox_pinned_artifacts;
+pub mod mesh_derivative;
 pub mod native;
 pub mod native_policy_archive;
 pub mod native_policy_intake;

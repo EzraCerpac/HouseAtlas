@@ -95,28 +95,27 @@ fn validate_binding<C: Contract, S: stock::StockContractPort>(
         home_id: stage.scope.home_id.clone(),
     };
     let content_type =
-        media::ContentType::parse(&stage.staged.content_type).map_err(|_| incompatible())?;
+        media::ContentType::parse_owned(&stage.staged.content_type).map_err(|_| incompatible())?;
     require(
         stage.payload.preview_policy == media::PreviewPolicy::DownloadOnly
             || (stage.payload.preview_policy == media::PreviewPolicy::SafeRendered
                 && content_type == media::ContentType::Png),
     )?;
-    let mut expected = PreparedOriginal {
+    let mut expected = media::AssetPayload {
+        owner: media::AssetOwner::Atlas,
         purpose: stage.payload.purpose,
         storage_key: scope
             .storage_key(&stage.staged.sha256)
             .map_err(|_| incompatible())?,
-        identity: media::BlobIdentity {
-            sha256: stage.staged.sha256.clone(),
-            byte_size: stage.staged.byte_size,
-        },
-        content_type,
-    }
-    .with_provenance(
-        stage.payload.source_license.clone(),
-        stage.payload.evidence_ids.clone(),
-    )
-    .map_err(|_| incompatible())?;
+        sha256: stage.staged.sha256.clone(),
+        byte_size: stage.staged.byte_size,
+        content_type: content_type.as_str().to_owned(),
+        source_license: stage.payload.source_license.clone(),
+        evidence_ids: stage.payload.evidence_ids.clone(),
+        availability: media::Availability::Available,
+        preview_policy: media::PreviewPolicy::DownloadOnly,
+    };
+    expected.validate().map_err(|_| incompatible())?;
     // Measurement proves identity/provenance, not renderer qualification. The
     // policy comes from the genuine immutable Media stage and remains bound by
     // the complete canonical binding, consumed receipt and asset association.
@@ -129,7 +128,7 @@ fn validate_binding<C: Contract, S: stock::StockContractPort>(
             && request.request_id() == stage.request_id
             && request.target()["recordId"] == stage.asset_id
             && request.intent_digest() == binding.request_digest
-            && stage.payload.purpose.is_original()
+            && content_type.supports_purpose(stage.payload.purpose)
             && stage.payload == expected
             && consumed.token_hash
                 == super::migrations::sha256(stage.staged.upload_token.as_bytes())
