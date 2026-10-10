@@ -87,7 +87,7 @@ export function LibraryView() {
       <header className="view-head">
         <h1>Library</h1>
         <p>
-          {stored} stored files and {house.docs.length - stored} external links{archivedLinks > 0 ? `, ${archivedLinks} archived in HomeBox` : ''}. Stored files are kept with the household records; links keep only an address.
+          {stored} stored files and {house.docs.length - stored} external links{archivedLinks > 0 ? `, ${archivedLinks} archived in HomeBox` : ''}. HomeBox reports these as stored files; links keep only an address.
         </p>
       </header>
       <div className="filter-row" role="group" aria-label="Filter documents">

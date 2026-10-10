@@ -44,7 +44,7 @@ function NoGeometryAtlas() {
           <Icon name="rooms" size={26} />
         </div>
         <div>
-          <h2>{house.name}: no reviewed shape projection</h2>
+          <h1 style={{ fontSize: 'var(--fs-2xl)', marginBottom: 6 }}>{house.name}: no reviewed shape projection</h1>
           <p>Rooms and places remain available. Plan, 3D and measured positions require reviewed geometry.</p>
         </div>
       </div>
