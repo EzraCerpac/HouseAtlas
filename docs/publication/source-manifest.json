@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "f178cf4ba9150008a1b9ca452d4ade6c0c5f2fefa11e4cb2c9f01668094023e7",
+  "sourceDigestSha256": "ea00d67684856bee1b8ddf60cf7c55723d85168f66f5fcb26249d0ae4e03d8eb",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2632,8 +2632,8 @@
     {
       "path": "backend/src/media/healthy_examples.rs",
       "mode": "100644",
-      "bytes": 26668,
-      "sha256": "eb3f1c7ec4b4f83c3d544d59fc43ac887ea2eaeaf72c4d99f2f0851dbd884674",
+      "bytes": 26670,
+      "sha256": "3e9bd8a67259c2279f649dc59414b4f97a408d63a791b6d9fc1b06e812bf853d",
       "owner": "media"
     },
     {
@@ -5318,6 +5318,13 @@
       "owner": "web"
     },
     {
+      "path": "docs/geometry/native-document-read.md",
+      "mode": "100644",
+      "bytes": 4939,
+      "sha256": "8226e8abea2a1affa6a42e515be06128b70efd2ec693ccfd0dffd2b67ef137af",
+      "owner": "web"
+    },
+    {
       "path": "docs/geometry/native-geometry-association.md",
       "mode": "100644",
       "bytes": 4484,
@@ -5848,6 +5855,13 @@
       "bytes": 20806,
       "sha256": "be713f94faa6793b2927518b5d0f8329ca7147e3b1cfe89160f4649ebaec521b",
       "owner": "core-integration"
+    },
+    {
+      "path": "frontend/integration/native-document-read-client.ts",
+      "mode": "100644",
+      "bytes": 20391,
+      "sha256": "2a9513a0da2fed82bc15e8ea05179382847e139d29ae734a34a030328f81a42e",
+      "owner": "web"
     },
     {
       "path": "frontend/integration/native-geometry-association-client.ts",
@@ -6988,6 +7002,13 @@
       "mode": "100644",
       "bytes": 1900,
       "sha256": "8fa73479f7c8c288bf91aab22e48e821cd1875880a48bb888f0015eba32894d0",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/native-document-types.ts",
+      "mode": "100644",
+      "bytes": 2051,
+      "sha256": "130458017c089e49859b65ed97548255749a030c2555a42021bcb66f04002e45",
       "owner": "web"
     },
     {
