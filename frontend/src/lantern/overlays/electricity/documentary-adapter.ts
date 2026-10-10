@@ -1,4 +1,4 @@
-import type { ElectricityOverlayData, ElectricityRoomAssociation, ElectricitySheet, ElectricityStatement } from './types';
+import type { ElectricityOverlayData, ElectricityPackagePlaceSelection, ElectricityRoomAssociation, ElectricitySheet, ElectricityStatement } from './types';
 
 type ObjectValue = Record<string, unknown>;
 const object = (value: unknown): ObjectValue => {
@@ -163,10 +163,31 @@ export function adaptDocumentaryElectricity(input: unknown, registry: unknown, n
     preparationSnapshot: { status: text(root.status), nativeImportReceipt: null }, sheets });
 }
 
-/** No floor/export/name matching occurs here. Exact native identity only. */
-export function electricitySheets(data: ElectricityOverlayData, selectedPlaceId: string | null, label: string | null): readonly ElectricitySheet[] {
-  return data.sheets.filter(sheet => (!selectedPlaceId || selectedPlaceId === data.buildingPlaceId
-    || sheet.roomAssociations.some(room => room.nativePlaceId === selectedPlaceId))
+/** The geometry owner verifies the canonical receipt. These shape checks do
+ * not authenticate a receipt hash or establish native identity or placement. */
+export function hasAcceptedPackageSelection(data: ElectricityOverlayData, selection: ElectricityPackagePlaceSelection): boolean {
+  return selection.viewKey === data.viewKey && selection.status === 'accepted'
+    && typeof selection.receiptId === 'string' && Boolean(selection.receiptId.trim())
+    && typeof selection.receiptSha256 === 'string' && /^[a-f0-9]{64}$/.test(selection.receiptSha256)
+    && Array.isArray(selection.sourceAnchorIds) && selection.sourceAnchorIds.length > 0
+    && selection.sourceAnchorIds.every(id => typeof id === 'string' && Boolean(id.trim()))
+    && Array.isArray(selection.targets) && selection.targets.length > 0 && selection.targets.every(target => target
+      && typeof target.packagePlaceKey === 'string' && Boolean(target.packagePlaceKey.trim())
+      && typeof target.packagePlaceUuid === 'string' && Boolean(target.packagePlaceUuid.trim()))
+    && Array.isArray(selection.unresolvedLabels) && selection.unresolvedLabels.every(value => typeof value === 'string' && Boolean(value.trim()));
+}
+
+/** No floor/export/name matching occurs here. Reviewed exact package key/UUID
+ * pairs select source context; native selection applies without that context.
+ * The host reconciles any native identity separately. A multi-place anchor is a union
+ * of documentary associations, never a joined room or current circuit. */
+export function electricitySheets(data: ElectricityOverlayData, selectedPlaceId: string | null, label: string | null,
+  selectedPackagePlaces: ElectricityPackagePlaceSelection | null = null): readonly ElectricitySheet[] {
+  if (selectedPackagePlaces && !hasAcceptedPackageSelection(data, selectedPackagePlaces)) return [];
+  return data.sheets.filter(sheet => (selectedPackagePlaces
+    ? sheet.roomAssociations.some(room => selectedPackagePlaces.targets.some(target =>
+      room.packagePlaceKey === target.packagePlaceKey && room.packagePlaceUuid === target.packagePlaceUuid))
+    : !selectedPlaceId || selectedPlaceId === data.buildingPlaceId || sheet.roomAssociations.some(room => room.nativePlaceId === selectedPlaceId))
     && (label === null || sheet.documentaryLabels.includes(label)));
 }
 

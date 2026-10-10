@@ -85,6 +85,21 @@ assert.deepEqual(electricityLabels(data), [{ label: 'L7', sheetCount: 2 }, { lab
 assert.deepEqual(electricitySheets(data, null, 'L7').map(sheet => sheet.id), ['drawing-a', 'drawing-b']);
 assert.equal(electricitySheets(data, 'native-building', null).length, 4);
 
+// Healthy geometry-owned receipt projection. Exact package key/UUID pairs can
+// select documentary room associations before actual native room IDs exist.
+const reviewedSelection = { viewKey: 'synthetic-view', status: 'accepted', receiptId: 'synthetic-reviewed-source-association',
+  receiptSha256: 'b'.repeat(64), sourceAnchorIds: ['synthetic-source#anchor-beta'],
+  targets: [{ packagePlaceKey: 'package:beta', packagePlaceUuid: 'package-beta-uuid' }], unresolvedLabels: ['Unresolved passage component'] };
+assert.deepEqual(electricitySheets(data, 'native-building', null, reviewedSelection).map(sheet => sheet.id), ['drawing-b']);
+// The host may already have a native identity receipt while this retained
+// documentary projection still has null room native IDs. Source context wins.
+assert.deepEqual(electricitySheets(data, 'synthetic-current-native-beta', null, reviewedSelection).map(sheet => sheet.id), ['drawing-b']);
+const multipleTargets = { ...reviewedSelection, targets: [...reviewedSelection.targets,
+  { packagePlaceKey: 'package:alpha', packagePlaceUuid: 'package-alpha-uuid' }] };
+assert.deepEqual(electricitySheets(data, null, null, multipleTargets).map(sheet => sheet.id), ['drawing-a', 'drawing-b', 'drawing-d']);
+assert.equal(data.sheets[3].roomAssociations[0].status, 'inferred');
+assert(data.sheets.every(sheet => sheet.spatial.mappingStatus === 'unmatched' && sheet.spatial.coordinate === null));
+
 // Bundle the actual panel and adopted original UI components without a server.
 const outputs = await build({ configFile: false, root: new URL('..', import.meta.url).pathname,
   logLevel: 'error', ssr: { noExternal: ['ajv-formats'] }, build: { ssr: new URL('ElectricityOverlayPanel.tsx', base).pathname, write: false,
@@ -103,4 +118,7 @@ for (const text of ['Electrical drawings', 'Documentary label filters', 'Former 
   'Owner reported', 'Inferred association', 'Room association unknown', 'coordinates unknown', 'Source date', 'Unknown', 'Placeholder export']) assert(markup.includes(text), text);
 assert(markup.includes('aria-pressed="false"') && markup.includes('<details>'));
 assert.equal(renderToStaticMarkup(createElement(ElectricityOverlayPanel, { ...props, active: false })), '');
-console.log('PASS healthy synthetic electricity adapter, owner aliases/layout changes, unmatched placement, literal filters and original Lantern static panel');
+const mappedMarkup = renderToStaticMarkup(createElement(ElectricityOverlayPanel, { ...props, selectedPackagePlaces: reviewedSelection }));
+for (const text of ['Owner-matched plan selection', 'synthetic-source#anchor-beta', 'Unresolved passage component',
+  'Former washroom', 'Their original confidence is unchanged', 'Electrical positions remain unmatched']) assert(mappedMarkup.includes(text), text);
+console.log('PASS healthy synthetic electricity adapter, owner aliases/layout changes, reviewed package selection, unmatched electrical placement, literal filters and original Lantern static panel');
