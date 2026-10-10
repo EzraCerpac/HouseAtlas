@@ -175,3 +175,7 @@ path = "examples/healthy-exact-read-contracts.rs"
 [[example]]
 name = "healthy-receipt-compatibility"
 path = "src/lifecycle/receipt_compatibility_healthy.rs"
+
+[[example]]
+name = "healthy-native-place-labels"
+path = "examples/healthy-native-place-labels.rs"

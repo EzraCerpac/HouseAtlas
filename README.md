@@ -49,6 +49,21 @@ format validator; relative and due-time arithmetic remains unchanged:
 node frontend/lantern-tests/source-time-display.mjs
 ```
 
+A source-free native place example creates a building and room with explicit
+reviewed membership, then renames and clears only an Atlas classification label.
+The browser fixture uses injected synthetic responses and exact retained tokens.
+The native example uses a fresh empty persistent state, its actual local Editor
+session, canonical HTTP batches and strict reopen; it starts no listener and
+keeps MCP read-only. Inspect both complete bodies and imports before running:
+
+```sh
+node frontend/lantern-tests/native-place-write.mjs
+cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision --example healthy-native-place-labels
+```
+
+These examples preserve original evidence, exact elevations and revision guards.
+They establish no provider admission or actual-household acceptance.
+
 These named local examples remain outside automatic ordinary CI and establish
 only their reported synthetic behavior.
 
