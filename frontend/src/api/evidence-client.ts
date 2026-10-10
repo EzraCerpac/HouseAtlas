@@ -1,15 +1,15 @@
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
-import agent from '../../../contracts/stock-wire3/agent/agent.schema.json' with { type: 'json' };
-import atlas from '../../../packages/contracts/schemas/atlas.schema.json' with { type: 'json' };
+import { JSON_LIMITS, parseLosslessJson, type LosslessJson } from '../numeric/lossless-json';
+import { createExactStockResultValidator } from '../numeric/schema-validator';
+import { decodeEvidenceResult, type DecodedEvidencePayload } from '../numeric/stock-decoded';
 import type { Scope } from '../app/types';
-import type { EvidencePayload } from './generated/contracts';
 
 export interface EvidencePublicRecord {
   target: { authority: 'atlas'; recordType: 'evidence'; recordId: string };
   revision: number;
   lifecycle: 'active' | 'tombstoned';
-  payload: EvidencePayload;
+  payload: DecodedEvidencePayload;
 }
 export type EvidenceSourceStatus = 'current' | 'stale' | 'unavailable' | 'unresolved';
 export type EvidenceRead =
@@ -40,26 +40,36 @@ async function withReadDeadline<T>(outer: AbortSignal, exchange: (signal: AbortS
     controller.signal.removeEventListener('abort', abort);
   }
 }
-async function receive(response: Response, signal: AbortSignal): Promise<unknown> {
+async function receive(response: Response, signal: AbortSignal): Promise<LosslessJson> {
+  if (Number(response.headers.get('Content-Length')) > JSON_LIMITS.textBytes) {
+    discard(response); throw new TypeError('Evidence response exceeded byte bound');
+  }
   const reader = response.body?.getReader();
   if (!reader) throw new TypeError('Response body missing');
   const cancel = () => { void reader.cancel().catch(() => undefined); };
   signal.addEventListener('abort', cancel, { once: true });
-  const chunks: Uint8Array[] = [];
   let length = 0;
   try {
+    // One owned buffer bounds both payload storage and per-chunk metadata.
+    let bytes = new Uint8Array(Math.min(16 * 1024, JSON_LIMITS.textBytes));
     for (;;) {
       signal.throwIfAborted();
       const part = await reader.read();
       signal.throwIfAborted();
       if (part.done) break;
-      length += part.value.byteLength;
-      chunks.push(part.value);
+      const nextLength = length + part.value.byteLength;
+      if (nextLength > JSON_LIMITS.textBytes) throw new TypeError('Evidence response exceeded byte bound');
+      if (nextLength > bytes.byteLength) {
+        let capacity = bytes.byteLength;
+        while (capacity < nextLength) capacity = Math.min(capacity * 2, JSON_LIMITS.textBytes);
+        const grown = new Uint8Array(capacity);
+        grown.set(bytes.subarray(0, length));
+        bytes = grown;
+      }
+      bytes.set(part.value, length);
+      length = nextLength;
     }
-    const bytes = new Uint8Array(length);
-    let offset = 0;
-    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+    return parseLosslessJson(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, length)));
   } catch (error) { cancel(); throw error; }
   finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
 }
@@ -77,11 +87,8 @@ interface EvidenceResult {
 export function createEvidenceClient(transport: typeof fetch = globalThis.fetch) {
   const validator = new Ajv2020({ strict: true, allErrors: true, allowUnionTypes: true });
   addFormats(validator);
-  validator.addSchema(atlas);
-  validator.addSchema(agent);
-  const validateResult = validator.getSchema(`${agent.$id}#/$defs/result_atlas_evidence_get`);
+  const validateResult = createExactStockResultValidator();
   const validateUuid = validator.compile({ type: 'string', format: 'uuid', pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' });
-  if (!validateResult) throw new TypeError('Evidence result schema is unavailable');
   return {
     async read(scope: Scope, evidenceId: string, signal: AbortSignal): Promise<EvidenceRead> {
       if (!validateUuid(scope.workspaceId) || !validateUuid(scope.homeId) || !validateUuid(evidenceId))
@@ -100,16 +107,17 @@ export function createEvidenceClient(transport: typeof fetch = globalThis.fetch)
           if (response.status === 403) return { status: 'denied' };
           if (response.status === 404) return { status: 'missing' };
           if (!response.ok) return { status: 'unavailable' };
-          const value: unknown = await receive(response, signal);
+          const value = await receive(response, signal);
           signal.throwIfAborted();
-          if (!validateResult(value)) throw new TypeError('Evidence envelope is incompatible');
-          const result = value as EvidenceResult;
+          if (!validateResult.validate('evidence', value)) throw new TypeError('Evidence envelope is incompatible');
+          const result = value as unknown as EvidenceResult;
           if (result.resolvedScope.workspaceId !== scope.workspaceId || result.resolvedScope.homeId !== scope.homeId)
             throw new TypeError('Evidence scope does not match request');
           const record = result.data.records[0];
           if (result.data.records.length !== 1 || result.data.nextCursor !== null ||
               record?.target.authority !== 'atlas' || record.target.recordType !== 'evidence' || record.target.recordId !== evidenceId)
             throw new TypeError('Evidence record does not match request');
+          decodeEvidenceResult(value);
           return { status: 'ready', record, sourceStatus: result.data.sourceStatus };
         });
       } catch (error) {

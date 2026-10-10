@@ -6,13 +6,14 @@ import { ExactDecimal, isExactDecimal } from './decimal';
 import type { LosslessJson } from './lossless-json';
 
 /** The only accepted result definitions. Schema and instance numbers never pass through f64. */
-export type StockResultKind = 'geometry' | 'identity' | 'binding' | 'location_semantics' | 'relation';
+export type StockResultKind = 'geometry' | 'identity' | 'binding' | 'location_semantics' | 'relation' | 'evidence';
 const roots: Record<StockResultKind, string> = {
   geometry: 'result_atlas_geometry_list',
   identity: 'result_atlas_identity_list',
   binding: 'result_atlas_binding_list',
   location_semantics: 'result_atlas_location_semantics_list',
   relation: 'result_atlas_relation_list',
+  evidence: 'result_atlas_evidence_get',
 };
 const agentId = 'urn:houseatlas:agent:stock:3';
 const atlasId = 'https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json';
@@ -154,7 +155,7 @@ export function exactStockSafeInteger(value: LosslessJson): number {
   return converted;
 }
 
-/** Compile and validate only the pinned five RESULT definition closures. */
+/** Compile and validate only the pinned RESULT definition closures listed above. */
 export function createExactStockResultValidator() {
   if (sha256(agentSource) !== agentHash || sha256(atlasSource) !== atlasHash) fail('pinned schema digest mismatch');
   const agent = JSON.parse(agentSource) as Document;

@@ -32,6 +32,12 @@ const links = Object.freeze({
     '../numeric/schema-validator': 'numeric/schema-validator.ts',
     '../numeric/stock-decoded': 'numeric/stock-decoded.ts',
   },
+  'api/evidence-client.ts': {
+    'ajv/dist/2020.js': ajv, 'ajv-formats': addFormats,
+    '../numeric/lossless-json': 'numeric/lossless-json.ts',
+    '../numeric/schema-validator': 'numeric/schema-validator.ts',
+    '../numeric/stock-decoded': 'numeric/stock-decoded.ts',
+  },
   'api/topology-client.ts': {
     '../numeric/lossless-json': 'numeric/lossless-json.ts',
     '../numeric/schema-validator': 'numeric/schema-validator.ts',
