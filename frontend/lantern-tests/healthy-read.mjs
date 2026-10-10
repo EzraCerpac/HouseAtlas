@@ -8,12 +8,35 @@ import { transformWithOxc } from 'vite';
 import { projectView } from '../src/lantern/adapters/read.ts';
 import { loadNumericSource } from './load-numeric-source.mjs';
 import { createOperationHistoryClient } from '../src/api/operation-history-client.ts';
-import { createRetainedIntentClient, canReadRetainedIntent } from '../src/api/retained-intent-client.ts';
 import { demoSnapshot, demoOptions } from '../../web/demo/fixtures.mjs';
 import { prepareAtlasView } from '../../web/src/prepare.mjs';
 const { createGeometryClient } = await import(await loadNumericSource('api/geometry-client.ts'));
 const { createEvidenceClient } = await import(await loadNumericSource('api/evidence-client.ts'));
 const { ExactDecimal } = await import(await loadNumericSource('numeric/decimal.ts'));
+const { parseLosslessJson, stringifyLosslessJson } = await import(await loadNumericSource('numeric/lossless-json.ts'));
+// Load the actual retained consumer offline; the shared numeric loader stays unchanged.
+const retainedSource = new URL('../src/api/retained-intent-client.ts', import.meta.url);
+let { code: retainedCode } = await transformWithOxc(readFileSync(retainedSource, 'utf8'), retainedSource.pathname,
+  { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
+const retainedImports = {
+  'ajv/dist/2020.js': new URL('../node_modules/ajv/dist/2020.js', import.meta.url).href,
+  'ajv-formats': new URL('../node_modules/ajv-formats/dist/index.js', import.meta.url).href,
+  '../../../contracts/stock-wire3/agent/agent.schema.json': new URL('../../contracts/stock-wire3/agent/agent.schema.json', import.meta.url).href,
+  '../../../packages/contracts/schemas/atlas.schema.json': new URL('../../packages/contracts/schemas/atlas.schema.json', import.meta.url).href,
+  '../../../contracts/stock-wire3/agent/operation-catalog.json': new URL('../../contracts/stock-wire3/agent/operation-catalog.json', import.meta.url).href,
+  '../numeric/decimal': await loadNumericSource('numeric/decimal.ts'),
+  '../numeric/lossless-json': await loadNumericSource('numeric/lossless-json.ts'),
+  '../numeric/schema-validator': await loadNumericSource('numeric/schema-validator.ts'),
+};
+for (const [specifier, destination] of Object.entries(retainedImports)) {
+  const literal = JSON.stringify(specifier);
+  assert(retainedCode.includes(literal), `Missing actual retained source import ${specifier}`);
+  retainedCode = retainedCode.replaceAll(literal, JSON.stringify(destination));
+}
+for (const match of retainedCode.matchAll(/^\s*import\s+(?:[\w$\s{},*]+?\s+from\s+)?["']([^"']+)["']/gm))
+  assert(match[1].startsWith('data:') || match[1].startsWith('file:'), `Unexpected retained source import ${match[1]}`);
+const { createRetainedIntentClient, canReadRetainedIntent } = await import(
+  `data:text/javascript;base64,${Buffer.from(retainedCode).toString('base64')}`);
 
 // Compile the actual binder with its unchanged frozen catalog offline. Its
 // browser JSON imports have no Node import attributes; no runtime host is used.
@@ -511,6 +534,9 @@ const retainedReceipt = {
   },
 };
 const retainedRequestJson = JSON.stringify(retainedRequest);
+// Preserve the original expectation/assertions with exact numeric control nodes.
+Object.assign(retainedReceipt.committedResult.wire,
+  parseLosslessJson(JSON.stringify(retainedReceipt.committedResult.wire)));
 // The existing synthetic session supplies the current CSRF for the selected scope.
 const retainedContext = () => ({ ...nativeHomeboxContext, scope: operationScope });
 const retainedHeaders = { Accept: 'application/json', 'Content-Type': 'application/json',
@@ -531,7 +557,7 @@ const retainedClient = createRetainedIntentClient(async (url, init) => {
   assert(init.signal instanceof AbortSignal);
   assert.notEqual(init.signal, signal);
   assert.equal(init.signal.aborted, false);
-  return new Response(JSON.stringify(retainedReceipt), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  return new Response(stringifyLosslessJson(retainedReceipt), { status: 200, headers: { 'Content-Type': 'application/json' } });
 });
 assert.equal(canReadRetainedIntent(retainedRequest), true);
 const retainedRead = await retainedClient.read(retainedRequest, retainedContext, signal);
@@ -573,6 +599,8 @@ const retainedBatchReceipt = {
   },
 };
 let retainedBatchCalls = 0;
+Object.assign(retainedBatchReceipt.committedResult,
+  parseLosslessJson(stringifyLosslessJson(retainedBatchReceipt.committedResult)));
 const retainedBatchClient = createRetainedIntentClient(async (url, init) => {
   retainedBatchCalls++;
   assert.equal(url, '/api/atlas/retained-intent');
@@ -588,7 +616,7 @@ const retainedBatchClient = createRetainedIntentClient(async (url, init) => {
   assert(init.signal instanceof AbortSignal);
   assert.notEqual(init.signal, signal);
   assert.equal(init.signal.aborted, false);
-  return new Response(JSON.stringify(retainedBatchReceipt), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  return new Response(stringifyLosslessJson(retainedBatchReceipt), { status: 200, headers: { 'Content-Type': 'application/json' } });
 });
 assert.equal(canReadRetainedIntent(retainedBatchRequest), true);
 assert.deepEqual(await retainedBatchClient.read(retainedBatchRequest, retainedContext, signal),
@@ -596,6 +624,75 @@ assert.deepEqual(await retainedBatchClient.read(retainedBatchRequest, retainedCo
 assert.equal(retainedBatchCalls, 1);
 assert.deepEqual(retainedBatchReceipt.committedResult.children.map(child => child.requestId),
   [retainedRequest.requestId, retainedSecondRequest.requestId]);
+
+// Successful decoder examples only: synthetic saved numeric output, no native mutation.
+const retainedNumericRequest = { ...retainedRequest, commandId: 'atlas.geometry.create',
+  target: publicGeometry.target, payload: geometryRecord.payload };
+const retainedNumericRecord = { ...publicGeometry, payload: { ...geometryRecord.payload,
+  scale: ExactDecimal.parse('1e-1000'),
+  transform: [ExactDecimal.parse('9007199254740993'), 1, 0, 0, 1, 0] } };
+const retainedNumericReceipt = { ...retainedReceipt,
+  inspection: { ...retainedReceipt.inspection, commandId: retainedNumericRequest.commandId },
+  committedResult: { ...retainedReceipt.committedResult,
+    wire: { ...retainedReceipt.committedResult.wire, commandId: retainedNumericRequest.commandId,
+      data: { ...retainedReceipt.committedResult.wire.data, records: [retainedNumericRecord] } } } };
+const retainedNumericBatchRequest = { ...retainedBatchRequest,
+  payload: { commands: [retainedNumericRequest, retainedSecondRequest] } };
+const retainedNumericChildren = [retainedNumericReceipt.committedResult.wire,
+  retainedBatchReceipt.committedResult.children[1]];
+const retainedNumericBatchReceipt = { ...retainedBatchReceipt,
+  committedResult: { ...retainedBatchReceipt.committedResult,
+    wire: { ...retainedBatchReceipt.committedResult.wire,
+      data: { ...retainedBatchReceipt.committedResult.wire.data,
+        records: retainedNumericChildren.flatMap(child => child.data.records),
+        auditIds: retainedNumericChildren.flatMap(child => child.data.auditIds) } },
+    children: retainedNumericChildren } };
+for (const [request, receipt] of [[retainedNumericRequest, retainedNumericReceipt],
+  [retainedNumericBatchRequest, retainedNumericBatchReceipt]]) {
+  const originalRequest = JSON.stringify(request);
+  const sourceReceipt = stringifyLosslessJson(receipt);
+  let calls = 0;
+  const client = createRetainedIntentClient(async (url, init) => {
+    calls++;
+    assert.equal(url, '/api/atlas/retained-intent');
+    assert.equal(new URL(url, 'https://atlas.invalid').search, '');
+    assert.equal(init.method, 'POST');
+    assert.equal(init.credentials, 'same-origin');
+    assert.equal(init.cache, 'no-store');
+    assert.equal(init.redirect, 'error');
+    assert.deepEqual(init.headers, retainedHeaders);
+    assert.equal(init.body, originalRequest);
+    assert.deepEqual(JSON.parse(init.body), request);
+    assert.equal(signal.aborted, false);
+    assert(init.signal instanceof AbortSignal);
+    assert.notEqual(init.signal, signal);
+    assert.equal(init.signal.aborted, false);
+    return new Response(sourceReceipt, { status: 200, headers: { 'Content-Type': 'application/json',
+      'Content-Length': String(new TextEncoder().encode(sourceReceipt).length) } });
+  });
+  assert.equal(canReadRetainedIntent(request), true);
+  const read = await client.read(request, retainedContext, signal);
+  assert.equal(calls, 1);
+  assert.equal(read.status, 'ready');
+  assert.equal(read.receipt.lookupRequestId, request.requestId);
+  assert.equal(read.receipt.committedResult.originalRequestId, request.requestId);
+  assert.equal(read.receipt.committedResult.wire.requestId, request.requestId);
+  assert.equal(read.receipt.committedResult.wire.commandId, request.commandId);
+  const payload = read.receipt.committedResult.wire.data.records[0].payload;
+  assert.equal(payload.scale.token, '1e-1000');
+  assert.equal(payload.transform[0].token, '9007199254740993');
+  const displayed = stringifyLosslessJson(read.receipt);
+  assert.equal(displayed, sourceReceipt);
+  assert(displayed.includes('"scale":1e-1000'));
+  assert(displayed.includes('"transform":[9007199254740993,'));
+  if (request.commandId === 'atlas.batch.execute') {
+    assert.deepEqual(read.receipt.committedResult.children.map(child => child.requestId),
+      request.payload.commands.map(command => command.requestId));
+    assert.equal(read.receipt.committedResult.children[0].data.records[0].payload.scale.token, '1e-1000');
+    assert.equal(read.receipt.committedResult.children[0].data.records[0].payload.transform[0].token, '9007199254740993');
+  } else assert.equal(read.receipt.committedResult.children.length, 0);
+  assert.equal(JSON.stringify(request), originalRequest);
+}
 
 const opaqueCursor = 'opaque+/cursor==';
 let pageCalls = 0;
