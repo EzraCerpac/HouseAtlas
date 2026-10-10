@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "7b40d4e3a9c35ad689c12e69632047b7fe95777fbe681fe23c37b1ebfb141898",
+  "sourceDigestSha256": "972b7de5a95d9d594b63b4fdda2dcd7980c2f4df3f19ad679ed5e384e8ac66a6",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -1953,8 +1953,8 @@
     {
       "path": "backend/src/http/asset_reviews.rs",
       "mode": "100644",
-      "bytes": 23041,
-      "sha256": "620b3a890532fafa4b69f5b39b540e39bd94d52efacd6da9ed52daa62e88db3b",
+      "bytes": 24435,
+      "sha256": "37da2fa3ae3b0bcf970cbed10ce502fca33de80ef6e018f5469d7d2533b8da90",
       "owner": "core-integration"
     },
     {
@@ -2170,8 +2170,8 @@
     {
       "path": "backend/src/http/stock_mutations.rs",
       "mode": "100644",
-      "bytes": 58296,
-      "sha256": "46f47664b6c15d837958aeed0c3a746dc8cf03abe42156a33eb23ba81e723f94",
+      "bytes": 58554,
+      "sha256": "1864890c221f9d350978302b6c89dfce2335cf36b282a346599c75fabb2949bd",
       "owner": "core-integration"
     },
     {
@@ -2205,15 +2205,15 @@
     {
       "path": "backend/src/http/upload.rs",
       "mode": "100644",
-      "bytes": 11270,
-      "sha256": "4f0b3a46b320a1b76bbaef2accdc801af6987914a2191ed7ea0630510b47ef25",
+      "bytes": 11391,
+      "sha256": "1ae25702bbd424cecfb4381306275531984d49690074c1a1e2a897ab940b7c52",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/http/upload_asset.rs",
       "mode": "100644",
-      "bytes": 7568,
-      "sha256": "2a6aab9ab6aa500e1581bcf62adf926f967deb2aa8b83932c83ec1ccf6727815",
+      "bytes": 7689,
+      "sha256": "02f4354ea3d1249f718833893ddd1d1625172830c9c0fee94117730fd47b8a5d",
       "owner": "core-integration"
     },
     {
@@ -5698,8 +5698,8 @@
     {
       "path": "frontend/lantern-tests/topology-read.mjs",
       "mode": "100644",
-      "bytes": 66907,
-      "sha256": "bf60932c46af4879f8fe10c096654c1070c6046791046876a38b7cb00679b309",
+      "bytes": 66906,
+      "sha256": "1fd1ddc1206ce47079d7c1634b3e859de096b631cd3e3efb93d813aa9b71e070",
       "owner": "web"
     },
     {
@@ -6496,8 +6496,8 @@
     {
       "path": "frontend/src/lantern/topology/model.ts",
       "mode": "100644",
-      "bytes": 9342,
-      "sha256": "d7a559a733c8f60e9725b9aec1f5397ff8d7c47f68dc29d2ff20d8ad01379a30",
+      "bytes": 9302,
+      "sha256": "970923ab1c3a87598fbddcbb1ca0b1db638e7509489110d926496039ed7be953",
       "owner": "web"
     },
     {
