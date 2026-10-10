@@ -64,7 +64,7 @@ export function ScanPreview({ viewKey, buildingLabel, floors, port, active }: Pr
     setRead({ port, viewKey, floor, attempt, status: 'render-unavailable', reason }); setSelection(null);
   };
   if (!active) return null;
-  return <section className="scan-preview" aria-labelledby={`${id}-heading`}>
+  return <section className="scan-preview" aria-labelledby={`${id}-heading`} style={{ minWidth: 0 }}>
     <h3 id={`${id}-heading`}>Provisional scans</h3>
     <p>{buildingLabel}</p>
     <p>Incomplete scan — physical scale and floor alignment unverified.</p>
@@ -76,7 +76,7 @@ export function ScanPreview({ viewKey, buildingLabel, floors, port, active }: Pr
         }}>{open ? 'Close scan' : 'Show scan'}</button>
         {open && <div id={`${id}-panel`}>
           <label htmlFor={`${id}-floor`}>Exported floor</label>{' '}
-          <select id={`${id}-floor`} value={floor?.key ?? ''} onChange={event => {
+          <select id={`${id}-floor`} style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }} value={floor?.key ?? ''} onChange={event => {
             setRead(null); setSelection(null); setChosen({ viewKey, key: event.target.value });
           }}>{floors.map(entry => <option key={entry.key} value={entry.key}>{entry.exportLabel}</option>)}</select>
           {!currentRead || currentRead.status === 'loading' ? <p role="status">Loading scan…</p>
@@ -93,7 +93,7 @@ export function ScanPreview({ viewKey, buildingLabel, floors, port, active }: Pr
                   setSelection({ profile, sourceObjectId });
               }} />
               <label htmlFor={`${id}-mesh`}>Source mesh</label>{' '}
-              <select id={`${id}-mesh`} value={selected ?? ''} onChange={event => setSelection({ profile, sourceObjectId: event.target.value || null })}>
+              <select id={`${id}-mesh`} style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }} value={selected ?? ''} onChange={event => setSelection({ profile, sourceObjectId: event.target.value || null })}>
                 <option value="">All source meshes</option>
                 {profile.meshes.map(entry => <option key={entry.sourceObjectId} value={entry.sourceObjectId}>{entry.sourceName} · {entry.sourceObjectId}</option>)}
               </select>
