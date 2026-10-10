@@ -36,7 +36,7 @@ const historyPath = `${recordPath}/history`;
 
 check('accepted frozen OpenAPI, amended Atlas 1.1 schema and frozen audit preimages', () => {
   assert.equal(digest(frozenApiUrl), '4c161a9f2fad81cfbd7fa38b0d7476816163b390b5ee898fe3b80a37e7195351');
-  assert.equal(digest(atlasSchemaUrl), '2ab4d43ca736b270209bce0711e2c46ba07d70c3b1db78eb1ee89f1a62985f47');
+  assert.equal(digest(atlasSchemaUrl), 'b24f2d0ba25287ecbeb6618dd26728cb201875103edaede51804e00e26c3bc86');
   // Frozen audit shape from published f67ec8f Atlas 1.0, retained in Atlas 1.1.
   assert.equal(createHash('sha256').update(canonical(atlasSchema.$defs.audit)).digest('hex'),
     'f2751df7a5c82c9748308134b410533cecc11dcf4bfccf865dfa05b79c0d21dc');

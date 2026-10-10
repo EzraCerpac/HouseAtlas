@@ -14,7 +14,7 @@ use super::{JsonObject, PortError};
 pub const AGENT_SCHEMA_SHA256: &str =
     "42174cebb9a7080cacb8231aba2bf80c4ab59fdb92085db1af3d5fe368cd5835";
 pub const ATLAS_SCHEMA_SHA256: &str =
-    "2ab4d43ca736b270209bce0711e2c46ba07d70c3b1db78eb1ee89f1a62985f47";
+    "b24f2d0ba25287ecbeb6618dd26728cb201875103edaede51804e00e26c3bc86";
 
 const DIALECT: &str = "https://json-schema.org/draft/2020-12/schema";
 const AGENT_ID: &str = "urn:houseatlas:agent:stock:3";

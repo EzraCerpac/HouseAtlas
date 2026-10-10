@@ -14,7 +14,7 @@
     {
       "uri": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json",
       "path": "packages/contracts/schemas/atlas.schema.json",
-      "sha256": "2ab4d43ca736b270209bce0711e2c46ba07d70c3b1db78eb1ee89f1a62985f47"
+      "sha256": "b24f2d0ba25287ecbeb6618dd26728cb201875103edaede51804e00e26c3bc86"
     },
     {
       "uri": "urn:houseatlas:agent:stock:3",
