@@ -4,6 +4,7 @@ import { DRAFT_DATABASE, openDraftStore } from '/src/capture-drafts/indexeddb.ts
 const knownCases = new Set([
   'retained-original-after-reopen',
   'unknown-attempt-locked-after-reopen',
+  'storage-deletion-denies-stale-resume',
   'concurrent-handoff-single-winner',
   'change-callback-abort-preserves-row',
 ]);
@@ -193,6 +194,50 @@ async function execute(name) {
         refreshBoundaryCallsForInspection: reopened.calls.refreshBoundary - callsBeforeReview.refreshBoundary,
         loadPlaceCallsForInspection: reopened.calls.loadPlace - callsBeforeReview.loadPlace,
         networkOrSubmitCalls: forbiddenActivity.length, serverSubmission: 'not invoked by this local handoff API' };
+    }
+
+    if (name === 'storage-deletion-denies-stale-resume') {
+      const owner = makeHost();
+      const staged = makeController(owner);
+      const id = await saveOne(staged.controller);
+      const review = await staged.controller.review(id, new AbortController().signal);
+      const callsBeforeDeletion = { refreshBoundary: owner.calls.refreshBoundary, loadPlace: owner.calls.loadPlace,
+        validateAcknowledgement: owner.calls.validateAcknowledgement };
+
+      // Simulate explicit synthetic browser/user storage loss only after every
+      // connection owned by the staged controller has been closed.
+      for (const controller of controllers) controller.close();
+      for (const store of stores) store.close();
+      await deleteDatabase();
+
+      const reopened = makeController(owner);
+      let staleTokenDenied = false;
+      try { await staged.controller.beginAttempt(review.token, { confirmed: true }, new AbortController().signal); }
+      catch (error) { staleTokenDenied = error instanceof Error && error.message.includes('Review and confirm'); }
+      const summaries = await reopened.controller.list();
+      let freshReviewUnavailable = false;
+      try { await reopened.controller.review(id, new AbortController().signal); }
+      catch (error) { freshReviewUnavailable = error instanceof Error && error.message.includes('Local draft is unavailable'); }
+      let inspectionUnavailable = false;
+      try { await reopened.controller.inspectUnknown(id, new AbortController().signal); }
+      catch (error) { inspectionUnavailable = error instanceof Error && error.message.includes('Local draft is unavailable'); }
+      const rowsAfterDenials = await reopened.store.read();
+
+      assert(staleTokenDenied, 'Closing the old controller left a review token usable after storage deletion');
+      assert(summaries.length === 0 && rowsAfterDenials.length === 0,
+        'Replacement feature store recreated or retained a draft after explicit deletion');
+      assert(freshReviewUnavailable && inspectionUnavailable,
+        'Fresh review or unknown inspection treated deleted storage as an available draft');
+      assert(owner.calls.refreshBoundary === callsBeforeDeletion.refreshBoundary
+        && owner.calls.loadPlace === callsBeforeDeletion.loadPlace
+        && owner.calls.validateAcknowledgement === callsBeforeDeletion.validateAcknowledgement,
+      'A stale/deleted draft triggered a fresh information read or acknowledgement validation');
+      assert(forbiddenActivity.length === 0, 'Storage deletion case attempted network or form submission');
+      return { idb: 'real-chromium-indexeddb', deletion: 'explicit-indexeddb-delete-after-closing-all-test-connections',
+        replacementStoreEmpty: true, staleReviewTokenDenied: true, freshReviewUnavailable: true,
+        unknownInspectionUnavailable: true, uploadInvocation: 0, acknowledgementValidation: 0,
+        networkOrSubmitCalls: forbiddenActivity.length,
+        limitation: 'Synthetic application/user storage deletion only; not engine pressure eviction, browser-process loss, power loss, or backup qualification.' };
     }
 
     if (name === 'concurrent-handoff-single-winner') {

@@ -20,6 +20,7 @@ const sourceRoutes = new Map([
 const cases = new Set([
   'retained-original-after-reopen',
   'unknown-attempt-locked-after-reopen',
+  'storage-deletion-denies-stale-resume',
   'concurrent-handoff-single-winner',
   'change-callback-abort-preserves-row',
 ]);
