@@ -63,7 +63,8 @@ export function buildTopologyIndex(data: TopologyData, view: ReadyView, selectab
   }
   const membership = data.relations.filter((r): r is Membership => r.lifecycle === 'active'
     && r.payload.kind === 'location-membership' && r.payload.reviewStatus === 'accepted');
-  const access = data.relations.filter((r): r is Access => r.lifecycle === 'active' && r.payload.kind === 'physical-access');
+  const access = data.relations.filter((r): r is Access => r.lifecycle === 'active'
+    && r.payload.kind === 'physical-access' && r.payload.reviewStatus === 'accepted');
   return { data, locations, buildings: [...locations.values()].filter(l => l.semantics.some(s => s.payload.semanticKind === 'building')).sort(byId), membership, access };
 }
 export type ElevationDisplay =
