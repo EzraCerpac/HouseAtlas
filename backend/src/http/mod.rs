@@ -32,6 +32,7 @@ mod stock_downloads;
 mod stock_mutations;
 mod stock_network_reads;
 mod stock_reads;
+mod capture_claim;
 mod upload;
 mod upload_asset;
 mod upload_batch;

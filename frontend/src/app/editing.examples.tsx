@@ -152,6 +152,9 @@ export async function runHealthyEditing(
       check(
         intent.file.name === "example.txt" &&
           intent.file.type === "text/plain" &&
+          intent.capture?.selectionMethod === "file-picker" &&
+          intent.capture.filename === "example.txt" &&
+          intent.capture.byteOrigin === "browser-returned-unmodified" &&
           intent.statement === "Synthetic owner note" &&
           intent.reason === attachmentReason &&
           Array.from(attachmentReason).length === 1024 &&
@@ -276,14 +279,18 @@ export async function runHealthyEditing(
     const file = new File(["example evidence"], "example.txt", {
       type: "text/plain",
     });
-    // jsdom has no native picker; submit the same ordinary FormData fields.
-    const NativeFormData = globalThis.FormData;
-    globalThis.FormData = class extends NativeFormData {
-      override get(name: string) {
-        return name === "file" ? file : super.get(name);
-      }
-    };
-    try {
+    const picker = upload.querySelector<HTMLInputElement>('[name="file"]');
+    check(picker, "Contextual file picker");
+    // Synthetic browser File only; never open a native device picker.
+    Object.defineProperty(picker, "files", { configurable: true, value: [file] });
+    await act(async () => {
+      picker.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    const selectionDeadline = Date.now() + 5000;
+    while (!upload.textContent?.includes("Selected:") && Date.now() < selectionDeadline)
+      await act(async () => new Promise((resolve) => setTimeout(resolve, 10)));
+    check(upload.textContent?.includes("Selected: example.txt"), "Original selection reviewed");
+    {
       const statement =
           upload.querySelector<HTMLInputElement>('[name="statement"]'),
         reasonInput = upload.querySelector<HTMLInputElement>('[name="reason"]'),
@@ -302,8 +309,6 @@ export async function runHealthyEditing(
           new Event("submit", { bubbles: true, cancelable: true }),
         ),
       );
-    } finally {
-      globalThis.FormData = NativeFormData;
     }
     check(
       Number(refreshes) === 2 &&

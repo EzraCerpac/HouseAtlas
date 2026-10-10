@@ -15,6 +15,8 @@ pub const MAX_FILE_BYTES: usize = 10 * 1024 * 1024;
 pub const MAX_METADATA_BYTES: usize = 64 * 1024;
 pub const MAX_BODY_BYTES: usize = MAX_FILE_BYTES + MAX_METADATA_BYTES + 64 * 1024;
 
+pub use super::capture_claim::BrowserSelectionClaim;
+
 /// Host input data, never an approval, asset identity, or storage proof.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -31,6 +33,9 @@ pub struct UploadMetadata {
     pub reason: String,
     pub filename: String,
     pub content_type: String,
+    /// Browser-reported selection facts; no source, capture or storage proof.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capture: Option<BrowserSelectionClaim>,
 }
 
 pub struct UploadInput {
@@ -108,9 +113,16 @@ fn validate_metadata(bytes: &[u8]) -> Result<UploadMetadata, IntakeError> {
             return Err(invalid());
         }
     }
+    let capture_present = raw.get("capture").is_some();
     let metadata: UploadMetadata = serde_json::from_value(raw).map_err(|_| invalid())?;
-    if metadata.schema_version != 1
-        || !(1..=storage::MAX_REVISION).contains(&metadata.expected_revision)
+    if !matches!(
+        (
+            metadata.schema_version,
+            capture_present,
+            metadata.capture.is_some()
+        ),
+        (1, false, false) | (2, true, true)
+    ) || !(1..=storage::MAX_REVISION).contains(&metadata.expected_revision)
         || metadata.reason.trim().is_empty()
         || metadata.reason.chars().count() > 1024
         || metadata.statement.trim().is_empty()
@@ -125,6 +137,11 @@ fn validate_metadata(bytes: &[u8]) -> Result<UploadMetadata, IntakeError> {
         return Err(invalid());
     }
     media::types::ContentType::parse(&metadata.content_type).map_err(|_| invalid())?;
+    if let Some(capture) = &metadata.capture {
+        if !capture.validate(&metadata.filename) {
+            return Err(invalid());
+        }
+    }
     Ok(metadata)
 }
 

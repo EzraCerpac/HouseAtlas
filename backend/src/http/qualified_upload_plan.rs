@@ -370,6 +370,14 @@ pub fn qualify<'u>(
         || staged.staged().filename != selection.metadata.filename
         || staged.staged().content_type != selection.metadata.content_type
         || children[1].payload()["statement"] != selection.metadata.statement
+        || children[1].payload()["provenance"]["vantage"]
+            != json!(
+                selection
+                    .metadata
+                    .capture
+                    .as_ref()
+                    .map(|capture| capture.vantage())
+            )
         || children[2].target()["recordId"] != selection.identity.target.record_id
         || children[2].payload() != &selection.identity_payload_with_evidence(evidence_id)?
         || children[2].raw()["preconditions"]["target"]
@@ -428,6 +436,14 @@ pub fn qualify_existing<'u>(
                 || child.raw()["preconditions"]["guards"] != guards
         })
         || children[0].payload()["statement"] != selection.metadata.statement
+        || children[0].payload()["provenance"]["vantage"]
+            != json!(
+                selection
+                    .metadata
+                    .capture
+                    .as_ref()
+                    .map(|capture| capture.vantage())
+            )
         || children[1].target()["recordId"] != selection.identity.target.record_id
         || children[1].payload() != &selection.identity_payload_with_evidence(evidence_id)?
         || children[1].raw()["preconditions"]["target"]

@@ -90,7 +90,7 @@ export function LinkedEvidence({ evidenceId }: { evidenceId: string }) {
         <div><dt>Source reference</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{provenance.source ? sourceReference(provenance.source) : 'Not supplied'}</dd></div>
         <div><dt>Source revision</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{provenance.sourceRevision ?? 'Not supplied'}</dd></div>
         <div><dt>Source confidence</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{provenance.sourceConfidence ?? 'Not supplied'}</dd></div>
-        <div><dt>Vantage</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{provenance.vantage ?? 'Not supplied'}</dd></div>
+        <div><dt>{provenance.vantage?.startsWith('Browser selection claim v1: ') ? 'Browser selection claim (unverified)' : 'Vantage'}</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{provenance.vantage ?? 'Not supplied'}</dd></div>
         <div><dt>Uncertainty status</dt><dd>{provenance.uncertainty.status}</dd></div>
         <div><dt>Uncertainty explanation</dt><dd style={{ whiteSpace: 'pre-wrap' }}>{provenance.uncertainty.explanation ?? 'Not supplied'}</dd></div>
       </dl>}

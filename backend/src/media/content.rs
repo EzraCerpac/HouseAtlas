@@ -1,5 +1,5 @@
 //! Bounded original PNG validation and optional stripped RGBA preview encoding;
-//! PDF and UTF-8 text are originals
+//! JPEG is strictly decoded for validation, without a preview. PDF and UTF-8 text are originals
 //! for download only. This validates framing, not PDF document safety.
 use std::io::Write;
 
@@ -19,6 +19,8 @@ pub const MAX_PNG_PREVIEW_ROW_BYTES: usize = 64 * 1024;
 mod png_decode;
 #[path = "png_original.rs"]
 mod png_original;
+#[path = "jpeg_original.rs"]
+mod jpeg_original;
 
 pub fn validate_content(
     bytes: &[u8],
@@ -31,6 +33,7 @@ pub fn validate_content(
     }
     match content_type {
         ContentType::Png => render_png(bytes, budget).map(Some),
+        ContentType::Jpeg => jpeg_original::validate(bytes, budget).map(|()| None),
         ContentType::Pdf => {
             let version = bytes.get(..8).ok_or(MediaError::Unsupported)?;
             if &version[..5] != b"%PDF-"
