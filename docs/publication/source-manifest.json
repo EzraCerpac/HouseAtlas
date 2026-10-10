@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d96066dc75c844a85042208cc14128895d0bb14c0849febd8c21750ac87c2030",
+  "sourceDigestSha256": "4cf1e8827628c71fd3591e613ef7256bd2cdba7606a3895f79d2c4c16e814d8e",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -266,8 +266,8 @@
     {
       "path": "backend/examples/healthy-native-place-labels.rs",
       "mode": "100644",
-      "bytes": 15435,
-      "sha256": "bb984fbc0c8e5083224011d6d770964dfb89a974282e2da000a5f90788afbb6d",
+      "bytes": 17976,
+      "sha256": "9164e31ed4ed3f644e86b973ee1e4bc7222105f83aee3fdb707b2d873750c7fb",
       "owner": "core-integration"
     },
     {

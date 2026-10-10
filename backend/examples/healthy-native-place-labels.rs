@@ -156,6 +156,11 @@ impl Client {
                 Vec::new(),
             )
         };
+        // Keep the exact submitted batch selector for passive retained disclosure.
+        let original_body = body.clone();
+        if parsed.is_batch() {
+            assert!(original_body.len() <= 16 * 1024);
+        }
         let response = self
             .app
             .clone()
@@ -176,7 +181,54 @@ impl Client {
             String::from_utf8_lossy(&bytes)
         );
         let result: Value = serde_json::from_slice(&bytes)?;
-        wire::StockResponse::parse(&validator, &parsed, result.clone(), &[])?;
+        let children = if parsed.is_batch() {
+            // This existing POST reads genuine durable wire envelopes; it never
+            // resubmits the command or establishes original delivery/retry safety.
+            let response = self
+                .app
+                .clone()
+                .oneshot(request(
+                    "POST",
+                    "/api/atlas/retained-intent",
+                    original_body,
+                    Some(&self.cookie),
+                    Some(&self.csrf),
+                )?)
+                .await?;
+            let status = response.status();
+            let bytes = to_bytes(response.into_body(), MAX_RESPONSE).await?;
+            assert_eq!(
+                status,
+                StatusCode::OK,
+                "{}",
+                String::from_utf8_lossy(&bytes)
+            );
+            let retained: Value = serde_json::from_slice(&bytes)?;
+            assert_eq!(retained["format"], "atlas-retained-reconciliation/1");
+            assert_eq!(retained["lookupRequestId"], command["requestId"]);
+            let inspection = &retained["inspection"];
+            assert_eq!(inspection["format"], "atlas-retained-intent-inspection/1");
+            assert_eq!(inspection["resolvedScope"], self.scope);
+            assert_eq!(inspection["coverage"], "retained-atlas-stock-only");
+            assert_eq!(inspection["outcome"], "retained-commit");
+            assert_eq!(inspection["retrySafety"], "not-established");
+            assert_eq!(inspection["commandId"], command["commandId"]);
+            assert_eq!(inspection["requestDigest"], parsed.intent_digest());
+            assert_eq!(inspection["rootOperationId"], result["operationId"]);
+            assert_eq!(inspection["operationId"], result["operationId"]);
+            let saved = &retained["committedResult"];
+            assert_eq!(saved["originalRequestId"], command["requestId"]);
+            assert_eq!(saved["wire"], result);
+            assert_eq!(saved["originalMediaRelease"], "not-established");
+            assert_eq!(saved["originalHttpDelivery"], "not-established");
+            saved["children"]
+                .as_array()
+                .ok_or("Missing genuine retained batch child envelopes")?
+                .clone()
+        } else {
+            Vec::new()
+        };
+        wire::StockResponse::parse(&validator, &parsed, result.clone(), &children)?;
         assert_eq!(result["requestId"], command["requestId"]);
         assert_eq!(result["commandId"], command["commandId"]);
         assert_eq!(result["resolvedScope"], self.scope);
