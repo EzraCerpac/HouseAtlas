@@ -1,4 +1,4 @@
-import { StrictMode, useMemo, useState } from "react";
+import { StrictMode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { LanternHost } from "../src/lantern/Host";
 import { SessionApp } from "../src/app/SessionApp";
@@ -9,6 +9,8 @@ import { createStockSchemas } from "./stock-schemas";
 import { createStockDispatch } from "./stock-dispatch";
 import { createAtlasGatewayDownloadResolver } from "../src/api/managed-download-client";
 import { createEditingClient } from "./editing-client";
+import { createCaptureDraftAdapter } from "./capture-drafts-adapter";
+import { CaptureDraftProvider } from "../src/capture-drafts-ui/Context";
 import { createQuantityClient } from "./quantity-client";
 import { createPinnedFileClient } from "./pinned-file-client";
 import { createNativePlaceClient } from "../src/api/native-place-client";
@@ -36,7 +38,7 @@ const downloads = createAtlasGatewayDownloadResolver(schemas);
 const events = new EventTarget();
 /** Other confirmed host session actions notify this transient subscriber only.
  * Session GET itself emits nothing, preventing a rotation/reload cycle. */
-export function notifySessionChanged(): void { events.dispatchEvent(new Event("changed")); }
+export function notifySessionChanged(): void { captureDrafts.invalidateSession(); events.dispatchEvent(new Event("changed")); }
 // Root emits the mode attribute with each sign-in attribute it mounts; no
 // defaults. Each sign-in path is passed only when its own attribute exists.
 const authModeUrl = root.dataset.authModeUrl;
@@ -66,57 +68,80 @@ const nativeSignOut = nativeSessions.signOut;
 const nativeLocalAccess = nativeSessions.localAccess;
 const nativeLocalSignIn = nativeLocalAccess?.signIn;
 const nativeProxySignIn = nativeLocalAccess?.proxySignIn;
+/** Normalize issued login receipts to this native cookie's canonical marker
+ * before publishing an authenticated binding to any application client. */
+async function canonicalSignIn(receipt: AtlasSessionInfo, signal: AbortSignal): Promise<AtlasSessionInfo> {
+  const value = await nativeSessions.session(signal);
+  signal.throwIfAborted();
+  if (!value || value.actorId !== receipt.actorId || value.expiresAt !== receipt.expiresAt)
+    throw new Error("Check the current session before opening Home");
+  return value;
+}
 const sessions: AtlasSessionClient = {
   async session(signal) {
+    captureDrafts.invalidateSession();
     const generation = ++sessionGeneration;
     currentSession = null;
     currentQuantityAdmission = null;
     currentQuantityScope = null;
     quantityChanged();
     const value = await nativeSessions.session(signal);
-    if (!signal.aborted && generation === sessionGeneration) { currentSession = value; quantityChanged(); }
+    if (!signal.aborted && generation === sessionGeneration) { currentSession = value; captureDrafts.observeCanonical(value); quantityChanged(); }
     return value;
   },
   async signIn(credentials, signal) {
+    captureDrafts.announceSessionChange();
     const generation = ++sessionGeneration;
     currentSession = null;
     currentQuantityAdmission = null;
     currentQuantityScope = null;
     quantityChanged();
-    const value = await nativeSessions.signIn(credentials, signal);
-    if (!signal.aborted && generation === sessionGeneration) { currentSession = value; quantityChanged(); }
+    let value: AtlasSessionInfo;
+    try { value = await canonicalSignIn(await nativeSessions.signIn(credentials, signal), signal); }
+    finally { captureDrafts.announceSessionChange(); }
+    if (!signal.aborted && generation === sessionGeneration) { currentSession = value; captureDrafts.observeCanonical(value); quantityChanged(); }
     return value;
   },
   ...(nativeSignOut ? { async signOut(signal: AbortSignal) {
+    captureDrafts.announceSessionChange();
     ++sessionGeneration;
     currentSession = null;
     currentQuantityAdmission = null;
     currentQuantityScope = null;
     quantityChanged();
-    await nativeSignOut(signal);
+    try { await nativeSignOut(signal); }
+    finally { captureDrafts.announceSessionChange(); }
   } } : {}),
   // Mode is informational and writes no shared state; local and proxy sign-in
   // publish the returned session under the same fence as password sign-in.
   ...(nativeLocalAccess ? { localAccess: {
     mode: (signal: AbortSignal) => nativeLocalAccess.mode(signal),
     ...(nativeLocalSignIn ? { async signIn(signal: AbortSignal) {
+      captureDrafts.announceSessionChange();
       const generation = ++sessionGeneration;
       currentSession = null;
+      captureDrafts.setScope(null);
       currentQuantityAdmission = null;
       currentQuantityScope = null;
       quantityChanged();
-      const value = await nativeLocalSignIn(signal);
-      if (!signal.aborted && generation === sessionGeneration) { currentSession = value; quantityChanged(); }
+      let value: AtlasSessionInfo;
+      try { value = await canonicalSignIn(await nativeLocalSignIn(signal), signal); }
+      finally { captureDrafts.announceSessionChange(); }
+      if (!signal.aborted && generation === sessionGeneration) { currentSession = value; captureDrafts.observeCanonical(value); quantityChanged(); }
       return value;
     } } : {}),
     ...(nativeProxySignIn ? { async proxySignIn(signal: AbortSignal) {
+      captureDrafts.announceSessionChange();
       const generation = ++sessionGeneration;
       currentSession = null;
+      captureDrafts.setScope(null);
       currentQuantityAdmission = null;
       currentQuantityScope = null;
       quantityChanged();
-      const value = await nativeProxySignIn(signal);
-      if (!signal.aborted && generation === sessionGeneration) { currentSession = value; quantityChanged(); }
+      let value: AtlasSessionInfo;
+      try { value = await canonicalSignIn(await nativeProxySignIn(signal), signal); }
+      finally { captureDrafts.announceSessionChange(); }
+      if (!signal.aborted && generation === sessionGeneration) { currentSession = value; captureDrafts.observeCanonical(value); quantityChanged(); }
       return value;
     } } : {}),
   } } : {}),
@@ -126,6 +151,13 @@ const sessions: AtlasSessionClient = {
   },
 };
 const editing = createEditingClient(schemas, () => currentSession);
+const captureDrafts = createCaptureDraftAdapter({
+  getSession: () => currentSession, getGeneration: () => sessionGeneration,
+  getReadScope: () => currentQuantityScope,
+  readSession: signal => nativeSessions.session(signal), editing, schemas,
+  recheckSession: notifySessionChanged,
+  foreground: () => document.visibilityState === "visible" && document.hasFocus(),
+});
 const quantity = createQuantityClient({
   getSessionBinding: () => currentSession && currentQuantityScope
     ? { identity: currentSession, session: currentSession, scope: currentQuantityScope } : null,
@@ -258,6 +290,7 @@ async function withAdmissionDeadline<T>(signal: AbortSignal, read: (deadline: Ab
   }
 }
 export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
+  useEffect(() => captureDrafts.connect(window, document), []);
   const [admission, setAdmission] = useState<StockAdmission | null>(null);
   const client = useMemo<AtlasClient>(() => {
     let generation = 0;
@@ -267,6 +300,7 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
       const originalSessionGeneration = sessionGeneration;
       const sameSession = () => originalSession !== null && currentSession === originalSession
         && sessionGeneration === originalSessionGeneration;
+      captureDrafts.setScope(null);
       currentQuantityAdmission = null;
       currentQuantityScope = null;
       quantityChanged();
@@ -346,6 +380,6 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
   }, []);
   // Keep the concrete editing port stable through view/catalog refreshes.
   // Each place admission and command obtains the actual request authority.
-  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp renderContent={(view, content, actions) => view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
+  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
 }
 createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);
