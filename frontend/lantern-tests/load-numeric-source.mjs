@@ -82,7 +82,7 @@ export async function loadNumericSource(path) {
     code = code.replaceAll(literal, JSON.stringify(replacement));
   }
   // Every runtime import must be one of the exact replacement targets above.
-  for (const match of code.matchAll(/\b(?:from\s*|import\s*)["']([^"']+)["']/g)) {
+  for (const match of code.matchAll(/^\s*import\s+(?:[\w$\s{},*]+?\s+from\s+)?["']([^"']+)["']/gm)) {
     assert(match[1].startsWith('data:') || match[1].startsWith('file:'),
       `Unexpected runtime import ${match[1]} in ${path}`);
   }
