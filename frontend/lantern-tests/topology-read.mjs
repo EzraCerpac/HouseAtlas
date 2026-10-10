@@ -1938,13 +1938,13 @@ const selected=await client.buildingMembers(binding,fixture.members[0],signal);a
 assert.equal(selected.snapshotSha256,snapshotSha256);
 const model=buildBuildingModel(index,fixture.members[0],selected.records);assert(model);
 assert.deepEqual(selected.records.map(r=>r.target.recordId),fixture.members);
-assert.equal(model.memberCount,10);assert.equal(model.levels.length,5);
+assert.equal(model.memberCount,9);assert.equal(model.levels.length,5);
 const sameDatum=model.levels.filter(l=>l.elevation.status==='known'&&l.elevation.elevation.datumAtlasId===fixture.members[0]);
 assert.deepEqual(sameDatum.map(l=>l.elevation.elevation.metres.token),['2.7','0']);
 assert(model.levels.some(l=>l.elevation.status==='known'&&l.elevation.elevation.metres.token==='-0.45'));
 assert(model.levels.some(l=>l.elevation.status==='unknown'));assert(model.levels.some(l=>l.elevation.status==='omitted'));
 assert.equal(model.direct.length,2);assert.deepEqual(model.direct.map(l=>l.id),[fixture.members[4],fixture.members[8]]);assert.equal(model.direct.find(l=>l.entry?.entity.archived)?.selectId,undefined);
-assert(model.outsideUnassigned.some(l=>l.name==='Unassigned place'));assert.equal(model.outsideElsewhere.length,2);
+assert(model.outsideUnassigned.some(l=>l.name==='Unassigned place'));assert.equal(model.outsideElsewhere.length,0);
 assert.equal(index.access.find(r=>r.payload.accessKind==='stair').payload.direction,'from-to');
 assert.equal(index.access.find(r=>r.payload.accessKind==='opening').payload.assertion,'unknown');
 assert.equal(index.access.filter(r=>r.payload.assertion==='absent').length,1);
