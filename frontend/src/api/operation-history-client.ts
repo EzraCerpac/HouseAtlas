@@ -41,6 +41,7 @@ export class OperationHistoryReadError extends Error {
 
 // Local settlement covers headers and body, not server cancellation or retry safety.
 const readTimeoutMs = 15_000;
+const maxResponseBytes = 256 * 1024;
 class ReadDeadline extends Error {}
 function discard(response: Response) { void response.body?.cancel().catch(() => undefined); }
 async function withReadDeadline<T>(outer: AbortSignal, exchange: (signal: AbortSignal) => Promise<T>): Promise<T> {
@@ -64,6 +65,14 @@ async function withReadDeadline<T>(outer: AbortSignal, exchange: (signal: AbortS
   }
 }
 async function receive(response: Response, signal: AbortSignal): Promise<unknown> {
+  const declaredLength = response.headers.get('Content-Length');
+  if (declaredLength !== null) {
+    const contentLength = Number(declaredLength);
+    if (!/^[0-9]+$/.test(declaredLength) || !Number.isSafeInteger(contentLength) || contentLength > maxResponseBytes) {
+      discard(response);
+      throw new TypeError('Operation history response exceeded byte bound');
+    }
+  }
   const reader = response.body?.getReader();
   if (!reader) throw new TypeError('Response body missing');
   const cancel = () => { void reader.cancel().catch(() => undefined); };
@@ -76,6 +85,9 @@ async function receive(response: Response, signal: AbortSignal): Promise<unknown
       const part = await reader.read();
       signal.throwIfAborted();
       if (part.done) break;
+      if (part.value.byteLength > maxResponseBytes - length)
+        throw new TypeError('Operation history response exceeded byte bound');
+      if (part.value.byteLength === 0) continue;
       length += part.value.byteLength;
       chunks.push(part.value);
     }
