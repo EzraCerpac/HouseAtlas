@@ -68,6 +68,7 @@ const nativeRequests = Object.freeze({
   'atlas.evidence.get': 'request_atlas_evidence_get',
   'atlas.location-semantics.get': 'request_atlas_location_semantics_get',
   'atlas.evidence.create': 'request_atlas_evidence_create',
+  'atlas.asset.create': 'request_atlas_asset_create',
   'atlas.identity.create': 'request_atlas_identity_create',
   'atlas.location-semantics.create': 'request_atlas_location_semantics_create',
   'atlas.location-semantics.replace': 'request_atlas_location_semantics_replace',

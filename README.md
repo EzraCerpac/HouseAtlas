@@ -452,6 +452,22 @@ outside CI. Source ordering establishes the awaited local marker transaction;
 passive events do not prove pre-dispatch durability. Viewport and manifest checks
 establish no physical iPhone, Safari, installed launch or camera acceptance.
 
+A separately named geometry custody-client positive uses the actual exact source
+client and two synthetic successful Response exchanges: USDZ original custody
+and its mesh derivative custody. It checks immutable bytes/metadata, the memory
+unknown marker before each single POST, closed request/result correlation and
+separate committed receipts. Getter DTOs are fresh clones under one explicit
+synthetic canonical session identity. There is no native server, listener, real
+scan, building association, retry, control or unknown-response injection. Inspect
+the full body and imported loader before running only:
+
+```sh
+node frontend/lantern-tests/native-geometry-write.mjs
+```
+
+The positive is separate from ordinary CI and does not qualify native format
+validation, private intake, recovery, visual or deployment acceptance.
+
 ## Fresh synthetic trusted gateway positive
 
 The named ordinary example creates only private disposable state. It performs
