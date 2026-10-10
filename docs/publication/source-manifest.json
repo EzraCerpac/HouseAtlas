@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "921a139a09238339296698d182b08cf8f9c97ae717714e746e42be690e09c8d7",
+  "sourceDigestSha256": "5037be8f63a7e3300c31ba5acbfd4e97c278219cb68319cdc328b2c74a711ff0",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 30008,
-      "sha256": "c59930a0f20144851fdd2a8feac203d4b988047a24a87edf019daba6e895c867",
+      "bytes": 30834,
+      "sha256": "0f2bbf6d02a7e19b9205d160a76d3968acd0aa5398de76d4c9e69db538772246",
       "owner": "core-integration"
     },
     {
@@ -5325,6 +5325,13 @@
       "owner": "web"
     },
     {
+      "path": "docs/geometry/native-geometry-write.md",
+      "mode": "100644",
+      "bytes": 6813,
+      "sha256": "6cc5e9aa0fe72618922ecd37d2ece32aa2d4365687ddd91e4b438597478e0ad8",
+      "owner": "core-integration"
+    },
+    {
       "path": "docs/geometry/network-overlay.md",
       "mode": "100644",
       "bytes": 5807,
@@ -5843,6 +5850,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/integration/native-geometry-write-client.ts",
+      "mode": "100644",
+      "bytes": 22314,
+      "sha256": "893c4ab9d5a0ef14b01635c0d0f686e53b1118038ccef2be814a9a4e73955ed2",
+      "owner": "core-integration"
+    },
+    {
       "path": "frontend/integration/pinned-file-client.ts",
       "mode": "100644",
       "bytes": 15112,
@@ -5953,6 +5967,13 @@
       "bytes": 7928,
       "sha256": "e9ead8755763d0decb3c81d955bbb2471e1b2af53e5cd80fc2987b9ea2eca1ad",
       "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/native-geometry-write.mjs",
+      "mode": "100644",
+      "bytes": 10593,
+      "sha256": "da2a78f88864142743a758cd383f774b5c65104f103438b81101e563543e2ec6",
+      "owner": "core-integration"
     },
     {
       "path": "frontend/lantern-tests/native-place-write.mjs",
@@ -6956,6 +6977,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/scans/native-write-types.ts",
+      "mode": "100644",
+      "bytes": 2799,
+      "sha256": "38ed7041aa7f8ab64a3f03e2aa8af2aa0ff1bdcf2c3efe623857651ab3e6fd84",
+      "owner": "core-integration"
+    },
+    {
       "path": "frontend/src/lantern/state/store.tsx",
       "mode": "100644",
       "bytes": 9599,
@@ -7105,8 +7133,8 @@
     {
       "path": "frontend/src/numeric/schema-validator.ts",
       "mode": "100644",
-      "bytes": 24136,
-      "sha256": "4022889b68e2902e2262dbe910a61c30459a4a1a51b9a7a056f021415b55b9a0",
+      "bytes": 24190,
+      "sha256": "b1306ef621cec69fbda6f97b83d5b0f12171422f3166a09e0ff1798578a09fd6",
       "owner": "web"
     },
     {
