@@ -26,6 +26,7 @@ export interface SourceMesh {
   readonly resolvedOrientation: 'rightHanded' | 'leftHanded';
   readonly orientationQualification: 'authored' | 'USD schema default; not physically verified';
   readonly authoredDoubleSided: boolean | null;
+  readonly authoredDoubleSidedToken: '1' | '0' | 'true' | 'false' | null;
   readonly positionsLocalTokens: readonly string[]; readonly triangleIndicesTokens: readonly string[];
   readonly faceVertexCounts: { readonly repeatedToken: '3'; readonly count: ExactDecimal };
   readonly vertexCount: ExactDecimal; readonly triangleCount: ExactDecimal;
@@ -264,7 +265,7 @@ export async function parseMeshProfile(bytes: Uint8Array, signal: AbortSignal): 
   const converter = object(root.converter!, ['codeSHA256', 'schemaSHA256', 'profileSHA256', 'usdcatExecutableSHA256', 'usdcatVersion', 'invocation']);
   for (const field of ['codeSHA256', 'schemaSHA256', 'profileSHA256', 'usdcatExecutableSHA256']) digest(converter[field]);
   text(converter.usdcatVersion, 1024);
-  requireValue(converter.invocation === 'usdcat local-primary.usdc -o serialized.usda; no flatten, composition or network', 'Unsupported conversion profile');
+  requireValue(converter.invocation === 'usdcat local-primary.usdc -> private serialized.usda stdout; no flatten, composition or network', 'Unsupported conversion profile');
   const coordinates = object(root.authoredCoordinates!, ['upAxis', 'metersPerUnitToken', 'defaultPrim', 'matrixConvention', 'numericTokenProvenance']);
   requireValue(['X', 'Y', 'Z'].includes(coordinates.upAxis as string), 'Unsupported declared up axis');
   requireValue(usdDecimal(sourceNumeric(coordinates.metersPerUnitToken)).compare(ExactDecimal.parse('0')) > 0, 'Invalid declared units');
@@ -310,11 +311,16 @@ export async function parseMeshProfile(bytes: Uint8Array, signal: AbortSignal): 
   const meshes = array(root.meshes, MESH_LIMITS.meshes); requireValue(meshes.length > 0, 'No source meshes');
   for (const rawMesh of meshes) {
     await checkpoint();
-    const mesh = object(rawMesh, ['sourceObjectId', 'sourceName', 'positionsLocalTokens', 'triangleIndicesTokens', 'faceVertexCounts', 'ancestorChain', 'appliedChain', 'composedLocalToStageMatrixTokens', 'authoredOrientation', 'resolvedOrientation', 'orientationQualification', 'authoredDoubleSided', 'vertexCount', 'triangleCount']);
+    const mesh = object(rawMesh, ['sourceObjectId', 'sourceName', 'positionsLocalTokens', 'triangleIndicesTokens', 'faceVertexCounts', 'ancestorChain', 'appliedChain', 'composedLocalToStageMatrixTokens', 'authoredOrientation', 'resolvedOrientation', 'orientationQualification', 'authoredDoubleSided', 'authoredDoubleSidedToken', 'vertexCount', 'triangleCount']);
     const id = prim(mesh.sourceObjectId); requireValue(!ids.has(id) && nodeTable.get(id)?.primType === 'Mesh', 'Missing or duplicate source mesh node'); ids.add(id); text(mesh.sourceName, 256);
     requireValue(['rightHanded', 'leftHanded', null].includes(mesh.authoredOrientation as string | null)
       && ['rightHanded', 'leftHanded'].includes(mesh.resolvedOrientation as string)
       && (mesh.authoredDoubleSided === null || typeof mesh.authoredDoubleSided === 'boolean'), 'Unsupported source orientation');
+    const doubleSidedToken = mesh.authoredDoubleSidedToken;
+    requireValue(doubleSidedToken === null || doubleSidedToken === '1' || doubleSidedToken === '0'
+      || doubleSidedToken === 'true' || doubleSidedToken === 'false', 'Unsupported double-sided token');
+    requireValue(mesh.authoredDoubleSided === (doubleSidedToken === null ? null : doubleSidedToken === '1' || doubleSidedToken === 'true'),
+      'Double-sided token and value disagree');
     requireValue(mesh.authoredOrientation === null
       ? mesh.resolvedOrientation === 'rightHanded' && mesh.orientationQualification === 'USD schema default; not physically verified'
       : mesh.resolvedOrientation === mesh.authoredOrientation && mesh.orientationQualification === 'authored', 'Orientation qualification disagrees');

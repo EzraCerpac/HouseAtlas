@@ -27,7 +27,7 @@ export function syntheticMeshFixture(label = 'Synthetic export A') {
       serializedUSDASHA256: 'c'.repeat(64), serializedUSDABytes: 32 },
     converter: { codeSHA256: 'd'.repeat(64), schemaSHA256: 'e'.repeat(64), profileSHA256: 'f'.repeat(64),
       usdcatExecutableSHA256: '0'.repeat(64), usdcatVersion: 'Synthetic fixture; no actual conversion',
-      invocation: 'usdcat local-primary.usdc -o serialized.usda; no flatten, composition or network' },
+      invocation: 'usdcat local-primary.usdc -> private serialized.usda stdout; no flatten, composition or network' },
     authoredCoordinates: { upAxis: 'Y', metersPerUnitToken: '1', defaultPrim: 'Stage',
       matrixConvention: 'row-major storage; row vector p_local * M_mesh * M_parent * ...',
       numericTokenProvenance: 'exact tokens from usdcat USDA serialization; original USDC has binary values, not text lexemes' },
@@ -39,7 +39,7 @@ export function syntheticMeshFixture(label = 'Synthetic export A') {
         resetXformStack: false, operations: [], localMatrixTokens: identity() },
     ],
     meshes: [{ sourceObjectId: '/Stage/Triangle', sourceName: 'Triangle', authoredOrientation: null, resolvedOrientation: 'rightHanded',
-      orientationQualification: 'USD schema default; not physically verified', authoredDoubleSided: null,
+      orientationQualification: 'USD schema default; not physically verified', authoredDoubleSided: true, authoredDoubleSidedToken: '1',
       positionsLocalTokens: ['-0.000', '0', '0', '1.000', '0', '0', '0', '1e0', '0'], triangleIndicesTokens: ['0', '1', '2'],
       faceVertexCounts: { repeatedToken: '3', count: 1 }, ancestorChain: ['/Stage/Triangle', '/Stage'], appliedChain: ['/Stage/Triangle', '/Stage'],
       composedLocalToStageMatrixTokens: translation, vertexCount: 3, triangleCount: 1 }],
@@ -63,7 +63,9 @@ export async function runHealthyScanMeshRead() {
   const profile = await readScanMesh(port, 'synthetic-current-view', floor, new AbortController().signal);
   assert.deepEqual(events, ['read']); assert.equal(subscriptions.size, 0);
   assert.equal(profile.source.originalSHA256, floor.originalSHA256); assert.equal(profile.source.originalBytes.token, '32');
+  assert.equal(profile.converter.invocation, 'usdcat local-primary.usdc -> private serialized.usda stdout; no flatten, composition or network');
   assert.equal(profile.meshes[0].positionsLocalTokens[0], '-0.000'); assert.equal(profile.nodes[0].operations[0].matrixTokens[12], '2.5000');
+  assert.equal(profile.meshes[0].authoredDoubleSidedToken, '1'); assert.equal(profile.meshes[0].authoredDoubleSided, true);
   assert(Object.isFrozen(profile) && Object.isFrozen(profile.nodes) && Object.isFrozen(profile.nodes[0].operations[0].matrixTokens));
   assert(Object.isFrozen(profile.meshes[0].positionsLocalTokens));
   assert.equal(profile.qualification.semanticRoomObjects.token, '0'); assert.equal(profile.qualification.stageToHouseTransform, null);

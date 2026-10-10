@@ -37,7 +37,12 @@ fields `profile`, `source`, `converter`, `authoredCoordinates`, `qualification`,
 `nodes`, `meshes`, and `counts`. Source/converter hashes qualify immutable lineage;
 source numeric strings are tokens from usdcat USDA serialization. Binary USDC has
 no original text lexemes. Negative zero, exponent spellings, raw operation order,
-authored-versus-default orientation and absent double-sided metadata are retained.
+authored-versus-default orientation and nullable double-sided metadata are retained.
+Required `authoredDoubleSidedToken` preserves the USDA spelling `1`, `0`, `true`
+or `false`, or null for absence, and must agree with nullable `authoredDoubleSided`.
+Earlier payloads missing this required field are unsupported; no token is inferred.
+The closed invocation declaration describes private stdout serialization;
+earlier invocation declarations are unsupported.
 No native asset ID is fabricated in this private preprocessing payload.
 
 The shared node table retains every mesh and ancestor, including identity nodes.
