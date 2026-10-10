@@ -1,15 +1,13 @@
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
-import agent from '../../../contracts/stock-wire3/agent/agent.schema.json' with { type: 'json' };
-import atlas from '../../../packages/contracts/schemas/atlas.schema.json' with { type: 'json' };
+import { parseLosslessJson, type LosslessJson } from '../numeric/lossless-json';
+import { createExactStockResultValidator } from '../numeric/schema-validator';
+import { decodeGeometryResult, type DecodedGeometryPayload } from '../numeric/stock-decoded';
 import type { Scope } from '../app/types';
-import type { GeometryPayload } from './generated/contracts';
 
 export interface GeometryPublicRecord {
   target: { authority: 'atlas'; recordType: 'geometry'; recordId: string };
   revision: number;
   lifecycle: 'active' | 'tombstoned';
-  payload: GeometryPayload;
+  payload: DecodedGeometryPayload;
 }
 
 export type GeometrySourceStatus = 'current' | 'stale' | 'unavailable' | 'unresolved';
@@ -40,7 +38,7 @@ const maxResponseBytes = 4 * 1024 * 1024;
 const maxAggregateBytes = 16 * 1024 * 1024;
 class GeometryDeadline extends Error {}
 function discard(response: Response) { void response.body?.cancel().catch(() => undefined); }
-async function receive(response: Response, signal: AbortSignal, remainingBytes: number): Promise<{ value: unknown; bytes: number }> {
+async function receive(response: Response, signal: AbortSignal, remainingBytes: number): Promise<{ value: LosslessJson; bytes: number }> {
   const byteLimit = Math.min(maxResponseBytes, remainingBytes);
   if (Number(response.headers.get('Content-Length')) > byteLimit) {
     discard(response); throw new TypeError('Geometry response exceeded byte bound');
@@ -64,19 +62,14 @@ async function receive(response: Response, signal: AbortSignal, remainingBytes: 
     const bytes = new Uint8Array(length);
     let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-    return { value: JSON.parse(new TextDecoder().decode(bytes)) as unknown, bytes: length };
+    return { value: parseLosslessJson(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)), bytes: length };
   } catch (error) { cancel(); throw error; }
   finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
 }
 
 /** Passive, scoped stock read. The response schema is checked before any row is used. */
 export function createGeometryClient(transport: typeof fetch = globalThis.fetch) {
-  const validator = new Ajv2020({ strict: true, allErrors: true, allowUnionTypes: true });
-  addFormats(validator);
-  validator.addSchema(atlas);
-  validator.addSchema(agent);
-  const validateResult = validator.getSchema(`${agent.$id}#/$defs/result_atlas_geometry_list`);
-  if (!validateResult) throw new TypeError('Geometry result schema is unavailable');
+  const validator = createExactStockResultValidator();
   return {
     async read(scope: Scope, signal: AbortSignal): Promise<GeometryRead> {
       signal.throwIfAborted();
@@ -118,8 +111,9 @@ export function createGeometryClient(transport: typeof fetch = globalThis.fetch)
           const { value, bytes } = await receive(response, signal, maxAggregateBytes - totalBytes);
           totalBytes += bytes;
           signal.throwIfAborted();
-          if (!validateResult(value)) throw new TypeError('Stock envelope is incompatible');
-          const result = value as GeometryListResult;
+          if (!validator.validate('geometry', value)) throw new TypeError('Stock envelope is incompatible');
+          decodeGeometryResult(value);
+          const result = value as unknown as GeometryListResult;
           if (result.resolvedScope.workspaceId !== scope.workspaceId || result.resolvedScope.homeId !== scope.homeId)
             throw new TypeError('Geometry scope does not match request');
           if (sourceStatus !== undefined && sourceStatus !== result.data.sourceStatus)

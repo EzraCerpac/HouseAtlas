@@ -216,8 +216,8 @@ function GeometryMetadata() {
               <div><dt>Original asset ID</dt><dd>{p.originalAssetId} · file availability not supplied by this read</dd></div>
               <div><dt>Previous geometry ID</dt><dd>{p.previousGeometryId ?? 'Not supplied'}</dd></div>
               <div><dt>Coordinate units</dt><dd>{p.coordinateUnits}</dd></div>
-              <div><dt>Source scale</dt><dd>{p.scale ?? 'Not supplied'}</dd></div>
-              <div><dt>Source transform</dt><dd>{p.transform?.join(', ') ?? 'Not supplied'}</dd></div>
+              <div><dt>Source scale</dt><dd>{p.scale?.toString() ?? 'Not supplied'}</dd></div>
+              <div><dt>Source transform</dt><dd>{p.transform?.map(value => value.toString()).join(', ') ?? 'Not supplied'}</dd></div>
               <div><dt>Evidence IDs</dt><dd>{p.evidenceIds.join(', ')}</dd></div>
             </dl>
             <div data-evidence-context="geometry">{p.evidenceIds.map(evidenceId => <LinkedEvidence key={evidenceId} evidenceId={evidenceId} />)}</div>

@@ -1,4 +1,7 @@
-import type { BindingPayload, IdentityPayload, LocationSemanticsPayload, RelationPayload } from './generated/contracts';
+import type { BindingPayload, IdentityPayload, RelationPayload } from './generated/contracts';
+import { parseLosslessJson, type LosslessJson } from '../numeric/lossless-json';
+import { createExactStockResultValidator } from '../numeric/schema-validator';
+import { decodeTopologyResult, type DecodedLocationSemanticsPayload } from '../numeric/stock-decoded';
 import type { Scope } from '../app/types';
 import type { AtlasSessionInfo } from '../app/session';
 import type { StockSchemaPort } from '../webmcp/stock';
@@ -6,7 +9,7 @@ import type { StockSchemaPort } from '../webmcp/stock';
 export interface TopologyPayloads {
   identity: IdentityPayload;
   binding: BindingPayload;
-  'location-semantics': LocationSemanticsPayload;
+  'location-semantics': DecodedLocationSemanticsPayload;
   relation: RelationPayload;
 }
 export type TopologyKind = keyof TopologyPayloads;
@@ -58,7 +61,7 @@ async function deadline<T>(signal: AbortSignal, milliseconds: number, operation:
     controller.signal.removeEventListener('abort', abort);
   }
 }
-async function receive(response: Response, signal: AbortSignal): Promise<{ value: unknown; bytes: number }> {
+async function receive(response: Response, signal: AbortSignal): Promise<{ value: LosslessJson; bytes: number }> {
   if (!response.body) throw new ReadFailure('unavailable');
   if (Number(response.headers.get('Content-Length')) > topologyPolicy.maxResponseBytes) {
     discard(response); throw new ReadFailure('tooLarge');
@@ -81,7 +84,7 @@ async function receive(response: Response, signal: AbortSignal): Promise<{ value
     const bytes = new Uint8Array(length);
     let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-    return { value: JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)), bytes: length };
+    return { value: parseLosslessJson(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)), bytes: length };
   } catch (error) { cancel(); throw error; }
   finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
 }
@@ -92,6 +95,7 @@ export function createTopologyClient(options: {
   readonly transport?: typeof fetch;
 }): TopologyClient {
   const transport = options.transport ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
+  const resultValidator = createExactStockResultValidator();
   let cached: { session: AtlasSessionInfo; scope: Scope; binding: TopologyBinding } | null = null;
   function getBinding(): TopologyBinding | null {
     const next = options.getSessionBinding();
@@ -148,9 +152,10 @@ export function createTopologyClient(options: {
           current(signal);
           totalBytes += bytes;
           if (totalBytes > topologyPolicy.maxAggregateBytes) throw new ReadFailure('tooLarge');
-          options.schemas.validate(`#/$defs/result_atlas_${commandKind[kind]}_list`, value);
+          if (!resultValidator.validate(commandKind[kind], value)) throw new ReadFailure('unavailable');
+          decodeTopologyResult(value);
           // The cast follows the complete canonical result schema validation.
-          const result = value as { requestId: string; commandId: string; status: string; resolvedScope: Scope;
+          const result = value as unknown as { requestId: string; commandId: string; status: string; resolvedScope: Scope;
             data: { records: TopologyRecord<K>[]; nextCursor: string | null; sourceStatus: AtlasReadStatus } };
           if (result.requestId !== requestId || result.commandId !== commandId || result.status !== 'read'
             || result.resolvedScope.workspaceId !== binding.scope.workspaceId || result.resolvedScope.homeId !== binding.scope.homeId)
