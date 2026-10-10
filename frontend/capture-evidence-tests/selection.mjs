@@ -31,6 +31,13 @@ if (!args.length) {
     assert.equal(result.capture.reportedContentType, type);
     assert.equal(sha(new Uint8Array(await result.file.arrayBuffer())), sha(new Uint8Array(await original.arrayBuffer())));
   }
+  for (const type of ['', 'application/octet-stream']) {
+    const original = new File([bytes('synthetic-note.txt')], 'synthetic-note.txt', { type });
+    const result = await select(original);
+    assert.equal(result.file.type, 'text/plain'); assert.equal(result.original, original);
+    assert.equal(result.capture.reportedContentType, type);
+    assert.equal(sha(new Uint8Array(await result.file.arrayBuffer())), sha(new Uint8Array(await original.arrayBuffer())));
+  }
   console.log('PASS healthy: five supported synthetic files; byte-identical MIME-label normalization, original browser labels retained');
 } else {
   assert.equal(args.length, 2); assert.equal(args[0], '--case');

@@ -33,7 +33,7 @@ export async function selectEvidenceFile(original: File, method: SelectionMethod
   if ([137, 80, 78, 71, 13, 10, 26, 10].every((byte, i) => head[i] === byte)) type = 'image/png';
   else if (head[0] === 255 && head[1] === 216 && head[2] === 255) type = 'image/jpeg';
   else if (ascii(0, 5) === '%PDF-') type = 'application/pdf';
-  else if (reported === 'text/plain' || (!reported && /\.txt$/i.test(original.name))) type = 'text/plain';
+  else if (reported === 'text/plain' || ((!reported || reported === 'application/octet-stream') && /\.txt$/i.test(original.name))) type = 'text/plain';
   if (!type || !policy.contentTypes.includes(type) || !CAPTURE_TYPES.includes(type as typeof CAPTURE_TYPES[number]))
     throw new Error('Choose a supported JPEG, PNG, PDF or UTF-8 text file.');
   const alias = type === 'image/jpeg' && ['image/jpg', 'image/pjpeg'].includes(reported);
