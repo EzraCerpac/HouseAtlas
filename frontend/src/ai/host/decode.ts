@@ -1,5 +1,6 @@
 /** Credential-free Rust DTO decoding. Shared stock validation stays server-owned. */
 import { decodeConnectionActionResult } from '../wire.js';
+import { ExactDecimal, isExactDecimal } from '../../numeric/decimal';
 import type {
   CancelReceipt, ConnectionSnapshot, JsonValue, RequestStatus, ReviewChallenge,
   RunOutcome, ToolCall, Usage, ModelDiscovery,
@@ -28,7 +29,8 @@ function array<T>(value: unknown, decode: (item: unknown) => T): readonly T[] {
 }
 function json(value: unknown): JsonValue {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (isExactDecimal(value)) return value;
+  if (typeof value === 'number' && Number.isFinite(value) && (!Number.isInteger(value) || Number.isSafeInteger(value))) return value;
   if (Array.isArray(value)) return value.map(json);
   if (typeof value === 'object' && value !== null)
     return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, json(item)]));
@@ -36,6 +38,12 @@ function json(value: unknown): JsonValue {
 }
 function token(value: unknown): number | null {
   if (value === null) return null;
+  if (isExactDecimal(value)) {
+    if (value.compare(ExactDecimal.parse('0')) < 0) throw new TypeError('AI token count is negative');
+    const checked = value.toSafeInteger();
+    if (checked === undefined) throw new TypeError('AI token count is not exactly representable');
+    return checked;
+  }
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
     throw new TypeError('AI token count is not exactly representable');
   return value;

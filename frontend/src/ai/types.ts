@@ -1,8 +1,11 @@
+import type { ExactDecimal } from '../numeric/decimal';
+
 /** AT42 boundary proposal: reconcile with AT51 generated stock.2/wire3 contracts. */
 export type JsonValue =
   | null
   | boolean
   | number
+  | ExactDecimal
   | string
   | readonly JsonValue[]
   | { readonly [key: string]: JsonValue };

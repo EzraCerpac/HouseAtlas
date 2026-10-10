@@ -5,6 +5,8 @@ import type {
   AiClient, AiReceiptIdentity, AiSessionState, ConnectionAction, ConnectionSnapshot, DomainHeld, RunOutcome, RuntimeRoute, UnresolvedConnectionAction, Usage,
 } from './types.js';
 import { AiModelsUnauthorizedError } from './types.js';
+import { stringifyLosslessJson } from '../numeric/lossless-json';
+import type { LosslessJson } from '../numeric/lossless-json';
 import type { ModelDiscovery } from './types.js';
 import { hasObservedUnconfirmedReceipt, useAiSession, useConnectionActionCapacity } from './useAiSession.js';
 
@@ -315,7 +317,7 @@ function Outcome({ outcome }: { readonly outcome: RunOutcome }) {
       <ol className="ha-ai__calls">{outcome.calls.map(call => <li key={call.callId}>
         <h4>{call.name}</h4>
         <dl className="ha-ai__facts"><dt>Call ID</dt><dd>{call.callId}</dd></dl>
-        <pre>{JSON.stringify(call.arguments, null, 2)}</pre>
+        <pre style={{ overflowWrap: 'anywhere' }}>{stringifyLosslessJson(call.arguments as unknown as LosslessJson)}</pre>
       </li>)}</ol>
       {outcome.reviews.map(review => <div key={review.challengeId} className="ha-ai__review">
         <h4>{review.commandId}</h4>
@@ -325,7 +327,7 @@ function Outcome({ outcome }: { readonly outcome: RunOutcome }) {
           <dt>Expires</dt><dd><time dateTime={review.expiresAt}>{review.expiresAt}</time></dd>
         </dl>
         <details><summary>Affected targets and intent</summary>
-          <pre>{JSON.stringify(review.affectedTargets, null, 2)}</pre>
+          <pre style={{ overflowWrap: 'anywhere' }}>{stringifyLosslessJson(review.affectedTargets as unknown as LosslessJson)}</pre>
           <dl className="ha-ai__facts">
             <dt>Request digest</dt><dd>{review.requestDigest}</dd><dt>Target digest</dt><dd>{review.targetDigest}</dd>
             <dt>Impact ID</dt><dd>{review.impactId}</dd><dt>Impact digest</dt><dd>{review.impactDigest}</dd>
