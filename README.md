@@ -12,6 +12,46 @@ publication or deployment readiness.
 
 Use Node **26.10.0** and npm **11.19.1**. Install the exact dependency locks:
 
+An explicitly named offline receipt example uses two fresh synthetic initialized
+states and an exact SHA256-selected binary built from original source
+`3016c5362daa89983f02c4790fc329a94eb43420`. It checks strict legacy refusal,
+metadata-only upgrade, immediate exact-byte rollback, and a separate new reopen.
+It opens no listener and admits no source or account. Its rollback proof covers
+only the unchanged physical database cut before serving; it provides no rollback
+acceptance after reads, authentication, checkpoints or record writes. Inspect
+the complete example and compatibility owners before these local commands:
+
+```sh
+cargo build --offline --locked -p houseatlas-backend --lib --bin houseatlas
+cargo clippy --offline --locked -p houseatlas-backend --lib --bin houseatlas -- -D warnings
+cargo fmt --all -- --check
+cargo run --offline --locked -p houseatlas-backend --example healthy-receipt-compatibility -- --legacy-binary /absolute/pinned/houseatlas --expected-legacy-binary-sha256 <verified-sha256>
+```
+
+Build and preserve the original binary in its separate clean checkout before
+building the amended candidate. Use Rust 1.99.0 and a private disposable build
+target. These commands do not stop or update an installed service.
+
+A successful in-process native MCP example includes history continuation using
+the actual first page's nonnull cursor. It retains the original authenticated
+identity, target, query and audit IDs. It opens no listener, calls no provider,
+and runs only the exact named local case after inspecting its full body:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib transports::mcp::healthy_local_atlas::healthy_local_atlas_native_mutations_batch_and_reopened_history -- --exact --test-threads=1
+```
+
+A separate successful display fixture preserves schema-valid original leap-second
+timestamps and their offsets. It executes only the actual formatter and installed
+format validator; relative and due-time arithmetic remains unchanged:
+
+```sh
+node frontend/lantern-tests/source-time-display.mjs
+```
+
+These named local examples remain outside automatic ordinary CI and establish
+only their reported synthetic behavior.
+
 ```sh
 npm ci --ignore-scripts --no-audit --no-fund
 npm ci --prefix packages/contracts --ignore-scripts --no-audit --no-fund

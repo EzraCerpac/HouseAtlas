@@ -171,3 +171,7 @@ path = "src/http/trusted_gateway_healthy.rs"
 [[example]]
 name = "healthy-exact-read-contracts"
 path = "examples/healthy-exact-read-contracts.rs"
+
+[[example]]
+name = "healthy-receipt-compatibility"
+path = "src/lifecycle/receipt_compatibility_healthy.rs"
