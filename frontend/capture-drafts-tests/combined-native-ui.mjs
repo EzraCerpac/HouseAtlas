@@ -126,8 +126,12 @@ async function until(check, label, ms = 20000) {
 }
 const observedUrls = [], responses = [], runtimeErrors = [], uploadRequests = [];
 const loaded = new Set();
+let completedResult;
 class Pipe {
   next = 0; pending = new Map(); buffer = Buffer.alloc(0); closed = false;
+  phase = 'browser-setup'; sequence = 0; events = []; failures = []; overflow = false;
+  pauses = new Map(); pauseTasks = new Set(); network = new Map();
+  expectedClose = false; targetSessionId = null;
   constructor(process) {
     this.process = process;
     this.onData = bytes => {
@@ -140,34 +144,188 @@ class Pipe {
         if (message.id) {
           const pending = this.pending.get(message.id); if (!pending) continue;
           this.pending.delete(message.id); clearTimeout(pending.timer);
-          message.error ? pending.reject(new Error(message.error.message)) : pending.resolve(message.result);
+          if (message.error) {
+            const error = new Error(message.error.message);
+            error.cdpKind = 'protocol'; error.cdpCode = message.error.code;
+            error.commandId = message.id; error.cdpMethod = pending.method;
+            pending.reject(error);
+          } else pending.resolve(message.result);
         } else if (message.method === 'Fetch.requestPaused') {
-          const requestUrl=message.params.request.url;
-          const allowed=requestUrl.startsWith(this.allowedOrigin+'/')||requestUrl.startsWith('blob:'+this.allowedOrigin+'/');
-          if(!allowed)this.blocked++;
-          const evidence=allowed&&message.params.request.method==='POST'&&new URL(requestUrl).pathname.endsWith('/evidence');
-          const observation=evidence&&this.beforeEvidenceContinue?this.beforeEvidenceContinue():Promise.resolve();
-          void observation.then(()=>this.send(allowed?'Fetch.continueRequest':'Fetch.failRequest',allowed?{requestId:message.params.requestId}:{requestId:message.params.requestId,errorReason:'BlockedByClient'},message.sessionId)).catch(error=>{this.transportError=error.message;void this.send('Fetch.failRequest',{requestId:message.params.requestId,errorReason:'BlockedByClient'},message.sessionId).catch(()=>{});});
+          this.startPause(message.params, message.sessionId);
         } else if (message.method === 'Network.requestWillBeSent') {
+          this.networkEvent(message.method, message.params, message.sessionId);
           const { request, requestId } = message.params;
           observedUrls.push(request.url);
           // Observe only correlation and URL; never retain multipart bodies,
           // credentials, cookie/CSRF headers or any private stage/token fields.
           if (request.method === 'POST' && new URL(request.url).pathname.endsWith('/evidence'))
             uploadRequests.push({ requestId, url: request.url });
-        } else if (message.method === 'Network.responseReceived') responses.push({ requestId: message.params.requestId, url: message.params.response.url, status: message.params.response.status });
-        else if (message.method === 'Network.loadingFinished') loaded.add(message.params.requestId);
+        } else if (message.method === 'Network.responseReceived') {
+          this.networkEvent(message.method, message.params, message.sessionId);
+          responses.push({ requestId: message.params.requestId, url: message.params.response.url, status: message.params.response.status });
+        } else if (message.method === 'Network.loadingFinished') {
+          this.networkEvent(message.method, message.params, message.sessionId);
+          loaded.add(message.params.requestId);
+        } else if (message.method === 'Network.loadingFailed') this.networkEvent(message.method, message.params, message.sessionId);
         else if (message.method === 'Runtime.exceptionThrown') runtimeErrors.push(message.params.exceptionDetails.text);
       }
     };
-    this.onError = error => this.cancelPending(error);
-    this.onClose = () => { this.closed = true; this.cancelPending(new Error('CDP child closed')); };
+    this.onError = error => {
+      const failure = Object.assign(new Error('CDP pipe error', { cause: error }), { cdpKind: 'pipe-error' });
+      this.failure('pipe-error', failure, this.pipeContext()); this.cancelPending(failure);
+    };
+    this.onClose = () => {
+      this.closed = true;
+      const failure = Object.assign(new Error('CDP child closed'), { cdpKind: 'pipe-close' });
+      if (!this.expectedClose) this.failure('pipe-close', failure, this.pipeContext());
+      else this.note('expected-pipe-close', this.context(this.pipeContext()));
+      this.cancelPending(failure);
+    };
     process.stdio[4].on('data', this.onData);
     process.stdio[3].on('error', this.onError); process.stdio[4].on('error', this.onError);
     process.once('close', this.onClose);
   }
+  key(sessionId, requestId) { return JSON.stringify([sessionId ?? null, requestId]); }
+  safeId(value) { return typeof value === 'string' && value.length <= 128 ? value : null; }
+  pipeContext() { return { cdpSessionId: this.targetSessionId, networkId: null, path: 'cdp-pipe', origin: 'transport' }; }
+  safeMethod(value) { return ['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'].includes(value) ? value : 'OTHER'; }
+  route(url) {
+    const allowed = url.startsWith(this.allowedOrigin + '/') || url.startsWith('blob:' + this.allowedOrigin + '/');
+    if (!allowed) return { origin: 'blocked', path: 'blocked-origin' };
+    if (url.startsWith('blob:')) return { origin: 'local-blob', path: 'local-original-blob' };
+    const path = new URL(url).pathname;
+    const exact = ['/', '/api/atlas/view', '/api/atlas/auth/session', '/api/atlas/auth/login', '/api/atlas/auth/logout', '/api/atlas/auth/local-access', '/manifest.webmanifest', '/favicon.ico'];
+    if (exact.includes(path)) return { origin: 'loopback', path };
+    if (path.startsWith('/api/atlas/editing/v1/') && path.endsWith('/evidence')) return { origin: 'loopback', path: '/api/atlas/editing/v1/:scope/places/:place/evidence' };
+    if (path.startsWith('/api/atlas/editing/v1/') && path.endsWith('/place')) return { origin: 'loopback', path: '/api/atlas/editing/v1/:scope/place' };
+    if (path.startsWith('/api/atlas/media/') && path.endsWith('/download')) return { origin: 'loopback', path: '/api/atlas/media/:scope/:asset/download' };
+    if (/^\/api\/atlas\/v1\/.*\/records\/(asset|evidence)\//.test(path)) return { origin: 'loopback', path: '/api/atlas/v1/:scope/records/:type/:record' };
+    return { origin: 'loopback', path: path.startsWith('/assets/') ? '/assets/:file' : 'other-loopback-path' };
+  }
+  context(record) {
+    return { cdpSessionId: record.cdpSessionId, interceptionId: record.interceptionId ?? null, networkId: record.networkId,
+      frameId: record.frameId ?? null, method: record.method ?? 'OTHER', path: record.path ?? 'unknown-path', origin: record.origin ?? 'unknown',
+      pausedPhase: record.pausedPhase ?? null, evidence: record.evidence === true };
+  }
+  note(kind, fields = {}) {
+    const sequence = ++this.sequence;
+    if (this.events.length >= 4096) { this.overflow = true; this.transportError ??= 'Interception diagnostic event limit exceeded'; return; }
+    this.events.push({ sequence, elapsedMs: Date.now() - runStartedAt, phase: this.phase, kind, ...fields });
+  }
+  setPhase(phase) { this.phase = phase; this.note('phase'); }
+  failure(kind, error, record, fields = {}) {
+    const message = kind === 'observer' ? 'Evidence observer failed before terminal command' :
+      error?.cdpKind ? String(error.message).replace(/(?:https?:\/\/|blob:https?:\/\/)[^\s"'<>]+/g, '[url-omitted]').replace(/[\u0000-\u001f]/g, ' ').slice(0, 256) : 'Interception failure: ' + kind;
+    this.transportError ??= message;
+    if (this.failures.length >= 128) { this.overflow = true; return; }
+    const failure = { kind, ...(record ? this.context(record) : {}), message,
+      errorKind: error?.cdpKind ?? kind, protocolCode: Number.isInteger(error?.cdpCode) ? error.cdpCode : null,
+      commandId: Number.isInteger(error?.commandId) ? error.commandId : null, ...fields };
+    this.failures.push(failure); this.note('failure', failure);
+  }
+  limit(kind) {
+    this.overflow = true; const error = new Error('Interception diagnostic ' + kind + ' limit exceeded');
+    this.failure('record-limit', error); runAbort.abort(error); this.cancelPending(error);
+  }
+  startPause(params, sessionId) {
+    const key = this.key(sessionId, params.requestId);
+    if (this.pauses.has(key)) { this.failure('duplicate-pause', undefined, this.pauses.get(key)); return; }
+    if (this.pauses.size >= 512) { this.limit('pause'); return; }
+    const route = this.route(params.request.url), allowed = route.origin !== 'blocked';
+    if (!allowed) this.blocked++;
+    const record = { cdpSessionId: this.safeId(sessionId), interceptionId: this.safeId(params.requestId), networkId: this.safeId(params.networkId), frameId: this.safeId(params.frameId),
+      method: this.safeMethod(params.request.method), ...route, pausedPhase: this.phase,
+      resourceType: ['Document','Stylesheet','Image','Media','Font','Script','XHR','Fetch','Other'].includes(params.resourceType) ? params.resourceType : 'Other',
+      stage: params.responseStatusCode !== undefined || params.responseErrorReason !== undefined ? 'response' : 'request',
+      evidence: allowed && params.request.method === 'POST' && new URL(params.request.url).pathname.endsWith('/evidence'),
+      observer: 'not-required', terminalMethod: null, terminalAttempts: 0, terminalState: 'not-started', commandId: null };
+    this.pauses.set(key, record); this.note('paused', { ...this.context(record), stage: record.stage, resourceType: record.resourceType });
+    const task = this.handlePause(record, params.requestId, sessionId, allowed)
+      .catch(error => this.failure('pause-handler', error, record))
+      .finally(() => { this.pauseTasks.delete(task); this.note('pause-settled', this.context(record)); });
+    this.pauseTasks.add(task);
+  }
+  async handlePause(record, interceptionId, sessionId, allowed) {
+    let terminalMethod = allowed ? 'Fetch.continueRequest' : 'Fetch.failRequest';
+    if (record.evidence) {
+      record.observer = 'pending'; this.note('observer-start', this.context(record));
+      try {
+        assert.equal(typeof this.beforeEvidenceContinue, 'function', 'Evidence dispatch observation required');
+        await this.beforeEvidenceContinue();
+        record.observer = 'succeeded'; this.note('observer-succeeded', this.context(record));
+      } catch (error) {
+        record.observer = 'failed'; terminalMethod = 'Fetch.failRequest'; this.failure('observer', error, record);
+      }
+    }
+    record.terminalMethod = terminalMethod; record.terminalAttempts++; record.terminalState = 'pending';
+    this.note('terminal-attempt', { ...this.context(record), terminalMethod, terminalAttempts: record.terminalAttempts });
+    try {
+      // Ordinary requests write immediately; only the evidence observer introduces an await.
+      await this.send(terminalMethod, terminalMethod === 'Fetch.continueRequest' ? { requestId: interceptionId } : { requestId: interceptionId, errorReason: 'BlockedByClient' }, sessionId, false, 15000, record);
+      record.terminalState = 'succeeded'; this.note('terminal-succeeded', { ...this.context(record), terminalMethod, commandId: record.commandId });
+    } catch (error) {
+      record.terminalState = 'failed'; this.failure('terminal-command', error, record, { terminalMethod });
+      // A terminal command's failure never causes a second command for this ID.
+    }
+  }
+  networkEvent(kind, params, sessionId) {
+    const key = this.key(sessionId, params.requestId);
+    let record = this.network.get(key);
+    if (!record) {
+      if (this.network.size >= 512) { this.limit('network'); return; }
+      record = { cdpSessionId: this.safeId(sessionId), networkId: this.safeId(params.requestId), evidence: false, finished: false, responseStatus: null, failed: null };
+      this.network.set(key, record);
+    }
+    if (kind === 'Network.requestWillBeSent') {
+      const route = this.route(params.request.url);
+      Object.assign(record, route, { method: this.safeMethod(params.request.method), frameId: this.safeId(params.frameId),
+        evidence: route.origin !== 'blocked' && params.request.method === 'POST' && new URL(params.request.url).pathname.endsWith('/evidence') });
+      this.note(kind, { ...this.context(record), redirect: Boolean(params.redirectResponse) });
+    } else if (kind === 'Network.responseReceived') {
+      record.responseStatus = Number.isInteger(params.response.status) ? params.response.status : null;
+      this.note(kind, { ...this.context(record), status: record.responseStatus });
+    } else if (kind === 'Network.loadingFinished') { record.finished = true; this.note(kind, this.context(record)); }
+    else {
+      record.failed = { canceled: params.canceled === true, errorText: /^net::[A-Z_0-9]{1,64}$/.test(params.errorText) ? params.errorText : 'unclassified-network-error', blockedReasonPresent: Boolean(params.blockedReason) };
+      this.note(kind, { ...this.context(record), ...record.failed });
+    }
+    if (record.evidence && record.failed && !record.failureReported) {
+      record.failureReported = true; this.failure('evidence-loading-failed', undefined, record);
+    }
+  }
+  terminalPending() { return [...this.pending.values()].filter(p => p.method === 'Fetch.continueRequest' || p.method === 'Fetch.failRequest').length; }
+  async drain(sessionId, evidenceNetworkId) {
+    const deadline = Date.now() + 2000;
+    this.setPhase('final-drain');
+    while (Date.now() < deadline) {
+      runAbort.signal.throwIfAborted();
+      if (this.pauseTasks.size || this.terminalPending()) { await delay(10); continue; }
+      const watermark = this.sequence;
+      await this.send('Runtime.evaluate', { expression: '0', returnByValue: true }, sessionId, false, Math.min(500, Math.max(1, deadline - Date.now())));
+      await delay(25);
+      if (this.sequence !== watermark || this.pauseTasks.size || this.terminalPending()) continue;
+      const evidence = this.network.get(this.key(sessionId, evidenceNetworkId));
+      assert(evidence?.evidence, 'Exact evidence request diagnostic correlation');
+      assert.equal(evidence.responseStatus, 200, 'Exact evidence diagnostic HTTP200');
+      assert.equal(evidence.finished, true, 'Exact evidence diagnostic loadingFinished');
+      assert.equal(evidence.failed, null, 'Evidence request has no loadingFailed, including cancellation');
+      assert([...this.pauses.values()].every(record => record.terminalAttempts === 1 && record.terminalState !== 'pending'), 'One settled terminal action for each observed pause');
+      this.note('drained', { watermark, pendingPauseHandlers: 0, pendingTerminalCommands: 0 });
+      return;
+    }
+    throw new Error('Interception observed-work drain deadline');
+  }
+  diagnostics(status) {
+    return { status, overflow: this.overflow, phase: this.phase, pendingPauseHandlers: this.pauseTasks.size, pendingTerminalCommands: this.terminalPending(),
+      events: this.events, pauses: [...this.pauses.values()], network: [...this.network.values()].map(record => ({ ...this.context(record), responseStatus: record.responseStatus, finished: record.finished, failed: record.failed })),
+      failures: this.failures.map(failure => ({ ...failure, browserCancellationObserved: Boolean(failure.networkId && this.network.get(this.key(failure.cdpSessionId, failure.networkId))?.failed?.canceled) })) };
+  }
   cancelPending(error) {
-    for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(error); }
+    for (const [commandId, pending] of this.pending) {
+      clearTimeout(pending.timer);
+      pending.reject(Object.assign(new Error(error?.cdpKind ? error.message : 'CDP pending command canceled', { cause: error }),
+        { cdpKind: error?.cdpKind ?? 'abort', commandId, cdpMethod: pending.method }));
+    }
     this.pending.clear();
   }
   dispose(error) {
@@ -176,16 +334,19 @@ class Pipe {
     this.process.stdio[3].removeListener('error', this.onError); this.process.stdio[4].removeListener('error', this.onError);
     this.process.removeListener('close', this.onClose);
   }
-  send(method, params = {}, sessionId, cleanup = false, timeoutMs = 15000) {
-    if (this.closed) return Promise.reject(new Error('CDP pipe closed'));
-    if (!cleanup && runAbort.signal.aborted) return Promise.reject(runAbort.signal.reason);
+  send(method, params = {}, sessionId, cleanup = false, timeoutMs = 15000, pauseRecord) {
+    if (this.closed) return Promise.reject(Object.assign(new Error('CDP pipe closed'), { cdpKind: 'closed' }));
+    if (!cleanup && runAbort.signal.aborted) return Promise.reject(Object.assign(new Error('Harness operation aborted'), { cdpKind: 'abort' }));
+    if (sessionId) this.targetSessionId = this.safeId(sessionId);
+    if (cleanup && method === 'Browser.close') this.expectedClose = true;
     const id = ++this.next;
+    if (pauseRecord) pauseRecord.commandId = id;
     return new Promise((resolve, reject) => {
       const fail = error => { const pending = this.pending.get(id); if (!pending) return; this.pending.delete(id); clearTimeout(pending.timer); reject(error); };
-      const timer = setTimeout(() => fail(new Error('CDP timeout: ' + method)), timeoutMs);
-      this.pending.set(id, { resolve, reject, timer });
-      try { this.process.stdio[3].write(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + '\0', error => { if (error) fail(error); }); }
-      catch (error) { fail(error); }
+      const timer = setTimeout(() => fail(Object.assign(new Error('CDP timeout: ' + method), { cdpKind: 'timeout', commandId: id })), timeoutMs);
+      this.pending.set(id, { resolve, reject, timer, method });
+      try { this.process.stdio[3].write(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + '\0', error => { if (error) fail(Object.assign(new Error('CDP pipe write failed'), { cdpKind: 'write', commandId: id })); }); }
+      catch (error) { fail(Object.assign(new Error('CDP pipe write failed'), { cdpKind: 'write', commandId: id })); }
     });
   }
 }
@@ -234,10 +395,13 @@ try {
     assert(!result.exceptionDetails, 'Healthy browser evaluation'); return result.result.value;
   };
   // Only synthetic loopback fixture credentials are used; nothing private is emitted.
+  cdp.setPhase('initial-navigation');
   await send('Page.navigate', { url: origin });
   await until(async()=>await evaluate('Boolean(document.querySelector("main#main"))'), 'React shell');
+  cdp.setPhase('synthetic-login');
   const login = await evaluate(`fetch('/api/atlas/auth/login',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',headers:{'Content-Type':'application/json'},body:${JSON.stringify(JSON.stringify(editorLogin))}}).then(r=>r.status)`);
   assert.equal(login,200);
+  cdp.setPhase('login-reload');
   await send('Page.reload');
   const openAtlasTools = async () => {
     await until(async()=>await evaluate(`(()=>{const b=[...document.querySelectorAll('nav[aria-label="Sections"] button')].find(b=>b.textContent.trim()==='Changes'&&b.getClientRects().length);if(!b)return false;b.click();return true})()`),'Changes navigation');
@@ -272,6 +436,7 @@ try {
   const input=readFileSync(join(fixtures,name));
   const localDatabase='houseatlas-local-unsent-captures-v1';
   assert.equal(await evaluate(`indexedDB.databases().then(ds=>ds.some(d=>d.name===${JSON.stringify(localDatabase)}))`),false,'No draft database before explicit opt-in');
+  cdp.setPhase('unsent-local-save');
   await selectFile('photos',join(fixtures,name));
   await evaluate(`(()=>{const f=document.querySelector(${JSON.stringify(form)});f.querySelector('[name=statement]').value='Synthetic saved draft evidence';f.querySelector('[name=reason]').value='Attach generated synthetic saved evidence';const l=f.querySelector('[name=license]');l.value='0';l.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   const panel='[aria-label="Local capture drafts"]';
@@ -284,6 +449,7 @@ try {
   const savedRows=await localRows();assert.equal(savedRows.length,1);assert.equal(savedRows[0].state,'unsent');assert.equal(savedRows[0].attempt,null);
   assert.deepEqual(savedRows[0].bytes,Array.from(input));assert.equal(savedRows[0].capture.selectionMethod,method);
   // Normal explicit UI close and page reload; no crash or interrupted attempt.
+  cdp.setPhase('normal-reopen');
   await click('Close');await send('Page.reload');await openAtlasTools();
   await evaluate('location.hash='+JSON.stringify('#place?key='+encodeURIComponent(room.key)));
   await until(async()=>await evaluate(`(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent==='Add evidence'&&b.getClientRects().length);if(!b)return false;b.click();return true})()`),'Reopen contextual editor');
@@ -293,6 +459,7 @@ try {
   await until(async()=>await evaluate(`Boolean([...document.querySelectorAll(${JSON.stringify(panel+' button')})].find(b=>b.textContent==='Review synthetic-photo.jpg'&&!b.disabled))`),'Matching draft list');
   const sessionReadsBefore=observedUrls.filter(url=>new URL(url).pathname==='/api/atlas/auth/session').length;
   const placeReadsBefore=observedUrls.filter(url=>new URL(url).pathname.includes('/api/atlas/editing/v1/')&&new URL(url).pathname.endsWith('/place')).length;
+  cdp.setPhase('saved-review');
   await click('Review synthetic-photo.jpg');
   await until(async()=>await evaluate(`Boolean(document.querySelector('[aria-label="Saved capture review"]'))`),'Fresh saved review');
   const reviewText=await evaluate(`document.querySelector('[aria-label="Saved capture review"]').textContent`);
@@ -311,6 +478,7 @@ try {
     dispatchMarker=atDispatch[0].attempt;
   };
   await evaluate(`document.querySelector('[aria-label="Saved capture review"] input[type=checkbox]').click()`);
+  cdp.setPhase('confirmed-upload');
   await click('Confirm upload');
   await until(async()=>await evaluate(`document.querySelector('section[aria-label="Atlas place editing"] [role=status]')?.textContent==='Saved. Information refreshed.' && document.querySelector('section[aria-label="Atlas place editing"]')?.getAttribute('aria-busy')==='false'`),'Confirmed draft upload and view refresh');
   assert.equal(uploadRequests.length,1,'Exactly one fresh explicit evidence POST');
@@ -319,6 +487,7 @@ try {
   assert.equal(receipt.status,'committed');assert.equal(receipt.commandId,'atlas.batch.execute');assert.deepEqual(receipt.resolvedScope,view.scope);
   assert(dispatchMarker,'Durable marker observed before allowing the evidence POST');assert.equal(receipt.requestId,dispatchMarker.requestId);cdp.beforeEvidenceContinue=null;
   assert.deepEqual(await localRows(),[],'Local bytes removed after validated committed receipt and before ordinary view refresh');
+  cdp.setPhase('native-readback');
   const committedEvidence=receipt.data.records.find(r=>r.target.recordType==='evidence');assert(committedEvidence);
   const evidence=await readJson(nativePrefix+'/evidence/'+committedEvidence.target.recordId);validateShape('record',evidence);
   assert.equal(evidence.payload.statement,savedRows[0].form.statement);assert.equal(evidence.payload.provenance.factAt,null);assert.equal(evidence.payload.provenance.evidenceBasis,'unknown');
@@ -337,12 +506,14 @@ try {
   assert(observedUrls.filter(url=>new URL(url).pathname.includes('/api/atlas/editing/v1/')&&new URL(url).pathname.endsWith('/place')).length>placeReadsAfterReview,'Explicit confirmation loads native place');
   // A second explicitly saved unsent file exercises consented logout cleanup.
   // It never invokes evidence upload and is not an interrupted/replayed attempt.
+  cdp.setPhase('logout-local-save');
   await selectFile('photos',join(fixtures,name));
   await evaluate(`(()=>{const f=document.querySelector(${JSON.stringify(form)});f.querySelector('[name=statement]').value='Synthetic logout cleanup draft';f.querySelector('[name=reason]').value='Remove generated local file before sign out';const l=f.querySelector('[name=license]');l.value='0';l.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector(${JSON.stringify(panel+' input[type=checkbox]')}).click();})()`);
   await click('Save local draft');
   await until(async()=>await evaluate(`document.querySelector(${JSON.stringify(panel)}).textContent.includes('Unsent draft saved on this browser.')`),'Explicit logout-cleanup draft save');
   assert.equal((await localRows()).length,1);assert.equal(uploadRequests.length,1);
   await click('Close');await evaluate("location.hash='#settings'");
+  cdp.setPhase('consented-logout');
   await until(async()=>await evaluate(`Boolean([...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Sign out'&&b.getClientRects().length&&!b.disabled))`),'Sign out action');
   await click('Sign out');
   await until(async()=>await evaluate(`Boolean(document.querySelector('[role=dialog][aria-labelledby="capture-logout-heading"]'))`),'Explicit logout choices');
@@ -352,10 +523,10 @@ try {
   assert.deepEqual(await localRows(),[],'Explicit cleanup removed local captures before normal logout');assert.equal(uploadRequests.length,1,'Logout cleanup does not submit');
   rows.push({case:'healthy-save-reopen-confirm',name,type,method,assetId,evidenceId:evidence.recordId,sha256:asset.payload.sha256,byteSize:input.length,localSaveUploads:0,reviewUploads:0,confirmedUploads:1,normalReopenBytesMatch:true,localReviewBytesMatch:true,localAcknowledgedRemoved:true,durableUnknownBeforeDispatch:true,receiptMarkerCorrelated:true,explicitLogoutCleanup:true,logoutUploads:0,returnedBytesMatch:true,canonicalReads:sessionReads,freshPlaceReads:placeReads,mobileEmulationOnly:true});
   assert(observedUrls.every(url=>url.startsWith(origin+'/')||url.startsWith('blob:'+origin+'/')),'Observed page requests remain loopback');
+  await cdp.drain(sessionId, request.requestId);
   assert.equal(runtimeErrors.length,0); assert.equal(cdp.blocked,0);assert.equal(cdp.transportError,undefined);
   const result={source,browser:version.product,rows,controls,observedRequests:observedUrls.length,scope:'Source-only proposed actual React/native loopback TLS; synthetic Files only; no camera permission or iPhone claim'};
-  if(process.env.HOUSEATLAS_EVIDENCE)writeFileSync(process.env.HOUSEATLAS_EVIDENCE,JSON.stringify(result,null,2)+'\n');
-  console.log(JSON.stringify(result,null,2));
+  completedResult = result;
   })()]);
 } catch (error) { primaryError = error; }
 finally {
@@ -365,6 +536,18 @@ finally {
   cdp?.cancelPending(stopped);
   try { await stopAll(); } catch (error) { cleanupError = error; }
 }
+if (!primaryError && cdp?.transportError) primaryError = new Error('Interception error after final assertion');
+if (!primaryError && runtimeErrors.length) primaryError = new Error('Runtime error after final assertion');
+if (!primaryError && cdp?.blocked) primaryError = new Error('Blocked off-origin request after final assertion');
+if (!primaryError && cdp && !observedUrls.every(url => url.startsWith(cdp.allowedOrigin + '/') || url.startsWith('blob:' + cdp.allowedOrigin + '/')))
+  primaryError = new Error('Observed off-origin request after final assertion');
+if (primaryError || cleanupError) console.error(JSON.stringify({ kind: 'interception-diagnostics', status: 'FAILED',
+  primaryFailure: Boolean(primaryError), cleanupStatus: cleanupError ? 'failed' : 'completed',
+  ownedChildren: owned.map(entry => ({ label: entry.label, pid: entry.child.pid ?? null, closed: entry.closed, groupGone: entry.groupGone })),
+  ...(cdp ? { interception: cdp.diagnostics('failed') } : { interception: null }) }));
 if (primaryError && cleanupError) throw new AggregateError([primaryError, cleanupError], 'Harness run and cleanup failed');
 if (primaryError) throw primaryError;
 if (cleanupError) throw cleanupError;
+const result = { ...completedResult, interception: cdp.diagnostics('passed') };
+if(process.env.HOUSEATLAS_EVIDENCE)writeFileSync(process.env.HOUSEATLAS_EVIDENCE,JSON.stringify(result,null,2)+'\n');
+console.log(JSON.stringify(result,null,2));
