@@ -444,6 +444,41 @@ async fn healthy() -> Result<(), Failure> {
             assert_eq!(entries[0]["state"], "committed");
             assert_eq!(entries[0]["target"], intent["target"]);
         }
+        // Page the two already committed binding events through the actual
+        // authenticated MCP owner. The second frame carries its returned opaque
+        // cursor with the same target and query; no event or cursor is fabricated.
+        let first_history = json!({"schemaVersion":3,"commandId":"atlas.binding.history",
+            "requestId":id(1521),"context":context,"target":target("binding",930),
+            "payload":{"pageSize":1,"cursor":null,"includeArchived":false,
+                "q":"atlas.binding."}});
+        let first = client.call(&mut session, &first_history).await;
+        let cursor = first["data"]["nextCursor"]
+            .as_str()
+            .ok_or("Healthy MCP history continuation required")?
+            .to_owned();
+        let mut second_history = first_history.clone();
+        second_history["requestId"] = json!(id(1522));
+        second_history["payload"]["cursor"] = json!(cursor);
+        let second = client.call(&mut session, &second_history).await;
+        for (page, intent, audit_id) in [
+            (&first, &binding, &outcomes[1]["data"]["auditIds"][0]),
+            (&second, &review, &outcomes[2]["data"]["auditIds"][0]),
+        ] {
+            assert_eq!(page["status"], "read");
+            assert_eq!(page["data"]["completeness"], "atlas-owned-audit");
+            let entries = page["data"]["entries"]
+                .as_array()
+                .ok_or("Missing paged MCP history")?;
+            assert_eq!(entries.len(), 1);
+            let parsed = wire::StockRequest::parse(&wire::StockValidation::new()?, intent.clone())?;
+            assert_eq!(&entries[0]["eventId"], audit_id);
+            assert_eq!(entries[0]["commandId"], intent["commandId"]);
+            assert_eq!(entries[0]["requestDigest"], parsed.intent_digest());
+            assert_eq!(entries[0]["actorId"], id(7));
+            assert_eq!(entries[0]["state"], "committed");
+            assert_eq!(entries[0]["target"], intent["target"]);
+        }
+        assert_eq!(second["data"]["nextCursor"], Value::Null);
         session.close();
     }
     drop(core);
