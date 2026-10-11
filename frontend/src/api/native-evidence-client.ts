@@ -212,7 +212,14 @@ export function createNativeEvidenceClient(options: {
     const abort = (reason: unknown, failure: 'caller-canceled' | 'context-changed' | 'commit-deadline') => {
       if (!active.signal.aborted) { onStop?.(failure); active.abort(reason); }
     };
-    const forward = () => abort(outer.reason, 'caller-canceled');
+    const forward = () => {
+      if (active.signal.aborted) return;
+      // The mounted host can clear its outer controller on a context change
+      // before this operation's context subscriber runs. Keep its exact reason.
+      let failure: 'caller-canceled' | 'context-changed' = 'caller-canceled';
+      try { current(binding, undefined, owner); } catch { failure = 'context-changed'; }
+      abort(outer.reason, failure);
+    };
     const unsubscribe = options.subscribe(() => { try { current(binding, undefined, owner); } catch (error) { abort(error, 'context-changed'); } });
     outer.addEventListener('abort', forward, { once: true });
     let reject!: (reason: unknown) => void;

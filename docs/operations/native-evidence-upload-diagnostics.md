@@ -19,6 +19,10 @@ also rechecks the actual binding and session owner without the aborted signal:
 an ordinary host Error caused by expired or replaced custody is categorized as
 context-changed without inspecting its message or replacing the original error.
 This observation does not relax the host's session eligibility checks.
+When the caller aborts, the forwarder checks current custody without the already
+aborted outer signal before recording its category. This distinguishes a mounted
+host clearing work after a session/home change from an independent caller cancel,
+preserves the caller's exact reason, and leaves any earlier terminal stop intact.
 
 Fixed categories distinguish the commit deadline, a changed context, caller
 cancellation, response idle, transport failure, response reading/decoding failure
@@ -53,6 +57,7 @@ node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs exchange-sess
 node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs throwing-observer-transport
 node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs throwing-observer-intake-rejection
 node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs throwing-observer-committed
+node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs host-context-change-ordered
 ```
 
 Each command creates one synthetic PDF and admission, runs the actual client
@@ -72,6 +77,13 @@ a throwing view callback before another observer and check both an original
 transport failure, a validated intake rejection and a closed committed result.
 The committed case's existing receipt UI still shows its legitimate evidence
 statement and selection claim; the separate upload diagnostic exposes neither.
+The ordered-host case registers the mounted form's source-backed clearing
+behavior before commit, changes a synthetic home binding during the sole fake
+POST, then invokes the host subscriber before the bounded-operation subscriber.
+It checks that the host's original outer AbortError is preserved while the
+diagnostic reports context-changed, retains UNKNOWN and blocks another prepare.
+It models subscription order and statically renders the pending view; it does
+not claim an interactive mounted React or browser check.
 
 Checks retain thrown error identity where the transport supplies it, verify
 phase/status and bounded observations, and statically render the actual pending

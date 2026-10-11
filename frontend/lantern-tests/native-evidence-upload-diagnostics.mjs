@@ -47,7 +47,8 @@ async function load(relative) {
 const { createNativeEvidenceClient } = await import(await load('api/native-evidence-client.ts'));
 const cases = new Set(['waiting-headers-transport', 'waiting-headers-deadline', 'caller-canceled', 'context-changed',
   'reading-response-transport', 'reading-response-idle', 'response-validation', 'correlated-intake-rejection',
-  'owner-session-expired', 'exchange-session-expired', 'throwing-observer-transport', 'throwing-observer-intake-rejection', 'throwing-observer-committed']);
+  'owner-session-expired', 'exchange-session-expired', 'throwing-observer-transport', 'throwing-observer-intake-rejection', 'throwing-observer-committed',
+  'host-context-change-ordered']);
 const name = process.argv[2];
 assert(cases.has(name), 'Select exactly one documented diagnostic case');
 const uuid = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -69,6 +70,8 @@ let binding = Object.freeze({ scope: Object.freeze({ ...scope }) });
 const owner = {}, otherOwner = {};
 const calls = [], observations = [], listeners = new Set();
 let currentBinding = binding, capturedReason, armed = false, lateResponse;
+let hostListener, hostAbortReason, hostNotifications = 0;
+const notificationOrder = [];
 const genuineSessionCase = ['owner-session-expired', 'exchange-session-expired'].includes(name);
 const sessionExpiry = new Date(Date.now() + 60000).toISOString();
 const session = { schemaVersion: 1, actorId: uuid(907), csrfToken: 'synthetic-private-csrf', expiresAt: sessionExpiry };
@@ -94,6 +97,19 @@ const options = { getBinding: () => currentBinding, owner: actual => actual === 
     if (name === 'context-changed') {
       currentBinding = Object.freeze({ scope: binding.scope });
       for (const listener of [...listeners]) listener();
+      return never();
+    }
+    if (name === 'host-context-change-ordered') {
+      assert.equal(listeners.size, 2, 'mounted host and in-flight bounded operation are both subscribed');
+      assert.equal([...listeners][0], hostListener, 'mounted host was subscribed before commit');
+      currentBinding = Object.freeze({ scope: Object.freeze({ ...scope, homeId: uuid(915) }) });
+      for (const listener of [...listeners]) {
+        notificationOrder.push(listener === hostListener ? 'host' : 'bounded'); listener();
+        if (listener === hostListener) {
+          assert(signal.aborted, 'host clearing aborts the in-flight operation before its own context subscriber runs');
+          assert.equal(signal.reason, outer.signal.reason, 'the original outer reason is forwarded unchanged');
+        }
+      }
       return never();
     }
     if (name === 'reading-response-transport') return new Response(new ReadableStream({ start(controller) { controller.error(originalFailure); } }), { status: 502 });
@@ -143,6 +159,12 @@ async function actualNativePlaceClient() {
 }
 const client = genuineSessionCase ? await actualNativePlaceClient() : createNativeEvidenceClient(options);
 if (genuineSessionCase) { binding = client.getBinding(); assert(binding); currentBinding = binding; }
+// NativePlaceEvidence's mounted useLayoutEffect subscribes before a later
+// commit. Its clear() calls active.current?.abort() without replacing the reason.
+// Model that source-backed ordering; this is not an interactive React mount.
+const unsubscribeHost = name === 'host-context-change-ordered' ? client.subscribe(hostListener = () => {
+  if (client.getBinding() !== binding) { hostNotifications++; outer.abort(); hostAbortReason = outer.signal.reason; }
+}) : () => undefined;
 let observerCalls = 0;
 if (name.startsWith('throwing-observer-')) client.subscribePending(() => { observerCalls++; throw new Error('SYNTHETIC_PRIVATE_OBSERVER_ERROR'); });
 client.subscribePending(() => {
@@ -172,6 +194,7 @@ let thrown, result;
 try { result = await client.commit(prepared, outer.signal); }
 catch (error) { thrown = error; }
 finally { globalThis.setTimeout = realSetTimeout; globalThis.clearTimeout = realClearTimeout; fakeTimers.clear(); }
+unsubscribeHost();
 assert.equal(listeners.size, 0, 'bounded commit subscriptions are removed');
 assert.equal(calls.filter(call => call.method === 'POST').length, 1, 'one fake POST only');
 if (genuineSessionCase) {
@@ -183,8 +206,13 @@ if (genuineSessionCase) {
   // custody. This sends no GET/POST and changes no production expiry authority.
   session.expiresAt = sessionExpiry;
 }
-if (name === 'context-changed') {
+if (['context-changed', 'host-context-change-ordered'].includes(name)) {
   assert.equal(thrown, capturedReason);
+  if (name === 'host-context-change-ordered') {
+    assert.deepEqual(notificationOrder, ['host', 'bounded']); assert.equal(hostNotifications, 1);
+    assert.equal(thrown, hostAbortReason); assert.equal(thrown, outer.signal.reason);
+    assert.equal(thrown.name, 'AbortError', 'the mounted host abort remains the original reason, not a classifier error');
+  }
   assert.equal(client.getBinding(), currentBinding);
   assert.deepEqual(client.pending(currentBinding), [], 'superseded attempt is not exposed in a different binding');
   // Restore the same synthetic binding to inspect retained private custody; no read or retry is dispatched.
@@ -214,6 +242,7 @@ const expected = {
   'throwing-observer-transport': ['waiting-for-response-headers', 'transport-failed', null],
   'throwing-observer-intake-rejection': ['validating-response', null, 408],
   'throwing-observer-committed': ['validating-response', null, 200],
+  'host-context-change-ordered': ['waiting-for-response-headers', 'context-changed', null],
 }[name];
 assert.deepEqual([diagnostic.phase, diagnostic.failure, diagnostic.httpStatus], expected);
 if (name === 'throwing-observer-committed') {
