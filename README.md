@@ -305,6 +305,34 @@ node frontend/lantern-tests/scene-controls-keyboard-browser.mjs
 If the sandbox denies the loopback bind, rerun only this inspected fixture
 through the approved local-test route.
 
+Issue #150 has nine separately selected drawing pagination browser checks.
+Inspect the complete runner, its production component and its synthetic PNG
+fixture before these exact commands. Use Node 26.10.0, an inspected browser and
+an owned private output directory outside the checkout:
+
+```sh
+export HOUSEATLAS_CHROMIUM=/absolute/inspected/chromium
+export HOUSEATLAS_FIXTURE_EVIDENCE=/absolute/private/drawing-150-result
+node frontend/lantern-tests/native-scene-drawing-150.mjs --case first-match
+node frontend/lantern-tests/native-scene-drawing-150.mjs --case middle-match
+node frontend/lantern-tests/native-scene-drawing-150.mjs --case last-match
+node frontend/lantern-tests/native-scene-drawing-150.mjs --case missing-match
+node frontend/lantern-tests/native-scene-drawing-150.mjs --case page-bound
+node frontend/lantern-tests/native-scene-drawing-150.mjs --case close-cleanup
+node frontend/lantern-tests/native-scene-drawing-150.mjs --case selection-during-open
+node frontend/lantern-tests/native-scene-drawing-150.mjs --case selection-after-show
+node frontend/lantern-tests/native-scene-drawing-150.mjs --case blob-read-failure
+```
+
+The runner mounts the actual drawing component with fake document ports, uses
+numeric loopback static content and a fresh owned browser profile, and removes
+its scratch state within a 120-second budget. No provider, account, household
+file or external transport fallback exists. Selection races and the Blob failure
+belong only to the separate synthetic concurrency/failure-injection regression lane;
+these cases are outside ordinary
+CI and do not qualify native grant revocation, original verification or deployment.
+See [the issue-specific scope](docs/geometry/drawing-evidence-lookup-150.md).
+
 The retained fixture reader has one named positive using generated rooms,
 drawings and fake current document/geometry ports. Inspect its full body and
 listed production imports before this narrower local command. It opens no
