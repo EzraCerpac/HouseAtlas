@@ -26,6 +26,18 @@ export interface NativeSceneSourceSelection {
   readonly sourceFloorBindings: readonly NativeSceneFloorBinding[];
   /** Separately reviewed sheet/page -> current native PDF join. Never supplied by stored scene text. */
   readonly drawingReferences?: readonly NativeSceneDrawingPdfReference[];
+  /** Exact reviewed historical original; a separate read lease protects its provenance bridge. */
+  readonly drawingSupport?: Readonly<{ evidenceId: string; evidenceRevision: number; assetId: string;
+    assetRevision: ExactDecimal; originalSha256: string; reviewMarker: string }>;
+}
+
+/** View-only provenance. These pins describe unchanged historical bytes and
+ * the separate current native review used by room filters; no stored ledger is rewritten. */
+export interface NativeSceneDrawingProvenance {
+  readonly historicalRoomMappingReceipt: Readonly<{ id: string; sha256: string }>;
+  readonly fixtureLedgerSha256: string;
+  readonly supportOriginalSha256: string;
+  readonly currentNativeRoomReview: Readonly<{ id: string; sha256: string }>;
 }
 
 export interface NativeSceneDrawingPdfReference {
@@ -93,6 +105,7 @@ export interface NativeSceneSourceFrame {
   readonly electricalFixtures: NativeSceneSubset<ElectricalFixtureData>;
   /** Qualified documentary joins only; fresh native document admission is still required on click. */
   readonly drawingReferences?: readonly NativeSceneDrawingPdfReference[];
+  readonly drawingProvenance?: NativeSceneDrawingProvenance;
   readonly document: NativeEvidenceDocumentFrame;
   readonly geometry: NativeGeometryFrame;
 }

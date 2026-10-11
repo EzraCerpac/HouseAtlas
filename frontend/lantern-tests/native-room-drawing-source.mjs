@@ -25,7 +25,7 @@ const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const png = readFileSync(join(frontend, 'capture-evidence-tests/fixtures/synthetic-image.png'));
 const pdf = readFileSync(join(frontend, 'capture-evidence-tests/fixtures/synthetic-document.pdf'));
 const input = { name, png: png.toString('base64'), pdf: pdf.toString('base64'), pngSha: hash(png), pdfSha: hash(pdf) };
-const production = ['frontend/integration/native-scene-source-client.ts', 'frontend/src/lantern/scans/native-scene-source-types.ts',
+const production = ['frontend/integration/native-scene-association-client.ts','frontend/integration/native-scene-documentary-support.ts','frontend/integration/main.tsx','frontend/src/lantern/scans/native-ui/NativeSceneAssociation.tsx','frontend/integration/native-scene-source-client.ts', 'frontend/src/lantern/scans/native-scene-source-types.ts',
   'frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx', 'frontend/src/lantern/scans/native-ui/NativeSceneLayers.tsx'];
 const report = { name, sourceHead: execFileSync('git', ['rev-parse', 'HEAD'], {cwd: root, encoding:'utf8'}).trim(),
   sourcePins: Object.fromEntries(production.map(p => [p, hash(readFileSync(join(root,p)))])), node: process.version, results: [] };
@@ -64,52 +64,116 @@ class CDP {
     this.child.stdio[3].write(JSON.stringify({id,method,params,...(sessionId?{sessionId}:{})})+'\0',error=>{if(error){clearTimeout(timer);this.pending.delete(id);no(error);}});
   }); }
 }
-async function fixture(ExactDecimal) {
+async function fixture(ExactDecimal,createNativeSceneAssociationClient) {
   const U = n => '00000000-0000-4000-8000-'+String(n).padStart(12,'0');
-  const sha = async bytes => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(x=>x.toString(16).padStart(2,'0')).join('');
+  const hashText = async text => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text)))).map(x=>x.toString(16).padStart(2,'0')).join('');
+  const canonical = v => v===null||typeof v!=='object'?JSON.stringify(v):Array.isArray(v)?'['+v.map(canonical).join(',')+']':'{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canonical(v[k])).join(',')+'}';
   const bytes = value => Uint8Array.from(atob(value),c=>c.charCodeAt(0));
-  const pdf = new Blob([bytes(window.__input.pdf)],{type:'application/pdf'}), png = new Blob([bytes(window.__input.png)],{type:'image/png'});
+  const pdf = new Blob([bytes(window.__input.pdf)],{type:'application/pdf'}), png = new Blob([bytes(window.__input.png)],{type:'image/png'}),one=ExactDecimal.parse('1');
   const sheet = { id:'synthetic-sheet',title:'Synthetic room drawing',pdfPage:1,originalPhoto:'originals/synthetic.jpg',
     originalPhotoSha256:'c'.repeat(64),renderedPhotoSha256:window.__input.name==='png-legacy'?window.__input.pngSha:'d'.repeat(64),sourceDate:null,regionIds:[] };
-  const canonical='{"id":"synthetic-room-receipt"}', receipt={id:'synthetic-room-receipt',sha256:await sha(new TextEncoder().encode(canonical))};
-  const stored={schema:'houseatlas.native-scene-source.v2',receiptCanonicalJson:canonical,
-    rooms:{status:'unavailable',reason:'not-retained',receiptId:receipt.id,receiptSha256:receipt.sha256,entries:null,regions:null},
+  const roomMappingJson='{"receiptId":"synthetic-old-room-receipt"}',oldSha=await hashText(roomMappingJson);
+  const ledger={schema:'houseatlas.documentary-electrical-fixtures.v1',viewKey:'documentary-only',interpretationDate:'2026-10-11',
+    symbolLegend:{xMeansSocket:null,socketsPerX:null,receiptId:null},roomMappingReceipt:{id:'synthetic-old-room-receipt',sha256:oldSha},registrationReceipts:[],sheets:[sheet],groups:[],regions:[],fixtures:[]};
+  const ledgerJson=JSON.stringify(ledger),ledgerSha=await hashText(ledgerJson);
+  const crosswalk=canonical({profile:'houseatlas.documentary-sheet-pdf-correlation.v1',correlationId:'synthetic-reviewed-correlation',fixtureLedgerSha256:ledgerSha,
+    pdf:{workspaceId:U(1),homeId:U(2),buildingId:U(3),evidenceId:U(7),evidenceRevision:1,assetId:U(8),assetRevision:1,sha256:window.__input.pdfSha,byteSize:pdf.size},
+    references:[{sheetId:sheet.id,pdfPage:1,originalPhotoSha256:sheet.originalPhotoSha256,renderedPhotoSha256:sheet.renderedPhotoSha256,pdfEmbeddedImageSha256:'f'.repeat(64)}]});
+  const crosswalkSha=await hashText(crosswalk),sourceReview='{"observation":"generated-only photo/page review"}';
+  const review=canonical({profile:'houseatlas.documentary-sheet-pdf-review.v1',reviewId:'synthetic-independent-review',crosswalkSha256:crosswalkSha,roomMappingSha256:oldSha,
+    sourceReviewJson:sourceReview,sourceReviewSha256:await hashText(sourceReview)}),reviewSha=await hashText(review);
+  const supportJson=JSON.stringify({schema:'houseatlas.documentary-scene-support.v1',roomMapping:{json:roomMappingJson,sha256:oldSha},fixtureLedger:{json:ledgerJson,sha256:ledgerSha},
+    crosswalk:{json:crosswalk,sha256:crosswalkSha},review:{json:review,sha256:reviewSha}});
+  const hasSupport=!['png-legacy','missing-correlation'].includes(window.__input.name),historicalText=hasSupport?supportJson:roomMappingJson,historicalSha=await hashText(historicalText);
+  const anchors=[{id:'source-anchor',sourceFloorKey:'synthetic-floor',sourceOriginalSha256:'a'.repeat(64),targets:[{packagePlaceKey:'synthetic-room',packagePlaceUuid:U(6)}],unresolvedLabels:[]}];
+  const literal=canonical({profile:'houseatlas.native-scene-room-review.v1',receiptId:'synthetic-new-native-review',sourceReceiptSha256:historicalSha,anchors}),receiptSha=await hashText(literal);
+  if(!hasSupport)ledger.roomMappingReceipt={id:'synthetic-new-native-review',sha256:receiptSha};
+  const stored={schema:'houseatlas.native-scene-source.v2',receiptCanonicalJson:literal,
+    rooms:{status:'available',reason:null,receiptId:'synthetic-new-native-review',receiptSha256:receiptSha,entries:[],regions:[]},
     network:{status:'unavailable',reason:'not-retained',source:null,devices:null,endpoints:null,links:null},
     electricity:{status:'unavailable',reason:'not-retained',documentarySource:null,roomRegistry:null,buildingPackageKey:null,retrievedAt:null},
-    electricalFixtures:{status:'available',reason:null,documentaryFixtures:{schema:'houseatlas.documentary-electrical-fixtures.v1',
-      viewKey:'documentary-only',interpretationDate:'2026-10-11',symbolLegend:{xMeansSocket:null,socketsPerX:null,receiptId:null},
-      roomMappingReceipt:receipt,registrationReceipts:[],sheets:[sheet],groups:[],regions:[],fixtures:[]}}};
-  const text=JSON.stringify(stored), sceneSha=await sha(new TextEncoder().encode(text)), one=ExactDecimal.parse('1');
-  const selection={sessionIdentity:{},workspaceId:U(1),homeId:U(2),buildingId:U(3),viewKey:'9'.repeat(64),
-    expiresAt:new Date(Date.now()+300000).toISOString(),sceneEvidenceId:U(4),sceneAssetId:U(5),
-    sceneOriginalSha256:sceneSha,sceneEvidenceRevision:1,sceneAssetRevision:one,
-    acceptedRoomReceiptId:receipt.id,acceptedRoomReceiptSha256:receipt.sha256,
-    acceptedRoomAnchors:[{id:'source-anchor',sourceFloorKey:'synthetic-floor',sourceOriginalSha256:'a'.repeat(64),targets:[{packagePlaceKey:'synthetic-room',packagePlaceUuid:U(6)}],unresolvedLabels:[]}],sourceFloorBindings:[]};
-  const reference={correlationId:'synthetic-reviewed-correlation',correlationSha256:'e'.repeat(64),
-    workspaceId:selection.workspaceId,homeId:selection.homeId,buildingId:selection.buildingId,viewKey:selection.viewKey,
-    sceneOriginalSha256:sceneSha,sceneEvidenceId:U(4),sceneEvidenceRevision:1,sceneAssetId:U(5),sceneAssetRevision:one,
-    sheetId:sheet.id,pdfPage:sheet.pdfPage,originalPhotoSha256:sheet.originalPhotoSha256,renderedPhotoSha256:sheet.renderedPhotoSha256,
-    evidenceId:U(7),evidenceRevision:1,assetId:U(8),assetRevision:one,assetSha256:window.__input.pdfSha,byteSize:ExactDecimal.parse(String(pdf.size))};
-  if(!['png-legacy','missing-correlation'].includes(window.__input.name))selection.drawingReferences=[reference];
-  if(window.__input.name==='stale-correlation')reference.sceneAssetId=U(99);
-  const sourceDocument={lease:{},evidenceId:U(4),evidenceRevision:1,mode:'original-download',
-    asset:{assetId:U(5),revision:one,sha256:sceneSha,contentType:'text/plain'}};
-  const geometry={viewKey:selection.viewKey,descriptor:{viewKey:selection.viewKey,buildingId:U(3),scope:{workspaceId:U(1),homeId:U(2)},floors:[]}};
-  return {selection,reference,sheet,geometry,sourceDocument,sourceBlob:new Blob([text],{type:'text/plain'}),pdf,png,one,U};
+    electricalFixtures:{status:'available',reason:null,documentaryFixtures:ledger}};
+  const text=JSON.stringify(stored),sceneSha=await hashText(text),marker='\n[HouseAtlas drawing review v1 support:'+historicalSha+' crosswalk:'+crosswalkSha+' review:'+reviewSha+']';
+  const scope={workspaceId:U(1),homeId:U(2)},context={sessionIdentity:{},session:{schemaVersion:1,actorId:'synthetic-actor',csrfToken:'synthetic-only',expiresAt:new Date(Date.now()+300000).toISOString()},
+    view:{scope,canEdit:true},admission:{scope,revision:1,commandIds:['atlas.scene-association.create']}};
+  const geometry={viewKey:'9'.repeat(64),descriptor:{viewKey:'9'.repeat(64),buildingId:U(3),scope,floors:[]},floors:[]};
+  const sourceDocument={lease:{},evidenceId:U(4),evidenceRevision:1,mode:'original-download',asset:{assetId:U(5),revision:one,sha256:sceneSha,contentType:'text/plain'}};
+  const historicalFrame=()=>({lease:{},evidenceId:U(9),evidenceRevision:1,mode:'original-download',asset:{assetId:U(10),revision:one,sha256:historicalSha,contentType:'text/plain'}});
+  const sourceBlob=new Blob([text],{type:'text/plain'}),historicalBlob=new Blob([historicalText],{type:'text/plain'});
+  const supportOwners=[],stats={gets:0,posts:0,constructorReads:0,confirmationRefused:false,unknownPreserved:false};
+  const makeReview=()=>{
+    let current=null,callback=()=>{};let disposed=false;
+    const client={async open(id,signal){if(signal.aborted)throw signal.reason;if(disposed)throw Error('Disposed synthetic owner');
+      if(id===U(9)){current=historicalFrame();if(window.__input.name==='stale-correlation')current.evidenceRevision=2;}
+      else if(id===U(7)){current={lease:{},evidenceId:id,evidenceRevision:1,mode:'original-download',asset:{assetId:U(8),revision:one,sha256:window.__input.pdfSha,byteSize:ExactDecimal.parse(String(pdf.size)),contentType:'application/pdf',purpose:'evidence-original',previewPolicy:'download-only'}};}
+      else throw Error('Synthetic review target');return current;},isCurrent:f=>!disposed&&f===current,
+      getBlob:f=>f===current?(f.evidenceId===U(9)?historicalBlob:pdf):null,
+      subscribeInvalidation(f,changed){callback=changed;return()=>{callback=()=>{};};},release(f){if(current===f){current=null;callback();}},dispose(){disposed=true;current=null;},
+      invalidate(){current=null;callback();}};supportOwners.push(client);return client;
+  };
+  const p={profile:'houseatlas.native-scene-association.v1',buildingId:U(3),associationVersion:1,previousAssociationId:null,reviewStatus:'accepted',reviewStatement:'Reviewed synthetic sources'+(hasSupport?marker:''),
+    sourceDocuments:[{role:'primary-scene',evidenceId:U(4),evidenceRevision:1,originalAssetId:U(5),originalAssetRevision:1,originalSha256:sceneSha,contentType:'text/plain'},
+      {role:'documentary-sheet',evidenceId:U(9),evidenceRevision:1,originalAssetId:U(10),originalAssetRevision:1,originalSha256:historicalSha,contentType:'text/plain'}],
+    acceptedReceipt:{receiptId:'synthetic-new-native-review',canonicalJson:literal,canonicalSha256:receiptSha,anchors},sourceFloors:[],roomMappings:[]};
+  const record={schemaVersion:1,recordType:'scene-association',recordId:U(11),workspaceId:U(1),homeId:U(2),revision:1,lifecycle:'active',createdAt:'2026-10-11T00:00:00Z',updatedAt:'2026-10-11T00:00:00Z',lastAuditId:U(12),payload:p};
+  const primaryReview={async open(){return sourceDocument;},isCurrent:f=>f===sourceDocument,getBlob:()=>sourceBlob,subscribeInvalidation:()=>()=>{},release(){},dispose(){}};
+  const historic=historicalFrame(),historicalReview={async open(){return historic;},isCurrent:f=>f===historic,getBlob:()=>historicalBlob,subscribeInvalidation:()=>()=>{},release(){},dispose(){}};
+  const associations=createNativeSceneAssociationClient({getContext:()=>context,subscribe:()=>()=>{},primaryReview,historicalReview,createDrawingReview:makeReview,geometryCurrent:g=>g===geometry,
+    async transport(url,init){
+      if(init.method==='POST'){stats.posts++;throw Error('Synthetic confirmed transport stop');}
+      stats.gets++;if(url.endsWith('/current'))return new Response(JSON.stringify({status:'available',association:record}),{headers:{'content-type':'application/json'}});
+      if(url.endsWith('/records/identity/'+U(3)))return new Response(JSON.stringify({schemaVersion:3,commandId:'atlas.identity.get',requestId:U(13),resolvedScope:scope,status:'read',replayed:false,
+        data:{sourceStatus:'current',nextCursor:null,records:[{target:{authority:'atlas',recordType:'identity',recordId:U(3)},revision:1,lifecycle:'active',payload:{kind:'location',evidenceIds:[U(4),U(7)]}}]}}),{headers:{'content-type':'application/json'}});
+      throw Error('Unexpected synthetic GET');}});
+  if(window.__input.name==='pdf-download'){
+    const old=p.reviewStatement;p.reviewStatement='Legacy room-only review';
+    const unreviewed=await associations.readCurrent(U(3),geometry,new AbortController().signal);
+    if(unreviewed.selection.drawingReferences!==undefined)throw Error('Unreviewed support granted references');p.reviewStatement=old;
+    const candidate={buildingId:U(3),primaryEvidenceId:U(4),historicalEvidenceId:U(9),sourceFloors:[],roomMappings:[],guards:[{target:{authority:'atlas',recordType:'identity',recordId:U(3)},revision:{kind:'atlas',value:1}}]};
+    const prepared=await associations.prepare(candidate,geometry,'Deliberate synthetic correlation review','Generated-only fixture',new AbortController().signal);
+    if(!prepared.drawingReview||!prepared.payload.reviewStatement.endsWith(marker))throw Error('Prepared support summary missing');
+    try{await associations.submit(prepared,geometry,new AbortController().signal);}catch{stats.confirmationRefused=stats.posts===0&&associations.pending(U(3)).length===0;}
+    if(!stats.confirmationRefused)throw Error('Support submitted without explicit review');
+    associations.releasePrepared(prepared);
+  }
+  const head=await associations.readCurrent(U(3),geometry,new AbortController().signal);stats.constructorReads++;
+  if(head.status!=='available')throw Error('Synthetic production constructor unavailable');
+  return {ledgerSha,oldSha,selection:head.selection,reference:head.selection.drawingReferences?.[0],sheet,geometry,sourceDocument,sourceBlob,pdf,png,one,U,makeReview,associations,supportOwners,stats,candidate:{buildingId:U(3),primaryEvidenceId:U(4),historicalEvidenceId:U(9),sourceFloors:[],roomMappings:[],guards:[{target:{authority:'atlas',recordType:'identity',recordId:U(3)},revision:{kind:'atlas',value:1}}]}};
 }
-async function app(createElement,useState,useLayoutEffect,createRoot,NativeSceneDrawing,createNativeSceneSourceClient,ExactDecimal) {
-  const h=createElement, f=await fixture(ExactDecimal), stats={opens:[],released:0,created:[],revoked:[],subscribed:0,unsubscribed:0,hiddenBeforeRelease:[],sourceWithdrawals:0};
-  window.__stats=stats;
+async function app(createElement,useState,useLayoutEffect,createRoot,NativeSceneDrawing,createNativeSceneSourceClient,ExactDecimal,createNativeSceneAssociationClient,NativeSceneAssociation) {
+  const h=createElement, f=await fixture(ExactDecimal,createNativeSceneAssociationClient), stats={opens:[],released:0,created:[],revoked:[],subscribed:0,unsubscribed:0,hiddenBeforeRelease:[],sourceWithdrawals:0};
+  window.__stats=stats;stats.constructor=f.stats;
+  window.__pendingUnknown=()=>f.associations.pending(f.U(3)).some(item=>item.outcome==='unknown');
   const create=URL.createObjectURL.bind(URL),revoke=URL.revokeObjectURL.bind(URL);
   URL.createObjectURL=blob=>{const url=create(blob);stats.created.push(url);return url;};
   URL.revokeObjectURL=url=>{stats.revoked.push(url);revoke(url);};
   let selectionChanged=()=>{};
-  const sourceClient=createNativeSceneSourceClient({getSelection:()=>f.selection,subscribeSelection:changed=>{selectionChanged=changed;return()=>{selectionChanged=()=>{};};},
+  const sourceClient=createNativeSceneSourceClient({getSelection:()=>f.selection,subscribeSelection:changed=>{selectionChanged=changed;return()=>{selectionChanged=()=>{};};},createDrawingReview:f.makeReview,
     geometry:{isCurrent:g=>g===f.geometry,subscribeInvalidation:()=>()=>{}},
     documents:{async open(id,signal){if(id!==f.selection.sceneEvidenceId||signal.aborted)throw Error('Synthetic source scope');return f.sourceDocument;},
       isCurrent:d=>d===f.sourceDocument,getBlob:()=>f.sourceBlob,subscribeInvalidation:()=>()=>{},release(){}}});
+  if(window.__input.name==='lifecycle'){
+    const probe=createNativeSceneSourceClient({getSelection:()=>f.selection,subscribeSelection:()=>()=>{},createDrawingReview:f.makeReview,
+      geometry:{isCurrent:g=>g===f.geometry,subscribeInvalidation:()=>()=>{}},
+      documents:{async open(){return f.sourceDocument;},isCurrent:d=>d===f.sourceDocument,getBlob:()=>f.sourceBlob,subscribeInvalidation:()=>()=>{},release(){}}});
+    const frame=await probe.open(f.selection,f.geometry,new AbortController().signal);let withdrawn=0;
+    probe.subscribeInvalidation(frame,()=>{withdrawn++;});f.supportOwners.at(-1).invalidate();
+    if(probe.isCurrent(frame)||withdrawn!==1)throw Error('Support original withdrawal did not retire source frame');
+    probe.dispose();stats.supportWithdrawal=true;
+  }
   const source=await sourceClient.open(f.selection,f.geometry,new AbortController().signal);
   stats.projected=source.drawingReferences.length;
+  if(source.drawingReferences.length){
+    const data=source.electricalFixtures.data;
+    if(data.roomMappingReceipt.id!==f.selection.acceptedRoomReceiptId||data.roomMappingReceipt.sha256!==f.selection.acceptedRoomReceiptSha256
+      ||data.sheets[0].renderedPhotoSha256!==f.sheet.renderedPhotoSha256)throw Error('Historical ledger/current native review bridge failed');
+    const proof=source.drawingProvenance;
+    if(!proof||proof.historicalRoomMappingReceipt.id!=='synthetic-old-room-receipt'||proof.historicalRoomMappingReceipt.sha256!==f.oldSha
+      ||proof.currentNativeRoomReview.id!==f.selection.acceptedRoomReceiptId||proof.currentNativeRoomReview.sha256!==f.selection.acceptedRoomReceiptSha256
+      ||proof.historicalRoomMappingReceipt.id===proof.currentNativeRoomReview.id||proof.historicalRoomMappingReceipt.sha256===proof.currentNativeRoomReview.sha256
+      ||proof.fixtureLedgerSha256!==f.ledgerSha)throw Error('Distinct historical and current provenance pins were not retained');
+    stats.provenanceBridge=true;
+  }
   const alive=new Set(),released=new Set(),listeners=new Map();
   const drawings={async open(id,signal){
     stats.opens.push(id);if(signal.aborted)throw signal.reason;
@@ -126,11 +190,12 @@ async function app(createElement,useState,useLayoutEffect,createRoot,NativeScene
   function App(){
     const [opened,setOpened]=useState(false),[available,setAvailable]=useState(true);
     useLayoutEffect(()=>sourceClient.subscribeInvalidation(source,()=>{stats.sourceWithdrawals++;setAvailable(false);setOpened(false);}),[]);
-    window.__withdrawSource=()=>{f.reference.correlationSha256='a'.repeat(64);selectionChanged();};
-    window.__shutdown=()=>{setOpened(false);sourceClient.dispose();};
-    return h('main',null,h('button',{id:'room-open',disabled:!available,onClick:()=>setOpened(true)},'Open room drawing'),
-      opened&&h(NativeSceneDrawing,{client:drawings,sheet:source.electricalFixtures.data.sheets[0],evidenceIds:[f.U(7)],
-        reference:source.drawingReferences[0],current:()=>available&&sourceClient.isCurrent(source),onClose:()=>setOpened(false)}));
+    window.__withdrawSource=()=>{f.selection={...f.selection,drawingReferences:f.selection.drawingReferences.map(r=>({...r,correlationSha256:'a'.repeat(64)}))};selectionChanged();};
+    window.__invalidateSupport=()=>{for(const owner of f.supportOwners)owner.invalidate();};
+    window.__shutdown=()=>{setOpened(false);sourceClient.dispose();f.associations.dispose();};
+    return h('main',null,window.__input.name==='pdf-download'&&h('div',{id:'association-review'},h(NativeSceneAssociation,{client:f.associations,candidate:f.candidate,geometry:f.geometry,canPrepare:true,hasUnsavedDraft:false,onSubmissionStarted:()=>{},onSubmissionSettled:()=>{}})),h('button',{id:'room-open',disabled:!available,onClick:()=>setOpened(true)},'Open room drawing'),
+      opened&&h(NativeSceneDrawing,{client:drawings,sheet:source.electricalFixtures.status==='available'?source.electricalFixtures.data.sheets[0]:f.sheet,evidenceIds:[f.U(7)],
+        reference:source.drawingReferences[0],provenance:source.drawingProvenance,current:()=>available&&sourceClient.isCurrent(source),onClose:()=>setOpened(false)}));
   }
   createRoot(document.getElementById('root')).render(h(App));
 }
@@ -171,12 +236,15 @@ try {
   report.owned={scratch,generated};
   const module=join(generated,'app.js'),index=join(generated,'index.html');
   const component=join(frontend,'src/lantern/scans/native-ui/NativeSceneDrawing.tsx');
+  const association=join(frontend,'integration/native-scene-association-client.ts');
   const reader=join(frontend,'integration/native-scene-source-client.ts'),decimal=join(frontend,'src/numeric/decimal.ts');
   writeFileSync(module,'import {createElement,useState,useLayoutEffect} from "react";import {createRoot} from "react-dom/client";\n'+
     'import {NativeSceneDrawing} from '+JSON.stringify(component)+';import {createNativeSceneSourceClient} from '+JSON.stringify(reader)+';\n'+
+    'import {createNativeSceneAssociationClient} from '+JSON.stringify(association)+';\n'+
+    'import {NativeSceneAssociation} from '+JSON.stringify(join(frontend,'src/lantern/scans/native-ui/NativeSceneAssociation.tsx'))+';\n'+
     'import {ExactDecimal} from '+JSON.stringify(decimal)+';import '+JSON.stringify(join(frontend,'src/lantern/scans/native-ui/native-scene.css'))+';\n'+
     'window.__input='+JSON.stringify(input)+';\n'+fixture.toString()+'\n'+app.toString()+'\n'+
-    'app(createElement,useState,useLayoutEffect,createRoot,NativeSceneDrawing,createNativeSceneSourceClient,ExactDecimal).catch(e=>{window.__failed=e.message;});');
+    'app(createElement,useState,useLayoutEffect,createRoot,NativeSceneDrawing,createNativeSceneSourceClient,ExactDecimal,createNativeSceneAssociationClient,NativeSceneAssociation).catch(e=>{window.__failed=e.message;});');
   writeFileSync(index,'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0}main{padding:8px}button,a{font-size:16px}.native-scene-drawing{box-sizing:border-box}h3,p{overflow-wrap:anywhere}</style><div id="root"></div><script type="module" src="/app.js"></script>');
   const dist=join(scratch,'dist');
   await build({configFile:false,root:generated,logLevel:'error',build:{outDir:dist,emptyOutDir:true,minify:false,rollupOptions:{input:index}}});
@@ -198,6 +266,26 @@ try {
   const key=async(key,code,number)=>{await send('Input.dispatchKeyEvent',{type:'keyDown',key,code,windowsVirtualKeyCode:number});await send('Input.dispatchKeyEvent',{type:'keyUp',key,code,windowsVirtualKeyCode:number});};
   await send('Page.navigate',{url:origin+'/'});
   await until(async()=>{const failed=await evaluate('window.__failed');assert(!failed,failed);return evaluate('Boolean(document.querySelector("#room-open"))');},'source projection and room action');
+  if(name==='pdf-download'){
+    assert.equal(await evaluate('window.__stats.constructor.confirmationRefused'),true);
+    assert.equal(await evaluate('window.__stats.constructor.posts'),0);
+    for(const [index,text]of [[0,'Explicit generated drawing review'],[1,'Synthetic review only']]){
+      await evaluate('document.querySelectorAll("#association-review textarea")['+index+'].focus()');
+      await send('Input.insertText',{text});
+    }
+    await evaluate('Array.from(document.querySelectorAll("#association-review button")).find(b=>b.textContent.trim()==="Review retained originals").click()');
+    await until(()=>evaluate('document.querySelector("#association-review h4")?.textContent==="Reference PDF review"'),'actual prepared support review');
+    assert.equal(await evaluate('Array.from(document.querySelectorAll("#association-review button")).find(b=>b.textContent.trim()==="Submit reviewed association").disabled'),true);
+    await evaluate('document.querySelector("#association-review input[type=checkbox]").scrollIntoView({block:"center"})');
+    await click('#association-review input[type=checkbox]');
+    await until(()=>evaluate('document.querySelector("#association-review input[type=checkbox]").checked && !Array.from(document.querySelectorAll("#association-review button")).find(b=>b.textContent.trim()==="Submit reviewed association").disabled'),'explicit confirmation enables submit');
+    await evaluate('Array.from(document.querySelectorAll("#association-review button")).find(b=>b.textContent.trim()==="Submit reviewed association").click()');
+    await until(()=>evaluate('window.__stats.constructor.posts===1'),'confirmed one fake POST');
+    await until(()=>evaluate('document.querySelector("#association-review")?.textContent.includes("unknown outcome")'),'actual unknown preservation');
+    assert.equal(await evaluate('window.__pendingUnknown()'),true);
+    await evaluate('window.__stats.constructor.unknownPreserved=true');
+    report.preparation={actualConstructor:true,unreviewedMarkerWithheld:true,unconfirmedNoPost:true,exactSummaryVisible:true,explicitCheckbox:true,confirmedFakePosts:1,unknownPreserved:true};
+  }
   const wantProjection=['pdf-download','wrong-correlation','lifecycle'].includes(name)?1:0;
   assert.equal(await evaluate('window.__stats.projected'),wantProjection);
   for(const width of [1280,312]){
@@ -214,6 +302,10 @@ try {
       await until(()=>evaluate('Boolean(document.querySelector(".native-scene-drawing a[download]"))'),'correlated PDF action');
       assert.equal(await evaluate('Boolean(document.querySelector(".native-scene-drawing img, embed, iframe"))'),false);
       assert.match(await evaluate('document.querySelector(".native-scene-drawing").textContent'),/Reference PDF page 1/);
+      assert.match(await evaluate('document.querySelector(".native-drawing-provenance").textContent'),/Historical room-mapping receipt.*synthetic-old-room-receipt.*Current native room review.*synthetic-new-native-review/s);
+      await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.textContent'),'Drawing source review');
+      await key('Enter','Enter',13);assert.equal(await evaluate('document.querySelector(".native-drawing-provenance").open'),true);
+      assert.match(await evaluate('document.querySelector(".native-drawing-provenance[open]").textContent'),/Historical room-mapping receipt.*synthetic-old-room-receipt.*Current native room review.*synthetic-new-native-review/s);
       await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.textContent'),'Download reference PDF');
       await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.textContent'),'Close drawing');
       if(name==='pdf-download'){
@@ -231,6 +323,7 @@ try {
     assert.equal(await evaluate('document.activeElement.id'),'room-open','Original room action focus restored');
   }
   if(name==='lifecycle'){
+    assert.equal(await evaluate('window.__stats.supportWithdrawal'),true);
     await click('#room-open');await until(()=>evaluate('Boolean(document.querySelector(".native-scene-drawing a[download]"))'),'PDF before withdrawal');
     await evaluate('window.__invalidate()');await until(()=>evaluate('!document.querySelector(".native-scene-drawing a[href]")'),'document withdrawal removes action');
     assert.equal(await evaluate('window.__stats.created.length'),await evaluate('window.__stats.revoked.length'));

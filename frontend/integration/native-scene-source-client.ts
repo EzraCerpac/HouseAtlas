@@ -1,3 +1,4 @@
+import { readDocumentarySupport, documentaryReferences, sameDocumentaryValue, type DocumentarySupport } from './native-scene-documentary-support';
 import { ExactDecimal, isExactDecimal } from '../src/numeric/decimal';
 import { parseLosslessJson, type LosslessJson } from '../src/numeric/lossless-json';
 import { admittedRoomRegions } from '../src/lantern/scans/presentation/room-region-model';
@@ -83,6 +84,8 @@ function selectionStamp(value: NativeSceneSourceSelection): string {
     value.sourceFloorBindings.map(f => [f.sourceFloorKey, f.sourceOriginalSha256,
       f.nativeFloorKey, f.nativeOriginalAssetId, f.nativeOriginalSha256,
       f.nativeGeometryId, f.nativeGeometryRevision.token]),
+    value.drawingSupport && [value.drawingSupport.evidenceId, value.drawingSupport.evidenceRevision, value.drawingSupport.assetId,
+      value.drawingSupport.assetRevision.token, value.drawingSupport.originalSha256, value.drawingSupport.reviewMarker],
     value.drawingReferences?.map(r => [r.correlationId, r.correlationSha256, r.workspaceId, r.homeId,
       r.buildingId, r.viewKey, r.sceneOriginalSha256, r.sceneEvidenceId, r.sceneEvidenceRevision,
       r.sceneAssetId, r.sceneAssetRevision?.token, r.sheetId, r.pdfPage,
@@ -416,7 +419,7 @@ function electricalFixtures(source: Row, viewKey: string, receiptId: string | nu
   const socketsPerX = count(legend.socketsPerX);
   const symbolReceipt = optional(legend.receiptId);
   const sourceReceipt = row(input.roomMappingReceipt, ['id','sha256']);
-  need(sourceReceipt.id === receiptId && sourceReceipt.sha256 === receiptSha);
+  if (sourceReceipt.id !== receiptId || sourceReceipt.sha256 !== receiptSha) return unavailable('not-qualified');
   // An actual reviewed registration is an independent host proof. This
   // source-only format admits no embedded proposed or accepted registration.
   need(list(input.registrationReceipts, 0).length === 0);
@@ -527,6 +530,8 @@ function electricalFixtures(source: Row, viewKey: string, receiptId: string | nu
 export interface NativeSceneSourceOptions {
   /** Dedicated evidence-document client instance; it owns one original lease at a time. */
   readonly documents: NativeEvidenceDocumentClient;
+  /** Separate owner per support interpretation; reading it cannot withdraw the primary original. */
+  readonly createDrawingReview?: () => NativeEvidenceDocumentClient;
   readonly geometry: NativeGeometryReadClient;
   /** Synchronous canonical host observation, never a document field. */
   getSelection(): NativeSceneSourceSelection | null;
@@ -538,10 +543,13 @@ export function createNativeSceneSourceClient(options: NativeSceneSourceOptions)
   let current: NativeSceneSourceFrame | null = null, document: NativeEvidenceDocumentFrame | null = null;
   let currentSelection: NativeSceneSourceSelection | null = null;
   let currentStamp: string | null = null;
-  type Attempt = { readonly generation: number; readonly controller: AbortController; frame: NativeEvidenceDocumentFrame | null };
+  type Attempt = { readonly generation: number; readonly controller: AbortController; frame: NativeEvidenceDocumentFrame | null;
+    supportOwner: NativeEvidenceDocumentClient | null; supportFrame: NativeEvidenceDocumentFrame | null };
+  let supportLease: Attempt | null = null;
   let pending: Attempt | null = null;
   let generation = 0, disposed = false, listeners = new Set<() => void>();
   let unsubscribeDocument: (() => void) | null = null, unsubscribeGeometry: (() => void) | null = null;
+  let unsubscribeSupport: (() => void) | null = null;
   let unsubscribeAbort: (() => void) | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   const released = new WeakSet<object>();
@@ -549,14 +557,18 @@ export function createNativeSceneSourceClient(options: NativeSceneSourceOptions)
     if (released.has(frame)) return; released.add(frame); options.documents.release(frame);
   };
   const clearOwned = () => {
-    const oldPending = pending, oldDocument = document;
+    const oldPending = pending, oldDocument = document, oldSupport = supportLease; supportLease = null;
     const previousListeners = listeners; listeners = new Set();
     pending = null; document = null; current = null; currentSelection = null; currentStamp = null;
     if (timer) clearTimeout(timer); timer = null;
     const stopDocument = unsubscribeDocument, stopGeometry = unsubscribeGeometry, stopAbort = unsubscribeAbort;
     unsubscribeDocument = null; unsubscribeGeometry = null; unsubscribeAbort = null;
+    const stopSupport = unsubscribeSupport; unsubscribeSupport = null;
     oldPending?.controller.abort(new NativeSceneSourceError());
-    stopAbort?.(); stopDocument?.(); stopGeometry?.();
+    stopAbort?.(); stopDocument?.(); stopGeometry?.(); stopSupport?.();
+    for (const item of new Set([oldPending, oldSupport])) if (item?.supportOwner) {
+      if (item.supportFrame) item.supportOwner.release(item.supportFrame); item.supportOwner.dispose();
+    }
     if (oldPending?.frame) releaseDocument(oldPending.frame);
     if (oldDocument) releaseDocument(oldDocument);
     for (const callback of previousListeners) { try { callback(); } catch { /* all listeners receive withdrawal */ } }
@@ -575,7 +587,7 @@ export function createNativeSceneSourceClient(options: NativeSceneSourceOptions)
     // Reserve before release/listener callbacks, any of which may reenter open.
     const reserved = ++generation; clearOwned();
     need(generation === reserved && !disposed && !signal.aborted);
-    const controller = new AbortController(), attempt: Attempt = { generation: reserved, controller, frame: null };
+    const controller = new AbortController(), attempt: Attempt = { generation: reserved, controller, frame: null, supportOwner: null, supportFrame: null };
     pending = attempt;
     const onAbort = () => { if (generation === reserved) withdraw(); };
     signal.addEventListener('abort', onAbort, { once: true });
@@ -681,9 +693,46 @@ export function createNativeSceneSourceClient(options: NativeSceneSourceOptions)
           unresolvedLabels: [...new Set(members.flatMap(anchor => anchor.unresolved))],
         } });
       }) : [];
+      let verifiedSupport: DocumentarySupport | null = null;
+      if (selection.drawingSupport && options.createDrawingReview) {
+        const expected = selection.drawingSupport;
+        attempt.supportOwner = options.createDrawingReview();
+        try {
+          const owner = attempt.supportOwner;
+          const opened = owner.open(expected.evidenceId, controller.signal);
+          void opened.then(late => { if (generation !== reserved || controller.signal.aborted) owner.release(late); }, () => undefined);
+          attempt.supportFrame = await abortable(opened, controller.signal); pinned();
+          const supportFrame = attempt.supportFrame;
+          const supportGuard = () => { pinned(); need(owner.isCurrent(supportFrame)); pinned(); };
+          supportGuard(); need(supportFrame.evidenceId === expected.evidenceId && supportFrame.evidenceRevision === expected.evidenceRevision
+            && supportFrame.asset.assetId === expected.assetId && supportFrame.asset.revision.compare(expected.assetRevision) === 0
+            && supportFrame.asset.sha256 === expected.originalSha256 && supportFrame.asset.contentType === 'text/plain');
+          const offSupport = owner.subscribeInvalidation(supportFrame, invalidated);
+          if (generation !== reserved) { offSupport(); throw new NativeSceneSourceError(); }
+          unsubscribeSupport = offSupport;
+          const blob = owner.getBlob(supportFrame); need(blob?.type === 'text/plain' && blob.size <= 8 * 1024 * 1024);
+          const bytes = new Uint8Array(await abortable(blob.arrayBuffer(), controller.signal)); supportGuard();
+          verifiedSupport = await readDocumentarySupport(bytes, supportGuard); supportGuard();
+          need(verifiedSupport && verifiedSupport.originalSha256 === expected.originalSha256
+            && verifiedSupport.reviewMarker === expected.reviewMarker && fixtureSource?.documentaryFixtures
+            && sameDocumentaryValue(verifiedSupport.fixtureLedger, fixtureSource.documentaryFixtures)
+            && sameDocumentaryValue(documentaryReferences(verifiedSupport, selection) as unknown as LosslessJson,
+              selection.drawingReferences as unknown as LosslessJson));
+        } catch {
+          pinned(); unsubscribeSupport?.(); unsubscribeSupport = null;
+          if (attempt.supportFrame) attempt.supportOwner.release(attempt.supportFrame);
+          attempt.supportOwner.dispose(); attempt.supportOwner = null; attempt.supportFrame = null; verifiedSupport = null;
+        }
+      }
       const fixtureSubset = fixtureSource === null ? unavailable('not-retained')
-        : electricalFixtures(fixtureSource, selection.viewKey, selection.acceptedRoomReceiptId,
-          selection.acceptedRoomReceiptSha256, anchors);
+        : selection.drawingSupport && !verifiedSupport ? unavailable('source-unavailable')
+        : electricalFixtures(fixtureSource, selection.viewKey,
+          verifiedSupport?.roomMapping.receiptId ?? selection.acceptedRoomReceiptId,
+          verifiedSupport?.roomMapping.originalSha256 ?? selection.acceptedRoomReceiptSha256, anchors);
+      // Keep the verified historical ledger receipt separate from current native acceptance.
+      const currentFixtures = fixtureSubset.status === 'available' && verifiedSupport
+        ? freeze({ status: 'available' as const, data: { ...fixtureSubset.data,
+          roomMappingReceipt: { id: selection.acceptedRoomReceiptId!, sha256: selection.acceptedRoomReceiptSha256! } } }) : fixtureSubset;
       const result: NativeSceneSourceFrame = Object.freeze({ lease: Object.freeze({}), viewKey: selection.viewKey,
         sourceEvidenceId: frame.evidenceId, sourceAssetId: frame.asset.assetId,
         sourceOriginalSha256: frame.asset.sha256, receiptId: selection.acceptedRoomReceiptId,
@@ -691,14 +740,18 @@ export function createNativeSceneSourceClient(options: NativeSceneSourceOptions)
         network: network(networkSource, selection.viewKey, selection.acceptedRoomReceiptId,
           selection.acceptedRoomReceiptSha256, anchors, bound),
         electricity: electricity(electricitySource, selection.viewKey),
-        electricalFixtures: fixtureSubset, drawingReferences: drawingReferences(selection, fixtureSubset),
-        document: frame, geometry });
+        electricalFixtures: currentFixtures, drawingReferences: drawingReferences(selection, currentFixtures),
+        ...(verifiedSupport && currentFixtures.status === 'available' ? { drawingProvenance: freeze({
+          historicalRoomMappingReceipt: { id: verifiedSupport.roomMapping.receiptId, sha256: verifiedSupport.roomMapping.originalSha256 },
+          fixtureLedgerSha256: verifiedSupport.fixtureLedgerSha256, supportOriginalSha256: verifiedSupport.originalSha256,
+          currentNativeRoomReview: { id: selection.acceptedRoomReceiptId!, sha256: selection.acceptedRoomReceiptSha256! },
+        }) } : {}), document: frame, geometry });
       pinned();
       document = frame; current = result; currentSelection = selection; currentStamp = stamp;
       need(same(selection, geometry, reserved) && selectionStamp(selection) === stamp
         && generation === reserved && current === result && document === frame
         && options.documents.isCurrent(frame) && generation === reserved && current === result);
-      pending = null;
+      supportLease = attempt.supportOwner ? attempt : null; pending = null;
       if (timer) clearTimeout(timer); timer = null;
       timer = setTimeout(() => { if (generation === reserved) withdraw(); },
         Math.min(Date.parse(selection.expiresAt) - Date.now() + 1, 2_147_483_647));
@@ -719,6 +772,7 @@ export function createNativeSceneSourceClient(options: NativeSceneSourceOptions)
       if (captured !== frame || !owned || !selection || !stamp || disposed) return false;
       try {
         const expiry = Date.parse(selection.expiresAt);
+        if (supportLease?.supportFrame && !supportLease.supportOwner?.isCurrent(supportLease.supportFrame)) return false;
         if (!options.documents.isCurrent(owned) || generation !== reserved || current !== captured
           || !options.geometry.isCurrent(frame.geometry) || generation !== reserved || current !== captured
           || observed() !== selection || generation !== reserved || current !== captured

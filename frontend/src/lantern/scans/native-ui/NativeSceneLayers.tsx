@@ -70,7 +70,7 @@ export function NativeSceneLayers({ source, floors, overlay, onOverlayChange, dr
         </section>}
         {overlay === 'electrical' && drawing && <NativeSceneDrawing key={drawing.id} client={drawings}
           sheet={drawing} evidenceIds={evidenceIds}
-          reference={source.drawingReferences?.find(reference => reference.sheetId === drawing.id)}
+          reference={source.drawingReferences?.find(reference => reference.sheetId === drawing.id)} provenance={source.drawingProvenance}
           current={currentSource} onClose={() => setDrawing(null)} />}
       </>;
     }} />;

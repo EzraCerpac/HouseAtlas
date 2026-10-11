@@ -4,6 +4,7 @@ import type { StockAdmission } from '../src/app/StockApplication';
 import type { NativeEvidenceDocumentClient, NativeEvidenceDocumentFrame } from '../src/lantern/scans/native-evidence-document-types';
 import type { NativeGeometryFrame } from '../src/lantern/scans/native-read-types';
 import type { NativeSceneAcceptedAnchor, NativeSceneFloorBinding, NativeSceneSourceSelection } from '../src/lantern/scans/native-scene-source-types';
+import { readDocumentarySupport, documentaryReferences, matchesDocumentaryPdf, sameDocumentaryValue, type DocumentarySupport } from './native-scene-documentary-support';
 import { ExactDecimal, isExactDecimal } from '../src/numeric/decimal';
 import { parseLosslessJson, stringifyLosslessJson, type JsonForSerialization, type LosslessJson } from '../src/numeric/lossless-json';
 import { createExactStockResultValidator, exactStockSafeInteger } from '../src/numeric/schema-validator';
@@ -191,6 +192,7 @@ export type SceneAssociationRead = SceneAssociationCurrent |
 export interface SceneAssociationPrepared {
   readonly buildingId: string; readonly requestId: string; readonly targetId: string;
   readonly body: string; readonly requestDigest: string; readonly payload: LosslessJson;
+  readonly drawingReview?: DocumentarySupport;
 }
 export interface SceneAssociationPending {
   readonly prepared: SceneAssociationPrepared; readonly outcome: 'unknown' | 'committed';
@@ -205,7 +207,7 @@ export interface SceneAssociationClient {
   prepare(candidate: SceneAssociationCandidate, geometry: NativeGeometryFrame,
     statement: string, reason: string, signal: AbortSignal): Promise<SceneAssociationPrepared>;
   releasePrepared(prepared: SceneAssociationPrepared): void;
-  submit(prepared: SceneAssociationPrepared, geometry: NativeGeometryFrame, signal: AbortSignal): Promise<SceneAssociationRead>;
+  submit(prepared: SceneAssociationPrepared, geometry: NativeGeometryFrame, signal: AbortSignal, confirmDrawingSupport?: boolean): Promise<SceneAssociationRead>;
   resolve(prepared: SceneAssociationPrepared, geometry: NativeGeometryFrame, signal: AbortSignal): Promise<SceneAssociationRead>;
   dispose(): void;
 }
@@ -215,6 +217,8 @@ export function createNativeSceneAssociationClient(options: {
   subscribe(changed: () => void): () => void;
   primaryReview: NativeEvidenceDocumentClient;
   historicalReview: NativeEvidenceDocumentClient;
+  /** A fresh independent owner per temporary read or prepared PDF lease. */
+  createDrawingReview?: () => NativeEvidenceDocumentClient;
   geometryCurrent(frame: NativeGeometryFrame): boolean;
   transport?: typeof fetch;
 }): SceneAssociationClient {
@@ -226,7 +230,7 @@ export function createNativeSceneAssociationClient(options: {
   const preparedOwner = new WeakMap<SceneAssociationPrepared, object>();
   const held = new Map<SceneAssociationPrepared, { primary: NativeEvidenceDocumentFrame;
     historical: NativeEvidenceDocumentFrame; stopPrimary: () => void; stopHistorical: () => void;
-    withdrawn: AbortController }>();
+    withdrawn: AbortController; pdfOwner?: NativeEvidenceDocumentClient; pdf?: NativeEvidenceDocumentFrame; stopPdf?: () => void }>();
   const dispatched = new WeakSet<SceneAssociationPrepared>();
   let binding: object | null = null, tuple = '', disposed = false;
   let pendingBinding: object | null = null, pendingTuple = '', lastPendingSession: object | null = null;
@@ -278,6 +282,19 @@ export function createNativeSceneAssociationClient(options: {
     try { return await responseJson(response, signal); }
     catch (error) { void response.body?.cancel().catch(() => undefined); throw error; }
   };
+  const buildingHasEvidence = async (buildingId: string, evidenceId: string, next: SceneAssociationContext,
+    owner: object, geometry: NativeGeometryFrame, signal: AbortSignal) => {
+    const raw = await obtain(`${path(next)}/records/identity/${buildingId}`, { method: 'GET', headers: { Accept: 'application/json' } }, signal);
+    need(current(owner, geometry) && validator.validateNativeRead('atlas.identity.get', raw));
+    const r = row(raw), scope = row(r.resolvedScope), data = row(r.data), records = list(data.records, 1);
+    need(r.commandId === 'atlas.identity.get' && r.status === 'read' && r.replayed === false
+      && scope.workspaceId === next.view.scope.workspaceId && scope.homeId === next.view.scope.homeId
+      && data.sourceStatus === 'current' && data.nextCursor === null && records.length === 1);
+    const record = row(records[0]), target = row(record.target), payload = row(record.payload);
+    need(target.authority === 'atlas' && target.recordType === 'identity' && target.recordId === buildingId
+      && record.lifecycle === 'active' && Array.isArray(payload.evidenceIds));
+    return payload.evidenceIds.includes(evidenceId);
+  };
   const readCurrent = async (buildingId: string, geometry: NativeGeometryFrame, outer: AbortSignal): Promise<SceneAssociationRead> => {
     need(UUID.test(buildingId)); const next = context(), owner = binding!;
     need(options.geometryCurrent(geometry) && geometry.descriptor.buildingId === buildingId
@@ -328,7 +345,7 @@ export function createNativeSceneAssociationClient(options: {
       need(receipt.anchors !== undefined);
       const acceptedRoomAnchors = anchors(receipt.anchors);
       const sourceFloorBindings = floors(p.sourceFloors!, geometry);
-      const selection: NativeSceneSourceSelection = Object.freeze({ sessionIdentity: next.sessionIdentity,
+      let selection: NativeSceneSourceSelection = Object.freeze({ sessionIdentity: next.sessionIdentity,
         workspaceId: next.view.scope.workspaceId, homeId: next.view.scope.homeId,
         expiresAt: next.session.expiresAt, buildingId, viewKey: geometry.viewKey,
         sceneEvidenceId: uuid(primary.evidenceId), sceneAssetId: uuid(primary.originalAssetId),
@@ -337,6 +354,34 @@ export function createNativeSceneAssociationClient(options: {
         sceneAssetRevision: integer(primary.originalAssetRevision),
         acceptedRoomReceiptId: str(receipt.receiptId, 256), acceptedRoomReceiptSha256: sha(receipt.canonicalSha256),
         acceptedRoomAnchors, sourceFloorBindings });
+      // A current native review binds the exact support bytes. It does not
+      // natively certify photo/page semantics, which remain independently reviewed evidence.
+      if (options.createDrawingReview) {
+        const documents = options.createDrawingReview(); let frame: NativeEvidenceDocumentFrame | null = null;
+        try {
+          const opening = documents.open(uuid(historical.evidenceId), signal);
+          void opening.then(late => { if (signal.aborted) documents.release(late); }, () => undefined);
+          frame = await abortable(opening, signal);
+          const guard = () => { signal.throwIfAborted(); need(current(owner, geometry) && frame && documents.isCurrent(frame)); };
+          guard(); need(frame.evidenceRevision === exactStockSafeInteger(integer(historical.evidenceRevision))
+            && frame.asset.assetId === historical.originalAssetId && frame.asset.revision.compare(integer(historical.originalAssetRevision)) === 0
+            && frame.asset.sha256 === historical.originalSha256 && frame.asset.contentType === 'text/plain');
+          const blob = documents.getBlob(frame); need(blob?.type === 'text/plain' && blob.size <= MAX_ORIGINAL);
+          const bytes = new Uint8Array(await abortable(blob.arrayBuffer(), signal)); guard();
+          const support = await readDocumentarySupport(bytes, guard); guard();
+          if (support && support.originalSha256 === historical.originalSha256
+            && str(p.reviewStatement, 4096).endsWith(support.reviewMarker)
+            && support.pdf.workspaceId === next.view.scope.workspaceId && support.pdf.homeId === next.view.scope.homeId
+            && support.pdf.buildingId === buildingId
+            && await buildingHasEvidence(buildingId, support.pdf.evidenceId, next, owner, geometry, signal)) {
+            guard(); selection = Object.freeze({ ...selection, drawingReferences: documentaryReferences(support, selection),
+              drawingSupport: Object.freeze({ evidenceId: frame.evidenceId, evidenceRevision: frame.evidenceRevision,
+                assetId: frame.asset.assetId, assetRevision: frame.asset.revision, originalSha256: support.originalSha256,
+                reviewMarker: support.reviewMarker }) });
+          }
+        } catch { signal.throwIfAborted(); need(current(owner, geometry)); /* Unreadable/unreviewed support retains the legacy path. */ }
+        finally { if (frame) documents.release(frame); documents.dispose(); }
+      }
       need(current(owner, geometry));
       return Object.freeze({ status: 'available' as const, recordId, revision, payload: record.payload!, selection });
     });
@@ -345,6 +390,7 @@ export function createNativeSceneAssociationClient(options: {
     const item = held.get(prepared); if (!item) return;
     held.delete(prepared); item.stopPrimary(); item.stopHistorical(); item.withdrawn.abort();
     options.primaryReview.release(item.primary); options.historicalReview.release(item.historical);
+    item.stopPdf?.(); if (item.pdf && item.pdfOwner) item.pdfOwner.release(item.pdf); item.pdfOwner?.dispose();
   };
   const unsubscribe = options.subscribe(() => { const prior = binding; try { context(); } catch { binding = null; }
     if (binding !== prior) for (const item of held.keys()) releasePrepared(item);
@@ -361,7 +407,8 @@ export function createNativeSceneAssociationClient(options: {
       catch { return Object.freeze([]); } },
     isPreparedCurrent(prepared) { const item = held.get(prepared), owner = preparedOwner.get(prepared);
       return !!item && !!owner && !item.withdrawn.signal.aborted && !!current(owner)
-        && options.primaryReview.isCurrent(item.primary) && options.historicalReview.isCurrent(item.historical); },
+        && options.primaryReview.isCurrent(item.primary) && options.historicalReview.isCurrent(item.historical)
+        && (!item.pdf || !!item.pdfOwner?.isCurrent(item.pdf)); },
     readCurrent,
     releasePrepared,
     async prepare(candidate, geometry, statement, reason, outer) {
@@ -374,12 +421,13 @@ export function createNativeSceneAssociationClient(options: {
         && !unknown(candidate.buildingId, pendingBinding!, next) && options.geometryCurrent(geometry));
       return bounded(outer, async signal => {
         let primary: NativeEvidenceDocumentFrame | null = null, historical: NativeEvidenceDocumentFrame | null = null;
-        let stopPrimary: () => void = () => undefined, stopHistorical: () => void = () => undefined;
+        let stopPrimary: () => void = () => undefined, stopHistorical: () => void = () => undefined, stopPdf: () => void = () => undefined;
+        let pdfOwner: NativeEvidenceDocumentClient | undefined, pdf: NativeEvidenceDocumentFrame | undefined;
         const withdrawn = new AbortController();
         const guard = () => need(!signal.aborted && !withdrawn.signal.aborted
           && current(owner, geometry) && availableWrite(context())
           && primary && historical && options.primaryReview.isCurrent(primary)
-          && options.historicalReview.isCurrent(historical));
+          && options.historicalReview.isCurrent(historical) && (!pdf || !!pdfOwner?.isCurrent(pdf)));
         let retained = false;
         try {
           primary = await options.primaryReview.open(candidate.primaryEvidenceId, signal);
@@ -436,6 +484,23 @@ export function createNativeSceneAssociationClient(options: {
                 && anchor.targets[0]!.packagePlaceUuid === entry.packagePlaceUuid);
             }
           }
+          const drawingReview = await readDocumentarySupport(hBytes, guard); guard();
+          if (drawingReview) {
+            need(options.createDrawingReview && drawingReview.originalSha256 === historical.asset.sha256
+              && drawingReview.pdf.workspaceId === next.view.scope.workspaceId && drawingReview.pdf.homeId === next.view.scope.homeId
+              && drawingReview.pdf.buildingId === candidate.buildingId);
+            const fixtures = row(row(source.electricalFixtures).documentaryFixtures);
+            need(sameDocumentaryValue(fixtures, drawingReview.fixtureLedger));
+            need(await buildingHasEvidence(candidate.buildingId, drawingReview.pdf.evidenceId, next, owner, geometry, signal)); guard();
+            pdfOwner = options.createDrawingReview();
+            const documentOwner = pdfOwner, opening = documentOwner.open(drawingReview.pdf.evidenceId, signal);
+            void opening.then(late => { if (signal.aborted) documentOwner.release(late); }, () => undefined);
+            pdf = await abortable(opening, signal);
+            stopPdf = pdfOwner.subscribeInvalidation(pdf, () => { withdrawn.abort(); notify(); }); guard();
+            need(matchesDocumentaryPdf(drawingReview, pdf, pdfOwner.getBlob(pdf)));
+          }
+          const reviewedStatement = drawingReview ? statement + drawingReview.reviewMarker : statement;
+          need(reviewedStatement.length <= 4096);
           const documents = [{ role: 'primary-scene', evidenceId: primary.evidenceId,
             evidenceRevision: primary.evidenceRevision, originalAssetId: primary.asset.assetId,
             originalAssetRevision: primary.asset.revision, originalSha256: primary.asset.sha256, contentType: 'text/plain' },
@@ -446,7 +511,7 @@ export function createNativeSceneAssociationClient(options: {
           const version = prior ? ExactDecimal.parse((BigInt(exactStockSafeInteger(integer(row(prior.payload).associationVersion))) + 1n).toString()) : ONE;
           const payload = { profile: 'houseatlas.native-scene-association.v1', buildingId: candidate.buildingId,
             associationVersion: version, previousAssociationId: prior?.recordId ?? null,
-            reviewStatus: 'accepted', reviewStatement: statement, sourceDocuments: documents,
+            reviewStatus: 'accepted', reviewStatement: reviewedStatement, sourceDocuments: documents,
             acceptedReceipt: { receiptId: str(parsed.receiptId, 256), canonicalJson: literal, canonicalSha256,
               anchors: parsed.anchors! }, sourceFloors, roomMappings };
           const targetId = crypto.randomUUID(), requestId = crypto.randomUUID();
@@ -458,24 +523,29 @@ export function createNativeSceneAssociationClient(options: {
           const parsedRequest = parseLosslessJson(body);
           need(validator.validateNativeRequest('atlas.scene-association.create', parsedRequest)); guard();
           const prepared: SceneAssociationPrepared = Object.freeze({ buildingId: candidate.buildingId, requestId,
-            targetId, body, requestDigest: await requestDigest(parsedRequest), payload: row(parsedRequest).payload! });
+            targetId, body, requestDigest: await requestDigest(parsedRequest), payload: row(parsedRequest).payload!,
+            ...(drawingReview ? { drawingReview } : {}) });
           guard();
           preparedOwner.set(prepared, owner);
-          held.set(prepared, { primary, historical, stopPrimary, stopHistorical, withdrawn });
+          held.set(prepared, { primary, historical, stopPrimary, stopHistorical, withdrawn,
+            ...(pdfOwner && pdf ? { pdfOwner, pdf, stopPdf } : {}) });
           retained = true; return prepared;
         } finally {
           if (!retained) {
-            stopPrimary(); stopHistorical();
+            stopPrimary(); stopHistorical(); stopPdf();
+            if (pdf && pdfOwner) pdfOwner.release(pdf); pdfOwner?.dispose();
             if (primary) options.primaryReview.release(primary);
             if (historical) options.historicalReview.release(historical);
           }
         }
       });
     },
-    async submit(prepared, geometry, outer) {
+    async submit(prepared, geometry, outer, confirmDrawingSupport) {
       const owner = preparedOwner.get(prepared), source = held.get(prepared);
       need(owner && source && !source.withdrawn.signal.aborted && !dispatched.has(prepared) && current(owner, geometry)
-        && options.primaryReview.isCurrent(source.primary) && options.historicalReview.isCurrent(source.historical));
+        && options.primaryReview.isCurrent(source.primary) && options.historicalReview.isCurrent(source.historical)
+        && (!source.pdf || !!source.pdfOwner?.isCurrent(source.pdf)));
+      need(!prepared.drawingReview || confirmDrawingSupport === true);
       const next = context(); need(availableWrite(next) && !unknown(prepared.buildingId, pendingBinding!, next));
       dispatched.add(prepared); pending.set(prepared, { owner: pendingBinding!, workspaceId: next.view.scope.workspaceId,
         homeId: next.view.scope.homeId, buildingId: prepared.buildingId, outcome: 'unknown' }); notify();

@@ -1,15 +1,16 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { ElectricalFixtureSheet } from '../../overlays/electricity/fixture-types';
 import type { NativeEvidenceDocumentClient, NativeEvidenceDocumentFrame } from '../native-evidence-document-types';
-import type { NativeSceneDrawingPdfReference } from '../native-scene-source-types';
+import type { NativeSceneDrawingPdfReference, NativeSceneDrawingProvenance } from '../native-scene-source-types';
 
 const referencePageSize = 64;
 
 /** A hash selects among current building evidence; it grants no read access.
  * Each candidate is resolved by the native document owner before any bytes paint. */
-export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, current, onClose }: {
+export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, provenance, current, onClose }: {
   readonly client: NativeEvidenceDocumentClient; readonly sheet: ElectricalFixtureSheet;
   readonly reference?: NativeSceneDrawingPdfReference | undefined;
+  readonly provenance?: NativeSceneDrawingProvenance | undefined;
   readonly evidenceIds: readonly string[]; readonly current: () => boolean; readonly onClose: () => void;
 }) {
   const [shown, setShown] = useState<{ frame: NativeEvidenceDocumentFrame; url: string; generation: number } | null>(null);
@@ -133,7 +134,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, curr
   const keys = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key === 'Escape') { event.preventDefault(); onClose(); return; }
     if (event.key !== 'Tab') return;
-    const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], [tabindex="0"]')];
+    const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], summary, [tabindex="0"]')];
     const first = controls[0], last = controls.at(-1);
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
@@ -142,6 +143,16 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, curr
     aria-label={sheet.title} onKeyDown={keys}>
     <header><div><h3>{sheet.title}</h3><p>Historical drawing · reference PDF page {sheet.pdfPage}</p></div>
       <button ref={closer} type="button" className="chip-btn" onClick={onClose}>Close drawing</button></header>
+    {provenance && <details className="native-drawing-provenance" style={{ overflowWrap: 'anywhere' }}>
+      <summary>Drawing source review</summary>
+      <p>Room filters use the current native review. The retained historical ledger bytes are unchanged.</p>
+      <dl><dt>Historical room-mapping receipt</dt><dd>{provenance.historicalRoomMappingReceipt.id}</dd>
+        <dt>Historical receipt SHA-256</dt><dd>{provenance.historicalRoomMappingReceipt.sha256}</dd>
+        <dt>Unchanged fixture-ledger SHA-256</dt><dd>{provenance.fixtureLedgerSha256}</dd>
+        <dt>Support original SHA-256</dt><dd>{provenance.supportOriginalSha256}</dd>
+        <dt>Current native room review</dt><dd>{provenance.currentNativeRoomReview.id}</dd>
+        <dt>Current review SHA-256</dt><dd>{provenance.currentNativeRoomReview.sha256}</dd></dl>
+    </details>}
     {status && <p role="status">{status}</p>}
     {continuation && continuation.generation === generationRef.current && currentRef.current() && <button type="button"
       className="chip-btn" onClick={() => {

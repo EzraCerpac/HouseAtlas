@@ -43,6 +43,9 @@ node frontend/lantern-tests/native-room-drawing-source.mjs wrong-correlation
 node frontend/lantern-tests/native-room-drawing-source.mjs lifecycle
 ~~~
 
+These six named cases exercise the production association constructor and retained
+support owner before the reader/drawing seam. The PDF case also checks explicit
+review confirmation and a single fake/local-only transport stop retaining UNKNOWN.
 See docs/geometry/native-room-drawing-source.md for the separately reviewed
 current sheet-to-PDF correlation and download-only qualification.
 

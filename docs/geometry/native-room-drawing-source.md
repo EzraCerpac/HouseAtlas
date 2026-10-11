@@ -5,23 +5,66 @@ native evidence-document owner. PDF policy remains download-only. The dialog
 labels the sheet's reference page and offers **Download reference PDF**; it
 does not embed the PDF or imply that a browser has rendered that page.
 
-The host supplies an optional NativeSceneSourceSelection.drawingReferences
-array, independently reviewed outside the retained scene text. Each entry has
-a bounded correlation ID and SHA-256; current workspace, home, building and
-view key; exact scene evidence/asset IDs, revisions and original SHA-256; exact
-sheet ID, page and original/rendered photo SHA-256; and expected native PDF
-evidence/asset IDs, revisions, original SHA-256 and byte size. Revisions and
-size use ExactDecimal where the native asset contract does.
+The normal production association constructor supplies these references from a
+separately retained, reviewed `text/plain` support original. It uses the existing
+two-document native scene-association v1 contract: primary scene text and the
+historical documentary support original. Primary scene v1/v2 remains compatible;
+ordinary historical text and associations without the drawing-review marker
+retain the legacy PNG path.
 
-The existing v1/v2 retained scene formats and documentary ledger stay unchanged.
-The source reader stamps every new host pin for currentness. It projects only
-references matching the current selection and parsed fixture sheet, rejects
-ambiguous duplicate sheet joins, and bounds originals to 10 MiB. Missing or
-stale qualification gives no PDF action. Names, MIME, page numbers and matching
-photo hashes alone cannot select a PDF. The correlation digest identifies a
-separately reviewed host proof; it is not an authorization grant or a new native
-receipt. The host must obtain that proof from actual custody/readback and
-maintain the selection's owner fence.
+The new closed `houseatlas.documentary-scene-support.v1` original has exactly
+`schema`, `roomMapping`, `fixtureLedger`, `crosswalk`, and `review`. Each of the
+last four is a closed `{json, sha256}` pair. Room mapping and fixture ledger retain
+their exact original JSON bytes and digests. The parsed room mapping's `receiptId`
+must equal the frozen ledger's `roomMappingReceipt.id`; its digest must equal that
+ledger receipt's SHA. Original bytes, photo hashes and old receipts stay unchanged.
+
+The crosswalk JSON is canonical, closed and bounded to 128 unique sheet rows:
+`profile: houseatlas.documentary-sheet-pdf-correlation.v1`, `correlationId`,
+`fixtureLedgerSha256`, `pdf`, and `references`. The PDF pins are workspace, home,
+building, evidence ID/revision, asset ID/revision, SHA-256 and byte size. Each row
+contains exact sheet ID, PDF page, original-photo SHA, rendered-photo SHA and
+embedded-image SHA. Every row must match a unique sheet in the preserved ledger.
+The independent review JSON is canonical and closed: `profile:
+houseatlas.documentary-sheet-pdf-review.v1`, `reviewId`, `crosswalkSha256`,
+`roomMappingSha256`, `sourceReviewJson`, and `sourceReviewSha256`. The last two
+retain the original independent review data and its exact digest. These objects
+are reviewed evidence data; their fields do not issue a grant or prove approval.
+All declared JSON digests are computed from their exact UTF-8 bytes, duplicate
+keys are rejected, and the complete support original is bounded to 8 MiB.
+
+A new canonical native room-review receipt refers to the support original SHA.
+It does not overwrite the original room-mapping receipt. Preparation freshly
+opens the primary/support originals, verifies the unchanged embedded ledger
+against the preserved ledger with lossless semantic equality, checks the PDF's
+current building evidence membership, and admits the real PDF through a separate
+native document owner. The review surface displays the exact support, crosswalk,
+review, PDF and sheet/page pins. It requires a deliberate checkbox before
+submission, and the client refuses support-bearing commands without explicit
+confirmation. Existing room-only submit callers remain compatible.
+
+Preparation adds a deterministic bounded suffix to the native review statement:
+`[HouseAtlas drawing review v1 support:<SHA> crosswalk:<SHA> review:<SHA>]`.
+The full statement must remain within 4096 characters; it is never truncated.
+The current constructor only issues PDF references when the accepted native
+statement ends with the exact verified marker. It freshly reads the pinned
+support original and current building identity, then decorates the exact rows
+with actual current primary scene and view pins. A factory provides independent
+document owners; an association read cannot replace an active scene or review
+lease. The source reader freshly reads and retains its own support lease, checks
+the current primary's unchanged ledger, and withdraws on support invalidation.
+Only this verified bridge permits the historical ledger receipt during parsing;
+the view projection retains an explicit historical receipt and unchanged ledger-digest
+sidecar alongside the current native room review used by room filters. The drawing
+source disclosure labels both receipts separately; it never describes the projected
+room-filter receipt as a rewrite of the frozen ledger.
+
+The v1 backend attests the support bytes and accepted native association review.
+It does not establish a new semantic PDF-correlation guard. The independent
+review establishes photo/page semantics; fresh native document access establishes
+current PDF custody. Missing, unreadable, unreviewed or stale support grants no
+PDF action. No MIME/page-only search, stored source-v3 carrier, physical floor
+assignment, native room creation or replacement receipt is introduced.
 
 On the room source action, the UI requires the pinned evidence ID in the current
 building's evidence list. Its fresh NativeEvidenceDocumentClient.open resolves
@@ -42,8 +85,11 @@ The dialog's focus loop includes the PDF download link or PNG scroll viewport;
 closing returns focus to the original source-action control. A stale download
 click is prevented even before React's next paint.
 
-The named synthetic checks below compile the actual source reader and React
-drawing surface against generated scene data and fake document/geometry ports.
+The named synthetic checks below compile the actual production association constructor, source reader and React
+association review/drawing surfaces against generated scene data and fake native-shaped current records and document/geometry ports. The PDF case
+verifies the new native review receipt with an unchanged old ledger, missing
+review-marker withholding, explicit preparation confirmation, and one local fake
+POST retaining UNKNOWN after a deliberate synthetic transport stop.
 They use the repository's synthetic PDF/PNG and a fresh sandboxed browser with
 an owned loopback listener/profile/download directory. The 1280/312 CSS-width
 checks cover the dialog/action seam, not the full native room/mesh presentation,
