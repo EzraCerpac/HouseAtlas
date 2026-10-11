@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "9a84cb4a524fc6ac96a442a5762d09f5234b4d40ea81519be7cd803e1314b7d6",
+  "sourceDigestSha256": "a45a43a4719b7f9b2903a12f4bb191f2a0c9f92e8e4e741c555a25fbe9b106c8",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 38134,
-      "sha256": "bb77ed78412e9e492e9216330ef15800b989afbe6cf22990a3d30845201da766",
+      "bytes": 39606,
+      "sha256": "6da4066099619ecfa152991f6ae2f6a07a4b29cd72c8841c308f43982308f080",
       "owner": "core-integration"
     },
     {
@@ -2275,8 +2275,8 @@
     {
       "path": "backend/src/http/upload.rs",
       "mode": "100644",
-      "bytes": 13706,
-      "sha256": "f766e05600e72bfafd96f1e217cd038cb109c419f0c5bcffd3310b1caea2e40f",
+      "bytes": 16018,
+      "sha256": "ddd76f2cc04c18b0c096bd637daa4d8abce0bee70472665cd746893b8755be1a",
       "owner": "core-integration"
     },
     {
@@ -2294,10 +2294,17 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/http/upload_diagnostics.rs",
+      "mode": "100644",
+      "bytes": 16198,
+      "sha256": "dd0a6a0219025572b69259a097f16e771584fcbfc9650bfe4ba24f045367dbf0",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/http/upload_intake.rs",
       "mode": "100644",
-      "bytes": 11769,
-      "sha256": "a9826aa09c168f713c1a0dee85c1fc66089df7c933ca1875a0c436f5875b0c33",
+      "bytes": 13295,
+      "sha256": "6ab22d242382b00fef3f3a30e7fd699508176065b6aeb59ea9d5458a57e93f49",
       "owner": "core-integration"
     },
     {
@@ -5353,6 +5360,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/core-integration/upload-diagnostics.md",
+      "mode": "100644",
+      "bytes": 4459,
+      "sha256": "5d6d319d6fb54544f1ac0b5153116cb6381f1a3afa30bf8b02f0001d31653ffd",
+      "owner": "core-integration"
+    },
+    {
       "path": "docs/geometry/electricity-overlay.md",
       "mode": "100644",
       "bytes": 14067,
@@ -5476,6 +5490,13 @@
       "mode": "100644",
       "bytes": 2044,
       "sha256": "a53610a6d8090381a02d8959c10565dc026c039481321b1fefe703e8d4f5f75e",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "docs/operations/native-evidence-upload-diagnostics.md",
+      "mode": "100644",
+      "bytes": 3931,
+      "sha256": "ca78ecd980d5b8568da71a0749f46174bef4debc9448aeb0c06905865cde6466",
       "owner": "operations-policy"
     },
     {
@@ -6123,6 +6144,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/native-evidence-upload-diagnostics.mjs",
+      "mode": "100644",
+      "bytes": 14999,
+      "sha256": "25fe42b0959d466165ab2994dca55c402b1753cad1e76047007cf7feae7df372",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/native-geometry-produced-read.mjs",
       "mode": "100644",
       "bytes": 10193,
@@ -6475,8 +6503,8 @@
     {
       "path": "frontend/src/api/native-evidence-client.ts",
       "mode": "100644",
-      "bytes": 38389,
-      "sha256": "8b8592057ad2bc5dc0fdc44da9a19906d5eebe6115dffb68008ac1efe3d35515",
+      "bytes": 41767,
+      "sha256": "0d7c35e1c82045090298a917dfdaa7f4eba1ac84a9636a9a7fbaf491592717c1",
       "owner": "web"
     },
     {
@@ -7532,8 +7560,8 @@
     {
       "path": "frontend/src/lantern/topology/NativePlaceEvidence.tsx",
       "mode": "100644",
-      "bytes": 17918,
-      "sha256": "e36e6a7f28b0cf8e533912ec5549c0c3772463c11926179b7a6dc304cc48bb1d",
+      "bytes": 19583,
+      "sha256": "16301bb58414973c973fc77f467c12867e8444896bfb5515b6bdbc4364781f5e",
       "owner": "web"
     },
     {
