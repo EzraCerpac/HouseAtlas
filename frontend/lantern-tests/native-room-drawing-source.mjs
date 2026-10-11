@@ -263,7 +263,7 @@ try {
   const evaluate=async expression=>{const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});assert(!r.exceptionDetails,'Fixture JavaScript exception');return r.result.value;};
   const click=async selector=>{const r=await evaluate('(()=>{const e=document.querySelector('+JSON.stringify(selector)+');if(!e)throw Error("Fixture element missing");const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2,w:r.width,h:r.height};})()');assert(r.w>0&&r.h>0);
     await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,x:r.x,y:r.y});await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,x:r.x,y:r.y});};
-  const key=async(key,code,number)=>{await send('Input.dispatchKeyEvent',{type:'keyDown',key,code,windowsVirtualKeyCode:number});await send('Input.dispatchKeyEvent',{type:'keyUp',key,code,windowsVirtualKeyCode:number});};
+  const key=async(key,code,number)=>{await send('Input.dispatchKeyEvent',{type:'keyDown',key,code,windowsVirtualKeyCode:number});if(key==='Enter')await send('Input.dispatchKeyEvent',{type:'char',key,code,text:'\r',unmodifiedText:'\r',windowsVirtualKeyCode:number});await send('Input.dispatchKeyEvent',{type:'keyUp',key,code,windowsVirtualKeyCode:number});};
   await send('Page.navigate',{url:origin+'/'});
   await until(async()=>{const failed=await evaluate('window.__failed');assert(!failed,failed);return evaluate('Boolean(document.querySelector("#room-open"))');},'source projection and room action');
   if(name==='pdf-download'){
@@ -304,7 +304,7 @@ try {
       assert.match(await evaluate('document.querySelector(".native-scene-drawing").textContent'),/Reference PDF page 1/);
       assert.match(await evaluate('document.querySelector(".native-drawing-provenance").textContent'),/Historical room-mapping receipt.*synthetic-old-room-receipt.*Current native room review.*synthetic-new-native-review/s);
       await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.textContent'),'Drawing source review');
-      await key('Enter','Enter',13);assert.equal(await evaluate('document.querySelector(".native-drawing-provenance").open'),true);
+      await key('Enter','Enter',13);await until(()=>evaluate('document.querySelector(".native-drawing-provenance").open'),'native Enter opens provenance disclosure');
       assert.match(await evaluate('document.querySelector(".native-drawing-provenance[open]").textContent'),/Historical room-mapping receipt.*synthetic-old-room-receipt.*Current native room review.*synthetic-new-native-review/s);
       await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.textContent'),'Download reference PDF');
       await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.textContent'),'Close drawing');

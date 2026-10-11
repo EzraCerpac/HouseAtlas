@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "a7d88c1a821bcb8683f84cbc922c9012e5b52e62f9f1ab92d77d53aee23be805",
+  "sourceDigestSha256": "0adda960658809615c25eba50ca4f8b0bb595b754f72fc205b451b78392a8b73",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -6251,8 +6251,8 @@
     {
       "path": "frontend/lantern-tests/native-room-drawing-source.mjs",
       "mode": "100644",
-      "bytes": 36825,
-      "sha256": "9a7c95f5a53b2e95e4e779b4604600c318ae909fc5bb7cffbdf8f790875f102d",
+      "bytes": 36996,
+      "sha256": "6d25483f59150026da789c56cfb7b1f75ece1cb6df25a08086d222172113be79",
       "owner": "web"
     },
     {
