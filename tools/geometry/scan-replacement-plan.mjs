@@ -117,6 +117,7 @@ export async function buildReplacementPlan(input) {
   assert(sceneRecord(input.association), 'Use the existing accepted scene-association record');
   assert(!(Date.parse(input.association.updatedAt) < Date.parse(input.association.createdAt)), 'Association record time cannot move backward');
   const association = input.association.payload;
+  assert(Buffer.byteLength(JSON.stringify(association)) <= 524288, 'Selected scene payload exceeds the existing contract byte bound');
   assert(association.roomMappings.length <= 32
     && new Set(association.roomMappings.map(mapping => mapping.sourceRoomId)).size === association.roomMappings.length,
     'Native scene mappings require at most 32 globally distinct source entry IDs');
@@ -272,6 +273,7 @@ export async function buildReplacementPlan(input) {
   });
   const mappingIds = new Set();
   const roomPlans = association.roomMappings.map(mapping => {
+    assert(mapping.sourceAnchorIds.length <= 32, 'Native room entries require at most 32 source anchors');
     assert(!mappingIds.has(roomKey(mapping)), 'Ambiguous room mapping'); mappingIds.add(roomKey(mapping));
     const old = bindings.get(sourceFloorKey(mapping)); assert(old, 'Mapping needs an explicit accepted source floor');
     const sourceFloor = association.sourceFloors.find(s => sourceFloorKey(s) === sourceFloorKey(mapping));

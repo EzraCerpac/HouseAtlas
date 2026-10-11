@@ -536,6 +536,22 @@ test('native single-place multi-anchor room mappings retain complete unresolved-
   }
 });
 
+test('native maximum 32-anchor room retains every accepted source reference', async () => {
+  const floor = snapshot({ floorKey: 'anchor-bound-v1', sourceFloorKey: 'anchor-bound-source', label: 'Anchor Bound Floor' });
+  const baseline = world({ floors: [floor], rooms: [room({ id: 'anchor-bound-room', floor })] });
+  const mapping = baseline.association.payload.roomMappings[0], receipt = baseline.receipt;
+  receipt.anchors = Array.from({ length: 32 }, (_, index) => ({ ...deepCopy(receipt.anchors[0]), id: `bound-anchor-${index}` }));
+  mapping.sourceAnchorIds = receipt.anchors.map(anchor => anchor.id);
+  const decoded = JSON.parse(receipt.canonicalJson); decoded.anchors = receipt.anchors;
+  receipt.canonicalJson = canonical(decoded); receipt.canonicalSha256 = sha(receipt.canonicalJson);
+  baseline.roomSupport[0].receiptSha256 = receipt.canonicalSha256;
+  const plan = await buildReplacementPlan(inputWith(baseline, [successor(floor)]));
+  assert.deepEqual(plan.rooms[0].retainedMapping.sourceAnchorIds, mapping.sourceAnchorIds);
+  assert.deepEqual(plan.previousAssociation.payload.acceptedReceipt, receipt);
+  assert.equal(plan.rooms[0].status, 'reuse-proposed');
+  assert.equal(plan.rooms[0].spatialAcceptance, 'not-issued');
+});
+
 test('normal caller Buffer reuse after invocation preserves owned bytes and deterministic retained artifacts', async () => {
   const floor = snapshot({ floorKey: 'buffer-v1', sourceFloorKey: 'buffer-source', label: 'Buffer Floor' });
   const baseline = world({ floors: [floor], rooms: [room({ id: 'buffer-room', floor })] });

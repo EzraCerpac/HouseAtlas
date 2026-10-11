@@ -81,7 +81,8 @@ workspace/home alone does not establish building membership. Each native floor
 descriptor key has one source-floor binding, and source-floor keys are unique,
 in the current native owner/reader profile;
 corrected source versions retain distinct bindings or require a new reviewed
-association. Native room entry IDs are globally distinct, with at most 32 entries,
+association. Native room entry IDs are globally distinct, with at most 32 entries
+and at most 32 accepted source anchors per entry,
 and each entry's reviewed anchors join one consistent package place. Repeated raw
 producer labels retain their separate source/provenance namespace; the planner
 never renames them or invents native IDs. Multi-place source spans require review
@@ -200,7 +201,8 @@ not native custody or a guarantee against concurrent hostile path replacement
 or every storage failure. Partial emission cleanup is best effort and restricted
 to the child this call created. Existing output directories are never adopted.
 
-The manifest and output are each bounded to 2 MiB. At most three old and three
+The manifest and output are each bounded to 2 MiB. The selected scene payload
+also retains the existing contract's separate 524,288-byte limit. At most three old and three
 new derivatives are each bounded to 8 MiB, using the existing mesh/work bounds.
 Support is capped at 256 room entries; opaque state arrays at 1024 entries each.
 Selected derivatives are decoded sequentially on the local event loop, retaining
