@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "4ba497843213289821234515ee4597213ae3304bbbda069bb7b4516e1c039233",
+  "sourceDigestSha256": "3e60c2ccd719a8137302f63b962bf66be308281aee3a43aac9b433012f84f188",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5363,8 +5363,8 @@
       "path": "docs/geometry/assistant-scan-replacement.md",
       "owner": "media",
       "mode": "100644",
-      "bytes": 12054,
-      "sha256": "8c358fead339f03db132aa0936626d7f02d1bad855cf60253350a4795c71e7cd"
+      "bytes": 12280,
+      "sha256": "143d79783762bfafe6af31c6d6fc6b375b8b1acb533c6db39a8701725b12d345"
     },
     {
       "path": "docs/geometry/drawing-evidence-lookup-150.md",
@@ -8653,15 +8653,15 @@
       "path": "tools/geometry/scan-replacement-plan.mjs",
       "owner": "media",
       "mode": "100644",
-      "bytes": 22003,
-      "sha256": "df16652c57f5cf6031068084bda374c9d459343dfc454a052cce37b27137daca"
+      "bytes": 22557,
+      "sha256": "5c818edf17ee0ffa1d3e99ed50a0f4d02f0154c0105de58e91bc3ff745bd439f"
     },
     {
       "path": "tools/geometry/scan-replacement-plan.test.mjs",
       "owner": "media",
       "mode": "100644",
-      "bytes": 39183,
-      "sha256": "2862eedcbd5e00cab3e08b65feb657b2cf62039388da33028b2fafd01d93ee7c"
+      "bytes": 40289,
+      "sha256": "c4c7ef5307d6a1a972407417d8e5938e7b17d37ed86e30c08b3407772ab27189"
     },
     {
       "path": "tools/integration/baseline.test.mjs",

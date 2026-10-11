@@ -92,6 +92,9 @@ key plus original hash, and rooms additionally by source room ID. Repeated label
 on different floors or corrected source versions do not join their support.
 Geometry record `coordinateUnits`, `scale` and its six-coefficient `transform`
 also fence the frame comparison; changed placement metadata requires review
+and unknown units require null scale and transform. Selected original asset IDs
+retain one digest across scene documents, prior floors and successors. New
+successor descriptor keys must differ from every prior descriptor key,
 even when the authored derivative is identical. Multi-anchor correspondence
 retains the complete set union of its accepted targets and unresolved labels,
 matching the existing contract semantics. Input byte ownership is copied before

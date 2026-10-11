@@ -46,6 +46,9 @@ async function inspect(snapshot, reader) {
   text(snapshot.key); text(snapshot.exportLabel);
   assert(hashPattern.test(snapshot.originalSha256) && hashPattern.test(snapshot.derivativeSha256));
   assert(geometryRecord(snapshot.geometry), 'Snapshot geometry must satisfy the existing Atlas record schema');
+  const placement = snapshot.geometry.payload;
+  assert(placement.coordinateUnits !== 'unknown' || (placement.scale === null && placement.transform === null),
+    'Unknown geometry units cannot imply scale or transform');
   assert.equal(snapshot.geometry.lifecycle, 'active');
   assert(snapshot.meshBytes instanceof Uint8Array && snapshot.meshBytes.length > 0 && snapshot.meshBytes.length <= LIMITS.meshBytes);
   assert.equal(sha(snapshot.meshBytes), snapshot.derivativeSha256, 'Derivative bytes must match the selected digest');
@@ -108,13 +111,20 @@ export async function buildReplacementPlan(input) {
   const reader = await import(decoderModule);
   const previous = await Promise.all(bounded(input.floors, LIMITS.floors).map(s => inspect(s, reader)));
   const next = await Promise.all(bounded(input.successors, LIMITS.floors).map(s => inspect(s, reader)));
+  const originalDigests = new Map();
+  const retainOriginal = (id, digest) => {
+    assert(!originalDigests.has(id) || originalDigests.get(id) === digest, 'Original asset identity/content is immutable');
+    originalDigests.set(id, digest);
+  };
+  for (const source of association.sourceDocuments) retainOriginal(source.originalAssetId, source.originalSha256);
+  for (const floor of [...previous, ...next]) retainOriginal(floor.snapshot.geometry.payload.originalAssetId, floor.snapshot.originalSha256);
   const byId = new Map(), byKey = new Map();
   for (const floor of previous) {
     const p = pin(floor); assert(!byId.has(p.geometryId) && !byKey.has(p.key), 'Ambiguous previous floor');
     for (const field of ['workspaceId', 'homeId']) assert.equal(floor.snapshot.geometry[field], input.association[field]);
     byId.set(p.geometryId, floor); byKey.set(p.key, floor);
   }
-  const replacements = new Map(), nextIds = new Set(byId.keys()), nextKeys = new Set();
+  const replacements = new Map(), nextIds = new Set(byId.keys()), nextKeys = new Set(byKey.keys());
   for (const floor of next) {
     const p = pin(floor), old = byId.get(floor.snapshot.geometry.payload.previousGeometryId);
     assert(old && !replacements.has(old.snapshot.geometry.recordId), 'Select one explicit successor per retained predecessor');
@@ -125,8 +135,6 @@ export async function buildReplacementPlan(input) {
     for (const field of ['workspaceId', 'homeId']) assert.equal(floor.snapshot.geometry[field], old.snapshot.geometry[field]);
     replacements.set(old.snapshot.geometry.recordId, floor);
   }
-  for (const floor of previous) if (!replacements.has(floor.snapshot.geometry.recordId))
-    assert(!nextKeys.has(floor.snapshot.key), 'A successor cannot alias an untouched floor');
   const bindings = new Map(), boundGeometryIds = new Set();
   for (const source of association.sourceFloors) {
     const key = sourceFloorKey(source);

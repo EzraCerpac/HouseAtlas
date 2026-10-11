@@ -470,8 +470,9 @@ test('opaque null and non-object placement facts survive a reopened successful a
 
 test('geometry placement metadata changes require frame review even with byte-identical derivatives', async () => {
   const floor = snapshot({ floorKey: 'metadata-v1', sourceFloorKey: 'metadata-source', label: 'Metadata Floor' });
+  floor.geometry.payload.coordinateUnits = 'm';
   const baseline = world({ floors: [floor], rooms: [room({ id: 'metadata-room', floor })] });
-  for (const [field, value] of [['coordinateUnits', 'm'], ['scale', 1.25], ['transform', [1, 0, 0, 1, 2.5, -1.75]]]) {
+  for (const [field, value] of [['coordinateUnits', 'unknown'], ['scale', 1.25], ['transform', [1, 0, 0, 1, 2.5, -1.75]]]) {
     const candidate = successor(floor);
     candidate.geometry.payload[field] = value;
     assert.deepEqual(candidate.meshBytes, floor.meshBytes);
@@ -483,6 +484,22 @@ test('geometry placement metadata changes require frame review even with byte-id
     assert.equal(plan.placementEvidenceApplications[0].applicability, 'prior-frame-only-requires-review');
     assert.deepEqual(plan.floors[0].candidateFrame.geometryPlacement[field], value);
   }
+});
+
+test('same immutable original bytes can support a distinct successor descriptor and geometry version', async () => {
+  const floor = snapshot({ floorKey: 'retained-original-v1', sourceFloorKey: 'retained-original-source', label: 'Retained Original Floor' });
+  const baseline = world({ floors: [floor], rooms: [room({ id: 'retained-original-room', floor })] });
+  const candidate = successor(floor);
+  candidate.geometry.payload.originalAssetId = floor.geometry.payload.originalAssetId;
+  const plan = await buildReplacementPlan(inputWith(baseline, [candidate]));
+  const pair = plan.floors[0];
+  assert.equal(pair.previous.originalAssetId, pair.candidate.originalAssetId);
+  assert.equal(pair.previous.originalSha256, pair.candidate.originalSha256);
+  assert.notEqual(pair.previous.key, pair.candidate.key);
+  assert.notEqual(pair.previous.geometryId, pair.candidate.geometryId);
+  assert.equal(plan.rooms[0].status, 'reuse-proposed');
+  assert.equal(plan.rooms[0].nativeBindingRefreshRequired, true);
+  assert.equal(plan.operationsExecuted, 0);
 });
 
 test('accepted multi-anchor room mappings retain disjoint target and unresolved-label unions', async () => {
