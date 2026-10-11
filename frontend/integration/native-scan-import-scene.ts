@@ -173,9 +173,9 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
     let next;try{next=options.getContext();}catch{binding=null;return null;}
     if(disposed||!next||!next.sessionIdentity||next.session.schemaVersion!==1||!next.session.actorId||!next.session.csrfToken
       ||!Number.isFinite(Date.parse(next.session.expiresAt))||Date.parse(next.session.expiresAt)<=Date.now()
-      ||!next.view.canEdit||!next.admission||!UUID.test(next.view.scope.workspaceId)||!UUID.test(next.view.scope.homeId)
-      ||next.view.scope.workspaceId!==next.admission.scope.workspaceId||next.view.scope.homeId!==next.admission.scope.homeId){binding=null;return null;}
-    const k=JSON.stringify([next.session.actorId,next.session.csrfToken,next.session.expiresAt,next.view.scope,next.admission.revision,next.admission.commandIds]);
+      ||!UUID.test(next.view.scope.workspaceId)||!UUID.test(next.view.scope.homeId)
+      ||next.admission&&(next.view.scope.workspaceId!==next.admission.scope.workspaceId||next.view.scope.homeId!==next.admission.scope.homeId)){binding=null;return null;}
+    const k=JSON.stringify([next.session.actorId,next.session.csrfToken,next.session.expiresAt,next.view.scope,next.view.canEdit,next.admission?.revision??null,next.admission?.commandIds??null]);
     if(!binding||binding.sessionIdentity!==next.sessionIdentity||k!==key){key=k;binding=Object.freeze({sessionIdentity:next.sessionIdentity,expiresAt:next.session.expiresAt,scope:Object.freeze({...next.view.scope})});}
     return binding;
   };
@@ -356,6 +356,12 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
       let prepared:SceneAssociationPrepared|null=null,unsubscribeOwner:(()=>void)|null=null;
       try{
         const owner=getBinding();need(owner);
+        // A read binding admits passive inspection only. Actual custody still
+        // requires this current owner's complete Editor command admission.
+        const write=options.getContext();need(write&&write.view.canEdit===true&&write.admission
+          &&write.view.scope.workspaceId===owner.scope.workspaceId&&write.view.scope.homeId===owner.scope.homeId
+          &&['atlas.asset.create','atlas.evidence.create','atlas.identity.replace','atlas.batch.execute','atlas.scene-association.create']
+            .every(id=>write.admission!.commandIds.includes(id))&&getBinding()===owner);
         unsubscribeOwner=options.subscribe(()=>{if(getBinding()!==owner)controller.abort(new Error('Native scan scene owner changed'));});
         await preflightNativeScanScene({...input,sourceFloors:input.sourceFloors.map(f=>({sourceFloorKey:f.sourceFloorKey,sourceOriginalSha256:f.sourceOriginalSha256}))},signal,owner.scope);
         signal.throwIfAborted();need(getBinding()===owner);
