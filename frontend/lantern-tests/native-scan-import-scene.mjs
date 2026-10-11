@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import { transformWithOxc } from 'vite';
 assert.equal(process.version,'v26.10.0');
 process.on('uncaughtException',error=>{const frames=[...(error.stack??'').matchAll(/data:text\/javascript;base64,([A-Za-z0-9+/=]+):(\d+):(\d+)/g)].slice(0,8).map(m=>({line:Number(m[2]),sourceLine:Buffer.from(m[1],'base64').toString().split('\n')[Number(m[2])-1]?.slice(0,300)}));console.error(JSON.stringify({case:process.argv[2],status:'FAILED',error:error.name,message:error.message.slice(0,500),frames}));process.exitCode=1;});
-const names=new Set(['committed','asset-unknown','evidence-unknown','association-unknown','floor-selection','literal-labels','scene-reuse','scene-replacement','stale-current-scene','changed-frame-current-scene','supplementary-unicode']);
+const names=new Set(['committed','asset-unknown','evidence-unknown','association-unknown','floor-selection','literal-labels','scene-reuse','scene-replacement','stale-current-scene','changed-frame-current-scene','supplementary-unicode','compact-scene-head']);
 assert.equal(process.argv.length,3);const name=process.argv[2];assert(names.has(name),'Choose one registered case');
 const frontend=resolve(dirname(fileURLToPath(import.meta.url)),'..'),root=dirname(frontend);
 const require=createRequire(pathToFileURL(resolve(frontend,'package.json'))),loaded=new Map(),sourcePins={};
@@ -110,7 +110,7 @@ const input={buildingId,primary:textInput(primary,'scene.txt'),historical:textIn
   roomMappings:[{sourceRoomId:'synthetic-room',sourceFloorKey:'source-floor',sourceOriginalSha256:sourceSha,sourceAnchorIds:[anchors[0].id],targets:anchors[0].targets,unresolvedLabels:[]}],statement:supported?.statement??'Deliberately reviewed synthetic room association',reason:supported?.reason??'Generated scene save',confirmDrawingSupport:!!supported};
 const context={sessionIdentity:{},session:{schemaVersion:1,actorId:U(9),csrfToken:'synthetic-not-a-credential',expiresAt:new Date(Date.now()+120000).toISOString()},
   view:{scope,canEdit:true},admission:{scope,revision:'synthetic-admission',commandIds:['atlas.asset.create','atlas.evidence.create','atlas.identity.replace','atlas.batch.execute','atlas.scene-association.create']}};
-const listeners=new Set(),records=new Map(),blobs=new Map(),media=new Map(),calls=[],journal=[];let counter=100,current=null,savedScene=null,lastSceneRequest=null,currentUnavailableReason=null,geometryEpoch=0,listNextCursor=null,listOverride=null,qualified409Responses=0;
+const listeners=new Set(),records=new Map(),blobs=new Map(),media=new Map(),calls=[],journal=[];let counter=100,current=null,savedScene=null,lastSceneRequest=null,currentUnavailableReason=null,geometryEpoch=0,headOverride=null,headHttpStatus=200,qualified409Responses=0;const headResponseBytes=[];
 let observeReservationReads=false,activeEvidenceReads=0,maxEvidenceReads=0;
 const target=(kind,id)=>({authority:'atlas',recordType:kind,recordId:id});
 const set=(kind,id,payload,revision=1)=>{const r={target:target(kind,id),revision,lifecycle:'active',payload};records.set(kind+':'+id,r);return r;};
@@ -173,10 +173,16 @@ async function transport(url,init){
     if(current&&current.payload.sourceFloors[0].nativeFloorKey!==floorKey()){qualified409Responses++;return new Response(null,{status:409});}
     return json(current?{status:'available',association:current}:{status:'unavailable',reason:'no-current-association',association:null});
   }
-  if(path.endsWith('/records/scene-association')){
-    const query=new URL(url,'https://synthetic.invalid').searchParams;assert.equal(query.get('pageSize'),'100');assert.equal(query.get('includeArchived'),'true');assert.equal(query.has('q'),false);assert.equal(query.has('cursor'),false);
-    const items=listOverride??[...records.values()].filter(r=>r.target.recordType==='scene-association').sort((a,b)=>a.target.recordId.localeCompare(b.target.recordId));
-    return json({schemaVersion:3,commandId:'atlas.scene-association.list',requestId:U(++counter),resolvedScope:scope,status:'read',replayed:false,data:{sourceStatus:'current',nextCursor:listNextCursor,records:items}});
+  if(path.endsWith('/head')){
+    assert.equal(path,`/api/atlas/scene/v1/workspaces/${scope.workspaceId}/homes/${scope.homeId}/buildings/${buildingId}/head`);
+    assert.equal(new URL(url,'https://synthetic.invalid').search,'');assert.equal(init.method,'GET');
+    assert.equal(init.credentials,'same-origin');assert.equal(init.redirect,'error');assert.equal(init.cache,'no-store');
+    if(headHttpStatus!==200)return new Response(null,{status:headHttpStatus});
+    const unavailable=currentUnavailableReason||(current&&current.payload.sourceFloors.some(f=>f.nativeGeometryRevision!==records.get('geometry:'+f.nativeGeometryId)?.revision)?'current-source-unavailable':null);
+    const response=headOverride??{schema:'houseatlas.native-scene-head.v1',scope,buildingId,
+      status:unavailable||!current?'unavailable':'available',reason:unavailable||(!current?'no-current-association':null),
+      head:unavailable||!current?null:{recordId:current.recordId,revision:current.revision,payloadSha256:hash(canonical(current.payload))}};
+    headResponseBytes.push(Buffer.byteLength(JSON.stringify(response)));return json(response);
   }
   const m=path.match(/\/records\/([^/]+)\/([^/]+)$/);
   if(m){if(mode==='evidence-not-dispatched'&&m[1]==='identity'&&calls.some(c=>c.method==='POST'))throw Error('Synthetic next-step read unavailable');
@@ -251,7 +257,7 @@ try{
       await assert.rejects(client.importScene(input,budget));assert.equal(calls.filter(c=>c.method==='POST').length,5);
       outcome=await client.reconcileScene(budget);assert.equal(outcome.outcome,'committed');assert.equal(client.isHeld(),false);
       assert.equal(calls.filter(c=>c.method==='POST').length,5,'Acknowledged partial reconciles through fresh GET, never resolve/resend');
-    }else if(name==='committed'||name==='scene-reuse'||name==='scene-replacement'||name==='stale-current-scene'||name==='changed-frame-current-scene'||name==='supplementary-unicode'){
+    }else if(name==='committed'||name==='scene-reuse'||name==='scene-replacement'||name==='stale-current-scene'||name==='changed-frame-current-scene'||name==='supplementary-unicode'||name==='compact-scene-head'){
       assert.equal(outcome.outcome,'committed');assert.equal(calls.filter(c=>c.method==='POST').length,5);
       assert.equal(outcome.current.selection.sceneEvidenceId,outcome.primary.evidenceId);assert.equal(identity().revision,3);
       assert.deepEqual(identity().payload.evidenceIds,[geomEvidenceId,...(supported?[U(20)]:[]),outcome.primary.evidenceId,outcome.historical.evidenceId]);
@@ -275,6 +281,51 @@ try{
           assert.equal(calls.filter(c=>c.method==='POST').length,posts,'Additional production preparation has no dispatch');
         }finally{if(prepared)association.releasePrepared(prepared);association.dispose();pReview.dispose();hReview.dispose();geometry.dispose();}
       }
+      if(name==='compact-scene-head'){
+        client.dispose();assert.equal(listeners.size,0);
+        // Separately seeded generated retained records. Both records pass the
+        // production closed native schema; this does not assert backend custody.
+        const base=current,largeAnchors=Array.from({length:128},(_,n)=>({...anchors[0],id:'anchor-'+String(n).padStart(3,'0')+'-'+('x'.repeat(500))}));
+        const largeReceipt=canonical({profile:'houseatlas.native-scene-room-review.v1',receiptId:'synthetic-large-room-review',sourceReceiptSha256:historySha,anchors:largeAnchors});
+        assert(Buffer.byteLength(largeReceipt)<131072);
+        const largeEntries=Array.from({length:7},(_,n)=>({...entries[0],id:'large-room-'+n,sourceAnchorIds:largeAnchors.map(a=>a.id)}));
+        const largePrimary=JSON.stringify({...JSON.parse(primary),receiptCanonicalJson:largeReceipt,
+          rooms:{...JSON.parse(primary).rooms,receiptId:'synthetic-large-room-review',receiptSha256:hash(largeReceipt),entries:largeEntries}});
+        const largeAssetId=U(7000),largeEvidenceId=U(7001),largeBytes=new TextEncoder().encode(largePrimary);
+        set('asset',largeAssetId,{...assetPayload(hash(largeBytes),largeBytes.length,'text/plain','evidence-original'),evidenceIds:[largeEvidenceId]});
+        set('evidence',largeEvidenceId,{statement:'Generated large documentary source',provenance,supersedesEvidenceIds:[],references:[{kind:'atlas-asset',assetId:largeAssetId}]});
+        blobs.set(largeAssetId,largeBytes);media.set(hash(canonical({assetId:largeAssetId,kind:'atlas-asset'})),largeAssetId);
+        set('identity',buildingId,{...identity().payload,evidenceIds:[...identity().payload.evidenceIds,largeEvidenceId]},identity().revision+1);
+        const largePayload={...base.payload,acceptedReceipt:{receiptId:'synthetic-large-room-review',canonicalJson:largeReceipt,canonicalSha256:hash(largeReceipt),anchors:largeAnchors},
+          sourceDocuments:base.payload.sourceDocuments.map(d=>d.role==='primary-scene'?{...d,evidenceId:largeEvidenceId,evidenceRevision:1,originalAssetId:largeAssetId,originalAssetRevision:1,originalSha256:hash(largeBytes)}:d),
+          sourceFloors:base.payload.sourceFloors.map(f=>({...f,nativeFloorKey:floorKey()})),
+          roomMappings:largeEntries.map(e=>({...base.payload.roomMappings[0],sourceRoomId:e.id,sourceAnchorIds:e.sourceAnchorIds,evidenceIds:[largeEvidenceId]}))};
+        const first={...base,payload:largePayload},second={...base,recordId:U(7002),lastAuditId:U(7003),payload:{...largePayload,associationVersion:2,previousAssociationId:first.recordId}};
+        const {createExactStockResultValidator}=await import(await source(resolve(frontend,'src/numeric/schema-validator.ts')));
+        const {parseLosslessJson,stringifyLosslessJson}=await import(await source(resolve(frontend,'src/numeric/lossless-json.ts')));
+        const validator=createExactStockResultValidator(),sizes=[first,second].map(record=>{
+          assert.equal(validator.validateNativeEvidenceShape('scene-association',parseLosslessJson(JSON.stringify(record))),true,'Actual closed native record schema accepts generated large version');
+          const bytes=Buffer.byteLength(JSON.stringify(record));assert(bytes>600*1024&&bytes<1024*1024);return bytes;
+        });assert(Buffer.byteLength(JSON.stringify([first,second]))>1024*1024,'Two valid retained versions exceed metadata limit together');
+        set('scene-association',first.recordId,first.payload);set('scene-association',second.recordId,second.payload);current=second;
+        const {createNativeGeometryReadClient}=await import(await source(resolve(frontend,'integration/native-geometry-read-client.ts')));
+        const {createNativeEvidenceDocumentClient}=await import(await source(resolve(frontend,'integration/native-evidence-document-client.ts')));
+        const {createNativeSceneAssociationClient}=await import(await source(resolve(frontend,'integration/native-scene-association-client.ts')));
+        const owner=Object.freeze({sessionIdentity:context.sessionIdentity,expiresAt:context.session.expiresAt,scope}),ports={getBinding:()=>owner,subscribeBinding:options.subscribe,origin:options.origin,transport};
+        const geometry=createNativeGeometryReadClient(ports),pReview=createNativeEvidenceDocumentClient(ports),hReview=createNativeEvidenceDocumentClient(ports);
+        const association=createNativeSceneAssociationClient({getContext:options.getContext,subscribe:options.subscribe,primaryReview:pReview,historicalReview:hReview,geometryCurrent:geometry.isCurrent,transport});
+        const posts=calls.filter(c=>c.method==='POST').length,claims=journal.length;
+        try{const frame=await geometry.loadBuilding(buildingId,budget),captured=await association.capturePrevious(buildingId,frame,budget);
+          assert.equal(captured.current.status,'available');assert.equal(captured.current.recordId,second.recordId);
+          const checked=await association.validatePrevious(captured.token,frame,budget);
+          assert.equal(checked.recordId,second.recordId);assert.equal(checked.revision.compare(captured.current.revision),0);
+          assert.equal(hash(canonical(JSON.parse(stringifyLosslessJson(checked.payload)))),hash(canonical(second.payload)),'Captured exact payload digest is preserved');
+          assert.equal(calls.filter(c=>c.path.includes('/records/scene-association')).length,0,'No full history get/list is downloaded');
+          assert(headResponseBytes.length>0&&headResponseBytes.every(bytes=>bytes<1024),'Atomic response remains sub-KiB regardless of retained payloads');
+          assert.equal(calls.filter(c=>c.method==='POST').length,posts);assert.equal(journal.length,claims);
+          outcome={...outcome,compactHead:{recordBytes:sizes,maximumHeadResponseBytes:Math.max(...headResponseBytes)}};
+        }finally{association.dispose();pReview.dispose();hReview.dispose();geometry.dispose();}
+      }
       if(name==='stale-current-scene'||name==='changed-frame-current-scene'){
         client.dispose();assert.equal(listeners.size,0);const successor=createNativeScanSceneImporter(options),prior=current,descriptorKey=viewKey();
         try{const captured=await successor.capturePriorScene(buildingId,budget);assert.equal(captured.status,'available');assert.equal(captured.recordId,prior.recordId);
@@ -292,22 +343,26 @@ try{
             try{const frame=await geometry.loadBuilding(buildingId,budget);await assert.rejects(qualified.readCurrent(buildingId,frame,budget),'Real qualified route behavior is409 for stale nativeFloorKey with unchanged geometry revision');assert.equal(qualified409Responses,1);}
             finally{qualified.dispose();pReview.dispose();hReview.dispose();geometry.dispose();}
             const claims=journal.length,reads=calls.filter(c=>c.path.endsWith('/current')).length;
-            assert.equal(await successor.inspectCurrentScene(input,budget),null,'Complete stored old-head chain permits successor input despite qualified route409');
-            assert.equal(calls.filter(c=>c.path.endsWith('/current')).length,reads,'Changed-frame stored proof does not reinterpret the qualified route');assert.equal(journal.length,claims);
-            const oldStored=records.get('scene-association:'+prior.recordId);
-            for(const invalid of ['continuation','overflow','archive','missing-parent','fork','disconnected','empty']){
-              listOverride=[oldStored];listNextCursor=null;
-              if(invalid==='continuation')listNextCursor='synthetic-next-cursor';
-              if(invalid==='overflow')listOverride=Array.from({length:101},(_,n)=>({...oldStored,target:target('scene-association',U(2000+n))}));
-              if(invalid==='archive')listOverride=[{...oldStored,lifecycle:'tombstoned'}];
-              if(invalid==='missing-parent')listOverride=[{...oldStored,payload:{...oldStored.payload,associationVersion:2,previousAssociationId:U(9997)}}];
-              if(invalid==='empty')listOverride=[];
-              if(invalid==='fork')listOverride=[oldStored,...[9995,9996].map(n=>({...oldStored,target:target('scene-association',U(n)),payload:{...oldStored.payload,associationVersion:2,previousAssociationId:prior.recordId}}))];
-              if(invalid==='disconnected')listOverride=[oldStored,{...oldStored,target:target('scene-association',U(9994))}];
-              await assert.rejects(successor.inspectCurrentScene(input,budget),'Incomplete or inconsistent stored chain refuses: '+invalid);
+            assert.equal(await successor.inspectCurrentScene(input,budget),null,'Atomic retained-head pins permit successor input despite qualified route409');
+            assert.equal(calls.filter(c=>c.path.endsWith('/current')).length,reads,'Changed-frame atomic proof does not reinterpret the qualified route');assert.equal(journal.length,claims);
+            const valid={schema:'houseatlas.native-scene-head.v1',scope,buildingId,status:'available',reason:null,
+              head:{recordId:prior.recordId,revision:prior.revision,payloadSha256:hash(canonical(prior.payload))}};
+            for(const invalid of ['schema','scope','building','record','revision','digest','unavailable','extra','oversize','conflict']){
+              headOverride=structuredClone(valid);headHttpStatus=200;
+              if(invalid==='schema')headOverride.schema='other-profile';
+              if(invalid==='scope')headOverride.scope.homeId=U(9997);
+              if(invalid==='building')headOverride.buildingId=U(9997);
+              if(invalid==='record')headOverride.head.recordId=U(9997);
+              if(invalid==='revision')headOverride.head.revision++;
+              if(invalid==='digest')headOverride.head.payloadSha256='f'.repeat(64);
+              if(invalid==='unavailable')headOverride={...valid,status:'unavailable',reason:'current-source-unavailable',head:null};
+              if(invalid==='extra')headOverride.unreviewed=true;
+              if(invalid==='oversize')headOverride.padding='x'.repeat(4096);
+              if(invalid==='conflict')headHttpStatus=409;
+              await assert.rejects(successor.inspectCurrentScene(input,budget),'Unqualified atomic head refuses: '+invalid);
               await assert.rejects(successor.importScene(input,budget));assert.equal(calls.filter(c=>c.method==='POST').length,5);assert.equal(journal.length,claims);
             }
-            listOverride=null;listNextCursor=null;
+            headOverride=null;headHttpStatus=200;
           }
           current={...prior,recordId:U(++counter),lastAuditId:U(++counter),payload:{...prior.payload,associationVersion:2,previousAssociationId:prior.recordId,reviewStatement:'Another reviewed writer advanced this head',
             sourceFloors:prior.payload.sourceFloors.map(f=>({...f,nativeFloorKey:floorKey(),nativeGeometryRevision:records.get('geometry:'+geometryId).revision}))}};
@@ -317,9 +372,10 @@ try{
           await assert.rejects(successor.inspectCurrentScene(selected,budget),/prior scene head changed; custody remains held/,'A valid competing current head cannot become a mismatch/reuse null');
           await assert.rejects(successor.importScene(selected,budget),/prior scene head changed; custody remains held/,'Retained predecessor authentication cannot authorize new documentary custody');
           assert.equal(calls.filter(c=>c.method==='POST').length,5,'Competing-head refusal performs zero extra POSTs');assert.equal(journal.length,claims,'No new custody claim or fabricated receipt');
-          assert(calls.some(c=>c.method==='GET'&&c.path.endsWith('/records/scene-association/'+prior.recordId)),'Actual retained-row authentication was exercised before the distinct head refusal');
+          assert(calls.some(c=>c.method==='GET'&&c.path.endsWith('/head')),'Actual compact head endpoint was exercised before the distinct head refusal');
+          assert.equal(calls.filter(c=>c.path.includes('/records/scene-association')).length,0,'No full historical scene get/list is needed for predecessor validation');
           assert.equal(successor.isConsumed(),false);assert.equal(records.get('scene-association:'+prior.recordId).revision,1);
-          assert.equal(calls.filter(c=>c.path.endsWith('/current')).length,currentReads,'Complete stored-chain proof refuses a distinct tail before qualified current reads');
+          assert.equal(calls.filter(c=>c.path.endsWith('/current')).length,currentReads,'Atomic head proof refuses a distinct tail before qualified current reads');
           if(name==='changed-frame-current-scene'){
             currentUnavailableReason='current-source-unavailable';
             await assert.rejects(successor.inspectCurrentScene(selected,budget),/prior scene head changed; custody remains held/,'Unavailable competing successor cannot masquerade as the captured old head');
@@ -331,7 +387,7 @@ try{
       if(name==='scene-replacement'){
         client.dispose();assert.equal(listeners.size,0);const successor=createNativeScanSceneImporter(options),prior=current;
         try{const captured=await successor.capturePriorScene(buildingId,budget);assert.equal(captured.status,'available');assert.equal(captured.recordId,prior.recordId);
-          geometryEpoch++;set('geometry',geometryId,{...records.get('geometry:'+geometryId).payload,geometryVersion:2},2);
+          geometryEpoch++; // Descriptor-key refresh preserves immutable geometry ID/revision; not geometry succession.
           const updated=JSON.parse(primary);updated.rooms.entries[0].label='Reviewed successor room';const replacement={...input,primary:textInput(JSON.stringify(updated),'successor.txt'),statement:'Reviewed successor room source'};
           assert.equal(await successor.inspectCurrentScene(replacement,budget),null,'Qualified stale-key prior is successor provenance, not a reusable or missing head');
           assert.equal(calls.filter(c=>c.method==='POST').length,5,'Prior revalidation and refresh are GET-only');
@@ -376,6 +432,7 @@ try{
   }
 }finally{client.dispose();assert.equal(listeners.size,0,'All actual owner subscriptions disposed');}
 return {variant:mode,posts:calls.filter(c=>c.method==='POST').length,ownerSubscriptionsAfterDispose:listeners.size,outcome:outcome.outcome,
+  ...(outcome.compactHead?{compactHead:outcome.compactHead}:{}),
   ...(supported?{statementCodePoints:[...savedScene.payload.reviewStatement].length,reasonCodePoints:[...input.reason].length,supportMarkerCodePoints:[...supported.marker].length}:{} )};
 }
 const results=[];if(name==='supplementary-unicode'){results.push(await runLiteralLabels(true),await runFixture());}else if(name==='literal-labels')results.push(await runLiteralLabels());else for(const variant of name==='evidence-unknown'?['evidence-unknown','asset-journal-incomplete','evidence-not-dispatched','evidence-journal-incomplete']:

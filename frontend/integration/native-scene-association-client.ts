@@ -13,6 +13,7 @@ type Row = { [key: string]: LosslessJson };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const SHA = /^[0-9a-f]{64}$/;
 const ONE = ExactDecimal.parse('1'), MAX = ExactDecimal.parse('9007199254740991');
+const MAX_HEAD = 4096;
 const MAX_META = 1024 * 1024, MAX_ORIGINAL = 8 * 1024 * 1024, MAX_BODY = 1024 * 1024;
 const DEADLINE_MS = 60_000;
 const encoder = new TextEncoder();
@@ -111,11 +112,11 @@ async function bounded<T>(outer: AbortSignal, work: (signal: AbortSignal) => Pro
   try { controller.signal.throwIfAborted(); return await abortable(work(controller.signal), controller.signal); }
   finally { clearTimeout(timer); outer.removeEventListener('abort', forward); controller.abort(); }
 }
-async function responseJson(response: Response, signal: AbortSignal): Promise<LosslessJson> {
+async function responseJson(response: Response, signal: AbortSignal, maxBytes = MAX_META): Promise<LosslessJson> {
   need(response.status === 200 && !response.redirected && response.type !== 'opaque' && response.type !== 'opaqueredirect');
   need(response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() === 'application/json');
   const declared = response.headers.get('content-length');
-  need(declared === null || /^(0|[1-9][0-9]*)$/.test(declared) && BigInt(declared) <= BigInt(MAX_META));
+  need(declared === null || /^(0|[1-9][0-9]*)$/.test(declared) && BigInt(declared) <= BigInt(maxBytes));
   const reader = response.body?.getReader(); need(reader); let total = 0; const chunks: Uint8Array[] = [];
   const cancel = () => { void reader.cancel().catch(() => undefined); };
   signal.addEventListener('abort', cancel, { once: true });
@@ -123,7 +124,7 @@ async function responseJson(response: Response, signal: AbortSignal): Promise<Lo
     for (;;) {
       signal.throwIfAborted(); const part = await abortable(reader.read(), signal); signal.throwIfAborted();
       if (part.done) break;
-      need(part.value instanceof Uint8Array && part.value.length <= MAX_META - total && chunks.length < 8192);
+      need(part.value instanceof Uint8Array && part.value.length <= maxBytes - total && chunks.length < 8192);
       chunks.push(part.value); total += part.value.length;
     }
     need(total > 0 && (declared === null || BigInt(declared) === BigInt(total)));
@@ -280,10 +281,10 @@ export function createNativeSceneAssociationClient(options: {
   const unknown = (buildingId: string, owner: object, next: SceneAssociationContext) =>
     visiblePending(buildingId, owner, next).some(([, item]) => item.outcome === 'unknown');
   const path = (next: SceneAssociationContext) => `/api/atlas/stock/v3/workspaces/${next.view.scope.workspaceId}/homes/${next.view.scope.homeId}`;
-  const obtain = async (url: string, init: RequestInit, signal: AbortSignal) => {
+  const obtain = async (url: string, init: RequestInit, signal: AbortSignal, maxBytes = MAX_META) => {
     const response = await abortable(transport(url, { ...init, signal, credentials: 'same-origin',
       cache: 'no-store', redirect: 'error', mode: 'same-origin' }), signal);
-    try { return await responseJson(response, signal); }
+    try { return await responseJson(response, signal, maxBytes); }
     catch (error) { void response.body?.cancel().catch(() => undefined); throw error; }
   };
   const buildingHasEvidence = async (buildingId: string, evidenceId: string, next: SceneAssociationContext,
@@ -404,62 +405,35 @@ export function createNativeSceneAssociationClient(options: {
       && geometry.descriptor.scope.homeId === next.view.scope.homeId);
     const head = captured.head;
     return bounded(outer, async signal => {
-      if (head.status === 'available') {
-        const raw = await obtain(`${path(next)}/records/scene-association/${head.recordId}`,
-          { method: 'GET', headers: { Accept: 'application/json' } }, signal);
-        need(current(owner, geometry) && validator.validateNativeRead('atlas.scene-association.get', raw));
-        const response = row(raw), scope = row(response.resolvedScope), data = row(response.data), records = list(data.records, 1);
-        need(response.commandId === 'atlas.scene-association.get' && response.status === 'read' && response.replayed === false
-          && scope.workspaceId === next.view.scope.workspaceId && scope.homeId === next.view.scope.homeId
-          && data.sourceStatus === 'current' && data.nextCursor === null && records.length === 1);
-        const record = row(records[0]), target = row(record.target);
-        need(target.authority === 'atlas' && target.recordType === 'scene-association' && target.recordId === head.recordId
-          && record.lifecycle === 'active' && integer(record.revision).compare(head.revision) === 0
-          && equal(record.payload!, head.payload));
-      }
-      // The retained row alone cannot authenticate today's head. Read a complete
-      // scoped list, including archived records, and walk the whole building chain.
-      // Overflow/continuation refuses instead of mixing snapshots or guessing from
-      // dates, UUID order or largest version. This is a read-point proof, not a lease;
-      // the backend still checks the actual predecessor atomically on submit.
-      const raw = await obtain(`${path(next)}/records/scene-association?pageSize=100&includeArchived=true`,
-        { method: 'GET', headers: { Accept: 'application/json' } }, signal);
-      need(current(owner, geometry) && validator.validateNativeRead('atlas.scene-association.list', raw));
-      const response = row(raw), scope = row(response.resolvedScope), data = row(response.data), records = list(data.records, 100);
-      need(response.commandId === 'atlas.scene-association.list' && response.status === 'read' && response.replayed === false
-        && scope.workspaceId === next.view.scope.workspaceId && scope.homeId === next.view.scope.homeId
-        && data.sourceStatus === 'current' && data.nextCursor === null);
+      // One authenticated snapshot selects the complete retained chain in the
+      // backend and returns only its head pins. Historical payloads need not fit
+      // together in a frontend metadata response. This remains a read-point
+      // proof; the backend checks the actual predecessor atomically on submit.
+      const expectedDigest = head.status === 'available'
+        ? await abortable(digest(encoder.encode(canonical(head.payload))), signal) : null;
+      signal.throwIfAborted(); need(current(owner, geometry));
+      const url = `/api/atlas/scene/v1/workspaces/${next.view.scope.workspaceId}/homes/${next.view.scope.homeId}/buildings/${captured.buildingId}/head`;
+      const raw = await obtain(url, { method: 'GET', headers: { Accept: 'application/json' } }, signal, MAX_HEAD);
+      signal.throwIfAborted(); need(current(owner, geometry));
+      const output = row(raw, ['schema','scope','buildingId','status','reason','head']);
+      const scope = row(output.scope, ['workspaceId','homeId']);
+      need(output.schema === 'houseatlas.native-scene-head.v1'
+        && uuid(scope.workspaceId) === next.view.scope.workspaceId && uuid(scope.homeId) === next.view.scope.homeId
+        && uuid(output.buildingId) === captured.buildingId);
       const assertHead = (condition: unknown): void => {
         if (!condition) throw new TypeError('Native scan prior scene head changed; custody remains held');
       };
-      const ids = new Set<string>(), selected = new Map<string, Row>();
-      for (const value of records) {
-        const record = row(value), target = row(record.target), id = uuid(target.recordId), payload = row(record.payload);
-        need(target.authority === 'atlas' && target.recordType === 'scene-association' && !ids.has(id)); ids.add(id);
-        integer(record.revision);
-        if (payload.buildingId !== captured.buildingId) continue;
-        assertHead(payload.profile === 'houseatlas.native-scene-association.v1' && record.lifecycle === 'active');
-        selected.set(id, record);
+      if (output.status === 'unavailable') {
+        need(output.head === null && (output.reason === 'no-current-association' || output.reason === 'current-source-unavailable'));
+        assertHead(head.status === 'unavailable' && head.reason === 'no-current-association'
+          && output.reason === 'no-current-association');
+      } else {
+        need(output.status === 'available' && output.reason === null);
+        const observed = row(output.head, ['recordId','revision','payloadSha256']);
+        const recordId = uuid(observed.recordId), revision = integer(observed.revision), payloadSha256 = sha(observed.payloadSha256);
+        assertHead(head.status === 'available' && recordId === head.recordId
+          && revision.compare(head.revision) === 0 && payloadSha256 === expectedDigest);
       }
-      if (head.status === 'unavailable') { assertHead(selected.size === 0); return head; }
-      assertHead(selected.size > 0);
-      const children = new Map<string, string>(), roots: string[] = [];
-      for (const [id, record] of selected) {
-        const payload = row(record.payload), version = integer(payload.associationVersion);
-        if (payload.previousAssociationId === null) { assertHead(version.compare(ONE) === 0); roots.push(id); }
-        else {
-          const parentId = uuid(payload.previousAssociationId), parent = selected.get(parentId);
-          assertHead(parent && !children.has(parentId)); need(parent);
-          const parentVersion = integer(row(parent.payload).associationVersion);
-          assertHead(BigInt(exactStockSafeInteger(version)) === BigInt(exactStockSafeInteger(parentVersion)) + 1n);
-          children.set(parentId, id);
-        }
-      }
-      assertHead(roots.length === 1); const visited = new Set<string>(); let tail = roots[0]!;
-      for (;;) { assertHead(!visited.has(tail)); visited.add(tail); const child = children.get(tail); if (!child) break; tail = child; }
-      const observed = selected.get(tail); need(observed);
-      assertHead(visited.size === selected.size && tail === head.recordId
-        && integer(observed.revision).compare(head.revision) === 0 && equal(observed.payload!, head.payload));
       signal.throwIfAborted(); need(current(owner, geometry));
       return head;
     });
