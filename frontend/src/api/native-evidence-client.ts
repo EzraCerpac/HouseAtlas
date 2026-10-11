@@ -174,9 +174,7 @@ export function createNativeEvidenceClient(options: {
   const admissions = new WeakSet<NativeEvidenceAdmission>();
   type Entry = { owner: object; scope: Readonly<Scope>; admission: NativeEvidenceAdmission; metadata: string;
     digest: string; size: number; type: string; outcome: 'unknown' | 'not-committed' | 'committed'; receipt?: LosslessJson; evidenceId?: string; assetId?: string;
-    intakeError?: NativeEvidencePending['intakeError']; file?: File; uploadDiagnostic?: NativeEvidenceUploadDiagnostic;
-    // The original thrown value remains lexical and is rethrown unchanged. It is never part of a pending view or log.
-    originalUploadFailure?: unknown };
+    intakeError?: NativeEvidencePending['intakeError']; file?: File; uploadDiagnostic?: NativeEvidenceUploadDiagnostic };
   const custody = new WeakMap<NativeEvidencePrepared, Entry>(), submitted = new Map<NativeEvidencePrepared, Entry>();
   const listeners = new Set<() => void>();
   const notify = () => {
@@ -452,7 +450,6 @@ export function createNativeEvidenceClient(options: {
       }
       catch (error) {
         if (submitted.has(prepared)) {
-          entry.originalUploadFailure = error;
           const phase = entry.uploadDiagnostic?.phase;
           let contextChanged = error instanceof NativeEvidenceContextChanged;
           if (stopped === null && !contextChanged) {
