@@ -243,6 +243,22 @@ pub fn qualify_document(
             target["packagePlaceKey"] == entry["packagePlaceKey"]
                 && target["packagePlaceUuid"] == entry["packagePlaceUuid"]
         }))?;
+        for anchor_id in entry["sourceAnchorIds"].as_array().ok_or_else(invalid)? {
+            let anchor = receipt["anchors"]
+                .as_array()
+                .ok_or_else(invalid)?
+                .iter()
+                .find(|anchor| anchor["id"] == *anchor_id)
+                .ok_or_else(invalid)?;
+            let targets = anchor["targets"].as_array().ok_or_else(invalid)?;
+            need(
+                anchor["sourceFloorKey"] == entry["sourceFloorKey"]
+                    && anchor["sourceOriginalSha256"] == entry["sourceOriginalSha256"]
+                    && targets.len() == 1
+                    && targets[0]["packagePlaceKey"] == entry["packagePlaceKey"]
+                    && targets[0]["packagePlaceUuid"] == entry["packagePlaceUuid"],
+            )?;
+        }
     }
     budget.check()?;
     Ok(QualifiedDocumentFacts {

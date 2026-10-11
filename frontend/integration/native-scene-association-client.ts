@@ -427,7 +427,14 @@ export function createNativeSceneAssociationClient(options: {
                 const t = row(target); return t.packagePlaceKey === entry.packagePlaceKey
                   && t.packagePlaceUuid === entry.packagePlaceUuid;
               }));
-            for (const anchorId of list(mapping.sourceAnchorIds, 128)) need(acceptedAnchors.some(anchor => anchor.id === anchorId));
+            for (const anchorId of list(mapping.sourceAnchorIds, 128)) {
+              const anchor = acceptedAnchors.find(anchor => anchor.id === anchorId);
+              need(anchor && anchor.sourceFloorKey === entry.sourceFloorKey
+                && anchor.sourceOriginalSha256 === entry.sourceOriginalSha256
+                && anchor.targets.length === 1
+                && anchor.targets[0]!.packagePlaceKey === entry.packagePlaceKey
+                && anchor.targets[0]!.packagePlaceUuid === entry.packagePlaceUuid);
+            }
           }
           const documents = [{ role: 'primary-scene', evidenceId: primary.evidenceId,
             evidenceRevision: primary.evidenceRevision, originalAssetId: primary.asset.assetId,
