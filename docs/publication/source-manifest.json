@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "974e8f41eb3041961ddb1d44725956f27fabc3e51dfc8cc5de72b7fee3f992bb",
+  "sourceDigestSha256": "ea8435e644297022f50a869082ce1b7862560a49de0e9da7b5d3690b62b3dcd6",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 38134,
-      "sha256": "bb77ed78412e9e492e9216330ef15800b989afbe6cf22990a3d30845201da766",
+      "bytes": 39767,
+      "sha256": "fefb62f40e68b73777978588d215f12cc0098db6d202a0edf7ca7d7668d6c62f",
       "owner": "core-integration"
     },
     {
@@ -245,8 +245,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 4877,
-      "sha256": "0d441fcedcf97652f66b6a79be807b8c2fa4a56405d2188db835efcde2f28f17",
+      "bytes": 4986,
+      "sha256": "07c7a09ab301b6f637c0c02cef11340eb4280998f7d4bb6622cd36ab6ae4e92c",
       "owner": "core-integration"
     },
     {
@@ -303,6 +303,13 @@
       "mode": "100644",
       "bytes": 20611,
       "sha256": "d519895504705d345f9dab43ace2982e85de5091bb6bcdf65a9dd23d7d94d01e",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/examples/issue-149-room-anchor-acceptance.rs",
+      "mode": "100644",
+      "bytes": 61003,
+      "sha256": "c7c527b2ce1064041d7e26efbfb49e2d80b29100327f13ae05a938073d94a840",
       "owner": "core-integration"
     },
     {
@@ -2898,8 +2905,8 @@
     {
       "path": "backend/src/media/scene_association.rs",
       "mode": "100644",
-      "bytes": 19863,
-      "sha256": "fc133c6df5b8257daef9b6a152f67b24437448a05838390569b962ca3e8088bb",
+      "bytes": 20662,
+      "sha256": "55c5915f07a87edcf85cdbd8d047361873ad04a051fc235268b01d52682318e4",
       "owner": "media"
     },
     {
@@ -5360,6 +5367,13 @@
       "owner": "web"
     },
     {
+      "path": "docs/geometry/issue-149-room-anchor-acceptance.md",
+      "mode": "100644",
+      "bytes": 2759,
+      "sha256": "a304fe31f4f883825f2e93da41f61593182667924440651aa5ab20b69206b230",
+      "owner": "web"
+    },
+    {
       "path": "docs/geometry/native-document-read.md",
       "mode": "100644",
       "bytes": 4939,
@@ -5999,8 +6013,8 @@
     {
       "path": "frontend/integration/native-scene-association-client.ts",
       "mode": "100644",
-      "bytes": 36494,
-      "sha256": "353bdb5923e59767a6faf6e99267d2b22e2f2701433d1e2b73b5a384ad993852",
+      "bytes": 36898,
+      "sha256": "cec5c35554036861717cdad954cc5adbc964cc346b79ae4fae407d5bad8fa7d4",
       "owner": "web"
     },
     {
@@ -6116,6 +6130,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/issue-149-room-anchor-acceptance.mjs",
+      "mode": "100644",
+      "bytes": 24189,
+      "sha256": "0092e12ac8a9193213063a8c8018f7ec4b2de2f7ed9d570c9098951eb8914713",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/load-numeric-source.mjs",
       "mode": "100644",
       "bytes": 6475,
@@ -6204,6 +6225,41 @@
       "mode": "100644",
       "bytes": 5138,
       "sha256": "1336f529f927cc5876021f7b3d69bd6ce2cf0ffef0d7c48c3cec81fe0b44ca91",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/scene-controls-keyboard-browser.mjs",
+      "mode": "100644",
+      "bytes": 13006,
+      "sha256": "1aaf7e73f10d8d20f9e32116897753ecbf9f0cd83f80bdc3bf570e5986e06824",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/scene-controls-keyboard.test.mjs",
+      "mode": "100644",
+      "bytes": 3277,
+      "sha256": "414b4e47cf431d6eb350370dfcb61f2f304b2800fcf09b9dba03410700ead895",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/scene-controls-keyboard/README.md",
+      "mode": "100644",
+      "bytes": 1555,
+      "sha256": "4440dcda931d4a4905d1113c6593fc4a2ee2991da54d518e5a98f2bf2443bbcc",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/scene-controls-keyboard/index.html",
+      "mode": "100644",
+      "bytes": 312,
+      "sha256": "70a43c01749c94ffd298f15edbd05fb9636872fa536a5042ec8562ef5f0078ca",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/scene-controls-keyboard/main.tsx",
+      "mode": "100644",
+      "bytes": 1495,
+      "sha256": "8953429d27d8d5a48302af079499274dbbd587c5c595eb752dd810866b0cabd0",
       "owner": "web"
     },
     {
@@ -7399,8 +7455,8 @@
     {
       "path": "frontend/src/lantern/scans/presentation/SceneControls.tsx",
       "mode": "100644",
-      "bytes": 5515,
-      "sha256": "08389cfb8549bf764b29ad8620138e50cd48bd14a14eba4f9b1ad85b6f6e6c29",
+      "bytes": 5839,
+      "sha256": "30f4ff731bfe15edceeeeda93b5711d8b74654d468771f174fa210a484d8380e",
       "owner": "web"
     },
     {
