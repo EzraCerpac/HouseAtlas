@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "46e9dbfb8acd56bb345d9cdf4b71ca5eb91f51439cc7fe0c1a69aac5555ddd38",
+  "sourceDigestSha256": "74ca37a53c42cad744488a9bcacdebe6e63070165f1126933adfe3b924fe45f1",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 44642,
-      "sha256": "4fc4d85594d730ad5b3005e3339fcc4c48163d8fe758389763aa97f13fce079c",
+      "bytes": 45475,
+      "sha256": "3639cf01e1e6f651afeb6ef815e3c6d6a3a3a94c8ed6629a3c1e929095f399dd",
       "owner": "core-integration"
     },
     {
@@ -5453,8 +5453,8 @@
     {
       "path": "docs/geometry/native-scene-association.md",
       "mode": "100644",
-      "bytes": 5370,
-      "sha256": "3bc7f520035b771a093f47cf391f4d18401ca0417d42f18bc99280a1a95fa0ef",
+      "bytes": 5617,
+      "sha256": "b6f2922af0492973b20f11435ca8f2fcd0d64b9f712b55db744c8d8b47cddf77",
       "owner": "web"
     },
     {
@@ -5462,6 +5462,13 @@
       "mode": "100644",
       "bytes": 6480,
       "sha256": "697fced355354c4b07a0f3de99e4e54cce8216cef8528d42056c25849cc7b7e9",
+      "owner": "web"
+    },
+    {
+      "path": "docs/geometry/native-scene-readonly-association.md",
+      "mode": "100644",
+      "bytes": 2140,
+      "sha256": "0a5f24cf15905a2baefce4a0c485a3b38756908e6f3203975d2c21efc41b1efc",
       "owner": "web"
     },
     {
@@ -6232,6 +6239,13 @@
       "mode": "100644",
       "bytes": 35306,
       "sha256": "b008c3605610838906d678edfe5807819a5abfe6aa3e5b10a9ff251b3e13a4ce",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/native-scene-readonly-ui.mjs",
+      "mode": "100644",
+      "bytes": 47528,
+      "sha256": "5fbccdb6fa799a9a29d1ca0c08eff707988eec855740680b97b114459af97950",
       "owner": "web"
     },
     {
@@ -7434,15 +7448,15 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneAssociation.tsx",
       "mode": "100644",
-      "bytes": 9060,
-      "sha256": "5d1ee9bc3ef3c4507159346b1c0d021ca96a22d03cf48f3182472d8738bbc4cd",
+      "bytes": 15137,
+      "sha256": "a76dcffe4678cbdd753f0ca4fe92eb4182a05b55b96b9dddb5dfc8031316b42d",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneCandidate.tsx",
       "mode": "100644",
-      "bytes": 3505,
-      "sha256": "611a77f2894a4e80ff164794252272174ff335fea406090c98a985324f3b078a",
+      "bytes": 5698,
+      "sha256": "38b6d4f4dd96aa7ef40a83246bd22668caa0ae0a342605ac09fac125c536b543",
       "owner": "web"
     },
     {
