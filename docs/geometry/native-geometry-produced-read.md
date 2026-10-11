@@ -1,9 +1,10 @@
 # Synthetic native-produced geometry reader
 
-This is a source-only proposal for one healthy cross-language case. Root must
-review the complete bodies, loaders, toolchain and output contract, register the
-exact commands in README and refresh the source manifest before releasing it.
-No execution, native mounting or private intake is established by this document.
+The README registers this paired healthy cross-language case. The reviewed local
+execution passed native custody, strict reopen and cleanup, then read the exact
+produced descriptor and mesh bytes through the actual TypeScript client, profile
+decoder and render preparation. This qualifies the synthetic reader seam; it
+establishes no native mounting, browser, converter authenticity or private intake.
 
 The installed baseline has two distinct positives. The Rust custody example
 generates a synthetic USDZ framing original and closed authored mesh, commits
@@ -77,10 +78,10 @@ Chunks are 64 KiB. No observer or timer remains after client disposal. The
 consumer writes no files and leaves the evidence for Root's retained readback.
 Root owns removal of this newly selected evidence directory after retention.
 
-## Proposed exact release
+## Registered paired commands
 
-Source-only until Root's independent review, README registration and one-case
-release. Use the inspected locked baseline and pinned Node 26.10.0/npm 11.19.1;
+Inspect the complete bodies and select the one paired healthy case. Use the
+locked source and pinned Node 26.10.0/npm 11.19.1;
 use existing cached Rust/Cargo and dependency artifacts, with no install or
 network. From the same exact candidate checkout, choose one new output directory
 under a canonical private owned parent outside the checkout:

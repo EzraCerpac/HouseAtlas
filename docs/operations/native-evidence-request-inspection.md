@@ -22,7 +22,7 @@ Changing the request UUID clears the prior observation. Changing client,
 binding, or selected record clears the request UUID and observation. There is
 no automatic refresh; submit another explicit read to obtain a new observation.
 
-The source-only synthetic acceptance cases are individually selected:
+The README-registered synthetic acceptance cases are individually selected:
 
 ```sh
 node frontend/lantern-tests/native-evidence-request-read.mjs healthy-committed-observation

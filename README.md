@@ -83,6 +83,37 @@ It opens no listener or browser, constructs no native authority, imports no
 private export and runs no timeout, denial or failure-control scenario. The
 host mount and actual native Media availability require separate qualification.
 
+The native-produced reader bridge is one paired healthy synthetic case. Inspect
+the Rust emitter, complete frontend reader and source-loader imports first.
+Choose a new evidence directory under an existing canonical private owned parent:
+
+```sh
+HOUSEATLAS_GEOMETRY_SEAM_EVIDENCE=/absolute/private/NEW-synthetic-geometry-seam cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision --example healthy-native-geometry-custody-first
+HOUSEATLAS_GEOMETRY_SEAM_EVIDENCE=/absolute/private/NEW-synthetic-geometry-seam node frontend/lantern-tests/native-geometry-produced-read.mjs
+```
+
+The producer retains exact authenticated in-process GET bytes and allowlisted
+response headers only after its existing strict reopen and scratch cleanup.
+The reader uses those same bytes through the actual native client and mesh
+decoder, with two fake GETs and no network. Failed emission may leave partial
+private output for operator cleanup; an existing output directory is never
+adopted. This case establishes no converter authenticity, browser, household
+intake, physical alignment or mounted availability.
+
+Historical native evidence request inspection has two individually selected
+healthy read cases. Inspect the complete body and its finite production imports:
+
+```sh
+node frontend/lantern-tests/native-evidence-request-read.mjs healthy-committed-observation
+node frontend/lantern-tests/native-evidence-request-read.mjs healthy-unknown-observation
+```
+
+Each uses an admission GET and an exact UUID lookup GET with synthetic Responses,
+the production lossless parser and closed result validator. Neither sends a POST
+or changes upload state. A committed observation is separate from another tab's
+attempt and original-byte proof; an unknown observation establishes no rollback
+or retry safety. Browser/session-change acceptance remains separate.
+
 Two documentary overlay examples use generic local data and the actual model or
 static React panel. Network connections remain schematic; the examples derive
 no floor positions or physical routes. Electrical labels preserve source
