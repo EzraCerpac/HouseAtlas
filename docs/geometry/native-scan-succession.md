@@ -22,6 +22,14 @@ Labels, UUID ordering and import dates never establish succession. Old records,
 original bytes, derivatives, receipts and audit history remain retained and
 available through their existing authenticated owners.
 
+Metadata preflight bounds accepted profile-shaped history to 64 versions across
+all floor chains before any retained-byte qualification. Each original/derivative
+pair stays unique across the complete history, including retired versions. A
+64-version history remains eligible for bounded reads; it cannot append a 65th
+version. This count is conservative: an invalid retained version cannot evade
+the bound by failing its subsequent content qualification. The existing ten-second
+work budget and all byte limits remain unchanged.
+
 The profile still requires unknown coordinate units, null scale and transform,
 and no room mappings. Scan replacement supplies no physical registration or
 semantic room inference. Existing stable place, elevation, device and circuit
@@ -35,6 +43,18 @@ same-building current-head membership. Revisions remain ExactDecimal values.
 Version arithmetic converts only schema-bounded safe integers and emits an exact
 numeric node. The existing one-shot intent ledger marks unknown before POST;
 an absent or uncorrelated response does not authorize another submission.
+
+The assistant-managed caller uses the production client directly: read current
+native floor descriptors, select the exact same-building geometry head, then
+call `load(binding, { buildingId, semanticsId, originalAssetId, derivativeAssetId,
+previousGeometryId }, signal)`, `prepare(current, input)` and one-shot
+`commit(prepared, signal)`. Omitting the predecessor keeps initial version-one
+behavior. The TypeScript positive at `frontend/lantern-tests/native-scan-succession.mjs`
+executes both initial loads and the explicit predecessor load with actual
+production clients and schemas. It verifies the successor body, exact predecessor
+guards and refreshed descriptors. PR #158 removed the Import Scans mount;
+`NativeGeometryIntake` has no runtime caller, and its remaining imports in the
+host and native scan context are types. This change supplies no end-user import UI.
 
 Every floor descriptor key includes current building identity and semantics.
 Appending evidence changes keys for untouched floors as well as the updated
@@ -56,3 +76,7 @@ fixtures, not independent native custody or browser evidence. Neither case opens
 a socket, executes a converter, accesses household media or establishes live
 installation, visual acceptance, physical placement or operational recovery.
 Guard reversal, omission, adversarial, replay, crash and private intake remain held.
+The separately named metadata unit case uses only small synthetic snapshots and
+an empty disposable vault to check capacity, retired-pair reservation and read
+ordering. It uses in-memory snapshots only, with no persistent native writes or
+authentication qualification.

@@ -196,10 +196,14 @@ Inspect both complete bodies and their imports before these exact commands:
 ```sh
 cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision --example healthy-native-scan-succession
 node frontend/lantern-tests/native-scan-succession.mjs
+cargo test --offline --locked -p houseatlas-backend --lib media::geometry_bundle::tests::bounded_history_and_retired_pair_preflight -- --exact --test-threads=1
 ```
 
 These successful synthetic checks open no listener, use no household files or
 provider, and perform no live import, physical registration or deployment.
+The named in-memory metadata correction case checks a 64-version history,
+the 65th-row bound, retired custody-pair reservation and ordering before missing
+local vault bytes. It writes no native records and releases no broader controls.
 Guard reversal, omission, replay, interruption and private intake remain held.
 See [native scan succession](docs/geometry/native-scan-succession.md).
 
