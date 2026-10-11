@@ -13,7 +13,15 @@ publication or deployment readiness.
 Use Node **26.10.0** and npm **11.19.1**. Install the exact dependency locks:
 
 Assistant-managed incremental scan planning uses selected retained versions and
-the actual authored mesh decoder. Its synthetic local check is:
+the actual authored mesh decoder. Both commands require the locked frontend
+dependencies (Vite, Ajv and Ajv-formats). Use an existing prepared cache; in a
+clean checkout prepare it first with the existing named command:
+
+```sh
+npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+```
+
+Its synthetic local check is:
 
 ```sh
 node --test --test-concurrency=1 tools/geometry/scan-replacement-plan.test.mjs

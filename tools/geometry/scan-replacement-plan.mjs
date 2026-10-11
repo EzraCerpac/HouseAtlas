@@ -32,7 +32,8 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 const equal = (a, b) => canonical(a) === canonical(b);
-const roomKey = row => JSON.stringify([row.sourceFloorKey, row.sourceRoomId]);
+const sourceFloorKey = row => JSON.stringify([row.sourceFloorKey, row.sourceOriginalSha256]);
+const roomKey = row => JSON.stringify([row.sourceFloorKey, row.sourceOriginalSha256, row.sourceRoomId]);
 function fingerprint(profile, mesh) {
   const nodes = new Map(profile.nodes.map(node => [node.path, node]));
   return sha(canonical({ ...mesh, vertexCount: mesh.vertexCount.token, triangleCount: mesh.triangleCount.token,
@@ -99,7 +100,12 @@ export async function buildReplacementPlan(input) {
   assert.equal(canonical(decoded), receipt.canonicalJson, 'Receipt must be canonical');
   const anchors = new Map();
   for (const anchor of receipt.anchors) { assert(!anchors.has(anchor.id), 'Ambiguous source anchor'); anchors.set(anchor.id, anchor); }
-  const reader = await import(await loadScanProfileSource());
+  const decoderModule = await loadScanProfileSource();
+  const decoderPrefix = 'data:text/javascript;base64,';
+  assert(decoderModule.startsWith(decoderPrefix));
+  const decoderBytes = Buffer.from(decoderModule.slice(decoderPrefix.length), 'base64');
+  assert(decoderBytes.length > 0 && decoderBytes.length <= LIMITS.manifestBytes);
+  const reader = await import(decoderModule);
   const previous = await Promise.all(bounded(input.floors, LIMITS.floors).map(s => inspect(s, reader)));
   const next = await Promise.all(bounded(input.successors, LIMITS.floors).map(s => inspect(s, reader)));
   const byId = new Map(), byKey = new Map();
@@ -121,19 +127,21 @@ export async function buildReplacementPlan(input) {
   }
   for (const floor of previous) if (!replacements.has(floor.snapshot.geometry.recordId))
     assert(!nextKeys.has(floor.snapshot.key), 'A successor cannot alias an untouched floor');
-  const bindings = new Map();
+  const bindings = new Map(), boundGeometryIds = new Set();
   for (const source of association.sourceFloors) {
-    assert(!bindings.has(source.sourceFloorKey), 'Ambiguous accepted source floor');
+    const key = sourceFloorKey(source);
+    assert(!bindings.has(key), 'Ambiguous accepted source floor');
     const old = byId.get(source.nativeGeometryId); assert(old, 'Every accepted floor needs its exact retained snapshot');
     const p = pin(old);
     assert.equal(source.nativeFloorKey, p.key); assert.equal(source.nativeGeometryRevision, p.geometryRevision);
     assert.equal(source.nativeOriginalAssetId, p.originalAssetId); assert.equal(source.nativeOriginalSha256, p.originalSha256);
-    bindings.set(source.sourceFloorKey, old);
+    bindings.set(key, old); boundGeometryIds.add(p.geometryId);
   }
+  assert.equal(boundGeometryIds.size, previous.length, 'Every retained snapshot must belong to the selected association');
   const support = new Map();
   for (const row of bounded(input.roomSupport, LIMITS.support)) {
     closed(row, ['sourceRoomId', 'sourceFloorKey', 'sourceOriginalSha256', 'derivativeSha256', 'receiptSha256', 'meshIds']);
-    text(row.sourceRoomId); const old = bindings.get(row.sourceFloorKey);
+    text(row.sourceRoomId); const old = bindings.get(sourceFloorKey(row));
     assert(old && row.derivativeSha256 === old.snapshot.derivativeSha256 && row.receiptSha256 === receipt.canonicalSha256,
       'Room support must pin the prior floor and accepted receipt');
     bounded(row.meshIds, 512); assert(row.meshIds.length > 0 && new Set(row.meshIds).size === row.meshIds.length);
@@ -163,8 +171,8 @@ export async function buildReplacementPlan(input) {
   const mappingIds = new Set();
   const roomPlans = association.roomMappings.map(mapping => {
     assert(!mappingIds.has(roomKey(mapping)), 'Ambiguous room mapping'); mappingIds.add(roomKey(mapping));
-    const old = bindings.get(mapping.sourceFloorKey); assert(old, 'Mapping needs an explicit accepted source floor');
-    const sourceFloor = association.sourceFloors.find(s => s.sourceFloorKey === mapping.sourceFloorKey);
+    const old = bindings.get(sourceFloorKey(mapping)); assert(old, 'Mapping needs an explicit accepted source floor');
+    const sourceFloor = association.sourceFloors.find(s => sourceFloorKey(s) === sourceFloorKey(mapping));
     assert.equal(sourceFloor.sourceOriginalSha256, mapping.sourceOriginalSha256);
     const members = mapping.sourceAnchorIds.map(id => {
       const anchor = anchors.get(id); assert(anchor && anchor.sourceFloorKey === mapping.sourceFloorKey
@@ -185,7 +193,8 @@ export async function buildReplacementPlan(input) {
     const resolved = mapping.sourceAnchorIds.length > 0 && mapping.targets.length > 0 && mapping.unresolvedLabels.length === 0;
     const status = candidate === old ? 'retained' : !resolved ? 'unmatched' : !dep ? 'requires-support-review'
       : affected.length > 0 ? 'changed' : 'reuse-proposed';
-    return { sourceRoomId: mapping.sourceRoomId, sourceFloorKey: mapping.sourceFloorKey, status,
+    return { sourceRoomId: mapping.sourceRoomId, sourceFloorKey: mapping.sourceFloorKey,
+      sourceOriginalSha256: mapping.sourceOriginalSha256, status,
       retainedMapping: clone(mapping), affectedMeshIds: affected, receiptId: receipt.receiptId,
       receiptSha256: receipt.canonicalSha256, candidateGeometryId: candidate.snapshot.geometry.recordId,
       nativeBindingRefreshRequired: candidate !== old, spatialAcceptance: 'not-issued' };
@@ -210,7 +219,8 @@ export async function buildReplacementPlan(input) {
         : floorPlan.geometryUnchanged ? 'reviewable-exact-candidate' : 'prior-frame-only-requires-review' };
     }),
     producer: { toolSha256: sha(readFileSync(fileURLToPath(import.meta.url))), atlasSchemaSha256: sha(atlasSchemaBytes),
-      meshReaderSha256: sha(readFileSync(new URL('../../frontend/src/lantern/scans/mesh-profile.ts', import.meta.url))) },
+      meshReaderSha256: sha(readFileSync(new URL('../../frontend/src/lantern/scans/mesh-profile.ts', import.meta.url))),
+      compiledMeshDecoderSha256: sha(decoderBytes), compiledMeshDecoderBytes: decoderBytes.length },
     reversal: { kind: 'new-association-to-retained-prior-geometry', priorFloorPins: previous.map(pin),
       priorAssociationId: input.association.recordId, priorAssociationRevision: input.association.revision,
       priorReceiptId: receipt.receiptId, priorReceiptSha256: receipt.canonicalSha256, deletes: [] },

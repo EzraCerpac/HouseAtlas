@@ -9,7 +9,8 @@ import test from 'node:test';
 
 // Healthy synthetic local planning only; no native calls, browser or private input.
 const { buildReplacementPlan, writeReplacementArtifact } = await import(new URL('../../tools/geometry/scan-replacement-plan.mjs', import.meta.url));
-const { syntheticMeshFixture } = await import(new URL('../../frontend/lantern-tests/scan-mesh-read.mjs', import.meta.url));
+const { syntheticMeshFixture, loadScanProfileSource } = await import(new URL('../../frontend/lantern-tests/scan-mesh-read.mjs', import.meta.url));
+const { loadNumericSource } = await import(new URL('../../frontend/lantern-tests/load-numeric-source.mjs', import.meta.url));
 
 let nextId = 100;
 const uuid = () => `00000000-0000-4000-8000-${String(nextId++).padStart(12, '0')}`;
@@ -512,4 +513,36 @@ test('normal caller Buffer reuse after invocation preserves owned bytes and dete
     }
     assert.deepEqual(receipts[0], receipts[1]);
   } finally { rmSync(parent, { recursive: true, force: true }); }
+});
+
+test('corrected source key/hash versions keep distinct room support even when they bind one native floor', async () => {
+  const floor = snapshot({ floorKey: 'corrected-v1', sourceFloorKey: 'corrected-source', label: 'Corrected Source Floor', profileEdit: p => twoMeshEdit(p) });
+  const originalRoom = room({ id: 'R1', floor, meshIds: ['/Stage/Triangle'] });
+  const correctedHash = sha('synthetic corrected source document');
+  const correctedRoom = room({ id: 'R1', floor: { ...floor, originalSha256: correctedHash }, meshIds: ['/Stage/Triangle2'] });
+  correctedRoom.anchorId += '-corrected';
+  const baseline = world({ floors: [floor], rooms: [originalRoom, correctedRoom] });
+  baseline.association.payload.sourceFloors.push({ ...baseline.association.payload.sourceFloors[0], sourceOriginalSha256: correctedHash });
+  const candidate = successor(floor, { edit: p => { p.meshes[0].positionsLocalTokens[3] = '1.125'; } });
+  const plan = await buildReplacementPlan(inputWith(baseline, [candidate]));
+  assert.equal(plan.rooms.find(r => r.sourceOriginalSha256 === floor.originalSha256).status, 'changed');
+  assert.equal(plan.rooms.find(r => r.sourceOriginalSha256 === correctedHash).status, 'reuse-proposed');
+  assert.deepEqual(plan.roomSupportEvidence, baseline.roomSupport);
+  assert.deepEqual(plan.previousAssociation.payload.sourceFloors, baseline.association.payload.sourceFloors);
+  assert.equal(plan.floors.length, 1);
+  assert.equal(plan.geometryHistory.previous.length, 1);
+  assert(plan.rooms.every(r => r.sourceRoomId === 'R1' && r.sourceFloorKey === floor.sourceFloorKey));
+  assert.equal(plan.rooms[1].retainedMapping.targets[0].atlasPlaceId, null);
+});
+
+test('producer pins the exact compiled decoder with its embedded numeric implementation', async () => {
+  const floor = snapshot({ floorKey: 'decoder-v1', sourceFloorKey: 'decoder-source', label: 'Decoder Floor' });
+  const baseline = world({ floors: [floor], rooms: [room({ id: 'decoder-room', floor })] });
+  const plan = await buildReplacementPlan(inputWith(baseline, [successor(floor)]));
+  const module = await loadScanProfileSource();
+  const compiled = Buffer.from(module.slice('data:text/javascript;base64,'.length), 'base64');
+  assert(compiled.toString('utf8').includes(await loadNumericSource('numeric/decimal.ts')));
+  assert.equal(plan.producer.compiledMeshDecoderSha256, sha(compiled));
+  assert.equal(plan.producer.compiledMeshDecoderBytes, compiled.length);
+  assert.notEqual(plan.producer.compiledMeshDecoderSha256, plan.producer.meshReaderSha256);
 });

@@ -76,7 +76,10 @@ The existing Atlas schemas validate geometry and scene-association records.
 The actual lossless `readScanMesh` implementation validates each selected
 derivative's digest, lineage, raw tokens and complete authored transforms. All
 prior source-floor/native-geometry pins and accepted anchor memberships must
-match. An input selection is historical evidence supplied by the caller;
+match. Every selected retained geometry must occur in the association; a shared
+workspace/home alone does not establish building membership. Multiple corrected
+source-document versions may bind the same retained native geometry, as allowed
+by the existing contract. An input selection is historical evidence supplied by the caller;
 native current-head freshness is explicitly unverified.
 
 ## Changes and reusable facts
@@ -84,8 +87,9 @@ native current-head freshness is explicitly unverified.
 Object fingerprints include raw positions and indices, orientation, every
 ancestor and reset/op order, operation matrices and the composed transform.
 Coordinate metadata and converter provenance also fence reuse. A repeated prim
-path or room name alone establishes nothing. Rooms are scoped by source floor
-and source room ID, so repeated local labels do not join different floors.
+path or room name alone establishes nothing. Source floors are scoped by their
+key plus original hash, and rooms additionally by source room ID. Repeated labels
+on different floors or corrected source versions do not join their support.
 Geometry record `coordinateUnits`, `scale` and its six-coefficient `transform`
 also fence the frame comparison; changed placement metadata requires review
 even when the authored derivative is identical. Multi-anchor correspondence
@@ -146,6 +150,10 @@ The artifact includes both full selected geometry records and hash/asset/version
 pins, old/new frame metadata and per-object fingerprints, the complete previous
 scene payload/receipt, support evidence, copied identity/overlay/placement facts,
 producer source hashes, changed-object lists and reversal references.
+Producer provenance includes the SHA256 and size of the exact compiled decoder
+module passed to `import`, including its embedded decimal and yield-task imports,
+as well as the raw mesh-reader entry hash. A change to embedded dependency or
+compiler output changes verifier provenance even when the entry file is unchanged.
 
 `writeReplacementArtifact` requires a new absolute child under a canonical,
 owned, mode-private parent. It exclusively creates a mode-0700 directory and

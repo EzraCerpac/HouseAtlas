@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "1baafe02c0c7f6371e1305ea5aab5aa823cdcdb66aee208a6418ab1c8c8c59c7",
+  "sourceDigestSha256": "21db046194862b6d218837471a042d08112131984f975c8c8494a02b411dfbb8",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 42402,
-      "sha256": "b18501c3b4355abf9d8a98e64bdf4fa1fab6f51cc117645966276d6f3574b13b",
+      "bytes": 42663,
+      "sha256": "e0f7565108e7b0b3ffa543ce897baa0355e0d04736448afa9018fab7e2f04673",
       "owner": "core-integration"
     },
     {
@@ -5361,10 +5361,10 @@
     },
     {
       "path": "docs/geometry/assistant-scan-replacement.md",
+      "owner": "media",
       "mode": "100644",
-      "bytes": 11255,
-      "sha256": "014e7cf27da27dfaa677e578299c5076a949a21d6ea1c40eccaf6ec94e8e5166",
-      "owner": "media"
+      "bytes": 11920,
+      "sha256": "e4b86798fe82ebe664ae864e4b5d7c4ef510dce364e22b4cf2378f9e777013bf"
     },
     {
       "path": "docs/geometry/drawing-evidence-lookup-150.md",
@@ -8651,17 +8651,17 @@
     },
     {
       "path": "tools/geometry/scan-replacement-plan.mjs",
+      "owner": "media",
       "mode": "100644",
-      "bytes": 21144,
-      "sha256": "096b317ee26a7143f19dc8daaf37eafbcf3c9a4716812ae46689b0af100fdc38",
-      "owner": "media"
+      "bytes": 21935,
+      "sha256": "5fb35f0f3baf2ff1ede6d496a55a12f3cc3c827e0470b06bed862883faf35e75"
     },
     {
       "path": "tools/geometry/scan-replacement-plan.test.mjs",
+      "owner": "media",
       "mode": "100644",
-      "bytes": 35188,
-      "sha256": "2c85eef22426be73917f69240b30ecc1399a21a0fa22afff8de963d6944099fe",
-      "owner": "media"
+      "bytes": 37881,
+      "sha256": "b19876ec3736ac8ccf20cf7c58ee2297e7853ddd9c64e01a5facb92f5d4ae7e0"
     },
     {
       "path": "tools/integration/baseline.test.mjs",
