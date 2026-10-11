@@ -12,7 +12,11 @@ The named acceptance test mounts the production candidate and association
 components in an owned Chromium process with a synthetic client. It checks
 read-only read and reload, absent write controls, candidate-draft clearing on
 admission withdrawal, an unknown submission followed by admission withdrawal,
-and read-only outcome resolution. All browser requests stay on a temporary
+read-only outcome resolution, and that a pending notification does not abort
+the dispatched submission. An unknown-outcome message appears only while an
+outcome is pending. If a candidate or review draft exists, reloading first
+requires confirmation that the displayed scene will refresh and the unfinished
+draft will be discarded; canceling keeps the draft. All browser requests stay on a temporary
 static loopback server that serves the built UI. It does not exercise an
 application service, account, household data, native persistence or provider.
 

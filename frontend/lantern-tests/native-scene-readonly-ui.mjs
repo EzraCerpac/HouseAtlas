@@ -53,12 +53,14 @@ const report = { case: 'native-scene-readonly-and-unknown-readback', status: 'ru
   runtimeErrors: [], requests: [], assertions: [] };
 try {
   const appPath = join(generated, 'app.tsx');
-  writeFileSync(appPath, `import { createRoot } from 'react-dom/client';
+  writeFileSync(appPath, `import { useState } from 'react';
+import { createRoot } from 'react-dom/client';
 import { NativeSceneCandidate } from ${JSON.stringify(join(frontend, 'src/lantern/scans/native-ui/NativeSceneCandidate.tsx'))};
 
 const buildingId = '00000000-0000-4000-8000-000000000003';
 const listeners = new Set();
-const ledger = { canCreate: false, unknown: false, reads: 0, prepares: 0, submits: 0, resolves: 0, sceneRefreshes: 0 };
+const ledger = { canCreate: false, unknown: false, reads: 0, prepares: 0, submits: 0, submitAborts: 0,
+  submitSettled: false, resolves: 0, sceneRefreshes: 0 };
 let binding = Object.freeze({ synthetic: true });
 const client = {
   getBinding: () => binding,
@@ -70,7 +72,14 @@ const client = {
   async prepare() { ledger.prepares++; return { buildingId, requestId: 'synthetic-request', targetId: 'synthetic-target',
     body: '{}', requestDigest: 'a'.repeat(64), payload: {} }; },
   releasePrepared() {},
-  async submit() { ledger.submits++; ledger.unknown = true; for (const fn of listeners) fn();
+  async submit(_prepared, _geometry, signal) { ledger.submits++; ledger.unknown = true;
+    await new Promise((resolve, reject) => {
+      const abort = () => { ledger.submitAborts++; reject(new Error('Synthetic submission was aborted')); };
+      signal.addEventListener('abort', abort, { once: true });
+      ledger.finishSubmit = () => { signal.removeEventListener('abort', abort); ledger.submitSettled = true;
+        reject(new Error('Synthetic transport failure')); };
+      for (const fn of listeners) fn();
+    });
     return { status: 'unavailable', reason: 'current-source-unavailable' }; },
   async resolve() { ledger.resolves++; return { status: 'unavailable', reason: 'current-source-unavailable' }; },
   dispose() {},
@@ -80,8 +89,12 @@ const geometry = { viewKey: 'synthetic-view', descriptor: { buildingId,
   scope: { workspaceId: '00000000-0000-4000-8000-000000000001', homeId: '00000000-0000-4000-8000-000000000002' } } };
 window.__test = { ledger, grantAdmission() { ledger.canCreate = true; binding = Object.freeze({ synthetic: true }); for (const fn of listeners) fn(); },
   withdrawAdmission() { ledger.canCreate = false; binding = Object.freeze({ synthetic: true }); for (const fn of listeners) fn(); } };
-createRoot(document.getElementById('root')).render(<main><NativeSceneCandidate host={host} geometry={geometry}
-  onSaved={() => { ledger.sceneRefreshes++; }} /></main>);
+function TestHost() {
+  const [generation, setGeneration] = useState(0);
+  return <main><NativeSceneCandidate key={generation} host={host} geometry={geometry}
+    onSaved={() => { ledger.sceneRefreshes++; setGeneration(value => value + 1); }} /></main>;
+}
+createRoot(document.getElementById('root')).render(<TestHost />);
 `);
   const html = join(generated, 'index.html');
   writeFileSync(html, '<!doctype html><html lang="en"><meta charset="utf-8"><title>Issue 148 synthetic readback</title><div id="root"></div><script type="module" src="./app.tsx"></script></html>');
@@ -122,18 +135,21 @@ createRoot(document.getElementById('root')).render(<main><NativeSceneCandidate h
     while (Date.now() < deadline) { if (await read()) return; await pause(40); } throw new Error(`Timed out: ${label}`); };
   await send('Page.navigate', { url: origin + '/' });
   await until(() => evaluate('Boolean(window.__test && document.querySelector("summary"))'), 'Production candidate mounted');
-  await evaluate('document.querySelector("summary").click()');
   await until(() => evaluate('window.__test.ledger.reads === 1'), 'Current association read on read-only mount');
+  await evaluate('document.querySelector("summary").click()');
   assert.equal(await evaluate('document.querySelector("summary").textContent.trim()'), 'Scene association');
-  assert.equal(await evaluate('document.body.innerText.includes("Read-only view.")'), true);
+  assert.equal(await evaluate('document.body.innerText.includes("Preparation is unavailable.")'), true);
+  assert.equal(await evaluate('document.body.innerText.includes("A submitted outcome is unknown and can be checked below.")'), false);
   assert.equal(await evaluate('document.body.innerText.includes("No current retained scene candidate is available for review.")'), false);
   assert.equal(await evaluate('document.body.innerText.includes("No reviewed association is current.")'), true);
   assert.equal(await evaluate('Boolean(Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Reload current association"))'), true);
   assert.equal(await evaluate('Array.from(document.querySelectorAll("button")).some(b => /Review retained originals|Submit reviewed association/.test(b.textContent))'), false);
   assert.equal(await evaluate('document.querySelectorAll("input,textarea").length'), 0, 'No preparation inputs for readers');
   await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Reload current association").click()');
-  await until(() => evaluate('window.__test.ledger.reads === 2'), 'Read-only reload');
+  await until(() => evaluate('window.__test.ledger.reads >= 2'), 'Read-only reload');
   await until(() => evaluate('window.__test.ledger.sceneRefreshes === 1'), 'Reload the displayed scene after association read');
+  await until(() => evaluate('window.__test.ledger.reads >= 3'), 'Refreshed scene mounts a new association reader');
+  await evaluate('if (!document.querySelector("details").open) document.querySelector("summary").click()');
   assert.equal(await evaluate('window.__test.ledger.prepares === 0 && window.__test.ledger.submits === 0'), true);
   report.assertions.push('read-only mount/reload perform current GETs and reload the displayed scene; preparation and submission are absent');
 
@@ -152,12 +168,26 @@ createRoot(document.getElementById('root')).render(<main><NativeSceneCandidate h
     for (const area of areas.slice(0, 3)) set(area, '[]');
   })()`);
   await until(() => evaluate('document.body.innerText.includes("Primary scene evidence 00000000-0000-4000-8000-000000000004")'), 'Candidate evidence appears while admitted');
+  const readsBeforeDraftReload = await evaluate('window.__test.ledger.reads');
+  await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Reload current association").click()');
+  await until(() => evaluate('document.querySelector("[role=alertdialog]")?.innerText.includes("discard this unfinished review draft")'), 'Warn before reload discards candidate draft');
+  assert.equal(await evaluate('window.__test.ledger.reads'), readsBeforeDraftReload, 'Reload waits for confirmation while a draft exists');
+  await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Keep editing").click()');
+  assert.equal(await evaluate('document.querySelectorAll("[role=alertdialog]").length === 0 && document.querySelectorAll("input")[0].value === "00000000-0000-4000-8000-000000000004"'), true,
+    'Canceling reload confirmation preserves the draft');
+  await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Reload current association").click()');
+  await until(() => evaluate('document.querySelector("[role=alertdialog]") !== null'), 'Repeat explicit reload confirmation');
+  await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Discard draft and reload").click()');
+  await until(() => evaluate(`window.__test.ledger.reads === ${readsBeforeDraftReload + 2} && window.__test.ledger.sceneRefreshes === 2
+    && Array.from(document.querySelectorAll('input,textarea')).every(field => field.value === '')`), 'Confirmed reload refreshes scene and discards the warned draft');
+  await evaluate('if (!document.querySelector("details").open) document.querySelector("summary").click()');
   await evaluate('window.__test.withdrawAdmission()');
   await until(() => evaluate('document.querySelectorAll("input,textarea").length === 0'), 'Draft inputs cleared after admission withdrawal');
   assert.equal(await evaluate('document.body.innerText.includes("Primary scene evidence 00000000-0000-4000-8000-000000000004")'), false);
   assert.equal(await evaluate('document.body.innerText.includes("Historical receipt evidence 00000000-0000-4000-8000-000000000005")'), false);
-  assert.equal(await evaluate('document.body.innerText.includes("Read-only view.")'), true);
+  assert.equal(await evaluate('document.body.innerText.includes("Preparation is unavailable.")'), true);
   await evaluate('window.__test.grantAdmission()');
+  await evaluate('if (!document.querySelector("details").open) document.querySelector("summary").click()');
   await until(() => evaluate('document.querySelectorAll("input").length === 2 && document.querySelectorAll("textarea").length === 3'), 'Fresh authorized source inputs');
   assert.equal(await evaluate('Array.from(document.querySelectorAll("input,textarea")).every(field => field.value === "")'), true,
     'No stale draft is restored when create access returns');
@@ -187,8 +217,15 @@ createRoot(document.getElementById('root')).render(<main><NativeSceneCandidate h
   await until(() => evaluate('Boolean(Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Submit reviewed association" && !b.disabled))'), 'Submit enabled for prepared request');
   await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Submit reviewed association").click()');
   await until(() => evaluate('window.__test.ledger.submits === 1'), 'Synthetic unknown submission');
+  assert.equal(await evaluate('window.__test.ledger.submitAborts === 0'), true,
+    'The client pending notification does not abort the active submission');
   await until(() => evaluate('document.body.innerText.includes("A submitted association has an unknown outcome.")'), 'Unknown outcome remains visible');
+  assert.equal(await evaluate('document.body.innerText.includes("A submitted outcome is unknown and can be checked below.")'), true);
   await until(() => evaluate('!document.body.innerText.includes("Primary scene evidence 00000000-0000-4000-8000-000000000004")'), 'Candidate evidence is hidden after write access is lost');
+  assert.equal(await evaluate('Array.from(document.querySelectorAll("button")).some(b => /Review retained originals|Submit reviewed association/.test(b.textContent))'), false,
+    'Preparation and submission controls are absent as soon as the pending notification withdraws admission');
+  await evaluate('window.__test.ledger.finishSubmit()');
+  await until(() => evaluate('window.__test.ledger.submitSettled && !document.body.innerText.includes("Saving reviewed association…")'), 'Synthetic submission settles without abort');
   await evaluate('window.__test.withdrawAdmission()');
   await until(() => evaluate('document.body.innerText.includes("A submitted association has an unknown outcome.")'), 'Unknown outcome after admission withdrawal');
   assert.equal(await evaluate('Boolean(Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Check saved outcome" && !b.disabled))'), true);
@@ -196,6 +233,7 @@ createRoot(document.getElementById('root')).render(<main><NativeSceneCandidate h
   await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Check saved outcome").click()');
   await until(() => evaluate('window.__test.ledger.resolves === 1'), 'Resolve remains available without create permission');
   assert.equal(await evaluate('window.__test.ledger.prepares === 1 && window.__test.ledger.submits === 1'), true);
+  await until(() => evaluate('document.body.innerText.includes("Outcome remains unresolved; no new write was sent.")'), 'Outcome resolution status is shown');
   report.assertions.push('UNKNOWN remains visible after admission withdrawal and can be checked without create permission');
   assert.deepEqual(cdp.errors, [], 'No browser runtime exceptions');
   assert(cdp.requests.length >= 1 && cdp.requests.every(url => url.startsWith(origin + '/')), 'Only owned loopback browser requests');

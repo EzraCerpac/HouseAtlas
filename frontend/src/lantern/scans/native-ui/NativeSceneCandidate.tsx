@@ -13,6 +13,7 @@ export function NativeSceneCandidate({ host, geometry, onSaved }: {
 }) {
   const [primary, setPrimary] = useState(''), [historical, setHistorical] = useState('');
   const [floorJoins, setFloorJoins] = useState(''), [roomJoins, setRoomJoins] = useState(''), [guards, setGuards] = useState('');
+  const [submittingCandidate, setSubmittingCandidate] = useState<SceneAssociationCandidate | null>(null);
   const [, repaint] = useState(0);
   useEffect(() => host.associations.subscribe(() => repaint(value => value + 1)), [host]);
   const candidate = useMemo<SceneAssociationCandidate | null>(() => {
@@ -29,13 +30,15 @@ export function NativeSceneCandidate({ host, geometry, onSaved }: {
     } catch { return null; }
   }, [geometry, primary, historical, floorJoins, roomJoins, guards]);
   const canCreate = host.associations.canCreate(geometry.descriptor.buildingId);
+  const pendingOutcome = host.associations.pending(geometry.descriptor.buildingId).some(item => item.outcome === 'unknown');
   useEffect(() => {
     if (!canCreate) {
       setPrimary(''); setHistorical(''); setFloorJoins(''); setRoomJoins(''); setGuards('');
     }
   }, [canCreate]);
   return <details><summary>Scene association</summary>
-    {!canCreate && <p role="status">Read-only view. You can reload the current association and check an unknown saved outcome.</p>}
+    {!canCreate && <p role="status">Preparation is unavailable. {pendingOutcome
+      ? 'A submitted outcome is unknown and can be checked below.' : 'The current association remains available to reload.'}</p>}
     {canCreate && <>
       <h3>Review retained scene sources</h3>
       <p>Choose the two saved text originals and review their floor and place joins. Saving a reviewed association makes it available after reload.</p>
@@ -48,7 +51,9 @@ export function NativeSceneCandidate({ host, geometry, onSaved }: {
       </details>
       {!candidate && <p role="status">Select both evidence records and their complete joins before review.</p>}
     </>}
-    <NativeSceneAssociation client={host.associations} candidate={canCreate ? candidate : null} geometry={geometry} canPrepare={canCreate}
+    <NativeSceneAssociation client={host.associations} candidate={canCreate ? candidate : submittingCandidate}
+      geometry={geometry} canPrepare={canCreate} hasUnsavedDraft={Boolean(primary || historical || floorJoins || roomJoins || guards)}
+      onSubmissionStarted={setSubmittingCandidate} onSubmissionSettled={() => setSubmittingCandidate(null)}
       onRefreshed={onSaved} onCommitted={onSaved} />
   </details>;
 }
