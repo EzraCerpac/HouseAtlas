@@ -443,8 +443,9 @@ createRoot(document.getElementById('root')).render(<TestHost />);
   const readsBeforeSubscriptionRace = await evaluate('window.__test.ledger.reads');
   await evaluate('window.__test.mountSubscriptionRace()');
   await until(() => evaluate(`window.__test.ledger.subscriptionInvalidations === 1
-    && document.querySelector("[aria-label=\\"Native scene association review\\"]")?.hidden === true`),
-    'A fresh surface hides immediately when its binding invalidates before listener registration');
+    && document.querySelector("[aria-label=\\"Native scene association review\\"]")?.hidden === true
+    && document.querySelectorAll("input,textarea").length === 0`),
+    'A fresh surface hides and removes candidate inputs when its binding invalidates before listener registration');
   assert.equal(await evaluate(`window.__test.ledger.reads === ${readsBeforeSubscriptionRace}`), true,
     'A stale owner does not start an association read after the missed edge');
   assert.equal(await evaluate('document.querySelector("[aria-label=\\"Native scene association review\\"]")?.textContent.includes("Current association synthetic-target")'), false,

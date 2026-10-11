@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import type { SceneAssociationCandidate } from '../../../../integration/native-scene-association-client';
 import { parseLosslessJson, type JsonForSerialization } from '../../../numeric/lossless-json';
 import { NativeSceneAssociation } from './NativeSceneAssociation';
@@ -16,7 +16,11 @@ export function NativeSceneCandidate({ host, geometry, onSaved }: {
   const [submittingCandidate, setSubmittingCandidate] = useState<SceneAssociationCandidate | null>(null);
   const [refreshPending, setRefreshPending] = useState(false);
   const [, repaint] = useState(0);
-  useEffect(() => host.associations.subscribe(() => repaint(value => value + 1)), [host]);
+  useLayoutEffect(() => {
+    const stop = host.associations.subscribe(() => repaint(value => value + 1));
+    repaint(value => value + 1);
+    return stop;
+  }, [host]);
   const candidate = useMemo<SceneAssociationCandidate | null>(() => {
     if (!UUID.test(primary) || !UUID.test(historical) || primary === historical) return null;
     try {
