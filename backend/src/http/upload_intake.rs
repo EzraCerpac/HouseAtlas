@@ -86,6 +86,15 @@ fn invalid() -> IntakeError {
 fn oversized() -> IntakeError {
     IntakeError(StatusCode::PAYLOAD_TOO_LARGE, Category::SizeRejected)
 }
+pub(super) fn multipart_read_error(error: axum::extract::multipart::MultipartError) -> IntakeError {
+    let status = error.status();
+    let category = if status == StatusCode::PAYLOAD_TOO_LARGE {
+        Category::SizeRejected
+    } else {
+        Category::MultipartRead
+    };
+    IntakeError(status, category)
+}
 fn validate_metadata(bytes: &[u8]) -> Result<UploadMetadata, IntakeError> {
     let raw =
         intake::json(bytes).map_err(|error| IntakeError(error.status, Category::InvalidShape))?;
@@ -192,7 +201,7 @@ async fn collect(
     while let Some(chunk) = tokio::time::timeout(INTAKE_IDLE, field.chunk())
         .await
         .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT, Category::IdleTimeout))?
-        .map_err(|error| IntakeError(error.status(), Category::MultipartRead))?
+        .map_err(multipart_read_error)?
     {
         if let Some((trace, part)) = progress {
             trace.received(part, chunk.len());
@@ -217,7 +226,7 @@ async fn parse(mut request: Request, trace: &Trace) -> Result<UploadInput, Intak
         let mut field = tokio::time::timeout(INTAKE_IDLE, fields.next_field())
             .await
             .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT, Category::IdleTimeout))?
-            .map_err(|error| IntakeError(error.status(), Category::MultipartRead))?
+            .map_err(multipart_read_error)?
             .ok_or_else(invalid)?;
         if field.name() != Some("metadata") || field.file_name().is_some() {
             return Err(invalid());
@@ -236,7 +245,7 @@ async fn parse(mut request: Request, trace: &Trace) -> Result<UploadInput, Intak
         let mut field = tokio::time::timeout(INTAKE_IDLE, fields.next_field())
             .await
             .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT, Category::IdleTimeout))?
-            .map_err(|error| IntakeError(error.status(), Category::MultipartRead))?
+            .map_err(multipart_read_error)?
             .ok_or_else(invalid)?;
         if field.name() != Some("file")
             || field.file_name() != Some(metadata.filename.as_str())
@@ -254,7 +263,7 @@ async fn parse(mut request: Request, trace: &Trace) -> Result<UploadInput, Intak
     if tokio::time::timeout(INTAKE_IDLE, fields.next_field())
         .await
         .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT, Category::IdleTimeout))?
-        .map_err(|error| IntakeError(error.status(), Category::MultipartRead))?
+        .map_err(multipart_read_error)?
         .is_some()
     {
         return Err(invalid());
@@ -274,7 +283,7 @@ async fn parse_asset(mut request: Request) -> Result<AssetInput, IntakeError> {
         let mut field = fields
             .next_field()
             .await
-            .map_err(|error| IntakeError(error.status(), Category::MultipartRead))?
+            .map_err(multipart_read_error)?
             .ok_or_else(invalid)?;
         if field.name() != Some("metadata") || field.file_name().is_some() {
             return Err(invalid());
@@ -285,7 +294,7 @@ async fn parse_asset(mut request: Request) -> Result<AssetInput, IntakeError> {
         let mut field = fields
             .next_field()
             .await
-            .map_err(|error| IntakeError(error.status(), Category::MultipartRead))?
+            .map_err(multipart_read_error)?
             .ok_or_else(invalid)?;
         if field.name() != Some("file")
             || field.file_name() != Some(metadata.filename.as_str())
@@ -302,7 +311,7 @@ async fn parse_asset(mut request: Request) -> Result<AssetInput, IntakeError> {
     if fields
         .next_field()
         .await
-        .map_err(|error| IntakeError(error.status(), Category::MultipartRead))?
+        .map_err(multipart_read_error)?
         .is_some()
     {
         return Err(invalid());
