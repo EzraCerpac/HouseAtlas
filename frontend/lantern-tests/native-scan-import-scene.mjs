@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import { transformWithOxc } from 'vite';
 assert.equal(process.version,'v26.10.0');
 process.on('uncaughtException',error=>{const frames=[...(error.stack??'').matchAll(/data:text\/javascript;base64,([A-Za-z0-9+/=]+):(\d+):(\d+)/g)].slice(0,8).map(m=>({line:Number(m[2]),sourceLine:Buffer.from(m[1],'base64').toString().split('\n')[Number(m[2])-1]?.slice(0,300)}));console.error(JSON.stringify({case:process.argv[2],status:'FAILED',error:error.name,message:error.message.slice(0,500),frames}));process.exitCode=1;});
-const names=new Set(['committed','asset-unknown','evidence-unknown','association-unknown','floor-selection','literal-labels','scene-reuse','scene-replacement','stale-current-scene','changed-frame-current-scene','supplementary-unicode','compact-scene-head']);
+const names=new Set(['committed','asset-unknown','evidence-unknown','association-unknown','floor-selection','literal-labels','scene-reuse','scene-replacement','stale-current-scene','changed-frame-current-scene','supplementary-unicode','compact-scene-head','viewer-inspect']);
 assert.equal(process.argv.length,3);const name=process.argv[2];assert(names.has(name),'Choose one registered case');
 const frontend=resolve(dirname(fileURLToPath(import.meta.url)),'..'),root=dirname(frontend);
 const require=createRequire(pathToFileURL(resolve(frontend,'package.json'))),loaded=new Map(),sourcePins={};
@@ -257,7 +257,7 @@ try{
       await assert.rejects(client.importScene(input,budget));assert.equal(calls.filter(c=>c.method==='POST').length,5);
       outcome=await client.reconcileScene(budget);assert.equal(outcome.outcome,'committed');assert.equal(client.isHeld(),false);
       assert.equal(calls.filter(c=>c.method==='POST').length,5,'Acknowledged partial reconciles through fresh GET, never resolve/resend');
-    }else if(name==='committed'||name==='scene-reuse'||name==='scene-replacement'||name==='stale-current-scene'||name==='changed-frame-current-scene'||name==='supplementary-unicode'||name==='compact-scene-head'){
+    }else if(name==='committed'||name==='scene-reuse'||name==='scene-replacement'||name==='stale-current-scene'||name==='changed-frame-current-scene'||name==='supplementary-unicode'||name==='compact-scene-head'||name==='viewer-inspect'){
       assert.equal(outcome.outcome,'committed');assert.equal(calls.filter(c=>c.method==='POST').length,5);
       assert.equal(outcome.current.selection.sceneEvidenceId,outcome.primary.evidenceId);assert.equal(identity().revision,3);
       assert.deepEqual(identity().payload.evidenceIds,[geomEvidenceId,...(supported?[U(20)]:[]),outcome.primary.evidenceId,outcome.historical.evidenceId]);
@@ -396,6 +396,49 @@ try{
           assert.equal(next.current.selection.sourceFloorBindings[0].nativeFloorKey,floorKey());assert.equal(calls.filter(c=>c.method==='POST').length,10);
           assert.equal(successor.isHeld(),false);
         }finally{successor.dispose();}
+      }
+      if(name==='viewer-inspect'){
+        const editor=context.view,writeAdmission=context.admission,posts=calls.filter(c=>c.method==='POST').length,claims=journal.length;
+        context.view={...editor,canEdit:false};context.admission={scope,revision:'synthetic-viewer-read',commandIds:['atlas.identity.get','atlas.evidence.get','atlas.asset.get','atlas.scene-association.list']};
+        for(const changed of [...listeners])changed();
+        // An authority downgrade invalidates the previously captured Editor
+        // lease. It never silently adopts that lease for a read or a mutation.
+        await assert.rejects(client.inspectCurrentScene(input,budget),'Authority change retires the prior Editor capture');
+        client.dispose();assert.equal(listeners.size,0);
+        for(const admission of [context.admission,null]){
+          context.admission=admission;const viewer=createNativeScanSceneImporter(options),reads=calls.length;
+          try{const inspected=await viewer.inspectCurrentScene(input,budget,{recordId:savedScene.recordId,payload:savedScene.payload});
+            assert(inspected&&inspected.status==='available');assert.equal(inspected.recordId,savedScene.recordId);
+            assert.equal(inspected.selection.sceneEvidenceId,outcome.primary.evidenceId);assert.equal(inspected.selection.sceneAssetId,outcome.primary.assetId);
+            assert(calls.slice(reads).some(call=>call.path.endsWith('/current')),'Viewer uses genuine current scene read');
+            assert(calls.slice(reads).filter(call=>call.path.endsWith('/download')).length>=3,'Viewer opens both retained documents and actual closed source');
+            assert(calls.slice(reads).every(call=>call.method==='GET'),'Passive Viewer inspection is GET-only');
+            const beforeImport=calls.length;
+            await assert.rejects(viewer.importScene(input,budget),'Viewer cannot import even with a valid read binding');
+            assert.equal(calls.length,beforeImport,'Viewer refuses import before transport');assert.equal(viewer.isConsumed(),false);
+            assert.equal(calls.filter(call=>call.method==='POST').length,posts);assert.equal(journal.length,claims);
+          }finally{viewer.dispose();assert.equal(listeners.size,0);}
+        }
+        // A same-scope admission change during a read withdraws the owner lease.
+        context.admission={scope,revision:'synthetic-viewer-before-read',commandIds:['atlas.identity.get']};let changedDuringRead=false;
+        const invalidated=createNativeScanSceneImporter({...options,transport:async(url,init)=>{
+          const response=await transport(url,init);
+          if(!changedDuringRead&&new URL(url,'https://synthetic.invalid').pathname.endsWith('/buildings/'+buildingId)){
+            changedDuringRead=true;context.admission={...context.admission,revision:'synthetic-viewer-after-read'};
+            for(const changed of [...listeners])changed();
+          }
+          return response;
+        }});
+        try{await assert.rejects(invalidated.inspectCurrentScene(input,budget),'Authority-sensitive admission revision change withdraws in-flight read');
+          assert(changedDuringRead);assert.equal(calls.filter(call=>call.method==='POST').length,posts);assert.equal(journal.length,claims);
+        }finally{invalidated.dispose();assert.equal(listeners.size,0);}
+        // Editor canEdit alone is insufficient when any required command was revoked.
+        context.view=editor;
+        for(const missing of writeAdmission.commandIds){context.admission={...writeAdmission,revision:'synthetic-missing-'+missing,commandIds:writeAdmission.commandIds.filter(id=>id!==missing)};
+          const partial=createNativeScanSceneImporter(options),beforeImport=calls.length;
+          try{await assert.rejects(partial.importScene(input,budget));assert.equal(calls.length,beforeImport,'Incomplete write command set refuses before transport');}
+          finally{partial.dispose();assert.equal(listeners.size,0);}}
+        context.admission=writeAdmission;assert.equal(calls.filter(call=>call.method==='POST').length,posts);assert.equal(journal.length,claims);
       }
       if(name==='scene-reuse'){
         client.dispose();assert.equal(listeners.size,0);const fresh=createNativeScanSceneImporter(options),claimedBefore=journal.length;
