@@ -49,6 +49,7 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
   const [busy, setBusy] = useState<{ owner: object; text: string } | null>(null);
   const [initialSync, setInitialSync] = useState<{ owner: object; pending: boolean } | null>(null);
   const [confirmRefresh, setConfirmRefresh] = useState(false);
+  const [drawingConfirmed, setDrawingConfirmed] = useState(false);
   const [, repaint] = useState(0);
   const active = () => current.current === owner && client.getBinding() === binding && binding !== null;
   const buildingId = geometry?.descriptor.buildingId ?? null;
@@ -169,16 +170,16 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
     setPrepared(null);
     const value = await client.prepare(reviewCandidate, geometry!, statement, reason, signal);
     if (!active() || signal.aborted) { client.releasePrepared(value); return; }
-    setPrepared({ owner, value });
+    setDrawingConfirmed(false); setPrepared({ owner, value });
   }, false, undefined, 'prepare');
   const submit = () => execute('Saving reviewed association', async signal => {
-    if (!canPrepare || !review || !reviewCandidate) return;
+    if (!canPrepare || !review || !reviewCandidate || review.drawingReview && !drawingConfirmed) return;
     onSubmissionStarted(reviewCandidate);
     try {
       if (flight.current?.owner === owner) {
         flight.current.submittedReview = review; flight.current.pendingNotification = 'unknown';
       }
-      const result = await client.submit(review, geometry!, signal);
+      const result = await client.submit(review, geometry!, signal, drawingConfirmed);
       if (!active() || signal.aborted) return;
       heads?.set(buildingId!, headKey(result));
       setRead({ owner, value: result });
@@ -202,7 +203,7 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
     } else setStatus({ owner, text: 'Outcome remains unresolved; no new write was sent.' });
   }, false, undefined, 'resolve');
 
-  return <section ref={surface} hidden={!visible} aria-label="Native scene association review">
+  return <section ref={surface} hidden={!visible} aria-label="Native scene association review" style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
     <h3>Scene association</h3>
     {!buildingId || !geometry ? <p role="status">No current native geometry is available for association readback.</p> : <>
       <p>Building {buildingId}</p>
@@ -231,12 +232,25 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
       <button type="button" onClick={prepare} disabled={!!busy || initialSyncPending || !canPrepare || !client.canCreate(buildingId) || !statement.trim() || !reason.trim() || unresolved.length > 0}>
         Review retained originals
       </button>
+      {review?.drawingReview && <section aria-label="Reference PDF correlation review">
+        <h4>Reference PDF review</h4>
+        <p>Correlation {review.drawingReview.correlationId}; independent review {review.drawingReview.reviewId}</p>
+        <p>Support SHA-256 {review.drawingReview.originalSha256}</p>
+        <p>Crosswalk SHA-256 {review.drawingReview.correlationSha256}; review SHA-256 {review.drawingReview.reviewSha256}</p>
+        <p>PDF evidence {review.drawingReview.pdf.evidenceId}, revision {review.drawingReview.pdf.evidenceRevision}; asset {review.drawingReview.pdf.assetId}, revision {review.drawingReview.pdf.assetRevision.token}</p>
+        <p>PDF SHA-256 {review.drawingReview.pdf.sha256}; {review.drawingReview.pdf.byteSize.token} bytes</p>
+        <details><summary>Exact sheet and page references</summary><pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: '16rem', overflow: 'auto' }}>
+          {JSON.stringify(review.drawingReview.references, null, 2)}</pre></details>
+        <p>The independent source review establishes the photo and page correlation. Native review retains the support bytes; original access is checked again when opened.</p>
+        <label><input type="checkbox" checked={drawingConfirmed} disabled={!!busy} onChange={event => setDrawingConfirmed(event.target.checked)} />
+          I reviewed these source, page and PDF pins as part of this association.</label>
+      </section>}
       {review && <details open><summary>Exact proposed receipt and mappings</summary>
         <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: '22rem', overflow: 'auto' }}>
           {stringifyLosslessJson(review.payload)}
         </pre>
       </details>}
-      {review && canPrepare && <button type="button" onClick={submit} disabled={!!busy || initialSyncPending || !canPrepare || !client.canCreate(buildingId) || !client.isPreparedCurrent(review) || unresolved.length > 0}>
+      {review && canPrepare && <button type="button" onClick={submit} disabled={!!busy || initialSyncPending || !canPrepare || !client.canCreate(buildingId) || !client.isPreparedCurrent(review) || unresolved.length > 0 || !!review.drawingReview && !drawingConfirmed}>
         Submit reviewed association
       </button>}</>}
       {unresolved.length > 0 && <>

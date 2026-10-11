@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "91ea3e252e2d6e3a184fae47f4fbc9509a95e2d4ee9b920ac10db3f72791c21c",
+  "sourceDigestSha256": "0adda960658809615c25eba50ca4f8b0bb595b754f72fc205b451b78392a8b73",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 47120,
-      "sha256": "2eef7c7e3fd92c7e256b6baecf3a769c3b91e9844ef3da0f47544cb4ec13c00b",
+      "bytes": 48465,
+      "sha256": "ea06ec5a88e8d7f638d5f2fc2dcde77a5fd158fce19ba86dc8c8d04448b5f39b",
       "owner": "core-integration"
     },
     {
@@ -5451,6 +5451,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/geometry/native-room-drawing-source.md",
+      "mode": "100644",
+      "bytes": 7814,
+      "sha256": "fa99b048434de8fb811e8a99e60f2c3e2733ccb8544fa9d75887ab8eb3d3efda",
+      "owner": "operations-policy"
+    },
+    {
       "path": "docs/geometry/native-scan-intake-ui.md",
       "mode": "100644",
       "bytes": 4789,
@@ -6020,8 +6027,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 32122,
-      "sha256": "dc351c98e21ea363d6773e5df88a6d72389be7bde69f8fcd6b7098492d612c4c",
+      "bytes": 32212,
+      "sha256": "f1eee6bc9bbed971b07b1aa0ece3900a381e69e9669613beda94756bdea9693d",
       "owner": "core-integration"
     },
     {
@@ -6062,15 +6069,22 @@
     {
       "path": "frontend/integration/native-scene-association-client.ts",
       "mode": "100644",
-      "bytes": 36898,
-      "sha256": "cec5c35554036861717cdad954cc5adbc964cc346b79ae4fae407d5bad8fa7d4",
+      "bytes": 43162,
+      "sha256": "5362e190de46de34af779f3a77ca7784ceb0482ab7519113419b363de697da06",
       "owner": "web"
+    },
+    {
+      "path": "frontend/integration/native-scene-documentary-support.ts",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 11911,
+      "sha256": "2bf22d8e3d9c6014ff00b21477a643e08a2d9ba50140851a8843cec28b625fe6"
     },
     {
       "path": "frontend/integration/native-scene-source-client.ts",
       "mode": "100644",
-      "bytes": 46905,
-      "sha256": "d53cc3608e8335f8bc60c35a858fdddf67c997aa43f72a7bbbf1cd814e5feb01",
+      "bytes": 54508,
+      "sha256": "8930cbc9db26cb11db18191462e74909dbcaf2baede580fe8246bf6f530dff34",
       "owner": "web"
     },
     {
@@ -6235,6 +6249,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/native-room-drawing-source.mjs",
+      "mode": "100644",
+      "bytes": 36996,
+      "sha256": "6d25483f59150026da789c56cfb7b1f75ece1cb6df25a08086d222172113be79",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/native-scan-succession.mjs",
       "mode": "100644",
       "bytes": 13257,
@@ -6244,8 +6265,8 @@
     {
       "path": "frontend/lantern-tests/native-scene-drawing-150.mjs",
       "mode": "100644",
-      "bytes": 25236,
-      "sha256": "a3bd5dbbb6492ac8d4c2a760e16d95dd95fe819059f7740ceaa044a83b555fa3",
+      "bytes": 25260,
+      "sha256": "b639bd51d623b22323df8853810451602458ae242bfceb75597a7112567aac27",
       "owner": "web"
     },
     {
@@ -7441,8 +7462,8 @@
     {
       "path": "frontend/src/lantern/scans/native-scene-source-types.ts",
       "mode": "100644",
-      "bytes": 3840,
-      "sha256": "455604eb29161c10867a3732d11dd41182212ea97d7d13fbf226ce69bf1ba672",
+      "bytes": 5783,
+      "sha256": "3dc3fa43cf3369f64ce25d2bb88c9141b9ddcc80c6c3cafcb3e8bcdea5bdd862",
       "owner": "web"
     },
     {
@@ -7462,8 +7483,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneAssociation.tsx",
       "mode": "100644",
-      "bytes": 15137,
-      "sha256": "a76dcffe4678cbdd753f0ca4fe92eb4182a05b55b96b9dddb5dfc8031316b42d",
+      "bytes": 16847,
+      "sha256": "745f6488af6c309192022385ceaa306f65d504c891c0971c362c60717f15116a",
       "owner": "web"
     },
     {
@@ -7476,15 +7497,15 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx",
       "mode": "100644",
-      "bytes": 9482,
-      "sha256": "f93c652312a85e66c849676e2d180ba034670840065dba9a087ee55bc5283dce",
+      "bytes": 12843,
+      "sha256": "db98b7df704afb08aece288eaea0a9ec1c969ca06b49f47800863c59064a5297",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneLayers.tsx",
       "mode": "100644",
-      "bytes": 5832,
-      "sha256": "4016e8e52e20a696e6f713c30b7e6872bd64af837a09fd096c66574cff353089",
+      "bytes": 5980,
+      "sha256": "097149cde373f9cb7d3bfacf93c43d55d224bccfbec9e238ccf2200d6efec4d7",
       "owner": "web"
     },
     {

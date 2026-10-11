@@ -24,6 +24,44 @@ export interface NativeSceneSourceSelection {
   /** Complete anchor/target membership from the independently reviewed receipt. */
   readonly acceptedRoomAnchors: readonly NativeSceneAcceptedAnchor[];
   readonly sourceFloorBindings: readonly NativeSceneFloorBinding[];
+  /** Separately reviewed sheet/page -> current native PDF join. Never supplied by stored scene text. */
+  readonly drawingReferences?: readonly NativeSceneDrawingPdfReference[];
+  /** Exact reviewed historical original; a separate read lease protects its provenance bridge. */
+  readonly drawingSupport?: Readonly<{ evidenceId: string; evidenceRevision: number; assetId: string;
+    assetRevision: ExactDecimal; originalSha256: string; reviewMarker: string }>;
+}
+
+/** View-only provenance. These pins describe unchanged historical bytes and
+ * the separate current native review used by room filters; no stored ledger is rewritten. */
+export interface NativeSceneDrawingProvenance {
+  readonly historicalRoomMappingReceipt: Readonly<{ id: string; sha256: string }>;
+  readonly fixtureLedgerSha256: string;
+  readonly supportOriginalSha256: string;
+  readonly currentNativeRoomReview: Readonly<{ id: string; sha256: string }>;
+}
+
+export interface NativeSceneDrawingPdfReference {
+  readonly correlationId: string;
+  readonly correlationSha256: string;
+  readonly workspaceId: string;
+  readonly homeId: string;
+  readonly buildingId: string;
+  readonly viewKey: string;
+  readonly sceneOriginalSha256: string;
+  readonly sceneEvidenceId: string;
+  readonly sceneEvidenceRevision: number;
+  readonly sceneAssetId: string;
+  readonly sceneAssetRevision: ExactDecimal;
+  readonly sheetId: string;
+  readonly pdfPage: number;
+  readonly originalPhotoSha256: string;
+  readonly renderedPhotoSha256: string;
+  readonly evidenceId: string;
+  readonly evidenceRevision: number;
+  readonly assetId: string;
+  readonly assetRevision: ExactDecimal;
+  readonly assetSha256: string;
+  readonly byteSize: ExactDecimal;
 }
 
 export interface NativeSceneAcceptedAnchor {
@@ -65,6 +103,9 @@ export interface NativeSceneSourceFrame {
   readonly electricity: NativeSceneSubset<ElectricityOverlayData>;
   /** Historical source symbols only; no accepted diagram registration or media grant. */
   readonly electricalFixtures: NativeSceneSubset<ElectricalFixtureData>;
+  /** Qualified documentary joins only; fresh native document admission is still required on click. */
+  readonly drawingReferences?: readonly NativeSceneDrawingPdfReference[];
+  readonly drawingProvenance?: NativeSceneDrawingProvenance;
   readonly document: NativeEvidenceDocumentFrame;
   readonly geometry: NativeGeometryFrame;
 }

@@ -283,11 +283,11 @@ const sceneAssociations = createNativeSceneAssociationClient({
     quantityEvents.addEventListener("changed", changed);
     return () => quantityEvents.removeEventListener("changed", changed);
   },
-  primaryReview: scenePrimaryReview, historicalReview: sceneHistoricalReview,
+  primaryReview: scenePrimaryReview, historicalReview: sceneHistoricalReview, createDrawingReview: makeSceneDocumentOwner,
   geometryCurrent: frame => nativeGeometry.isCurrent(frame),
 });
 const sceneSources = createNativeSceneSourceClient({
-  documents: sceneReadDocuments, geometry: nativeGeometry,
+  documents: sceneReadDocuments, geometry: nativeGeometry, createDrawingReview: makeSceneDocumentOwner,
   getSelection: () => currentSceneSelection,
   subscribeSelection: changed => {
     sceneEvents.addEventListener("changed", changed);

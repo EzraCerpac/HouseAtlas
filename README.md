@@ -25,6 +25,30 @@ node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs throwing-obse
 node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs host-context-change-ordered
 ```
 
+
+The separately reviewed room-to-source action uses generated data, fake
+native document/geometry ports and a fresh sandboxed browser on an owned
+loopback listener. Inspect its runner and imports, select Node 26.10.0, an
+inspected HOUSEATLAS_CHROMIUM executable and a private
+HOUSEATLAS_FIXTURE_EVIDENCE directory. These exact named cases are released
+only in the same isolated synthetic regression lane; no provider, household,
+old-request replay, security bypass or deployment permission is added.
+
+~~~sh
+node frontend/lantern-tests/native-room-drawing-source.mjs pdf-download
+node frontend/lantern-tests/native-room-drawing-source.mjs png-legacy
+node frontend/lantern-tests/native-room-drawing-source.mjs missing-correlation
+node frontend/lantern-tests/native-room-drawing-source.mjs stale-correlation
+node frontend/lantern-tests/native-room-drawing-source.mjs wrong-correlation
+node frontend/lantern-tests/native-room-drawing-source.mjs lifecycle
+~~~
+
+These six named cases exercise the production association constructor and retained
+support owner before the reader/drawing seam. The PDF case also checks explicit
+review confirmation and a single fake/local-only transport stop retaining UNKNOWN.
+See docs/geometry/native-room-drawing-source.md for the separately reviewed
+current sheet-to-PDF correlation and download-only qualification.
+
 HouseAtlas is an offline core for scoped physical identities and reviewed
 bindings, with read-only HomeBox inventory projections and a passive Network
 facet. It works without a floorplan. Checked-in fixtures are synthetic.
