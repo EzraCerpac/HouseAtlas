@@ -518,6 +518,40 @@ test('normal sign-in observations form one owned current session/admission; logo
   await owner.close(); assert.equal(owner.getContext(), null);
   assert.equal(calls.filter(row => row.path.endsWith('/proxy')).length, 1);
 });
+test('Viewer read admission passively reconciles a held native intent without mutation eligibility', async () => {
+  const files = await fixture(['Viewer']), native = fakeNative({ unknownAt: 3 });
+  let viewer;
+  try {
+    const selected = await files.selected(), journal = await openImportJournal(join(files.directory, 'viewer'), { create: true });
+    await assert.rejects(applyNativeImport(selected, runtime, localContext(), journalTransport(native.transport, journal), journal,
+      new AbortController().signal));
+    const before = native.postCount, calls = [];
+    const session = { schemaVersion: 1, actorId: U(9), csrfToken: 'synthetic-viewer', expiresAt: '2099-01-01T00:00:00Z' };
+    const exchange = async (path, init = {}) => {
+      calls.push({ path, method: init.method ?? 'GET' });
+      if (path.endsWith('/auth/mode')) return json({ schemaVersion: 1, mode: 'trusted-proxy' });
+      if (path.endsWith('/auth/proxy') || path.endsWith('/auth/session')) return json(session);
+      if (path.endsWith('/auth/logout')) return new Response(null, { status: 204 });
+      if (path.endsWith('/admission')) return json({ schemaVersion: 3, scope,
+        commandIds: ['atlas.asset.get', 'atlas.identity.get', 'atlas.location-semantics.get', 'atlas.evidence.get', 'atlas.geometry.get'],
+        nativeCommandIds: [], revision: 'synthetic-viewer-read', maximumReasonCodePoints: 1024 });
+      return native.transport(path, init);
+    };
+    viewer = await createAgentContext(selected.manifest, exchange, runtime, new AbortController().signal, { requireWrite: false });
+    assert.equal(viewer.getContext().view.canEdit, false);
+    assert.deepEqual(viewer.getContext().admission.nativeCommandIds, []);
+    const result = await inspectImportJournal(journal, runtime, viewer, exchange, new AbortController().signal, selected);
+    assert.equal(result.retrySafety, 'not-established');
+    assert(result.inspections.some(row => row.status === 'ready'));
+    assert.equal(native.postCount, before);
+    assert(calls.filter(row => row.method === 'POST').every(row => row.path.startsWith('/api/atlas/auth/') || row.path === '/api/atlas/retained-intent'));
+    await viewer.close(); viewer = null;
+    assert.equal(calls.filter(row => row.path.endsWith('/auth/logout')).length, 1);
+    await assert.rejects(createAgentContext(selected.manifest, exchange, runtime, new AbortController().signal),
+      /Current native admission does not permit this import/);
+    assert.equal(native.postCount, before);
+  } finally { await viewer?.close(); await files.cleanup(); }
+});
 test('HTTPS framing retains body and cookie separately; transport selection refuses bypass options', () => {
   const response = parseCurlResponse(Buffer.from('HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nContent-Type: application/json\r\nSet-Cookie: synthetic=x; Secure; HttpOnly; SameSite=Strict\r\n\r\n{}'));
   assert.equal(response.status, 200); assert.equal(response.headers.getSetCookie().length, 1);

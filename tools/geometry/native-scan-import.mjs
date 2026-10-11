@@ -146,7 +146,8 @@ export async function openImportJournal(path, { create = false } = {}) {
   };
 }
 
-export async function createAgentContext(manifest, transport, runtime, signal) {
+export async function createAgentContext(manifest, transport, runtime, signal, { requireWrite = true } = {}) {
+  assert.equal(typeof requireWrite, 'boolean');
   const body = async response => { assert(response.status === 200, `Native access returned HTTP${response.status}`);
     const bytes = await response.arrayBuffer(); assert(bytes.byteLength <= 1024 * 1024); return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); };
   assert.equal(runtime.session.decodeAuthMode(await body(await transport('/api/atlas/auth/mode', { signal }))), 'trusted-proxy');
@@ -168,7 +169,7 @@ export async function createAgentContext(manifest, transport, runtime, signal) {
     assert(!admission.commandIds.some(value => admission.nativeCommandIds.includes(value)), 'Native admission must remain separate from generic Stock');
     const genericRequired = ['atlas.evidence.create', 'atlas.identity.replace', 'atlas.batch.execute', 'atlas.geometry.create'];
     const nativeRequired = ['atlas.asset.create', ...(manifest.scene ? ['atlas.scene-association.create'] : [])];
-    assert(genericRequired.every(command => admission.commandIds.includes(command)) &&
+    if (requireWrite) assert(genericRequired.every(command => admission.commandIds.includes(command)) &&
       nativeRequired.every(command => admission.nativeCommandIds.includes(command)), 'Current native admission does not permit this import');
     text(admission.revision, 256); assert.equal(admission.maximumReasonCodePoints, 1024);
     // Only the actual current server response supplies these native capabilities.
@@ -187,7 +188,7 @@ export async function createAgentContext(manifest, transport, runtime, signal) {
   }
   const listeners = new Set(), sessionIdentity = Object.freeze({}), scope = Object.freeze({ ...manifest.scope });
   // Editing eligibility comes from the genuine current admission, not a supplied role.
-  let current = { sessionIdentity, session, scope, view: Object.freeze({ scope, canEdit: true }), admission };
+  let current = { sessionIdentity, session, scope, view: Object.freeze({ scope, canEdit: requireWrite }), admission };
   const readBinding = Object.freeze({ sessionIdentity, expiresAt: session.expiresAt, scope });
   return { getContext: () => current, subscribe: changed => { listeners.add(changed); return () => listeners.delete(changed); },
     getBinding: () => current && readBinding,
@@ -531,7 +532,7 @@ async function main(args) {
     if (command === 'inspect') assert.equal(journal.events.find(event => event.kind === 'selection')?.data.manifestSha256, selected.manifestSha256);
     network = createNativeCurlTransport({ origin: selected.manifest.origin, proxy: options.get('--proxy'), scope: selected.manifest.scope });
     const transport = command === 'apply' ? journalTransport(network.exchange, journal) : network.exchange;
-    context = await createAgentContext(selected.manifest, transport, runtime, signal);
+    context = await createAgentContext(selected.manifest, transport, runtime, signal, { requireWrite: command !== 'inspect' });
     if (command === 'preflight') {
       const reader = runtime.read.createNativeGeometryReadClient({ getBinding: context.getBinding, subscribeBinding: context.subscribe,
         origin: selected.manifest.origin, transport });

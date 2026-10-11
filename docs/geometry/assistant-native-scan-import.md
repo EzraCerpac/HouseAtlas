@@ -50,6 +50,7 @@ GET. It accepts no selectors or mutation method. The server validates the entire
 chain from one authenticated snapshot and returns only scoped head ID, revision
 and canonical payload SHA-256 within 4096 bytes. Historical document payloads are
 not downloaded together; metadata and document byte limits stay unchanged.
+Passive `inspect` selects a read-only context. It checks the genuine current session and scoped admission without requiring mutation capabilities; its view cannot edit. An authorized Viewer can inspect retained outcomes after write admission is lost. `apply` and `preflight` still require the current native write commands.
 Native-only asset and scene commands are reported in the server's separate
 `nativeCommandIds` metadata, under the same existing Editor/scope checks.
 They remain absent from the generic Stock/MCP catalogue. The command requires

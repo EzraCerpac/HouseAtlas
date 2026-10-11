@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "75aaa5b3080874f27e180aa20ddbffbb8f0c5e9b8c8a54ad592e7c7955f3cd9a",
+  "sourceDigestSha256": "0acfada1147caed73fb5e547908e55397330d8ffb88c9b6bcef72618baa16f3b",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 52239,
-      "sha256": "edd7bc514a7ac275082ced5cc826a6a0eb240fa1d2bd81b0183debd2141a511a",
+      "bytes": 52311,
+      "sha256": "661d5fca9ca8fcfb6acd7bb3019ca27049d187894f12fe449db430fd99d809f4",
       "owner": "core-integration"
     },
     {
@@ -5384,8 +5384,8 @@
       "path": "docs/geometry/assistant-native-scan-import.md",
       "owner": "media",
       "mode": "100644",
-      "bytes": 11017,
-      "sha256": "ebea2baf350e5ccf32b1310f8c8b811def8447cd091a192f76aaf7d12e5dc3af"
+      "bytes": 11341,
+      "sha256": "9b79b64de716177fcb8225af6c8cdaba4bda94b42d9c3ca76abc4dab72381e5d"
     },
     {
       "path": "docs/geometry/assistant-native-scan-scene.md",
@@ -6084,8 +6084,8 @@
       "path": "frontend/integration/native-scan-import-scene.ts",
       "owner": "media",
       "mode": "100644",
-      "bytes": 42420,
-      "sha256": "0e04e9cb884fe51bf3014f0e72a30eb11a158cbd0def395c6168f1b5a9bd75b0"
+      "bytes": 43025,
+      "sha256": "05b0a2ae5c3f3b4f81cbd74eaa49923fac4ade9c6b293f9f201b002d4440d671"
     },
     {
       "path": "frontend/integration/native-scan-import-text.ts",
@@ -6287,8 +6287,8 @@
       "path": "frontend/lantern-tests/native-scan-import-scene.mjs",
       "owner": "media",
       "mode": "100644",
-      "bytes": 55628,
-      "sha256": "8643a60d98beb80c228be23e9beb76967f37fb644a6edce06c67080462ccb807"
+      "bytes": 59797,
+      "sha256": "6d4734e2e2a30cc2ff041fb020c943a6d8540ea2507b83542cfa3f30ea5a46d4"
     },
     {
       "path": "frontend/lantern-tests/native-scan-succession.mjs",
@@ -8786,15 +8786,15 @@
       "path": "tools/geometry/native-scan-import.mjs",
       "owner": "media",
       "mode": "100644",
-      "bytes": 44105,
-      "sha256": "1663c9c16597f3aa87513121abc479cdefc39f459f907c9f4066d2375506e09d"
+      "bytes": 44250,
+      "sha256": "13cd378fe8c2394158024835d9e24bc2f4e816b06b4df9e99c79b7a074a62b5a"
     },
     {
       "path": "tools/geometry/native-scan-import.test.mjs",
       "owner": "media",
       "mode": "100644",
-      "bytes": 46106,
-      "sha256": "3f26f7a3c773c826e08693490a8e7c7e833c211a8e5e275056608cfd53e8a4b9"
+      "bytes": 48673,
+      "sha256": "f5073efad59afef2387094364c2e72841e5d966c1335873dd8501bd2776c9f4f"
     },
     {
       "path": "tools/geometry/scan-replacement-plan.mjs",
