@@ -79,27 +79,30 @@ local draft actions fail closed with an availability message; basic evidence pic
 remains available. Existing quantity, pinned, topology, AI,
 native naming and capability clients retain their current binding behavior.
 
-## Proposed qualification commands
+## README-registered qualification commands
 
-These bodies are source-only proposals. They are not ordinary-CI additions or
-runtime permission. Independent review of exact source/imports and Root's exact
-README command registration must precede each browser/listener/test execution.
+The exact named host cases and native UI positive below are registered in the
+repository README. They remain outside ordinary CI and within their separately
+bounded synthetic lanes. Registration does not broaden a case or replace the
+required source and artifact review; the native UI case also requires its
+private-packet review before execution.
 
-`node frontend/capture-drafts-tests/combined-host.mjs --case NAME` permits only one
-named fake-port case. Positive names are `healthy-save-review-commit` and
-`healthy-canonical-published-binding`. Individually proposed regressions are
+`node frontend/capture-drafts-tests/combined-host.mjs --case NAME` permits one
+named fake-port case per invocation. The README registers healthy cases
+`healthy-save-review-commit`, `healthy-canonical-published-binding` and
+`explicit-clear-before-signout`, plus separately bounded regression cases
 `pending-canonical-late-context`, `home-change-denies-reviewed-submit`,
-`target-change-denies-submit`, `malformed-receipt-keeps-original`,
-`noncommitted-receipt-keeps-original`, `lost-fake-reply-inspect-only`,
-`cleanup-failure-known-commit`, `explicit-clear-before-signout` and
-`cross-tab-invalidation-signal`, `unavailable-probe-explicit-recheck` and
-`wrong-correlation-keeps-original`. They use a deterministic memory store, actual
-closed schema, synthetic JPEG, injected session/editing ports and a fetch trap.
-The reply-loss proposal and synthetic malformed/noncommitted/wrong-correlation
-response mutations overlap held classes and each require an explicit lane assessment; no replay, expiry, crash or server revocation execution is implied.
+`target-change-denies-submit`, `cross-tab-invalidation-signal`,
+`unavailable-probe-explicit-recheck` and `cleanup-failure-known-commit`. These
+cases use a deterministic memory store, actual closed schema, synthetic JPEG,
+injected session/editing ports and a fetch trap. The proposal cases
+`lost-fake-reply-inspect-only`, `malformed-receipt-keeps-original`,
+`noncommitted-receipt-keeps-original` and `wrong-correlation-keeps-original`
+remain held; no replay, expiry, crash or server revocation execution is implied.
 
 `node frontend/capture-drafts-tests/combined-native-ui.mjs --case healthy-save-reopen-confirm`
-proposes actual built React/native TLS in fresh disposable state/profile with a
+is the README-registered native UI positive using actual built React/native TLS
+in fresh disposable state/profile with a
 generated JPEG, explicit local save, normal UI close/reload/reopen, read-only
 review/download, fresh session/place reads, exactly one confirmed evidence POST,
 durable marker observed before releasing the evidence POST, request-correlated

@@ -85,7 +85,11 @@ export function NativeEvidenceDocument({ client, evidenceId }: {
           <button type="button" disabled={zoom >= 4} onClick={() => setZoom(value => Math.min(4, value * 2))}>Zoom in</button>
         </div>
         <div style={{ maxHeight: '75vh', overflow: 'auto' }}>
-          <img src={shown.url} alt="Saved PNG document preview" style={{ width: `${zoom * 100}%`, maxWidth: 'none', height: 'auto' }} />
+          <img src={shown.url} alt="Saved PNG document preview" onError={() => {
+            const failed = displayed.current;
+            if (!failed || failed.frame !== shown.frame || failed.url !== shown.url) return;
+            clear(true); setState('unavailable');
+          }} style={{ width: `${zoom * 100}%`, maxWidth: 'none', height: 'auto' }} />
         </div>
       </> : <>
         <p>This original is available as a download. An inline preview is unavailable.</p>

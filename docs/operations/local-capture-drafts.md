@@ -16,10 +16,10 @@ or QR utility, service worker, background mutation, automatic submission, retry,
 sync, or a promise of offline operation. The existing general offline and media
 expectations remain in force outside this narrowly stated exception.
 
-The feature is currently a controller/store contract, not an integrated user
-interface. The separate capture owner is handling the UI hookup; this
-contract supplies no UI implementation. No target browser has yet been qualified
-for this feature.
+The controller/store contract is integrated into the shared contextual Add
+evidence interface. The UI supports explicit local save, review, confirmed
+foreground upload, unknown-outcome inspection, and consented sign-out cleanup.
+No target browser or physical device has yet been qualified for this feature.
 
 ## Ownership and local storage
 
