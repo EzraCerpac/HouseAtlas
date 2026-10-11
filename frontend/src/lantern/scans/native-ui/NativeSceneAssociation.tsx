@@ -108,7 +108,7 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
   useEffect(() => {
     if (!buildingId || !geometry || !active()) return;
     const synchronizeInitialHead = !!heads && !!refreshed.current && !heads.has(buildingId);
-    if (synchronizeInitialHead) onRefreshPendingChanged?.(true);
+    onRefreshPendingChanged?.(synchronizeInitialHead);
     const controller = new AbortController();
     void client.readCurrent(buildingId, geometry, controller.signal).then(result => {
       if (current.current !== owner || controller.signal.aborted || !active()) return;
