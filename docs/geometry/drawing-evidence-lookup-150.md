@@ -18,19 +18,22 @@ Each continuation releases the previous page's resources. Close, replacement
 selection and late completion release their exact frame, unsubscribe and revoke
 the owned object URL. A selection change resets pagination even if the earlier
 selection objects later return. Timeout reports an incomplete read; closing and
-reopening starts a fresh lookup. There is no automatic continuation or retry.
+reopening starts a fresh lookup. The original opener is restored only when the dialog unmounts, including after
+pagination or selection changes. There is no automatic continuation or retry.
 
 ## Synthetic browser acceptance
 
 `frontend/lantern-tests/native-scene-drawing-150.mjs` compiles the actual React
 component with a deterministic fake document client. Its explicitly selected
 cases use generated UUIDs and the checked-in synthetic PNG. They exercise actual
-Chrome pointer actions, PNG rendering, page continuation and resource counters.
+Chrome pointer and keyboard actions, PNG rendering, page continuation and resource counters.
 The first, middle and last cases match positions 0, 64 and 128 of 129 references.
 Missing exhausts all three pages; page-bound stops after 64 of 5,000 references
 until explicit continuation. Close and selection cases check owned lease, URL
 and subscription cleanup, including a deliberately late fake read completion.
 Blob read failure also releases the already-opened frame without creating a URL.
+Middle and last matches use Tab/Enter for continuation and Escape to close;
+closing restores the original opener after pagination or selection changes.
 
 Inspect the complete runner and its production imports before the exact command
 registered in the root README. Use pinned Node 26.10.0 and the locked frontend

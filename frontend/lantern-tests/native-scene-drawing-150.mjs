@@ -110,7 +110,7 @@ function makeClient(){
  subscribeInvalidation(f,changed){if(!live.has(f))throw Error('subscribe requires live frame');listeners.set(f,changed);stats.subscriptions.push(f.evidenceId);return()=>{if(listeners.delete(f))stats.unsubscriptions.push(f.evidenceId)}},
  release(f){if(live.delete(f)){stats.releases.push(f.evidenceId);stats.active=stats.active.filter(id=>id!==f.evidenceId)}},dispose(){}};
 }
-function App(){const [which,setWhich]=useState(selectedCase),[version,setVersion]=useState(0),[visible,setVisible]=useState(true),[selection,setSelection]=useState(config(selectedCase)),prior=useRef(null),sheets=useRef(new WeakMap());
+function App(){const [which,setWhich]=useState(selectedCase),[version,setVersion]=useState(0),[visible,setVisible]=useState(false),[selection,setSelection]=useState(config(selectedCase)),prior=useRef(null),sheets=useRef(new WeakMap());
  const client=window.__client||(window.__client=makeClient()); window.__matches=selection.matches;
  if(!sheets.current.has(selection))sheets.current.set(selection,{id:'synthetic-sheet-'+version,title:'Synthetic drawing '+version,pdfPage:2,renderedPhotoSha256:${JSON.stringify(pngSha)}});
  const sheet=sheets.current.get(selection);
@@ -140,7 +140,11 @@ async function run() {
   const evaluate=async expression=>{const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});assert(!r.exceptionDetails,r.exceptionDetails?.text??'Browser evaluation failed');return r.result.value};
   const click=async selector=>{const b=await evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('Missing '+${JSON.stringify(selector)});const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2,w:r.width,h:r.height}})()`);assert(b.w>0&&b.h>0);await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,x:b.x,y:b.y});await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,x:b.x,y:b.y});};
   const clickText=async text=>{const b=await evaluate(`(()=>{const e=Array.from(document.querySelectorAll('button')).find(x=>x.textContent.trim()===${JSON.stringify(text)});if(!e)throw Error('Missing button '+${JSON.stringify(text)});const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2,w:r.width,h:r.height}})()`);assert(b.w>0&&b.h>0);await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,x:b.x,y:b.y});await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,x:b.x,y:b.y});};
+  const key=async(name,code,number)=>{await send('Input.dispatchKeyEvent',{type:'keyDown',key:name,code,windowsVirtualKeyCode:number,nativeVirtualKeyCode:number,...(name==='Enter'?{text:'\r',unmodifiedText:'\r'}:{})});await send('Input.dispatchKeyEvent',{type:'keyUp',key:name,code,windowsVirtualKeyCode:number});};
+  const keyboardContinue=async()=>{await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement?.textContent.trim()'),'Check next references');await key('Enter','Enter',13);};
   await send('Page.navigate',{url:origin+'/'});
+  await until(()=>evaluate('Boolean(window.__stats && document.querySelector("#reopen"))'),'opener mount');
+  await click('#reopen');
   await until(()=>evaluate('Boolean(window.__stats && document.querySelector(".native-scene-drawing"))'),'component mount');
   const stats=()=>evaluate('({opens:window.__stats.opens.slice(),releases:window.__stats.releases.slice(),creates:window.__stats.creates.slice(),revokes:window.__stats.revokes.slice(),subscriptions:window.__stats.subscriptions.slice(),unsubscriptions:window.__stats.unsubscriptions.slice(),maxConcurrent:window.__stats.maxConcurrent,inFlight:window.__stats.inFlight,active:window.__stats.active.slice()})');
   const status=()=>evaluate('document.querySelector("[role=status]")?.textContent ?? ""');
@@ -148,8 +152,8 @@ async function run() {
   const targetIndex={ 'first-match':0,'middle-match':64,'last-match':128 }[selectedCase];
   if(targetIndex!==undefined){
     const firstPage=Math.min(targetIndex+1,64);await until(async()=>(await stats()).opens.length===firstPage,'first candidate page');
-    if(targetIndex>=64){assert.match(await status(),/checked/i);assert.match(await status(),/remain(?:s)? to check/i);assert.match(await status(),new RegExp(String(129-64)));assert(!await evaluate('Boolean(document.querySelector("img"))'));await clickText('Check next references');await until(async()=>(await stats()).opens.length===Math.min(targetIndex+1,128),'second page');}
-    if(targetIndex>=128){assert.match(await status(),/remain(?:s)? to check/i);assert.match(await status(),/1/);await clickText('Check next references');await until(async()=>(await stats()).opens.length===129,'third page');}
+    if(targetIndex>=64){assert.match(await status(),/checked/i);assert.match(await status(),/remain(?:s)? to check/i);assert.match(await status(),new RegExp(String(129-64)));assert(!await evaluate('Boolean(document.querySelector("img"))'));await keyboardContinue();await until(async()=>(await stats()).opens.length===Math.min(targetIndex+1,128),'second page');}
+    if(targetIndex>=128){assert.match(await status(),/remain(?:s)? to check/i);assert.match(await status(),/1/);await keyboardContinue();await until(async()=>(await stats()).opens.length===129,'third page');}
     await until(()=>evaluate('Boolean(document.querySelector("img")?.naturalWidth)'),'matching synthetic PNG render');
     const s=await assertSerialized();assert.equal(s.opens.at(-1),syntheticId(selectedCase,targetIndex));assert.equal(s.creates.length,1);assert.equal(s.active.length,1);
     results.push({case:selectedCase,status:'passed',checked:s.opens.length,matchedIndex:targetIndex,leases:s.active.length,objectUrls:s.creates.length});
@@ -206,11 +210,15 @@ async function run() {
   assert(cdp.requests.every(url=>url.startsWith(origin+'/')||(url.startsWith('blob:')&&ownedBlobUrls.includes(url))),'Browser requests stay on owned loopback or use generated object URLs');
   report.requests=cdp.requests.map(url=>url.startsWith(origin+'/')?new URL(url).pathname:url);
   if(evidenceDirectory){const pngShot=Buffer.from((await send('Page.captureScreenshot',{format:'png'})).data,'base64');const path=join(evidenceDirectory,selectedCase+'.png');writeFileSync(path,pngShot,{mode:0o600});screenshots.push({path,sha256:hash(pngShot)});}
-  if(await evaluate('Boolean(document.querySelector(".native-scene-drawing"))'))await click('.native-scene-drawing button');
+  if(await evaluate('Boolean(document.querySelector(".native-scene-drawing"))')) {
+    if(selectedCase==='middle-match'||selectedCase==='last-match')await key('Escape','Escape',27);
+    else await click('.native-scene-drawing button');
+  }
   await until(()=>evaluate('!document.querySelector(".native-scene-drawing")'),'normal drawing close');
+  assert.equal(await evaluate('document.activeElement?.id'),'reopen','Close restores the original opener after continuation and selection changes');
   const cleaned=await stats();assert.equal(cleaned.active.length,0,'Close releases every retained frame');assert.equal(cleaned.creates.length,cleaned.revokes.length,'Close revokes every created object URL');
   assert.equal(cleaned.subscriptions.length,cleaned.unsubscriptions.length,'Close removes every invalidation subscription');assert.equal(cleaned.inFlight,0,'Close leaves no pending synthetic opens');
-  results.push({case:`${selectedCase}-final-close`,status:'passed',activeFrames:cleaned.active.length,objectUrls:cleaned.creates.length-cleaned.revokes.length,subscriptions:cleaned.subscriptions.length-cleaned.unsubscriptions.length,inFlight:cleaned.inFlight});
+  results.push({case:`${selectedCase}-final-close`,status:'passed',activeFrames:cleaned.active.length,objectUrls:cleaned.creates.length-cleaned.revokes.length,subscriptions:cleaned.subscriptions.length-cleaned.unsubscriptions.length,inFlight:cleaned.inFlight,originalOpenerFocused:true});
 }
 
 const budget=setTimeout(()=>{cdp?.reject(new Error('120-second bounded fixture budget exhausted'));browser?.kill('SIGTERM');server?.close();},budgetMs);

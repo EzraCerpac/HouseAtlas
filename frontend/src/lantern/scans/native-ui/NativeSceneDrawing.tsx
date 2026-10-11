@@ -22,6 +22,10 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, current, onClos
   const generationRef = useRef(0);
   const activeDrawing = useRef<{ frame: NativeEvidenceDocumentFrame; url: string; generation: number; withdraw: () => boolean } | null>(null);
   useLayoutEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => { if (opener?.isConnected) opener.focus(); };
+  }, []);
+  useLayoutEffect(() => {
     if (!selectedCursor && cursor) setCursor(null);
     const generation = ++generationRef.current;
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 10000);
@@ -40,7 +44,6 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, current, onClos
       if (hadResources) setShown(null);
       return hadResources;
     };
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closer.current?.focus(); setShown(null); setContinuation(null); setZoom(1); setStatus('Checking saved drawing…');
     void (async () => {
       // Each explicit continuation owns at most one bounded page and the same
@@ -96,7 +99,6 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, current, onClos
       disposed = true; clearTimeout(timer); controller.signal.removeEventListener('abort', aborted);
       controller.abort(); withdraw();
       if (activeDrawing.current?.generation === generation) activeDrawing.current = null;
-      if (opener?.isConnected) opener.focus();
     };
   }, [client, sheet, evidenceIds, pageStart, previouslyUnreadable]);
   useLayoutEffect(() => {
