@@ -1,5 +1,24 @@
 # HouseAtlas
 
+The upload diagnostic repair has these exact additional checks in the isolated
+synthetic regression lane. They use generated in-memory multipart bodies or
+fake client exchanges only, with no listener, native data, browser or provider.
+Inspect the selected module, harness and imports before running a case.
+The output is diagnostic evidence, never server commit or retry authority.
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib http::upload::diagnostics::tests::bounded_private_schema_counts_and_worker_observer_separation -- --exact --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib http::upload::diagnostics::tests::actual_multipart_progress_preserves_bytes_and_failure_status -- --exact --test-threads=1
+node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs waiting-headers-transport
+node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs waiting-headers-deadline
+node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs caller-canceled
+node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs context-changed
+node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs reading-response-transport
+node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs reading-response-idle
+node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs response-validation
+node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs correlated-intake-rejection
+```
+
 HouseAtlas is an offline core for scoped physical identities and reviewed
 bindings, with read-only HomeBox inventory projections and a passive Network
 facet. It works without a floorplan. Checked-in fixtures are synthetic.
