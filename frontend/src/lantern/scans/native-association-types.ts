@@ -9,6 +9,8 @@ export interface NativeAssociationSelection {
   readonly semanticsId: string;
   readonly originalAssetId: string;
   readonly derivativeAssetId: string;
+  /** Explicit current same-building native lineage head; absent/null creates v1. */
+  readonly previousGeometryId?: string | null;
 }
 export interface NativeAssociationAdmission {
   readonly binding: NativeAssociationBinding;

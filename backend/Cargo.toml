@@ -199,3 +199,7 @@ path = "examples/healthy-native-scene-association.rs"
 [[example]]
 name = "issue-149-room-anchor-acceptance"
 path = "examples/issue-149-room-anchor-acceptance.rs"
+
+[[example]]
+name = "healthy-native-scan-succession"
+path = "examples/healthy-native-scan-succession.rs"

@@ -100,8 +100,10 @@ fn geometry_profile(payload: &Value, original: &str, evidence: &str) -> bool {
         && payload["scale"].is_null()
         && payload["transform"].is_null()
         && payload["mappings"] == json!([])
-        && payload["geometryVersion"] == 1
-        && payload["previousGeometryId"].is_null()
+        && payload["geometryVersion"].as_u64().is_some_and(|version| {
+            (version == 1 && payload["previousGeometryId"].is_null())
+                || (version > 1 && payload["previousGeometryId"].as_str().is_some())
+        })
         && payload["evidenceIds"] == json!([evidence])
 }
 /// Binds the original complete three-child Stock intent to a fresh accepted
@@ -178,6 +180,44 @@ pub fn qualify_association(
     let source = vault.read_retained(&original, budget)?;
     let bytes = vault.read_retained(&derived, budget)?;
     mesh_derivative::qualify(&bytes, &source, budget)?;
+    // A successor must name a currently qualified head in this exact building.
+    // Explicit links, never labels or enumeration order, determine succession.
+    let current = floors(snapshot, scope, building_id, vault, budget)?;
+    let previous_id = g.payload()["previousGeometryId"].as_str();
+    need(!current.iter().any(|floor| {
+        floor.descriptor.geometry_id.as_str() != previous_id.unwrap_or("")
+            && floor.original.record_id == original_id
+            && floor.derivative.record_id == derivative_id
+    }))?;
+    let mut predecessor_guards = Vec::new();
+    if let Some(previous_id) = g.payload()["previousGeometryId"].as_str() {
+        let previous = current
+            .iter()
+            .find(|floor| floor.descriptor.geometry_id == previous_id)
+            .ok_or(MediaError::Conflict)?;
+        let previous_row = one(snapshot, scope, s::RecordType::Geometry, previous_id)?;
+        let version = previous_row.payload["geometryVersion"]
+            .as_u64()
+            .ok_or(MediaError::Conflict)?;
+        need(version.checked_add(1) == g.payload()["geometryVersion"].as_u64())?;
+        for (kind, id) in [
+            (s::RecordType::Geometry, previous_id),
+            (
+                s::RecordType::Evidence,
+                previous.descriptor.evidence_id.as_str(),
+            ),
+            (
+                s::RecordType::Asset,
+                previous.descriptor.original_asset_id.as_str(),
+            ),
+            (
+                s::RecordType::Asset,
+                previous.descriptor.derivative_asset_id.as_str(),
+            ),
+        ] {
+            predecessor_guards.push(guard(snapshot, scope, kind, id)?);
+        }
+    }
     let mut required = BTreeMap::new();
     for (kind, id) in [
         (s::RecordType::Identity, building_id),
@@ -204,6 +244,15 @@ pub fn qualify_association(
             );
         }
     }
+    for item in &predecessor_guards {
+        required.insert(
+            format!(
+                "{}:{}",
+                item["target"]["recordType"], item["target"]["recordId"]
+            ),
+            item.clone(),
+        );
+    }
     let supplied = request.raw()["preconditions"]["guards"]
         .as_array()
         .ok_or(MediaError::InvalidInput)?;
@@ -219,7 +268,13 @@ pub fn qualify_association(
     for id in [original_id, derivative_id] {
         need(child_guards(e)?.contains(&guard(snapshot, scope, s::RecordType::Asset, id)?))?;
     }
-    need(child_guards(g)?.contains(&guard(snapshot, scope, s::RecordType::Asset, original_id)?))?;
+    let geometry_guards = child_guards(g)?;
+    need(
+        geometry_guards.contains(&guard(snapshot, scope, s::RecordType::Asset, original_id)?)
+            && predecessor_guards
+                .iter()
+                .all(|item| geometry_guards.contains(item)),
+    )?;
     for id in referenced_ids(&selected.identity.payload["evidenceIds"])? {
         need(child_guards(i)?.contains(&guard(snapshot, scope, s::RecordType::Evidence, id)?))?;
     }
@@ -259,8 +314,7 @@ pub fn floors(
 ) -> MediaResult<Vec<ResolvedFloor>> {
     let selected = building(snapshot, scope, building_id)?;
     let accepted = referenced_ids(&selected.identity.payload["evidenceIds"])?;
-    let mut floors = Vec::new();
-    let mut pairs = BTreeSet::new();
+    let mut qualified = BTreeMap::new();
     for g in snapshot
         .records
         .iter()
@@ -304,14 +358,11 @@ pub fn floors(
             AssetPurpose::DerivedPreview,
             ContentType::AuthoredMesh,
         )?;
-        need(
-            original_id != derived_id
-                && pairs.insert((original_id.to_owned(), derived_id.to_owned())),
-        )?;
+        need(original_id != derived_id)?;
         let original_bytes = vault.read_retained(&original, budget)?;
         let mesh_bytes = vault.read_retained(&derivative, budget)?;
-        let qualified = mesh_derivative::qualify(&mesh_bytes, &original_bytes, budget)?;
-        let lineage = qualified.lineage().clone();
+        let mesh = mesh_derivative::qualify(&mesh_bytes, &original_bytes, budget)?;
+        let lineage = mesh.lineage().clone();
         // A graph-linked floor may not be ambiguously asserted for two buildings.
         let uses = snapshot
             .records
@@ -325,7 +376,7 @@ pub fn floors(
                         .is_some_and(|ids| ids.iter().any(|id| id == &e.record_id))
             })
             .count();
-        need(uses == 1 && floors.len() < 64)?;
+        need(uses == 1)?;
         let key = sha256(
             &serde_json::to_vec(&(
                 selected.identity,
@@ -353,12 +404,66 @@ pub fn floors(
             original_license: original.payload.source_license.clone(),
             derivative_license: derivative.payload.source_license.clone(),
         };
-        floors.push(ResolvedFloor {
-            descriptor,
-            original,
-            derivative,
-            lineage,
-        });
+        need(
+            qualified
+                .insert(
+                    g.record_id.clone(),
+                    (
+                        g,
+                        ResolvedFloor {
+                            descriptor,
+                            original,
+                            derivative,
+                            lineage,
+                        },
+                    ),
+                )
+                .is_none(),
+        )?;
+    }
+    // Validate the entire accepted lineage before selecting its heads. Missing,
+    // foreign or unqualified predecessors and multiple successors fail closed.
+    // Exact +1 versions rule out cycles without any timestamp/order heuristic.
+    for record in snapshot
+        .records
+        .iter()
+        .filter(|record| active(record, scope) && record.record_type == s::RecordType::Geometry)
+    {
+        budget.check()?;
+        if record.payload["previousGeometryId"]
+            .as_str()
+            .is_some_and(|id| qualified.contains_key(id))
+        {
+            need(qualified.contains_key(&record.record_id))?;
+        }
+    }
+    let mut predecessors = BTreeSet::new();
+    for (record, _) in qualified.values() {
+        budget.check()?;
+        if let Some(previous_id) = record.payload["previousGeometryId"].as_str() {
+            let (previous, _) = qualified.get(previous_id).ok_or(MediaError::Conflict)?;
+            let version = previous.payload["geometryVersion"]
+                .as_u64()
+                .ok_or(MediaError::Conflict)?;
+            need(
+                version.checked_add(1) == record.payload["geometryVersion"].as_u64()
+                    && predecessors.insert(previous_id.to_owned()),
+            )?;
+        }
+    }
+    let mut pairs = BTreeSet::new();
+    let mut floors = Vec::new();
+    for (id, (_, floor)) in qualified {
+        if !predecessors.contains(&id) {
+            need(
+                floors.len() < 64
+                    && pairs.insert((
+                        floor.original.record_id.clone(),
+                        floor.derivative.record_id.clone(),
+                    )),
+            )?;
+            floors.push(floor);
+        }
     }
     floors.sort_by(|a, b| a.descriptor.geometry_id.cmp(&b.descriptor.geometry_id));
     budget.check()?;

@@ -184,6 +184,25 @@ This positive establishes only synthetic native persistence. It supplies no
 live installation, household intake, older-binary compatibility or failure,
 replay, revocation, interruption or concurrent-write qualification.
 
+A separate successful scan-succession example retains two synthetic floors,
+then appends version 2 of only one floor against its current same-building
+predecessor. It refreshes both descriptor keys and records two freshly guarded
+scene bindings, retaining original custody, geometry/scene history, stable room,
+elevation, device and circuit identities. Strict authenticated reopen uses the
+actual in-process Axum/SQLite/vault/Stock owners. The TypeScript positive uses the
+production association/read clients and closed schemas with local fake responses.
+Inspect both complete bodies and their imports before these exact commands:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision --example healthy-native-scan-succession
+node frontend/lantern-tests/native-scan-succession.mjs
+```
+
+These successful synthetic checks open no listener, use no household files or
+provider, and perform no live import, physical registration or deployment.
+Guard reversal, omission, replay, interruption and private intake remain held.
+See [native scan succession](docs/geometry/native-scan-succession.md).
+
 The separate issue #149 acceptance lane checks only synthetic room-anchor
 rejections and successful retained association/readback. Inspect both complete
 entrypoints and their imports before these exact commands; the native example

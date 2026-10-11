@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "f61f4ae693cb05e137896970b270e09e71938e8ba5948b1d085ea60de5c6b537",
+  "sourceDigestSha256": "ea0ea5660d86cda2fa3281fc44a9018aab692bc7592a829139ead766adfce827",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 43543,
-      "sha256": "b15f3637204d78c799ab132e6b109b4fdd66b746e9bb7dce1b337ef1c94e0024",
+      "bytes": 44731,
+      "sha256": "7dd9d159a9f6785ca5354f7f2be83e837b3a451356fe88b2d417dfd4154fe727",
       "owner": "core-integration"
     },
     {
@@ -245,8 +245,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 4986,
-      "sha256": "07c7a09ab301b6f637c0c02cef11340eb4280998f7d4bb6622cd36ab6ae4e92c",
+      "bytes": 5091,
+      "sha256": "15c380ba821dfefba4b43d4d7ab010684879cbf1cf67ada17c8f590077f23846",
       "owner": "core-integration"
     },
     {
@@ -289,6 +289,13 @@
       "mode": "100644",
       "bytes": 18032,
       "sha256": "66d50555090c8f0a1e3f8adb58efe4dd6333dfc7f564c45749053ca01d5c79a9",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/examples/healthy-native-scan-succession.rs",
+      "mode": "100644",
+      "bytes": 55460,
+      "sha256": "bef4006f0ff275d1af1f9f884e1017fcc956198babbefd0c05c6c6faa1e68f62",
       "owner": "core-integration"
     },
     {
@@ -2646,8 +2653,8 @@
     {
       "path": "backend/src/media/geometry_bundle.rs",
       "mode": "100644",
-      "bytes": 14648,
-      "sha256": "7b01f57c9b603f2beffc382d9c06a29f049220768fb84e7463361123f0cc50cb",
+      "bytes": 18764,
+      "sha256": "4cb64ea96836a8bce651a0c46b0f345262356db4025025026128d12c508584b8",
       "owner": "media"
     },
     {
@@ -5444,6 +5451,13 @@
       "owner": "web"
     },
     {
+      "path": "docs/geometry/native-scan-succession.md",
+      "mode": "100644",
+      "bytes": 3872,
+      "sha256": "65c8de73f08dd39a2f136d4f9d9e353663984ddf66e17ea4cd896ef8a840a314",
+      "owner": "core-integration"
+    },
+    {
       "path": "docs/geometry/native-scene-association.md",
       "mode": "100644",
       "bytes": 5370,
@@ -6013,8 +6027,8 @@
     {
       "path": "frontend/integration/native-geometry-association-client.ts",
       "mode": "100644",
-      "bytes": 26311,
-      "sha256": "bffcabacde10d7ab9f62775fd20365820e56668f75bd39563fd990d37a0a9585",
+      "bytes": 30711,
+      "sha256": "24ff083a13b78b7c6c90b7883550674fb6ecb34ed618de045f137dcb4b6adb24",
       "owner": "web"
     },
     {
@@ -6204,6 +6218,13 @@
       "mode": "100644",
       "bytes": 11406,
       "sha256": "a554da777f421d32d8cb45356aaf362e058e7208415d16dfea8629fbe664faaa",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/native-scan-succession.mjs",
+      "mode": "100644",
+      "bytes": 13257,
+      "sha256": "ecab38e3ae81fa0bece19fb2cbfbe343c041197f333dd8467a0a15ee70890034",
       "owner": "web"
     },
     {
@@ -7371,8 +7392,8 @@
     {
       "path": "frontend/src/lantern/scans/native-association-types.ts",
       "mode": "100644",
-      "bytes": 1900,
-      "sha256": "8fa73479f7c8c288bf91aab22e48e821cd1875880a48bb888f0015eba32894d0",
+      "bytes": 2032,
+      "sha256": "200fd71c46470d9f7676c3819f9c66f6fefd45fb469c9f0382cf41b408f0b343",
       "owner": "web"
     },
     {
@@ -7707,8 +7728,8 @@
     {
       "path": "frontend/src/numeric/schema-validator.ts",
       "mode": "100644",
-      "bytes": 24619,
-      "sha256": "bbd2e2d9d61f8081f95fa3569cd60e04845d9bd654b5c74209b8c52bafb93e2c",
+      "bytes": 24726,
+      "sha256": "e01c36988f806c589967af99facd30680fc4fbd094d2b9160772c7898397d0c1",
       "owner": "web"
     },
     {
