@@ -20,6 +20,7 @@ export const LIMITS = Object.freeze({ floors: 3, manifestBytes: 2 * 1024 * 1024,
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const hashPattern = /^[a-f0-9]{64}$/;
 // Current retained native profile; proposed future converters remain frame-qualified separately.
+const MAX_RETAINED_NATIVE_HISTORY_VERSIONS = 64;
 const nativeConverterPins = Object.freeze({
   schemaSHA256: '7d069a1e37a0584aa6c1883d8500753e0f4105d60e5d0c8de3650f5955aa5863',
   codeSHA256: 'c9bf5c49ceba9b8dcace64102dc9e7d714731952dae4ca3c2f704ad1569caeb3',
@@ -116,7 +117,7 @@ async function inspect(snapshot, reader) {
 function pin(floor) {
   const s = floor.snapshot;
   return { key: s.key, geometryId: s.geometry.recordId, geometryRevision: s.geometry.revision,
-    geometryVersion: s.geometry.payload.geometryVersion, originalAssetId: s.geometry.payload.originalAssetId,
+    geometryVersion: s.geometry.payload.geometryVersion, previousGeometryId: s.geometry.payload.previousGeometryId, originalAssetId: s.geometry.payload.originalAssetId,
     originalSha256: s.originalSha256, derivativeSha256: s.derivativeSha256,
     originalLineage: { originalBytesToken: floor.profile.source.originalBytes.token,
       primaryLayerName: floor.profile.source.primaryLayerName, primaryLayerSha256: floor.profile.source.primaryLayerSHA256,
@@ -190,13 +191,22 @@ export async function buildReplacementPlan(input) {
   const reader = await import(decoderModule);
   // The decoder yields on this one event loop; isolate its existing per-read
   // budgets rather than charging another floor's work against this one.
-  const previous = [], next = [], retainedEvidenceIds = new Set();
+  const previous = [], next = [], retainedEvidenceIds = new Set(), retainedPredecessorIds = new Set();
+  const selectedGeometryIds = new Set(input.floors.map(snapshot => snapshot.geometry.recordId));
   for (const snapshot of input.floors) {
     const p = snapshot.geometry.payload;
     assert(p.producer === 'magicplan' && p.exportFormat === 'usdz' && p.coordinateUnits === 'unknown'
       && p.scale === null && p.transform === null && p.mappings.length === 0
-      && p.geometryVersion === 1 && p.previousGeometryId === null && p.evidenceIds.length === 1,
+      && Number.isSafeInteger(p.geometryVersion) && p.geometryVersion >= 1
+      && p.geometryVersion <= MAX_RETAINED_NATIVE_HISTORY_VERSIONS
+      && ((p.geometryVersion === 1 && p.previousGeometryId === null)
+        || (p.geometryVersion > 1 && typeof p.previousGeometryId === 'string')) && p.evidenceIds.length === 1,
     'Selected retained geometry must match the current native bundle profile');
+    if (p.previousGeometryId !== null) {
+      assert(!selectedGeometryIds.has(p.previousGeometryId), 'Selected native floors must be lineage heads, not known ancestors');
+      assert(!retainedPredecessorIds.has(p.previousGeometryId), 'Selected native floor metadata must not fork a predecessor');
+      retainedPredecessorIds.add(p.previousGeometryId);
+    }
     assert(!retainedEvidenceIds.has(p.evidenceIds[0]), 'Retained native floor evidence IDs must be distinct');
     retainedEvidenceIds.add(p.evidenceIds[0]);
     assert(!association.sourceDocuments.some(source => p.evidenceIds.includes(source.evidenceId)),
@@ -263,6 +273,8 @@ export async function buildReplacementPlan(input) {
     assert(!nextIds.has(p.geometryId) && !nextKeys.has(p.key), 'Successors need distinct immutable IDs and floor keys');
     nextIds.add(p.geometryId); nextKeys.add(p.key);
     assert.equal(p.geometryVersion, old.snapshot.geometry.payload.geometryVersion + 1, 'Version must advance from the selected predecessor');
+    assert(p.geometryVersion <= MAX_RETAINED_NATIVE_HISTORY_VERSIONS,
+      'Proposed native successor cannot exceed the complete native history version limit');
     assert.equal(floor.snapshot.geometry.revision, 1, 'New geometry is append-only, not an in-place replace');
     for (const field of ['workspaceId', 'homeId']) assert.equal(floor.snapshot.geometry[field], old.snapshot.geometry[field]);
     replacements.set(old.snapshot.geometry.recordId, floor);
@@ -293,6 +305,8 @@ export async function buildReplacementPlan(input) {
     for (const id of row.meshIds) assert(old.meshes.has(id), 'Support references a retained source mesh');
     assert(!support.has(roomKey(row)), 'Ambiguous room support'); support.set(roomKey(row), row);
   }
+  // Native building evidence appends change every descriptor key, including untouched floors.
+  const nativeBindingRefreshRequired = next.length > 0;
   const floorPlans = previous.map(old => {
     const candidate = replacements.get(old.snapshot.geometry.recordId) ?? old;
     const frameUnchanged = equal(old.frame, candidate.frame);
@@ -305,7 +319,7 @@ export async function buildReplacementPlan(input) {
     for (const id of candidate.meshes.keys()) if (!old.meshes.has(id)) added.push(id);
     const geometryUnchanged = frameUnchanged && changed.length + removed.length + added.length === 0;
     return { previous: pin(old), candidate: pin(candidate), status: candidate === old ? 'retained' : 'replacement-proposed',
-      frameUnchanged, geometryUnchanged, meshes: { unchanged, changed, removed, added },
+      nativeBindingRefreshRequired, frameUnchanged, geometryUnchanged, meshes: { unchanged, changed, removed, added },
       previousFrame: clone(old.frame), candidateFrame: clone(candidate.frame),
       objectFingerprints: { previous: Object.fromEntries(old.meshes), candidate: Object.fromEntries(candidate.meshes) },
       priorPlacement: clone({ coordinateUnits: old.snapshot.geometry.payload.coordinateUnits,
@@ -346,7 +360,7 @@ export async function buildReplacementPlan(input) {
       sourceOriginalSha256: mapping.sourceOriginalSha256, status,
       retainedMapping: clone(mapping), affectedMeshIds: affected, receiptId: receipt.receiptId,
       receiptSha256: receipt.canonicalSha256, candidateGeometryId: candidate.snapshot.geometry.recordId,
-      nativeBindingRefreshRequired: candidate !== old, spatialAcceptance: 'not-issued' };
+      nativeBindingRefreshRequired, spatialAcceptance: 'not-issued' };
   });
   for (const id of support.keys()) assert(mappingIds.has(id), 'Support must belong to a retained reviewed room mapping');
   const plan = { schema: 'houseatlas.assistant-scan-replacement-plan.v1', buildingId: association.buildingId,
@@ -354,6 +368,9 @@ export async function buildReplacementPlan(input) {
     priorScenePin: { recordId: input.association.recordId, revision: input.association.revision,
       workspaceId: input.association.workspaceId, homeId: input.association.homeId, associationVersion: association.associationVersion },
     provenanceSelection: 'caller-selected historical evidence; native current-head freshness unverified',
+    nativeDescriptorRefresh: { required: nativeBindingRefreshRequired, scope: 'all-selected-floors',
+      candidateGeometryIds: floorPlans.map(floor => floor.candidate.geometryId),
+      currentKeys: 'unverified; read after native commit, never derived from this proposal' },
     roomSupportEvidence: clone(input.roomSupport),
     // These are copies of the selected historical input, not fresh native records.
     geometryHistory: { previous: previous.map(f => clone(f.snapshot.geometry)), candidates: next.map(f => clone(f.snapshot.geometry)) },
@@ -368,13 +385,14 @@ export async function buildReplacementPlan(input) {
         : floorPlan.status === 'retained' ? 'selected-prior-frame-only'
         : floorPlan.geometryUnchanged ? 'reviewable-exact-candidate' : 'prior-frame-only-requires-review' };
     }),
-    producer: { retainedNativeConverterPins: { ...nativeConverterPins }, toolSha256: sha(readFileSync(fileURLToPath(import.meta.url))), atlasSchemaSha256: sha(atlasSchemaBytes),
+    producer: { nativeGeometryQualifierSha256: sha(readFileSync(new URL('../../backend/src/media/geometry_bundle.rs', import.meta.url))),
+      retainedNativeHistoryVersionLimit: MAX_RETAINED_NATIVE_HISTORY_VERSIONS, retainedNativeConverterPins: { ...nativeConverterPins }, toolSha256: sha(readFileSync(fileURLToPath(import.meta.url))), atlasSchemaSha256: sha(atlasSchemaBytes),
       meshReaderSha256: sha(readFileSync(new URL('../../frontend/src/lantern/scans/mesh-profile.ts', import.meta.url))),
       compiledMeshDecoderSha256: sha(decoderBytes), compiledMeshDecoderBytes: decoderBytes.length },
     reversal: { kind: 'new-association-to-retained-prior-geometry', priorFloorPins: previous.map(pin),
       priorAssociationId: input.association.recordId, priorAssociationRevision: input.association.revision,
       priorReceiptId: receipt.receiptId, priorReceiptSha256: receipt.canonicalSha256, deletes: [] },
-    nativeGap: 'The current mesh bundle admits only geometryVersion 1 with no predecessor. Successor admission and explicit per-floor head selection need a separately reviewed native change; refreshed scene bindings require normal guarded acceptance.',
+    nativeGap: 'Guarded successor admission and retained lineage-head reads are implemented by the native owner. This local proposal does not authenticate custody, complete history, current heads or capacity, and performs no adoption. Native commit requires fresh building/semantics/predecessor/evidence/asset guards; after commit re-read every floor descriptor and normally qualify a fresh scene association before mounting.',
     operationsExecuted: 0, originalsToOverwrite: [], identitiesToCreate: [], physicalAccuracy: 'not-established' };
   assert(Buffer.byteLength(JSON.stringify(plan)) <= LIMITS.manifestBytes, 'Plan exceeds output bound');
   const freeze = value => { if (value && typeof value === 'object') { for (const item of Object.values(value)) freeze(item); Object.freeze(value); } };

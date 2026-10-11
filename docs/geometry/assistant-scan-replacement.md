@@ -5,40 +5,49 @@ floors. It preserves the selected original/version references, stable place
 identities, reviewed correspondence history and overlay associations. It has no
 web import flow, custody upload, Stock intent or native mutation method.
 
-## Current capabilities and missing native step
+## Current native succession and planner boundary
 
-Originals and authored derivatives have independent retained custody. Generic
-geometry records already contain `geometryVersion` and `previousGeometryId`;
-scene associations have append-only versions and a current-head read. Room
-mappings and floor bindings retain exact source, receipt, native geometry and
-revision pins. Package place keys/UUIDs remain separate from native place IDs.
+Originals and authored derivatives have independent retained custody. Geometry
+and scene associations retain append-only versions, predecessor IDs and exact
+original/derivative/receipt pins. Package place keys/UUIDs remain separate from
+native place IDs.
 
-The current native mesh bundle still admits only geometry version 1 with a null
-predecessor and empty mappings. Its reader enumerates eligible roots by geometry
-ID; the mounted scan view uses the first three descriptors. Those operations do
-not select replacement heads. Physical scale and alignment remain unknown, with
-no accepted stage-to-house transform. Normalized display room regions are not
-measured placement.
+[Native scan succession](native-scan-succession.md) now admits an explicit
+same-building current predecessor with exactly the next version and fresh
+building, semantics, predecessor, evidence and asset guards. It qualifies all
+retained history and resolves unambiguous lineage heads. Version 1 still has a
+null predecessor. Every retained successor names its predecessor explicitly;
+labels, timestamps and enumeration order do not establish lineage.
 
-This PR adds the planning boundary only. Completed native replacement needs a
-separately reviewed extension to the existing association qualifier and reader:
+This planner accepts locally selected v1 roots or retained successor metadata
+under that current native profile. Unknown units, null scale/transform, empty
+geometry mappings, distinct evidence IDs and exact converter pins remain
+required. A selected head cannot coexist with its known immediate predecessor or
+another selected head naming that same predecessor. Full historical-chain
+qualification, same-building current-head authority, custody bytes, the global
+64-version capacity and actual revision guards remain native-owner checks;
+selected metadata is not proof of those checks. A retained version cannot exceed
+64 because each native chain starts at 1 and its complete accepted history is
+bounded to 64 records. Proposed successors also retain that version ceiling;
+this does not prove capacity, because other floor histories count toward the same
+global limit. The planner does not import omitted history or invent it.
 
-1. Qualify a new geometry against an explicit, guarded predecessor already
-   associated with the same scoped building; require an increasing version and
-   retain the original evidence/assets and existing identity payload.
-2. Resolve one explicitly qualified head per predecessor lineage; do not select
-   by label, date, lexical ID or list position. Refuse ambiguous forks rather
-   than hiding a historical version or guessing a floor.
-3. Create a fresh guarded scene-association version with the new exact native
-   floor pins and reviewed room/frame applicability. Retain prior mappings,
-   native identities and overlay facts. Confirm the head through the existing
-   authenticated read owner before mounting.
+The existing native association client provides the guarded adoption seam;
+this tool creates no intent and performs no mutation. After an actual geometry
+commit, the caller must re-read **all** current floor descriptors. Appended
+building evidence changes keys for untouched floors too. A partial replacement
+therefore marks every selected floor and room as requiring fresh native bindings,
+while preserving unchanged geometry and documentary room status. Fresh native
+scene acceptance must review source/frame applicability against those exact
+keys before mounting. Reviewed numeric 4x4 transforms and elevation remain
+external evidence; they never become the native six-coefficient transform.
 
-The relevant native owners are `backend/src/media/geometry_bundle.rs`
-(`geometry_profile`, `qualify_association`, `floors`) and
-`frontend/integration/native-geometry-association-client.ts` (`prepare`). The
-existing scene-association owner already versions its accepted history; it must
-receive refreshed bindings rather than a fabricated replacement receipt.
+The artifact records complete selected geometry bodies and predecessor pins,
+prior scene history and opaque retained placement facts. It preserves stable
+places, overlays, receipts and reversal references without claiming physical
+placement. Its producer pins the exact native geometry qualifier source used to
+check metadata compatibility. Authenticated current-head reads and fresh native
+guards must be obtained by the integration owner separately.
 
 No backend, client, schema, shared UI or admission guard is changed here.
 
@@ -53,8 +62,9 @@ No backend, client, schema, shared UI or admission guard is changed here.
   `exportLabel`, `originalSha256`, `derivativeSha256`, a complete existing
   `geometryRecord`, and immutable `meshBytes` (`Uint8Array`).
   Native descriptor keys are lowercase SHA-256 digests. Retained geometry must
-  match the current native Magicplan/USDZ root profile: version 1, null
-  predecessor, unknown units, null scale/transform, no mappings and one evidence
+  match the current native Magicplan/USDZ profile: version 1 with null predecessor
+  or a retained successor version with a UUID predecessor, unknown units,
+  null scale/transform, no mappings and one evidence
   reference distinct across retained floors and from scene document evidence IDs.
   Retained derivatives
   require the exact schema/code/profile converter digest triple pinned by the
@@ -129,8 +139,8 @@ geometry IDs also remain distinct from the association and directly referenced
 asset, evidence and native identity IDs. Package place UUIDs retain their separate
 namespace. Geometry records use the published backward-time predicate, preserving
 schema-valid leap-second date literals, and distinct producer-room mapping IDs.
-Future successor geometry records and opaque prior proposal history remain
-proposal evidence until the separate native version/read profile is extended.
+Proposed successor records and opaque prior proposal history remain proposal
+evidence until actual guarded native admission and refreshed scene acceptance.
 Mapping references are preserved proposals; these local checks do not authenticate
 their identity/evidence records or qualify a complete native graph. New successor
 descriptor keys must differ from every prior descriptor key,
@@ -151,7 +161,12 @@ native records.
 Each prior mapping is preserved exactly, including native-null targets and its
 original receipt/source hash. A changed original may still have identical mesh
 support, but reuse remains a proposal requiring a fresh native binding and
-normal reviewed acceptance. The tool issues no accepted replacement receipt.
+normal reviewed acceptance. If any successor is proposed, the artifact's
+`nativeDescriptorRefresh` applies to all selected floors and every room's
+`nativeBindingRefreshRequired` is true, including unchanged floors. With no
+replacement these flags remain false. New current descriptor keys are explicitly
+unverified; the tool never derives them from labels or historic pins.
+The tool issues no accepted replacement receipt.
 
 Prior units, scale, affine transform and elevation/alignment facts survive as
 historical evidence. Exact supported geometry can make them reviewable for the
