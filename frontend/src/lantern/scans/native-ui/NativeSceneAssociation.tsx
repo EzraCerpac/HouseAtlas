@@ -47,12 +47,15 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
   const [read, setRead] = useState<{ owner: object; value: SceneAssociationRead } | null>(null);
   const [status, setStatus] = useState<{ owner: object; text: string } | null>(null);
   const [busy, setBusy] = useState<{ owner: object; text: string } | null>(null);
+  const [initialSync, setInitialSync] = useState<{ owner: object; pending: boolean } | null>(null);
   const [confirmRefresh, setConfirmRefresh] = useState(false);
   const [, repaint] = useState(0);
   const active = () => current.current === owner && client.getBinding() === binding && binding !== null;
   const buildingId = geometry?.descriptor.buildingId ?? null;
   const reviewCandidate = candidate && buildingId === candidate.buildingId ? candidate : null;
   const heads = binding ? knownHeads(client, binding) : null;
+  const initialSyncPending = initialSync?.owner === owner ? initialSync.pending
+    : !!heads && !!buildingId && !!refreshed.current && !heads.has(buildingId);
   const review = prepared?.owner === owner ? prepared.value : null;
   const reviewRef = useRef(review); reviewRef.current = review;
   const preparedRef = useRef(prepared); preparedRef.current = prepared;
@@ -108,6 +111,7 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
   useEffect(() => {
     if (!buildingId || !geometry || !active()) return;
     const synchronizeInitialHead = !!heads && !!refreshed.current && !heads.has(buildingId);
+    setInitialSync({ owner, pending: synchronizeInitialHead });
     onRefreshPendingChanged?.(synchronizeInitialHead);
     const controller = new AbortController();
     void client.readCurrent(buildingId, geometry, controller.signal).then(result => {
@@ -116,15 +120,15 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
       if (heads && refreshed.current && heads.get(buildingId) !== key) {
         heads.set(buildingId, key);
         setRead(null); setStatus({ owner, text: 'Refreshing the displayed scene to match the current association.' });
-        if (synchronizeInitialHead) onRefreshPendingChanged?.(false);
+        if (synchronizeInitialHead) { setInitialSync({ owner, pending: false }); onRefreshPendingChanged?.(false); }
         refreshed.current(); return;
       }
       heads?.set(buildingId, key);
-      if (synchronizeInitialHead) onRefreshPendingChanged?.(false);
+      if (synchronizeInitialHead) { setInitialSync({ owner, pending: false }); onRefreshPendingChanged?.(false); }
       setRead({ owner, value: result });
     }).catch(() => {
       if (current.current === owner && !controller.signal.aborted) {
-        if (synchronizeInitialHead) onRefreshPendingChanged?.(false);
+        if (synchronizeInitialHead) { setInitialSync({ owner, pending: false }); onRefreshPendingChanged?.(false); }
         setStatus({ owner, text: 'Current association is unavailable.' });
       }
     });
@@ -133,7 +137,7 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
 
   const execute = (label: string, work: (signal: AbortSignal) => Promise<void>, submission = false,
     settled?: () => void, kind: Flight['kind'] = 'read') => {
-    if (!buildingId || !geometry || !active() || flight.current) return false;
+    if (!buildingId || !geometry || !active() || initialSyncPending || flight.current) return false;
     const running: Flight = { owner, controller: new AbortController(), submission, kind }; flight.current = running;
     setBusy({ owner, text: label }); setStatus(null);
     void work(running.controller.signal).catch(error => {
@@ -203,25 +207,25 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
       <p>Primary scene evidence {reviewCandidate.primaryEvidenceId}</p>
       <p>Historical receipt evidence {reviewCandidate.historicalEvidenceId}</p>
       </> : canPrepare && <p role="status">No current retained scene candidate is available for review.</p>}
-      <button type="button" onClick={requestRefresh} disabled={!!busy}>Reload current association</button>
+      <button type="button" onClick={requestRefresh} disabled={!!busy || initialSyncPending}>Reload current association</button>
       {confirmRefresh && <div role="alertdialog" aria-label="Confirm association reload">
         <p>Reloading will refresh the displayed scene and discard this unfinished review draft.</p>
-        <button type="button" onClick={() => {
+        <button type="button" disabled={initialSyncPending} onClick={() => {
           setConfirmRefresh(false); onDiscardDraft?.(); setStatement(''); setReason('');
           if (review) client.releasePrepared(review); setPrepared(null); refresh(true);
         }}>Discard draft and reload</button>
-        <button type="button" onClick={() => setConfirmRefresh(false)}>Keep editing</button>
+        <button type="button" disabled={initialSyncPending} onClick={() => setConfirmRefresh(false)}>Keep editing</button>
       </div>}
       {observation && <p role="status">{observation.status === 'available'
         ? `Current association ${observation.recordId}` : observation.reason === 'no-current-association'
           ? 'No reviewed association is current.' : 'The current association source is unavailable.'}</p>}
-      {reviewCandidate && canPrepare && <><label>Review statement<textarea disabled={!!busy} value={statement} onChange={event => {
+      {reviewCandidate && canPrepare && <><label>Review statement<textarea disabled={!!busy || initialSyncPending} value={statement} onChange={event => {
         if (review) client.releasePrepared(review); setPrepared(null); setStatement(event.target.value);
       }} maxLength={4096} /></label>
-      <label>Reason<textarea disabled={!!busy} value={reason} onChange={event => {
+      <label>Reason<textarea disabled={!!busy || initialSyncPending} value={reason} onChange={event => {
         if (review) client.releasePrepared(review); setPrepared(null); setReason(event.target.value);
       }} maxLength={4096} /></label>
-      <button type="button" onClick={prepare} disabled={!!busy || !canPrepare || !client.canCreate(buildingId) || !statement.trim() || !reason.trim() || unresolved.length > 0}>
+      <button type="button" onClick={prepare} disabled={!!busy || initialSyncPending || !canPrepare || !client.canCreate(buildingId) || !statement.trim() || !reason.trim() || unresolved.length > 0}>
         Review retained originals
       </button>
       {review && <details open><summary>Exact proposed receipt and mappings</summary>
@@ -229,12 +233,12 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
           {stringifyLosslessJson(review.payload)}
         </pre>
       </details>}
-      {review && canPrepare && <button type="button" onClick={submit} disabled={!!busy || !canPrepare || !client.canCreate(buildingId) || !client.isPreparedCurrent(review) || unresolved.length > 0}>
+      {review && canPrepare && <button type="button" onClick={submit} disabled={!!busy || initialSyncPending || !canPrepare || !client.canCreate(buildingId) || !client.isPreparedCurrent(review) || unresolved.length > 0}>
         Submit reviewed association
       </button>}</>}
       {unresolved.length > 0 && <>
         <p role="status">A submitted association has an unknown outcome. Check the saved head before another write.</p>
-        <button type="button" onClick={resolve} disabled={!!busy}>Check saved outcome</button>
+        <button type="button" onClick={resolve} disabled={!!busy || initialSyncPending}>Check saved outcome</button>
       </>}
       {busy?.owner === owner && <p role="status">{busy.text}…</p>}
       {status?.owner === owner && <p role="status">{status.text}</p>}

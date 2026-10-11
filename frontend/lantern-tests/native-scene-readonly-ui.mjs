@@ -129,7 +129,9 @@ window.__test = { ledger, mountStaleScene() { ledger.currentHead = 'synthetic-ra
   useCommittedSubmit() { ledger.submitBehavior = 'commit'; },
   expireReadContext() { binding = null; for (const fn of listeners) fn(); },
   restoreReadContext() { binding = readBinding; for (const fn of listeners) fn(); },
-  invalidateBeforeNextSubscribe() { ledger.invalidateBeforeSubscribe = true; binding = Object.freeze({ synthetic: true }); for (const fn of listeners) fn(); },
+  rebindKeepingAdmission() { binding = Object.freeze({ synthetic: true }); for (const fn of listeners) fn(); },
+  mountSubscriptionRace() { listeners.clear(); ledger.invalidateBeforeSubscribe = true;
+    ledger.subscriptionInvalidations = 0; binding = Object.freeze({ synthetic: true }); remountForTest(); },
   grantAdmission() { ledger.canCreate = true; ledger.preparedCurrent = true; binding = Object.freeze({ synthetic: true }); for (const fn of listeners) fn(); },
   withdrawAdmission() { ledger.canCreate = false; ledger.preparedCurrent = false; binding = Object.freeze({ synthetic: true }); for (const fn of listeners) fn(); },
   invalidateEvidence() { ledger.preparedCurrent = false; for (const fn of listeners) fn(); } };
@@ -404,11 +406,42 @@ createRoot(document.getElementById('root')).render(<TestHost />);
     'The editor unlocks after the prepared-review reload settles');
   report.assertions.push('confirmed reload keeps its exact read alive after releasing a prepared review, locks draft edits while pending, and unlocks after scene refresh');
 
+  await evaluate(`(()=>{
+    const set = (element, value) => {
+      const prototype = element instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
+      Object.getOwnPropertyDescriptor(prototype, 'value').set.call(element, value);
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    const inputs = Array.from(document.querySelectorAll('input'));
+    set(inputs[0], '00000000-0000-4000-8000-000000000004');
+    set(inputs[1], '00000000-0000-4000-8000-000000000005');
+    for (const area of Array.from(document.querySelectorAll('textarea')).slice(0, 3)) set(area, '[]');
+  })()`);
+  await until(() => evaluate('document.querySelectorAll("textarea").length === 5'), 'Candidate and review fields before a binding resynchronization');
+  await evaluate(`(()=>{
+    const areas = Array.from(document.querySelectorAll('textarea'));
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
+    for (const [index, value] of [[3, 'Rebind review'], [4, 'Rebind reason']]) {
+      setter.call(areas[index], value); areas[index].dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  })()`);
+  await evaluate('window.__test.deferNextRead()');
+  const refreshesBeforeRebind = await evaluate('window.__test.ledger.sceneRefreshes');
+  await evaluate('window.__test.rebindKeepingAdmission()');
+  await until(() => evaluate(`window.__test.ledger.deferredReads.length === 1
+    && document.querySelectorAll("textarea").length === 5`), 'Review fields remain present during binding resynchronization');
+  assert.equal(await evaluate('Array.from(document.querySelectorAll("input,textarea")).every(field => field.disabled)'), true,
+    'Both candidate inputs and review statement/reason lock while a new binding synchronizes its current head');
+  await evaluate('window.__test.completeRead()');
+  await until(() => evaluate(`window.__test.ledger.sceneRefreshes === ${refreshesBeforeRebind + 1}`),
+    'The binding resynchronization completes its displayed-scene refresh');
+  report.assertions.push('initial head synchronization locks the complete candidate and review form across a binding change');
+
   const readsBeforeSubscriptionRace = await evaluate('window.__test.ledger.reads');
-  await evaluate('window.__test.invalidateBeforeNextSubscribe()');
+  await evaluate('window.__test.mountSubscriptionRace()');
   await until(() => evaluate(`window.__test.ledger.subscriptionInvalidations === 1
-    && Array.from(document.querySelectorAll('[role="status"]')).some(status => status.textContent.includes("Current association readback is unavailable because there is no active scene context."))`),
-    'A binding invalidated before listener registration is detected immediately');
+    && document.querySelector("[aria-label=\\"Native scene association review\\"]")?.hidden === true`),
+    'A fresh surface hides immediately when its binding invalidates before listener registration');
   assert.equal(await evaluate(`window.__test.ledger.reads === ${readsBeforeSubscriptionRace}`), true,
     'A stale owner does not start an association read after the missed edge');
   assert.equal(await evaluate('document.querySelector("[aria-label=\\"Native scene association review\\"]")?.textContent.includes("Current association synthetic-target")'), false,
