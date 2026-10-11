@@ -95,9 +95,9 @@ HOUSEATLAS_GEOMETRY_SEAM_EVIDENCE=/absolute/private/NEW-synthetic-geometry-seam 
 The producer retains exact authenticated in-process GET bytes and allowlisted
 response headers only after its existing strict reopen and scratch cleanup.
 The reader uses those same bytes through the actual native client and mesh
-decoder, with two fake GETs and no network. Failed emission may leave partial
-private output for operator cleanup; an existing output directory is never
-adopted. This case establishes no converter authenticity, browser, household
+decoder, with two fake GETs and no network. Failed emission attempts to remove its newly created private directory; the
+operator verifies cleanup if removal fails. An existing output directory is
+never adopted. This case establishes no converter authenticity, browser, household
 intake, physical alignment or mounted availability.
 
 Historical native evidence request inspection has two individually selected

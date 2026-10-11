@@ -11,18 +11,18 @@ generates a synthetic USDZ framing original and closed authored mesh, commits
 their native custody and building association, reads the actual descriptor and
 mesh through its in-process authenticated HTTP router, and verifies strict
 reopen and native scratch cleanup. The frontend reader positive constructs its
-own descriptor and profile Responses. This proposed bridge instead passes the
+own descriptor and profile Responses. This paired bridge passes the
 exact Rust-produced GET response bodies and selected observed headers through
 `createNativeGeometryReadClient`, `readScanMesh` and `prepareMeshRender`.
 
-## Reserved source and imports
+## Source and imports
 
-Only three paths change:
+The bridge uses three source paths:
 
 - `backend/examples/healthy-native-geometry-custody-first.rs`: optional evidence
   emission after all existing assertions, strict reopen and native scratch
   removal. Existing fixtures and command behavior without the option remain.
-- `frontend/lantern-tests/native-geometry-produced-read.mjs`: new source-only
+- `frontend/lantern-tests/native-geometry-produced-read.mjs`: registered synthetic
   consumer. Its explicit fake GET transport returns captured bytes and headers,
   without constructing an equivalent descriptor or mesh DTO.
 - This document.
@@ -47,8 +47,9 @@ Root verifies ownership and privacy of the selected parent; the emitter checks
 its canonical path but does not inspect that parent's UID or permissions.
 The Rust body creates the child exclusively at mode 0700. Existing targets fail without
 being adopted, deleted, resumed or overwritten. Fixed files are opened with
-`create_new`, mode 0600. A partial emission removes only that newly created
-directory. The option is absent by default; the existing command emits nothing
+`create_new`, mode 0600. On partial emission, it attempts to remove only that newly created
+directory. Cleanup failure does not replace the original emission error; the
+operator must verify removal before reusing the selected parent. The option is absent by default; the existing command emits nothing
 new and retains its original fixture, assertions, disposal and printed result.
 
 The directory contains exactly:
