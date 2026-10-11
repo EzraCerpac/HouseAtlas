@@ -159,6 +159,18 @@ This positive establishes only synthetic native persistence. It supplies no
 live installation, household intake, older-binary compatibility or failure,
 replay, revocation, interruption or concurrent-write qualification.
 
+The separate issue #149 acceptance lane checks only synthetic room-anchor
+rejections and successful retained association/readback. Inspect both complete
+entrypoints and their imports before these exact commands; the native example
+uses an in-process router with no listener, and the browser uses owned Chromium
+with synthetic ports. See [case scope and limits](docs/geometry/issue-149-room-anchor-acceptance.md).
+These commands remain outside ordinary CI and do not release other held checks.
+
+```sh
+CARGO_TARGET_DIR=/tmp/houseatlas-issue149-target cargo run --offline --locked -p houseatlas-backend --example issue-149-room-anchor-acceptance
+HOUSEATLAS_CHROMIUM="/absolute/path/to/inspected/chromium" node frontend/lantern-tests/issue-149-room-anchor-acceptance.mjs
+```
+
 The fixture has synthetic USDC-signature framing and does not execute usdcat or
 establish USD scene semantics, original/derivative conversion authenticity,
 physical placement, actual household intake or recovery/fallback compatibility.
