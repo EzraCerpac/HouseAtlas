@@ -179,7 +179,11 @@ export function createNativeEvidenceClient(options: {
     originalUploadFailure?: unknown };
   const custody = new WeakMap<NativeEvidencePrepared, Entry>(), submitted = new Map<NativeEvidencePrepared, Entry>();
   const listeners = new Set<() => void>();
-  const notify = () => { for (const changed of listeners) changed(); };
+  const notify = () => {
+    // Pending observers are view notifications. A failing observer must not stop
+    // the one-shot transport, replace its error or change a validated outcome.
+    for (const changed of listeners) { try { changed(); } catch { /* Isolate each observer; never expose its thrown value. */ } }
+  };
   const current = (binding: NativePlaceBinding, signal?: AbortSignal, owner?: object) => {
     signal?.throwIfAborted();
     if (options.getBinding() !== binding || (owner && options.owner(binding) !== owner)) throw new NativeEvidenceContextChanged('Native evidence context changed');
@@ -443,7 +447,14 @@ export function createNativeEvidenceClient(options: {
         if (submitted.has(prepared)) {
           entry.originalUploadFailure = error;
           const phase = entry.uploadDiagnostic?.phase;
-          const failure = stopped ?? (error instanceof NativeEvidenceContextChanged ? 'context-changed'
+          let contextChanged = error instanceof NativeEvidenceContextChanged;
+          if (stopped === null && !contextChanged) {
+            // The host owner/exchange can reject an expired session with an
+            // ordinary Error. Recheck actual custody, without the aborted signal
+            // or message matching, while preserving the original thrown value.
+            try { current(binding, undefined, entry.owner); } catch { contextChanged = true; }
+          }
+          const failure = stopped ?? (contextChanged ? 'context-changed'
             : error instanceof NativeEvidenceResponseIdle ? 'response-idle'
             : phase === 'validating-response' ? 'response-validation-failed'
             : phase === 'reading-response' ? 'response-read-failed' : 'transport-failed');
