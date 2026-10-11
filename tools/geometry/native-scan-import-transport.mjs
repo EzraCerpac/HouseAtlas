@@ -36,17 +36,17 @@ export function createNativeCurlTransport({ origin, proxy, scope }) {
   const auth = /^\/api\/atlas\/auth\/(?:mode|proxy|session|logout)$/;
   const scoped = new RegExp(`^${prefix}/(?:admission|invoke|commands|assets(?:/${u}/review-proof)?|records/[a-z-]+(?:/${u}(?:/history)?)?|originals(?:/${u}/derivative)?|buildings/${u}(?:/associations|/current|/frames/[0-9a-f]{64}/meshes/[0-9a-f]{64})?|native-places/${u}(?:/evidence(?:/requests/${u})?)?)$`);
   const media = new RegExp(`^/api/atlas/media/${scope.workspaceId}/${scope.homeId}/[0-9a-f]{64}/(?:download|preview)$`);
-  const sceneHeadList = `/api/atlas/stock/v3/workspaces/${scope.workspaceId}/homes/${scope.homeId}/records/scene-association`;
+  const sceneHead = new RegExp(`^/api/atlas/scene/v1/workspaces/${scope.workspaceId}/homes/${scope.homeId}/buildings/${u}/head$`);
   let cookie = null;
   const exchange = async (input, init = {}) => {
     const url = new URL(typeof input === 'string' ? input : input.url, origin);
     need(url.origin === origin && !url.hash && !url.username && !url.password,
       'Native request escaped the selected origin');
-    need(auth.test(url.pathname) || scoped.test(url.pathname) || media.test(url.pathname) || url.pathname === '/api/atlas/retained-intent',
+    need(auth.test(url.pathname) || scoped.test(url.pathname) || sceneHead.test(url.pathname) || media.test(url.pathname) || url.pathname === '/api/atlas/retained-intent',
       'Native route is not in the import closure');
     const method = init.method ?? 'GET'; need(method === 'GET' || method === 'POST', 'Unsupported native method');
-    need(!url.search || method === 'GET' && (url.pathname.endsWith('/invoke')
-      || url.pathname === sceneHeadList && url.search === '?pageSize=100&includeArchived=true'),
+    need(!sceneHead.test(url.pathname) || method === 'GET', 'Scene head is a read-only route');
+    need(!url.search || method === 'GET' && url.pathname.endsWith('/invoke'),
     'Unexpected native URL selector');
     const signal = init.signal; signal?.throwIfAborted();
     const headers = new Headers(init.headers);

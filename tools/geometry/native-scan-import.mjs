@@ -390,7 +390,39 @@ export async function applyNativeScene(selected, geometry, runtime, context, tra
     // Documentary evidence appends change every descriptor key again.
     const frame = await geometry.reader.loadBuilding(selected.manifest.buildingId, signal);
     compareIds(frame.floors.map(f => f.geometryId), input.sourceFloors.map(f => f.nativeGeometryId));
+    // Matching geometry IDs alone does not authenticate the saved scene's
+    // binding. An unrelated building-evidence append changes all descriptor
+    // keys without changing those IDs. Check every complete source binding at
+    // this final read point before recording completion or reuse.
+    assert.equal(current.payload.buildingId, selected.manifest.buildingId);
+    const bindings = current.payload.sourceFloors;
+    assert(Array.isArray(bindings) && bindings.length === input.sourceFloors.length);
+    const bound = new Set();
+    for (const selectedFloor of input.sourceFloors) {
+      const rows = bindings.filter(row => row.sourceFloorKey === selectedFloor.sourceFloorKey
+        && row.sourceOriginalSha256 === selectedFloor.sourceOriginalSha256);
+      assert.equal(rows.length, 1, 'Saved scene source-floor membership differs');
+      const binding = rows[0], floor = frame.floors.find(row => row.geometryId === selectedFloor.nativeGeometryId);
+      assert(floor && !bound.has(floor.geometryId)); bound.add(floor.geometryId);
+      const revision = runtime.numeric.parseLosslessJson(runtime.numeric.stringifyLosslessJson(binding.nativeGeometryRevision));
+      assert(revision && typeof revision.compare === 'function' && revision.compare(floor.geometryRevision) === 0
+        && binding.nativeGeometryId === floor.geometryId && binding.nativeFloorKey === floor.key
+        && binding.nativeOriginalAssetId === floor.originalAssetId && binding.nativeOriginalSha256 === floor.originalSHA256,
+      'Saved scene floor binding is no longer current; preserve the held journal');
+    }
     for (const floor of frame.floors) await runtime.mesh.readScanMesh(frame.readPort, frame.viewKey, floor, signal);
+    signal.throwIfAborted(); assert(geometry.reader.isCurrent(frame), 'Final geometry read was withdrawn');
+    // A competing scene head can change without changing geometry. Use a fresh
+    // read-only owner: the mutation owner retains the pre-custody predecessor
+    // token, which must not be mistaken for the just-committed head.
+    const terminalOwner = runtime.scene.createNativeScanSceneImporter({ ...context, origin: selected.manifest.origin, transport,
+      beforeDispatch: async () => { throw new Error('Final scene verification cannot claim a mutation'); },
+      afterResult: async () => { throw new Error('Final scene verification cannot manufacture a receipt'); } });
+    try {
+      const observed = await terminalOwner.inspectCurrentScene(input, signal, { recordId: current.recordId, payload: current.payload });
+      assert(observed && observed.recordId === current.recordId, 'Saved scene is no longer the exact current head');
+      signal.throwIfAborted(); assert(geometry.reader.isCurrent(frame), 'Final geometry read was withdrawn');
+    } finally { terminalOwner.dispose(); }
     const primary = current.payload.sourceDocuments.find(doc => doc.role === 'primary-scene');
     const historical = current.payload.sourceDocuments.find(doc => doc.role === 'documentary-sheet');
     assert(primary && historical);

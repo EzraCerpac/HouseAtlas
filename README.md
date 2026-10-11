@@ -134,6 +134,7 @@ node frontend/lantern-tests/native-scan-import-scene.mjs scene-replacement
 node frontend/lantern-tests/native-scan-import-scene.mjs stale-current-scene
 node frontend/lantern-tests/native-scan-import-scene.mjs changed-frame-current-scene
 node frontend/lantern-tests/native-scan-import-scene.mjs supplementary-unicode
+node frontend/lantern-tests/native-scan-import-scene.mjs compact-scene-head
 ```
 
 After inspecting the tool, test and source-loader imports, the assistant can

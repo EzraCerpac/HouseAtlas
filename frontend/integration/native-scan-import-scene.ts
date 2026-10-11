@@ -262,7 +262,7 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
   const checkCapturedCurrentHead = async (frame:NativeGeometryFrame,signal:AbortSignal) => {
     need(previous&&previous.owner===getBinding()&&geometry.isCurrent(frame));
     // A changed-frame current route may return409 for stale floor keys, or an
-    // unavailable successor. The complete authenticated stored-chain proof can
+    // unavailable successor. The atomic authenticated compact-head proof can
     // distinguish those heads without weakening the qualified current route.
     const observed=previous.viewKey===frame.viewKey
       ?await associations.readCurrent(previous.buildingId,frame,signal)

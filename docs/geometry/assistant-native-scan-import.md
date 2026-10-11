@@ -45,10 +45,11 @@ HTTPS certificates and disables `.curlrc`; it sends no caller identity headers
 and follows no redirects. Normal `/auth/proxy` sign-in uses the existing gateway
 WhoIs policy. Cookies/CSRF remain in memory and anonymous pipes, never arguments,
 files or journals. Current session and Stock admission are read and checked.
-The retained scene-head read allows only its exact scoped Stock GET with
-`pageSize=100&includeArchived=true`; extra, duplicate or altered selectors refuse
-before transport. This keeps the complete bounded list check callable through
-the same normal HTTPS transport as the other native reads.
+The retained scene-head read uses the exact scoped native `/scene/v1/.../head`
+GET. It accepts no selectors or mutation method. The server validates the entire
+chain from one authenticated snapshot and returns only scoped head ID, revision
+and canonical payload SHA-256 within 4096 bytes. Historical document payloads are
+not downloaded together; metadata and document byte limits stay unchanged.
 Native-only asset and scene commands are reported in the server's separate
 `nativeCommandIds` metadata, under the same existing Editor/scope checks.
 They remain absent from the generic Stock/MCP catalogue. The command requires
@@ -93,15 +94,22 @@ untouched floor must be selected for reuse, and the complete final scene must
 stay within three floors. Incomplete or oversized coverage stops before custody.
 Before any geometry write, the same scene owner captures the qualified current
 scene (or genuine absence) under its current session. After descriptor keys change,
-it revalidates the retained record and the complete bounded authenticated native
-scene chain, requiring the captured head's exact revision and payload. Unfinished
-pagination, archived or ambiguous chains and any newer head stop documentary
+it revalidates the complete authenticated native scene chain through its compact
+head read, requiring the captured head's exact revision and canonical payload
+digest. Unavailable references, archived or ambiguous chains and any newer head stop documentary
 custody. This read observes one point in time; the command still submits its
 predecessor guard; the backend still checks the actual current head atomically.
 Before documentary custody, the actual scene owner performs a GET-only comparison
 of the current scene, both exact retained documents, complete room mappings and
 fresh native floor bindings. An identical verified scene reuses its native ID
 without another upload or fabricated commit receipt.
+After either save or reuse, the host checks every saved source-floor binding
+against its final descriptor read, including the native key, geometry revision,
+original asset ID and hash. Matching geometry IDs alone cannot produce a
+completion event after an unrelated evidence append changes the descriptor keys.
+A fresh GET-only scene owner then verifies the exact expected current ID/payload
+and retained documents before the terminal event. These checks describe their
+read points; a later independent write can supersede the scene afterward.
 
 Journals are mode0600, exclusively created, hash chained and file/directory
 synced before dispatch. Each of at most 128 events has an 8 MiB storage bound:

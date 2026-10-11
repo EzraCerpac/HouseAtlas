@@ -3,7 +3,7 @@
 The callable `createNativeScanSceneImporter` is the second phase of the agent's
 native scan import. The invoking host owns authentication, the journal, geometry
 original/derivative custody and an exclusive operation lane. There is no user
-scan-import control, stock grant, new route or browser provenance claim.
+scan-import control, stock grant or browser provenance claim.
 
 The input supplies a genuine building ID, two immutable UTF-8 text files with
 measured SHA-256/byte counts, statements/reasons/Unknown licenses, the reviewed
@@ -83,16 +83,18 @@ an owner switch cancels the phase before a new context can claim a write.
 head or genuine absence before geometry/text identity changes. The same importer
 retains the production client's owner-bound opaque token; the host receives safe
 status/record ID/revision metadata only. Before preparing a successor the client
-revalidates the prior record by authenticated Stock GET and adds its guard. The
-same owner reads the existing Stock scene list with `pageSize=100` and
-`includeArchived=true`. Only a complete first page with `nextCursor: null`, current
-source status, exact scope and production-validated records is accepted. A
-continuation or more than 100 scoped scene rows refuses; pages are not combined
-from separate snapshots. All records for the selected building must be active
+revalidates the captured head through the authenticated native
+`/api/atlas/scene/v1/workspaces/{workspaceId}/homes/{homeId}/buildings/{buildingId}/head`
+GET and adds its guard. The server calls the existing current-head validator on
+one scoped Stock snapshot and returns a closed `houseatlas.native-scene-head.v1`
+response within 4096 serialized bytes. No document bodies, continuation or
+separately paged snapshots are combined. All records for the selected building must be active
 and form one complete version-1 root through unique predecessor/child links,
 with exact version increments, no missing parent, cycle, fork or disconnected
-row. The linked tail must equal the captured ID/revision/payload. A captured
-genuine absence requires zero records for that building. Dates, UUID order and
+row. The linked tail must equal the captured ID/revision and canonical payload
+SHA-256. The client computes that digest from its complete captured payload. A captured
+genuine absence requires the explicit `no-current-association` response;
+`current-source-unavailable` cannot prove absence. Dates, UUID order and
 largest version never select a head; an active retained row alone is insufficient.
 This fresh stored-chain proof runs before documentary custody and inspection.
 Unchanged descriptor keys also require the qualified current route to agree.

@@ -368,7 +368,11 @@ test('host composes scene reuse and restart inspection without a scene mutation 
     selected.manifest.scene = files.manifest.scene; selected.scene = scene;
     const journal = await openImportJournal(join(files.directory, 'reused-scene'), { create: true });
     geometry = await applyNativeImport(selected, runtime, context, journalTransport(native.transport, journal), journal, new AbortController().signal);
-    const current = { recordId: U(888), payload: { sourceDocuments: [
+    const current = { recordId: U(888), payload: { buildingId, sourceFloors: scene.sourceFloors.map((source, index) => {
+      const floor = geometry.frame.floors.find(row => row.geometryId === geometry.mappings[index].geometryId);
+      return { ...source, nativeGeometryId: floor.geometryId, nativeGeometryRevision: floor.geometryRevision.toSafeInteger(),
+        nativeFloorKey: floor.key, nativeOriginalAssetId: floor.originalAssetId, nativeOriginalSha256: floor.originalSHA256 };
+    }), sourceDocuments: [
       { role: 'primary-scene', originalAssetId: U(889), evidenceId: U(890) },
       { role: 'documentary-sheet', originalAssetId: U(891), evidenceId: U(892) }] } };
     let inspections = 0, disposed = 0, unreadable = false;
@@ -392,13 +396,61 @@ test('host composes scene reuse and restart inspection without a scene mutation 
       composed, context, native.transport, new AbortController().signal, selected);
     assert.equal(inspection.sceneStatus, 'exact-current-scene-verified'); assert.equal(inspection.sceneRecordId, current.recordId);
     assert.equal(inspection.retrySafety, 'not-established'); assert.equal(native.postCount, 6);
-    assert.equal(inspections, 2); assert.equal(disposed, 2);
+    assert.equal(inspections, 3); assert.equal(disposed, 3);
     unreadable = true;
     const held = await openImportJournal(join(files.directory, 'unreadable-scene'), { create: true });
     await assert.rejects(applyNativeScene(selected, geometry, composed, context, native.transport, held, new AbortController().signal));
     assert.equal(held.events.at(-1).kind, 'scene-held'); assert.equal(native.postCount, 6);
-    assert.equal(inspections, 3); assert.equal(disposed, 3);
+    assert.equal(inspections, 4); assert.equal(disposed, 4);
+    unreadable = false;
+    const competing = await openImportJournal(join(files.directory, 'competing-head'), { create: true });
+    let finalOwnerDisposed = false;
+    const changed = { ...composed, scene: { createNativeScanSceneImporter: options => ({
+      async inspectCurrentScene(_input, _signal, expected) {
+        assert.equal(expected.recordId, current.recordId);
+        await assert.rejects(options.beforeDispatch('scene-association', {}), /cannot claim a mutation/);
+        return null; // A different valid head does not authorize another write.
+      }, dispose() { finalOwnerDisposed = true; },
+    }) } };
+    await assert.rejects(applyNativeScene(selected, geometry, changed, context, native.transport, competing,
+      new AbortController().signal, { inspectCurrentScene: async () => current }), /no longer the exact current head/);
+    assert(finalOwnerDisposed); assert.equal(native.postCount, 6); assert.equal(competing.events.at(-1).kind, 'scene-held');
+    assert.equal(competing.events.filter(e => ['scene-reused', 'scene-complete'].includes(e.kind)).length, 0);
   } finally { geometry?.reader.dispose(); await files.cleanup(); }
+});
+test('final scene completion and reuse withhold a stale binding after an unrelated evidence append', async () => {
+  for (const reused of [true, false]) {
+    const files = await fixture(), native = fakeNative(), context = localContext(); let geometry;
+    try {
+      const selected = await files.selected();
+      const journal = await openImportJournal(join(files.directory, 'final-binding'), { create: true });
+      geometry = await applyNativeImport(selected, runtime, context, native.transport, journal, new AbortController().signal);
+      selected.scene = { buildingId, sourceFloors: files.manifest.floors.map(f => ({ sourceFloorKey: f.sourceFloorKey,
+        sourceOriginalSha256: f.sourceOriginalSha256 })), primary: { sha256: 'a'.repeat(64) }, historical: { sha256: 'b'.repeat(64) } };
+      const current = { recordId: U(888), payload: { buildingId, sourceFloors: selected.scene.sourceFloors.map((source, index) => {
+        const floor = geometry.frame.floors.find(row => row.geometryId === geometry.mappings[index].geometryId);
+        return { ...source, nativeGeometryId: floor.geometryId, nativeGeometryRevision: floor.geometryRevision.toSafeInteger(),
+          nativeFloorKey: floor.key, nativeOriginalAssetId: floor.originalAssetId, nativeOriginalSha256: floor.originalSHA256 };
+      }), sourceDocuments: [{ role: 'primary-scene', originalAssetId: U(889), evidenceId: U(890) },
+        { role: 'documentary-sheet', originalAssetId: U(891), evidenceId: U(892) }] } };
+      let imports = 0;
+      const append = () => {
+        addSyntheticEvidence(native, 1); native.records.get(`identity:${buildingId}`).revision++;
+      };
+      const owner = { async inspectCurrentScene() { if (!reused) return null; append(); return current; },
+        async importScene() { imports++; append(); return { outcome: 'committed', current }; } };
+      // The orchestrator stub represents the already returned result; only the
+      // unrelated writer changes synthetic local records. No provider is called.
+      await assert.rejects(applyNativeScene(selected, geometry, runtime, context, native.transport, journal,
+        new AbortController().signal, owner), /floor binding is no longer current/);
+      assert.equal(native.postCount, 6); assert.equal(imports, reused ? 0 : 1);
+      assert.equal(journal.events.at(-1).kind, 'scene-held');
+      assert.equal(journal.events.filter(e => ['scene-complete', 'scene-reused', 'complete'].includes(e.kind)).length, 0);
+      const final = await geometry.reader.loadBuilding(buildingId, new AbortController().signal);
+      assert.deepEqual(final.floors.map(f => f.geometryId), geometry.frame.floors.map(f => f.geometryId));
+      assert(final.floors.every(f => !current.payload.sourceFloors.some(row => row.nativeFloorKey === f.key)));
+    } finally { geometry?.reader.dispose(); await files.cleanup(); }
+  }
 });
 test('one explicit successor preserves the other native identity and refreshes ALL floor keys', async () => {
   const files = await fixture(), next = await fixture(['Changed']), native = fakeNative(), context = localContext();
@@ -472,14 +524,13 @@ test('HTTPS framing retains body and cookie separately; transport selection refu
   assert.throws(() => createNativeCurlTransport({ origin: 'http://synthetic.invalid', proxy: 'socks5h://127.0.0.1:11080', scope }));
   assert.throws(() => createNativeCurlTransport({ origin, proxy: 'http://new-proxy.invalid', scope }));
 });
-test('actual transport admits only the exact scoped complete scene-head selector before its aborted network boundary', async () => {
+test('actual transport admits only the scoped compact scene-head GET before its aborted network boundary', async () => {
   const transport = createNativeCurlTransport({ origin, proxy: 'socks5h://127.0.0.1:11080', scope });
-  const path = `/api/atlas/stock/v3/workspaces/${scope.workspaceId}/homes/${scope.homeId}/records/scene-association`;
+  const path = `/api/atlas/scene/v1/workspaces/${scope.workspaceId}/homes/${scope.homeId}/buildings/${buildingId}/head`;
   const stopped = new Error('Synthetic stop before curl spawn');
   const signal = AbortSignal.abort(stopped);
-  await assert.rejects(transport.exchange(path + '?pageSize=100&includeArchived=true', { signal }), error => error === stopped);
   await assert.rejects(transport.exchange(path, { signal }), error => error === stopped);
-  await assert.rejects(transport.exchange(path.replace('/records/scene-association', '/invoke') + '?request=synthetic', { signal }),
+  await assert.rejects(transport.exchange(`/api/atlas/stock/v3/workspaces/${scope.workspaceId}/homes/${scope.homeId}/invoke?request=synthetic`, { signal }),
     error => error === stopped);
   for (const query of ['?pageSize=101&includeArchived=true', '?pageSize=100&includeArchived=false',
     '?pageSize=100&includeArchived=true&cursor=synthetic', '?pageSize=100&includeArchived=true&q=synthetic',
@@ -487,11 +538,10 @@ test('actual transport admits only the exact scoped complete scene-head selector
     '?pageSize=%31%30%30&includeArchived=true']) {
     await assert.rejects(transport.exchange(path + query, { signal }), /Unexpected native URL selector/);
   }
-  await assert.rejects(transport.exchange(path + '?pageSize=100&includeArchived=true', { method: 'POST', signal }),
-    /Unexpected native URL selector/);
-  await assert.rejects(transport.exchange(path.replace('/scene-association', '/geometry') + '?pageSize=100&includeArchived=true', { signal }),
-    /Unexpected native URL selector/);
-  await assert.rejects(transport.exchange(path.replace(scope.homeId, U(999)) + '?pageSize=100&includeArchived=true', { signal }),
+  await assert.rejects(transport.exchange(path, { method: 'POST', signal }), /Scene head is a read-only route/);
+  await assert.rejects(transport.exchange(path.replace('/scene/v1/', '/stock/v3/'), { signal }),
+    /Native route is not in the import closure/);
+  await assert.rejects(transport.exchange(path.replace(scope.homeId, U(999)), { signal }),
     /Native route is not in the import closure/);
   transport.forget();
 });
