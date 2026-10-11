@@ -11,7 +11,7 @@ import { NativeSceneLayers } from './NativeSceneLayers';
 import { NativeSceneCandidate } from './NativeSceneCandidate';
 import { RoomIndex } from '../../views/RoomsView';
 import type { NativeGeometryWriteClient } from '../native-write-types';
-import { NativeGeometryIntake, type NativeGeometryIntakeAssociation } from './NativeGeometryIntake';
+import type { NativeGeometryIntakeAssociation } from './NativeGeometryIntake';
 
 const Context = createContext<NativeGeometryReadClient | undefined>(undefined);
 const IntakeContext = createContext<{ readonly write: NativeGeometryWriteClient | undefined;
@@ -156,11 +156,6 @@ export function NativeScanAtlas({ client }: { readonly client: NativeGeometryRea
         </div>
       </> : <p role="status">{status === 'empty' ? 'No committed scan association for this building.'
         : status === 'unavailable' ? 'Scans are unavailable for this current session and building. Refresh scans to check again.' : 'Loading building scans…'}</p>}
-    {intake.write && intake.association && <NativeGeometryIntake write={intake.write} association={intake.association}
-      buildingId={building?.id ?? null} onAssociated={() => {
-        if (current.current !== owner) return;
-        topology.reload(); setAttempt(value => value + 1);
-      }} />}
     <details><summary>Rooms &amp; places</summary><RoomIndex /></details>
   </div>;
 }

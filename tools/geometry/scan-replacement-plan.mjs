@@ -54,7 +54,9 @@ async function inspect(snapshot, reader) {
     async read(viewKey, selected) { assert.equal(selected, floor); return { viewKey, floorKey: floor.key, bytes: snapshot.meshBytes }; } };
   const profile = await reader.readScanMesh(port, 'assistant-local-plan', floor, new AbortController().signal);
   return { snapshot, profile, meshes: new Map(profile.meshes.map(mesh => [mesh.sourceObjectId, fingerprint(profile, mesh)])),
-    frame: { authoredCoordinates: profile.authoredCoordinates, converter: profile.converter } };
+    frame: { authoredCoordinates: profile.authoredCoordinates, converter: profile.converter,
+      geometryPlacement: { coordinateUnits: snapshot.geometry.payload.coordinateUnits,
+        scale: snapshot.geometry.payload.scale, transform: clone(snapshot.geometry.payload.transform) } } };
 }
 function pin(floor) {
   const s = floor.snapshot;
@@ -77,7 +79,7 @@ export async function buildReplacementPlan(input) {
     closed(snapshot, ['key', 'exportLabel', 'originalSha256', 'derivativeSha256', 'geometry', 'meshBytes']);
     assert(snapshot.meshBytes instanceof Uint8Array && snapshot.meshBytes.length > 0 && snapshot.meshBytes.length <= LIMITS.meshBytes);
     const { meshBytes, ...metadata } = snapshot;
-    return { ...clone(metadata), meshBytes: meshBytes.slice() };
+    return { ...clone(metadata), meshBytes: new Uint8Array(meshBytes) };
   };
   input = { association: clone(input.association), roomSupport: clone(input.roomSupport), retainedState: clone(input.retainedState),
     floors: bounded(input.floors, LIMITS.floors).map(copyFloor), successors: bounded(input.successors, LIMITS.floors).map(copyFloor) };
@@ -164,12 +166,18 @@ export async function buildReplacementPlan(input) {
     const old = bindings.get(mapping.sourceFloorKey); assert(old, 'Mapping needs an explicit accepted source floor');
     const sourceFloor = association.sourceFloors.find(s => s.sourceFloorKey === mapping.sourceFloorKey);
     assert.equal(sourceFloor.sourceOriginalSha256, mapping.sourceOriginalSha256);
-    for (const id of mapping.sourceAnchorIds) {
+    const members = mapping.sourceAnchorIds.map(id => {
       const anchor = anchors.get(id); assert(anchor && anchor.sourceFloorKey === mapping.sourceFloorKey
         && anchor.sourceOriginalSha256 === mapping.sourceOriginalSha256, 'Mapping must match its accepted source anchors');
-      assert(equal(anchor.targets, mapping.targets.map(({ packagePlaceKey, packagePlaceUuid }) => ({ packagePlaceKey, packagePlaceUuid }))));
-      assert(equal(anchor.unresolvedLabels, mapping.unresolvedLabels));
-    }
+      return anchor;
+    });
+    const targetKey = t => JSON.stringify([t.packagePlaceKey, t.packagePlaceUuid]);
+    const targets = new Set(members.flatMap(anchor => anchor.targets.map(targetKey)));
+    const actual = new Set(mapping.targets.map(targetKey));
+    const unresolved = new Set(members.flatMap(anchor => anchor.unresolvedLabels));
+    assert(targets.size === actual.size && [...targets].every(t => actual.has(t))
+      && actual.size === mapping.targets.length && unresolved.size === mapping.unresolvedLabels.length
+      && mapping.unresolvedLabels.every(label => unresolved.has(label)), 'Retain the complete target and unresolved union');
     const candidate = replacements.get(old.snapshot.geometry.recordId) ?? old;
     const dep = support.get(roomKey(mapping)), frameUnchanged = equal(old.frame, candidate.frame);
     if (dep) assert.equal(dep.sourceOriginalSha256, mapping.sourceOriginalSha256);

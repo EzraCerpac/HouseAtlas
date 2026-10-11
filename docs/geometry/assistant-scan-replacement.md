@@ -86,6 +86,13 @@ ancestor and reset/op order, operation matrices and the composed transform.
 Coordinate metadata and converter provenance also fence reuse. A repeated prim
 path or room name alone establishes nothing. Rooms are scoped by source floor
 and source room ID, so repeated local labels do not join different floors.
+Geometry record `coordinateUnits`, `scale` and its six-coefficient `transform`
+also fence the frame comparison; changed placement metadata requires review
+even when the authored derivative is identical. Multi-anchor correspondence
+retains the complete set union of its accepted targets and unresolved labels,
+matching the existing contract semantics. Input byte ownership is copied before
+the first await, including Node Buffer inputs, so normal caller buffer reuse
+cannot change the selected snapshot.
 
 For a replacement, a resolved room with exact unchanged reviewed support is
 `reuse-proposed`. A changed/removed dependency is `changed`; missing dependency

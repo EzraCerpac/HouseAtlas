@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "898fd77136f2d7ed528a77a19c975b365d268f701a2725d538a5bab8975dd97a",
+  "sourceDigestSha256": "1baafe02c0c7f6371e1305ea5aab5aa823cdcdb66aee208a6418ab1c8c8c59c7",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5362,8 +5362,8 @@
     {
       "path": "docs/geometry/assistant-scan-replacement.md",
       "mode": "100644",
-      "bytes": 10752,
-      "sha256": "32efd0c53df940e6060b4608c9c0fe711b3b95b1e26641fec7a4ea2329fb0763",
+      "bytes": 11255,
+      "sha256": "014e7cf27da27dfaa677e578299c5076a949a21d6ea1c40eccaf6ec94e8e5166",
       "owner": "media"
     },
     {
@@ -5432,8 +5432,8 @@
     {
       "path": "docs/geometry/native-scan-intake-ui.md",
       "mode": "100644",
-      "bytes": 6097,
-      "sha256": "cdc0b581764fda7d9cdc629b6bbec3ba3917b92e15c32dde82ab4149aeb25862",
+      "bytes": 4789,
+      "sha256": "df2fe16f641e7cd0ddfb0fa7bddc487d0a68f1364b98a55d55ca77e1173fd2ad",
       "owner": "web"
     },
     {
@@ -7392,8 +7392,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeScanAtlas.tsx",
       "mode": "100644",
-      "bytes": 12175,
-      "sha256": "ea6aa5f5d5e19dfa3402ad4fac0d06ccd43fcf5b3e9a03dd8c7e901c622a7eb6",
+      "bytes": 11853,
+      "sha256": "bbb3669654dbc0e9c9a527c87106c49d27feb4512e1a2a5a08ce295e87ab80cb",
       "owner": "web"
     },
     {
@@ -8652,15 +8652,15 @@
     {
       "path": "tools/geometry/scan-replacement-plan.mjs",
       "mode": "100644",
-      "bytes": 20502,
-      "sha256": "1c5da0f68564b0c97650aa53c52e628e5c4efbb6b415d9e8be576da2b62ec9b6",
+      "bytes": 21144,
+      "sha256": "096b317ee26a7143f19dc8daaf37eafbcf3c9a4716812ae46689b0af100fdc38",
       "owner": "media"
     },
     {
       "path": "tools/geometry/scan-replacement-plan.test.mjs",
       "mode": "100644",
-      "bytes": 30794,
-      "sha256": "a98cb1a968c02b0ece250946142d411630bc581037ef073ad95c585203c4a015",
+      "bytes": 35188,
+      "sha256": "2c85eef22426be73917f69240b30ecc1399a21a0fa22afff8de963d6944099fe",
       "owner": "media"
     },
     {

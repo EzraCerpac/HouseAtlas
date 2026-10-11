@@ -447,3 +447,69 @@ test('reopened artifact retains numeric reviewed placement and exact room-to-mes
     }
   } finally { rmSync(parent, { recursive: true, force: true }); }
 });
+
+test('geometry placement metadata changes require frame review even with byte-identical derivatives', async () => {
+  const floor = snapshot({ floorKey: 'metadata-v1', sourceFloorKey: 'metadata-source', label: 'Metadata Floor' });
+  const baseline = world({ floors: [floor], rooms: [room({ id: 'metadata-room', floor })] });
+  for (const [field, value] of [['coordinateUnits', 'm'], ['scale', 1.25], ['transform', [1, 0, 0, 1, 2.5, -1.75]]]) {
+    const candidate = successor(floor);
+    candidate.geometry.payload[field] = value;
+    assert.deepEqual(candidate.meshBytes, floor.meshBytes);
+    const plan = await buildReplacementPlan(inputWith(baseline, [candidate]));
+    assert.equal(plan.floors[0].frameUnchanged, false);
+    assert.equal(plan.floors[0].geometryUnchanged, false);
+    assert.equal(plan.floors[0].placementReuse, 'requires-frame-review');
+    assert.equal(plan.rooms[0].status, 'changed');
+    assert.equal(plan.placementEvidenceApplications[0].applicability, 'prior-frame-only-requires-review');
+    assert.deepEqual(plan.floors[0].candidateFrame.geometryPlacement[field], value);
+  }
+});
+
+test('accepted multi-anchor room mappings retain disjoint target and unresolved-label unions', async () => {
+  for (const withUnresolved of [false, true]) {
+    const floor = snapshot({ floorKey: 'union-v1', sourceFloorKey: 'union-source', label: 'Union Floor' });
+    const baseline = world({ floors: [floor], rooms: [room({ id: 'union-room', floor })] });
+    const mapping = baseline.association.payload.roomMappings[0], receipt = baseline.receipt;
+    const first = receipt.anchors[0], secondTarget = { packagePlaceKey: 'synthetic-second-place', packagePlaceUuid: uuid() };
+    first.unresolvedLabels = withUnresolved ? ['first unresolved component'] : [];
+    const second = { ...deepCopy(first), id: 'synthetic-second-anchor', targets: [secondTarget],
+      unresolvedLabels: withUnresolved ? ['second unresolved component', 'first unresolved component'] : [] };
+    receipt.anchors.push(second);
+    mapping.sourceAnchorIds = [second.id, first.id];
+    mapping.targets = [{ ...secondTarget, atlasPlaceId: null }, ...mapping.targets];
+    mapping.unresolvedLabels = withUnresolved ? ['second unresolved component', 'first unresolved component'] : [];
+    const decoded = JSON.parse(receipt.canonicalJson); decoded.anchors = receipt.anchors;
+    receipt.canonicalJson = canonical(decoded); receipt.canonicalSha256 = sha(receipt.canonicalJson);
+    baseline.roomSupport[0].receiptSha256 = receipt.canonicalSha256;
+    const plan = await buildReplacementPlan(inputWith(baseline, [successor(floor)]));
+    assert.deepEqual(plan.rooms[0].retainedMapping, mapping);
+    assert.deepEqual(plan.previousAssociation.payload.acceptedReceipt, receipt);
+    assert.equal(plan.rooms[0].status, withUnresolved ? 'unmatched' : 'reuse-proposed');
+    assert.equal(plan.rooms[0].spatialAcceptance, 'not-issued');
+  }
+});
+
+test('normal caller Buffer reuse after invocation preserves owned bytes and deterministic retained artifacts', async () => {
+  const floor = snapshot({ floorKey: 'buffer-v1', sourceFloorKey: 'buffer-source', label: 'Buffer Floor' });
+  const baseline = world({ floors: [floor], rooms: [room({ id: 'buffer-room', floor })] });
+  const candidate = successor(floor);
+  const parent = realpathSync(mkdtempSync(join(tmpdir(), 'scan-replacement-buffer-test-')));
+  try {
+    const receipts = [];
+    for (const name of ['first', 'second']) {
+      const input = inputWith(baseline, [candidate]);
+      for (const field of ['floors', 'successors']) input[field] = input[field].map(s => ({ ...s, meshBytes: Buffer.from(s.meshBytes) }));
+      const pending = buildReplacementPlan(input);
+      for (const field of ['floors', 'successors']) for (const s of input[field]) s.meshBytes.fill(0);
+      const plan = await pending;
+      assert.equal(plan.rooms[0].status, 'reuse-proposed');
+      assert.equal(plan.floors[0].previous.derivativeSha256, floor.derivativeSha256);
+      const receipt = writeReplacementArtifact(plan, join(parent, name));
+      const bytes = readFileSync(join(parent, name, receipt.fileName));
+      assert.equal(sha(bytes), receipt.sha256);
+      assert.equal(JSON.parse(bytes).operationsExecuted, 0);
+      receipts.push(receipt);
+    }
+    assert.deepEqual(receipts[0], receipts[1]);
+  } finally { rmSync(parent, { recursive: true, force: true }); }
+});
