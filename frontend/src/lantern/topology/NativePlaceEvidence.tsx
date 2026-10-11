@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import type { NativePlaceBinding } from '../../api/native-place-client';
-import type { NativeEvidenceAdmission, NativeEvidenceClient, NativeEvidencePending, NativeEvidencePrepared } from '../../api/native-evidence-client';
+import type { NativeEvidenceAdmission, NativeEvidenceClient, NativeEvidencePending, NativeEvidencePrepared, NativeEvidenceRequestObservation } from '../../api/native-evidence-client';
 import { EvidencePicker } from '../../capture-evidence/EvidencePicker';
 import type { EvidenceSelection } from '../../capture-evidence/selection';
 import { stringifyLosslessJson, type JsonForSerialization } from '../../numeric/lossless-json';
@@ -15,6 +15,7 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
   const [admission, setAdmission] = useState<NativeEvidenceAdmission | null>(null), [selection, setSelection] = useState<EvidenceSelection | null>(null);
   const [offers, setOffers] = useState<ReadonlyMap<NativeEvidencePrepared, string>>(new Map());
   const [inspections, setInspections] = useState<ReadonlyMap<NativeEvidencePrepared, NativeEvidenceAdmission>>(new Map());
+  const [requestId, setRequestId] = useState(''), [requestObservation, setRequestObservation] = useState<NativeEvidenceRequestObservation | null>(null);
   const [, changed] = useState(0);
   const active = useRef<AbortController | null>(null), submitting = useRef(false);
   const opener = useRef<HTMLButtonElement>(null), heading = useRef<HTMLHeadingElement>(null), restoreOpener = useRef(false);
@@ -33,6 +34,7 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
     const clear = () => {
       active.current?.abort(); active.current = null; submitting.current = false;
       setOpen(false); setAdmission(null); setSelection(null); setOffers(new Map()); setInspections(new Map()); setBusy(false); setStatus('');
+      setRequestId(''); setRequestObservation(null);
     };
     clear();
     const unsubscribe = client.subscribe(() => { if (!current()) clear(); });
@@ -143,11 +145,43 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
     } catch { if (live(controller)) setStatus('Original download availability could not be established.'); }
     finally { finish(controller); }
   };
+  const readRequest = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (busy || !current() || !recordId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(requestId)) return;
+    const submittedId = requestId, controller = start(); setRequestObservation(null); setStatus('Reading the requested native evidence record…');
+    try {
+      const fresh = await client.load(binding, recordId, controller.signal);
+      if (!live(controller)) return;
+      if (fresh.record.recordId !== recordId || fresh.identity.recordId !== location.id) throw new Error('Selected native identity changed');
+      const observation = await client.readRequest(fresh, submittedId, controller.signal);
+      if (!live(controller)) return;
+      setRequestObservation(observation);
+      setStatus(observation.outcome === 'committed'
+        ? 'Committed result observed; retry safety remains not established.'
+        : 'No committed result observed; retry safety remains not established.');
+    } catch {
+      if (live(controller)) setStatus('The requested native evidence record could not be validated or read. Its outcome remains unknown.');
+    } finally { finish(controller); }
+  };
   if (!eligible || !recordId || !current()) return null;
   return <div className="topology-evidence">
     {identity && <details><summary>Native identity evidence ({identity.payload.evidenceIds.length})</summary>
       {identity.payload.evidenceIds.map(id => <div key={id}><span>Evidence ID: {id}</span><LinkedEvidence evidenceId={id} /></div>)}
     </details>}
+    <details>
+      <summary>Read a native evidence request by ID</summary>
+      <p>Reads the authorized native request record. This read does not update the originating upload attempt or prove the uploaded original bytes.</p>
+      <form className="session-form" onSubmit={event => void readRequest(event)}>
+        <label><span>Historical request UUID</span><input name="requestId" value={requestId} maxLength={36} pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" autoComplete="off" required disabled={busy}
+          onChange={event => { setRequestId(event.target.value); setRequestObservation(null); setStatus(''); }} /></label>
+        <button type="submit" disabled={busy || !requestId}>Read request</button>
+      </form>
+      {requestObservation && <details open>
+        <summary>Request observation · {requestObservation.outcome}</summary>
+        <p>Request {requestObservation.requestId} · place {requestObservation.recordId}.</p>
+        <pre>{stringifyLosslessJson(requestObservation.observed)}</pre>
+      </details>}
+    </details>
     {!open && <button ref={opener} type="button" disabled={busy || unknown} onClick={() => void load()}>Add native evidence</button>}
     {unknown && !attempts.some(attempt => attempt.outcome === 'unknown') && <p role="status">A native evidence submission in this home has unknown completion. Do not resend; inspect saved information in its originating row.</p>}
     <p role="status" aria-live="polite">{status}</p>
