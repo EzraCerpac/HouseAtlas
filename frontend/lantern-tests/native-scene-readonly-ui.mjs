@@ -62,6 +62,7 @@ const listeners = new Set();
 const ledger = { canCreate: false, unknown: false, committed: false, reads: 0, prepares: 0, releases: 0, submits: 0, submitAborts: 0,
   submitSettled: false, resolves: 0, sceneRefreshes: 0, resolved: false, preparedCurrent: true,
   currentHead: null, displayedHead: 'synthetic-old-head', lastReadId: null, deferRead: false, deferredReads: [],
+  deferReadAbortSettlement: false, deferredReadAborts: [], settledReadAborts: 0,
   resolveMismatch: false, submitBehavior: 'abort', invalidateBeforeSubscribe: false, subscriptionInvalidations: 0 };
 let binding = Object.freeze({ synthetic: true });
 const readBinding = binding;
@@ -87,8 +88,13 @@ const client = {
     const value = result(); ledger.lastReadId = value.status === 'available' ? value.recordId : 'no-current-association';
     if (signal.aborted) throw new DOMException('Read aborted', 'AbortError');
     if (ledger.deferRead) return await new Promise((resolve, reject) => {
-      const finish = () => { signal.removeEventListener('abort', abort); resolve(result()); };
-      const abort = () => { signal.removeEventListener('abort', abort); reject(new DOMException('Read aborted', 'AbortError')); };
+      const remove = () => { const index = ledger.deferredReads.indexOf(finish); if (index >= 0) ledger.deferredReads.splice(index, 1); };
+      const finish = () => { remove(); signal.removeEventListener('abort', abort); resolve(result()); };
+      const abort = () => {
+        remove(); signal.removeEventListener('abort', abort);
+        const rejectRead = () => { ledger.settledReadAborts++; reject(new DOMException('Read aborted', 'AbortError')); };
+        if (ledger.deferReadAbortSettlement) ledger.deferredReadAborts.push(rejectRead); else rejectRead();
+      };
       ledger.deferredReads.push(finish); signal.addEventListener('abort', abort, { once: true });
     });
     return value;
@@ -127,6 +133,8 @@ window.__test = { ledger, mountStaleScene() { ledger.currentHead = 'synthetic-ra
     remountForTest(); }, deferNextRead() { ledger.deferRead = true; }, completeRead() { ledger.deferRead = false; ledger.deferredReads.shift()?.(); },
   mismatchResolution() { ledger.resolveMismatch = true; }, allowResolution() { ledger.resolveMismatch = false; },
   useCommittedSubmit() { ledger.submitBehavior = 'commit'; },
+  deferReadAbortSettlement() { ledger.deferReadAbortSettlement = true; },
+  settleReadAbort() { ledger.deferReadAbortSettlement = false; ledger.deferredReadAborts.shift()?.(); },
   expireReadContext() { binding = null; for (const fn of listeners) fn(); },
   restoreReadContext() { binding = readBinding; for (const fn of listeners) fn(); },
   rebindKeepingAdmission() { binding = Object.freeze({ synthetic: true }); for (const fn of listeners) fn(); },
@@ -405,6 +413,24 @@ createRoot(document.getElementById('root')).render(<TestHost />);
   assert.equal(await evaluate('Array.from(document.querySelectorAll("input,textarea")).every(field => !field.disabled)'), true,
     'The editor unlocks after the prepared-review reload settles');
   report.assertions.push('confirmed reload keeps its exact read alive after releasing a prepared review, locks draft edits while pending, and unlocks after scene refresh');
+
+  await evaluate('window.__test.deferReadAbortSettlement(); window.__test.deferNextRead()');
+  await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Reload current association").click()');
+  await until(() => evaluate(`window.__test.ledger.deferredReads.length === 1
+    && Array.from(document.querySelectorAll('input,textarea')).every(field => field.disabled)`),
+    'Explicit reload locks candidate fields while its read is pending');
+  await evaluate('window.__test.deferNextRead(); window.__test.rebindKeepingAdmission()');
+  await until(() => evaluate(`window.__test.ledger.deferredReadAborts.length === 1
+    && window.__test.ledger.deferredReads.length === 1`), 'A new binding starts its own read before the old reload settles');
+  await evaluate('window.__test.settleReadAbort()');
+  await until(() => evaluate('window.__test.ledger.settledReadAborts === 1'), 'The old owner’s aborted reload settles after the new binding starts');
+  assert.equal(await evaluate('Array.from(document.querySelectorAll("input,textarea")).every(field => field.disabled)'), true,
+    'The old reload cleanup cannot clear the new binding’s initial-sync lock');
+  const refreshesBeforeStaleReloadSettle = await evaluate('window.__test.ledger.sceneRefreshes');
+  await evaluate('window.__test.completeRead()');
+  await until(() => evaluate(`window.__test.ledger.sceneRefreshes === ${refreshesBeforeStaleReloadSettle + 1}`),
+    'The new binding completes current-head synchronization and refreshes the displayed scene');
+  report.assertions.push('stale explicit-reload cleanup cannot unlock candidate edits owned by a new binding');
 
   await evaluate(`(()=>{
     const set = (element, value) => {

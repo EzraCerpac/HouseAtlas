@@ -143,7 +143,10 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
     void work(running.controller.signal).catch(error => {
       if (flight.current === running && active()) setStatus({ owner,
         text: error instanceof Error ? error.message : 'Scene association is unavailable.' });
-    }).finally(() => { if (flight.current === running) { flight.current = null; setBusy(null); } settled?.(); });
+    }).finally(() => {
+      if (flight.current === running) { flight.current = null; setBusy(null); }
+      if (active()) settled?.();
+    });
     return true;
   };
   const refresh = (discardDraft = false) => {

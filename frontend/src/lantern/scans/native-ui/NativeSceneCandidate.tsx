@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { SceneAssociationCandidate } from '../../../../integration/native-scene-association-client';
 import { parseLosslessJson, type JsonForSerialization } from '../../../numeric/lossless-json';
 import { NativeSceneAssociation } from './NativeSceneAssociation';
@@ -11,10 +11,17 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export function NativeSceneCandidate({ host, geometry, onSaved }: {
   readonly host: NativeSceneHost; readonly geometry: NativeGeometryFrame; readonly onSaved: () => void;
 }) {
+  const binding = host.associations.getBinding();
+  const refreshOwner = useMemo(() => ({ host, binding, geometry }), [host, binding, geometry]);
+  const refreshOwnerRef = useRef(refreshOwner); refreshOwnerRef.current = refreshOwner;
   const [primary, setPrimary] = useState(''), [historical, setHistorical] = useState('');
   const [floorJoins, setFloorJoins] = useState(''), [roomJoins, setRoomJoins] = useState(''), [guards, setGuards] = useState('');
   const [submittingCandidate, setSubmittingCandidate] = useState<SceneAssociationCandidate | null>(null);
-  const [refreshPending, setRefreshPending] = useState(false);
+  const [refreshState, setRefreshState] = useState<{ owner: object; pending: boolean } | null>(null);
+  const refreshPending = refreshState?.owner === refreshOwner && refreshState.pending;
+  const updateRefreshPending = useCallback((pending: boolean) => {
+    if (refreshOwnerRef.current === refreshOwner) setRefreshState({ owner: refreshOwner, pending });
+  }, [refreshOwner]);
   const [, repaint] = useState(0);
   useLayoutEffect(() => {
     const stop = host.associations.subscribe(() => repaint(value => value + 1));
@@ -34,7 +41,7 @@ export function NativeSceneCandidate({ host, geometry, onSaved }: {
         sourceFloors: arrays[0]!, roomMappings: arrays[1]!, guards: arrays[2]! };
     } catch { return null; }
   }, [geometry, primary, historical, floorJoins, roomJoins, guards]);
-  const canReadCurrent = host.associations.getBinding() !== null;
+  const canReadCurrent = binding !== null;
   const canCreate = canReadCurrent && host.associations.canCreate(geometry.descriptor.buildingId);
   const pendingOutcome = host.associations.pending(geometry.descriptor.buildingId).some(item => item.outcome === 'unknown');
   useEffect(() => {
@@ -63,7 +70,7 @@ export function NativeSceneCandidate({ host, geometry, onSaved }: {
       geometry={geometry} canPrepare={canCreate} hasUnsavedDraft={Boolean(primary || historical || floorJoins || roomJoins || guards)}
       onSubmissionStarted={setSubmittingCandidate} onSubmissionSettled={() => setSubmittingCandidate(null)}
       onDiscardDraft={() => { setPrimary(''); setHistorical(''); setFloorJoins(''); setRoomJoins(''); setGuards(''); }}
-      onRefreshPendingChanged={setRefreshPending}
+      onRefreshPendingChanged={updateRefreshPending}
       onRefreshed={onSaved} onCommitted={onSaved} />
   </details>;
 }
