@@ -28,19 +28,20 @@ export function NativeSceneCandidate({ host, geometry, onSaved }: {
         sourceFloors: arrays[0]!, roomMappings: arrays[1]!, guards: arrays[2]! };
     } catch { return null; }
   }, [geometry, primary, historical, floorJoins, roomJoins, guards]);
-  if (!host.associations.canCreate(geometry.descriptor.buildingId)
-    && !host.associations.pending(geometry.descriptor.buildingId).some(row => row.outcome === 'unknown')) return null;
+  const canCreate = host.associations.canCreate(geometry.descriptor.buildingId);
   return <details><summary>Review retained scene sources</summary>
-    <p>Choose the two saved text originals and review their floor and place joins. Saving a reviewed association makes it available after reload.</p>
-    <label>Primary scene evidence<input value={primary} onChange={event => setPrimary(event.target.value.trim())} maxLength={36} /></label>
-    <label>Historical receipt evidence<input value={historical} onChange={event => setHistorical(event.target.value.trim())} maxLength={36} /></label>
-    <details><summary>Exact native joins and current guards</summary>
-      <label>Floor joins<textarea value={floorJoins} onChange={event => setFloorJoins(event.target.value)} maxLength={65536} /></label>
-      <label>Place joins<textarea value={roomJoins} onChange={event => setRoomJoins(event.target.value)} maxLength={65536} /></label>
-      <label>Current record guards<textarea value={guards} onChange={event => setGuards(event.target.value)} maxLength={65536} /></label>
-    </details>
-    {!candidate && <p role="status">Select both evidence records and their complete joins before review.</p>}
-    <NativeSceneAssociation client={host.associations} candidate={candidate} geometry={geometry}
+    {canCreate && <>
+      <p>Choose the two saved text originals and review their floor and place joins. Saving a reviewed association makes it available after reload.</p>
+      <label>Primary scene evidence<input value={primary} onChange={event => setPrimary(event.target.value.trim())} maxLength={36} /></label>
+      <label>Historical receipt evidence<input value={historical} onChange={event => setHistorical(event.target.value.trim())} maxLength={36} /></label>
+      <details><summary>Exact native joins and current guards</summary>
+        <label>Floor joins<textarea value={floorJoins} onChange={event => setFloorJoins(event.target.value)} maxLength={65536} /></label>
+        <label>Place joins<textarea value={roomJoins} onChange={event => setRoomJoins(event.target.value)} maxLength={65536} /></label>
+        <label>Current record guards<textarea value={guards} onChange={event => setGuards(event.target.value)} maxLength={65536} /></label>
+      </details>
+      {!candidate && <p role="status">Select both evidence records and their complete joins before review.</p>}
+    </>}
+    <NativeSceneAssociation client={host.associations} candidate={candidate} geometry={geometry} canPrepare={canCreate}
       onCurrent={() => undefined} onCommitted={onSaved} />
   </details>;
 }

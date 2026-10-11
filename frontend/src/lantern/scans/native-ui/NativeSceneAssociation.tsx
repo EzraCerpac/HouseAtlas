@@ -8,10 +8,11 @@ type Flight = { owner: object; controller: AbortController };
 
 /** The host supplies reviewed evidence IDs and three independent document owners.
  * This leaf only owns the current review interaction and never invents a source. */
-export function NativeSceneAssociation({ client, candidate, geometry, onCurrent, onCommitted }: {
+export function NativeSceneAssociation({ client, candidate, geometry, canPrepare, onCurrent, onCommitted }: {
   readonly client: SceneAssociationClient;
   readonly candidate: SceneAssociationCandidate | null;
   readonly geometry: NativeGeometryFrame | null;
+  readonly canPrepare: boolean;
   readonly onCurrent: (result: SceneAssociationRead) => void;
   readonly onCommitted?: () => void;
 }) {
@@ -34,7 +35,7 @@ export function NativeSceneAssociation({ client, candidate, geometry, onCurrent,
   const observation = read?.owner === owner ? read.value : null;
   const visible = active() && (!review || client.isPreparedCurrent(review));
 
-  useLayoutEffect(() => { setStatement(''); setReason(''); setPrepared(null); setRead(null); setStatus(null); }, [owner]);
+  useLayoutEffect(() => { setStatement(''); setReason(''); setPrepared(null); setRead(null); setStatus(null); setBusy(null); }, [owner]);
 
   useLayoutEffect(() => {
     if (surface.current) surface.current.hidden = !visible;
@@ -81,7 +82,7 @@ export function NativeSceneAssociation({ client, candidate, geometry, onCurrent,
     setRead({ owner, value: result }); callback.current(result);
   });
   const prepare = () => execute('Reviewing retained originals', async signal => {
-    if (!reviewCandidate) return;
+    if (!canPrepare || !reviewCandidate) return;
     if (review) client.releasePrepared(review);
     setPrepared(null);
     const value = await client.prepare(reviewCandidate, geometry!, statement, reason, signal);
@@ -89,7 +90,7 @@ export function NativeSceneAssociation({ client, candidate, geometry, onCurrent,
     setPrepared({ owner, value });
   });
   const submit = () => execute('Saving reviewed association', async signal => {
-    if (!review || !reviewCandidate) return;
+    if (!canPrepare || !review || !reviewCandidate) return;
     try {
       const result = await client.submit(review, geometry!, signal);
       if (!active() || signal.aborted) return;
@@ -120,13 +121,13 @@ export function NativeSceneAssociation({ client, candidate, geometry, onCurrent,
       {observation && <p role="status">{observation.status === 'available'
         ? `Current association ${observation.recordId}` : observation.reason === 'no-current-association'
           ? 'No reviewed association is current.' : 'The current association source is unavailable.'}</p>}
-      {reviewCandidate && <><label>Review statement<textarea value={statement} onChange={event => {
+      {reviewCandidate && canPrepare && <><label>Review statement<textarea value={statement} onChange={event => {
         if (review) client.releasePrepared(review); setPrepared(null); setStatement(event.target.value);
       }} maxLength={4096} /></label>
       <label>Reason<textarea value={reason} onChange={event => {
         if (review) client.releasePrepared(review); setPrepared(null); setReason(event.target.value);
       }} maxLength={4096} /></label>
-      <button type="button" onClick={prepare} disabled={!!busy || !client.canCreate(buildingId) || !statement.trim() || !reason.trim() || unresolved.length > 0}>
+      <button type="button" onClick={prepare} disabled={!!busy || !canPrepare || !client.canCreate(buildingId) || !statement.trim() || !reason.trim() || unresolved.length > 0}>
         Review retained originals
       </button>
       {review && <details open><summary>Exact proposed receipt and mappings</summary>
@@ -134,7 +135,7 @@ export function NativeSceneAssociation({ client, candidate, geometry, onCurrent,
           {stringifyLosslessJson(review.payload)}
         </pre>
       </details>}
-      {review && <button type="button" onClick={submit} disabled={!!busy || !client.canCreate(buildingId) || !client.isPreparedCurrent(review) || unresolved.length > 0}>
+      {review && canPrepare && <button type="button" onClick={submit} disabled={!!busy || !canPrepare || !client.canCreate(buildingId) || !client.isPreparedCurrent(review) || unresolved.length > 0}>
         Submit reviewed association
       </button>}</>}
       {unresolved.length > 0 && <>
