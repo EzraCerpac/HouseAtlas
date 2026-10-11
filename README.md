@@ -271,6 +271,27 @@ npm run build --prefix frontend
 node frontend/lantern-tests/healthy-read.mjs
 ```
 
+The scene overlay keyboard check uses synthetic inputs to verify pressed-state
+semantics, keyboard activation and pointer selection:
+
+```sh
+node frontend/lantern-tests/scene-controls-keyboard.test.mjs
+```
+
+Its browser check builds the same component with production styles, then uses
+an inspected local Chrome executable, a fresh owned profile and an ephemeral
+`127.0.0.1` fixture server. It uses only synthetic inputs and makes no provider
+or external network requests. This isolated harness does not qualify the normal
+browser path. Inspect its full body first and use Node 26.10.0:
+
+```sh
+HOUSEATLAS_CHROMIUM="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+node frontend/lantern-tests/scene-controls-keyboard-browser.mjs
+```
+
+If the sandbox denies the loopback bind, rerun only this inspected fixture
+through the approved local-test route.
+
 The retained fixture reader has one named positive using generated rooms,
 drawings and fake current document/geometry ports. Inspect its full body and
 listed production imports before this narrower local command. It opens no
