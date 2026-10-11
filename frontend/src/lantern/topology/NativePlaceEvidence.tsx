@@ -1,11 +1,28 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import type { NativePlaceBinding } from '../../api/native-place-client';
-import type { NativeEvidenceAdmission, NativeEvidenceClient, NativeEvidencePending, NativeEvidencePrepared, NativeEvidenceRequestObservation } from '../../api/native-evidence-client';
+import type { NativeEvidenceAdmission, NativeEvidenceClient, NativeEvidencePending, NativeEvidencePrepared, NativeEvidenceRequestObservation, NativeEvidenceUploadDiagnostic } from '../../api/native-evidence-client';
 import { EvidencePicker } from '../../capture-evidence/EvidencePicker';
 import type { EvidenceSelection } from '../../capture-evidence/selection';
 import { stringifyLosslessJson, type JsonForSerialization } from '../../numeric/lossless-json';
 import type { Location, TopologyIndex } from './model';
 import { LinkedEvidence } from '../components/LinkedEvidence';
+
+function UploadObservation({ value }: { value: NativeEvidenceUploadDiagnostic }) {
+  const phase = { 'starting-transport': 'Starting transport', 'waiting-for-response-headers': 'Waiting for response headers',
+    'reading-response': 'Reading response', 'validating-response': 'Validating response' }[value.phase];
+  const failure = value.failure === null ? null : { 'commit-deadline': 'The browser upload deadline was reached',
+    'context-changed': 'The application session or home context changed', 'caller-canceled': 'The caller canceled the operation',
+    'response-idle': 'The response body stopped progressing', 'transport-failed': 'The transport did not return response headers',
+    'response-read-failed': 'The response could not be read or decoded', 'response-validation-failed': 'The response could not be validated for this request' }[value.failure];
+  return <details>
+    <summary>Upload observation{failure ? ' · failed' : value.state === 'active' ? ' · in progress' : ''}</summary>
+    <p>{phase} · last observed {value.elapsedMs} ms after the upload call.</p>
+    {failure && <p>{failure}.</p>}
+    <p>HTTP status: {value.httpStatus ?? 'not observed'} · headers: {value.headersReceivedMs === null ? 'not observed' : `${value.headersReceivedMs} ms`}
+      {' · '}response read: {value.responseReadMs === null ? 'not completed' : `${value.responseReadMs} ms`}.</p>
+    <p>These browser observations do not establish server commit, rollback or safe retry. Times are snapshots from the upload call; they do not update continuously or measure bytes sent.</p>
+  </details>;
+}
 
 /** A native record row owns no source fallback, persistence or submitted-request replay. */
 export function NativePlaceEvidence({ client, binding, location, index, refresh }: {
@@ -206,6 +223,7 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
     </section>}
     {attempts.map(attempt => <details key={attempt.prepared.requestId}>
       <summary>{attempt.outcome === 'committed' ? 'Native evidence saved' : attempt.outcome === 'not-committed' ? 'Native evidence not saved' : 'Native evidence completion unknown'} · {attempt.prepared.requestId}</summary>
+      {attempt.uploadDiagnostic && <UploadObservation value={attempt.uploadDiagnostic} />}
       {attempt.outcome === 'unknown' ? <>
         <p>Do not resend this request. A saved-information read cannot establish rollback or safe retry. Attempt information is held in memory for this application session.</p>
         <button type="button" disabled={busy} onClick={() => void inspect(attempt)}>Inspect saved native information</button>

@@ -22,6 +22,10 @@ use axum::{
 use serde_json::json;
 use std::time::Duration;
 
+#[path = "upload_diagnostics.rs"]
+pub(super) mod diagnostics;
+use diagnostics::{Category, Phase};
+
 pub(super) fn policy() -> serde_json::Value {
     json!({
         "contentTypes":["image/png","image/jpeg","application/pdf","text/plain"],
@@ -108,11 +112,16 @@ async fn intake_command(
     })
     .await
     .map_err(|_| unavailable())??;
+    let mut observer =
+        diagnostics::Observer::authenticated(correlation.as_deref(), &scope, &record_id);
+    let diagnostic = observer.trace();
     // Only a genuine authorized POST may receive an intake rejection carrier.
     // Keep the large-body slot through blocking work even if the caller leaves.
     let upload_permit = match host.upload_slots.clone().try_acquire_owned() {
         Ok(permit) => permit,
         Err(_) => {
+            diagnostic.failure(Category::Busy, StatusCode::SERVICE_UNAVAILABLE);
+            observer.response_ready(StatusCode::SERVICE_UNAVAILABLE);
             return upload_outcomes::reject(
                 correlation.as_deref(),
                 &scope,
@@ -122,9 +131,11 @@ async fn intake_command(
             );
         }
     };
-    let input = match upload_intake::read(request).await {
+    let input = match upload_intake::read(request, &diagnostic).await {
         Ok(input) => input,
         Err(error) => {
+            diagnostic.failure(error.category(), error.status());
+            observer.response_ready(error.status());
             let code = if error.status() == StatusCode::REQUEST_TIMEOUT {
                 "upload-timeout"
             } else {
@@ -139,10 +150,16 @@ async fn intake_command(
             );
         }
     };
+    diagnostic.phase(Phase::IntakeComplete);
     if correlation
         .as_ref()
         .is_some_and(|id| id != &input.metadata.request_id)
     {
+        diagnostic.failure(
+            Category::CorrelationMismatch,
+            StatusCode::UNPROCESSABLE_ENTITY,
+        );
+        observer.response_ready(StatusCode::UNPROCESSABLE_ENTITY);
         return upload_outcomes::reject(
             correlation.as_deref(),
             &scope,
@@ -157,6 +174,8 @@ async fn intake_command(
         || input.metadata.source_license.status != types::LicenseStatus::Unknown
         || input.metadata.source_license.reference.is_some()
     {
+        diagnostic.failure(Category::ContextMismatch, StatusCode::UNPROCESSABLE_ENTITY);
+        observer.response_ready(StatusCode::UNPROCESSABLE_ENTITY);
         return upload_outcomes::reject(
             correlation.as_deref(),
             &scope,
@@ -166,13 +185,23 @@ async fn intake_command(
         );
     }
     let inputs = upload_batch::FreshUploadInputs::capture_server_intake()
-        .map_err(stock_reads::http_error)?;
-    tokio::task::spawn_blocking(move || {
+        .map_err(stock_reads::http_error)
+        .inspect_err(|error| {
+            diagnostic.failure(Category::PreparationFailure, error.status);
+            observer.response_ready(error.status);
+        })?;
+    diagnostic.phase(Phase::Queued);
+    let worker_diagnostic = diagnostic.clone();
+    let mut worker = worker_diagnostic.worker();
+    let result = tokio::task::spawn_blocking(move || {
+        let result = (|| -> HttpResult {
         let _upload_permit = upload_permit;
         let _admitted = checked.admission_permit()?;
+        worker_diagnostic.phase(Phase::WaitingCore);
         let mut core = host.core.lock().map_err(|_| unavailable())?;
         let home = core.homes.iter().find(|home| home.scope == scope).cloned()
             .ok_or_else(|| failure(StatusCode::NOT_FOUND))?;
+        worker_diagnostic.phase(Phase::Qualifying);
         let selection = match namespace {
             PlaceNamespace::SourceBacked => qualified_upload_plan::resolve(&mut core, &principal, &home, &input.metadata),
             PlaceNamespace::Native => qualified_upload_plan::resolve_native(&mut core, &principal, &home, &input.metadata),
@@ -194,6 +223,7 @@ async fn intake_command(
         };
         // Measure real bytes under the original mutation fence, then resolve
         // through Storage outside that fence; its authorizer acquires Access.
+        worker_diagnostic.phase(Phase::Measuring);
         let mut measured = None;
         {
             let mut access = core.access.lock().map_err(|_| unavailable())?;
@@ -214,6 +244,7 @@ async fn intake_command(
         let store_scope = crate::storage::Scope {
             workspace_id: scope.workspace_id.clone(), home_id: scope.home_id.clone(),
         };
+        worker_diagnostic.phase(Phase::ResolvingOriginal);
         let existing = core.store.lock().map_err(|_| unavailable())?
             .resolve_original_asset_with_authorization(
                 &crate::app::ReadAuthority(core.access.clone()), &principal, &store_scope, measured.prepared())
@@ -222,13 +253,16 @@ async fn intake_command(
             let plan = upload_batch::plan_existing_upload_batch(
                 &principal, &selection, &input.metadata, &asset, &measured, &inputs)
                 .map_err(stock_reads::http_error)?;
+            worker_diagnostic.phase(Phase::Dispatching);
             let result = stock_mutations::execute_existing(
                 &core, &principal, &selection, plan.plan().original_request().clone(),
                 &asset, &measured, &schemas).map_err(stock_reads::http_error)?;
+            worker_diagnostic.phase(Phase::Releasing);
             let access = core.access.lock().map_err(|_| unavailable())?;
             principal.release(&access).map_err(access_error)?;
             return Ok(json_response(result.wire));
         }
+        worker_diagnostic.phase(Phase::Staging);
         let mut staged = None;
         {
             let mut access = core.access.lock().map_err(|_| unavailable())?;
@@ -264,8 +298,10 @@ async fn intake_command(
             &principal, &selection, &input.metadata, &staged, &inputs,
         ).map_err(stock_reads::http_error)?;
         let raw = plan.plan().original_request().clone();
+        worker_diagnostic.phase(Phase::Dispatching);
         let (result, release) = stock_mutations::execute_staged(&host, &core, &principal, &selection, raw, &staged, &schemas)
             .map_err(stock_reads::http_error)?;
+        worker_diagnostic.phase(Phase::Releasing);
         // The owner has already committed and qualified this canonical result.
         // Metadata retirement cannot turn that commit into an unconfirmed write.
         // It still requires the real SQLite consumption carrier and original
@@ -298,5 +334,18 @@ async fn intake_command(
             release.mark_released();
         }
         Ok(json_response(result.wire))
-    }).await.map_err(|_| unavailable())?
+        })();
+        let status = match &result { Ok(response) => response.status(), Err(error) => error.status };
+        if result.is_err() { worker_diagnostic.failure(Category::ContinuationFailure, status); }
+        worker.returned(status);
+        result
+    }).await.map_err(|_| unavailable()).inspect_err(|error| {
+        diagnostic.failure(Category::JoinFailure, error.status);
+        observer.response_ready(error.status);
+    })?;
+    observer.response_ready(match &result {
+        Ok(response) => response.status(),
+        Err(error) => error.status,
+    });
+    result
 }
