@@ -595,12 +595,13 @@ body withheld then recovered by a request-correlated read without a resend.
 The separate UI packet qualifies actual React upload, loss of its genuine native
 200 response before Chrome receives it, read-only receipt recovery and original
 download, plus a genuine throttled 408 with unchanged native records/history.
-Both helpers have built-in Node imports only. Inspect their complete bodies and
+The separately pinned af1 baseline compares the same generated PDF and pacing against its legacy ten-second deadline; it asserts no new outcome carrier or reconciliation route. The UI state-aware descendant opens the visible unknown-attempt disclosure before Inspect, waits for the actual refreshed identity evidence, and preserves the same case assertions. All helpers have built-in Node imports only. Inspect their complete bodies and
 artifact selections before these exact commands with Node 26.10.0:
 
 ```sh
 node /absolute/private/native-upload-outcome-transport.mjs /absolute/private/transport-artifacts.json
-node /absolute/private/native-evidence-upload-outcome-ui-loopback.mjs /absolute/private/ui-artifacts.json
+node /absolute/private/native-evidence-upload-outcome-ui-loopback-state-aware.mjs /absolute/private/ui-artifacts.json
+TMPDIR=/private/tmp node /absolute/private/native-upload-legacy-10s-baseline.mjs /absolute/private/baseline-artifacts.json
 ```
 
 These commands belong to the isolated synthetic regression lane: one owned TLS
