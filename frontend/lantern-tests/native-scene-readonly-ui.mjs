@@ -60,7 +60,7 @@ import { NativeSceneCandidate } from ${JSON.stringify(join(frontend, 'src/lanter
 const buildingId = '00000000-0000-4000-8000-000000000003';
 const listeners = new Set();
 const ledger = { canCreate: false, unknown: false, reads: 0, prepares: 0, submits: 0, submitAborts: 0,
-  submitSettled: false, resolves: 0, sceneRefreshes: 0 };
+  submitSettled: false, resolves: 0, sceneRefreshes: 0, resolved: false };
 let binding = Object.freeze({ synthetic: true });
 const client = {
   getBinding: () => binding,
@@ -68,7 +68,8 @@ const client = {
   subscribe(changed) { listeners.add(changed); return () => listeners.delete(changed); },
   pending() { return ledger.unknown ? [{ prepared: { targetId: 'synthetic-target' }, outcome: 'unknown' }] : []; },
   isPreparedCurrent: () => ledger.canCreate && !ledger.unknown,
-  async readCurrent() { ledger.reads++; return { status: 'unavailable', reason: 'no-current-association' }; },
+  async readCurrent() { ledger.reads++; return ledger.resolved
+    ? { status: 'available', recordId: 'synthetic-target' } : { status: 'unavailable', reason: 'no-current-association' }; },
   async prepare() { ledger.prepares++; return { buildingId, requestId: 'synthetic-request', targetId: 'synthetic-target',
     body: '{}', requestDigest: 'a'.repeat(64), payload: {} }; },
   releasePrepared() {},
@@ -81,7 +82,8 @@ const client = {
       for (const fn of listeners) fn();
     });
     return { status: 'unavailable', reason: 'current-source-unavailable' }; },
-  async resolve() { ledger.resolves++; return { status: 'unavailable', reason: 'current-source-unavailable' }; },
+  async resolve() { ledger.resolves++; ledger.unknown = false; ledger.resolved = true;
+    return { status: 'available', recordId: 'synthetic-target' }; },
   dispose() {},
 };
 const host = { associations: client };
@@ -230,11 +232,16 @@ createRoot(document.getElementById('root')).render(<TestHost />);
   await until(() => evaluate('document.body.innerText.includes("A submitted association has an unknown outcome.")'), 'Unknown outcome after admission withdrawal');
   assert.equal(await evaluate('Boolean(Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Check saved outcome" && !b.disabled))'), true);
   assert.equal(await evaluate('Array.from(document.querySelectorAll("button")).some(b => /Review retained originals|Submit reviewed association/.test(b.textContent))'), false);
+  const readsBeforeResolution = await evaluate('window.__test.ledger.reads');
   await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Check saved outcome").click()');
   await until(() => evaluate('window.__test.ledger.resolves === 1'), 'Resolve remains available without create permission');
   assert.equal(await evaluate('window.__test.ledger.prepares === 1 && window.__test.ledger.submits === 1'), true);
-  await until(() => evaluate('document.body.innerText.includes("Outcome remains unresolved; no new write was sent.")'), 'Outcome resolution status is shown');
-  report.assertions.push('UNKNOWN remains visible after admission withdrawal and can be checked without create permission');
+  await until(() => evaluate(`window.__test.ledger.sceneRefreshes === 3 && window.__test.ledger.reads > ${readsBeforeResolution}`),
+    'Successful outcome resolution refreshes the displayed scene and reads the current head');
+  await until(() => evaluate('document.querySelector("[aria-label=\\"Native scene association review\\"]")?.textContent.includes("Current association synthetic-target")'),
+    'Resolved association is present on the reloaded scene');
+  assert.equal(await evaluate('window.__test.ledger.canCreate === false'), true, 'Readback and scene refresh do not restore create admission');
+  report.assertions.push('UNKNOWN remains visible after admission withdrawal; successful resolution refreshes scene/current head without create permission or another write');
   assert.deepEqual(cdp.errors, [], 'No browser runtime exceptions');
   assert(cdp.requests.length >= 1 && cdp.requests.every(url => url.startsWith(origin + '/')), 'Only owned loopback browser requests');
   report.requests = cdp.requests.map(url => new URL(url).pathname);

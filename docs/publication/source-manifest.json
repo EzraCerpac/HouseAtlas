@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "220089bb0e7f1e3ae221bef774f3b5b1de7d093bdb2d650919a2225f5667e130",
+  "sourceDigestSha256": "b7694721ca9c1df2b5a58ddbbad21d7a0df4267f0c17a93121817e0ce761c450",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 39767,
-      "sha256": "fefb62f40e68b73777978588d215f12cc0098db6d202a0edf7ca7d7668d6c62f",
+      "bytes": 40487,
+      "sha256": "0c80ca90f6abc74392580e1acb085782f4ce6fb987b908f673469f64972ced80",
       "owner": "core-integration"
     },
     {
@@ -5425,8 +5425,8 @@
     {
       "path": "docs/geometry/native-scene-association.md",
       "mode": "100644",
-      "bytes": 5370,
-      "sha256": "3bc7f520035b771a093f47cf391f4d18401ca0417d42f18bc99280a1a95fa0ef",
+      "bytes": 5617,
+      "sha256": "b6f2922af0492973b20f11435ca8f2fcd0d64b9f712b55db744c8d8b47cddf77",
       "owner": "web"
     },
     {
@@ -6188,8 +6188,8 @@
     {
       "path": "frontend/lantern-tests/native-scene-readonly-ui.mjs",
       "mode": "100644",
-      "bytes": 21446,
-      "sha256": "02f19a79390d5293fc021486b7f33d731e4ca4dd0c5c62f258c3e68987d80b02",
+      "bytes": 22157,
+      "sha256": "974c3e701a5d995c474f53c07348e2ed4edadc2ceb1bf28838023aef43c41370",
       "owner": "web"
     },
     {
@@ -7392,8 +7392,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneAssociation.tsx",
       "mode": "100644",
-      "bytes": 10295,
-      "sha256": "e822b630f91c9a6cbb11c48c993d3dda123f4b09d424d03f99949851c0102b85",
+      "bytes": 10367,
+      "sha256": "7a65a854ed41e9b8049dc6defb7c73f5d2cb30b27edfcd9b4ab3de4116e02c57",
       "owner": "web"
     },
     {

@@ -119,8 +119,10 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
     const result = await client.resolve(intent, geometry!, signal);
     if (!active() || signal.aborted) return;
     setRead({ owner, value: result });
-    setStatus({ owner, text: result.status === 'available' && result.recordId === intent.targetId
-      ? 'Reviewed association found as the current head.' : 'Outcome remains unresolved; no new write was sent.' });
+    if (result.status === 'available' && result.recordId === intent.targetId) {
+      setStatus({ owner, text: 'Reviewed association found as the current head.' });
+      refreshed.current?.();
+    } else setStatus({ owner, text: 'Outcome remains unresolved; no new write was sent.' });
   });
 
   return <section ref={surface} hidden={!visible} aria-label="Native scene association review">
