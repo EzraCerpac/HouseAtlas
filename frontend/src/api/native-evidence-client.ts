@@ -29,10 +29,24 @@ export interface NativeEvidenceAdmission {
 export interface NativeEvidenceInput { readonly selection: EvidenceSelection; readonly statement: string; readonly reason: string; readonly sourceLicense: License }
 /** IDs are data only. The exact file/form/session custody stays private. */
 export interface NativeEvidencePrepared { readonly binding: NativePlaceBinding; readonly recordId: string; readonly requestId: string }
+export type NativeEvidenceUploadPhase = 'starting-transport' | 'waiting-for-response-headers' | 'reading-response' | 'validating-response';
+export type NativeEvidenceUploadFailure = 'commit-deadline' | 'context-changed' | 'caller-canceled' | 'response-idle'
+  | 'transport-failed' | 'response-read-failed' | 'response-validation-failed';
+/** Browser observations only; these never establish commit, rollback or retry safety. */
+export interface NativeEvidenceUploadDiagnostic {
+  readonly phase: NativeEvidenceUploadPhase;
+  readonly state: 'active' | 'finished';
+  readonly failure: NativeEvidenceUploadFailure | null;
+  readonly httpStatus: number | null;
+  readonly elapsedMs: number;
+  readonly headersReceivedMs: number | null;
+  readonly responseReadMs: number | null;
+}
 export interface NativeEvidencePending {
   readonly prepared: NativeEvidencePrepared; readonly outcome: 'unknown' | 'not-committed' | 'committed';
   readonly receipt?: LosslessJson; readonly evidenceId?: string; readonly assetId?: string;
   readonly intakeError?: { readonly code: 'upload-timeout' | 'upload-interrupted' | 'invalid-upload' | 'upload-busy'; readonly httpStatus: number };
+  readonly uploadDiagnostic?: NativeEvidenceUploadDiagnostic;
 }
 /** A new observation of a caller-supplied historical request ID. It is not an
  * acknowledgement capability and never changes a pending attempt. */
@@ -81,6 +95,8 @@ function freeze<T>(value: T): T {
   return value;
 }
 function discard(response: Response) { void response.body?.cancel().catch(() => undefined); }
+class NativeEvidenceContextChanged extends Error {}
+class NativeEvidenceResponseIdle extends Error {}
 /** HEAD bodies should be empty; consume Chromium's empty stream to EOF instead of aborting it. */
 async function emptyHeadBody(response: Response, signal: AbortSignal): Promise<boolean> {
   if (response.body === null) return true;
@@ -124,7 +140,7 @@ async function receive(response: Response, signal: AbortSignal, idleTimeoutMs?: 
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
           part = await Promise.race([reader.read(), new Promise<never>((_, reject) => {
-            timer = setTimeout(() => reject(new Error('Native evidence response became idle')), idleTimeoutMs);
+            timer = setTimeout(() => reject(new NativeEvidenceResponseIdle('Native evidence response became idle')), idleTimeoutMs);
           })]);
         } finally { if (timer !== undefined) clearTimeout(timer); }
       }
@@ -158,13 +174,17 @@ export function createNativeEvidenceClient(options: {
   const admissions = new WeakSet<NativeEvidenceAdmission>();
   type Entry = { owner: object; scope: Readonly<Scope>; admission: NativeEvidenceAdmission; metadata: string;
     digest: string; size: number; type: string; outcome: 'unknown' | 'not-committed' | 'committed'; receipt?: LosslessJson; evidenceId?: string; assetId?: string;
-    intakeError?: NativeEvidencePending['intakeError']; file?: File };
+    intakeError?: NativeEvidencePending['intakeError']; file?: File; uploadDiagnostic?: NativeEvidenceUploadDiagnostic };
   const custody = new WeakMap<NativeEvidencePrepared, Entry>(), submitted = new Map<NativeEvidencePrepared, Entry>();
   const listeners = new Set<() => void>();
-  const notify = () => { for (const changed of listeners) changed(); };
+  const notify = () => {
+    // Pending observers are view notifications. A failing observer must not stop
+    // the one-shot transport, replace its error or change a validated outcome.
+    for (const changed of listeners) { try { changed(); } catch { /* Isolate each observer; never expose its thrown value. */ } }
+  };
   const current = (binding: NativePlaceBinding, signal?: AbortSignal, owner?: object) => {
     signal?.throwIfAborted();
-    if (options.getBinding() !== binding || (owner && options.owner(binding) !== owner)) throw new Error('Native evidence context changed');
+    if (options.getBinding() !== binding || (owner && options.owner(binding) !== owner)) throw new NativeEvidenceContextChanged('Native evidence context changed');
     return options.owner(binding);
   };
   const path = (binding: NativePlaceBinding, recordId: string) => {
@@ -184,16 +204,27 @@ export function createNativeEvidenceClient(options: {
       submitted.delete(oldest[0]);
     }
   };
-  async function bounded<T>(binding: NativePlaceBinding, outer: AbortSignal, action: (signal: AbortSignal) => Promise<T>, timeoutMs = 30000): Promise<T> {
+  async function bounded<T>(binding: NativePlaceBinding, outer: AbortSignal, action: (signal: AbortSignal) => Promise<T>, timeoutMs = 30000,
+    onStop?: (failure: 'caller-canceled' | 'context-changed' | 'commit-deadline') => void): Promise<T> {
     const owner = current(binding, outer), active = new AbortController();
-    const forward = () => active.abort(outer.reason);
-    const unsubscribe = options.subscribe(() => { try { current(binding, undefined, owner); } catch (error) { active.abort(error); } });
+    const abort = (reason: unknown, failure: 'caller-canceled' | 'context-changed' | 'commit-deadline') => {
+      if (!active.signal.aborted) { onStop?.(failure); active.abort(reason); }
+    };
+    const forward = () => {
+      if (active.signal.aborted) return;
+      // The mounted host can clear its outer controller on a context change
+      // before this operation's context subscriber runs. Keep its exact reason.
+      let failure: 'caller-canceled' | 'context-changed' = 'caller-canceled';
+      try { current(binding, undefined, owner); } catch { failure = 'context-changed'; }
+      abort(outer.reason, failure);
+    };
+    const unsubscribe = options.subscribe(() => { try { current(binding, undefined, owner); } catch (error) { abort(error, 'context-changed'); } });
     outer.addEventListener('abort', forward, { once: true });
     let reject!: (reason: unknown) => void;
     const stopped = new Promise<never>((_, no) => { reject = no; });
     const stop = () => reject(active.signal.reason);
     active.signal.addEventListener('abort', stop, { once: true });
-    const timer = setTimeout(() => active.abort(new Error('Native evidence exchange exceeded deadline')), timeoutMs);
+    const timer = setTimeout(() => abort(new Error('Native evidence exchange exceeded deadline'), 'commit-deadline'), timeoutMs);
     if (outer.aborted) forward();
     try { current(binding, active.signal, owner); const result = await Promise.race([action(active.signal), stopped]); current(binding, active.signal, owner); return result; }
     finally { clearTimeout(timer); unsubscribe(); outer.removeEventListener('abort', forward); active.signal.removeEventListener('abort', stop); }
@@ -242,7 +273,8 @@ export function createNativeEvidenceClient(options: {
   });
   const view = (prepared: NativeEvidencePrepared, entry: Entry): NativeEvidencePending => Object.freeze({ prepared, outcome: entry.outcome,
     ...(entry.receipt ? { receipt: entry.receipt, evidenceId: entry.evidenceId, assetId: entry.assetId } : {}),
-    ...(entry.intakeError ? { intakeError: entry.intakeError } : {}) });
+    ...(entry.intakeError ? { intakeError: entry.intakeError } : {}),
+    ...(entry.uploadDiagnostic ? { uploadDiagnostic: entry.uploadDiagnostic } : {}) });
   const owned = (binding: NativePlaceBinding, prepared: NativeEvidencePrepared) => {
     const entry = submitted.get(prepared);
     if (!entry || !entries(binding).some(([p]) => p === prepared)) throw new Error('Native evidence attempt is outside the current session/home');
@@ -385,22 +417,56 @@ export function createNativeEvidenceClient(options: {
       const entry = custody.get(prepared), binding = prepared.binding;
       if (!entry || submitted.has(prepared) || !entry.file) throw new Error('Native evidence attempt unavailable or already dispatched');
       current(binding, signal, entry.owner); writable(binding);
-      return bounded(binding, signal, async active => {
+      const started = performance.now();
+      const elapsed = () => Math.max(0, Math.min(2_147_483_647, Math.round(performance.now() - started)));
+      let stopped: NativeEvidenceUploadFailure | null = null, finished = false;
+      const observe = (update: Partial<NativeEvidenceUploadDiagnostic>) => {
+        if (finished || !submitted.has(prepared)) return;
+        entry.uploadDiagnostic = Object.freeze({ phase: 'starting-transport', state: 'active', failure: null, httpStatus: null,
+          headersReceivedMs: null, responseReadMs: null, ...entry.uploadDiagnostic, ...update, elapsedMs: elapsed() });
+        notify();
+      };
+      try { await bounded(binding, signal, async active => {
         current(binding, active, entry.owner); writable(binding);
         const body = new FormData(); body.append('metadata', entry.metadata); body.append('file', entry.file!, entry.file!.name);
         // Conservative one-shot marker precedes the sole transport call. No native stock input is synthesized.
-        submitted.set(prepared, entry); notify(); current(binding, active, entry.owner);
+        submitted.set(prepared, entry); observe({}); current(binding, active, entry.owner);
         // The one-shot POST and its response body share the 90s commit bound. Fetch exposes no upload-progress signal,
         // so the 15s idle timer applies only after response headers arrive.
+        observe({ phase: 'waiting-for-response-headers' });
         const response = await options.exchange(binding, path(binding, prepared.recordId) + '/evidence', 'POST', active, body, prepared.requestId);
+        try { current(binding, active, entry.owner); }
+        catch (error) { discard(response); throw error; }
+        observe({ phase: 'reading-response', httpStatus: response.status, headersReceivedMs: elapsed() });
         const value = await receive(response, active, 15000);
         current(binding, active, entry.owner);
+        observe({ phase: 'validating-response', responseReadMs: elapsed() });
         if (response.status !== 200) {
-          intakeRejection(prepared, entry, response, value); notify(); return view(prepared, entry);
+          intakeRejection(prepared, entry, response, value); return;
         }
         acceptReceipt(prepared, entry, value);
-        notify(); return view(prepared, entry);
-      }, 90000);
+      }, 90000, failure => { stopped = failure; });
+        observe({ state: 'finished' }); finished = true; return view(prepared, entry);
+      }
+      catch (error) {
+        if (submitted.has(prepared)) {
+          const phase = entry.uploadDiagnostic?.phase;
+          let contextChanged = error instanceof NativeEvidenceContextChanged;
+          if (stopped === null && !contextChanged) {
+            // The host owner/exchange can reject an expired session with an
+            // ordinary Error. Recheck actual custody, without the aborted signal
+            // or message matching, while preserving the original thrown value.
+            try { current(binding, undefined, entry.owner); } catch { contextChanged = true; }
+          }
+          const failure = stopped ?? (contextChanged ? 'context-changed'
+            : error instanceof NativeEvidenceResponseIdle ? 'response-idle'
+            : phase === 'validating-response' ? 'response-validation-failed'
+            : phase === 'reading-response' ? 'response-read-failed' : 'transport-failed');
+          // A late transport settlement after the bound cannot overwrite this first terminal observation.
+          observe({ state: 'finished', failure }); finished = true;
+        }
+        throw error;
+      }
     },
     pending(binding, recordId) { return entries(binding).filter(([p]) => recordId === undefined || p.recordId === recordId).map(([p, e]) => view(p, e)); },
     async inspect(binding, prepared, signal) {
