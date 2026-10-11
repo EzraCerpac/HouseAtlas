@@ -195,3 +195,7 @@ path = "examples/healthy-native-geometry-custody-first.rs"
 [[example]]
 name = "healthy-native-scene-association"
 path = "examples/healthy-native-scene-association.rs"
+
+[[example]]
+name = "issue-149-room-anchor-acceptance"
+path = "examples/issue-149-room-anchor-acceptance.rs"

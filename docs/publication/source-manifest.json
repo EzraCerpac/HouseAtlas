@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "766dd4cbd290d11b731bf401972234d908d0d8b8cf701a0eb7cad8ee32b07779",
+  "sourceDigestSha256": "96b4e3bb1b8206ac49b78571cea2ef8f0a08e0d1d238fde0925d1642f2f7840b",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 38134,
-      "sha256": "bb77ed78412e9e492e9216330ef15800b989afbe6cf22990a3d30845201da766",
+      "bytes": 39767,
+      "sha256": "fefb62f40e68b73777978588d215f12cc0098db6d202a0edf7ca7d7668d6c62f",
       "owner": "core-integration"
     },
     {
@@ -245,8 +245,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 4877,
-      "sha256": "0d441fcedcf97652f66b6a79be807b8c2fa4a56405d2188db835efcde2f28f17",
+      "bytes": 4986,
+      "sha256": "07c7a09ab301b6f637c0c02cef11340eb4280998f7d4bb6622cd36ab6ae4e92c",
       "owner": "core-integration"
     },
     {
@@ -303,6 +303,13 @@
       "mode": "100644",
       "bytes": 20611,
       "sha256": "d519895504705d345f9dab43ace2982e85de5091bb6bcdf65a9dd23d7d94d01e",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/examples/issue-149-room-anchor-acceptance.rs",
+      "mode": "100644",
+      "bytes": 61003,
+      "sha256": "c7c527b2ce1064041d7e26efbfb49e2d80b29100327f13ae05a938073d94a840",
       "owner": "core-integration"
     },
     {
@@ -2898,8 +2905,8 @@
     {
       "path": "backend/src/media/scene_association.rs",
       "mode": "100644",
-      "bytes": 19863,
-      "sha256": "fc133c6df5b8257daef9b6a152f67b24437448a05838390569b962ca3e8088bb",
+      "bytes": 20662,
+      "sha256": "55c5915f07a87edcf85cdbd8d047361873ad04a051fc235268b01d52682318e4",
       "owner": "media"
     },
     {
@@ -5360,6 +5367,13 @@
       "owner": "web"
     },
     {
+      "path": "docs/geometry/issue-149-room-anchor-acceptance.md",
+      "mode": "100644",
+      "bytes": 2759,
+      "sha256": "a304fe31f4f883825f2e93da41f61593182667924440651aa5ab20b69206b230",
+      "owner": "web"
+    },
+    {
       "path": "docs/geometry/native-document-read.md",
       "mode": "100644",
       "bytes": 4939,
@@ -5992,8 +6006,8 @@
     {
       "path": "frontend/integration/native-scene-association-client.ts",
       "mode": "100644",
-      "bytes": 36494,
-      "sha256": "353bdb5923e59767a6faf6e99267d2b22e2f2701433d1e2b73b5a384ad993852",
+      "bytes": 36898,
+      "sha256": "cec5c35554036861717cdad954cc5adbc964cc346b79ae4fae407d5bad8fa7d4",
       "owner": "web"
     },
     {
@@ -6106,6 +6120,13 @@
       "mode": "100644",
       "bytes": 49249,
       "sha256": "81dafa804a5093e969bc1343d2fdf131a9118a8bb8ecb772c75539acd5ea325b",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/issue-149-room-anchor-acceptance.mjs",
+      "mode": "100644",
+      "bytes": 24189,
+      "sha256": "0092e12ac8a9193213063a8c8018f7ec4b2de2f7ed9d570c9098951eb8914713",
       "owner": "web"
     },
     {
@@ -6223,8 +6244,8 @@
     {
       "path": "frontend/lantern-tests/scene-controls-keyboard/main.tsx",
       "mode": "100644",
-      "bytes": 1020,
-      "sha256": "6e104bbf9e073dd4524b1f580c4a8736ea8ee07f679c80a3681b4b44e5af09a9",
+      "bytes": 1495,
+      "sha256": "8953429d27d8d5a48302af079499274dbbd587c5c595eb752dd810866b0cabd0",
       "owner": "web"
     },
     {
