@@ -1,7 +1,10 @@
 //! Bounded multipart data intake for the root-owned fresh upload continuation.
 //! This parser grants no authority. The host must authorize the actual request
 //! before calling it; actual staging and atomic dispatch belong to the handler.
-use super::{headers, intake};
+use super::{
+    headers, intake,
+    upload::diagnostics::{Category, Part, Phase, Trace},
+};
 use crate::{http::contracts::NativeContracts, media, storage};
 use axum::{
     extract::{DefaultBodyLimit, FromRequest, Multipart, Request},
@@ -68,20 +71,33 @@ pub struct AssetInput {
 
 /// Only a sanitized status is exposed; parser details and bytes stay private.
 #[derive(Debug)]
-pub struct IntakeError(StatusCode);
+pub struct IntakeError(StatusCode, Category);
 impl IntakeError {
     pub fn status(&self) -> StatusCode {
         self.0
     }
+    pub(super) fn category(&self) -> Category {
+        self.1
+    }
 }
 fn invalid() -> IntakeError {
-    IntakeError(StatusCode::UNPROCESSABLE_ENTITY)
+    IntakeError(StatusCode::UNPROCESSABLE_ENTITY, Category::InvalidShape)
 }
 fn oversized() -> IntakeError {
-    IntakeError(StatusCode::PAYLOAD_TOO_LARGE)
+    IntakeError(StatusCode::PAYLOAD_TOO_LARGE, Category::SizeRejected)
+}
+pub(super) fn multipart_read_error(error: axum::extract::multipart::MultipartError) -> IntakeError {
+    let status = error.status();
+    let category = if status == StatusCode::PAYLOAD_TOO_LARGE {
+        Category::SizeRejected
+    } else {
+        Category::MultipartRead
+    };
+    IntakeError(status, category)
 }
 fn validate_metadata(bytes: &[u8]) -> Result<UploadMetadata, IntakeError> {
-    let raw = intake::json(bytes).map_err(|error| IntakeError(error.status))?;
+    let raw =
+        intake::json(bytes).map_err(|error| IntakeError(error.status, Category::InvalidShape))?;
     let native = NativeContracts;
     native
         .validate_shape("scope", &raw["context"])
@@ -149,7 +165,8 @@ fn validate_metadata(bytes: &[u8]) -> Result<UploadMetadata, IntakeError> {
 }
 
 fn validate_asset_metadata(bytes: &[u8]) -> Result<AssetMetadata, IntakeError> {
-    let raw = intake::json(bytes).map_err(|error| IntakeError(error.status))?;
+    let raw =
+        intake::json(bytes).map_err(|error| IntakeError(error.status, Category::InvalidShape))?;
     NativeContracts
         .validate_shape("scope", &raw["context"])
         .map_err(|_| invalid())?;
@@ -178,13 +195,17 @@ fn validate_asset_metadata(bytes: &[u8]) -> Result<AssetMetadata, IntakeError> {
 async fn collect(
     field: &mut axum::extract::multipart::Field<'_>,
     maximum: usize,
+    progress: Option<(&Trace, Part)>,
 ) -> Result<Vec<u8>, IntakeError> {
     let mut bytes = Vec::new();
     while let Some(chunk) = tokio::time::timeout(INTAKE_IDLE, field.chunk())
         .await
-        .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT))?
-        .map_err(|error| IntakeError(error.status()))?
+        .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT, Category::IdleTimeout))?
+        .map_err(multipart_read_error)?
     {
+        if let Some((trace, part)) = progress {
+            trace.received(part, chunk.len());
+        }
         if chunk.len() > maximum.saturating_sub(bytes.len()) {
             return Err(oversized());
         }
@@ -192,27 +213,39 @@ async fn collect(
     }
     Ok(bytes)
 }
-async fn parse(mut request: Request) -> Result<UploadInput, IntakeError> {
+async fn parse(mut request: Request, trace: &Trace) -> Result<UploadInput, IntakeError> {
     DefaultBodyLimit::max(MAX_BODY_BYTES).apply(&mut request);
-    let mut fields = Multipart::from_request(request, &())
-        .await
-        .map_err(|_| IntakeError(StatusCode::UNSUPPORTED_MEDIA_TYPE))?;
+    let mut fields = Multipart::from_request(request, &()).await.map_err(|_| {
+        IntakeError(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            Category::ContentTypeRejected,
+        )
+    })?;
+    trace.phase(Phase::Metadata);
     let metadata = {
         let mut field = tokio::time::timeout(INTAKE_IDLE, fields.next_field())
             .await
-            .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT))?
-            .map_err(|error| IntakeError(error.status()))?
+            .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT, Category::IdleTimeout))?
+            .map_err(multipart_read_error)?
             .ok_or_else(invalid)?;
         if field.name() != Some("metadata") || field.file_name().is_some() {
             return Err(invalid());
         }
-        validate_metadata(&collect(&mut field, MAX_METADATA_BYTES).await?)?
+        validate_metadata(
+            &collect(
+                &mut field,
+                MAX_METADATA_BYTES,
+                Some((trace, Part::Metadata)),
+            )
+            .await?,
+        )?
     };
+    trace.phase(Phase::File);
     let bytes = {
         let mut field = tokio::time::timeout(INTAKE_IDLE, fields.next_field())
             .await
-            .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT))?
-            .map_err(|error| IntakeError(error.status()))?
+            .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT, Category::IdleTimeout))?
+            .map_err(multipart_read_error)?
             .ok_or_else(invalid)?;
         if field.name() != Some("file")
             || field.file_name() != Some(metadata.filename.as_str())
@@ -220,16 +253,17 @@ async fn parse(mut request: Request) -> Result<UploadInput, IntakeError> {
         {
             return Err(invalid());
         }
-        let bytes = collect(&mut field, MAX_FILE_BYTES).await?;
+        let bytes = collect(&mut field, MAX_FILE_BYTES, Some((trace, Part::File))).await?;
         if bytes.is_empty() {
             return Err(invalid());
         }
         bytes
     };
+    trace.phase(Phase::Trailer);
     if tokio::time::timeout(INTAKE_IDLE, fields.next_field())
         .await
-        .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT))?
-        .map_err(|error| IntakeError(error.status()))?
+        .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT, Category::IdleTimeout))?
+        .map_err(multipart_read_error)?
         .is_some()
     {
         return Err(invalid());
@@ -239,25 +273,28 @@ async fn parse(mut request: Request) -> Result<UploadInput, IntakeError> {
 
 async fn parse_asset(mut request: Request) -> Result<AssetInput, IntakeError> {
     DefaultBodyLimit::max(MAX_BODY_BYTES).apply(&mut request);
-    let mut fields = Multipart::from_request(request, &())
-        .await
-        .map_err(|_| IntakeError(StatusCode::UNSUPPORTED_MEDIA_TYPE))?;
+    let mut fields = Multipart::from_request(request, &()).await.map_err(|_| {
+        IntakeError(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            Category::ContentTypeRejected,
+        )
+    })?;
     let metadata = {
         let mut field = fields
             .next_field()
             .await
-            .map_err(|error| IntakeError(error.status()))?
+            .map_err(multipart_read_error)?
             .ok_or_else(invalid)?;
         if field.name() != Some("metadata") || field.file_name().is_some() {
             return Err(invalid());
         }
-        validate_asset_metadata(&collect(&mut field, MAX_METADATA_BYTES).await?)?
+        validate_asset_metadata(&collect(&mut field, MAX_METADATA_BYTES, None).await?)?
     };
     let bytes = {
         let mut field = fields
             .next_field()
             .await
-            .map_err(|error| IntakeError(error.status()))?
+            .map_err(multipart_read_error)?
             .ok_or_else(invalid)?;
         if field.name() != Some("file")
             || field.file_name() != Some(metadata.filename.as_str())
@@ -265,7 +302,7 @@ async fn parse_asset(mut request: Request) -> Result<AssetInput, IntakeError> {
         {
             return Err(invalid());
         }
-        let bytes = collect(&mut field, MAX_FILE_BYTES).await?;
+        let bytes = collect(&mut field, MAX_FILE_BYTES, None).await?;
         if bytes.is_empty() {
             return Err(invalid());
         }
@@ -274,7 +311,7 @@ async fn parse_asset(mut request: Request) -> Result<AssetInput, IntakeError> {
     if fields
         .next_field()
         .await
-        .map_err(|error| IntakeError(error.status()))?
+        .map_err(multipart_read_error)?
         .is_some()
     {
         return Err(invalid());
@@ -284,7 +321,8 @@ async fn parse_asset(mut request: Request) -> Result<AssetInput, IntakeError> {
 
 /// Consume only an already authorized request. No borrowed access/core/store
 /// guard may span this async intake. Media must measure and validate the bytes.
-pub async fn read(request: Request) -> Result<UploadInput, IntakeError> {
+pub(super) async fn read(request: Request, trace: &Trace) -> Result<UploadInput, IntakeError> {
+    trace.phase(Phase::IntakeHeaders);
     let length = headers::single(request.headers(), "content-length").map_err(|_| oversized())?;
     if let Some(length) = length
         && (length.is_empty()
@@ -294,11 +332,19 @@ pub async fn read(request: Request) -> Result<UploadInput, IntakeError> {
         return Err(oversized());
     }
     headers::single(request.headers(), "content-type")
-        .map_err(|_| IntakeError(StatusCode::UNSUPPORTED_MEDIA_TYPE))?
-        .ok_or(IntakeError(StatusCode::UNSUPPORTED_MEDIA_TYPE))?;
-    tokio::time::timeout(INTAKE_TOTAL, parse(request))
+        .map_err(|_| {
+            IntakeError(
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                Category::ContentTypeRejected,
+            )
+        })?
+        .ok_or(IntakeError(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            Category::ContentTypeRejected,
+        ))?;
+    tokio::time::timeout(INTAKE_TOTAL, parse(request, trace))
         .await
-        .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT))?
+        .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT, Category::TotalTimeout))?
 }
 
 pub async fn read_asset(request: Request) -> Result<AssetInput, IntakeError> {
@@ -311,9 +357,17 @@ pub async fn read_asset(request: Request) -> Result<AssetInput, IntakeError> {
         return Err(oversized());
     }
     headers::single(request.headers(), "content-type")
-        .map_err(|_| IntakeError(StatusCode::UNSUPPORTED_MEDIA_TYPE))?
-        .ok_or(IntakeError(StatusCode::UNSUPPORTED_MEDIA_TYPE))?;
+        .map_err(|_| {
+            IntakeError(
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                Category::ContentTypeRejected,
+            )
+        })?
+        .ok_or(IntakeError(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            Category::ContentTypeRejected,
+        ))?;
     tokio::time::timeout(Duration::from_secs(10), parse_asset(request))
         .await
-        .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT))?
+        .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT, Category::TotalTimeout))?
 }
