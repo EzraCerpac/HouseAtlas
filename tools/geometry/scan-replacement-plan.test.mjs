@@ -684,6 +684,7 @@ test('maximum three-floor replacement inspects all six selected derivatives', as
   const baseline = world({ floors, rooms: floors.map(floor => room({ id: `${floor.sourceFloorKey}:R1`, floor })) });
   const plan = await buildReplacementPlan(inputWith(baseline, floors.map(floor => successor(floor))));
   assert.equal(plan.geometryHistory.previous.length, 3);
+  assert.equal(new Set(plan.geometryHistory.previous.flatMap(record => record.payload.evidenceIds)).size, 3);
   assert.equal(plan.geometryHistory.candidates.length, 3);
   assert(plan.floors.every(f => f.geometryUnchanged && f.meshes.unchanged.length === 1));
   assert(plan.rooms.every(r => r.status === 'reuse-proposed' && r.nativeBindingRefreshRequired));

@@ -190,13 +190,15 @@ export async function buildReplacementPlan(input) {
   const reader = await import(decoderModule);
   // The decoder yields on this one event loop; isolate its existing per-read
   // budgets rather than charging another floor's work against this one.
-  const previous = [], next = [];
+  const previous = [], next = [], retainedEvidenceIds = new Set();
   for (const snapshot of input.floors) {
     const p = snapshot.geometry.payload;
     assert(p.producer === 'magicplan' && p.exportFormat === 'usdz' && p.coordinateUnits === 'unknown'
       && p.scale === null && p.transform === null && p.mappings.length === 0
       && p.geometryVersion === 1 && p.previousGeometryId === null && p.evidenceIds.length === 1,
     'Selected retained geometry must match the current native bundle profile');
+    assert(!retainedEvidenceIds.has(p.evidenceIds[0]), 'Retained native floor evidence IDs must be distinct');
+    retainedEvidenceIds.add(p.evidenceIds[0]);
     assert(!association.sourceDocuments.some(source => p.evidenceIds.includes(source.evidenceId)),
       'Retained native geometry evidence cannot also be scene document evidence');
     const retained = await inspect(snapshot, reader);

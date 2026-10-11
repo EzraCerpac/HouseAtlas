@@ -55,7 +55,8 @@ No backend, client, schema, shared UI or admission guard is changed here.
   Native descriptor keys are lowercase SHA-256 digests. Retained geometry must
   match the current native Magicplan/USDZ root profile: version 1, null
   predecessor, unknown units, null scale/transform, no mappings and one evidence
-  reference distinct from the scene document evidence IDs. Retained derivatives
+  reference distinct across retained floors and from scene document evidence IDs.
+  Retained derivatives
   require the exact schema/code/profile converter digest triple pinned by the
   current native mesh qualifier; the artifact retains that triple. These are
   metadata checks, not proof of converter execution or native custody.
