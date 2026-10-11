@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadNativeImportRuntime } from './native-scan-import-runtime.mjs';
 import { validateImportManifest, readPinnedFile, sha256, openImportJournal, applyNativeImport,
-  applyNativeScene, inspectImportJournal, journalTransport, createAgentContext } from './native-scan-import.mjs';
+  applyNativeScene, inspectImportJournal, journalTransport, createAgentContext, IMPORT_LIMITS } from './native-scan-import.mjs';
 import { parseCurlResponse, createNativeCurlTransport } from './native-scan-import-transport.mjs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -117,6 +117,15 @@ function fakeNative({ unknownAt = null } = {}) {
     },
   };
 }
+function addSyntheticEvidence(native, count) {
+  const identity = native.records.get(`identity:${buildingId}`);
+  const source = native.records.get(`evidence:${U(5)}`).payload;
+  for (let index = 0; index < count; index++) {
+    const id = U(5000 + index);
+    native.records.set(`evidence:${id}`, record('evidence', id, structuredClone(source)));
+    identity.payload.evidenceIds.push(id);
+  }
+}
 async function fixture(labels = ['One', 'Two']) {
   const directory = await realpath(await mkdtemp(join(tmpdir(), 'houseatlas-agent-import-test-'))); await chmod(directory, 0o700);
   const floors = [];
@@ -144,6 +153,27 @@ test('real source runtime records exact compiled decimal/mesh/client and schema 
   assert(runtime.provenance.modules.some(pin => pin.path === 'frontend/src/numeric/decimal.ts' && /^[a-f0-9]{64}$/.test(pin.compiledSha256)));
   assert(runtime.provenance.modules.some(pin => pin.path.endsWith('agent.schema.json?raw')));
 });
+test('maximum escaped request and response wire bodies durably reopen without changing wire bounds', async () => {
+  const files = await fixture(['Journal']);
+  try {
+    const journal = await openImportJournal(join(files.directory, 'escaped'), { create: true });
+    const body = JSON.stringify('\\'.repeat((IMPORT_LIMITS.wireBytes - 2) / 2));
+    const raw = '\u0000'.repeat(IMPORT_LIMITS.wireBytes);
+    assert.equal(Buffer.byteLength(body), IMPORT_LIMITS.wireBytes);
+    assert.equal(Buffer.byteLength(raw), IMPORT_LIMITS.wireBytes);
+    await journal.append('adapter-claim', { kind: 'scene-association', requestId: U(991), body });
+    let calls = 0;
+    const exchange = journalTransport(async () => { calls++; return new Response(raw); }, journal);
+    const response = await exchange('/api/atlas/synthetic-mutation', { method: 'POST', body });
+    assert.equal(await response.text(), raw); assert.equal(calls, 1);
+    const reopened = await openImportJournal(join(files.directory, 'escaped'));
+    assert.equal(reopened.events[0].data.body, body);
+    assert.equal(reopened.events[1].data.body, body);
+    assert.equal(reopened.events[2].data.body, raw);
+    assert.equal((await readFile(join(files.directory, 'escaped', '0003.json'))).length > 2 * 1024 * 1024, true);
+    assert.equal(reopened.events.length, 3);
+  } finally { await files.cleanup(); }
+});
 test('actual two-floor save, ALL fresh descriptor keys, durable reopen and identical no-POST reuse', async () => {
   const files = await fixture(), native = fakeNative(), context = localContext();
   try {
@@ -159,6 +189,51 @@ test('actual two-floor save, ALL fresh descriptor keys, durable reopen and ident
     const again = await files.selected('again.json'), second = await openImportJournal(join(files.directory, 'second'), { create: true });
     const reused = await applyNativeImport(again, runtime, context, journalTransport(native.transport, second), second, new AbortController().signal);
     assert.equal(native.postCount, 6); assert.deepEqual(reused.mappings.map(row => row.geometryId), firstIds); reused.reader.dispose();
+  } finally { await files.cleanup(); }
+});
+test('complete geometry capacity refuses 99 retained evidence rows before any asset custody', async () => {
+  const files = await fixture(), native = fakeNative();
+  try {
+    addSyntheticEvidence(native, 98);
+    const selected = await files.selected(), journal = await openImportJournal(join(files.directory, 'capacity'), { create: true });
+    await assert.rejects(applyNativeImport(selected, runtime, localContext(), native.transport, journal, new AbortController().signal));
+    assert.equal(native.postCount, 0); assert.equal(journal.events.at(-1).kind, 'held');
+    assert.equal([...native.records.values()].filter(row => ['asset', 'geometry'].includes(row.target.recordType)).length, 0);
+  } finally { await files.cleanup(); }
+});
+test('geometry association UTF-8 batch capacity is checked before original and derivative uploads', async () => {
+  const files = await fixture(['Capacity']), native = fakeNative();
+  try {
+    files.manifest.reason = '😀'.repeat(1024);
+    const selected = await files.selected(), journal = await openImportJournal(join(files.directory, 'utf8-capacity'), { create: true });
+    await assert.rejects(applyNativeImport(selected, runtime, localContext(), native.transport, journal, new AbortController().signal));
+    assert.equal(native.postCount, 0); assert.equal(journal.events.at(-1).kind, 'held');
+  } finally { await files.cleanup(); }
+});
+test('the later floor capacity is reserved before the first floor uploads any asset', async () => {
+  const files = await fixture();
+  try {
+    const selected = await files.selected(); let threshold = null;
+    // At most forty small GET-only synthetic observations locate the actual
+    // published batch threshold, without mirroring its serialization formula.
+    for (let count = 0; count < 40; count++) {
+      const native = fakeNative(), context = localContext(); addSyntheticEvidence(native, count);
+      const client = runtime.association.createNativeGeometryAssociationClient({ ...context, origin, transport: native.transport });
+      const binding = client.getBinding(); assert(binding);
+      const input = { buildingId, semanticsId, statement: selected.manifest.statement, reason: selected.manifest.reason };
+      let first;
+      try { first = await client.reserve(binding, { ...input, floors: [{ previousGeometryId: null }] }, AbortSignal.timeout(3000)); }
+      catch { break; }
+      assert(first.floors[0].bodyBytes <= 16384);
+      try { await client.reserve(binding, { ...input, floors: [{ previousGeometryId: null }, { previousGeometryId: null }] }, AbortSignal.timeout(3000)); }
+      catch { threshold = { native, context, count, first }; break; }
+      assert.equal(native.postCount, 0);
+    }
+    assert(threshold, 'Actual first-floor-fit/later-floor-full threshold must be observed');
+    const journal = await openImportJournal(join(files.directory, 'later-capacity'), { create: true });
+    await assert.rejects(applyNativeImport(selected, runtime, threshold.context, threshold.native.transport, journal, new AbortController().signal));
+    assert.equal(threshold.native.postCount, 0); assert.equal(journal.events.at(-1).kind, 'held');
+    assert.equal([...threshold.native.records.values()].filter(row => ['asset', 'geometry'].includes(row.target.recordType)).length, 0);
   } finally { await files.cleanup(); }
 });
 test('UNKNOWN custody stops after one POST; passive inspection keeps retry safety unestablished', async () => {

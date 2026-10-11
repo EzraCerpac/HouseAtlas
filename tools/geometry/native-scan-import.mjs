@@ -9,7 +9,10 @@ import { loadNativeImportRuntime } from './native-scan-import-runtime.mjs';
 import { createNativeCurlTransport } from './native-scan-import-transport.mjs';
 
 export const IMPORT_LIMITS = Object.freeze({ manifest: 2 * 1024 * 1024, floors: 3,
-  original: 10 * 1024 * 1024, derivative: 8 * 1024 * 1024, events: 128, eventBytes: 2 * 1024 * 1024 });
+  original: 10 * 1024 * 1024, derivative: 8 * 1024 * 1024, events: 128,
+  // A bounded 1 MiB wire string can expand sixfold when JSON escapes control
+  // bytes. This is journal storage, not a larger request/response allowance.
+  eventBytes: 8 * 1024 * 1024, wireBytes: 1024 * 1024, metadataBytes: 16 * 1024, pathBytes: 8192 });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const SHA = /^[0-9a-f]{64}$/;
 export const sha256 = value => createHash('sha256').update(value).digest('hex');
@@ -199,15 +202,36 @@ export function journalTransport(base, journal) {
     const mutation = init.method === 'POST' && !path.startsWith('/api/atlas/auth/') && path !== '/api/atlas/retained-intent';
     if (mutation) {
       const metadata = init.body instanceof FormData ? init.body.get('metadata') : null;
+      assert(Buffer.byteLength(path) <= IMPORT_LIMITS.pathBytes);
+      assert(metadata === null || typeof metadata === 'string' && Buffer.byteLength(metadata) <= IMPORT_LIMITS.metadataBytes);
+      assert(typeof init.body !== 'string' || Buffer.byteLength(init.body) <= IMPORT_LIMITS.wireBytes);
       await journal.append('dispatch', { path, method: 'POST', metadata, body: typeof init.body === 'string' ? init.body : null });
     }
     try {
       const response = await base(input, init);
-      if (mutation) { const raw = await response.clone().text(); assert(Buffer.byteLength(raw) <= 1024 * 1024);
+      if (mutation) { const raw = await boundedJournalResponse(response.clone(), init.signal);
         await journal.append('response', { path, status: response.status, body: raw }); }
       return response;
     } catch (error) { if (mutation) await journal.append('unknown', { path, message: 'Response or local durable receipt unavailable; do not resend' }); throw error; }
   };
+}
+async function boundedJournalResponse(response, signal) {
+  const reader = response.body?.getReader(); assert(reader);
+  const abort = () => { void reader.cancel().catch(() => undefined); };
+  signal?.addEventListener('abort', abort, { once: true });
+  const chunks = []; let total = 0;
+  try {
+    for (;;) {
+      signal?.throwIfAborted(); const next = await reader.read(); signal?.throwIfAborted();
+      if (next.done) break;
+      assert(next.value instanceof Uint8Array && next.value.length <= IMPORT_LIMITS.wireBytes - total && chunks.length < 8192);
+      total += next.value.length; chunks.push(next.value);
+    }
+    const combined = new Uint8Array(total); let offset = 0;
+    for (const part of chunks) { combined.set(part, offset); offset += part.length; }
+    return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(combined);
+  } catch (error) { abort(); throw error; }
+  finally { signal?.removeEventListener('abort', abort); reader.releaseLock(); }
 }
 const compareIds = (a, b) => assert.deepEqual([...a].sort(), [...b].sort(), 'Current native floor selection changed');
 const licensesMatch = (floor, selected) => [floor.originalLicense, floor.derivativeLicense].every(license =>
@@ -220,6 +244,22 @@ function sceneInputForGeometry(selected, mappings) {
     return { ...source, nativeGeometryId: mapping.geometryId };
   });
   return { ...selected.scene, sourceFloors };
+}
+function planNativeFloors(floors, frame, manifest) {
+  const used = new Set();
+  return floors.map(item => {
+    const floor = item.selected;
+    const matches = frame.floors.filter(row => row.originalSHA256 === floor.original.sha256 && row.derivativeSHA256 === floor.derivative.sha256
+      && (floor.previousGeometryId !== null ? row.geometryId === floor.previousGeometryId : !used.has(row.geometryId)));
+    assert(matches.length <= 1, 'Retained geometry is ambiguous');
+    if (matches.length && licensesMatch(matches[0], manifest.sourceLicense)) {
+      const native = matches[0]; assert(!used.has(native.geometryId)); used.add(native.geometryId);
+      return { item, reusedGeometryId: native.geometryId };
+    }
+    assert(!matches.length || floor.previousGeometryId !== null, 'A license correction requires an explicit native predecessor');
+    if (floor.previousGeometryId !== null) assert(frame.floors.some(row => row.geometryId === floor.previousGeometryId));
+    return { item, reusedGeometryId: null };
+  });
 }
 export async function applyNativeImport(selected, runtime, context, transport, journal, signal, sceneOwner = null) {
   const { manifest, floors } = selected;
@@ -237,8 +277,23 @@ export async function applyNativeImport(selected, runtime, context, transport, j
       await journal.append('scene-predecessor', { buildingId: manifest.buildingId, status: captured.status,
         recordId: captured.status === 'available' ? captured.recordId : null });
     }
+    // Capacity covers the complete ordered set before any original/derivative
+    // custody. It observes current reads; actual prepare still uses fresh guards.
+    const planned = planNativeFloors(floors, frame, manifest);
+    const creating = planned.filter(part => part.reusedGeometryId === null);
+    if (creating.length) {
+      const owner = associate.getBinding(); assert(owner);
+      const capacity = await associate.reserve(owner, { buildingId: manifest.buildingId, semanticsId: manifest.semanticsId,
+        floors: creating.map(part => ({ previousGeometryId: part.item.selected.previousGeometryId })),
+        statement: manifest.statement, reason: manifest.reason }, signal);
+      await journal.append('geometry-capacity-observation', {
+        identityRevision: capacity.identityRevision.token, semanticsRevision: capacity.semanticsRevision.token,
+        floors: capacity.floors, applicationMutation: false,
+      });
+    }
     const used = new Set();
-    for (const item of floors) {
+    for (const plan of planned) {
+      const item = plan.item;
       const floor = item.selected;
       const matches = frame.floors.filter(row => row.originalSHA256 === floor.original.sha256 && row.derivativeSHA256 === floor.derivative.sha256
         && (floor.previousGeometryId !== null ? row.geometryId === floor.previousGeometryId : !used.has(row.geometryId)));
@@ -246,10 +301,12 @@ export async function applyNativeImport(selected, runtime, context, transport, j
       let native;
       if (matches.length && licensesMatch(matches[0], manifest.sourceLicense)) {
         native = matches[0]; assert(!used.has(native.geometryId));
+        assert.equal(native.geometryId, plan.reusedGeometryId, 'Current reuse selection changed after capacity observation');
         assert(floor.previousGeometryId === null || floor.previousGeometryId === native.geometryId,
           'Selected predecessor differs from retained identical floor');
         await journal.append('reused', { sourceFloorKey: floor.sourceFloorKey, sourceOriginalSha256: floor.sourceOriginalSha256, geometryId: native.geometryId });
       } else {
+        assert.equal(plan.reusedGeometryId, null, 'Current reuse eligibility changed after capacity observation');
         assert(!matches.length || floor.previousGeometryId !== null,
           'A license correction requires an explicit native predecessor');
         if (floor.previousGeometryId !== null) assert(frame.floors.some(row => row.geometryId === floor.previousGeometryId));
@@ -295,7 +352,11 @@ export async function applyNativeImport(selected, runtime, context, transport, j
 
 function createSceneOwner(selected, runtime, context, transport, journal) {
   return runtime.scene.createNativeScanSceneImporter({ ...context, origin: selected.manifest.origin, transport,
-    beforeDispatch: (kind, request) => journal.append('adapter-claim', { kind, ...request }),
+    beforeDispatch: (kind, request) => {
+      assert(request.body === undefined || typeof request.body === 'string' && Buffer.byteLength(request.body) <= IMPORT_LIMITS.wireBytes);
+      assert(request.metadata === undefined || typeof request.metadata === 'string' && Buffer.byteLength(request.metadata) <= IMPORT_LIMITS.metadataBytes);
+      return journal.append('adapter-claim', { kind, ...request });
+    },
     afterResult: (kind, result) => journal.append('adapter-result', { kind, requestId: result.requestId, outcome: result.outcome,
       receiptBody: result.receipt ? runtime.numeric.stringifyLosslessJson(result.receipt) : null }),
   });

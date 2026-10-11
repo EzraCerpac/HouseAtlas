@@ -77,7 +77,14 @@ head or genuine absence before geometry/text identity changes. The same importer
 retains the production client's owner-bound opaque token; the host receives safe
 status/record ID/revision metadata only. Before preparing a successor the client
 revalidates the prior record by authenticated Stock GET and adds its guard. The
-server's atomic current-head/predecessor/version check remains final authority;
+actual current-head route is checked against that captured record/revision/payload
+before documentary custody when descriptor keys are unchanged. A competing head
+throws rather than becoming a reuse mismatch that permits uploads. The same
+comparison runs during inspection; the old row remaining active is insufficient.
+When the agent's own geometry changes descriptor keys, the current route cannot
+qualify stale floor bindings: the retained token supplies successor provenance,
+not a fresh head claim, and the server's atomic predecessor guard still applies.
+The server's atomic current-head/predecessor/version check remains final authority;
 a GET of a historical record does not establish it as today's head. Direct
 `importScene` callers self-capture before text if no prior was supplied.
 
@@ -138,6 +145,7 @@ node frontend/lantern-tests/native-scan-import-scene.mjs floor-selection
 node frontend/lantern-tests/native-scan-import-scene.mjs literal-labels
 node frontend/lantern-tests/native-scan-import-scene.mjs scene-reuse
 node frontend/lantern-tests/native-scan-import-scene.mjs scene-replacement
+node frontend/lantern-tests/native-scan-import-scene.mjs stale-current-scene
 ```
 
 The committed case follows the actual standalone asset result, native original
@@ -172,3 +180,9 @@ refusals and changed-owner refusal before custody. It separately confirms the
 scene accepts a valid request above the text lookup cap within its own bound.
 Literal-labels includes a closed reviewed support
 carrier: matching scope passes, other workspace/home scopes refuse with zero HTTP.
+
+`stale-current-scene` first seeds an actual generated committed scene, captures
+its prior, then advances the fake current head through another valid stored
+record while leaving the old row and geometry descriptor keys unchanged. Both
+inspection and import must throw before any additional custody POST or journal
+claim. It proves the current-head check is separate from retained-row validation.

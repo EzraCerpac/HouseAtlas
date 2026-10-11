@@ -78,9 +78,13 @@ node --test --test-concurrency=1 tools/geometry/scan-replacement-plan.test.mjs
 
 The separate assistant-native-import regression lane uses disposable synthetic
 files and fake responses with the actual native geometry clients/decoder. It
-checks bounded file selection, durable journals, two-floor native intent
+checks bounded file selection, escaped wire-body durable journals, complete
+pre-custody geometry capacity reservations, two-floor native intent
 correlation, identical no-POST reuse and unavailable-response holds/passive
 reconciliation. It makes no network, account, provider or household calls.
+Capacity cases use current synthetic evidence and UTF-8 reason sizes; one case
+makes at most forty small GET-only fake observations to locate a first-floor-fit,
+later-floor-full capacity threshold, then checks zero custody POSTs.
 Scope and callable selection contract are in [assistant native scan intake](docs/geometry/assistant-native-scan-import.md).
 Inspect the complete tool/runtime/transport/test bodies before this exact check:
 
@@ -113,6 +117,7 @@ node frontend/lantern-tests/native-scan-import-scene.mjs floor-selection
 node frontend/lantern-tests/native-scan-import-scene.mjs literal-labels
 node frontend/lantern-tests/native-scan-import-scene.mjs scene-reuse
 node frontend/lantern-tests/native-scan-import-scene.mjs scene-replacement
+node frontend/lantern-tests/native-scan-import-scene.mjs stale-current-scene
 ```
 
 After inspecting the tool, test and source-loader imports, the assistant can

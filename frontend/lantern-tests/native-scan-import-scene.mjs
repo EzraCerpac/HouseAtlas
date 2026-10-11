@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import { transformWithOxc } from 'vite';
 assert.equal(process.version,'v26.10.0');
 process.on('uncaughtException',error=>{const frames=[...(error.stack??'').matchAll(/data:text\/javascript;base64,([A-Za-z0-9+/=]+):(\d+):(\d+)/g)].slice(0,8).map(m=>({line:Number(m[2]),sourceLine:Buffer.from(m[1],'base64').toString().split('\n')[Number(m[2])-1]?.slice(0,300)}));console.error(JSON.stringify({case:process.argv[2],status:'FAILED',error:error.name,message:error.message.slice(0,500),frames}));process.exitCode=1;});
-const names=new Set(['committed','asset-unknown','evidence-unknown','association-unknown','floor-selection','literal-labels','scene-reuse','scene-replacement']);
+const names=new Set(['committed','asset-unknown','evidence-unknown','association-unknown','floor-selection','literal-labels','scene-reuse','scene-replacement','stale-current-scene']);
 assert.equal(process.argv.length,3);const name=process.argv[2];assert(names.has(name),'Choose one registered case');
 const frontend=resolve(dirname(fileURLToPath(import.meta.url)),'..'),root=dirname(frontend);
 const require=createRequire(pathToFileURL(resolve(frontend,'package.json'))),loaded=new Map(),sourcePins={};
@@ -218,11 +218,26 @@ try{
       await assert.rejects(client.importScene(input,budget));assert.equal(calls.filter(c=>c.method==='POST').length,5);
       outcome=await client.reconcileScene(budget);assert.equal(outcome.outcome,'committed');assert.equal(client.isHeld(),false);
       assert.equal(calls.filter(c=>c.method==='POST').length,5,'Acknowledged partial reconciles through fresh GET, never resolve/resend');
-    }else if(name==='committed'||name==='scene-reuse'||name==='scene-replacement'){
+    }else if(name==='committed'||name==='scene-reuse'||name==='scene-replacement'||name==='stale-current-scene'){
       assert.equal(outcome.outcome,'committed');assert.equal(calls.filter(c=>c.method==='POST').length,5);
       assert.equal(outcome.current.selection.sceneEvidenceId,outcome.primary.evidenceId);assert.equal(identity().revision,3);
       assert.deepEqual(identity().payload.evidenceIds,[geomEvidenceId,outcome.primary.evidenceId,outcome.historical.evidenceId]);
       assert.equal(outcome.current.selection.sourceFloorBindings[0].nativeFloorKey,floorKey());assert.equal(client.isHeld(),false);
+      if(name==='stale-current-scene'){
+        client.dispose();assert.equal(listeners.size,0);const successor=createNativeScanSceneImporter(options),prior=current,descriptorKey=viewKey();
+        try{const captured=await successor.capturePriorScene(buildingId,budget);assert.equal(captured.status,'available');assert.equal(captured.recordId,prior.recordId);
+          // A different writer creates a genuine generated current head. The
+          // retained old record stays active/unchanged and geometry keys stay fixed.
+          current={...prior,recordId:U(++counter),lastAuditId:U(++counter),payload:{...prior.payload,associationVersion:2,previousAssociationId:prior.recordId,reviewStatement:'Another reviewed writer advanced this head'}};
+          set('scene-association',current.recordId,current.payload);assert.equal(viewKey(),descriptorKey);assert.equal(records.get('scene-association:'+prior.recordId).payload,prior.payload);
+          const selected={...input,statement:'Reviewed candidate after competing head'};const claims=journal.length;
+          await assert.rejects(successor.inspectCurrentScene(selected,budget),/prior scene head changed; custody remains held/,'A valid competing current head cannot become a mismatch/reuse null');
+          await assert.rejects(successor.importScene(selected,budget),/prior scene head changed; custody remains held/,'Retained predecessor authentication cannot authorize new documentary custody');
+          assert.equal(calls.filter(c=>c.method==='POST').length,5,'Competing-head refusal performs zero extra POSTs');assert.equal(journal.length,claims,'No new custody claim or fabricated receipt');
+          assert(calls.some(c=>c.method==='GET'&&c.path.endsWith('/records/scene-association/'+prior.recordId)),'Actual retained-row authentication was exercised before the distinct head refusal');
+          assert.equal(successor.isConsumed(),false);assert.equal(records.get('scene-association:'+prior.recordId).revision,1);
+        }finally{successor.dispose();}
+      }
       if(name==='scene-replacement'){
         client.dispose();assert.equal(listeners.size,0);const successor=createNativeScanSceneImporter(options),prior=current;
         try{const captured=await successor.capturePriorScene(buildingId,budget);assert.equal(captured.status,'available');assert.equal(captured.recordId,prior.recordId);

@@ -69,6 +69,13 @@ reuse differently licensed assets. Explicit predecessors also disambiguate
 distinct native floors with identical bytes. A successor replaces only its
 selected lineage head. Every building
 evidence append refreshes ALL descriptor keys, including untouched floors.
+Before the first asset upload, a GET-only capacity observation checks the entire
+ordered nonreused floor set against the current building/classification evidence,
+predecessors, 100-record/guard limits and 16 KiB association batches. It accounts
+for every proposed evidence append and the maximum published revision width.
+The journal records counts and observed revisions; this creates no records or
+commit admission. Each actual association still rereads current records and
+prepares its existing guarded batch after genuine asset custody.
 Before any geometry write, the same scene owner captures the qualified current
 scene (or genuine absence) under its current session. After descriptor keys change,
 it revalidates that retained record's exact revision and payload and submits its
@@ -79,7 +86,14 @@ fresh native floor bindings. An identical verified scene reuses its native ID
 without another upload or fabricated commit receipt.
 
 Journals are mode0600, exclusively created, hash chained and file/directory
-synced before dispatch. Unknown, partial, timeout, invalidated or unverified
+synced before dispatch. Each of at most 128 events has an 8 MiB storage bound:
+an individually bounded 1 MiB response can require six times as many bytes when
+JSON escapes its control characters. JSON-string mutation bodies and individual
+responses remain bounded to 1 MiB. Multipart uploads retain the existing 11 MiB
+transport bound and file-specific limits; only their metadata (16 KiB) enters the
+journal. Mutation paths are bounded to 8 KiB before dispatch.
+The fully encoded event remains size-checked and exact bodies reopen unchanged.
+Unknown, partial, timeout, invalidated or unverified
 results stop the operation. Preserve that journal; do not start a new application
 attempt to work around a hold. `inspect` only reads exact retained Stock intents,
 current geometry and the original claimed scene ID/payload through the actual
@@ -106,5 +120,10 @@ one explicit partial successor retaining the other floor/history, license-aware
 reuse/correction, identical-byte predecessor selection, prior-scene capture before
 custody, unavailable
 custody and association holds with passive reconciliation, selected-file fences,
-normal-context composition, setup-failure own logout and HTTPS framing. These
+normal-context composition, setup-failure own logout, maximum escaped journal
+body reopen, pre-custody full-record/UTF-8 batch/later-floor capacity and HTTPS
+framing. The later-floor check makes at most forty small fake GET-only observations
+to find a full-set capacity threshold; it does not classify the refusal as the
+byte ceiling versus another existing batch bound. No original is uploaded.
+These
 checks establish protocol composition, not live persistence or browser rendering.

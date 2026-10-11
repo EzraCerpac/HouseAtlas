@@ -250,6 +250,26 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
       need(isExactDecimal(version)&&version.compare(ExactDecimal.parse('9007199254740991'))<0);}
     previous={...captured,buildingId,viewKey:frame.viewKey,owner};return captured.current;
   };
+  const requireCapturedHead = (observed:SceneAssociationRead) => {
+    need(previous);const captured=previous.current;
+    if(captured.status==='available'){
+      if(observed.status!=='available'||observed.recordId!==captured.recordId
+        ||observed.revision.compare(captured.revision)!==0||canonical(observed.payload)!==canonical(captured.payload))
+        throw new TypeError('Native scan prior scene head changed; custody remains held');
+    }else if(observed.status!=='unavailable'||observed.reason!=='no-current-association')
+      throw new TypeError('Native scan prior scene head changed; custody remains held');
+  };
+  const checkCapturedCurrentHead = async (frame:NativeGeometryFrame,signal:AbortSignal) => {
+    need(previous&&previous.owner===getBinding()&&geometry.isCurrent(frame));
+    // With unchanged descriptor keys the actual current route can authenticate
+    // the head, not merely the retained predecessor row. A changed-frame prior
+    // remains successor provenance; its token/guard and the server's atomic
+    // predecessor check are still required, not a current-head assertion.
+    if(previous.viewKey===frame.viewKey){
+      const observed=await associations.readCurrent(previous.buildingId,frame,signal);
+      signal.throwIfAborted();need(previous.owner===getBinding()&&geometry.isCurrent(frame));requireCapturedHead(observed);
+    }
+  };
   return {
     /** Capture genuine qualified predecessor before geometry/text changes keys. */
     async capturePriorScene(buildingId:string,outer:AbortSignal){
@@ -288,6 +308,7 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
           if(previous.current.status==='available'&&previous.viewKey!==frame.viewKey)return null;
         }
         const current=await associations.readCurrent(input.buildingId,frame,signal);
+        if(previous)requireCapturedHead(current);
         if(current.status!=='available'){
           if(current.reason==='no-current-association')return null;
           throw new TypeError('Native scan current scene source is unavailable; mutation remains held');
@@ -344,6 +365,8 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
         await associations.validatePrevious(previous.token,first,signal);
         signal.throwIfAborted();need(getBinding()===owner);
         await texts.reserveTexts([input.primary,input.historical],signal);
+        signal.throwIfAborted();need(getBinding()===owner&&geometry.isCurrent(first));
+        await checkCapturedCurrentHead(first,signal);
         signal.throwIfAborted();need(getBinding()===owner&&geometry.isCurrent(first));
         // After this lane claims text custody, it cannot be invoked anew after
         // any later failure. Root's durable journal enforces the same on restart.
