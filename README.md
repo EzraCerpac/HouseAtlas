@@ -61,6 +61,34 @@ publication or deployment readiness.
 
 Use Node **26.10.0** and npm **11.19.1**. Install the exact dependency locks:
 
+Assistant-managed incremental scan planning uses selected retained versions and
+the actual authored mesh decoder. Both commands require the locked frontend
+dependencies (Vite, Ajv and Ajv-formats). Use an existing prepared cache; in a
+clean checkout prepare it first with the existing named command:
+
+```sh
+npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+```
+
+Its synthetic local check is:
+
+```sh
+node --test --test-concurrency=1 tools/geometry/scan-replacement-plan.test.mjs
+```
+
+After inspecting the tool, test and source-loader imports, the assistant can
+retain a private, create-only proposal from explicitly selected local files:
+
+```sh
+node tools/geometry/scan-replacement-plan.mjs /absolute/private/selection.json /absolute/private/NEW-artifact-directory
+```
+
+The artifact preserves version/receipt/identity/overlay evidence, object diffs
+and reversal references. It does not submit custody or native replacement;
+current-head freshness and new-frame acceptance remain separate. See
+[assistant scan replacement](docs/geometry/assistant-scan-replacement.md) for
+input bounds, frame applicability and the initial-only native adoption gap.
+
 An explicitly named offline receipt example uses two fresh synthetic initialized
 states and an exact SHA256-selected binary built from original source
 `3016c5362daa89983f02c4790fc329a94eb43420`. It checks strict legacy refusal,
@@ -207,6 +235,29 @@ cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitra
 This positive establishes only synthetic native persistence. It supplies no
 live installation, household intake, older-binary compatibility or failure,
 replay, revocation, interruption or concurrent-write qualification.
+
+A separate successful scan-succession example retains two synthetic floors,
+then appends version 2 of only one floor against its current same-building
+predecessor. It refreshes both descriptor keys and records two freshly guarded
+scene bindings, retaining original custody, geometry/scene history, stable room,
+elevation, device and circuit identities. Strict authenticated reopen uses the
+actual in-process Axum/SQLite/vault/Stock owners. The TypeScript positive uses the
+production association/read clients and closed schemas with local fake responses.
+Inspect both complete bodies and their imports before these exact commands:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision --example healthy-native-scan-succession
+node frontend/lantern-tests/native-scan-succession.mjs
+cargo test --offline --locked -p houseatlas-backend --lib media::geometry_bundle::tests::bounded_history_and_retired_pair_preflight -- --exact --test-threads=1
+```
+
+These successful synthetic checks open no listener, use no household files or
+provider, and perform no live import, physical registration or deployment.
+The named in-memory metadata correction case checks a 64-version history,
+the 65th-row bound, retired custody-pair reservation and ordering before missing
+local vault bytes. It writes no native records and releases no broader controls.
+Guard reversal, omission, replay, interruption and private intake remain held.
+See [native scan succession](docs/geometry/native-scan-succession.md).
 
 The separate issue #149 acceptance lane checks only synthetic room-anchor
 rejections and successful retained association/readback. Inspect both complete
