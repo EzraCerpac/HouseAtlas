@@ -13,6 +13,7 @@ type Row = { [key: string]: LosslessJson };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const SHA = /^[0-9a-f]{64}$/;
 const ONE = ExactDecimal.parse('1'), MAX = ExactDecimal.parse('9007199254740991');
+const MAX_HEAD = 4096;
 const MAX_META = 1024 * 1024, MAX_ORIGINAL = 8 * 1024 * 1024, MAX_BODY = 1024 * 1024;
 const DEADLINE_MS = 60_000;
 const encoder = new TextEncoder();
@@ -111,11 +112,11 @@ async function bounded<T>(outer: AbortSignal, work: (signal: AbortSignal) => Pro
   try { controller.signal.throwIfAborted(); return await abortable(work(controller.signal), controller.signal); }
   finally { clearTimeout(timer); outer.removeEventListener('abort', forward); controller.abort(); }
 }
-async function responseJson(response: Response, signal: AbortSignal): Promise<LosslessJson> {
+async function responseJson(response: Response, signal: AbortSignal, maxBytes = MAX_META): Promise<LosslessJson> {
   need(response.status === 200 && !response.redirected && response.type !== 'opaque' && response.type !== 'opaqueredirect');
   need(response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() === 'application/json');
   const declared = response.headers.get('content-length');
-  need(declared === null || /^(0|[1-9][0-9]*)$/.test(declared) && BigInt(declared) <= BigInt(MAX_META));
+  need(declared === null || /^(0|[1-9][0-9]*)$/.test(declared) && BigInt(declared) <= BigInt(maxBytes));
   const reader = response.body?.getReader(); need(reader); let total = 0; const chunks: Uint8Array[] = [];
   const cancel = () => { void reader.cancel().catch(() => undefined); };
   signal.addEventListener('abort', cancel, { once: true });
@@ -123,7 +124,7 @@ async function responseJson(response: Response, signal: AbortSignal): Promise<Lo
     for (;;) {
       signal.throwIfAborted(); const part = await abortable(reader.read(), signal); signal.throwIfAborted();
       if (part.done) break;
-      need(part.value instanceof Uint8Array && part.value.length <= MAX_META - total && chunks.length < 8192);
+      need(part.value instanceof Uint8Array && part.value.length <= maxBytes - total && chunks.length < 8192);
       chunks.push(part.value); total += part.value.length;
     }
     need(total > 0 && (declared === null || BigInt(declared) === BigInt(total)));
@@ -204,8 +205,11 @@ export interface SceneAssociationClient {
   pending(buildingId: string): readonly SceneAssociationPending[];
   isPreparedCurrent(prepared: SceneAssociationPrepared): boolean;
   readCurrent(buildingId: string, geometry: NativeGeometryFrame, signal: AbortSignal): Promise<SceneAssociationRead>;
+  /** Qualified before descriptor-changing writes; the opaque token belongs to this owner. */
+  capturePrevious(buildingId: string, geometry: NativeGeometryFrame, signal: AbortSignal): Promise<Readonly<{ token: object; current: SceneAssociationRead }>>;
+  validatePrevious(token: object, geometry: NativeGeometryFrame, signal: AbortSignal): Promise<SceneAssociationRead>;
   prepare(candidate: SceneAssociationCandidate, geometry: NativeGeometryFrame,
-    statement: string, reason: string, signal: AbortSignal): Promise<SceneAssociationPrepared>;
+    statement: string, reason: string, signal: AbortSignal, previous?: object): Promise<SceneAssociationPrepared>;
   releasePrepared(prepared: SceneAssociationPrepared): void;
   submit(prepared: SceneAssociationPrepared, geometry: NativeGeometryFrame, signal: AbortSignal, confirmDrawingSupport?: boolean): Promise<SceneAssociationRead>;
   resolve(prepared: SceneAssociationPrepared, geometry: NativeGeometryFrame, signal: AbortSignal): Promise<SceneAssociationRead>;
@@ -228,6 +232,7 @@ export function createNativeSceneAssociationClient(options: {
     outcome: 'unknown' | 'committed' };
   const listeners = new Set<() => void>(), pending = new Map<SceneAssociationPrepared, PendingRow>();
   const preparedOwner = new WeakMap<SceneAssociationPrepared, object>();
+  const previousOwner = new WeakMap<object, { owner: object; buildingId: string; head: SceneAssociationRead }>();
   const held = new Map<SceneAssociationPrepared, { primary: NativeEvidenceDocumentFrame;
     historical: NativeEvidenceDocumentFrame; stopPrimary: () => void; stopHistorical: () => void;
     withdrawn: AbortController; pdfOwner?: NativeEvidenceDocumentClient; pdf?: NativeEvidenceDocumentFrame; stopPdf?: () => void }>();
@@ -276,10 +281,10 @@ export function createNativeSceneAssociationClient(options: {
   const unknown = (buildingId: string, owner: object, next: SceneAssociationContext) =>
     visiblePending(buildingId, owner, next).some(([, item]) => item.outcome === 'unknown');
   const path = (next: SceneAssociationContext) => `/api/atlas/stock/v3/workspaces/${next.view.scope.workspaceId}/homes/${next.view.scope.homeId}`;
-  const obtain = async (url: string, init: RequestInit, signal: AbortSignal) => {
+  const obtain = async (url: string, init: RequestInit, signal: AbortSignal, maxBytes = MAX_META) => {
     const response = await abortable(transport(url, { ...init, signal, credentials: 'same-origin',
       cache: 'no-store', redirect: 'error', mode: 'same-origin' }), signal);
-    try { return await responseJson(response, signal); }
+    try { return await responseJson(response, signal, maxBytes); }
     catch (error) { void response.body?.cancel().catch(() => undefined); throw error; }
   };
   const buildingHasEvidence = async (buildingId: string, evidenceId: string, next: SceneAssociationContext,
@@ -392,6 +397,47 @@ export function createNativeSceneAssociationClient(options: {
     options.primaryReview.release(item.primary); options.historicalReview.release(item.historical);
     item.stopPdf?.(); if (item.pdf && item.pdfOwner) item.pdfOwner.release(item.pdf); item.pdfOwner?.dispose();
   };
+  const validatePrevious = async (token: object, geometry: NativeGeometryFrame, outer: AbortSignal): Promise<SceneAssociationRead> => {
+    const captured = previousOwner.get(token), next = context(), owner = binding!;
+    need(captured && captured.owner === owner && current(owner, geometry)
+      && geometry.descriptor.buildingId === captured.buildingId
+      && geometry.descriptor.scope.workspaceId === next.view.scope.workspaceId
+      && geometry.descriptor.scope.homeId === next.view.scope.homeId);
+    const head = captured.head;
+    return bounded(outer, async signal => {
+      // One authenticated snapshot selects the complete retained chain in the
+      // backend and returns only its head pins. Historical payloads need not fit
+      // together in a frontend metadata response. This remains a read-point
+      // proof; the backend checks the actual predecessor atomically on submit.
+      const expectedDigest = head.status === 'available'
+        ? await abortable(digest(encoder.encode(canonical(head.payload))), signal) : null;
+      signal.throwIfAborted(); need(current(owner, geometry));
+      const url = `/api/atlas/scene/v1/workspaces/${next.view.scope.workspaceId}/homes/${next.view.scope.homeId}/buildings/${captured.buildingId}/head`;
+      const raw = await obtain(url, { method: 'GET', headers: { Accept: 'application/json' } }, signal, MAX_HEAD);
+      signal.throwIfAborted(); need(current(owner, geometry));
+      const output = row(raw, ['schema','scope','buildingId','status','reason','head']);
+      const scope = row(output.scope, ['workspaceId','homeId']);
+      need(output.schema === 'houseatlas.native-scene-head.v1'
+        && uuid(scope.workspaceId) === next.view.scope.workspaceId && uuid(scope.homeId) === next.view.scope.homeId
+        && uuid(output.buildingId) === captured.buildingId);
+      const assertHead = (condition: unknown): void => {
+        if (!condition) throw new TypeError('Native scan prior scene head changed; custody remains held');
+      };
+      if (output.status === 'unavailable') {
+        need(output.head === null && (output.reason === 'no-current-association' || output.reason === 'current-source-unavailable'));
+        assertHead(head.status === 'unavailable' && head.reason === 'no-current-association'
+          && output.reason === 'no-current-association');
+      } else {
+        need(output.status === 'available' && output.reason === null);
+        const observed = row(output.head, ['recordId','revision','payloadSha256']);
+        const recordId = uuid(observed.recordId), revision = integer(observed.revision), payloadSha256 = sha(observed.payloadSha256);
+        assertHead(head.status === 'available' && recordId === head.recordId
+          && revision.compare(head.revision) === 0 && payloadSha256 === expectedDigest);
+      }
+      signal.throwIfAborted(); need(current(owner, geometry));
+      return head;
+    });
+  };
   const unsubscribe = options.subscribe(() => { const prior = binding; try { context(); } catch { binding = null; }
     if (binding !== prior) for (const item of held.keys()) releasePrepared(item);
     notify(); });
@@ -410,11 +456,29 @@ export function createNativeSceneAssociationClient(options: {
         && options.primaryReview.isCurrent(item.primary) && options.historicalReview.isCurrent(item.historical)
         && (!item.pdf || !!item.pdfOwner?.isCurrent(item.pdf)); },
     readCurrent,
+    async capturePrevious(buildingId, geometry, signal) {
+      const next = context(), owner = binding!;
+      need(availableWrite(next) && current(owner, geometry));
+      const observed = await readCurrent(buildingId, geometry, signal);
+      need(current(owner, geometry) && (observed.status === 'available' || observed.reason === 'no-current-association'));
+      const freeze = (value: LosslessJson): LosslessJson => {
+        if (value !== null && typeof value === 'object') {
+          for (const part of Object.values(value)) freeze(part as LosslessJson);
+          Object.freeze(value);
+        }
+        return value;
+      };
+      const head: SceneAssociationRead = observed.status === 'available'
+        ? Object.freeze({ ...observed, payload: freeze(parse(stringifyLosslessJson(observed.payload))) }) : observed;
+      const token = Object.freeze({}); previousOwner.set(token, { owner, buildingId, head });
+      return Object.freeze({ token, current: head });
+    },
+    validatePrevious,
     releasePrepared,
-    async prepare(candidate, geometry, statement, reason, outer) {
+    async prepare(candidate, geometry, statement, reason, outer, previous) {
       need(UUID.test(candidate.buildingId) && UUID.test(candidate.primaryEvidenceId)
         && UUID.test(candidate.historicalEvidenceId) && candidate.primaryEvidenceId !== candidate.historicalEvidenceId
-        && statement.trim() && statement.length <= 4096 && reason.trim() && reason.length <= 4096);
+        && statement.trim() && [...statement].length <= 4096 && reason.trim() && [...reason].length <= 4096);
       scalar(statement); scalar(reason);
       const next = context(), owner = binding!; need(availableWrite(next)
         && visiblePending(candidate.buildingId, pendingBinding!, next).length < 16
@@ -456,10 +520,22 @@ export function createNativeSceneAssociationClient(options: {
           const room = row(source.rooms, ['status','reason','receiptId','receiptSha256','entries','regions']);
           need(room.status === 'available' && room.reason === null && room.receiptId === parsed.receiptId
             && room.receiptSha256 === canonicalSha256);
-          const currentHead = await readCurrent(candidate.buildingId, geometry, signal); guard();
+          const currentHead = previous === undefined ? await readCurrent(candidate.buildingId, geometry, signal)
+            : await validatePrevious(previous, geometry, signal); guard();
+          if (previous !== undefined) need(previousOwner.get(previous)?.buildingId === candidate.buildingId);
           const sourceFloors = parseLosslessJson(stringifyLosslessJson(candidate.sourceFloors));
           const roomMappings = parseLosslessJson(stringifyLosslessJson(candidate.roomMappings));
           const guards = parseLosslessJson(stringifyLosslessJson(candidate.guards));
+          if (previous !== undefined && currentHead.status === 'available') {
+            const priorGuards = list(guards, 100);
+            const existing = priorGuards.find(value => {
+              const selected = row(row(value).target);
+              return selected.recordType === 'scene-association' && selected.recordId === currentHead.recordId;
+            });
+            if (existing) need(integer(row(row(existing).revision).value).compare(currentHead.revision) === 0);
+            else priorGuards.push({ target: { authority: 'atlas', recordType: 'scene-association', recordId: currentHead.recordId },
+              revision: { kind: 'atlas', value: currentHead.revision } });
+          }
           floors(sourceFloors, geometry);
           need(list(roomMappings, 256).length === list(room.entries, 32).length && list(guards, 100).length > 0);
           const ids = new Set<string>();
@@ -500,7 +576,7 @@ export function createNativeSceneAssociationClient(options: {
             need(matchesDocumentaryPdf(drawingReview, pdf, pdfOwner.getBlob(pdf)));
           }
           const reviewedStatement = drawingReview ? statement + drawingReview.reviewMarker : statement;
-          need(reviewedStatement.length <= 4096);
+          need([...reviewedStatement].length <= 4096);
           const documents = [{ role: 'primary-scene', evidenceId: primary.evidenceId,
             evidenceRevision: primary.evidenceRevision, originalAssetId: primary.asset.assetId,
             originalAssetRevision: primary.asset.revision, originalSha256: primary.asset.sha256, contentType: 'text/plain' },

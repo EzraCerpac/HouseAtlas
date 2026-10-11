@@ -6,7 +6,9 @@ import { ExactDecimal, isExactDecimal } from '../src/numeric/decimal';
 import { parseLosslessJson, stringifyLosslessJson, type JsonForSerialization, type LosslessJson } from '../src/numeric/lossless-json';
 import { createExactStockResultValidator, exactStockSafeInteger } from '../src/numeric/schema-validator';
 import type { NativeAssociationAdmission, NativeAssociationBinding, NativeAssociationClient,
-  NativeAssociationPending, NativeAssociationPrepared, NativeAssociationSelection } from '../src/lantern/scans/native-association-types';
+  NativeAssociationPending, NativeAssociationPrepared, NativeAssociationReservation,
+  NativeAssociationReservationInput, NativeAssociationSelection } from '../src/lantern/scans/native-association-types';
+import type { NativeGeometryFloor } from '../src/lantern/scans/native-read-types';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const SHA = /^[0-9a-f]{64}$/;
@@ -15,6 +17,7 @@ const COMMANDS = ['atlas.identity.get', 'atlas.location-semantics.get', 'atlas.e
 const MESH = 'application/vnd.houseatlas.magicplan-authored-mesh+json';
 const MAX_BODY = 16_384, MAX_RESULT = 1024 * 1024, DEADLINE_MS = 30_000;
 const bytes = new TextEncoder();
+const MAX_REVISION = ExactDecimal.parse('9007199254740991');
 type Row = { [key: string]: LosslessJson };
 type Kind = 'identity' | 'location-semantics' | 'evidence' | 'asset' | 'geometry';
 type Guard = { target: { authority: 'atlas'; recordType: Kind; recordId: string }; revision: { kind: 'atlas'; value: ExactDecimal } };
@@ -179,10 +182,118 @@ export function createNativeGeometryAssociationClient(options: {
     } catch (error) { cancel(response); throw error; }
   };
   const added = (kind: Kind | 'geometry', recordId: string, payload: JsonForSerialization, reason: string,
-    guards: readonly Guard[], revision: ExactDecimal | null = null) => ({ schemaVersion: 3, commandId: `atlas.${kind}.${revision ? 'replace' : 'create'}`,
-    requestId: crypto.randomUUID(), context: cached!.binding.scope, target: target(kind, recordId), payload, reason,
-    idempotencyKey: crypto.randomUUID(), approvalReceiptId: null,
+    guards: readonly Guard[], revision: ExactDecimal | null = null, nextId: () => string = () => crypto.randomUUID()) => ({ schemaVersion: 3, commandId: `atlas.${kind}.${revision ? 'replace' : 'create'}`,
+    requestId: nextId(), context: cached!.binding.scope, target: target(kind, recordId), payload, reason,
+    idempotencyKey: nextId(), approvalReceiptId: null,
     preconditions: { target: revision ? { kind: 'atlas', value: revision } : null, guards } });
+  const validText = (input: { readonly statement: string; readonly reason: string }) => {
+    need(input.statement.trim() && [...input.statement].length <= 4096 && input.reason.trim() && [...input.reason].length <= 1024);
+    scalar(input.statement); scalar(input.reason);
+  };
+  const buildingPayloads = (identity: Row, semantics: Row, buildingId: string) => {
+    const identityPayload = row(field(identity, 'payload')), semanticsPayload = row(field(semantics, 'payload'));
+    need(identityPayload.kind === 'location' && semanticsPayload.atlasId === buildingId &&
+      semanticsPayload.semanticKind === 'building' && semanticsPayload.reviewStatus === 'accepted');
+    return { identityPayload, semanticsPayload };
+  };
+  const getter = (binding: NativeAssociationBinding, epoch: Epoch, records: Map<string, Row>, active: AbortSignal) =>
+    async (kind: Kind, recordId: string): Promise<Row> => {
+      const key = `${kind}:${recordId}`;
+      if (!records.has(key)) {
+        need(records.size < 100); records.set(key, await read(binding, epoch, kind, recordId, active));
+      }
+      return records.get(key)!;
+    };
+  const currentFloors = async (binding: NativeAssociationBinding, epoch: Epoch, buildingId: string, active: AbortSignal) => {
+    const readBinding = Object.freeze({ sessionIdentity: cached!.identity, expiresAt: cached!.expiry, scope: binding.scope });
+    const reader = createNativeGeometryReadClient({ origin: options.origin ?? globalThis.location.origin, transport,
+      getBinding: () => current(binding, epoch) ? readBinding : null, subscribeBinding: options.subscribe });
+    try {
+      const frame = await reader.loadBuilding(buildingId, active); requireCurrent(binding, epoch);
+      return frame.descriptor.floors.map(item => item.floor);
+    } finally { reader.dispose(); }
+  };
+  const qualifyPrevious = async (previousGeometryId: string,
+    get: (kind: Kind, recordId: string) => Promise<Row>, heads: readonly NativeGeometryFloor[]) => {
+    const previous = await get('geometry', previousGeometryId), payload = row(field(previous, 'payload'));
+    const version = integer(field(payload, 'geometryVersion'));
+    need(version.compare(MAX_REVISION) < 0 && payload.producer === 'magicplan' && payload.exportFormat === 'usdz' &&
+      payload.coordinateUnits === 'unknown' && payload.scale === null && payload.transform === null && list(field(payload, 'mappings')).length === 0);
+    const ids = list(field(payload, 'evidenceIds')).map(id); need(ids.length === 1);
+    const evidence = await get('evidence', ids[0]!), evidencePayload = row(field(evidence, 'payload'));
+    const previousOriginalId = id(field(payload, 'originalAssetId'));
+    const references = list(field(evidencePayload, 'references')).map(row); need(references.length === 2);
+    need(references[0]!.kind === 'atlas-asset' && references[0]!.assetId === previousOriginalId && references[1]!.kind === 'atlas-asset');
+    const previousDerivativeId = id(field(references[1]!, 'assetId'));
+    const previousOriginal = await get('asset', previousOriginalId), previousDerivative = await get('asset', previousDerivativeId);
+    const head = heads.find(item => item.geometryId === previousGeometryId);
+    need(head && equal(head.geometryRevision, field(previous, 'revision')) && head.evidenceId === ids[0] &&
+      equal(head.evidenceRevision, field(evidence, 'revision')) && head.originalAssetId === previousOriginalId &&
+      head.derivativeAssetId === previousDerivativeId && equal(head.originalRevision, field(previousOriginal, 'revision')) &&
+      equal(head.derivativeRevision, field(previousDerivative, 'revision')) &&
+      head.originalSha256 === row(field(previousOriginal, 'payload')).sha256 &&
+      head.derivativeSha256 === row(field(previousDerivative, 'payload')).sha256);
+  };
+  type Projection = { identityPayload: Row; futureEvidenceIds: ReadonlySet<string>; nextId(): string };
+  // Actual preparation and GET-only reservation share the exact child/root
+  // assembly, schema checks and byte cap. Projection contains payload/size slots
+  // only: it never supplies a fabricated retained record, admission or receipt.
+  const assemble = (binding: NativeAssociationBinding, selection: NativeAssociationSelection, records: ReadonlyMap<string, Row>,
+    input: { readonly statement: string; readonly reason: string }, projection?: Projection) => {
+    validText(input);
+    const { buildingId, semanticsId, originalAssetId, derivativeAssetId } = selection;
+    const find = (kind: Kind, recordId: string) => { const found = records.get(`${kind}:${recordId}`); need(found); return found; };
+    const identity = find('identity', buildingId), semantics = find('location-semantics', semanticsId);
+    const actual = buildingPayloads(identity, semantics, buildingId);
+    const identityPayload = projection?.identityPayload ?? actual.identityPayload, semanticsPayload = actual.semanticsPayload;
+    const revision = (kind: Kind, recordId: string) => {
+      if (projection && ((kind === 'asset' && [originalAssetId, derivativeAssetId].includes(recordId)) ||
+        (kind === 'evidence' && projection.futureEvidenceIds.has(recordId)))) return MAX_REVISION;
+      const actualRevision = integer(field(find(kind, recordId), 'revision'));
+      return projection ? MAX_REVISION : actualRevision;
+    };
+    const nextId = projection?.nextId ?? (() => crypto.randomUUID());
+    const evidenceIds = list(field(identityPayload, 'evidenceIds')).map(id), semanticIds = list(field(semanticsPayload, 'evidenceIds')).map(id);
+    const guards: Guard[] = [guard('identity', buildingId, revision('identity', buildingId)),
+      guard('location-semantics', semanticsId, revision('location-semantics', semanticsId)),
+      guard('asset', originalAssetId, revision('asset', originalAssetId)), guard('asset', derivativeAssetId, revision('asset', derivativeAssetId))];
+    for (const evidenceId of new Set([...evidenceIds, ...semanticIds])) guards.push(guard('evidence', evidenceId, revision('evidence', evidenceId)));
+    need(guards.length <= 100 && new Set(evidenceIds).size === evidenceIds.length);
+    const previousGeometryId = selection.previousGeometryId ?? null;
+    const predecessorGuards: Guard[] = [];
+    let geometryVersion = ExactDecimal.parse('1');
+    if (previousGeometryId !== null) {
+      const previous = find('geometry', previousGeometryId), payload = row(field(previous, 'payload'));
+      geometryVersion = ExactDecimal.parse((BigInt(exactStockSafeInteger(integer(field(payload, 'geometryVersion')))) + 1n).toString());
+      const previousEvidenceId = id(list(field(payload, 'evidenceIds'))[0]!);
+      const references = list(field(row(field(find('evidence', previousEvidenceId), 'payload')), 'references')).map(row);
+      for (const [kind, recordId] of [['geometry', previousGeometryId], ['evidence', previousEvidenceId],
+        ['asset', id(field(references[0]!, 'assetId'))], ['asset', id(field(references[1]!, 'assetId'))]] as const)
+        predecessorGuards.push(guard(kind, recordId, revision(kind, recordId)));
+      for (const item of predecessorGuards) if (!guards.some(other => equal(other, item))) guards.push(item);
+    }
+    need(guards.length <= 100);
+    const evidenceId = nextId(), geometryId = nextId();
+    const evidencePayload = { statement: input.statement, provenance: { source: null, sourceRevision: null,
+      sourceConfidence: null, evidenceBasis: 'owner-report', factAt: null, retrievedAt: new Date().toISOString(),
+      vantage: null, uncertainty: { status: 'unknown', explanation: null } }, supersedesEvidenceIds: [],
+      references: [{ kind: 'atlas-asset', assetId: originalAssetId }, { kind: 'atlas-asset', assetId: derivativeAssetId }] };
+    const geometryPayload = { producer: 'magicplan', producerVersion: null, exportFormat: 'usdz', originalAssetId,
+      coordinateUnits: 'unknown', scale: null, transform: null, geometryVersion, previousGeometryId, mappings: [], evidenceIds: [evidenceId] };
+    const identityReplacement = { ...identityPayload, evidenceIds: [...evidenceIds, evidenceId] };
+    const children = [added('evidence', evidenceId, evidencePayload, input.reason,
+      guards.filter(item => item.target.recordType === 'asset'), null, nextId),
+    added('geometry', geometryId, geometryPayload, input.reason,
+      [guard('asset', originalAssetId, revision('asset', originalAssetId)), ...predecessorGuards], null, nextId),
+    added('identity', buildingId, identityReplacement, input.reason,
+      guards.filter(item => item.target.recordType === 'evidence'), revision('identity', buildingId), nextId)];
+    for (const child of children) serialize(child, child.commandId);
+    const requestId = nextId();
+    const { body, parsed } = serialize({ schemaVersion: 3, commandId: 'atlas.batch.execute', requestId,
+      context: binding.scope, target: { authority: 'atlas', kind: 'batch', batchId: nextId() }, payload: { commands: children },
+      idempotencyKey: nextId(), reason: input.reason, approvalReceiptId: null, preconditions: { target: null, guards } }, 'atlas.batch.execute');
+    return { requestId, body, parsed, identityReplacement, evidenceId, guardCount: guards.length, bodyBytes: bytes.encode(body).length };
+  };
   const validateInput = (selection: NativeAssociationSelection) => {
     need(UUID.test(selection.buildingId) && UUID.test(selection.semanticsId) && UUID.test(selection.originalAssetId) &&
       UUID.test(selection.derivativeAssetId) && selection.originalAssetId !== selection.derivativeAssetId &&
@@ -198,20 +309,67 @@ export function createNativeGeometryAssociationClient(options: {
       return Object.freeze([...ledger].filter(([, item]) => item.epoch === cached!.epoch).map(([prepared, item]) =>
         Object.freeze({ prepared, outcome: item.outcome, ...(item.receipt ? { receipt: item.receipt } : {}) })));
     },
+    async reserve(binding, input: NativeAssociationReservationInput, signal): Promise<NativeAssociationReservation> {
+      requireCurrent(binding); validText(input);
+      need(UUID.test(input.buildingId) && UUID.test(input.semanticsId) && Array.isArray(input.floors) &&
+        input.floors.length > 0 && input.floors.length <= 16 && !unknown() && ledger.size + input.floors.length <= 16);
+      const buildingId = input.buildingId, semanticsId = input.semanticsId;
+      const textInput = Object.freeze({ statement: input.statement, reason: input.reason });
+      const floors = input.floors.map(item => Object.freeze({ previousGeometryId: item.previousGeometryId ?? null }));
+      const previousIds = floors.flatMap(item => item.previousGeometryId === null ? [] : [item.previousGeometryId]);
+      need(previousIds.every(value => UUID.test(value)) && new Set(previousIds).size === previousIds.length);
+      if (previousIds.length) need(options.getContext()!.admission.commandIds.includes('atlas.geometry.get'));
+      const epoch = cached!.epoch;
+      return bounded(signal, async active => {
+        const records = new Map<string, Row>(), get = getter(binding, epoch, records, active);
+        const identity = await get('identity', buildingId), semantics = await get('location-semantics', semanticsId);
+        const { identityPayload, semanticsPayload } = buildingPayloads(identity, semantics, buildingId);
+        const identityRevision = integer(field(identity, 'revision')), semanticsRevision = integer(field(semantics, 'revision'));
+        need(BigInt(exactStockSafeInteger(identityRevision)) + BigInt(floors.length) <= BigInt(exactStockSafeInteger(MAX_REVISION)));
+        for (const value of new Set([...list(field(identityPayload, 'evidenceIds')), ...list(field(semanticsPayload, 'evidenceIds'))]))
+          await get('evidence', id(value));
+        const heads = previousIds.length ? await currentFloors(binding, epoch, buildingId, active) : [];
+        for (const previousId of previousIds) await qualifyPrevious(previousId, get, heads);
+        requireCurrent(binding, epoch); active.throwIfAborted();
+        need(!unknown() && ledger.size + floors.length <= 16);
+        const allocated = new Set([binding.scope.workspaceId, binding.scope.homeId,
+          ...[...records.values()].map(record => id(field(row(field(record, 'target')), 'recordId')))]);
+        let slot = 0;
+        const nextId = () => {
+          // UUID-width serialization slots, never issued native identifiers.
+          let value: string;
+          do { need(++slot <= 4096); value = `ffffffff-ffff-4fff-8fff-${slot.toString(16).padStart(12, '0')}`; } while (allocated.has(value));
+          allocated.add(value); return value;
+        };
+        const futureEvidenceIds = new Set<string>();
+        let projectedIdentity = identityPayload;
+        const observed: NativeAssociationReservation['floors'][number][] = [];
+        for (const [index, floor] of floors.entries()) {
+          active.throwIfAborted(); requireCurrent(binding, epoch);
+          const selection = { buildingId, semanticsId, originalAssetId: nextId(), derivativeAssetId: nextId(),
+            previousGeometryId: floor.previousGeometryId };
+          const prepared = assemble(binding, selection, records, textInput,
+            { identityPayload: projectedIdentity, futureEvidenceIds, nextId });
+          // Guard roots match the real load set: identity, semantics, both new
+          // assets, all retained evidence and this floor's predecessor custody.
+          need(prepared.guardCount <= 100);
+          observed.push(Object.freeze({ index, previousGeometryId: floor.previousGeometryId,
+            recordCount: prepared.guardCount, guardCount: prepared.guardCount, bodyBytes: prepared.bodyBytes }));
+          futureEvidenceIds.add(prepared.evidenceId); projectedIdentity = prepared.identityReplacement;
+        }
+        requireCurrent(binding, epoch); active.throwIfAborted(); need(!unknown() && ledger.size + floors.length <= 16);
+        return Object.freeze({ binding, identityRevision, semanticsRevision, floors: Object.freeze(observed) });
+      });
+    },
     async load(binding, selection, signal) {
       validateInput(selection); requireCurrent(binding); need(!unknown() && ledger.size < 16);
       const epoch = cached!.epoch;
       return bounded(signal, async active => {
         const records = new Map<string, Row>();
-        const get = async (kind: Kind, recordId: string) => {
-          const key = `${kind}:${recordId}`; if (!records.has(key)) records.set(key, await read(binding, epoch, kind, recordId, active));
-          return records.get(key)!;
-        };
+        const get = getter(binding, epoch, records, active);
         const identity = await get('identity', selection.buildingId);
         const semantics = await get('location-semantics', selection.semanticsId);
-        const identityPayload = row(field(identity, 'payload')), semanticsPayload = row(field(semantics, 'payload'));
-        need(identityPayload.kind === 'location' && semanticsPayload.atlasId === selection.buildingId &&
-          semanticsPayload.semanticKind === 'building' && semanticsPayload.reviewStatus === 'accepted');
+        const { identityPayload, semanticsPayload } = buildingPayloads(identity, semantics, selection.buildingId);
         const original = await get('asset', selection.originalAssetId), derivative = await get('asset', selection.derivativeAssetId);
         for (const [record, purpose, mime] of [[original, 'geometry-original', 'model/vnd.usdz+zip'],
           [derivative, 'derived-preview', MESH]] as const) {
@@ -223,39 +381,8 @@ export function createNativeGeometryAssociationClient(options: {
           await get('evidence', id(value));
         if (selection.previousGeometryId != null) {
           need(options.getContext()!.admission.commandIds.includes('atlas.geometry.get'));
-          const previous = await get('geometry', selection.previousGeometryId);
-          const payload = row(field(previous, 'payload'));
-          const version = integer(field(payload, 'geometryVersion'));
-          need(version.compare(ExactDecimal.parse('9007199254740991')) < 0 && payload.producer === 'magicplan' &&
-            payload.exportFormat === 'usdz' && payload.coordinateUnits === 'unknown' && payload.scale === null &&
-            payload.transform === null && list(field(payload, 'mappings')).length === 0);
-          const ids = list(field(payload, 'evidenceIds')).map(id); need(ids.length === 1);
-          const evidence = await get('evidence', ids[0]!);
-          const evidencePayload = row(field(evidence, 'payload'));
-          const previousOriginalId = id(field(payload, 'originalAssetId'));
-          const references = list(field(evidencePayload, 'references')).map(row); need(references.length === 2);
-          need(references[0]!.kind === 'atlas-asset' && references[0]!.assetId === previousOriginalId && references[1]!.kind === 'atlas-asset');
-          const previousDerivativeId = id(field(references[1]!, 'assetId'));
-          const previousOriginal = await get('asset', previousOriginalId), previousDerivative = await get('asset', previousDerivativeId);
-          // The existing native reader admits only actual owner-issued current
-          // descriptors. Its floor membership supplies the head/building proof.
-          const readBinding = Object.freeze({ sessionIdentity: cached!.identity, expiresAt: cached!.expiry, scope: binding.scope });
-          const reader = createNativeGeometryReadClient({
-            origin: options.origin ?? globalThis.location.origin, transport,
-            getBinding: () => current(binding, epoch) ? readBinding : null,
-            subscribeBinding: options.subscribe,
-          });
-          try {
-            const frame = await reader.loadBuilding(selection.buildingId, active);
-            requireCurrent(binding, epoch);
-            const head = frame.descriptor.floors.find(item => item.floor.geometryId === selection.previousGeometryId)?.floor;
-            need(head && equal(head.geometryRevision, field(previous, 'revision')) && head.evidenceId === ids[0] &&
-              equal(head.evidenceRevision, field(evidence, 'revision')) && head.originalAssetId === previousOriginalId &&
-              head.derivativeAssetId === previousDerivativeId && equal(head.originalRevision, field(previousOriginal, 'revision')) &&
-              equal(head.derivativeRevision, field(previousDerivative, 'revision')) &&
-              head.originalSha256 === row(field(previousOriginal, 'payload')).sha256 &&
-              head.derivativeSha256 === row(field(previousDerivative, 'payload')).sha256);
-          } finally { reader.dispose(); }
+          const heads = await currentFloors(binding, epoch, selection.buildingId, active);
+          await qualifyPrevious(selection.previousGeometryId, get, heads);
         }
         requireCurrent(binding, epoch); need(!unknown() && records.size <= 100);
         const admission: NativeAssociationAdmission = Object.freeze({ binding,
@@ -265,62 +392,11 @@ export function createNativeGeometryAssociationClient(options: {
     },
     prepare(admission, input) {
       const pin = admissions.get(admission); need(pin); requireCurrent(admission.binding, pin.epoch);
-      need(!unknown() && ledger.size < 16 && input.statement.trim() && [...input.statement].length <= 4096 &&
-        input.reason.trim() && [...input.reason].length <= 1024);
-      scalar(input.statement); scalar(input.reason);
-      const { buildingId, semanticsId, originalAssetId, derivativeAssetId } = admission.selection;
-      const find = (kind: Kind, recordId: string) => { const found = pin.records.get(`${kind}:${recordId}`); need(found); return found; };
-      const identity = find('identity', buildingId), semantics = find('location-semantics', semanticsId);
-      const identityPayload = row(field(identity, 'payload')), semanticsPayload = row(field(semantics, 'payload'));
-      const evidenceIds = list(field(identityPayload, 'evidenceIds')).map(id);
-      const semanticIds = list(field(semanticsPayload, 'evidenceIds')).map(id);
-      const guards: Guard[] = [guard('identity', buildingId, integer(field(identity, 'revision'))),
-        guard('location-semantics', semanticsId, integer(field(semantics, 'revision'))),
-        guard('asset', originalAssetId, integer(field(find('asset', originalAssetId), 'revision'))),
-        guard('asset', derivativeAssetId, integer(field(find('asset', derivativeAssetId), 'revision')))];
-      for (const evidenceId of new Set([...evidenceIds, ...semanticIds]))
-        guards.push(guard('evidence', evidenceId, integer(field(find('evidence', evidenceId), 'revision'))));
-      need(guards.length <= 100 && new Set(evidenceIds).size === evidenceIds.length && !unknown());
-      const previousGeometryId = admission.selection.previousGeometryId ?? null;
-      const predecessorGuards: Guard[] = [];
-      let geometryVersion = ExactDecimal.parse('1');
-      if (previousGeometryId !== null) {
-        const previous = find('geometry', previousGeometryId), payload = row(field(previous, 'payload'));
-        geometryVersion = ExactDecimal.parse((BigInt(exactStockSafeInteger(integer(field(payload, 'geometryVersion')))) + 1n).toString());
-        const previousEvidenceId = id(list(field(payload, 'evidenceIds'))[0]!);
-        const references = list(field(row(field(find('evidence', previousEvidenceId), 'payload')), 'references')).map(row);
-        for (const [kind, recordId] of [['geometry', previousGeometryId], ['evidence', previousEvidenceId],
-          ['asset', id(field(references[0]!, 'assetId'))], ['asset', id(field(references[1]!, 'assetId'))]] as const)
-          predecessorGuards.push(guard(kind, recordId, integer(field(find(kind, recordId), 'revision'))));
-        for (const item of predecessorGuards) if (!guards.some(other => equal(other, item))) guards.push(item);
-      }
-      need(guards.length <= 100);
-      const evidenceId = crypto.randomUUID(), geometryId = crypto.randomUUID();
-      const evidencePayload = { statement: input.statement, provenance: { source: null, sourceRevision: null,
-        sourceConfidence: null, evidenceBasis: 'owner-report', factAt: null, retrievedAt: new Date().toISOString(),
-        vantage: null, uncertainty: { status: 'unknown', explanation: null } }, supersedesEvidenceIds: [],
-        references: [{ kind: 'atlas-asset', assetId: originalAssetId }, { kind: 'atlas-asset', assetId: derivativeAssetId }] };
-      const geometryPayload = { producer: 'magicplan', producerVersion: null, exportFormat: 'usdz', originalAssetId,
-        coordinateUnits: 'unknown', scale: null, transform: null, geometryVersion,
-        previousGeometryId, mappings: [], evidenceIds: [evidenceId] };
-      const identityReplacement = { ...identityPayload, evidenceIds: [...evidenceIds, evidenceId] };
-      const children = [added('evidence', evidenceId, evidencePayload, input.reason,
-        guards.filter(item => item.target.recordType === 'asset')),
-      added('geometry', geometryId, geometryPayload, input.reason,
-        [guard('asset', originalAssetId, integer(field(find('asset', originalAssetId), 'revision'))), ...predecessorGuards]),
-      added('identity', buildingId, identityReplacement, input.reason,
-        guards.filter(item => item.target.recordType === 'evidence'), integer(field(identity, 'revision')))];
-      for (const child of children) {
-        const encoded = serialize(child, child.commandId);
-        need(validator.validateNativeRequest(child.commandId, encoded.parsed));
-      }
-      const requestId = crypto.randomUUID();
-      const { body, parsed } = serialize({ schemaVersion: 3, commandId: 'atlas.batch.execute', requestId,
-        context: admission.binding.scope, target: { authority: 'atlas', kind: 'batch', batchId: crypto.randomUUID() },
-        payload: { commands: children }, idempotencyKey: crypto.randomUUID(), reason: input.reason,
-        approvalReceiptId: null, preconditions: { target: null, guards } }, 'atlas.batch.execute');
+      need(!unknown() && ledger.size < 16);
+      const assembled = assemble(admission.binding, admission.selection, pin.records, input);
       const prepared: NativeAssociationPrepared = Object.freeze({ binding: admission.binding,
-        selection: admission.selection, requestId, body, originalRequest: freezeTree(parsed) });
+        selection: admission.selection, requestId: assembled.requestId, body: assembled.body,
+        originalRequest: freezeTree(assembled.parsed) });
       intents.set(prepared, { epoch: pin.epoch, admission }); return prepared;
     },
     async commit(prepared, signal) {

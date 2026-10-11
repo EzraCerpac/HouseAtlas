@@ -780,6 +780,22 @@ async fn healthy() -> Result<(), Failure> {
     assert_eq!(floor["originalSha256"], sha(&original));
     assert_eq!(descriptor["physicalScale"], "unknown");
 
+    let head_path = format!(
+        "/api/atlas/scene/v1/workspaces/{}/homes/{}/buildings/{}/head",
+        id(2),
+        id(3),
+        id(101)
+    );
+    let (_, absent_bytes) = get(&client, &head_path).await?;
+    assert!(absent_bytes.len() <= 4096);
+    let absent: Value = serde_json::from_slice(&absent_bytes)?;
+    assert_eq!(
+        absent,
+        json!({"schema":"houseatlas.native-scene-head.v1",
+        "scope":client.scope,"buildingId":id(101),"status":"unavailable",
+        "reason":"no-current-association","head":null})
+    );
+
     let historical = b"{\"syntheticOwnerReceipt\":\"locally reviewed source only\"}";
     let historical_sha = sha(historical);
     let (historical_asset, _) = custody_text(&mut client, 6500, historical).await?;
@@ -796,6 +812,7 @@ async fn healthy() -> Result<(), Failure> {
     );
     client.call(e).await?;
     let mut created_pins: Vec<(u32, Value, Value)> = Vec::new();
+    let mut previous_head_payload = None;
     for version in [1u8, 2u8] {
         let (review, canonical) = receipt(version, &historical_sha)?;
         let receipt_sha = sha(canonical.as_bytes());
@@ -858,6 +875,20 @@ async fn healthy() -> Result<(), Failure> {
         assert_eq!(floor["geometryRevision"], 1);
         assert_eq!(floor["originalAssetId"], geometry_asset);
         assert_eq!(floor["originalSha256"], sha(&original));
+        if let Some(prior) = &previous_head_payload {
+            // This version's evidence append changes all descriptor keys. The
+            // retained chain still authenticates its prior immutable head.
+            let (_, bytes) = get(&client, &head_path).await?;
+            assert!(bytes.len() <= 4096);
+            let compact: Value = serde_json::from_slice(&bytes)?;
+            assert_eq!(
+                compact,
+                json!({"schema":"houseatlas.native-scene-head.v1",
+                "scope":client.scope,"buildingId":id(101),"status":"available","reason":null,
+                "head":{"recordId":id(900),"revision":1,
+                    "payloadSha256":houseatlas_backend::domain::stock::canonical_digest(prior)?}})
+            );
+        }
         let previous = if version == 1 { None } else { Some(id(900)) };
         let payload = scene_payload(ScenePayload {
             version,
@@ -938,6 +969,18 @@ async fn healthy() -> Result<(), Failure> {
         lease = reopened_lease;
         let head = current(&client).await?;
         assert_eq!(head["status"], "available");
+        let (_, compact_bytes) = get(&client, &head_path).await?;
+        assert!(compact_bytes.len() <= 4096);
+        let compact: Value = serde_json::from_slice(&compact_bytes)?;
+        assert_eq!(
+            compact,
+            json!({"schema":"houseatlas.native-scene-head.v1",
+            "scope":client.scope,"buildingId":id(101),"status":"available","reason":null,
+            "head":{"recordId":head["association"]["recordId"],
+                "revision":head["association"]["revision"],
+                "payloadSha256":houseatlas_backend::domain::stock::canonical_digest(&head["association"]["payload"])?}})
+        );
+        previous_head_payload = Some(head["association"]["payload"].clone());
         assert_eq!(
             head["association"]["recordId"],
             id(899 + u32::from(version))

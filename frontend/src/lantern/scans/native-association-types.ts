@@ -1,5 +1,6 @@
 import type { Scope } from '../../app/types';
 import type { LosslessJson } from '../../numeric/lossless-json';
+import type { ExactDecimal } from '../../numeric/decimal';
 
 /** The private host supplies a stable canonical session-owner identity. */
 export interface NativeAssociationBinding { readonly scope: Readonly<Scope> }
@@ -30,11 +31,34 @@ export interface NativeAssociationPending {
   readonly outcome: 'unknown' | 'committed';
   readonly receipt?: LosslessJson;
 }
+export interface NativeAssociationReservationInput {
+  readonly buildingId: string;
+  readonly semanticsId: string;
+  /** Complete ordered set which needs new custody; already reused floors are excluded. */
+  readonly floors: readonly { readonly previousGeometryId?: string | null }[];
+  readonly statement: string;
+  readonly reason: string;
+}
+/** GET-only capacity observation. This is neither custody nor commit admission;
+ * actual retained assets and current record guards must still be loaded afresh. */
+export interface NativeAssociationReservation {
+  readonly binding: NativeAssociationBinding;
+  readonly identityRevision: ExactDecimal;
+  readonly semanticsRevision: ExactDecimal;
+  readonly floors: readonly {
+    readonly index: number;
+    readonly previousGeometryId: string | null;
+    readonly recordCount: number;
+    readonly guardCount: number;
+    readonly bodyBytes: number;
+  }[];
+}
 export interface NativeAssociationClient {
   getBinding(): NativeAssociationBinding | null;
   subscribe(changed: () => void): () => void;
   subscribePending(changed: () => void): () => void;
   pending(binding: NativeAssociationBinding): readonly NativeAssociationPending[];
+  reserve(binding: NativeAssociationBinding, input: NativeAssociationReservationInput, signal: AbortSignal): Promise<NativeAssociationReservation>;
   load(binding: NativeAssociationBinding, selection: NativeAssociationSelection, signal: AbortSignal): Promise<NativeAssociationAdmission>;
   prepare(admission: NativeAssociationAdmission, input: { readonly statement: string; readonly reason: string }): NativeAssociationPrepared;
   commit(prepared: NativeAssociationPrepared, signal: AbortSignal): Promise<LosslessJson>;

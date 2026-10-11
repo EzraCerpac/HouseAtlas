@@ -12,7 +12,7 @@ use axum::{
     http::{Method, StatusCode, Uri},
 };
 use m::service::MediaStoragePort;
-use serde_json::json;
+use serde_json::{Value, json};
 use std::time::Duration;
 
 pub(super) async fn current(
@@ -103,4 +103,99 @@ pub(super) async fn current(
             Ok(json_response(json!({"status":"available","association":head})))
         })
     }).await.map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
+}
+
+const MAX_HEAD_RESPONSE_BYTES: usize = 4096;
+
+/// Compact native-chain metadata only. This deliberately does not re-qualify
+/// current descriptor keys or retained scene bytes, so a previously committed
+/// head can still be compared after the building's evidence frame changes.
+fn head_response(graph: &s::Snapshot, selected: &s::Scope, building_id: &str) -> HttpResult {
+    let (status, reason, head) = match st::current_scene_head(graph, selected, building_id) {
+        Ok(Some(head)) => (
+            "available",
+            None,
+            json!({
+                "recordId": head.record_id,
+                "revision": head.revision,
+                "payloadSha256": st::canonical_digest(&head.payload)
+                    .map_err(stock_reads::http_error)?,
+            }),
+        ),
+        Ok(None) => ("unavailable", Some("no-current-association"), Value::Null),
+        Err(st::SceneHeadError::Unavailable) => (
+            "unavailable",
+            Some("current-source-unavailable"),
+            Value::Null,
+        ),
+        Err(st::SceneHeadError::Conflict) => return Err(failure(StatusCode::CONFLICT)),
+    };
+    let body = json!({
+        "schema": "houseatlas.native-scene-head.v1",
+        "scope": {
+            "workspaceId": selected.workspace_id,
+            "homeId": selected.home_id,
+        },
+        "buildingId": building_id,
+        "status": status,
+        "reason": reason,
+        "head": head,
+    });
+    if serde_json::to_vec(&body)
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
+        .len()
+        > MAX_HEAD_RESPONSE_BYTES
+    {
+        return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+    }
+    Ok(json_response(body))
+}
+
+pub(super) async fn head(
+    State(host): State<Host>,
+    Path((workspace_id, home_id, building_id)): Path<(String, String, String)>,
+    Extension(headers): Extension<CheckedHeaders>,
+    uri: Uri,
+    method: Method,
+) -> HttpResult {
+    if uri.query().is_some() || !m::types::is_uuid(&building_id) {
+        return Err(failure(StatusCode::NOT_FOUND));
+    }
+    tokio::task::spawn_blocking(move || {
+        let _admitted = headers.admission_permit()?;
+        authorized_read(
+            &host,
+            &headers,
+            &uri,
+            &method,
+            Some(d::Scope {
+                workspace_id,
+                home_id,
+            }),
+            false,
+            |core, principal, home| {
+                let selected = s::Scope {
+                    workspace_id: home.scope.workspace_id.clone(),
+                    home_id: home.scope.home_id.clone(),
+                };
+                let contracts = st::NativeStockContract::new().map_err(stock_reads::http_error)?;
+                let raw = json!({
+                    "schemaVersion": 3,
+                    "commandId": "atlas.scene-association.list",
+                    "requestId": crate::app::new_id()
+                        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
+                    "context": home.scope,
+                    "target": {"authority": "atlas", "recordType": "scene-association"},
+                    "payload": {"pageSize": 1, "cursor": null, "includeArchived": false},
+                });
+                let request = st::ValidatedRequest::parse(&contracts, raw)
+                    .map_err(stock_reads::http_error)?;
+                let graph = stock_reads::snapshot(&core.store, principal, &request)
+                    .map_err(stock_reads::http_error)?;
+                head_response(&graph, &selected, &building_id)
+            },
+        )
+    })
+    .await
+    .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
 }

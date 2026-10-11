@@ -1,5 +1,15 @@
 # HouseAtlas
 
+The retained USDZ padding compatibility check builds two tiny stored archives
+in memory, with identical local/central alignment padding or the earlier
+central-directory profile. It uses the actual native framing validator and
+creates no listener, storage, account, import or household record. Inspect
+`backend/src/media/geometry_original.rs` before this named healthy check:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib media::geometry_original::tests::healthy_stored_usdz_with_mirrored_alignment_padding -- --exact --test-threads=1
+```
+
 The upload diagnostic repair has these exact additional checks in the isolated
 synthetic regression lane. They use generated in-memory multipart bodies or
 fake client exchanges only, with no listener, native data, browser or provider.
@@ -74,6 +84,58 @@ Its synthetic local check is:
 
 ```sh
 node --test --test-concurrency=1 tools/geometry/scan-replacement-plan.test.mjs
+```
+
+The separate assistant-native-import regression lane uses disposable synthetic
+files and fake responses with the actual native geometry clients/decoder. It
+checks bounded file selection, escaped wire-body durable journals, complete
+pre-custody geometry capacity reservations, two-floor native intent
+correlation, identical no-POST reuse and unavailable-response holds/passive
+reconciliation. It makes no network, account, provider or household calls.
+Capacity cases use current synthetic evidence and UTF-8 reason sizes; one case
+makes at most forty small GET-only fake observations to locate a first-floor-fit,
+later-floor-full capacity threshold, then checks zero custody POSTs.
+Host coverage cases seed two synthetic current floors and check that incomplete
+or oversized projected scenes stop before any further geometry custody.
+The transport selector case uses an already aborted signal to check the exact
+scoped scene-head list query; it stops before any curl process or network call.
+Scope and callable selection contract are in [assistant native scan intake](docs/geometry/assistant-native-scan-import.md).
+Inspect the complete tool/runtime/transport/test bodies before this exact check:
+
+```sh
+node --test --test-concurrency=1 tools/geometry/native-scan-import.test.mjs
+```
+
+The native admission metadata check provisions only two disposable synthetic
+role/session fixtures before observing two in-process GETs. It checks separate
+Editor/Viewer native lists, unchanged generic Stock/MCP lists and unchanged
+database row counts. It creates no listener and calls no provider or live target.
+Inspect the inline test body in `backend/src/http/agents/mod.rs` first:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib http::agents::tests::native_http_admission_keeps_stock_and_mcp_separate -- --exact --test-threads=1
+```
+
+The separate scene adapter checks use generated text, fake HTTPS responses and
+the actual Stock/document/scene readers. Each invocation runs one named case;
+none creates a socket, browser, database, credential or household record. Inspect
+the complete adapter and runner bodies first. Scope and input contract are in
+[the assistant scene adapter](docs/geometry/assistant-native-scan-scene.md).
+
+```sh
+node frontend/lantern-tests/native-scan-import-scene.mjs committed
+node frontend/lantern-tests/native-scan-import-scene.mjs asset-unknown
+node frontend/lantern-tests/native-scan-import-scene.mjs evidence-unknown
+node frontend/lantern-tests/native-scan-import-scene.mjs association-unknown
+node frontend/lantern-tests/native-scan-import-scene.mjs floor-selection
+node frontend/lantern-tests/native-scan-import-scene.mjs literal-labels
+node frontend/lantern-tests/native-scan-import-scene.mjs scene-reuse
+node frontend/lantern-tests/native-scan-import-scene.mjs scene-replacement
+node frontend/lantern-tests/native-scan-import-scene.mjs stale-current-scene
+node frontend/lantern-tests/native-scan-import-scene.mjs changed-frame-current-scene
+node frontend/lantern-tests/native-scan-import-scene.mjs supplementary-unicode
+node frontend/lantern-tests/native-scan-import-scene.mjs compact-scene-head
+node frontend/lantern-tests/native-scan-import-scene.mjs viewer-inspect
 ```
 
 After inspecting the tool, test and source-loader imports, the assistant can

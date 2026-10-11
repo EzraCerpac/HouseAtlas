@@ -504,7 +504,8 @@ function electricalFixtures(source: Row, viewKey: string, receiptId: string | nu
       label: str(f.label, 512), glyph: plain(f.glyph, 512),
       source: freeze({ symbolKey, originalPhotoSha256: sheet.originalPhotoSha256,
         renderedPhotoSha256: sheet.renderedPhotoSha256, normalizedBox, normalizedPoint,
-        literalLabels: strings(s.literalLabels, 32, 512), placementDescription: plain(s.placementDescription) }),
+        // A blank literal annotation is retained documentary evidence, not an ID.
+        literalLabels: list(s.literalLabels, 32).map(label => plain(label, 512)), placementDescription: plain(s.placementDescription) }),
       group: freeze({ id: groupId, label: groupLabel,
         basis: choice(g.basis, ['label-adjacent','drawn-arrow','uncertain','unknown']),
         note: plain(g.note) }),
