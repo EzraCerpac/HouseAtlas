@@ -34,6 +34,16 @@ export interface NativeEvidencePending {
   readonly receipt?: LosslessJson; readonly evidenceId?: string; readonly assetId?: string;
   readonly intakeError?: { readonly code: 'upload-timeout' | 'upload-interrupted' | 'invalid-upload' | 'upload-busy'; readonly httpStatus: number };
 }
+/** A new observation of a caller-supplied historical request ID. It is not an
+ * acknowledgement capability and never changes a pending attempt. */
+export interface NativeEvidenceRequestObservation {
+  readonly requestId: string;
+  readonly recordId: string;
+  readonly outcome: 'unknown' | 'committed';
+  readonly retrySafety: 'not-established';
+  readonly observed: LosslessJson;
+  readonly result?: LosslessJson;
+}
 export interface NativeEvidenceClient {
   getBinding(): NativePlaceBinding | null;
   subscribe(changed: () => void): () => void;
@@ -46,6 +56,7 @@ export interface NativeEvidenceClient {
     readonly admission: NativeEvidenceAdmission | null; readonly retrySafety: 'not-established'; readonly outcome: 'unknown' | 'committed';
     readonly reconciliation: 'unknown' | 'committed' | 'unavailable'; readonly reconciliationStatus?: number;
   }>;
+  readRequest(admission: NativeEvidenceAdmission, requestId: string, signal: AbortSignal): Promise<NativeEvidenceRequestObservation>;
   resolveOriginal(binding: NativePlaceBinding, prepared: NativeEvidencePrepared, signal: AbortSignal): Promise<{ readonly href: string } | null>;
 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -299,6 +310,41 @@ export function createNativeEvidenceClient(options: {
       // This response is a lookup only. It does not release the one-shot marker.
     } else throw new TypeError('Native evidence reconciliation outcome differs');
   };
+  const observeReceipt = (admission: NativeEvidenceAdmission, requestId: string, value: LosslessJson): LosslessJson => {
+    if (!validator.validateMutation('atlas.batch.execute', '#/$defs/result_atlas_batch_execute', value))
+      throw new TypeError('Native evidence request result is incompatible');
+    const result = object(value), scope = object(result['resolvedScope']!), data = object(result['data']!);
+    const records = data['records'], audits = data['auditIds'];
+    if (result['requestId'] !== requestId || result['commandId'] !== 'atlas.batch.execute' || result['status'] !== 'committed'
+      || !sameScope(scope as unknown as Scope, admission.binding.scope) || !Array.isArray(records) || !Array.isArray(audits)
+      || ![2, 3].includes(records.length) || audits.length !== records.length || audits.some(id => typeof id !== 'string')
+      || new Set(audits).size !== audits.length) throw new TypeError('Native evidence request result correlation differs');
+    const byType = new Map<string, Record<string, LosslessJson>>();
+    for (const raw of records) {
+      const record = object(raw), target = object(record['target']!);
+      if (target['authority'] !== 'atlas' || typeof target['recordType'] !== 'string' || typeof target['recordId'] !== 'string'
+        || !uuid.test(target['recordId']) || !['identity', 'evidence', 'asset'].includes(target['recordType'])
+        || byType.has(target['recordType'])) throw new TypeError('Native evidence request record targets differ');
+      byType.set(target['recordType'], record);
+    }
+    if (byType.size !== records.length || !byType.has('identity') || !byType.has('evidence')
+      || (records.length === 3) !== byType.has('asset')) throw new TypeError('Native evidence request target closure differs');
+    const identity = byType.get('identity')!, evidence = byType.get('evidence')!;
+    const identityTarget = object(identity['target']!), identityPayload = object(identity['payload']!);
+    const evidenceTarget = object(evidence['target']!), evidencePayload = object(evidence['payload']!);
+    const evidenceId = evidenceTarget['recordId'], evidenceIds = identityPayload['evidenceIds'];
+    const references = evidencePayload['references'];
+    if (identityTarget['recordId'] !== admission.identity.recordId || identity['lifecycle'] !== 'active'
+      || evidence['lifecycle'] !== 'active' || typeof evidenceId !== 'string' || !Array.isArray(evidenceIds) || !evidenceIds.includes(evidenceId)
+      || !Array.isArray(references) || references.length !== 1) throw new TypeError('Native evidence request identity/evidence closure differs');
+    const reference = object(references[0]!);
+    if (reference['kind'] !== 'atlas-asset' || typeof reference['assetId'] !== 'string' || !uuid.test(reference['assetId']))
+      throw new TypeError('Native evidence request asset reference differs');
+    const asset = byType.get('asset');
+    if (asset && (object(asset['target']!)['recordId'] !== reference['assetId'] || asset['lifecycle'] !== 'active'))
+      throw new TypeError('Native evidence request asset target differs');
+    return value;
+  };
   return {
     getBinding() {
       const binding = options.getBinding();
@@ -378,6 +424,36 @@ export function createNativeEvidenceClient(options: {
         if (entry.outcome === 'committed') reconciliation = 'committed';
         return { admission, retrySafety: 'not-established' as const, outcome: entry.outcome === 'committed' ? 'committed' as const : 'unknown' as const,
           reconciliation, ...(reconciliationStatus === undefined ? {} : { reconciliationStatus }) };
+      });
+    },
+    async readRequest(admission, requestId, signal) {
+      if (!admissions.has(admission) || !uuid.test(requestId))
+        throw new TypeError('Native evidence request inspection requires a current admitted target and canonical request ID');
+      const binding = admission.binding;
+      return bounded(binding, signal, async active => {
+        current(binding, active);
+        const response = await options.exchange(binding,
+          path(binding, admission.record.recordId) + '/evidence/requests/' + encodeURIComponent(requestId), 'GET', active);
+        current(binding, active);
+        if (response.status !== 200) { discard(response); throw new Error('Native evidence request observation unavailable'); }
+        const observed = await receive(response, active);
+        current(binding, active);
+        const row = object(observed), common = ['schemaVersion', 'kind', 'requestId', 'scope', 'recordId', 'outcome'];
+        const scope = object(row['scope']!);
+        keys(scope, ['workspaceId', 'homeId']);
+        if (exactStockSafeInteger(row['schemaVersion']!) !== 1 || row['kind'] !== 'native-evidence-reconciliation'
+          || row['requestId'] !== requestId || row['recordId'] !== admission.record.recordId
+          || !sameScope(scope as unknown as Scope, binding.scope)) throw new TypeError('Native evidence request observation correlation differs');
+        const outcome = row['outcome'];
+        if (outcome === 'unknown') {
+          keys(row, [...common, 'retrySafety']);
+          if (row['retrySafety'] !== 'not-established') throw new TypeError('Native evidence request retry status differs');
+          return freeze({ requestId, recordId: admission.record.recordId, outcome: 'unknown', retrySafety: 'not-established', observed });
+        }
+        if (outcome !== 'committed') throw new TypeError('Native evidence request outcome differs');
+        keys(row, [...common, 'result']);
+        const result = observeReceipt(admission, requestId, row['result']!);
+        return freeze({ requestId, recordId: admission.record.recordId, outcome: 'committed', retrySafety: 'not-established', observed, result });
       });
     },
     async resolveOriginal(binding, prepared, signal) {
