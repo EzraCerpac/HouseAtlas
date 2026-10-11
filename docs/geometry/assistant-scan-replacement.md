@@ -77,9 +77,15 @@ The actual lossless `readScanMesh` implementation validates each selected
 derivative's digest, lineage, raw tokens and complete authored transforms. All
 prior source-floor/native-geometry pins and accepted anchor memberships must
 match. Every selected retained geometry must occur in the association; a shared
-workspace/home alone does not establish building membership. Multiple corrected
-source-document versions may bind the same retained native geometry, as allowed
-by the existing contract. An input selection is historical evidence supplied by the caller;
+workspace/home alone does not establish building membership. Each native floor
+descriptor key has one source-floor binding, and source-floor keys are unique,
+in the current native owner/reader profile;
+corrected source versions retain distinct bindings or require a new reviewed
+association. Native room entry IDs are globally distinct, with at most 32 entries,
+and each entry's reviewed anchors join one consistent package place. Repeated raw
+producer labels retain their separate source/provenance namespace; the planner
+never renames them or invents native IDs. Multi-place source spans require review
+outside this current native room-entry profile. An input selection is historical evidence supplied by the caller;
 native current-head freshness is explicitly unverified.
 
 ## Changes and reusable facts
@@ -95,6 +101,11 @@ also fence the frame comparison; changed placement metadata requires review
 and unknown units require null scale and transform. Selected original asset IDs
 retain one digest and compatible asset purpose across scene documents, prior
 floors and successors; evidence and geometry originals cannot share an ID. New
+derivatives of the same original digest also preserve its original byte count
+and primary-layer name, digest and byte count. Exact integer comparison preserves
+the raw lineage count tokens in old/new/reversal pins; source originals themselves
+remain external to this proposal and their custody bytes are not authenticated.
+New
 geometry IDs also remain distinct from the association and directly referenced
 asset, evidence and native identity IDs. Package place UUIDs retain their separate
 namespace. Geometry records use the published backward-time predicate, preserving
@@ -146,6 +157,9 @@ and every receipt anchor must belong to a selected source-floor key/hash pair.
 The current native scene profile requires exactly one primary and one documentary
 text original with distinct asset IDs. The documentary digest must equal the
 receipt's `sourceReceiptSha256`; its actual custody bytes remain unverified here.
+Receipts require at least one anchor. Association roots use version one and no
+predecessor; a later association cannot name itself as predecessor. Full retained
+predecessor records and current native lineage heads remain outside this input.
 
 Room correspondence is retained as the complete accepted source-anchor/target
 mapping plus `roomSupportEvidence`: exact source floor/room/original, derivative

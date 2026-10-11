@@ -115,7 +115,7 @@ function retainedState(floors, rooms) {
 
 function supportRows(floors, rooms, receipt) {
   return rooms.filter(r => r.supported).map(r => {
-    const floor = floors.find(f => f.sourceFloorKey === r.sourceFloorKey);
+    const floor = floors.find(f => f.sourceFloorKey === r.sourceFloorKey && f.originalSha256 === r.sourceOriginalSha256);
     return { sourceRoomId: r.sourceRoomId, sourceFloorKey: r.sourceFloorKey,
       sourceOriginalSha256: r.sourceOriginalSha256, derivativeSha256: floor.derivativeSha256,
       receiptSha256: receipt.canonicalSha256, meshIds: [...r.meshIds] };
@@ -301,7 +301,7 @@ test('coordinate frame change reviews every supported room even when mesh coordi
 
 test('unresolved mappings stay unmatched while a resolved room without mesh support requests support review', async () => {
   const floor = snapshot({ floorKey: 'native-support-v1', sourceFloorKey: 'source-support', label: 'Support Floor' });
-  const rooms = [room({ id: 'unresolved-room', floor, targets: [], supported: false,
+  const rooms = [room({ id: 'unresolved-room', floor, supported: false,
       unresolvedLabels: ['unmatched source label'] }),
     room({ id: 'resolved-no-support-room', floor, supported: false })];
   const baseline = world({ floors: [floor], rooms });
@@ -395,16 +395,18 @@ test('actual assistant CLI reads selected synthetic files and retains a verified
   } finally { rmSync(parent, { recursive: true, force: true }); }
 });
 
-test('repeated producer room IDs on different floors keep separate stable targets and support', async () => {
+test('floor-qualified native room IDs preserve repeated original producer labels separately', async () => {
   const a = snapshot({ floorKey: 'same-id-floor-a', sourceFloorKey: 'same-id-source-a', label: 'Repeated ID Floor A' });
   const b = snapshot({ floorKey: 'same-id-floor-b', sourceFloorKey: 'same-id-source-b', label: 'Repeated ID Floor B' });
-  const baseline = world({ floors: [a, b], rooms: [room({ id: 'R1', floor: a }), room({ id: 'R1', floor: b })] });
+  const baseline = world({ floors: [a, b], rooms: [room({ id: 'a:R1', floor: a }), room({ id: 'b:R1', floor: b })] });
+  baseline.retainedState.identities = baseline.retainedState.identities.map(value => ({ ...value, originalProducerRoomId: 'R1' }));
   const nextA = successor(a, { edit: profile => { profile.meshes[0].positionsLocalTokens[3] = '1.15'; } });
   const plan = await buildReplacementPlan(inputWith(baseline, [nextA]));
   assert.equal(plan.rooms.find(r => r.sourceFloorKey === a.sourceFloorKey).status, 'changed');
   assert.equal(plan.rooms.find(r => r.sourceFloorKey === b.sourceFloorKey).status, 'retained');
   assert.notEqual(plan.rooms[0].retainedMapping.targets[0].packagePlaceUuid, plan.rooms[1].retainedMapping.targets[0].packagePlaceUuid);
   assert(plan.rooms.every(r => r.retainedMapping.targets[0].atlasPlaceId === null));
+  assert.deepEqual(plan.retainedState.identities, baseline.retainedState.identities);
 });
 
 test('unqualified historical placement stays unknown and cannot acquire a new frame', async () => {
@@ -499,6 +501,11 @@ test('same immutable original bytes can support a distinct successor descriptor 
   const pair = plan.floors[0];
   assert.equal(pair.previous.originalAssetId, pair.candidate.originalAssetId);
   assert.equal(pair.previous.originalSha256, pair.candidate.originalSha256);
+  assert.deepEqual(pair.previous.originalLineage, pair.candidate.originalLineage);
+  assert.equal(pair.candidate.originalLineage.originalBytesToken, String(floor.profile.source.originalBytes));
+  assert.equal(pair.candidate.originalLineage.primaryLayerName, floor.profile.source.primaryLayerName);
+  assert.equal(pair.candidate.originalLineage.primaryLayerSha256, floor.profile.source.primaryLayerSHA256);
+  assert.equal(pair.candidate.originalLineage.primaryLayerBytesToken, String(floor.profile.source.primaryLayerBytes));
   assert.notEqual(pair.previous.key, pair.candidate.key);
   assert.notEqual(pair.previous.geometryId, pair.candidate.geometryId);
   assert.equal(plan.rooms[0].status, 'reuse-proposed');
@@ -506,18 +513,17 @@ test('same immutable original bytes can support a distinct successor descriptor 
   assert.equal(plan.operationsExecuted, 0);
 });
 
-test('accepted multi-anchor room mappings retain disjoint target and unresolved-label unions', async () => {
+test('native single-place multi-anchor room mappings retain complete unresolved-label unions', async () => {
   for (const withUnresolved of [false, true]) {
     const floor = snapshot({ floorKey: 'union-v1', sourceFloorKey: 'union-source', label: 'Union Floor' });
     const baseline = world({ floors: [floor], rooms: [room({ id: 'union-room', floor })] });
     const mapping = baseline.association.payload.roomMappings[0], receipt = baseline.receipt;
-    const first = receipt.anchors[0], secondTarget = { packagePlaceKey: 'synthetic-second-place', packagePlaceUuid: uuid() };
+    const first = receipt.anchors[0];
     first.unresolvedLabels = withUnresolved ? ['first unresolved component'] : [];
-    const second = { ...deepCopy(first), id: 'synthetic-second-anchor', targets: [secondTarget],
+    const second = { ...deepCopy(first), id: 'synthetic-second-anchor',
       unresolvedLabels: withUnresolved ? ['second unresolved component', 'first unresolved component'] : [] };
     receipt.anchors.push(second);
     mapping.sourceAnchorIds = [second.id, first.id];
-    mapping.targets = [{ ...secondTarget, atlasPlaceId: null }, ...mapping.targets];
     mapping.unresolvedLabels = withUnresolved ? ['second unresolved component', 'first unresolved component'] : [];
     const decoded = JSON.parse(receipt.canonicalJson); decoded.anchors = receipt.anchors;
     receipt.canonicalJson = canonical(decoded); receipt.canonicalSha256 = sha(receipt.canonicalJson);
@@ -555,23 +561,27 @@ test('normal caller Buffer reuse after invocation preserves owned bytes and dete
   } finally { rmSync(parent, { recursive: true, force: true }); }
 });
 
-test('corrected source key/hash versions keep distinct room support even when they bind one native floor', async () => {
+test('corrected source key/hash versions retain distinct native floor bindings and room support', async () => {
   const floor = snapshot({ floorKey: 'corrected-v1', sourceFloorKey: 'corrected-source', label: 'Corrected Source Floor', profileEdit: p => twoMeshEdit(p) });
-  const originalRoom = room({ id: 'R1', floor, meshIds: ['/Stage/Triangle'] });
+  const originalRoom = room({ id: 'original:R1', floor, meshIds: ['/Stage/Triangle'] });
   const correctedHash = sha('synthetic corrected source document');
-  const correctedRoom = room({ id: 'R1', floor: { ...floor, originalSha256: correctedHash }, meshIds: ['/Stage/Triangle2'] });
+  const correctedFloor = snapshot({ floorKey: 'corrected-alternate-v1', sourceFloorKey: 'corrected-alternate-source',
+    label: 'Corrected Alternate Floor', sourceHash: correctedHash, profileEdit: p => twoMeshEdit(p) });
+  const correctedRoom = room({ id: 'corrected:R1', floor: correctedFloor, meshIds: ['/Stage/Triangle2'] });
   correctedRoom.anchorId += '-corrected';
-  const baseline = world({ floors: [floor], rooms: [originalRoom, correctedRoom] });
-  baseline.association.payload.sourceFloors.push({ ...baseline.association.payload.sourceFloors[0], sourceOriginalSha256: correctedHash });
+  const baseline = world({ floors: [floor, correctedFloor], rooms: [originalRoom, correctedRoom] });
   const candidate = successor(floor, { edit: p => { p.meshes[0].positionsLocalTokens[3] = '1.125'; } });
-  const plan = await buildReplacementPlan(inputWith(baseline, [candidate]));
+  const plan = await buildReplacementPlan(inputWith(baseline, [candidate, successor(correctedFloor)]));
   assert.equal(plan.rooms.find(r => r.sourceOriginalSha256 === floor.originalSha256).status, 'changed');
   assert.equal(plan.rooms.find(r => r.sourceOriginalSha256 === correctedHash).status, 'reuse-proposed');
   assert.deepEqual(plan.roomSupportEvidence, baseline.roomSupport);
   assert.deepEqual(plan.previousAssociation.payload.sourceFloors, baseline.association.payload.sourceFloors);
-  assert.equal(plan.floors.length, 1);
-  assert.equal(plan.geometryHistory.previous.length, 1);
-  assert(plan.rooms.every(r => r.sourceRoomId === 'R1' && r.sourceFloorKey === floor.sourceFloorKey));
+  assert.equal(plan.floors.length, 2);
+  assert.equal(plan.geometryHistory.previous.length, 2);
+  assert.equal(new Set(plan.previousAssociation.payload.sourceFloors.map(f => f.nativeFloorKey)).size, 2);
+  assert(plan.rooms.every(r => r.sourceRoomId.endsWith(':R1')));
+  assert.equal(new Set(plan.rooms.map(r => r.sourceFloorKey)).size, 2);
+  assert.equal(new Set(plan.rooms.map(r => r.sourceRoomId)).size, 2);
   assert.equal(plan.rooms[1].retainedMapping.targets[0].atlasPlaceId, null);
 });
 
@@ -628,7 +638,7 @@ test('maximum three-floor replacement inspects all six selected derivatives', as
   const floors = ['lower', 'upper', 'attic'].map(name => snapshot({
     floorKey: `${name}-v1`, sourceFloorKey: `${name}-source`, label: `${name} synthetic floor`,
   }));
-  const baseline = world({ floors, rooms: floors.map(floor => room({ id: 'R1', floor })) });
+  const baseline = world({ floors, rooms: floors.map(floor => room({ id: `${floor.sourceFloorKey}:R1`, floor })) });
   const plan = await buildReplacementPlan(inputWith(baseline, floors.map(floor => successor(floor))));
   assert.equal(plan.geometryHistory.previous.length, 3);
   assert.equal(plan.geometryHistory.candidates.length, 3);

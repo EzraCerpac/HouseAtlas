@@ -90,7 +90,10 @@ function pin(floor) {
   const s = floor.snapshot;
   return { key: s.key, geometryId: s.geometry.recordId, geometryRevision: s.geometry.revision,
     geometryVersion: s.geometry.payload.geometryVersion, originalAssetId: s.geometry.payload.originalAssetId,
-    originalSha256: s.originalSha256, derivativeSha256: s.derivativeSha256 };
+    originalSha256: s.originalSha256, derivativeSha256: s.derivativeSha256,
+    originalLineage: { originalBytesToken: floor.profile.source.originalBytes.token,
+      primaryLayerName: floor.profile.source.primaryLayerName, primaryLayerSha256: floor.profile.source.primaryLayerSHA256,
+      primaryLayerBytesToken: floor.profile.source.primaryLayerBytes.token } };
 }
 
 /** Input is an explicit local selection, never native authority or an inferred floor match.
@@ -114,6 +117,11 @@ export async function buildReplacementPlan(input) {
   assert(sceneRecord(input.association), 'Use the existing accepted scene-association record');
   assert(!(Date.parse(input.association.updatedAt) < Date.parse(input.association.createdAt)), 'Association record time cannot move backward');
   const association = input.association.payload;
+  assert(association.roomMappings.length <= 32
+    && new Set(association.roomMappings.map(mapping => mapping.sourceRoomId)).size === association.roomMappings.length,
+    'Native scene mappings require at most 32 globally distinct source entry IDs');
+  assert(association.previousAssociationId !== input.association.recordId, 'Association cannot be its own predecessor');
+  assert.equal(association.previousAssociationId === null, association.associationVersion === 1, 'Association roots need version one and no predecessor');
   const primary = association.sourceDocuments.filter(source => source.role === 'primary-scene');
   const documentary = association.sourceDocuments.filter(source => source.role === 'documentary-sheet');
   assert(association.sourceDocuments.length === 2 && primary.length === 1 && documentary.length === 1,
@@ -137,6 +145,7 @@ export async function buildReplacementPlan(input) {
   assert(equal(decoded.anchors, receipt.anchors), 'Complete accepted anchor membership must match');
   assert.equal(canonical(decoded), receipt.canonicalJson, 'Receipt must be canonical');
   const anchors = new Map();
+  assert(receipt.anchors.length > 0, 'Native scene receipt requires at least one source anchor');
   for (const anchor of receipt.anchors) {
     assert(!anchors.has(anchor.id), 'Ambiguous source anchor');
     assert.equal(new Set(anchor.targets.map(target => JSON.stringify([target.packagePlaceKey, target.packagePlaceUuid]))).size,
@@ -155,6 +164,14 @@ export async function buildReplacementPlan(input) {
   const previous = [], next = [];
   for (const snapshot of input.floors) previous.push(await inspect(snapshot, reader));
   for (const snapshot of input.successors) next.push(await inspect(snapshot, reader));
+  const lineages = new Map();
+  for (const floor of [...previous, ...next]) {
+    const source = floor.profile.source, known = lineages.get(floor.snapshot.originalSha256);
+    assert(!known || (known.originalBytes.compare(source.originalBytes) === 0
+      && known.primaryLayerName === source.primaryLayerName && known.primaryLayerSHA256 === source.primaryLayerSHA256
+      && known.primaryLayerBytes.compare(source.primaryLayerBytes) === 0), 'Immutable original content must preserve its byte/layer lineage');
+    lineages.set(floor.snapshot.originalSha256, source);
+  }
   const originalDigests = new Map();
   const retainOriginal = (id, digest, role) => {
     const known = originalDigests.get(id);
@@ -207,10 +224,14 @@ export async function buildReplacementPlan(input) {
     for (const field of ['workspaceId', 'homeId']) assert.equal(floor.snapshot.geometry[field], old.snapshot.geometry[field]);
     replacements.set(old.snapshot.geometry.recordId, floor);
   }
-  const bindings = new Map(), boundGeometryIds = new Set();
+  const bindings = new Map(), boundGeometryIds = new Set(), nativeFloorKeys = new Set(), sourceFloorKeys = new Set();
   for (const source of association.sourceFloors) {
     const key = sourceFloorKey(source);
     assert(!bindings.has(key), 'Ambiguous accepted source floor');
+    assert(!nativeFloorKeys.has(source.nativeFloorKey), 'Native scene source floors require distinct descriptor keys');
+    nativeFloorKeys.add(source.nativeFloorKey);
+    assert(!sourceFloorKeys.has(source.sourceFloorKey), 'Native scene reader requires distinct source floor keys');
+    sourceFloorKeys.add(source.sourceFloorKey);
     const old = byId.get(source.nativeGeometryId); assert(old, 'Every accepted floor needs its exact retained snapshot');
     const p = pin(old);
     assert.equal(source.nativeFloorKey, p.key); assert.equal(source.nativeGeometryRevision, p.geometryRevision);
@@ -260,6 +281,9 @@ export async function buildReplacementPlan(input) {
         && anchor.sourceOriginalSha256 === mapping.sourceOriginalSha256, 'Mapping must match its accepted source anchors');
       return anchor;
     });
+    const firstTarget = members[0]?.targets[0];
+    assert(firstTarget && members.every(anchor => anchor.targets.length === 1
+      && equal(anchor.targets[0], firstTarget)), 'Native room entries require one consistent accepted place across their source anchors');
     const targetKey = t => JSON.stringify([t.packagePlaceKey, t.packagePlaceUuid]);
     const targets = new Set(members.flatMap(anchor => anchor.targets.map(targetKey)));
     const actual = new Set(mapping.targets.map(targetKey));
