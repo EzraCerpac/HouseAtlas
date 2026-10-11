@@ -71,3 +71,17 @@ pub fn admitted(core: &Core, principal: &access::Principal) -> Vec<wire::Operati
     }
     operations
 }
+
+/// Metadata for dedicated native HTTP owners, never generic Stock/MCP admission.
+/// The admission handler supplies a genuine current scoped principal; every
+/// native POST still performs its own original-principal mutation authorization.
+pub(super) fn native_admitted(principal: &access::Principal) -> &'static [wire::OperationId] {
+    if principal.role() == access::Role::Editor {
+        &[
+            wire::OperationId::AtlasAssetCreate,
+            wire::OperationId::AtlasSceneAssociationCreate,
+        ]
+    } else {
+        &[]
+    }
+}

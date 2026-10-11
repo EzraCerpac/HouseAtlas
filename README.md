@@ -76,6 +76,44 @@ Its synthetic local check is:
 node --test --test-concurrency=1 tools/geometry/scan-replacement-plan.test.mjs
 ```
 
+The separate assistant-native-import regression lane uses disposable synthetic
+files and fake responses with the actual native geometry clients/decoder. It
+checks bounded file selection, durable journals, two-floor native intent
+correlation, identical no-POST reuse and unavailable-response holds/passive
+reconciliation. It makes no network, account, provider or household calls.
+Scope and callable selection contract are in [assistant native scan intake](docs/geometry/assistant-native-scan-import.md).
+Inspect the complete tool/runtime/transport/test bodies before this exact check:
+
+```sh
+node --test --test-concurrency=1 tools/geometry/native-scan-import.test.mjs
+```
+
+The native admission metadata check provisions only two disposable synthetic
+role/session fixtures before observing two in-process GETs. It checks separate
+Editor/Viewer native lists, unchanged generic Stock/MCP lists and unchanged
+database row counts. It creates no listener and calls no provider or live target.
+Inspect the inline test body in `backend/src/http/agents/mod.rs` first:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib http::agents::tests::native_http_admission_keeps_stock_and_mcp_separate -- --exact --test-threads=1
+```
+
+The separate scene adapter checks use generated text, fake HTTPS responses and
+the actual Stock/document/scene readers. Each invocation runs one named case;
+none creates a socket, browser, database, credential or household record. Inspect
+the complete adapter and runner bodies first. Scope and input contract are in
+[the assistant scene adapter](docs/geometry/assistant-native-scan-scene.md).
+
+```sh
+node frontend/lantern-tests/native-scan-import-scene.mjs committed
+node frontend/lantern-tests/native-scan-import-scene.mjs asset-unknown
+node frontend/lantern-tests/native-scan-import-scene.mjs evidence-unknown
+node frontend/lantern-tests/native-scan-import-scene.mjs association-unknown
+node frontend/lantern-tests/native-scan-import-scene.mjs floor-selection
+node frontend/lantern-tests/native-scan-import-scene.mjs literal-labels
+node frontend/lantern-tests/native-scan-import-scene.mjs scene-reuse
+```
+
 After inspecting the tool, test and source-loader imports, the assistant can
 retain a private, create-only proposal from explicitly selected local files:
 

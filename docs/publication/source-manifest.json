@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "8ded198ed00a698a8b8cc4c7c367faf402a71fb789c78226e2f51313a5079e52",
+  "sourceDigestSha256": "97f6d25514a580f85eb4bdd6434d92c2318291fbef1ce07104fbb0b0c005b42e",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 48540,
-      "sha256": "856b378ac1ff5e4ea3ca04e7eed734c6db89efc1ab8c21ba308f8238077e7ebd",
+      "bytes": 50678,
+      "sha256": "192fa15911d2f88cd5eb25235937c6ffe3bf14d96461760fb984029d5fa5b60d",
       "owner": "core-integration"
     },
     {
@@ -1953,8 +1953,8 @@
     {
       "path": "backend/src/http/agents/capabilities.rs",
       "mode": "100644",
-      "bytes": 2655,
-      "sha256": "c7c5feff8ebab036bdfb5aac277a6592f44b8b25952c62a2c6aef52fbbdcd62e",
+      "bytes": 3205,
+      "sha256": "e0c06a444a90062bd7308c433156f6c1f2e4beda460dd69d2b5587ec54008d88",
       "owner": "core-integration"
     },
     {
@@ -1981,8 +1981,8 @@
     {
       "path": "backend/src/http/agents/mod.rs",
       "mode": "100644",
-      "bytes": 6356,
-      "sha256": "1dc82c011f5dd7f72e832b915a40238b98bce4dbad79ace8691bf555e7383fa3",
+      "bytes": 17372,
+      "sha256": "a4a7a085ecc1669091e71c0624d19ca073b2b440ac9fddf17941bf57fead9857",
       "owner": "core-integration"
     },
     {
@@ -5381,6 +5381,20 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/geometry/assistant-native-scan-import.md",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 6730,
+      "sha256": "723b0ede5276aba74b72d636d9517491074289e4da8e17c4ed70d429ab0f9ffd"
+    },
+    {
+      "path": "docs/geometry/assistant-native-scan-scene.md",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 9033,
+      "sha256": "05936eca1e2ca2ec933facc2377f75feaac0b9ac9003c225ed3841ff00fd125b"
+    },
+    {
       "path": "docs/geometry/assistant-scan-replacement.md",
       "mode": "100644",
       "bytes": 17355,
@@ -6067,6 +6081,20 @@
       "owner": "core-integration"
     },
     {
+      "path": "frontend/integration/native-scan-import-scene.ts",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 36195,
+      "sha256": "7b653926d30d1e1920449ff9f95daaf895b65cc4b62179095d5d9378b5e6c9e5"
+    },
+    {
+      "path": "frontend/integration/native-scan-import-text.ts",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 22613,
+      "sha256": "e87185adad5d9609b6f27778d0a5dddb78bece5961588f349a6994db72a7a362"
+    },
+    {
       "path": "frontend/integration/native-scene-association-client.ts",
       "mode": "100644",
       "bytes": 43162,
@@ -6083,8 +6111,8 @@
     {
       "path": "frontend/integration/native-scene-source-client.ts",
       "mode": "100644",
-      "bytes": 54508,
-      "sha256": "8930cbc9db26cb11db18191462e74909dbcaf2baede580fe8246bf6f530dff34",
+      "bytes": 54615,
+      "sha256": "dc6acb3744dc98fd166fec7e14fd778f237e60542bf40732eb37e1988f1dd8f7",
       "owner": "web"
     },
     {
@@ -6254,6 +6282,13 @@
       "bytes": 36996,
       "sha256": "6d25483f59150026da789c56cfb7b1f75ece1cb6df25a08086d222172113be79",
       "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/native-scan-import-scene.mjs",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 26632,
+      "sha256": "6ab4b3d44f8321073e210c9e60a1bf30ab85d4b2f7407a8ae45f64d41fc9a0ab"
     },
     {
       "path": "frontend/lantern-tests/native-scan-succession.mjs",
@@ -8732,6 +8767,34 @@
       "bytes": 4309,
       "sha256": "2f7e25fd6af2a2c0aeab63f336e3c2f934e9e4bb0f996a653f6108a2c65b12a6",
       "owner": "core-integration"
+    },
+    {
+      "path": "tools/geometry/native-scan-import-runtime.mjs",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 4546,
+      "sha256": "784a17993221c6da4dc7a37aef7b0aac323aba53d800a846fa142058973d4dda"
+    },
+    {
+      "path": "tools/geometry/native-scan-import-transport.mjs",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 7689,
+      "sha256": "d3de029a6a75be3d0f531cefc53287edf2eda2530edee7fc21192539438d0a57"
+    },
+    {
+      "path": "tools/geometry/native-scan-import.mjs",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 34954,
+      "sha256": "ec46d28cbd1f03fde02ae2edace44259a8ddc38fe12a265bb836cdac86e87092"
+    },
+    {
+      "path": "tools/geometry/native-scan-import.test.mjs",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 26686,
+      "sha256": "a41920a7980e93336c858aa30ef858b2330fde793a8cfbdc14ec5e315f4da4be"
     },
     {
       "path": "tools/geometry/scan-replacement-plan.mjs",
