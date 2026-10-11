@@ -210,7 +210,8 @@ export async function buildReplacementPlan(input) {
     geometryHistory: { previous: previous.map(f => clone(f.snapshot.geometry)), candidates: next.map(f => clone(f.snapshot.geometry)) },
     retainedState: clone(input.retainedState), retainedStateSha256: sha(canonical(input.retainedState)),
     placementEvidenceApplications: input.retainedState.floorPlacementFacts.map(fact => {
-      const old = previous.find(f => f.snapshot.geometry.recordId === fact.geometryId);
+      const old = fact && typeof fact === 'object' && !Array.isArray(fact)
+        && previous.find(f => f.snapshot.geometry.recordId === fact.geometryId);
       const floorPlan = old && floorPlans.find(p => p.previous.geometryId === fact.geometryId);
       const exactPriorFrame = old && fact.originalSha256 === old.snapshot.originalSha256
         && fact.derivativeSha256 === old.snapshot.derivativeSha256;

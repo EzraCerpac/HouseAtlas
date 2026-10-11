@@ -125,6 +125,8 @@ pins above. Every field survives artifact readback unchanged. The planner does
 not interpret an opaque fact or authenticate its review; `accepted` in caller
 history does not accept its application to a successor. Exact geometry makes
 that application reviewable, while a changed frame requires new review.
+Explicit null and other opaque scalar/array facts also survive readback;
+they remain unqualified and cannot acquire a geometry frame.
 
 Room correspondence is retained as the complete accepted source-anchor/target
 mapping plus `roomSupportEvidence`: exact source floor/room/original, derivative

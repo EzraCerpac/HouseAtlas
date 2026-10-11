@@ -449,6 +449,25 @@ test('reopened artifact retains numeric reviewed placement and exact room-to-mes
   } finally { rmSync(parent, { recursive: true, force: true }); }
 });
 
+test('opaque null and non-object placement facts survive a reopened successful artifact', async () => {
+  const floor = snapshot({ floorKey: 'opaque-v1', sourceFloorKey: 'opaque-source', label: 'Opaque Placement Floor' });
+  const baseline = world({ floors: [floor], rooms: [room({ id: 'opaque-room', floor })] });
+  const facts = [null, 'unknown', 0, false, ['opaque-history'], { alignment: 'unknown', transform: null }];
+  baseline.retainedState.floorPlacementFacts = facts;
+  const plan = await buildReplacementPlan(inputWith(baseline, [successor(floor)]));
+  const parent = realpathSync(mkdtempSync(join(tmpdir(), 'scan-replacement-opaque-test-')));
+  try {
+    const receipt = writeReplacementArtifact(plan, join(parent, 'artifact'));
+    const bytes = readFileSync(join(parent, 'artifact', receipt.fileName));
+    assert.equal(sha(bytes), receipt.sha256);
+    const reopened = JSON.parse(bytes);
+    assert.deepEqual(reopened.retainedState.floorPlacementFacts, facts);
+    assert.deepEqual(reopened.placementEvidenceApplications.map(row => row.evidenceFact), facts);
+    assert(reopened.placementEvidenceApplications.every(row => row.applicability === 'unqualified-frame'));
+    assert.equal(reopened.operationsExecuted, 0);
+  } finally { rmSync(parent, { recursive: true, force: true }); }
+});
+
 test('geometry placement metadata changes require frame review even with byte-identical derivatives', async () => {
   const floor = snapshot({ floorKey: 'metadata-v1', sourceFloorKey: 'metadata-source', label: 'Metadata Floor' });
   const baseline = world({ floors: [floor], rooms: [room({ id: 'metadata-room', floor })] });
