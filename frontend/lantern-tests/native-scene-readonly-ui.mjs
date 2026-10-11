@@ -60,25 +60,24 @@ import { NativeSceneCandidate } from ${JSON.stringify(join(frontend, 'src/lanter
 const buildingId = '00000000-0000-4000-8000-000000000003';
 const listeners = new Set();
 const ledger = { canCreate: false, unknown: false, reads: 0, prepares: 0, submits: 0, submitAborts: 0,
-  submitSettled: false, resolves: 0, sceneRefreshes: 0, resolved: false };
+  submitSettled: false, resolves: 0, sceneRefreshes: 0, resolved: false, preparedCurrent: true };
 let binding = Object.freeze({ synthetic: true });
 const client = {
   getBinding: () => binding,
   canCreate: () => ledger.canCreate && !ledger.unknown,
   subscribe(changed) { listeners.add(changed); return () => listeners.delete(changed); },
-  pending() { return ledger.unknown ? [{ prepared: { targetId: 'synthetic-target' }, outcome: 'unknown' }] : []; },
-  isPreparedCurrent: () => ledger.canCreate && !ledger.unknown,
+  pending() { return ledger.unknown && ledger.prepared ? [{ prepared: ledger.prepared, outcome: 'unknown' }] : []; },
+  isPreparedCurrent: () => ledger.preparedCurrent && ledger.canCreate && !ledger.unknown,
   async readCurrent() { ledger.reads++; return ledger.resolved
     ? { status: 'available', recordId: 'synthetic-target' } : { status: 'unavailable', reason: 'no-current-association' }; },
-  async prepare() { ledger.prepares++; return { buildingId, requestId: 'synthetic-request', targetId: 'synthetic-target',
-    body: '{}', requestDigest: 'a'.repeat(64), payload: {} }; },
+  async prepare() { ledger.prepares++; ledger.prepared = { buildingId, requestId: 'synthetic-request', targetId: 'synthetic-target',
+    body: '{}', requestDigest: 'a'.repeat(64), payload: {} }; return ledger.prepared; },
   releasePrepared() {},
   async submit(_prepared, _geometry, signal) { ledger.submits++; ledger.unknown = true;
+    ledger.preparedCurrent = false;
     await new Promise((resolve, reject) => {
-      const abort = () => { ledger.submitAborts++; reject(new Error('Synthetic submission was aborted')); };
+      const abort = () => { ledger.submitAborts++; ledger.submitSettled = true; reject(new Error('Synthetic submission was aborted')); };
       signal.addEventListener('abort', abort, { once: true });
-      ledger.finishSubmit = () => { signal.removeEventListener('abort', abort); ledger.submitSettled = true;
-        reject(new Error('Synthetic transport failure')); };
       for (const fn of listeners) fn();
     });
     return { status: 'unavailable', reason: 'current-source-unavailable' }; },
@@ -89,8 +88,9 @@ const client = {
 const host = { associations: client };
 const geometry = { viewKey: 'synthetic-view', descriptor: { buildingId,
   scope: { workspaceId: '00000000-0000-4000-8000-000000000001', homeId: '00000000-0000-4000-8000-000000000002' } } };
-window.__test = { ledger, grantAdmission() { ledger.canCreate = true; binding = Object.freeze({ synthetic: true }); for (const fn of listeners) fn(); },
-  withdrawAdmission() { ledger.canCreate = false; binding = Object.freeze({ synthetic: true }); for (const fn of listeners) fn(); } };
+window.__test = { ledger, grantAdmission() { ledger.canCreate = true; ledger.preparedCurrent = true; binding = Object.freeze({ synthetic: true }); for (const fn of listeners) fn(); },
+  withdrawAdmission() { ledger.canCreate = false; ledger.preparedCurrent = false; binding = Object.freeze({ synthetic: true }); for (const fn of listeners) fn(); },
+  invalidateEvidence() { ledger.preparedCurrent = false; for (const fn of listeners) fn(); } };
 function TestHost() {
   const [generation, setGeneration] = useState(0);
   return <main><NativeSceneCandidate key={generation} host={host} geometry={geometry}
@@ -223,11 +223,14 @@ createRoot(document.getElementById('root')).render(<TestHost />);
     'The client pending notification does not abort the active submission');
   await until(() => evaluate('document.body.innerText.includes("A submitted association has an unknown outcome.")'), 'Unknown outcome remains visible');
   assert.equal(await evaluate('document.body.innerText.includes("A submitted outcome is unknown and can be checked below.")'), true);
+  assert.equal(await evaluate('window.__test.ledger.preparedCurrent === false'), true,
+    'The pending notification may mark the prepared review non-current');
   await until(() => evaluate('!document.body.innerText.includes("Primary scene evidence 00000000-0000-4000-8000-000000000004")'), 'Candidate evidence is hidden after write access is lost');
   assert.equal(await evaluate('Array.from(document.querySelectorAll("button")).some(b => /Review retained originals|Submit reviewed association/.test(b.textContent))'), false,
     'Preparation and submission controls are absent as soon as the pending notification withdraws admission');
-  await evaluate('window.__test.ledger.finishSubmit()');
-  await until(() => evaluate('window.__test.ledger.submitSettled && !document.body.innerText.includes("Saving reviewed association…")'), 'Synthetic submission settles without abort');
+  await evaluate('window.__test.invalidateEvidence()');
+  await until(() => evaluate('window.__test.ledger.submitSettled && window.__test.ledger.submitAborts === 1'),
+    'A subsequent retained-evidence invalidation still aborts the in-flight submission');
   await evaluate('window.__test.withdrawAdmission()');
   await until(() => evaluate('document.body.innerText.includes("A submitted association has an unknown outcome.")'), 'Unknown outcome after admission withdrawal');
   assert.equal(await evaluate('Boolean(Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Check saved outcome" && !b.disabled))'), true);
@@ -241,7 +244,7 @@ createRoot(document.getElementById('root')).render(<TestHost />);
   await until(() => evaluate('document.querySelector("[aria-label=\\"Native scene association review\\"]")?.textContent.includes("Current association synthetic-target")'),
     'Resolved association is present on the reloaded scene');
   assert.equal(await evaluate('window.__test.ledger.canCreate === false'), true, 'Readback and scene refresh do not restore create admission');
-  report.assertions.push('UNKNOWN remains visible after admission withdrawal; successful resolution refreshes scene/current head without create permission or another write');
+  report.assertions.push('UNKNOWN survives the pending notification and evidence invalidation; successful resolution refreshes scene/current head without create permission or another write');
   assert.deepEqual(cdp.errors, [], 'No browser runtime exceptions');
   assert(cdp.requests.length >= 1 && cdp.requests.every(url => url.startsWith(origin + '/')), 'Only owned loopback browser requests');
   report.requests = cdp.requests.map(url => new URL(url).pathname);

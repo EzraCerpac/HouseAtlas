@@ -4,7 +4,8 @@ import type { NativeGeometryFrame } from '../native-read-types';
 import type { SceneAssociationCandidate, SceneAssociationClient, SceneAssociationPrepared,
   SceneAssociationRead } from '../../../../integration/native-scene-association-client';
 
-type Flight = { owner: object; controller: AbortController; submission: boolean };
+type Flight = { owner: object; controller: AbortController; submission: boolean;
+  pendingNotification?: SceneAssociationPrepared | null };
 
 /** The host supplies reviewed evidence IDs and three independent document owners.
  * This leaf only owns the current review interaction and never invents a source. */
@@ -52,8 +53,13 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
       setPrepared(null); setRead(null); setStatus(null); setBusy(null);
       repaint(value => value + 1);
     };
-    const stop = client.subscribe(() => { if (!active() || review && !client.isPreparedCurrent(review)
-      && !flight.current?.submission) invalidate();
+    const stop = client.subscribe(() => {
+      const running = flight.current;
+      const submittedPending = running?.owner === owner && running.submission && running.pendingNotification
+        && client.pending(buildingId ?? '').some(item => item.prepared === running.pendingNotification
+          && item.outcome === 'unknown');
+      if (submittedPending) running.pendingNotification = null;
+      if (!submittedPending && (!active() || review && !client.isPreparedCurrent(review))) invalidate();
       else repaint(value => value + 1); });
     return () => { stop();
       if (flight.current?.owner === owner) { flight.current.controller.abort(); flight.current = null; }
@@ -104,6 +110,7 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
     if (!canPrepare || !review || !reviewCandidate) return;
     onSubmissionStarted(reviewCandidate);
     try {
+      if (flight.current?.owner === owner) flight.current.pendingNotification = review;
       const result = await client.submit(review, geometry!, signal);
       if (!active() || signal.aborted) return;
       setRead({ owner, value: result });
