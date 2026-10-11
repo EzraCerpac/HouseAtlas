@@ -46,7 +46,8 @@ async function load(relative) {
 
 const { createNativeEvidenceClient } = await import(await load('api/native-evidence-client.ts'));
 const cases = new Set(['waiting-headers-transport', 'waiting-headers-deadline', 'caller-canceled', 'context-changed',
-  'reading-response-transport', 'reading-response-idle', 'response-validation', 'correlated-intake-rejection']);
+  'reading-response-transport', 'reading-response-idle', 'response-validation', 'correlated-intake-rejection',
+  'owner-session-expired', 'exchange-session-expired', 'throwing-observer-transport', 'throwing-observer-intake-rejection', 'throwing-observer-committed']);
 const name = process.argv[2];
 assert(cases.has(name), 'Select exactly one documented diagnostic case');
 const uuid = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -64,14 +65,18 @@ const admission = { schemaVersion: 1, admissionKind: 'native-location', scope, r
   guards: [{ record: { recordType: 'evidence', recordId: priorEvidence }, expectedRevision: 1 },
     { record: { recordType: 'identity', recordId: identityId }, expectedRevision: 1 }],
   canAttachEvidence: true, maximumReasonCodePoints: 1024, attachmentPolicy: policy };
-const binding = Object.freeze({ scope: Object.freeze({ ...scope }) }), owner = {}, otherOwner = {};
+let binding = Object.freeze({ scope: Object.freeze({ ...scope }) });
+const owner = {}, otherOwner = {};
 const calls = [], observations = [], listeners = new Set();
 let currentBinding = binding, capturedReason, armed = false, lateResponse;
+const genuineSessionCase = ['owner-session-expired', 'exchange-session-expired'].includes(name);
+const sessionExpiry = new Date(Date.now() + 60000).toISOString();
+const session = { schemaVersion: 1, actorId: uuid(907), csrfToken: 'synthetic-private-csrf', expiresAt: sessionExpiry };
 const originalFailure = new Error('SYNTHETIC_PRIVATE_ERROR: filename statement cookie CSRF must stay lexical');
 const outer = new AbortController();
 const never = () => new Promise(() => {});
 const response = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
-const client = createNativeEvidenceClient({ getBinding: () => currentBinding, owner: actual => actual === binding ? owner : otherOwner,
+const options = { getBinding: () => currentBinding, owner: actual => actual === binding ? owner : otherOwner,
   subscribe(changed) { listeners.add(changed); return () => listeners.delete(changed); },
   exchange: async (actual, route, method, signal, body, requestId) => {
     assert.equal(actual, binding); assert(signal instanceof AbortSignal);
@@ -83,7 +88,7 @@ const client = createNativeEvidenceClient({ getBinding: () => currentBinding, ow
     assert.equal(JSON.parse(body.get('metadata')).requestId, requestId);
     signal.addEventListener('abort', () => { capturedReason = signal.reason; }, { once: true });
     armed = true;
-    if (name === 'waiting-headers-transport') throw originalFailure;
+    if (['waiting-headers-transport', 'throwing-observer-transport'].includes(name)) throw originalFailure;
     if (name === 'waiting-headers-deadline') return new Promise(resolve => { lateResponse = resolve; });
     if (name === 'caller-canceled') { outer.abort(originalFailure); return never(); }
     if (name === 'context-changed') {
@@ -94,10 +99,52 @@ const client = createNativeEvidenceClient({ getBinding: () => currentBinding, ow
     if (name === 'reading-response-transport') return new Response(new ReadableStream({ start(controller) { controller.error(originalFailure); } }), { status: 502 });
     if (name === 'reading-response-idle') return new Response(new ReadableStream({ cancel() {} }), { status: 408 });
     if (name === 'response-validation') return response({ secret: originalFailure.message }, 408);
-    assert.equal(name, 'correlated-intake-rejection');
+    if (name === 'owner-session-expired') return new Response(new ReadableStream({ pull(controller) {
+      session.expiresAt = '1970-01-01T00:00:00Z'; controller.error(originalFailure);
+    } }, { highWaterMark: 0 }), { status: 200 });
+    if (name === 'exchange-session-expired') { session.expiresAt = '1970-01-01T00:00:00Z'; return response({}); }
+    if (name === 'throwing-observer-committed') {
+      const metadata = JSON.parse(body.get('metadata')), evidenceId = uuid(908), assetId = uuid(909);
+      return response({ schemaVersion: 3, commandId: 'atlas.batch.execute', requestId, resolvedScope: scope, status: 'committed',
+        replayed: false, operationId: uuid(910), data: { auditIds: [uuid(911), uuid(912)], requestDigest: 'a'.repeat(64), records: [
+          { target: { authority: 'atlas', recordType: 'evidence', recordId: evidenceId }, revision: 1, lifecycle: 'active', payload: {
+            statement: metadata.statement, provenance: { source: null, sourceRevision: null, sourceConfidence: null, evidenceBasis: 'unknown',
+              factAt: null, retrievedAt: timestamp, vantage: `Browser selection claim v1: ${JSON.stringify(metadata.capture)}`,
+              uncertainty: { status: 'unknown', explanation: null } }, supersedesEvidenceIds: [], references: [{ kind: 'atlas-asset', assetId }] } },
+          { target: { authority: 'atlas', recordType: 'identity', recordId: identityId }, revision: 2, lifecycle: 'active',
+            payload: { kind: 'location', evidenceIds: [priorEvidence, evidenceId] } },
+        ] } });
+    }
+    assert(['correlated-intake-rejection', 'throwing-observer-intake-rejection'].includes(name));
     return response({ schemaVersion: 1, kind: 'native-evidence-outcome', requestId, scope, recordId: placeId,
       outcome: 'not-committed', phase: 'intake', error: { code: 'upload-timeout', httpStatus: 408 } }, 408);
-  } });
+  } };
+async function actualNativePlaceClient() {
+  // This exact host owns session checks and throws ordinary Errors; it is not
+  // replaced by a diagnostic-only fake owner. Only its transport/context are synthetic.
+  const entry = new URL('../src/api/native-place-client.ts', import.meta.url);
+  const outputs = await build({ configFile: false, root: new URL('..', import.meta.url).pathname, logLevel: 'error',
+    build: { ssr: entry.pathname, write: false, sourcemap: false, minify: false,
+      rollupOptions: { external: ['ajv/dist/2020.js', 'ajv-formats', 'ajv-formats/dist/formats.js'] } } });
+  let code = outputs.output.find(row => row.type === 'chunk').code;
+  for (const [specifier, relative] of [['ajv/dist/2020.js', 'ajv/dist/2020.js'], ['ajv-formats', 'ajv-formats/dist/index.js'],
+    ['ajv-formats/dist/formats.js', 'ajv-formats/dist/formats.js']]) {
+    const destination = new URL(`../node_modules/${relative}`, import.meta.url).href;
+    code = code.replaceAll(`from "${specifier}"`, `from ${JSON.stringify(destination)}`);
+  }
+  const { createNativePlaceClient } = await import(dataUrl(code));
+  const context = { session, scope, admission: { scope, commandIds: [] } };
+  return createNativePlaceClient({ getContext: () => context, subscribe: options.subscribe,
+    transport: (route, init) => {
+      assert.equal(init.credentials, 'same-origin'); assert.equal(init.cache, 'no-store'); assert.equal(init.redirect, 'error');
+      if (init.method === 'POST') assert.equal(init.headers['X-Atlas-CSRF'], session.csrfToken);
+      return options.exchange(binding, route, init.method, init.signal, init.body, init.headers['X-Atlas-Upload-Request-Id']);
+    } }).evidence;
+}
+const client = genuineSessionCase ? await actualNativePlaceClient() : createNativeEvidenceClient(options);
+if (genuineSessionCase) { binding = client.getBinding(); assert(binding); currentBinding = binding; }
+let observerCalls = 0;
+if (name.startsWith('throwing-observer-')) client.subscribePending(() => { observerCalls++; throw new Error('SYNTHETIC_PRIVATE_OBSERVER_ERROR'); });
 client.subscribePending(() => {
   if (currentBinding === binding) observations.push(client.pending(binding).map(row => row.uploadDiagnostic));
 });
@@ -127,6 +174,15 @@ catch (error) { thrown = error; }
 finally { globalThis.setTimeout = realSetTimeout; globalThis.clearTimeout = realClearTimeout; fakeTimers.clear(); }
 assert.equal(listeners.size, 0, 'bounded commit subscriptions are removed');
 assert.equal(calls.filter(call => call.method === 'POST').length, 1, 'one fake POST only');
+if (genuineSessionCase) {
+  assert.throws(() => client.pending(binding), /session expired/, 'actual owner still refuses the expired synthetic session');
+  if (name === 'exchange-session-expired') {
+    assert.equal(thrown.constructor, Error); assert.equal(thrown.message, 'Native evidence session changed', 'ordinary host error is not replaced');
+  } else assert.equal(thrown, originalFailure, 'original body error is not replaced by the owner recheck error');
+  // Restore only the synthetic fixture's original eligibility to inspect private
+  // custody. This sends no GET/POST and changes no production expiry authority.
+  session.expiresAt = sessionExpiry;
+}
 if (name === 'context-changed') {
   assert.equal(thrown, capturedReason);
   assert.equal(client.getBinding(), currentBinding);
@@ -142,7 +198,7 @@ assert.deepEqual(Object.keys(diagnostic).sort(), ['elapsedMs', 'failure', 'heade
 assert.equal(diagnostic.state, 'finished');
 for (const key of ['elapsedMs', 'headersReceivedMs', 'responseReadMs'])
   assert(diagnostic[key] === null || (Number.isInteger(diagnostic[key]) && diagnostic[key] >= 0 && diagnostic[key] <= 2_147_483_647));
-assert(!JSON.stringify(pending).includes('SYNTHETIC_PRIVATE_ERROR'));
+assert(!JSON.stringify(diagnostic).includes('SYNTHETIC_PRIVATE_ERROR'));
 assert(!Object.hasOwn(pending, 'originalUploadFailure'), 'original exception is never exposed');
 const expected = {
   'waiting-headers-transport': ['waiting-for-response-headers', 'transport-failed', null],
@@ -153,14 +209,22 @@ const expected = {
   'reading-response-idle': ['reading-response', 'response-idle', 408],
   'response-validation': ['validating-response', 'response-validation-failed', 408],
   'correlated-intake-rejection': ['validating-response', null, 408],
+  'owner-session-expired': ['reading-response', 'context-changed', 200],
+  'exchange-session-expired': ['waiting-for-response-headers', 'context-changed', null],
+  'throwing-observer-transport': ['waiting-for-response-headers', 'transport-failed', null],
+  'throwing-observer-intake-rejection': ['validating-response', null, 408],
+  'throwing-observer-committed': ['validating-response', null, 200],
 }[name];
 assert.deepEqual([diagnostic.phase, diagnostic.failure, diagnostic.httpStatus], expected);
-if (name === 'correlated-intake-rejection') {
+if (name === 'throwing-observer-committed') {
+  assert.equal(thrown, undefined); assert.equal(result.outcome, 'committed'); assert.equal(pending.outcome, 'committed');
+  assert(pending.receipt); assert.equal(pending.evidenceId, uuid(908)); assert.equal(pending.assetId, uuid(909));
+} else if (['correlated-intake-rejection', 'throwing-observer-intake-rejection'].includes(name)) {
   assert.equal(thrown, undefined); assert.equal(result.outcome, 'not-committed'); assert.equal(pending.outcome, 'not-committed');
   assert.deepEqual(pending.intakeError, { code: 'upload-timeout', httpStatus: 408 });
 } else {
   assert(thrown instanceof Error); assert.equal(pending.outcome, 'unknown'); assert.equal(pending.receipt, undefined); assert.equal(pending.intakeError, undefined);
-  if (['waiting-headers-transport', 'caller-canceled', 'reading-response-transport'].includes(name)) assert.equal(thrown, originalFailure, 'original thrown error identity is preserved');
+  if (['waiting-headers-transport', 'caller-canceled', 'reading-response-transport', 'owner-session-expired', 'throwing-observer-transport'].includes(name)) assert.equal(thrown, originalFailure, 'original thrown error identity is preserved');
   if (name === 'waiting-headers-deadline') assert.equal(thrown, capturedReason);
   await assert.rejects(client.prepare(fresh, input, new AbortController().signal), /unknown; do not resend/);
   assert.equal(calls.filter(call => call.method === 'POST').length, 1);
@@ -175,6 +239,7 @@ if (name === 'waiting-headers-deadline') {
   assert.equal(client.pending(binding)[0].outcome, 'unknown'); assert.equal(observations.length, before);
 }
 assert(observations.length >= 2, 'phase and terminal observations are notified');
+if (name.startsWith('throwing-observer-')) assert.equal(observerCalls, observations.length, 'a throwing observer does not stop later observers or the transport/outcome');
 
 // Render the actual pending-attempt component. Two unrelated view dependencies
 // are no-op fixtures: the unopened picker and evidence links are not under test.
@@ -184,10 +249,15 @@ const stubs = new Map([
   [new URL('../src/lantern/components/LinkedEvidence.tsx', import.meta.url).pathname, 'export const LinkedEvidence = () => null;'],
 ]);
 const outputs = await build({ configFile: false, root: new URL('..', import.meta.url).pathname, logLevel: 'error',
-  plugins: [{ name: 'unrelated-view-fixtures', load(id) { return stubs.get(id) ?? null; } }],
+  plugins: [{ name: 'unrelated-view-fixtures', enforce: 'pre', load(id) { return stubs.get(id) ?? null; },
+    // The receipt carries branded exact decimals from the actual client module.
+    // Share its actual lossless serializer instead of bundling a second brand.
+    resolveId(source) { if (source === '../../numeric/lossless-json' || source === sourcePath('numeric/lossless-json.ts').pathname)
+      return { id: 'houseatlas-test-shared-lossless-json', external: true }; } }],
   build: { ssr: panelFile.pathname, write: false, sourcemap: false, minify: false,
     rollupOptions: { external: ['react', 'react/jsx-runtime'] } } });
 let code = outputs.output.find(entry => entry.type === 'chunk').code;
+code = code.replaceAll('from "houseatlas-test-shared-lossless-json"', `from ${JSON.stringify(await load('numeric/lossless-json.ts'))}`);
 for (const module of ['react/jsx-runtime', 'react']) {
   const url = new URL(`../node_modules/${module === 'react' ? 'react/index.js' : 'react/jsx-runtime.js'}`, import.meta.url).href;
   code = code.replaceAll(`from "${module}"`, `from ${JSON.stringify(url)}`);
@@ -199,5 +269,6 @@ const markup = renderToStaticMarkup(createElement(NativePlaceEvidence, { client,
 assert(markup.includes(prepared.requestId)); assert(markup.includes('Upload observation'));
 assert(markup.includes('HTTP status:')); assert(markup.includes('do not establish server commit, rollback or safe retry'));
 if (pending.outcome === 'unknown') assert(markup.includes('Do not resend this request'));
-for (const secret of ['SYNTHETIC_PRIVATE_ERROR', 'synthetic-private.pdf', input.statement, input.reason, 'Synthetic private bytes']) assert(!markup.includes(secret));
+for (const secret of ['SYNTHETIC_PRIVATE_ERROR', 'SYNTHETIC_PRIVATE_OBSERVER_ERROR', session.csrfToken, input.reason, 'Synthetic private bytes']) assert(!markup.includes(secret));
+if (name !== 'throwing-observer-committed') for (const secret of ['synthetic-private.pdf', input.statement]) assert(!markup.includes(secret));
 console.log(`PASS ${name}: actual client phase/status, original error preservation, bounded private view, one fake POST, retained outcome, actual static pending UI`);

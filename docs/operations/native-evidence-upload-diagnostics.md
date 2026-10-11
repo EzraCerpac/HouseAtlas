@@ -8,10 +8,16 @@ response for the exact request. Times are relative to the commit call and
 saturate at 2,147,483,647 ms. They measure neither bytes sent nor server progress.
 
 The original thrown value stays in the client's private custody and is rethrown
-unchanged. Pending views contain no exception message, stack, request headers,
+unchanged. Upload diagnostics contain no exception message, stack, request headers,
 cookies, CSRF, filename, statement, reason or file bytes. Nothing is persisted
 or logged. Scope/session visibility and the existing bounded attempt map apply;
 older attempts created before this implementation have no retrospective detail.
+Pending observer exceptions are isolated individually. They cannot stop the
+transport, replace the upload error or change a validated outcome. A failure
+also rechecks the actual binding and session owner without the aborted signal:
+an ordinary host Error caused by expired or replaced custody is categorized as
+context-changed without inspecting its message or replacing the original error.
+This observation does not relax the host's session eligibility checks.
 
 Fixed categories distinguish the commit deadline, a changed context, caller
 cancellation, response idle, transport failure, response reading/decoding failure
@@ -30,7 +36,7 @@ cannot replace it or acknowledge a canceled attempt.
 
 The integration owner registers these individually named commands in README
 before general use. The repair authorization permits this finite set of local
-failure cases. Inspect the complete body and imports first:
+failure and observer cases. Inspect the complete body and imports first:
 
 ```sh
 node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs waiting-headers-transport
@@ -41,6 +47,11 @@ node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs reading-respo
 node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs reading-response-idle
 node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs response-validation
 node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs correlated-intake-rejection
+node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs owner-session-expired
+node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs exchange-session-expired
+node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs throwing-observer-transport
+node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs throwing-observer-intake-rejection
+node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs throwing-observer-committed
 ```
 
 Each command creates one synthetic PDF and admission, runs the actual client
@@ -51,12 +62,21 @@ The deadline and idle cases deterministically trigger only the source's existing
 The context case changes only a synthetic binding and owner, not an account,
 expiry or revocation policy. UNKNOWN cases check that preparation stays blocked;
 they never resend a prepared request.
+The two separately authorized expiry cases use the actual native-place client's
+ordinary session-owner/exchange errors with synthetic session state and fake
+transport. The expired fixture remains inaccessible until its original synthetic
+eligibility is restored for memory-only observation; this performs no further
+request and changes no production eligibility. The three observer cases install
+a throwing view callback before another observer and check both an original
+transport failure, a validated intake rejection and a closed committed result.
+The committed case's existing receipt UI still shows its legitimate evidence
+statement and selection claim; the separate upload diagnostic exposes neither.
 
 Checks retain thrown error identity where the transport supplies it, verify
 phase/status and bounded observations, and statically render the actual pending
 UI. The unopened picker and unrelated evidence-link component are explicit
 no-op view fixtures. The static UI proves the diagnostic and no-resend text is
-present and private fixture contents are absent. It does not prove interactive
+present and private error contents are absent. It does not prove interactive
 browser behavior, real multipart delivery, server phase logging or historical
 request disposition. This finite set is separate from ordinary CI and does not
 release another failure, replay, expiry, revocation, crash or private-intake case.
