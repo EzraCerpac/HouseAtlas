@@ -415,3 +415,35 @@ test('unqualified historical placement stays unknown and cannot acquire a new fr
   assert.equal(plan.floors[0].qualification.stageToHouseTransform, null);
   assert(Object.isFrozen(plan) && Object.isFrozen(plan.previousAssociation));
 });
+
+test('reopened artifact retains numeric reviewed placement and exact room-to-mesh support without adopting either', async () => {
+  const floor = snapshot({ floorKey: 'placement-source-v1', sourceFloorKey: 'placement-source', label: 'Placement Source' });
+  const baseline = world({ floors: [floor], rooms: [room({ id: 'placement-room', floor })] });
+  const fact = { geometryId: floor.geometry.recordId, originalSha256: floor.originalSha256,
+    derivativeSha256: floor.derivativeSha256, evidenceReceipt: { id: 'synthetic-placement-review', sha256: sha('synthetic placement review'), reviewStatus: 'accepted' },
+    fromFrame: 'authored-stage', toFrame: 'synthetic-house-frame', matrixConvention: 'row-vector', coordinateUnits: 'm',
+    stageToHouseTransform: [0, 0, -1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 2.5, 4.25, -1.75, 1],
+    elevation: { value: 4.25, units: 'm', referenceFrame: 'synthetic-house-frame', axis: 'Y' } };
+  baseline.retainedState.floorPlacementFacts = [fact];
+  const exact = await buildReplacementPlan(inputWith(baseline, [successor(floor)]));
+  const changed = await buildReplacementPlan(inputWith(baseline, [successor(floor, { edit: p => transformRoot(p, '3.5') })]));
+  const parent = realpathSync(mkdtempSync(join(tmpdir(), 'scan-replacement-placement-test-')));
+  try {
+    for (const [name, plan, applicability] of [['exact', exact, 'reviewable-exact-candidate'], ['changed', changed, 'prior-frame-only-requires-review']]) {
+      const receipt = writeReplacementArtifact(plan, join(parent, name));
+      const bytes = readFileSync(join(parent, name, receipt.fileName));
+      assert.equal(sha(bytes), receipt.sha256);
+      const reopened = JSON.parse(bytes);
+      assert.deepEqual(reopened.retainedState.floorPlacementFacts, [fact]);
+      assert.deepEqual(reopened.placementEvidenceApplications[0].evidenceFact.stageToHouseTransform, fact.stageToHouseTransform);
+      assert.deepEqual(reopened.placementEvidenceApplications[0].evidenceFact.elevation, fact.elevation);
+      assert.equal(reopened.placementEvidenceApplications[0].applicability, applicability);
+      assert.deepEqual(reopened.roomSupportEvidence, baseline.roomSupport);
+      assert.deepEqual(reopened.rooms[0].retainedMapping, baseline.association.payload.roomMappings[0]);
+      assert.deepEqual(reopened.previousAssociation.payload.acceptedReceipt, baseline.receipt);
+      assert.equal(reopened.floors[0].qualification.stageToHouseTransform, null);
+      assert.equal(reopened.rooms[0].spatialAcceptance, 'not-issued');
+      assert.equal(reopened.operationsExecuted, 0);
+    }
+  } finally { rmSync(parent, { recursive: true, force: true }); }
+});

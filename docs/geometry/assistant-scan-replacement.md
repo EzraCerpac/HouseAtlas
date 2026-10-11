@@ -105,6 +105,34 @@ historical evidence. Exact supported geometry can make them reviewable for the
 candidate; changed geometry leaves them prior-frame-only. No values are inferred,
 rescaled, clamped or made physically accurate. Qualification remains unknown.
 
+This is structured retention, not a text summary. A selected placement fact can
+carry its full numeric `stageToHouseTransform` (16 coefficients), explicit
+`matrixConvention`, `fromFrame`, `toFrame`, `coordinateUnits`, numeric
+`elevation` with units/reference frame/axis, and its original `evidenceReceipt`
+ID/hash/review status, alongside the exact prior geometry/original/derivative
+pins above. Every field survives artifact readback unchanged. The planner does
+not interpret an opaque fact or authenticate its review; `accepted` in caller
+history does not accept its application to a successor. Exact geometry makes
+that application reviewable, while a changed frame requires new review.
+
+Room correspondence is retained as the complete accepted source-anchor/target
+mapping plus `roomSupportEvidence`: exact source floor/room/original, derivative
+and receipt hashes, and the reviewed mesh IDs. The artifact also retains both
+versions' object fingerprints and complete geometry/receipt records. It can
+therefore identify the old room-to-geometry support, rather than retaining only
+an alias or descriptive label. It does not create missing support or a room
+outline. A synthetic reopen case verifies these numeric values and correspondence
+bytes for both an unchanged and a changed-frame successor.
+
+Native placement application is still separate: the current geometry payload
+has a six-coefficient affine `transform`, and the native mesh profile requires
+it to be null. The scene association carries room correspondence and floor
+bindings, not a full 4x4 placement or elevation payload. Floor elevation has its
+existing location-semantics owner. A successor implementation must retain and
+qualify these existing owners' reviewed evidence and frame applicability; it
+must not place a 4x4 matrix into the six-coefficient field or infer a new floor
+elevation from the planner artifact.
+
 ## Durable output and reversal
 
 The artifact includes both full selected geometry records and hash/asset/version
