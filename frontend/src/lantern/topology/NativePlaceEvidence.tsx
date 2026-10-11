@@ -16,11 +16,11 @@ function UploadObservation({ value }: { value: NativeEvidenceUploadDiagnostic })
     'response-read-failed': 'The response could not be read or decoded', 'response-validation-failed': 'The response could not be validated for this request' }[value.failure];
   return <details>
     <summary>Upload observation{failure ? ' · failed' : value.state === 'active' ? ' · in progress' : ''}</summary>
-    <p>{phase} · {value.elapsedMs} ms elapsed.</p>
+    <p>{phase} · last observed {value.elapsedMs} ms after the upload call.</p>
     {failure && <p>{failure}.</p>}
     <p>HTTP status: {value.httpStatus ?? 'not observed'} · headers: {value.headersReceivedMs === null ? 'not observed' : `${value.headersReceivedMs} ms`}
       {' · '}response read: {value.responseReadMs === null ? 'not completed' : `${value.responseReadMs} ms`}.</p>
-    <p>These browser observations do not establish server commit, rollback or safe retry. Elapsed times start at the upload call; they do not measure bytes sent.</p>
+    <p>These browser observations do not establish server commit, rollback or safe retry. Times are snapshots from the upload call; they do not update continuously or measure bytes sent.</p>
   </details>;
 }
 

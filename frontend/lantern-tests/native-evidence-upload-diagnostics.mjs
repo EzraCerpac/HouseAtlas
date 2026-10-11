@@ -268,6 +268,7 @@ const markup = renderToStaticMarkup(createElement(NativePlaceEvidence, { client,
   index: { data: { bindings: [], identities: [] } }, refresh() { throw new Error('No refresh is expected in static rendering'); } }));
 assert(markup.includes(prepared.requestId)); assert(markup.includes('Upload observation'));
 assert(markup.includes('HTTP status:')); assert(markup.includes('do not establish server commit, rollback or safe retry'));
+assert(markup.includes('last observed')); assert(markup.includes('do not update continuously'));
 if (pending.outcome === 'unknown') assert(markup.includes('Do not resend this request'));
 for (const secret of ['SYNTHETIC_PRIVATE_ERROR', 'SYNTHETIC_PRIVATE_OBSERVER_ERROR', session.csrfToken, input.reason, 'Synthetic private bytes']) assert(!markup.includes(secret));
 if (name !== 'throwing-observer-committed') for (const secret of ['synthetic-private.pdf', input.statement]) assert(!markup.includes(secret));

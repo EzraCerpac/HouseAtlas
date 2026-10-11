@@ -2,7 +2,8 @@
 
 Each newly dispatched native evidence attempt retains an in-memory browser
 observation. The pending-attempt UI shows its last phase, received HTTP status,
-elapsed milliseconds and a fixed failure category. Phases distinguish transport
+milliseconds at the last observation and a fixed failure category. Times update
+on a phase or terminal observation, not continuously. Phases distinguish transport
 startup, waiting for headers, reading/decoding the response and validating the
 response for the exact request. Times are relative to the commit call and
 saturate at 2,147,483,647 ms. They measure neither bytes sent nor server progress.
