@@ -272,6 +272,19 @@ export async function applyNativeImport(selected, runtime, context, transport, j
   try {
     let frame = await reader.loadBuilding(manifest.buildingId, signal);
     compareIds(frame.floors.map(floor => floor.geometryId), currentIds);
+    const planned = planNativeFloors(floors, frame, manifest);
+    const creating = planned.filter(part => part.reusedGeometryId === null);
+    if (selected.scene) {
+      // A scene binds the entire final current frame, including untouched
+      // lineages. Validate that known coverage before any geometry custody.
+      const replacements = new Set(creating.map(part => part.item.selected.previousGeometryId).filter(value => value !== null));
+      const reused = new Set(planned.map(part => part.reusedGeometryId).filter(value => value !== null));
+      const finalCount = frame.floors.length + creating.filter(part => part.item.selected.previousGeometryId === null).length;
+      assert(finalCount <= IMPORT_LIMITS.floors && planned.length === finalCount
+        && selected.scene.sourceFloors.length === planned.length
+        && frame.floors.every(floor => replacements.has(floor.geometryId) || reused.has(floor.geometryId)),
+      'Reviewed scene must cover the complete projected native floor set within the three-floor bound');
+    }
     if (sceneOwner) {
       const captured = await sceneOwner.capturePriorScene(manifest.buildingId, signal);
       await journal.append('scene-predecessor', { buildingId: manifest.buildingId, status: captured.status,
@@ -279,8 +292,6 @@ export async function applyNativeImport(selected, runtime, context, transport, j
     }
     // Capacity covers the complete ordered set before any original/derivative
     // custody. It observes current reads; actual prepare still uses fresh guards.
-    const planned = planNativeFloors(floors, frame, manifest);
-    const creating = planned.filter(part => part.reusedGeometryId === null);
     if (creating.length) {
       const owner = associate.getBinding(); assert(owner);
       const capacity = await associate.reserve(owner, { buildingId: manifest.buildingId, semanticsId: manifest.semanticsId,

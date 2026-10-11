@@ -27,6 +27,13 @@ primary closed v1/v2 scene original contains the canonical room review receipt,
 rooms/network/electricity and optional frozen fixture ledger. The historical
 original is the unchanged source receipt or closed reviewed documentary support.
 
+Scene preflight counts Unicode code points for its 4096-character review
+statement and 1024-character reason, including the exact appended support marker
+in the statement total. Production scene preparation also counts code points
+for its existing 4096-character statement/reason bounds and support-inclusive
+statement. Unpaired surrogates still refuse; serialized UTF-8 byte caps and
+closed request validation are unchanged.
+
 `createNativeScanTextImporter` performs the actual first two steps per original:
 
 1. Fresh building and ALL prior evidence reads, complete evidence-list/capacity
@@ -77,13 +84,24 @@ head or genuine absence before geometry/text identity changes. The same importer
 retains the production client's owner-bound opaque token; the host receives safe
 status/record ID/revision metadata only. Before preparing a successor the client
 revalidates the prior record by authenticated Stock GET and adds its guard. The
-actual current-head route is checked against that captured record/revision/payload
-before documentary custody when descriptor keys are unchanged. A competing head
-throws rather than becoming a reuse mismatch that permits uploads. The same
-comparison runs during inspection; the old row remaining active is insufficient.
-When the agent's own geometry changes descriptor keys, the current route cannot
-qualify stale floor bindings: the retained token supplies successor provenance,
-not a fresh head claim, and the server's atomic predecessor guard still applies.
+same owner reads the existing Stock scene list with `pageSize=100` and
+`includeArchived=true`. Only a complete first page with `nextCursor: null`, current
+source status, exact scope and production-validated records is accepted. A
+continuation or more than 100 scoped scene rows refuses; pages are not combined
+from separate snapshots. All records for the selected building must be active
+and form one complete version-1 root through unique predecessor/child links,
+with exact version increments, no missing parent, cycle, fork or disconnected
+row. The linked tail must equal the captured ID/revision/payload. A captured
+genuine absence requires zero records for that building. Dates, UUID order and
+largest version never select a head; an active retained row alone is insufficient.
+This fresh stored-chain proof runs before documentary custody and inspection.
+Unchanged descriptor keys also require the qualified current route to agree.
+Changed keys use the stored-chain proof instead: the qualified route can return
+409 for an old `nativeFloorKey`, while `current-source-unavailable` can refer to
+a competing successor and cannot prove that the captured head is still current.
+The retained token supplies successor provenance and the server's atomic
+predecessor guard still applies. These GETs provide proof at their read points,
+not a lease: a later competing write remains subject to the atomic commit guard.
 The server's atomic current-head/predecessor/version check remains final authority;
 a GET of a historical record does not establish it as today's head. Direct
 `importScene` callers self-capture before text if no prior was supplied.
@@ -125,7 +143,10 @@ throws and keeps the invoking host held before any text write. Transport,
 parsing, context and abort errors also throw. It claims no request, emits no
 replacement receipt, makes no POST and never clears an existing UNKNOWN hold.
 A previously qualified available head with changed descriptor keys is known
-successor provenance: its owner token is revalidated and reuse returns null.
+successor provenance only after its owner token and complete stored chain are
+revalidated. Inspection then returns null for that retained successor input;
+any stored successor, incomplete chain or archived selected row refuses, even
+if that successor's qualified source is unavailable.
 The retained prior is passed to prepare, rather than selecting a missing head
 after key-changing custody. The invoking host must record reuse distinctly and
 keep unmatched recovery held.
@@ -146,6 +167,8 @@ node frontend/lantern-tests/native-scan-import-scene.mjs literal-labels
 node frontend/lantern-tests/native-scan-import-scene.mjs scene-reuse
 node frontend/lantern-tests/native-scan-import-scene.mjs scene-replacement
 node frontend/lantern-tests/native-scan-import-scene.mjs stale-current-scene
+node frontend/lantern-tests/native-scan-import-scene.mjs changed-frame-current-scene
+node frontend/lantern-tests/native-scan-import-scene.mjs supplementary-unicode
 ```
 
 The committed case follows the actual standalone asset result, native original
@@ -186,3 +209,24 @@ its prior, then advances the fake current head through another valid stored
 record while leaving the old row and geometry descriptor keys unchanged. Both
 inspection and import must throw before any additional custody POST or journal
 claim. It proves the current-head check is separate from retained-row validation.
+
+`changed-frame-current-scene` captures a prior, advances the geometry frame and
+installs a different fully available successor with the actual new floor keys.
+Both inspection and import hold before additional documentary POSTs or claims,
+including when the competing successor's qualified source is unavailable. The
+actual production current reader refuses a fake409 response for an old floor
+key with unchanged geometry revision; a complete unchanged stored chain still
+permits inspection of the retained successor input without interpreting409 as
+absence. Continuation, overflow, archival, missing parent, fork, disconnected
+root and missing captured row refuse before custody. The existing replacement
+case still saves a version-2 successor with the exact previous guard and fresh
+floor keys. These tests are generated protocol fixtures, not a native backend
+replacement or persistence test.
+
+`supplementary-unicode` uses generated supplementary characters, reviewed
+support and a fake PDF owner to exercise preflight and the actual production
+prepare/submit/readback chain. The support-inclusive statement is exactly 4096
+code points and the importer reason 1024. Additional GET-only production
+preparation checks a 4096-code-point reason (8192 UTF-16 units), while one extra
+statement/support or reason code point and an unpaired surrogate refuse. This
+is source/custody protocol validation, not PDF rendering or native persistence.

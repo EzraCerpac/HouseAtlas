@@ -76,9 +76,16 @@ for every proposed evidence append and the maximum published revision width.
 The journal records counts and observed revisions; this creates no records or
 commit admission. Each actual association still rereads current records and
 prepares its existing guarded batch after genuine asset custody.
+For a scene-bearing selection, the host first projects the final current floor
+set from retained heads, selected predecessors and independent additions. Every
+untouched floor must be selected for reuse, and the complete final scene must
+stay within three floors. Incomplete or oversized coverage stops before custody.
 Before any geometry write, the same scene owner captures the qualified current
 scene (or genuine absence) under its current session. After descriptor keys change,
-it revalidates that retained record's exact revision and payload and submits its
+it revalidates the retained record and the complete bounded authenticated native
+scene chain, requiring the captured head's exact revision and payload. Unfinished
+pagination, archived or ambiguous chains and any newer head stop documentary
+custody. This read observes one point in time; the command still submits its
 predecessor guard; the backend still checks the actual current head atomically.
 Before documentary custody, the actual scene owner performs a GET-only comparison
 of the current scene, both exact retained documents, complete room mappings and
@@ -122,7 +129,10 @@ custody, unavailable
 custody and association holds with passive reconciliation, selected-file fences,
 normal-context composition, setup-failure own logout, maximum escaped journal
 body reopen, pre-custody full-record/UTF-8 batch/later-floor capacity and HTTPS
-framing. The later-floor check makes at most forty small fake GET-only observations
+framing, plus omitted-current-floor and oversized projected-scene holds before
+geometry custody. Those host checks use a scene orchestration marker; the
+separately named scene cases exercise the real document parser and scene clients.
+The later-floor check makes at most forty small fake GET-only observations
 to find a full-set capacity threshold; it does not classify the refusal as the
 byte ceiling versus another existing batch bound. No original is uploaded.
 These

@@ -403,25 +403,64 @@ export function createNativeSceneAssociationClient(options: {
       && geometry.descriptor.scope.workspaceId === next.view.scope.workspaceId
       && geometry.descriptor.scope.homeId === next.view.scope.homeId);
     const head = captured.head;
-    if (head.status === 'unavailable') {
-      const observed = await readCurrent(captured.buildingId, geometry, outer);
-      need(observed.status === 'unavailable' && observed.reason === 'no-current-association');
-      return head;
-    }
     return bounded(outer, async signal => {
-      // This authenticates the retained record, not a fresh current-head claim.
-      // The server checks the actual head/predecessor/version atomically on submit.
-      const raw = await obtain(`${path(next)}/records/scene-association/${head.recordId}`,
+      if (head.status === 'available') {
+        const raw = await obtain(`${path(next)}/records/scene-association/${head.recordId}`,
+          { method: 'GET', headers: { Accept: 'application/json' } }, signal);
+        need(current(owner, geometry) && validator.validateNativeRead('atlas.scene-association.get', raw));
+        const response = row(raw), scope = row(response.resolvedScope), data = row(response.data), records = list(data.records, 1);
+        need(response.commandId === 'atlas.scene-association.get' && response.status === 'read' && response.replayed === false
+          && scope.workspaceId === next.view.scope.workspaceId && scope.homeId === next.view.scope.homeId
+          && data.sourceStatus === 'current' && data.nextCursor === null && records.length === 1);
+        const record = row(records[0]), target = row(record.target);
+        need(target.authority === 'atlas' && target.recordType === 'scene-association' && target.recordId === head.recordId
+          && record.lifecycle === 'active' && integer(record.revision).compare(head.revision) === 0
+          && equal(record.payload!, head.payload));
+      }
+      // The retained row alone cannot authenticate today's head. Read a complete
+      // scoped list, including archived records, and walk the whole building chain.
+      // Overflow/continuation refuses instead of mixing snapshots or guessing from
+      // dates, UUID order or largest version. This is a read-point proof, not a lease;
+      // the backend still checks the actual predecessor atomically on submit.
+      const raw = await obtain(`${path(next)}/records/scene-association?pageSize=100&includeArchived=true`,
         { method: 'GET', headers: { Accept: 'application/json' } }, signal);
-      need(current(owner, geometry) && validator.validateNativeRead('atlas.scene-association.get', raw));
-      const response = row(raw), scope = row(response.resolvedScope), data = row(response.data), records = list(data.records, 1);
-      need(response.commandId === 'atlas.scene-association.get' && response.status === 'read' && response.replayed === false
+      need(current(owner, geometry) && validator.validateNativeRead('atlas.scene-association.list', raw));
+      const response = row(raw), scope = row(response.resolvedScope), data = row(response.data), records = list(data.records, 100);
+      need(response.commandId === 'atlas.scene-association.list' && response.status === 'read' && response.replayed === false
         && scope.workspaceId === next.view.scope.workspaceId && scope.homeId === next.view.scope.homeId
-        && data.sourceStatus === 'current' && data.nextCursor === null && records.length === 1);
-      const record = row(records[0]), target = row(record.target);
-      need(target.authority === 'atlas' && target.recordType === 'scene-association' && target.recordId === head.recordId
-        && record.lifecycle === 'active' && integer(record.revision).compare(head.revision) === 0
-        && equal(record.payload!, head.payload));
+        && data.sourceStatus === 'current' && data.nextCursor === null);
+      const assertHead = (condition: unknown): void => {
+        if (!condition) throw new TypeError('Native scan prior scene head changed; custody remains held');
+      };
+      const ids = new Set<string>(), selected = new Map<string, Row>();
+      for (const value of records) {
+        const record = row(value), target = row(record.target), id = uuid(target.recordId), payload = row(record.payload);
+        need(target.authority === 'atlas' && target.recordType === 'scene-association' && !ids.has(id)); ids.add(id);
+        integer(record.revision);
+        if (payload.buildingId !== captured.buildingId) continue;
+        assertHead(payload.profile === 'houseatlas.native-scene-association.v1' && record.lifecycle === 'active');
+        selected.set(id, record);
+      }
+      if (head.status === 'unavailable') { assertHead(selected.size === 0); return head; }
+      assertHead(selected.size > 0);
+      const children = new Map<string, string>(), roots: string[] = [];
+      for (const [id, record] of selected) {
+        const payload = row(record.payload), version = integer(payload.associationVersion);
+        if (payload.previousAssociationId === null) { assertHead(version.compare(ONE) === 0); roots.push(id); }
+        else {
+          const parentId = uuid(payload.previousAssociationId), parent = selected.get(parentId);
+          assertHead(parent && !children.has(parentId)); need(parent);
+          const parentVersion = integer(row(parent.payload).associationVersion);
+          assertHead(BigInt(exactStockSafeInteger(version)) === BigInt(exactStockSafeInteger(parentVersion)) + 1n);
+          children.set(parentId, id);
+        }
+      }
+      assertHead(roots.length === 1); const visited = new Set<string>(); let tail = roots[0]!;
+      for (;;) { assertHead(!visited.has(tail)); visited.add(tail); const child = children.get(tail); if (!child) break; tail = child; }
+      const observed = selected.get(tail); need(observed);
+      assertHead(visited.size === selected.size && tail === head.recordId
+        && integer(observed.revision).compare(head.revision) === 0 && equal(observed.payload!, head.payload));
+      signal.throwIfAborted(); need(current(owner, geometry));
       return head;
     });
   };
@@ -465,7 +504,7 @@ export function createNativeSceneAssociationClient(options: {
     async prepare(candidate, geometry, statement, reason, outer, previous) {
       need(UUID.test(candidate.buildingId) && UUID.test(candidate.primaryEvidenceId)
         && UUID.test(candidate.historicalEvidenceId) && candidate.primaryEvidenceId !== candidate.historicalEvidenceId
-        && statement.trim() && statement.length <= 4096 && reason.trim() && reason.length <= 4096);
+        && statement.trim() && [...statement].length <= 4096 && reason.trim() && [...reason].length <= 4096);
       scalar(statement); scalar(reason);
       const next = context(), owner = binding!; need(availableWrite(next)
         && visiblePending(candidate.buildingId, pendingBinding!, next).length < 16
@@ -563,7 +602,7 @@ export function createNativeSceneAssociationClient(options: {
             need(matchesDocumentaryPdf(drawingReview, pdf, pdfOwner.getBlob(pdf)));
           }
           const reviewedStatement = drawingReview ? statement + drawingReview.reviewMarker : statement;
-          need(reviewedStatement.length <= 4096);
+          need([...reviewedStatement].length <= 4096);
           const documents = [{ role: 'primary-scene', evidenceId: primary.evidenceId,
             evidenceRevision: primary.evidenceRevision, originalAssetId: primary.asset.assetId,
             originalAssetRevision: primary.asset.revision, originalSha256: primary.asset.sha256, contentType: 'text/plain' },

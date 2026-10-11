@@ -72,8 +72,8 @@ export async function preflightNativeScanScene(input:NativeScanScenePreflightInp
   signal.throwIfAborted();need(expectedScope&&UUID.test(expectedScope.workspaceId)&&UUID.test(expectedScope.homeId));
   const scope=Object.freeze({...expectedScope});
   need(UUID.test(input.buildingId)&&input.primary.buildingId===input.buildingId&&input.historical.buildingId===input.buildingId
-    &&typeof input.confirmDrawingSupport==='boolean'&&typeof input.statement==='string'&&input.statement.trim()&&input.statement.length<=4096
-    &&typeof input.reason==='string'&&input.reason.trim()&&input.reason.length<=1024);
+    &&typeof input.confirmDrawingSupport==='boolean'&&typeof input.statement==='string'&&input.statement.trim()&&[...input.statement].length<=4096
+    &&typeof input.reason==='string'&&input.reason.trim()&&[...input.reason].length<=1024);
   for(const text of [input.statement,input.reason])for(const char of text){const point=char.codePointAt(0)!;need(point<0xd800||point>0xdfff);}
   need(Array.isArray(input.sourceFloors)&&input.sourceFloors.length>0&&input.sourceFloors.length<=3&&Array.isArray(input.roomMappings)&&input.roomMappings.length<=256);
   const selected=new Set<string>();
@@ -87,7 +87,7 @@ export async function preflightNativeScanScene(input:NativeScanScenePreflightInp
     &&typeof receipt.receiptId==='string'&&receipt.receiptId.length>0&&receipt.receiptId.length<=256&&Array.isArray(receipt.anchors));
   const receiptSha=await nativeScanImportDigest(new TextEncoder().encode(stored.receiptCanonicalJson));signal.throwIfAborted();
   const support=await readDocumentarySupport(new TextEncoder().encode(hText),()=>signal.throwIfAborted());
-  if(support)need(input.confirmDrawingSupport&&input.statement.length+support.reviewMarker.length<=4096&&support.pdf.buildingId===input.buildingId
+  if(support)need(input.confirmDrawingSupport&&[...input.statement].length+[...support.reviewMarker].length<=4096&&support.pdf.buildingId===input.buildingId
     &&support.pdf.workspaceId===scope.workspaceId&&support.pdf.homeId===scope.homeId);
   // Local identifiers distinguish parser leases only. They are never returned
   // as native mappings, guards, admission, receipts, or a persisted scene.
@@ -261,14 +261,14 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
   };
   const checkCapturedCurrentHead = async (frame:NativeGeometryFrame,signal:AbortSignal) => {
     need(previous&&previous.owner===getBinding()&&geometry.isCurrent(frame));
-    // With unchanged descriptor keys the actual current route can authenticate
-    // the head, not merely the retained predecessor row. A changed-frame prior
-    // remains successor provenance; its token/guard and the server's atomic
-    // predecessor check are still required, not a current-head assertion.
-    if(previous.viewKey===frame.viewKey){
-      const observed=await associations.readCurrent(previous.buildingId,frame,signal);
-      signal.throwIfAborted();need(previous.owner===getBinding()&&geometry.isCurrent(frame));requireCapturedHead(observed);
-    }
+    // A changed-frame current route may return409 for stale floor keys, or an
+    // unavailable successor. The complete authenticated stored-chain proof can
+    // distinguish those heads without weakening the qualified current route.
+    const observed=previous.viewKey===frame.viewKey
+      ?await associations.readCurrent(previous.buildingId,frame,signal)
+      :await associations.validatePrevious(previous.token,frame,signal);
+    signal.throwIfAborted();need(previous.owner===getBinding()&&geometry.isCurrent(frame));
+    requireCapturedHead(observed);
   };
   return {
     /** Capture genuine qualified predecessor before geometry/text changes keys. */
@@ -305,9 +305,10 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
         const frame=await geometry.loadBuilding(input.buildingId,signal),selectedFloors=checkFloors(input,frame);
         if(previous){need(previous.buildingId===input.buildingId&&previous.owner===getBinding());
           await associations.validatePrevious(previous.token,frame,signal);
-          if(previous.current.status==='available'&&previous.viewKey!==frame.viewKey)return null;
+          if(previous.viewKey!==frame.viewKey)return null;
         }
         const current=await associations.readCurrent(input.buildingId,frame,signal);
+        signal.throwIfAborted();need(geometry.isCurrent(frame));
         if(previous)requireCapturedHead(current);
         if(current.status!=='available'){
           if(current.reason==='no-current-association')return null;

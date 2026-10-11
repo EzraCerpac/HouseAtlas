@@ -201,6 +201,51 @@ test('complete geometry capacity refuses 99 retained evidence rows before any as
     assert.equal([...native.records.values()].filter(row => ['asset', 'geometry'].includes(row.target.recordType)).length, 0);
   } finally { await files.cleanup(); }
 });
+test('scene geometry coverage refuses an omitted current floor or oversized projected frame before custody', async () => {
+  // This exercises the host's actual geometry clients and projection guard.
+  // The scene marker is an orchestration stub, not scene-document acceptance.
+  for (const kind of ['omitted', 'oversized']) {
+    const seed = await fixture(), next = await fixture(kind === 'omitted' ? ['Changed'] : ['NewA', 'NewB', 'NewC']);
+    const native = fakeNative(), context = localContext(); let reader;
+    try {
+      const saved = await applyNativeImport(await seed.selected(), runtime, context, native.transport,
+        await openImportJournal(join(seed.directory, 'seed'), { create: true }), new AbortController().signal);
+      reader = saved.reader; const ids = saved.mappings.map(row => row.geometryId); reader.dispose(); reader = null;
+      assert.equal(native.postCount, 6);
+      next.manifest.expectedCurrentGeometryIds = ids;
+      if (kind === 'omitted') next.manifest.floors[0].previousGeometryId = ids[0];
+      const selected = await next.selected();
+      selected.scene = { sourceFloors: selected.floors.map(part => ({ sourceFloorKey: part.selected.sourceFloorKey,
+        sourceOriginalSha256: part.selected.sourceOriginalSha256 })) };
+      const before = JSON.stringify([...native.records.entries()]);
+      const journal = await openImportJournal(join(next.directory, 'held'), { create: true });
+      await assert.rejects(applyNativeImport(selected, runtime, context, native.transport, journal,
+        new AbortController().signal, { async capturePriorScene() { throw new Error('Incomplete coverage must stop before capture'); } }),
+      /complete projected native floor set/);
+      assert.equal(native.postCount, 6); assert.equal(JSON.stringify([...native.records.entries()]), before);
+      assert.equal(journal.events.at(-1).kind, 'held');
+    } finally { reader?.dispose(); await next.cleanup(); await seed.cleanup(); }
+  }
+});
+test('complete scene floor coverage permits a partial successor and an untouched reused lineage', async () => {
+  const seed = await fixture(), next = await fixture(['Changed', 'Two']), native = fakeNative(), context = localContext(); let reader;
+  try {
+    const initial = await applyNativeImport(await seed.selected(), runtime, context, native.transport,
+      await openImportJournal(join(seed.directory, 'seed'), { create: true }), new AbortController().signal);
+    const ids = initial.mappings.map(row => row.geometryId); initial.reader.dispose();
+    next.manifest.expectedCurrentGeometryIds = ids; next.manifest.floors[0].previousGeometryId = ids[0];
+    const selected = await next.selected();
+    selected.scene = { sourceFloors: selected.floors.map(part => ({ sourceFloorKey: part.selected.sourceFloorKey,
+      sourceOriginalSha256: part.selected.sourceOriginalSha256 })) };
+    let captured = false;
+    const result = await applyNativeImport(selected, runtime, context, native.transport,
+      await openImportJournal(join(next.directory, 'complete'), { create: true }), new AbortController().signal,
+      { async capturePriorScene() { assert.equal(native.postCount, 6); captured = true;
+        return { status: 'unavailable', reason: 'no-current-association' }; } });
+    reader = result.reader; assert(captured); assert.equal(native.postCount, 9); assert.equal(result.frame.floors.length, 2);
+    assert.notEqual(result.mappings[0].geometryId, ids[0]); assert.equal(result.mappings[1].geometryId, ids[1]);
+  } finally { reader?.dispose(); await next.cleanup(); await seed.cleanup(); }
+});
 test('geometry association UTF-8 batch capacity is checked before original and derivative uploads', async () => {
   const files = await fixture(['Capacity']), native = fakeNative();
   try {

@@ -88,6 +88,7 @@ const nativeReads = Object.freeze({
   'atlas.evidence.get': 'result_atlas_evidence_get',
   'atlas.location-semantics.get': 'result_atlas_location_semantics_get',
   'atlas.scene-association.get': 'result_atlas_scene_association_get',
+  'atlas.scene-association.list': 'result_atlas_scene_association_list',
 });
 // Actual flattened Atlas records/guards returned by the native evidence DTO.
 const nativeEvidenceShapes = Object.freeze({

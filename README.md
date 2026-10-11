@@ -85,6 +85,8 @@ reconciliation. It makes no network, account, provider or household calls.
 Capacity cases use current synthetic evidence and UTF-8 reason sizes; one case
 makes at most forty small GET-only fake observations to locate a first-floor-fit,
 later-floor-full capacity threshold, then checks zero custody POSTs.
+Host coverage cases seed two synthetic current floors and check that incomplete
+or oversized projected scenes stop before any further geometry custody.
 Scope and callable selection contract are in [assistant native scan intake](docs/geometry/assistant-native-scan-import.md).
 Inspect the complete tool/runtime/transport/test bodies before this exact check:
 
@@ -118,6 +120,8 @@ node frontend/lantern-tests/native-scan-import-scene.mjs literal-labels
 node frontend/lantern-tests/native-scan-import-scene.mjs scene-reuse
 node frontend/lantern-tests/native-scan-import-scene.mjs scene-replacement
 node frontend/lantern-tests/native-scan-import-scene.mjs stale-current-scene
+node frontend/lantern-tests/native-scan-import-scene.mjs changed-frame-current-scene
+node frontend/lantern-tests/native-scan-import-scene.mjs supplementary-unicode
 ```
 
 After inspecting the tool, test and source-loader imports, the assistant can
