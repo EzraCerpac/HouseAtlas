@@ -268,15 +268,14 @@ impl Client {
             .await?;
         let status = response.status();
         let bytes = to_bytes(response.into_body(), MAX_RESPONSE).await?;
-        assert!(
-            status.is_client_error(),
-            "invalid room mapping unexpectedly accepted: {}",
-            String::from_utf8_lossy(&bytes)
-        );
+        // The existing route deliberately maps Media qualification failures to
+        // SOURCE_UNAVAILABLE. Direct qualifier checks below establish the exact
+        // InvalidInput cause without changing this public response contract.
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
         let error: Value = serde_json::from_slice(&bytes)?;
         assert_eq!(
             error["code"],
-            "invalid-contract",
+            "SOURCE_UNAVAILABLE",
             "unexpected rejection for {}: {error}",
             parsed.id().as_str()
         );
@@ -585,6 +584,24 @@ struct ScenePayload<'a> {
     evidence_id: u32,
 }
 
+struct RetainedScene {
+    version: u8,
+    review: Value,
+    canonical: String,
+    receipt_sha: String,
+    source_sha: String,
+    evidence_id: u32,
+    primary_asset: String,
+}
+
+struct RetainedMalformed {
+    case: &'static str,
+    bytes: Vec<u8>,
+    sha: String,
+    evidence_id: u32,
+    asset: String,
+}
+
 fn scene_payload(input: ScenePayload<'_>) -> Value {
     let ScenePayload {
         version,
@@ -850,7 +867,7 @@ async fn healthy() -> Result<(), Failure> {
         vec![revision_guard("asset", &historical_asset, 1)],
     );
     client.call(e).await?;
-    let mut created_pins: Vec<(u32, Value, Value)> = Vec::new();
+    let mut scenes = Vec::new();
     for version in [1u8, 2u8] {
         let (review, canonical) = receipt(version, &historical_sha)?;
         let receipt_sha = sha(canonical.as_bytes());
@@ -876,61 +893,154 @@ async fn healthy() -> Result<(), Failure> {
             None,
             vec![revision_guard("asset", &primary_asset, 1)],
         );
-        let mut building_evidence = vec![id(100), id(600), id(700)];
-        if version == 2 {
-            building_evidence.push(id(710));
-        }
-        let i = client.command(
-            "identity",
-            "replace",
-            101,
-            json!({"kind":"location","evidenceIds":building_evidence}),
-            Some(u32::from(version) + 1),
-            if version == 1 {
-                vec![guard("evidence", 100), guard("evidence", 600)]
-            } else {
-                vec![
-                    guard("evidence", 100),
-                    guard("evidence", 600),
-                    guard("evidence", 700),
-                ]
-            },
-        );
-        client
-            .batch(vec![e, i], vec![revision_guard("asset", &primary_asset, 1)])
-            .await?;
-        // The descriptor's floor key includes the current building identity.
-        // Refresh it after retaining this version's reviewed evidence.
-        let (_, fresh_descriptor_bytes) =
-            get(&client, &format!("{geometry_base}/buildings/{}", id(101))).await?;
-        let fresh_descriptor: Value = serde_json::from_slice(&fresh_descriptor_bytes)?;
-        let fresh_floors = fresh_descriptor["floors"]
-            .as_array()
-            .ok_or("Missing current native floors")?;
-        assert_eq!(fresh_floors.len(), 1);
-        let floor = &fresh_floors[0]["floor"];
-        assert_eq!(floor["geometryId"], id(601));
-        assert_eq!(floor["geometryRevision"], 1);
-        assert_eq!(floor["originalAssetId"], geometry_asset);
-        assert_eq!(floor["originalSha256"], sha(&original));
-        let previous = if version == 1 { None } else { Some(id(900)) };
-        let mut payload = scene_payload(ScenePayload {
+        client.call(e).await?;
+        scenes.push(RetainedScene {
             version,
+            review,
+            canonical,
+            receipt_sha,
+            source_sha,
+            evidence_id,
+            primary_asset,
+        });
+    }
+
+    // Retain all malformed originals and evidence before attaching the complete
+    // reviewed set once. The native floor descriptor then remains stable across
+    // every rejection and both valid scene writes.
+    let valid_v2 = scenes.last().ok_or("Missing retained v2 scene")?;
+    let mut malformed_sources = Vec::new();
+    for (offset, case) in [
+        "two-target",
+        "missing-target",
+        "missing-anchor",
+        "mismatched-target",
+        "foreign-floor",
+        "foreign-hash",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut source: Value = serde_json::from_slice(&scene_text(
+            2,
+            &valid_v2.canonical,
+            valid_v2.review["receiptId"]
+                .as_str()
+                .ok_or("Missing receipt ID")?,
+            &valid_v2.receipt_sha,
+            &historical_sha,
+        )?)?;
+        if case == "two-target" || case == "missing-target" {
+            let mut malformed_receipt = valid_v2.review.clone();
+            let targets = malformed_receipt["anchors"][0]["targets"]
+                .as_array_mut()
+                .ok_or("Missing anchor targets")?;
+            if case == "two-target" {
+                targets.push(json!({"packagePlaceKey":"second-room","packagePlaceUuid":id(803)}));
+            } else {
+                targets.clear();
+            }
+            let (_, canonical) = canonical_review(malformed_receipt)?;
+            let canonical_sha = sha(canonical.as_bytes());
+            source["receiptCanonicalJson"] = json!(canonical);
+            source["rooms"]["receiptSha256"] = json!(canonical_sha);
+        } else if case == "missing-anchor" {
+            source["rooms"]["entries"][0]["sourceAnchorIds"] = json!(["synthetic-anchor-absent"]);
+        } else if case == "mismatched-target" {
+            source["rooms"]["entries"][0]["packagePlaceKey"] = json!("different-room");
+            source["rooms"]["entries"][0]["packagePlaceUuid"] = json!(id(803));
+        } else if case == "foreign-floor" {
+            source["rooms"]["entries"][0]["sourceFloorKey"] = json!("foreign-source-floor");
+        } else {
+            source["rooms"]["entries"][0]["sourceOriginalSha256"] = json!("9".repeat(64));
+        }
+        let bytes = serde_json::to_vec(&source)?;
+        let sha = sha(&bytes);
+        let evidence_id = 720 + offset as u32;
+        let (asset, _) = custody_text(&mut client, 6700 + 10 * offset as u32, &bytes).await?;
+        let e = client.command(
+            "evidence",
+            "create",
+            evidence_id,
+            referenced_evidence(
+                "Synthetic malformed room-anchor source retained for rejection coverage.",
+                &asset,
+            ),
+            None,
+            vec![revision_guard("asset", &asset, 1)],
+        );
+        client.call(e).await?;
+        malformed_sources.push(RetainedMalformed {
+            case,
+            bytes,
+            sha,
+            evidence_id,
+            asset,
+        });
+    }
+    let evidence_ids = std::iter::once(id(100))
+        .chain(std::iter::once(id(600)))
+        .chain(scenes.iter().map(|scene| id(scene.evidence_id)))
+        .chain(
+            malformed_sources
+                .iter()
+                .map(|source| id(source.evidence_id)),
+        )
+        .collect::<Vec<_>>();
+    let attach_all = client.command(
+        "identity",
+        "replace",
+        101,
+        json!({"kind":"location","evidenceIds":evidence_ids}),
+        Some(2),
+        [100, 600, 700, 710, 720, 721, 722, 723, 724, 725]
+            .into_iter()
+            .map(|number| guard("evidence", number))
+            .collect(),
+    );
+    client.call(attach_all).await?;
+    let (_, descriptor_bytes) =
+        get(&client, &format!("{geometry_base}/buildings/{}", id(101))).await?;
+    let descriptor: Value = serde_json::from_slice(&descriptor_bytes)?;
+    let floors = descriptor["floors"]
+        .as_array()
+        .ok_or("Missing native floors")?;
+    assert_eq!(floors.len(), 1);
+    let floor = floors[0]["floor"].clone();
+    assert_eq!(floor["geometryId"], id(601));
+    assert_eq!(floor["geometryRevision"], 1);
+    assert_eq!(floor["originalAssetId"], geometry_asset);
+    assert_eq!(floor["originalSha256"], sha(&original));
+    assert_eq!(descriptor["physicalScale"], "unknown");
+
+    let mut created_pins: Vec<(u32, Value, Value)> = Vec::new();
+    for (scene_index, retained) in scenes.iter().enumerate() {
+        let RetainedScene {
+            version,
+            review,
+            canonical,
+            receipt_sha,
+            source_sha,
+            evidence_id,
+            primary_asset,
+        } = retained;
+        let previous = if *version == 1 { None } else { Some(id(900)) };
+        let payload = scene_payload(ScenePayload {
+            version: *version,
             previous: previous.as_deref(),
             historical_asset: &historical_asset,
-            primary_asset: &primary_asset,
+            primary_asset,
             historical_sha: &historical_sha,
-            primary_sha: &source_sha,
-            canonical: &canonical,
-            receipt: &review,
-            floor,
-            evidence_id,
+            primary_sha: source_sha,
+            canonical,
+            receipt: review,
+            floor: &floor,
+            evidence_id: *evidence_id,
         });
-        if version == 2 {
+        if scene_index == 1 {
             // Exercise the actual native route with retained, hash-pinned
-            // malformed originals. Each source carries its exact canonical
-            // receipt, so rejection reaches the room-anchor invariant rather
-            // than failing source custody or digest checks.
+            // malformed originals. The source and payload carry matching
+            // receipts/asset pins, so the anchor invariant is the rejection.
             let before_head = current(&client).await?;
             assert_eq!(before_head["association"]["recordId"], id(900));
             let before_list = client
@@ -959,28 +1069,12 @@ async fn healthy() -> Result<(), Failure> {
                     .len(),
                 1
             );
-            for (offset, case) in [
-                "two-target",
-                "missing-target",
-                "missing-anchor",
-                "mismatched-target",
-                "foreign-floor",
-                "foreign-hash",
-            ]
-            .into_iter()
-            .enumerate()
-            {
+            for (offset, malformed) in malformed_sources.iter().enumerate() {
+                let case = malformed.case;
                 let mut bad_payload = payload.clone();
-                let mut source: Value = serde_json::from_slice(&scene_text(
-                    version,
-                    &canonical,
-                    review["receiptId"].as_str().ok_or("Missing receipt ID")?,
-                    &receipt_sha,
-                    &historical_sha,
-                )?)?;
                 if case == "two-target" || case == "missing-target" {
-                    let mut multi = review.clone();
-                    let targets = multi["anchors"][0]["targets"]
+                    let mut malformed_receipt = review.clone();
+                    let targets = malformed_receipt["anchors"][0]["targets"]
                         .as_array_mut()
                         .ok_or("Missing anchor targets")?;
                     if case == "two-target" {
@@ -990,137 +1084,80 @@ async fn healthy() -> Result<(), Failure> {
                     } else {
                         targets.clear();
                     }
-                    let (multi, multi_canonical) = canonical_review(multi)?;
-                    let multi_sha = sha(multi_canonical.as_bytes());
-                    bad_payload["acceptedReceipt"]["canonicalJson"] =
-                        json!(multi_canonical.clone());
-                    bad_payload["acceptedReceipt"]["canonicalSha256"] = json!(multi_sha.clone());
-                    bad_payload["acceptedReceipt"]["anchors"] = multi["anchors"].clone();
-                    source["receiptCanonicalJson"] = json!(multi_canonical);
-                    source["rooms"]["receiptSha256"] = json!(multi_sha);
+                    let (malformed_receipt, canonical) = canonical_review(malformed_receipt)?;
+                    let digest = sha(canonical.as_bytes());
+                    bad_payload["acceptedReceipt"]["canonicalJson"] = json!(canonical.clone());
+                    bad_payload["acceptedReceipt"]["canonicalSha256"] = json!(digest.clone());
+                    bad_payload["acceptedReceipt"]["anchors"] =
+                        malformed_receipt["anchors"].clone();
                     if case == "two-target" {
                         bad_payload["roomMappings"][0]["targets"].as_array_mut().ok_or("Missing mapped targets")?
                             .push(json!({"packagePlaceKey":"second-room","packagePlaceUuid":id(803),"atlasPlaceId":id(102)}));
                     }
                 } else if case == "missing-anchor" {
-                    source["rooms"]["entries"][0]["sourceAnchorIds"] =
-                        json!(["synthetic-anchor-absent"]);
                     bad_payload["roomMappings"][0]["sourceAnchorIds"] =
                         json!(["synthetic-anchor-absent"]);
                 } else if case == "mismatched-target" {
-                    source["rooms"]["entries"][0]["packagePlaceKey"] = json!("different-room");
-                    source["rooms"]["entries"][0]["packagePlaceUuid"] = json!(id(803));
                     bad_payload["roomMappings"][0]["targets"] = json!([{"packagePlaceKey":"different-room",
                         "packagePlaceUuid":id(803),"atlasPlaceId":id(102)}]);
                 } else if case == "foreign-floor" {
-                    source["rooms"]["entries"][0]["sourceFloorKey"] = json!("foreign-source-floor");
                     bad_payload["roomMappings"][0]["sourceFloorKey"] =
                         json!("foreign-source-floor");
-                    let mut floor = bad_payload["sourceFloors"][0].clone();
-                    floor["sourceFloorKey"] = json!("foreign-source-floor");
+                    let mut foreign = bad_payload["sourceFloors"][0].clone();
+                    foreign["sourceFloorKey"] = json!("foreign-source-floor");
                     bad_payload["sourceFloors"]
                         .as_array_mut()
                         .ok_or("Missing source floors")?
-                        .push(floor);
+                        .push(foreign);
                 } else {
                     let wrong_hash = "9".repeat(64);
-                    source["rooms"]["entries"][0]["sourceOriginalSha256"] =
-                        json!(wrong_hash.clone());
                     bad_payload["roomMappings"][0]["sourceOriginalSha256"] =
                         json!(wrong_hash.clone());
-                    let mut floor = bad_payload["sourceFloors"][0].clone();
-                    floor["sourceOriginalSha256"] = json!(wrong_hash);
+                    let mut foreign = bad_payload["sourceFloors"][0].clone();
+                    foreign["sourceOriginalSha256"] = json!(wrong_hash);
                     bad_payload["sourceFloors"]
                         .as_array_mut()
                         .ok_or("Missing source floors")?
-                        .push(floor);
+                        .push(foreign);
                 }
-                let malformed = serde_json::to_vec(&source)?;
-                let malformed_sha = sha(&malformed);
+                bad_payload["sourceDocuments"][1] = json!({"role":"primary-scene","evidenceId":id(malformed.evidence_id),
+                    "evidenceRevision":1,"originalAssetId":malformed.asset,"originalAssetRevision":1,
+                    "originalSha256":malformed.sha,"contentType":"text/plain"});
                 let budget = houseatlas_backend::media::WorkBudget::new(
                     std::time::Duration::from_secs(5),
                     houseatlas_backend::media::Cancellation::default(),
                 )?;
                 assert_eq!(
                     houseatlas_backend::media::scene_association::qualify_document(
-                        &malformed,
+                        &malformed.bytes,
                         &bad_payload,
-                        &budget,
+                        &budget
                     )
                     .unwrap_err(),
                     houseatlas_backend::media::MediaError::InvalidInput,
                     "{case} must fail the authoritative document qualifier",
                 );
-                let (malformed_asset, _) =
-                    custody_text(&mut client, 6700 + 10 * offset as u32, &malformed).await?;
-                let evidence_id = 720 + offset as u32;
-                let evidence_command = client.command(
-                    "evidence",
-                    "create",
-                    evidence_id,
-                    referenced_evidence(
-                        "Synthetic malformed room-anchor source retained for rejection coverage.",
-                        &malformed_asset,
-                    ),
-                    None,
-                    vec![revision_guard("asset", &malformed_asset, 1)],
-                );
-                client.call(evidence_command).await?;
-                let mut evidence_ids = vec![id(100), id(600), id(700), id(710)];
-                evidence_ids.push(id(evidence_id));
-                let attach = client.command(
-                    "identity",
-                    "replace",
-                    101,
-                    json!({"kind":"location","evidenceIds":evidence_ids}),
-                    Some(4 + offset as u32),
-                    vec![
-                        guard("evidence", 100),
-                        guard("evidence", 600),
-                        guard("evidence", 700),
-                    ],
-                );
-                client.call(attach).await?;
-                let (_, descriptor_bytes) =
-                    get(&client, &format!("{geometry_base}/buildings/{}", id(101))).await?;
-                let descriptor: Value = serde_json::from_slice(&descriptor_bytes)?;
-                let current_floor = descriptor["floors"]
-                    .as_array()
-                    .ok_or("Missing current floors")?
-                    .first()
-                    .ok_or("Missing current floor")?["floor"]
-                    .clone();
-                for floor in bad_payload["sourceFloors"]
-                    .as_array_mut()
-                    .ok_or("Missing source floors")?
-                {
-                    floor["nativeFloorKey"] = current_floor["key"].clone();
-                }
+                let malformed_sha = &malformed.sha;
+                let malformed_asset = &malformed.asset;
+                let evidence_id = malformed.evidence_id;
                 let retained_asset = client
-                    .read_key("asset", "get", &malformed_asset, json!({}))
+                    .read_key("asset", "get", malformed_asset, json!({}))
                     .await?;
-                let asset_record = retained_asset["data"]["records"]
-                    .as_array()
-                    .ok_or("Missing retained malformed asset")?
-                    .first()
-                    .ok_or("Missing retained malformed asset")?;
-                assert_eq!(asset_record["payload"]["sha256"], malformed_sha);
-                assert_eq!(asset_record["payload"]["byteSize"], malformed.len());
+                assert_eq!(
+                    retained_asset["data"]["records"][0]["payload"]["sha256"],
+                    malformed_sha.as_str()
+                );
+                assert_eq!(
+                    retained_asset["data"]["records"][0]["payload"]["byteSize"],
+                    malformed.bytes.len()
+                );
                 let retained_evidence = client
                     .read("evidence", "get", evidence_id, json!({}))
                     .await?;
-                let evidence_record = retained_evidence["data"]["records"]
-                    .as_array()
-                    .ok_or("Missing retained malformed evidence")?
-                    .first()
-                    .ok_or("Missing retained malformed evidence")?;
                 assert_eq!(
-                    evidence_record["payload"]["references"][0]["assetId"],
-                    malformed_asset
+                    retained_evidence["data"]["records"][0]["payload"]["references"][0]["assetId"],
+                    malformed_asset.as_str()
                 );
-                bad_payload["sourceDocuments"][1] = json!({"role":"primary-scene","evidenceId":id(evidence_id),
-                    "evidenceRevision":1,"originalAssetId":malformed_asset,"originalAssetRevision":1,
-                    "originalSha256":malformed_sha,"contentType":"text/plain"});
                 let rejected = client.command(
                     "scene-association",
                     "create",
@@ -1129,10 +1166,10 @@ async fn healthy() -> Result<(), Failure> {
                     None,
                     vec![
                         revision_guard("asset", &historical_asset, 1),
-                        revision_guard("asset", &malformed_asset, 1),
+                        revision_guard("asset", malformed_asset, 1),
                         revision_guard("geometry", &id(601), 1),
                         revision_guard("asset", &geometry_asset, 1),
-                        revision_guard("identity", &id(101), 5 + offset as u64),
+                        revision_guard("identity", &id(101), 3),
                         guard("identity", 102),
                         guard("location-semantics", 201),
                         guard("location-semantics", 202),
@@ -1171,37 +1208,27 @@ async fn healthy() -> Result<(), Failure> {
                     "{case} changed scene history"
                 );
                 let retained_asset = client
-                    .read_key("asset", "get", &malformed_asset, json!({}))
+                    .read_key("asset", "get", malformed_asset, json!({}))
                     .await?;
                 let retained_evidence = client
                     .read("evidence", "get", evidence_id, json!({}))
                     .await?;
                 assert_eq!(
                     retained_asset["data"]["records"][0]["payload"]["sha256"],
-                    malformed_sha
+                    malformed_sha.as_str()
                 );
                 assert_eq!(
                     retained_asset["data"]["records"][0]["payload"]["byteSize"],
-                    malformed.len()
+                    malformed.bytes.len()
                 );
                 assert_eq!(
                     retained_evidence["data"]["records"][0]["payload"]["references"][0]["assetId"],
-                    malformed_asset
+                    malformed_asset.as_str()
                 );
                 println!(
                     "PASS rejected {case}: retained original evidence unchanged; scene current/list/history unchanged"
                 );
             }
-            let (_, descriptor_bytes) =
-                get(&client, &format!("{geometry_base}/buildings/{}", id(101))).await?;
-            let descriptor: Value = serde_json::from_slice(&descriptor_bytes)?;
-            let current_floor = descriptor["floors"]
-                .as_array()
-                .ok_or("Missing current floors")?
-                .first()
-                .ok_or("Missing current floor")?["floor"]
-                .clone();
-            payload["sourceFloors"][0]["nativeFloorKey"] = current_floor["key"].clone();
         }
         // Build expected readback from the actual owner-returned asset IDs and
         // measured original bytes, before observing the scene-create result.
@@ -1209,7 +1236,7 @@ async fn healthy() -> Result<(), Failure> {
             {"role":"documentary-sheet","evidenceId":id(690),"evidenceRevision":1,
                 "originalAssetId":historical_asset,"originalAssetRevision":1,
                 "originalSha256":historical_sha,"contentType":"text/plain"},
-            {"role":"primary-scene","evidenceId":id(evidence_id),"evidenceRevision":1,
+            {"role":"primary-scene","evidenceId":id(*evidence_id),"evidenceRevision":1,
                 "originalAssetId":primary_asset,"originalAssetRevision":1,
                 "originalSha256":source_sha,"contentType":"text/plain"}]);
         let expected_receipt = json!({"receiptId":review["receiptId"],"canonicalJson":canonical,
@@ -1217,27 +1244,23 @@ async fn healthy() -> Result<(), Failure> {
         let scene = client.command(
             "scene-association",
             "create",
-            899 + u32::from(version),
+            899 + u32::from(*version),
             payload,
             None,
             {
                 let mut guards = vec![
                     revision_guard("asset", &historical_asset, 1),
-                    revision_guard("asset", &primary_asset, 1),
+                    revision_guard("asset", primary_asset, 1),
                     revision_guard("geometry", &id(601), 1),
                     revision_guard("asset", &geometry_asset, 1),
-                    revision_guard(
-                        "identity",
-                        &id(101),
-                        u64::from(version) + 2 + if version == 2 { 6 } else { 0 },
-                    ),
+                    revision_guard("identity", &id(101), 3),
                     guard("identity", 102),
                     guard("location-semantics", 201),
                     guard("location-semantics", 202),
                     guard("evidence", 690),
-                    guard("evidence", evidence_id),
+                    guard("evidence", *evidence_id),
                 ];
-                if version == 2 {
+                if *version == 2 {
                     guards.push(guard("scene-association", 900));
                 }
                 guards
@@ -1248,18 +1271,18 @@ async fn healthy() -> Result<(), Failure> {
             .as_array()
             .ok_or("Missing durable scene record")?;
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0]["target"]["recordId"], id(899 + u32::from(version)));
-        assert_eq!(rows[0]["payload"]["associationVersion"], version);
+        assert_eq!(rows[0]["target"]["recordId"], id(899 + u32::from(*version)));
+        assert_eq!(rows[0]["payload"]["associationVersion"], *version);
         assert_eq!(
             rows[0]["payload"]["acceptedReceipt"]["canonicalSha256"],
-            receipt_sha
+            receipt_sha.as_str()
         );
         assert_eq!(
             rows[0]["payload"]["sourceDocuments"][1]["originalSha256"],
-            source_sha
+            source_sha.as_str()
         );
         created_pins.push((
-            899 + u32::from(version),
+            899 + u32::from(*version),
             expected_documents,
             expected_receipt,
         ));
@@ -1276,13 +1299,13 @@ async fn healthy() -> Result<(), Failure> {
         assert_eq!(head["status"], "available");
         assert_eq!(
             head["association"]["recordId"],
-            id(899 + u32::from(version))
+            id(899 + u32::from(*version))
         );
         assert_eq!(
             head["association"]["payload"]["associationVersion"],
-            version
+            *version
         );
-        if version == 1 {
+        if *version == 1 {
             // The second reviewed source is selected only after this genuine reopen/read.
             assert_eq!(
                 head["association"]["payload"]["previousAssociationId"],

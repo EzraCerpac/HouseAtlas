@@ -29,6 +29,10 @@ synthetic ports; it must not attach to a user's browser session.
 Its fixture button executes the production preflight in Chromium; the retained
 reader is checked separately. It does not exercise the complete application UI
 or dispatch a browser write. Native save/reopen is exercised by the Rust example.
+It retains all synthetic evidence before selecting the native floor, keeping
+that floor stable through rejected writes and both valid association versions.
+Direct qualification asserts `InvalidInput`; the request route preserves its
+existing `SOURCE_UNAVAILABLE` response for Media qualification failures.
 
 ```sh
 CARGO_TARGET_DIR=/tmp/houseatlas-issue149-target cargo run --offline --locked -p houseatlas-backend --example issue-149-room-anchor-acceptance

@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "a2d03a893340c6f1b130267d8566e1526eb5c6dc9c1a5bb935d2b2eaa8b35776",
+  "sourceDigestSha256": "c61fc75c1318dccca853461e233f9e8c5a9aa3da907f7a5822a7c2f791f73f82",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -308,8 +308,8 @@
     {
       "path": "backend/examples/issue-149-room-anchor-acceptance.rs",
       "mode": "100644",
-      "bytes": 61508,
-      "sha256": "cb46bbcd940a3a656dee10ffc5079b78c1560727c13cc60bfd25d5596cce48db",
+      "bytes": 61003,
+      "sha256": "c7c527b2ce1064041d7e26efbfb49e2d80b29100327f13ae05a938073d94a840",
       "owner": "core-integration"
     },
     {
@@ -5369,8 +5369,8 @@
     {
       "path": "docs/geometry/issue-149-room-anchor-acceptance.md",
       "mode": "100644",
-      "bytes": 2453,
-      "sha256": "46c472519afb9192fb7a38a226b2dd336fe295aa7af7eaa2d88f514c12de6a31",
+      "bytes": 2759,
+      "sha256": "a304fe31f4f883825f2e93da41f61593182667924440651aa5ab20b69206b230",
       "owner": "web"
     },
     {
