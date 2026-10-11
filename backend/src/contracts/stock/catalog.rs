@@ -155,8 +155,8 @@ fn compile_catalog() -> Result<Catalog, String> {
             metadata: command.clone(),
         });
     }
-    if seen.len() != OperationId::ALL.len() || seen.len() != 164 {
-        return Err("embedded catalog must contain all 164 typed operation IDs".to_owned());
+    if seen.len() != OperationId::ALL.len() || seen.len() != 168 {
+        return Err("embedded catalog must contain all 168 typed operation IDs".to_owned());
     }
 
     let groups = family_metadata["families"]
@@ -198,7 +198,7 @@ fn compile_catalog() -> Result<Catalog, String> {
         });
     }
     if family_names.len() != ToolFamily::ALL.len() || family_names.len() != 10 || grouped != seen {
-        return Err("ten tool families must partition all 164 catalog operations".to_owned());
+        return Err("ten tool families must partition all 168 catalog operations".to_owned());
     }
     Ok(Catalog {
         operations,

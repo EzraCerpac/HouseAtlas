@@ -128,7 +128,7 @@ const pageSchema = {
             required: ['authority', 'recordType', 'recordId'],
             properties: {
               authority: { const: 'atlas' },
-              recordType: { enum: ['identity', 'binding', 'evidence', 'location-semantics', 'circuit', 'valve', 'relation', 'geometry', 'asset', 'reconciliation'] },
+              recordType: { enum: ['identity', 'binding', 'evidence', 'location-semantics', 'circuit', 'valve', 'relation', 'geometry', 'asset', 'reconciliation', 'scene-association'] },
               recordId: uuid,
             },
           },

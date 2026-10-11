@@ -112,6 +112,22 @@ geometry/Media owners before this exact command:
 cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision --example healthy-native-geometry-custody-first
 ```
 
+The separate successful scene-association example starts with empty disposable
+local state and an actual native Editor session. It retains synthetic text and
+floor originals, records an explicit reviewed association, then strictly reopens
+the store before reading the current head. A second version preserves its
+predecessor and both versions' original and canonical-receipt pins through
+authenticated get, list and history reads. Inspect the complete example before
+this exact command; it opens no listener or provider and uses no household data:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision --example healthy-native-scene-association
+```
+
+This positive establishes only synthetic native persistence. It supplies no
+live installation, household intake, older-binary compatibility or failure,
+replay, revocation, interruption or concurrent-write qualification.
+
 The fixture has synthetic USDC-signature framing and does not execute usdcat or
 establish USD scene semantics, original/derivative conversion authenticity,
 physical placement, actual household intake or recovery/fallback compatibility.
@@ -211,6 +227,21 @@ npm run typecheck --prefix frontend
 npm run build --prefix frontend
 node frontend/lantern-tests/healthy-read.mjs
 ```
+
+The retained fixture reader has one named positive using generated rooms,
+drawings and fake current document/geometry ports. Inspect its full body and
+listed production imports before this narrower local command. It opens no
+browser or listener; it establishes no native retention or household source
+availability. Use the pinned Node 26.10.0 runtime and an owned evidence directory
+outside this checkout:
+
+```sh
+HOUSEATLAS_FIXTURE_EVIDENCE=/absolute/private/fixture-reader-only node frontend/lantern-tests/native-scene-fixture-reader-healthy.mjs --reader-only
+```
+
+The broader browser flow in `docs/geometry/native-scene-fixture-reader-healthy.md`
+requires its own inspected browser artifact and execution selection; it is not
+released by this reader-only command.
 
 A separately named topology read example uses generic Alpha/Beta records and
 injected transports only. It checks the existing native invoke envelope,

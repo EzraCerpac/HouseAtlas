@@ -20,6 +20,7 @@ import type { NativeGeometryReadClient } from './scans/native-read-types';
 import type { NativeEvidenceDocumentClient } from './scans/native-evidence-document-types';
 import type { NativeGeometryWriteClient } from './scans/native-write-types';
 import type { NativeGeometryIntakeAssociation } from './scans/native-ui/NativeGeometryIntake';
+import type { NativeSceneHost } from './scans/native-ui/native-scene-host';
 import { NativeGeometryProvider } from './scans/native-ui/NativeScanAtlas';
 import './styles/fonts.css';
 import './styles/tokens.css';
@@ -30,7 +31,7 @@ import './styles/integration.css';
 import './styles/topology.css';
 
 /** The existing session/view/stock owners remain above this presentation seam. */
-export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinnedFiles, networkRelations, topology, nativePlaces, nativeGeometry, nativeGeometryWrite, nativeGeometryAssociation, nativeEvidenceDocuments }: {
+export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinnedFiles, networkRelations, topology, nativePlaces, nativeGeometry, nativeGeometryWrite, nativeGeometryAssociation, nativeEvidenceDocuments, nativeScene }: {
   view: ReadyView; actions: AtlasContentActions; nativeContent: ReactNode;
   quantityWebMcp?: { readonly admission: QuantityAdmissionPort; readonly modelContext: ModelContextPort };
   /** Optional local HomeBox file consumer; its actions are explicit user reads. */
@@ -44,6 +45,7 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   nativeGeometryWrite?: NativeGeometryWriteClient;
   nativeGeometryAssociation?: NativeGeometryIntakeAssociation;
   nativeEvidenceDocuments?: NativeEvidenceDocumentClient;
+  nativeScene?: NativeSceneHost;
 }) {
   const client = useMemo(() => createGeometryClient(), []);
   const historyClient = useMemo(() => createOperationHistoryClient(), []);
@@ -112,7 +114,7 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   } }), [view, session, includeArchived]);
   const ports = useMemo(() => ({ ...actions, nativeContent, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, nativeContent, archiveVisibility, pinnedFiles, networkRelations]);
   return <StoreProvider key={projection.house.id} projection={projection} actions={ports}>
-    <TopologyProvider client={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments}><NativeGeometryProvider client={nativeGeometry} writeClient={nativeGeometryWrite} associationClient={nativeGeometryAssociation}><App /></NativeGeometryProvider></TopologyProvider>
+    <TopologyProvider client={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments}><NativeGeometryProvider client={nativeGeometry} writeClient={nativeGeometryWrite} associationClient={nativeGeometryAssociation} scene={nativeScene}><App /></NativeGeometryProvider></TopologyProvider>
     <NativeActions />
     {quantityWebMcp && actions.quantity && <QuantityHandoffLeaf client={actions.quantity} admission={quantityWebMcp.admission} modelContext={quantityWebMcp.modelContext} />}
     {actions.notice && <p className="lantern-reload-notice" role="status">{actions.notice}</p>}

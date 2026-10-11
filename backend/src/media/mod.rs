@@ -33,6 +33,7 @@ pub mod recovery_policy;
 pub mod recovery_policy_archive;
 mod recovery_policy_archive_codec;
 pub mod review;
+pub mod scene_association;
 pub mod service;
 pub mod staged_upload;
 pub mod types;

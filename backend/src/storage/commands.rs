@@ -447,9 +447,14 @@ impl<C: Contract, A: Authorization, R: Runtime> CommandTransaction<'_, C, A, R> 
                 .iter()
                 .find(|r| r.matches(scope, &entry.target));
             let target = ScopedTarget::new(scope, &entry.target);
-            let next_revision =
+            let next_revision = if current.is_none()
+                && extension.qualified_scene_create(&entry.target, &entry.command)?
+            {
+                1
+            } else {
                 self.contract
-                    .assert_transition(current, &entry.command, &target)?;
+                    .assert_transition(current, &entry.command, &target)?
+            };
             self.contract
                 .assert_guards(&original, current, &entry.command, &target, &created)?;
             if next_revision == 0

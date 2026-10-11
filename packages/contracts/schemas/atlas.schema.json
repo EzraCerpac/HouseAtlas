@@ -137,6 +137,7 @@
             "valve",
             "relation",
             "geometry",
+            "scene-association",
             "asset",
             "reconciliation"
           ]
@@ -1097,6 +1098,435 @@
       ],
       "additionalProperties": false
     },
+    "sceneAssociationAcceptedReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "anchors": {
+          "items": {
+            "$ref": "#/$defs/sceneAssociationReceiptAnchor"
+          },
+          "maxItems": 128,
+          "minItems": 0,
+          "type": "array"
+        },
+        "canonicalJson": {
+          "maxLength": 131072,
+          "minLength": 1,
+          "type": "string"
+        },
+        "canonicalSha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "receiptId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "receiptId",
+        "canonicalJson",
+        "canonicalSha256",
+        "anchors"
+      ],
+      "type": "object"
+    },
+    "sceneAssociationMappingTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "atlasPlaceId": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "packagePlaceKey": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "packagePlaceUuid": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "packagePlaceKey",
+        "packagePlaceUuid",
+        "atlasPlaceId"
+      ],
+      "type": "object"
+    },
+    "sceneAssociationPositiveRevision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "sceneAssociationReceiptAnchor": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "sourceFloorKey": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "sourceOriginalSha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/sceneAssociationReceiptTarget"
+          },
+          "maxItems": 16,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "unresolvedLabels": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "sourceFloorKey",
+        "sourceOriginalSha256",
+        "targets",
+        "unresolvedLabels"
+      ],
+      "type": "object"
+    },
+    "sceneAssociationReceiptTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "packagePlaceKey": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "packagePlaceUuid": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "packagePlaceKey",
+        "packagePlaceUuid"
+      ],
+      "type": "object"
+    },
+    "sceneAssociationRoomMapping": {
+      "additionalProperties": false,
+      "properties": {
+        "evidenceIds": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "sourceAnchorIds": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 128,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "sourceFloorKey": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "sourceOriginalSha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "sourceRoomId": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/sceneAssociationMappingTarget"
+          },
+          "maxItems": 16,
+          "minItems": 0,
+          "type": "array"
+        },
+        "unresolvedLabels": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "sourceRoomId",
+        "sourceFloorKey",
+        "sourceOriginalSha256",
+        "sourceAnchorIds",
+        "targets",
+        "unresolvedLabels",
+        "evidenceIds"
+      ],
+      "type": "object"
+    },
+    "sceneAssociationPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptedReceipt": {
+          "$ref": "#/$defs/sceneAssociationAcceptedReceipt"
+        },
+        "associationVersion": {
+          "$ref": "#/$defs/sceneAssociationPositiveRevision"
+        },
+        "buildingId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "previousAssociationId": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "profile": {
+          "const": "houseatlas.native-scene-association.v1"
+        },
+        "reviewStatement": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string"
+        },
+        "reviewStatus": {
+          "const": "accepted"
+        },
+        "roomMappings": {
+          "items": {
+            "$ref": "#/$defs/sceneAssociationRoomMapping"
+          },
+          "maxItems": 256,
+          "minItems": 0,
+          "type": "array"
+        },
+        "sourceDocuments": {
+          "items": {
+            "$ref": "#/$defs/sceneAssociationSourceDocument"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "type": "array"
+        },
+        "sourceFloors": {
+          "items": {
+            "$ref": "#/$defs/sceneAssociationSourceFloor"
+          },
+          "maxItems": 3,
+          "minItems": 0,
+          "type": "array"
+        }
+      },
+      "required": [
+        "profile",
+        "buildingId",
+        "associationVersion",
+        "previousAssociationId",
+        "reviewStatus",
+        "reviewStatement",
+        "sourceDocuments",
+        "acceptedReceipt",
+        "sourceFloors",
+        "roomMappings"
+      ],
+      "type": "object"
+    },
+    "sceneAssociationSourceDocument": {
+      "additionalProperties": false,
+      "properties": {
+        "contentType": {
+          "const": "text/plain"
+        },
+        "evidenceId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "evidenceRevision": {
+          "$ref": "#/$defs/sceneAssociationPositiveRevision"
+        },
+        "originalAssetId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "originalAssetRevision": {
+          "$ref": "#/$defs/sceneAssociationPositiveRevision"
+        },
+        "originalSha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "primary-scene",
+            "documentary-sheet"
+          ]
+        }
+      },
+      "required": [
+        "role",
+        "evidenceId",
+        "evidenceRevision",
+        "originalAssetId",
+        "originalAssetRevision",
+        "originalSha256",
+        "contentType"
+      ],
+      "type": "object"
+    },
+    "sceneAssociationSourceFloor": {
+      "additionalProperties": false,
+      "properties": {
+        "nativeFloorKey": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "nativeGeometryId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "nativeGeometryRevision": {
+          "$ref": "#/$defs/sceneAssociationPositiveRevision"
+        },
+        "nativeOriginalAssetId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "nativeOriginalSha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "sourceFloorKey": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "sourceOriginalSha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sourceFloorKey",
+        "sourceOriginalSha256",
+        "nativeFloorKey",
+        "nativeGeometryId",
+        "nativeGeometryRevision",
+        "nativeOriginalAssetId",
+        "nativeOriginalSha256"
+      ],
+      "type": "object"
+    },
+    "sceneAssociationRecord": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "recordType": {
+          "const": "scene-association"
+        },
+        "recordId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "homeId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "lifecycle": {
+          "const": "active"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastAuditId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "payload": {
+          "$ref": "#/$defs/sceneAssociationPayload"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "recordType",
+        "recordId",
+        "workspaceId",
+        "homeId",
+        "revision",
+        "lifecycle",
+        "createdAt",
+        "updatedAt",
+        "lastAuditId",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
     "reconciliationPayload": {
       "type": "object",
       "properties": {
@@ -1850,6 +2280,9 @@
           "$ref": "#/$defs/geometryRecord"
         },
         {
+          "$ref": "#/$defs/sceneAssociationRecord"
+        },
+        {
           "$ref": "#/$defs/assetRecord"
         },
         {
@@ -2278,6 +2711,22 @@
             },
             "payload": {
               "$ref": "#/$defs/geometryPayload"
+            }
+          },
+          "required": [
+            "recordType",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "recordType": {
+              "const": "scene-association"
+            },
+            "payload": {
+              "$ref": "#/$defs/sceneAssociationPayload"
             }
           },
           "required": [

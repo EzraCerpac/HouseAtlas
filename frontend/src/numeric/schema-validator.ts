@@ -15,7 +15,7 @@ const roots: Record<StockResultKind, string> = {
   relation: 'result_atlas_relation_list',
   evidence: 'result_atlas_evidence_get',
 };
-// Closed Atlas write outputs from catalog SHA-256 f369fdf13aaebf836760f5b5d2160214c16706f89e2ea5898e80c6a857d9ab4c.
+// Closed Atlas write outputs from catalog SHA-256 55be83932373e63e6ef52fe9da75f0d64f1cc7c890963d19a8a77065ddc294e9.
 const mutationRoots: Readonly<Record<string, string>> = Object.freeze({
   "atlas.identity.create": "#/$defs/result_atlas_identity_create",
   "atlas.identity.replace": "#/$defs/result_atlas_identity_replace",
@@ -61,6 +61,7 @@ const mutationRoots: Readonly<Record<string, string>> = Object.freeze({
   "atlas.geometry.replace": "#/$defs/result_atlas_geometry_replace",
   "atlas.reconciliation.replace": "#/$defs/result_atlas_reconciliation_replace",
   "atlas.batch.execute": "#/$defs/result_atlas_batch_execute",
+  "atlas.scene-association.create": "#/$defs/result_atlas_scene_association_create",
 });
 // The native place form admits only these existing canonical arms. No dynamic roots.
 const nativeRequests = Object.freeze({
@@ -77,6 +78,7 @@ const nativeRequests = Object.freeze({
   'atlas.location-semantics.replace': 'request_atlas_location_semantics_replace',
   'atlas.relation.create': 'request_atlas_relation_create',
   'atlas.batch.execute': 'request_atlas_batch_execute',
+  'atlas.scene-association.create': 'request_atlas_scene_association_create',
 });
 const nativeReads = Object.freeze({
   'atlas.identity.get': 'result_atlas_identity_get',
@@ -89,12 +91,13 @@ const nativeEvidenceShapes = Object.freeze({
   identity: 'identityRecord',
   'location-semantics': 'location-semanticsRecord',
   guard: 'guard',
+  'scene-association': 'sceneAssociationRecord',
 });
 const agentId = 'urn:houseatlas:agent:stock:3';
 const atlasId = 'https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json';
 const dialect = 'https://json-schema.org/draft/2020-12/schema';
-const agentHash = '42174cebb9a7080cacb8231aba2bf80c4ab59fdb92085db1af3d5fe368cd5835';
-const atlasHash = 'b24f2d0ba25287ecbeb6618dd26728cb201875103edaede51804e00e26c3bc86';
+const agentHash = 'a5c106fad5cdd1c52ab57d29a2469ea2a53eabd37c9be9ac46e279c45b92beac';
+const atlasHash = 'd14f326a544747c900ece6c4c0b5d47d36c99579ddb37f3ad788f406d2e87a58';
 
 type Schema = boolean | Record<string, unknown>;
 type Document = Record<string, unknown>;

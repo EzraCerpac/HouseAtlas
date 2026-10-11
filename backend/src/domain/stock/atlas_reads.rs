@@ -5,9 +5,13 @@
 //! its full current output-disclosure and captured-authority release checks.
 //! No source state, grant, media availability or request provenance is minted.
 //!
-//! All ten Atlas list/get/history families are mapped.
+//! All Atlas list/get/history families are mapped.
 //! Required stock history delegates paging, search and durable event provenance
 //! to its actual owner. Byte downloads are outside this owner.
+
+#[path = "native_scene_associations.rs"]
+mod native_scene_associations;
+pub use native_scene_associations::{SceneHeadError, current_scene_head, reviewed_scene_place};
 
 use super::{
     AtlasListBinding, AtlasListPagePort, AtlasListPages, AtlasListPrincipal, BoundAtlasListPages,
@@ -277,6 +281,8 @@ fn read_arm(id: OperationId) -> Option<(RecordType, ReadMode)> {
         AtlasRelationGet => (RecordType::Relation, Record),
         AtlasGeometryList => (RecordType::Geometry, List),
         AtlasGeometryGet => (RecordType::Geometry, Record),
+        AtlasSceneAssociationList => (RecordType::SceneAssociation, List),
+        AtlasSceneAssociationGet => (RecordType::SceneAssociation, Record),
         AtlasAssetList => (RecordType::Asset, List),
         AtlasAssetGet => (RecordType::Asset, Record),
         AtlasReconciliationList => (RecordType::Reconciliation, List),
@@ -289,6 +295,7 @@ fn read_arm(id: OperationId) -> Option<(RecordType, ReadMode)> {
         AtlasValveHistory => (RecordType::Valve, History),
         AtlasRelationHistory => (RecordType::Relation, History),
         AtlasGeometryHistory => (RecordType::Geometry, History),
+        AtlasSceneAssociationHistory => (RecordType::SceneAssociation, History),
         AtlasAssetHistory => (RecordType::Asset, History),
         AtlasReconciliationHistory => (RecordType::Reconciliation, History),
         _ => return None,

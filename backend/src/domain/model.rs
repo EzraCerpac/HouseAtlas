@@ -87,6 +87,7 @@ pub enum RecordType {
     Valve,
     Relation,
     Geometry,
+    SceneAssociation,
     Asset,
     Reconciliation,
 }

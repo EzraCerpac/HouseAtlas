@@ -78,6 +78,22 @@ fn retained_plan_inner<C: Contract, S: StockContractPort>(
 ) -> Result<(ValidatedRequest, AtlasCommandPlan)> {
     let original =
         ValidatedRequest::parse(stock, commit.original_request.clone()).map_err(incompatible)?;
+    if commit.derivation_format.as_deref() == Some(stock::SCENE_ASSOCIATION_QUALIFICATION_FORMAT)
+        && matches!(
+            commit.derivation.as_ref(),
+            Some(stock::AtlasDerivation::SceneAssociation { .. })
+        )
+    {
+        if !matches!(presence, RetainedPresence::Ordinary)
+            || super::upload_repository::load_for_commit(db, native, stock, commit)?.is_some()
+        {
+            return Err(repo::incompatible());
+        }
+        super::stock_derivation::validate_retained_scene_association(commit, &original)?;
+        let plan =
+            stock::plan_qualified_scene_association(&original, native).map_err(incompatible)?;
+        return Ok((original, plan));
+    }
     if commit.derivation.is_some()
         || commit.derivation_format.is_some()
         || commit.child_derivations.is_some()

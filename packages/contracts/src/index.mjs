@@ -87,6 +87,7 @@ export function validateSnapshot(snapshot) {
   const evidence = (r, ids) => ids.map(id => get(r, 'evidence', id));
   const bindingKeys = new Set();
   const semanticKeys = new Set();
+  const sceneRoots = new Set(), sceneChildren = new Set(), sceneVersions = new Set();
   for (const r of snapshot.records) {
     const p = r.payload;
     if (p.evidenceIds) evidence(r, p.evidenceIds);
@@ -174,6 +175,86 @@ export function validateSnapshot(snapshot) {
             const binding = snapshot.records.find(b => sameScope(r, b) && b.recordType === 'binding' && b.payload.atlasId === m.atlasId && isDeepStrictEqual(b.payload.source, m.homeboxEntity.key));
             if (!binding) fail('invalid-contract', 'Historical accepted geometry requires a retained exact compatible binding');
           }
+        }
+      }
+    }
+    if (r.recordType === 'scene-association') {
+      if (Buffer.byteLength(JSON.stringify(p), 'utf8') > 524288)
+        fail('invalid-contract', 'Scene association exceeds bounded payload bytes');
+      const building = get(r, 'identity', p.buildingId);
+      if (building.payload.kind !== 'location') fail('invalid-contract', 'Scene association requires location identity');
+      const key = JSON.stringify([r.workspaceId, r.homeId, p.buildingId, p.profile]);
+      const version = JSON.stringify([key, p.associationVersion]);
+      if (sceneVersions.has(version)) fail('identity-conflict', 'Scene association version already exists');
+      sceneVersions.add(version);
+      if (p.previousAssociationId === null) {
+        if (p.associationVersion !== 1 || sceneRoots.has(key)) fail('identity-conflict', 'Scene association requires one version-one root');
+        sceneRoots.add(key);
+      } else {
+        const previous = get(r, 'scene-association', p.previousAssociationId);
+        if (!sameScope(previous, r) || previous.payload.buildingId !== p.buildingId
+          || previous.payload.profile !== p.profile || previous.payload.associationVersion + 1 !== p.associationVersion
+          || sceneChildren.has(recordKey(previous))) fail('identity-conflict', 'Scene association predecessor or unique head changed');
+        sceneChildren.add(recordKey(previous));
+      }
+      const primary = p.sourceDocuments.filter(source => source.role === 'primary-scene');
+      if (primary.length !== 1 || new Set(p.sourceDocuments.map(source => source.evidenceId)).size !== p.sourceDocuments.length)
+        fail('invalid-contract', 'Scene association requires one distinct primary source');
+      for (const source of p.sourceDocuments) {
+        const evidence = get(r, 'evidence', source.evidenceId), asset = get(r, 'asset', source.originalAssetId);
+        if (evidence.revision !== source.evidenceRevision
+          || asset.payload.purpose !== 'evidence-original' || asset.payload.contentType !== 'text/plain'
+          || asset.payload.sha256 !== source.originalSha256
+          || !evidence.payload.references.some(ref => ref.kind === 'atlas-asset' && ref.assetId === source.originalAssetId))
+          fail('invalid-contract', 'Scene source evidence/asset pin changed');
+      }
+      const receipt = p.acceptedReceipt;
+      if (Buffer.byteLength(receipt.canonicalJson, 'utf8') > 131072
+        || createHash('sha256').update(receipt.canonicalJson, 'utf8').digest('hex') !== receipt.canonicalSha256)
+        fail('invalid-contract', 'Scene receipt canonical byte pin changed');
+      const floors = new Map();
+      for (const floor of p.sourceFloors) {
+        const sourceKey = JSON.stringify([floor.sourceFloorKey, floor.sourceOriginalSha256]);
+        if (floors.has(sourceKey)) fail('identity-conflict', 'Duplicate scene source floor');
+        floors.set(sourceKey, floor);
+        const geometry = get(r, 'geometry', floor.nativeGeometryId), asset = get(r, 'asset', floor.nativeOriginalAssetId);
+        if (geometry.revision !== floor.nativeGeometryRevision || geometry.payload.originalAssetId !== floor.nativeOriginalAssetId
+          || asset.payload.sha256 !== floor.nativeOriginalSha256 || asset.payload.purpose !== 'geometry-original')
+          fail('invalid-contract', 'Scene native floor pin changed');
+      }
+      const anchors = new Map();
+      for (const anchor of receipt.anchors) {
+        if (anchors.has(anchor.id) || !floors.has(JSON.stringify([anchor.sourceFloorKey, anchor.sourceOriginalSha256])))
+          fail('identity-conflict', 'Scene receipt anchor/floor is ambiguous');
+        anchors.set(anchor.id, anchor);
+        if (new Set(anchor.targets.map(t => JSON.stringify([t.packagePlaceKey,t.packagePlaceUuid]))).size !== anchor.targets.length
+          || new Set(anchor.unresolvedLabels).size !== anchor.unresolvedLabels.length)
+          fail('identity-conflict', 'Scene receipt membership duplicates');
+      }
+      const rooms = new Set();
+      for (const room of p.roomMappings) {
+        const sourceKey = JSON.stringify([room.sourceFloorKey, room.sourceOriginalSha256]);
+        const roomKey = JSON.stringify([sourceKey, room.sourceRoomId]);
+        if (!floors.has(sourceKey) || rooms.has(roomKey)) fail('identity-conflict', 'Scene room source key is ambiguous');
+        rooms.add(roomKey);
+        const members = room.sourceAnchorIds.map(id => {
+          const anchor = anchors.get(id);
+          if (!anchor || anchor.sourceFloorKey !== room.sourceFloorKey || anchor.sourceOriginalSha256 !== room.sourceOriginalSha256)
+            fail('invalid-contract', 'Scene room references a foreign anchor');
+          return anchor;
+        });
+        if (new Set(room.sourceAnchorIds).size !== room.sourceAnchorIds.length) fail('identity-conflict', 'Duplicate room anchor');
+        const targets = new Set(members.flatMap(anchor => anchor.targets.map(t => JSON.stringify([t.packagePlaceKey,t.packagePlaceUuid]))));
+        const actual = new Set(room.targets.map(t => JSON.stringify([t.packagePlaceKey,t.packagePlaceUuid])));
+        const unresolved = new Set(members.flatMap(anchor => anchor.unresolvedLabels));
+        if (targets.size !== actual.size || [...targets].some(t => !actual.has(t))
+          || actual.size !== room.targets.length || unresolved.size !== room.unresolvedLabels.length
+          || room.unresolvedLabels.some(label => !unresolved.has(label)))
+          fail('invalid-contract', 'Scene room must retain complete target and unresolved union');
+        evidence(r, room.evidenceIds);
+        for (const target of room.targets) if (target.atlasPlaceId !== null) {
+          const place = get(r, 'identity', target.atlasPlaceId);
+          if (place.payload.kind !== 'location') fail('invalid-contract', 'Scene target needs genuine Atlas location');
         }
       }
     }
@@ -305,6 +386,9 @@ export function assertTransition(current, command, target) {
   validateShape('scope', { workspaceId: target.workspaceId, homeId: target.homeId });
   validateShape('recordRef', { recordType: target.recordType, recordId: target.recordId });
   validateShape('mutation', command);
+  // Core schema alone cannot admit a reviewed scene: retained-original qualification
+  // and original-principal Editor admission arrive in the separate Media/Stock wave.
+  if (target.recordType === 'scene-association') fail('invalid-transition', 'Qualified scene association write unavailable');
   if (command.operation === 'create') {
     if (current) fail('identity-conflict', 'Permanent record ID already exists');
   } else {
@@ -319,7 +403,7 @@ export function assertTransition(current, command, target) {
     const a = current.payload, b = command.value.payload;
     if (target.recordType === 'identity' && a.kind !== b.kind) fail('invalid-transition', 'Physical identity kind is immutable');
     if (target.recordType === 'binding' && (a.atlasId !== b.atlasId || !isDeepStrictEqual(a.source, b.source))) fail('invalid-transition', 'Binding identity/source key is immutable; use reviewed reconciliation');
-    if (target.recordType === 'evidence' || target.recordType === 'reconciliation' || target.recordType === 'geometry') fail('invalid-transition', 'Evidence, geometry versions and reconciliation journal are append-only');
+    if (target.recordType === 'evidence' || target.recordType === 'reconciliation' || target.recordType === 'geometry' || target.recordType === 'scene-association') fail('invalid-transition', 'Evidence, geometry versions and reconciliation journal are append-only');
     if (target.recordType === 'asset' && ['owner', 'purpose', 'storageKey', 'sha256', 'byteSize', 'contentType'].some(k => a[k] !== b[k])) fail('invalid-transition', 'Original asset manifest identity/content is immutable');
   }
   return { nextRevision: current ? current.revision + 1 : 1 };
@@ -339,6 +423,18 @@ export function assertGuards(snapshot, current, command, target, createdInBatch 
     if (p.elevation?.status === 'known') add('identity', p.elevation.datumAtlasId);
     if (p.originalAssetId) add('asset', p.originalAssetId);
     if (p.previousGeometryId) add('geometry', p.previousGeometryId);
+    if (p.previousAssociationId) add('scene-association', p.previousAssociationId);
+    if (p.profile === 'houseatlas.native-scene-association.v1') {
+      add('identity', p.buildingId);
+      for (const doc of p.sourceDocuments) { add('evidence', doc.evidenceId); add('asset', doc.originalAssetId); }
+      for (const floor of p.sourceFloors) { add('geometry', floor.nativeGeometryId); add('asset', floor.nativeOriginalAssetId); }
+      for (const room of p.roomMappings) {
+        for (const id of room.evidenceIds) add('evidence', id);
+        for (const target of room.targets) if (target.atlasPlaceId) add('identity', target.atlasPlaceId);
+      }
+      for (const id of [p.buildingId, ...p.roomMappings.flatMap(room => room.targets.map(t => t.atlasPlaceId).filter(Boolean))])
+        for (const sem of snapshot.records.filter(r => sameScope(target, r) && r.recordType === 'location-semantics' && r.payload.atlasId === id && r.lifecycle === 'active' && r.payload.reviewStatus === 'accepted')) add('location-semantics', sem.recordId);
+    }
     if (p.fromBindingId) add('binding', p.fromBindingId);
     if (p.toBindingId) add('binding', p.toBindingId);
     if (p.panel?.kind === 'atlas-record') add(p.panel.ref.recordType, p.panel.ref.recordId);

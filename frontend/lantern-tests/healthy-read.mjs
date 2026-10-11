@@ -502,6 +502,20 @@ const emptyOperationClient = createOperationHistoryClient(async (url, init) => {
 assert.deepEqual(await emptyOperationClient.read(operationScope, signal),
   { status: 'ready', page: operationPage([], null) });
 
+// A retained scene event uses the same closed, scoped history read as other kinds.
+const sceneOperation = { ...operationEntries[0],
+  eventId: '00000000-0000-4000-8000-000000000913',
+  commandId: 'atlas.scene-association.create',
+  target: { authority: 'atlas', recordType: 'scene-association', recordId: '00000000-0000-4000-8000-000000000914' },
+};
+const sceneOperationClient = createOperationHistoryClient(async (url, init) => {
+  assertOperationRequest(url, init, null);
+  return new Response(JSON.stringify(operationPage([sceneOperation], null)),
+    { status: 200, headers: { 'Content-Type': 'application/json' } });
+});
+assert.deepEqual(await sceneOperationClient.read(operationScope, signal),
+  { status: 'ready', page: operationPage([sceneOperation], null) });
+
 // A single scoped, positive retained lookup of the complete synthetic request.
 const retainedRequest = {
   schemaVersion: 3, commandId: 'atlas.identity.create',

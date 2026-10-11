@@ -29,12 +29,13 @@ use serde_json::Value;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-pub(super) enum Qualification<'a, 'g> {
+pub(super) enum Qualification<'a, 'g, P> {
     Direct,
     VerifiedReview(&'a AssetReviewCommitPeers<'a, 'g>),
     Staged(&'a crate::media::staged_upload::StagedAssetPlan),
     Derived(&'a AtlasDerivation),
     DerivedBatch(&'a [Option<AtlasDerivation>]),
+    Scene(&'a crate::media::scene_association::QualifiedScenePlan<'a, P>),
 }
 
 pub(super) fn stock_error(error: StockError) -> Error {
@@ -52,6 +53,39 @@ pub(super) fn stock_error(error: StockError) -> Error {
     }
 }
 impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
+    /// A private Media owner must supply its original, borrowed qualification.
+    /// The public direct/derived/batch entry points cannot construct this path.
+    pub fn execute_qualified_scene_stock_json_with_authorization<B, S>(
+        &mut self,
+        authorization: &B,
+        principal: &B::Principal,
+        contracts: &S,
+        raw: &Value,
+        scene: &crate::media::scene_association::QualifiedScenePlan<'_, B::Principal>,
+    ) -> Result<StockAtlasCommit>
+    where
+        B: StockAuthorization,
+        S: StockContractPort,
+    {
+        let request = ValidatedRequest::parse(contracts, raw.clone()).map_err(stock_error)?;
+        if !std::ptr::eq(principal, scene.principal())
+            || request.intent_digest() != scene.request_digest()
+            || request.target()["recordId"] != scene.target_id()
+            || request.payload()["buildingId"] != scene.building_id()
+        {
+            return Err(stock_repo::incompatible());
+        }
+        let plan = stock::plan_qualified_scene_association(&request, &self.contract)
+            .map_err(stock_error)?;
+        self.execute_stock_plan(
+            authorization,
+            principal,
+            contracts,
+            &request,
+            &plan,
+            Qualification::Scene(scene),
+        )
+    }
     // The opaque peers, original principal, mapping, and observation must remain
     // distinct inputs so the command cannot infer one from retained DATA.
     #[allow(clippy::too_many_arguments)]
@@ -279,7 +313,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         contracts: &S,
         request: &ValidatedRequest,
         plan: &AtlasCommandPlan,
-        qualification: Qualification<'_, '_>,
+        qualification: Qualification<'_, '_, B::Principal>,
     ) -> Result<StockAtlasCommit> {
         self.execute_stock_plan_with_presence(
             authorization,
@@ -312,16 +346,17 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         contracts: &S,
         request: &ValidatedRequest,
         plan: &AtlasCommandPlan,
-        qualification: Qualification<'_, '_>,
+        qualification: Qualification<'_, '_, B::Principal>,
         presence: Option<&StockPresenceCommandPeers<'phase, 'call, 'tx, 'origin, 'reader>>,
         observation: Option<&StockPresenceCommittedObservation>,
     ) -> Result<(StockAtlasCommit, Option<StockPresenceAcceptedFrame>)> {
-        let (staged, derivation, child_derivations, review) = match qualification {
-            Qualification::Direct => (None, None, None, None),
-            Qualification::VerifiedReview(peers) => (None, None, None, Some(peers)),
-            Qualification::Staged(staged) => (Some(staged), None, None, None),
-            Qualification::Derived(derivation) => (None, Some(derivation), None, None),
-            Qualification::DerivedBatch(derivations) => (None, None, Some(derivations), None),
+        let (staged, derivation, child_derivations, review, scene) = match qualification {
+            Qualification::Direct => (None, None, None, None, None),
+            Qualification::VerifiedReview(peers) => (None, None, None, Some(peers), None),
+            Qualification::Staged(staged) => (Some(staged), None, None, None, None),
+            Qualification::Derived(derivation) => (None, Some(derivation), None, None, None),
+            Qualification::DerivedBatch(derivations) => (None, None, Some(derivations), None, None),
+            Qualification::Scene(scene) => (None, None, None, None, Some(scene)),
         };
         let entries = plan
             .groups()
@@ -376,6 +411,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             derivation,
             child_derivations,
             review,
+            scene,
             entries: &entries,
             batch: batch.as_ref(),
             commit: None,
@@ -450,6 +486,7 @@ struct StockTransaction<'a, 'g, 'origin, 'reader, C, B: Authorization, R, S> {
     derivation: Option<&'a AtlasDerivation>,
     child_derivations: Option<&'a [Option<AtlasDerivation>]>,
     review: Option<&'a AssetReviewCommitPeers<'a, 'g>>,
+    scene: Option<&'a crate::media::scene_association::QualifiedScenePlan<'a, B::Principal>>,
     entries: &'a [MutationEntry],
     batch: Option<&'a BatchMutation>,
     commit: Option<StockAtlasCommit>,
@@ -482,6 +519,25 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort>
 impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> CommandExtension<C>
     for StockTransaction<'_, '_, '_, '_, C, B, R, S>
 {
+    fn qualified_scene_create(&self, target: &RecordRef, command: &Mutation) -> Result<bool> {
+        let Some(scene) = self.scene else {
+            return Ok(false);
+        };
+        if self.entries.len() != 1
+            || self.batch.is_some()
+            || target.record_type != RecordType::SceneAssociation
+            || target.record_id != scene.target_id()
+            || command.operation != Operation::Create
+            || command.expected_revision.is_some()
+            || command.value.as_ref().is_none_or(|value| {
+                value.record_type != RecordType::SceneAssociation
+                    || value.payload != *self.request.payload()
+            })
+        {
+            return Err(stock_repo::incompatible());
+        }
+        Ok(true)
+    }
     fn uses_qualified_presence(&self) -> bool {
         self.presence.is_some()
     }
@@ -639,7 +695,7 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
         replay: Option<&Replay>,
         actor: &VerifiedActor,
     ) -> Result<()> {
-        if (self.review.is_some() || self.presence.is_some())
+        if (self.review.is_some() || self.presence.is_some() || self.scene.is_some())
             && (matches!(
                 facts.phase,
                 MutationPhase::Replay | MutationPhase::ReplayPrecommit
@@ -647,7 +703,7 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
         {
             return Err(Error::new(
                 "upstream-unavailable",
-                if self.review.is_some() {
+                if self.review.is_some() || self.scene.is_some() {
                     "Renderer review replay is held"
                 } else {
                     "Original presence replay is held"
@@ -690,6 +746,13 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
         {
             review.validate_original(self.contract, original)?;
         }
+        if let Some(scene) = self.scene
+            && (!std::ptr::eq(self.principal, scene.principal())
+                || scene.request_digest() != self.request.intent_digest()
+                || original.scoped(self.plan.scope()) != *scene.original())
+        {
+            return Err(stock_repo::conflict());
+        }
         Ok(())
     }
     fn admit(
@@ -720,7 +783,7 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
             if self.presence.is_some() {
                 return Err(stock_repo::conflict());
             }
-            if self.review.is_some() {
+            if self.review.is_some() || self.scene.is_some() {
                 return Err(Error::new(
                     "upstream-unavailable",
                     "Renderer review replay is held",
@@ -816,6 +879,12 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
         Ok(None)
     }
     fn validate_original(&self, original: &Snapshot) -> Result<()> {
+        if let Some(scene) = self.scene
+            && (original.scoped(self.plan.scope()) != *scene.original()
+                || scene.request_digest() != self.request.intent_digest())
+        {
+            return Err(stock_repo::conflict());
+        }
         if let Some(review) = self.review {
             review.validate_original(self.contract, original)?;
         }
@@ -960,6 +1029,27 @@ impl<C: Contract, B: StockAuthorization, R: Runtime, S: StockContractPort> Comma
             commit.derivation_format = Some(ATLAS_VERIFIED_ASSET_REVIEW_FORMAT.into());
             commit.derivation = Some(review.bound.derivation().clone());
             commit.asset_review = Some(review.bound.retained_facts().clone());
+        }
+        if let Some(scene) = self.scene {
+            commit.derivation_format = Some(stock::SCENE_ASSOCIATION_QUALIFICATION_FORMAT.into());
+            commit.derivation = Some(AtlasDerivation::SceneAssociation {
+                facts: stock::RetainedSceneAssociationFacts {
+                    building_id: scene.building_id().to_owned(),
+                    target_id: scene.target_id().to_owned(),
+                    primary_asset_id: scene.primary_asset_id().to_owned(),
+                    source_sha256: scene.facts().source_sha256.clone(),
+                    receipt_sha256: scene.facts().receipt_sha256.clone(),
+                    historical_source_receipt_sha256: scene
+                        .facts()
+                        .historical_source_receipt_sha256
+                        .clone(),
+                    scene_version: scene.facts().version,
+                },
+            });
+            super::super::stock_derivation::validate_retained_scene_association(
+                &commit,
+                self.request,
+            )?;
         }
         if self.review.is_some() {
             super::super::stock_derivation::validate_retained_preimage(

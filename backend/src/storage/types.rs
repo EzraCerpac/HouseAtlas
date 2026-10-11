@@ -25,6 +25,7 @@ pub enum RecordType {
     Valve,
     Relation,
     Geometry,
+    SceneAssociation,
     Asset,
     Reconciliation,
 }
@@ -39,6 +40,7 @@ impl RecordType {
             Self::Valve => "valve",
             Self::Relation => "relation",
             Self::Geometry => "geometry",
+            Self::SceneAssociation => "scene-association",
             Self::Asset => "asset",
             Self::Reconciliation => "reconciliation",
         }

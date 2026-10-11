@@ -24,6 +24,7 @@ use axum::{
     extract::{Path, Request, State},
     http::StatusCode,
 };
+use m::service::MediaStoragePort;
 use s::Runtime;
 use serde_json::Value;
 use std::{
@@ -100,8 +101,17 @@ impl<'a, 'u> UploadPlan<'a, 'u> {
 fn supported_profile(
     request: &st::ValidatedRequest,
     upload: Option<UploadPlan<'_, '_>>,
+    scene: Option<&m::scene_association::QualifiedScenePlan<'_, RequestPrincipal>>,
 ) -> st::StockResult<()> {
-    if let Some(upload) = upload {
+    if let Some(scene) = scene {
+        require(
+            upload.is_none()
+                && request.id() == st::OperationId::AtlasSceneAssociationCreate
+                && request.children().is_empty()
+                && request.intent_digest() == scene.request_digest()
+                && request.target()["recordId"] == scene.target_id(),
+        )
+    } else if let Some(upload) = upload {
         require(upload.plan().original_request() == request.raw())
     } else {
         supported(request)
@@ -232,6 +242,7 @@ struct Authority<'p, 'a, 'u> {
     access: &'a Access,
     store: &'a Mutex<Store>,
     upload: Option<UploadPlan<'a, 'u>>,
+    scene: Option<&'u m::scene_association::QualifiedScenePlan<'u, RequestPrincipal>>,
 }
 impl Authority<'_, '_, '_> {
     fn original(
@@ -267,7 +278,7 @@ impl<'p> st::StockAuthorityPort<RequestPrincipal> for Authority<'p, '_, '_> {
         p: &RequestPrincipal,
         request: &st::ValidatedRequest,
     ) -> st::StockResult<Self::Witness> {
-        supported_profile(request, self.upload)?;
+        supported_profile(request, self.upload, self.scene)?;
         let witness = Witness {
             principal: self.principal,
             raw: request.raw().clone(),
@@ -408,6 +419,7 @@ struct Preparer<'a, 'u, 'origin, 'reader>(
     &'a Mutex<Store>,
     Option<UploadPlan<'a, 'u>>,
     Option<ConfiguredPresenceInput<'a, 'origin, 'reader>>,
+    Option<&'u m::scene_association::QualifiedScenePlan<'u, RequestPrincipal>>,
 );
 impl<'p> st::StockPreparerPort<RequestPrincipal, Witness<'p>> for Preparer<'_, '_, '_, '_> {
     type Graph = Graph;
@@ -418,8 +430,11 @@ impl<'p> st::StockPreparerPort<RequestPrincipal, Witness<'p>> for Preparer<'_, '
         request: &st::ValidatedRequest,
     ) -> st::StockResult<Graph> {
         require(std::ptr::eq(p, w.principal) && w.raw == *request.raw())?;
-        supported_profile(request, self.1)?;
+        supported_profile(request, self.1, self.3)?;
         let original = snapshot(self.0, p, request)?;
+        if let Some(scene) = self.3 {
+            require(std::ptr::eq(p, scene.principal()) && original == *scene.original())?;
+        }
         if let Some(UploadPlan::Review(plan, _, _)) = self.1 {
             let st::AtlasDerivation::AssetReview {
                 original: pinned, ..
@@ -429,17 +444,34 @@ impl<'p> st::StockPreparerPort<RequestPrincipal, Witness<'p>> for Preparer<'_, '
             };
             require(original.records.iter().any(|row| row == pinned))?;
         }
-        let derivation = match self.1 {
-            Some(UploadPlan::Review(plan, _, _)) => Some(plan.derivation().clone()),
-            Some(_) => None,
-            None => match self.2 {
-                Some(input) => Some(derive_configured_presence(
-                    request,
-                    &original,
-                    input.publications,
-                )?),
-                None => derive(request, &original)?,
-            },
+        let derivation = if let Some(scene) = self.3 {
+            Some(st::AtlasDerivation::SceneAssociation {
+                facts: st::RetainedSceneAssociationFacts {
+                    building_id: scene.building_id().to_owned(),
+                    target_id: scene.target_id().to_owned(),
+                    primary_asset_id: scene.primary_asset_id().to_owned(),
+                    source_sha256: scene.facts().source_sha256.clone(),
+                    receipt_sha256: scene.facts().receipt_sha256.clone(),
+                    historical_source_receipt_sha256: scene
+                        .facts()
+                        .historical_source_receipt_sha256
+                        .clone(),
+                    scene_version: scene.facts().version,
+                },
+            })
+        } else {
+            match self.1 {
+                Some(UploadPlan::Review(plan, _, _)) => Some(plan.derivation().clone()),
+                Some(_) => None,
+                None => match self.2 {
+                    Some(input) => Some(derive_configured_presence(
+                        request,
+                        &original,
+                        input.publications,
+                    )?),
+                    None => derive(request, &original)?,
+                },
+            }
         };
         let review_facts = match self.1 {
             Some(UploadPlan::Review(plan, _, _)) => {
@@ -461,18 +493,24 @@ impl<'p> st::StockPreparerPort<RequestPrincipal, Witness<'p>> for Preparer<'_, '
             None
         };
         Ok(Graph {
-            plan: match self.1 {
-                Some(upload) => upload.plan().clone(),
-                None => match (&derivation, &child_derivations) {
-                    (Some(derivation), None) => {
-                        st::plan_derived_atlas_commands(request, derivation, &NativeContracts)?
-                    }
-                    (None, Some(vector)) => {
-                        st::plan_derived_atlas_batch_commands(request, vector, &NativeContracts)?
-                    }
-                    (None, None) => st::plan_atlas_commands(request, &NativeContracts)?,
-                    _ => return Err(changed()),
-                },
+            plan: if self.3.is_some() {
+                st::plan_qualified_scene_association(request, &NativeContracts)?
+            } else {
+                match self.1 {
+                    Some(upload) => upload.plan().clone(),
+                    None => match (&derivation, &child_derivations) {
+                        (Some(derivation), None) => {
+                            st::plan_derived_atlas_commands(request, derivation, &NativeContracts)?
+                        }
+                        (None, Some(vector)) => st::plan_derived_atlas_batch_commands(
+                            request,
+                            vector,
+                            &NativeContracts,
+                        )?,
+                        (None, None) => st::plan_atlas_commands(request, &NativeContracts)?,
+                        _ => return Err(changed()),
+                    },
+                }
             },
             original,
             derivation,
@@ -622,6 +660,11 @@ impl Transaction<'_, '_, '_, '_, '_> {
                                 (Some(_), None, Some(_)) => {
                                     Some(s::ATLAS_VERIFIED_ASSET_REVIEW_FORMAT)
                                 }
+                                (
+                                    Some(st::AtlasDerivation::SceneAssociation { .. }),
+                                    None,
+                                    None,
+                                ) => Some(st::SCENE_ASSOCIATION_QUALIFICATION_FORMAT),
                                 (Some(_), None, None) => Some(st::ATLAS_DERIVATION_FORMAT),
                                 (None, Some(_), None) => Some(st::ATLAS_BATCH_DERIVATION_FORMAT),
                                 (None, None, None) => None,
@@ -844,6 +887,7 @@ struct Commands<'a, 'u, 'origin, 'reader> {
     contracts: st::NativeStockContract,
     upload: Option<UploadPlan<'a, 'u>>,
     presence: Option<ConfiguredPresenceInput<'a, 'origin, 'reader>>,
+    scene: Option<&'u m::scene_association::QualifiedScenePlan<'u, RequestPrincipal>>,
 }
 impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands<'_, '_, '_, '_> {
     fn execute(
@@ -853,7 +897,7 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
     ) -> st::StockResult<st::OwnerResult> {
         let w = prepared.witness();
         let graph = prepared.graph();
-        supported_profile(prepared.request(), self.upload)?;
+        supported_profile(prepared.request(), self.upload, self.scene)?;
         require(!w.committed.get() && w.pending.borrow().is_none())?;
         if let Some(input) = self.presence {
             require(
@@ -972,6 +1016,14 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
                         &self.contracts,
                         prepared.request().raw(),
                         peers,
+                    )
+                } else if let Some(scene) = self.scene {
+                    store.execute_qualified_scene_stock_json_with_authorization(
+                        &authorization,
+                        p,
+                        &self.contracts,
+                        prepared.request().raw(),
+                        scene,
                     )
                 } else if let Some(vector) = &graph.child_derivations {
                     store.execute_derived_stock_batch_json_with_authorization(
@@ -1127,7 +1179,7 @@ pub(super) fn execute_raw(
     raw: Value,
     contracts: &st::NativeStockContract,
 ) -> st::StockResult<st::OwnerResult> {
-    execute_profile(core, p, raw, contracts, None, None)
+    execute_profile(core, p, raw, contracts, None, None, None)
 }
 pub(super) fn execute_staged(
     host: &Host,
@@ -1182,6 +1234,7 @@ fn execute_staged_profile(
             contracts,
             Some(UploadPlan::Staged(qualified, None)),
             None,
+            None,
         )
         .map(|result| (result, None));
     };
@@ -1221,6 +1274,7 @@ fn execute_staged_profile(
         contracts,
         Some(UploadPlan::Staged(qualified, Some(capture))),
         None,
+        None,
     );
     let disposition = qualified_commit
         .into_inner()
@@ -1250,6 +1304,7 @@ pub(super) fn execute_existing(
         contracts,
         Some(UploadPlan::Existing(&qualified)),
         None,
+        None,
     )
 }
 /// The opaque Store pin and Media proof remain borrowed by this exact original
@@ -1277,6 +1332,7 @@ pub(super) fn execute_verified_asset_review(
         contracts,
         Some(UploadPlan::Review(plan, budget, capture)),
         None,
+        None,
     )
 }
 fn execute_profile(
@@ -1286,9 +1342,10 @@ fn execute_profile(
     contracts: &st::NativeStockContract,
     upload: Option<UploadPlan<'_, '_>>,
     presence: Option<ConfiguredPresenceInput<'_, '_, '_>>,
+    scene: Option<&m::scene_association::QualifiedScenePlan<'_, RequestPrincipal>>,
 ) -> st::StockResult<st::OwnerResult> {
     if let Some(presence) = presence {
-        require(upload.is_none())?;
+        require(upload.is_none() && scene.is_none())?;
         return execute_configured_presence(core, p, raw, presence, contracts);
     }
     let authority = Authority {
@@ -1296,13 +1353,14 @@ fn execute_profile(
         access: &core.access,
         store: &core.store,
         upload,
+        scene,
     };
     let prepared = st::prepare(
         p,
         raw,
         contracts,
         &authority,
-        &mut Preparer(&core.store, upload, None),
+        &mut Preparer(&core.store, upload, None, scene),
     )?;
     st::dispatch(
         p,
@@ -1318,8 +1376,93 @@ fn execute_profile(
             contracts: contracts.clone(),
             upload,
             presence: None,
+            scene,
         },
     )
+}
+
+/// This private composition takes a fresh authenticated Editor principal from
+/// the existing command POST. Neither submitted source text nor receipt JSON
+/// can construct the borrowed scene qualification passed into Stock.
+pub(super) fn execute_scene_association(
+    core: &Core,
+    principal: &RequestPrincipal,
+    request: &st::ValidatedRequest,
+    contracts: &st::NativeStockContract,
+) -> super::HttpResult {
+    let outcome = (|| -> st::StockResult<st::OwnerResult> {
+        require(
+            request.id() == st::OperationId::AtlasSceneAssociationCreate
+                && request.children().is_empty(),
+        )?;
+        let original = snapshot(&core.store, principal, request)?;
+        let scope = s::Scope {
+            workspace_id: request.context().workspace_id.clone(),
+            home_id: request.context().home_id.clone(),
+        };
+        let media_scope = m::types::Scope {
+            workspace_id: scope.workspace_id.clone(),
+            home_id: scope.home_id.clone(),
+        };
+        let documents = request.payload()["sourceDocuments"]
+            .as_array()
+            .ok_or(st::StockError::InvalidContract)?;
+        require(documents.len() == 2)?;
+        let primary = documents
+            .iter()
+            .find(|doc| doc["role"] == "primary-scene")
+            .ok_or(st::StockError::InvalidContract)?;
+        let historical = documents
+            .iter()
+            .find(|doc| doc["role"] == "documentary-sheet")
+            .ok_or(st::StockError::InvalidContract)?;
+        let primary_id = primary["originalAssetId"]
+            .as_str()
+            .ok_or(st::StockError::InvalidContract)?;
+        let historical_id = historical["originalAssetId"]
+            .as_str()
+            .ok_or(st::StockError::InvalidContract)?;
+        let owner = m::native::NativeMediaStorage::new(&core.store);
+        let primary_owned = owner
+            .read_owned_asset(principal, &media_scope, primary_id)
+            .map_err(|_| unavailable())?;
+        let historical_owned = owner
+            .read_owned_asset(principal, &media_scope, historical_id)
+            .map_err(|_| unavailable())?;
+        let budget = m::WorkBudget::new(
+            std::time::Duration::from_secs(10),
+            m::Cancellation::default(),
+        )
+        .map_err(|_| unavailable())?;
+        let building_id = request.payload()["buildingId"]
+            .as_str()
+            .ok_or(st::StockError::InvalidContract)?;
+        let scene = m::scene_association::qualify_scene(
+            principal,
+            &original,
+            &scope,
+            building_id,
+            request,
+            &primary_owned,
+            &historical_owned,
+            &core.vault,
+            &budget,
+        )
+        .map_err(|_| unavailable())?;
+        execute_profile(
+            core,
+            principal,
+            request.raw().clone(),
+            contracts,
+            None,
+            None,
+            Some(&scene),
+        )
+    })();
+    match outcome {
+        Ok(result) => Ok(super::json_response(result.wire)),
+        Err(error) => super::agents::command_error(error, request.request_id()),
+    }
 }
 
 /// Only trusted configured native capture owners can supply this input. The
@@ -1336,13 +1479,14 @@ pub(super) fn execute_configured_presence<'principal, 'input, 'origin, 'reader>(
         access: &core.access,
         store: &core.store,
         upload: None,
+        scene: None,
     };
     let prepared = st::prepare(
         p,
         raw,
         contracts,
         &authority,
-        &mut Preparer(&core.store, None, Some(presence)),
+        &mut Preparer(&core.store, None, Some(presence), None),
     )
     .inspect_err(|error| {
         #[cfg(test)]
@@ -1364,6 +1508,7 @@ pub(super) fn execute_configured_presence<'principal, 'input, 'origin, 'reader>(
             contracts: contracts.clone(),
             upload: None,
             presence: Some(presence),
+            scene: None,
         },
     )
     .inspect_err(|error| {
@@ -1440,6 +1585,9 @@ pub(super) async fn command(
             return super::asset_reviews::execute(
                 &host, &core, &principal, &request, &contracts, &scope,
             );
+        }
+        if request.id() == st::OperationId::AtlasSceneAssociationCreate {
+            return execute_scene_association(&core, &principal, &request, &contracts);
         }
         super::agents::command_response(&core, &principal, raw)
     })

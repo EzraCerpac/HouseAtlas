@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { LanternHost } from "../src/lantern/Host";
 import { SessionApp } from "../src/app/SessionApp";
 import type { StockAdmission } from "../src/app/StockApplication";
-import type { AtlasClient, AtlasView } from "../src/app/types";
+import type { AtlasClient, AtlasView, ReadyView } from "../src/app/types";
 import { createAtlasClient, createAtlasSessionClient } from "../src/api/client";
 import { createStockSchemas } from "./stock-schemas";
 import { createStockDispatch } from "./stock-dispatch";
@@ -18,6 +18,10 @@ import { createTopologyClient } from "../src/api/topology-client";
 import { createNetworkRelationsClient } from "../src/api/network-relations-client";
 import { createNativeGeometryReadClient } from "./native-geometry-read-client";
 import { createNativeEvidenceDocumentClient } from "./native-evidence-document-client";
+import { createNativeSceneAssociationClient } from "./native-scene-association-client";
+import { createNativeSceneSourceClient } from "./native-scene-source-client";
+import type { NativeSceneSourceSelection } from "../src/lantern/scans/native-scene-source-types";
+import type { NativeSceneHost } from "../src/lantern/scans/native-ui/native-scene-host";
 import { createNativeGeometryWriteClient } from "./native-geometry-write-client";
 import { createNativeGeometryAssociationClient } from "./native-geometry-association-client";
 import type { NativeAssociationPending, NativeAssociationPrepared } from "../src/lantern/scans/native-association-types";
@@ -63,10 +67,13 @@ const nativeSessions = createAtlasSessionClient({
 let currentSession: AtlasSessionInfo | null = null;
 let currentQuantityScope: Scope | null = null;
 let currentStockAdmission: StockAdmission | null = null;
+let currentReadyView: ReadyView | null = null;
+let currentSceneSelection: NativeSceneSourceSelection | null = null;
+const sceneEvents = new EventTarget();
 /** Read-only tool admission for the current scope; cleared with every scope clear. */
 let currentQuantityAdmission: QuantityToolAdmission | null = null;
 const quantityEvents = new EventTarget();
-const quantityChanged = () => quantityEvents.dispatchEvent(new Event("changed"));
+const quantityChanged = () => { currentSceneSelection = null; sceneEvents.dispatchEvent(new Event("changed")); quantityEvents.dispatchEvent(new Event("changed")); };
 // Native browser support only; undefined sends no admission request and registers nothing.
 const modelContext = detectModelContext(document);
 let sessionGeneration = 0;
@@ -90,6 +97,7 @@ const sessions: AtlasSessionClient = {
     currentSession = null;
     currentQuantityAdmission = null;
     currentQuantityScope = null;
+    currentReadyView = null;
     quantityChanged();
     const value = await nativeSessions.session(signal);
     if (!signal.aborted && generation === sessionGeneration) { currentSession = value; captureDrafts.observeCanonical(value); quantityChanged(); }
@@ -101,6 +109,7 @@ const sessions: AtlasSessionClient = {
     currentSession = null;
     currentQuantityAdmission = null;
     currentQuantityScope = null;
+    currentReadyView = null;
     quantityChanged();
     let value: AtlasSessionInfo;
     try { value = await canonicalSignIn(await nativeSessions.signIn(credentials, signal), signal); }
@@ -114,6 +123,7 @@ const sessions: AtlasSessionClient = {
     currentSession = null;
     currentQuantityAdmission = null;
     currentQuantityScope = null;
+    currentReadyView = null;
     quantityChanged();
     try { await nativeSignOut(signal); }
     finally { captureDrafts.announceSessionChange(); }
@@ -129,6 +139,7 @@ const sessions: AtlasSessionClient = {
       captureDrafts.setScope(null);
       currentQuantityAdmission = null;
       currentQuantityScope = null;
+    currentReadyView = null;
       quantityChanged();
       let value: AtlasSessionInfo;
       try { value = await canonicalSignIn(await nativeLocalSignIn(signal), signal); }
@@ -143,6 +154,7 @@ const sessions: AtlasSessionClient = {
       captureDrafts.setScope(null);
       currentQuantityAdmission = null;
       currentQuantityScope = null;
+    currentReadyView = null;
       quantityChanged();
       let value: AtlasSessionInfo;
       try { value = await canonicalSignIn(await nativeProxySignIn(signal), signal); }
@@ -250,6 +262,51 @@ const nativeEvidenceDocuments = createNativeEvidenceDocumentClient({
     return () => quantityEvents.removeEventListener("changed", changed);
   },
 });
+// Review and scene reads each keep their own retained-document lease. Opening a
+// second original cannot withdraw the first original or the displayed scene.
+const makeSceneDocumentOwner = () => createNativeEvidenceDocumentClient({
+  origin: window.location.origin,
+  getBinding: () => currentSession && currentQuantityScope
+    ? { sessionIdentity: currentSession, expiresAt: currentSession.expiresAt, scope: currentQuantityScope } : null,
+  subscribeBinding: changed => {
+    quantityEvents.addEventListener("changed", changed);
+    return () => quantityEvents.removeEventListener("changed", changed);
+  },
+});
+const scenePrimaryReview = makeSceneDocumentOwner(), sceneHistoricalReview = makeSceneDocumentOwner();
+const sceneReadDocuments = makeSceneDocumentOwner(), sceneDrawings = makeSceneDocumentOwner();
+const sceneAssociations = createNativeSceneAssociationClient({
+  getContext: () => currentSession && currentReadyView && currentQuantityScope
+    && currentReadyView.scope === currentQuantityScope
+    ? { sessionIdentity: currentSession, session: currentSession, view: currentReadyView, admission: currentStockAdmission } : null,
+  subscribe: changed => {
+    quantityEvents.addEventListener("changed", changed);
+    return () => quantityEvents.removeEventListener("changed", changed);
+  },
+  primaryReview: scenePrimaryReview, historicalReview: sceneHistoricalReview,
+  geometryCurrent: frame => nativeGeometry.isCurrent(frame),
+});
+const sceneSources = createNativeSceneSourceClient({
+  documents: sceneReadDocuments, geometry: nativeGeometry,
+  getSelection: () => currentSceneSelection,
+  subscribeSelection: changed => {
+    sceneEvents.addEventListener("changed", changed);
+    return () => sceneEvents.removeEventListener("changed", changed);
+  },
+});
+const nativeScene: NativeSceneHost = {
+  associations: sceneAssociations, sources: sceneSources, drawings: sceneDrawings,
+  select(selection) {
+    if (!currentSession || !currentReadyView || currentReadyView.scope !== currentQuantityScope
+      || selection.sessionIdentity !== currentSession || selection.workspaceId !== currentReadyView.scope.workspaceId
+      || selection.homeId !== currentReadyView.scope.homeId || selection.expiresAt !== currentSession.expiresAt
+      || Date.parse(selection.expiresAt) <= Date.now()) return false;
+    currentSceneSelection = selection; sceneEvents.dispatchEvent(new Event("changed")); return true;
+  },
+  clear(selection) { if (currentSceneSelection === selection) {
+    currentSceneSelection = null; sceneEvents.dispatchEvent(new Event("changed"));
+  } },
+};
 // Custody and association share the read client's actual canonical owner,
 // completed view allocation and synchronous host change notifications. The
 // published command catalog is admission, never a label-edit capability.
@@ -419,6 +476,7 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
       captureDrafts.setScope(null);
       currentQuantityAdmission = null;
       currentQuantityScope = null;
+    currentReadyView = null;
       quantityChanged();
       setAdmission(null);
       currentStockAdmission = null;
@@ -487,6 +545,9 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
         })();
         await Promise.all([stockRead, quantityRead]);
       }
+      if (!signal.aborted && attempt === generation && sameSession()) {
+        currentReadyView = view.status === "ready" ? view : null; quantityChanged();
+      }
       return view;
     };
     return {
@@ -496,6 +557,6 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
   }, []);
   // Keep the concrete editing port stable through view/catalog refreshes.
   // Each place admission and command obtains the actual request authority.
-  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} nativeGeometry={nativeGeometry} nativeGeometryWrite={nativeGeometryWrite} nativeGeometryAssociation={nativeGeometryAssociation} nativeEvidenceDocuments={nativeEvidenceDocuments} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
+  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} nativeGeometry={nativeGeometry} nativeGeometryWrite={nativeGeometryWrite} nativeGeometryAssociation={nativeGeometryAssociation} nativeEvidenceDocuments={nativeEvidenceDocuments} nativeScene={nativeScene} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
 }
 createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);

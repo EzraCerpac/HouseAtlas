@@ -34,6 +34,11 @@ pub(crate) trait CommandExtension<C: Contract> {
         actor: &VerifiedActor,
     ) -> Result<Option<Vec<MutationResult>>>;
     fn validate_original(&self, original: &Snapshot) -> Result<()>;
+    /// Only a retained, owner-qualified single scene create may bypass the
+    /// ordinary transition hold. Core and every generic Stock path deny it.
+    fn qualified_scene_create(&self, _: &RecordRef, _: &Mutation) -> Result<bool> {
+        Ok(false)
+    }
     fn stage(
         &mut self,
         original: &Snapshot,

@@ -1,7 +1,11 @@
 //! Original and retained qualification for specialized Atlas stock mappings.
 use super::{stock_repository as repo, *};
 use crate::contracts::{AssetPayloadPreviewPolicy, BindingPayloadSourceState};
-use crate::domain::stock::{AtlasDerivation, OperationId, StockContractPort, ValidatedRequest};
+use crate::domain::stock::{
+    AtlasDerivation, OperationId, SCENE_ASSOCIATION_QUALIFICATION_FORMAT, StockContractPort,
+    ValidatedRequest,
+};
+use sha2::Digest;
 
 pub(crate) fn validate_original<C: Contract>(
     contract: &C,
@@ -310,7 +314,9 @@ fn derivation_original(derivation: &AtlasDerivation) -> Option<&Record> {
         | AtlasDerivation::BindingRestore { original }
         | AtlasDerivation::BindingRemap { original, .. }
         | AtlasDerivation::AssetReview { original, .. } => Some(original),
-        AtlasDerivation::BindingCreate { .. } | AtlasDerivation::GeometryCreate { .. } => None,
+        AtlasDerivation::SceneAssociation { .. }
+        | AtlasDerivation::BindingCreate { .. }
+        | AtlasDerivation::GeometryCreate { .. } => None,
     }
 }
 
@@ -382,5 +388,92 @@ fn validate_verified_review_data<C: Contract>(
     {
         return Err(repo::incompatible());
     }
+    Ok(())
+}
+
+/// Historical scene proof is data only. The live authorizer is never recreated
+/// from these fields; retained request, native entries and audit/result linkage
+/// are checked by the surrounding Stock projection/recovery transaction.
+pub(crate) fn validate_retained_scene_association(
+    commit: &StockAtlasCommit,
+    request: &ValidatedRequest,
+) -> Result<()> {
+    let (
+        Some(SCENE_ASSOCIATION_QUALIFICATION_FORMAT),
+        Some(AtlasDerivation::SceneAssociation { facts }),
+    ) = (
+        commit.derivation_format.as_deref(),
+        commit.derivation.as_ref(),
+    )
+    else {
+        return Err(repo::incompatible());
+    };
+    if commit.child_derivations.is_some()
+        || commit.asset_review.is_some()
+        || request.id() != OperationId::AtlasSceneAssociationCreate
+        || !request.children().is_empty()
+        || commit.groups.len() != 1
+        || request.target()["recordType"] != "scene-association"
+        || request.target()["recordId"] != facts.target_id
+        || request.payload()["buildingId"] != facts.building_id
+        || request.payload()["acceptedReceipt"]["canonicalSha256"] != facts.receipt_sha256
+        || ![1, 2].contains(&facts.scene_version)
+        || facts.historical_source_receipt_sha256.len() != 64
+        || !facts
+            .historical_source_receipt_sha256
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+    {
+        return Err(repo::incompatible());
+    }
+    let docs = request.payload()["sourceDocuments"]
+        .as_array()
+        .ok_or_else(repo::incompatible)?;
+    if docs.len() != 2
+        || docs
+            .iter()
+            .filter(|doc| doc["role"] == "primary-scene")
+            .count()
+            != 1
+        || docs
+            .iter()
+            .filter(|doc| doc["role"] == "documentary-sheet")
+            .count()
+            != 1
+    {
+        return Err(repo::incompatible());
+    }
+    let primary = docs
+        .iter()
+        .find(|doc| doc["role"] == "primary-scene")
+        .ok_or_else(repo::incompatible)?;
+    let historical = docs
+        .iter()
+        .find(|doc| doc["role"] == "documentary-sheet")
+        .ok_or_else(repo::incompatible)?;
+    if primary["originalAssetId"] != facts.primary_asset_id
+        || primary["originalSha256"] != facts.source_sha256
+        || historical["originalSha256"] != facts.historical_source_receipt_sha256
+    {
+        return Err(repo::incompatible());
+    }
+    let literal = request.payload()["acceptedReceipt"]["canonicalJson"]
+        .as_str()
+        .ok_or_else(repo::incompatible)?;
+    if format!("{:x}", sha2::Sha256::digest(literal.as_bytes())) != facts.receipt_sha256 {
+        return Err(repo::incompatible());
+    }
+    let receipt: serde_json::Value =
+        serde_json::from_str(literal).map_err(|_| repo::incompatible())?;
+    if crate::contracts::semantics::canonical_json(&receipt).map_err(|_| repo::incompatible())?
+        != literal
+        || receipt["profile"] != "houseatlas.native-scene-room-review.v1"
+        || receipt["receiptId"] != request.payload()["acceptedReceipt"]["receiptId"]
+        || receipt["sourceReceiptSha256"] != facts.historical_source_receipt_sha256
+        || receipt["anchors"] != request.payload()["acceptedReceipt"]["anchors"]
+    {
+        return Err(repo::incompatible());
+    }
+    validate_group_envelope(request, &commit.groups[0], None)?;
     Ok(())
 }

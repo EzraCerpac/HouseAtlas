@@ -7,12 +7,12 @@
     {
       "uri": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json",
       "path": "packages/contracts/schemas/atlas.schema.json",
-      "sha256": "b24f2d0ba25287ecbeb6618dd26728cb201875103edaede51804e00e26c3bc86"
+      "sha256": "d14f326a544747c900ece6c4c0b5d47d36c99579ddb37f3ad788f406d2e87a58"
     },
     {
       "uri": "urn:houseatlas:agent:stock:3",
       "path": "contracts/stock-wire3/agent/agent.schema.json",
-      "sha256": "42174cebb9a7080cacb8231aba2bf80c4ab59fdb92085db1af3d5fe368cd5835"
+      "sha256": "a5c106fad5cdd1c52ab57d29a2469ea2a53eabd37c9be9ac46e279c45b92beac"
     },
     {
       "path": "contracts/stock-wire3/presence/witness.v1.schema.json",

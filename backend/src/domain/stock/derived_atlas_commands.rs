@@ -19,6 +19,20 @@ use sha2::{Digest, Sha256};
 pub const ATLAS_DERIVATION_FORMAT: &str = "atlas-derived-command/1";
 /// Ordered child derivations; the single-command v1 format is unchanged.
 pub const ATLAS_BATCH_DERIVATION_FORMAT: &str = "atlas-derived-batch/1";
+/// Historical measurements only; not a live authorization bearer.
+pub const SCENE_ASSOCIATION_QUALIFICATION_FORMAT: &str = "atlas-scene-association-qualified/1";
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RetainedSceneAssociationFacts {
+    pub building_id: String,
+    pub target_id: String,
+    pub primary_asset_id: String,
+    pub source_sha256: String,
+    pub receipt_sha256: String,
+    pub historical_source_receipt_sha256: String,
+    pub scene_version: u8,
+}
 
 /// Closed stock-catalogue predicate for the specialized derivation mapper.
 /// This declares mapping support only; it does not qualify evidence or grant
@@ -35,12 +49,37 @@ pub fn atlas_derived_operation(id: OperationId) -> bool {
     )
 }
 
+/// Dedicated one-root scene mapping. It is intentionally absent from direct,
+/// derived and batch admission predicates; only the borrowed native Media
+/// qualification owner may call the matching Store entry point.
+pub fn plan_qualified_scene_association(
+    request: &ValidatedRequest,
+    native: &impl Contract,
+) -> StockResult<AtlasCommandPlan> {
+    if request.id() != OperationId::AtlasSceneAssociationCreate
+        || !request.children().is_empty()
+        || request.target()["recordType"] != "scene-association"
+        || !request.raw()["preconditions"]["target"].is_null()
+    {
+        return Err(StockError::CapabilityHeld);
+    }
+    plan_atlas_commands_with(request, native, |request, index| {
+        if index.is_some() {
+            return Err(StockError::CapabilityHeld);
+        }
+        map_group_with_payload(request, index, native, Operation::Create, request.payload())
+    })
+}
+
 /// Immutable inputs needed to reproduce a specialized mapping. They carry no
 /// authority. In particular SafeRendered requires the Media owner's actual
 /// renderer-receipt validation; supplying its enum or UUID cannot establish it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum AtlasDerivation {
+    SceneAssociation {
+        facts: RetainedSceneAssociationFacts,
+    },
     BindingCreate {
         source_state: BindingPayloadSourceState,
     },

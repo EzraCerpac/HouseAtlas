@@ -12,9 +12,9 @@ use sha2::{Digest, Sha256};
 use super::{JsonObject, PortError};
 
 pub const AGENT_SCHEMA_SHA256: &str =
-    "42174cebb9a7080cacb8231aba2bf80c4ab59fdb92085db1af3d5fe368cd5835";
+    "a5c106fad5cdd1c52ab57d29a2469ea2a53eabd37c9be9ac46e279c45b92beac";
 pub const ATLAS_SCHEMA_SHA256: &str =
-    "b24f2d0ba25287ecbeb6618dd26728cb201875103edaede51804e00e26c3bc86";
+    "d14f326a544747c900ece6c4c0b5d47d36c99579ddb37f3ad788f406d2e87a58";
 
 const DIALECT: &str = "https://json-schema.org/draft/2020-12/schema";
 const AGENT_ID: &str = "urn:houseatlas:agent:stock:3";
