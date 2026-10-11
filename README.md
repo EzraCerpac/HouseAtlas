@@ -87,7 +87,8 @@ The artifact preserves version/receipt/identity/overlay evidence, object diffs
 and reversal references. It does not submit custody or native replacement;
 current-head freshness and new-frame acceptance remain separate. See
 [assistant scan replacement](docs/geometry/assistant-scan-replacement.md) for
-input bounds, frame applicability and the initial-only native adoption gap.
+input bounds, retained native successor compatibility, frame applicability and
+the required fresh native descriptor/scene reads after any replacement.
 
 An explicitly named offline receipt example uses two fresh synthetic initialized
 states and an exact SHA256-selected binary built from original source

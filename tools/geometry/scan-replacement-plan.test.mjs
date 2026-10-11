@@ -207,6 +207,9 @@ test('partial two-floor update keeps untouched floor and retained identities, ov
   assert.equal(plan.floors.find(f => f.previous.key === upper.key).status, 'retained');
   assert.equal(plan.rooms.find(r => r.sourceRoomId === 'hg-room').status, 'changed');
   assert.equal(plan.rooms.find(r => r.sourceRoomId === 'upper-room').status, 'retained');
+  assert(plan.rooms.every(row => row.nativeBindingRefreshRequired));
+  assert(plan.floors.every(row => row.nativeBindingRefreshRequired));
+  assert.equal(plan.nativeDescriptorRefresh.required, true);
   assert.deepEqual(plan.retainedState, baseline.retainedState);
   assert.deepEqual(plan.placementEvidenceApplications.map(row => row.applicability),
     ['prior-frame-only-requires-review', 'selected-prior-frame-only']);
@@ -328,8 +331,7 @@ test('incremental successors retain version history pins and produce a fresh rev
   assert.deepEqual(firstPlan.reversal.priorFloorPins.map(pin => pin.geometryId), [floorV1.geometry.recordId]);
   assert.deepEqual(firstPlan.reversal.deletes, []);
 
-  // Until native successor admission is implemented, v2 is retained proposal
-  // history, never promoted into a claimed accepted native floor selection.
+  // Prior proposal history remains opaque evidence; it is not itself a native admission.
   baseline.retainedState.floorPlacementFacts.push({ priorProposalGeometry: firstPlan.geometryHistory.candidates[0] });
   const secondInput = inputWith(baseline, [successor(floorV1, { floorKey: 'native-incremental-alternative-v2',
     edit: profile => { profile.meshes[0].positionsLocalTokens[3] = '1.2'; } })]);
@@ -688,5 +690,74 @@ test('maximum three-floor replacement inspects all six selected derivatives', as
   assert.equal(plan.geometryHistory.candidates.length, 3);
   assert(plan.floors.every(f => f.geometryUnchanged && f.meshes.unchanged.length === 1));
   assert(plan.rooms.every(r => r.status === 'reuse-proposed' && r.nativeBindingRefreshRequired));
+  assert.equal(plan.operationsExecuted, 0);
+});
+
+
+test('retained native v2 head supports a v3 proposal without changing places, overlays or reviewed frame evidence', async () => {
+  const root = snapshot({ floorKey: 'succession-root', sourceFloorKey: 'succession-source', label: 'Repeated source label' });
+  const head = successor(root, { floorKey: 'succession-head-v2' });
+  const untouched = snapshot({ floorKey: 'untouched-root', sourceFloorKey: 'untouched-source', label: 'Repeated source label' });
+  const rooms = [room({ id: 'head-room', floor: head }), room({ id: 'untouched-room', floor: untouched })];
+  const baseline = world({ floors: [head, untouched], rooms });
+  const oldAssociation = deepCopy(baseline.association);
+  baseline.retainedState.floorPlacementFacts = [{ geometryId: head.geometry.recordId, originalSha256: head.originalSha256,
+    derivativeSha256: head.derivativeSha256, reviewedTransform: { matrix: ['1','0','0','0','0','1','0','0','0','0','1','0','3.25','0','0','1'],
+      receiptId: 'synthetic-reviewed-placement', basis: 'explicit retained documentary review' },
+    reviewedElevation: { value: '6.2', unit: 'm', receiptId: 'synthetic-reviewed-elevation' },
+    retainedGeometryHistory: [root.geometry], retainedSceneHistory: [oldAssociation] }];
+  const candidate = successor(head, { floorKey: 'succession-candidate-v3' });
+  const input = inputWith(baseline, [candidate]), before = JSON.stringify(input);
+  const plan = await buildReplacementPlan(input);
+  assert.equal(plan.geometryHistory.previous[0].payload.geometryVersion, 2);
+  assert.equal(plan.geometryHistory.previous[0].payload.previousGeometryId, root.geometry.recordId);
+  assert.equal(plan.floors[0].previous.previousGeometryId, root.geometry.recordId);
+  assert.equal(plan.floors[0].candidate.previousGeometryId, head.geometry.recordId);
+  assert.equal(plan.floors[0].candidate.geometryVersion, 3);
+  assert.equal(plan.floors[1].status, 'retained');
+  assert(plan.floors.every(row => row.nativeBindingRefreshRequired));
+  assert(plan.rooms.every(row => row.nativeBindingRefreshRequired));
+  assert.deepEqual(plan.nativeDescriptorRefresh.candidateGeometryIds, [candidate.geometry.recordId, untouched.geometry.recordId]);
+  assert.deepEqual(plan.retainedState, baseline.retainedState);
+  assert.deepEqual(plan.previousAssociation, baseline.association);
+  assert.deepEqual(plan.geometryHistory.previous, [head.geometry, untouched.geometry]);
+  assert.equal(plan.placementEvidenceApplications[0].applicability, 'reviewable-exact-candidate');
+  assert.equal(plan.rooms[0].status, 'reuse-proposed');
+  assert.equal(plan.rooms[1].status, 'retained');
+  assert(plan.floors.every(floor => floor.qualification.stageToHouseTransform === null));
+  assert(plan.geometryHistory.candidates.every(record => record.payload.transform === null && record.payload.scale === null));
+  assert.deepEqual(plan.reversal.priorFloorPins.map(pin => pin.geometryId), [head.geometry.recordId, untouched.geometry.recordId]);
+  assert.equal(plan.operationsExecuted, 0);
+  assert.equal(JSON.stringify(input), before);
+});
+
+test('selected retained v2 metadata without a replacement keeps refresh optional and serializes deterministic history', async () => {
+  const root = snapshot({ floorKey: 'retained-only-root', sourceFloorKey: 'retained-only-source', label: 'Retained floor' });
+  const head = successor(root, { floorKey: 'retained-only-v2' });
+  const baseline = world({ floors: [head], rooms: [room({ id: 'retained-only-room', floor: head })] });
+  baseline.retainedState.floorPlacementFacts.push({ priorGeometry: root.geometry });
+  const first = await buildReplacementPlan(inputWith(baseline, []));
+  const second = await buildReplacementPlan(inputWith(baseline, []));
+  assert.deepEqual(first, second);
+  assert.equal(first.nativeDescriptorRefresh.required, false);
+  assert(first.floors.every(row => !row.nativeBindingRefreshRequired));
+  assert(first.rooms.every(row => !row.nativeBindingRefreshRequired && row.status === 'retained'));
+  assert.deepEqual(first.geometryHistory.previous, [head.geometry]);
+  assert.deepEqual(first.retainedState.floorPlacementFacts.at(-1), { priorGeometry: root.geometry });
+  assert.deepEqual(first.geometryHistory.candidates, []);
+  assert.equal(first.operationsExecuted, 0);
+});
+
+
+test('last possible native lineage version remains a bounded proposal with global capacity unverified', async () => {
+  const head = snapshot({ floorKey: 'bounded-v63', sourceFloorKey: 'bounded-source', label: 'Bounded synthetic floor',
+    version: 63, previousId: uuid() });
+  const baseline = world({ floors: [head], rooms: [room({ id: 'bounded-room', floor: head })] });
+  const plan = await buildReplacementPlan(inputWith(baseline, [successor(head, { floorKey: 'bounded-v64' })]));
+  assert.equal(plan.floors[0].previous.geometryVersion, 63);
+  assert.equal(plan.floors[0].candidate.geometryVersion, 64);
+  assert.equal(plan.floors[0].candidate.previousGeometryId, head.geometry.recordId);
+  assert.equal(plan.producer.retainedNativeHistoryVersionLimit, 64);
+  assert.equal(plan.disposition, 'proposal-only');
   assert.equal(plan.operationsExecuted, 0);
 });

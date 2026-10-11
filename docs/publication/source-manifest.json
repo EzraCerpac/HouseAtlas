@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0adda960658809615c25eba50ca4f8b0bb595b754f72fc205b451b78392a8b73",
+  "sourceDigestSha256": "8ded198ed00a698a8b8cc4c7c367faf402a71fb789c78226e2f51313a5079e52",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 48465,
-      "sha256": "ea06ec5a88e8d7f638d5f2fc2dcde77a5fd158fce19ba86dc8c8d04448b5f39b",
+      "bytes": 48540,
+      "sha256": "856b378ac1ff5e4ea3ca04e7eed734c6db89efc1ab8c21ba308f8238077e7ebd",
       "owner": "core-integration"
     },
     {
@@ -5383,8 +5383,8 @@
     {
       "path": "docs/geometry/assistant-scan-replacement.md",
       "mode": "100644",
-      "bytes": 16206,
-      "sha256": "fb3d03d28f7a0db44addfe2ee7694a6535ddf2ab35c52ed5cd0cfbacb0b1ac33",
+      "bytes": 17355,
+      "sha256": "262738b0398ae487d7d9f46957ab701c815a19669024622d756c8ecb2497d1b9",
       "owner": "media"
     },
     {
@@ -8736,15 +8736,15 @@
     {
       "path": "tools/geometry/scan-replacement-plan.mjs",
       "mode": "100644",
-      "bytes": 33076,
-      "sha256": "755fb08ab4a9b69f43cbb9867a63d6c884f153da80f13ef1eb786ed882fcd8a5",
+      "bytes": 34880,
+      "sha256": "02f85b2eddf1e6e20d37930fea7ee4348277539cd80744fb03e645f97bda920b",
       "owner": "media"
     },
     {
       "path": "tools/geometry/scan-replacement-plan.test.mjs",
       "mode": "100644",
-      "bytes": 48692,
-      "sha256": "6b9494a68e66b7ff9165c8084ba7506810747dd67482b050b9c7f93ec9f0fe35",
+      "bytes": 53938,
+      "sha256": "789e3f49b841d160928ed076ee831ff91ae295f175789ab03971ce3a516b7e72",
       "owner": "media"
     },
     {
