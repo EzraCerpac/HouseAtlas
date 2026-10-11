@@ -25,8 +25,17 @@ function closed(value, fields) {
 }
 function bounded(array, max) { assert(Array.isArray(array) && array.length <= max); return array; }
 function text(value) { assert(typeof value === 'string' && value.length > 0 && value.length <= 512); return value; }
+function validUnicode(value) {
+  for (let i = 0; i < value.length; i++) {
+    const c = value.charCodeAt(i);
+    if (c >= 0xd800 && c <= 0xdbff) {
+      const next = value.charCodeAt(++i); assert(next >= 0xdc00 && next <= 0xdfff, 'Selected JSON requires paired Unicode');
+    } else assert(c < 0xdc00 || c > 0xdfff, 'Selected JSON requires paired Unicode');
+  }
+}
 function jsonData(value, ancestors = new Set()) {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
+  if (typeof value === 'string') { validUnicode(value); return; }
+  if (value === null || typeof value === 'boolean') return;
   if (typeof value === 'number') {
     assert(Number.isFinite(value) && !Object.is(value, -0), 'Selected JSON numbers must retain their value'); return;
   }
@@ -41,6 +50,7 @@ function jsonData(value, ancestors = new Set()) {
     if (array && key === 'length') continue;
     const field = Object.getOwnPropertyDescriptor(value, key);
     assert(typeof key === 'string' && field.enumerable && Object.hasOwn(field, 'value'), 'Selected JSON fields must be data');
+    validUnicode(key);
     if (array) assert(/^(0|[1-9][0-9]*)$/.test(key) && Number(key) < value.length, 'Selected JSON array index changed');
     jsonData(field.value, ancestors);
   }
@@ -65,6 +75,7 @@ function fingerprint(profile, mesh) {
 async function inspect(snapshot, reader) {
   closed(snapshot, ['key', 'exportLabel', 'originalSha256', 'derivativeSha256', 'geometry', 'meshBytes']);
   text(snapshot.key); text(snapshot.exportLabel);
+  assert(hashPattern.test(snapshot.key), 'Selected native descriptor keys require lowercase SHA256');
   assert(hashPattern.test(snapshot.originalSha256) && hashPattern.test(snapshot.derivativeSha256));
   assert(geometryRecord(snapshot.geometry), 'Snapshot geometry must satisfy the existing Atlas record schema');
   assert(!(Date.parse(snapshot.geometry.updatedAt) < Date.parse(snapshot.geometry.createdAt)), 'Geometry record time cannot move backward');
@@ -81,6 +92,10 @@ async function inspect(snapshot, reader) {
   const port = { isCurrent: key => key === 'assistant-local-plan', subscribeInvalidation: () => () => {},
     async read(viewKey, selected) { assert.equal(selected, floor); return { viewKey, floorKey: floor.key, bytes: snapshot.meshBytes }; } };
   const profile = await reader.readScanMesh(port, 'assistant-local-plan', floor, new AbortController().signal);
+  const counts = [profile.source.originalBytes, profile.source.primaryLayerBytes, profile.source.serializedUSDABytes,
+    profile.qualification.semanticRoomObjects, ...Object.values(profile.counts),
+    ...profile.meshes.flatMap(mesh => [mesh.vertexCount, mesh.triangleCount, mesh.faceVertexCounts.count])];
+  assert(counts.every(value => /^(0|[1-9][0-9]*)$/.test(value.token)), 'Native mesh integer fields require unsigned integer tokens');
   return { snapshot, profile, meshes: new Map(profile.meshes.map(mesh => [mesh.sourceObjectId, fingerprint(profile, mesh)])),
     frame: { authoredCoordinates: profile.authoredCoordinates, converter: profile.converter,
       geometryPlacement: { coordinateUnits: snapshot.geometry.payload.coordinateUnits,
@@ -144,7 +159,8 @@ export async function buildReplacementPlan(input) {
   assert.equal(decoded.receiptId, receipt.receiptId); assert(hashPattern.test(decoded.sourceReceiptSha256));
   assert.equal(decoded.sourceReceiptSha256, documentary[0].originalSha256, 'Receipt source must match its retained documentary original');
   assert(equal(decoded.anchors, receipt.anchors), 'Complete accepted anchor membership must match');
-  assert.equal(canonical(decoded), receipt.canonicalJson, 'Receipt must be canonical');
+  jsonData(decoded);
+  assert(canonical(decoded) === receipt.canonicalJson, 'Receipt must be canonical');
   const anchors = new Map();
   assert(receipt.anchors.length > 0, 'Native scene receipt requires at least one source anchor');
   for (const anchor of receipt.anchors) {
@@ -163,7 +179,14 @@ export async function buildReplacementPlan(input) {
   // The decoder yields on this one event loop; isolate its existing per-read
   // budgets rather than charging another floor's work against this one.
   const previous = [], next = [];
-  for (const snapshot of input.floors) previous.push(await inspect(snapshot, reader));
+  for (const snapshot of input.floors) {
+    const p = snapshot.geometry.payload;
+    assert(p.producer === 'magicplan' && p.exportFormat === 'usdz' && p.coordinateUnits === 'unknown'
+      && p.scale === null && p.transform === null && p.mappings.length === 0
+      && p.geometryVersion === 1 && p.previousGeometryId === null && p.evidenceIds.length === 1,
+    'Selected retained geometry must match the current native bundle profile');
+    previous.push(await inspect(snapshot, reader));
+  }
   for (const snapshot of input.successors) next.push(await inspect(snapshot, reader));
   const lineages = new Map();
   for (const floor of [...previous, ...next]) {

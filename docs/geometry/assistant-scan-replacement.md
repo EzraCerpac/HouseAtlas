@@ -52,6 +52,10 @@ No backend, client, schema, shared UI or admission guard is changed here.
 - `floors`: up to three selected retained snapshots. Each has `key`,
   `exportLabel`, `originalSha256`, `derivativeSha256`, a complete existing
   `geometryRecord`, and immutable `meshBytes` (`Uint8Array`).
+  Native descriptor keys are lowercase SHA-256 digests. Retained geometry must
+  match the current native Magicplan/USDZ root profile: version 1, null
+  predecessor, unknown units, null scale/transform, no mappings and one evidence
+  reference. A proposed successor is never treated as an already retained floor.
 - `successors`: only the floors being replaced, in the same snapshot shape.
   Their geometry record has a new ID, creation revision 1, exact predecessor
   ID and next version. Omitted floors retain their selected prior snapshot;
@@ -75,6 +79,11 @@ follow a URL, inspect a live database or infer inputs from names.
 The existing Atlas schemas validate geometry and scene-association records.
 The actual lossless `readScanMesh` implementation validates each selected
 derivative's digest, lineage, raw tokens and complete authored transforms. All
+native integer-valued mesh fields retain unsigned integer JSON tokens, matching
+the native qualifier; decimal or exponent spellings are not native-qualified.
+Selected JSON keys and strings require paired Unicode, including receipt data.
+Canonical-receipt mismatch errors report a generic message without literal diffs.
+All
 prior source-floor/native-geometry pins and accepted anchor memberships must
 match. Every selected retained geometry must occur in the association; a shared
 workspace/home alone does not establish building membership. Each native floor
@@ -111,6 +120,8 @@ geometry IDs also remain distinct from the association and directly referenced
 asset, evidence and native identity IDs. Package place UUIDs retain their separate
 namespace. Geometry records use the published backward-time predicate, preserving
 schema-valid leap-second date literals, and distinct producer-room mapping IDs.
+Future successor geometry records and opaque prior proposal history remain
+proposal evidence until the separate native version/read profile is extended.
 Mapping references are preserved proposals; these local checks do not authenticate
 their identity/evidence records or qualify a complete native graph. New successor
 descriptor keys must differ from every prior descriptor key,

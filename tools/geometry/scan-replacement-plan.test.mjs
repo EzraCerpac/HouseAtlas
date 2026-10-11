@@ -50,7 +50,7 @@ function snapshot({ floorKey, sourceFloorKey, label, sourceHash = originalHash(l
   const originalAssetId = uuid();
   const record = geometry({ version, previousId, originalAssetId });
   return {
-    key: floorKey, exportLabel: label, originalSha256: sourceHash,
+    key: sha(`synthetic native descriptor: ${floorKey}`), exportLabel: label, originalSha256: sourceHash,
     derivativeSha256: sha(bytes), geometry: record, meshBytes: bytes,
     sourceFloorKey, profile,
   };
@@ -140,7 +140,7 @@ function successor(old, { edit = () => {}, label = old.exportLabel, sourceHash =
   });
   const record = geometry({ version: old.geometry.payload.geometryVersion + 1,
     previousId: old.geometry.recordId, originalAssetId: uuid(), coordinateUnits: units, transform });
-  return { key: floorKey, exportLabel: label, originalSha256: sourceHash, derivativeSha256: sha(bytes),
+  return { key: sha(`synthetic native descriptor: ${floorKey}`), exportLabel: label, originalSha256: sourceHash, derivativeSha256: sha(bytes),
     geometry: record, meshBytes: bytes, sourceFloorKey, profile };
 }
 
@@ -322,20 +322,19 @@ test('incremental successors retain version history pins and produce a fresh rev
   assert.deepEqual(firstPlan.reversal.priorFloorPins.map(pin => pin.geometryId), [floorV1.geometry.recordId]);
   assert.deepEqual(firstPlan.reversal.deletes, []);
 
-  const v2ForSelection = { ...floorV2, sourceFloorKey: floorV1.sourceFloorKey };
-  const associationV2 = associationFor([v2ForSelection], [roomSpec], baseline.receipt);
-  const supportV2 = supportRows([v2ForSelection], [roomSpec], baseline.receipt);
-  const secondInput = { association: associationV2, floors: [publicSnapshot(v2ForSelection)],
-    successors: [publicSnapshot(successor(v2ForSelection, { floorKey: 'native-incremental-v3',
-      edit: profile => { profile.meshes[0].positionsLocalTokens[3] = '1.2'; } }))],
-    roomSupport: supportV2, retainedState: baseline.retainedState };
+  // Until native successor admission is implemented, v2 is retained proposal
+  // history, never promoted into a claimed accepted native floor selection.
+  baseline.retainedState.floorPlacementFacts.push({ priorProposalGeometry: firstPlan.geometryHistory.candidates[0] });
+  const secondInput = inputWith(baseline, [successor(floorV1, { floorKey: 'native-incremental-alternative-v2',
+    edit: profile => { profile.meshes[0].positionsLocalTokens[3] = '1.2'; } })]);
   const before = JSON.stringify({ association: secondInput.association, floors: secondInput.floors,
     successors: secondInput.successors, roomSupport: secondInput.roomSupport, retainedState: secondInput.retainedState });
   const secondPlan = await buildReplacementPlan(secondInput);
-  assert.equal(secondPlan.geometryHistory.previous[0].recordId, floorV2.geometry.recordId);
-  assert.equal(secondPlan.geometryHistory.candidates[0].payload.geometryVersion, 3);
-  assert.equal(secondPlan.geometryHistory.candidates[0].payload.previousGeometryId, floorV2.geometry.recordId);
-  assert.deepEqual(secondPlan.reversal.priorFloorPins.map(pin => pin.geometryId), [floorV2.geometry.recordId]);
+  assert.equal(secondPlan.geometryHistory.previous[0].recordId, floorV1.geometry.recordId);
+  assert.equal(secondPlan.geometryHistory.candidates[0].payload.geometryVersion, 2);
+  assert.equal(secondPlan.geometryHistory.candidates[0].payload.previousGeometryId, floorV1.geometry.recordId);
+  assert.deepEqual(secondPlan.reversal.priorFloorPins.map(pin => pin.geometryId), [floorV1.geometry.recordId]);
+  assert.deepEqual(secondPlan.retainedState.floorPlacementFacts.at(-1).priorProposalGeometry, floorV2.geometry);
   assert.deepEqual(secondPlan.reversal.deletes, []);
   assert.equal(JSON.stringify({ association: secondInput.association, floors: secondInput.floors,
     successors: secondInput.successors, roomSupport: secondInput.roomSupport, retainedState: secondInput.retainedState }), before);
@@ -476,10 +475,10 @@ test('opaque null and non-object placement facts survive a reopened successful a
 
 test('geometry placement metadata changes require frame review even with byte-identical derivatives', async () => {
   const floor = snapshot({ floorKey: 'metadata-v1', sourceFloorKey: 'metadata-source', label: 'Metadata Floor' });
-  floor.geometry.payload.coordinateUnits = 'm';
   const baseline = world({ floors: [floor], rooms: [room({ id: 'metadata-room', floor })] });
-  for (const [field, value] of [['coordinateUnits', 'unknown'], ['scale', 1.25], ['transform', [1, 0, 0, 1, 2.5, -1.75]]]) {
+  for (const [field, value] of [['coordinateUnits', 'm'], ['scale', 1.25], ['transform', [1, 0, 0, 1, 2.5, -1.75]]]) {
     const candidate = successor(floor);
+    candidate.geometry.payload.coordinateUnits = 'm';
     candidate.geometry.payload[field] = value;
     assert.deepEqual(candidate.meshBytes, floor.meshBytes);
     const plan = await buildReplacementPlan(inputWith(baseline, [candidate]));
@@ -648,6 +647,21 @@ test('schema-valid leap-second dates and native documentary receipt provenance s
     JSON.parse(plan.previousAssociation.payload.acceptedReceipt.canonicalJson).sourceReceiptSha256);
   assert.deepEqual(docs, baseline.association.payload.sourceDocuments);
   assert.equal(plan.operationsExecuted, 0);
+});
+
+test('native-shaped descriptors and paired astral Unicode retain exact historical evidence', async () => {
+  const floor = snapshot({ floorKey: 'unicode-native-v1', sourceFloorKey: 'unicode-source', label: 'Synthetic 🧭 Floor' });
+  const baseline = world({ floors: [floor], rooms: [room({ id: 'unicode-🧭-room', floor })] });
+  baseline.retainedState.floorPlacementFacts.push({ 'reviewed-🧭': 'retained 😀 evidence' });
+  const plan = await buildReplacementPlan(inputWith(baseline, [successor(floor)]));
+  assert.deepEqual(plan.previousAssociation.payload.acceptedReceipt, baseline.receipt);
+  assert.deepEqual(plan.retainedState.floorPlacementFacts, baseline.retainedState.floorPlacementFacts);
+  assert(plan.floors.every(row => /^[a-f0-9]{64}$/.test(row.previous.key) && /^[a-f0-9]{64}$/.test(row.candidate.key)));
+  assert.equal(plan.geometryHistory.previous[0].payload.geometryVersion, 1);
+  assert.equal(plan.geometryHistory.previous[0].payload.previousGeometryId, null);
+  assert.equal(plan.geometryHistory.previous[0].payload.coordinateUnits, 'unknown');
+  assert.equal(plan.geometryHistory.previous[0].payload.transform, null);
+  assert.equal(plan.rooms[0].status, 'reuse-proposed');
 });
 
 test('maximum three-floor replacement inspects all six selected derivatives', async () => {
