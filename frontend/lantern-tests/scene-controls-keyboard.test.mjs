@@ -40,6 +40,11 @@ for (const selected of ['spaces', 'electrical', 'network']) {
   assert.equal(states.length, 3, 'All overlays remain visible buttons');
   assert.deepEqual(states.map(attributes => /aria-pressed="true"/.test(attributes)),
     ['spaces', 'electrical', 'network'].map(key => key === selected));
+  for (const [index, key] of ['spaces', 'electrical', 'network'].entries()) {
+    const selectedStyle = /background:color-mix\(/.test(states[index])
+      && /border-color:color-mix\(/.test(states[index]) && /color:var\(--ink\)/.test(states[index]);
+    assert.equal(selectedStyle, key === selected, 'Only the selected overlay retains the selected styling');
+  }
   assert.ok(states.every(attributes => /aria-label=/.test(attributes)));
   assert.ok(states.every(attributes => /type="button"/.test(attributes)));
 }

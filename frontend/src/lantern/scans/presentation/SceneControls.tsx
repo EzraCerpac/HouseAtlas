@@ -143,7 +143,12 @@ export function SceneControls({
                 aria-label={layer.label}
                 aria-pressed={overlay === key}
                 className="layer-chip"
-                style={{ '--layer': layer.color } as CSSProperties}
+                style={{
+                  '--layer': layer.color,
+                  background: overlay === key ? 'color-mix(in srgb, var(--layer) 13%, #fff)' : undefined,
+                  borderColor: overlay === key ? 'color-mix(in srgb, var(--layer) 55%, #fff)' : undefined,
+                  color: overlay === key ? 'var(--ink)' : undefined,
+                } as CSSProperties}
                 onClick={() => onOverlayChange(key)}
               >
                 <span className="layer-swatch" aria-hidden="true" />
