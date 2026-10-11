@@ -19,6 +19,12 @@ const sceneRecord = ajv.compile({ $ref: 'atlas#/$defs/sceneAssociationRecord' })
 export const LIMITS = Object.freeze({ floors: 3, manifestBytes: 2 * 1024 * 1024, meshBytes: 8 * 1024 * 1024, support: 256 });
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const hashPattern = /^[a-f0-9]{64}$/;
+// Current retained native profile; proposed future converters remain frame-qualified separately.
+const nativeConverterPins = Object.freeze({
+  schemaSHA256: '7d069a1e37a0584aa6c1883d8500753e0f4105d60e5d0c8de3650f5955aa5863',
+  codeSHA256: 'c9bf5c49ceba9b8dcace64102dc9e7d714731952dae4ca3c2f704ad1569caeb3',
+  profileSHA256: '3deec596c1fedef079c4e353432f7848ae4d5d403b9e1bec92fad2907ca18aff',
+});
 function closed(value, fields) {
   assert(value && typeof value === 'object' && !Array.isArray(value));
   assert.deepEqual(Object.keys(value).sort(), [...fields].sort());
@@ -82,6 +88,12 @@ async function inspect(snapshot, reader) {
   const placement = snapshot.geometry.payload;
   assert.equal(new Set(placement.mappings.map(mapping => mapping.producerRoomId)).size, placement.mappings.length,
     'Producer room mappings must have distinct source IDs');
+  for (const mapping of placement.mappings) {
+    const source = mapping.homeboxEntity;
+    assert(source === null || (source.workspaceId === snapshot.geometry.workspaceId
+      && source.homeId === snapshot.geometry.homeId && source.key.sourceKind === 'homebox-entity'),
+    'Geometry HomeBox references must retain scope and source kind');
+  }
   assert(placement.coordinateUnits !== 'unknown' || (placement.scale === null && placement.transform === null),
     'Unknown geometry units cannot imply scale or transform');
   assert.equal(snapshot.geometry.lifecycle, 'active');
@@ -185,7 +197,12 @@ export async function buildReplacementPlan(input) {
       && p.scale === null && p.transform === null && p.mappings.length === 0
       && p.geometryVersion === 1 && p.previousGeometryId === null && p.evidenceIds.length === 1,
     'Selected retained geometry must match the current native bundle profile');
-    previous.push(await inspect(snapshot, reader));
+    assert(!association.sourceDocuments.some(source => p.evidenceIds.includes(source.evidenceId)),
+      'Retained native geometry evidence cannot also be scene document evidence');
+    const retained = await inspect(snapshot, reader);
+    assert(Object.entries(nativeConverterPins).every(([key, digest]) => retained.profile.converter[key] === digest),
+      'Retained native meshes require the current converter provenance pins');
+    previous.push(retained);
   }
   for (const snapshot of input.successors) next.push(await inspect(snapshot, reader));
   const lineages = new Map();
@@ -349,7 +366,7 @@ export async function buildReplacementPlan(input) {
         : floorPlan.status === 'retained' ? 'selected-prior-frame-only'
         : floorPlan.geometryUnchanged ? 'reviewable-exact-candidate' : 'prior-frame-only-requires-review' };
     }),
-    producer: { toolSha256: sha(readFileSync(fileURLToPath(import.meta.url))), atlasSchemaSha256: sha(atlasSchemaBytes),
+    producer: { retainedNativeConverterPins: { ...nativeConverterPins }, toolSha256: sha(readFileSync(fileURLToPath(import.meta.url))), atlasSchemaSha256: sha(atlasSchemaBytes),
       meshReaderSha256: sha(readFileSync(new URL('../../frontend/src/lantern/scans/mesh-profile.ts', import.meta.url))),
       compiledMeshDecoderSha256: sha(decoderBytes), compiledMeshDecoderBytes: decoderBytes.length },
     reversal: { kind: 'new-association-to-retained-prior-geometry', priorFloorPins: previous.map(pin),

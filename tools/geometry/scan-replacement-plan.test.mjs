@@ -28,6 +28,12 @@ function originalHash(label) { return sha(`synthetic original source: ${label}`)
 
 function profileBytes(label, sourceHash, mutate = () => {}) {
   const profile = deepCopy(syntheticMeshFixture(label));
+  // Native qualifier metadata, independently pinned here; this does not run a converter.
+  Object.assign(profile.converter, {
+    schemaSHA256: '7d069a1e37a0584aa6c1883d8500753e0f4105d60e5d0c8de3650f5955aa5863',
+    codeSHA256: 'c9bf5c49ceba9b8dcace64102dc9e7d714731952dae4ca3c2f704ad1569caeb3',
+    profileSHA256: '3deec596c1fedef079c4e353432f7848ae4d5d403b9e1bec92fad2907ca18aff',
+  });
   profile.source.originalSHA256 = sourceHash;
   mutate(profile);
   return { profile, bytes: new TextEncoder().encode(JSON.stringify(profile)) };
@@ -619,6 +625,8 @@ test('distinct producer-room proposals, ordered record times and asset identitie
   const proposals = ['export-room-a', 'export-room-b'].map(producerRoomId => ({
     producerRoomId, atlasId: uuid(), homeboxEntity: null, reviewStatus: 'proposed', evidenceIds: [uuid()],
   }));
+  proposals[0].homeboxEntity = { workspaceId, homeId, key: { sourceInstanceId: uuid(),
+    collectionId: 'synthetic-homebox', sourceKind: 'homebox-entity', externalId: uuid() } };
   candidate.geometry.payload.mappings = proposals;
   candidate.geometry.updatedAt = '2026-10-11T00:01:00Z';
   const plan = await buildReplacementPlan(inputWith(baseline, [candidate]));
@@ -661,6 +669,11 @@ test('native-shaped descriptors and paired astral Unicode retain exact historica
   assert.equal(plan.geometryHistory.previous[0].payload.previousGeometryId, null);
   assert.equal(plan.geometryHistory.previous[0].payload.coordinateUnits, 'unknown');
   assert.equal(plan.geometryHistory.previous[0].payload.transform, null);
+  assert.deepEqual(plan.producer.retainedNativeConverterPins, floor.profile.converter && {
+    schemaSHA256: floor.profile.converter.schemaSHA256, codeSHA256: floor.profile.converter.codeSHA256,
+    profileSHA256: floor.profile.converter.profileSHA256 });
+  const documentEvidence = new Set(plan.previousAssociation.payload.sourceDocuments.map(source => source.evidenceId));
+  assert(plan.geometryHistory.previous.every(record => record.payload.evidenceIds.every(id => !documentEvidence.has(id))));
   assert.equal(plan.rooms[0].status, 'reuse-proposed');
 });
 

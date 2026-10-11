@@ -55,7 +55,11 @@ No backend, client, schema, shared UI or admission guard is changed here.
   Native descriptor keys are lowercase SHA-256 digests. Retained geometry must
   match the current native Magicplan/USDZ root profile: version 1, null
   predecessor, unknown units, null scale/transform, no mappings and one evidence
-  reference. A proposed successor is never treated as an already retained floor.
+  reference distinct from the scene document evidence IDs. Retained derivatives
+  require the exact schema/code/profile converter digest triple pinned by the
+  current native mesh qualifier; the artifact retains that triple. These are
+  metadata checks, not proof of converter execution or native custody.
+  A proposed successor is never treated as an already retained floor.
 - `successors`: only the floors being replaced, in the same snapshot shape.
   Their geometry record has a new ID, creation revision 1, exact predecessor
   ID and next version. Omitted floors retain their selected prior snapshot;
@@ -77,6 +81,10 @@ regular, nonsymlink mesh files. It does not scan Downloads, call a provider,
 follow a URL, inspect a live database or infer inputs from names.
 
 The existing Atlas schemas validate geometry and scene-association records.
+Non-null geometry HomeBox references must share the geometry record's workspace
+and home and use the HomeBox entity source kind. Source existence and accepted
+binding checks remain with the native owner.
+
 The actual lossless `readScanMesh` implementation validates each selected
 derivative's digest, lineage, raw tokens and complete authored transforms. All
 native integer-valued mesh fields retain unsigned integer JSON tokens, matching
