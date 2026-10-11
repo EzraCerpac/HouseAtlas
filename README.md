@@ -12,6 +12,26 @@ publication or deployment readiness.
 
 Use Node **26.10.0** and npm **11.19.1**. Install the exact dependency locks:
 
+Assistant-managed incremental scan planning uses selected retained versions and
+the actual authored mesh decoder. Its synthetic local check is:
+
+```sh
+node --test --test-concurrency=1 tools/geometry/scan-replacement-plan.test.mjs
+```
+
+After inspecting the tool, test and source-loader imports, the assistant can
+retain a private, create-only proposal from explicitly selected local files:
+
+```sh
+node tools/geometry/scan-replacement-plan.mjs /absolute/private/selection.json /absolute/private/NEW-artifact-directory
+```
+
+The artifact preserves version/receipt/identity/overlay evidence, object diffs
+and reversal references. It does not submit custody or native replacement;
+current-head freshness and new-frame acceptance remain separate. See
+[assistant scan replacement](docs/geometry/assistant-scan-replacement.md) for
+input bounds, frame applicability and the initial-only native adoption gap.
+
 An explicitly named offline receipt example uses two fresh synthetic initialized
 states and an exact SHA256-selected binary built from original source
 `3016c5362daa89983f02c4790fc329a94eb43420`. It checks strict legacy refusal,
