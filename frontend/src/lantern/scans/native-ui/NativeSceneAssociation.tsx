@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { stringifyLosslessJson } from '../../../numeric/lossless-json';
 import type { NativeGeometryFrame } from '../native-read-types';
 import type { SceneAssociationCandidate, SceneAssociationClient, SceneAssociationPrepared,
@@ -108,7 +108,7 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
     return stop;
   }, [client, owner]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!buildingId || !geometry || !active()) return;
     const synchronizeInitialHead = !!heads && !!refreshed.current && !heads.has(buildingId);
     setInitialSync({ owner, pending: synchronizeInitialHead });

@@ -427,7 +427,10 @@ createRoot(document.getElementById('root')).render(<TestHost />);
   })()`);
   await evaluate('window.__test.deferNextRead()');
   const refreshesBeforeRebind = await evaluate('window.__test.ledger.sceneRefreshes');
-  await evaluate('window.__test.rebindKeepingAdmission()');
+  await evaluate(`(()=>{window.__test.rebindKeepingAdmission(); window.__test.firstFrameLock = new Promise(resolve =>
+    requestAnimationFrame(() => resolve(Array.from(document.querySelectorAll('input,textarea')).every(field => field.disabled))));})()`);
+  assert.equal(await evaluate('window.__test.firstFrameLock'), true,
+    'The candidate and review fields are locked on the first rendered frame after a binding change');
   await until(() => evaluate(`window.__test.ledger.deferredReads.length === 1
     && document.querySelectorAll("textarea").length === 5`), 'Review fields remain present during binding resynchronization');
   assert.equal(await evaluate('Array.from(document.querySelectorAll("input,textarea")).every(field => field.disabled)'), true,
