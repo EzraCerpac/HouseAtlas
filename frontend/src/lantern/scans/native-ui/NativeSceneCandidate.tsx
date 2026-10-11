@@ -30,7 +30,8 @@ export function NativeSceneCandidate({ host, geometry, onSaved }: {
         sourceFloors: arrays[0]!, roomMappings: arrays[1]!, guards: arrays[2]! };
     } catch { return null; }
   }, [geometry, primary, historical, floorJoins, roomJoins, guards]);
-  const canCreate = host.associations.canCreate(geometry.descriptor.buildingId);
+  const canReadCurrent = host.associations.getBinding() !== null;
+  const canCreate = canReadCurrent && host.associations.canCreate(geometry.descriptor.buildingId);
   const pendingOutcome = host.associations.pending(geometry.descriptor.buildingId).some(item => item.outcome === 'unknown');
   useEffect(() => {
     if (!canCreate) {
@@ -38,7 +39,9 @@ export function NativeSceneCandidate({ host, geometry, onSaved }: {
     }
   }, [canCreate]);
   return <details><summary>Scene association</summary>
-    {!canCreate && <p role="status">Preparation is unavailable. {pendingOutcome
+    {!canReadCurrent && <p role="status">Current association readback is unavailable because there is no active scene context.
+      {pendingOutcome && ' A submitted outcome remains unknown and can be checked when the context returns.'}</p>}
+    {canReadCurrent && !canCreate && <p role="status">Preparation is unavailable. {pendingOutcome
       ? 'A submitted outcome is unknown and can be checked below.' : 'The current association remains available to reload.'}</p>}
     {canCreate && <>
       <h3>Review retained scene sources</h3>

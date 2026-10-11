@@ -177,9 +177,10 @@ physical placement, actual household intake or recovery/fallback compatibility.
 It opens no listener, contacts no provider and runs no failure or denial case.
 
 The separate issue #148 regression lane uses an injected synthetic association
-client and owned Chromium to check read-only current-head visibility, create
-admission withdrawal, unknown-outcome recovery, draft-discard confirmation and
-scene refresh after successful resolution. Inspect the test and
+client and owned Chromium to check read-only current-head visibility, unavailable
+read context, initial head-synchronization locking, subscription-time binding
+invalidation, create admission withdrawal, unknown-outcome recovery,
+draft-discard confirmation and scene refresh after successful resolution. Inspect the test and
 [issue-specific limits](docs/geometry/native-scene-readonly-association.md) before this
 exact command. It serves only generated UI assets from an owned loopback listener;
 it uses synthetic IDs and responses, no account, provider, household data or

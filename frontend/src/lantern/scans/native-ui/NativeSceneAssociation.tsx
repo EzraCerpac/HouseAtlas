@@ -82,7 +82,7 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
     if (surface.current) surface.current.hidden = true;
   }, [client, owner]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (surface.current) surface.current.hidden = !visible;
     const invalidate = () => {
       if (surface.current) surface.current.hidden = true;
@@ -101,11 +101,14 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
       const currentReview = reviewRef.current;
       if (!submittedPending && (!active() || currentReview && !client.isPreparedCurrent(currentReview))) invalidate();
       else repaint(value => value + 1); });
+    if (!active()) invalidate();
     return stop;
   }, [client, owner]);
 
   useEffect(() => {
     if (!buildingId || !geometry || !active()) return;
+    const synchronizeInitialHead = !!heads && !!refreshed.current && !heads.has(buildingId);
+    if (synchronizeInitialHead) onRefreshPendingChanged?.(true);
     const controller = new AbortController();
     void client.readCurrent(buildingId, geometry, controller.signal).then(result => {
       if (current.current !== owner || controller.signal.aborted || !active()) return;
@@ -113,15 +116,20 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
       if (heads && refreshed.current && heads.get(buildingId) !== key) {
         heads.set(buildingId, key);
         setRead(null); setStatus({ owner, text: 'Refreshing the displayed scene to match the current association.' });
+        if (synchronizeInitialHead) onRefreshPendingChanged?.(false);
         refreshed.current(); return;
       }
       heads?.set(buildingId, key);
+      if (synchronizeInitialHead) onRefreshPendingChanged?.(false);
       setRead({ owner, value: result });
     }).catch(() => {
-      if (current.current === owner && !controller.signal.aborted) setStatus({ owner, text: 'Current association is unavailable.' });
+      if (current.current === owner && !controller.signal.aborted) {
+        if (synchronizeInitialHead) onRefreshPendingChanged?.(false);
+        setStatus({ owner, text: 'Current association is unavailable.' });
+      }
     });
     return () => controller.abort();
-  }, [client, owner, buildingId, geometry]);
+  }, [client, owner, buildingId, geometry, onRefreshPendingChanged]);
 
   const execute = (label: string, work: (signal: AbortSignal) => Promise<void>, submission = false,
     settled?: () => void, kind: Flight['kind'] = 'read') => {

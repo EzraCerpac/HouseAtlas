@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "8541a932bffaff22f00ae248e50925fa03cf20bf367868b8f6457554dad4b0ac",
+  "sourceDigestSha256": "69c99e5223904431249bf8b4f816551acc1d35d47c2db60eccc25f2d6950f500",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 42232,
-      "sha256": "bf5dc1c9fc34b50a3f37a73f4b175fe74547831f1dc2734bbe2bdeb138a08b75",
+      "bytes": 42336,
+      "sha256": "1a06cf4175d722cd85d2084a0da98fdbcb94d6fe8141cc7a785c6d24f58cbf80",
       "owner": "core-integration"
     },
     {
@@ -5446,8 +5446,8 @@
     {
       "path": "docs/geometry/native-scene-readonly-association.md",
       "mode": "100644",
-      "bytes": 1999,
-      "sha256": "cb25b053c3fc0994f6bf7d9177520e5c68505ee094a83b235dff460d16895e0a",
+      "bytes": 2140,
+      "sha256": "0a5f24cf15905a2baefce4a0c485a3b38756908e6f3203975d2c21efc41b1efc",
       "owner": "web"
     },
     {
@@ -6202,8 +6202,8 @@
     {
       "path": "frontend/lantern-tests/native-scene-readonly-ui.mjs",
       "mode": "100644",
-      "bytes": 35052,
-      "sha256": "1347e02210a2ec63846d110036fd33946f9b63eba8345800ef5db3c68a284eca",
+      "bytes": 39489,
+      "sha256": "1029bf25ea3438990c6633a4af0733e40f2a242c41f28fbe3a989c3beeae594c",
       "owner": "web"
     },
     {
@@ -7406,15 +7406,15 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneAssociation.tsx",
       "mode": "100644",
-      "bytes": 13980,
-      "sha256": "9b4396c75b8ae9ba7991621f2ff5638829fbc8100612f557f395761bd3b4b2cb",
+      "bytes": 14428,
+      "sha256": "8c694123d47f62092bdde3fcee801a8cb06886330c2baf0e993ebb8a8121e6ad",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneCandidate.tsx",
       "mode": "100644",
-      "bytes": 4706,
-      "sha256": "4f97d7a96aa61937f4254979c12fd458e461577409158d9e55b8ad99b75b220a",
+      "bytes": 5050,
+      "sha256": "60a7befdd441605fc332b79ee48fd1d9fdc3ffabb93551d809a82e0a45ca0efc",
       "owner": "web"
     },
     {
