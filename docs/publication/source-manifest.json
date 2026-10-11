@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c804002ff4ab40880c8512c12659b47450329f6ecfdc016ad8804f4a32a7460c",
+  "sourceDigestSha256": "7e533f9a27c062da82f05a2e8a98c0cf3b5d6b18f5ef7d2b48cdcdc8cb4eaa4c",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -6230,8 +6230,8 @@
     {
       "path": "frontend/lantern-tests/native-scene-readonly-ui.mjs",
       "mode": "100644",
-      "bytes": 44462,
-      "sha256": "ec78f4ec836e74710cd8f1cd6e0ce7d39afd73cc26af120183d9b0d67744b75d",
+      "bytes": 47004,
+      "sha256": "1d5ce22497539006bca7b188e6b2de9076144240d5806a77e8c6c9a8f5b15ef8",
       "owner": "web"
     },
     {
@@ -7434,8 +7434,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneAssociation.tsx",
       "mode": "100644",
-      "bytes": 15122,
-      "sha256": "ce3e59dea5cc981ca663b4d2b7225c692e8b492e62c3a96ee57ab30555b468f7",
+      "bytes": 15064,
+      "sha256": "8078c1ed89be76c1c1115925b3460e7e2e3f0b889c6b6c727b5d402261bd875b",
       "owner": "web"
     },
     {

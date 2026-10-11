@@ -88,7 +88,6 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
   useLayoutEffect(() => {
     if (surface.current) surface.current.hidden = !visible;
     const invalidate = () => {
-      if (surface.current) surface.current.hidden = true;
       flight.current?.controller.abort(); flight.current = null;
       if (reviewRef.current) client.releasePrepared(reviewRef.current);
       setPrepared(null); setRead(null); setStatus(null); setBusy(null);

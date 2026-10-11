@@ -99,7 +99,7 @@ const client = {
     });
     return value;
   },
-  async prepare() { ledger.prepares++; ledger.committed = false; ledger.unknown = false; ledger.submitSettled = false;
+  async prepare() { ledger.prepares++; ledger.committed = false; ledger.unknown = false; ledger.submitSettled = false; ledger.preparedCurrent = true;
     ledger.prepared = { buildingId, requestId: 'synthetic-request', targetId: 'synthetic-target',
     body: '{}', requestDigest: 'a'.repeat(64), payload: {} }; return ledger.prepared; },
   releasePrepared() { ledger.releases++; },
@@ -465,6 +465,38 @@ createRoot(document.getElementById('root')).render(<TestHost />);
   await until(() => evaluate(`window.__test.ledger.sceneRefreshes === ${refreshesBeforeRebind + 1}`),
     'The binding resynchronization completes its displayed-scene refresh');
   report.assertions.push('initial head synchronization locks the complete candidate and review form across a binding change');
+
+  await evaluate('if (!document.querySelector("summary").closest("details").open) document.querySelector("summary").click()');
+  await evaluate(`(()=>{
+    const set = (element, value) => {
+      const prototype = element instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
+      Object.getOwnPropertyDescriptor(prototype, 'value').set.call(element, value);
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    const inputs = Array.from(document.querySelectorAll('input'));
+    set(inputs[0], '00000000-0000-4000-8000-000000000004');
+    set(inputs[1], '00000000-0000-4000-8000-000000000005');
+    for (const area of Array.from(document.querySelectorAll('textarea')).slice(0, 3)) set(area, '[]');
+  })()`);
+  await until(() => evaluate('document.querySelectorAll("textarea").length === 5'), 'Evidence and review fields before evidence invalidation');
+  await evaluate(`(()=>{
+    const areas = Array.from(document.querySelectorAll('textarea'));
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
+    for (const [index, value] of [[3, 'Invalidation review'], [4, 'Invalidation reason']]) {
+      setter.call(areas[index], value); areas[index].dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  })()`);
+  const preparesBeforeInvalidation = await evaluate('window.__test.ledger.prepares');
+  await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Review retained originals").click()');
+  await until(() => evaluate(`window.__test.ledger.prepares === ${preparesBeforeInvalidation + 1}
+    && Boolean(Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Submit reviewed association'))`),
+    'Prepared review before retained-evidence invalidation');
+  await evaluate('window.__test.invalidateEvidence()');
+  await until(() => evaluate(`document.querySelector("[aria-label=\\"Native scene association review\\"]")?.hidden === false
+    && Boolean(Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Review retained originals'))
+    && !Array.from(document.querySelectorAll('button')).some(b => b.textContent.trim() === 'Submit reviewed association')`),
+    'The association surface returns to its unprepared state after evidence invalidation');
+  report.assertions.push('prepared-review evidence invalidation clears the prepared action without stranding the association surface hidden');
 
   const readsBeforeSubscriptionRace = await evaluate('window.__test.ledger.reads');
   await evaluate('window.__test.mountSubscriptionRace()');
