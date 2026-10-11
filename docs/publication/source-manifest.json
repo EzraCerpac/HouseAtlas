@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "9a84cb4a524fc6ac96a442a5762d09f5234b4d40ea81519be7cd803e1314b7d6",
+  "sourceDigestSha256": "edafbd214a3e981c2830242ee8e095e350b71f1c40279a21cbd94592f4771abb",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -6193,6 +6193,34 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/scene-controls-keyboard.test.mjs",
+      "mode": "100644",
+      "bytes": 2914,
+      "sha256": "24b03542ebe77f4f010485311738726d915c8ff3403afa10c7f1cef39a78d006",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/scene-controls-keyboard/README.md",
+      "mode": "100644",
+      "bytes": 977,
+      "sha256": "e747a3a71afd90699cdcd1ea02419acaf99ee915add3bcaf3649643ca2a86e84",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/scene-controls-keyboard/index.html",
+      "mode": "100644",
+      "bytes": 312,
+      "sha256": "70a43c01749c94ffd298f15edbd05fb9636872fa536a5042ec8562ef5f0078ca",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/scene-controls-keyboard/main.tsx",
+      "mode": "100644",
+      "bytes": 1020,
+      "sha256": "6e104bbf9e073dd4524b1f580c4a8736ea8ee07f679c80a3681b4b44e5af09a9",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/source-time-display.mjs",
       "mode": "100644",
       "bytes": 2071,
@@ -7385,8 +7413,8 @@
     {
       "path": "frontend/src/lantern/scans/presentation/SceneControls.tsx",
       "mode": "100644",
-      "bytes": 5515,
-      "sha256": "08389cfb8549bf764b29ad8620138e50cd48bd14a14eba4f9b1ad85b6f6e6c29",
+      "bytes": 5522,
+      "sha256": "b084f139d99de51f1c6908d01f880a53b187673524977bef39545a035ddd6c44",
       "owner": "web"
     },
     {

@@ -133,15 +133,15 @@ export function SceneControls({
       </div>
 
       <div className="stage-ui stage-bottom">
-        <div className="layer-bar" role="radiogroup" aria-label="Overlay">
+        <div className="layer-bar" role="group" aria-label="Overlay">
           {OVERLAYS.map((key) => {
             const layer = LAYER[key];
             return (
               <button
                 key={key}
                 type="button"
-                role="radio"
-                aria-checked={overlay === key}
+                aria-label={layer.label}
+                aria-pressed={overlay === key}
                 className="layer-chip"
                 style={{ '--layer': layer.color } as CSSProperties}
                 onClick={() => onOverlayChange(key)}
