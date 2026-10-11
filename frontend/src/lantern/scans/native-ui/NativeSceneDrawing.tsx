@@ -1,21 +1,24 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { ElectricalFixtureSheet } from '../../overlays/electricity/fixture-types';
 import type { NativeEvidenceDocumentClient, NativeEvidenceDocumentFrame } from '../native-evidence-document-types';
+import type { NativeSceneDrawingPdfReference } from '../native-scene-source-types';
 
 const referencePageSize = 64;
 
 /** A hash selects among current building evidence; it grants no read access.
  * Each candidate is resolved by the native document owner before any bytes paint. */
-export function NativeSceneDrawing({ client, sheet, evidenceIds, current, onClose }: {
+export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, current, onClose }: {
   readonly client: NativeEvidenceDocumentClient; readonly sheet: ElectricalFixtureSheet;
+  readonly reference?: NativeSceneDrawingPdfReference | undefined;
   readonly evidenceIds: readonly string[]; readonly current: () => boolean; readonly onClose: () => void;
 }) {
   const [shown, setShown] = useState<{ frame: NativeEvidenceDocumentFrame; url: string; generation: number } | null>(null);
   const [status, setStatus] = useState('Checking saved drawing…'), [zoom, setZoom] = useState(1);
   const [cursor, setCursor] = useState<{ client: NativeEvidenceDocumentClient; sheet: ElectricalFixtureSheet;
-    evidenceIds: readonly string[]; start: number; unreadable: boolean } | null>(null);
+    evidenceIds: readonly string[]; reference: NativeSceneDrawingPdfReference | undefined; start: number; unreadable: boolean } | null>(null);
   const [continuation, setContinuation] = useState<{ generation: number; next: number; unreadable: boolean } | null>(null);
-  const selectedCursor = cursor?.client === client && cursor.sheet === sheet && cursor.evidenceIds === evidenceIds ? cursor : null;
+  const selectedCursor = cursor?.client === client && cursor.sheet === sheet && cursor.evidenceIds === evidenceIds
+    && cursor.reference === reference ? cursor : null;
   const pageStart = selectedCursor?.start ?? 0, previouslyUnreadable = selectedCursor?.unreadable ?? false;
   const payload = useRef<HTMLDivElement>(null), closer = useRef<HTMLButtonElement>(null);
   const currentRef = useRef(current); currentRef.current = current;
@@ -34,13 +37,16 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, current, onClos
     const live = () => !disposed && !controller.signal.aborted && currentRef.current();
     const withdraw = () => {
       const hadResources = !!stop || !!url || !!held;
+      // Withdraw the action synchronously before release can notify or reenter.
+      if (generationRef.current === generation) {
+        if (payload.current) payload.current.hidden = true;
+        if (activeDrawing.current?.generation === generation) activeDrawing.current = null;
+      }
       const unsubscribe = stop; stop = null;
       unsubscribe?.();
       if (url) { URL.revokeObjectURL(url); url = null; }
       if (held) { client.release(held); held = null; }
       if (generationRef.current !== generation) return false;
-      if (payload.current) payload.current.hidden = true;
-      if (activeDrawing.current?.generation === generation) activeDrawing.current = null;
       if (hadResources) setShown(null);
       return hadResources;
     };
@@ -48,9 +54,13 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, current, onClos
     void (async () => {
       // Each explicit continuation owns at most one bounded page and the same
       // ten-second read budget. Never allocate or reject the whole evidence list.
-      const page = evidenceIds.slice(pageStart, pageStart + referencePageSize);
+      const page = reference ? [reference.evidenceId] : evidenceIds.slice(pageStart, pageStart + referencePageSize);
       if (!live() || new Set(page).size !== page.length
         || !/^[0-9a-f]{64}$/.test(sheet.renderedPhotoSha256)) throw new Error('Drawing references unavailable');
+      if (reference && (reference.sheetId !== sheet.id || reference.pdfPage !== sheet.pdfPage
+        || reference.originalPhotoSha256 !== sheet.originalPhotoSha256
+        || reference.renderedPhotoSha256 !== sheet.renderedPhotoSha256
+        || !evidenceIds.includes(reference.evidenceId))) throw new Error('Drawing correlation unavailable');
       let unreadable = previouslyUnreadable;
       for (const evidenceId of page) {
         if (!live()) return;
@@ -59,10 +69,18 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, current, onClos
         catch { if (!live()) return; unreadable = true; continue; }
         held = frame;
         if (!live() || !client.isCurrent(frame)) { client.release(frame); held = null; return; }
-        if (frame.asset.sha256 !== sheet.renderedPhotoSha256 || frame.mode !== 'inline-png'
-          || frame.asset.contentType !== 'image/png') { client.release(frame); held = null; continue; }
+        const matches = reference
+          ? frame.evidenceId === reference.evidenceId && frame.evidenceRevision === reference.evidenceRevision
+            && frame.asset.assetId === reference.assetId && frame.asset.revision.compare(reference.assetRevision) === 0
+            && frame.asset.sha256 === reference.assetSha256 && frame.asset.byteSize.compare(reference.byteSize) === 0
+            && frame.mode === 'original-download' && frame.asset.contentType === 'application/pdf'
+            && frame.asset.purpose === 'evidence-original' && frame.asset.previewPolicy === 'download-only'
+          : frame.asset.sha256 === sheet.renderedPhotoSha256 && frame.mode === 'inline-png'
+            && frame.asset.contentType === 'image/png';
+        if (!matches) { client.release(frame); held = null; continue; }
         const blob = client.getBlob(frame);
-        if (!blob || blob.type !== 'image/png') throw new Error('Drawing unavailable');
+        if (!blob || blob.type !== (reference ? 'application/pdf' : 'image/png')
+          || (reference && blob.size !== reference.byteSize.toSafeInteger())) throw new Error('Drawing unavailable');
         url = URL.createObjectURL(blob);
         stop = client.subscribeInvalidation(frame, () => {
           const currentGeneration = !disposed && generationRef.current === generation;
@@ -78,6 +96,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, current, onClos
       }
       clearTimeout(timer);
       if (live()) {
+        if (reference) { setStatus('The correlated reference PDF is unavailable for this current drawing. Close it and reload scans.'); return; }
         const next = pageStart + page.length;
         if (next < evidenceIds.length) {
           setContinuation({ generation, next, unreadable });
@@ -85,7 +104,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, current, onClos
           setStatus(`${unreadable ? 'Some checked drawing references could not be read.' : 'No current saved PNG matches the checked references.'} ${remaining} ${remaining === 1 ? 'reference remains' : 'references remain'} to check.`);
         } else setStatus(unreadable
           ? 'Some saved drawing references could not be read. Close it and try again.'
-          : 'No current saved PNG matches this drawing. Add its reading copy to this building and reload scans.');
+          : 'No current saved PNG or qualified reference PDF is available for this drawing. Reload scans after its source is available.');
       }
     })().catch(() => { clearTimeout(timer); withdraw(); if (live()) setStatus('The current saved drawing could not be read. Close it and try again.'); });
     const aborted = () => {
@@ -100,7 +119,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, current, onClos
       controller.abort(); withdraw();
       if (activeDrawing.current?.generation === generation) activeDrawing.current = null;
     };
-  }, [client, sheet, evidenceIds, pageStart, previouslyUnreadable]);
+  }, [client, sheet, evidenceIds, reference, pageStart, previouslyUnreadable]);
   useLayoutEffect(() => {
     if (payload.current) payload.current.hidden = !shown || !currentRef.current() || !client.isCurrent(shown.frame);
   }, [client, shown]);
@@ -114,7 +133,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, current, onClos
   const keys = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key === 'Escape') { event.preventDefault(); onClose(); return; }
     if (event.key !== 'Tab') return;
-    const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), [tabindex="0"]')];
+    const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], [tabindex="0"]')];
     const first = controls[0], last = controls.at(-1);
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
@@ -128,9 +147,19 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, current, onClos
       className="chip-btn" onClick={() => {
         if (continuation.generation !== generationRef.current || !currentRef.current()) return;
         setContinuation(null);
-        setCursor({ client, sheet, evidenceIds, start: continuation.next, unreadable: continuation.unreadable });
+        setCursor({ client, sheet, evidenceIds, reference, start: continuation.next, unreadable: continuation.unreadable });
       }}>Check next references</button>}
     {shown && currentRef.current() && client.isCurrent(shown.frame) && <div ref={payload}>
+      {shown.frame.mode === 'original-download' ? <>
+        <p>Reference PDF page {sheet.pdfPage}. Download the original and open that page in your PDF reader. An inline preview is unavailable.</p>
+        <a href={shown.url} download={`atlas-original-${shown.frame.asset.assetId}.pdf`} onClick={event => {
+          if (!currentRef.current() || !client.isCurrent(shown.frame)
+            || activeDrawing.current?.generation !== shown.generation) {
+            event.preventDefault(); activeDrawing.current?.withdraw();
+            setStatus('This reference PDF is no longer current. Close it and reload scans.');
+          }
+        }}>Download reference PDF</a>
+      </> : <>
       <div role="group" aria-label="Drawing size">
         <button type="button" onClick={() => setZoom(1)}>Fit</button>
         <button type="button" disabled={zoom <= 0.5} onClick={() => setZoom(value => Math.max(0.5, value / 2))}>Zoom out</button>
@@ -139,6 +168,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, current, onClos
       <div className="native-scene-drawing-image" role="region" aria-label={`${sheet.title}, drawing image`} tabIndex={0}><img src={shown.url} alt={`${sheet.title}, historical electrical drawing`}
         onError={() => renderFailed(shown)}
         style={{ width: `${zoom * 100}%`, maxWidth: 'none', height: 'auto' }} /></div>
+      </>}
     </div>}
   </section>;
 }

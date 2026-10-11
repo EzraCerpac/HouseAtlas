@@ -169,7 +169,7 @@ async function run() {
       if(page<pageCount-1){assert.match(await status(),/checked/i);assert.match(await status(),/remain(?:s)? to check/i);assert.equal(await evaluate('Boolean(document.querySelector("img"))'),false);}
     }
     const s=await stats();assert.equal(s.opens.length,selectedCase==='missing-match'?129:128);assert.equal(s.creates.length,0);assert.equal(s.active.length,0);
-    if(selectedCase==='missing-match') assert.equal(await status(),'No current saved PNG matches this drawing. Add its reading copy to this building and reload scans.');
+    if(selectedCase==='missing-match') assert.equal(await status(),'No current saved PNG or qualified reference PDF is available for this drawing. Reload scans after its source is available.');
     else {assert.match(await status(),/checked/i);assert.match(await status(),/remain(?:s)? to check/i);assert.equal((await evaluate('window.__stats.opens.length')),128);}
     await assertSerialized();results.push({case:selectedCase,status:'passed',listSize:size,checked:s.opens.length,remaining:size-s.opens.length,explicitPages:pageCount});
   } else if(selectedCase==='blob-read-failure') {

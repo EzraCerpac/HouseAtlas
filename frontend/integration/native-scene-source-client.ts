@@ -5,7 +5,7 @@ import { adaptDocumentaryElectricity } from '../src/lantern/overlays/electricity
 import type { NativeEvidenceDocumentClient, NativeEvidenceDocumentFrame } from '../src/lantern/scans/native-evidence-document-types';
 import type { NativeGeometryReadClient, NativeGeometryFrame } from '../src/lantern/scans/native-read-types';
 import type { NativeSceneSourceClient, NativeSceneSourceFrame, NativeSceneSourceSelection, NativeSceneSubset,
-  NativeSceneFloorBinding } from '../src/lantern/scans/native-scene-source-types';
+  NativeSceneFloorBinding, NativeSceneDrawingPdfReference } from '../src/lantern/scans/native-scene-source-types';
 import type { SchematicRoom, DisplayRoomRegion } from '../src/lantern/scans/presentation/types';
 import type { NetworkOverlayData, NetworkOverlayDevice, NetworkOverlayEndpoint,
   NetworkOverlayLink, NetworkPlaceAssociation, NetworkOverlaySource } from '../src/lantern/overlays/network/types';
@@ -82,7 +82,40 @@ function selectionStamp(value: NativeSceneSourceSelection): string {
       a.targets.map(t => [t.packagePlaceKey, t.packagePlaceUuid]), [...a.unresolvedLabels]]),
     value.sourceFloorBindings.map(f => [f.sourceFloorKey, f.sourceOriginalSha256,
       f.nativeFloorKey, f.nativeOriginalAssetId, f.nativeOriginalSha256,
-      f.nativeGeometryId, f.nativeGeometryRevision.token])]);
+      f.nativeGeometryId, f.nativeGeometryRevision.token]),
+    value.drawingReferences?.map(r => [r.correlationId, r.correlationSha256, r.workspaceId, r.homeId,
+      r.buildingId, r.viewKey, r.sceneOriginalSha256, r.sceneEvidenceId, r.sceneEvidenceRevision,
+      r.sceneAssetId, r.sceneAssetRevision?.token, r.sheetId, r.pdfPage,
+      r.originalPhotoSha256, r.renderedPhotoSha256, r.evidenceId, r.evidenceRevision,
+      r.assetId, r.assetRevision?.token, r.assetSha256, r.byteSize?.token])]);
+}
+
+/** Host pins are independent of retained scene text. Invalid or ambiguous joins
+ * cannot grant a PDF action; other qualified scene subsets remain usable. */
+function drawingReferences(selection: NativeSceneSourceSelection,
+  fixtures: NativeSceneSubset<ElectricalFixtureData>): readonly NativeSceneDrawingPdfReference[] {
+  const input = selection.drawingReferences;
+  if (!input || input.length > 128 || fixtures.status !== 'available') return Object.freeze([]);
+  const duplicates = new Set(input.filter((r, i) => input.some((other, j) => j !== i && other.sheetId === r.sheetId)).map(r => r.sheetId));
+  const result: NativeSceneDrawingPdfReference[] = [];
+  for (const r of input) {
+    const sheet = fixtures.data.sheets.find(s => s.id === r.sheetId);
+    if (!sheet || duplicates.has(r.sheetId) || !r.correlationId || r.correlationId.length > 256
+      || !SHA.test(r.correlationSha256) || r.workspaceId !== selection.workspaceId
+      || r.homeId !== selection.homeId || r.buildingId !== selection.buildingId || r.viewKey !== selection.viewKey
+      || r.sceneOriginalSha256 !== selection.sceneOriginalSha256
+      || r.sceneEvidenceId !== selection.sceneEvidenceId || r.sceneEvidenceRevision !== selection.sceneEvidenceRevision
+      || r.sceneAssetId !== selection.sceneAssetId || !isExactDecimal(r.sceneAssetRevision)
+      || !identical(r.sceneAssetRevision, selection.sceneAssetRevision) || r.pdfPage !== sheet.pdfPage
+      || r.originalPhotoSha256 !== sheet.originalPhotoSha256 || r.renderedPhotoSha256 !== sheet.renderedPhotoSha256
+      || !UUID.test(r.evidenceId) || !UUID.test(r.assetId) || !SHA.test(r.assetSha256)
+      || !Number.isSafeInteger(r.evidenceRevision) || r.evidenceRevision < 1
+      || !isExactDecimal(r.assetRevision) || !r.assetRevision.isInteger || r.assetRevision.compare(ONE) < 0
+      || !isExactDecimal(r.byteSize) || r.byteSize.toSafeInteger() === undefined
+      || r.byteSize.compare(ONE) < 0 || r.byteSize.compare(ExactDecimal.parse('10485760')) > 0) continue;
+    result.push(freeze({ ...r }));
+  }
+  return Object.freeze(result);
 }
 function freeze<T>(value: T): T {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -648,6 +681,9 @@ export function createNativeSceneSourceClient(options: NativeSceneSourceOptions)
           unresolvedLabels: [...new Set(members.flatMap(anchor => anchor.unresolved))],
         } });
       }) : [];
+      const fixtureSubset = fixtureSource === null ? unavailable('not-retained')
+        : electricalFixtures(fixtureSource, selection.viewKey, selection.acceptedRoomReceiptId,
+          selection.acceptedRoomReceiptSha256, anchors);
       const result: NativeSceneSourceFrame = Object.freeze({ lease: Object.freeze({}), viewKey: selection.viewKey,
         sourceEvidenceId: frame.evidenceId, sourceAssetId: frame.asset.assetId,
         sourceOriginalSha256: frame.asset.sha256, receiptId: selection.acceptedRoomReceiptId,
@@ -655,9 +691,7 @@ export function createNativeSceneSourceClient(options: NativeSceneSourceOptions)
         network: network(networkSource, selection.viewKey, selection.acceptedRoomReceiptId,
           selection.acceptedRoomReceiptSha256, anchors, bound),
         electricity: electricity(electricitySource, selection.viewKey),
-        electricalFixtures: fixtureSource === null ? unavailable('not-retained')
-          : electricalFixtures(fixtureSource, selection.viewKey, selection.acceptedRoomReceiptId,
-            selection.acceptedRoomReceiptSha256, anchors),
+        electricalFixtures: fixtureSubset, drawingReferences: drawingReferences(selection, fixtureSubset),
         document: frame, geometry });
       pinned();
       document = frame; current = result; currentSelection = selection; currentStamp = stamp;
