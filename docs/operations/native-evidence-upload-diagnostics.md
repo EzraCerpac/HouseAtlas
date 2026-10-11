@@ -8,8 +8,9 @@ startup, waiting for headers, reading/decoding the response and validating the
 response for the exact request. Times are relative to the commit call and
 saturate at 2,147,483,647 ms. They measure neither bytes sent nor server progress.
 
-The original thrown value stays in the client's private custody and is rethrown
-unchanged. Upload diagnostics contain no exception message, stack, request headers,
+The original thrown value is rethrown unchanged from the catch block and is not
+stored in a pending attempt. Upload diagnostics contain no exception message,
+stack, request headers,
 cookies, CSRF, filename, statement, reason or file bytes. Nothing is persisted
 or logged. Scope/session visibility and the existing bounded attempt map apply;
 older attempts created before this implementation have no retrospective detail.

@@ -18,6 +18,8 @@ time. Fixed phases separate metadata/file/trailer intake from queued continuatio
 waiting for Core, qualification, measurement, existing-original resolution,
 staging, Stock dispatch and result release. Intake categories distinguish idle
 and total deadlines, multipart read errors, size and shape rejection.
+Multipart HTTP 413 errors retain their status and use the size-rejected category,
+including limits reached while streaming without a declared content length.
 
 In the fresh staged path, `releasing` covers post-dispatch metadata retirement
 and output release. The phase label establishes no commit outcome.
@@ -40,7 +42,8 @@ process writer accepts at most 128 queued records. Request/worker code calls onl
 `try_send`; it never waits for log I/O or queue space. Queue/write/encoding errors
 drop diagnostics, preserve the original handler result, and increment the
 process-wide `droppedLogRecords` counter included in later records. The sequence
-is per attempt. Concurrent observer/worker enqueues can reach the writer out of
+is per attempt. Each phase transition and its event sequence are assigned under
+one trace lock. Concurrent observer/worker enqueues can reach the writer out of
 sequence; use that sequence to order the same attempt's records. Saturation,
 process shutdown, log rotation or I/O failure can
 leave incomplete evidence. Existing owner-selected private service-log custody,
@@ -52,8 +55,9 @@ The focused synthetic module test checks the exact allowlisted JSON keys,
 canonical-ID rejection, byte/event/record bounds, a local one-slot channel's
 nonblocking full-queue behavior, and separate observer/worker event meaning.
 That assertion does not fill the production 128-slot queue or test log I/O.
-The separate parser case checks actual generated multipart bytes/counts and
-unchanged size and missing-boundary rejection statuses. Both create no native state, original
+The separate parser case checks actual generated multipart bytes/counts,
+unchanged size and missing-boundary rejection statuses, and a small actual Axum
+streaming limit through the shared status classifier. Both create no native state, original
 media, login session, listener or provider traffic. Root must register its exact
 command in README before execution:
 

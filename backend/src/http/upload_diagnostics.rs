@@ -178,7 +178,19 @@ impl Trace {
         category: Option<Category>,
         status: Option<StatusCode>,
     ) -> Option<Record> {
+        self.snapshot_with_phase(event, category, status, None)
+    }
+    fn snapshot_with_phase(
+        &self,
+        event: Event,
+        category: Option<Category>,
+        status: Option<StatusCode>,
+        phase: Option<Phase>,
+    ) -> Option<Record> {
         let mut state = self.0.as_ref()?.lock().ok()?;
+        if let Some(phase) = phase {
+            state.record.phase = phase;
+        }
         if state.record.sequence >= MAX_EVENTS {
             return None;
         }
@@ -203,12 +215,9 @@ impl Trace {
         }
     }
     pub(in crate::http) fn phase(&self, phase: Phase) {
-        if let Some(state) = &self.0
-            && let Ok(mut state) = state.lock()
-        {
-            state.record.phase = phase;
+        if let Some(record) = self.snapshot_with_phase(Event::Phase, None, None, Some(phase)) {
+            enqueue(record);
         }
-        self.event(Event::Phase, None, None);
     }
     pub(in crate::http) fn received(&self, part: Part, count: usize) {
         if let Some(state) = &self.0
@@ -310,6 +319,34 @@ mod tests {
     }
     #[test]
     fn bounded_private_schema_counts_and_worker_observer_separation() {
+        // Phase mutation and its event sequence/snapshot share one lock. An
+        // observer seeing that phase must follow the corresponding phase event,
+        // even if asynchronous enqueues reach the writer in a different order.
+        let ordered = trace();
+        let phase = ordered
+            .snapshot_with_phase(Event::Phase, None, None, Some(Phase::File))
+            .unwrap();
+        let observer = ordered.snapshot(Event::ObserverEnded, None, None).unwrap();
+        assert!(matches!(phase.event, Event::Phase));
+        assert!(matches!(phase.phase, Phase::File));
+        assert_eq!(observer.sequence, phase.sequence + 1);
+        assert!(matches!(observer.phase, Phase::File));
+        {
+            let current = &ordered.0.as_ref().unwrap().lock().unwrap().record;
+            assert_eq!(current.sequence, observer.sequence);
+            assert!(matches!(current.event, Event::ObserverEnded));
+            assert!(matches!(current.phase, Phase::File));
+        }
+        // The other arrival order keeps the observer's prior phase snapshot.
+        let reversed = trace();
+        let observer = reversed.snapshot(Event::ObserverEnded, None, None).unwrap();
+        let phase = reversed
+            .snapshot_with_phase(Event::Phase, None, None, Some(Phase::File))
+            .unwrap();
+        assert_eq!(phase.sequence, observer.sequence + 1);
+        assert!(matches!(observer.phase, Phase::Authenticated));
+        assert!(matches!(phase.phase, Phase::File));
+
         let trace = trace();
         trace.received(Part::Metadata, usize::MAX);
         trace.received(Part::File, usize::MAX);
@@ -371,6 +408,12 @@ mod tests {
                 )
                 .is_none()
         );
+        trace.phase(Phase::Releasing);
+        {
+            let capped = &trace.0.as_ref().unwrap().lock().unwrap().record;
+            assert_eq!(capped.sequence, MAX_EVENTS);
+            assert!(matches!(capped.phase, Phase::Releasing));
+        }
         assert!(
             Trace::authenticated(
                 Some("not-an-id\nprivate"),
@@ -435,7 +478,10 @@ mod tests {
     #[tokio::test]
     async fn actual_multipart_progress_preserves_bytes_and_failure_status() {
         use super::super::super::upload_intake;
-        use axum::{body::Body, extract::Request};
+        use axum::{
+            body::Body,
+            extract::{DefaultBodyLimit, FromRequest, Multipart, Request},
+        };
         let metadata = serde_json::json!({
             "schemaVersion":1,"requestId":ID,"idempotencyKey":ID,
             "context":{"workspaceId":ID,"homeId":ID},"recordId":ID,
@@ -470,12 +516,29 @@ mod tests {
         let request = Request::builder()
             .header("content-type", "multipart/form-data; boundary=synthetic")
             .header("content-length", upload_intake::MAX_BODY_BYTES + 1)
-            .body(Body::from(body))
+            .body(Body::from(body.clone()))
             .unwrap();
         let error = match upload_intake::read(request, &trace).await {
             Ok(_) => panic!("oversized header accepted"),
             Err(error) => error,
         };
+        assert_eq!(error.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        assert!(matches!(error.category(), Category::SizeRejected));
+        // A small actual Axum body limit produces a real multipart read error.
+        // Exercise the shared status classifier without changing production
+        // limits or allocating a fixture near the normal upload size cap.
+        let mut request = Request::builder()
+            .header("content-type", "multipart/form-data; boundary=synthetic")
+            .body(Body::from(body))
+            .unwrap();
+        DefaultBodyLimit::max(8).apply(&mut request);
+        let mut fields = Multipart::from_request(request, &()).await.unwrap();
+        let error = match fields.next_field().await {
+            Ok(_) => panic!("limited multipart body accepted"),
+            Err(error) => error,
+        };
+        assert_eq!(error.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        let error = upload_intake::multipart_read_error(error);
         assert_eq!(error.status(), StatusCode::PAYLOAD_TOO_LARGE);
         assert!(matches!(error.category(), Category::SizeRejected));
         let request = Request::builder()
