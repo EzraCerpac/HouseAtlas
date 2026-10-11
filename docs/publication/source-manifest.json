@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "a4e76527cd46a959fb088168ba3f09455617b0283358433f8ad419df3562eac9",
+  "sourceDigestSha256": "3b0766090393976b3d2b645e86885943583042ec344a7b563d234a69f9f1ed8d",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 41712,
-      "sha256": "c31c346b337e150a505a0d832961fa8cf5514cd649e1c74ac071570a0610ce69",
+      "bytes": 41807,
+      "sha256": "514813633cb53774e0938b2382416a8921f0ff239d18b98a2019d28c7cfe665d",
       "owner": "core-integration"
     },
     {
@@ -5509,8 +5509,8 @@
     {
       "path": "docs/operations/native-evidence-upload-diagnostics.md",
       "mode": "100644",
-      "bytes": 5672,
-      "sha256": "888df93ebfc78e1d45a7324202b5a7878c7f1e51de1a2abd83dac2291cb468ac",
+      "bytes": 6615,
+      "sha256": "edb90bd56074c34532426f4d2d229d093bb7c5766e556f12c6462bfffcbd0189",
       "owner": "operations-policy"
     },
     {
@@ -6167,8 +6167,8 @@
     {
       "path": "frontend/lantern-tests/native-evidence-upload-diagnostics.mjs",
       "mode": "100644",
-      "bytes": 21525,
-      "sha256": "858d86403c8e2606b40759c40d9f5dc87b30ef7d4fd6a1ead1e327356092f9e9",
+      "bytes": 23447,
+      "sha256": "9c192d208674ce4068ee61b25f41f85533d676653f222ecab7b1e4b0c8f1f757",
       "owner": "web"
     },
     {
@@ -6559,8 +6559,8 @@
     {
       "path": "frontend/src/api/native-evidence-client.ts",
       "mode": "100644",
-      "bytes": 42463,
-      "sha256": "f343ba92ac5c5b0b0ff7fce912d08a4e6f1e5e72ff780576d6efc5d16b6fe579",
+      "bytes": 42834,
+      "sha256": "b41f7b0b890b68193904b30d95e4cfc1b30210b938795b6d82506399edbb0437",
       "owner": "web"
     },
     {

@@ -22,6 +22,7 @@ node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs exchange-sess
 node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs throwing-observer-transport
 node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs throwing-observer-intake-rejection
 node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs throwing-observer-committed
+node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs host-context-change-ordered
 ```
 
 HouseAtlas is an offline core for scoped physical identities and reviewed
