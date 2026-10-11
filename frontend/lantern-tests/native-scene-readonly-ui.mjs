@@ -59,42 +59,74 @@ import { NativeSceneCandidate } from ${JSON.stringify(join(frontend, 'src/lanter
 
 const buildingId = '00000000-0000-4000-8000-000000000003';
 const listeners = new Set();
-const ledger = { canCreate: false, unknown: false, reads: 0, prepares: 0, submits: 0, submitAborts: 0,
-  submitSettled: false, resolves: 0, sceneRefreshes: 0, resolved: false, preparedCurrent: true };
+const ledger = { canCreate: false, unknown: false, committed: false, reads: 0, prepares: 0, submits: 0, submitAborts: 0,
+  submitSettled: false, resolves: 0, sceneRefreshes: 0, resolved: false, preparedCurrent: true,
+  currentHead: null, displayedHead: 'synthetic-old-head', lastReadId: null, deferRead: false, deferredReads: [],
+  resolveMismatch: false, submitBehavior: 'abort' };
 let binding = Object.freeze({ synthetic: true });
 const client = {
   getBinding: () => binding,
   canCreate: () => ledger.canCreate && !ledger.unknown,
   subscribe(changed) { listeners.add(changed); return () => listeners.delete(changed); },
-  pending() { return ledger.unknown && ledger.prepared ? [{ prepared: ledger.prepared, outcome: 'unknown' }] : []; },
+  pending() { return ledger.prepared && (ledger.unknown || ledger.committed)
+    ? [{ prepared: ledger.prepared, outcome: ledger.unknown ? 'unknown' : 'committed' }] : []; },
   isPreparedCurrent: () => ledger.preparedCurrent && ledger.canCreate && !ledger.unknown,
-  async readCurrent() { ledger.reads++; return ledger.resolved
-    ? { status: 'available', recordId: 'synthetic-target' } : { status: 'unavailable', reason: 'no-current-association' }; },
-  async prepare() { ledger.prepares++; ledger.prepared = { buildingId, requestId: 'synthetic-request', targetId: 'synthetic-target',
+  async readCurrent(_buildingId, _geometry, signal) {
+    ledger.reads++;
+    const result = () => ledger.currentHead
+      ? { status: 'available', recordId: ledger.currentHead, payload: { scene: ledger.currentHead } }
+      : { status: 'unavailable', reason: 'no-current-association' };
+    const value = result(); ledger.lastReadId = value.status === 'available' ? value.recordId : 'no-current-association';
+    if (signal.aborted) throw new DOMException('Read aborted', 'AbortError');
+    if (ledger.deferRead) return await new Promise((resolve, reject) => {
+      const finish = () => { signal.removeEventListener('abort', abort); resolve(result()); };
+      const abort = () => { signal.removeEventListener('abort', abort); reject(new DOMException('Read aborted', 'AbortError')); };
+      ledger.deferredReads.push(finish); signal.addEventListener('abort', abort, { once: true });
+    });
+    return value;
+  },
+  async prepare() { ledger.prepares++; ledger.committed = false; ledger.unknown = false; ledger.submitSettled = false;
+    ledger.prepared = { buildingId, requestId: 'synthetic-request', targetId: 'synthetic-target',
     body: '{}', requestDigest: 'a'.repeat(64), payload: {} }; return ledger.prepared; },
   releasePrepared() {},
-  async submit(_prepared, _geometry, signal) { ledger.submits++; ledger.unknown = true;
+  async submit(_prepared, _geometry, signal) { ledger.submits++; ledger.unknown = true; ledger.committed = false;
     ledger.preparedCurrent = false;
+    for (const fn of listeners) fn();
+    if (ledger.submitBehavior === 'commit') {
+      await new Promise(resolve => setTimeout(resolve, 30));
+      ledger.unknown = false; ledger.committed = true; ledger.currentHead = 'synthetic-target';
+      for (const fn of listeners) fn();
+      await new Promise(resolve => setTimeout(resolve, 30)); ledger.submitSettled = true;
+      return { status: 'available', recordId: 'synthetic-target', payload: { scene: 'synthetic-target' } };
+    }
     await new Promise((resolve, reject) => {
       const abort = () => { ledger.submitAborts++; ledger.submitSettled = true; reject(new Error('Synthetic submission was aborted')); };
       signal.addEventListener('abort', abort, { once: true });
-      for (const fn of listeners) fn();
     });
     return { status: 'unavailable', reason: 'current-source-unavailable' }; },
-  async resolve() { ledger.resolves++; ledger.unknown = false; ledger.resolved = true;
-    return { status: 'available', recordId: 'synthetic-target' }; },
+  async resolve(prepared) { ledger.resolves++;
+    if (ledger.resolveMismatch) return { status: 'available', recordId: prepared.targetId, payload: { scene: 'different-payload' } };
+    ledger.unknown = false; ledger.committed = true; ledger.resolved = true; ledger.currentHead = 'synthetic-target'; ledger.lastReadId = 'synthetic-target';
+    for (const fn of listeners) fn();
+    return { status: 'available', recordId: 'synthetic-target', payload: { scene: 'synthetic-target' } }; },
   dispose() {},
 };
 const host = { associations: client };
 const geometry = { viewKey: 'synthetic-view', descriptor: { buildingId,
   scope: { workspaceId: '00000000-0000-4000-8000-000000000001', homeId: '00000000-0000-4000-8000-000000000002' } } };
-window.__test = { ledger, grantAdmission() { ledger.canCreate = true; ledger.preparedCurrent = true; binding = Object.freeze({ synthetic: true }); for (const fn of listeners) fn(); },
+let remountForTest = () => {};
+window.__test = { ledger, mountStaleScene() { ledger.currentHead = 'synthetic-raced-head'; ledger.displayedHead = 'synthetic-old-head';
+    remountForTest(); }, deferNextRead() { ledger.deferRead = true; }, completeRead() { ledger.deferRead = false; ledger.deferredReads.shift()?.(); },
+  mismatchResolution() { ledger.resolveMismatch = true; }, allowResolution() { ledger.resolveMismatch = false; },
+  useCommittedSubmit() { ledger.submitBehavior = 'commit'; },
+  grantAdmission() { ledger.canCreate = true; ledger.preparedCurrent = true; binding = Object.freeze({ synthetic: true }); for (const fn of listeners) fn(); },
   withdrawAdmission() { ledger.canCreate = false; ledger.preparedCurrent = false; binding = Object.freeze({ synthetic: true }); for (const fn of listeners) fn(); },
   invalidateEvidence() { ledger.preparedCurrent = false; for (const fn of listeners) fn(); } };
 function TestHost() {
   const [generation, setGeneration] = useState(0);
-  return <main><NativeSceneCandidate key={generation} host={host} geometry={geometry}
-    onSaved={() => { ledger.sceneRefreshes++; setGeneration(value => value + 1); }} /></main>;
+  remountForTest = () => setGeneration(value => value + 1);
+  return <main><output data-testid="displayed-head">{ledger.displayedHead}</output><NativeSceneCandidate key={generation} host={host} geometry={geometry}
+    onSaved={() => { ledger.sceneRefreshes++; ledger.displayedHead = ledger.lastReadId ?? ledger.currentHead ?? 'no-current-association'; setGeneration(value => value + 1); }} /></main>;
 }
 createRoot(document.getElementById('root')).render(<TestHost />);
 `);
@@ -137,7 +169,7 @@ createRoot(document.getElementById('root')).render(<TestHost />);
     while (Date.now() < deadline) { if (await read()) return; await pause(40); } throw new Error(`Timed out: ${label}`); };
   await send('Page.navigate', { url: origin + '/' });
   await until(() => evaluate('Boolean(window.__test && document.querySelector("summary"))'), 'Production candidate mounted');
-  await until(() => evaluate('window.__test.ledger.reads === 1'), 'Current association read on read-only mount');
+  await until(() => evaluate('window.__test.ledger.reads >= 2 && window.__test.ledger.sceneRefreshes === 1'), 'Current association mount read synchronizes the displayed scene');
   await evaluate('document.querySelector("summary").click()');
   assert.equal(await evaluate('document.querySelector("summary").textContent.trim()'), 'Scene association');
   assert.equal(await evaluate('document.body.innerText.includes("Preparation is unavailable.")'), true);
@@ -148,15 +180,23 @@ createRoot(document.getElementById('root')).render(<TestHost />);
   assert.equal(await evaluate('Array.from(document.querySelectorAll("button")).some(b => /Review retained originals|Submit reviewed association/.test(b.textContent))'), false);
   assert.equal(await evaluate('document.querySelectorAll("input,textarea").length'), 0, 'No preparation inputs for readers');
   await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Reload current association").click()');
-  await until(() => evaluate('window.__test.ledger.reads >= 2'), 'Read-only reload');
-  await until(() => evaluate('window.__test.ledger.sceneRefreshes === 1'), 'Reload the displayed scene after association read');
-  await until(() => evaluate('window.__test.ledger.reads >= 3'), 'Refreshed scene mounts a new association reader');
+  await until(() => evaluate('window.__test.ledger.reads >= 3'), 'Read-only reload');
+  await until(() => evaluate('window.__test.ledger.sceneRefreshes === 2'), 'Reload the displayed scene after association read');
+  await until(() => evaluate('window.__test.ledger.reads >= 4'), 'Refreshed scene mounts a new association reader');
+  await evaluate('window.__test.mountStaleScene()');
+  await until(() => evaluate('window.__test.ledger.sceneRefreshes === 3 && window.__test.ledger.reads >= 6'), 'Mount-time current head replaces the displayed stale scene before reporting');
   await evaluate('if (!document.querySelector("details").open) document.querySelector("summary").click()');
+  assert.equal(await evaluate('document.querySelector("[data-testid=displayed-head]").textContent === "synthetic-raced-head"'), true,
+    'Mount-time read synchronizes the rendered scene before exposing its newer association');
+  assert.equal(await evaluate('document.body.innerText.includes("Current association synthetic-raced-head")'), true);
   assert.equal(await evaluate('window.__test.ledger.prepares === 0 && window.__test.ledger.submits === 0'), true);
   report.assertions.push('read-only mount/reload perform current GETs and reload the displayed scene; preparation and submission are absent');
 
+  const refreshesBeforeGrant = await evaluate('window.__test.ledger.sceneRefreshes');
   await evaluate('window.__test.grantAdmission()');
-  await until(() => evaluate('document.querySelectorAll("input").length === 2 && document.querySelectorAll("textarea").length === 3'), 'Authorized source inputs');
+  await until(() => evaluate(`document.querySelectorAll("input").length === 2 && document.querySelectorAll("textarea").length === 3
+    && window.__test.ledger.sceneRefreshes === ${refreshesBeforeGrant + 1}`), 'Admission binding and current scene are synchronized before source inputs');
+  await evaluate('if (!document.querySelector("details").open) document.querySelector("summary").click()');
   await evaluate(`(()=>{
     const set = (element, value) => {
       const prototype = element instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
@@ -171,6 +211,7 @@ createRoot(document.getElementById('root')).render(<TestHost />);
   })()`);
   await until(() => evaluate('document.body.innerText.includes("Primary scene evidence 00000000-0000-4000-8000-000000000004")'), 'Candidate evidence appears while admitted');
   const readsBeforeDraftReload = await evaluate('window.__test.ledger.reads');
+  const refreshesBeforeDraftReload = await evaluate('window.__test.ledger.sceneRefreshes');
   await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Reload current association").click()');
   await until(() => evaluate('document.querySelector("[role=alertdialog]")?.innerText.includes("discard this unfinished review draft")'), 'Warn before reload discards candidate draft');
   assert.equal(await evaluate('window.__test.ledger.reads'), readsBeforeDraftReload, 'Reload waits for confirmation while a draft exists');
@@ -179,20 +220,34 @@ createRoot(document.getElementById('root')).render(<TestHost />);
     'Canceling reload confirmation preserves the draft');
   await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Reload current association").click()');
   await until(() => evaluate('document.querySelector("[role=alertdialog]") !== null'), 'Repeat explicit reload confirmation');
+  await evaluate('window.__test.deferNextRead()');
   await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Discard draft and reload").click()');
-  await until(() => evaluate(`window.__test.ledger.reads === ${readsBeforeDraftReload + 2} && window.__test.ledger.sceneRefreshes === 2
-    && Array.from(document.querySelectorAll('input,textarea')).every(field => field.value === '')`), 'Confirmed reload refreshes scene and discards the warned draft');
+  await until(() => evaluate(`window.__test.ledger.reads === ${readsBeforeDraftReload + 1}
+    && window.__test.ledger.deferRead
+    && window.__test.ledger.deferredReads.length === 1
+    && Array.from(document.querySelectorAll('input,textarea')).length === 5
+    && Array.from(document.querySelectorAll('input,textarea')).every(field => field.value === '' && field.disabled)`), 'Confirmed reload clears and locks the draft during its read');
+  await evaluate('window.__test.completeRead()');
+  await until(() => evaluate(`window.__test.ledger.reads === ${readsBeforeDraftReload + 2}
+    && window.__test.ledger.sceneRefreshes === ${refreshesBeforeDraftReload + 1}`), 'Confirmed reload completes and remounts after its read');
   await evaluate('if (!document.querySelector("details").open) document.querySelector("summary").click()');
+  const refreshesBeforeWithdrawal = await evaluate('window.__test.ledger.sceneRefreshes');
   await evaluate('window.__test.withdrawAdmission()');
-  await until(() => evaluate('document.querySelectorAll("input,textarea").length === 0'), 'Draft inputs cleared after admission withdrawal');
+  await until(() => evaluate(`document.querySelectorAll("input,textarea").length === 0
+    && window.__test.ledger.sceneRefreshes === ${refreshesBeforeWithdrawal + 1}`), 'Draft inputs clear and current scene synchronize after admission withdrawal');
+  await evaluate('if (!document.querySelector("details").open) document.querySelector("summary").click()');
   assert.equal(await evaluate('document.body.innerText.includes("Primary scene evidence 00000000-0000-4000-8000-000000000004")'), false);
   assert.equal(await evaluate('document.body.innerText.includes("Historical receipt evidence 00000000-0000-4000-8000-000000000005")'), false);
   assert.equal(await evaluate('document.body.innerText.includes("Preparation is unavailable.")'), true);
+  const refreshesBeforeFreshGrant = await evaluate('window.__test.ledger.sceneRefreshes');
   await evaluate('window.__test.grantAdmission()');
+  await until(() => evaluate(`window.__test.ledger.sceneRefreshes === ${refreshesBeforeFreshGrant + 1}`), 'Fresh admission binding synchronizes the current scene');
   await evaluate('if (!document.querySelector("details").open) document.querySelector("summary").click()');
   await until(() => evaluate('document.querySelectorAll("input").length === 2 && document.querySelectorAll("textarea").length === 3'), 'Fresh authorized source inputs');
   assert.equal(await evaluate('Array.from(document.querySelectorAll("input,textarea")).every(field => field.value === "")'), true,
     'No stale draft is restored when create access returns');
+  assert.equal(await evaluate('Array.from(document.querySelectorAll("input,textarea")).every(field => !field.disabled)'), true,
+    'The editor unlocks after the confirmed reload completes');
   report.assertions.push('withdrawn create admission clears candidate evidence and editor draft');
   await evaluate(`(()=>{
     const set = (element, value) => {
@@ -232,19 +287,53 @@ createRoot(document.getElementById('root')).render(<TestHost />);
   await until(() => evaluate('window.__test.ledger.submitSettled && window.__test.ledger.submitAborts === 1'),
     'A subsequent retained-evidence invalidation still aborts the in-flight submission');
   await evaluate('window.__test.withdrawAdmission()');
-  await until(() => evaluate('document.body.innerText.includes("A submitted association has an unknown outcome.")'), 'Unknown outcome after admission withdrawal');
+  await until(() => evaluate('document.querySelector("[aria-label=\\"Native scene association review\\"]")?.textContent.includes("A submitted association has an unknown outcome.")'), 'Unknown outcome remains in the read-only recovery panel after admission withdrawal');
   assert.equal(await evaluate('Boolean(Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Check saved outcome" && !b.disabled))'), true);
   assert.equal(await evaluate('Array.from(document.querySelectorAll("button")).some(b => /Review retained originals|Submit reviewed association/.test(b.textContent))'), false);
-  const readsBeforeResolution = await evaluate('window.__test.ledger.reads');
+  const refreshesBeforeResolution = await evaluate('window.__test.ledger.sceneRefreshes');
+  await evaluate('window.__test.mismatchResolution()');
   await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Check saved outcome").click()');
   await until(() => evaluate('window.__test.ledger.resolves === 1'), 'Resolve remains available without create permission');
   assert.equal(await evaluate('window.__test.ledger.prepares === 1 && window.__test.ledger.submits === 1'), true);
-  await until(() => evaluate(`window.__test.ledger.sceneRefreshes === 3 && window.__test.ledger.reads > ${readsBeforeResolution}`),
-    'Successful outcome resolution refreshes the displayed scene and reads the current head');
+  await until(() => evaluate('document.querySelector("[aria-label=\\"Native scene association review\\"]")?.textContent.includes("Outcome remains unresolved; no new write was sent.")'), 'Payload-mismatched target remains unresolved');
+  assert.equal(await evaluate('document.querySelector("[aria-label=\\"Native scene association review\\"]")?.textContent.includes("Reviewed association found as the current head.")'), false);
+  assert.equal(await evaluate('window.__test.ledger.sceneRefreshes === ' + refreshesBeforeResolution), true,
+    'A same-ID payload mismatch does not report success or refresh the scene');
+  assert.equal(await evaluate('document.querySelector("[aria-label=\\"Native scene association review\\"]")?.textContent.includes("A submitted association has an unknown outcome.")'), true);
+  await evaluate('window.__test.allowResolution()');
+  await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Check saved outcome").click()');
+  await until(() => evaluate('window.__test.ledger.resolves === 2'), 'Resolve the exact pending payload');
+  await until(() => evaluate(`window.__test.ledger.sceneRefreshes === ${refreshesBeforeResolution + 1}`),
+    'Successful outcome resolution refreshes the displayed scene');
   await until(() => evaluate('document.querySelector("[aria-label=\\"Native scene association review\\"]")?.textContent.includes("Current association synthetic-target")'),
     'Resolved association is present on the reloaded scene');
   assert.equal(await evaluate('window.__test.ledger.canCreate === false'), true, 'Readback and scene refresh do not restore create admission');
-  report.assertions.push('UNKNOWN survives the pending notification and evidence invalidation; successful resolution refreshes scene/current head without create permission or another write');
+  await evaluate('window.__test.grantAdmission()');
+  await until(() => evaluate('document.querySelectorAll("input").length === 2 && document.querySelectorAll("textarea").length === 3'), 'Create admission restored for a separate synthetic success');
+  await evaluate('if (!document.querySelector("details").open) document.querySelector("summary").click()');
+  await until(() => evaluate(`document.querySelector("[aria-label=\\"Native scene association review\\"]")?.textContent.includes("Current association synthetic-target")
+    && document.querySelector("[data-testid=displayed-head]").textContent === "synthetic-target"`), 'Successful resolution has refreshed the scene before another admitted review');
+  const refreshesBeforeCommit = await evaluate('window.__test.ledger.sceneRefreshes');
+  await evaluate(`(()=>{
+    const set=(element,value)=>{const prototype=element instanceof HTMLInputElement?HTMLInputElement.prototype:HTMLTextAreaElement.prototype;
+      Object.getOwnPropertyDescriptor(prototype,'value').set.call(element,value);element.dispatchEvent(new Event('input',{bubbles:true}));};
+    const inputs=Array.from(document.querySelectorAll('input'));
+    set(inputs[0],'00000000-0000-4000-8000-000000000004');set(inputs[1],'00000000-0000-4000-8000-000000000005');
+    for(const area of Array.from(document.querySelectorAll('textarea')).slice(0,3))set(area,'[]');
+  })()`);
+  await until(() => evaluate('document.querySelectorAll("textarea").length === 5'), 'Second synthetic review text fields');
+  await evaluate(`(()=>{const areas=Array.from(document.querySelectorAll('textarea'));const setter=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;
+    for(const [i,v] of [[3,'Synthetic committed review'],[4,'Synthetic committed reason']]){setter.call(areas[i],v);areas[i].dispatchEvent(new Event('input',{bubbles:true}));}})()`);
+  await evaluate('window.__test.useCommittedSubmit()');
+  await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Review retained originals").click()');
+  await until(() => evaluate('window.__test.ledger.prepares === 2'), 'Prepare the successful synthetic request');
+  await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Submit reviewed association").click()');
+  await until(() => evaluate('window.__test.ledger.submits === 2 && window.__test.ledger.submitSettled'), 'Committed notification keeps the submission alive until result settles');
+  await until(() => evaluate(`window.__test.ledger.submitAborts === 1 && window.__test.ledger.sceneRefreshes === ${refreshesBeforeCommit + 1}`),
+    'Successful async submit refreshes the scene after its commit notification');
+  assert.equal(await evaluate('window.__test.ledger.committed && !window.__test.ledger.unknown'), true);
+  assert.equal(await evaluate('document.querySelector("[data-testid=displayed-head]").textContent === "synthetic-target"'), true);
+  report.assertions.push('UNKNOWN resolution requires the exact committed pending payload; successful async submission survives its committed notification and refreshes the displayed scene');
   assert.deepEqual(cdp.errors, [], 'No browser runtime exceptions');
   assert(cdp.requests.length >= 1 && cdp.requests.every(url => url.startsWith(origin + '/')), 'Only owned loopback browser requests');
   report.requests = cdp.requests.map(url => new URL(url).pathname);
