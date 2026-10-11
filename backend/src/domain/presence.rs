@@ -358,3 +358,6 @@ where
 {
     Option::<String>::deserialize(deserializer)
 }
+
+#[path = "presence/component.rs"]
+pub mod qualified;

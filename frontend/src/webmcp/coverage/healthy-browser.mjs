@@ -113,7 +113,8 @@ try {
     if (JSON.stringify(names) !== JSON.stringify(['atlas_bindings','atlas_media_geometry','atlas_records'])) throw new Error('Canonical families changed');
     for (const tool of tools) {
       if (JSON.stringify({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema }).includes('synthetic-port-marker-no-credential')) throw new Error('Session marker leaked to metadata');
-      if (tool.annotations && tool.annotations.readOnlyHint !== (tool.name !== 'atlas_records')) throw new Error('Effect hint changed');
+      if (!tool.annotations) throw new Error('WebMCP annotations are absent');
+      if (tool.annotations.readOnlyHint !== (tool.name !== 'atlas_records')) throw new Error('Effect hint changed');
     }
     for (const [index, request] of fixture.requests.entries()) {
       const row = fixture.coverage.find(row => row.commandId === request.commandId);
@@ -140,6 +141,7 @@ try {
       admittedAndBound: fixture.coverage.filter(row=>row.state==='admitted-and-bound').length };
   })()`);
   assert.equal(cdp.errors.length, 0, JSON.stringify(cdp.errors));
+  assert.equal(evidence.annotationsObservable, true, 'Every registered WebMCP tool exposes annotations');
   assert.equal(evidence.checked.length, 22);
   assert.deepEqual(evidence.checked.map(row=>row.commandId).sort(), admittedCommands, 'Every currently host-admitted command was exercised');
   console.log(JSON.stringify({ browser: version.product, ...evidence,

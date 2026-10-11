@@ -43,10 +43,13 @@ fn ordinal(value: usize) -> Result<i64> {
     i64::try_from(value).map_err(|_| incompatible())
 }
 
-pub(super) fn validate<C: Contract, S: StockContractPort>(
+fn validate_with_cursor<C: Contract, S: StockContractPort, E: QueueRecoveryEvidence>(
     db: &Connection,
     native: &C,
     stock: &S,
+    evidence: &E,
+    cursor_check: Option<&CursorCheck<'_>>,
+    presence_history: Option<&PresenceHistoryCatalog>,
     check: &mut dyn FnMut() -> Result<()>,
 ) -> Result<()> {
     check()?;
@@ -100,9 +103,17 @@ pub(super) fn validate<C: Contract, S: StockContractPort>(
         uuid(native, &actor)?;
         let commit = stock_repo::load(db, native, &scope, &actor, &id)?;
         check()?;
-        stock_projection::validate_retained(db, &commit, stock, native)?;
+        let (_, plan) =
+            match presence_history.and_then(|catalog| catalog.accepted_frame_for_commit(&commit)) {
+                Some(frame) => stock_projection::validate_retained_with_accepted_presence(
+                    db, &commit, stock, native, frame,
+                )?,
+                None => {
+                    stock_projection::validate_retained(db, &commit, stock, native)?;
+                    stock_projection::retained_plan(db, &commit, stock, native)?
+                }
+            };
         check()?;
-        let (_, plan) = stock_projection::retained_plan(db, &commit, stock, native)?;
         require(plan.scope() == &scope && plan.root_idempotency_key() == key)?;
         require(keys.insert((
             scope.workspace_id.clone(),
@@ -200,9 +211,9 @@ pub(super) fn validate<C: Contract, S: StockContractPort>(
     drop(rows);
     drop(statement);
     validate_owned_rows(db, groups, keys, links, check)?;
-    super::upload_repository::validate_all(db, native, stock, check)?;
+    super::upload_repository::validate_all(db, native, stock, evidence, check)?;
     validate_lookup(db, check)?;
-    validate_cursors(db, native, stock, check)?;
+    validate_cursors(db, native, stock, cursor_check, check)?;
     check()
 }
 
@@ -296,6 +307,7 @@ fn validate_cursors<C: Contract, S: StockContractPort>(
     db: &Connection,
     native: &C,
     stock: &S,
+    cursor_check: Option<&CursorCheck<'_>>,
     check: &mut dyn FnMut() -> Result<()>,
 ) -> Result<()> {
     let max_seq: i64 = db.query_row("SELECT COALESCE(MAX(seq),0) FROM audits", [], |row| {
@@ -314,6 +326,22 @@ fn validate_cursors<C: Contract, S: StockContractPort>(
         let body: String = row.get(4)?;
         let watermark: i64 = row.get(5)?;
         let after: i64 = row.get(6)?;
+        let parsed: Value = serde_json::from_str(&body)?;
+        if parsed["format"] == stock_activity::history_repository::HOMEBOX_HISTORY_CURSOR_FORMAT {
+            cursor_check.ok_or_else(incompatible)?(
+                stock_activity::history_repository::RetainedHistoryCursor {
+                    id: &id,
+                    scope: &scope,
+                    actor: &actor,
+                    query_json: &body,
+                    watermark,
+                    after_sequence: after,
+                    codec_version: row.get(7)?,
+                },
+                check,
+            )?;
+            continue;
+        }
         require(
             row.get::<_, i64>(7)? == 1 && 0 < after && after < watermark && watermark <= max_seq,
         )?;
@@ -395,4 +423,82 @@ fn validate_cursors<C: Contract, S: StockContractPort>(
         check()?;
     }
     Ok(())
+}
+
+type CursorCheck<'a> = dyn Fn(
+        stock_activity::history_repository::RetainedHistoryCursor<'_>,
+        &mut dyn FnMut() -> Result<()>,
+    ) -> Result<()>
+    + 'a;
+pub(super) fn validate<C: Contract, S: StockContractPort, E: QueueRecoveryEvidence>(
+    db: &Connection,
+    native: &C,
+    stock: &S,
+    evidence: &E,
+    check: &mut dyn FnMut() -> Result<()>,
+) -> Result<()> {
+    validate_with_cursor(db, native, stock, evidence, None, None, check)
+}
+pub(super) fn validate_with_activity<
+    C: Contract,
+    S: StockContractPort,
+    E: QueueRecoveryEvidence,
+    N: crate::providers::homebox::write::stock::StockContractPort,
+>(
+    db: &Connection,
+    native: &C,
+    stock: &S,
+    evidence: &E,
+    activity: &N,
+    check: &mut dyn FnMut() -> Result<()>,
+) -> Result<()> {
+    let cursor_check = |cursor: stock_activity::history_repository::RetainedHistoryCursor<'_>,
+                        check: &mut dyn FnMut() -> Result<()>| {
+        stock_activity::history_repository::validate_cursor(
+            db, native, stock, activity, cursor, check,
+        )
+    };
+    validate_with_cursor(
+        db,
+        native,
+        stock,
+        evidence,
+        Some(&cursor_check),
+        None,
+        check,
+    )
+}
+
+/// Explicit Presence reopen supplies only the opaque accepted history catalog.
+/// Every saved Present commit must match one exact catalog frame; unmatched
+/// commits still pass the ordinary strict retained validator.
+pub(super) fn validate_with_activity_and_presence<
+    C: Contract,
+    S: StockContractPort,
+    E: QueueRecoveryEvidence,
+    N: crate::providers::homebox::write::stock::StockContractPort,
+>(
+    db: &Connection,
+    native: &C,
+    stock: &S,
+    evidence: &E,
+    activity: &N,
+    history: &PresenceHistoryCatalog,
+    check: &mut dyn FnMut() -> Result<()>,
+) -> Result<()> {
+    let cursor_check = |cursor: stock_activity::history_repository::RetainedHistoryCursor<'_>,
+                        check: &mut dyn FnMut() -> Result<()>| {
+        stock_activity::history_repository::validate_cursor(
+            db, native, stock, activity, cursor, check,
+        )
+    };
+    validate_with_cursor(
+        db,
+        native,
+        stock,
+        evidence,
+        Some(&cursor_check),
+        Some(history),
+        check,
+    )
 }

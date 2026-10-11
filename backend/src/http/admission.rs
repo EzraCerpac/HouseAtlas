@@ -31,9 +31,14 @@ impl Window {
         }
     }
 }
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+enum LoginClient {
+    Ip(IpAddr),
+    Gateway,
+}
 struct LoginRates {
     global: Window,
-    clients: BTreeMap<IpAddr, Window>,
+    clients: BTreeMap<LoginClient, Window>,
 }
 pub(super) struct Admission {
     slots: Arc<Semaphore>,
@@ -68,6 +73,26 @@ impl Admission {
         method: &Method,
         origin: &str,
         client: IpAddr,
+    ) -> AccessResult<()> {
+        self.login_key(headers, method, origin, LoginClient::Ip(client))
+    }
+    pub(super) fn login_gateway(
+        &self,
+        headers: &CheckedHeaders,
+        method: &Method,
+        origin: &str,
+    ) -> AccessResult<()> {
+        if headers.gateway.is_none() {
+            return Err(AccessError::Forbidden);
+        }
+        self.login_key(headers, method, origin, LoginClient::Gateway)
+    }
+    fn login_key(
+        &self,
+        headers: &CheckedHeaders,
+        method: &Method,
+        origin: &str,
+        client: LoginClient,
     ) -> AccessResult<()> {
         if method != Method::POST {
             return Err(AccessError::MethodNotAllowed);

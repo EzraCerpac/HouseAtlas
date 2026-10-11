@@ -104,6 +104,57 @@ unrun in this lane. No receipt expiry/deletion API exists.
 
 ## Source and cache publication continuation
 
+`cache_custody.rs` adds publication outcomes that retain original ownership.
+The configured and borrowed `publish_prepared_generation_with_custody` paths
+return the original fence on error. The staged variants acquire the original
+reference owner's guard, verify the actual Native staged receipt under that
+lock, and return the original staged object on both success and error. They
+reuse the existing SQL graph, registration, epoch/CAS and precommit validation.
+No error outcome asserts that publication definitely did not commit.
+
+`guard_cache_residency` combines an IMMEDIATE transaction on this same Store
+connection with a borrowed original Native/catalog/recovery guard. Its bounded
+inventory includes every SQL generation reservation, current pointer, Store
+issued candidate, and mandatory original peer reference. Enumeration errors
+are sticky; missing original catalogs or incomplete enumeration must fail
+closed. The 10,000-entry bound counts references conservatively, including
+repeated reasons for a generation. Store candidate pins remain for the process
+lifetime, including abandoned, ambiguous and successful attempts. Filling this
+bound produces backpressure; it never evicts a retained row. Reopen reconstructs
+SQL history and requires the original peer to enumerate every immutable native
+stage and external reference; process-local pins alone are insufficient.
+
+Before transport or staging, call `admit_before_transport` with the original
+fence and next native-body upper bound. This returns the original Native
+capacity reservation while Store and peer pins are held. The peer must reserve
+segment/catalog overhead and concurrent admissions and enforce its token during
+actual staging. Development defaults are 16 MiB active segment, 256 MiB total
+protected capacity, 10 MiB native row and 10,000 protected references. Storage
+enforces the row request/count boundary; actual immutable segment rotation and
+byte accounting are Native/catalog responsibilities, with no permissive default.
+
+`guard_unpublished_candidate` retains the exact original fence and staged
+object and verifies Store identity, full registration, partition, generation
+and native immutable-body digest. Under the same live pins it checks all SQL
+history/current pointers, requires the original peer's definite unpublished
+disposition, and excludes disclosure/recovery/archive/ambiguous references.
+Its release consumes the absence proof and returns the original fence, staged
+object, reference guard and SQL result even on release error. A returned fence
+alone carries no unpublished proof. No guard authorizes deletion or retention
+release. Recovery must verify original immutable bytes and transfer custody
+through the still-held original reference guard before changing residency.
+Access must retain its original authenticated grants separately through final
+disclosure; none of this inventory or custody metadata supplies a grant.
+
+The explicitly named `checks/cache-custody-healthy.rs` checkpoint uses actual
+Native complete proposals, staged receipts, immutable SQLite sidecar bytes and
+native Store contracts. It exercises configured and borrowed publication,
+healthy admission, complete synthetic reference reasons and an unpublished
+candidate. Its fresh synthetic reference/admission adapter is fixture-only;
+production Native catalog, rotation, Recovery and Access implementations remain
+required integration inputs. The checkpoint is not included in ordinary CI or
+broad aggregates and contains no held failure/denial/deletion/replay controls.
+
 The first record checkpoint remains commit
 `d4a94d230da3f098eefaa846bf73f389f9d9965e` in draft PR #7. The source/cache
 continuation is its append-only child
@@ -151,13 +202,72 @@ the partition epoch while retaining the successful generation and projection
 rows, and does not reserve the selected candidate generation UUID. Native source
 adapters use this fenced path; `record_cache_failure` remains a legacy unfenced
 entry point. Revoked status is sticky until a complete fresh publication succeeds.
+`record_prepared_cache_failure_at` accepts the adapter's captured attempt time
+and preserves it in both `lastAttemptAt` and `error.at`, instead of obtaining a
+later publication timestamp from `Runtime`. Its borrowed-authority counterpart
+is `record_prepared_cache_failure_at_with_authorization`. Both consume the same
+original fence and use the same transaction and native final-snapshot validation;
+the `CacheFailure` carrier and older methods retain their existing signatures.
+The named `checks/cache-attempt-time-healthy.rs` checkpoint verifies the configured
+and borrowed captured-time APIs, both older prepared compatibility methods, exact
+SQL/read/reopen persistence and immutable strict-image/separate-copy reopen with
+actual native contracts. Its sanitized Network metadata, authorities and static
+runtime are synthetic; Network's original adapter must still carry its captured
+timestamp to this API. Provider failure, clock change and other held qualification
+controls have not run for this seam.
 Cache writes do
 not create Atlas record audits or mutation receipts. Empty complete generations
 clear only projection rows and retain records and binding reservations. All
 these writes use the same connection and fixed internal SQL as bootstrap; no
 second service framework or raw database handle is exposed.
 
+### Original borrowed partition and snapshot reads
+
+`read_cache_partition_with_authorization<B: Authorization>` borrows the original
+per-call principal/authority on this same open store. It returns
+`RegisteredCacheRead { registration: SourceRegistration, state: CachePublicationState }`
+from one read transaction. The request uses `ReadCache`, exact scope/partition,
+empty targets, no mutation context and the actual stored registration as
+`request.source`. Storage validates the registration, cache and retained row
+shapes/partitions/owners, and rechecks the same original actor before commit and
+return. It does not require `PublishCache`, reserve an ID, issue a publication
+fence or write. Quarantined retained rows remain internal matching data; this
+carrier grants neither disclosure nor accepted-generation membership.
+
+`read_snapshot_with_authorization<B: Authorization>` shares the existing
+configured-authority snapshot engine and uses the supplied original fence.
+The engine retains per-partition concealment semantics and revalidates successful
+source checks before returning. Link rows now request their private qualified
+`key.sourceKind: "network-link"` selector with the actual link ID and exact
+cached `from`/`to` endpoint objects at the selector's top level. A read adapter
+must compare this binding to the original typed link, in addition to checking
+the independent entity grants; ID-only revalidation is insufficient. Endpoints
+retain their actual entity kinds. Frozen public `SourceKind` is unchanged.
+Network must resolve this private selector through its original genuine typed
+link grant, including both raw endpoints and accepted-generation membership;
+a segment grant does not qualify a link row. Storage does not reconstruct those
+facts from a projected relation.
+
+`checks/network-read-healthy.rs` exercises the original actual AT11
+`5e87c6c9152228ac4ae72814c6e6fc8f0ea8d7a2` principal/read transaction and retained
+partition/entity/typed link grant pointers, two published healthy relations,
+exact private link selectors, atomic registration/epoch/rows and authorized
+reopen. It creates no new publication reservation or mutation receipt. Native
+contract shapes and the published offline semantic oracle are compiled; the raw
+relation membership adapter is an explicitly synthetic fixture, not the Network
+sidecar validator. The complete access source additionally mounts actual
+domain queue-recovery `fd72542686112e594d9a6f63b4782a62b5d9e6ef` in the external
+harness alongside domain/jobs8a and mediaf0. No root manifests or locks change.
+Network/root own sidecar validation outside the lock, genuine membership-grant
+capture, fenced reread comparisons and final owned-output release.
+
 ## Database and dependencies
+
+`AtlasStore::configured_authorization(&self) -> &A` borrows the original
+configured authorizer for composition identity checks. It performs no SQL,
+callback or lock acquisition and supplies no read/mutation/disclosure approval.
+Callers must compare the actual original owner allocation and retain the normal
+current-authority checks for each Store phase.
 
 The new lineage is `houseatlas-rust-storage/1`, database version 5, distinct from
 published JS database version 3 and record schema 1. `0001_rust_core.sql` starts
@@ -661,7 +771,11 @@ scope and measured `PreparedOriginal`. Its sealed `ExistingOriginalAsset` expose
 the existing record, ID, revision, payload, scope and target. Exact scoped content
 identity, original purpose, active available state and independently measured
 retained bytes must agree. Existing provenance is returned unchanged. The method
-does not create an alias, consume a stage or authorize an attachment. Domain must
+requires both `ReadAssetManifest` and `Read` for the resolved target under the
+same original principal, rechecked before retained-byte access, before commit
+and before disclosure. The full-record carrier does not rely on manifest-only
+authority; a missing original still exposes no record.
+It does not create an alias, consume a stage or authorize an attachment. Domain must
 bind the returned ID/revision and revalidate references and guards inside its
 normal mutation transaction; unique scoped storage keys remain enforced.
 
@@ -669,6 +783,14 @@ These methods also accept an authorizer borrowing the original held AT11 fence,
 so a host need not reacquire the access mutex or invent a principal. They use a
 single read transaction on the original connection and recheck original authority
 before returning. No migration or database profile changes.
+
+The upload checkpoint's optional third argument
+`isolated-record-read-regression` selects one separately scoped synthetic query:
+manifest access delegates to the genuine fixture authority, while exact-target
+record access is refused. It verifies no full-record result, no additional
+retained-byte verification and no snapshot change. The ordinary default excludes
+this case. Its authorization record stays outside publication Git; other stopped
+campaigns remain deferred.
 
 The scoped ordinary upload-resolution example compiles actual contracts
 `49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c`, domain/jobs
@@ -699,3 +821,373 @@ injection, crash, concurrency and negative-consumer controls remain explicitly
 deferred and unrun. No legacy broad test aggregate was invoked. Ordinary success
 does not qualify real authorization, staged media, filesystem/power-loss recovery,
 provider/native routes, targets, deployment, pilots or production operation.
+
+## Native async stock activity (AT07 continuation)
+
+`StockActivitySession` implements the actual HomeBox
+`providers::homebox::write::stock::StockActivityPort`. It retains the original
+host wrapper, genuine AT11 principal/source/partition grants, shared access
+boundary and required `StockActivityAuthorization` peer. Public authority,
+permit and stored-operation DTOs remain data. There is no default policy or
+production qualification adapter. `new` accepts the shared
+`Arc<Mutex<AtlasStore<...>>>`, access boundary, original wrapper, policy,
+contracts, trusted registration, validated command and captured authority.
+`StockActivityRegistration` carries the stock owner's genuine physical binding,
+owner and source/dispatcher epochs; no Jobs lease or epoch is converted.
+
+Set `StoreOptions.stock_activity_profile = true` only for a fresh database.
+This selects profile 6 on the same original connection. Default profile 5,
+migrations 1–5, upload consumption and stock history remain unchanged. Neither
+profile upgrades an existing database into the other. The exact checksum ledger
+and SQL catalogue are checked on open. Existing recovery-image validation and
+strict recovery constructors remain profile 5. The separate native activity
+recovery methods below require explicit profile 6 and independently qualified
+owner peers; neither path upgrades a database. No live data migration is provided.
+
+Reserve stores the immutable original command and permanent dedup key. Waiting
+operations retain metadata with no permit or accepted body. Admission checks the
+original AT11 transaction guard, exact native mapping/preflight/plan digest,
+FIFO and physical exclusion. The mandatory owner policy qualifies original
+route, impact, observation, guards, human approval and byte reservation.
+Approval consumption, liability, dispatch plan, permit, owner slot and journal
+entry commit together. The complete preflight and admission evidence are kept.
+`queued_handoff` supplies a sealed in-memory original-owner carrier for an
+explicit never-invoked prepared/queued operation; it performs no startup scan,
+authority reconstruction or write retry.
+
+Dispatch, never-invoked and observation recording require original server-held
+evidence through the mandatory policy. They can persist evidence independently
+of current user disclosure, which is checked after commit. Live reserve/admit
+and owner handoff hold the actual AT11 synchronous transaction guard. No access
+or SQLite guard crosses an await. Native reducers preserve response/readback
+facts, independently version observations, and retain every complete observation
+including its time and impact evidence. Private versioned lossless JSON keeps
+original number tokens; canonical intent/plan hashes still use the shared owner.
+The strict loader checks SQL keys, admission/permit/body linkage, approval rows,
+all event versions and each reducer's fact-to-snapshot transition.
+
+Activity calls never wait for the store mutex: both transaction and runtime
+ID/time borrows use `try_lock`. Contention returns `Unavailable`, including
+while a live call retains the access fence. This prevents a live access/store
+wait cycle with an independent evidence policy that consults access while the
+store is borrowed. The policy must still avoid storage reentry. Contention
+creates no permit, automatic retry or physical release; previously committed
+facts remain retained. This bounded source fix follows PR55's automatic lock
+review. The ordinary native quantity/readback example is rerun; concurrent
+execution and held fault/revocation campaigns are not qualified by that example.
+
+Only original-owner-qualified never-start evidence or correlated `EndedProven`
+can clear the physical slot. Readback, confirmed effects, cancellation and
+expiry cannot clear it. The current native HTTP driver returns `EndUnproven`,
+and the peer port supplies no later termination-evidence method. A distinct
+future owner seam is needed for later endproof and accounting/effect resolution;
+this implementation does not infer either. Physical holds, logical uncertainty
+and liability stay distinct. Reciprocal checks and SQL triggers exclude Jobs
+and StockActivity invocation on one trusted physical DB. Exact Jobs accounting
+is read through its own private loader. Cross-lane unresolved effects or positive/
+unqualified liability conservatively hold that whole physical DB; precise shared
+scope and budget admission requires a future trusted owner view.
+
+`checks/stock-activity-healthy.rs` is one fresh ordinary synthetic quantity write
+through actual AT11 login/grants, AT51 closed stock contracts, the actual native
+mapper/writer and this SQLite adapter. Preparation, dispatch, readback and graph/
+route/evidence policy are explicitly synthetic peers. It runs one dispatch and
+one readback, checks the ordinary authorized journal read and four retained
+events, and observes a confirmed outcome while the physical hold remains. No
+HTTP request, socket/listener, credential injection or live provider runs.
+
+### Native producer retention and profile 6 image validation
+
+`retain_producer(operation_id)` returns a sealed `StockActivityProducer<P>`
+owning the original `Arc<P>`, original session identity and an immutable
+`RetainedStockActivity`. Only new reservations actually committed by that same
+live session can produce it. `Existing` metadata and reopened/restored rows do
+not populate its in-memory origin set. `retain_producer_successor(&prior)`
+requires the original session/principal identity and an unchanged earlier event
+prefix. A producer owns no store/access lock or source-store Arc; the host can
+retain it outside Core across source close. It confers no dispatch, discovery,
+queued handoff or permission to reuse an expired user session.
+
+Retention requires the additional mandatory
+`StockActivityRetentionAuthorization<P>::authorize_retention` over the complete
+record at Entry, Precommit and Release. It qualifies historical/preflight fields
+and the actual archive/disclosure destination; latest-outcome disclosure alone
+does not qualify that larger cut. Entry/Precommit retain the original AT11 live
+mutation/source/partition fence. No default policy, SQL reentry or provider I/O
+is supplied. Root must capture the actual admission cut before native I/O and
+successor cuts after fact commits through its one chosen dispatcher.
+
+`RetainedStockActivity` exposes `registration()`, `original()`, `operation()`,
+`permit()`, `body_accepted()`, `physical_hold()` and `events()`. Each sealed event
+exposes its durable sequence, complete `StoredOperation` and typed native facts:
+Reserve, Queued, Admit, Reject, NeverInvoked, Dispatch or Observation. Admit keeps
+the actual `InvocationPermit`, `StockPreflight` and
+`StockActivityAdmissionEvidence`; every cut keeps the actual native outcome,
+remote activity and liability. There is no Jobs lease/fence/UUID or common
+producer DTO conversion. Existing profile 6 tables/private codec persist these
+facts; SQL and both profile checksum ledgers are unchanged.
+
+`StockActivityRecoveryPeers` binds the actual native `StockContractPort`, complete
+trusted `StockActivityPhysicalRegistration` registry, independent administrative
+`StockActivityRecoveryDiscovery` and mandatory `StockActivityRecoveryEvidence`.
+The physical registration contains only its real physical binding, owner ID and
+dispatcher epoch. Historical source epoch/qualification are retained operation
+data that the original evidence owner must compare against independent provenance.
+Recovery never selects configuration or grants from the image.
+
+The evidence peer must implement both `validate_record(&RetainedStockActivity)`
+and `validate_event(StockActivityRecoveryEvent)`. Event frames contain only the
+original baseline, exact event/previous event and prefix through that event;
+their permit/body-acceptance/physical-hold cut is computed from that prefix.
+Later response/readback/end or liability data cannot qualify an earlier frame.
+Callbacks run under the original read transaction without a SQL handle and must
+not reenter storage, perform native I/O or refresh authority. Unknown or missing
+original native/media evidence must remain unavailable.
+
+Explicit storage methods are:
+
+- `backup_stock_activity_recovery_to_with_peers(destination, base, activity, check)`;
+- `validate_existing_stock_activity_recovery_image_with_peers(database, contract, base, activity, check)`;
+- `open_existing_stock_activity_recovery_image_with_peers(database, contract, authorization, runtime, options, expected, base, activity, check)`.
+
+`base` is the existing `RecoveryValidationPeers` for complete native/stock/upload
+and independent Jobs validation; it does not supply activity attempt evidence.
+The separate `activity` peer closes every registry, operation, event, approval,
+body/permit, journal/reducer, physical pointer and cross-lane exclusion relation.
+Backup and detached validation retain the existing standalone read-only image
+rules; strict reopen uses the same existing handle before WAL and never calls a
+migration. New runtime authority is supplied independently, and no restored
+producer brand, queued handoff or dispatch session is constructed.
+
+Exact remaining native input: the activity journal contains actual
+`DispatchFacts`/`ObservationFacts` and their digests, not bounded raw
+`NativeDispatch`/`DispatchReceipt`/`NativeObservation`. Native/codec owners must
+retain those genuine producer objects independently and qualify them against
+each event-local cut. Media owns original staging/admission evidence and later
+liability provenance. Storage does not infer raw payloads, zero liability,
+physical termination or original grants from hashes. The production offline
+issuer, native/codec/media evidence adapter and host retention/persistence wiring
+are required owner integrations.
+
+The extended ordinary example retains an actual completed live producer and its
+successor, checks original pointer and admission/preflight/plan linkage, captures
+a standalone populated profile 6 image, verifies unchanged bytes through detached
+validation and strictly reopens a separate copy without execution. Its offline
+registry/producer-equality peer is explicitly synthetic; production raw codec or
+media qualification and pre-I/O host capture are not exercised. Exact PR62
+`5690f8d10569b2c7418ba3dc8fb314f9ad793588` config/dispatcher source is also compiled
+unchanged in the external harness. A fresh profile 5 upload/reopen example checks
+the preserved upload component. No held control campaign or recovered dispatch
+is run.
+
+The external `/tmp/houseatlas-at07-activity-composition` compiler harness mounts
+HTTP/stock/contracts from publication `c36bb0bc19bb631d815ab4bb44fa3514ebeac0b7`
+and config/async stock dispatcher from `6eb067ee1c315a6e8b4057b89a46400fd06be60d`.
+Its separate existing storage protocols use actual domain/Jobs
+`8a568fb6ccef5b0fa575b18d6181dcc524d4db99`, access
+`4a0cd4da563a32d26677755a608180c960765353` and media
+`f0d6b10f00bb93fc1c1dd4eb3ae66ee1fbe3f873`. The external source ledger pins every mounted source. Root manifest/lock
+composition remains with AT51. No deployed registry, genuine human approval,
+production graph/witness/evidence policy or complete profile 6 recovery is
+qualified by this example. Replay, held/expiry, rejection, guard reversal,
+mutation/omission, adversarial, denial, faults/crashes, concurrency and negative
+consumers remain deferred and unrun.
+
+### Composed Storage owner continuation
+
+The profile 6 component includes the PR57 upload consumption/original-asset
+queries and PR58 borrowed snapshot/registered cache reads together. Both
+`upload_queries` and the borrowed read engine are declared by the same Store;
+`ExistingOriginalAsset` and `RegisteredCacheRead` remain available alongside
+sealed native producer retention. Schema 5 remains the default and all SQL
+migrations and checksum ledgers are unchanged.
+
+Recovery now compares exact physical-to-operation pointer maps, explicitly
+rejecting duplicate operation pointers across physical rows. It checks complete
+native physical/logical/liability occupancy against Jobs active pointers and
+the same strict unresolved hold predicate used by live native admission, even
+after a lane releases its physical pointer. The native journal is also replayed
+in global sequence order: each admission must respect earlier pending FIFO
+reservations and the physical/logical/liability state at that event cut; proven
+end and never-invoked events release only their actual physical owner. Final
+replayed owners must match both the typed records and SQL pointer pairs.
+Per-operation native reducers and mandatory independent event evidence still
+apply. Jobs and native journals have no shared historical sequence, so this
+does not infer historical cross-lane ordering from final state or timestamps.
+
+The external union harness compiles the three ordinary activity, upload and
+Network-read binaries with actual AT11
+`5e87c6c9152228ac4ae72814c6e6fc8f0ea8d7a2`, Domain PR70
+`c25c1a0316ef5e12b61560f00371d839085aefb5`, Media PR63
+`ea8ef14e05795334b3d79ae9c95c0a456f8b0308`, Jobs
+`8a568fb6ccef5b0fa575b18d6181dcc524d4db99`, queue recovery
+`fd72542686112e594d9a6f63b4782a62b5d9e6ef`, native contracts/stock
+`c36bb0bc19bb631d815ab4bb44fa3514ebeac0b7` and PR62 config/dispatcher
+`5690f8d10569b2c7418ba3dc8fb314f9ad793588`. External module mounting adds
+only the queue recovery module declaration to Domain; owner bodies are
+unchanged. Media's exact `png = "=0.18.1"` dependency is pinned in that external
+harness. Root owns canonical manifest/lock and host composition. Ordinary
+success exercises healthy cuts; no spliced journal, rejection, duplicate
+pointer or other held control is executed.
+
+The carry-forward Storage correction selects a currently due Jobs candidate
+before applying the native activity interlock, so empty/completed/future-only
+queues retain their existing Idle result. Queue registration validates the
+reciprocal profile6 physical deployment/configuration/owner in its IMMEDIATE
+transaction before inserting immutable registry or alias rows. Matching
+identities may register metadata while a hold remains; registration does not
+claim the physical resource.
+
+Native admission's Jobs hold lookup first resolves the registered deployment by
+the unique physical ID, then selects unresolved summary candidates through the
+existing `queue_due(deployment_id,physical_database_id,...)` index prefix.
+Only canonical zero accounting and an inactive summary qualify the fast
+exclusion; matching candidates retain full strict Rust row decoding and the
+unchanged hold predicate. Decimal u64 values are compared as canonical text,
+without SQLite numeric conversion. Recovery independently validates all
+retained Jobs rows. This avoids lifetime-history full decoding and extra
+per-row queries, while SQLite still evaluates summaries within the selected
+physical identity's history; it makes no constant-time claim and adds no schema
+or checksum change.
+
+Native reservation resolves its durable actor/scope/idempotency key under the
+original live fence and same Store transaction before allocating a new ID or
+timestamp. Returning `Existing` still checks exact intent, stored operation and
+current disclosure authority, but invokes neither metadata getter. A missing
+reservation borrows the original runtime from that already locked Store; no
+second Store acquisition or lookup/allocation gap is introduced.
+
+For a new reservation, the original producer-set mutex is acquired with
+`try_lock` before metadata allocation or SQL insertion, after the durable
+existing-result lookup. The lock travels with the result through the original
+transaction. An internal unit-returning commit callback records membership
+immediately after successful SQL commit and drops that already held mutex
+before later live-fence/disclosure checks. Contention or rollback creates no
+membership; a committed operation keeps original-session eligibility even if
+post-commit disclosure fails. Existing rows never acquire producer eligibility
+from IDs or reconstructed data. Public APIs and original retention authority
+checks are unchanged. Concurrency, rollback/fault and retry controls remain
+deferred; ordinary source/retention checks do not qualify those campaigns.
+
+Global native recovery replay uses the same physical/logical/liability prefix
+predicate at reservation and admission cuts. A `Prepared` reservation requires
+no earlier native hold at its sequence. An initially `Queued` cut must have a
+replayed native hold or an independently retained Jobs occupancy witness.
+Later `Queued` events require an earlier pending reservation on the same
+physical database, a replayed native hold, or independently retained Jobs
+occupancy at that exact event. Admission uses the same pending-reservation FIFO
+predicate; a later outcome cannot supply an earlier waiting cause.
+The required `StockActivityRecoveryEvidence::queued_reservation_jobs` method
+qualifies the actual historical physical/logical/liability hold at that exact
+native producer/reservation or later queued-event cut and returns its original
+`jobs::LeasedJob` as
+matching data. Storage verifies the physical deployment/configuration/owner,
+the strictly loaded retained job, original request/scope/byte-reservation fields
+and byte-exact immutable leased attempt in the already validated Jobs image.
+Missing registry/job/attempt closure cannot be substituted by native producer
+equality or its own Queued state. Final Jobs state and timestamps do not qualify
+the earlier hold; the owner must supply independent original correlation and
+return unavailable when absent. Jobs has no shared native event sequence, so
+its historical occupancy is not invented or reconstructed from a lease DTO.
+This is one new mandatory recovery-evidence method with no permissive default;
+runtime/producer interfaces and SQL remain unchanged. The ordinary fixture has
+no Jobs lane and explicitly returns unavailable from this method, which is not
+called on its Prepared-only reserve history. Cross-lane queued cuts are not
+qualified by that fixture. These changes are verified by source review, actual
+compilation and existing ordinary healthy examples; no retained reservation
+replay, metadata fault, omitted-lane or spliced-history control is executed.
+
+Upload persistence validates measured original identity and provenance while
+preserving preview qualification from the genuine immutable Media bound stage.
+Measured metadata does not establish rendering. The retained binding allows
+`DownloadOnly`, or `SafeRendered` with PNG content, and remains matched in full
+to canonical binding bytes/digest, the consumed stock receipt, asset audit and
+current asset association. Request input or MIME alone never supplies policy.
+No binding format or SQL migration changes. The ordinary `upload-healthy`
+binary accepts an optional second argument `rendered-png` or
+`download-only-png`; each performs one successful staged upload/atomic commit,
+strict consumed lookup, original reuse and authorized reopen in its own fresh
+output directory. Each also validates a standalone read-only image through
+the complete native/stock/upload validators and strictly reopens a separate
+copy, preserving bound payload and consumed association. The independent Jobs
+registry is empty; its fixture evidence ports return unavailable and are not
+called. The wide download-only original requests no preview. Its
+graph authorization is the same explicit synthetic fixture; these examples
+qualify neither production renderer evidence nor stopped controls.
+
+Complete recovery additionally requires independent Media qualification for
+every retained `SafeRendered` asset and original `SafeRendered` upload binding.
+`QueueRecoveryEvidence::validate_media_policy(MediaPolicyRecoveryFrame<'_>)`
+receives borrowed `Asset(&Record)` or `Upload(&ConsumedUpload)` data to match
+against actual original renderer/stage evidence held outside the image. This
+extends the existing full-image native/media codec peer without new generics or
+SQL. Its default returns `owner-unavailable`; it never infers qualification from
+MIME, hashes, correlated receipts or image consistency. The current asset and
+historical upload are both checked, so changing one to download-only cannot
+bypass the other's requirement. Native-only image APIs have no such evidence
+peer and refuse inline-policy certification; full peers are required. Data and
+stored policy are never downgraded or rewritten. Original archived proof that
+is missing stays unavailable.
+
+The rendered-PNG healthy example retains its actual opaque immutable Media
+stage and native commit before any image exists. Those original objects qualify
+both policy frames during backup, detached validation and strict reopening.
+This is independent same-process original evidence, not an authenticated
+production archive/reload implementation. The text and valid wide PNG retain
+download-only policy and invoke no renderer-policy qualifier. No absent-proof,
+policy splice/reversal or other held control is run.
+
+HomeBox projection bodies now use exact-number JSON serialization instead of
+the mutation contract's RFC 8785 number conversion. Reader-qualified JSON
+numbers, including maintenance costs beyond binary64 precision and tiny
+decimals, retain their tokens through bootstrap, generation publication, SQL
+reads and reopen. This private projection encoding is not a mutation digest,
+receipt, audit or authorization proof; those contracts remain unchanged.
+Strict recovery still validates shape, SQL/source keys and the complete graph.
+It accepts the exact projection encoding or the previously published canonical
+encoding, without migrating or rewriting an existing image. Already-rounded
+legacy amounts cannot be reconstructed.
+
+`checks/projection-numbers-healthy.rs` is a separate ordinary offline checkpoint
+for an external harness mounting actual Reader92, native root contracts and
+Storage. Its synthetic transport supplies seven stock decimal cost tokens. The
+actual reader prepares and consumes the original Store publication fence; the
+checkpoint compares every token in SQL, authorized reads, ordinary reopen,
+strict read-only backup validation and strict image reopen. Actual Reader
+retained-generation reconstruction is checked on the reopened Store. An
+untouched pre-change healthy canonical database is also validated read-only.
+The fixture principal/transport/clock are synthetic; there is no provider,
+listener, production authorization or held-control qualification. Root owns
+the final Reader/Storage composition and shared manifest integration.
+
+
+### Separately selected synthetic regressions
+
+The isolated regression lane in main policy `8f4065a` permits only explicitly
+reviewed synthetic concurrency, denial and failure cases. Ordinary invocations
+and CI do not select these cases. These Storage cases use fresh disposable roots,
+original synthetic Access principals and local SQLite/vaults, with no transport,
+provider, user data, operational credentials or deployment. Remove disposable
+state after collecting the exact source, command and result evidence.
+
+`stock-activity-healthy <fresh-root> <case>` selects exactly one of
+`producer-postcommit-failure`, `producer-precommit-denial` or
+`producer-concurrent-reservation`. They check original producer membership after
+a refused postcommit disclosure, rollback without membership after a precommit
+refusal, and one creator/one observer from concurrent first reservations. They
+perform no stock dispatch or readback. Original authority remains valid; only
+the synthetic owner callback is narrowed at the selected phase.
+
+`upload-healthy <fresh-root> text <case>` selects exactly one of
+`isolated-record-read-regression`, `isolated-manifest-denial-regression`,
+`isolated-record-precommit-denial-regression`,
+`isolated-record-release-denial-regression` or
+`isolated-asset-proof-failure-regression`. The existing ordinary fixture creates
+one synthetic asset. Selected queries then refuse only the named capability
+boundary or one local proof attempt, asserting no full-record result and no
+snapshot change. The first record refusal and initial manifest refusal open no
+retained bytes; later refusals occur after exactly one proof attempt. Genuine
+full authority succeeds afterwards without changing grants or records.
+
+These exact cases do not release guard reversal, mutation/omission, adversarial,
+private-intake, expiry, revocation, crash, broad-suite or production qualification.

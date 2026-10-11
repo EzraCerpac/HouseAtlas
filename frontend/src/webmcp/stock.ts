@@ -6,6 +6,7 @@ import type {
   AuthenticatedSession, CatalogTool, InvocationContext, JsonObject,
   ModelContextPort, SessionPort, WebMcpHandle,
 } from "./ports.js";
+import type { GatewayDownload, GatewayDownloadPort } from "./gateway/ports.js";
 
 /** Transport views of AT51 stock wire3 envelopes; full arm constraints remain
  * in the imported schema. Shared generated Scope and AT10 session DTO are reused.
@@ -49,6 +50,8 @@ export interface StockCompletion {
   readonly request: StockRequestEnvelope;
   readonly result: StockResultEnvelope;
   readonly sessionRevision: string;
+  readonly download?: GatewayDownload | null;
+  readonly downloadDeadline?: number | null;
 }
 export interface StockVisiblePort {
   commit(completion: StockCompletion, signal: AbortSignal): Promise<void>;
@@ -59,6 +62,7 @@ export interface StockMountOptions {
   readonly schemas: StockSchemaPort;
   readonly service: StockDispatchPort;
   readonly visible: StockVisiblePort;
+  readonly downloads?: GatewayDownloadPort;
 }
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -125,8 +129,24 @@ export function mountStockWebMcp(options: StockMountOptions): WebMcpHandle {
     },
     visible: {
       async apply(toolName, result, context, input) {
+        const current = sessions.getContext(context.session);
+        const started = performance.now();
+        const observed = options.downloads ? await options.downloads.resolve(toolName, clone(input), clone(result), {
+          ...context, applicationSession: current.session, scope: current.scope,
+        }) : null;
+        context.signal.throwIfAborted();
+        const snapshot = sessions.getSnapshot();
+        if (snapshot.state !== 'authenticated' || snapshot.revision !== context.session.revision)
+          throw new DOMException('Tool session is no longer current', 'InvalidStateError');
+        const budget = observed?.lifetime.remainingMs;
+        const deadline = typeof budget === 'number' && Number.isSafeInteger(budget) && budget > 0
+          && budget <= 300_000 ? started + budget : null;
+        const download = observed && deadline !== null && deadline > performance.now()
+          && observed.href.startsWith('/') && !observed.href.startsWith('//')
+          && !/[\\\u0000-\u0020\u007f]/u.test(observed.href) ? observed : null;
         await visible.commit({ toolName, request: clone(input as StockRequestEnvelope),
-          result: clone(result as StockResultEnvelope), sessionRevision: context.session.revision }, context.signal);
+          result: clone(result as StockResultEnvelope), sessionRevision: context.session.revision,
+          download: download ? clone(download) : null, downloadDeadline: download ? deadline : null }, context.signal);
       },
     },
   });

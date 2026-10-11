@@ -1,8 +1,8 @@
 import { DatabaseSync, backup } from 'node:sqlite';
 import { lstatSync, existsSync, mkdtempSync, rmSync, renameSync, chmodSync, readdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
-import { canonicalJson, validateSnapshot, validateShape, CONTRACT_VERSION } from '../../contracts/src/index.mjs';
-import { MIGRATIONS, DATABASE_VERSION } from '../../storage/src/migrations.mjs';
+import { canonicalJson, validateSnapshot, validateShape } from '../../contracts/src/index.mjs';
+import { MIGRATIONS, DATABASE_VERSION, DATABASE_CONTRACT_VERSION } from '../../storage/src/migrations.mjs';
 import { AssetVault, sha256, storageKeyFor, readPrivate, writePrivate, privateDirectory, syncDirectory } from './vault.mjs';
 import { MAX_BYTES, deny, exact } from './bytes.mjs';
 
@@ -18,7 +18,7 @@ function databaseAssets(path) {
     const migrations = db.prepare('SELECT version,sha256 FROM atlas_migrations ORDER BY version').all();
     if (migrations.length !== MIGRATIONS.length || migrations.some((r,i)=>r.version !== MIGRATIONS[i].version || r.sha256 !== sha256(MIGRATIONS[i].sql))) deny(503);
     const contractVersion = db.prepare("SELECT value FROM atlas_metadata WHERE key='contractVersion'").get()?.value;
-    if (contractVersion !== CONTRACT_VERSION) deny(503);
+    if (contractVersion !== DATABASE_CONTRACT_VERSION) deny(503);
     const snapshot = {contractVersion,synthetic:true};
     for (const [field,table] of [['sources','sources'],['records','records'],['homeboxEntities','projections'],['caches','caches'],['networkRelations','network_relations']]) snapshot[field] = db.prepare(`SELECT body FROM ${table} ORDER BY rowid`).all().map(r=>JSON.parse(r.body));
     validateSnapshot(snapshot);
@@ -85,7 +85,7 @@ export function verifyRecovery({bundle}) {
   const manifest = JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(readPrivate(join(bundle,'manifest.json'),16*1024*1024)));
   exact(manifest,['format','contractVersion','databaseSchema','database','assets','exclusions','captureMethod']);
   exact(manifest.database,['file','sha256','byteSize']);
-  if (manifest.format !== 'houseatlas-owned-recovery/1' || manifest.contractVersion !== CONTRACT_VERSION || manifest.databaseSchema !== DATABASE_VERSION || manifest.database.file !== 'atlas.sqlite' || manifest.captureMethod !== 'sqlite-backup-and-retained-immutable-originals' || !Array.isArray(manifest.assets) || manifest.assets.length > MAX_ASSETS) deny(503);
+  if (manifest.format !== 'houseatlas-owned-recovery/1' || manifest.contractVersion !== DATABASE_CONTRACT_VERSION || manifest.databaseSchema !== DATABASE_VERSION || manifest.database.file !== 'atlas.sqlite' || manifest.captureMethod !== 'sqlite-backup-and-retained-immutable-originals' || !Array.isArray(manifest.assets) || manifest.assets.length > MAX_ASSETS) deny(503);
   if (canonicalJson(manifest.exclusions) !== canonicalJson(EXCLUSIONS)) deny(503);
   const {assets,bytes} = databaseAssets(join(bundle,'atlas.sqlite'));
   if (sha256(bytes) !== manifest.database.sha256 || bytes.length !== manifest.database.byteSize || assets.length !== manifest.assets.length) deny(503);

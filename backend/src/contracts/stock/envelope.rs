@@ -23,6 +23,7 @@ pub enum AtlasRecordKind {
     Valve,
     Relation,
     Geometry,
+    SceneAssociation,
     Asset,
     Reconciliation,
 }

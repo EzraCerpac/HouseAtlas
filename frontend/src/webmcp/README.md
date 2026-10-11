@@ -2,10 +2,11 @@
 
 AT39 owns only `frontend/src/webmcp/**`. The original generic checkpoint
 `3429a7c008a8e98dcaa4fdddffb15717e8e9a6f0` and its branch/PR remain preserved.
-The successor starts from published root composition
-`52d6dce6b283b577d43083fb36bbea485303924f` on `codex/rust-owned-media`, replays
-the accepted namespace, and extends it. No root, UI-owned, generated-contract
-or dependency file is edited by this lane.
+The current gateway successor starts from published main
+`a16f9a55e5beab5348aa00a2675a0e03c9aef98b`, preserving its accepted stock
+coverage and separate AI islands. No root, UI-owned, generated-contract or
+dependency file is edited by this lane. See [gateway/README.md](gateway/README.md)
+for its injected service, catalog, capability and download handoff.
 
 `mountStockWebMcp` binds the stock wire3 catalog to `startWebMcp`.
 `StockWebMcpBoundary` mounts it in React and returns browser results after a
@@ -50,30 +51,30 @@ not acknowledge its completion. An error boundary must unmount this boundary
 if rendering fails. Signals/cleanup are coded, but held failure/concurrency
 qualification remains unrun.
 
-The remaining host bindings are specific:
+The stock host bindings are specific:
 
 1. `StockSessionPort` exposes the existing current application-session DTO,
    selected generated Scope, host-admitted command IDs and non-secret revision
    subscription. Revise it on login/logout/rotation/scope or availability change.
-   Current `SessionApp` retains only expiry for its child and does not export
-   this full context. No second browser authentication store is added.
+   Current `StockApplication` supplies this context under `SessionApp`.
+   No second browser authentication store is added.
 2. `StockDispatchPort.dispatch(request, context)` preserves the entire caller
    envelope/request ID and verifies actual cookie authority, Origin/CSRF and
    application rules. Session data reaches only this host port, never browser
    tool metadata or result output.
 3. `StockSchemaPort.validate(ref, value)` supplies the shared offline stock+Atlas
-   validator for the exact fragments. Native Rust validators exist; a shared
-   browser validator and generated 164-arm TS export are absent at this base.
-   The adapter does not recreate their business semantics.
+   validator for the exact fragments. The host now supplies the shared offline
+   browser validator from `frontend/integration/stock-schemas.ts`.
+   The adapter does not recreate its business semantics.
 4. UI mounts the boundary and renders its canonical completion/status. Existing
    app/navigation source is unchanged.
 
-No general stock-dispatch HTTP route is agreed. The documented stock GET route
-generates a server correlation UUID; rewriting that to the caller request ID
-would fabricate correlation. The POST command route admits only a narrow subset.
-This successor adds no HTTP bridge, CSRF/header protocol or guessed tool route.
-Root must supply envelope-preserving dispatch or agree its route before enabling
-the browser transport.
+The stock root now supplies envelope-preserving dispatch through
+`frontend/integration/stock-dispatch.ts`, with genuine admission/schema ports
+mounted by `frontend/integration/main.tsx`. `coverage/bindAtlasService` still
+supports exactly three native Atlas families. Catalog IDs alone do not bind
+HomeBox or Network services. Gateway bindings require their own actual catalog,
+service, admission and download owners before root activation.
 
 ## Healthy checks
 

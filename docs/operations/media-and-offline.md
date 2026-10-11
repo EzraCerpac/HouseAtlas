@@ -65,6 +65,13 @@ mutation queue, multi-source synchronization or media mirroring is added. Native
 HomeBox edits require its service, a verified route and the user's actual native
 rights. Do not offer a fake local edit to a cached inventory field.
 
+The bounded [local capture-draft amendment](local-capture-drafts.md) adds only
+explicit opt-in staging of browser-returned originals and evidence form values.
+These are local unsent drafts, not cached server media or saved Atlas records.
+Submission requires a separate user-confirmed foreground action with current
+session, home and fresh place information. Browser-managed storage is not a
+durable backup; no worker, automatic replay or disconnected record edit is added.
+
 Proposed refresh is every five minutes while the server is running, with one
 non-overlapping generation per source partition and backoff after errors.
 Show age always; label cached source data stale after 15 minutes without success

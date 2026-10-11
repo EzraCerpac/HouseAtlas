@@ -94,9 +94,13 @@
       "toolName": "atlas_media_geometry",
       "commandIds": [
         "atlas.geometry.get",
+        "atlas.scene-association.get",
         "atlas.geometry.list",
+        "atlas.scene-association.list",
         "atlas.geometry.history",
+        "atlas.scene-association.history",
         "atlas.geometry.create",
+        "atlas.scene-association.create",
         "atlas.geometry.tombstone",
         "atlas.geometry.restore",
         "atlas.asset.get",

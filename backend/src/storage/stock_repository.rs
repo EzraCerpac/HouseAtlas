@@ -265,3 +265,236 @@ pub(crate) fn persist(
     }
     Ok(())
 }
+
+const RETAINED_ROOT_JSON_BUDGET: i64 = 4 * 1024 * 1024;
+const RETAINED_TOTAL_JSON_BUDGET: i64 = 16 * 1024 * 1024;
+const RETAINED_ROW_LIMIT: i64 = 100;
+
+fn retained_budget_unavailable() -> Error {
+    Error::new(
+        "upstream-unavailable",
+        "Retained stock selection exceeds its read budget",
+    )
+}
+
+/// Account for every retained stock JSON value before `load` decodes it.
+/// Root and group lookups use their existing primary keys; linked native
+/// values use the audit and receipt keys, so unrelated retained data is never
+/// scanned as part of this check.
+pub(crate) fn assert_retained_read_budget(
+    db: &Connection,
+    scope: &Scope,
+    actor: &str,
+    id: &str,
+) -> Result<usize> {
+    let (root_bytes, commit_bytes, original_bytes): (i64, i64, i64) = db
+        .query_row(
+            "SELECT length(CAST(commit_json AS BLOB))+length(CAST(original_json AS BLOB)),
+                    length(CAST(commit_json AS BLOB)), length(CAST(original_json AS BLOB))
+             FROM stock_operations
+             WHERE operation_id=?1 AND workspace_id=?2 AND home_id=?3 AND actor_id=?4
+               AND codec_version=1",
+            params![id, scope.workspace_id, scope.home_id, actor],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()?
+        .ok_or_else(incompatible)?;
+    if root_bytes < 0 || commit_bytes < 0 || original_bytes < 0 {
+        return Err(incompatible());
+    }
+    if root_bytes > RETAINED_ROOT_JSON_BUDGET {
+        return Err(retained_budget_unavailable());
+    }
+    let mut total_bytes = root_bytes;
+
+    let mut groups = db.prepare(
+        "SELECT length(CAST(original_json AS BLOB))+length(CAST(entries_json AS BLOB))
+         FROM stock_groups WHERE root_operation_id=?1 ORDER BY ordinal LIMIT 101",
+    )?;
+    let mut group_rows = groups.query([id])?;
+    let mut group_count = 0_i64;
+    while let Some(row) = group_rows.next()? {
+        group_count += 1;
+        let bytes: i64 = row.get(0)?;
+        if group_count > RETAINED_ROW_LIMIT {
+            return Err(retained_budget_unavailable());
+        }
+        if bytes < 0 {
+            return Err(incompatible());
+        }
+        total_bytes = total_bytes
+            .checked_add(bytes)
+            .ok_or_else(retained_budget_unavailable)?;
+        if total_bytes > RETAINED_TOTAL_JSON_BUDGET {
+            return Err(retained_budget_unavailable());
+        }
+    }
+    if group_count == 0 {
+        return Err(incompatible());
+    }
+
+    let mut links = db.prepare(
+        "SELECT audit_id,workspace_id,home_id,actor_id,mutation_id,
+                length(CAST(event_json AS BLOB))
+         FROM stock_audit_links WHERE root_operation_id=?1
+         ORDER BY group_ordinal,entry_ordinal LIMIT 101",
+    )?;
+    let mut link_rows = links.query([id])?;
+    let mut link_count = 0_i64;
+    while let Some(row) = link_rows.next()? {
+        link_count += 1;
+        if link_count > RETAINED_ROW_LIMIT {
+            return Err(retained_budget_unavailable());
+        }
+        let audit_id: String = row.get(0)?;
+        let workspace_id: String = row.get(1)?;
+        let home_id: String = row.get(2)?;
+        let link_actor: String = row.get(3)?;
+        let mutation_id: String = row.get(4)?;
+        let event_bytes: i64 = row.get(5)?;
+        if workspace_id != scope.workspace_id
+            || home_id != scope.home_id
+            || link_actor != actor
+            || event_bytes < 0
+        {
+            return Err(incompatible());
+        }
+        total_bytes = total_bytes
+            .checked_add(event_bytes)
+            .ok_or_else(retained_budget_unavailable)?;
+
+        let audit_bytes: i64 = db
+            .query_row(
+                "SELECT length(CAST(body AS BLOB)) FROM audits
+                 WHERE audit_id=?1 AND workspace_id=?2 AND home_id=?3",
+                params![audit_id, scope.workspace_id, scope.home_id],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or_else(incompatible)?;
+        let receipt_bytes: i64 = db
+            .query_row(
+                "SELECT length(CAST(body AS BLOB)) FROM receipts
+                 WHERE workspace_id=?1 AND home_id=?2 AND actor_id=?3 AND mutation_id=?4",
+                params![scope.workspace_id, scope.home_id, actor, mutation_id],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or_else(incompatible)?;
+        if audit_bytes < 0 || receipt_bytes < 0 {
+            return Err(incompatible());
+        }
+        total_bytes = total_bytes
+            .checked_add(audit_bytes)
+            .and_then(|total| total.checked_add(receipt_bytes))
+            .ok_or_else(retained_budget_unavailable)?;
+        if total_bytes > RETAINED_TOTAL_JSON_BUDGET {
+            return Err(retained_budget_unavailable());
+        }
+    }
+    if link_count == 0 {
+        return Err(incompatible());
+    }
+    usize::try_from(total_bytes).map_err(|_| incompatible())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RetainedEventLink {
+    pub sequence: i64,
+    pub audit_id: String,
+    pub root_operation_id: String,
+    pub actor_id: String,
+    pub group_ordinal: i64,
+    pub entry_ordinal: i64,
+}
+
+pub(crate) struct RetainedEventWindow {
+    pub links: Vec<RetainedEventLink>,
+    pub scan_end: i64,
+    pub more_unscanned: bool,
+}
+
+/// Bound raw sequence work BEFORE scope/link filtering. Foreign audit bodies
+/// are neither decoded nor qualified; every selected root still requires its
+/// full existing predecode and native audit/receipt validation.
+pub(crate) fn retained_event_window(
+    db: &Connection,
+    scope: &Scope,
+    watermark: i64,
+    after: i64,
+    page_size: usize,
+) -> Result<RetainedEventWindow> {
+    const SCAN_ROWS: usize = 4096;
+    if after < 0 || watermark < after || !(1..=100).contains(&page_size) {
+        return Err(incompatible());
+    }
+    let mut scan = db.prepare(
+        "SELECT seq FROM audits NOT INDEXED
+         WHERE seq>?1 AND seq<=?2 ORDER BY seq LIMIT 4097",
+    )?;
+    let sequences = scan
+        .query_map(params![after, watermark], |row| row.get::<_, i64>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let more_unscanned = sequences.len() > SCAN_ROWS;
+    let scan_end = if more_unscanned {
+        sequences[SCAN_ROWS - 1]
+    } else {
+        watermark
+    };
+    Ok(RetainedEventWindow {
+        links: retained_event_links_query(db, scope, after, scan_end, page_size)?,
+        scan_end,
+        more_unscanned,
+    })
+}
+
+/// The established audit rowid range contains at most 4096 audits. Link lookup
+/// uses the audit-id primary key; selected metadata is page plus one lookahead.
+fn retained_event_links_query(
+    db: &Connection,
+    scope: &Scope,
+    after: i64,
+    scan_end: i64,
+    page_size: usize,
+) -> Result<Vec<RetainedEventLink>> {
+    let mut statement = db.prepare(
+        "SELECT a.seq,l.audit_id,l.root_operation_id,l.actor_id,l.group_ordinal,l.entry_ordinal,
+                length(CAST(l.audit_id AS BLOB)), length(CAST(l.root_operation_id AS BLOB)),
+                length(CAST(l.actor_id AS BLOB))
+         FROM audits AS a NOT INDEXED
+         CROSS JOIN stock_audit_links AS l INDEXED BY sqlite_autoindex_stock_audit_links_1
+           ON l.audit_id=a.audit_id
+         WHERE a.seq>?1 AND a.seq<=?2
+           AND a.workspace_id=?3 AND a.home_id=?4
+         ORDER BY a.seq LIMIT ?5",
+    )?;
+    let rows = statement
+        .query_map(
+            params![
+                after,
+                scan_end,
+                scope.workspace_id,
+                scope.home_id,
+                i64::try_from(page_size + 1).map_err(|_| incompatible())?
+            ],
+            |row| {
+                // Genuine audit, operation and actor identifiers are UUIDs.
+                // Check SQL byte lengths before materializing metadata text.
+                for index in 6..=8 {
+                    if row.get::<_, i64>(index)? != 36 {
+                        return Err(rusqlite::Error::InvalidQuery);
+                    }
+                }
+                Ok(RetainedEventLink {
+                    sequence: row.get(0)?,
+                    audit_id: row.get(1)?,
+                    root_operation_id: row.get(2)?,
+                    actor_id: row.get(3)?,
+                    group_ordinal: row.get(4)?,
+                    entry_ordinal: row.get(5)?,
+                })
+            },
+        )?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(rows)
+}

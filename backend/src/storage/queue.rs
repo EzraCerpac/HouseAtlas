@@ -35,12 +35,70 @@ use outcomes::*;
 #[path = "queue_evidence.rs"]
 mod evidence;
 use evidence::*;
+#[path = "queue_original_preparation.rs"]
+mod original_preparation;
+pub use original_preparation::{
+    QueueOriginalPreparationCommittedData, QueueOriginalPreparationData,
+    QueueOriginalPreparationObservation,
+};
 #[path = "queue_admission.rs"]
 mod admission;
+#[path = "queue_journal_custody.rs"]
+mod journal_custody;
+#[path = "queue_original_owner.rs"]
+mod original_owner;
+pub use journal_custody::{
+    OriginalQueueJournalCut, QueueOriginalJournalCommittedData,
+    QueueOriginalJournalCommittedObservation,
+};
+pub use original_owner::{
+    OriginalQueuedQuantityAttempt, OriginalQueuedQuantityClaim, OriginalQueuedQuantityEnqueue,
+    OriginalQueuedQuantityOwner, QueueOriginalCommittedData, QueueOriginalCommittedObservation,
+    RecordedOriginalEnqueue, RecordedOriginalEnqueueProof,
+};
+#[path = "queue_upload_archived_original.rs"]
+mod archived_upload_original;
 #[path = "queue_finish.rs"]
 mod finish;
 #[path = "queue_journal.rs"]
 mod journal;
+#[path = "queue_quantity_original.rs"]
+mod quantity_original;
+#[path = "queue_upload_execution.rs"]
+pub(crate) mod upload_execution;
+#[path = "queue_upload_execution_custody.rs"]
+mod upload_execution_custody;
+#[path = "queue_upload_finish_history.rs"]
+mod upload_finish_history;
+#[path = "queue_upload_history.rs"]
+mod upload_history;
+pub(crate) use archived_upload_original::ArchivedQueuedUploadOriginalFactsIdentity;
+pub use archived_upload_original::{
+    ArchivedQueuedUploadOriginalFacts, ArchivedQueuedUploadOriginalOwner,
+    ArchivedQueuedUploadOriginalProof,
+};
+#[path = "queue_upload_journal_custody.rs"]
+mod upload_journal_custody;
+pub use upload_execution_custody::{
+    OriginalQueuedUploadExecution, QueueUploadFinishCommittedData,
+    QueueUploadFinishCommittedObservation,
+};
+pub(crate) use upload_finish_history::QueuedUploadFinishHistoryIdentity;
+pub use upload_finish_history::ReleasedQueuedUploadFinishHistory;
+pub use upload_history::ReleasedQueuedUploadOriginalHistory;
+#[path = "queue_upload_original.rs"]
+mod upload_original;
+pub use upload_journal_custody::{
+    OriginalUploadJournalCut, QueueUploadJournalCommittedData,
+    QueueUploadJournalCommittedObservation,
+};
+#[path = "queue_upload_original_owner.rs"]
+mod upload_original_owner;
+pub use upload_original_owner::{
+    OriginalQueuedUploadAttempt, OriginalQueuedUploadClaim, OriginalQueuedUploadEnqueue,
+    OriginalQueuedUploadOwner, QueueUploadCommittedData, QueueUploadCommittedObservation,
+    RecordedOriginalUploadEnqueue, RecordedOriginalUploadEnqueueProof,
+};
 #[path = "queue_queries.rs"]
 mod queries;
 #[path = "queue_resolution.rs"]
@@ -54,6 +112,69 @@ use std::{
 };
 
 const MAX_METADATA_BYTES: usize = 1_048_576;
+
+/// Read-only correlation with the original complete queue registration. This
+/// creates no row, dispatch permit, occupation claim or replacement authority.
+pub(crate) fn validate_quantity_installation_queue(
+    db: &Connection,
+    config: &QueueConfig,
+) -> Result<()> {
+    assert_registered(db, config)
+}
+
+/// Exact immutable cross-lane reference only. Independent activity evidence
+/// must already qualify occupancy at the native queued cut; current/final
+/// Jobs state is deliberately not substituted for that historical observation.
+pub(crate) fn validate_reservation_occupancy(
+    db: &Connection,
+    attempt: &LeasedJob,
+    binding: &crate::providers::homebox::write::stock::PhysicalBinding,
+    owner: uuid::Uuid,
+) -> Result<()> {
+    let identity = &attempt.lease.physical_identity;
+    if identity.deployment_id != binding.deployment_id.to_string()
+        || identity.physical_database_id != binding.physical_database_id.to_string()
+        || identity.configuration_digest.as_hex() != binding.configuration_digest.as_str()
+        || attempt.lease.owner_id != owner.to_string()
+        || attempt.lease.fence == 0
+        || attempt.attempt == 0
+    {
+        return Err(bad());
+    }
+    let registration: (String, String, String) = db.query_row(
+        "SELECT deployment_id,configuration_digest,owner_id FROM queue_physical WHERE physical_database_id=?1",
+        [&identity.physical_database_id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    ).map_err(|_| bad())?;
+    if registration
+        != (
+            identity.deployment_id.clone(),
+            identity.configuration_digest.as_hex().into(),
+            attempt.lease.owner_id.clone(),
+        )
+    {
+        return Err(bad());
+    }
+    let row = load(db, &attempt.lease.job_id.0)?;
+    if row.deployment != identity.deployment_id
+        || row.physical != identity.physical_database_id
+        || row.request != attempt.request
+        || row.scope != attempt.canonical_scope
+        || row.request.pending_byte_liability != attempt.pending_byte_liability
+    {
+        return Err(bad());
+    }
+    let retained: String = db
+        .query_row(
+            "SELECT original_leased_job_json FROM queue_attempts WHERE job_id=?1 AND fence=?2",
+            params![attempt.lease.job_id.0, decimal(attempt.lease.fence)],
+            |row| row.get(0),
+        )
+        .map_err(|_| bad())?;
+    if retained != encoded(&leased_value(attempt))? {
+        return Err(bad());
+    }
+    Ok(())
+}
 
 fn bad() -> Error {
     Error::new("schema-incompatible", "Stored queue value is incompatible")
@@ -238,6 +359,19 @@ pub struct QueueRecoveryAttempt<'a> {
 pub trait QueueRecoveryEvidence {
     fn validate_attempt(&self, config: &QueueConfig, frame: QueueRecoveryAttempt<'_>)
     -> Result<()>;
+    /// Full-image Media policy qualification, independent of Jobs membership.
+    /// Match actual original renderer/stage provenance to the exact asset or
+    /// original upload binding. Image rows, MIME, hashes, correlated native
+    /// receipts and mirrored DTOs cannot establish renderer qualification.
+    /// Called only for SafeRendered claims, under the same read transaction;
+    /// do not reenter Storage, call a provider or revive grants. Original Media
+    /// evidence owners must fail closed for unknown/missing archived evidence.
+    fn validate_media_policy(&self, _: super::MediaPolicyRecoveryFrame<'_>) -> Result<()> {
+        Err(Error::new(
+            "owner-unavailable",
+            "Independent Media policy evidence is required",
+        ))
+    }
 }
 #[derive(Clone, Debug)]
 pub struct QueueOriginalIntent {
@@ -415,17 +549,22 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         {
             return Err(Error::new("forbidden", "Queue actor binding changed"));
         }
-        register(&mut self.db, &config, || {
-            authorize_session(
-                authority,
-                principal,
-                witness,
-                original,
-                receipt,
-                QueuePhase::Precommit,
-                QueueAction::Register(&config),
-            )
-        })?;
+        register(
+            &mut self.db,
+            &config,
+            self.options.stock_activity_profile,
+            || {
+                authorize_session(
+                    authority,
+                    principal,
+                    witness,
+                    original,
+                    receipt,
+                    QueuePhase::Precommit,
+                    QueueAction::Register(&config),
+                )
+            },
+        )?;
         authorize_session(
             authority,
             principal,
@@ -541,4 +680,46 @@ impl<C: Contract, A: Authorization, R: Runtime, Q: QueueAuthorization<Principal 
     ) -> Result<JobSnapshot> {
         self.prove_remote_end_inner(evidence, now)
     }
+}
+
+/// Conservative cross-lane exclusion from actual Jobs rows. This grants no
+/// StockActivity permit and converts no scope, lease, epoch or accounting DTO.
+pub(crate) fn unresolved_physical_hold(db: &Connection, physical: &str) -> Result<bool> {
+    let deployment: Option<String> = db
+        .query_row(
+            "SELECT deployment_id FROM queue_physical WHERE physical_database_id=?1",
+            [physical],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let Some(deployment) = deployment else {
+        return Ok(false);
+    };
+    let ids = db
+        .prepare(CROSS_LANE_HOLD_CANDIDATES)?
+        .query_map(params![deployment, physical], |r| r.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    for id in ids {
+        let row = load(db, &id)?;
+        let liability = &row.liability;
+        let known = match liability.accounting {
+            ByteAccounting::Complete { known_bytes, .. }
+            | ByteAccounting::Incomplete { known_bytes } => known_bytes,
+        };
+        if row.logical
+            || matches!(
+                row.remote,
+                RemoteActivity::Invoked(
+                    InvokedRemoteActivity::Active | InvokedRemoteActivity::EndUnproven
+                )
+            )
+            || liability.reserved_bytes().is_none_or(|n| n > 0)
+            || known > 0
+            || liability.unresolved_attempts > 0
+            || liability.byte_disposition != ByteDisposition::None
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }

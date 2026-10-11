@@ -794,3 +794,40 @@ remains in the historical log and is not erased by removing its invocation from
 the retained check. The final run compares receipt bytes only; the preliminary
 run supplies no replay qualification. Earlier logs remain unchanged; these
 healthy checks do not supply Rust integration/CI acceptance.
+
+## Installed original queued upload
+
+`OriginalQueuedUploadAdmission` consumes the real staged body through the typed
+native preparation and Media binding under the same original Access phase. The
+installed-origin marker and source-preparation matcher correlate the actual
+private custody allocation; copied multipart metadata cannot supply that origin.
+The distinct Storage owner issues enqueue and first-claim custody after fresh
+SQL commit, current Store/native Release and the complete Access commit. DATA is
+prepared before SQL commit and recorded immediately afterward, so a later error
+retains the committed observation without promoting it into released proof.
+
+Media's direct original and unprepared-attempt validators require the actual
+released Storage proof and the same installed upload allocation before comparing
+request, scope, body size and known positive reservation facts. The detached
+lookup is process-local and grants no current authorization or restart custody.
+The initial claim reserves nonzero bytes. The adapter accepts only its exact
+single claim-reservation event after matching the actual released attempt;
+prepared, journal, step and outcome descendants remain unsupported there.
+
+`NativeQueuedUploadPrepared` is issued from the live original admission and
+current physical phase, retaining the same body custody and native multipart
+plan. Each journal phase repeats bounded descriptor/body verification and native
+qualification. Its native/media codec fields are bounded comparison DATA, not
+constructors or historical recovery decoders. Liability records zero proven
+remote bytes and the actual local reservation; measuring local bytes supplies
+no native response or end proof.
+
+The distinct upload journal owner retains the released first attempt and the
+same opaque preparation. It prebuilds committed DATA before SQL commit, moves it
+infallibly immediately afterward, and promotes the journal cut only after fresh
+Store/native Release and complete Access success. The private journal session
+uses the exact already registered queue, permitting Lease and Journal without
+another registration mutation. Source checks and independent reviews pass; no
+upload journal runtime executed. Native invocation, generated attachment readback,
+prepared recovery decoding, outcome and cold-start administrative intake remain
+separate source dependencies. No provider write is established by these checks.

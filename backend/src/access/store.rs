@@ -6,8 +6,15 @@ use super::{
     ACCESS_SCHEMA_VERSION, AccessError, AccessResult, CanonicalId, PasswordVerifier, Role, Scope,
     SourcePartition, SourceRegistration,
     credentials::{hex, random_bytes},
-    types::{AuthorityVersion, RestoreEpoch},
+    types::{AuthorityVersion, LoopbackLocalIdentity, RestoreEpoch},
 };
+
+const LOOPBACK_LOCAL_VERIFIER: &str = "houseatlas:credential:loopback-local:v1:password-disabled";
+
+pub(super) enum UserVerifier {
+    Password(PasswordVerifier),
+    LoopbackLocal,
+}
 
 /// Connection visibility stops inside the access module.
 pub(super) struct Store {
@@ -17,7 +24,8 @@ pub(super) struct Store {
 pub(super) struct User {
     pub(super) user_id: CanonicalId,
     pub(super) actor_id: CanonicalId,
-    pub(super) verifier: PasswordVerifier,
+    pub(super) username: String,
+    pub(super) verifier: UserVerifier,
     pub(super) enabled: bool,
     pub(super) version: AuthorityVersion,
 }
@@ -147,6 +155,33 @@ impl Store {
         Ok(())
     }
 
+    pub(super) fn provision_loopback_local_user(
+        &mut self,
+        identity: &LoopbackLocalIdentity,
+    ) -> AccessResult<()> {
+        let tx = self
+            .db
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let users: i64 = tx.query_row("SELECT count(*) FROM access_users", [], |r| r.get(0))?;
+        let members: i64 =
+            tx.query_row("SELECT count(*) FROM access_memberships", [], |r| r.get(0))?;
+        let sessions: i64 =
+            tx.query_row("SELECT count(*) FROM access_sessions", [], |r| r.get(0))?;
+        if users != 0 || members != 0 || sessions != 0 {
+            return Err(AccessError::InvalidInput);
+        }
+        tx.execute(
+            "INSERT INTO access_users(user_id,actor_id,username,verifier,enabled,version) VALUES(?1,?2,?3,?4,1,1)",
+            params![identity.user_id.as_str(), identity.actor_id.as_str(), identity.username, LOOPBACK_LOCAL_VERIFIER],
+        )?;
+        tx.execute(
+            "INSERT INTO access_memberships(user_id,workspace_id,home_id,role,enabled,version) VALUES(?1,?2,?3,'editor',1,1)",
+            params![identity.user_id.as_str(), identity.scope.workspace_id.as_str(), identity.scope.home_id.as_str()],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
     pub(super) fn set_membership(
         &mut self,
         user_id: &CanonicalId,
@@ -239,31 +274,98 @@ pub(super) fn epoch(db: &Connection) -> AccessResult<RestoreEpoch> {
 }
 
 pub(super) fn user(db: &Connection, id: &CanonicalId) -> AccessResult<Option<User>> {
+    user_with_loopback(db, id, None)
+}
+
+pub(super) fn user_with_loopback(
+    db: &Connection,
+    id: &CanonicalId,
+    selected: Option<&LoopbackLocalIdentity>,
+) -> AccessResult<Option<User>> {
     let row = db
         .query_row(
-            "SELECT user_id,actor_id,verifier,enabled,version FROM access_users WHERE user_id=?1",
+            "SELECT user_id,actor_id,username,verifier,enabled,version FROM access_users WHERE user_id=?1",
             [id.as_str()],
             |row| {
                 Ok((
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
-                    row.get::<_, bool>(3)?,
-                    row.get::<_, i64>(4)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, bool>(4)?,
+                    row.get::<_, i64>(5)?,
                 ))
             },
         )
         .optional()?;
-    row.map(|(user_id, actor_id, verifier, enabled, version)| {
-        Ok(User {
-            user_id: stored_id(user_id)?,
-            actor_id: stored_id(actor_id)?,
-            verifier: PasswordVerifier::parse(verifier).map_err(|_| AccessError::Unavailable)?,
-            enabled,
-            version: AuthorityVersion(version),
-        })
-    })
+    row.map(
+        |(user_id, actor_id, username, verifier, enabled, version)| {
+            let user_id = stored_id(user_id)?;
+            let actor_id = stored_id(actor_id)?;
+            let verifier = if verifier == LOOPBACK_LOCAL_VERIFIER {
+                if !selected.is_some_and(|identity| {
+                    identity.user_id == user_id
+                        && identity.actor_id == actor_id
+                        && identity.username == username
+                }) {
+                    return Err(AccessError::Unauthenticated);
+                }
+                UserVerifier::LoopbackLocal
+            } else {
+                UserVerifier::Password(
+                    PasswordVerifier::parse(verifier).map_err(|_| AccessError::Unavailable)?,
+                )
+            };
+            Ok(User {
+                user_id,
+                actor_id,
+                username,
+                verifier,
+                enabled,
+                version: AuthorityVersion(version),
+            })
+        },
+    )
     .transpose()
+}
+
+pub(super) fn validate_loopback_local_user(
+    db: &Connection,
+    identity: &LoopbackLocalIdentity,
+) -> AccessResult<User> {
+    let users: i64 = db.query_row("SELECT count(*) FROM access_users", [], |r| r.get(0))?;
+    let members: i64 = db.query_row("SELECT count(*) FROM access_memberships", [], |r| r.get(0))?;
+    if users != 1 || members != 1 {
+        return Err(AccessError::Unauthenticated);
+    }
+    // Local-only admission requires the native enabled spelling, not SQLite's
+    // general nonzero-to-bool conversion used by the ordinary password path.
+    let enabled_exact: bool = db.query_row(
+        "SELECT EXISTS(SELECT 1 FROM access_users WHERE user_id=?1 AND enabled=1)
+         AND EXISTS(SELECT 1 FROM access_memberships WHERE user_id=?1
+         AND workspace_id=?2 AND home_id=?3 AND enabled=1)",
+        params![
+            identity.user_id.as_str(),
+            identity.scope.workspace_id.as_str(),
+            identity.scope.home_id.as_str()
+        ],
+        |row| row.get(0),
+    )?;
+    if !enabled_exact {
+        return Err(AccessError::Unauthenticated);
+    }
+    let user = user_with_loopback(db, &identity.user_id, Some(identity))?
+        .filter(|u| {
+            u.enabled
+                && u.version.0 > 0
+                && u.username == identity.username
+                && matches!(u.verifier, UserVerifier::LoopbackLocal)
+        })
+        .ok_or(AccessError::Unauthenticated)?;
+    membership(db, &identity.user_id, &identity.scope)?
+        .filter(|m| m.enabled && m.role == Role::Editor && m.version.0 > 0)
+        .ok_or(AccessError::Unauthenticated)?;
+    Ok(user)
 }
 
 pub(super) fn user_by_name(db: &Connection, name: &str) -> AccessResult<Option<User>> {

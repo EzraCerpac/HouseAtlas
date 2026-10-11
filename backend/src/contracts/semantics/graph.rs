@@ -3,6 +3,7 @@
 use std::collections::{HashMap, HashSet};
 
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use url::Url;
 
 use super::common::{
@@ -214,6 +215,9 @@ pub(super) fn validate_snapshot(snapshot: &Value) -> Result<()> {
 
     let mut binding_keys = HashSet::new();
     let mut semantic_keys = HashSet::new();
+    let mut scene_roots = HashSet::new();
+    let mut scene_children = HashSet::new();
+    let mut scene_versions = HashSet::new();
     for record in records {
         let payload = &record["payload"];
         if truthy(&payload["evidenceIds"]) {
@@ -462,6 +466,252 @@ pub(super) fn validate_snapshot(snapshot: &Value) -> Result<()> {
                 }
             }
         }
+        if record["recordType"] == "scene-association" {
+            if serde_json::to_vec(payload)
+                .map_err(|_| {
+                    SemanticError::invalid("Scene association payload serialization failed")
+                })?
+                .len()
+                > 524_288
+            {
+                return Err(SemanticError::invalid(
+                    "Scene association exceeds bounded payload bytes",
+                ));
+            }
+            let building = graph.get(record, "identity", text(&payload["buildingId"])?)?;
+            if building["payload"]["kind"] != "location" {
+                return Err(SemanticError::invalid(
+                    "Scene association requires location identity",
+                ));
+            }
+            let key = (
+                text(&record["workspaceId"])?.to_owned(),
+                text(&record["homeId"])?.to_owned(),
+                text(&payload["buildingId"])?.to_owned(),
+                text(&payload["profile"])?.to_owned(),
+            );
+            let version = number(&payload["associationVersion"])?;
+            if !scene_versions.insert((key.clone(), version.to_bits())) {
+                return Err(SemanticError::new(
+                    SemanticCode::IdentityConflict,
+                    "Scene association version already exists",
+                ));
+            }
+            if payload["previousAssociationId"].is_null() {
+                if version != 1.0 || !scene_roots.insert(key) {
+                    return Err(SemanticError::new(
+                        SemanticCode::IdentityConflict,
+                        "Scene association requires one version-one root",
+                    ));
+                }
+            } else {
+                let previous = graph.get(
+                    record,
+                    "scene-association",
+                    text(&payload["previousAssociationId"])?,
+                )?;
+                if !same_scope(previous, record)?
+                    || previous["payload"]["buildingId"] != payload["buildingId"]
+                    || previous["payload"]["profile"] != payload["profile"]
+                    || number(&previous["payload"]["associationVersion"])? + 1.0 != version
+                    || !scene_children.insert(record_key(previous)?)
+                {
+                    return Err(SemanticError::new(
+                        SemanticCode::IdentityConflict,
+                        "Scene association predecessor or unique head changed",
+                    ));
+                }
+            }
+            let documents = items(&payload["sourceDocuments"])?;
+            if documents
+                .iter()
+                .filter(|doc| doc["role"] == "primary-scene")
+                .count()
+                != 1
+            {
+                return Err(SemanticError::invalid(
+                    "Scene association requires one primary source",
+                ));
+            }
+            let mut document_ids = HashSet::new();
+            for doc in documents {
+                let id = text(&doc["evidenceId"])?;
+                if !document_ids.insert(id) {
+                    return Err(SemanticError::invalid("Duplicate scene source evidence"));
+                }
+                let evidence = graph.get(record, "evidence", id)?;
+                let asset = graph.get(record, "asset", text(&doc["originalAssetId"])?)?;
+                if number(&evidence["revision"])? != number(&doc["evidenceRevision"])?
+                    || asset["payload"]["purpose"] != "evidence-original"
+                    || asset["payload"]["contentType"] != "text/plain"
+                    || asset["payload"]["sha256"] != doc["originalSha256"]
+                    || !items(&evidence["payload"]["references"])?
+                        .iter()
+                        .any(|reference| {
+                            reference["kind"] == "atlas-asset"
+                                && reference["assetId"] == doc["originalAssetId"]
+                        })
+                {
+                    return Err(SemanticError::invalid(
+                        "Scene source evidence/asset pin changed",
+                    ));
+                }
+            }
+            let receipt = &payload["acceptedReceipt"];
+            let canonical = text(&receipt["canonicalJson"])?;
+            if canonical.len() > 131_072
+                || format!("{:x}", Sha256::digest(canonical.as_bytes()))
+                    != text(&receipt["canonicalSha256"])?
+            {
+                return Err(SemanticError::invalid(
+                    "Scene receipt canonical byte pin changed",
+                ));
+            }
+            let mut floors = HashSet::new();
+            for floor in items(&payload["sourceFloors"])? {
+                let source_key = (
+                    text(&floor["sourceFloorKey"])?.to_owned(),
+                    text(&floor["sourceOriginalSha256"])?.to_owned(),
+                );
+                if !floors.insert(source_key) {
+                    return Err(SemanticError::new(
+                        SemanticCode::IdentityConflict,
+                        "Duplicate scene source floor",
+                    ));
+                }
+                let geometry = graph.get(record, "geometry", text(&floor["nativeGeometryId"])?)?;
+                let asset = graph.get(record, "asset", text(&floor["nativeOriginalAssetId"])?)?;
+                if number(&geometry["revision"])? != number(&floor["nativeGeometryRevision"])?
+                    || geometry["payload"]["originalAssetId"] != floor["nativeOriginalAssetId"]
+                    || asset["payload"]["sha256"] != floor["nativeOriginalSha256"]
+                    || asset["payload"]["purpose"] != "geometry-original"
+                {
+                    return Err(SemanticError::invalid("Scene native floor pin changed"));
+                }
+            }
+            let mut anchors = HashMap::new();
+            for anchor in items(&receipt["anchors"])? {
+                let id = text(&anchor["id"])?;
+                let floor = (
+                    text(&anchor["sourceFloorKey"])?.to_owned(),
+                    text(&anchor["sourceOriginalSha256"])?.to_owned(),
+                );
+                if !floors.contains(&floor) || anchors.insert(id, anchor).is_some() {
+                    return Err(SemanticError::new(
+                        SemanticCode::IdentityConflict,
+                        "Scene receipt anchor/floor is ambiguous",
+                    ));
+                }
+                let targets = items(&anchor["targets"])?;
+                let unique: HashSet<_> = targets
+                    .iter()
+                    .map(|t| {
+                        (
+                            t["packagePlaceKey"].as_str(),
+                            t["packagePlaceUuid"].as_str(),
+                        )
+                    })
+                    .collect();
+                if unique.len() != targets.len()
+                    || items(&anchor["unresolvedLabels"])?
+                        .iter()
+                        .map(Value::as_str)
+                        .collect::<HashSet<_>>()
+                        .len()
+                        != items(&anchor["unresolvedLabels"])?.len()
+                {
+                    return Err(SemanticError::new(
+                        SemanticCode::IdentityConflict,
+                        "Scene receipt membership duplicates",
+                    ));
+                }
+            }
+            let mut rooms = HashSet::new();
+            for room in items(&payload["roomMappings"])? {
+                let floor = (
+                    text(&room["sourceFloorKey"])?.to_owned(),
+                    text(&room["sourceOriginalSha256"])?.to_owned(),
+                );
+                if !floors.contains(&floor)
+                    || !rooms.insert((floor.clone(), text(&room["sourceRoomId"])?.to_owned()))
+                {
+                    return Err(SemanticError::new(
+                        SemanticCode::IdentityConflict,
+                        "Scene room source key is ambiguous",
+                    ));
+                }
+                let ids = items(&room["sourceAnchorIds"])?;
+                if ids.iter().map(Value::as_str).collect::<HashSet<_>>().len() != ids.len() {
+                    return Err(SemanticError::new(
+                        SemanticCode::IdentityConflict,
+                        "Duplicate room anchor",
+                    ));
+                }
+                let mut targets = HashSet::new();
+                let mut unresolved = HashSet::new();
+                for id in ids {
+                    let anchor = anchors.get(text(id)?).ok_or_else(|| {
+                        SemanticError::invalid("Scene room references a foreign anchor")
+                    })?;
+                    if anchor["sourceFloorKey"] != room["sourceFloorKey"]
+                        || anchor["sourceOriginalSha256"] != room["sourceOriginalSha256"]
+                    {
+                        return Err(SemanticError::invalid(
+                            "Scene room references a foreign anchor",
+                        ));
+                    }
+                    for target in items(&anchor["targets"])? {
+                        targets.insert((
+                            text(&target["packagePlaceKey"])?.to_owned(),
+                            text(&target["packagePlaceUuid"])?.to_owned(),
+                        ));
+                    }
+                    for label in items(&anchor["unresolvedLabels"])? {
+                        unresolved.insert(text(label)?.to_owned());
+                    }
+                }
+                let actual = items(&room["targets"])?;
+                let actual_targets: HashSet<_> = actual
+                    .iter()
+                    .map(|t| {
+                        (
+                            t["packagePlaceKey"].as_str(),
+                            t["packagePlaceUuid"].as_str(),
+                        )
+                    })
+                    .collect();
+                if actual_targets.len() != actual.len()
+                    || actual_targets.len() != targets.len()
+                    || !targets.iter().all(|(key, id)| {
+                        actual_targets.contains(&(Some(key.as_str()), Some(id.as_str())))
+                    })
+                {
+                    return Err(SemanticError::invalid(
+                        "Scene room must retain complete target union",
+                    ));
+                }
+                let labels = items(&room["unresolvedLabels"])?;
+                if labels.len() != unresolved.len()
+                    || !labels
+                        .iter()
+                        .all(|label| label.as_str().is_some_and(|v| unresolved.contains(v)))
+                {
+                    return Err(SemanticError::invalid(
+                        "Scene room must retain complete unresolved union",
+                    ));
+                }
+                graph.evidence(record, &room["evidenceIds"])?;
+                for target in actual {
+                    if let Some(id) = target["atlasPlaceId"].as_str()
+                        && graph.get(record, "identity", id)?["payload"]["kind"] != "location"
+                    {
+                        return Err(SemanticError::invalid(
+                            "Scene target needs genuine Atlas location",
+                        ));
+                    }
+                }
+            }
+        }
         if record["recordType"] == "reconciliation" {
             graph.get(record, "identity", text(&payload["atlasId"])?)?;
             let from = graph.get(record, "binding", text(&payload["fromBindingId"])?)?;
@@ -477,6 +727,7 @@ pub(super) fn validate_snapshot(snapshot: &Value) -> Result<()> {
         }
     }
 
+    validate_topology(&graph, records)?;
     validate_evidence_cycles(&graph, records)?;
     // Journals retain historical endpoints irrespective of later retirement.
     validate_remap_cycles(&graph, records)?;
@@ -757,4 +1008,153 @@ fn validate_remap_cycles(graph: &Graph<'_>, records: &[Value]) -> Result<()> {
         }
     }
     Ok(())
+}
+
+// Current reviewed classifications are indexed only after the full snapshot's
+// uniqueness checks. Relation meaning must not depend on record input order.
+fn validate_topology(graph: &Graph<'_>, records: &[Value]) -> Result<()> {
+    let mut classifications = HashMap::new();
+    for record in records {
+        if record["recordType"] == "location-semantics" {
+            let payload = &record["payload"];
+            if let Some(elevation) = payload.get("elevation") {
+                if payload["semanticKind"] != "floor" {
+                    return Err(SemanticError::invalid("Elevation requires floor semantics"));
+                }
+                if elevation["status"] == "known" {
+                    number(&elevation["metres"])?;
+                    let datum = graph.get(record, "identity", text(&elevation["datumAtlasId"])?)?;
+                    if datum["payload"]["kind"] != "location" {
+                        return Err(SemanticError::invalid(
+                            "Elevation datum requires location identity",
+                        ));
+                    }
+                    if current_accepted(record) && datum["lifecycle"] != "active" {
+                        return Err(SemanticError::new(
+                            SemanticCode::InvalidTransition,
+                            "Accepted elevation needs active datum",
+                        ));
+                    }
+                }
+            }
+            if current_accepted(record) {
+                classifications.insert(
+                    record_ref_key(record, "identity", text(&payload["atlasId"])?)?,
+                    text(&payload["semanticKind"])?,
+                );
+            }
+        }
+    }
+    let mut building_parents = HashMap::new();
+    let mut level_parents = HashMap::new();
+    for record in records {
+        let payload = &record["payload"];
+        if record["recordType"] != "relation"
+            || !["location-membership", "physical-access"]
+                .contains(&payload["kind"].as_str().unwrap_or(""))
+        {
+            continue;
+        }
+        let mut endpoints = Vec::with_capacity(2);
+        for field in ["from", "to"] {
+            if payload[field]["kind"] != "atlas-record"
+                || payload[field]["ref"]["recordType"] != "identity"
+            {
+                return Err(SemanticError::invalid(
+                    "Topology endpoints require resolved location identities",
+                ));
+            }
+            let endpoint = graph.get(
+                record,
+                "identity",
+                text(&payload[field]["ref"]["recordId"])?,
+            )?;
+            if endpoint["payload"]["kind"] != "location" {
+                return Err(SemanticError::invalid(
+                    "Topology endpoints require location identities",
+                ));
+            }
+            if current_accepted(record) && endpoint["lifecycle"] != "active" {
+                return Err(SemanticError::new(
+                    SemanticCode::InvalidTransition,
+                    "Accepted topology needs active endpoints",
+                ));
+            }
+            endpoints.push(record_key(endpoint)?);
+        }
+        if payload["kind"] == "physical-access" && endpoints[0] == endpoints[1] {
+            return Err(SemanticError::invalid(
+                "Topology endpoints must be distinct",
+            ));
+        }
+        if payload["kind"] != "location-membership" || !current_accepted(record) {
+            continue;
+        }
+        let parent_kind = classifications.get(&endpoints[0]).copied();
+        let child_kind = classifications.get(&endpoints[1]).copied();
+        let parents = if payload["membershipKind"] == "building" {
+            if parent_kind != Some("building") {
+                return Err(SemanticError::invalid(
+                    "Building membership needs accepted building parent",
+                ));
+            }
+            &mut building_parents
+        } else {
+            if parent_kind != Some("floor") {
+                return Err(SemanticError::invalid(
+                    "Level membership needs accepted floor parent",
+                ));
+            }
+            if child_kind == Some("floor") {
+                return Err(SemanticError::invalid("Floor cannot be a level member"));
+            }
+            &mut level_parents
+        };
+        if child_kind == Some("building") {
+            return Err(SemanticError::invalid("Building cannot be a member"));
+        }
+        if parents
+            .insert(endpoints[1].clone(), endpoints[0].clone())
+            .is_some()
+        {
+            return Err(SemanticError::new(
+                SemanticCode::IdentityConflict,
+                "Only one active accepted parent per membership kind",
+            ));
+        }
+    }
+    // Every walk is finite and keyed by the exact scoped identity. Follow both
+    // kinds to reject cycles, without deriving membership from source parents.
+    for start in building_parents.keys().chain(level_parents.keys()) {
+        let mut visited = HashSet::new();
+        let mut pending = vec![start];
+        while let Some(child) = pending.pop() {
+            for parent in [building_parents.get(child), level_parents.get(child)]
+                .into_iter()
+                .flatten()
+            {
+                if parent == start {
+                    return Err(SemanticError::invalid("Accepted membership cycle"));
+                }
+                if visited.insert(parent) {
+                    pending.push(parent);
+                }
+            }
+        }
+    }
+    for (child, level) in &level_parents {
+        if let (Some(direct), Some(derived)) =
+            (building_parents.get(child), building_parents.get(level))
+            && direct != derived
+        {
+            return Err(SemanticError::invalid(
+                "Direct and level-derived building membership conflict",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn current_accepted(record: &Value) -> bool {
+    record["lifecycle"] == "active" && record["payload"]["reviewStatus"] == "accepted"
 }

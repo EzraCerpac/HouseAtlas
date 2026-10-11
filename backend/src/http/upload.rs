@@ -2,6 +2,7 @@
 use super::{
     CheckedHeaders, Host, HttpResult, access_error, evidence, failure, json_response,
     qualified_upload_plan, stock_mutations, stock_reads, upload_batch, upload_intake,
+    upload_outcomes,
 };
 use crate::{
     access as a,
@@ -23,7 +24,7 @@ use std::time::Duration;
 
 pub(super) fn policy() -> serde_json::Value {
     json!({
-        "contentTypes":["image/png","application/pdf","text/plain"],
+        "contentTypes":["image/png","image/jpeg","application/pdf","text/plain"],
         "maximumBytes":upload_intake::MAX_FILE_BYTES,
         "licenses":[{"label":"Unknown","value":{"status":"unknown","reference":null}}]
     })
@@ -35,10 +36,33 @@ fn unavailable() -> super::HttpFailure {
     failure(StatusCode::SERVICE_UNAVAILABLE)
 }
 
+#[derive(Clone, Copy)]
+enum PlaceNamespace {
+    SourceBacked,
+    Native,
+}
+
 pub(super) async fn command(
     State(host): State<Host>,
-    Path((workspace_id, home_id, record_id)): Path<(String, String, String)>,
+    Path(path): Path<(String, String, String)>,
     request: Request,
+) -> HttpResult {
+    intake_command(host, path, request, PlaceNamespace::SourceBacked).await
+}
+
+pub(super) async fn native_command(
+    State(host): State<Host>,
+    Path(path): Path<(String, String, String)>,
+    request: Request,
+) -> HttpResult {
+    intake_command(host, path, request, PlaceNamespace::Native).await
+}
+
+async fn intake_command(
+    host: Host,
+    (workspace_id, home_id, record_id): (String, String, String),
+    request: Request,
+    namespace: PlaceNamespace,
 ) -> HttpResult {
     if request.uri().query().is_some() {
         return Err(failure(StatusCode::FORBIDDEN));
@@ -48,6 +72,11 @@ pub(super) async fn command(
         home_id,
     };
     let selected = crate::app::access_scope(&scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
+    let correlation = if matches!(namespace, PlaceNamespace::Native) {
+        upload_outcomes::request_id(request.headers())?
+    } else {
+        None
+    };
     let checked = request
         .extensions()
         .get::<CheckedHeaders>()
@@ -79,26 +108,75 @@ pub(super) async fn command(
     })
     .await
     .map_err(|_| unavailable())??;
-    let input = upload_intake::read(request)
-        .await
-        .map_err(|error| failure(error.status()))?;
+    // Only a genuine authorized POST may receive an intake rejection carrier.
+    // Keep the large-body slot through blocking work even if the caller leaves.
+    let upload_permit = match host.upload_slots.clone().try_acquire_owned() {
+        Ok(permit) => permit,
+        Err(_) => {
+            return upload_outcomes::reject(
+                correlation.as_deref(),
+                &scope,
+                &record_id,
+                StatusCode::SERVICE_UNAVAILABLE,
+                "upload-busy",
+            );
+        }
+    };
+    let input = match upload_intake::read(request).await {
+        Ok(input) => input,
+        Err(error) => {
+            let code = if error.status() == StatusCode::REQUEST_TIMEOUT {
+                "upload-timeout"
+            } else {
+                "invalid-upload"
+            };
+            return upload_outcomes::reject(
+                correlation.as_deref(),
+                &scope,
+                &record_id,
+                error.status(),
+                code,
+            );
+        }
+    };
+    if correlation
+        .as_ref()
+        .is_some_and(|id| id != &input.metadata.request_id)
+    {
+        return upload_outcomes::reject(
+            correlation.as_deref(),
+            &scope,
+            &record_id,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "invalid-upload",
+        );
+    }
+    if input.metadata.context.workspace_id != scope.workspace_id
+        || input.metadata.context.home_id != scope.home_id
+        || input.metadata.record_id != record_id
+        || input.metadata.source_license.status != types::LicenseStatus::Unknown
+        || input.metadata.source_license.reference.is_some()
+    {
+        return upload_outcomes::reject(
+            correlation.as_deref(),
+            &scope,
+            &record_id,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "invalid-upload",
+        );
+    }
     let inputs = upload_batch::FreshUploadInputs::capture_server_intake()
         .map_err(stock_reads::http_error)?;
     tokio::task::spawn_blocking(move || {
+        let _upload_permit = upload_permit;
         let _admitted = checked.admission_permit()?;
         let mut core = host.core.lock().map_err(|_| unavailable())?;
         let home = core.homes.iter().find(|home| home.scope == scope).cloned()
             .ok_or_else(|| failure(StatusCode::NOT_FOUND))?;
-        if input.metadata.context.workspace_id != scope.workspace_id
-            || input.metadata.context.home_id != scope.home_id
-            || input.metadata.record_id != record_id
-            || input.metadata.source_license.status != types::LicenseStatus::Unknown
-            || input.metadata.source_license.reference.is_some()
-        {
-            return Err(failure(StatusCode::UNPROCESSABLE_ENTITY));
-        }
-        let selection = qualified_upload_plan::resolve(&mut core, &principal, &home, &input.metadata)
-            .map_err(stock_reads::http_error)?;
+        let selection = match namespace {
+            PlaceNamespace::SourceBacked => qualified_upload_plan::resolve(&mut core, &principal, &home, &input.metadata),
+            PlaceNamespace::Native => qualified_upload_plan::resolve_native(&mut core, &principal, &home, &input.metadata),
+        }.map_err(stock_reads::http_error)?;
         let budget = m::WorkBudget::new(Duration::from_secs(10), m::Cancellation::default())
             .map_err(media_error)?;
         let runtime = ServerRuntime;
@@ -186,7 +264,7 @@ pub(super) async fn command(
             &principal, &selection, &input.metadata, &staged, &inputs,
         ).map_err(stock_reads::http_error)?;
         let raw = plan.plan().original_request().clone();
-        let result = stock_mutations::execute_staged(&core, &principal, &selection, raw, &staged, &schemas)
+        let (result, release) = stock_mutations::execute_staged(&host, &core, &principal, &selection, raw, &staged, &schemas)
             .map_err(stock_reads::http_error)?;
         // The owner has already committed and qualified this canonical result.
         // Metadata retirement cannot turn that commit into an unconfirmed write.
@@ -215,6 +293,10 @@ pub(super) async fn command(
         // use a cleanup error to waive the original principal/source checks.
         let access = core.access.lock().map_err(|_| unavailable())?;
         principal.release(&access).map_err(access_error)?;
+        drop(access);
+        if let Some(release) = release {
+            release.mark_released();
+        }
         Ok(json_response(result.wire))
     }).await.map_err(|_| unavailable())?
 }

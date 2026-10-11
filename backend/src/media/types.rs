@@ -273,33 +273,67 @@ impl AssetRecord {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ContentType {
     Png,
+    Jpeg,
     Pdf,
     Text,
+    Usdz,
+    Ifc,
+    AuthoredMesh,
 }
 
 impl ContentType {
     pub fn parse(value: &str) -> MediaResult<Self> {
         match value {
             "image/png" => Ok(Self::Png),
+            "image/jpeg" => Ok(Self::Jpeg),
             "application/pdf" => Ok(Self::Pdf),
             "text/plain" => Ok(Self::Text),
             _ => Err(MediaError::Unsupported),
         }
     }
 
+    /// Native retained Media only. Existing provider/queued intake uses parse()
+    /// and keeps its original four-format allowlist unchanged.
+    pub fn parse_owned(value: &str) -> MediaResult<Self> {
+        match value {
+            "model/vnd.usdz+zip" => Ok(Self::Usdz),
+            "application/x-step" => Ok(Self::Ifc),
+            super::mesh_derivative::MIME => Ok(Self::AuthoredMesh),
+            _ => Self::parse(value),
+        }
+    }
+
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Png => "image/png",
+            Self::Jpeg => "image/jpeg",
             Self::Pdf => "application/pdf",
             Self::Text => "text/plain",
+            Self::Usdz => "model/vnd.usdz+zip",
+            Self::Ifc => "application/x-step",
+            Self::AuthoredMesh => super::mesh_derivative::MIME,
+        }
+    }
+
+    /// Distinct retained families. An authored derivative never becomes an
+    /// original or PNG renderer qualification. Old four original kinds remain.
+    pub fn supports_purpose(self, purpose: AssetPurpose) -> bool {
+        match self {
+            Self::AuthoredMesh => purpose == AssetPurpose::DerivedPreview,
+            Self::Usdz | Self::Ifc => purpose == AssetPurpose::GeometryOriginal,
+            Self::Png | Self::Jpeg | Self::Pdf | Self::Text => purpose.is_original(),
         }
     }
 
     pub fn extension(self) -> &'static str {
         match self {
             Self::Png => "png",
+            Self::Jpeg => "jpg",
             Self::Pdf => "pdf",
             Self::Text => "txt",
+            Self::Usdz => "usdz",
+            Self::Ifc => "ifc",
+            Self::AuthoredMesh => "json",
         }
     }
 }

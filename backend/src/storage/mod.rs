@@ -7,16 +7,41 @@ mod cache_types;
 mod command_extension;
 mod context;
 mod error;
+mod existing_validation;
+pub(crate) use existing_validation::validate_existing_receipt_schema;
+mod homebox_stock_history_types;
 mod migrations;
 mod native;
 mod numeric;
 mod ports;
+mod presence_profile;
+mod presence_validation;
+mod presence_witness_repository;
+pub use presence_profile::{
+    PresenceProfileDefinition, PresenceProfileSelection, presence_profile_definition,
+};
+mod quantity_installation_types;
 mod queue;
+pub use quantity_installation_types::{
+    QuantityInstallationObservation, QuantityInstallationStoreIdentity,
+};
+mod queue_original_profile;
+pub use queue_original_profile::{
+    QueueOriginalPreparationProfileDefinition, QueueOriginalPreparationProfileSelection,
+    queue_original_preparation_profile_definition,
+};
 mod repository;
+mod stock_activity;
+mod stock_asset_review_types;
+mod stock_derivation;
 mod stock_history_repository;
 mod stock_projection;
 mod stock_recovery;
+mod stock_replay_preparation_types;
 mod stock_repository;
+pub use stock_replay_preparation_types::StockAtlasReplayPreparation;
+mod stock_retained_read_types;
+pub use stock_retained_read_types::*;
 mod stock_types;
 mod store;
 mod types;
@@ -25,19 +50,48 @@ mod upload_types;
 
 pub use cache_types::*;
 pub use error::{Error, Result};
-pub use migrations::{DATABASE_LINEAGE, DATABASE_VERSION};
+pub use homebox_stock_history_types::*;
+pub use migrations::{DATABASE_LINEAGE, DATABASE_VERSION, STOCK_ACTIVITY_DATABASE_VERSION};
 pub use native::NativeContract;
 pub use ports::{
     AssetProof, Authorization, AuthorizationRequest, Capability, Contract, Prior, Runtime,
 };
+pub(crate) use queue::ArchivedQueuedUploadOriginalFactsIdentity;
+pub(crate) use queue::QueuedUploadFinishHistoryIdentity;
 pub use queue::{
-    JournalEvidenceView, NativeJournalReceipt, PreparedNativeIntent, QueueAction,
-    QueueAuthorization, QueueDiscovery, QueueEvidenceInbox, QueueHandles, QueueJournalHandle,
-    QueueJournalPort, QueueOriginalIntent, QueuePhase, QueueRecoveryAttempt, QueueRecoveryEvidence,
-    QueueRecoveryOutcome, QueueSession, QueueSessionBinding, QueueStepEvidence, QueueStoreHandle,
-    StepKind,
+    ArchivedQueuedUploadOriginalFacts, ArchivedQueuedUploadOriginalOwner,
+    ArchivedQueuedUploadOriginalProof,
 };
+pub use queue::{
+    JournalEvidenceView, NativeJournalReceipt, OriginalQueueJournalCut,
+    OriginalQueuedQuantityAttempt, OriginalQueuedQuantityClaim, OriginalQueuedQuantityEnqueue,
+    OriginalQueuedQuantityOwner, OriginalQueuedUploadAttempt, OriginalQueuedUploadClaim,
+    OriginalQueuedUploadEnqueue, OriginalQueuedUploadExecution, OriginalQueuedUploadOwner,
+    OriginalUploadJournalCut, PreparedNativeIntent, QueueAction, QueueAuthorization,
+    QueueDiscovery, QueueEvidenceInbox, QueueHandles, QueueJournalHandle, QueueJournalPort,
+    QueueOriginalCommittedData, QueueOriginalCommittedObservation, QueueOriginalIntent,
+    QueueOriginalJournalCommittedData, QueueOriginalJournalCommittedObservation,
+    QueueOriginalPreparationCommittedData, QueueOriginalPreparationData,
+    QueueOriginalPreparationObservation, QueuePhase, QueueRecoveryAttempt, QueueRecoveryEvidence,
+    QueueRecoveryOutcome, QueueSession, QueueSessionBinding, QueueStepEvidence, QueueStoreHandle,
+    QueueUploadCommittedData, QueueUploadCommittedObservation, QueueUploadFinishCommittedData,
+    QueueUploadFinishCommittedObservation, QueueUploadJournalCommittedData,
+    QueueUploadJournalCommittedObservation, RecordedOriginalEnqueue, RecordedOriginalEnqueueProof,
+    RecordedOriginalUploadEnqueue, RecordedOriginalUploadEnqueueProof,
+    ReleasedQueuedUploadFinishHistory, ReleasedQueuedUploadOriginalHistory, StepKind,
+};
+pub use stock_activity::*;
+pub use stock_asset_review_types::*;
 pub use stock_types::*;
-pub use store::{AtlasStore, RecoveryImage, RecoveryValidationPeers, StoreOptions};
+pub use store::*;
 pub use types::*;
-pub use upload_types::{ConsumedUpload, ExistingOriginalAsset, StagedUploadPrincipal};
+pub use upload_types::{
+    AssetUploadCommitObservation, AssetUploadQualifiedCompletion, ConsumedUpload,
+    ExistingOriginalAsset, MediaPolicyRecoveryFrame, StagedUploadPrincipal,
+};
+
+pub(crate) use queue::upload_execution::current_now as original_upload_execution_now;
+pub(crate) use stock_activity::retained_native_codec_bridge;
+
+pub use quantity_installation_types::QuantityInstallationTransaction;
+pub(crate) use store::observe_quantity_installation_in_transaction;

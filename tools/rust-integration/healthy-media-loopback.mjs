@@ -81,7 +81,27 @@ try {
     const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
     assert(!result.exceptionDetails, 'Healthy browser evaluation'); return result.result.value;
   };
+  // Open the retained native Atlas surface through Lantern's visible controls.
+  const openAtlasTools = async () => {
+    await until(async () => await evaluate(`(() => {
+      const button = [...document.querySelectorAll('nav[aria-label="Sections"] button')]
+        .find(button => button.textContent?.trim() === 'Changes' && button.getClientRects().length);
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`), 'Visible Changes navigation');
+    await until(async () => await evaluate("document.querySelector('main#main h1')?.textContent === 'Changes'"), 'Changes view');
+    await until(async () => await evaluate(`(() => {
+      const button = [...document.querySelectorAll('main#main button')]
+        .find(button => button.textContent?.trim() === 'Atlas tools' && button.getClientRects().length);
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`), 'Visible Atlas tools action');
+    await until(async () => await evaluate("Boolean(document.querySelector('[role=dialog][aria-modal=true][aria-label=\"Atlas tools\"]:not([hidden])'))"), 'Visible Atlas tools dialog');
+  };
   await send('Page.navigate', { url: origin });
+  await openAtlasTools();
   try {
     await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'React authorized home rendering');
   } catch (error) {
@@ -132,6 +152,9 @@ try {
   await evaluate("location.hash='#settings'");
   await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Sign out'), 'Actual session Settings');
   await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Sign out').click()");
+  await until(async () => await evaluate("Boolean(document.querySelector('section[role=dialog][aria-modal=true][aria-labelledby=capture-logout-heading]')?.getClientRects().length)"), 'Ordinary logout confirmation dialog');
+  assert.equal(await evaluate("document.querySelector('section[aria-labelledby=capture-logout-heading] input[type=checkbox]')?.checked"), false, 'Ordinary logout keeps local captures by default');
+  await evaluate("[...document.querySelectorAll('section[aria-labelledby=capture-logout-heading] button')].find(b=>b.textContent==='Keep local captures and sign out'&&!b.disabled).click()");
   await until(async () => await evaluate("Boolean(document.getElementById('atlas-username'))"), 'Ordinary successful logout form');
   assert.equal(await evaluate('document.activeElement?.id'), 'atlas-username');
   // The component stays mounted while signed out. No unauthenticated session
@@ -139,6 +162,7 @@ try {
   await evaluate(`document.getElementById('atlas-username').value=${JSON.stringify(login.username)}; document.getElementById('atlas-password').value=${JSON.stringify(login.password)}; document.querySelector('.session-form').requestSubmit()`);
   assert.equal(await evaluate("document.getElementById('atlas-password')?.value ?? ''"), '');
   await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'Actual successful HTTP login and React home');
+  await openAtlasTools();
   const refreshedCookies = await send('Network.getCookies', {urls:[origin]});
   const actualSessionCookie = refreshedCookies.cookies.find(c=>c.name===cookie.slice(0,split));
   assert(actualSessionCookie?.secure && actualSessionCookie.httpOnly && actualSessionCookie.sameSite==='Strict', 'Actual login issues protected browser cookie');

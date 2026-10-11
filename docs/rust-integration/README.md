@@ -8,38 +8,29 @@ It retains original opaque authority throughout native owner preparation,
 transactions and output release. Existing JavaScript sources remain references;
 the running Rust service invokes no JavaScript semantic oracle.
 
-The first read slice landed through PR14 at main
-`e9de66477c04c43eb74a29d932b22322115e33d5`, tree
-`442de62b76aee515cfe1b56c37faccc77a337382`. The historical PR16 core checkpoint is
-`915d9baae6710d23e29f34da488df1de493a2c0c`, tree
-`f50c85c046f24690bdd10126c5dd277a6f495b2b`. PR37 subsequently landed normally as main
-`6214a015066de5733e0ab7664678019bae0cdf84`, tree
-`f8c3236158fb409d8b079c7e761f54c852f392a1`. This separate host continuation
-starts from that exact reviewed tree. Current composition inputs are below.
 Development composition and ordinary healthy evidence do not establish product,
 security, operational recovery or target acceptance.
 
-## Exact module inputs
+The exact `cargo run --offline --locked -p houseatlas-backend --example healthy-mcp-editor-http`
+command selects one disposable in-process Axum HTTP Editor MCP happy path: actual
+native fixture/session issuance, explicit existing Editor command profile,
+initialize/initialized/tools-list, one circuit create, and canonical get/history
+audit readback across seven POSTs. It uses only private generated synthetic
+credentials and closes the native session through normal Host teardown before
+fixture cleanup. Inspect the complete example and review its scope before running;
+this command is not part of ordinary CI. The inspected development composition
+passed this exact disposable example on 2026-10-09, including native commit,
+get/history readback and normal fixture cleanup. No listener, provider, denial,
+replay, expiry, revocation, rotation,
+cancellation, injection, concurrency or other control is included.
 
-| Namespace | Exact input |
-| --- | --- |
-| Baseline generation/protocol, retained from main | 07576e6be463dd481b49071071c66dec144b1e0c |
-| Access, original-grant transaction revalidation and explicit lifecycle policy | 4a0cd4da563a32d26677755a608180c960765353 |
-| Combined native core/stock contracts and raw-current/timestamp peer exports | 49d4a0a84baf05b3e16b5bd31833ebd0786c6d4c |
-| Storage fresh schema5, actual atomic upload consumption and checked retained projection | e23a1c959119b1f64061d51555be5f45cf48e3e5 |
-| Domain direct native semantics/storage, stock bridges and live/retained upload factories | 8a568fb6ccef5b0fa575b18d6181dcc524d4db99 |
-| Jobs/stock boundaries | f35bcdc2d9c24646356bc080bfb1ef157120bcb3 |
-| Media native access/storage/runtime, genuine original-principal upload stages and populated-image peer port | f0d6b10f00bb93fc1c1dd4eb3ae66ee1fbe3f873 |
-| React session shell, stock completion, native1024 forms and read-only admission status | 26edb0f0cd77eea3e3b763ff980d96566dfa2660 |
-| Native MCP catalog, original opaque access context and service adapter | 97a1335b1419a4c12b2134fec2195ed68d67ed52 |
-| Browser WebMCP family/schema, session and React acknowledgment boundary | 6832e825c636b7b48eeed8fcb085fe3ca277ead3 |
-| HomeBox full durable-registration read/publication binding | 6109e260bc19ba0d0a857fd15327a49b557c2650 |
-| HomeBox native stock command component | c784be5776b614f8f0bb225fcb5355ecb9e90e0d |
-| Network bounded HTTPS read and original borrowed publication authorizer | 37025316d419d9bf6dd3568cbcc883ee32fa6180 |
-| Root HomeBox configuration/read/closed-refresh host leaves | 2adca95c3a51f5f514e1f245a1a3e22f53929d81 |
-| Root original lifecycle authority and closed HomeBox publication | fd9a44ba2178b9d642e3dc88aab53665056b473b |
-| Root Network configuration/read/publication host leaves | 529ecbcaf6e308b658a7f05fecc3214379fc707a |
-| Root offline recovery configuration/capture/validate/restore/strict-reopen leaves | 66df612d4d90b2f631277a78047bef7c20f26daf |
+## Module composition
+
+The service compiles the actual Access, Contracts, Domain, Storage, Jobs, Media,
+React, MCP, WebMCP, HomeBox and Network modules. The publication manifest records
+tracked source ownership and exact file digests. Original development input
+mapping, before/after receipts and evidence remain in the private coordinator
+ledger outside this repository.
 
 Feature runtime and fixture sources retain exact owner bytes. Four owner
 READMEs have the parent's authorized privacy-only adaptations: Domain, Storage,
@@ -52,11 +43,25 @@ the baseline file because the React input does not carry it.
 Integration owns root manifests/locks/module declarations, app/config/http/
 lifecycle/main, frontend host glue, narrow checks and central publication
 integrity. The accepted HomeBox, Network and recovery host leaves compile with
-the actual owners. Only the cached HomeBox route is mounted in the demonstrated
-provider slice; provider refresh, Network runtime and recovery operations have
-not run. A pending Domain queue-recovery checkpoint is not consumed here. The
-separately accepted Access recovery successor is also unadopted: it imports
-`domain::queue_recovery`, which the accepted Domain input does not expose.
+the actual owners. Cached HomeBox and the actual passive Network host are
+composed; their evidence retains its original checkpoint and bounded ordinary
+scope. `domain::queue_recovery` and the Access recovery extensions are present.
+Their compilation does not supply the independent discovery, original-media
+or durable archive peers required for composed populated recovery.
+
+The host now retains independent actual renderer provenance after successful
+qualified upload/review stock commits, while the same Store lock, original Access
+guard and opaque producer remain held. Capture occurs before stage/proof cleanup;
+a capture error withholds disclosure and does not reverse a durable SQL commit.
+The process-local Media owner validates exact current Asset lineage or a full
+historical consumed-upload association. Empty, restarted or unretained later
+lineage remains unavailable. Its queue composite delegates attempt validation to
+the required original Jobs peer and supplies only the separate Media policy
+callback; it creates no recovery permit. Durable archive origin/capture/read
+authentication remains a separate native-owner contract. No restore or archive
+maintenance is exercised by this composition.
+The closed durable packet, typed descriptor custody and required independent
+offline peer composition are described in [Media archive source](media-policy-archive.md).
 
 ## Actual running core
 
@@ -197,8 +202,8 @@ binding, consumed receipt and asset association.
 Mounted MCP is
 `POST /api/atlas/mcp/workspaces/{workspaceId}/homes/{homeId}`. Its cookie/CSRF
 profile uses actual observed POST evidence and genuine AT11 `Action::Mutate`
-Editor authority for every message, while its catalogue admits twenty Atlas
-record/history reads only. Initialization publishes an actual protocol-session
+Editor authority for every message, while its catalogue admits thirty Atlas
+list/record/history reads only. Initialization publishes an actual protocol-session
 header; subsequent messages retain the same original context and are revalidated.
 Protocol `2025-11-25` returns JSON over HTTP 200, with HTTP 202 and an empty body
 for the initialized notification. The host bounds messages at 64 KiB, body intake
@@ -226,17 +231,76 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     npm run verify:publication
     node tools/rust-integration/check-source.mjs
     cargo run --locked -p houseatlas-backend --example healthy-agent-stock
+    cargo run --locked -p houseatlas-backend --example healthy-homebox-cache-stock
+    cargo run --locked -p houseatlas-backend --example healthy-download-lifetime
+    cargo run --locked -p houseatlas-backend --example healthy-recovery-policy
+    cargo run --locked -p houseatlas-backend --example healthy-recovery-policy-archive
+    cargo run --locked -p houseatlas-backend --example healthy-native-policy-archive
+    cargo run --locked -p houseatlas-backend --example healthy-native-upload-policy-archive
+    cargo run --locked -p houseatlas-backend --example healthy-stock-retained-read
+    cargo run --locked -p houseatlas-backend --example presence-metadata-healthy
+    cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_capture_healthy::healthy_fixed_native_get_captures_preserve_originals -- --exact --test-threads=1
+    cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_capture_healthy::healthy_captured_members_into_existing_fresh_inputs -- --exact --test-threads=1
+    cargo test --locked -p houseatlas-backend --lib providers::homebox::read::native_query_healthy::healthy_configured_native_queries_retain_original_authority -- --exact --test-threads=1
+    cargo test --locked -p houseatlas-backend --lib providers::homebox::read::credentials_healthy::healthy_original_credentials_deliver_two_native_gets -- --exact --test-threads=1
+    cargo test --locked -p houseatlas-backend --lib http::providers::homebox_native_healthy::healthy_native_homebox_root_reads_preserve_original_authority -- --exact --test-threads=1
+    cargo test --locked -p houseatlas-backend --lib providers::homebox::write::stock::fresh_healthy::healthy_retained_original_preparation_revalidates_same_owner -- --exact --test-threads=1
+    cargo run --locked -p houseatlas-backend --example network-disclosure-pin
+    cargo run --locked -p houseatlas-backend --example network-constructor-ownership
+    cargo run --locked -p houseatlas-backend --example healthy-asset-review
+    cargo run --locked -p houseatlas-backend --example healthy-homebox-artifacts
+    cargo run --locked -p houseatlas-backend --example healthy-homebox-stock-history
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-core-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-media-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-stock-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-stock-write-loopback.mjs
+    HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-standalone-asset-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-stock-history-loopback.mjs
+    HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-operation-events-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-agent-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-agent-host-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-human-host-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-upload-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs
+
+The Atlas-list browser flow is a separately named local healthy check, outside
+ordinary CI. Inspect its complete body and use its exact scoped permission
+before execution; it has no automatic workflow entrypoint:
+
+    HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-atlas-lists-loopback.mjs
+
+The separate `frontend/src/lantern/quantity/uncertainty.regression.tsx` case
+passed with the actual React preview, quantity client and handoff store. One
+fixed fake preview response was HTTP500, producing the genuine retained unknown;
+the alert appeared and Approve disabled without a click. Human-required Submit
+was already disabled and remained disabled. Prepared wire, ledger, custody and
+cached quantity stayed unchanged. This is a bounded failure-injection case in
+the separate regression lane; it is not part of ordinary CI and runs no approval,
+dispatch, live service/provider, session replacement, expiry or replay.
+
+The named configured Presence case is an ordinary synthetic verification:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib http::stock_mutations::presence_healthy::healthy_configured_presence_binding_single -- --exact --nocapture
+```
+
+Its fresh schema-7 installation, numeric-loopback TLS capture, configured
+publication, accepted Binding, final response and normal same-file reopen through
+its retained history catalog passed. Earlier failed receipts remain preserved.
+The durable snapshot pins canonical Record bodies while preserving native
+projection numeric spellings; full snapshot equality remains strict.
+It exercises no replay, expiry, revocation, injected
+failure, populated restore, live provider or deployment. Inspect its complete
+body and helpers before any named execution.
+
+The inspected stock-write and upload loopback positives also accept the explicit
+`HOUSEATLAS_FIXTURE_PROFILE=native-media-archive` selection. It opens a dedicated
+fresh synthetic descriptor for that disposable Store and checks genuine review
+or upload publication against its actual canonical receipt. This supplies no
+production origin mapping or historical generation. `HOUSEATLAS_SOURCE_SHA`
+requires the exact clean candidate and records binary, frontend and runner
+digests. Default application startup remains unconfigured.
 
 The source runner checks deterministic generation/history, actual locked Rust
 library/binary/module source, rustfmt, warnings-denied Clippy, strict TypeScript
@@ -244,16 +308,78 @@ and Vite. It runs exactly healthy-contracts, healthy-dependencies,
 healthy-native-semantics and healthy-maintenance-calendar. The separately named
 healthy-agent-stock performs
 genuine in-process MCP tools/list and tools/call over actual access/domain/SQLite;
-the workflow compiles it on both platforms and runs it only on Linux.
+its specialized helper exercises the bounded derived forms
+documented in [specialized writes](atlas-specialized-writes.md).
+Run `cargo run --locked -p houseatlas-backend --example healthy-agent-stock`
+for six specialized singles, the positive seven-child mixed derived batch and
+one actual proof-qualified existing-PNG review,
+using real Access/Store and normal reopened record/history reads in disposable
+synthetic state. It exercises no replay, live provider or held controls.
+The workflow compiles it on both platforms and runs it only on Linux.
+The separate healthy-homebox-cache-stock example reads four cached entity/location
+forms through the actual native dispatcher and borrowed in-process MCP adapter.
+Its private fixture clone uses UUID collection IDs required by wire3; the actual
+opaque source-ID compatibility gap remains unresolved. It opens no listener and
+performs no provider I/O.
+The healthy-asset-review example measures/render-strips one private retained
+synthetic PNG, binds an opaque proof to actual original Access authority, and
+checks exact native request/preimage/Domain-mapped successor. It proves neither
+original admission nor Store commit nor cross-request host receipt custody.
 
-Each of the eleven browser runners uses fresh Chromium and a disposable TLS
+The healthy-homebox-artifacts example uses one private synthetic local file and
+actual Access source grants, opaque issuance, and fresh same-session Media GET
+and HEAD admission. It verifies measured bytes and source-version correlation.
+Its local source port is explicitly synthetic. No production retained HomeBox
+attachment-membership/byte resolver, stock prepared-disclosure peer or HTTP route
+is installed; module compilation does not admit file-download capability.
+
+The healthy-homebox-stock-history example retains four actual profile-6
+reservations and reads entity pagination, a watermark-pinned continuation,
+location history through the native history port, and an ordinary reopened
+page. Each entry is one real saved operation cut with incomplete upstream
+coverage. Its Access disclosure peer is synthetic; default profile 5 remains
+unavailable. Ordinary reopen does not qualify strict recovery or generated
+create identity correlation. Application disclosure and HTTP admission require
+the actual original source and partition grants. The root consumer captures
+those grants before sealing and revalidates them at each disclosure phase.
+HTTP/MCP admission uses the opened Store profile; profile 5 advertises neither
+mediated-history operation. The profile-six consumer has source validation,
+with no configured root runtime fixture claimed. Strict cursor recovery selects
+the HomeBox validator only after complete activity validation on the same
+snapshot. New cursor admissions are capped at 4096 globally and 256 per actor
+and scope; existing immutable cursors survive without expiration or reclamation.
+Before selection or cursor ranking, the original read snapshot is bounded to
+4096 events and 16 MiB of operation JSON at the fixed watermark. Exceeding
+either budget returns unavailable, with no truncated page or evicted history.
+
+For the explicit geometry metadata read fixture, set
+`HOUSEATLAS_FIXTURE_PROFILE=geometry-metadata` and `SOURCE_SHA` to the clean
+composed candidate, then run the same healthy-atlas-lists-loopback script.
+It loads the original published optional-geometry snapshot through native
+bootstrap, retains eight records, compares the public geometry row with actual
+SQLite, and checks the Rooms metadata display. Two explicit geometry/mapping View evidence actions read the unchanged linked Atlas evidence row through actual scoped GETs, preserve its fact/retrieval dates and uncertainty, and fit three responsive widths. No evidence read occurs before the actions. The original asset is missing
+and blocked. Geometry has no shape or placement; this qualifies metadata reads
+only. The standard six-record fixture remains unchanged.
+
+The separate standalone-asset runner uses no browser. It performs one actual
+editor HTTP login and fresh text/plain, unknown-license, download-only asset
+commit on disposable TLS/Access/SQLite, then compares record/history/audit and
+actual authenticated download bytes. It executes no held controls.
+
+Each of the twelve browser runners uses fresh Chromium and a disposable TLS
 certificate, observes actual SQLite rows read-only, stops gracefully and removes
 scratch state. Core adds real auth, canonical paging/reads, one fresh circuit
 and one ordered two-identity batch with record/history readback. Media adds two
 fresh owned asset commits, PNG/text original GET/HEAD and PNG preview; text
 preview and PNG preview HEAD are unrun. Stock read compares circuit/asset results
 with frozen records. Stock write adds fresh circuit and ordered identity-batch
-roots through actual stock execution. Stock history adds three first-page/search
+roots through actual stock execution, plus a mixed unresolved-binding child.
+It also obtains a genuine server renderer receipt for an existing private PNG,
+commits one fresh request-preview review through the same-Store consumer, and
+checks actual rendered bytes, unchanged original provenance, revision2 and the
+complete native/stock receipt and audit linkage. It compares the full Media
+request digest and the distinct Stock intent digest to their respective carriers.
+Stock history adds three first-page/search
 reads, each with one event; nonnull stock cursor continuation remains unrun.
 The original WebMCP runner discovers real document tools, reads an identity,
 creates a circuit, then reads the record and first audit page.
@@ -286,11 +412,50 @@ It performs no retry,
 replay, expiry, recovery or failure control.
 Private evidence packets, fingerprints and optional screenshots remain outside Git.
 
-The workflow selects exact PR-head/main-push source on Linux and macOS, retains
+The workflow selects exact PR-head/main-or-dev-push source on Linux and macOS, retains
 locked source checks and the central publication file/mode/digest/ownership
 allowlist, and configures Linux execution of the named healthy flows. Current
 candidate CI status is reported separately. macOS source compilation supplies
 no target NAS build/runtime or operational qualification.
+
+## Optional cached Network host composition
+
+The optional native Network mount reads through the original Core, canonical
+Access allocation and existing Store. Its cached-only GET is scoped by workspace,
+home, source instance and an opaque collection selector. Fresh native partition
+and entity grants feed the retained generation disclosure; serialization is
+followed by the owner's same-store rerelease and original-authority check.
+Trusted configuration supplies the binding, and the default service has none.
+Browsing supplies no refresh, transport, lifecycle policy or provider credential.
+
+The current development composition includes the original Access shared issuer,
+registered-cache and borrowed snapshot Storage APIs, the genuine Domain offline
+recovery leaf required by that Access source, and the nested Network module.
+Storage's optional activity schema is compiled; the default disposable host
+still opens schema 5, with no activity dispatch or offline recovery mount.
+Existing SQL migrations and schema checksums remain intact.
+
+`healthy-network-root-router` is an explicitly declared healthy example. The
+inspected Python driver creates one disposable CA/end-entity certificate and a
+loopback inventory fixture. The example makes one verified TLS inventory GET,
+publishes through the actual native Store, starts the real root TLS listener,
+logs in a genuine viewer, then makes two cached GETs and three snapshot-backed
+relation/room/item GETs. Snapshot selectors use actual typed AT11 link grants;
+actual raw-generation member evidence now qualifies an explicitly unresolved
+end under the original Access source-read fence. The three snapshot GETs preserve
+four authorized relations and the original cache status. Native cached entities, links,
+relations, observation text and distinct fact/retrieval dates are preserved;
+cache epochs and generation reservations stay unchanged during browsing. Its
+listener supplies actual connection metadata; no transport extension is mocked.
+The native runtime binds read and disclosure to the exact owning Core and its
+current original issuer. This healthy flow passed as a separately named local
+check, outside ordinary CI. It supplies no Network browser/UI, live-provider, rejection, revocation,
+concurrency, recovery or deployment qualification.
+
+```sh
+cargo build --locked -p houseatlas-backend --example healthy-network-root-router
+python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"
+```
 
 ## Explicit remaining areas
 
@@ -302,18 +467,53 @@ but no real configuration, credential release, filtered provider read or refresh
 has been mounted/executed in this disposable host. The cached route does not
 create those permissions or qualify freshness.
 
-Network host settings, retained facet and phased publication source compile.
-Its required whole-collection disclosure membership/credential authority and
-actual runtime remain unbound. The Network owner documents reqwest 0.12/WebPKI
-roots while the host pins reqwest 0.13.5 with Rustls platform verification.
-This TLS profile discrepancy still requires owner reconciliation before combined
-transport acceptance. No runner makes an actual provider request.
+Network host settings, retained facet, phased publication and the optional
+cached-only mount compile with reqwest 0.13.5 and Rustls platform verification.
+The runtime uses the canonical original issuer and complete retained-generation
+resource grants. Its owning Store/Access identity correction and one root healthy
+TLS flow are integrated; exact-candidate review and CI remain required. No actual Network UI, source setup or provider refresh
+is enabled in the default host, and no runner calls a real provider.
 
-Provider stock preparation, original whole-collection approval, verified
-route/build binding, durable operation activity/liability and qualified physical
-dispatch/readback remain unbound. The root supports ten Atlas record-get arms,
-twenty record/history reads, fresh circuit create, qualified location
-classification replacement, child-only ordered identity-create batches, and
+The installed queued-upload continuation now has concrete source producers for
+original enqueue, first claim, measured-body preparation, journal, one native
+attempt, generated-member readback and finish. Each phase retains the same
+original admission, native preparation and execution; committed finish DATA
+survives later release failures. Logical application does not prove remote
+termination or byte persistence: invoked byte disposition stays unknown and
+EndUnproven retains its physical blocker. This path has compilation and source
+review only. No upload invocation or readback runtime was exercised, and no
+descriptor-free cold-start owner or independent archive intake is supplied.
+The pure retained-frame consumer borrows the actual process-local execution,
+released attempt and journal, and original prepared token. It accepts only the
+exact prepared frame with its ordered claim/journal reservation prefix; all
+steps and outcomes remain unsupported. It supplies no discovery, resume or
+restart authority and has source validation only.
+
+The closed historical transfer separately copies the actual released original
+enqueue, first claim and journal into handle-free Storage, Media and Source
+carriers. Root joins their genuine original issuer markers while the live
+preparation and cuts are still present. Copied facts include the original owner
+GET, measured reservation, exact prepared intent, captured installed artifacts
+and original decoder settings. The result retains no stage owner, file,
+upload body, principal, grant, reader, execution or configured owner. Each
+producer bounds its copies before allocation. This is source-only same-process
+provenance: serialized facts cannot reconstruct a seal after restart. A separate
+closed Finish transfer consumes the actual full-Access-released Storage cut and
+the same Source effects, preserving the effects identity and qualified-readback
+option accepted at commit. Later raw capture or qualification cannot become
+evidence for an earlier Finish. It copies the exact accepted outcome, report and
+steps, parsed native response with its digest, and any retained lexical GET
+observation. Lexical native response bytes are unavailable. Invoked uploads keep
+Unknown byte disposition and EndUnproven activity; this history supplies no
+remote-end, byte-persistence, retry or CAS proof. Missing effects do not imply
+that no invocation occurred. These transfers have source validation only.
+Complete archive coverage, authenticated administrative
+intake and independent discovery permission remain separate requirements.
+
+Broader provider stock preparation, original whole-collection approval and
+durable operation activity remain incomplete. The root supports ten Atlas record-get arms,
+thirty list/record/history reads, the closed 31-form direct-write map,
+nonempty batches of mapped children, and
 the ordered genuine-stage asset/evidence/location-identity upload batch.
 Other stock commands remain unbound. Catalogue/schema compilation does not
 establish operation completeness. StockTarget requires a UUID collection; the
@@ -349,7 +549,20 @@ by the strict native opener. Legacy JavaScript persistence uses schema3. No
 modified-image probe, surrogate validator, JavaScript database migration or
 adoption is supplied.
 
-Other missing product areas include atomic presence witness admission/recovery,
+The mounted Lantern File details consumer can discover eligible local HomeBox
+sources, explicitly capture a process-local file snapshot, and display a
+download-only link after its one availability observation. It preserves the
+original source, attachment, session and scope. Every error after a capture is
+sent retains an unknown issuance notice; availability does not prove delivery or
+remote currentness. This consumer has source TypeScript/build validation only;
+no configured provider, capture or download browser runtime was exercised.
+
+Operation-history pages and retained-intent queries now carry the original
+workspace as well as home. The ordinary fake-transport healthy-read checks
+assert the full query scope; a same-home collision across real workspaces was
+not exercised.
+
+Other missing product areas include complete predecessor/cold-start presence recovery,
 trusted real source setup/refresh, actual Network facets, qualified source-native
 links and HomeBox editing, HomeBox media, complete editing beyond the demonstrated
 classification and attachment forms, recovery/export runtime,
@@ -365,6 +578,44 @@ replay, expiry, revocation, injected fault, crash and concurrency checks remain
 unrun. The jobs checkpoint contains replay and is not executed. No broad test
 alias, remote listener, provider/NAS call, live login/grant, deployment or
 security/recovery/target/product acceptance is supplied by this composition.
+
+The optional Network runtime compares its original Access allocation with both
+Core and the Store's configured authorizer. Core/Store is acquired before
+immutable generation staging. Multiple runtime instances share a bounded
+process-local refresh lock keyed by the original Core handle and source partition.
+This is scheduling only; it supplies no authority or cross-process arbitration.
+Concurrency controls remain unrun.
+The snapshot adapter reads the same native baseline inside the original Access
+source-read fence and binds each projected relation to actual immutable raw-member
+evidence. It atomically captures both endpoint grants and the typed link grant,
+withholds only unqualified relations, and compares full baseline/binding equality
+before release. The named healthy snapshot GET preserves four actual relations,
+including an explicitly unresolved end; no denial or revocation control runs.
+
+The captured failure-time source chain now uses the three original Network
+host-runtime leaves from `84da52f5bbb7c041a572def526eb2e31d534d590`, the original
+Network native publisher from `e52c377b48449707e2f768526cd73d0b31e9e62e`, and only
+Storage's cache transaction leaf from `e5fec02e68369d6c01507c96eebd8bcb2bcdc993`.
+The host passes the provider's exact pre-request attempt timestamp through the
+original publisher to the same Store's additive captured-time transaction,
+retaining the original fence and borrowed authority. No host-side error
+conversion or replacement publication owner is supplied. Failure-time,
+timeout, clock-change and concurrency behavior is compiled and source-inspected
+only; those paths remain unexercised. Broader latest Storage and Network module
+changes are not adopted by this update.
+
+The original Storage producer correction retains the producer-set guard before
+creating a durable reservation and records its operation identifier immediately
+after commit without another fallible lock acquisition. Only its two stock
+activity leaves are adopted from source e799d0c3; newer recovery and numeric
+persistence leaves are separate inputs. Lock contention, retries and interrupted
+commit qualification remain unrun. This is a source correction, not a completed
+activity-worker or recovery demonstration.
+
+This provisional Network composition also includes the accepted Access session
+binding seam together with earlier original shared-issuer and recovery extensions.
+Its three combined Access leaves need original-owner reconciliation before final
+acceptance; they are not byte-identical to either standalone source checkpoint.
 
 The multipart route preserves the owner-qualified committed receipt when stage
 metadata retirement fails. Retirement still requires the strict SQLite consumed
@@ -385,3 +636,25 @@ permissions. Other held classes and broad runtime aliases remain held; an
 overlapping case must genuinely fit the exact approved scope and lane safeguards.
 The unrun statements above record coverage, not a blanket prohibition of these
 three classes under that lane. Ordinary CI and historical results are unchanged.
+
+Root Network consolidation uses the original HostNetworkRuntime and RefreshResult
+through lifecycle aliases, retaining the separate closed original publication
+delegates and accepted authority lease types. The mounted cached HTTP adapter is
+moved byte-for-byte to the single network module; its genuine original grants,
+Core/Store borrowing and final disclosure checks are preserved. No provider owner
+namespace changes, refresh route, lifecycle activation or admission expansion are
+introduced. Superseded sidecar retention, raw snapshot qualification and original
+Access composition holds remain unresolved; ordinary source and the existing
+healthy loopback do not qualify the held classes.
+
+
+The concrete native owner composition is documented in
+[native-owner-composition.md](native-owner-composition.md). For its explicit
+fresh synthetic HTTP publication fixture, set
+`HOUSEATLAS_FIXTURE_PROFILE=native-media-archive` and `SOURCE_SHA` to the clean
+candidate, then run the inspected healthy-stock-write-loopback command above.
+It uses the actual configured Host review publisher and one genuine qualified
+Store completion, verifies the sole fsynced 0600 Media packet against canonical
+HTTP wire, and reads Saved receipt through actual Chrome. The standard profile
+keeps its archive unbound. This fixture creates no historical custody authority,
+restore execution or production setting.

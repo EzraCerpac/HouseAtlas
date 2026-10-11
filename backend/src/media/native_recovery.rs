@@ -15,6 +15,7 @@ use super::{MediaError, MediaResult, WorkBudget};
 
 enum Source<'a, C, A, R> {
     Store(&'a Mutex<s::AtlasStore<C, A, R>>),
+    Existing(&'a Path, &'a C),
     Validator(&'a C),
 }
 
@@ -58,23 +59,47 @@ where
         }
     }
 
+    /// Caller holds the existing server lease and proves a closed source with
+    /// no WAL/SHM/journal. This adapter opens no runtime, Access DB or authority.
+    pub fn existing_source(
+        database: &'store Path,
+        contract: &'store C,
+        peers: s::RecoveryValidationPeers<'peer, S, D, E>,
+    ) -> Self {
+        Self {
+            source: Source::Existing(database, contract),
+            peers,
+        }
+    }
+
     pub fn backup_image(
         &self,
         destination: &Path,
         budget: &WorkBudget,
     ) -> MediaResult<s::RecoveryImage> {
         budget.check()?;
-        let Source::Store(source) = self.source else {
-            return Err(MediaError::Unsupported);
+        let image = match self.source {
+            Source::Store(source) => {
+                let mut store = source.try_lock().map_err(|_| MediaError::Unavailable)?;
+                budget.check()?;
+                store
+                    .backup_recovery_to_with_peers(destination, &self.peers, &mut || {
+                        recovery_checkpoint(budget)
+                    })
+                    .map_err(storage_error)?
+            }
+            Source::Existing(database, contract) => {
+                s::AtlasStore::<C, A, R>::backup_existing_recovery_to_with_peers(
+                    database,
+                    contract,
+                    destination,
+                    &self.peers,
+                    &mut || recovery_checkpoint(budget),
+                )
+                .map_err(storage_error)?
+            }
+            Source::Validator(_) => return Err(MediaError::Unsupported),
         };
-        let mut store = source.try_lock().map_err(|_| MediaError::Unavailable)?;
-        budget.check()?;
-        let image = store
-            .backup_recovery_to_with_peers(destination, &self.peers, &mut || {
-                recovery_checkpoint(budget)
-            })
-            .map_err(storage_error)?;
-        drop(store);
         check_recovery_image(&image, native_recovery_profile(), budget)?;
         Ok(image)
     }
@@ -100,7 +125,7 @@ where
                 drop(store);
                 image
             }
-            Source::Validator(contract) => {
+            Source::Validator(contract) | Source::Existing(_, contract) => {
                 s::AtlasStore::<C, A, R>::validate_existing_recovery_image_with_peers(
                     database,
                     contract,

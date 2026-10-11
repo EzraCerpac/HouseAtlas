@@ -1,0 +1,26 @@
+.lantern-host .topology-scope { margin-bottom: 24px; }
+.lantern-host .topology-bar { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 16px; font-size: var(--fs-s); margin-bottom: 12px; }
+.lantern-host .topology-label { font-family: var(--display); font-weight: 750; color: var(--ink); }
+.lantern-host .topology-chips { gap: 8px; margin-bottom: 12px; }
+.lantern-host .topology-chips .chip-btn { min-height: 44px; position: relative; }
+.lantern-host .topology-chips .chip-btn[aria-pressed='true'] { color: var(--ink); background: var(--card); border-color: var(--ink); box-shadow: inset 0 -3px 0 var(--lantern-edge); }
+.lantern-host .topology-building { background: var(--card-2); border-radius: var(--r-panel); padding: 18px; margin: 16px 0; }
+.lantern-host .topology-glyph { font-size: var(--fs-xl); line-height: 1.15; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; overflow-wrap: anywhere; }
+.lantern-host .topology-unknown { color: var(--c-unknown); }
+.lantern-host .topology-row { grid-template-areas: none; grid-template-columns: minmax(110px, 1fr) minmax(0, 2fr); gap: 12px; }
+.lantern-host .topology-row .ledger-facts, .lantern-host .topology-row .ledger-name { grid-area: auto; }
+.lantern-host .topology-facts { margin: 0 0 12px; font-size: var(--fs-s); overflow-wrap: anywhere; }
+.lantern-host .topology-facts summary, .lantern-host .topology-outside > summary { cursor: pointer; padding: 12px 0; min-height: 44px; color: var(--ink-2); }
+.lantern-host .topology-facts p { margin: 6px 0; }
+.lantern-host .topology-fact { border-top: 1px solid var(--hair); margin-top: 12px; padding-top: 6px; }
+.lantern-host .topology-evidence { padding-left: 12px; border-left: 2px solid var(--hair); }
+.lantern-host .topology-band-title { font-size: var(--fs-l); margin: 24px 0 8px; }
+.lantern-host .topology-outside { margin: 20px 0; padding: 0 16px; background: var(--card-2); border: 1px solid var(--hair); border-radius: var(--r-panel); }
+.lantern-host .topology-outside h3 { font-size: var(--fs-m); margin: 16px 0 8px; }
+@media (max-width: 759px) {
+  .lantern-host .topology-chips { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; padding-bottom: 8px; }
+  .lantern-host .topology-chips .chip-btn { flex-shrink: 0; }
+  .lantern-host .topology-level, .lantern-host .topology-building { grid-template-columns: 52px minmax(0, 1fr); gap: 10px; }
+  .lantern-host .topology-row { grid-template-areas: none; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .lantern-host .topology-building { padding: 12px; }
+}

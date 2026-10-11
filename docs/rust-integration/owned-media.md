@@ -8,8 +8,8 @@ Those earlier owner proofs remain separate. No broad test command
 or stopped control was executed.
 
 The real Chromium loopback TLS media flow passed after independent static review
-of its exact script and actual peer binding. This continues the separate PR16
-core checkpoint without advancing its branch. Local evidence uses Rust/cargo
+of its exact script and actual peer binding. This continues the separate earlier
+core checkpoint. Local evidence uses Rust/cargo
 1.99.0, Node 26.10.0, npm 11.19.1 and Chrome 151.0.7922.173.
 
 | Observed flow | Result |

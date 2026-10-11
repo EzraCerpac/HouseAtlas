@@ -1,6 +1,6 @@
 # Contract boundaries and remaining decisions
 
-Contract 1.0.0 / record schema 1 uses opaque UUID identities, per-record integer
+Contract 1.1.0 / record schema 1 uses opaque UUID identities, per-record integer
 revisions and explicit guards. Source-qualified keys remain reserved across
 homes in one workspace, including retired/tombstoned bindings. Source edits
 use verified native HomeBox navigation; Network remains GET-only.
@@ -24,3 +24,12 @@ source-presence admission remains blocked pending a durable atomic witness
 extension. URL filtering is heuristic; full security qualification remains open.
 Safe source provenance is described in docs/publication/provenance.md; private
 approval and intake records are retained externally by the coordinator.
+
+The bounded 1.1.0 topology amendment adds reviewed location membership, typed
+physical access and optional measured floor elevation using existing identities,
+evidence and relations. Old input shapes remain admissible; old closed readers
+do not accept new variants. Native storage/recovery and projection envelope tags
+remain 1.0.0, independently of the current public schema 1.1.0. No migration or
+recovery qualification is implied. Identity-list alone accepts optional buildingId
+for grouping through current reviewed membership in the authorized snapshot; it
+adds no source-parent inference or read authority.

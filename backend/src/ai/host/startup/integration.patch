@@ -1,0 +1,198 @@
+diff --git a/Cargo.toml b/Cargo.toml
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -9,6 +9,7 @@
+ publish = false
+
+ [workspace.dependencies]
++jsonwebtoken = { version = "=11.1.0", default-features = false, features = ["aws_lc_rs"] }
+ axum = { version = "=0.8.9", default-features = false, features = ["http1", "json", "multipart", "original-uri", "query", "tokio"] }
+ tokio = { version = "=1.53.2", default-features = false, features = ["macros", "rt-multi-thread", "sync", "time", "signal"] }
+ rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled", "backup"] }
+diff --git a/backend/Cargo.toml b/backend/Cargo.toml
+--- a/backend/Cargo.toml
++++ b/backend/Cargo.toml
+@@ -13,6 +13,7 @@
+ path = "src/lib.rs"
+
+ [dependencies]
++jsonwebtoken.workspace = true
+ axum.workspace = true
+ tokio.workspace = true
+ rusqlite.workspace = true
+diff --git a/Cargo.lock b/Cargo.lock
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -149,6 +149,7 @@
+ checksum = "b281d307588d634de920874890732659e2e7672f72b5e10e81badc1a8a83621e"
+ dependencies = [
+  "aws-lc-sys",
++ "untrusted 0.7.1",
+  "zeroize",
+ ]
+
+@@ -372,7 +373,7 @@
+ dependencies = [
+  "cfg-if",
+  "cpufeatures 0.3.1",
+- "rand_core",
++ "rand_core 0.10.1",
+ ]
+
+ [[package]]
+@@ -912,7 +913,7 @@
+  "js-sys",
+  "libc",
+  "r-efi 6.0.0",
+- "rand_core",
++ "rand_core 0.10.1",
+  "wasm-bindgen",
+ ]
+
+@@ -998,6 +999,7 @@
+  "fluent-uri",
+  "getrandom 0.3.4",
+  "jsonschema",
++ "jsonwebtoken",
+  "percent-encoding",
+  "png",
+  "rcgen",
+@@ -1441,6 +1443,22 @@
+ ]
+
+ [[package]]
++name = "jsonwebtoken"
++version = "11.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e75fe14a82d81e5f5af639997db37d8b96045938a7ac6ab18cdbe1c7467e05e1"
++dependencies = [
++ "aws-lc-rs",
++ "base64 0.22.1",
++ "getrandom 0.2.17",
++ "js-sys",
++ "serde",
++ "serde_json",
++ "signature",
++ "zeroize",
++]
++
++[[package]]
+ name = "lazy_static"
+ version = "1.5.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -1909,7 +1927,16 @@
+ dependencies = [
+  "chacha20",
+  "getrandom 0.4.3",
+- "rand_core",
++ "rand_core 0.10.1",
++]
++
++[[package]]
++name = "rand_core"
++version = "0.6.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
++dependencies = [
++ "getrandom 0.2.17",
+ ]
+
+ [[package]]
+@@ -1924,7 +1951,7 @@
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "caa0f4137e1c0a72f4c651489402276c8e8e1cf081f3b0ba156d2cbeef09e86a"
+ dependencies = [
+- "rand_core",
++ "rand_core 0.10.1",
+ ]
+
+ [[package]]
+@@ -2063,7 +2090,7 @@
+  "cfg-if",
+  "getrandom 0.2.17",
+  "libc",
+- "untrusted",
++ "untrusted 0.9.0",
+  "windows-sys 0.52.0",
+ ]
+
+@@ -2189,7 +2216,7 @@
+  "aws-lc-rs",
+  "ring",
+  "rustls-pki-types",
+- "untrusted",
++ "untrusted 0.9.0",
+ ]
+
+ [[package]]
+@@ -2435,6 +2462,15 @@
+ ]
+
+ [[package]]
++name = "signature"
++version = "2.2.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
++dependencies = [
++ "rand_core 0.6.4",
++]
++
++[[package]]
+ name = "simd-adler32"
+ version = "0.3.10"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -2842,6 +2878,12 @@
+ version = "1.0.26"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954"
++
++[[package]]
++name = "untrusted"
++version = "0.7.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "a156c684c91ea7d62626509bce3cb4e1d9ed5c4d978f7b4352658f96a4c26b4a"
+
+ [[package]]
+ name = "untrusted"
+@@ -3305,6 +3347,20 @@
+ version = "1.9.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "e13084392c5e4bc371903e2935a5eaeed24905a7511356b883835e18a78f6879"
++dependencies = [
++ "zeroize_derive",
++]
++
++[[package]]
++name = "zeroize_derive"
++version = "1.5.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "3c50655cbb0fe3fc43170059e702f1ce5e19b84cec58dc87b037a09935c2f328"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn 2.0.119",
++]
+
+ [[package]]
+ name = "zerotrie"
+diff --git a/backend/src/ai/host/mod.rs b/backend/src/ai/host/mod.rs
+--- a/backend/src/ai/host/mod.rs
++++ b/backend/src/ai/host/mod.rs
+@@ -42,3 +42,5 @@
+             .bytes()
+             .all(|b| b.is_ascii_alphanumeric() || b"_-".contains(&b))
+ }
++
++pub mod startup;
+diff --git a/backend/src/http/agents/mcp.rs b/backend/src/http/agents/mcp.rs
+--- a/backend/src/http/agents/mcp.rs
++++ b/backend/src/http/agents/mcp.rs
+@@ -176,7 +176,7 @@
+         .map_err(|error| stock_failure(error, &request_id))
+ }
+
+-fn stock_failure(error: st::StockError, request_id: &str) -> m::PortError {
++pub(crate) fn stock_failure(error: st::StockError, request_id: &str) -> m::PortError {
+     let body = super::errors::wire(error, request_id);
+     if crate::contracts::stock::StockValidation::new()
+         .and_then(|c| c.validate("#/$defs/stockError", &body))

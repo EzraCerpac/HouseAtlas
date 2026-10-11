@@ -43,3 +43,9 @@ certify security or deployment.
 web/AGENTS.md governs interface text. Preserve accessible names, scope,
 uncertainty, freshness, access and file availability. Use short functional
 headings and guidance only when needed for the current action or state.
+
+The shared dev branch composes scoped development PRs before review and CI.
+Use one integration writer and preserve donor ancestry. Resolve overlaps against
+the current owner APIs, track review findings, and run only inspected authorized
+checks. Development composition does not accept donors or release main, product
+or deployment gates; main still requires exact candidate review and CI.

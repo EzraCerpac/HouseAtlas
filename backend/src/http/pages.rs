@@ -11,14 +11,20 @@ use std::{
 
 struct Cursor {
     context: [u8; 32],
+    session: [u8; 32],
     offset: usize,
     expires: Instant,
 }
 #[derive(Default)]
 pub(super) struct Pages {
     cursors: BTreeMap<String, Cursor>,
-    order: u64,
-    insertion_order: BTreeMap<u64, String>,
+}
+/// Owned pending response DATA. Only this module constructs its transition;
+/// it grants no authority and retains no principal/Core reference.
+pub(super) struct PreparedPage {
+    followed: Option<String>,
+    next: Option<(String, Cursor)>,
+    response: Value,
 }
 fn digest(value: &Value) -> Result<[u8; 32], HttpFailure> {
     let canonical = NativeContracts
@@ -27,15 +33,15 @@ fn digest(value: &Value) -> Result<[u8; 32], HttpFailure> {
     Ok(Sha256::digest(canonical.as_bytes()).into())
 }
 impl Pages {
-    pub fn page(
+    pub fn prepare(
         &mut self,
         uri: &Uri,
         principal: &RequestPrincipal,
-        cookie: Option<&str>,
+        session: [u8; 32],
         collection: &str,
         items: Vec<Value>,
         statuses: Vec<Value>,
-    ) -> Result<Value, HttpFailure> {
+    ) -> Result<PreparedPage, HttpFailure> {
         let invalid = || failure(StatusCode::UNPROCESSABLE_ENTITY);
         let query = uri.query().unwrap_or("");
         if query.len() > 1024 {
@@ -62,8 +68,11 @@ impl Pages {
         if !(1..=100).contains(&limit) {
             return Err(invalid());
         }
+        let followed = params.get("cursor");
+        if followed.is_some_and(|token| token.len() > 64) {
+            return Err(invalid());
+        }
         let snapshot_digest = digest(&json!({"items":items,"sourceStatuses":statuses}))?;
-        let session: [u8; 32] = Sha256::digest(cookie.unwrap_or("").as_bytes()).into();
         let scope = principal.principal.scope();
         let context = digest(&json!({
             "workspaceId":scope.workspace_id.as_str(), "homeId":scope.home_id.as_str(),
@@ -72,14 +81,9 @@ impl Pages {
         }))?;
         let now = Instant::now();
         self.cursors.retain(|_, value| value.expires > now);
-        self.insertion_order
-            .retain(|_, token| self.cursors.contains_key(token));
-        let offset = match params.get("cursor") {
+        let offset = match followed {
             None => 0,
             Some(token) => {
-                if token.len() > 64 {
-                    return Err(invalid());
-                }
                 let cursor = self.cursors.get(token).ok_or_else(invalid)?;
                 if cursor.context != context {
                     return Err(invalid());
@@ -95,33 +99,60 @@ impl Pages {
             return Err(invalid());
         }
         let next = if end < items.len() {
-            while self.cursors.len() >= 1000 {
-                let Some((_, token)) = self.insertion_order.pop_first() else {
-                    return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
-                };
-                self.cursors.remove(&token);
+            // A validated continuation replaces its own live reservation. New
+            // sequences must fit without evicting another advertised cursor.
+            if followed.is_none()
+                && (self.cursors.len() >= 1000
+                    || self
+                        .cursors
+                        .values()
+                        .filter(|cursor| cursor.session == session)
+                        .count()
+                        >= 100)
+            {
+                return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
             }
             let token =
                 crate::app::new_id().map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-            let order = self
-                .order
-                .checked_add(1)
-                .ok_or_else(|| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-            self.order = order;
-            self.cursors.insert(
-                token.clone(),
-                Cursor {
-                    context,
-                    offset: end,
-                    expires: now + Duration::from_millis(300_000),
-                },
-            );
-            self.insertion_order.insert(order, token.clone());
+            if self.cursors.contains_key(&token) {
+                return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+            }
             Some(token)
         } else {
             None
         };
-        Ok(json!({"contractVersion":crate::storage::CONTRACT_VERSION,
-            "items":items[offset..end],"nextCursor":next,"sourceStatuses":statuses}))
+        // Prepare response DATA without consuming the live followed token.
+        // The caller retains this exact registry guard through its original
+        // final principal release before committing this prepared transition.
+        let response = json!({"contractVersion":crate::storage::CONTRACT_VERSION,
+            "items":items[offset..end],"nextCursor":next,"sourceStatuses":statuses});
+        Ok(PreparedPage {
+            followed: followed.cloned(),
+            next: next.map(|token| {
+                (
+                    token,
+                    Cursor {
+                        context,
+                        session,
+                        offset: end,
+                        expires: now + Duration::from_millis(300_000),
+                    },
+                )
+            }),
+            response,
+        })
+    }
+
+    /// Infallible transition after the caller's actual final authority release.
+    /// The SAME exclusive registry guard must span prepare/release/commit so
+    /// capacity, collision and followed-token validation cannot be invalidated.
+    pub fn commit(&mut self, prepared: PreparedPage) -> Value {
+        if let Some(token) = prepared.followed {
+            self.cursors.remove(&token);
+        }
+        if let Some((token, cursor)) = prepared.next {
+            self.cursors.insert(token, cursor);
+        }
+        prepared.response
     }
 }

@@ -1,5 +1,7 @@
 use super::decode::{self, WireEntity};
 use super::error::invalid;
+use super::native_capture::{self, CapturedStockEntity, CapturedStockMaintenance, NativeCapture};
+use super::native_presence_capture::{NativePresenceGeneration, NativePresenceResponse};
 use super::stock::{self, StockNavigation};
 use super::*;
 use std::{
@@ -175,7 +177,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
     pub fn scope(&self) -> &SourceScope {
         &self.scope
     }
-    pub(super) fn registration(&self) -> &SourceRegistration {
+    pub(crate) fn registration(&self) -> &SourceRegistration {
         &self.registration
     }
     fn authorized(&self, id: &Uuid) -> bool {
@@ -184,6 +186,210 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
     }
     fn check_parent(&self, row: &WireEntity) -> Result<(), ReadError> {
         if row.parent.as_ref().is_some_and(|p| !self.authorized(&p.id)) {
+            return Err(ReadError(ErrorCode::WrongScope));
+        }
+        Ok(())
+    }
+
+    /// Complete bounded bytes from one fixed detail GET, before semantic checks.
+    /// Failed/incomplete body reads have no complete response observation.
+    pub async fn capture_stock_entity_observation(
+        &mut self,
+        id: &Uuid,
+    ) -> Result<native_capture::CapturedStockEntityObservation, ReadError> {
+        self.check_capture_owner(id)?;
+        let path = format!("/api/v1/entities/{}", id.as_str());
+        let deadline = Instant::now() + Duration::from_millis(self.limits.generation_timeout_ms);
+        let response_deadline =
+            (Instant::now() + Duration::from_millis(self.limits.request_timeout_ms)).min(deadline);
+        check_time(response_deadline)?;
+        let request = GetRequest {
+            path: path.clone(),
+            query: Vec::new(),
+            scope: self.scope.clone(),
+            deadline: response_deadline,
+        };
+        let operation = async {
+            let mut response = self.transport.get(request).await?;
+            let mut bytes = Vec::new();
+            while let Some(chunk) = response.body.next_chunk().await? {
+                check_time(response_deadline)?;
+                let total = bytes
+                    .len()
+                    .checked_add(chunk.len())
+                    .ok_or(ReadError(ErrorCode::SizeLimit))?;
+                if total > self.limits.max_response_bytes
+                    || total > self.limits.max_generation_bytes
+                {
+                    return Err(ReadError(ErrorCode::SizeLimit));
+                }
+                bytes.extend_from_slice(&chunk);
+            }
+            // Complete actual bytes precede every fallible semantic postcheck.
+            Ok(native_capture::CapturedStockEntityObservation::new(
+                native_capture::NativeEntityObservationFacts {
+                    scope: response.scope,
+                    expected_scope: self.scope.clone(),
+                    entity_id: id.clone(),
+                    path,
+                    query: Vec::new(),
+                    status: response.status,
+                    redirected: response.redirected,
+                    retrieved_at: self.clock.now(),
+                    limits: self.limits,
+                    partition_mode: self.registration.partition_mode,
+                    allowed: self.registration.allowed_external_ids.clone(),
+                    response_deadline,
+                },
+                bytes,
+            ))
+        };
+        timeout_at(response_deadline, operation)
+            .await
+            .map_err(|_| ReadError(ErrorCode::Timeout))?
+    }
+
+    /// Capture one original stock detail through the configured bounded GET
+    /// transport. No caller-selected endpoint or writable snapshot is admitted.
+    pub async fn capture_stock_entity(
+        &mut self,
+        id: &Uuid,
+    ) -> Result<CapturedStockEntity, ReadError> {
+        self.capture_stock_entity_observation(id)
+            .await?
+            .into_entity()
+    }
+
+    /// Capture one fixed native attachment between two owner-detail GETs.
+    /// The shared generation deadline and byte statistics cover all three.
+    pub async fn capture_native_file_snapshot(
+        &mut self,
+        owner: &Uuid,
+        attachment: &Uuid,
+    ) -> Result<super::native_file_capture::CapturedNativeFileSnapshot, ReadError> {
+        self.check_capture_owner(owner)?;
+        if owner.as_str() == "00000000-0000-0000-0000-000000000000"
+            || attachment.as_str() == "00000000-0000-0000-0000-000000000000"
+        {
+            return Err(invalid());
+        }
+        let detail_path = format!("/api/v1/entities/{}", owner.as_str());
+        let file_path = format!("{detail_path}/attachments/{}", attachment.as_str());
+        let deadline = Instant::now()
+            + Duration::from_millis(self.limits.generation_timeout_ms)
+                .min(super::native_file_capture::PINNED_FILE_CAPTURE_WINDOW);
+        let mut stats = ReadStats::default();
+        let (before, before_at, before_deadline, before_status) = self
+            .request(detail_path.clone(), Vec::new(), deadline, &mut stats, None)
+            .await?;
+        if before_status != 200 {
+            return Err(ReadError(ErrorCode::Upstream));
+        }
+        let before_decoded = crate::providers::homebox::wire::decode_detail(
+            &before,
+            owner,
+            native_capture::decode_limits(self.limits),
+        )
+        .map_err(native_capture::read_error)?;
+        self.check_file_parent(&before_decoded.value)?;
+        let member = selected_stored_member(&before_decoded, owner, attachment)?;
+        check_time(before_deadline)?;
+        let (body, body_at, body_deadline, body_status) = self
+            .request(file_path, Vec::new(), deadline, &mut stats, None)
+            .await?;
+        if body_status != 200 {
+            return Err(ReadError(ErrorCode::Upstream));
+        }
+        if body.len() > crate::media::MAX_BYTES {
+            return Err(ReadError(ErrorCode::SizeLimit));
+        }
+        check_time(body_deadline)?;
+        let (after, after_at, after_deadline, after_status) = self
+            .request(detail_path, Vec::new(), deadline, &mut stats, None)
+            .await?;
+        if after_status != 200 {
+            return Err(ReadError(ErrorCode::Upstream));
+        }
+        let after_decoded = crate::providers::homebox::wire::decode_detail(
+            &after,
+            owner,
+            native_capture::decode_limits(self.limits),
+        )
+        .map_err(native_capture::read_error)?;
+        self.check_file_parent(&after_decoded.value)?;
+        if selected_stored_member(&after_decoded, owner, attachment)? != member {
+            return Err(ReadError(ErrorCode::Upstream));
+        }
+        check_time(after_deadline)?;
+        check_time(deadline)?;
+        Ok(
+            super::native_file_capture::CapturedNativeFileSnapshot::from_reader(
+                self.scope.clone(),
+                owner.clone(),
+                attachment.clone(),
+                (before, before_at, before_status),
+                (body, body_at, body_status),
+                (after, after_at, after_status),
+                member,
+            ),
+        )
+    }
+    fn check_file_parent(
+        &self,
+        detail: &crate::providers::homebox::wire::Detail,
+    ) -> Result<(), ReadError> {
+        if detail
+            .entity
+            .parent
+            .as_ref()
+            .is_some_and(|parent| !self.authorized(&parent.id))
+        {
+            return Err(ReadError(ErrorCode::WrongScope));
+        }
+        Ok(())
+    }
+
+    /// Capture the original owner log using the fixed native status=both query.
+    /// Its decoded entries do not assert completeness or installed API behavior.
+    pub async fn capture_stock_maintenance(
+        &mut self,
+        id: &Uuid,
+    ) -> Result<CapturedStockMaintenance, ReadError> {
+        self.check_capture_owner(id)?;
+        let path = format!("/api/v1/entities/{}/maintenance", id.as_str());
+        let query = vec![("status".into(), "both".into())];
+        let deadline = Instant::now() + Duration::from_millis(self.limits.generation_timeout_ms);
+        let mut stats = ReadStats::default();
+        let (bytes, retrieved_at, response_deadline, status) = self
+            .request(path.clone(), query.clone(), deadline, &mut stats, None)
+            .await?;
+        if status != 200 {
+            return Err(ReadError(ErrorCode::Upstream));
+        }
+        check_time(response_deadline)?;
+        let decoded = crate::providers::homebox::wire::decode_maintenance(
+            &bytes,
+            id,
+            native_capture::decode_limits(self.limits),
+        )
+        .map_err(native_capture::read_error)?;
+        check_time(response_deadline)?;
+        Ok(NativeCapture::new(
+            self.scope.clone(),
+            id.clone(),
+            path,
+            query,
+            status,
+            retrieved_at,
+            decoded,
+        ))
+    }
+
+    fn check_capture_owner(&self, id: &Uuid) -> Result<(), ReadError> {
+        if !self.stock_dialect {
+            return Err(invalid());
+        }
+        if !self.authorized(id) {
             return Err(ReadError(ErrorCode::WrongScope));
         }
         Ok(())
@@ -199,6 +405,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
         let attempt = self.clock.now();
         let deadline = Instant::now() + Duration::from_millis(self.limits.generation_timeout_ms);
         let mut stats = ReadStats::default();
+        let mut native_responses = Vec::new();
         let empty = PreviousGeneration::new(CacheStatus::empty(&self.scope), Vec::new(), false);
         let previous = previous.unwrap_or(&empty);
         if let Err(e) = self.validate_previous(previous, deadline) {
@@ -206,7 +413,12 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
             return Err(self.failure(e, &attempt, None, false, stats));
         }
         let result = self
-            .read(&[], deadline, &mut stats)
+            .read(
+                &[],
+                deadline,
+                &mut stats,
+                self.stock_dialect.then_some(&mut native_responses),
+            )
             .await
             .and_then(|entities| {
                 let success = self.clock.now();
@@ -234,7 +446,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                 cache.status = CacheState::Fresh;
                 cache.last_attempt_at = Some(attempt.clone());
                 cache.last_successful_fetch_at = Some(success);
-                cache.generation_id = Some(generation_id);
+                cache.generation_id = Some(generation_id.clone());
                 check_time(deadline)?;
                 Ok(CompleteGeneration {
                     cache,
@@ -242,6 +454,16 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                     missing_external_ids: missing,
                     quarantine: previous.quarantine || previous.cache.quarantined(),
                     stats,
+                    native_presence: self.stock_dialect.then(|| {
+                        std::sync::Arc::new(NativePresenceGeneration::new(
+                            self.registration.clone(),
+                            self.scope.clone(),
+                            generation_id,
+                            native_responses,
+                            self.limits,
+                            self.stock_navigation.clone(),
+                        ))
+                    }),
                 })
             });
         result.map_err(|e| self.failure(e, &attempt, Some(previous), false, stats))
@@ -268,7 +490,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
             return Err(self.failure(e, &attempt, None, true, stats));
         }
         let result = self
-            .read(&parents, deadline, &mut stats)
+            .read(&parents, deadline, &mut stats, None)
             .await
             .and_then(|entities| {
                 self.validate_entities(&entities, deadline)?;
@@ -330,10 +552,18 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
         query: Vec<(String, String)>,
         generation_deadline: Instant,
         stats: &mut ReadStats,
-    ) -> Result<(Vec<u8>, Timestamp, Instant), ReadError> {
+        capture: Option<&mut Vec<NativePresenceResponse>>,
+    ) -> Result<(Vec<u8>, Timestamp, Instant, u16), ReadError> {
         check_time(generation_deadline)?;
         let deadline = (Instant::now() + Duration::from_millis(self.limits.request_timeout_ms))
             .min(generation_deadline);
+        let capture_path = path.clone();
+        let capture_query = query.clone();
+        let response_limit = if super::http_transport::attachment_path(&path) {
+            self.limits.max_response_bytes.min(crate::media::MAX_BYTES)
+        } else {
+            self.limits.max_response_bytes
+        };
         let request = GetRequest {
             path,
             query,
@@ -367,8 +597,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                     .bytes
                     .checked_add(chunk.len())
                     .ok_or(ReadError(ErrorCode::SizeLimit))?;
-                if response_size > self.limits.max_response_bytes
-                    || stats.bytes > self.limits.max_generation_bytes
+                if response_size > response_limit || stats.bytes > self.limits.max_generation_bytes
                 {
                     return Err(ReadError(ErrorCode::SizeLimit));
                 }
@@ -377,11 +606,23 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
             check_time(deadline)?;
             let retrieved_at = self.clock.now();
             check_time(deadline)?;
-            Ok((bytes, retrieved_at, deadline))
+            Ok((bytes, retrieved_at, deadline, response.status))
         };
-        timeout_at(deadline, operation)
+        let response = timeout_at(deadline, operation)
             .await
-            .map_err(|_| ReadError(ErrorCode::Timeout))?
+            .map_err(|_| ReadError(ErrorCode::Timeout))??;
+        if let Some(capture) = capture {
+            let (bytes, retrieved_at, _, status) = &response;
+            capture.push(NativePresenceResponse::new(
+                capture_path,
+                capture_query,
+                self.scope.clone(),
+                *status,
+                retrieved_at.clone(),
+                bytes.clone(),
+            ));
+        }
+        Ok(response)
     }
 
     async fn read(
@@ -389,6 +630,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
         parents: &[Uuid],
         deadline: Instant,
         stats: &mut ReadStats,
+        mut native_responses: Option<&mut Vec<NativePresenceResponse>>,
     ) -> Result<Vec<Projection>, ReadError> {
         let mut rows: BTreeMap<Uuid, (WireEntity, serde_json::Value)> = BTreeMap::new();
         for is_location in [true, false] {
@@ -412,8 +654,14 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                         .iter()
                         .map(|id| ("parentIds".into(), id.as_str().to_owned())),
                 );
-                let (bytes, _, response_deadline) = self
-                    .request("/api/v1/entities".into(), query, deadline, stats)
+                let (bytes, _, response_deadline, _) = self
+                    .request(
+                        "/api/v1/entities".into(),
+                        query,
+                        deadline,
+                        stats,
+                        native_responses.as_deref_mut(),
+                    )
                     .await?;
                 check_time(response_deadline)?;
                 let value = if self.stock_dialect {
@@ -470,12 +718,13 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                 continue;
             }
             self.check_parent(&listed)?;
-            let (bytes, _, response_deadline) = self
+            let (bytes, _, response_deadline, _) = self
                 .request(
                     format!("/api/v1/entities/{}", id.as_str()),
                     Vec::new(),
                     deadline,
                     stats,
+                    native_responses.as_deref_mut(),
                 )
                 .await?;
             check_time(response_deadline)?;
@@ -494,7 +743,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
             if detail != listed {
                 return Err(ReadError(ErrorCode::Pagination));
             }
-            let (bytes, retrieved_at, response_deadline) = self
+            let (bytes, retrieved_at, response_deadline, _) = self
                 .request(
                     format!("/api/v1/entities/{}/maintenance", id.as_str()),
                     if self.stock_dialect {
@@ -504,6 +753,7 @@ impl<T: Transport, C: Clock> HomeBoxReader<T, C> {
                     },
                     deadline,
                     stats,
+                    native_responses.as_deref_mut(),
                 )
                 .await?;
             check_time(response_deadline)?;
@@ -619,4 +869,26 @@ fn check_time(deadline: Instant) -> Result<(), ReadError> {
     } else {
         Ok(())
     }
+}
+
+fn selected_stored_member(
+    detail: &crate::providers::homebox::wire::Decoded<crate::providers::homebox::wire::Detail>,
+    owner: &Uuid,
+    attachment: &Uuid,
+) -> Result<serde_json::Value, ReadError> {
+    if detail.source["id"].as_str() != Some(owner.as_str()) {
+        return Err(invalid());
+    }
+    let rows = detail.source["attachments"]
+        .as_array()
+        .ok_or_else(invalid)?;
+    let mut selected = rows
+        .iter()
+        .filter(|row| row["id"].as_str() == Some(attachment.as_str()));
+    let member = selected.next().ok_or_else(invalid)?;
+    if selected.next().is_some() || member["mimeType"].as_str() == Some("link/url")
+        || !detail.value.attachments.iter().any(|entry| matches!(entry, Attachment::StoredFile { attachment_id, .. } if attachment_id == attachment)) {
+        return Err(invalid());
+    }
+    Ok(member.clone())
 }

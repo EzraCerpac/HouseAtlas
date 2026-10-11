@@ -1,143 +1,127 @@
 # HouseAtlas MCP adapter — AT38
 
-AT38 owns `backend/src/transports/mcp/**` except the separately owned `lifecycle/`
-carve. This successor is based on published main
-`a16f9a55e5beab5348aa00a2675a0e03c9aef98b`, with sole publication root
-`9f7561d99e09a680ec5282ca0c8aed4e10c6cbc9`. Lifecycle, HTTP routes, capability
-admission, root manifests and generated contracts are unchanged.
+AT38 owns this namespace except the separately owned `lifecycle/` carve. This
+local Atlas checkpoint is based on published dev
+`256eff1ca38661fe09b4dacb0c44768a93ea2dc6`, whose sole publication root is
+`9f7561d99e09a680ec5282ca0c8aed4e10c6cbc9`. Root routes, startup configuration,
+lifecycle, domain/access/storage handlers, contracts, manifests and locks are
+unchanged by this checkpoint.
 
-## Native bindings and finite mappings
+## Actual bindings
 
-`NativeContext::from_principal(access::Principal)` retains an already issued,
-opaque access principal. `NativePrincipalPort::new(Arc<Mutex<AccessBoundary>>)`
-revalidates that original authority and checks the catalog's scoped capability.
-Context identity is retained through Arc handles; no authority is minted here.
-The access and lifecycle owners supply the authenticated principal seam.
+The existing public `http::agents::mcp::bind_read` composes the actual borrowed
+root StockService with read admission: 30 Atlas list/get/history operations,
+cached HomeBox reads, and configured HomeBox history. The separately owned
+`lifecycle::mount_adapter::bind` also uses the host's read profile.
 
-`NativeSchemas::from_bytes(agent, atlas)` admits exact published resources by
-SHA-256, canonical IDs and draft2020-12 dialect. Family descriptors retain their
-transitive local `$defs`; const/default/enum/example payloads remain unchanged.
-No schema URLs or files are fetched by production code.
+The existing private root Editor lifecycle binding selects the actual host
+capability map under trusted `McpCommandProfile::ExistingEditorCommands`.
+That map already includes 31 direct and six derived Atlas command IDs plus
+ordered batches. These are real stock/SQLite handlers. AT38 adds no copy of
+their transaction, graph, approval or result rules.
 
-- `contracts/stock-wire3/agent/agent.schema.json`: SHA-256
-  `314ee5f5effca941b3be92cb5cc37150aa17a3ab5dd8646255cebc74767b602d`
-- `packages/contracts/schemas/atlas.schema.json`: SHA-256
-  `ba73d972c87391fe06cd41d68e73bc2d73fc3fcac322889cfb3b8d909c3f3f72`
+`bind_local_atlas(&Core, &access::RequestEvidence, &access::Scope)` exposes an
+explicit in-process local Atlas binding. It returns
+`Result<LocalAtlasSession<'_>, LocalAtlasBindError>`, where the session is the
+existing `lifecycle::NativeSession<http::agents::mcp::StockService<'_>>`.
+The error distinguishes actual Access issuance failure from protocol composition
+failure, so the caller can use its existing error handling.
 
-`OperationMapping::for_operation(wire::OperationId)` joins the existing closed
-shared and domain catalogs. It verifies family, input/output schema references,
-effect and authority, and exposes the domain ID and output kind. `all()` covers
-all 164 published IDs, including held and unsupported metadata. `ToolName` wraps
-the existing ten-family enum. There is no copied operation table.
-`NativeOperation::request()` and `mapping()` expose immutable typed views.
+The binder obtains its retained AuthenticatedIdentity through the actual Access
+POST issuance seam on `core.access`. That owner checks Cookie, Origin, current
+CSRF, scope and Editor membership. Admission derives from the actual
+`http::agents::capabilities::admitted(core, original)` and is narrowed to Atlas,
+excluding asset download. At this source pin it admits 30 reads, 37 command IDs
+and `atlas.batch.execute`. NativeCatalog checks the root and every ordered
+child independently; schema family membership creates no admission.
 
-`NativeCatalog::with_admitted_operations(&schemas, &principal, ids)` checks these
-mappings for explicitly admitted IDs, then selects their families. Each family
-descriptor retains its published schema union. Request preparation separately
-checks the family and the root plus every ordered child against host admission.
-Mapping and schema coverage establish no runtime admission. The current host
-still admits exactly 20 Atlas get/history operations.
+For host composition, pass actual observed initial POST evidence to the binder.
+On each subsequent frame, authenticate that frame with
+`AuthenticatedIdentity::authenticate_post(core.access.clone(), observed, scope)`
+and pass its identity and original bytes to `session.handle`. The unchanged
+lifecycle checks the same Access Arc, credential binding and scope, retains the
+original principal, and revalidates before delivery. The concrete stock service
+forwards the full request to the shared native stock dispatcher. The existing
+native mutation fence and result/disclosure checks still apply.
+`session.control()` and `session.close()` are the existing lifecycle APIs.
 
-The full stock envelope is passed as tools/call arguments. Shared `StockRequest`
-and domain `ValidatedRequest` preserve intent, omissions, explicit nulls, numeric
-tokens and ordered children. Requirements are native values; `atlas.asset.download`
-uses the existing access-owned `ReadAssetManifest` capability. The actual owner
-remains responsible for its complete captured authority and disclosure graph.
+This is a mount proposal for a trusted local caller. It changes no HTTP route,
+startup profile, registry, main or listener. The root default read profile and
+opt-in Editor binding remain separately owned.
 
-`NativeStockService::new(authority, preparer, queries, commands)` calls real
-stock preparation and dispatch through existing domain ports. Witnesses and
-graphs remain owner types. No mutex guard crosses await. The actual command owner
-supplies mutation fencing. `UnavailableCommands` returns `OwnerUnavailable`.
-Rendering validates the released result using shared `StockResponse`, preserving
-the envelope and children and mapping its Error arm to MCP `isError`.
+`approvalReceiptId`, its omission/null distinction and the original stock intent
+reach the native owner unchanged. This binding adds no consent issuer, receipt
+minting or grant API. The positive uses ordinary local forms with a null receipt.
+Source-presence claims, staged asset creation, rendered-media approval forms and
+provider writes still require their existing owner inputs and qualification.
+This Core-only composition has no download handle issuer/redemption owner.
 
-## Independent asset download codec
+## Catalog and result preservation
 
-`AssetDownloadRequest::parse(validation, raw)` accepts only the canonical closed
-`atlas.asset.download` request. `AssetDownloadResult::parse(validation, request,
-raw)` accepts its correlated completed read and retains output obligations.
-Borrowed `AssetDownloadMetadata` exposes `downloadToken`, nullable `sha256`, the
-original `byteSize` Number, `contentType` and `disposition`. The wire is unchanged;
-numeric tokens are not converted through an integer DTO. Parsing releases nothing.
+NativeContext retains opaque original authority. NativePrincipalPort delegates
+provenance, scoped capability, mutation issuance and current revalidation to
+Access. Annotations and client metadata establish no authority.
 
-The canonical result supplies a UUID download token and metadata. This codec
-adds no URL, URI, bytes, expiry, filename, storage key or new download alias.
-An owner-issued token is not a redemption grant.
+OperationMapping joins all 164 published IDs in the shared/domain catalogs.
+ToolName wraps their existing ten-family enum. Mapping coverage is distinct
+from actual host admission. NativeSchemas accepts the exact offline resources
+and retains their transitive definitions and literal values:
 
-`AssetDownloadPort<P, W, G>::download(&mut self, &P, &PreparedRequest<W, G>,
-&AssetDownloadRequest)` is implemented by the actual download owner. It receives
-the original borrowed principal and prepared witness/graph and returns the
-complete unreleased `OwnerResult`. `AssetDownloadCodec<D>` implements the existing
-query port for this operation, validating its response and preserving canonical
-correlated stock errors. Domain dispatch still authorizes the result and exact
-target and revalidates before release. `UnavailableAssetDownloads` explicitly
-returns `OwnerUnavailable` without issuing a handle.
+- Agent schema SHA-256:
+  `314ee5f5effca941b3be92cb5cc37150aa17a3ab5dd8646255cebc74767b602d`.
+- Atlas schema SHA-256:
+  `ba73d972c87391fe06cd41d68e73bc2d73fc3fcac322889cfb3b8d909c3f3f72`.
 
-`NativeQueries::new(existing_queries, download_owner)` composes the codec with
-the host's query owner. Only typed `AtlasAssetDownload` selects the download port;
-every other query reaches the existing owner. The integrator can inject this
-composition into `NativeStockService` or existing domain dispatch. Actual token
-issuance/redemption, media lifecycle and qualified route admission remain owner
-inputs. They are not implemented or mounted by this patch.
+Full wire3 envelopes remain tools/call arguments. Shared StockRequest and domain
+ValidatedRequest preserve original IDs, intent digests, explicit unknowns/nulls,
+omissions, numeric tokens and ordered children. NativeCatalog validates the real
+owner's StockResponse and ordered child results before rendering. Owner errors
+use their canonical correlated stock DTO; generic failures expose static
+categories without fabricating a successful outcome.
 
-## Protocol and dependencies
+NativeStockService remains the generic owner-port composition. The independent
+AssetDownloadCodec preserves canonical token/metadata and delegates release to
+an actual download owner. UnavailableCommands and UnavailableAssetDownloads
+remain explicit unavailable peers; this local binder uses neither.
 
-MCP revision is `2025-11-25`. Tools-only initialize/initialized, ping, list and
-call use a host-framed serialized session, closed on IO shutdown. Notifications
-emit no response. Defaults are 64 KiB input, 1 MiB output, 4,096 requests and
-1 MiB retained request-ID text. Oversized messages close/drop before parsing or
-peer dispatch. Request IDs, duplicate keys and nesting are bounded. The RawValue
-decoder retains arbitrary-precision Numbers and literal object keys.
-Parameter extraction copies decoded application maps.
+MCP revision is `2025-11-25`, with initialize/initialized, ping, tools/list and
+tools/call over a serialized host-framed session. The bounded decoder retains
+arbitrary-precision Numbers, request IDs and literal object keys. The host owns
+framing, connection lifetime, idle clocks and transport-level admission.
 
-Public errors use static categories. Generic failures without an owner DTO are
-text-only `isError: true` results and omit structuredContent. Structured errors
-require the owner's validated DTO and complete correlation plus current authority.
-Annotations establish no authority. Error branch qualification remains deferred.
+## Exact ordinary positive
 
-No dependency, manifest or lockfile changes are needed. Compilation uses the
-published workspace's pinned dependencies and Rust/Cargo 1.99.0, including
-`serde_json = 1.0.151` with `arbitrary_precision`, `float_roundtrip`, `raw_value`.
+The complete `healthy_local_atlas.rs` body and fixture bootstrap helpers are
+inspected separately before execution. It uses fresh private
+`/tmp/houseatlas-at38-local-atlas-*` state, real Access login/per-frame POST
+issuance and the actual StockService. It commits one circuit create, unresolved
+binding create and binding review, then a fresh ordered two-circuit batch.
+The review's `rejected` business status is an ordinary successful commit.
 
-## Scoped healthy verification
+It checks wire3 correlation, intent digests, nullable circuit fields, unresolved
+source state, record/audit ordering, text/structured-content equality and normal
+session closure. After closing and strictly reopening the same SQLite Store,
+MCP get/history checks record payloads and each committed audit ID, actor,
+target and original child intent digest. It removes the private fixture.
+No command, authority or result peer is stubbed in this body.
 
-Production library, binary and example source is compiled directly from the
-repository. With the verified toolchain and task-owned Cargo cache/target
-directory, the inspected scoped commands are:
+With pinned workspace dependencies and Rust/Cargo 1.99.0:
 
 ```sh
 cargo fmt --all --check
-cargo check --locked --offline -p houseatlas-backend --lib --bins --examples
-cargo clippy --locked --offline -p houseatlas-backend --lib --bins --examples -- -D warnings
-HOUSEATLAS_AT38_SHARED_SOURCE="$HOUSEATLAS_MCP_SHARED_SOURCE" cargo test --manifest-path "$HOUSEATLAS_MCP_HARNESS_MANIFEST" --locked --offline --lib transports::mcp::healthy_ -- --test-threads=1
+cargo check --locked --offline -p houseatlas-backend --lib --bins
+cargo clippy --locked --offline -p houseatlas-backend --lib --bins -- -D warnings
+cargo test --locked --offline -p houseatlas-backend --lib transports::mcp::healthy_local_atlas::healthy_local_atlas_native_mutations_batch_and_reopened_history -- --exact --test-threads=1
 ```
 
-The published root test manifest currently omits `tokio-rustls` and `rcgen`
-required by a provider fixture. The external harness imports the actual backend
-`src/lib.rs`, preserves production dependency pins/features and captured lock
-versions, and adds only `tokio-rustls = 0.26.6` and `rcgen = 0.14.7` for that
-fixture's compilation. The provider fixture is not executed. Harness manifest,
-lock and exact logs remain outside Git; the integrator owns root reconciliation.
-The caller supplies the harness manifest and published source directory variables
-shown above; fixtures load schema resources from that explicit source directory.
+The published root now declares its test dependencies. No external compiler
+harness, dependency, manifest or lock change is needed. Test-binary compilation
+does not execute other tests. Only this named positive body runs here. Older
+fixture-peer examples remain representation proof and are not rerun as an
+aggregate. Exact source/compiler/test evidence is in the integration packet.
 
-The five existing protocol groups use explicit fixture application peers; their
-mutation response is a published fixture, not executed persistence. The existing
-native example exercises offline schemas, original principals, SQLite bootstrap,
-native storage and core reads for published synthetic evidence and actual empty
-history. It does not execute a stock write.
-
-The finite mapping example verifies all 164 joins, ten families and unchanged
-host admission. Two download examples preserve canonical metadata and `1.0`/`1e0`
-tokens from constructed, schema-validated Values; these checks do not qualify
-ingress spelling preservation. They demonstrate real domain preparation/dispatch
-with explicitly fixture authority, preparer, read and download peers. They check borrowed principal/
-prepared/witness/graph identity and post-owner disclosure and final revalidation
-order. Fixture tokens are synthetic values; these examples do not qualify a
-production issuer, redemption path or authority owner.
-
-Lifecycle examples and stopped rejection/guard-reversal/mutation-omission/
-adversarial/fault/crash/concurrency/denial/negative-consumer controls and legacy
-broad aggregates are not executed. No listener, provider, OAuth grant, private
-data, deployment or mounted download admission is involved. Exact source and
-check results are captured in the external task handoff for the integrator.
+Bounded independent Luna review is source-only. Lifecycle controls, replay,
+expiry, revocation, guard reversal, adversarial/fault/crash/concurrency/denial
+and negative-consumer controls remain deferred. No live provider, OAuth grant,
+remote endpoint, private household data or deployment is used. Ordinary success
+qualifies the reported synthetic path only.

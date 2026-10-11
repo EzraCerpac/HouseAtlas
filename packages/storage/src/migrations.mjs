@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
 import { ContractError } from '../../contracts/src/index.mjs';
 
-// Migration versions are independent of contract 1.0.0 and record schema 1.
+// Frozen on-disk lineage is independent of the public contract version.
+export const DATABASE_CONTRACT_VERSION = '1.0.0';
+// Migration versions are independent of frozen contract 1.0.0 and record schema 1.
 export const DATABASE_VERSION = 3;
 export const MIGRATIONS = Object.freeze([
   { version: 1, sql: `

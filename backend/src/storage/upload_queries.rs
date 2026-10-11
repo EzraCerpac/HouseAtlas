@@ -104,6 +104,21 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
                     "Original asset query principal changed",
                 ));
             }
+            // The carrier exposes the full record, including its audit and
+            // timestamp fields, beyond the manifest payload's authority.
+            if !targets.is_empty()
+                && authorize(
+                    &self.contract,
+                    authorization,
+                    principal,
+                    read_request(scope, Capability::Read, &targets),
+                )? != actor
+            {
+                return Err(Error::new(
+                    "unauthenticated",
+                    "Original asset record principal changed",
+                ));
+            }
             Ok(())
         };
         check()?;

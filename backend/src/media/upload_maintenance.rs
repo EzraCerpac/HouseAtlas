@@ -1,5 +1,6 @@
 //! Durable admission accounting and exact metadata retirement. Retained
-//! originals stay immutable and charged; SQLite alone attests consumption.
+//! originals and qualified mesh derivatives stay immutable and charged; SQLite
+//! alone attests consumption. Existing quota field names remain wire-compatible.
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};

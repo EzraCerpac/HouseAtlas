@@ -1,6 +1,23 @@
 //! Private queue repository operations.
 use super::*;
 
+// Canonical zero accounting is the only fast exclusion. Missing/noncanonical
+// fields remain candidates for strict Rust decoding; do not cast u64 strings
+// through SQLite numbers. The existing queue_due prefix indexes both identity
+// columns, preserving sealed schema/checksum lineage. Full recovery continues
+// to validate every historical row independently of this admission selector.
+pub(super) const CROSS_LANE_HOLD_CANDIDATES: &str = "
+SELECT job_id FROM queue_jobs INDEXED BY queue_due
+WHERE deployment_id=?1 AND physical_database_id=?2 AND (
+ logical_fence<>0 OR activity NOT IN ('not-dispatched','ended-proven')
+ OR json_type(liability_json,'$.complete') IS NOT 'true'
+ OR json_extract(liability_json,'$.known') IS NOT '0'
+ OR json_extract(liability_json,'$.reserved') IS NOT '0'
+ OR json_type(liability_json,'$.unresolved') IS NOT 'integer'
+ OR json_extract(liability_json,'$.unresolved') IS NOT 0
+ OR json_extract(liability_json,'$.bytes') IS NOT 'None'
+)";
+
 pub(super) struct StoredJob {
     pub(super) id: String,
     pub(super) deployment: String,
@@ -240,11 +257,22 @@ pub(super) fn due_ids(db: &Connection, c: &QueueConfig) -> Result<Vec<String>> {
 pub(super) fn register(
     db: &mut Connection,
     c: &QueueConfig,
+    activity: bool,
     precommit: impl FnOnce() -> Result<()>,
 ) -> Result<()> {
     c.validate().map_err(|_| invalid())?;
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let r = &c.registration;
+    // Reciprocal identity must match before inserting either immutable registry
+    // or aliases. A matching active identity may still register queue metadata.
+    crate::storage::stock_activity::jobs_hold(
+        &tx,
+        activity,
+        &r.identity.physical_database_id,
+        &r.identity.deployment_id,
+        r.identity.configuration_digest.as_hex(),
+        &r.dispatcher_owner_id,
+    )?;
     let configuration = encoded(&config_value(c))?;
     let prior:Option<(String,String,String)>=tx.query_row("SELECT configuration_digest,configuration_json,owner_id FROM queue_physical WHERE deployment_id=?1 AND physical_database_id=?2",params![r.identity.deployment_id,r.identity.physical_database_id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?))).optional()?;
     match prior {

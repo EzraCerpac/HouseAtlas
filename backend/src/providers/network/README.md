@@ -186,7 +186,8 @@ executed. Actual AT11 handle binding and host wiring remain integration work.
 
 For failures, `NativeNetworkPublisher::publish_pending_failure` consumes the
 pending proposal's original fence, baseline precondition and original lease,
-then calls the actual `record_prepared_cache_failure(principal, fence, failure)`.
+retains the original cache error's `at`, then calls the timestamp-preserving
+native write. The retained cache code and `lastAttemptAt` must match that error.
 The sibling `record_prepared_cache_failure(fence, code, lease)` supports explicit
 server-owned sanitized status publication through that same native transaction.
 Both require a Network-owned original registration; neither calls legacy
@@ -195,6 +196,17 @@ generation and SQLite epoch in its write transaction, retains prior success
 metadata/rows, advances the epoch and does not reserve the unused candidate ID.
 The generic controller still returns pending failures; a native host explicitly
 consumes them through this bound method. No stale baseline is reread or rebased.
+
+Both configured and borrowed native publishers also expose
+`record_prepared_cache_failure_at(fence, code, lease, attempted_at)` to preserve
+the provider attempt time already captured in the retained cache error. They reuse
+the original Network failure conversion and delegate to the actual Storage
+`record_prepared_cache_failure_at` / `_at_with_authorization` methods published
+at `e5fec02e68369d6c01507c96eebd8bcb2bcdc993`. The original fence, lease principal
+and borrowed authorizer remain the native transaction inputs. Storage validates
+the supplied timestamp and preserves it in `lastAttemptAt` and `error.at`.
+This additive path is compiler checked against that published Storage source;
+failure and clock-change controls remain deferred.
 
 Use `NativeNetworkPublisher` only in synchronous prepare/commit phases. Release
 its store borrow before provider GETs, retain the original fence/lease, and
@@ -304,3 +316,24 @@ The published HTTP history schema remains unchanged; this lane emits no history
 HTTP response or audit event. The AT52 route/config adapters, production semantic Contract,
 AT11 authority mapping, real target wire review and held timeout/denial/failure/
 concurrency/recovery qualification remain future integration work.
+
+### Retained raw link binding
+
+`validate_generation(source, generation)` reconstructs the entire capture with
+its retained review and compares every qualified row and projected relation.
+`validate_state` uses this same validation without changing its cache checks.
+`retained_link_bindings(source, generation)` validates once and returns borrowed
+`RetainedLinkBinding` rows containing the original link, original typed `from`
+and `to` records, and the exact reviewed relation. Matching uses keyed indexes.
+Raw direction is preserved for normalized segment memberships; an unresolved
+projection keeps its null ID/description while the private binding still names
+the actual hidden raw member. These are matching records, not permission.
+
+Runtime and Store owners must use the original owning-Core grants and immutable
+native cache baseline before disclosure. An unresolved projected endpoint
+cannot replace raw-member binding or justify revoking the entire partition.
+The original Network core exports this seam; no host-runtime/Store selector is
+changed here. Saved stock output preserves the reviewed unknown and all other
+authorized relations. Its healthy examples use actual validation/projection/
+stock schemas with explicit synthetic authority peers, so they do not qualify
+the genuine runtime composition or held controls.

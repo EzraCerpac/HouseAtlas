@@ -1,0 +1,140 @@
+{
+  "format": "houseatlas-presence-accepted-inputs/1",
+  "baseCommit": "6214a015066de5733e0ab7664678019bae0cdf84",
+  "inputBytesUnchanged": true,
+  "scope": "Published contract and current native peer preimages; not live authority or admission qualification",
+  "files": [
+    {
+      "path": "Cargo.toml",
+      "sha256": "54dec3843a7eb100e2db6445219bb64ba632e08fa788389b63959eba3879a9ae"
+    },
+    {
+      "path": "Cargo.lock",
+      "sha256": "7f70d4f7d57cd5c440a212429264d6399a808acbc71ca6f425b99c1af7e6e58a"
+    },
+    {
+      "path": "backend/Cargo.toml",
+      "sha256": "31fbcc508e2c28da39e255bd6eb4d0793ccb705912d7ab823f235675847935b0"
+    },
+    {
+      "path": "backend/src/domain/presence.rs",
+      "sha256": "9f9d18c4c7482a50c6bdcab336a19bccbc8b93c3e9e55c346b0a98d62c08cdff"
+    },
+    {
+      "path": "backend/src/contracts/stock/presence.rs",
+      "sha256": "a9163d58d6458da8c8dbed34c8001b517057da272f9c558408d83898f1eed144"
+    },
+    {
+      "path": "backend/src/contracts/stock/README.presence.md",
+      "sha256": "bb122cf90a7ea0fc7cf07cc40144945e54d5881274a37ec8ccbc1a4bda4c13c7"
+    },
+    {
+      "path": "backend/src/contracts/semantics/mod.rs",
+      "sha256": "2556ce721dc4b2fb6f3719f7f098a8d1204a5ffba0065131776289b9f700267a"
+    },
+    {
+      "path": "backend/src/contracts/semantics/canonical.rs",
+      "sha256": "54fc3f511093ccc7d32114d572dc7576c04cc1c7d84884e51d4e6d1122466127"
+    },
+    {
+      "path": "backend/src/storage/cache_types.rs",
+      "sha256": "93588b48bfbb505e6564cdd75652b0cef7ff6c3b2de13fda656cb9d60a4e6575"
+    },
+    {
+      "path": "backend/src/storage/cache.rs",
+      "sha256": "33eacf8644c5cd2e6818a289cd74dd56d0adcf173b796ec81b425f41e39b377a"
+    },
+    {
+      "path": "backend/src/storage/cache_repository.rs",
+      "sha256": "9055736a2a16c7f91ef9328c57a33ac964e645789188f5f2abfeafb23b01e8e1"
+    },
+    {
+      "path": "backend/src/storage/ports.rs",
+      "sha256": "38c43d3588ea5f25415c75ead56a595d46ad147227739c352b9b96bc6440e454"
+    },
+    {
+      "path": "backend/src/storage/types.rs",
+      "sha256": "5ef93dec806265119b8acc73e9e22ff76d1c47df52d7614c09c1288f1ac41457"
+    },
+    {
+      "path": "backend/src/storage/stock.rs",
+      "sha256": "9f0dd22d84476e2ce23e1cc46f0e1100dfbf02e3f6c5debd8a6b70bc1102b440"
+    },
+    {
+      "path": "backend/src/access/types.rs",
+      "sha256": "ea8560f391f029a6d6b0b8cdbea48704f4b580ed215ceaecb71cf14efdfad194"
+    },
+    {
+      "path": "backend/src/access/source.rs",
+      "sha256": "07acc76a57cedee42ee146960dcf5ff9f44d08c49b2da05aa2bd2a4298617a31"
+    },
+    {
+      "path": "backend/src/access/boundary.rs",
+      "sha256": "15593049c7053442d24161d75bde0f23bb25f7f2a45b35307917184f03a3fcd5"
+    },
+    {
+      "path": "backend/src/providers/homebox/read/types.rs",
+      "sha256": "85ca312100f9559ff2765aa3225b910cf50176db555e236aad227c3a08020077"
+    },
+    {
+      "path": "backend/src/providers/homebox/read/retained.rs",
+      "sha256": "6982e657bb67db04f572886d8c538cc9dbccb700b76c864f2d383cab01d733ce"
+    },
+    {
+      "path": "backend/src/providers/homebox/read/publication.rs",
+      "sha256": "b32273ed6786078bb03ec7b475b8b0a3e90364d48a20b7742959eb3b0c4e922f"
+    },
+    {
+      "path": "backend/src/providers/network/model.rs",
+      "sha256": "2905ddb9936b1d678996efd819392d812e660761c7526b5bcb76d925b8d2d438"
+    },
+    {
+      "path": "backend/src/providers/network/sidecar.rs",
+      "sha256": "4425921f1662965808662e6b6b2aa5ec42e378e7584abc0d456e54099ce90096"
+    },
+    {
+      "path": "backend/src/providers/network/publication.rs",
+      "sha256": "a11a841eb0566139fbb9ac0f7b842fd694752f5915d6529d3108d07407bb2264"
+    },
+    {
+      "path": "backend/src/providers/network/durable.rs",
+      "sha256": "431cfaa4c4719580c299a951b920835dff0ab10ab13867a7688224b2d571e081"
+    },
+    {
+      "path": "backend/src/providers/network/facet.rs",
+      "sha256": "c1f1adffedf479306c7aec7480f27deb5553e338510f46a8fcca6302deddda2e"
+    },
+    {
+      "path": "contracts/stock-wire3/presence/policy.v1.1.0.json",
+      "sha256": "e893838c0ef684a24fa92ac99da5773e1972d7c2d05d4623d531fd2a67f30d5b"
+    },
+    {
+      "path": "contracts/stock-wire3/presence/qualification.v1.schema.json",
+      "sha256": "b79a1905937e5ccda46bbe2a325374ba3f0348a82329c6031136d2765dc25ac1"
+    },
+    {
+      "path": "contracts/stock-wire3/presence/witness.v1.schema.json",
+      "sha256": "5784677d596eade2dbbe9eb349fb346682e3fd611f8bbe146f9c635e59ab9ab1"
+    },
+    {
+      "path": "packages/contracts/schemas/atlas.schema.json",
+      "sha256": "ef00707b251051da4157598833d4c91d15d01b73eebfa049daf8c52a2ff23806"
+    },
+    {
+      "path": "packages/contracts/fixtures/plan-free.snapshot.json",
+      "sha256": "92681d680488b7393c8e8596e6fd934cc28b4ff00e465cfab52c339480b86350"
+    },
+    {
+      "path": "backend/src/contracts/stock/examples/healthy.json",
+      "sha256": "de7635957893fb1230179f54921bd737a00e35fb11833d7a89fd9b7a1996baa8"
+    },
+    {
+      "path": "adapters/network/fixtures/inventory.wire.json",
+      "sha256": "0f147bfe59f29bffbfc0d685552f5027041345c9983fee2190198ae622f6a397"
+    },
+    {
+      "path": "adapters/network/fixtures/link-review.json",
+      "sha256": "eb50edec348e7fcf2d957a8ad604a37bdb0b4e0b990490829be7010b12c23625"
+    }
+  ]
+}

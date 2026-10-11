@@ -1,0 +1,29 @@
+.lantern-host .electricity-scene-layer { pointer-events: none; }
+.lantern-host .electricity-scene-layer .electricity-scene-caption { fill: #596173; font-weight: 500; }
+.lantern-host .electricity-scene-layer .electricity-scene-pin,
+.lantern-host .electricity-scene-layer .electricity-scene-dock { cursor: pointer; outline: none; pointer-events: auto; }
+.lantern-host .electricity-scene-layer .electricity-scene-pin:focus-visible .electricity-scene-pin-hit { stroke: #1E2638; stroke-width: 2; }
+.lantern-host .electricity-scene-layer .electricity-scene-dock:focus-visible rect { stroke: #1E2638; stroke-width: 2; }
+.lantern-host .electricity-scene-summary { text-align: left; cursor: pointer; color: var(--ink, #1E2638); padding-bottom: 10px; }
+.lantern-host .electricity-scene-summary .legend-head { display: flex; align-items: center; gap: 8px; padding: 11px 13px 5px; }
+.lantern-host .electricity-scene-summary .legend-head > .icon:last-child { margin-left: auto; }
+.lantern-host .electricity-scene-summary > span:not(.legend-head),
+.lantern-host .electricity-scene-summary > small { display: block; padding: 0 13px; font-size: 12px; line-height: 1.5; }
+.lantern-host .electricity-scene-summary > small { color: var(--muted, #596173); }
+.lantern-host .electricity-scene-summary:focus-visible { outline: 2px solid var(--focus, #2F56E0); outline-offset: 2px; }
+.lantern-host .electricity-scene-inspector { width: min(340px, 100%); min-width: 0; padding: 18px; color: var(--ink, #1E2638); background: var(--card, #FCFBF8); border: 1px solid var(--hair-2, #C9BFAE); border-radius: 14px; box-shadow: var(--shadow-float, 0 10px 30px -12px rgba(60,46,22,.35)); max-height: min(76vh, 720px); overflow: auto; font-family: var(--text, sans-serif); }
+.lantern-host .electricity-scene-inspector h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; position: sticky; top: 0; z-index: 2; padding-bottom: 8px; background: var(--card, #FCFBF8); box-shadow: 0 -18px 0 var(--card, #FCFBF8); }
+.lantern-host .electricity-scene-inspector h3 .icon-btn { margin-left: auto; }
+.lantern-host .electricity-scene-inspector .section { margin-top: 16px; }
+.lantern-host .electricity-scene-inspector .electricity-scene-sheets { list-style: none; padding: 0; }
+.lantern-host .electricity-scene-inspector .electricity-scene-sheets > li { padding: 12px 0; border-bottom: 1px solid var(--hair, #D9D1C5); }
+.lantern-host .electricity-scene-inspector .row-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; text-align: left; }
+.lantern-host .electricity-scene-inspector .row-title .row-meta { margin-left: auto; }
+.lantern-host .electricity-scene-inspector details { margin-top: 8px; }
+.lantern-host .electricity-scene-inspector details h4 { margin-top: 12px; }
+.lantern-host .electricity-scene-inspector .facts dd { overflow-wrap: anywhere; min-width: 0; }
+.lantern-host .electricity-scene-inspector .facts code { font-size: var(--fs-xs); }
+@media (max-width: 759px) {
+  .lantern-host .electricity-scene-inspector { width: 100%; max-height: 58vh; border-radius: 16px 16px 0 0; padding: 16px; }
+  .lantern-host .electricity-scene-summary { width: min(240px, 100%); }
+}

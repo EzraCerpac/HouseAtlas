@@ -1,0 +1,37 @@
+/* Existing Settings geometry and HouseAtlas palette; no separate theme. */
+.setting.ai-host { grid-template-columns: minmax(0, 1fr); }
+.ai-host .ha-ai { width: 100%; max-width: none; min-width: 0; }
+.ai-host .ha-ai__header { align-items: start; flex-wrap: wrap; }
+.ai-host .ha-ai__facts { margin-block: 16px; }
+.ai-host .ha-ai__facts dd { margin-bottom: 0; }
+.ai-host .ha-ai__connection {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+.ai-host .ha-ai__connection legend { font-family: var(--sign); padding-inline: 6px; }
+.ai-host .ha-ai textarea {
+  min-height: 112px;
+  padding: 12px;
+  border: 1.5px solid var(--field);
+  border-radius: 9px;
+  background: var(--enamel);
+  color: inherit;
+  resize: vertical;
+}
+.ai-host .ha-ai pre {
+  padding: 12px;
+  background: var(--steel);
+  border: 1px solid var(--steel-line);
+  border-radius: 9px;
+}
+.ai-host .ha-ai__calls > li + li,
+.ai-host .ha-ai__result h3 { margin-top: 18px; }
+.ai-host .ha-ai__review { border-top: 1px solid var(--line-soft); padding-top: 16px; }
+.ai-host-activity { clear: both; padding-block: 8px; }
+@media (max-width: 560px) {
+  .ai-host .ha-ai__facts { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .ai-host .ha-ai__facts dd { margin-bottom: 10px; }
+  .ai-host .ha-ai__connection { padding: 12px; }
+}

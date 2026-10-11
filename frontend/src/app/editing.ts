@@ -9,6 +9,7 @@ import type {
   StockRequestEnvelope,
   StockResultEnvelope,
 } from "../webmcp/stock.js";
+import type { BrowserSelectionClaim } from "../capture-evidence/types";
 
 /** Proposed host admission, never inferred from canEdit or the stock catalog. */
 export interface PlaceEditAdmission {
@@ -37,6 +38,8 @@ export interface UploadPlaceEvidence {
   readonly statement: string;
   readonly sourceLicense: License;
   readonly reason: string;
+  /** Optional browser selection labels, never factAt or measured Media proof. */
+  readonly capture?: BrowserSelectionClaim;
 }
 export interface AtlasEditingClient {
   loadPlace(

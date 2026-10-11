@@ -85,7 +85,7 @@ test('canonical v1 healthy mutations, batch, source claims, pages, history and p
     for(const [suffix,shape] of [['records','record'],['homebox/entities','homeboxProjection'],['network/relations','networkRelation']]) {
       const rows=[];let path=prefix+'/'+suffix+'?limit=2',pages=0;
       do {
-        res=await router(request(path,viewer));assert.equal(res.status,200);const page=await res.json();assert.deepEqual(Object.keys(page).sort(),['contractVersion','items','nextCursor','sourceStatuses']);assert.equal(page.contractVersion,'1.0.0');page.items.forEach(i=>validateShape(shape,i));page.sourceStatuses.forEach(c=>validateShape('cacheStatus',c));rows.push(...page.items);pages++;
+        res=await router(request(path,viewer));assert.equal(res.status,200);const page=await res.json();assert.deepEqual(Object.keys(page).sort(),['contractVersion','items','nextCursor','sourceStatuses']);assert.equal(page.contractVersion,'1.1.0');page.items.forEach(i=>validateShape(shape,i));page.sourceStatuses.forEach(c=>validateShape('cacheStatus',c));rows.push(...page.items);pages++;
         path=page.nextCursor?prefix+'/'+suffix+'?limit=2&cursor='+page.nextCursor:null;
       } while(path);
       totals[suffix]={items:rows.length,pages};assert(rows.length>0);

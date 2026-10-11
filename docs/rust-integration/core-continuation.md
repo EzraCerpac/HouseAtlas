@@ -1,6 +1,6 @@
 # Native core ordinary evidence
 
-This records the immutable PR16 core checkpoint. The subsequent owned-media
+This records the earlier immutable native core checkpoint. The subsequent owned-media
 continuation and its updated module bindings are recorded in owned-media.md.
 
 The local source runner passed with Rust/cargo 1.99.0, Node 26.10.0,

@@ -1,4 +1,5 @@
 //! Consuming adapter for AT07's actual store-issued publication fence.
+use super::native_presence_capture::NativePresenceCapture;
 use super::*;
 use crate::storage::{self, AtlasStore, Authorization, Contract, Runtime};
 use std::fmt;
@@ -204,9 +205,56 @@ fn matches_registration(
                 .map(String::as_str)
                 .collect::<BTreeSet<_>>()
 }
-impl<P> StagedPublication<'_, P> {
+impl<'a, P> StagedPublication<'a, P> {
     pub fn generation(&self) -> &CompleteGeneration {
         &self.generation
+    }
+    /// Whether this staged complete read retained original native bytes.
+    /// This metadata grants no authority and leaves ordinary commit available.
+    pub fn has_native_presence_capture(&self) -> bool {
+        self.generation.native_presence.is_some()
+    }
+    /// Consume the stage into a source carrier for the actual Storage presence
+    /// publication path. This moves the original fence and normalized
+    /// generation, including the exact reader-issued raw allocation; the
+    /// original principal remains borrowed. It creates no historical authority.
+    pub fn into_native_presence_capture(
+        self,
+    ) -> Result<NativePresenceCapture<'a, P>, PublishError> {
+        let native = self
+            .generation
+            .native_presence
+            .as_deref()
+            .ok_or(PublishError::InvalidRetainedState)?;
+        let generation_id = self
+            .generation
+            .cache()
+            .generation_id
+            .as_ref()
+            .ok_or(PublishError::InvalidRetainedState)?;
+        if generation_id != native.generation_id()
+            || generation_id.as_str() != self.fence.reserved_generation_id()
+            || !matches_registration(&native.registration, self.fence.registration())
+            || native.scope != self.generation.cache().scope()
+            || native.responses.len() != self.generation.stats().requests
+            || native
+                .responses
+                .iter()
+                .map(|response| response.body.len())
+                .sum::<usize>()
+                != self.generation.stats().bytes
+            || native
+                .responses
+                .iter()
+                .any(|response| response.scope != native.scope)
+        {
+            return Err(PublishError::InvalidRetainedState);
+        }
+        Ok(NativePresenceCapture {
+            principal: self.principal,
+            fence: self.fence,
+            generation: self.generation,
+        })
     }
     pub fn commit<C: Contract, A: Authorization<Principal = P>, R: Runtime>(
         self,

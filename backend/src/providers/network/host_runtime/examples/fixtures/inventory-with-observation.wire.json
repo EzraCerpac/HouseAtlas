@@ -1,0 +1,104 @@
+{
+  "revision": 42,
+  "inventory": {
+    "rooms": [
+      {
+        "id": "group-a",
+        "name": "Synthetic arbitrary group"
+      }
+    ],
+    "devices": [
+      {
+        "id": "device-a",
+        "name": "Synthetic endpoint",
+        "kind": "router",
+        "mobility": "fixed",
+        "roomId": "group-a",
+        "notes": "Group membership does not establish a room."
+      },
+      {
+        "id": "device-b",
+        "name": "Synthetic mobile endpoint",
+        "kind": "computer",
+        "mobility": "mobile"
+      }
+    ],
+    "interfaces": [
+      {
+        "id": "interface-a",
+        "deviceId": "device-a",
+        "name": "Synthetic attachment",
+        "addresses": []
+      }
+    ],
+    "segments": [
+      {
+        "id": "segment-a",
+        "name": "Synthetic shared medium",
+        "kind": "powerline"
+      }
+    ],
+    "links": [
+      {
+        "id": "member-a",
+        "from": "segment-a",
+        "to": "interface-a",
+        "medium": "powerline",
+        "confidence": "confirmed",
+        "notes": "Owner report; not a cable survey."
+      },
+      {
+        "id": "association-a",
+        "from": "device-b",
+        "to": "device-a",
+        "medium": "wifi",
+        "confidence": "unknown",
+        "observedAt": "2025-12-01T00:00:00Z",
+        "notes": "Historical association is disputed."
+      },
+      {
+        "id": "connection-a",
+        "from": "device-a",
+        "to": "device-b",
+        "medium": "wifi",
+        "confidence": "reported",
+        "observedAt": "2026-01-01T00:00:00Z",
+        "reportedRate": {
+          "kind": "negotiated-port",
+          "mbps": 100,
+          "source": "synthetic-router",
+          "observedAt": "2025-12-01T00:00:00Z"
+        }
+      },
+      {
+        "id": "gap-a",
+        "from": "interface-a",
+        "to": "device-b",
+        "medium": "ethernet",
+        "confidence": "unknown",
+        "notes": "Peer identity is unresolved."
+      }
+    ],
+    "positions": {
+      "device-a": {
+        "x": 100,
+        "y": 200
+      }
+    }
+  },
+  "observations": [
+    {
+      "id": "member-a",
+      "collectorId": "synthetic-collector-a",
+      "kind": "synthetic-source-report",
+      "vantagePoint": "Synthetic exact vantage",
+      "timestamp": "2026-01-01T01:02:03Z",
+      "deviceId": "device-a",
+      "interfaceId": "interface-a",
+      "value": {
+        "note": "Original synthetic source text",
+        "confidence": "unknown"
+      }
+    }
+  ]
+}

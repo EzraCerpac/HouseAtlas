@@ -34,7 +34,11 @@ fn each(
 fn native<C: Contract, T: DeserializeOwned>(contract: &C, name: &str, body: &str) -> Result<T> {
     let value: Value = serde_json::from_str(body)?;
     contract.validate_shape(name, &value)?;
-    require(contract.canonical_json(&value)? == body)?;
+    if matches!(name, "record" | "mutationResult") {
+        require(repo::retained_json_matches(contract, &value, body)?)?;
+    } else {
+        require(contract.canonical_json(&value)? == body)?;
+    }
     Ok(serde_json::from_value(value)?)
 }
 fn hash(value: &str) -> Result<()> {
@@ -113,8 +117,26 @@ fn validate_core<C: Contract>(
     contract: &C,
     check: Check<'_>,
 ) -> Result<RecoveryImage> {
+    validate_core_profile(db, contract, check, CoreProfile::Base)
+}
+#[derive(Clone, Copy)]
+enum CoreProfile {
+    Base,
+    Activity,
+    Presence,
+}
+fn validate_core_profile<C: Contract>(
+    db: &Connection,
+    contract: &C,
+    check: Check<'_>,
+    profile: CoreProfile,
+) -> Result<RecoveryImage> {
     check()?;
-    migrations::validate(db)?;
+    match profile {
+        CoreProfile::Base => migrations::validate(db)?,
+        CoreProfile::Activity => migrations::validate_profile(db, true)?,
+        CoreProfile::Presence => migrations::validate_presence(db)?,
+    }
     let mut integrity_rows = 0;
     each(db, "PRAGMA integrity_check", check, |row, _| {
         integrity_rows += 1;
@@ -187,7 +209,21 @@ fn validate_core<C: Contract>(
         ),
     ] {
         each(db, sql, check, |row, _| {
-            let value: Value = native(contract, name, &row.get::<_, String>(5)?)?;
+            let body: String = row.get(5)?;
+            let value: Value = if homebox {
+                let value = serde_json::from_str(&body)?;
+                contract.validate_shape(name, &value)?;
+                // Exact-number projection bodies and previously published JCS
+                // bodies both retain their strict encoding/key/graph checks.
+                // Legacy rounding cannot be reversed or inferred on reopen.
+                require(
+                    cache_repo::projection_json(&value)? == body
+                        || contract.canonical_json(&value)? == body,
+                )?;
+                value
+            } else {
+                native(contract, name, &body)?
+            };
             let source = if homebox { &value["source"] } else { &value };
             let key = (
                 repo::string(&value, "workspaceId")?.to_owned(),
@@ -213,8 +249,15 @@ fn validate_core<C: Contract>(
     check()?;
     Ok(RecoveryImage {
         contract_version: CONTRACT_VERSION.into(),
-        database_lineage: DATABASE_LINEAGE.into(),
-        database_schema: DATABASE_VERSION,
+        database_lineage: match profile {
+            CoreProfile::Presence => presence_profile_definition().lineage.into(),
+            CoreProfile::Base | CoreProfile::Activity => DATABASE_LINEAGE.into(),
+        },
+        database_schema: match profile {
+            CoreProfile::Base => DATABASE_VERSION,
+            CoreProfile::Activity => STOCK_ACTIVITY_DATABASE_VERSION,
+            CoreProfile::Presence => presence_profile_definition().version,
+        },
         assets,
     })
 }
@@ -226,6 +269,14 @@ pub(super) fn validate_connection<C: Contract>(
     check: Check<'_>,
 ) -> Result<RecoveryImage> {
     let image = validate_core(db, contract, check)?;
+    // This compatibility API has no independent Media evidence owner. Full
+    // peers are required for inline policy, including assets without uploads.
+    if image.assets.iter().any(safe_rendered) {
+        return Err(Error::new(
+            "owner-unavailable",
+            "Media policy recovery requires its independent evidence peer",
+        ));
+    }
     // These exact AT12 signatures have no required StockContractPort. Do not
     // certify nonempty stock envelopes/wire/cursor state using native C alone.
     // Native-only upgraded v2 databases legitimately have an empty journal.
@@ -251,6 +302,23 @@ pub(super) fn validate_connection<C: Contract>(
     Ok(image)
 }
 
+fn safe_rendered(asset: &Record) -> bool {
+    asset.payload["previewPolicy"] == "safe-rendered"
+}
+
+fn validate_media_policies<E: QueueRecoveryEvidence>(
+    image: &RecoveryImage,
+    evidence: &E,
+    check: Check<'_>,
+) -> Result<()> {
+    for asset in image.assets.iter().filter(|asset| safe_rendered(asset)) {
+        check()?;
+        evidence.validate_media_policy(MediaPolicyRecoveryFrame::Asset(asset))?;
+        check()?;
+    }
+    Ok(())
+}
+
 pub(super) fn validate_connection_with_peers<
     C: Contract,
     S: crate::domain::stock::StockContractPort,
@@ -263,7 +331,14 @@ pub(super) fn validate_connection_with_peers<
     check: Check<'_>,
 ) -> Result<RecoveryImage> {
     let image = validate_core(db, contract, check)?;
-    super::super::super::stock_recovery::validate(db, contract, peers.stock, check)?;
+    super::super::super::stock_recovery::validate(
+        db,
+        contract,
+        peers.stock,
+        peers.evidence,
+        check,
+    )?;
+    validate_media_policies(&image, peers.evidence, check)?;
     check()?;
     super::super::super::queue::validate_recovery_queues(
         db,
@@ -273,6 +348,113 @@ pub(super) fn validate_connection_with_peers<
         peers.evidence,
         check,
     )?;
+    check()?;
+    Ok(image)
+}
+
+pub(super) fn validate_connection_with_activity_peers<
+    C: Contract,
+    S: crate::domain::stock::StockContractPort,
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+    W: crate::providers::homebox::write::stock::StockContractPort,
+    AD: StockActivityRecoveryDiscovery,
+    AE: StockActivityRecoveryEvidence,
+>(
+    db: &Connection,
+    contract: &C,
+    base: &super::RecoveryValidationPeers<'_, S, D, E>,
+    activity: &StockActivityRecoveryPeers<'_, W, AD, AE>,
+    check: Check<'_>,
+) -> Result<RecoveryImage> {
+    let image = validate_core_profile(db, contract, check, CoreProfile::Activity)?;
+    validate_activity_closure(db, contract, base, activity, None, image, check)
+}
+
+pub(super) fn validate_connection_with_presence_peers<
+    C: Contract,
+    S: crate::domain::stock::StockContractPort,
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+    W: crate::providers::homebox::write::stock::StockContractPort,
+    AD: StockActivityRecoveryDiscovery,
+    AE: StockActivityRecoveryEvidence,
+>(
+    db: &Connection,
+    contract: &C,
+    peers: &super::PresenceOpenPeers<'_, S, D, E, W, AD, AE>,
+    check: Check<'_>,
+) -> Result<RecoveryImage> {
+    let image = validate_core_profile(db, contract, check, CoreProfile::Presence)?;
+    let image = validate_activity_closure(
+        db,
+        contract,
+        peers.base,
+        peers.activity,
+        Some(peers.history),
+        image,
+        check,
+    )?;
+    // Consume the complete witness history only after the native, activity,
+    // Stock, Media and Jobs closures have passed on this same read snapshot.
+    check()?;
+    peers.history.validate_connection(db, contract, check)?;
+    check()?;
+    Ok(image)
+}
+
+fn validate_activity_closure<
+    C: Contract,
+    S: crate::domain::stock::StockContractPort,
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+    W: crate::providers::homebox::write::stock::StockContractPort,
+    AD: StockActivityRecoveryDiscovery,
+    AE: StockActivityRecoveryEvidence,
+>(
+    db: &Connection,
+    contract: &C,
+    base: &super::RecoveryValidationPeers<'_, S, D, E>,
+    activity: &StockActivityRecoveryPeers<'_, W, AD, AE>,
+    presence_history: Option<&PresenceHistoryCatalog>,
+    image: RecoveryImage,
+    check: Check<'_>,
+) -> Result<RecoveryImage> {
+    super::super::super::stock_activity::validate_recovery_activity(db, activity, check)?;
+    if let Some(history) = presence_history {
+        super::super::super::stock_recovery::validate_with_activity_and_presence(
+            db,
+            contract,
+            base.stock,
+            base.evidence,
+            activity.contracts,
+            history,
+            check,
+        )?;
+    } else {
+        super::super::super::stock_recovery::validate_with_activity(
+            db,
+            contract,
+            base.stock,
+            base.evidence,
+            activity.contracts,
+            check,
+        )?;
+    }
+    validate_media_policies(&image, base.evidence, check)?;
+    check()?;
+    // Independent Jobs rows keep their own registry, codecs and original claims.
+    // They are never used as native activity producer/attempt evidence.
+    super::super::super::queue::validate_recovery_queues(
+        db,
+        base.queues,
+        base.discovery,
+        base.stock,
+        base.evidence,
+        check,
+    )?;
+    check()?;
+
     check()?;
     Ok(image)
 }
@@ -509,7 +691,7 @@ fn validate_history<C: Contract>(
             hash(&row.get::<_, String>(4)?)?;
             let body = row.get::<_, String>(5)?;
             let value: Value = serde_json::from_str(&body)?;
-            require(contract.canonical_json(&value)? == body)?;
+            require(repo::retained_json_matches(contract, &value, &body)?)?;
             let results: Vec<MutationResult> = serde_json::from_value(value)?;
             require(!results.is_empty() && results.len() <= 100)?;
             let scope = Scope {

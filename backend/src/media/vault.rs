@@ -7,6 +7,7 @@ use rustix::fs::{AtFlags, Mode, linkat};
 
 use super::content::{qualify_original_preview, validate_original_content};
 use super::private_fs::PrivateDir;
+use super::recovery_policy::RendererQualification;
 use super::types::{
     AssetOwner, AssetPayload, AssetPurpose, AssetRecord, Availability, BlobIdentity, ContentType,
     PreviewPolicy, Scope, SourceLicense, is_digest, sha256,
@@ -38,6 +39,7 @@ pub struct PreparedOriginal {
 pub struct QualifiedOriginal {
     measured: PreparedOriginal,
     preview_policy: PreviewPolicy,
+    qualification: Option<RendererQualification>,
 }
 
 impl std::ops::Deref for QualifiedOriginal {
@@ -48,6 +50,9 @@ impl std::ops::Deref for QualifiedOriginal {
 }
 
 impl QualifiedOriginal {
+    pub fn renderer_qualification(&self) -> Option<&RendererQualification> {
+        self.qualification.as_ref()
+    }
     pub fn into_measured(self) -> PreparedOriginal {
         self.measured
     }
@@ -61,6 +66,35 @@ impl QualifiedOriginal {
             .measured
             .with_provenance(source_license, evidence_ids)?;
         payload.preview_policy = self.preview_policy;
+        payload.validate()?;
+        Ok(payload)
+    }
+}
+
+/// A genuinely measured closed derivative, distinct from QualifiedOriginal.
+/// Fields are private; no consumer can mint this producer carrier from a DTO.
+pub struct QualifiedDerivative {
+    storage_key: String,
+    identity: BlobIdentity,
+}
+impl QualifiedDerivative {
+    pub fn with_provenance(
+        self,
+        source_license: SourceLicense,
+        evidence_ids: Vec<String>,
+    ) -> MediaResult<AssetPayload> {
+        let payload = AssetPayload {
+            owner: AssetOwner::Atlas,
+            purpose: AssetPurpose::DerivedPreview,
+            storage_key: self.storage_key,
+            sha256: self.identity.sha256,
+            byte_size: self.identity.byte_size,
+            content_type: ContentType::AuthoredMesh.as_str().to_owned(),
+            source_license,
+            availability: Availability::Available,
+            preview_policy: PreviewPolicy::DownloadOnly,
+            evidence_ids,
+        };
         payload.validate()?;
         Ok(payload)
     }
@@ -116,9 +150,18 @@ pub trait AvailableAssetVerifier {
 
 impl AssetVault {
     pub fn open(root: &Path) -> MediaResult<Self> {
-        let root = PrivateDir::open(root, true)?;
-        let blobs = root.child("blobs", true)?;
-        let staging = root.child("staging", true)?;
+        Self::open_selected(root, true)
+    }
+
+    /// Offline existing custody only; never creates or synchronizes directories.
+    pub fn open_existing(root: &Path) -> MediaResult<Self> {
+        Self::open_selected(root, false)
+    }
+
+    fn open_selected(root: &Path, create: bool) -> MediaResult<Self> {
+        let root = PrivateDir::open(root, create)?;
+        let blobs = root.child("blobs", create)?;
+        let staging = root.child("staging", create)?;
         let mut scopes = BTreeMap::new();
         for name in blobs.members()? {
             if !is_digest(&name) {
@@ -200,15 +243,20 @@ impl AssetVault {
 
     /// Reopen and prove actual prepared bytes without inventing an asset record,
     /// audit ID or timestamp before the storage transaction creates them.
-    pub(super) fn verify_prepared_original(
+    pub(super) fn verify_prepared_asset(
         &self,
         scope: &Scope,
-        prepared: &PreparedOriginal,
+        prepared: &AssetPayload,
         budget: &WorkBudget,
     ) -> MediaResult<BlobIdentity> {
         scope.validate()?;
-        let identity = &prepared.identity;
-        if !prepared.purpose.is_original()
+        prepared.validate()?;
+        let content_type = ContentType::parse_owned(&prepared.content_type)?;
+        let identity = BlobIdentity {
+            sha256: prepared.sha256.clone(),
+            byte_size: prepared.byte_size,
+        };
+        if !content_type.supports_purpose(prepared.purpose)
             || prepared.storage_key != scope.storage_key(&identity.sha256)?
             || identity.byte_size == 0
             || identity.byte_size > MAX_BYTES as u64
@@ -221,7 +269,7 @@ impl AssetVault {
             if bytes.len() as u64 != identity.byte_size || sha256(&bytes) != identity.sha256 {
                 return Err(MediaError::Unavailable);
             }
-            validate_original_content(&bytes, prepared.content_type, budget)?;
+            validate_original_content(&bytes, content_type, budget)?;
             self.sync_retained_member(directory, &member, budget)?;
             Ok(BlobIdentity {
                 sha256: sha256(&bytes),
@@ -402,6 +450,26 @@ impl AssetVault {
         .map(QualifiedOriginal::into_measured)
     }
 
+    /// Real measured derivative installation, reachable only through the closed
+    /// profile qualification. Its policy is always download-only, no PNG seal.
+    pub(super) fn prepare_upload_mesh(
+        &self,
+        scope: &Scope,
+        qualified: &super::mesh_derivative::QualifiedMesh<'_>,
+        budget: &WorkBudget,
+        limits: &super::staged_upload::UploadLimits,
+    ) -> MediaResult<QualifiedDerivative> {
+        scope.validate()?;
+        let bytes = qualified.bytes();
+        self.enforce_upload_capacity(scope, bytes, limits, budget)?;
+        let prepared = self.install(scope, bytes, budget)?;
+        budget.check()?;
+        Ok(QualifiedDerivative {
+            storage_key: prepared.storage_key,
+            identity: prepared.identity,
+        })
+    }
+
     fn enforce_upload_capacity(
         &self,
         scope: &Scope,
@@ -449,7 +517,7 @@ impl AssetVault {
         policy: PreparationPolicy<'_>,
     ) -> MediaResult<QualifiedOriginal> {
         scope.validate()?;
-        if !purpose.is_original() {
+        if !purpose.is_original() || !content_type.supports_purpose(purpose) {
             return Err(MediaError::InvalidInput);
         }
         let mut bytes = Vec::new();
@@ -477,28 +545,36 @@ impl AssetVault {
         if let Some(limits) = policy.limits {
             self.enforce_upload_capacity(scope, &bytes, limits, budget)?;
         }
-        let preview_policy = if policy.qualify_preview {
+        let rendered = if policy.qualify_preview {
             qualify_original_preview(&bytes, content_type, budget)?
         } else {
-            PreviewPolicy::DownloadOnly
+            None
         };
         let prepared = self.install(scope, &bytes, budget)?;
         budget.check()?;
+        let measured = PreparedOriginal {
+            purpose,
+            storage_key: prepared.storage_key,
+            identity: prepared.identity,
+            content_type,
+        };
+        let qualification =
+            rendered.map(|output| RendererQualification::produced(scope, &measured, output));
         Ok(QualifiedOriginal {
-            measured: PreparedOriginal {
-                purpose,
-                storage_key: prepared.storage_key,
-                identity: prepared.identity,
-                content_type,
+            measured,
+            preview_policy: if qualification.is_some() {
+                PreviewPolicy::SafeRendered
+            } else {
+                PreviewPolicy::DownloadOnly
             },
-            preview_policy,
+            qualification,
         })
     }
 
     pub fn read_retained(&self, record: &AssetRecord, budget: &WorkBudget) -> MediaResult<Vec<u8>> {
         record.validate()?;
         let payload = &record.payload;
-        if !payload.purpose.is_original()
+        if !ContentType::parse_owned(&payload.content_type)?.supports_purpose(payload.purpose)
             || payload.storage_key != record.scope().storage_key(&payload.sha256)?
         {
             return Err(MediaError::Unavailable);
@@ -526,14 +602,18 @@ impl AssetVault {
     ) -> MediaResult<()> {
         record.validate()?;
         let payload = &record.payload;
-        if !payload.purpose.is_original()
+        if !ContentType::parse_owned(&payload.content_type)?.supports_purpose(payload.purpose)
             || payload.storage_key != record.scope().storage_key(&payload.sha256)?
             || bytes.len() as u64 != payload.byte_size
             || sha256(bytes) != payload.sha256
         {
             return Err(MediaError::Unavailable);
         }
-        validate_original_content(bytes, ContentType::parse(&payload.content_type)?, budget)?;
+        validate_original_content(
+            bytes,
+            ContentType::parse_owned(&payload.content_type)?,
+            budget,
+        )?;
         self.install(&record.scope(), bytes, budget)?;
         Ok(())
     }
@@ -546,8 +626,15 @@ impl AvailableAssetVerifier for AssetVault {
         budget: &WorkBudget,
     ) -> MediaResult<BlobIdentity> {
         let bytes = self.read_retained(record, budget)?;
-        let content_type = ContentType::parse(&record.payload.content_type)?;
+        let content_type = ContentType::parse_owned(&record.payload.content_type)?;
         validate_original_content(&bytes, content_type, budget)?;
+        if matches!(
+            content_type,
+            ContentType::Usdz | ContentType::Ifc | ContentType::AuthoredMesh
+        ) && record.payload.preview_policy != PreviewPolicy::DownloadOnly
+        {
+            return Err(MediaError::Unsupported);
+        }
         if record.payload.preview_policy == PreviewPolicy::SafeRendered
             && content_type != ContentType::Png
         {

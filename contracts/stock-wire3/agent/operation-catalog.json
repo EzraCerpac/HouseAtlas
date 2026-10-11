@@ -1,6 +1,6 @@
 {
   "contractVersion": "0.3.0-at34.stock.2",
-  "baseContractVersion": "1.0.0",
+  "baseContractVersion": "1.1.0",
   "baseRecordSchemaVersion": 1,
   "agentWireSchemaVersion": 3,
   "candidateOnly": true,
@@ -2309,6 +2309,53 @@
       "archiveAuthority": "atlas"
     },
     {
+      "commandId": "atlas.scene-association.get",
+      "authority": "atlas",
+      "effect": "read",
+      "resourceKind": "scene-association",
+      "permission": "domain:read",
+      "inputSchema": "#/$defs/request_atlas_scene_association_get",
+      "outputSchema": "#/$defs/result_atlas_scene_association_get",
+      "expectedRevision": "read-observation-no-write-precondition",
+      "resultResourceKind": "scene-association",
+      "resultIdentity": "same-qualified-target-or-scoped-page",
+      "idempotency": "read-no-ledger-side-effect",
+      "audit": "security-access-log-no-domain-mutation",
+      "recoverability": "retained-tombstone-and-original-payload",
+      "confirmation": "none",
+      "provider": {
+        "method": null,
+        "path": null,
+        "observedCAS": null,
+        "status": "contract-candidate"
+      },
+      "firstReleaseRequired": true,
+      "serverOnly": false,
+      "notes": "Authenticated scoped documentary association read; current head requires separate exact native building qualification.",
+      "transports": [
+        "human-ui",
+        "remote-mcp",
+        "webmcp",
+        "in-app-chatgpt"
+      ],
+      "toolFamily": "atlas_media_geometry",
+      "historicalWire2": {
+        "firstReleaseRequired": true,
+        "provider": {
+          "method": null,
+          "path": null,
+          "observedCAS": null,
+          "status": "contract-candidate"
+        },
+        "notes": "",
+        "expectedRevision": "read-observation-no-write-precondition"
+      },
+      "disposition": "atlas-owned-required",
+      "dataAuthority": "atlas",
+      "capabilityStatus": "supported-pending-qualification",
+      "archiveAuthority": "atlas"
+    },
+    {
       "commandId": "atlas.geometry.list",
       "authority": "atlas",
       "effect": "read",
@@ -2332,6 +2379,53 @@
       "firstReleaseRequired": true,
       "serverOnly": false,
       "notes": "Strong Atlas CAS, local atomic audit/idempotency receipt, authorization and invariants retained.",
+      "transports": [
+        "human-ui",
+        "remote-mcp",
+        "webmcp",
+        "in-app-chatgpt"
+      ],
+      "toolFamily": "atlas_media_geometry",
+      "historicalWire2": {
+        "firstReleaseRequired": true,
+        "provider": {
+          "method": null,
+          "path": null,
+          "observedCAS": null,
+          "status": "contract-candidate"
+        },
+        "notes": "",
+        "expectedRevision": "read-observation-no-write-precondition"
+      },
+      "disposition": "atlas-owned-required",
+      "dataAuthority": "atlas",
+      "capabilityStatus": "supported-pending-qualification",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.scene-association.list",
+      "authority": "atlas",
+      "effect": "read",
+      "resourceKind": "scene-association",
+      "permission": "domain:read",
+      "inputSchema": "#/$defs/request_atlas_scene_association_list",
+      "outputSchema": "#/$defs/result_atlas_scene_association_list",
+      "expectedRevision": "read-observation-no-write-precondition",
+      "resultResourceKind": "scene-association",
+      "resultIdentity": "same-qualified-target-or-scoped-page",
+      "idempotency": "read-no-ledger-side-effect",
+      "audit": "security-access-log-no-domain-mutation",
+      "recoverability": "retained-tombstone-and-original-payload",
+      "confirmation": "none",
+      "provider": {
+        "method": null,
+        "path": null,
+        "observedCAS": null,
+        "status": "contract-candidate"
+      },
+      "firstReleaseRequired": true,
+      "serverOnly": false,
+      "notes": "Authenticated scoped documentary association read; current head requires separate exact native building qualification.",
       "transports": [
         "human-ui",
         "remote-mcp",
@@ -2403,6 +2497,53 @@
       "archiveAuthority": "atlas"
     },
     {
+      "commandId": "atlas.scene-association.history",
+      "authority": "atlas",
+      "effect": "read",
+      "resourceKind": "scene-association",
+      "permission": "domain:read",
+      "inputSchema": "#/$defs/request_atlas_scene_association_history",
+      "outputSchema": "#/$defs/result_atlas_scene_association_history",
+      "expectedRevision": "read-observation-no-write-precondition",
+      "resultResourceKind": "scene-association",
+      "resultIdentity": "same-qualified-target-or-scoped-page",
+      "idempotency": "read-no-ledger-side-effect",
+      "audit": "security-access-log-no-domain-mutation",
+      "recoverability": "retained-tombstone-and-original-payload",
+      "confirmation": "none",
+      "provider": {
+        "method": null,
+        "path": null,
+        "observedCAS": null,
+        "status": "contract-candidate"
+      },
+      "firstReleaseRequired": true,
+      "serverOnly": false,
+      "notes": "Authenticated scoped documentary association read; current head requires separate exact native building qualification.",
+      "transports": [
+        "human-ui",
+        "remote-mcp",
+        "webmcp",
+        "in-app-chatgpt"
+      ],
+      "toolFamily": "atlas_media_geometry",
+      "historicalWire2": {
+        "firstReleaseRequired": true,
+        "provider": {
+          "method": null,
+          "path": null,
+          "observedCAS": null,
+          "status": "contract-candidate"
+        },
+        "notes": "",
+        "expectedRevision": "read-observation-no-write-precondition"
+      },
+      "disposition": "atlas-owned-required",
+      "dataAuthority": "atlas",
+      "capabilityStatus": "supported-pending-qualification",
+      "archiveAuthority": "atlas"
+    },
+    {
       "commandId": "atlas.geometry.create",
       "authority": "atlas",
       "effect": "write",
@@ -2431,6 +2572,50 @@
         "remote-mcp",
         "webmcp",
         "in-app-chatgpt"
+      ],
+      "toolFamily": "atlas_media_geometry",
+      "historicalWire2": {
+        "firstReleaseRequired": true,
+        "provider": {
+          "method": null,
+          "path": null,
+          "observedCAS": null,
+          "status": "contract-candidate"
+        },
+        "notes": "Frozen graph/guard validator required; sourceState, asset storage and import time are server-derived.",
+        "expectedRevision": "atlas-absent-create"
+      },
+      "disposition": "atlas-owned-required",
+      "dataAuthority": "atlas",
+      "capabilityStatus": "supported-pending-qualification",
+      "archiveAuthority": "atlas"
+    },
+    {
+      "commandId": "atlas.scene-association.create",
+      "authority": "atlas",
+      "effect": "write",
+      "resourceKind": "scene-association",
+      "permission": "atlas:write",
+      "inputSchema": "#/$defs/request_atlas_scene_association_create",
+      "outputSchema": "#/$defs/result_atlas_scene_association_create",
+      "expectedRevision": "atlas-absent-create",
+      "resultResourceKind": "scene-association",
+      "resultIdentity": "same-qualified-target-or-scoped-page",
+      "idempotency": "durable-actor-home-key-plus-request-digest",
+      "audit": "Atlas-atomic-record-audit-receipt",
+      "recoverability": "retained-tombstone-and-original-payload",
+      "confirmation": "none",
+      "provider": {
+        "method": null,
+        "path": null,
+        "observedCAS": null,
+        "status": "contract-candidate"
+      },
+      "firstReleaseRequired": true,
+      "serverOnly": true,
+      "notes": "Dedicated authenticated Editor scene acceptance only; measured retained original and atomic owner qualification required; generic and batch writes held.",
+      "transports": [
+        "human-ui"
       ],
       "toolFamily": "atlas_media_geometry",
       "historicalWire2": {

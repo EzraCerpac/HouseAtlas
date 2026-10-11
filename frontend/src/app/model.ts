@@ -51,8 +51,10 @@ export const sourceKey = (source: SourceKey): string =>
     source.sourceKind,
     source.externalId,
   ]);
+export const isArchivedEntry = (entry: Entry): boolean =>
+  entry.entity.archived || entry.sourceState === "archived";
 export const visibleEntries = (view: ReadyView, archived: boolean): Entry[] =>
-  view.entries.filter((p) => archived || !p.entity.archived);
+  view.entries.filter((p) => archived || !isArchivedEntry(p));
 export const parentOf = (view: ReadyView, p: Entry): Entry | undefined =>
   p.entity.parent
     ? view.entries.find(

@@ -3,7 +3,7 @@ use super::error::invalid;
 use super::*;
 use reqwest::{
     Client, Response,
-    header::{ACCEPT, ACCEPT_ENCODING, AUTHORIZATION, HeaderValue},
+    header::{ACCEPT, ACCEPT_ENCODING, AUTHORIZATION, CONTENT_ENCODING, HeaderValue},
 };
 use std::{future::Future, time::Duration};
 use tokio::time::{Instant, timeout_at};
@@ -101,7 +101,19 @@ impl<P: CredentialProvider> HttpTransport<P> {
         limits: Limits,
     ) -> Result<Self, ReadError> {
         limits.validate()?;
-        let client = Client::builder()
+        let client = Self::client_builder(&endpoint, limits)
+            .build()
+            .map_err(|_| ReadError(ErrorCode::Transport))?;
+        Ok(Self {
+            client,
+            endpoint,
+            credentials,
+            limits,
+        })
+    }
+
+    fn client_builder(endpoint: &SourceEndpoint, limits: Limits) -> reqwest::ClientBuilder {
+        Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .retry(reqwest::retry::never())
             .no_proxy()
@@ -114,6 +126,29 @@ impl<P: CredentialProvider> HttpTransport<P> {
             .connect_timeout(Duration::from_millis(limits.request_timeout_ms))
             .read_timeout(Duration::from_millis(limits.request_timeout_ms))
             .pool_max_idle_per_host(0)
+    }
+
+    /// A test-only trust root for an actual authenticated HTTPS loopback peer.
+    #[cfg(test)]
+    pub(crate) fn new_with_loopback_certificate(
+        endpoint: SourceEndpoint,
+        credentials: P,
+        limits: Limits,
+        certificate_der: &[u8],
+    ) -> Result<Self, ReadError> {
+        limits.validate()?;
+        let loopback = match endpoint.origin.host() {
+            Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+            Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+            _ => false,
+        };
+        if endpoint.fixture || endpoint.origin.scheme() != "https" || !loopback {
+            return Err(invalid());
+        }
+        let certificate = reqwest::Certificate::from_der(certificate_der)
+            .map_err(|_| ReadError(ErrorCode::Transport))?;
+        let client = Self::client_builder(&endpoint, limits)
+            .tls_certs_only([certificate])
             .build()
             .map_err(|_| ReadError(ErrorCode::Transport))?;
         Ok(Self {
@@ -174,9 +209,16 @@ impl<P: CredentialProvider> Transport for HttpTransport<P> {
         {
             return Err(ReadError(ErrorCode::WrongScope));
         }
-        if !stock_path(request.path()) {
+        if !stock_path(request.path())
+            || (attachment_path(request.path()) && !request.query().is_empty())
+        {
             return Err(ReadError(ErrorCode::Transport));
         }
+        let response_limit = if attachment_path(request.path()) {
+            self.limits.max_response_bytes.min(crate::media::MAX_BYTES)
+        } else {
+            self.limits.max_response_bytes
+        };
         let deadline = request
             .deadline()
             .min(Instant::now() + Duration::from_millis(self.limits.request_timeout_ms));
@@ -190,8 +232,10 @@ impl<P: CredentialProvider> Transport for HttpTransport<P> {
             }
             let mut url = self.endpoint.origin.clone();
             url.set_path(request.path());
-            url.query_pairs_mut()
-                .extend_pairs(request.query().iter().map(|(k, v)| (k, v)));
+            if !request.query().is_empty() {
+                url.query_pairs_mut()
+                    .extend_pairs(request.query().iter().map(|(k, v)| (k, v)));
+            }
             let mut builder = self
                 .client
                 .get(url)
@@ -199,7 +243,14 @@ impl<P: CredentialProvider> Transport for HttpTransport<P> {
                     "X-Tenant",
                     HeaderValue::from_bytes(request.tenant().as_bytes()).map_err(|_| invalid())?,
                 )
-                .header(ACCEPT, "application/json")
+                .header(
+                    ACCEPT,
+                    if attachment_path(request.path()) {
+                        "application/octet-stream"
+                    } else {
+                        "application/json"
+                    },
+                )
                 .header(ACCEPT_ENCODING, "identity");
             if let Some(header) = header {
                 builder = builder.header(AUTHORIZATION, header.0);
@@ -208,9 +259,18 @@ impl<P: CredentialProvider> Transport for HttpTransport<P> {
             if response.url().origin() != self.endpoint.origin.origin() {
                 return Err(ReadError(ErrorCode::WrongScope));
             }
+            // Reject encoded bodies before handing them to HttpBody or retention.
+            if response
+                .headers()
+                .get_all(CONTENT_ENCODING)
+                .iter()
+                .any(|value| value.as_bytes() != b"identity")
+            {
+                return Err(ReadError(ErrorCode::Transport));
+            }
             if response
                 .content_length()
-                .is_some_and(|n| n > self.limits.max_response_bytes as u64)
+                .is_some_and(|n| n > response_limit as u64)
             {
                 return Err(ReadError(ErrorCode::SizeLimit));
             }
@@ -226,7 +286,7 @@ impl<P: CredentialProvider> Transport for HttpTransport<P> {
                     response: Some(response),
                     deadline,
                     received: 0,
-                    limit: self.limits.max_response_bytes,
+                    limit: response_limit,
                 },
             })
         };
@@ -249,6 +309,22 @@ fn stock_path(path: &str) -> bool {
     let Some(tail) = path.strip_prefix("/api/v1/entities/") else {
         return false;
     };
+    if attachment_path(path) {
+        return true;
+    }
     let id = tail.strip_suffix("/maintenance").unwrap_or(tail);
     Uuid::parse(id).is_ok_and(|uuid| uuid.as_str() == id)
+}
+
+pub(super) fn attachment_path(path: &str) -> bool {
+    let Some(tail) = path.strip_prefix("/api/v1/entities/") else {
+        return false;
+    };
+    let Some((owner, attachment)) = tail.split_once("/attachments/") else {
+        return false;
+    };
+    [owner, attachment].into_iter().all(|id| {
+        Uuid::parse(id)
+            .is_ok_and(|uuid| uuid.as_str() == id && id != "00000000-0000-0000-0000-000000000000")
+    })
 }

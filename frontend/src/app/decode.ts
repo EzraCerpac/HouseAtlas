@@ -7,6 +7,7 @@ import type {
   Entry,
   Maintenance,
   NativeLink,
+  NetworkEndpoint,
   NetworkRelation,
   Scope,
   SourceKey,
@@ -36,6 +37,48 @@ function nullableNumber(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isFinite(value))
     throw new TypeError("Expected view number");
   return value;
+}
+function nullableQuantity(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  // Mirror contracts/numeric.rs's representation-work envelope, without
+  // converting or reformatting the retained quantity. JSON digits are ASCII,
+  // so a grammar-valid token's length is also its UTF-8 byte length.
+  if (typeof value !== "string" || value.length > 4096)
+    throw new TypeError("Expected retained quantity token");
+  const parts = /^-?(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([+-]?)([0-9]+))?$/.exec(value);
+  if (!parts || parts[0] !== value)
+    throw new TypeError("Invalid retained quantity token");
+  let exponent = 0;
+  for (const digit of parts[4] ?? "") {
+    exponent = exponent * 10 + digit.charCodeAt(0) - 48;
+    if (exponent > 4096)
+      throw new TypeError("Retained quantity exponent exceeds processing limit");
+  }
+  if (parts[3] === "-") exponent = -exponent;
+  if (Math.abs(exponent - (parts[2]?.length ?? 0)) > 4096)
+    throw new TypeError("Retained quantity decimal shift exceeds processing limit");
+  return value;
+}
+function nullableByteSize(value: unknown): string | null {
+  // Share the existing retained-number grammar/work bounds, then mirror the
+  // native stored-file minimum/integrality constraint using only its digits.
+  const token = nullableQuantity(value);
+  if (token === null) return null;
+  const parts = /^-?(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([+-]?)([0-9]+))?$/.exec(token)!;
+  const digits = parts[1]! + (parts[2] ?? "");
+  const zero = !/[1-9]/.test(digits);
+  let exponent = 0;
+  for (const digit of parts[4] ?? "")
+    exponent = exponent * 10 + digit.charCodeAt(0) - 48;
+  if (parts[3] === "-") exponent = -exponent;
+  const shift = exponent - (parts[2]?.length ?? 0);
+  let trailingZeros = 0;
+  for (let i = digits.length - 1; i >= 0 && digits[i] === "0"; i--)
+    trailingZeros++;
+  // All zero spellings, including negative zero, are mathematically zero.
+  if (!zero && (token.startsWith("-") || (shift < 0 && trailingZeros < -shift)))
+    throw new TypeError("Expected nonnegative integral retained byte-size token");
+  return token;
 }
 function list<T>(value: unknown, decode: (value: unknown) => T): T[] {
   if (!Array.isArray(value)) throw new TypeError("Expected view list");
@@ -83,7 +126,7 @@ function entity(value: unknown): Entity {
     },
     parent: parent && { id: string(parent.id) },
     archived: boolean(o.archived),
-    quantity: nullableNumber(o.quantity),
+    quantity: nullableQuantity(o.quantity),
     manufacturer: nullableString(o.manufacturer),
     modelNumber: nullableString(o.modelNumber),
     serialNumber: nullableString(o.serialNumber),
@@ -108,7 +151,7 @@ function attachment(value: unknown): Attachment {
         ...base,
         kind,
         contentType: nullableString(o.contentType),
-        byteSize: nullableNumber(o.byteSize),
+        byteSize: nullableByteSize(o.byteSize),
         downloadHref: nullableString(o.downloadHref),
         previewHref: nullableString(o.previewHref),
       };
@@ -121,7 +164,8 @@ function maintenance(value: unknown): Maintenance {
     description: string(o.description),
     scheduledDate: nullableString(o.scheduledDate),
     completedDate: nullableString(o.completedDate),
-    cost: nullableNumber(o.cost),
+    // Cost uses the same retained-number envelope, with no value rounding.
+    cost: nullableQuantity(o.cost),
   };
 }
 function native(value: unknown): NativeLink {
@@ -135,6 +179,14 @@ function native(value: unknown): NativeLink {
     verifiedRoute: boolean(o.verifiedRoute),
   };
 }
+function endpoint(value: unknown): NetworkEndpoint {
+  const o = object(value);
+  return {
+    kind: choice(o.kind, ["device", "interface", "segment", "unresolved"]),
+    id: nullableString(o.id),
+    description: nullableString(o.description),
+  };
+}
 function network(value: unknown): NetworkRelation {
   const o = object(value);
   return {
@@ -142,6 +194,16 @@ function network(value: unknown): NetworkRelation {
       "network-segment-membership",
       "network-association",
       "network-connection",
+    ]),
+    from: endpoint(o.from),
+    to: endpoint(o.to),
+    medium: choice(o.medium, [
+      "ethernet",
+      "wifi",
+      "powerline",
+      "wan",
+      "other",
+      "unknown",
     ]),
     temporalStatus: choice(o.temporalStatus, [
       "current-claim",
@@ -235,10 +297,7 @@ export function decodeAtlasView(value: unknown): AtlasView {
       const h = object(value);
       return { ...scope(h), label: string(h.label) };
     });
-  if (
-    entries.some((p) => !sameScope(p, currentScope)) ||
-    homes.some((h) => h.workspaceId !== currentScope.workspaceId)
-  )
+  if (entries.some((p) => !sameScope(p, currentScope)))
     throw new TypeError("Inconsistent view scope");
   if (!homes.some((h) => sameScope(h, currentScope)))
     throw new TypeError("Current home missing");

@@ -5,6 +5,46 @@ mod json;
 mod navigation;
 mod types;
 
+// Reuse bounded duplicate-key-aware parsing for source-only observation adapters.
+pub(crate) fn parse_observation(
+    bytes: &[u8],
+    limits: DecodeLimits,
+) -> Result<serde_json::Value, WireError> {
+    let source = json::parse(bytes, limits)?;
+    fn bound(
+        value: &serde_json::Value,
+        limits: DecodeLimits,
+        entries: &mut usize,
+    ) -> Result<(), WireError> {
+        match value {
+            serde_json::Value::String(text) if text.chars().count() > limits.max_text_chars => {
+                return Err(WireError::Limit);
+            }
+            serde_json::Value::Array(rows) => {
+                *entries = entries.checked_add(rows.len()).ok_or(WireError::Limit)?;
+                if *entries > limits.max_entries {
+                    return Err(WireError::Limit);
+                }
+                for row in rows {
+                    bound(row, limits, entries)?;
+                }
+            }
+            serde_json::Value::Object(fields) => {
+                for (key, value) in fields {
+                    if key.chars().count() > limits.max_text_chars {
+                        return Err(WireError::Limit);
+                    }
+                    bound(value, limits, entries)?;
+                }
+            }
+            _ => (),
+        }
+        Ok(())
+    }
+    bound(&source, limits, &mut 0)?;
+    Ok(source)
+}
+
 pub use decode::{decode_detail, decode_maintenance, decode_page};
 pub use navigation::native_route_candidates;
 pub use types::*;

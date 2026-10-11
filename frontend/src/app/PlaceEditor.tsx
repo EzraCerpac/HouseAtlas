@@ -9,6 +9,11 @@ import type { LocationSemanticsPayloadSemanticKind } from "../api/generated/cont
 import type { StockResultEnvelope } from "../webmcp/stock.js";
 import type { AtlasEditingClient, PlaceEditAdmission } from "./editing";
 import type { Entry } from "./types";
+import { EvidencePicker } from "../capture-evidence/EvidencePicker";
+import type { EvidenceSelection } from "../capture-evidence/selection";
+import { useCaptureDrafts } from "../capture-drafts-ui/Context";
+import { CaptureDraftPanel, captureTargetKey } from "../capture-drafts-ui/Panel";
+import type { CaptureDraftPort } from "../capture-drafts-ui/port";
 
 const kinds: readonly LocationSemanticsPayloadSemanticKind[] = [
   "unclassified",
@@ -48,15 +53,16 @@ function ReasonField({ busy }: { busy: boolean }) {
     </label>
   );
 }
-export function PlaceEditor({
+type Props = { entry: Entry; client: AtlasEditingClient; refresh: () => Promise<boolean> };
+export function PlaceEditor(props: Props) {
+  return <PlaceEditorForTarget key={captureTargetKey(props.entry, props.entry.source)} {...props} />;
+}
+function PlaceEditorForTarget({
   entry,
   client,
   refresh,
-}: {
-  entry: Entry;
-  client: AtlasEditingClient;
-  refresh: () => Promise<boolean>;
-}) {
+}: Props) {
+  const drafts = useCaptureDrafts();
   const [open, setOpen] = useState(false),
     [busy, setBusy] = useState(false);
   const [admission, setAdmission] = useState<PlaceEditAdmission | null>(null);
@@ -65,15 +71,28 @@ export function PlaceEditor({
   const [status, setStatus] = useState(""),
     [receipt, setReceipt] = useState<StockResultEnvelope | null>(null);
   const [licenseSelection, setLicenseSelection] = useState("");
+  const [selection, setSelection] = useState<EvidenceSelection | null>(null);
+  const [evidenceOnly, setEvidenceOnly] = useState(false);
   const active = useRef<AbortController | null>(null);
+  const submitting = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
+  const evidenceOpener = useRef<HTMLButtonElement>(null);
   const restoreOpener = useRef(false);
+  const evidenceForm = useRef<HTMLFormElement>(null);
+  const localSelection = useRef<{ selection: EvidenceSelection; id: string } | null>(null);
   useEffect(() => () => active.current?.abort(), []);
+  useEffect(() => drafts?.subscribeInvalidation(reason => {
+    if (reason === 'boundary') { setSelection(null); localSelection.current = null; }
+  }), [drafts]);
+  const selectEvidence = (next: EvidenceSelection | null) => {
+    setSelection(next);
+    localSelection.current = next ? { selection: next, id: crypto.randomUUID() } : null;
+  };
   useLayoutEffect(() => {
     if (!open && restoreOpener.current) {
       restoreOpener.current = false;
-      opener.current?.focus();
+      (evidenceOnly ? evidenceOpener : opener).current?.focus();
     }
   }, [open]);
   const source = {
@@ -104,7 +123,9 @@ export function PlaceEditor({
     setStatus(progress);
     return controller;
   };
-  const show = async () => {
+  const show = async (forEvidence = false) => {
+    setEvidenceOnly(forEvidence);
+    setSelection(null);
     const controller = begin();
     setOpen(true);
     try {
@@ -133,6 +154,8 @@ export function PlaceEditor({
     action: (signal: AbortSignal) => Promise<StockResultEnvelope>,
     progress: string,
   ) => {
+    if (submitting.current) return;
+    submitting.current = true;
     const controller = begin(progress);
     setReceipt(null);
     let saved = false,
@@ -157,6 +180,7 @@ export function PlaceEditor({
         return;
       }
       saved = true;
+      setSelection(null);
       if (!(await refresh()) || controller.signal.aborted) {
         setAdmission(null);
         if (!controller.signal.aborted)
@@ -185,6 +209,7 @@ export function PlaceEditor({
         );
       }
     } finally {
+      submitting.current = false;
       if (!controller.signal.aborted) setBusy(false);
     }
   };
@@ -194,7 +219,8 @@ export function PlaceEditor({
     const reason = readReason(event.currentTarget);
     if (!reason) return;
     const requestId = crypto.randomUUID(),
-      record = admission.record;
+      record = admission.record,
+      { elevation, ...payload } = record.payload;
     void commit(async (signal) => {
       const result = await client.replacePlace(
         {
@@ -207,7 +233,13 @@ export function PlaceEditor({
             recordType: "location-semantics",
             recordId: record.recordId,
           },
-          payload: { ...record.payload, semanticKind: kind },
+          payload: {
+            ...payload,
+            semanticKind: kind,
+            ...(kind === "floor" && elevation !== undefined
+              ? { elevation: { ...elevation } }
+              : {}),
+          },
           idempotencyKey: crypto.randomUUID(),
           reason,
           approvalReceiptId: null,
@@ -236,7 +268,7 @@ export function PlaceEditor({
     const reason = readReason(event.currentTarget);
     if (!reason) return;
     const fields = new FormData(event.currentTarget),
-      file = fields.get("file");
+      file = selection?.file;
     const policy = admission.attachmentPolicy,
       licenseValue = fields.get("license");
     const license =
@@ -270,6 +302,7 @@ export function PlaceEditor({
           statement,
           sourceLicense: license.value,
           reason,
+          ...(selection ? { capture: selection.capture } : {}),
         },
         signal,
       );
@@ -281,24 +314,57 @@ export function PlaceEditor({
       return result;
     }, "Uploading attachment…");
   };
+  const draftCandidate = (): Parameters<CaptureDraftPort['save']>[0] | null => {
+    const form = evidenceForm.current;
+    if (!form || !selection || !admission?.attachmentPolicy || !form.reportValidity()) return null;
+    const reason = readReason(form); if (!reason) return null;
+    const fields = new FormData(form), policy = admission.attachmentPolicy;
+    const selectedLicense = fields.get('license');
+    const license = typeof selectedLicense === 'string' && selectedLicense !== '' ? policy.licenses[Number(selectedLicense)] : undefined;
+    const statement = String(fields.get('statement') ?? '').trim();
+    if (!license || !statement || selection.file.size > policy.maximumBytes || !policy.contentTypes.includes(selection.file.type)) {
+      setStatus('Choose a supported file and a permitted licence within the displayed limits.'); return null;
+    }
+    if (localSelection.current?.selection !== selection) localSelection.current = { selection, id: crypto.randomUUID() };
+    return { localId: localSelection.current.id, selection, form: { statement, sourceLicense: license.value, reason },
+      targetSourceRef: source, recordId: admission.record.recordId, optedIn: true };
+  };
+  const draftSubmitted = async (result: StockResultEnvelope, cleanup: 'removed' | 'unconfirmed') => {
+    setReceipt(result);
+    if (result['status'] !== 'committed') { setStatus('The upload was not committed. The local attempt remains locked.'); return; }
+    selectEvidence(null);
+    const controller = begin('Saved. Refreshing information…');
+    const suffix = cleanup === 'unconfirmed' ? ' Local cleanup could not be confirmed; view local drafts before any further action.' : '';
+    try {
+      if (!(await refresh()) || controller.signal.aborted) {
+        setAdmission(null);
+        if (!controller.signal.aborted) setStatus(`Saved. Saved information could not be refreshed.${suffix}`);
+        return;
+      }
+      const next = await load(controller.signal);
+      if (!controller.signal.aborted) setStatus(`${next ? 'Saved. Information refreshed.' : 'Saved. Editing is unavailable.'}${suffix}`);
+    } catch { if (!controller.signal.aborted) { setAdmission(null); setStatus(`Saved. Editing information could not be refreshed.${suffix}`); } }
+    finally { if (!controller.signal.aborted) setBusy(false); }
+  };
   if (!open)
     return (
       <div className="actions">
         <button ref={opener} type="button" onClick={() => void show()}>
           Edit Atlas place
         </button>
+        {client.uploadPlaceEvidence && <button ref={evidenceOpener} type="button" onClick={() => void show(true)}>Add evidence</button>}
       </div>
     );
   const policy = admission?.attachmentPolicy;
   return (
     <section aria-label="Atlas place editing" aria-busy={busy}>
       <h2 ref={heading} tabIndex={-1}>
-        Atlas place
+        {evidenceOnly ? `Add evidence · ${entry.entity.name}` : "Atlas place"}
       </h2>
       <p role="status" aria-live="polite">
         {status}
       </p>
-      {admission?.canReplaceClassification && (
+      {admission?.canReplaceClassification && !evidenceOnly && (
         <div className="setting">
           <form
             className="session-form"
@@ -335,25 +401,13 @@ export function PlaceEditor({
       {policy && policy.licenses.length > 0 && client.uploadPlaceEvidence && (
         <div className="setting">
           <form
+            ref={evidenceForm}
             className="session-form"
             aria-label="Atlas attachment"
             onSubmit={upload}
           >
-            <h3>Atlas evidence attachment</h3>
-            <label>
-              <span>File</span>
-              <input
-                name="file"
-                type="file"
-                accept={policy.contentTypes.join(",")}
-                required
-                disabled={busy}
-              />
-            </label>
-            <p className="muted">
-              Maximum {policy.maximumBytes} bytes.{" "}
-              {policy.contentTypes.join(", ")}
-            </p>
+            <h3>Add evidence</h3>
+            <EvidencePicker key={receipt?.requestId ?? "unsubmitted"} policy={policy} busy={busy} value={selection} onChange={selectEvidence} />
             <label>
               <span>Evidence statement</span>
               <input
@@ -381,12 +435,15 @@ export function PlaceEditor({
               </select>
             </label>
             <ReasonField busy={busy} />
-            <button type="submit" disabled={busy}>
-              Upload attachment
+            <button type="submit" disabled={busy || !selection}>
+              Upload evidence
             </button>
           </form>
         </div>
       )}
+      {drafts && client.uploadPlaceEvidence && <CaptureDraftPanel port={drafts} source={source} recordId={admission?.record.recordId}
+        candidate={draftCandidate} canSave={!!selection && !!policy} parentBusy={busy}
+        onBusy={value => { submitting.current = value; setBusy(value); }} onSaved={() => selectEvidence(null)} onSubmitted={draftSubmitted} />}
       {receipt && (
         <details className="command-receipt">
           <summary>Command receipt</summary>
@@ -397,10 +454,13 @@ export function PlaceEditor({
         type="button"
         disabled={busy}
         onClick={() => {
+          if (submitting.current) return;
+          drafts?.invalidate();
           restoreOpener.current = true;
           setOpen(false);
           setAdmission(null);
           setReceipt(null);
+          setSelection(null);
         }}
       >
         Close

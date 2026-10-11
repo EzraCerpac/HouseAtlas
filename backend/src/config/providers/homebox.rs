@@ -183,4 +183,39 @@ impl TrustedHomeBoxSource {
         }
         .map_err(|_| ConfigError::InvalidNavigation)
     }
+
+    /// Uses the same configured reader with one test-only HTTPS loopback trust root.
+    #[cfg(test)]
+    pub(crate) fn reader_with_loopback_certificate<P: read::CredentialProvider, K: read::Clock>(
+        &self,
+        credentials: P,
+        clock: K,
+        certificate_der: &[u8],
+    ) -> Result<read::HomeBoxReader<read::HttpTransport<P>, K>, ConfigError> {
+        let transport = read::HttpTransport::new_with_loopback_certificate(
+            self.endpoint()?,
+            credentials,
+            self.limits,
+            certificate_der,
+        )
+        .map_err(|_| ConfigError::InvalidEndpoint)?;
+        if self.stock_dialect {
+            read::HomeBoxReader::new_stock(
+                self.reader_registration.clone(),
+                transport,
+                clock,
+                self.limits,
+                self.stock_navigation.clone(),
+            )
+        } else {
+            read::HomeBoxReader::new(
+                self.reader_registration.clone(),
+                transport,
+                clock,
+                self.limits,
+                self.navigation.clone(),
+            )
+        }
+        .map_err(|_| ConfigError::InvalidNavigation)
+    }
 }

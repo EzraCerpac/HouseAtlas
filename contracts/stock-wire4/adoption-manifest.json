@@ -1,0 +1,25 @@
+{
+  "format": "houseatlas-contract-adoption/1",
+  "contractVersion": "pinned-homebox-file.4",
+  "wireSchemaVersion": 4,
+  "runtimeQualification": false,
+  "scope": "local HomeBox pinned file capture only",
+  "resourceMap": "contracts/stock-wire4/resource-map.json",
+  "resources": [
+    {
+      "uri": "urn:houseatlas:pinned-homebox-file:4",
+      "path": "contracts/stock-wire4/pinned-homebox-file.v4.schema.json",
+      "sha256": "8971293471e5260906390a186dc399931f0b5bdc2f07b7a8ce782956aa1c9805"
+    },
+    {
+      "uri": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json",
+      "path": "packages/contracts/schemas/atlas.schema.json",
+      "sha256": "d14f326a544747c900ece6c4c0b5d47d36c99579ddb37f3ad788f406d2e87a58"
+    },
+    {
+      "uri": "urn:houseatlas:agent:stock:3",
+      "path": "contracts/stock-wire3/agent/agent.schema.json",
+      "sha256": "a5c106fad5cdd1c52ab57d29a2469ea2a53eabd37c9be9ac46e279c45b92beac"
+    }
+  ]
+}

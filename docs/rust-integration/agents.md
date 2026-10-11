@@ -12,10 +12,24 @@ This is a development candidate for independent composition review.
 
 After an authorized home view commits, React requests the server's scoped
 `GET /api/atlas/stock/v3/workspaces/{workspaceId}/homes/{homeId}/admission`.
-The server advertises the twenty Atlas record/history reads. A genuine editor
-session additionally admits `atlas.circuit.create` and
-`atlas.location-semantics.replace`. The catalog describes admission; each
+The HTTP server advertises thirty Atlas list/record/history reads, four cached
+HomeBox entity/location reads and managed `atlas.asset.download`. Core-only MCP
+retains the thirty-four reads. A genuine editor session additionally admits the
+owner’s closed 31-form direct-write map, six specialized forms and
+nonempty batches whose every ordered child maps. The executor retains the
+original planner, guards, reference closure and transaction fence; admission
+alone does not supply any specialized binding, import-time or Media evidence. The catalog describes admission; each
 request obtains actual AT11 authorization again.
+
+Scopes with an actual configured Network binding additionally admit exactly
+`network.inventory.get`, `network.snapshot.get` and `network.history.get` through
+HTTP. The root releases Core around the original native read/disclosure runtime,
+captures configured member grants before sealing, and retains the same original
+disclosure lease through exact output recomputation and final authority checks.
+These reads perform no refresh. Mounted MCP additionally uses the same configured
+Network bindings and original disclosure. Core-only MCP and Network browser
+tool execution remain unqualified separately; the default disposable host configures no Network
+binding and does not advertise those IDs.
 
 Reads use `GET /api/atlas/stock/v3/workspaces/{workspaceId}/homes/{homeId}/invoke`
 with one `request` query parameter containing the complete wire3 JSON envelope.
@@ -48,11 +62,12 @@ acknowledging tool completion. It registers tools through actual
 follows the actual committed scope and admitted catalog. A failed optional
 catalog load leaves the authorized home visible with tools unavailable.
 
-The healthy browser runners support three source-inspected native releases:
+The healthy browser runners support four source-inspected native releases:
 [Chromium 151.0.7922.173](https://chromium.googlesource.com/chromium/src/+/refs/tags/151.0.7922.173/third_party/blink/renderer/core/script_tools/model_context.idl),
 [154.0.8037.57](https://chromium.googlesource.com/chromium/src/+/refs/tags/154.0.8037.57/third_party/blink/renderer/core/script_tools/model_context.idl)
-and [154.0.8037.97](https://chromium.googlesource.com/chromium/src/+/refs/tags/154.0.8037.97/third_party/blink/renderer/core/script_tools/model_context.idl).
-All accept JSON text through `executeTool`; the two 154 patch-release IDLs are
+[154.0.8037.97](https://chromium.googlesource.com/chromium/src/+/refs/tags/154.0.8037.97/third_party/blink/renderer/core/script_tools/model_context.idl)
+and [154.0.8037.98](https://chromium.googlesource.com/chromium/src/+/refs/tags/154.0.8037.98/third_party/blink/renderer/core/script_tools/model_context.idl).
+All accept JSON text through `executeTool`; the inspected 154 patch-release IDLs are
 byte-identical. A browser version change requires source inspection before a
 runner continues.
 
@@ -61,8 +76,10 @@ runner continues.
 The actual JSON-only HTTP endpoint is
 `/api/atlas/mcp/workspaces/{workspaceId}/homes/{homeId}`. Every POST preserves
 its observed method and obtains genuine AT11 `Action::Mutate` authorization with
-the actual Editor cookie, Origin and current CSRF. Its catalog admits only the
-twenty record/history reads. This transport profile adds no access grant or
+the actual Editor cookie, Origin and current CSRF. Its host catalog admits the
+thirty Atlas list/record/history reads and managed asset downloads; the three
+saved Network reads are admitted only for the authenticated scope with an actual
+configured binding. Core-only MCP retains its original catalog. This transport profile adds no access grant or
 bearer-login scheme.
 
 Initialization negotiates MCP `2025-11-25`, returns HTTP 200 JSON and the actual
@@ -89,8 +106,8 @@ The mounted service revalidates the original authority before and after each
 message and preserves the native owner's result validation and rendering.
 
 The existing `http::agents::mcp::bind_read` also accepts an already issued opaque
-access principal and creates an embeddable native MCP session with twenty read
-operations. Its synchronous stock execution retains the same issuance; no
+access principal and creates an embeddable native MCP session with thirty-four
+read operations, including the four cached HomeBox forms. Its synchronous stock execution retains the same issuance; no
 borrowed capture carrier crosses an await. The separate `healthy-agent-stock`
 Rust example performs a fresh synthetic circuit commit and in-process MCP
 initialization, discovery, record read and first stock audit page. Its constructed
@@ -165,7 +182,7 @@ automatic retry or acceptance claim.
 
 The root exposes a transient session-change notification hook; external confirmed
 rotation-event producers and their positive runtime evidence remain missing.
-Batch tool admission, complete human editing and attachment flows, provider
+Specialized batch forms, complete human editing and attachment flows, provider
 refresh, actual Network/recovery
 execution, real source setup and remote AI clients remain missing. Access's
 separately accepted recovery successor remains unadopted because its
@@ -190,3 +207,20 @@ permissions. Other held classes and broad runtime aliases remain held; an
 overlapping case must genuinely fit the exact approved scope and lane safeguards.
 The unrun statements above record coverage, not a blanket prohibition of these
 three classes under that lane. Ordinary CI and historical results are unchanged.
+
+The mounted root service retains only Core, the shared HTTP download handle
+manager and immutable configured Network bindings, avoiding a session-registry
+ownership cycle. Network queries run outside the Core lock and reuse the
+existing original-grant capture, retained disclosure and exact-result release.
+The inspected named Network fixture now also uses a genuine Editor HTTP login,
+current CSRF, MCP initialization/discovery and all three saved query calls. Their
+canonical structured/text results match the same HTTP source data. Seventeen
+root TLS requests still cause exactly one loopback inventory GET; populated
+recovery, provider activation and held controls remain outside this flow.
+
+Lantern composition retains the exact original native result boundary and
+exposes existing feature forms through Changes / Atlas tools. The named list
+fixture additionally checks actual Chrome responsive fit and focused-input
+Escape/focus restoration. Its evidence records candidate commit/tree, clean
+working-tree state, binary/frontend index SHA256 and native input events; only
+a clean candidate rebuilt at that pin qualifies the exact assembled source.

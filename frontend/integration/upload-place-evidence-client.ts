@@ -3,10 +3,11 @@ import atlas from "../../packages/contracts/schemas/atlas.schema.json";
 import type { AtlasEditingClient, PlaceEditAdmission, UploadPlaceEvidence } from "../src/app/editing.js";
 import type { AtlasSessionInfo } from "../src/app/session.js";
 import type { StockResultEnvelope, StockSchemaPort } from "../src/webmcp/stock.js";
+import { validateSelectionClaim } from "../src/capture-evidence/types";
 
 const maximumBytes = 10 * 1024 * 1024;
 const maximumMetadataBytes = 64 * 1024;
-const supportedContentTypes = ["image/png", "application/pdf", "text/plain"] as const;
+const supportedContentTypes = ["image/png", "image/jpeg", "application/pdf", "text/plain"] as const;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 function object(value: unknown): Record<string, unknown> {
@@ -54,6 +55,9 @@ export function createUploadPlaceEvidence(
     validate("scope", intent.context);
     validate("recordRef", { recordType: "location-semantics", recordId: intent.recordId });
     validate("license", intent.sourceLicense);
+    if (intent.capture) {
+      validateSelectionClaim(intent.capture, intent.file.name);
+    }
     if (!uuid.test(intent.requestId) || !uuid.test(intent.idempotencyKey) ||
         !Number.isSafeInteger(intent.expectedRevision) || intent.expectedRevision < 1 ||
         !Array.isArray(intent.guards) || intent.guards.length > 100)
@@ -73,7 +77,7 @@ export function createUploadPlaceEvidence(
     // File facts in metadata are declared labels. The Media owner measures and
     // validates actual bytes; file.size and file.type confer no storage proof.
     const metadata = {
-      schemaVersion: 1,
+      schemaVersion: intent.capture ? 2 : 1,
       requestId: intent.requestId,
       idempotencyKey: intent.idempotencyKey,
       context: intent.context,
@@ -85,6 +89,7 @@ export function createUploadPlaceEvidence(
       reason: intent.reason,
       filename: intent.file.name,
       contentType: intent.file.type,
+      ...(intent.capture ? { capture: intent.capture } : {}),
     };
     const encoded = JSON.stringify(metadata);
     if (new TextEncoder().encode(encoded).byteLength > maximumMetadataBytes)

@@ -18,6 +18,45 @@ pub struct CapturedAccess<'p> {
 }
 
 impl<'p> CapturedAccess<'p> {
+    /// Retain only existing original handles under that exact principal's
+    /// fresh read fence. This issues no grant or replacement version and adds
+    /// no omitted partition. Call before sealing the original graph witness.
+    pub fn retain_original(
+        boundary: &mut a::AccessBoundary,
+        principal: &'p a::Principal,
+        sources: &[a::SourceGrant],
+        partitions: &[a::PartitionGrant],
+    ) -> a::AccessResult<Self> {
+        boundary.with_read_authorization(principal, |guard| {
+            if !std::ptr::eq(guard.principal(), principal) {
+                return Err(a::AccessError::Unavailable);
+            }
+            for partition in partitions {
+                guard.revalidate_source_partition(partition)?;
+                if partition.partition().workspace_id != principal.scope().workspace_id
+                    || partition.partition().home_id != principal.scope().home_id
+                {
+                    return Err(a::AccessError::Forbidden);
+                }
+            }
+            for source in sources {
+                guard.revalidate_source(source)?;
+                let selected = source.reference().partition();
+                if selected.workspace_id != principal.scope().workspace_id
+                    || selected.home_id != principal.scope().home_id
+                    || !partitions.iter().any(|p| p.partition() == &selected)
+                {
+                    return Err(a::AccessError::Forbidden);
+                }
+            }
+            Ok(())
+        })?;
+        Ok(Self {
+            principal,
+            sources: sources.to_vec(),
+            partitions: partitions.to_vec(),
+        })
+    }
     /// Initial capture only: the original authority producer supplies complete
     /// original source refs/partitions, retains this capture in its witness,
     /// then prepares that same immutable intent. Never call after preparation

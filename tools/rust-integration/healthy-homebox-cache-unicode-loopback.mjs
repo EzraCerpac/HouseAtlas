@@ -3,6 +3,7 @@
 // Browser stderr is retained only before any page, cookie or authentication work.
 // One cached GET; no HTTP login/logout/write/MCP, stopped control or provider.
 import assert from 'node:assert/strict';
+import { observeBrowserStartup } from './browser-startup-observation.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, existsSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -47,6 +48,7 @@ async function until(check, label, ms = 20000) {
 }
 const openssl = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', key, '-out', cert, '-days', '1', '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1'], { encoding: 'utf8' });
 assert.equal(openssl.status, 0, 'Disposable certificate creation');
+let startupObservation;
 let service, browser, cdp, serviceOutput = '', serviceError = '';
 const observedUrls = [], observedMethods = [], responses = [], runtimeErrors = [];
 class Pipe {
@@ -89,7 +91,10 @@ class Pipe {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('CDP timeout: ' + method)); }, 15000);
       this.pending.set(id, { resolve, reject, timer });
-      this.process.stdio[3].write(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + '\0');
+      this.process.stdio[3].write(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + '\0', error => {
+        if (method === 'Browser.getVersion') startupObservation?.written(error);
+        if (error) { this.pending.delete(id); clearTimeout(timer); reject(error); }
+      });
     });
   }
 }
@@ -103,6 +108,7 @@ try {
   const { origin, cookie } = JSON.parse(readFileSync(join(data, 'smoke-session.json')));
   assert.match(origin, /^https:\/\/127\.0\.0\.1:\d+$/);
   browser = spawn(chromium, ['--headless=new', '--no-sandbox', '--disable-gpu', '--remote-debugging-pipe', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-features=MediaRouter,OptimizationHints', '--ignore-certificate-errors', '--user-data-dir=' + join(scratch, 'browser'), 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] });
+  startupObservation = observeBrowserStartup(browser, scratch);
   const startupStarted = performance.now();
   let startupFinished = false, startupStderr = Buffer.alloc(0), startupStderrTruncated = false;
   browser.stderr.on('error', () => {});
@@ -116,14 +122,15 @@ try {
   let version;
   try {
     version = await cdp.send('Browser.getVersion');
-    console.log(JSON.stringify({ startupOnly: true, product: version.product, milliseconds: Math.round(performance.now() - startupStarted) }));
+    console.log(JSON.stringify({ startupOnly: true, product: version.product, milliseconds: Math.round(performance.now() - startupStarted), processObservation: startupObservation.snapshot() }));
   } catch (error) {
     console.error(JSON.stringify({ startupOnly: true, beforeAnyPageOrCookie: true,
       milliseconds: Math.round(performance.now() - startupStarted), message: error.message,
       exitCode: browser.exitCode, signalCode: browser.signalCode,
+      processObservation: startupObservation.snapshot(),
       stderr: startupStderr.toString('utf8').replaceAll(scratch, '<disposable-profile>'), startupStderrTruncated }));
     throw error;
-  } finally { startupFinished = true; }
+  } finally { startupFinished = true; startupObservation.finish(); }
 
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
@@ -136,7 +143,27 @@ try {
     const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
     assert(!result.exceptionDetails, 'Healthy browser evaluation'); return result.result.value;
   };
+  // Open the retained native Atlas surface through Lantern's visible controls.
+  const openAtlasTools = async () => {
+    await until(async () => await evaluate(`(() => {
+      const button = [...document.querySelectorAll('nav[aria-label="Sections"] button')]
+        .find(button => button.textContent?.trim() === 'Changes' && button.getClientRects().length);
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`), 'Visible Changes navigation');
+    await until(async () => await evaluate("document.querySelector('main#main h1')?.textContent === 'Changes'"), 'Changes view');
+    await until(async () => await evaluate(`(() => {
+      const button = [...document.querySelectorAll('main#main button')]
+        .find(button => button.textContent?.trim() === 'Atlas tools' && button.getClientRects().length);
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`), 'Visible Atlas tools action');
+    await until(async () => await evaluate("Boolean(document.querySelector('[role=dialog][aria-modal=true][aria-label=\"Atlas tools\"]:not([hidden])'))"), 'Visible Atlas tools dialog');
+  };
   await send('Page.navigate', { url: origin });
+  await openAtlasTools();
   try {
     await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'React authorized home rendering');
   } catch (error) {

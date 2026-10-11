@@ -138,8 +138,8 @@ remains unrun.
 
 ### Optional stock context and committed result adapter
 
-`SessionApp.stock?: StockApplicationPorts` opts into the exact PR #21 mount,
-pinned at `6832e825c636b7b48eeed8fcb085fe3ca277ead3`. It supplies root-owned
+`SessionApp.stock?: StockApplicationPorts` opts into the PR #90 peer mount,
+pinned at `d5f57d88e79a0ef916904f72bfd86716187702e4`. It supplies root-owned
 `schemas`, envelope-preserving `service`, and controlled `admission`:
 
 ```ts
@@ -149,11 +149,16 @@ pinned at `6832e825c636b7b48eeed8fcb085fe3ca277ead3`. It supplies root-owned
 `Scope` is imported from AT51's generated contracts. Admission is host metadata,
 never inferred from the catalog, `canEdit`, labels or browser input. Keep ports
 stable and replace admission metadata/revision when host availability changes.
-The current committed ready scope must match admission before registration is
-active. `App.onScopeCommit(scope | null)` reports its committed scope in a layout
-effect; unavailable context has no house metadata. The stable `StockSessionPort`
-facade derives session/scope/commands from these React inputs and publishes
-non-secret local revisions. It is neither a principal nor a persistent auth store.
+The current ready scope must match admission before registration is active.
+`App.renderContent(view, content)` supplies the current view during render;
+`SessionApp` mounts `StockApplication` there with its required `view` prop and
+ordinary React children. The stock adapter derives scope from that view and passes
+an opaque empty-object identity to the peer boundary. Session, view, scope and
+admission changes mask prior results before descendant layout effects, while the
+stable `StockSessionPort` facade publishes context and non-secret revisions in
+layout. No session or view fields are encoded in the identity. The optional
+`App.onScopeCommit` remains a layout notification for other consumers; it does not
+drive the stock adapter. The facade is neither a principal nor a persistent auth store.
 Logout/unmount clears that facade; availability, scope, session and admission
 changes revise it. Optional `AtlasSessionClient.subscribe(changed)` lets the
 root notify rotation and re-read the existing canonical session GET. The default
@@ -183,6 +188,13 @@ execution resolves. Shared Ajv 8.20.0/ajv-formats 3.0.1 validate offline; these 
 external harness dependencies, not application-manifest changes. The compiler
 adds `resolveJsonModule` for those existing peer imports. Failure/rotation,
 denial/revocation and concurrency qualification remain unrun.
+
+`render-identity.examples.tsx` adds eight healthy sequential groups against the
+exact PR #90 API: unchanged render retention, session and admission replacement,
+revision-only update on the same admission object, ready-view replacement,
+loading-view masking in the first child layout, ready-view resumption with full
+canonical output before return, and ordinary unmount. These examples do not
+exercise a distinct home scope, access invalidation or delayed execution controls.
 
 `session.ts` declares the published exact success DTO
 `{schemaVersion:1, actorId:string, csrfToken:string, expiresAt:RFC3339}` and ports:

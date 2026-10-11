@@ -46,7 +46,8 @@ function inspect(schema) {
     for (const rule of schema.allOf) {
       assert.deepEqual(Object.keys(rule).sort(), ['if', 'then']);
       for (const part of [rule.if, rule.then]) {
-        assert.deepEqual(Object.keys(part), ['properties']);
+        assert.ok(Object.keys(part).every(key => ['properties', 'required'].includes(key)));
+        for (const key of part.required ?? []) assert.ok(Object.hasOwn(schema.properties, key));
         for (const [key, refinement] of Object.entries(part.properties)) {
           assert.ok(Object.hasOwn(schema.properties, key));
           assert.ok(!refinement.properties && !refinement.$ref && !refinement.oneOf && !refinement.anyOf);
@@ -103,7 +104,7 @@ function declare(name, schema) {
     const branches = schema.oneOf ?? schema.anyOf ?? (Array.isArray(schema.type) ? schema.type.map(type => ({ type })) : null);
     if (branches) {
       const variants = branches.map((branch, index) => {
-        const discriminator = ['kind', 'recordType', 'operation'].map(key => branch.properties?.[key]?.const).find(value => typeof value === 'string');
+        const discriminator = ['kind', 'recordType', 'operation', 'status'].map(key => branch.properties?.[key]?.const).find(value => typeof value === 'string');
         const variant = branch.$ref ? refName(branch.$ref) : discriminator ? pascal(discriminator) : branch.type && !Array.isArray(branch.type) ? pascal(branch.type) : `Variant${index + 1}`;
         return { variant, type: typeOf(branch, name + variant) };
       });
@@ -164,12 +165,13 @@ const consumerInputs = [
   ['healthyMutationResult', 'MutationResult', 'packages/contracts/fixtures/create-circuit.result.json'],
 ];
 const consumer = `// @generated from named existing synthetic fixtures; no fixture execution.\nimport type { Snapshot, HttpHistory, HomeboxPageWire, MutationResult } from '../../frontend/src/api/generated/contracts';\n\n${consumerInputs.map(([name, type, path]) => `// ${path}\nexport const ${name}: ${type} = ${JSON.stringify(JSON.parse(read(path)), null, 2)};`).join('\n\n')}\n`;
-const outputs = [
+const allOutputs = [
   ['backend/src/contracts/generated.rs', execFileSync('rustfmt', ['--edition', '2024', '--emit', 'stdout'], { cwd: fileURLToPath(root), input: rust, encoding: 'utf8' })],
   ['frontend/src/api/generated/contracts.ts', ts],
   ['tools/rust-baseline/healthy-contracts.ts', consumer],
 ];
-assert.ok(process.argv.slice(2).every(arg => arg === '--check'), 'Usage: node generate-contracts.mjs [--check]');
+assert.ok(process.argv.slice(2).every(arg => ['--check', '--rust-only'].includes(arg)), 'Usage: node generate-contracts.mjs [--check] [--rust-only]');
+const outputs = process.argv.includes('--rust-only') ? allOutputs.filter(([path]) => path.endsWith('.rs')) : allOutputs;
 for (const [path, content] of outputs) {
   if (process.argv.includes('--check')) assert.equal(read(path), content, `${path} differs; run the generator`);
   else { const target = fileURLToPath(new URL(path, root)); mkdirSync(dirname(target), { recursive: true }); writeFileSync(target, content); }

@@ -6,6 +6,7 @@
 
 mod adapter;
 mod asset_download;
+mod local_atlas;
 mod native_catalog;
 mod native_context;
 mod native_schemas;
@@ -18,6 +19,7 @@ pub use asset_download::{
     AssetDownloadCodec, AssetDownloadMetadata, AssetDownloadPort, AssetDownloadRequest,
     AssetDownloadResult, UnavailableAssetDownloads,
 };
+pub use local_atlas::{LocalAtlasBindError, LocalAtlasSession, bind_local_atlas};
 pub use native_catalog::{NativeCatalog, NativeOperation, NativeOutput};
 pub use native_context::{NativeContext, NativePrincipal, NativePrincipalPort, NativeRequirement};
 pub use native_schemas::NativeSchemas;
@@ -46,5 +48,8 @@ mod healthy_mappings;
 
 #[cfg(test)]
 mod healthy_download;
+
+#[cfg(test)]
+mod healthy_local_atlas;
 
 pub mod lifecycle;

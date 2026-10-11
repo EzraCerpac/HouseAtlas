@@ -15,6 +15,14 @@ pub(super) fn assert_transition(
     target: &Value,
 ) -> Result<u64, SemanticError> {
     let operation = text(&command["operation"])?;
+    // The core record cannot be created through a generic Stock batch before
+    // the separate retained-original and Editor qualification owner is wired.
+    if target["recordType"] == "scene-association" {
+        return Err(SemanticError::new(
+            SemanticCode::InvalidTransition,
+            "Qualified scene association write unavailable",
+        ));
+    }
     if operation == "create" {
         if current.is_some() {
             return Err(SemanticError::new(
@@ -90,7 +98,10 @@ pub(super) fn assert_transition(
                     "Binding identity/source key is immutable; use reviewed reconciliation",
                 ));
             }
-            if matches!(record_type, "evidence" | "reconciliation" | "geometry") {
+            if matches!(
+                record_type,
+                "evidence" | "reconciliation" | "geometry" | "scene-association"
+            ) {
                 return Err(SemanticError::new(
                     SemanticCode::InvalidTransition,
                     "Evidence, geometry versions and reconciliation journal are append-only",
@@ -302,12 +313,18 @@ pub(super) fn payload_references(
         ("atlasId", "identity"),
         ("originalAssetId", "asset"),
         ("previousGeometryId", "geometry"),
+        ("previousAssociationId", "scene-association"),
         ("fromBindingId", "binding"),
         ("toBindingId", "binding"),
     ] {
         if let Some(id) = payload.get(field).filter(|id| !id.is_null()) {
             add_reference(&mut refs, target, record_type, id)?;
         }
+    }
+    if let Some(elevation) = payload.get("elevation")
+        && elevation["status"] == "known"
+    {
+        add_reference(&mut refs, target, "identity", &elevation["datumAtlasId"])?;
     }
     if let Some(panel) = payload.get("panel") {
         add_endpoint_reference(&mut refs, target, panel)?;
@@ -333,6 +350,44 @@ pub(super) fn payload_references(
                 && let Some(binding) = find_geometry_binding(records, target, mapping)?
             {
                 add_binding_closure(&mut refs, records, target, binding)?;
+            }
+        }
+    }
+    if payload["profile"] == "houseatlas.native-scene-association.v1" {
+        add_reference(&mut refs, target, "identity", &payload["buildingId"])?;
+        for doc in items(&payload["sourceDocuments"])? {
+            add_reference(&mut refs, target, "evidence", &doc["evidenceId"])?;
+            add_reference(&mut refs, target, "asset", &doc["originalAssetId"])?;
+        }
+        for floor in items(&payload["sourceFloors"])? {
+            add_reference(&mut refs, target, "geometry", &floor["nativeGeometryId"])?;
+            add_reference(&mut refs, target, "asset", &floor["nativeOriginalAssetId"])?;
+        }
+        let mut places = vec![&payload["buildingId"]];
+        for room in items(&payload["roomMappings"])? {
+            add_reference_ids(&mut refs, target, room, "evidenceIds", "evidence")?;
+            for mapped in items(&room["targets"])? {
+                if !mapped["atlasPlaceId"].is_null() {
+                    add_reference(&mut refs, target, "identity", &mapped["atlasPlaceId"])?;
+                    places.push(&mapped["atlasPlaceId"]);
+                }
+            }
+        }
+        for place in places {
+            for semantics in records.iter().filter(|row| {
+                row["workspaceId"] == target["workspaceId"]
+                    && row["homeId"] == target["homeId"]
+                    && row["recordType"] == "location-semantics"
+                    && row["lifecycle"] == "active"
+                    && row["payload"]["reviewStatus"] == "accepted"
+                    && row["payload"]["atlasId"].as_str() == place.as_str()
+            }) {
+                add_reference(
+                    &mut refs,
+                    target,
+                    "location-semantics",
+                    &semantics["recordId"],
+                )?;
             }
         }
     }

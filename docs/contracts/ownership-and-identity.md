@@ -1,8 +1,8 @@
 # Authority and identity contract
 
-Contract version: `1.0.0`; record schema version: `1`.
+Contract version: `1.1.0`; record schema version: `1`.
 This is the synthetic authority and identity contract package.
-It defines contract `1.0.0` / record schema `1` ownership boundaries.
+It defines contract `1.1.0` / record schema `1` ownership boundaries.
 Integration, authorization and deployment prerequisites remain separate.
 This package does not complete those prerequisites or release their consumers.
 
@@ -17,7 +17,12 @@ This package does not complete those prerequisites or release their consumers.
 Atlas has no editable inventory name, manufacturer, quantity, serial, location
 parent, photo, URL attachment or item-maintenance field in its mutation schema.
 A location semantic annotation records reviewed meaning such as room or floor.
-It neither renames the HomeBox entity nor establishes a second parent tree.
+It may also carry an optional Atlas-owned display label supplied by a person,
+with the same evidence, review status, revision checks and audit as the annotation.
+This label is independent of any HomeBox name; it neither renames the HomeBox
+entity nor establishes a second parent tree. An omitted label remains unnamed
+in Atlas. Removing a label omits it from the new annotation while preserving
+prior revisions and evidence. Labels are not identity keys or physical placement.
 Arbitrary HomeBox containers remain arbitrary containers until reviewed.
 Neither names nor tree depth identify a building, floor or room.
 
@@ -212,3 +217,32 @@ acyclic journal facts without requiring a permanently live historical endpoint.
 Geometry versions are append-only; replacements preserve existing Atlas IDs
 and the original private files.
 No importer or private reference geometry is required for the plan-free release.
+
+## Reviewed topology amendment (1.1.0)
+
+Resolved location identities can have evidence-backed, proposed or accepted
+building/level membership and door/stair/opening access facts. Only active
+accepted membership defines current grouping. Each child has one current parent
+per membership kind; parents require matching reviewed building/floor semantics.
+Buildings cannot be members, floors cannot be floor members, and accepted cycles
+or contradictory direct and level-derived building membership are invalid.
+HomeBox parentage, labels, depth and Magicplan categories never create membership.
+A directly contained location without a known level remains ungrouped by level.
+
+Access records preserve present/absent/unknown and bidirectional/from-to facts.
+Missing access means unknown, and present access grants no safe route, navigation
+or accessibility authority. Optional floor elevation is unknown or measured
+metres relative to a named location datum; zero and negative values are valid.
+Omitted elevation stays unknown. Magicplan -52 Higher Ground and -51 Semi Basement
+never supply metres or rank. Existing evidence supports these reviewed facts.
+
+The public schema/package/URI is 1.1.0 and accepts legacy 1.0.0 snapshot envelopes
+and unchanged original record shapes. Record schema remains 1. Native storage,
+domain projection and recovery lineage metadata retain their original 1.0.0 tag;
+this amendment changes no on-disk schema or image authority. Old closed readers
+reject amended payloads even when their envelope retains the legacy tag.
+
+The optional native place label is compatible with existing records that omit
+it. Older closed-schema binaries cannot read annotations containing that field.
+After labeled records are written, rollback requires a compatible binary or an
+explicitly reconciled restore; labels and history must not be silently stripped.

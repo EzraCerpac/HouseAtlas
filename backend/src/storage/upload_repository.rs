@@ -95,28 +95,27 @@ fn validate_binding<C: Contract, S: stock::StockContractPort>(
         home_id: stage.scope.home_id.clone(),
     };
     let content_type =
-        media::ContentType::parse(&stage.staged.content_type).map_err(|_| incompatible())?;
+        media::ContentType::parse_owned(&stage.staged.content_type).map_err(|_| incompatible())?;
     require(
         stage.payload.preview_policy == media::PreviewPolicy::DownloadOnly
             || (stage.payload.preview_policy == media::PreviewPolicy::SafeRendered
                 && content_type == media::ContentType::Png),
     )?;
-    let mut expected = PreparedOriginal {
+    let mut expected = media::AssetPayload {
+        owner: media::AssetOwner::Atlas,
         purpose: stage.payload.purpose,
         storage_key: scope
             .storage_key(&stage.staged.sha256)
             .map_err(|_| incompatible())?,
-        identity: media::BlobIdentity {
-            sha256: stage.staged.sha256.clone(),
-            byte_size: stage.staged.byte_size,
-        },
-        content_type,
-    }
-    .with_provenance(
-        stage.payload.source_license.clone(),
-        stage.payload.evidence_ids.clone(),
-    )
-    .map_err(|_| incompatible())?;
+        sha256: stage.staged.sha256.clone(),
+        byte_size: stage.staged.byte_size,
+        content_type: content_type.as_str().to_owned(),
+        source_license: stage.payload.source_license.clone(),
+        evidence_ids: stage.payload.evidence_ids.clone(),
+        availability: media::Availability::Available,
+        preview_policy: media::PreviewPolicy::DownloadOnly,
+    };
+    expected.validate().map_err(|_| incompatible())?;
     // Measurement proves identity/provenance, not renderer qualification. The
     // policy comes from the genuine immutable Media stage and remains bound by
     // the complete canonical binding, consumed receipt and asset association.
@@ -129,7 +128,7 @@ fn validate_binding<C: Contract, S: stock::StockContractPort>(
             && request.request_id() == stage.request_id
             && request.target()["recordId"] == stage.asset_id
             && request.intent_digest() == binding.request_digest
-            && stage.payload.purpose.is_original()
+            && content_type.supports_purpose(stage.payload.purpose)
             && stage.payload == expected
             && consumed.token_hash
                 == super::migrations::sha256(stage.staged.upload_token.as_bytes())
@@ -273,7 +272,7 @@ fn validate_current_asset<C: Contract>(
                 record_id: consumed.asset_id().into(),
             },
         ) && i64::try_from(current.revision).ok() == Some(revision)
-            && native.canonical_json(&current_value)? == record_json
+            && super::repository::retained_json_matches(native, &current_value, &record_json)?
             && native.canonical_json(&manifest)? == manifest_json
             && native.canonical_json(&current.payload)? == manifest_json
             && current.payload["storageKey"] == storage_key,
@@ -405,10 +404,11 @@ pub(crate) fn consume<C: Contract, S: stock::StockContractPort>(
     )?;
     Ok(())
 }
-pub(crate) fn validate_all<C: Contract, S: stock::StockContractPort>(
+pub(crate) fn validate_all<C: Contract, S: stock::StockContractPort, E: QueueRecoveryEvidence>(
     db: &Connection,
     native: &C,
     schemas: &S,
+    evidence: &E,
     check: &mut dyn FnMut() -> Result<()>,
 ) -> Result<()> {
     let mut query =
@@ -422,6 +422,12 @@ pub(crate) fn validate_all<C: Contract, S: stock::StockContractPort>(
         let commit = stock_repo::load(db, native, value.scope(), value.actor_id(), &id)?;
         validate_links(db, native, &value, &commit)?;
         super::stock_projection::validate_retained(db, &commit, schemas, native)?;
+        // Canonical image consistency does not prove the original Media stage
+        // rendered successfully. Qualify historical policy even if the current
+        // asset has since changed to a non-inline policy.
+        if value.binding.stage.payload.preview_policy == media::PreviewPolicy::SafeRendered {
+            evidence.validate_media_policy(MediaPolicyRecoveryFrame::Upload(&value))?;
+        }
         check()?;
     }
     Ok(())
@@ -492,7 +498,7 @@ pub(crate) fn existing_original<C: Contract>(
                 record_id: id,
             },
         ) && i64::try_from(record.revision).ok() == Some(revision)
-            && native.canonical_json(&serde_json::to_value(&record)?)? == record_json
+            && super::repository::retained_json_matches(native, &record, &record_json)?
             && native.canonical_json(&manifest)? == manifest_json
             && native.canonical_json(&record.payload)? == manifest_json,
     )?;

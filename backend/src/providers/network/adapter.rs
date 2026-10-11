@@ -1,4 +1,10 @@
-use super::{json::canonical_json, model::*, projection::*};
+use super::{
+    http::{CustodiedInventoryResponse, InventoryOriginCustody, ReviewedNetworkOrigin},
+    json::canonical_json,
+    model::*,
+    projection::*,
+};
+use sha2::{Digest, Sha256};
 use std::{future::Future, pin::Pin, time::Duration};
 
 pub const ADAPTER_VERSION: &str = "0.1.0";
@@ -37,6 +43,16 @@ pub trait InventoryTransport {
     ) -> Pin<
         Box<dyn Future<Output = std::result::Result<InventoryResponse, NetworkError>> + Send + '_>,
     >;
+    /// Compatible offline peers provide no origin proof. The concrete HTTPS
+    /// client overrides this method; a caller-set response URL is not evidence.
+    fn get_inventory_with_custody(
+        &self,
+        request: InventoryGet,
+        limits: Limits,
+    ) -> Pin<Box<dyn Future<Output = Result<CustodiedInventoryResponse>> + Send + '_>> {
+        let response = self.get_inventory(request, limits);
+        Box::pin(async move { Ok(CustodiedInventoryResponse::unattested(response.await?)) })
+    }
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PublicationPrecondition {
@@ -50,6 +66,7 @@ pub struct PublicationPrecondition {
 pub struct CompleteGenerationProposal {
     state: RetainedState,
     precondition: PublicationPrecondition,
+    original_capture: OriginalNetworkCapture,
 }
 impl CompleteGenerationProposal {
     pub fn state(&self) -> &RetainedState {
@@ -58,8 +75,116 @@ impl CompleteGenerationProposal {
     pub fn precondition(&self) -> &PublicationPrecondition {
         &self.precondition
     }
-    pub fn into_parts(self) -> (RetainedState, PublicationPrecondition) {
-        (self.state, self.precondition)
+    /// The exact bounded response body accepted by this original producer,
+    /// before projection. It is evidence for immutable archive custody, not a
+    /// caller supplied substitute for the projected generation.
+    pub fn original_capture(&self) -> &OriginalNetworkCapture {
+        &self.original_capture
+    }
+    pub fn into_parts(
+        self,
+    ) -> (
+        RetainedState,
+        PublicationPrecondition,
+        OriginalNetworkCapture,
+    ) {
+        (self.state, self.precondition, self.original_capture)
+    }
+}
+
+/// Original producer bytes and their capture context. Fields and constructor
+/// are private: only the actual successful inventory response path can create
+/// this value. It is deliberately neither serializable nor deserializable.
+#[derive(Clone, Debug)]
+pub struct OriginalNetworkCapture {
+    registration: SourceRegistration,
+    source_attestation: SourceScope,
+    generation_id: String,
+    attempted_at: String,
+    retrieved_at: String,
+    source_snapshot_at: Option<String>,
+    limits: Limits,
+    body: Vec<u8>,
+    body_sha256: String,
+    origin_sha256: Option<String>,
+}
+struct OriginalCaptureContext<'a> {
+    registration: &'a SourceRegistration,
+    source_attestation: &'a SourceScope,
+    generation_id: &'a str,
+    attempted_at: &'a str,
+    retrieved_at: &'a str,
+    source_snapshot_at: Option<&'a str>,
+    limits: Limits,
+}
+impl OriginalNetworkCapture {
+    fn from_response(
+        context: OriginalCaptureContext<'_>,
+        body: Vec<u8>,
+        origin: Option<InventoryOriginCustody>,
+    ) -> Result<Self> {
+        let OriginalCaptureContext {
+            registration,
+            source_attestation,
+            generation_id,
+            attempted_at,
+            retrieved_at,
+            source_snapshot_at,
+            limits,
+        } = context;
+        guard(body.len() <= limits.max_response_bytes && body.len() <= 10 * 1024 * 1024)?;
+        let body_sha256 = format!("{:x}", Sha256::digest(&body));
+        let origin_sha256 = origin
+            .map(|proof| proof.consume(registration, &body_sha256))
+            .transpose()?;
+        Ok(Self {
+            registration: registration.clone(),
+            source_attestation: source_attestation.clone(),
+            generation_id: generation_id.into(),
+            attempted_at: attempted_at.into(),
+            retrieved_at: retrieved_at.into(),
+            source_snapshot_at: source_snapshot_at.map(str::to_owned),
+            limits,
+            body,
+            body_sha256,
+            origin_sha256,
+        })
+    }
+    /// Provenance comparison only; current original authority is still required.
+    pub fn is_from_reviewed_origin(&self, origin: &ReviewedNetworkOrigin) -> bool {
+        self.origin_sha256
+            .as_ref()
+            .is_some_and(|digest| *digest == origin.custody_fingerprint())
+    }
+    pub(crate) fn origin_sha256(&self) -> Option<&str> {
+        self.origin_sha256.as_deref()
+    }
+    pub fn registration(&self) -> &SourceRegistration {
+        &self.registration
+    }
+    pub fn source_attestation(&self) -> &SourceScope {
+        &self.source_attestation
+    }
+    pub fn generation_id(&self) -> &str {
+        &self.generation_id
+    }
+    pub fn attempted_at(&self) -> &str {
+        &self.attempted_at
+    }
+    pub fn retrieved_at(&self) -> &str {
+        &self.retrieved_at
+    }
+    pub fn source_snapshot_at(&self) -> Option<&str> {
+        self.source_snapshot_at.as_deref()
+    }
+    pub fn limits(&self) -> Limits {
+        self.limits
+    }
+    pub fn body(&self) -> &[u8] {
+        &self.body
+    }
+    pub fn body_sha256(&self) -> &str {
+        &self.body_sha256
     }
 }
 #[derive(Clone, Debug)]
@@ -131,13 +256,16 @@ impl NetworkProvider {
             .fetch(prior, generation_id, transport, &attempted_at, &mut clock)
             .await;
         Ok(match prepared {
-            Ok(state) => RefreshOutcome::Complete(Box::new(CompleteGenerationProposal {
-                state,
-                precondition: PublicationPrecondition {
-                    expected_generation_id: prior.cache.generation_id.clone(),
-                    expected_cache_epoch,
-                },
-            })),
+            Ok((state, original_capture)) => {
+                RefreshOutcome::Complete(Box::new(CompleteGenerationProposal {
+                    state,
+                    precondition: PublicationPrecondition {
+                        expected_generation_id: prior.cache.generation_id.clone(),
+                        expected_cache_epoch,
+                    },
+                    original_capture,
+                }))
+            }
             Err(error) => {
                 let mut state = prior.clone();
                 state.cache.status = if error.code == ErrorCode::Auth
@@ -164,17 +292,18 @@ impl NetworkProvider {
         transport: &T,
         attempted_at: &str,
         clock: &mut C,
-    ) -> Result<RetainedState>
+    ) -> Result<(RetainedState, OriginalNetworkCapture)>
     where
         T: InventoryTransport + ?Sized,
         C: FnMut() -> String,
     {
         let response = tokio::time::timeout(
             Duration::from_millis(self.limits.request_timeout_ms),
-            transport.get_inventory(InventoryGet, self.limits),
+            transport.get_inventory_with_custody(InventoryGet, self.limits),
         )
         .await
         .map_err(|_| NetworkError::new(ErrorCode::Timeout))??;
+        let (response, origin) = response.into_parts();
         if matches!(response.status, 401 | 403) {
             return Err(NetworkError::new(ErrorCode::Auth));
         }
@@ -192,13 +321,29 @@ impl NetworkProvider {
         same_scope(&self.registration, source)?;
         let fetched_at = clock();
         guard(stamp(&fetched_at)? >= stamp(attempted_at)?)?;
+        // Hash and retain the actual native response bytes before projection
+        // consumes their semantic content. A projected-row digest is not a
+        // substitute for this original immutable-body digest.
+        let original_capture = OriginalNetworkCapture::from_response(
+            OriginalCaptureContext {
+                registration: &self.registration,
+                source_attestation: source,
+                generation_id,
+                attempted_at,
+                retrieved_at: &fetched_at,
+                source_snapshot_at: response.source_snapshot_at.as_deref(),
+                limits: self.limits,
+            },
+            response.body,
+            origin,
+        )?;
         let generation = project_capture(
             &self.registration,
             NetworkCapture {
                 source,
-                document: &response.body,
+                document: original_capture.body(),
                 retrieved_at: &fetched_at,
-                source_snapshot_at: response.source_snapshot_at.as_deref(),
+                source_snapshot_at: original_capture.source_snapshot_at(),
             },
             &self.review,
             self.limits,
@@ -226,6 +371,6 @@ impl NetworkProvider {
             generation: Some(generation),
         };
         validate_state(&self.registration, &state, Some(&self.review))?;
-        Ok(state)
+        Ok((state, original_capture))
     }
 }

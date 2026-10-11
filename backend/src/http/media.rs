@@ -72,7 +72,7 @@ pub(super) async fn deliver(
     tokio::task::spawn_blocking(move || {
         let _admitted = headers.admission_permit()?;
         budget.check().map_err(media_error)?;
-        let mut core = host
+        let core = host
             .core
             .lock()
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
@@ -97,7 +97,7 @@ pub(super) async fn deliver(
         };
         let snapshot = core
             .store
-            .get_mut()
+            .lock()
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
             .read_snapshot(&request, &selected)
             .map_err(|error| super::domain_error(crate::app::storage_error(error)))?;

@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Healthy synthetic authorized two-read projection from HouseAtlas stock.2 wire3. Shared production schemas remain AT51-owned.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/request_atlas_circuit_history"
+    },
+    {
+      "$ref": "#/$defs/request_atlas_circuit_list"
+    }
+  ],
+  "$defs": {
+    "request_atlas_circuit_history": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 3
+        },
+        "commandId": {
+          "const": "atlas.circuit.history"
+        },
+        "context": {
+          "$ref": "#/$defs/contextSelection"
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "authority": {
+              "const": "atlas"
+            },
+            "recordType": {
+              "const": "circuit"
+            },
+            "recordId": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "authority",
+            "recordType",
+            "recordId"
+          ],
+          "additionalProperties": false
+        },
+        "payload": {
+          "$ref": "#/$defs/listQuery"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "commandId",
+        "context",
+        "target",
+        "payload",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "contextSelection": {
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "format": "uuid"
+        },
+        "homeId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "homeId"
+      ],
+      "additionalProperties": false
+    },
+    "listQuery": {
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pageSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "includeArchived": {
+          "type": "boolean"
+        },
+        "q": {
+          "type": "string",
+          "maxLength": 255
+        }
+      },
+      "required": [
+        "cursor",
+        "pageSize",
+        "includeArchived"
+      ],
+      "additionalProperties": false
+    },
+    "request_atlas_circuit_list": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 3
+        },
+        "commandId": {
+          "const": "atlas.circuit.list"
+        },
+        "context": {
+          "$ref": "#/$defs/contextSelection"
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "authority": {
+              "const": "atlas"
+            },
+            "recordType": {
+              "const": "circuit"
+            }
+          },
+          "required": [
+            "authority",
+            "recordType"
+          ],
+          "additionalProperties": false
+        },
+        "payload": {
+          "$ref": "#/$defs/listQuery"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "commandId",
+        "context",
+        "target",
+        "payload",
+        "requestId"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

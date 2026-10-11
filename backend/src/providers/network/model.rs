@@ -220,7 +220,8 @@ impl RetainedState {
         result
     }
 }
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Limits {
     pub max_response_bytes: usize,
     pub max_records: usize,

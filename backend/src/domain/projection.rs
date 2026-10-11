@@ -298,9 +298,7 @@ pub fn project_current(
         .collect::<DomainResult<Vec<_>>>()?;
     let mut homes = vec![authority.home.clone()];
     for home in &authority.other_homes {
-        if home.scope.workspace_id == scope.workspace_id
-            && !homes.iter().any(|h| h.scope == home.scope)
-        {
+        if !homes.iter().any(|h| h.scope == home.scope) {
             homes.push(home.clone());
         }
     }

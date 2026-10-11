@@ -74,10 +74,18 @@ fn references<C: Contract>(
         ("atlasId", RecordType::Identity),
         ("originalAssetId", RecordType::Asset),
         ("previousGeometryId", RecordType::Geometry),
+        ("previousAssociationId", RecordType::SceneAssociation),
         ("fromBindingId", RecordType::Binding),
         ("toBindingId", RecordType::Binding),
     ] {
         add_ref(&mut refs, kind, &payload[field]);
+    }
+    if payload["elevation"]["status"] == "known" {
+        add_ref(
+            &mut refs,
+            RecordType::Identity,
+            &payload["elevation"]["datumAtlasId"],
+        );
     }
     for field in ["panel", "from", "to"] {
         if payload[field]["kind"] == "atlas-record" {
@@ -128,6 +136,42 @@ fn references<C: Contract>(
                         pending.push(next);
                     }
                 }
+            }
+        }
+    }
+    if payload["profile"] == "houseatlas.native-scene-association.v1" {
+        add_ref(&mut refs, RecordType::Identity, &payload["buildingId"]);
+        for doc in array(&payload["sourceDocuments"]) {
+            add_ref(&mut refs, RecordType::Evidence, &doc["evidenceId"]);
+            add_ref(&mut refs, RecordType::Asset, &doc["originalAssetId"]);
+        }
+        for floor in array(&payload["sourceFloors"]) {
+            add_ref(&mut refs, RecordType::Geometry, &floor["nativeGeometryId"]);
+            add_ref(
+                &mut refs,
+                RecordType::Asset,
+                &floor["nativeOriginalAssetId"],
+            );
+        }
+        let mut places = vec![&payload["buildingId"]];
+        for room in array(&payload["roomMappings"]) {
+            for id in array(&room["evidenceIds"]) {
+                add_ref(&mut refs, RecordType::Evidence, id);
+            }
+            for mapped in array(&room["targets"]) {
+                if !mapped["atlasPlaceId"].is_null() {
+                    add_ref(&mut refs, RecordType::Identity, &mapped["atlasPlaceId"]);
+                    places.push(&mapped["atlasPlaceId"]);
+                }
+            }
+        }
+        for place in places {
+            for semantics in graph.iter().filter(|row| {
+                row.target.record_type == RecordType::LocationSemantics
+                    && row.payload["reviewStatus"] == "accepted"
+                    && row.payload["atlasId"].as_str() == place.as_str()
+            }) {
+                refs.push(semantics.target.clone());
             }
         }
     }

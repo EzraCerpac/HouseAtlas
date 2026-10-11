@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:houseatlas:agent:stock:3",
   "title": "HouseAtlas stock HomeBox agent contract wire 3",
-  "$comment": "Candidate contract 0.2.0-at33.2; frozen base 1.0.0",
+  "$comment": "Candidate contract 0.2.0-at33.2; Atlas public schema 1.1.0; legacy storage envelope 1.0.0",
   "$defs": {
     "contextSelection": {
       "type": "object",
@@ -41,6 +41,7 @@
             "valve",
             "relation",
             "geometry",
+            "scene-association",
             "asset",
             "reconciliation"
           ]
@@ -1083,7 +1084,7 @@
           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
         },
         "source": {
-          "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/sourceKey"
+          "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/sourceKey"
         },
         "reviewStatus": {
           "type": "string",
@@ -1213,7 +1214,7 @@
               "homeboxEntity": {
                 "anyOf": [
                   {
-                    "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/sourceRef"
+                    "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/sourceRef"
                   },
                   {
                     "type": "null"
@@ -1289,7 +1290,7 @@
           ]
         },
         "sourceLicense": {
-          "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/license"
+          "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/license"
         },
         "evidenceIds": {
           "type": "array",
@@ -1417,7 +1418,7 @@
           "format": "uuid"
         },
         "source": {
-          "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/sourceKey"
+          "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/sourceKey"
         },
         "reason": {
           "enum": [
@@ -2341,7 +2342,7 @@
           "maxLength": 4096
         },
         "sourceLicense": {
-          "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/license"
+          "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/license"
         },
         "availability": {
           "type": "string",
@@ -2421,7 +2422,7 @@
               ]
             },
             "payload": {
-              "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/identityPayload"
+              "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/identityPayload"
             }
           },
           "required": [
@@ -2469,7 +2470,7 @@
               ]
             },
             "payload": {
-              "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/bindingPayload"
+              "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/bindingPayload"
             }
           },
           "required": [
@@ -2517,7 +2518,7 @@
               ]
             },
             "payload": {
-              "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/evidencePayload"
+              "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/evidencePayload"
             }
           },
           "required": [
@@ -2565,7 +2566,7 @@
               ]
             },
             "payload": {
-              "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/locationSemanticsPayload"
+              "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/locationSemanticsPayload"
             }
           },
           "required": [
@@ -2613,7 +2614,7 @@
               ]
             },
             "payload": {
-              "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/circuitPayload"
+              "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/circuitPayload"
             }
           },
           "required": [
@@ -2661,7 +2662,7 @@
               ]
             },
             "payload": {
-              "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/valvePayload"
+              "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/valvePayload"
             }
           },
           "required": [
@@ -2709,7 +2710,7 @@
               ]
             },
             "payload": {
-              "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/relationPayload"
+              "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/relationPayload"
             }
           },
           "required": [
@@ -2757,7 +2758,55 @@
               ]
             },
             "payload": {
-              "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/geometryPayload"
+              "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/geometryPayload"
+            }
+          },
+          "required": [
+            "target",
+            "revision",
+            "lifecycle",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "object",
+              "properties": {
+                "authority": {
+                  "const": "atlas"
+                },
+                "recordType": {
+                  "const": "scene-association"
+                },
+                "recordId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "authority",
+                "recordType",
+                "recordId"
+              ],
+              "additionalProperties": false
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "lifecycle": {
+              "enum": [
+                "active",
+                "tombstoned"
+              ]
+            },
+            "payload": {
+              "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/sceneAssociationPayload"
             }
           },
           "required": [
@@ -2853,7 +2902,7 @@
               ]
             },
             "payload": {
-              "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/reconciliationPayload"
+              "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/reconciliationPayload"
             }
           },
           "required": [
@@ -4050,7 +4099,7 @@
         "relations": {
           "type": "array",
           "items": {
-            "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/networkRelation"
+            "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/networkRelation"
           },
           "maxItems": 100,
           "uniqueItems": true
@@ -4061,7 +4110,7 @@
             "type": "object",
             "properties": {
               "source": {
-                "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/sourceKey"
+                "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/sourceKey"
               },
               "label": {
                 "anyOf": [
@@ -4502,7 +4551,43 @@
           "additionalProperties": false
         },
         "payload": {
-          "$ref": "#/$defs/listQuery"
+          "type": "object",
+          "properties": {
+            "cursor": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 4096
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "pageSize": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "includeArchived": {
+              "type": "boolean"
+            },
+            "q": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "buildingId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          },
+          "required": [
+            "cursor",
+            "pageSize",
+            "includeArchived"
+          ],
+          "additionalProperties": false
         },
         "requestId": {
           "type": "string",
@@ -4650,7 +4735,7 @@
       "additionalProperties": false
     },
     "base_identityPayload": {
-      "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/identityPayload"
+      "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/identityPayload"
     },
     "request_atlas_identity_create": {
       "type": "object",
@@ -6533,7 +6618,7 @@
       "additionalProperties": false
     },
     "base_evidencePayload": {
-      "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/evidencePayload"
+      "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/evidencePayload"
     },
     "request_atlas_evidence_create": {
       "type": "object",
@@ -7304,7 +7389,7 @@
       "additionalProperties": false
     },
     "base_locationSemanticsPayload": {
-      "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/locationSemanticsPayload"
+      "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/locationSemanticsPayload"
     },
     "request_atlas_location_semantics_create": {
       "type": "object",
@@ -8247,7 +8332,7 @@
       "additionalProperties": false
     },
     "base_circuitPayload": {
-      "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/circuitPayload"
+      "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/circuitPayload"
     },
     "request_atlas_circuit_create": {
       "type": "object",
@@ -9190,7 +9275,7 @@
       "additionalProperties": false
     },
     "base_valvePayload": {
-      "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/valvePayload"
+      "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/valvePayload"
     },
     "request_atlas_valve_create": {
       "type": "object",
@@ -10133,7 +10218,7 @@
       "additionalProperties": false
     },
     "base_relationPayload": {
-      "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/relationPayload"
+      "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/relationPayload"
     },
     "request_atlas_relation_create": {
       "type": "object",
@@ -12784,7 +12869,7 @@
       "additionalProperties": false
     },
     "base_reconciliationPayload": {
-      "$ref": "https://houseatlas.invalid/contracts/1.0.0/atlas.schema.json#/$defs/reconciliationPayload"
+      "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/reconciliationPayload"
     },
     "request_atlas_reconciliation_create": {
       "type": "object",
@@ -27877,6 +27962,9 @@
                     "$ref": "#/$defs/request_atlas_geometry_create"
                   },
                   {
+                    "$ref": "#/$defs/request_atlas_scene_association_create"
+                  },
+                  {
                     "$ref": "#/$defs/request_atlas_geometry_tombstone"
                   },
                   {
@@ -28433,13 +28521,25 @@
           "$ref": "#/$defs/request_atlas_geometry_get"
         },
         {
+          "$ref": "#/$defs/request_atlas_scene_association_get"
+        },
+        {
           "$ref": "#/$defs/request_atlas_geometry_list"
+        },
+        {
+          "$ref": "#/$defs/request_atlas_scene_association_list"
         },
         {
           "$ref": "#/$defs/request_atlas_geometry_history"
         },
         {
+          "$ref": "#/$defs/request_atlas_scene_association_history"
+        },
+        {
           "$ref": "#/$defs/request_atlas_geometry_create"
+        },
+        {
+          "$ref": "#/$defs/request_atlas_scene_association_create"
         },
         {
           "$ref": "#/$defs/request_atlas_geometry_tombstone"
@@ -28485,13 +28585,25 @@
           "$ref": "#/$defs/result_atlas_geometry_get"
         },
         {
+          "$ref": "#/$defs/result_atlas_scene_association_get"
+        },
+        {
           "$ref": "#/$defs/result_atlas_geometry_list"
+        },
+        {
+          "$ref": "#/$defs/result_atlas_scene_association_list"
         },
         {
           "$ref": "#/$defs/result_atlas_geometry_history"
         },
         {
+          "$ref": "#/$defs/result_atlas_scene_association_history"
+        },
+        {
           "$ref": "#/$defs/result_atlas_geometry_create"
+        },
+        {
+          "$ref": "#/$defs/result_atlas_scene_association_create"
         },
         {
           "$ref": "#/$defs/result_atlas_geometry_tombstone"
@@ -29248,13 +29360,25 @@
           "$ref": "#/$defs/request_atlas_geometry_get"
         },
         {
+          "$ref": "#/$defs/request_atlas_scene_association_get"
+        },
+        {
           "$ref": "#/$defs/request_atlas_geometry_list"
+        },
+        {
+          "$ref": "#/$defs/request_atlas_scene_association_list"
         },
         {
           "$ref": "#/$defs/request_atlas_geometry_history"
         },
         {
+          "$ref": "#/$defs/request_atlas_scene_association_history"
+        },
+        {
           "$ref": "#/$defs/request_atlas_geometry_create"
+        },
+        {
+          "$ref": "#/$defs/request_atlas_scene_association_create"
         },
         {
           "$ref": "#/$defs/request_atlas_geometry_tombstone"
@@ -29744,13 +29868,25 @@
           "$ref": "#/$defs/result_atlas_geometry_get"
         },
         {
+          "$ref": "#/$defs/result_atlas_scene_association_get"
+        },
+        {
           "$ref": "#/$defs/result_atlas_geometry_list"
+        },
+        {
+          "$ref": "#/$defs/result_atlas_scene_association_list"
         },
         {
           "$ref": "#/$defs/result_atlas_geometry_history"
         },
         {
+          "$ref": "#/$defs/result_atlas_scene_association_history"
+        },
+        {
           "$ref": "#/$defs/result_atlas_geometry_create"
+        },
+        {
+          "$ref": "#/$defs/result_atlas_scene_association_create"
         },
         {
           "$ref": "#/$defs/result_atlas_geometry_tombstone"
@@ -30369,13 +30505,25 @@
           "$ref": "#/$defs/result_atlas_geometry_get"
         },
         {
+          "$ref": "#/$defs/result_atlas_scene_association_get"
+        },
+        {
           "$ref": "#/$defs/result_atlas_geometry_list"
+        },
+        {
+          "$ref": "#/$defs/result_atlas_scene_association_list"
         },
         {
           "$ref": "#/$defs/result_atlas_geometry_history"
         },
         {
+          "$ref": "#/$defs/result_atlas_scene_association_history"
+        },
+        {
           "$ref": "#/$defs/result_atlas_geometry_create"
+        },
+        {
+          "$ref": "#/$defs/result_atlas_scene_association_create"
         },
         {
           "$ref": "#/$defs/result_atlas_geometry_tombstone"
@@ -34282,6 +34430,430 @@
           "$ref": "#/$defs/stockError"
         }
       ]
+    },
+    "request_atlas_scene_association_get": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 3
+        },
+        "commandId": {
+          "const": "atlas.scene-association.get"
+        },
+        "context": {
+          "$ref": "#/$defs/contextSelection"
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "authority": {
+              "const": "atlas"
+            },
+            "recordType": {
+              "const": "scene-association"
+            },
+            "recordId": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "authority",
+            "recordType",
+            "recordId"
+          ],
+          "additionalProperties": false
+        },
+        "payload": {
+          "$ref": "#/$defs/empty"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "commandId",
+        "context",
+        "target",
+        "payload",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "result_atlas_scene_association_get": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 3
+        },
+        "commandId": {
+          "const": "atlas.scene-association.get"
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "format": "uuid"
+        },
+        "resolvedScope": {
+          "$ref": "#/$defs/contextSelection"
+        },
+        "status": {
+          "const": "read"
+        },
+        "replayed": {
+          "type": "boolean"
+        },
+        "data": {
+          "$ref": "#/$defs/atlasRead"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "commandId",
+        "requestId",
+        "resolvedScope",
+        "status",
+        "replayed",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "request_atlas_scene_association_list": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 3
+        },
+        "commandId": {
+          "const": "atlas.scene-association.list"
+        },
+        "context": {
+          "$ref": "#/$defs/contextSelection"
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "authority": {
+              "const": "atlas"
+            },
+            "recordType": {
+              "const": "scene-association"
+            }
+          },
+          "required": [
+            "authority",
+            "recordType"
+          ],
+          "additionalProperties": false
+        },
+        "payload": {
+          "$ref": "#/$defs/listQuery"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "commandId",
+        "context",
+        "target",
+        "payload",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "result_atlas_scene_association_list": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 3
+        },
+        "commandId": {
+          "const": "atlas.scene-association.list"
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "format": "uuid"
+        },
+        "resolvedScope": {
+          "$ref": "#/$defs/contextSelection"
+        },
+        "status": {
+          "const": "read"
+        },
+        "replayed": {
+          "type": "boolean"
+        },
+        "data": {
+          "$ref": "#/$defs/atlasRead"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "commandId",
+        "requestId",
+        "resolvedScope",
+        "status",
+        "replayed",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "request_atlas_scene_association_history": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 3
+        },
+        "commandId": {
+          "const": "atlas.scene-association.history"
+        },
+        "context": {
+          "$ref": "#/$defs/contextSelection"
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "authority": {
+              "const": "atlas"
+            },
+            "recordType": {
+              "const": "scene-association"
+            },
+            "recordId": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "authority",
+            "recordType",
+            "recordId"
+          ],
+          "additionalProperties": false
+        },
+        "payload": {
+          "$ref": "#/$defs/listQuery"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "commandId",
+        "context",
+        "target",
+        "payload",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "result_atlas_scene_association_history": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 3
+        },
+        "commandId": {
+          "const": "atlas.scene-association.history"
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "format": "uuid"
+        },
+        "resolvedScope": {
+          "$ref": "#/$defs/contextSelection"
+        },
+        "status": {
+          "const": "read"
+        },
+        "replayed": {
+          "type": "boolean"
+        },
+        "data": {
+          "$ref": "#/$defs/history"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "commandId",
+        "requestId",
+        "resolvedScope",
+        "status",
+        "replayed",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "request_atlas_scene_association_create": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 3
+        },
+        "commandId": {
+          "const": "atlas.scene-association.create"
+        },
+        "context": {
+          "$ref": "#/$defs/contextSelection"
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "authority": {
+              "const": "atlas"
+            },
+            "recordType": {
+              "const": "scene-association"
+            },
+            "recordId": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "authority",
+            "recordType",
+            "recordId"
+          ],
+          "additionalProperties": false
+        },
+        "payload": {
+          "$ref": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json#/$defs/sceneAssociationPayload"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "format": "uuid"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "preconditions": {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "null"
+            },
+            "guards": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "target": {
+                    "$ref": "#/$defs/target"
+                  },
+                  "revision": {
+                    "$ref": "#/$defs/revision"
+                  }
+                },
+                "required": [
+                  "target",
+                  "revision"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 100,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "target",
+            "guards"
+          ],
+          "additionalProperties": false
+        },
+        "approvalReceiptId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "commandId",
+        "context",
+        "target",
+        "payload",
+        "idempotencyKey",
+        "reason",
+        "preconditions",
+        "approvalReceiptId",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "result_atlas_scene_association_create": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 3
+        },
+        "commandId": {
+          "const": "atlas.scene-association.create"
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "format": "uuid"
+        },
+        "resolvedScope": {
+          "$ref": "#/$defs/contextSelection"
+        },
+        "status": {
+          "const": "committed"
+        },
+        "replayed": {
+          "type": "boolean"
+        },
+        "data": {
+          "$ref": "#/$defs/atlasReceipt"
+        },
+        "operationId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "commandId",
+        "requestId",
+        "resolvedScope",
+        "status",
+        "replayed",
+        "data",
+        "operationId"
+      ],
+      "additionalProperties": false
     }
   },
   "$ref": "#/$defs/request"
