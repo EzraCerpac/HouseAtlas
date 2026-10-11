@@ -70,6 +70,32 @@ function freeze<T>(value: T): T {
   return value;
 }
 function discard(response: Response) { void response.body?.cancel().catch(() => undefined); }
+/** HEAD bodies should be empty; consume Chromium's empty stream to EOF instead of aborting it. */
+async function emptyHeadBody(response: Response, signal: AbortSignal): Promise<boolean> {
+  if (response.body === null) return true;
+  const reader = response.body.getReader();
+  const cancel = () => { void reader.cancel().catch(() => undefined); };
+  signal.addEventListener('abort', cancel, { once: true });
+  let emptyChunks = 0;
+  try {
+    for (;;) {
+      signal.throwIfAborted();
+      const part = await reader.read();
+      signal.throwIfAborted();
+      if (part.done) return true;
+      if (part.value.byteLength !== 0 || ++emptyChunks > 16) {
+        await reader.cancel().catch(() => undefined);
+        return false;
+      }
+    }
+  } catch (error) {
+    await reader.cancel().catch(() => undefined);
+    throw error;
+  } finally {
+    signal.removeEventListener('abort', cancel);
+    reader.releaseLock();
+  }
+}
 async function receive(response: Response, signal: AbortSignal, idleTimeoutMs?: number): Promise<LosslessJson> {
   const limit = 1024 * 1024, length = response.headers.get('content-length');
   if (length !== null && (!/^[0-9]+$/.test(length) || Number(length) > limit)) { discard(response); throw new TypeError('Native evidence body exceeds bound'); }
@@ -365,12 +391,14 @@ export function createNativeEvidenceClient(options: {
         const url = new URL(href, window.location.origin);
         if (url.origin !== window.location.origin || url.search || url.hash || url.username || url.password) throw new TypeError('Native original route differs');
         const response = await options.exchange(binding, href, 'HEAD', active);
+        const emptyBody = response.status === 200 ? await emptyHeadBody(response, active) : false;
         let headerBytes = 0; response.headers.forEach((v, k) => { headerBytes += new TextEncoder().encode(k + v).byteLength; });
         const length = response.headers.get('content-length'), disposition = response.headers.get('content-disposition');
-        const available = response.status === 200 && headerBytes <= 16 * 1024 && !response.body
+        const available = response.status === 200 && headerBytes <= 16 * 1024 && emptyBody
           && response.headers.get('content-type') === entry.type && length !== null && /^[0-9]+$/.test(length) && Number(length) === entry.size
           && disposition !== null && disposition.length <= 2048 && disposition.startsWith('attachment;');
-        discard(response); current(binding, active, entry.owner); owned(binding, prepared);
+        if (response.status !== 200) discard(response);
+        current(binding, active, entry.owner); owned(binding, prepared);
         return available ? Object.freeze({ href }) : null;
       });
     },

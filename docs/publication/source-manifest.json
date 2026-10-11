@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "fdb474a60050764658d926c6a1b03647f6c8150fd4fb057acd0cc4eb8f616fe2",
+  "sourceDigestSha256": "6a1a312999e3f6a67bf3c1bc2e0f51d67257d7e7c87b24cf2ad831a7915ee7e6",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 35272,
-      "sha256": "1f0c4d4719d63ef7912962ef2b65f613f3cc4e165b26c3baa11cb6a9fc42d8d2",
+      "bytes": 35569,
+      "sha256": "4bef6e4180eb2cccb4702410c0af4b214c477344000c86e2434fc180c987cf97",
       "owner": "core-integration"
     },
     {
@@ -6447,8 +6447,8 @@
     {
       "path": "frontend/src/api/native-evidence-client.ts",
       "mode": "100644",
-      "bytes": 31503,
-      "sha256": "96bd3221491a21b09d01ecc2e8ad2f08da03a071473c87b955bda3b8f36238bd",
+      "bytes": 32560,
+      "sha256": "0594890adfccdd1f72db633d01bca260febca8a50d9b3ff0865beb0d98c06144",
       "owner": "web"
     },
     {
