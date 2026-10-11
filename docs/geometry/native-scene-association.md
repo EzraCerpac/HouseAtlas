@@ -62,6 +62,10 @@ The UI offers authenticated readback even while create admission is unavailable.
 Even a correlated commit
 does not publish scene data until the dedicated authenticated current-head GET
 returns that exact target and current geometry pins.
+When UNKNOWN resolution confirms that exact target as the current head, the UI
+refreshes the host scene so its independently mounted scene reader obtains that
+current selection. This readback does not grant create admission or send another
+write.
 
 On normal mount and explicit refresh, the client reads
 `GET /api/atlas/scene/v1/workspaces/{w}/homes/{h}/buildings/{b}/current`.
