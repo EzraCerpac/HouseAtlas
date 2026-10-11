@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c172e4800c6d11074bfd796585a02e63bc063f06fc0bcf57bc5eb1789c8db42c",
+  "sourceDigestSha256": "898fd77136f2d7ed528a77a19c975b365d268f701a2725d538a5bab8975dd97a",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 40666,
-      "sha256": "4c2d14fc5aab28334fc50578dfd3841c0b9e976cecbf5e6a19404f6afb5b85b1",
+      "bytes": 42402,
+      "sha256": "b18501c3b4355abf9d8a98e64bdf4fa1fab6f51cc117645966276d6f3574b13b",
       "owner": "core-integration"
     },
     {
@@ -5367,6 +5367,13 @@
       "owner": "media"
     },
     {
+      "path": "docs/geometry/drawing-evidence-lookup-150.md",
+      "mode": "100644",
+      "bytes": 3431,
+      "sha256": "51384193bd059724bc8172623d896071d47933baedf93da2503130a5d32cba3e",
+      "owner": "web"
+    },
+    {
       "path": "docs/geometry/electricity-overlay.md",
       "mode": "100644",
       "bytes": 14067,
@@ -6176,6 +6183,13 @@
       "mode": "100644",
       "bytes": 11406,
       "sha256": "a554da777f421d32d8cb45356aaf362e058e7208415d16dfea8629fbe664faaa",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/native-scene-drawing-150.mjs",
+      "mode": "100644",
+      "bytes": 25236,
+      "sha256": "a3bd5dbbb6492ac8d4c2a760e16d95dd95fe819059f7740ceaa044a83b555fa3",
       "owner": "web"
     },
     {
@@ -7399,8 +7413,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx",
       "mode": "100644",
-      "bytes": 7587,
-      "sha256": "e8ddd1d5921042047008f5796ca875efc11eb010d41b555358788f0f6ec108e0",
+      "bytes": 9482,
+      "sha256": "f93c652312a85e66c849676e2d180ba034670840065dba9a087ee55bc5283dce",
       "owner": "web"
     },
     {
