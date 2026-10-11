@@ -95,6 +95,11 @@ also fence the frame comparison; changed placement metadata requires review
 and unknown units require null scale and transform. Selected original asset IDs
 retain one digest and compatible asset purpose across scene documents, prior
 floors and successors; evidence and geometry originals cannot share an ID. New
+geometry IDs also remain distinct from these referenced asset IDs. Geometry
+records retain ordered creation/update times and distinct producer-room mapping
+IDs. Mapping references are preserved proposals; these local checks do not
+authenticate their identity/evidence records or qualify a complete native graph.
+New
 successor descriptor keys must differ from every prior descriptor key,
 even when the authored derivative is identical. Multi-anchor correspondence
 retains the complete set union of its accepted targets and unresolved labels,

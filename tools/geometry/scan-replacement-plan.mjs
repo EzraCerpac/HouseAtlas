@@ -67,7 +67,10 @@ async function inspect(snapshot, reader) {
   text(snapshot.key); text(snapshot.exportLabel);
   assert(hashPattern.test(snapshot.originalSha256) && hashPattern.test(snapshot.derivativeSha256));
   assert(geometryRecord(snapshot.geometry), 'Snapshot geometry must satisfy the existing Atlas record schema');
+  assert(Date.parse(snapshot.geometry.updatedAt) >= Date.parse(snapshot.geometry.createdAt), 'Geometry record time cannot move backward');
   const placement = snapshot.geometry.payload;
+  assert.equal(new Set(placement.mappings.map(mapping => mapping.producerRoomId)).size, placement.mappings.length,
+    'Producer room mappings must have distinct source IDs');
   assert(placement.coordinateUnits !== 'unknown' || (placement.scale === null && placement.transform === null),
     'Unknown geometry units cannot imply scale or transform');
   assert.equal(snapshot.geometry.lifecycle, 'active');
@@ -154,10 +157,11 @@ export async function buildReplacementPlan(input) {
   const byId = new Map(), byKey = new Map();
   for (const floor of previous) {
     const p = pin(floor); assert(!byId.has(p.geometryId) && !byKey.has(p.key), 'Ambiguous previous floor');
+    assert(!originalDigests.has(p.geometryId), 'Geometry record identity must be distinct from selected assets');
     for (const field of ['workspaceId', 'homeId']) assert.equal(floor.snapshot.geometry[field], input.association[field]);
     byId.set(p.geometryId, floor); byKey.set(p.key, floor);
   }
-  const replacements = new Map(), nextIds = new Set(byId.keys()), nextKeys = new Set(byKey.keys());
+  const replacements = new Map(), nextIds = new Set([...byId.keys(), ...originalDigests.keys()]), nextKeys = new Set(byKey.keys());
   for (const floor of next) {
     const p = pin(floor), old = byId.get(floor.snapshot.geometry.payload.previousGeometryId);
     assert(old && !replacements.has(old.snapshot.geometry.recordId), 'Select one explicit successor per retained predecessor');

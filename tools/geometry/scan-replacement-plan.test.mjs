@@ -584,3 +584,22 @@ test('producer pins the exact compiled decoder with its embedded numeric impleme
   assert.equal(plan.producer.compiledMeshDecoderBytes, compiled.length);
   assert.notEqual(plan.producer.compiledMeshDecoderSha256, plan.producer.meshReaderSha256);
 });
+
+test('distinct producer-room proposals, ordered record times and asset identities survive durable planning', async () => {
+  const floor = snapshot({ floorKey: 'mapping-v1', sourceFloorKey: 'mapping-source', label: 'Mapping Floor' });
+  const baseline = world({ floors: [floor], rooms: [room({ id: 'mapping-room', floor })] });
+  const candidate = successor(floor);
+  const proposals = ['export-room-a', 'export-room-b'].map(producerRoomId => ({
+    producerRoomId, atlasId: uuid(), homeboxEntity: null, reviewStatus: 'proposed', evidenceIds: [uuid()],
+  }));
+  candidate.geometry.payload.mappings = proposals;
+  candidate.geometry.updatedAt = '2026-10-11T00:01:00Z';
+  const plan = await buildReplacementPlan(inputWith(baseline, [candidate]));
+  assert.deepEqual(plan.geometryHistory.candidates[0].payload.mappings, proposals);
+  assert.equal(plan.geometryHistory.candidates[0].updatedAt, candidate.geometry.updatedAt);
+  const assets = [floor.geometry.payload.originalAssetId, candidate.geometry.payload.originalAssetId,
+    baseline.association.payload.sourceDocuments[0].originalAssetId];
+  assert(assets.every(id => id !== plan.floors[0].candidate.geometryId && id !== plan.floors[0].previous.geometryId));
+  assert.equal(plan.operationsExecuted, 0);
+  assert.equal(plan.rooms[0].spatialAcceptance, 'not-issued');
+});
