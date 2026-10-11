@@ -62,9 +62,17 @@ node tools/geometry/native-scan-import.mjs inspect --manifest /absolute/private/
 and selected geometry, with no application write. `apply` requires a create-only
 journal under an existing canonical mode0700 parent. It performs each original,
 derivative and guarded association once, preserving exact requests and correlated
-receipts. Identical current hash pairs reuse their genuine geometry identities;
-an explicit successor replaces only its selected lineage head. Every building
+receipts. Identical current hash pairs reuse their genuine geometry identities
+only when both retained source licenses match the selection. A license correction
+requires an explicit predecessor and new guarded custody; it cannot silently
+reuse differently licensed assets. Explicit predecessors also disambiguate
+distinct native floors with identical bytes. A successor replaces only its
+selected lineage head. Every building
 evidence append refreshes ALL descriptor keys, including untouched floors.
+Before any geometry write, the same scene owner captures the qualified current
+scene (or genuine absence) under its current session. After descriptor keys change,
+it revalidates that retained record's exact revision and payload and submits its
+predecessor guard; the backend still checks the actual current head atomically.
 Before documentary custody, the actual scene owner performs a GET-only comparison
 of the current scene, both exact retained documents, complete room mappings and
 fresh native floor bindings. An identical verified scene reuses its native ID
@@ -94,7 +102,9 @@ node --test --test-concurrency=1 tools/geometry/native-scan-import.test.mjs
 ```
 
 It covers two-floor custody and descriptor refresh, identical no-POST reuse,
-one explicit partial successor retaining the other floor/history, unavailable
+one explicit partial successor retaining the other floor/history, license-aware
+reuse/correction, identical-byte predecessor selection, prior-scene capture before
+custody, unavailable
 custody and association holds with passive reconciliation, selected-file fences,
 normal-context composition, setup-failure own logout and HTTPS framing. These
 checks establish protocol composition, not live persistence or browser rendering.

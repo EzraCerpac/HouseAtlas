@@ -14,9 +14,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const SHA = /^[0-9a-f]{64}$/;
 export const sha256 = value => createHash('sha256').update(value).digest('hex');
 function closed(value, fields) { assert(value && typeof value === 'object' && !Array.isArray(value)); assert.deepEqual(Object.keys(value).sort(), [...fields].sort()); }
-const id = value => { assert(UUID.test(value), 'Expected a native UUID'); return value; };
+const id = value => { assert(typeof value === 'string' && UUID.test(value), 'Expected a native UUID'); return value; };
 const text = (value, bound) => { assert(typeof value === 'string' && value.trim() && [...value].length <= bound && value.isWellFormed()); return value; };
-function filePin(pin) { closed(pin, ['path', 'bytes', 'sha256', 'filename']); assert(isAbsolute(pin.path)); assert(SHA.test(pin.sha256));
+function filePin(pin) { closed(pin, ['path', 'bytes', 'sha256', 'filename']); assert(typeof pin.path === 'string' && isAbsolute(pin.path)); assert(typeof pin.sha256 === 'string' && SHA.test(pin.sha256));
   assert(Number.isSafeInteger(pin.bytes) && pin.bytes > 0); text(pin.filename, 255); assert(!/[\\/\u0000-\u001f]/.test(pin.filename)); }
 async function canonicalPath(path) {
   assert(isAbsolute(path) && resolve(path) === path, 'Use an absolute canonical path');
@@ -57,7 +57,7 @@ export async function validateImportManifest(pin, runtime, signal = new AbortCon
   const keys = new Set(), previous = new Set(), prepared = [];
   for (const floor of manifest.floors) {
     signal.throwIfAborted(); closed(floor, ['sourceFloorKey', 'sourceOriginalSha256', 'exportLabel', 'original', 'derivative', 'previousGeometryId']);
-    text(floor.sourceFloorKey, 512); assert(SHA.test(floor.sourceOriginalSha256)); text(floor.exportLabel, 4096);
+    text(floor.sourceFloorKey, 512); assert(typeof floor.sourceOriginalSha256 === 'string' && SHA.test(floor.sourceOriginalSha256)); text(floor.exportLabel, 4096);
     const source = JSON.stringify([floor.sourceFloorKey, floor.sourceOriginalSha256]); assert(!keys.has(source)); keys.add(source);
     if (floor.previousGeometryId !== null) { id(floor.previousGeometryId); assert(manifest.expectedCurrentGeometryIds.includes(floor.previousGeometryId));
       assert(!previous.has(floor.previousGeometryId)); previous.add(floor.previousGeometryId); }
@@ -97,7 +97,7 @@ export async function validateImportManifest(pin, runtime, signal = new AbortCon
       sourceFloors: spec.sourceFloors, roomMappings: spec.roomMappings, statement: spec.statement, reason: spec.reason,
       confirmDrawingSupport: spec.confirmDrawingSupport };
     assert(runtime.scene?.preflightNativeScanScene, 'Load the actual reviewed scene preflight');
-    await runtime.scene.preflightNativeScanScene(scene, signal);
+    await runtime.scene.preflightNativeScanScene(scene, signal, manifest.scope);
   }
   return { manifest, manifestSha256: sha256(raw), floors: prepared, scene };
 }
@@ -210,6 +210,8 @@ export function journalTransport(base, journal) {
   };
 }
 const compareIds = (a, b) => assert.deepEqual([...a].sort(), [...b].sort(), 'Current native floor selection changed');
+const licensesMatch = (floor, selected) => [floor.originalLicense, floor.derivativeLicense].every(license =>
+  license.status === selected.status && license.reference === selected.reference);
 function sceneInputForGeometry(selected, mappings) {
   const sourceFloors = selected.scene.sourceFloors.map(source => {
     const mapping = mappings.find(item => item.sourceFloorKey === source.sourceFloorKey
@@ -219,7 +221,7 @@ function sceneInputForGeometry(selected, mappings) {
   });
   return { ...selected.scene, sourceFloors };
 }
-export async function applyNativeImport(selected, runtime, context, transport, journal, signal) {
+export async function applyNativeImport(selected, runtime, context, transport, journal, signal, sceneOwner = null) {
   const { manifest, floors } = selected;
   await journal.append('selection', { manifestSha256: selected.manifestSha256, manifest, provenance: runtime.provenance });
   const reader = runtime.read.createNativeGeometryReadClient({ getBinding: context.getBinding, subscribeBinding: context.subscribe,
@@ -230,18 +232,26 @@ export async function applyNativeImport(selected, runtime, context, transport, j
   try {
     let frame = await reader.loadBuilding(manifest.buildingId, signal);
     compareIds(frame.floors.map(floor => floor.geometryId), currentIds);
+    if (sceneOwner) {
+      const captured = await sceneOwner.capturePriorScene(manifest.buildingId, signal);
+      await journal.append('scene-predecessor', { buildingId: manifest.buildingId, status: captured.status,
+        recordId: captured.status === 'available' ? captured.recordId : null });
+    }
     const used = new Set();
     for (const item of floors) {
       const floor = item.selected;
-      const matches = frame.floors.filter(row => row.originalSHA256 === floor.original.sha256 && row.derivativeSHA256 === floor.derivative.sha256);
+      const matches = frame.floors.filter(row => row.originalSHA256 === floor.original.sha256 && row.derivativeSHA256 === floor.derivative.sha256
+        && (floor.previousGeometryId !== null ? row.geometryId === floor.previousGeometryId : !used.has(row.geometryId)));
       assert(matches.length <= 1, 'Retained geometry is ambiguous');
       let native;
-      if (matches.length) {
+      if (matches.length && licensesMatch(matches[0], manifest.sourceLicense)) {
         native = matches[0]; assert(!used.has(native.geometryId));
         assert(floor.previousGeometryId === null || floor.previousGeometryId === native.geometryId,
           'Selected predecessor differs from retained identical floor');
         await journal.append('reused', { sourceFloorKey: floor.sourceFloorKey, sourceOriginalSha256: floor.sourceOriginalSha256, geometryId: native.geometryId });
       } else {
+        assert(!matches.length || floor.previousGeometryId !== null,
+          'A license correction requires an explicit native predecessor');
         if (floor.previousGeometryId !== null) assert(frame.floors.some(row => row.geometryId === floor.previousGeometryId));
         const binding = write.getBinding(); assert(binding && write.canPrepare(binding));
         const original = await write.prepareOriginal(binding, { file: item.original, filename: floor.original.filename, reason: manifest.reason,
@@ -267,7 +277,8 @@ export async function applyNativeImport(selected, runtime, context, transport, j
         if (floor.previousGeometryId) currentIds.delete(floor.previousGeometryId); currentIds.add(geometryId);
         frame = await reader.loadBuilding(manifest.buildingId, signal); compareIds(frame.floors.map(row => row.geometryId), currentIds);
         native = frame.floors.find(row => row.geometryId === geometryId); assert(native && native.originalSHA256 === floor.original.sha256
-          && native.derivativeSHA256 === floor.derivative.sha256, 'Committed native floor differs from selected source');
+          && native.derivativeSHA256 === floor.derivative.sha256 && licensesMatch(native, manifest.sourceLicense),
+        'Committed native floor differs from selected source or license');
       }
       used.add(native.geometryId); mappings.push({ sourceFloorKey: floor.sourceFloorKey, sourceOriginalSha256: floor.sourceOriginalSha256,
         geometryId: native.geometryId, originalAssetId: native.originalAssetId, derivativeAssetId: native.derivativeAssetId });
@@ -282,14 +293,17 @@ export async function applyNativeImport(selected, runtime, context, transport, j
   } catch (error) { reader.dispose(); await journal.append('held', { message: 'No retry authorized; inspect the exact journal and current native information' }); throw error; }
 }
 
-export async function applyNativeScene(selected, geometry, runtime, context, transport, journal, signal) {
-  if (!selected.scene) return null;
-  const input = sceneInputForGeometry(selected, geometry.mappings);
-  const owner = runtime.scene.createNativeScanSceneImporter({ ...context, origin: selected.manifest.origin, transport,
+function createSceneOwner(selected, runtime, context, transport, journal) {
+  return runtime.scene.createNativeScanSceneImporter({ ...context, origin: selected.manifest.origin, transport,
     beforeDispatch: (kind, request) => journal.append('adapter-claim', { kind, ...request }),
     afterResult: (kind, result) => journal.append('adapter-result', { kind, requestId: result.requestId, outcome: result.outcome,
       receiptBody: result.receipt ? runtime.numeric.stringifyLosslessJson(result.receipt) : null }),
   });
+}
+export async function applyNativeScene(selected, geometry, runtime, context, transport, journal, signal, suppliedOwner = null) {
+  if (!selected.scene) return null;
+  const input = sceneInputForGeometry(selected, geometry.mappings);
+  const owner = suppliedOwner ?? createSceneOwner(selected, runtime, context, transport, journal);
   try {
     let current = await owner.inspectCurrentScene(input, signal);
     const reused = current !== null;
@@ -319,7 +333,7 @@ export async function applyNativeScene(selected, geometry, runtime, context, tra
     if (journal.events.at(-1)?.kind !== 'scene-held')
       await journal.append('scene-held', { outcome: 'unverified', phase: 'current-scene-read-or-documentary-write', requestId: null });
     throw error;
-  } finally { owner.dispose(); }
+  } finally { if (!suppliedOwner) owner.dispose(); }
 }
 
 /** Restart reconciliation is passive. Missing receipts never authorize resubmission. */
@@ -363,7 +377,8 @@ export async function inspectImportJournal(journal, runtime, context, transport,
       && complete.data.mappings.every(mapping => {
       const selected = manifest.floors.find(row => row.sourceFloorKey === mapping.sourceFloorKey && row.sourceOriginalSha256 === mapping.sourceOriginalSha256);
       const floor = frame.floors.find(row => row.geometryId === mapping.geometryId);
-      return selected && floor && floor.originalSHA256 === selected.original.sha256 && floor.derivativeSHA256 === selected.derivative.sha256;
+      return selected && floor && floor.originalSHA256 === selected.original.sha256 && floor.derivativeSHA256 === selected.derivative.sha256
+        && licensesMatch(floor, manifest.sourceLicense);
     });
     if (verified) for (const floor of frame.floors) await runtime.mesh.readScanMesh(frame.readPort, frame.viewKey, floor, signal);
     let sceneStatus = manifest.scene ? 'held' : 'not-requested', sceneRecordId = null;
@@ -399,7 +414,7 @@ async function main(args) {
   const command = args.shift(); assert(['validate', 'preflight', 'apply', 'inspect'].includes(command), 'Use validate, preflight, apply or inspect');
   const options = new Map(); while (args.length) { const key = args.shift(), value = args.shift(); assert(/^--[a-z0-9-]+$/.test(key) && value && !options.has(key)); options.set(key, value); }
   assert([...options.keys()].every(key => ['--manifest', '--sha256', '--journal', '--origin', '--proxy'].includes(key)));
-  const runtime = await loadNativeImportRuntime({ scene: 'frontend/integration/native-scan-import-scene.ts' }); let context, network, geometry;
+  const runtime = await loadNativeImportRuntime({ scene: 'frontend/integration/native-scan-import-scene.ts' }); let context, network, geometry, sceneOwner;
   try {
     const signal = AbortSignal.timeout(10 * 60_000);
     const path = options.get('--manifest'); assert(path && SHA.test(options.get('--sha256')));
@@ -426,14 +441,16 @@ async function main(args) {
       return;
     }
     if (command === 'inspect') { console.log(JSON.stringify(await inspectImportJournal(journal, runtime, context, transport, signal, selected))); return; }
-    geometry = await applyNativeImport(selected, runtime, context, transport, journal, signal);
-    const scene = await applyNativeScene(selected, geometry, runtime, context, transport, journal, signal);
+    if (selected.scene) sceneOwner = createSceneOwner(selected, runtime, context, transport, journal);
+    geometry = await applyNativeImport(selected, runtime, context, transport, journal, signal, sceneOwner);
+    const scene = await applyNativeScene(selected, geometry, runtime, context, transport, journal, signal, sceneOwner);
     const status = scene ? 'geometry-and-scene-saved-and-read-back' : 'geometry-saved-and-read-back';
     await journal.append('complete', { status, sceneRecordId: scene?.recordId ?? null });
     console.log(JSON.stringify({ status, manifestSha256: selected.manifestSha256,
       journal: options.get('--journal'), floors: geometry.mappings.length }));
   } finally {
     geometry?.reader.dispose();
+    sceneOwner?.dispose();
     try { await context?.close(); } finally { network?.forget(); await runtime.dispose(); }
   }
 }

@@ -10,10 +10,13 @@ measured SHA-256/byte counts, statements/reasons/Unknown licenses, the reviewed
 room mappings (source IDs/anchors/targets/unresolved labels only), a deliberate scene review statement and support confirmation.
 `sourceFloors` supplies only `sourceFloorKey`, `sourceOriginalSha256` and the
 selected actual `nativeGeometryId` during `importScene`. The exported pure
-`preflightNativeScanScene` instead takes only the source key/hash pairs, before
-geometry custody or authentication. It verifies both immutable files and the
+`preflightNativeScanScene(input, signal, expectedScope)` takes the source key/hash
+pairs and the manifest workspace/home scope before geometry custody or
+authentication. Reviewed PDF support must match that supplied scope exactly. It verifies both immutable files and the
 canonical receipt, then uses the actual closed scene reader and native request
 schema to check rooms/network/electricity/fixture grammar and room mappings.
+Each mapping must preserve exactly the target and unresolved-label unions of
+all its reviewed anchors; extra, omitted or duplicated members refuse.
 Local validation ports expose only these supplied Blobs; ephemeral parser lease
 identifiers never escape and no HTTP, authority, custody or PDF access is claimed.
 Malformed or unqualified requested subsets refuse before writes. Actual native
@@ -26,7 +29,9 @@ original is the unchanged source receipt or closed reviewed documentary support.
 
 `createNativeScanTextImporter` performs the actual first two steps per original:
 
-1. Fresh building check, one schemaVersion-1 multipart `text/plain` POST to the
+1. Fresh building and ALL prior evidence reads, complete evidence-list/capacity
+   validation and a conservative prospective batch size check before one
+   schemaVersion-1 multipart `text/plain` POST to the
    existing Stock `/assets` route. Its server-issued asset ID comes exclusively
    from the production-validated committed result. The original document reader
    freshly checks the asset and all retained original bytes.
@@ -53,6 +58,28 @@ UNKNOWN against that asset request. A not-dispatched evidence request ID is null
 The scene association similarly preserves its validated commit if later source
 readback or journaling is incomplete. Partial still holds the operation; it does
 not authorize retry or prove complete scene availability.
+
+`reserveTexts` reserves both documentary appends before the first custody POST.
+It checks each prospective guard/list and serialized batch, including the second
+append, with worst-width revisions. Prior-evidence reads settle sequentially
+within the same 60-second abort/deadline budget. Scene preflight accounts for all
+prospective floor/document/identity/prior guards and predecessor/version fields.
+Every prospective and actual text batch must fit the existing 16 KiB retained
+intent lookup limit. Scene commands retain their existing 1 MiB request/schema
+bound and reconcile through the current head, not retained-intent lookup. Local
+capacity witnesses are never native identities or returned authority. Fresh
+guards still govern the actual write. The owner used for scope preflight stays
+pinned through the reads, both-document reservation and every custody boundary;
+an owner switch cancels the phase before a new context can claim a write.
+
+`capturePriorScene(buildingId, signal)` captures a genuine qualified current
+head or genuine absence before geometry/text identity changes. The same importer
+retains the production client's owner-bound opaque token; the host receives safe
+status/record ID/revision metadata only. Before preparing a successor the client
+revalidates the prior record by authenticated Stock GET and adds its guard. The
+server's atomic current-head/predecessor/version check remains final authority;
+a GET of a historical record does not establish it as today's head. Direct
+`importScene` callers self-capture before text if no prior was supplied.
 
 After both text batches the adapter reloads ALL native floors: identity appends
 change descriptor/view keys. It requires the same selected geometry identities
@@ -90,7 +117,11 @@ Only `no-current-association` counts as absence; `current-source-unavailable`
 throws and keeps the invoking host held before any text write. Transport,
 parsing, context and abort errors also throw. It claims no request, emits no
 replacement receipt, makes no POST and never clears an existing UNKNOWN hold.
-The invoking host must record reuse distinctly and keep unmatched recovery held.
+A previously qualified available head with changed descriptor keys is known
+successor provenance: its owner token is revalidated and reuse returns null.
+The retained prior is passed to prepare, rather than selecting a missing head
+after key-changing custody. The invoking host must record reuse distinctly and
+keep unmatched recovery held.
 
 ## Focused synthetic checks
 
@@ -106,6 +137,7 @@ node frontend/lantern-tests/native-scan-import-scene.mjs association-unknown
 node frontend/lantern-tests/native-scan-import-scene.mjs floor-selection
 node frontend/lantern-tests/native-scan-import-scene.mjs literal-labels
 node frontend/lantern-tests/native-scan-import-scene.mjs scene-reuse
+node frontend/lantern-tests/native-scan-import-scene.mjs scene-replacement
 ```
 
 The committed case follows the actual standalone asset result, native original
@@ -131,3 +163,12 @@ A valid changed source-floor candidate and wrong expected record IDs cannot
 qualify reuse. Malformed selected mappings throw before any inspection HTTP. The same case
 distinguishes valid association absence from unavailable current source data,
 which throws with no additional POST or journal claim.
+
+The `scene-replacement` case captures the actual generated prior, changes a
+geometry revision/descriptor key and the selected primary bytes, then saves a
+version-2 successor with exact previous ID/guard and fresh bindings. Floor
+selection also verifies target/unresolved unions, 16 KiB/list text reservation
+refusals and changed-owner refusal before custody. It separately confirms the
+scene accepts a valid request above the text lookup cap within its own bound.
+Literal-labels includes a closed reviewed support
+carrier: matching scope passes, other workspace/home scopes refuse with zero HTTP.

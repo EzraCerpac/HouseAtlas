@@ -55,7 +55,7 @@ function fakeNative({ unknownAt = null } = {}) {
     return { floor: { key, exportLabel: profile.source.floorLabel, originalSha256: original.payload.sha256, derivativeSha256: derivative.payload.sha256,
       geometryId: geometry.target.recordId, geometryRevision: geometry.revision, evidenceId: evidence.target.recordId, evidenceRevision: evidence.revision,
       originalAssetId: original.target.recordId, originalRevision: original.revision, derivativeAssetId: derivative.target.recordId, derivativeRevision: derivative.revision,
-      originalLicense: license, derivativeLicense: license },
+      originalLicense: original.payload.sourceLicense, derivativeLicense: derivative.payload.sourceLicense },
     readPath: `/api/atlas/geometry/v1/workspaces/${scope.workspaceId}/homes/${scope.homeId}/buildings/${buildingId}/frames/${viewKey()}/meshes/${key}` };
   });
   const wire = (request, produced) => ({ schemaVersion: 3, commandId: request.commandId, requestId: request.requestId, resolvedScope: scope,
@@ -94,10 +94,10 @@ function fakeNative({ unknownAt = null } = {}) {
         const request = { schemaVersion: 3, commandId: 'atlas.asset.create', requestId: metadata.requestId, context: scope,
           target: target('asset', assetId), payload: { staged: { uploadToken: U(serial++), sha256: sha256(bytes), byteSize: bytes.length,
             contentType: metadata.contentType, filename: metadata.filename }, purpose: derivative ? 'derived-preview' : 'geometry-original',
-          sourceLicense: license, evidenceIds: [] }, idempotencyKey: metadata.idempotencyKey, reason: metadata.reason, approvalReceiptId: null,
+          sourceLicense: metadata.sourceLicense, evidenceIds: [] }, idempotencyKey: metadata.idempotencyKey, reason: metadata.reason, approvalReceiptId: null,
           preconditions: { target: null, guards: derivative ? [{ target: target('asset', path.split('/').at(-2)), revision: { kind: 'atlas', value: 1 } }] : [] } };
         const created = record('asset', assetId, { owner: 'atlas', purpose: request.payload.purpose, sha256: sha256(bytes), byteSize: bytes.length,
-          contentType: metadata.contentType, sourceLicense: license, availability: 'available', previewPolicy: 'download-only', evidenceIds: [] });
+          contentType: metadata.contentType, sourceLicense: metadata.sourceLicense, availability: 'available', previewPolicy: 'download-only', evidenceIds: [] });
         records.set(`asset:${assetId}`, created); meshes.set(assetId, bytes);
         const result = wire(request, [created]); retained.set(request.requestId, { wire: result, children: [] });
         if (unknownAt === postCount) throw new Error('Synthetic unavailable response');
@@ -173,6 +173,64 @@ test('UNKNOWN custody stops after one POST; passive inspection keeps retry safet
     assert.equal(inspection.unresolvedCustody[0].status, 'unresolved-server-issued-asset-intent-unavailable');
     await assert.rejects(openImportJournal(join(files.directory, 'held'), { create: true }));
   } finally { await files.cleanup(); }
+});
+test('license correction saves a guarded successor; restart rejects changed retained license', async () => {
+  const files = await fixture(['Only']), native = fakeNative(), context = localContext(); let reader;
+  try {
+    const first = await applyNativeImport(await files.selected(), runtime, context, native.transport,
+      await openImportJournal(join(files.directory, 'first'), { create: true }), new AbortController().signal);
+    const priorId = first.mappings[0].geometryId; first.reader.dispose();
+    files.manifest.expectedCurrentGeometryIds = [priorId];
+    files.manifest.floors[0].previousGeometryId = priorId;
+    files.manifest.sourceLicense = { status: 'restricted', reference: 'Synthetic owner restriction' };
+    const selected = await files.selected('corrected-license.json');
+    const journal = await openImportJournal(join(files.directory, 'correction'), { create: true });
+    const corrected = await applyNativeImport(selected, runtime, context, native.transport, journal, new AbortController().signal);
+    reader = corrected.reader;
+    assert.equal(native.postCount, 6); assert.notEqual(corrected.mappings[0].geometryId, priorId);
+    assert.deepEqual(corrected.frame.floors[0].originalLicense, files.manifest.sourceLicense);
+    assert.deepEqual(corrected.frame.floors[0].derivativeLicense, files.manifest.sourceLicense);
+    assert.equal(native.records.get(`geometry:${corrected.mappings[0].geometryId}`).payload.previousGeometryId, priorId);
+    const verified = await inspectImportJournal(journal, runtime, context, native.transport, new AbortController().signal);
+    assert.equal(verified.status, 'current-geometry-verified');
+    const asset = native.records.get(`asset:${corrected.mappings[0].originalAssetId}`);
+    asset.payload.sourceLicense = license;
+    const held = await inspectImportJournal(journal, runtime, context, native.transport, new AbortController().signal);
+    assert.equal(held.status, 'held'); assert.equal(native.postCount, 6);
+  } finally { reader?.dispose(); await files.cleanup(); }
+});
+test('explicit predecessor selects each distinct native floor with identical bytes', async () => {
+  const files = await fixture(), native = fakeNative(), context = localContext(); let reader;
+  try {
+    const firstFloor = files.manifest.floors[0], secondFloor = files.manifest.floors[1];
+    Object.assign(secondFloor, { original: firstFloor.original, derivative: firstFloor.derivative, exportLabel: firstFloor.exportLabel });
+    const first = await applyNativeImport(await files.selected(), runtime, context, native.transport,
+      await openImportJournal(join(files.directory, 'first'), { create: true }), new AbortController().signal);
+    const ids = first.mappings.map(f => f.geometryId); first.reader.dispose();
+    assert.equal(new Set(ids).size, 2); assert.equal(native.postCount, 6);
+    files.manifest.expectedCurrentGeometryIds = ids;
+    files.manifest.floors[0].previousGeometryId = ids[1]; files.manifest.floors[1].previousGeometryId = ids[0];
+    const reused = await applyNativeImport(await files.selected('selected-predecessors.json'), runtime, context, native.transport,
+      await openImportJournal(join(files.directory, 'reuse'), { create: true }), new AbortController().signal);
+    reader = reused.reader; assert.deepEqual(reused.mappings.map(f => f.geometryId), [ids[1], ids[0]]);
+    assert.equal(native.postCount, 6);
+  } finally { reader?.dispose(); await files.cleanup(); }
+});
+test('host captures the same scene owner before the first geometry custody POST', async () => {
+  const files = await fixture(['Only']), native = fakeNative(), context = localContext(); let reader;
+  try {
+    let captured = false, calls = 0;
+    const owner = { async capturePriorScene(id, signal) {
+      signal.throwIfAborted(); assert.equal(id, buildingId); assert.equal(native.postCount, 0);
+      captured = true; calls++; return { status: 'unavailable', reason: 'no-current-association' };
+    } };
+    const transport = (input, init) => { if (init?.method === 'POST') assert(captured); return native.transport(input, init); };
+    const journal = await openImportJournal(join(files.directory, 'captured'), { create: true });
+    const saved = await applyNativeImport(await files.selected(), runtime, context, transport, journal, new AbortController().signal, owner);
+    reader = saved.reader; assert.equal(calls, 1); assert.equal(native.postCount, 3);
+    assert.deepEqual(journal.events.find(e => e.kind === 'scene-predecessor').data,
+      { buildingId, status: 'unavailable', recordId: null });
+  } finally { reader?.dispose(); await files.cleanup(); }
 });
 test('host composes scene reuse and restart inspection without a scene mutation or manufactured receipt', async () => {
   const files = await fixture(), native = fakeNative(), context = localContext(); let geometry;

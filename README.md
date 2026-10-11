@@ -112,6 +112,7 @@ node frontend/lantern-tests/native-scan-import-scene.mjs association-unknown
 node frontend/lantern-tests/native-scan-import-scene.mjs floor-selection
 node frontend/lantern-tests/native-scan-import-scene.mjs literal-labels
 node frontend/lantern-tests/native-scan-import-scene.mjs scene-reuse
+node frontend/lantern-tests/native-scan-import-scene.mjs scene-replacement
 ```
 
 After inspecting the tool, test and source-loader imports, the assistant can

@@ -204,8 +204,11 @@ export interface SceneAssociationClient {
   pending(buildingId: string): readonly SceneAssociationPending[];
   isPreparedCurrent(prepared: SceneAssociationPrepared): boolean;
   readCurrent(buildingId: string, geometry: NativeGeometryFrame, signal: AbortSignal): Promise<SceneAssociationRead>;
+  /** Qualified before descriptor-changing writes; the opaque token belongs to this owner. */
+  capturePrevious(buildingId: string, geometry: NativeGeometryFrame, signal: AbortSignal): Promise<Readonly<{ token: object; current: SceneAssociationRead }>>;
+  validatePrevious(token: object, geometry: NativeGeometryFrame, signal: AbortSignal): Promise<SceneAssociationRead>;
   prepare(candidate: SceneAssociationCandidate, geometry: NativeGeometryFrame,
-    statement: string, reason: string, signal: AbortSignal): Promise<SceneAssociationPrepared>;
+    statement: string, reason: string, signal: AbortSignal, previous?: object): Promise<SceneAssociationPrepared>;
   releasePrepared(prepared: SceneAssociationPrepared): void;
   submit(prepared: SceneAssociationPrepared, geometry: NativeGeometryFrame, signal: AbortSignal, confirmDrawingSupport?: boolean): Promise<SceneAssociationRead>;
   resolve(prepared: SceneAssociationPrepared, geometry: NativeGeometryFrame, signal: AbortSignal): Promise<SceneAssociationRead>;
@@ -228,6 +231,7 @@ export function createNativeSceneAssociationClient(options: {
     outcome: 'unknown' | 'committed' };
   const listeners = new Set<() => void>(), pending = new Map<SceneAssociationPrepared, PendingRow>();
   const preparedOwner = new WeakMap<SceneAssociationPrepared, object>();
+  const previousOwner = new WeakMap<object, { owner: object; buildingId: string; head: SceneAssociationRead }>();
   const held = new Map<SceneAssociationPrepared, { primary: NativeEvidenceDocumentFrame;
     historical: NativeEvidenceDocumentFrame; stopPrimary: () => void; stopHistorical: () => void;
     withdrawn: AbortController; pdfOwner?: NativeEvidenceDocumentClient; pdf?: NativeEvidenceDocumentFrame; stopPdf?: () => void }>();
@@ -392,6 +396,35 @@ export function createNativeSceneAssociationClient(options: {
     options.primaryReview.release(item.primary); options.historicalReview.release(item.historical);
     item.stopPdf?.(); if (item.pdf && item.pdfOwner) item.pdfOwner.release(item.pdf); item.pdfOwner?.dispose();
   };
+  const validatePrevious = async (token: object, geometry: NativeGeometryFrame, outer: AbortSignal): Promise<SceneAssociationRead> => {
+    const captured = previousOwner.get(token), next = context(), owner = binding!;
+    need(captured && captured.owner === owner && current(owner, geometry)
+      && geometry.descriptor.buildingId === captured.buildingId
+      && geometry.descriptor.scope.workspaceId === next.view.scope.workspaceId
+      && geometry.descriptor.scope.homeId === next.view.scope.homeId);
+    const head = captured.head;
+    if (head.status === 'unavailable') {
+      const observed = await readCurrent(captured.buildingId, geometry, outer);
+      need(observed.status === 'unavailable' && observed.reason === 'no-current-association');
+      return head;
+    }
+    return bounded(outer, async signal => {
+      // This authenticates the retained record, not a fresh current-head claim.
+      // The server checks the actual head/predecessor/version atomically on submit.
+      const raw = await obtain(`${path(next)}/records/scene-association/${head.recordId}`,
+        { method: 'GET', headers: { Accept: 'application/json' } }, signal);
+      need(current(owner, geometry) && validator.validateNativeRead('atlas.scene-association.get', raw));
+      const response = row(raw), scope = row(response.resolvedScope), data = row(response.data), records = list(data.records, 1);
+      need(response.commandId === 'atlas.scene-association.get' && response.status === 'read' && response.replayed === false
+        && scope.workspaceId === next.view.scope.workspaceId && scope.homeId === next.view.scope.homeId
+        && data.sourceStatus === 'current' && data.nextCursor === null && records.length === 1);
+      const record = row(records[0]), target = row(record.target);
+      need(target.authority === 'atlas' && target.recordType === 'scene-association' && target.recordId === head.recordId
+        && record.lifecycle === 'active' && integer(record.revision).compare(head.revision) === 0
+        && equal(record.payload!, head.payload));
+      return head;
+    });
+  };
   const unsubscribe = options.subscribe(() => { const prior = binding; try { context(); } catch { binding = null; }
     if (binding !== prior) for (const item of held.keys()) releasePrepared(item);
     notify(); });
@@ -410,8 +443,26 @@ export function createNativeSceneAssociationClient(options: {
         && options.primaryReview.isCurrent(item.primary) && options.historicalReview.isCurrent(item.historical)
         && (!item.pdf || !!item.pdfOwner?.isCurrent(item.pdf)); },
     readCurrent,
+    async capturePrevious(buildingId, geometry, signal) {
+      const next = context(), owner = binding!;
+      need(availableWrite(next) && current(owner, geometry));
+      const observed = await readCurrent(buildingId, geometry, signal);
+      need(current(owner, geometry) && (observed.status === 'available' || observed.reason === 'no-current-association'));
+      const freeze = (value: LosslessJson): LosslessJson => {
+        if (value !== null && typeof value === 'object') {
+          for (const part of Object.values(value)) freeze(part as LosslessJson);
+          Object.freeze(value);
+        }
+        return value;
+      };
+      const head: SceneAssociationRead = observed.status === 'available'
+        ? Object.freeze({ ...observed, payload: freeze(parse(stringifyLosslessJson(observed.payload))) }) : observed;
+      const token = Object.freeze({}); previousOwner.set(token, { owner, buildingId, head });
+      return Object.freeze({ token, current: head });
+    },
+    validatePrevious,
     releasePrepared,
-    async prepare(candidate, geometry, statement, reason, outer) {
+    async prepare(candidate, geometry, statement, reason, outer, previous) {
       need(UUID.test(candidate.buildingId) && UUID.test(candidate.primaryEvidenceId)
         && UUID.test(candidate.historicalEvidenceId) && candidate.primaryEvidenceId !== candidate.historicalEvidenceId
         && statement.trim() && statement.length <= 4096 && reason.trim() && reason.length <= 4096);
@@ -456,10 +507,22 @@ export function createNativeSceneAssociationClient(options: {
           const room = row(source.rooms, ['status','reason','receiptId','receiptSha256','entries','regions']);
           need(room.status === 'available' && room.reason === null && room.receiptId === parsed.receiptId
             && room.receiptSha256 === canonicalSha256);
-          const currentHead = await readCurrent(candidate.buildingId, geometry, signal); guard();
+          const currentHead = previous === undefined ? await readCurrent(candidate.buildingId, geometry, signal)
+            : await validatePrevious(previous, geometry, signal); guard();
+          if (previous !== undefined) need(previousOwner.get(previous)?.buildingId === candidate.buildingId);
           const sourceFloors = parseLosslessJson(stringifyLosslessJson(candidate.sourceFloors));
           const roomMappings = parseLosslessJson(stringifyLosslessJson(candidate.roomMappings));
           const guards = parseLosslessJson(stringifyLosslessJson(candidate.guards));
+          if (previous !== undefined && currentHead.status === 'available') {
+            const priorGuards = list(guards, 100);
+            const existing = priorGuards.find(value => {
+              const selected = row(row(value).target);
+              return selected.recordType === 'scene-association' && selected.recordId === currentHead.recordId;
+            });
+            if (existing) need(integer(row(row(existing).revision).value).compare(currentHead.revision) === 0);
+            else priorGuards.push({ target: { authority: 'atlas', recordType: 'scene-association', recordId: currentHead.recordId },
+              revision: { kind: 'atlas', value: currentHead.revision } });
+          }
           floors(sourceFloors, geometry);
           need(list(roomMappings, 256).length === list(room.entries, 32).length && list(guards, 100).length > 0);
           const ids = new Set<string>();

@@ -140,7 +140,68 @@ export function createNativeScanTextImporter(options: NativeScanImportOptions) {
   const root = (pin: NativeDocumentBinding) => `/api/atlas/stock/v3/workspaces/${pin.scope.workspaceId}/homes/${pin.scope.homeId}`;
   const target = (kind: string, recordId: string) => ({ authority: 'atlas', recordType: kind, recordId });
   const guard = (kind: string, recordId: string, revision: ExactDecimal) => ({ target: target(kind,recordId), revision: { kind: 'atlas', value: revision } });
+  const evidenceIds = (identity: Row, reserve: number): string[] => {
+    const p = row(identity.payload), ids = list(p.evidenceIds);
+    // One identity guard plus the asset guard and every existing evidence guard
+    // must fit the native maximum of 100 for each prospective batch.
+    need(p.kind === 'location' && ids.length + reserve <= 99 && new Set(ids).size === ids.length
+      && ids.every(id => typeof id === 'string' && UUID.test(id)));
+    return ids as string[];
+  };
+  const evidenceRequest = (input: NativeScanTextInput, identity: Row, prior: readonly Row[], pin: NativeDocumentBinding,
+    assetId: string, evidenceId: string, assetRevision: ExactDecimal, conservative = false) => {
+    const identityPayload = row(identity.payload), oldIds = evidenceIds(identity,1), max = ExactDecimal.parse('9007199254740991');
+    const evidencePayload: JsonForSerialization = { statement:input.statement,provenance:{source:null,sourceRevision:null,sourceConfidence:null,
+      evidenceBasis:'unknown',factAt:null,retrievedAt:conservative ? '9999-12-31T23:59:59.999Z' : new Date().toISOString(),vantage:null,uncertainty:{status:'unknown',explanation:null}},
+      supersedesEvidenceIds:[],references:[{kind:'atlas-asset',assetId}] };
+    const identityReplacement = { ...identityPayload, evidenceIds:[...oldIds,evidenceId] };
+    const assetGuard = guard('asset',assetId,assetRevision);
+    const evidenceGuards = prior.map(record => guard('evidence',String(row(record.target).recordId),conservative ? max : exact(record.revision)));
+    const child = (kind: string, recordId: string, value: JsonForSerialization, guards: JsonForSerialization[], revision: ExactDecimal | null) => ({
+      schemaVersion:3,commandId:`atlas.${kind}.${revision ? 'replace' : 'create'}`,requestId:crypto.randomUUID(),context:pin.scope,
+      target:target(kind,recordId),payload:value,idempotencyKey:crypto.randomUUID(),reason:input.reason,approvalReceiptId:null,
+      preconditions:{target:revision ? {kind:'atlas',value:revision} : null,guards} });
+    const revision = conservative ? max : exact(identity.revision);
+    const commands = [child('evidence',evidenceId,evidencePayload,[assetGuard],null),
+      child('identity',input.buildingId,identityReplacement,evidenceGuards,revision)];
+    for (const command of commands) need(validator.validateNativeRequest(command.commandId,parseLosslessJson(stringifyLosslessJson(command))));
+    const requestId = crypto.randomUUID(), body = stringifyLosslessJson({schemaVersion:3,commandId:'atlas.batch.execute',requestId,context:pin.scope,
+      target:{authority:'atlas',kind:'batch',batchId:crypto.randomUUID()},payload:{commands},idempotencyKey:crypto.randomUUID(),reason:input.reason,
+      approvalReceiptId:null,preconditions:{target:null,guards:[guard('identity',input.buildingId,revision),assetGuard,...evidenceGuards]}});
+    need(encoder.encode(body).length <= 16384 && validator.validateNativeRequest('atlas.batch.execute',parseLosslessJson(body)));
+    return {requestId,body,evidencePayload,identityReplacement};
+  };
+  const reserveCapacity = async (inputs: readonly NativeScanTextInput[], pin: NativeDocumentBinding,
+    read: (kind:string,id:string)=>Promise<Row>) => {
+    need(inputs.length>0&&inputs.length<=2&&inputs.every(input=>input.buildingId===inputs[0]!.buildingId));
+    let identity = await read('identity',inputs[0]!.buildingId), ids = evidenceIds(identity,inputs.length);
+    need(exactStockSafeInteger(identity.revision!) + inputs.length <= Number.MAX_SAFE_INTEGER);
+    const prior:Row[]=[];for(const id of ids)prior.push(await read('evidence',id));
+    // Prospective identifiers are size/schema witnesses only, never custody or
+    // returned native identities. Every possible revision uses its maximum width.
+    for(const input of inputs){const assetId=crypto.randomUUID(),evidenceId=crypto.randomUUID();
+      evidenceRequest(input,identity,prior,pin,assetId,evidenceId,ExactDecimal.parse('9007199254740991'),true);
+      identity={...identity,payload:{...row(identity.payload),evidenceIds:[...ids,evidenceId]}};ids=[...ids,evidenceId];
+      prior.push({target:target('evidence',evidenceId),revision:ExactDecimal.parse('9007199254740991')});}
+  };
   return {
+    /** GET-only reservation of both scene documentary batches before custody. */
+    async reserveTexts(supplied: readonly NativeScanTextInput[], outer: AbortSignal): Promise<void> {
+      need(!disposed&&!busy&&!held&&Array.isArray(supplied)&&supplied.length>0&&supplied.length<=2);
+      const inputs=supplied.map(input=>Object.freeze({...input,sourceLicense:Object.freeze({...input.sourceLicense})}));
+      const controller=new AbortController(),forward=()=>controller.abort(outer.reason);outer.addEventListener('abort',forward,{once:true});if(outer.aborted)forward();
+      const timer=setTimeout(()=>controller.abort(new Error('Native scan text reservation exceeded deadline')),60000),pin=getBinding();busy=true;
+      const check=()=>{controller.signal.throwIfAborted();need(pin&&getBinding()===pin);};
+      const stop=options.subscribe(()=>{if(!pin||getBinding()!==pin)controller.abort(new Error('Native scan context changed'));});
+      try{check();for(const input of inputs){await nativeScanImportWait(verifyNativeScanText(input,controller.signal),controller.signal);check();}
+        await reserveCapacity(inputs,pin!,async(kind,id)=>{check();const response=await nativeScanImportWait(options.transport(`${root(pin!)}/records/${kind}/${id}`,
+          {method:'GET',headers:{Accept:'application/json'},signal:controller.signal,credentials:'same-origin',cache:'no-store',redirect:'error',mode:'same-origin'}),controller.signal);
+          const raw=await nativeScanImportResponseJson(response,controller.signal);check();need(validator.validateNativeRead(`atlas.${kind}.get`,raw));
+          const r=row(raw),scope=row(r.resolvedScope),data=row(r.data),records=list(data.records);need(r.commandId===`atlas.${kind}.get`&&r.status==='read'&&r.replayed===false
+            &&scope.workspaceId===pin!.scope.workspaceId&&scope.homeId===pin!.scope.homeId&&data.sourceStatus==='current'&&data.nextCursor===null&&records.length===1);
+          const record=row(records[0]),t=row(record.target);need(t.authority==='atlas'&&t.recordType===kind&&t.recordId===id&&record.lifecycle==='active');exact(record.revision);return record;});check();
+      }finally{clearTimeout(timer);stop();outer.removeEventListener('abort',forward);controller.abort();busy=false;}
+    },
     async importText(supplied: NativeScanTextInput, outer: AbortSignal): Promise<NativeScanTextResult> {
       need(!disposed && !busy && !held);
       const input: NativeScanTextInput = Object.freeze({ ...supplied, sourceLicense: Object.freeze({ ...supplied.sourceLicense }) }); busy = true;
@@ -181,8 +242,9 @@ export function createNativeScanTextImporter(options: NativeScanImportOptions) {
         check(); const context = options.getContext()!;
         need(['atlas.asset.create','atlas.evidence.create','atlas.identity.replace','atlas.batch.execute'].every(id => context.admission!.commandIds.includes(id)));
         await nativeScanImportWait(verifyNativeScanText(input,controller.signal),controller.signal); check();
-        // Prove the actual selected building exists before the first write.
-        const firstIdentity = await read('identity',input.buildingId); need(row(firstIdentity.payload).kind === 'location');
+        // Validate all prior evidence/capacity and bounded retained intent before
+        // the first asset write, not after custody has already committed.
+        await reserveCapacity([input],pin!,read);check();
         requestId = crypto.randomUUID(); const metadata = JSON.stringify({ schemaVersion:1,requestId,idempotencyKey:crypto.randomUUID(),
           context:pin!.scope,reason:input.reason,filename:input.filename,contentType:'text/plain',sourceLicense:input.sourceLicense });
         need(encoder.encode(metadata).length <= 16384);
@@ -203,28 +265,11 @@ export function createNativeScanTextImporter(options: NativeScanImportOptions) {
         try { check(); need(original.isCurrent(assetFrame) && original.getBlob(assetFrame)?.size === input.byteSize); }
         finally { original.release(assetFrame); }
         phase = 'text-evidence'; requestId = ''; sent = false; terminal = false; wireDispatched = false;
-        const identity = await read('identity',input.buildingId), identityPayload = row(identity.payload), oldIds = list(identityPayload.evidenceIds);
-        need(identityPayload.kind === 'location' && oldIds.length <= 97 && new Set(oldIds).size === oldIds.length);
+        const identity = await read('identity',input.buildingId), oldIds = evidenceIds(identity,1);
         const asset = await read('asset',assetId); need(canonical(asset) === canonical(assetRecord));
-        const prior = await Promise.all(oldIds.map(id => { need(typeof id === 'string' && UUID.test(id)); return read('evidence',id); }));
-        const evidenceId = crypto.randomUUID();
-        const evidencePayload: JsonForSerialization = { statement:input.statement,provenance:{source:null,sourceRevision:null,sourceConfidence:null,
-          evidenceBasis:'unknown',factAt:null,retrievedAt:new Date().toISOString(),vantage:null,uncertainty:{status:'unknown',explanation:null}},
-          supersedesEvidenceIds:[],references:[{kind:'atlas-asset',assetId}] };
-        const identityReplacement = { ...identityPayload, evidenceIds:[...oldIds,evidenceId] };
-        const assetGuard = guard('asset',assetId,exact(asset.revision));
-        const evidenceGuards = prior.map(record => guard('evidence',String(row(record.target).recordId),exact(record.revision)));
-        const child = (kind: string, recordId: string, value: JsonForSerialization, guards: JsonForSerialization[], revision: ExactDecimal | null) => ({
-          schemaVersion:3,commandId:`atlas.${kind}.${revision ? 'replace' : 'create'}`,requestId:crypto.randomUUID(),context:pin!.scope,
-          target:target(kind,recordId),payload:value,idempotencyKey:crypto.randomUUID(),reason:input.reason,approvalReceiptId:null,
-          preconditions:{target:revision ? {kind:'atlas',value:revision} : null,guards} });
-        const commands = [child('evidence',evidenceId,evidencePayload,[assetGuard],null),
-          child('identity',input.buildingId,identityReplacement,evidenceGuards,exact(identity.revision))];
-        for (const command of commands) need(validator.validateNativeRequest(command.commandId,parseLosslessJson(stringifyLosslessJson(command))));
-        requestId = crypto.randomUUID(); const body = stringifyLosslessJson({schemaVersion:3,commandId:'atlas.batch.execute',requestId,context:pin!.scope,
-          target:{authority:'atlas',kind:'batch',batchId:crypto.randomUUID()},payload:{commands},idempotencyKey:crypto.randomUUID(),reason:input.reason,
-          approvalReceiptId:null,preconditions:{target:null,guards:[guard('identity',input.buildingId,exact(identity.revision)),assetGuard,...evidenceGuards]}});
-        need(encoder.encode(body).length <= 1024 * 1024 && validator.validateNativeRequest('atlas.batch.execute',parseLosslessJson(body)));
+        const prior:Row[]=[];for(const id of oldIds)prior.push(await read('evidence',id));
+        const evidenceId = crypto.randomUUID(), built = evidenceRequest(input,identity,prior,pin!,assetId,evidenceId,exact(asset.revision));
+        const {body,evidencePayload,identityReplacement}=built;requestId=built.requestId;
         sent = true; await nativeScanImportWait(options.beforeDispatch(phase,{requestId,body}),controller.signal); check();
         wireDispatched = true; const evidenceReceipt = await exchange(`${root(pin!)}/commands`,{method:'POST',headers:{Accept:'application/json','Content-Type':'application/json','X-Atlas-CSRF':context.session.csrfToken},body});
         const records = receipt(evidenceReceipt,'atlas.batch.execute',requestId,2), byKind = new Map(records.map(record => [row(record.target).recordType,record]));

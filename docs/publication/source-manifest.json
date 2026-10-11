@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "97f6d25514a580f85eb4bdd6434d92c2318291fbef1ce07104fbb0b0c005b42e",
+  "sourceDigestSha256": "919bdd558abc8b39701ee9367f7b229f940b78cc9ac74949235201145b0c2d69",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 50678,
-      "sha256": "192fa15911d2f88cd5eb25235937c6ffe3bf14d96461760fb984029d5fa5b60d",
+      "bytes": 50753,
+      "sha256": "bb2c0d5a55eed4ef6c55980d2b3386faecf473aef07273dd43aa62a478de60f1",
       "owner": "core-integration"
     },
     {
@@ -5384,15 +5384,15 @@
       "path": "docs/geometry/assistant-native-scan-import.md",
       "owner": "media",
       "mode": "100644",
-      "bytes": 6730,
-      "sha256": "723b0ede5276aba74b72d636d9517491074289e4da8e17c4ed70d429ab0f9ffd"
+      "bytes": 7428,
+      "sha256": "00386c2d78855e8162c395cefeaf6897b4ada3d8d44b9e396fb375395c5f6a4d"
     },
     {
       "path": "docs/geometry/assistant-native-scan-scene.md",
       "owner": "media",
       "mode": "100644",
-      "bytes": 9033,
-      "sha256": "05936eca1e2ca2ec933facc2377f75feaac0b9ac9003c225ed3841ff00fd125b"
+      "bytes": 11932,
+      "sha256": "28080655f0efa1bde5722261e6a0fd55396f7db6e5e1475c3a029e08fe7875eb"
     },
     {
       "path": "docs/geometry/assistant-scan-replacement.md",
@@ -6084,21 +6084,21 @@
       "path": "frontend/integration/native-scan-import-scene.ts",
       "owner": "media",
       "mode": "100644",
-      "bytes": 36195,
-      "sha256": "7b653926d30d1e1920449ff9f95daaf895b65cc4b62179095d5d9378b5e6c9e5"
+      "bytes": 40818,
+      "sha256": "fa053172342fe54a8da2ddd0816fd38de7909f58cff6ec2e32fd7e46f9ac5127"
     },
     {
       "path": "frontend/integration/native-scan-import-text.ts",
       "owner": "media",
       "mode": "100644",
-      "bytes": 22613,
-      "sha256": "e87185adad5d9609b6f27778d0a5dddb78bece5961588f349a6994db72a7a362"
+      "bytes": 26935,
+      "sha256": "75010e5c9a414da52bd1fb7af7be3cba99d26a64002f73ec42b094ddcf2b56db"
     },
     {
       "path": "frontend/integration/native-scene-association-client.ts",
       "mode": "100644",
-      "bytes": 43162,
-      "sha256": "5362e190de46de34af779f3a77ca7784ceb0482ab7519113419b363de697da06",
+      "bytes": 47673,
+      "sha256": "0629d3aedd5dee0cc1776600f3a4b8a8027d3f5623612de63354ed645a896574",
       "owner": "web"
     },
     {
@@ -6287,8 +6287,8 @@
       "path": "frontend/lantern-tests/native-scan-import-scene.mjs",
       "owner": "media",
       "mode": "100644",
-      "bytes": 26632,
-      "sha256": "6ab4b3d44f8321073e210c9e60a1bf30ab85d4b2f7407a8ae45f64d41fc9a0ab"
+      "bytes": 35214,
+      "sha256": "3bd660ce06820330c2f5bea918fe282293cf3ea72ac438b528c641834d3aecb7"
     },
     {
       "path": "frontend/lantern-tests/native-scan-succession.mjs",
@@ -7805,8 +7805,8 @@
     {
       "path": "frontend/src/numeric/schema-validator.ts",
       "mode": "100644",
-      "bytes": 24726,
-      "sha256": "e01c36988f806c589967af99facd30680fc4fbd094d2b9160772c7898397d0c1",
+      "bytes": 24797,
+      "sha256": "bfb317cbe4c3f63453766b654f3896a13bd55ddc6d5ff65c719dbd9dbd1c7bea",
       "owner": "web"
     },
     {
@@ -8786,15 +8786,15 @@
       "path": "tools/geometry/native-scan-import.mjs",
       "owner": "media",
       "mode": "100644",
-      "bytes": 34954,
-      "sha256": "ec46d28cbd1f03fde02ae2edace44259a8ddc38fe12a265bb836cdac86e87092"
+      "bytes": 36451,
+      "sha256": "72073bb91bb174e5cc91a6afe9c6b380a97c051546f8a1b253ac525c01ce5a2a"
     },
     {
       "path": "tools/geometry/native-scan-import.test.mjs",
       "owner": "media",
       "mode": "100644",
-      "bytes": 26686,
-      "sha256": "a41920a7980e93336c858aa30ef858b2330fde793a8cfbdc14ec5e315f4da4be"
+      "bytes": 31391,
+      "sha256": "641c15f478d6a1ef833223b8db4b53bc77a9571095b915c25730e10228a76049"
     },
     {
       "path": "tools/geometry/scan-replacement-plan.mjs",
