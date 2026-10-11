@@ -67,7 +67,7 @@ async function inspect(snapshot, reader) {
   text(snapshot.key); text(snapshot.exportLabel);
   assert(hashPattern.test(snapshot.originalSha256) && hashPattern.test(snapshot.derivativeSha256));
   assert(geometryRecord(snapshot.geometry), 'Snapshot geometry must satisfy the existing Atlas record schema');
-  assert(Date.parse(snapshot.geometry.updatedAt) >= Date.parse(snapshot.geometry.createdAt), 'Geometry record time cannot move backward');
+  assert(!(Date.parse(snapshot.geometry.updatedAt) < Date.parse(snapshot.geometry.createdAt)), 'Geometry record time cannot move backward');
   const placement = snapshot.geometry.payload;
   assert.equal(new Set(placement.mappings.map(mapping => mapping.producerRoomId)).size, placement.mappings.length,
     'Producer room mappings must have distinct source IDs');
@@ -112,9 +112,14 @@ export async function buildReplacementPlan(input) {
   input = { association: clone(input.association), roomSupport: clone(input.roomSupport), retainedState: clone(input.retainedState),
     floors: bounded(input.floors, LIMITS.floors).map(copyFloor), successors: bounded(input.successors, LIMITS.floors).map(copyFloor) };
   assert(sceneRecord(input.association), 'Use the existing accepted scene-association record');
+  assert(!(Date.parse(input.association.updatedAt) < Date.parse(input.association.createdAt)), 'Association record time cannot move backward');
   const association = input.association.payload;
-  assert.equal(association.sourceDocuments.filter(source => source.role === 'primary-scene').length, 1,
-    'Selected scene requires one primary source');
+  const primary = association.sourceDocuments.filter(source => source.role === 'primary-scene');
+  const documentary = association.sourceDocuments.filter(source => source.role === 'documentary-sheet');
+  assert(association.sourceDocuments.length === 2 && primary.length === 1 && documentary.length === 1,
+    'Selected native scene requires one primary and one documentary source');
+  assert(primary[0].contentType === 'text/plain' && documentary[0].contentType === 'text/plain'
+    && primary[0].originalAssetId !== documentary[0].originalAssetId, 'Native scene sources must be distinct retained text originals');
   assert.equal(new Set(association.sourceDocuments.map(source => source.evidenceId)).size, association.sourceDocuments.length,
     'Selected scene source evidence IDs must be distinct');
   assert(Buffer.byteLength(JSON.stringify({ association, roomSupport: input.roomSupport, retainedState: input.retainedState })) <= LIMITS.manifestBytes);
@@ -128,6 +133,7 @@ export async function buildReplacementPlan(input) {
   closed(decoded, ['profile', 'receiptId', 'sourceReceiptSha256', 'anchors']);
   assert.equal(decoded.profile, 'houseatlas.native-scene-room-review.v1');
   assert.equal(decoded.receiptId, receipt.receiptId); assert(hashPattern.test(decoded.sourceReceiptSha256));
+  assert.equal(decoded.sourceReceiptSha256, documentary[0].originalSha256, 'Receipt source must match its retained documentary original');
   assert(equal(decoded.anchors, receipt.anchors), 'Complete accepted anchor membership must match');
   assert.equal(canonical(decoded), receipt.canonicalJson, 'Receipt must be canonical');
   const anchors = new Map();
@@ -144,8 +150,11 @@ export async function buildReplacementPlan(input) {
   const decoderBytes = Buffer.from(decoderModule.slice(decoderPrefix.length), 'base64');
   assert(decoderBytes.length > 0 && decoderBytes.length <= LIMITS.manifestBytes);
   const reader = await import(decoderModule);
-  const previous = await Promise.all(bounded(input.floors, LIMITS.floors).map(s => inspect(s, reader)));
-  const next = await Promise.all(bounded(input.successors, LIMITS.floors).map(s => inspect(s, reader)));
+  // The decoder yields on this one event loop; isolate its existing per-read
+  // budgets rather than charging another floor's work against this one.
+  const previous = [], next = [];
+  for (const snapshot of input.floors) previous.push(await inspect(snapshot, reader));
+  for (const snapshot of input.successors) next.push(await inspect(snapshot, reader));
   const originalDigests = new Map();
   const retainOriginal = (id, digest, role) => {
     const known = originalDigests.get(id);
@@ -154,14 +163,40 @@ export async function buildReplacementPlan(input) {
   };
   for (const source of association.sourceDocuments) retainOriginal(source.originalAssetId, source.originalSha256, 'evidence-original');
   for (const floor of [...previous, ...next]) retainOriginal(floor.snapshot.geometry.payload.originalAssetId, floor.snapshot.originalSha256, 'geometry-original');
+  const nonGeometryIds = new Map();
+  const reserve = (id, type) => {
+    if (id === null) return;
+    assert(!nonGeometryIds.has(id) || nonGeometryIds.get(id) === type, 'Known permanent record IDs cannot cross types');
+    nonGeometryIds.set(id, type);
+  };
+  reserve(input.association.recordId, 'scene-association'); reserve(association.previousAssociationId, 'scene-association');
+  reserve(association.buildingId, 'identity');
+  for (const id of originalDigests.keys()) reserve(id, 'asset');
+  for (const source of association.sourceDocuments) reserve(source.evidenceId, 'evidence');
+  for (const mapping of association.roomMappings) {
+    for (const target of mapping.targets) reserve(target.atlasPlaceId, 'identity');
+    for (const id of mapping.evidenceIds) reserve(id, 'evidence');
+  }
+  for (const floor of [...previous, ...next]) {
+    for (const id of floor.snapshot.geometry.payload.evidenceIds) reserve(id, 'evidence');
+    for (const mapping of floor.snapshot.geometry.payload.mappings) {
+      reserve(mapping.atlasId, 'identity'); for (const id of mapping.evidenceIds) reserve(id, 'evidence');
+    }
+    assert(floor.snapshot.geometry.payload.previousGeometryId !== floor.snapshot.geometry.recordId, 'Geometry cannot be its own predecessor');
+  }
+  const priorGeometryIds = new Set(previous.flatMap(floor => [floor.snapshot.geometry.recordId,
+    floor.snapshot.geometry.payload.previousGeometryId]).filter(id => id !== null));
+  for (const id of priorGeometryIds) {
+    assert(!nonGeometryIds.has(id), 'Known predecessor geometry IDs cannot cross record types');
+  }
   const byId = new Map(), byKey = new Map();
   for (const floor of previous) {
     const p = pin(floor); assert(!byId.has(p.geometryId) && !byKey.has(p.key), 'Ambiguous previous floor');
-    assert(!originalDigests.has(p.geometryId), 'Geometry record identity must be distinct from selected assets');
+    assert(!nonGeometryIds.has(p.geometryId), 'Geometry record identity must be distinct from known non-geometry records');
     for (const field of ['workspaceId', 'homeId']) assert.equal(floor.snapshot.geometry[field], input.association[field]);
     byId.set(p.geometryId, floor); byKey.set(p.key, floor);
   }
-  const replacements = new Map(), nextIds = new Set([...byId.keys(), ...originalDigests.keys()]), nextKeys = new Set(byKey.keys());
+  const replacements = new Map(), nextIds = new Set([...priorGeometryIds, ...nonGeometryIds.keys()]), nextKeys = new Set(byKey.keys());
   for (const floor of next) {
     const p = pin(floor), old = byId.get(floor.snapshot.geometry.payload.previousGeometryId);
     assert(old && !replacements.has(old.snapshot.geometry.recordId), 'Select one explicit successor per retained predecessor');

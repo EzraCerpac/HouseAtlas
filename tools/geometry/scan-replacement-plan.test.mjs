@@ -80,7 +80,9 @@ function associationFor(floors, rooms, receipt = makeReceipt(rooms)) {
     profile: 'houseatlas.native-scene-association.v1', buildingId, associationVersion: 1,
     previousAssociationId: null, reviewStatus: 'accepted', reviewStatement: 'Synthetic accepted baseline for planner-only tests.',
     sourceDocuments: [{ role: 'primary-scene', evidenceId: uuid(), evidenceRevision: 1,
-      originalAssetId: uuid(), originalAssetRevision: 1, originalSha256: sha('synthetic source document'), contentType: 'text/plain' }],
+      originalAssetId: uuid(), originalAssetRevision: 1, originalSha256: sha('synthetic source document'), contentType: 'text/plain' },
+      { role: 'documentary-sheet', evidenceId: uuid(), evidenceRevision: 1,
+        originalAssetId: uuid(), originalAssetRevision: 1, originalSha256: sha('synthetic accepted source receipt'), contentType: 'text/plain' }],
     acceptedReceipt: receipt,
     sourceFloors: floors.map(floor => ({ sourceFloorKey: floor.sourceFloorKey,
       sourceOriginalSha256: floor.originalSha256, nativeFloorKey: floor.key,
@@ -602,4 +604,35 @@ test('distinct producer-room proposals, ordered record times and asset identitie
   assert(assets.every(id => id !== plan.floors[0].candidate.geometryId && id !== plan.floors[0].previous.geometryId));
   assert.equal(plan.operationsExecuted, 0);
   assert.equal(plan.rooms[0].spatialAcceptance, 'not-issued');
+});
+
+test('schema-valid leap-second dates and native documentary receipt provenance stay literal', async () => {
+  const floor = snapshot({ floorKey: 'leap-v1', sourceFloorKey: 'leap-source', label: 'Leap Floor' });
+  floor.geometry.createdAt = floor.geometry.updatedAt = '2016-12-31T23:59:60Z';
+  const baseline = world({ floors: [floor], rooms: [room({ id: 'leap-room', floor })] });
+  const candidate = successor(floor);
+  candidate.geometry.createdAt = candidate.geometry.updatedAt = '2016-12-31T23:59:60Z';
+  const plan = await buildReplacementPlan(inputWith(baseline, [candidate]));
+  assert.equal(plan.geometryHistory.previous[0].createdAt, '2016-12-31T23:59:60Z');
+  assert.equal(plan.geometryHistory.candidates[0].updatedAt, '2016-12-31T23:59:60Z');
+  const docs = plan.previousAssociation.payload.sourceDocuments;
+  assert.equal(docs.length, 2);
+  assert.notEqual(docs[0].originalAssetId, docs[1].originalAssetId);
+  assert.equal(docs.find(d => d.role === 'documentary-sheet').originalSha256,
+    JSON.parse(plan.previousAssociation.payload.acceptedReceipt.canonicalJson).sourceReceiptSha256);
+  assert.deepEqual(docs, baseline.association.payload.sourceDocuments);
+  assert.equal(plan.operationsExecuted, 0);
+});
+
+test('maximum three-floor replacement inspects all six selected derivatives', async () => {
+  const floors = ['lower', 'upper', 'attic'].map(name => snapshot({
+    floorKey: `${name}-v1`, sourceFloorKey: `${name}-source`, label: `${name} synthetic floor`,
+  }));
+  const baseline = world({ floors, rooms: floors.map(floor => room({ id: 'R1', floor })) });
+  const plan = await buildReplacementPlan(inputWith(baseline, floors.map(floor => successor(floor))));
+  assert.equal(plan.geometryHistory.previous.length, 3);
+  assert.equal(plan.geometryHistory.candidates.length, 3);
+  assert(plan.floors.every(f => f.geometryUnchanged && f.meshes.unchanged.length === 1));
+  assert(plan.rooms.every(r => r.status === 'reuse-proposed' && r.nativeBindingRefreshRequired));
+  assert.equal(plan.operationsExecuted, 0);
 });

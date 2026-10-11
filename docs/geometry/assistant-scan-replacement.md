@@ -95,12 +95,13 @@ also fence the frame comparison; changed placement metadata requires review
 and unknown units require null scale and transform. Selected original asset IDs
 retain one digest and compatible asset purpose across scene documents, prior
 floors and successors; evidence and geometry originals cannot share an ID. New
-geometry IDs also remain distinct from these referenced asset IDs. Geometry
-records retain ordered creation/update times and distinct producer-room mapping
-IDs. Mapping references are preserved proposals; these local checks do not
-authenticate their identity/evidence records or qualify a complete native graph.
-New
-successor descriptor keys must differ from every prior descriptor key,
+geometry IDs also remain distinct from the association and directly referenced
+asset, evidence and native identity IDs. Package place UUIDs retain their separate
+namespace. Geometry records use the published backward-time predicate, preserving
+schema-valid leap-second date literals, and distinct producer-room mapping IDs.
+Mapping references are preserved proposals; these local checks do not authenticate
+their identity/evidence records or qualify a complete native graph. New successor
+descriptor keys must differ from every prior descriptor key,
 even when the authored derivative is identical. Multi-anchor correspondence
 retains the complete set union of its accepted targets and unresolved labels,
 matching the existing contract semantics. Input byte ownership is copied before
@@ -142,6 +143,9 @@ before a plan is produced. Ordinary and null-prototype JSON data objects are
 supported; their data fields survive while containers normalize to ordinary
 JSON objects. Accepted receipt literals obey the existing 131,072 UTF-8 byte limit,
 and every receipt anchor must belong to a selected source-floor key/hash pair.
+The current native scene profile requires exactly one primary and one documentary
+text original with distinct asset IDs. The documentary digest must equal the
+receipt's `sourceReceiptSha256`; its actual custody bytes remain unverified here.
 
 Room correspondence is retained as the complete accepted source-anchor/target
 mapping plus `roomSupportEvidence`: exact source floor/room/original, derivative
@@ -185,6 +189,8 @@ to the child this call created. Existing output directories are never adopted.
 The manifest and output are each bounded to 2 MiB. At most three old and three
 new derivatives are each bounded to 8 MiB, using the existing mesh/work bounds.
 Support is capped at 256 room entries; opaque state arrays at 1024 entries each.
+Selected derivatives are decoded sequentially on the local event loop, retaining
+each actual reader's time/work budget without charging other floor parsers to it.
 No textures or extra coordinate copies are emitted. Originals and prior evidence
 are referenced, never rewritten or deleted.
 
