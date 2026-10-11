@@ -8,18 +8,18 @@ type Flight = { owner: object; controller: AbortController };
 
 /** The host supplies reviewed evidence IDs and three independent document owners.
  * This leaf only owns the current review interaction and never invents a source. */
-export function NativeSceneAssociation({ client, candidate, geometry, canPrepare, onCurrent, onCommitted }: {
+export function NativeSceneAssociation({ client, candidate, geometry, canPrepare, onRefreshed, onCommitted }: {
   readonly client: SceneAssociationClient;
   readonly candidate: SceneAssociationCandidate | null;
   readonly geometry: NativeGeometryFrame | null;
   readonly canPrepare: boolean;
-  readonly onCurrent: (result: SceneAssociationRead) => void;
+  readonly onRefreshed?: () => void;
   readonly onCommitted?: () => void;
 }) {
   const binding = client.getBinding();
   const owner = useMemo(() => ({ client, binding, candidate, geometry }), [client, binding, candidate, geometry]);
   const current = useRef(owner); current.current = owner;
-  const callback = useRef(onCurrent); callback.current = onCurrent;
+  const refreshed = useRef(onRefreshed); refreshed.current = onRefreshed;
   const committed = useRef(onCommitted); committed.current = onCommitted;
   const surface = useRef<HTMLElement>(null), flight = useRef<Flight | null>(null);
   const [statement, setStatement] = useState(''), [reason, setReason] = useState('');
@@ -60,7 +60,7 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
     const controller = new AbortController();
     void client.readCurrent(buildingId, geometry, controller.signal).then(result => {
       if (current.current !== owner || controller.signal.aborted || !active()) return;
-      setRead({ owner, value: result }); callback.current(result);
+      setRead({ owner, value: result });
     }).catch(() => {
       if (current.current === owner && !controller.signal.aborted) setStatus({ owner, text: 'Current association is unavailable.' });
     });
@@ -79,7 +79,7 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
   const refresh = () => execute('Reading current association', async signal => {
     const result = await client.readCurrent(buildingId!, geometry!, signal);
     if (!active() || signal.aborted) return;
-    setRead({ owner, value: result }); callback.current(result);
+    setRead({ owner, value: result }); refreshed.current?.();
   });
   const prepare = () => execute('Reviewing retained originals', async signal => {
     if (!canPrepare || !reviewCandidate) return;
@@ -94,7 +94,7 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
     try {
       const result = await client.submit(review, geometry!, signal);
       if (!active() || signal.aborted) return;
-      setRead({ owner, value: result }); callback.current(result);
+      setRead({ owner, value: result });
       setStatus({ owner, text: 'Reviewed association saved and current head verified.' });
       committed.current?.();
     } finally { client.releasePrepared(review); if (active()) setPrepared(null); }
@@ -104,7 +104,7 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
     const intent = unresolved[0]?.prepared; if (!intent) return;
     const result = await client.resolve(intent, geometry!, signal);
     if (!active() || signal.aborted) return;
-    setRead({ owner, value: result }); callback.current(result);
+    setRead({ owner, value: result });
     setStatus({ owner, text: result.status === 'available' && result.recordId === intent.targetId
       ? 'Reviewed association found as the current head.' : 'Outcome remains unresolved; no new write was sent.' });
   });
@@ -116,7 +116,7 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
       {reviewCandidate ? <>
       <p>Primary scene evidence {reviewCandidate.primaryEvidenceId}</p>
       <p>Historical receipt evidence {reviewCandidate.historicalEvidenceId}</p>
-      </> : <p role="status">No current retained scene candidate is available for review.</p>}
+      </> : canPrepare && <p role="status">No current retained scene candidate is available for review.</p>}
       <button type="button" onClick={refresh} disabled={!!busy}>Reload current association</button>
       {observation && <p role="status">{observation.status === 'available'
         ? `Current association ${observation.recordId}` : observation.reason === 'no-current-association'

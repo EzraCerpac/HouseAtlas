@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "f5fc2c8b5e66efd835bae50ec70cabc70a3baf6c22c614b20b2f509f9933d149",
+  "sourceDigestSha256": "974e8f41eb3041961ddb1d44725956f27fabc3e51dfc8cc5de72b7fee3f992bb",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5424,10 +5424,10 @@
     },
     {
       "path": "docs/geometry/native-scene-readonly-association.md",
-      "owner": "web",
       "mode": "100644",
-      "bytes": 1134,
-      "sha256": "45c1147f45cf50f82a292b4089b7f91fcd2bfb65f50ee09eb384d77f9ff07e86"
+      "bytes": 1415,
+      "sha256": "a32c20c6216e48d76c62cd69db8d98c0e3d9ea0ff39b09b6a2b1c24a7160602d",
+      "owner": "web"
     },
     {
       "path": "docs/geometry/native-scene-source.md",
@@ -6166,10 +6166,10 @@
     },
     {
       "path": "frontend/lantern-tests/native-scene-readonly-ui.mjs",
-      "owner": "web",
       "mode": "100644",
-      "bytes": 14871,
-      "sha256": "1c124180e1e190b6bc1a5568efe131405b992b38e8651233be4e6db97ed11293"
+      "bytes": 17574,
+      "sha256": "e2ccefb69687523cad5213c283774bd1cd78b484ff8b4c17a8a4a9c8f6dd86a6",
+      "owner": "web"
     },
     {
       "path": "frontend/lantern-tests/network-overlay-read.mjs",
@@ -7336,15 +7336,15 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneAssociation.tsx",
       "mode": "100644",
-      "bytes": 9207,
-      "sha256": "97bdf9024fabef30162fc55e89675f706d86e4c30242ae4c628ddfd6c44ab238",
+      "bytes": 9123,
+      "sha256": "74b525236343abb7fa9edb4317c0859cd7c5212fc866487a08e9cba87a1424df",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneCandidate.tsx",
       "mode": "100644",
-      "bytes": 3471,
-      "sha256": "6afbbb173c4c26429faaa828057a89fc1f77b81e18bffc1da7607388ee4cbb6e",
+      "bytes": 3809,
+      "sha256": "5223939f3f5b55e7f34511cc51dd43aa0e1ee0663fbace4b036963caef23d310",
       "owner": "web"
     },
     {

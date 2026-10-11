@@ -29,8 +29,15 @@ export function NativeSceneCandidate({ host, geometry, onSaved }: {
     } catch { return null; }
   }, [geometry, primary, historical, floorJoins, roomJoins, guards]);
   const canCreate = host.associations.canCreate(geometry.descriptor.buildingId);
-  return <details><summary>Review retained scene sources</summary>
+  useEffect(() => {
+    if (!canCreate) {
+      setPrimary(''); setHistorical(''); setFloorJoins(''); setRoomJoins(''); setGuards('');
+    }
+  }, [canCreate]);
+  return <details><summary>Scene association</summary>
+    {!canCreate && <p role="status">Read-only view. You can reload the current association and check an unknown saved outcome.</p>}
     {canCreate && <>
+      <h3>Review retained scene sources</h3>
       <p>Choose the two saved text originals and review their floor and place joins. Saving a reviewed association makes it available after reload.</p>
       <label>Primary scene evidence<input value={primary} onChange={event => setPrimary(event.target.value.trim())} maxLength={36} /></label>
       <label>Historical receipt evidence<input value={historical} onChange={event => setHistorical(event.target.value.trim())} maxLength={36} /></label>
@@ -41,7 +48,7 @@ export function NativeSceneCandidate({ host, geometry, onSaved }: {
       </details>
       {!candidate && <p role="status">Select both evidence records and their complete joins before review.</p>}
     </>}
-    <NativeSceneAssociation client={host.associations} candidate={candidate} geometry={geometry} canPrepare={canCreate}
-      onCurrent={() => undefined} onCommitted={onSaved} />
+    <NativeSceneAssociation client={host.associations} candidate={canCreate ? candidate : null} geometry={geometry} canPrepare={canCreate}
+      onRefreshed={onSaved} onCommitted={onSaved} />
   </details>;
 }

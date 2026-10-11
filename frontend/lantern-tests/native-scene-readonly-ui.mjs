@@ -1,6 +1,7 @@
 /** Focused synthetic browser acceptance for issue #148.
  * Uses the production scene association UI, injected client methods and an
- * owned Chromium process. No server, account, household data or provider. */
+ * owned Chromium process. A temporary static loopback server serves the built
+ * test UI; no application service, account, household data or provider. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -57,7 +58,7 @@ import { NativeSceneCandidate } from ${JSON.stringify(join(frontend, 'src/lanter
 
 const buildingId = '00000000-0000-4000-8000-000000000003';
 const listeners = new Set();
-const ledger = { canCreate: false, unknown: false, reads: 0, prepares: 0, submits: 0, resolves: 0 };
+const ledger = { canCreate: false, unknown: false, reads: 0, prepares: 0, submits: 0, resolves: 0, sceneRefreshes: 0 };
 let binding = Object.freeze({ synthetic: true });
 const client = {
   getBinding: () => binding,
@@ -79,7 +80,8 @@ const geometry = { viewKey: 'synthetic-view', descriptor: { buildingId,
   scope: { workspaceId: '00000000-0000-4000-8000-000000000001', homeId: '00000000-0000-4000-8000-000000000002' } } };
 window.__test = { ledger, grantAdmission() { ledger.canCreate = true; binding = Object.freeze({ synthetic: true }); for (const fn of listeners) fn(); },
   withdrawAdmission() { ledger.canCreate = false; binding = Object.freeze({ synthetic: true }); for (const fn of listeners) fn(); } };
-createRoot(document.getElementById('root')).render(<main><NativeSceneCandidate host={host} geometry={geometry} onSaved={() => {}} /></main>);
+createRoot(document.getElementById('root')).render(<main><NativeSceneCandidate host={host} geometry={geometry}
+  onSaved={() => { ledger.sceneRefreshes++; }} /></main>);
 `);
   const html = join(generated, 'index.html');
   writeFileSync(html, '<!doctype html><html lang="en"><meta charset="utf-8"><title>Issue 148 synthetic readback</title><div id="root"></div><script type="module" src="./app.tsx"></script></html>');
@@ -122,14 +124,18 @@ createRoot(document.getElementById('root')).render(<main><NativeSceneCandidate h
   await until(() => evaluate('Boolean(window.__test && document.querySelector("summary"))'), 'Production candidate mounted');
   await evaluate('document.querySelector("summary").click()');
   await until(() => evaluate('window.__test.ledger.reads === 1'), 'Current association read on read-only mount');
+  assert.equal(await evaluate('document.querySelector("summary").textContent.trim()'), 'Scene association');
+  assert.equal(await evaluate('document.body.innerText.includes("Read-only view.")'), true);
+  assert.equal(await evaluate('document.body.innerText.includes("No current retained scene candidate is available for review.")'), false);
   assert.equal(await evaluate('document.body.innerText.includes("No reviewed association is current.")'), true);
   assert.equal(await evaluate('Boolean(Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Reload current association"))'), true);
   assert.equal(await evaluate('Array.from(document.querySelectorAll("button")).some(b => /Review retained originals|Submit reviewed association/.test(b.textContent))'), false);
   assert.equal(await evaluate('document.querySelectorAll("input,textarea").length'), 0, 'No preparation inputs for readers');
   await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Reload current association").click()');
   await until(() => evaluate('window.__test.ledger.reads === 2'), 'Read-only reload');
+  await until(() => evaluate('window.__test.ledger.sceneRefreshes === 1'), 'Reload the displayed scene after association read');
   assert.equal(await evaluate('window.__test.ledger.prepares === 0 && window.__test.ledger.submits === 0'), true);
-  report.assertions.push('read-only mount and reload perform current GETs; preparation and submission are absent');
+  report.assertions.push('read-only mount/reload perform current GETs and reload the displayed scene; preparation and submission are absent');
 
   await evaluate('window.__test.grantAdmission()');
   await until(() => evaluate('document.querySelectorAll("input").length === 2 && document.querySelectorAll("textarea").length === 3'), 'Authorized source inputs');
@@ -144,6 +150,28 @@ createRoot(document.getElementById('root')).render(<main><NativeSceneCandidate h
     set(inputs[1], '00000000-0000-4000-8000-000000000005');
     const areas = Array.from(document.querySelectorAll('textarea'));
     for (const area of areas.slice(0, 3)) set(area, '[]');
+  })()`);
+  await until(() => evaluate('document.body.innerText.includes("Primary scene evidence 00000000-0000-4000-8000-000000000004")'), 'Candidate evidence appears while admitted');
+  await evaluate('window.__test.withdrawAdmission()');
+  await until(() => evaluate('document.querySelectorAll("input,textarea").length === 0'), 'Draft inputs cleared after admission withdrawal');
+  assert.equal(await evaluate('document.body.innerText.includes("Primary scene evidence 00000000-0000-4000-8000-000000000004")'), false);
+  assert.equal(await evaluate('document.body.innerText.includes("Historical receipt evidence 00000000-0000-4000-8000-000000000005")'), false);
+  assert.equal(await evaluate('document.body.innerText.includes("Read-only view.")'), true);
+  await evaluate('window.__test.grantAdmission()');
+  await until(() => evaluate('document.querySelectorAll("input").length === 2 && document.querySelectorAll("textarea").length === 3'), 'Fresh authorized source inputs');
+  assert.equal(await evaluate('Array.from(document.querySelectorAll("input,textarea")).every(field => field.value === "")'), true,
+    'No stale draft is restored when create access returns');
+  report.assertions.push('withdrawn create admission clears candidate evidence and editor draft');
+  await evaluate(`(()=>{
+    const set = (element, value) => {
+      const prototype = element instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype;
+      Object.getOwnPropertyDescriptor(prototype, 'value').set.call(element, value);
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    const inputs = Array.from(document.querySelectorAll('input'));
+    set(inputs[0], '00000000-0000-4000-8000-000000000004');
+    set(inputs[1], '00000000-0000-4000-8000-000000000005');
+    for (const area of Array.from(document.querySelectorAll('textarea'))) set(area, '[]');
   })()`);
   await until(() => evaluate('document.querySelectorAll("textarea").length === 5'), 'Candidate review statement and reason');
   await evaluate(`(()=>{
@@ -160,6 +188,7 @@ createRoot(document.getElementById('root')).render(<main><NativeSceneCandidate h
   await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Submit reviewed association").click()');
   await until(() => evaluate('window.__test.ledger.submits === 1'), 'Synthetic unknown submission');
   await until(() => evaluate('document.body.innerText.includes("A submitted association has an unknown outcome.")'), 'Unknown outcome remains visible');
+  await until(() => evaluate('!document.body.innerText.includes("Primary scene evidence 00000000-0000-4000-8000-000000000004")'), 'Candidate evidence is hidden after write access is lost');
   await evaluate('window.__test.withdrawAdmission()');
   await until(() => evaluate('document.body.innerText.includes("A submitted association has an unknown outcome.")'), 'Unknown outcome after admission withdrawal');
   assert.equal(await evaluate('Boolean(Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Check saved outcome" && !b.disabled))'), true);
