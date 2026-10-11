@@ -23,6 +23,13 @@ floors supplies `sourceFloorKey`, `sourceOriginalSha256`, `exportLabel`, `origin
 Each file pin supplies `path`, `bytes`, `sha256`, `filename`. Source-document
 hashes and source keys remain separate from native USDZ hashes and floor keys.
 
+The retained USDZ framing profile accepts its earlier central-directory form
+and a mirrored alignment-padding form. Nonempty central extras must exactly
+match the local extra bytes: one 4–67-byte `0x1986` field with its declared
+length and zero-filled payload. All stored-member, CRC, offset, size, 64-byte
+alignment, root-USDC/PNG and archive-closure checks still apply. This retains
+original archive bytes; it does not execute USD or establish physical geometry.
+
 `scene` is null for geometry only, or supplies `primary` and `historical` text
 file pins, the complete selected `sourceFloors` source-key/hash pairs,
 `roomMappings`, `statement`, `reason`, and deliberate `confirmDrawingSupport`.

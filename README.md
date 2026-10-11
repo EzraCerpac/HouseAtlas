@@ -1,5 +1,15 @@
 # HouseAtlas
 
+The retained USDZ padding compatibility check builds two tiny stored archives
+in memory, with identical local/central alignment padding or the earlier
+central-directory profile. It uses the actual native framing validator and
+creates no listener, storage, account, import or household record. Inspect
+`backend/src/media/geometry_original.rs` before this named healthy check:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib media::geometry_original::tests::healthy_stored_usdz_with_mirrored_alignment_padding -- --exact --test-threads=1
+```
+
 The upload diagnostic repair has these exact additional checks in the isolated
 synthetic regression lane. They use generated in-memory multipart bodies or
 fake client exchanges only, with no listener, native data, browser or provider.
