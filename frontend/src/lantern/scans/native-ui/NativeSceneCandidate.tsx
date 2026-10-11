@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { SceneAssociationCandidate } from '../../../../integration/native-scene-association-client';
 import { parseLosslessJson, type JsonForSerialization } from '../../../numeric/lossless-json';
 import { NativeSceneAssociation } from './NativeSceneAssociation';
@@ -11,10 +11,23 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export function NativeSceneCandidate({ host, geometry, onSaved }: {
   readonly host: NativeSceneHost; readonly geometry: NativeGeometryFrame; readonly onSaved: () => void;
 }) {
+  const binding = host.associations.getBinding();
+  const refreshOwner = useMemo(() => ({ host, binding, geometry }), [host, binding, geometry]);
+  const refreshOwnerRef = useRef(refreshOwner); refreshOwnerRef.current = refreshOwner;
   const [primary, setPrimary] = useState(''), [historical, setHistorical] = useState('');
   const [floorJoins, setFloorJoins] = useState(''), [roomJoins, setRoomJoins] = useState(''), [guards, setGuards] = useState('');
+  const [submittingCandidate, setSubmittingCandidate] = useState<SceneAssociationCandidate | null>(null);
+  const [refreshState, setRefreshState] = useState<{ owner: object; pending: boolean } | null>(null);
+  const refreshPending = refreshState?.owner === refreshOwner && refreshState.pending;
+  const updateRefreshPending = useCallback((pending: boolean) => {
+    if (refreshOwnerRef.current === refreshOwner) setRefreshState({ owner: refreshOwner, pending });
+  }, [refreshOwner]);
   const [, repaint] = useState(0);
-  useEffect(() => host.associations.subscribe(() => repaint(value => value + 1)), [host]);
+  useLayoutEffect(() => {
+    const stop = host.associations.subscribe(() => repaint(value => value + 1));
+    repaint(value => value + 1);
+    return stop;
+  }, [host]);
   const candidate = useMemo<SceneAssociationCandidate | null>(() => {
     if (!UUID.test(primary) || !UUID.test(historical) || primary === historical) return null;
     try {
@@ -28,19 +41,36 @@ export function NativeSceneCandidate({ host, geometry, onSaved }: {
         sourceFloors: arrays[0]!, roomMappings: arrays[1]!, guards: arrays[2]! };
     } catch { return null; }
   }, [geometry, primary, historical, floorJoins, roomJoins, guards]);
-  if (!host.associations.canCreate(geometry.descriptor.buildingId)
-    && !host.associations.pending(geometry.descriptor.buildingId).some(row => row.outcome === 'unknown')) return null;
-  return <details><summary>Review retained scene sources</summary>
-    <p>Choose the two saved text originals and review their floor and place joins. Saving a reviewed association makes it available after reload.</p>
-    <label>Primary scene evidence<input value={primary} onChange={event => setPrimary(event.target.value.trim())} maxLength={36} /></label>
-    <label>Historical receipt evidence<input value={historical} onChange={event => setHistorical(event.target.value.trim())} maxLength={36} /></label>
-    <details><summary>Exact native joins and current guards</summary>
-      <label>Floor joins<textarea value={floorJoins} onChange={event => setFloorJoins(event.target.value)} maxLength={65536} /></label>
-      <label>Place joins<textarea value={roomJoins} onChange={event => setRoomJoins(event.target.value)} maxLength={65536} /></label>
-      <label>Current record guards<textarea value={guards} onChange={event => setGuards(event.target.value)} maxLength={65536} /></label>
-    </details>
-    {!candidate && <p role="status">Select both evidence records and their complete joins before review.</p>}
-    <NativeSceneAssociation client={host.associations} candidate={candidate} geometry={geometry}
-      onCurrent={() => undefined} onCommitted={onSaved} />
+  const canReadCurrent = binding !== null;
+  const canCreate = canReadCurrent && host.associations.canCreate(geometry.descriptor.buildingId);
+  const pendingOutcome = host.associations.pending(geometry.descriptor.buildingId).some(item => item.outcome === 'unknown');
+  useEffect(() => {
+    if (!canCreate) {
+      setPrimary(''); setHistorical(''); setFloorJoins(''); setRoomJoins(''); setGuards('');
+    }
+  }, [canCreate]);
+  return <details><summary>Scene association</summary>
+    {!canReadCurrent && <p role="status">Current association readback is unavailable because there is no active scene context.
+      {pendingOutcome && ' A submitted outcome remains unknown and can be checked when the context returns.'}</p>}
+    {canReadCurrent && !canCreate && <p role="status">Preparation is unavailable. {pendingOutcome
+      ? 'A submitted outcome is unknown and can be checked below.' : 'The current association remains available to reload.'}</p>}
+    {canCreate && <>
+      <h3>Review retained scene sources</h3>
+      <p>Choose the two saved text originals and review their floor and place joins. Saving a reviewed association makes it available after reload.</p>
+      <label>Primary scene evidence<input disabled={refreshPending} value={primary} onChange={event => setPrimary(event.target.value.trim())} maxLength={36} /></label>
+      <label>Historical receipt evidence<input disabled={refreshPending} value={historical} onChange={event => setHistorical(event.target.value.trim())} maxLength={36} /></label>
+      <details><summary>Exact native joins and current guards</summary>
+        <label>Floor joins<textarea disabled={refreshPending} value={floorJoins} onChange={event => setFloorJoins(event.target.value)} maxLength={65536} /></label>
+        <label>Place joins<textarea disabled={refreshPending} value={roomJoins} onChange={event => setRoomJoins(event.target.value)} maxLength={65536} /></label>
+        <label>Current record guards<textarea disabled={refreshPending} value={guards} onChange={event => setGuards(event.target.value)} maxLength={65536} /></label>
+      </details>
+      {!candidate && <p role="status">Select both evidence records and their complete joins before review.</p>}
+    </>}
+    <NativeSceneAssociation client={host.associations} candidate={submittingCandidate ?? (canCreate ? candidate : null)}
+      geometry={geometry} canPrepare={canCreate} hasUnsavedDraft={Boolean(primary || historical || floorJoins || roomJoins || guards)}
+      onSubmissionStarted={setSubmittingCandidate} onSubmissionSettled={() => setSubmittingCandidate(null)}
+      onDiscardDraft={() => { setPrimary(''); setHistorical(''); setFloorJoins(''); setRoomJoins(''); setGuards(''); }}
+      onRefreshPendingChanged={updateRefreshPending}
+      onRefreshed={onSaved} onCommitted={onSaved} />
   </details>;
 }

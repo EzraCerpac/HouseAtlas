@@ -220,6 +220,20 @@ establish USD scene semantics, original/derivative conversion authenticity,
 physical placement, actual household intake or recovery/fallback compatibility.
 It opens no listener, contacts no provider and runs no failure or denial case.
 
+The separate issue #148 regression lane uses an injected synthetic association
+client and owned Chromium to check read-only current-head visibility, unavailable
+read context, initial head-synchronization locking, subscription-time binding
+invalidation, create admission withdrawal, unknown-outcome recovery,
+draft-discard confirmation and scene refresh after successful resolution. Inspect the test and
+[issue-specific limits](docs/geometry/native-scene-readonly-association.md) before this
+exact command. It serves only generated UI assets from an owned loopback listener;
+it uses synthetic IDs and responses, no account, provider, household data or
+application service, and remains outside ordinary CI:
+
+```sh
+HOUSEATLAS_CHROMIUM="/absolute/path/to/inspected/chromium" node frontend/lantern-tests/native-scene-readonly-ui.mjs
+```
+
 A source-free native place example creates a building and room with explicit
 reviewed membership, then renames and clears only an Atlas classification label.
 The browser fixture uses injected synthetic responses and exact retained tokens.
