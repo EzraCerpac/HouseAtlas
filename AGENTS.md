@@ -31,7 +31,10 @@ Concurrency, denial and failure-injection tests are allowed only in the separate
 regression lane bounded in README.md: isolated disposable synthetic environments,
 fake/local-only transports, no real credentials, live providers, user data,
 populated production restore or deployment. This permission releases no G1–G5
-and grants no new secrets or network permissions. Ordinary CI remains unchanged.
+and grants no new secrets or network permissions. The approved ordinary CI
+scope is the existing workflows on pushes to `main` or `dev` and pull requests
+targeting `main`, including the existing `Verify the named Lantern healthy
+read` step. This documentation correction adds no workflow, step or command.
 Guard reversal, mutation/omission controls, adversarial and private-intake checks
 remain held; replay, expiry, revocation and crash cases are not blanket released.
 A case overlapping a held class must genuinely fit the exact approved three-class

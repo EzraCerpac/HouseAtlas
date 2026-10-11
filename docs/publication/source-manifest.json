@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "3b0766090393976b3d2b645e86885943583042ec344a7b563d234a69f9f1ed8d",
+  "sourceDigestSha256": "641bc9f0d8ca8c5aacc979b156a06ec36dcd55a205ce17595bacd590537a37c9",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -70,8 +70,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 3278,
-      "sha256": "a01080c2a6a850fd927bc45d99cc486590f891e0679708b14351b32049bf22e3",
+      "bytes": 3503,
+      "sha256": "b09b8a0ca68a4ff4553dd7d3c2609ab7dd026ece95067e204056e5983077f8e7",
       "owner": "core-integration"
     },
     {
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 41807,
-      "sha256": "514813633cb53774e0938b2382416a8921f0ff239d18b98a2019d28c7cfe665d",
+      "bytes": 43543,
+      "sha256": "b15f3637204d78c799ab132e6b109b4fdd66b746e9bb7dce1b337ef1c94e0024",
       "owner": "core-integration"
     },
     {
@@ -5374,6 +5374,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/geometry/drawing-evidence-lookup-150.md",
+      "mode": "100644",
+      "bytes": 3431,
+      "sha256": "51384193bd059724bc8172623d896071d47933baedf93da2503130a5d32cba3e",
+      "owner": "web"
+    },
+    {
       "path": "docs/geometry/electricity-overlay.md",
       "mode": "100644",
       "bytes": 14067,
@@ -6197,6 +6204,13 @@
       "mode": "100644",
       "bytes": 11406,
       "sha256": "a554da777f421d32d8cb45356aaf362e058e7208415d16dfea8629fbe664faaa",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/native-scene-drawing-150.mjs",
+      "mode": "100644",
+      "bytes": 25236,
+      "sha256": "a3bd5dbbb6492ac8d4c2a760e16d95dd95fe819059f7740ceaa044a83b555fa3",
       "owner": "web"
     },
     {
@@ -7420,8 +7434,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx",
       "mode": "100644",
-      "bytes": 7587,
-      "sha256": "e8ddd1d5921042047008f5796ca875efc11eb010d41b555358788f0f6ec108e0",
+      "bytes": 9482,
+      "sha256": "f93c652312a85e66c849676e2d180ba034670840065dba9a087ee55bc5283dce",
       "owner": "web"
     },
     {
