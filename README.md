@@ -180,7 +180,7 @@ The separate issue #148 regression lane uses an injected synthetic association
 client and owned Chromium to check read-only current-head visibility, create
 admission withdrawal, unknown-outcome recovery, draft-discard confirmation and
 scene refresh after successful resolution. Inspect the test and
-[issue-specific limits](docs/geometry/native-scene-association.md) before this
+[issue-specific limits](docs/geometry/native-scene-readonly-association.md) before this
 exact command. It serves only generated UI assets from an owned loopback listener;
 it uses synthetic IDs and responses, no account, provider, household data or
 application service, and remains outside ordinary CI:
