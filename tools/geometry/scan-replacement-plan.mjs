@@ -25,7 +25,28 @@ function closed(value, fields) {
 }
 function bounded(array, max) { assert(Array.isArray(array) && array.length <= max); return array; }
 function text(value) { assert(typeof value === 'string' && value.length > 0 && value.length <= 512); return value; }
-const clone = value => JSON.parse(JSON.stringify(value));
+function jsonData(value, ancestors = new Set()) {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
+  if (typeof value === 'number') {
+    assert(Number.isFinite(value) && !Object.is(value, -0), 'Selected JSON numbers must retain their value'); return;
+  }
+  assert(value && typeof value === 'object' && !ancestors.has(value), 'Selected history must be lossless JSON data');
+  const array = Array.isArray(value), prototype = Object.getPrototypeOf(value);
+  assert(array ? prototype === Array.prototype : prototype === Object.prototype || prototype === null,
+    'Selected history requires JSON data containers');
+  const keys = Reflect.ownKeys(value);
+  if (array) assert.equal(keys.length, value.length + 1, 'Selected JSON arrays must be dense with no extra fields');
+  ancestors.add(value);
+  for (const key of keys) {
+    if (array && key === 'length') continue;
+    const field = Object.getOwnPropertyDescriptor(value, key);
+    assert(typeof key === 'string' && field.enumerable && Object.hasOwn(field, 'value'), 'Selected JSON fields must be data');
+    if (array) assert(/^(0|[1-9][0-9]*)$/.test(key) && Number(key) < value.length, 'Selected JSON array index changed');
+    jsonData(field.value, ancestors);
+  }
+  ancestors.delete(value);
+}
+const clone = value => { jsonData(value); return JSON.parse(JSON.stringify(value)); };
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
@@ -89,11 +110,16 @@ export async function buildReplacementPlan(input) {
     floors: bounded(input.floors, LIMITS.floors).map(copyFloor), successors: bounded(input.successors, LIMITS.floors).map(copyFloor) };
   assert(sceneRecord(input.association), 'Use the existing accepted scene-association record');
   const association = input.association.payload;
+  assert.equal(association.sourceDocuments.filter(source => source.role === 'primary-scene').length, 1,
+    'Selected scene requires one primary source');
+  assert.equal(new Set(association.sourceDocuments.map(source => source.evidenceId)).size, association.sourceDocuments.length,
+    'Selected scene source evidence IDs must be distinct');
   assert(Buffer.byteLength(JSON.stringify({ association, roomSupport: input.roomSupport, retainedState: input.retainedState })) <= LIMITS.manifestBytes);
   closed(input.retainedState, ['identities', 'overlayAssociations', 'floorPlacementFacts']);
   assert(Buffer.byteLength(JSON.stringify(input.retainedState)) <= LIMITS.manifestBytes);
   for (const values of Object.values(input.retainedState)) bounded(values, 1024);
   const receipt = association.acceptedReceipt;
+  assert(Buffer.byteLength(receipt.canonicalJson) <= 131072, 'Accepted receipt exceeds its UTF-8 byte bound');
   assert.equal(sha(receipt.canonicalJson), receipt.canonicalSha256, 'Accepted receipt literal bytes must match its digest');
   const decoded = JSON.parse(receipt.canonicalJson);
   closed(decoded, ['profile', 'receiptId', 'sourceReceiptSha256', 'anchors']);
@@ -102,7 +128,13 @@ export async function buildReplacementPlan(input) {
   assert(equal(decoded.anchors, receipt.anchors), 'Complete accepted anchor membership must match');
   assert.equal(canonical(decoded), receipt.canonicalJson, 'Receipt must be canonical');
   const anchors = new Map();
-  for (const anchor of receipt.anchors) { assert(!anchors.has(anchor.id), 'Ambiguous source anchor'); anchors.set(anchor.id, anchor); }
+  for (const anchor of receipt.anchors) {
+    assert(!anchors.has(anchor.id), 'Ambiguous source anchor');
+    assert.equal(new Set(anchor.targets.map(target => JSON.stringify([target.packagePlaceKey, target.packagePlaceUuid]))).size,
+      anchor.targets.length, 'Accepted anchor targets must be distinct');
+    assert.equal(new Set(anchor.unresolvedLabels).size, anchor.unresolvedLabels.length, 'Accepted anchor unresolved labels must be distinct');
+    anchors.set(anchor.id, anchor);
+  }
   const decoderModule = await loadScanProfileSource();
   const decoderPrefix = 'data:text/javascript;base64,';
   assert(decoderModule.startsWith(decoderPrefix));
@@ -112,12 +144,13 @@ export async function buildReplacementPlan(input) {
   const previous = await Promise.all(bounded(input.floors, LIMITS.floors).map(s => inspect(s, reader)));
   const next = await Promise.all(bounded(input.successors, LIMITS.floors).map(s => inspect(s, reader)));
   const originalDigests = new Map();
-  const retainOriginal = (id, digest) => {
-    assert(!originalDigests.has(id) || originalDigests.get(id) === digest, 'Original asset identity/content is immutable');
-    originalDigests.set(id, digest);
+  const retainOriginal = (id, digest, role) => {
+    const known = originalDigests.get(id);
+    assert(!known || (known.digest === digest && known.role === role), 'Original asset identity/content and purpose are immutable');
+    originalDigests.set(id, { digest, role });
   };
-  for (const source of association.sourceDocuments) retainOriginal(source.originalAssetId, source.originalSha256);
-  for (const floor of [...previous, ...next]) retainOriginal(floor.snapshot.geometry.payload.originalAssetId, floor.snapshot.originalSha256);
+  for (const source of association.sourceDocuments) retainOriginal(source.originalAssetId, source.originalSha256, 'evidence-original');
+  for (const floor of [...previous, ...next]) retainOriginal(floor.snapshot.geometry.payload.originalAssetId, floor.snapshot.originalSha256, 'geometry-original');
   const byId = new Map(), byKey = new Map();
   for (const floor of previous) {
     const p = pin(floor); assert(!byId.has(p.geometryId) && !byKey.has(p.key), 'Ambiguous previous floor');
@@ -146,6 +179,7 @@ export async function buildReplacementPlan(input) {
     bindings.set(key, old); boundGeometryIds.add(p.geometryId);
   }
   assert.equal(boundGeometryIds.size, previous.length, 'Every retained snapshot must belong to the selected association');
+  for (const anchor of receipt.anchors) assert(bindings.has(sourceFloorKey(anchor)), 'Every accepted receipt anchor needs a selected source-floor binding');
   const support = new Map();
   for (const row of bounded(input.roomSupport, LIMITS.support)) {
     closed(row, ['sourceRoomId', 'sourceFloorKey', 'sourceOriginalSha256', 'derivativeSha256', 'receiptSha256', 'meshIds']);

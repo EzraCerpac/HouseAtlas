@@ -93,7 +93,8 @@ on different floors or corrected source versions do not join their support.
 Geometry record `coordinateUnits`, `scale` and its six-coefficient `transform`
 also fence the frame comparison; changed placement metadata requires review
 and unknown units require null scale and transform. Selected original asset IDs
-retain one digest across scene documents, prior floors and successors. New
+retain one digest and compatible asset purpose across scene documents, prior
+floors and successors; evidence and geometry originals cannot share an ID. New
 successor descriptor keys must differ from every prior descriptor key,
 even when the authored derivative is identical. Multi-anchor correspondence
 retains the complete set union of its accepted targets and unresolved labels,
@@ -130,6 +131,12 @@ history does not accept its application to a successor. Exact geometry makes
 that application reviewable, while a changed frame requires new review.
 Explicit null and other opaque scalar/array facts also survive readback;
 they remain unqualified and cannot acquire a geometry frame.
+Direct API selections must be JSON-round-trip-stable: unsupported values such
+as undefined, sparse slots, non-finite numbers and negative zero are refused
+before a plan is produced. Ordinary and null-prototype JSON data objects are
+supported; their data fields survive while containers normalize to ordinary
+JSON objects. Accepted receipt literals obey the existing 131,072 UTF-8 byte limit,
+and every receipt anchor must belong to a selected source-floor key/hash pair.
 
 Room correspondence is retained as the complete accepted source-anchor/target
 mapping plus `roomSupportEvidence`: exact source floor/room/original, derivative

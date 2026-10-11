@@ -452,7 +452,9 @@ test('reopened artifact retains numeric reviewed placement and exact room-to-mes
 test('opaque null and non-object placement facts survive a reopened successful artifact', async () => {
   const floor = snapshot({ floorKey: 'opaque-v1', sourceFloorKey: 'opaque-source', label: 'Opaque Placement Floor' });
   const baseline = world({ floors: [floor], rooms: [room({ id: 'opaque-room', floor })] });
-  const facts = [null, 'unknown', 0, false, ['opaque-history'], { alignment: 'unknown', transform: null }];
+  const facts = [null, 'unknown', 0, false, ['opaque-history'], { alignment: 'unknown', transform: null, labels: ['unknown étage', '☐'], finite: 1.5 }];
+  const expectedFacts = [...facts, { ownerReport: 'unknown' }];
+  facts.push(Object.assign(Object.create(null), { ownerReport: 'unknown' }));
   baseline.retainedState.floorPlacementFacts = facts;
   const plan = await buildReplacementPlan(inputWith(baseline, [successor(floor)]));
   const parent = realpathSync(mkdtempSync(join(tmpdir(), 'scan-replacement-opaque-test-')));
@@ -461,8 +463,8 @@ test('opaque null and non-object placement facts survive a reopened successful a
     const bytes = readFileSync(join(parent, 'artifact', receipt.fileName));
     assert.equal(sha(bytes), receipt.sha256);
     const reopened = JSON.parse(bytes);
-    assert.deepEqual(reopened.retainedState.floorPlacementFacts, facts);
-    assert.deepEqual(reopened.placementEvidenceApplications.map(row => row.evidenceFact), facts);
+    assert.deepEqual(reopened.retainedState.floorPlacementFacts, expectedFacts);
+    assert.deepEqual(reopened.placementEvidenceApplications.map(row => row.evidenceFact), expectedFacts);
     assert(reopened.placementEvidenceApplications.every(row => row.applicability === 'unqualified-frame'));
     assert.equal(reopened.operationsExecuted, 0);
   } finally { rmSync(parent, { recursive: true, force: true }); }
@@ -487,8 +489,8 @@ test('geometry placement metadata changes require frame review even with byte-id
 });
 
 test('same immutable original bytes can support a distinct successor descriptor and geometry version', async () => {
-  const floor = snapshot({ floorKey: 'retained-original-v1', sourceFloorKey: 'retained-original-source', label: 'Retained Original Floor' });
-  const baseline = world({ floors: [floor], rooms: [room({ id: 'retained-original-room', floor })] });
+  const floor = snapshot({ floorKey: 'retained-original-v1', sourceFloorKey: 'retained-original-étage', label: 'Retained Original Floor' });
+  const baseline = world({ floors: [floor], rooms: [room({ id: 'retained-original-ø-room', floor })] });
   const candidate = successor(floor);
   candidate.geometry.payload.originalAssetId = floor.geometry.payload.originalAssetId;
   const plan = await buildReplacementPlan(inputWith(baseline, [candidate]));
