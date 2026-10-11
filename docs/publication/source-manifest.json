@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "cde202bc83c74c9c7ecf7e0c2c8f1f9d21d4252b9d7ce0d3ceb57f9bcdc92fe2",
+  "sourceDigestSha256": "1a4f02a1642343a8298a96f1d5e93297771018a7e036acef33497e0db11f1241",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -91,8 +91,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 51447,
-      "sha256": "ba853574453878ad87348463350bbcbb708d3074dfdae826200779c5e0497f1a",
+      "bytes": 51605,
+      "sha256": "2eb96a5367ba52f5149448083528f36043768950e41645fd2f41bed669bf72ad",
       "owner": "core-integration"
     },
     {
@@ -5384,8 +5384,8 @@
       "path": "docs/geometry/assistant-native-scan-import.md",
       "owner": "media",
       "mode": "100644",
-      "bytes": 9592,
-      "sha256": "86b1b7e306e8936a560f38ed04aaf9bd96d4c43e2dada39bcea7fe41c1af94ea"
+      "bytes": 9884,
+      "sha256": "16edf4e30563af4749721ad18839923934722ffecff75c855fc82de5056e43c7"
     },
     {
       "path": "docs/geometry/assistant-native-scan-scene.md",
@@ -8779,8 +8779,8 @@
       "path": "tools/geometry/native-scan-import-transport.mjs",
       "owner": "media",
       "mode": "100644",
-      "bytes": 7689,
-      "sha256": "d3de029a6a75be3d0f531cefc53287edf2eda2530edee7fc21192539438d0a57"
+      "bytes": 7917,
+      "sha256": "9612c4ff15db06ad0c941e5d2f332c9e30151225713d990125f4da199b9fa245"
     },
     {
       "path": "tools/geometry/native-scan-import.mjs",
@@ -8793,8 +8793,8 @@
       "path": "tools/geometry/native-scan-import.test.mjs",
       "owner": "media",
       "mode": "100644",
-      "bytes": 40082,
-      "sha256": "5f077a2ecb2d81bd9ff708086b2ffe2465d296978c6236f7144800fc4d4b2fc0"
+      "bytes": 41936,
+      "sha256": "489834c95503d2ec32aa70ebac1dd2fb00cd2391f4c99ff09c5a9f3aab494659"
     },
     {
       "path": "tools/geometry/scan-replacement-plan.mjs",

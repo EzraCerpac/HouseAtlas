@@ -36,6 +36,7 @@ export function createNativeCurlTransport({ origin, proxy, scope }) {
   const auth = /^\/api\/atlas\/auth\/(?:mode|proxy|session|logout)$/;
   const scoped = new RegExp(`^${prefix}/(?:admission|invoke|commands|assets(?:/${u}/review-proof)?|records/[a-z-]+(?:/${u}(?:/history)?)?|originals(?:/${u}/derivative)?|buildings/${u}(?:/associations|/current|/frames/[0-9a-f]{64}/meshes/[0-9a-f]{64})?|native-places/${u}(?:/evidence(?:/requests/${u})?)?)$`);
   const media = new RegExp(`^/api/atlas/media/${scope.workspaceId}/${scope.homeId}/[0-9a-f]{64}/(?:download|preview)$`);
+  const sceneHeadList = `/api/atlas/stock/v3/workspaces/${scope.workspaceId}/homes/${scope.homeId}/records/scene-association`;
   let cookie = null;
   const exchange = async (input, init = {}) => {
     const url = new URL(typeof input === 'string' ? input : input.url, origin);
@@ -44,7 +45,9 @@ export function createNativeCurlTransport({ origin, proxy, scope }) {
     need(auth.test(url.pathname) || scoped.test(url.pathname) || media.test(url.pathname) || url.pathname === '/api/atlas/retained-intent',
       'Native route is not in the import closure');
     const method = init.method ?? 'GET'; need(method === 'GET' || method === 'POST', 'Unsupported native method');
-    need(!url.search || method === 'GET' && url.pathname.endsWith('/invoke'), 'Unexpected native URL selector');
+    need(!url.search || method === 'GET' && (url.pathname.endsWith('/invoke')
+      || url.pathname === sceneHeadList && url.search === '?pageSize=100&includeArchived=true'),
+    'Unexpected native URL selector');
     const signal = init.signal; signal?.throwIfAborted();
     const headers = new Headers(init.headers);
     for (const key of headers.keys()) need(!/^(cookie|host|authorization|x-forwarded|x-atlas-proxy|proxy-)/i.test(key), 'Caller supplied identity header');

@@ -87,6 +87,8 @@ makes at most forty small GET-only fake observations to locate a first-floor-fit
 later-floor-full capacity threshold, then checks zero custody POSTs.
 Host coverage cases seed two synthetic current floors and check that incomplete
 or oversized projected scenes stop before any further geometry custody.
+The transport selector case uses an already aborted signal to check the exact
+scoped scene-head list query; it stops before any curl process or network call.
 Scope and callable selection contract are in [assistant native scan intake](docs/geometry/assistant-native-scan-import.md).
 Inspect the complete tool/runtime/transport/test bodies before this exact check:
 

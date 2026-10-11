@@ -472,6 +472,29 @@ test('HTTPS framing retains body and cookie separately; transport selection refu
   assert.throws(() => createNativeCurlTransport({ origin: 'http://synthetic.invalid', proxy: 'socks5h://127.0.0.1:11080', scope }));
   assert.throws(() => createNativeCurlTransport({ origin, proxy: 'http://new-proxy.invalid', scope }));
 });
+test('actual transport admits only the exact scoped complete scene-head selector before its aborted network boundary', async () => {
+  const transport = createNativeCurlTransport({ origin, proxy: 'socks5h://127.0.0.1:11080', scope });
+  const path = `/api/atlas/stock/v3/workspaces/${scope.workspaceId}/homes/${scope.homeId}/records/scene-association`;
+  const stopped = new Error('Synthetic stop before curl spawn');
+  const signal = AbortSignal.abort(stopped);
+  await assert.rejects(transport.exchange(path + '?pageSize=100&includeArchived=true', { signal }), error => error === stopped);
+  await assert.rejects(transport.exchange(path, { signal }), error => error === stopped);
+  await assert.rejects(transport.exchange(path.replace('/records/scene-association', '/invoke') + '?request=synthetic', { signal }),
+    error => error === stopped);
+  for (const query of ['?pageSize=101&includeArchived=true', '?pageSize=100&includeArchived=false',
+    '?pageSize=100&includeArchived=true&cursor=synthetic', '?pageSize=100&includeArchived=true&q=synthetic',
+    '?pageSize=100&includeArchived=true&pageSize=100', '?includeArchived=true&pageSize=100',
+    '?pageSize=%31%30%30&includeArchived=true']) {
+    await assert.rejects(transport.exchange(path + query, { signal }), /Unexpected native URL selector/);
+  }
+  await assert.rejects(transport.exchange(path + '?pageSize=100&includeArchived=true', { method: 'POST', signal }),
+    /Unexpected native URL selector/);
+  await assert.rejects(transport.exchange(path.replace('/scene-association', '/geometry') + '?pageSize=100&includeArchived=true', { signal }),
+    /Unexpected native URL selector/);
+  await assert.rejects(transport.exchange(path.replace(scope.homeId, U(999)) + '?pageSize=100&includeArchived=true', { signal }),
+    /Native route is not in the import closure/);
+  transport.forget();
+});
 test('setup failure retires its own issued session and never performs an application mutation', async () => {
   const calls = [], session = { schemaVersion: 1, actorId: U(9), csrfToken: 'synthetic-no-live-account', expiresAt: '2099-01-01T00:00:00Z' };
   const fake = async (path, init = {}) => {

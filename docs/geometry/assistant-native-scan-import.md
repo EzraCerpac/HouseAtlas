@@ -38,6 +38,10 @@ HTTPS certificates and disables `.curlrc`; it sends no caller identity headers
 and follows no redirects. Normal `/auth/proxy` sign-in uses the existing gateway
 WhoIs policy. Cookies/CSRF remain in memory and anonymous pipes, never arguments,
 files or journals. Current session and Stock admission are read and checked.
+The retained scene-head read allows only its exact scoped Stock GET with
+`pageSize=100&includeArchived=true`; extra, duplicate or altered selectors refuse
+before transport. This keeps the complete bounded list check callable through
+the same normal HTTPS transport as the other native reads.
 Native-only asset and scene commands are reported in the server's separate
 `nativeCommandIds` metadata, under the same existing Editor/scope checks.
 They remain absent from the generic Stock/MCP catalogue. The command requires
