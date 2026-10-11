@@ -19,6 +19,9 @@ waiting for Core, qualification, measurement, existing-original resolution,
 staging, Stock dispatch and result release. Intake categories distinguish idle
 and total deadlines, multipart read errors, size and shape rejection.
 
+In the fresh staged path, `releasing` covers post-dispatch metadata retirement
+and output release. The phase label establishes no commit outcome.
+
 `observer-ended` means the HTTP observer was dropped before a response was ready.
 It does not cancel or settle a queued/running blocking continuation. That worker
 has a separate guard and may later emit `worker-returned` or `worker-abandoned`.

@@ -301,6 +301,7 @@ async fn intake_command(
         worker_diagnostic.phase(Phase::Dispatching);
         let (result, release) = stock_mutations::execute_staged(&host, &core, &principal, &selection, raw, &staged, &schemas)
             .map_err(stock_reads::http_error)?;
+        worker_diagnostic.phase(Phase::Releasing);
         // The owner has already committed and qualified this canonical result.
         // Metadata retirement cannot turn that commit into an unconfirmed write.
         // It still requires the real SQLite consumption carrier and original
@@ -322,7 +323,6 @@ async fn intake_command(
             principal.release(&access).map_err(access_error)?;
             Ok(())
         })();
-        worker_diagnostic.phase(Phase::Releasing);
         // No diagnostic I/O runs here: reporting maintenance cannot panic or
         // block the committed receipt. SQLite retains the consumption proof.
         // Output release remains mandatory even if maintenance failed. Never
