@@ -491,6 +491,7 @@ createRoot(document.getElementById('root')).render(<TestHost />);
   await until(() => evaluate(`window.__test.ledger.prepares === ${preparesBeforeInvalidation + 1}
     && Boolean(Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Submit reviewed association'))`),
     'Prepared review before retained-evidence invalidation');
+  const readsBeforeEvidenceInvalidation = await evaluate('window.__test.ledger.reads');
   await evaluate('window.__test.invalidateEvidence()');
   await until(() => evaluate(`document.querySelector("[aria-label=\\"Native scene association review\\"]")?.hidden === false
     && Boolean(Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Review retained originals'))
@@ -498,6 +499,8 @@ createRoot(document.getElementById('root')).render(<TestHost />);
     'The association surface returns to its unprepared state after evidence invalidation');
   assert.equal(await evaluate('document.body.innerText.includes("Current association synthetic-target")'), true,
     'Evidence invalidation preserves the current association readback while access remains active');
+  assert.equal(await evaluate('window.__test.ledger.reads'), readsBeforeEvidenceInvalidation,
+    'Prepared-review invalidation preserves the existing readback without issuing a replacement read');
   report.assertions.push('prepared-review evidence invalidation clears the prepared action, preserves current readback, and keeps the association surface available');
 
   const readsBeforeSubscriptionRace = await evaluate('window.__test.ledger.reads');
