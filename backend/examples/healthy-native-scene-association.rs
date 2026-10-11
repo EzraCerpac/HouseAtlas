@@ -517,18 +517,32 @@ fn scene_text(
     }
     Ok(serde_json::to_vec(&scene)?)
 }
-fn scene_payload(
+struct ScenePayload<'a> {
     version: u8,
-    previous: Option<&str>,
-    historical_asset: &str,
-    primary_asset: &str,
-    historical_sha: &str,
-    primary_sha: &str,
-    canonical: &str,
-    receipt: &Value,
-    floor: &Value,
+    previous: Option<&'a str>,
+    historical_asset: &'a str,
+    primary_asset: &'a str,
+    historical_sha: &'a str,
+    primary_sha: &'a str,
+    canonical: &'a str,
+    receipt: &'a Value,
+    floor: &'a Value,
     evidence_id: u32,
-) -> Value {
+}
+
+fn scene_payload(input: ScenePayload<'_>) -> Value {
+    let ScenePayload {
+        version,
+        previous,
+        historical_asset,
+        primary_asset,
+        historical_sha,
+        primary_sha,
+        canonical,
+        receipt,
+        floor,
+        evidence_id,
+    } = input;
     let receipt_sha = sha(canonical.as_bytes());
     let anchor = format!("synthetic-anchor-{version}");
     let room = format!("synthetic-room-{version}");
@@ -845,18 +859,18 @@ async fn healthy() -> Result<(), Failure> {
         assert_eq!(floor["originalAssetId"], geometry_asset);
         assert_eq!(floor["originalSha256"], sha(&original));
         let previous = if version == 1 { None } else { Some(id(900)) };
-        let payload = scene_payload(
+        let payload = scene_payload(ScenePayload {
             version,
-            previous.as_deref(),
-            &historical_asset,
-            &primary_asset,
-            &historical_sha,
-            &source_sha,
-            &canonical,
-            &review,
+            previous: previous.as_deref(),
+            historical_asset: &historical_asset,
+            primary_asset: &primary_asset,
+            historical_sha: &historical_sha,
+            primary_sha: &source_sha,
+            canonical: &canonical,
+            receipt: &review,
             floor,
             evidence_id,
-        );
+        });
         // Build expected readback from the actual owner-returned asset IDs and
         // measured original bytes, before observing the scene-create result.
         let expected_documents = json!([

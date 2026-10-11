@@ -23,7 +23,7 @@ the complete example and compatibility owners before these local commands:
 
 ```sh
 cargo build --offline --locked -p houseatlas-backend --lib --bin houseatlas
-cargo clippy --offline --locked -p houseatlas-backend --lib --bin houseatlas -- -D warnings
+cargo clippy --offline --locked -p houseatlas-backend --lib --bins --examples -- -D warnings
 cargo fmt --all -- --check
 cargo run --offline --locked -p houseatlas-backend --example healthy-receipt-compatibility -- --legacy-binary /absolute/pinned/houseatlas --expected-legacy-binary-sha256 <verified-sha256>
 ```
