@@ -583,3 +583,32 @@ cases `lost-fake-reply-inspect-only`, `malformed-receipt-keeps-original`,
 `noncommitted-receipt-keeps-original` and `wrong-correlation-keeps-original` remain
 held. No suite/alias, reply-loss, mutation-control, replay, expiry, revocation,
 crash, actual cross-tab or real iPhone/Safari acceptance is released here.
+
+
+### Bounded native upload outcome checks
+
+A separately inspected private artifact packet qualifies exactly five transport
+cases: a generated 9,453,714-byte PDF transferred over ten seconds and downloaded
+unchanged; midbody disconnect; the 15-second idle intake deadline; the 60-second
+intake deadline while bytes continue arriving; and a genuine committed response
+body withheld then recovered by a request-correlated read without a resend.
+The separate UI packet qualifies actual React upload, loss of its genuine native
+200 response before Chrome receives it, read-only receipt recovery and original
+download, plus a genuine throttled 408 with unchanged native records/history.
+Both helpers have built-in Node imports only. Inspect their complete bodies and
+artifact selections before these exact commands with Node 26.10.0:
+
+```sh
+node /absolute/private/native-upload-outcome-transport.mjs /absolute/private/transport-artifacts.json
+node /absolute/private/native-evidence-upload-outcome-ui-loopback.mjs /absolute/private/ui-artifacts.json
+```
+
+These commands belong to the isolated synthetic regression lane: one owned TLS
+loopback, generated local session/media, bounded fresh scratch/process groups,
+private output, no provider, household data, installed-service change or retry.
+The browser exception is limited to its generated certificate SPKI and owned
+profile; it establishes no normal browser trust or device qualification. A
+receipt miss stays unknown. Generic failures after intake also remain unknown;
+only an authenticated correlated intake rejection proves that invocation did
+not commit. These checks do not resolve historical upload requests, prove crash
+recovery, release a resend, change ordinary CI or accept deployment.

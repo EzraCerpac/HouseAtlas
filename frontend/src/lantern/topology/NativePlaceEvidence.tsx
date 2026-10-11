@@ -77,6 +77,15 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
       setStatus('Uploading native evidence…');
       const result = await client.commit(prepared, controller.signal);
       if (!live(controller)) return;
+      if (result.outcome === 'not-committed') {
+        const error = result.intakeError;
+        const explanation = error?.code === 'upload-timeout' ? 'The server timed out while reading the upload.'
+          : error?.code === 'upload-interrupted' ? 'The server stopped reading the upload before it was committed.'
+          : error?.code === 'upload-busy' ? 'The server could not accept this upload while another upload was being processed.'
+          : 'The server rejected the uploaded file or its metadata.';
+        setStatus(`${explanation} No evidence was saved (HTTP ${error?.httpStatus ?? 'unknown'}). Review the form and start a new upload to try again.`);
+        return;
+      }
       if (result.outcome !== 'committed') throw new Error('Native evidence completion is unknown');
       setSelection(null); setAdmission(null); setOpen(false); restoreOpener.current = true;
       setStatus('Saved native evidence. Reloading Atlas records…'); refresh();
@@ -97,10 +106,29 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
     try {
       const result = await client.inspect(binding, attempt.prepared, controller.signal);
       if (!live(controller)) return;
-      if (result.admission.identity.recordId !== location.id) throw new Error('Selected native identity changed');
-      setInspections(old => new Map(old).set(attempt.prepared, result.admission));
-      setAdmission(result.admission); setStatus('Saved native information read. Completion remains unknown; retry safety is not established.');
-    } catch { if (live(controller)) setStatus('Saved native information could not be read. Completion remains unknown; do not resend.'); }
+      if (result.admission) {
+        if (result.admission.identity.recordId !== location.id) throw new Error('Selected native identity changed');
+        setInspections(old => new Map(old).set(attempt.prepared, result.admission!));
+        setAdmission(result.admission);
+      }
+      if (result.outcome === 'committed') {
+        setStatus(result.admission ? 'Recovered the original saved receipt. Reloading Atlas records…'
+          : 'Recovered the original saved receipt. Fresh native information could not be loaded.');
+        refresh();
+      } else if (result.reconciliation === 'unavailable') {
+        const statusDetail = result.reconciliationStatus === undefined ? '' : ` (HTTP ${result.reconciliationStatus})`;
+        setStatus(`Request reconciliation could not be read${statusDetail}. Completion remains unknown; do not resend.`);
+      } else if (!result.admission) setStatus('Reconciliation found no receipt. Fresh native information could not be read; completion remains unknown. Do not resend.');
+      else setStatus('Saved native information read. Completion remains unknown; retry safety is not established.');
+    } catch {
+      if (live(controller)) {
+        let recovered = false;
+        try { recovered = client.pending(binding).some(row => row.prepared.requestId === attempt.prepared.requestId && row.outcome === 'committed'); }
+        catch { /* Expired or superseded session cannot expose prior attempt state. */ }
+        if (recovered) { setStatus('Recovered the original saved receipt. Fresh native information could not be loaded.'); refresh(); }
+        else setStatus('Saved native information could not be read. Completion remains unknown; do not resend.');
+      }
+    }
     finally { finish(controller); }
   };
   const original = async (attempt: NativeEvidencePending) => {
@@ -143,7 +171,7 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
       }}>Close</button>
     </section>}
     {attempts.map(attempt => <details key={attempt.prepared.requestId}>
-      <summary>{attempt.outcome === 'committed' ? 'Native evidence saved' : 'Native evidence completion unknown'} · {attempt.prepared.requestId}</summary>
+      <summary>{attempt.outcome === 'committed' ? 'Native evidence saved' : attempt.outcome === 'not-committed' ? 'Native evidence not saved' : 'Native evidence completion unknown'} · {attempt.prepared.requestId}</summary>
       {attempt.outcome === 'unknown' ? <>
         <p>Do not resend this request. A saved-information read cannot establish rollback or safe retry. Attempt information is held in memory for this application session.</p>
         <button type="button" disabled={busy} onClick={() => void inspect(attempt)}>Inspect saved native information</button>
@@ -152,6 +180,11 @@ export function NativePlaceEvidence({ client, binding, location, index, refresh 
           <pre>{stringifyLosslessJson({ record: inspections.get(attempt.prepared)!.record,
             identity: inspections.get(attempt.prepared)!.identity, guards: inspections.get(attempt.prepared)!.guards } as unknown as JsonForSerialization)}</pre>
         </details>}
+      </> : attempt.outcome === 'not-committed' ? <>
+        <p>{attempt.intakeError?.code === 'upload-timeout' ? 'The server timed out while reading the upload.'
+          : attempt.intakeError?.code === 'upload-interrupted' ? 'The server stopped reading the upload before it was committed.'
+          : attempt.intakeError?.code === 'upload-busy' ? 'The server could not accept this upload while another upload was being processed.'
+          : 'The server rejected the uploaded file or its metadata.'} No evidence was saved (HTTP {attempt.intakeError?.httpStatus ?? 'unknown'}). Review the form and start a new upload to try again.</p>
       </> : <>
         <p>Evidence ID: {attempt.evidenceId} · original asset ID: {attempt.assetId}</p>
         <button type="button" disabled={busy} onClick={() => void original(attempt)}>Check original download</button>

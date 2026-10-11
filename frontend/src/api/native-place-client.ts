@@ -191,12 +191,15 @@ export function createNativePlaceClient(options: {
       if (!owner) { owner = Object.freeze({}); evidenceOwners.set(session, owner); }
       return owner;
     },
-    async exchange(binding, url, method, signal, body) {
+    async exchange(binding, url, method, signal, body, requestId) {
       current(binding, signal);
       const session = cached!.session;
       if (Date.parse(session.expiresAt) <= Date.now()) throw new Error('Native evidence session expired');
+      if ((requestId !== undefined && (method !== 'POST' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(requestId)))
+        || (method === 'POST' && body && requestId === undefined)) throw new TypeError('Native evidence upload correlation differs');
       const response = await transport(url, { method, signal, credentials: 'same-origin', cache: 'no-store', redirect: 'error',
-        headers: { Accept: 'application/json', ...(method === 'POST' ? { 'X-Atlas-CSRF': session.csrfToken } : {}) }, ...(body ? { body } : {}) });
+        headers: { Accept: 'application/json', ...(method === 'POST' ? { 'X-Atlas-CSRF': session.csrfToken } : {}),
+          ...(method === 'POST' && requestId !== undefined ? { 'X-Atlas-Upload-Request-Id': requestId } : {}) }, ...(body ? { body } : {}) });
       try { current(binding, signal); if (cached!.session !== session || Date.parse(session.expiresAt) <= Date.now()) throw new Error('Native evidence session changed'); }
       catch (error) { cancel(response); throw error; }
       return response;

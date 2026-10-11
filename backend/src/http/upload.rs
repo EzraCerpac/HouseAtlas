@@ -2,6 +2,7 @@
 use super::{
     CheckedHeaders, Host, HttpResult, access_error, evidence, failure, json_response,
     qualified_upload_plan, stock_mutations, stock_reads, upload_batch, upload_intake,
+    upload_outcomes,
 };
 use crate::{
     access as a,
@@ -71,6 +72,11 @@ async fn intake_command(
         home_id,
     };
     let selected = crate::app::access_scope(&scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
+    let correlation = if matches!(namespace, PlaceNamespace::Native) {
+        upload_outcomes::request_id(request.headers())?
+    } else {
+        None
+    };
     let checked = request
         .extensions()
         .get::<CheckedHeaders>()
@@ -102,24 +108,71 @@ async fn intake_command(
     })
     .await
     .map_err(|_| unavailable())??;
-    let input = upload_intake::read(request)
-        .await
-        .map_err(|error| failure(error.status()))?;
+    // Only a genuine authorized POST may receive an intake rejection carrier.
+    // Keep the large-body slot through blocking work even if the caller leaves.
+    let upload_permit = match host.upload_slots.clone().try_acquire_owned() {
+        Ok(permit) => permit,
+        Err(_) => {
+            return upload_outcomes::reject(
+                correlation.as_deref(),
+                &scope,
+                &record_id,
+                StatusCode::SERVICE_UNAVAILABLE,
+                "upload-busy",
+            );
+        }
+    };
+    let input = match upload_intake::read(request).await {
+        Ok(input) => input,
+        Err(error) => {
+            let code = if error.status() == StatusCode::REQUEST_TIMEOUT {
+                "upload-timeout"
+            } else {
+                "invalid-upload"
+            };
+            return upload_outcomes::reject(
+                correlation.as_deref(),
+                &scope,
+                &record_id,
+                error.status(),
+                code,
+            );
+        }
+    };
+    if correlation
+        .as_ref()
+        .is_some_and(|id| id != &input.metadata.request_id)
+    {
+        return upload_outcomes::reject(
+            correlation.as_deref(),
+            &scope,
+            &record_id,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "invalid-upload",
+        );
+    }
+    if input.metadata.context.workspace_id != scope.workspace_id
+        || input.metadata.context.home_id != scope.home_id
+        || input.metadata.record_id != record_id
+        || input.metadata.source_license.status != types::LicenseStatus::Unknown
+        || input.metadata.source_license.reference.is_some()
+    {
+        return upload_outcomes::reject(
+            correlation.as_deref(),
+            &scope,
+            &record_id,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "invalid-upload",
+        );
+    }
     let inputs = upload_batch::FreshUploadInputs::capture_server_intake()
         .map_err(stock_reads::http_error)?;
     tokio::task::spawn_blocking(move || {
+        let _upload_permit = upload_permit;
         let _admitted = checked.admission_permit()?;
         let mut core = host.core.lock().map_err(|_| unavailable())?;
         let home = core.homes.iter().find(|home| home.scope == scope).cloned()
             .ok_or_else(|| failure(StatusCode::NOT_FOUND))?;
-        if input.metadata.context.workspace_id != scope.workspace_id
-            || input.metadata.context.home_id != scope.home_id
-            || input.metadata.record_id != record_id
-            || input.metadata.source_license.status != types::LicenseStatus::Unknown
-            || input.metadata.source_license.reference.is_some()
-        {
-            return Err(failure(StatusCode::UNPROCESSABLE_ENTITY));
-        }
         let selection = match namespace {
             PlaceNamespace::SourceBacked => qualified_upload_plan::resolve(&mut core, &principal, &home, &input.metadata),
             PlaceNamespace::Native => qualified_upload_plan::resolve_native(&mut core, &principal, &home, &input.metadata),

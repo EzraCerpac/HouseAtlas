@@ -30,8 +30,9 @@ export interface NativeEvidenceInput { readonly selection: EvidenceSelection; re
 /** IDs are data only. The exact file/form/session custody stays private. */
 export interface NativeEvidencePrepared { readonly binding: NativePlaceBinding; readonly recordId: string; readonly requestId: string }
 export interface NativeEvidencePending {
-  readonly prepared: NativeEvidencePrepared; readonly outcome: 'unknown' | 'committed';
+  readonly prepared: NativeEvidencePrepared; readonly outcome: 'unknown' | 'not-committed' | 'committed';
   readonly receipt?: LosslessJson; readonly evidenceId?: string; readonly assetId?: string;
+  readonly intakeError?: { readonly code: 'upload-timeout' | 'upload-interrupted' | 'invalid-upload' | 'upload-busy'; readonly httpStatus: number };
 }
 export interface NativeEvidenceClient {
   getBinding(): NativePlaceBinding | null;
@@ -41,7 +42,10 @@ export interface NativeEvidenceClient {
   prepare(admission: NativeEvidenceAdmission, input: NativeEvidenceInput, signal: AbortSignal): Promise<NativeEvidencePrepared>;
   commit(prepared: NativeEvidencePrepared, signal: AbortSignal): Promise<NativeEvidencePending>;
   pending(binding: NativePlaceBinding, recordId?: string): readonly NativeEvidencePending[];
-  inspect(binding: NativePlaceBinding, prepared: NativeEvidencePrepared, signal: AbortSignal): Promise<{ readonly admission: NativeEvidenceAdmission; readonly retrySafety: 'not-established' }>;
+  inspect(binding: NativePlaceBinding, prepared: NativeEvidencePrepared, signal: AbortSignal): Promise<{
+    readonly admission: NativeEvidenceAdmission | null; readonly retrySafety: 'not-established'; readonly outcome: 'unknown' | 'committed';
+    readonly reconciliation: 'unknown' | 'committed' | 'unavailable'; readonly reconciliationStatus?: number;
+  }>;
   resolveOriginal(binding: NativePlaceBinding, prepared: NativeEvidencePrepared, signal: AbortSignal): Promise<{ readonly href: string } | null>;
 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -66,7 +70,7 @@ function freeze<T>(value: T): T {
   return value;
 }
 function discard(response: Response) { void response.body?.cancel().catch(() => undefined); }
-async function receive(response: Response, signal: AbortSignal): Promise<LosslessJson> {
+async function receive(response: Response, signal: AbortSignal, idleTimeoutMs?: number): Promise<LosslessJson> {
   const limit = 1024 * 1024, length = response.headers.get('content-length');
   if (length !== null && (!/^[0-9]+$/.test(length) || Number(length) > limit)) { discard(response); throw new TypeError('Native evidence body exceeds bound'); }
   const reader = response.body?.getReader();
@@ -76,7 +80,18 @@ async function receive(response: Response, signal: AbortSignal): Promise<Lossles
   let bytes = new Uint8Array(16 * 1024), size = 0;
   try {
     for (;;) {
-      signal.throwIfAborted(); const part = await reader.read(); signal.throwIfAborted();
+      signal.throwIfAborted();
+      let part: ReadableStreamReadResult<Uint8Array>;
+      if (idleTimeoutMs === undefined) part = await reader.read();
+      else {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          part = await Promise.race([reader.read(), new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error('Native evidence response became idle')), idleTimeoutMs);
+          })]);
+        } finally { if (timer !== undefined) clearTimeout(timer); }
+      }
+      signal.throwIfAborted();
       if (part.done) break;
       if (part.value.byteLength > limit - size) throw new TypeError('Native evidence body exceeds bound');
       const nextSize = size + part.value.byteLength;
@@ -100,12 +115,13 @@ export function createNativeEvidenceClient(options: {
   getBinding(): NativePlaceBinding | null;
   subscribe(changed: () => void): () => void;
   owner(binding: NativePlaceBinding): object;
-  exchange(binding: NativePlaceBinding, path: string, method: 'GET' | 'POST' | 'HEAD', signal: AbortSignal, body?: FormData): Promise<Response>;
+  exchange(binding: NativePlaceBinding, path: string, method: 'GET' | 'POST' | 'HEAD', signal: AbortSignal, body?: FormData, requestId?: string): Promise<Response>;
 }): NativeEvidenceClient {
   const validator = createExactStockResultValidator();
   const admissions = new WeakSet<NativeEvidenceAdmission>();
   type Entry = { owner: object; scope: Readonly<Scope>; admission: NativeEvidenceAdmission; metadata: string;
-    digest: string; size: number; type: string; outcome: 'unknown' | 'committed'; receipt?: LosslessJson; evidenceId?: string; assetId?: string; file?: File };
+    digest: string; size: number; type: string; outcome: 'unknown' | 'not-committed' | 'committed'; receipt?: LosslessJson; evidenceId?: string; assetId?: string;
+    intakeError?: NativeEvidencePending['intakeError']; file?: File };
   const custody = new WeakMap<NativeEvidencePrepared, Entry>(), submitted = new Map<NativeEvidencePrepared, Entry>();
   const listeners = new Set<() => void>();
   const notify = () => { for (const changed of listeners) changed(); };
@@ -126,12 +142,12 @@ export function createNativeEvidenceClient(options: {
   const writable = (binding: NativePlaceBinding) => {
     if (entries(binding).some(([, e]) => e.outcome === 'unknown')) throw new Error('Prior native evidence completion is unknown; do not resend');
     while (submitted.size >= 64) {
-      const oldest = [...submitted].find(([, e]) => e.outcome === 'committed');
+      const oldest = [...submitted].find(([, e]) => e.outcome !== 'unknown');
       if (!oldest) throw new Error('Native evidence attempt limit reached');
       submitted.delete(oldest[0]);
     }
   };
-  async function bounded<T>(binding: NativePlaceBinding, outer: AbortSignal, action: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  async function bounded<T>(binding: NativePlaceBinding, outer: AbortSignal, action: (signal: AbortSignal) => Promise<T>, timeoutMs = 30000): Promise<T> {
     const owner = current(binding, outer), active = new AbortController();
     const forward = () => active.abort(outer.reason);
     const unsubscribe = options.subscribe(() => { try { current(binding, undefined, owner); } catch (error) { active.abort(error); } });
@@ -140,7 +156,7 @@ export function createNativeEvidenceClient(options: {
     const stopped = new Promise<never>((_, no) => { reject = no; });
     const stop = () => reject(active.signal.reason);
     active.signal.addEventListener('abort', stop, { once: true });
-    const timer = setTimeout(() => active.abort(new Error('Native evidence exchange exceeded deadline')), 30000);
+    const timer = setTimeout(() => active.abort(new Error('Native evidence exchange exceeded deadline')), timeoutMs);
     if (outer.aborted) forward();
     try { current(binding, active.signal, owner); const result = await Promise.race([action(active.signal), stopped]); current(binding, active.signal, owner); return result; }
     finally { clearTimeout(timer); unsubscribe(); outer.removeEventListener('abort', forward); active.signal.removeEventListener('abort', stop); }
@@ -188,11 +204,74 @@ export function createNativeEvidenceClient(options: {
     const value = await receive(response, active); current(binding, active); return decode(binding, recordId, value);
   });
   const view = (prepared: NativeEvidencePrepared, entry: Entry): NativeEvidencePending => Object.freeze({ prepared, outcome: entry.outcome,
-    ...(entry.receipt ? { receipt: entry.receipt, evidenceId: entry.evidenceId, assetId: entry.assetId } : {}) });
+    ...(entry.receipt ? { receipt: entry.receipt, evidenceId: entry.evidenceId, assetId: entry.assetId } : {}),
+    ...(entry.intakeError ? { intakeError: entry.intakeError } : {}) });
   const owned = (binding: NativePlaceBinding, prepared: NativeEvidencePrepared) => {
     const entry = submitted.get(prepared);
     if (!entry || !entries(binding).some(([p]) => p === prepared)) throw new Error('Native evidence attempt is outside the current session/home');
     return entry;
+  };
+  const acceptReceipt = (prepared: NativeEvidencePrepared, entry: Entry, value: LosslessJson) => {
+    if (!validator.validateMutation('atlas.batch.execute', '#/$defs/result_atlas_batch_execute', value)) throw new TypeError('Native evidence receipt incompatible');
+    const result = object(value), scope = object(result['resolvedScope']), data = object(result['data']);
+    const records = data['records'] as Array<Record<string, LosslessJson>>, audits = data['auditIds'] as string[];
+    if (result['requestId'] !== prepared.requestId || result['commandId'] !== 'atlas.batch.execute' || result['status'] !== 'committed' || !sameScope(scope as unknown as Scope, entry.scope)
+      || ![2, 3].includes(records.length) || audits.length !== records.length || new Set(audits).size !== audits.length) throw new TypeError('Native evidence receipt correlation differs');
+    const byType = new Map(records.map(record => [object(record['target'])['recordType'], record]));
+    if (byType.size !== records.length || !byType.has('evidence') || !byType.has('identity') || (records.length === 3 && !byType.has('asset'))) throw new TypeError('Native evidence receipt targets differ');
+    const evidence = byType.get('evidence')!, identity = byType.get('identity')!, ep = object(evidence['payload']), ip = object(identity['payload']);
+    const eid = object(evidence['target'])['recordId'] as string, references = ep['references'] as Array<Record<string, LosslessJson>>;
+    if (evidence['lifecycle'] !== 'active' || exactStockSafeInteger(evidence['revision']!) !== 1 || !uuid.test(eid)
+      || identity['lifecycle'] !== 'active' || object(identity['target'])['recordId'] !== entry.admission.identity.recordId
+      || exactStockSafeInteger(identity['revision']!) !== exactStockSafeInteger(entry.admission.identity.revision) + 1
+      || !equal(ip, { ...entry.admission.identity.payload, evidenceIds: [...entry.admission.identity.payload.evidenceIds, eid] } as unknown as LosslessJson)
+      || references.length !== 1 || references[0]!['kind'] !== 'atlas-asset' || typeof references[0]!['assetId'] !== 'string' || !uuid.test(references[0]!['assetId'])) throw new TypeError('Native evidence record correlation differs');
+    const metadata = object(parseLosslessJson(entry.metadata)), provenance = object(ep['provenance']);
+    const expectedClaim = metadata['capture']!;
+    if (ep['statement'] !== metadata['statement'] || (ep['supersedesEvidenceIds'] as LosslessJson[]).length !== 0
+      || provenance['source'] !== null || provenance['sourceRevision'] !== null || provenance['sourceConfidence'] !== null || provenance['factAt'] !== null || provenance['evidenceBasis'] !== 'unknown'
+      || !equal(provenance['uncertainty']!, { status: 'unknown', explanation: null }) || typeof provenance['vantage'] !== 'string'
+      || !provenance['vantage'].startsWith('Browser selection claim v1: ') || !equal(parseLosslessJson(provenance['vantage'].slice('Browser selection claim v1: '.length)), expectedClaim)) throw new TypeError('Native evidence original provenance differs');
+    const assetId = references[0]!['assetId'] as string, asset = byType.get('asset');
+    if (asset) {
+      const payload = object(asset['payload']);
+      if (object(asset['target'])['recordId'] !== assetId || asset['lifecycle'] !== 'active' || exactStockSafeInteger(asset['revision']!) !== 1
+        || payload['sha256'] !== entry.digest || exactStockSafeInteger(payload['byteSize']!) !== entry.size || payload['contentType'] !== entry.type
+        || payload['owner'] !== 'atlas' || payload['purpose'] !== 'evidence-original' || payload['availability'] !== 'available'
+        || !equal(payload['sourceLicense']!, metadata['sourceLicense']!) || (entry.type === 'image/jpeg' && payload['previewPolicy'] !== 'download-only')) throw new TypeError('Native original asset differs');
+    }
+    entry.receipt = freeze(value); entry.evidenceId = eid; entry.assetId = assetId; entry.outcome = 'committed'; delete entry.file;
+  };
+  const intakeRejection = (prepared: NativeEvidencePrepared, entry: Entry, response: Response, value: LosslessJson) => {
+    const row = object(value); keys(row, ['schemaVersion', 'kind', 'requestId', 'scope', 'recordId', 'outcome', 'phase', 'error']);
+    const scope = object(row['scope']!), error = object(row['error']!);
+    keys(scope, ['workspaceId', 'homeId']); keys(error, ['code', 'httpStatus']);
+    const code = error['code'], status = exactStockSafeInteger(error['httpStatus']!);
+    const statusMatchesCode = (code === 'upload-timeout' && status === 408)
+      || (code === 'upload-busy' && status === 503)
+      || (code === 'invalid-upload' && [400, 413, 415, 422].includes(status))
+      || (code === 'upload-interrupted' && status === 400);
+    if (exactStockSafeInteger(row['schemaVersion']!) !== 1 || row['kind'] !== 'native-evidence-outcome' || row['requestId'] !== prepared.requestId
+      || row['recordId'] !== prepared.recordId || !sameScope(scope as unknown as Scope, entry.scope) || row['outcome'] !== 'not-committed' || row['phase'] !== 'intake'
+      || !statusMatchesCode || status !== response.status) throw new TypeError('Native evidence intake outcome differs');
+    entry.outcome = 'not-committed';
+    entry.intakeError = Object.freeze({ code: code as NonNullable<NativeEvidencePending['intakeError']>['code'], httpStatus: status });
+    delete entry.file;
+  };
+  const reconcile = (prepared: NativeEvidencePrepared, entry: Entry, value: LosslessJson) => {
+    const row = object(value), outcome = row['outcome'];
+    const common = ['schemaVersion', 'kind', 'requestId', 'scope', 'recordId', 'outcome'];
+    const scope = object(row['scope']!); keys(scope, ['workspaceId', 'homeId']);
+    if (exactStockSafeInteger(row['schemaVersion']!) !== 1 || row['kind'] !== 'native-evidence-reconciliation' || row['requestId'] !== prepared.requestId
+      || row['recordId'] !== prepared.recordId || !sameScope(scope as unknown as Scope, entry.scope)) throw new TypeError('Native evidence reconciliation correlation differs');
+    if (outcome === 'committed') {
+      keys(row, [...common, 'result']);
+      acceptReceipt(prepared, entry, row['result']!);
+    } else if (outcome === 'unknown') {
+      keys(row, [...common, 'retrySafety']);
+      if (row['retrySafety'] !== 'not-established') throw new TypeError('Native evidence reconciliation retry status differs');
+      // This response is a lookup only. It does not release the one-shot marker.
+    } else throw new TypeError('Native evidence reconciliation outcome differs');
   };
   return {
     getBinding() {
@@ -239,46 +318,41 @@ export function createNativeEvidenceClient(options: {
         const body = new FormData(); body.append('metadata', entry.metadata); body.append('file', entry.file!, entry.file!.name);
         // Conservative one-shot marker precedes the sole transport call. No native stock input is synthesized.
         submitted.set(prepared, entry); notify(); current(binding, active, entry.owner);
-        const response = await options.exchange(binding, path(binding, prepared.recordId) + '/evidence', 'POST', active, body);
-        if (response.status !== 200) { discard(response); throw new Error('Native evidence completion unknown'); }
-        const value = await receive(response, active); current(binding, active, entry.owner);
-        if (!validator.validateMutation('atlas.batch.execute', '#/$defs/result_atlas_batch_execute', value)) throw new TypeError('Native evidence receipt incompatible');
-        const result = object(value), scope = object(result['resolvedScope']), data = object(result['data']);
-        const records = data['records'] as Array<Record<string, LosslessJson>>, audits = data['auditIds'] as string[];
-        if (result['requestId'] !== prepared.requestId || result['commandId'] !== 'atlas.batch.execute' || result['status'] !== 'committed' || !sameScope(scope as unknown as Scope, entry.scope)
-          || ![2, 3].includes(records.length) || audits.length !== records.length || new Set(audits).size !== audits.length) throw new TypeError('Native evidence receipt correlation differs');
-        const byType = new Map(records.map(record => [object(record['target'])['recordType'], record]));
-        if (byType.size !== records.length || !byType.has('evidence') || !byType.has('identity') || (records.length === 3 && !byType.has('asset'))) throw new TypeError('Native evidence receipt targets differ');
-        const evidence = byType.get('evidence')!, identity = byType.get('identity')!, ep = object(evidence['payload']), ip = object(identity['payload']);
-        const eid = object(evidence['target'])['recordId'] as string, references = ep['references'] as Array<Record<string, LosslessJson>>;
-        if (evidence['lifecycle'] !== 'active' || exactStockSafeInteger(evidence['revision']!) !== 1 || !uuid.test(eid)
-          || identity['lifecycle'] !== 'active' || object(identity['target'])['recordId'] !== entry.admission.identity.recordId
-          || exactStockSafeInteger(identity['revision']!) !== exactStockSafeInteger(entry.admission.identity.revision) + 1
-          || !equal(ip, { ...entry.admission.identity.payload, evidenceIds: [...entry.admission.identity.payload.evidenceIds, eid] } as unknown as LosslessJson)
-          || references.length !== 1 || references[0]!['kind'] !== 'atlas-asset' || typeof references[0]!['assetId'] !== 'string' || !uuid.test(references[0]!['assetId'])) throw new TypeError('Native evidence record correlation differs');
-        const metadata = object(parseLosslessJson(entry.metadata)), provenance = object(ep['provenance']);
-        const expectedClaim = metadata['capture']!;
-        if (ep['statement'] !== metadata['statement'] || (ep['supersedesEvidenceIds'] as LosslessJson[]).length !== 0
-          || provenance['source'] !== null || provenance['sourceRevision'] !== null || provenance['sourceConfidence'] !== null || provenance['factAt'] !== null || provenance['evidenceBasis'] !== 'unknown'
-          || !equal(provenance['uncertainty']!, { status: 'unknown', explanation: null }) || typeof provenance['vantage'] !== 'string'
-          || !provenance['vantage'].startsWith('Browser selection claim v1: ') || !equal(parseLosslessJson(provenance['vantage'].slice('Browser selection claim v1: '.length)), expectedClaim)) throw new TypeError('Native evidence original provenance differs');
-        const assetId = references[0]!['assetId'] as string, asset = byType.get('asset');
-        if (asset) {
-          const payload = object(asset['payload']);
-          if (object(asset['target'])['recordId'] !== assetId || asset['lifecycle'] !== 'active' || exactStockSafeInteger(asset['revision']!) !== 1
-            || payload['sha256'] !== entry.digest || exactStockSafeInteger(payload['byteSize']!) !== entry.size || payload['contentType'] !== entry.type
-            || payload['owner'] !== 'atlas' || payload['purpose'] !== 'evidence-original' || payload['availability'] !== 'available'
-            || !equal(payload['sourceLicense']!, metadata['sourceLicense']!) || (entry.type === 'image/jpeg' && payload['previewPolicy'] !== 'download-only')) throw new TypeError('Native original asset differs');
+        // The one-shot POST and its response body share the 90s commit bound. Fetch exposes no upload-progress signal,
+        // so the 15s idle timer applies only after response headers arrive.
+        const response = await options.exchange(binding, path(binding, prepared.recordId) + '/evidence', 'POST', active, body, prepared.requestId);
+        const value = await receive(response, active, 15000);
+        current(binding, active, entry.owner);
+        if (response.status !== 200) {
+          intakeRejection(prepared, entry, response, value); notify(); return view(prepared, entry);
         }
-        entry.receipt = freeze(value); entry.evidenceId = eid; entry.assetId = assetId; entry.outcome = 'committed'; delete entry.file;
+        acceptReceipt(prepared, entry, value);
         notify(); return view(prepared, entry);
-      });
+      }, 90000);
     },
     pending(binding, recordId) { return entries(binding).filter(([p]) => recordId === undefined || p.recordId === recordId).map(([p, e]) => view(p, e)); },
     async inspect(binding, prepared, signal) {
-      owned(binding, prepared);
-      const admission = await load(binding, prepared.recordId, signal); owned(binding, prepared); current(binding, signal);
-      return { admission, retrySafety: 'not-established' };
+      const entry = owned(binding, prepared);
+      return bounded(binding, signal, async active => {
+        let reconciliation: 'unknown' | 'committed' | 'unavailable' = 'unavailable', reconciliationStatus: number | undefined;
+        try {
+          const response = await options.exchange(binding, path(binding, prepared.recordId) + '/evidence/requests/' + encodeURIComponent(prepared.requestId), 'GET', active);
+          current(binding, active, entry.owner);
+          if (response.status === 200) {
+            reconcile(prepared, entry, await receive(response, active));
+            reconciliation = entry.outcome === 'committed' ? 'committed' : 'unknown';
+            if (entry.outcome === 'committed') notify();
+          } else { reconciliationStatus = response.status; discard(response); }
+        } catch { /* Keep the held marker and continue to the fresh admission read. */ }
+        current(binding, active, entry.owner);
+        let admission: NativeEvidenceAdmission | null = null;
+        try { admission = await load(binding, prepared.recordId, active); }
+        catch { /* A validated committed receipt remains committed if this separate read fails. */ }
+        owned(binding, prepared); current(binding, active, entry.owner);
+        if (entry.outcome === 'committed') reconciliation = 'committed';
+        return { admission, retrySafety: 'not-established' as const, outcome: entry.outcome === 'committed' ? 'committed' as const : 'unknown' as const,
+          reconciliation, ...(reconciliationStatus === undefined ? {} : { reconciliationStatus }) };
+      });
     },
     async resolveOriginal(binding, prepared, signal) {
       const entry = owned(binding, prepared);

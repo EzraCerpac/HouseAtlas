@@ -40,6 +40,7 @@ mod upload;
 mod upload_asset;
 mod upload_batch;
 pub mod upload_intake;
+mod upload_outcomes;
 use crate::{
     access as a,
     app::{Core, HomeAuthority, Reads, RequestPrincipal, capture_homes},
@@ -87,6 +88,8 @@ pub struct Host {
     response_ids: Arc<ResponseIds>,
     pages: Arc<Mutex<pages::Pages>>,
     admission: Arc<admission::Admission>,
+    // Large bodies retain at most four original buffers, within global slots.
+    upload_slots: Arc<tokio::sync::Semaphore>,
     mcp: Arc<Mutex<agents::mcp_transport::TransportSessions>>,
     mcp_command_profile: McpCommandProfile,
     // Same native Access owner; immutable configured scopes copied at startup.
@@ -140,6 +143,7 @@ impl Host {
             response_ids: Arc::new(ResponseIds::new()?),
             pages: Arc::new(Mutex::new(pages::Pages::default())),
             admission: Arc::new(admission::Admission::default()),
+            upload_slots: Arc::new(tokio::sync::Semaphore::new(4)),
             mcp: Arc::new(Mutex::new(
                 agents::mcp_transport::TransportSessions::default(),
             )),
@@ -462,6 +466,7 @@ async fn response_adapter(State(host): State<Host>, mut request: Request, next: 
     if (response.status().is_client_error() || response.status().is_server_error())
         && !agents::is_stock_response(&response)
         && !agents::mcp_transport::is_mcp_response(&response)
+        && !upload_outcomes::is_outcome_response(&response)
     {
         let error = response
             .extensions()
@@ -951,6 +956,7 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/places/{record_id}/evidence", post(upload::command))
         .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/native-places/{record_id}", get(native_upload_admission::place).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/native-places/{record_id}/evidence", post(upload::native_command))
+        .route("/api/atlas/editing/v1/workspaces/{workspace_id}/homes/{home_id}/native-places/{record_id}/evidence/requests/{request_id}", get(upload_outcomes::inspect).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/admission", get(agents::admission).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/homebox-pinned-file", get(homebox_pinned_files::capture).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v4/workspaces/{workspace_id}/homes/{home_id}/homebox-pinned-file", get(homebox_pinned_files::capture_v4).head(auth::session_head).fallback(auth::session_head))

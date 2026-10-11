@@ -14,6 +14,9 @@ use storage::Contract;
 pub const MAX_FILE_BYTES: usize = 10 * 1024 * 1024;
 pub const MAX_METADATA_BYTES: usize = 64 * 1024;
 pub const MAX_BODY_BYTES: usize = MAX_FILE_BYTES + MAX_METADATA_BYTES + 64 * 1024;
+/// Bound slow original transfer separately from post-intake Media work.
+pub const INTAKE_TOTAL: Duration = Duration::from_secs(60);
+pub const INTAKE_IDLE: Duration = Duration::from_secs(15);
 
 pub use super::capture_claim::BrowserSelectionClaim;
 
@@ -177,9 +180,9 @@ async fn collect(
     maximum: usize,
 ) -> Result<Vec<u8>, IntakeError> {
     let mut bytes = Vec::new();
-    while let Some(chunk) = field
-        .chunk()
+    while let Some(chunk) = tokio::time::timeout(INTAKE_IDLE, field.chunk())
         .await
+        .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT))?
         .map_err(|error| IntakeError(error.status()))?
     {
         if chunk.len() > maximum.saturating_sub(bytes.len()) {
@@ -195,9 +198,9 @@ async fn parse(mut request: Request) -> Result<UploadInput, IntakeError> {
         .await
         .map_err(|_| IntakeError(StatusCode::UNSUPPORTED_MEDIA_TYPE))?;
     let metadata = {
-        let mut field = fields
-            .next_field()
+        let mut field = tokio::time::timeout(INTAKE_IDLE, fields.next_field())
             .await
+            .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT))?
             .map_err(|error| IntakeError(error.status()))?
             .ok_or_else(invalid)?;
         if field.name() != Some("metadata") || field.file_name().is_some() {
@@ -206,9 +209,9 @@ async fn parse(mut request: Request) -> Result<UploadInput, IntakeError> {
         validate_metadata(&collect(&mut field, MAX_METADATA_BYTES).await?)?
     };
     let bytes = {
-        let mut field = fields
-            .next_field()
+        let mut field = tokio::time::timeout(INTAKE_IDLE, fields.next_field())
             .await
+            .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT))?
             .map_err(|error| IntakeError(error.status()))?
             .ok_or_else(invalid)?;
         if field.name() != Some("file")
@@ -223,9 +226,9 @@ async fn parse(mut request: Request) -> Result<UploadInput, IntakeError> {
         }
         bytes
     };
-    if fields
-        .next_field()
+    if tokio::time::timeout(INTAKE_IDLE, fields.next_field())
         .await
+        .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT))?
         .map_err(|error| IntakeError(error.status()))?
         .is_some()
     {
@@ -293,7 +296,7 @@ pub async fn read(request: Request) -> Result<UploadInput, IntakeError> {
     headers::single(request.headers(), "content-type")
         .map_err(|_| IntakeError(StatusCode::UNSUPPORTED_MEDIA_TYPE))?
         .ok_or(IntakeError(StatusCode::UNSUPPORTED_MEDIA_TYPE))?;
-    tokio::time::timeout(Duration::from_secs(10), parse(request))
+    tokio::time::timeout(INTAKE_TOTAL, parse(request))
         .await
         .map_err(|_| IntakeError(StatusCode::REQUEST_TIMEOUT))?
 }

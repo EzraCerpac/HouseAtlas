@@ -29,6 +29,8 @@ mod stock;
 #[path = "stock_presence.rs"]
 mod stock_presence;
 pub use stock_presence::*;
+#[path = "native_upload_outcome.rs"]
+mod native_upload_outcome;
 #[path = "stock_asset_review.rs"]
 mod stock_asset_review;
 #[path = "stock_asset_upload.rs"]
