@@ -496,7 +496,9 @@ createRoot(document.getElementById('root')).render(<TestHost />);
     && Boolean(Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Review retained originals'))
     && !Array.from(document.querySelectorAll('button')).some(b => b.textContent.trim() === 'Submit reviewed association')`),
     'The association surface returns to its unprepared state after evidence invalidation');
-  report.assertions.push('prepared-review evidence invalidation clears the prepared action without stranding the association surface hidden');
+  assert.equal(await evaluate('document.body.innerText.includes("Current association synthetic-target")'), true,
+    'Evidence invalidation preserves the current association readback while access remains active');
+  report.assertions.push('prepared-review evidence invalidation clears the prepared action, preserves current readback, and keeps the association surface available');
 
   const readsBeforeSubscriptionRace = await evaluate('window.__test.ledger.reads');
   await evaluate('window.__test.mountSubscriptionRace()');
