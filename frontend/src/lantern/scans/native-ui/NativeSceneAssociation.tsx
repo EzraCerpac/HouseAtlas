@@ -54,6 +54,8 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
   const reviewCandidate = candidate && buildingId === candidate.buildingId ? candidate : null;
   const heads = binding ? knownHeads(client, binding) : null;
   const review = prepared?.owner === owner ? prepared.value : null;
+  const reviewRef = useRef(review); reviewRef.current = review;
+  const preparedRef = useRef(prepared); preparedRef.current = prepared;
   const observation = read?.owner === owner ? read.value : null;
   const submissionInFlight = flight.current?.owner === owner && flight.current.submission;
   const visible = active() && (!review || client.isPreparedCurrent(review) || submissionInFlight);
@@ -71,12 +73,21 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
     setStatement(''); setReason('');
   }, [candidate, client, owner]);
 
-  useLayoutEffect(() => {
+  useLayoutEffect(() => { if (surface.current) surface.current.hidden = !visible; }, [owner, visible]);
+
+  useLayoutEffect(() => () => {
+    if (flight.current?.owner === owner) { flight.current.controller.abort(); flight.current = null; }
+    const activePrepared = preparedRef.current;
+    if (activePrepared?.owner === owner) client.releasePrepared(activePrepared.value);
+    if (surface.current) surface.current.hidden = true;
+  }, [client, owner]);
+
+  useEffect(() => {
     if (surface.current) surface.current.hidden = !visible;
     const invalidate = () => {
       if (surface.current) surface.current.hidden = true;
       flight.current?.controller.abort(); flight.current = null;
-      if (prepared?.owner === owner) client.releasePrepared(prepared.value);
+      if (reviewRef.current) client.releasePrepared(reviewRef.current);
       setPrepared(null); setRead(null); setStatus(null); setBusy(null);
       repaint(value => value + 1);
     };
@@ -87,14 +98,11 @@ export function NativeSceneAssociation({ client, candidate, geometry, canPrepare
       const submittedPending = !!running && submittedOutcome !== undefined
         && submittedOutcome === running.pendingNotification;
       if (submittedPending) running.pendingNotification = submittedOutcome === 'unknown' ? 'committed' : null;
-      if (!submittedPending && (!active() || review && !client.isPreparedCurrent(review))) invalidate();
+      const currentReview = reviewRef.current;
+      if (!submittedPending && (!active() || currentReview && !client.isPreparedCurrent(currentReview))) invalidate();
       else repaint(value => value + 1); });
-    return () => { stop();
-      if (flight.current?.owner === owner) { flight.current.controller.abort(); flight.current = null; }
-      if (prepared?.owner === owner) client.releasePrepared(prepared.value);
-      if (surface.current) surface.current.hidden = true;
-    };
-  }, [client, owner, visible, prepared]);
+    return stop;
+  }, [client, owner]);
 
   useEffect(() => {
     if (!buildingId || !geometry || !active()) return;

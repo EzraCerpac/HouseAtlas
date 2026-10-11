@@ -59,7 +59,7 @@ import { NativeSceneCandidate } from ${JSON.stringify(join(frontend, 'src/lanter
 
 const buildingId = '00000000-0000-4000-8000-000000000003';
 const listeners = new Set();
-const ledger = { canCreate: false, unknown: false, committed: false, reads: 0, prepares: 0, submits: 0, submitAborts: 0,
+const ledger = { canCreate: false, unknown: false, committed: false, reads: 0, prepares: 0, releases: 0, submits: 0, submitAborts: 0,
   submitSettled: false, resolves: 0, sceneRefreshes: 0, resolved: false, preparedCurrent: true,
   currentHead: null, displayedHead: 'synthetic-old-head', lastReadId: null, deferRead: false, deferredReads: [],
   resolveMismatch: false, submitBehavior: 'abort' };
@@ -88,7 +88,7 @@ const client = {
   async prepare() { ledger.prepares++; ledger.committed = false; ledger.unknown = false; ledger.submitSettled = false;
     ledger.prepared = { buildingId, requestId: 'synthetic-request', targetId: 'synthetic-target',
     body: '{}', requestDigest: 'a'.repeat(64), payload: {} }; return ledger.prepared; },
-  releasePrepared() {},
+  releasePrepared() { ledger.releases++; },
   async submit(_prepared, _geometry, signal) { ledger.submits++; ledger.unknown = true; ledger.committed = false;
     ledger.preparedCurrent = false;
     for (const fn of listeners) fn();
@@ -334,6 +334,41 @@ createRoot(document.getElementById('root')).render(<TestHost />);
   assert.equal(await evaluate('window.__test.ledger.committed && !window.__test.ledger.unknown'), true);
   assert.equal(await evaluate('document.querySelector("[data-testid=displayed-head]").textContent === "synthetic-target"'), true);
   report.assertions.push('UNKNOWN resolution requires the exact committed pending payload; successful async submission survives its committed notification and refreshes the displayed scene');
+
+  const readsBeforePreparedReload = await evaluate('window.__test.ledger.reads');
+  const refreshesBeforePreparedReload = await evaluate('window.__test.ledger.sceneRefreshes');
+  await evaluate(`(()=>{
+    const set=(element,value)=>{const prototype=element instanceof HTMLInputElement?HTMLInputElement.prototype:HTMLTextAreaElement.prototype;
+      Object.getOwnPropertyDescriptor(prototype,'value').set.call(element,value);element.dispatchEvent(new Event('input',{bubbles:true}));};
+    const inputs=Array.from(document.querySelectorAll('input'));
+    set(inputs[0],'00000000-0000-4000-8000-000000000004');set(inputs[1],'00000000-0000-4000-8000-000000000005');
+    for(const area of Array.from(document.querySelectorAll('textarea')).slice(0,3))set(area,'[]');
+  })()`);
+  await until(() => evaluate('document.querySelectorAll("textarea").length === 5'), 'Candidate fields for a prepared-reload check');
+  await evaluate(`(()=>{const areas=Array.from(document.querySelectorAll('textarea'));const setter=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;
+    for(const [i,v] of [[3,'Prepared reload review'],[4,'Prepared reload reason']]){setter.call(areas[i],v);areas[i].dispatchEvent(new Event('input',{bubbles:true}));}})()`);
+  await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Review retained originals").click()');
+  await until(() => evaluate('window.__test.ledger.prepares === 3 && Boolean(Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Submit reviewed association"))'), 'Prepare a review before explicit reload');
+  await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Reload current association").click()');
+  await until(() => evaluate('document.querySelector("[role=alertdialog]") !== null'), 'Confirm reload after preparing a review');
+  await evaluate('window.__test.deferNextRead()');
+  const releasesBeforeReload = await evaluate('window.__test.ledger.releases');
+  await evaluate('Array.from(document.querySelectorAll("button")).find(b => b.textContent.trim() === "Discard draft and reload").click()');
+  await until(() => evaluate(`window.__test.ledger.reads === ${readsBeforePreparedReload + 1}
+    && window.__test.ledger.deferredReads.length === 1
+    && Array.from(document.querySelectorAll('input,textarea')).length === 5
+    && Array.from(document.querySelectorAll('input,textarea')).every(field => field.value === '' && field.disabled)`),
+    'A prepared review is released while its confirmed reload read remains active and locks the cleared draft');
+  assert.equal(await evaluate(`window.__test.ledger.releases === ${releasesBeforeReload + 1}`), true,
+    'Confirmed discard releases the existing prepared review exactly once');
+  await evaluate('window.__test.completeRead()');
+  await until(() => evaluate(`window.__test.ledger.reads === ${readsBeforePreparedReload + 2}
+    && window.__test.ledger.sceneRefreshes === ${refreshesBeforePreparedReload + 1}`),
+    'Prepared-review reload completes, refreshes the scene and remounts its reader');
+  assert.equal(await evaluate('Array.from(document.querySelectorAll("input,textarea")).every(field => !field.disabled)'), true,
+    'The editor unlocks after the prepared-review reload settles');
+  report.assertions.push('confirmed reload keeps its exact read alive after releasing a prepared review, locks draft edits while pending, and unlocks after scene refresh');
+
   assert.deepEqual(cdp.errors, [], 'No browser runtime exceptions');
   assert(cdp.requests.length >= 1 && cdp.requests.every(url => url.startsWith(origin + '/')), 'Only owned loopback browser requests');
   report.requests = cdp.requests.map(url => new URL(url).pathname);
