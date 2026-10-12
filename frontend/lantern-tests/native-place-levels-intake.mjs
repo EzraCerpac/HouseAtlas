@@ -109,12 +109,14 @@ for (const [kind, label, suffix] of [['room', 'Synthetic room', 1], ['other', 'S
   assert.deepEqual(batch[3].preconditions.guards.map(value => value.target.recordType), ['identity', 'location-semantics']);
   assert.notEqual(batch[1].target.recordId, packageUUID);
 }
-// Hold the actual JCS digest at its first async boundary and race a duplicate
-// submit of the same issued object. The duplicate must be rejected before it
-// can reach the fake transport; release the digest so the original can close.
-const duplicatePrepared = client.prepareCreate(binding, { label: 'Synthetic concurrent room', kind: 'room', parent: {
+// Separate form submits create separate prepared objects. Hold the first at
+// the actual JCS digest boundary; reject the second until the first closes.
+const concurrentInput = { label: 'Synthetic concurrent room', kind: 'room', parent: {
   identity: records.get(`identity/${floorId}`), classification: records.get(`location-semantics/${floorSemanticsId}`),
-}, statement: 'Synthetic concurrent-submit regression.', reason: 'Synthetic native place intake' });
+}, statement: 'Synthetic concurrent-submit regression.', reason: 'Synthetic native place intake' };
+const firstPrepared = client.prepareCreate(binding, concurrentInput);
+const secondPrepared = client.prepareCreate(binding, concurrentInput);
+assert.notEqual(firstPrepared, secondPrepared);
 let digestStartedResolve, releaseDigest;
 const digestStarted = new Promise(resolve => { digestStartedResolve = resolve; });
 const heldDigest = new Promise(resolve => { releaseDigest = resolve; });
@@ -126,11 +128,12 @@ subtle.digest = async function (...args) {
   return originalDigest.apply(subtle, args);
 };
 const beforeDuplicate = posted.length;
-const firstCommit = client.commit(duplicatePrepared, new AbortController().signal);
+const firstCommit = client.commit(firstPrepared, new AbortController().signal);
 let concurrencyFailure;
 try {
   await digestStarted;
-  await assert.rejects(client.commit(duplicatePrepared, new AbortController().signal), /already being committed/);
+  await assert.rejects(client.commit(secondPrepared, new AbortController().signal), /another native place request is being committed/i);
+  assert.throws(() => client.prepareCreate(binding, concurrentInput), /another native place request is being committed/i);
   assert.equal(posted.length, beforeDuplicate);
 } catch (error) {
   concurrencyFailure = error;
@@ -142,6 +145,9 @@ try {
 try { await firstCommit; } catch (error) { concurrencyFailure ??= error; }
 if (concurrencyFailure) throw concurrencyFailure;
 assert.equal(posted.length, beforeDuplicate + 1);
-assert.equal(posted[beforeDuplicate].requestId, duplicatePrepared.requestId);
+assert.equal(posted[beforeDuplicate].requestId, firstPrepared.requestId);
+assert.equal((await client.commit(secondPrepared, new AbortController().signal)).status, 'committed');
+assert.equal(posted.length, beforeDuplicate + 2);
+assert.equal(posted[beforeDuplicate + 1].requestId, secondPrepared.requestId);
 assert(posted.every(request => request.payload.commands.every(command => command.target.recordId !== packageUUID)));
-console.log('PASS synthetic native place intake: reviewed floor/room/other membership; client-issued JCS commits; duplicate concurrent submit blocked before dispatch; client IDs separate from package UUID; elevation omitted');
+console.log('PASS synthetic native place intake: reviewed floor/room/other membership; client-issued JCS commits; separate concurrent preparations serialized and later commit accepted; client IDs separate from package UUID; elevation omitted');

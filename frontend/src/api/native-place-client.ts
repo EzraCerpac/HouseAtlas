@@ -114,8 +114,8 @@ export function createNativePlaceClient(options: {
   const validator = createExactStockResultValidator();
   const transport = options.transport ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
   const dispatched = new WeakSet<NativePlacePrepared>();
-  const committing = new WeakSet<NativePlacePrepared>();
   const issued = new WeakSet<NativePlacePrepared>();
+  let inFlightCommit: NativePlacePrepared | null = null;
   const retained = createRetainedIntentClient(transport);
   // Memory-only submitted inputs survive form/view remount; the private session is never returned.
   const ledger = new Map<NativePlacePrepared, { session: AtlasSessionInfo; outcome: 'unknown' | 'committed'; receipt?: LosslessJson; inspection?: RetainedIntentRead }>();
@@ -143,7 +143,9 @@ export function createNativePlaceClient(options: {
     return [...ledger].filter(([prepared, entry]) => entry.session === cached!.session
       && prepared.binding.scope.workspaceId === binding.scope.workspaceId && prepared.binding.scope.homeId === binding.scope.homeId);
   };
-  const writable = (binding: NativePlaceBinding) => {
+  const writable = (binding: NativePlaceBinding, allowedCommit?: NativePlacePrepared) => {
+    if (inFlightCommit && inFlightCommit !== allowedCommit)
+      throw new Error('Another native place request is being committed');
     while (ledger.size >= 64) {
       const oldest = [...ledger].find(([, entry]) => entry.outcome === 'committed');
       if (!oldest) break;
@@ -299,7 +301,7 @@ export function createNativePlaceClient(options: {
       if (!issued.has(prepared)) throw new Error('Native prepared request was not issued by this client');
       current(prepared.binding, signal);
       if (dispatched.has(prepared)) throw new Error('Native prepared request was already dispatched; inspect retained completion');
-      if (committing.has(prepared)) throw new Error('Native prepared request is already being committed');
+      if (inFlightCommit) throw new Error('Another native place request is being committed');
       // Repeat the complete-body transport bound before any public-input dispatch or ledger write.
       if (typeof prepared.body !== 'string' || new TextEncoder().encode(prepared.body).byteLength > 16384)
         throw new TypeError('Native place request exceeds native transport bound');
@@ -312,15 +314,16 @@ export function createNativePlaceClient(options: {
         || parsed.payload.commands.some(child => child.context.workspaceId !== prepared.binding.scope.workspaceId || child.context.homeId !== prepared.binding.scope.homeId
           || !validator.validateNativeRequest(child.commandId, child as unknown as LosslessJson))) throw new TypeError('Native prepared scope or child differs');
       current(prepared.binding, signal);
-      // Reserve synchronously before digest computation's first await so two
-      // callers cannot both pass the same issued handle into a POST.
-      committing.add(prepared);
+      // Reserve the client's single write slot synchronously before digest
+      // computation's first await; separate form submissions get separate
+      // handles, so per-handle reservation alone would not serialize them.
+      inFlightCommit = prepared;
       try {
         const requestDigest = await quantityRequestDigest(JSON.parse(prepared.body) as StockRequestEnvelope);
         current(prepared.binding, signal);
         const result = await bounded(signal, async active => {
           current(prepared.binding, active);
-          writable(prepared.binding);
+          writable(prepared.binding, prepared);
           dispatched.add(prepared);
           ledger.set(prepared, { session: cached!.session, outcome: 'unknown' });
           notify();
@@ -348,7 +351,7 @@ export function createNativePlaceClient(options: {
       } finally {
         // A pre-dispatch digest/context failure is safe to retry; a POST keeps
         // its separate dispatched/unknown ledger hold after this reservation.
-        committing.delete(prepared);
+        if (inFlightCommit === prepared) inFlightCommit = null;
       }
     },
   };

@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d4318404ff0e7b494faceb7bf00c313c55638b6b43c119127fc0b360ca26dbde",
+  "sourceDigestSha256": "a0b2163bac788637fa0c77ee54f0f0ba09a5f4f342c853d835cfeae18619a45c",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -92,8 +92,8 @@
       "path": "README.md",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 54903,
-      "sha256": "48c09c71a9c93ba35342f79ef5437c745e6d68b1894b27a80129dfa941de1975"
+      "bytes": 54955,
+      "sha256": "35e49159f31cc69188c3c95dbfbe0e8717847ef9c39da598a0d9d74f9859dc6b"
     },
     {
       "path": "adapters/homebox/README.md",
@@ -5383,8 +5383,8 @@
     {
       "path": "docs/geometry/assistant-native-place-intake.md",
       "mode": "100644",
-      "bytes": 2602,
-      "sha256": "3b28e4969bf113e212dcf4b323a58b66a30b39c93613e2ee93553a3f61f0addc",
+      "bytes": 2747,
+      "sha256": "aba8c7b65002e1b00eadae03e7cf4a9fdba0300a48882cf6df4df506a51fcc73",
       "owner": "web"
     },
     {
@@ -6293,8 +6293,8 @@
     {
       "path": "frontend/lantern-tests/native-place-levels-intake.mjs",
       "mode": "100644",
-      "bytes": 10393,
-      "sha256": "7240213d65307a20e62342613a57742dc5a4d3e2ffa335ea68b32b96d942306d",
+      "bytes": 10854,
+      "sha256": "e9f1c046910273aace852f5f25fdea415cfc20ad83a408ffb70933882c550725",
       "owner": "web"
     },
     {
@@ -6706,8 +6706,8 @@
     {
       "path": "frontend/src/api/native-place-client.ts",
       "mode": "100644",
-      "bytes": 29046,
-      "sha256": "b9d80d2adf73c0055353b8a0f9ab385ada94c95882bf1ef91ac94ce1fb0d2eb8",
+      "bytes": 29321,
+      "sha256": "5dff04c836fc0fbb062475f6d6a28b57bb3e1ca77c37e57ac48edb06d804f33e",
       "owner": "web"
     },
     {
