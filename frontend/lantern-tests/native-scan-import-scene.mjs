@@ -414,7 +414,8 @@ try{
         const largePayload={...base.payload,acceptedReceipt:{receiptId:'synthetic-large-room-review',canonicalJson:largeReceipt,canonicalSha256:hash(largeReceipt),anchors:largeAnchors},
           sourceDocuments:base.payload.sourceDocuments.map(d=>d.role==='primary-scene'?{...d,evidenceId:largeEvidenceId,evidenceRevision:1,originalAssetId:largeAssetId,originalAssetRevision:1,originalSha256:hash(largeBytes)}:d),
           sourceFloors:base.payload.sourceFloors.map(f=>({...f,nativeFloorKey:floorKey()})),
-          roomMappings:largeEntries.map(e=>({...base.payload.roomMappings[0],sourceRoomId:e.id,sourceAnchorIds:e.sourceAnchorIds,evidenceIds:[largeEvidenceId]}))};
+          roomMappings:largeEntries.map(e=>({...base.payload.roomMappings[0],sourceRoomId:e.id,sourceAnchorIds:e.sourceAnchorIds,
+            evidenceIds:[largeEvidenceId,base.payload.sourceDocuments.find(d=>d.role==='documentary-sheet').evidenceId]}))};
         const first={...base,payload:largePayload},second={...base,recordId:U(7002),lastAuditId:U(7003),payload:{...largePayload,associationVersion:2,previousAssociationId:first.recordId}};
         const {createExactStockResultValidator}=await import(await source(resolve(frontend,'src/numeric/schema-validator.ts')));
         const {parseLosslessJson,stringifyLosslessJson}=await import(await source(resolve(frontend,'src/numeric/lossless-json.ts')));

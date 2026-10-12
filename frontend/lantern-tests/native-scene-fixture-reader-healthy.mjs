@@ -58,7 +58,7 @@ async function readHealthyFixture(createNativeSceneSourceClient, ExactDecimal,
   const roomReceipt = { id: 'synthetic-room-receipt', sha256: await sha(receiptCanonicalJson) };
   const rooms = ['Alpha', 'Beta', 'Unmatched'].map((label, index) => ({ id: `room-${label.toLowerCase()}`, label,
     sourceFloorKey, sourceOriginalSha256: sourceFloorHash, sourceAnchorIds: label === 'Alpha'
-      ? [`anchor:${label}`, `anchor:${label}:second`] : label === 'Unmatched' ? [`anchor:${label}`, `anchor:${label}:second`]
+      ? ['a'.repeat(512), `anchor:${label}:second`] : label === 'Unmatched' ? [`anchor:${label}`, `anchor:${label}:second`]
         : [`anchor:${label}`],
     packagePlaceKey: `package:${label}`, packagePlaceUuid: U(20 + index), xFraction: .2 + index * .2, yFraction: .5 }));
   const media = [];
@@ -174,6 +174,8 @@ async function readHealthyFixture(createNativeSceneSourceClient, ExactDecimal,
     const projected = roomId => frame.roomSelections.find(row => row.roomId === roomId)?.nativePlaceIds ?? [];
     check(projected(rooms[0].id).length === 1 && projected(rooms[0].id)[0].atlasPlaceId === U(40),
       'Exact room, evidence pair, ordered full anchors, and package identity project Alpha native ID');
+    check(rooms[0].sourceAnchorIds[0].length === 512 && projected(rooms[0].id)[0].atlasPlaceId === U(40),
+      'A schema-valid 512-character source anchor ID survives the source-room projection');
     check(projected(rooms[1].id).length === 1 && projected(rooms[1].id)[0].atlasPlaceId === null,
       'A null target remains package-only and a mismatched package target cannot promote another room ID');
     check(projected(rooms[2].id).length === 0, 'Reordered full anchor membership cannot promote Unmatched native ID');
@@ -214,7 +216,7 @@ async function readHealthyFixture(createNativeSceneSourceClient, ExactDecimal,
       receiptSha256: roomReceipt.sha256, opens, sheets: data.sheets.map(s => ({ id: s.id, page: s.pdfPage })),
       rooms: frame.roomSelections.map(r => ({ roomId: r.roomId, targets: r.selection.targets,
         nativePlaceIds: r.nativePlaceIds })), historicalOnly,
-      projection: { exactRoomAndEvidencePair: true, mergedAnchors: true, nullTargetPreserved: true,
+      projection: { exactRoomAndEvidencePair: true, mergedAnchors: true, schemaMaxAnchorIdPreserved: true, nullTargetPreserved: true,
         wrongPackageTargetOmitted: true, reorderedAnchorMembershipOmitted: true, wrongEvidencePairOmitted: true,
         legacyPackageOnlyPreserved: true, currentTopologyDetailsRendered: true, selectionActionConsumesProjectedId: true,
         staleOrOutOfBuildingOmitted: true } };

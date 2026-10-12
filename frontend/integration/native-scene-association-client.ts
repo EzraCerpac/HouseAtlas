@@ -142,13 +142,13 @@ function anchors(value: LosslessJson): readonly NativeSceneAcceptedAnchor[] {
     const pairs = new Set<string>();
     const targets = list(a.targets, 16).map(part => {
       const p = row(part, ['packagePlaceKey','packagePlaceUuid']);
-      const key = str(p.packagePlaceKey), identity = uuid(p.packagePlaceUuid);
+      const key = str(p.packagePlaceKey, 512), identity = uuid(p.packagePlaceUuid);
       need(!pairs.has(`${key}\0${identity}`)); pairs.add(`${key}\0${identity}`);
       return Object.freeze({ packagePlaceKey: key, packagePlaceUuid: identity });
     });
     const unresolvedLabels = list(a.unresolvedLabels, 32).map(label => str(label));
     need(new Set(unresolvedLabels).size === unresolvedLabels.length);
-    return Object.freeze({ id, sourceFloorKey: str(a.sourceFloorKey), sourceOriginalSha256: sha(a.sourceOriginalSha256),
+    return Object.freeze({ id, sourceFloorKey: str(a.sourceFloorKey, 512), sourceOriginalSha256: sha(a.sourceOriginalSha256),
       targets: Object.freeze(targets), unresolvedLabels: Object.freeze(unresolvedLabels) });
   }));
 }
@@ -158,10 +158,10 @@ function roomMappings(value: LosslessJson, accepted: readonly NativeSceneAccepte
   return Object.freeze(list(value, 256).map(item => {
     const mapping = row(item, ['sourceRoomId','sourceFloorKey','sourceOriginalSha256','sourceAnchorIds',
       'targets','unresolvedLabels','evidenceIds']);
-    const sourceRoomId = str(mapping.sourceRoomId, 256), sourceFloorKey = str(mapping.sourceFloorKey, 256);
+    const sourceRoomId = str(mapping.sourceRoomId, 512), sourceFloorKey = str(mapping.sourceFloorKey, 512);
     const sourceOriginalSha256 = sha(mapping.sourceOriginalSha256);
     need(!ids.has(sourceRoomId)); ids.add(sourceRoomId);
-    const sourceAnchorIds = list(mapping.sourceAnchorIds, 128).map(anchorId => str(anchorId, 256));
+    const sourceAnchorIds = list(mapping.sourceAnchorIds, 128).map(anchorId => str(anchorId, 512));
     need(sourceAnchorIds.length > 0 && new Set(sourceAnchorIds).size === sourceAnchorIds.length);
     for (const anchorId of sourceAnchorIds) {
       const anchor = anchorsById.get(anchorId);
@@ -170,13 +170,14 @@ function roomMappings(value: LosslessJson, accepted: readonly NativeSceneAccepte
     const pairs = new Set<string>();
     const targets = list(mapping.targets, 16).map(item => {
       const target = row(item, ['packagePlaceKey','packagePlaceUuid','atlasPlaceId']);
-      const packagePlaceKey = str(target.packagePlaceKey, 256), packagePlaceUuid = uuid(target.packagePlaceUuid);
+      const packagePlaceKey = str(target.packagePlaceKey, 512), packagePlaceUuid = uuid(target.packagePlaceUuid);
       const atlasPlaceId = target.atlasPlaceId === null ? null : uuid(target.atlasPlaceId);
       const pair = `${packagePlaceKey}\0${packagePlaceUuid}`;
       need(!pairs.has(pair)); pairs.add(pair);
       return Object.freeze({ packagePlaceKey, packagePlaceUuid, atlasPlaceId });
     });
-    list(mapping.unresolvedLabels, 32).forEach(label => str(label, 512));
+    const unresolvedLabels = list(mapping.unresolvedLabels, 32).map(label => str(label, 512));
+    need(new Set(unresolvedLabels).size === unresolvedLabels.length);
     const evidenceIds = list(mapping.evidenceIds, 32).map(evidenceId => uuid(evidenceId));
     need(new Set(evidenceIds).size === evidenceIds.length && evidenceIds.length === expectedEvidenceIds.length
       && expectedEvidenceIds.every(expected => evidenceIds.includes(expected)));
@@ -189,7 +190,7 @@ function floors(value: LosslessJson, geometry: NativeGeometryFrame): readonly Na
   return Object.freeze(list(value, 3).map(item => {
     const f = row(item, ['sourceFloorKey','sourceOriginalSha256','nativeFloorKey','nativeGeometryId',
       'nativeGeometryRevision','nativeOriginalAssetId','nativeOriginalSha256']);
-    const nativeFloorKey = str(f.nativeFloorKey), sourceFloorKey = str(f.sourceFloorKey);
+    const nativeFloorKey = str(f.nativeFloorKey, 512), sourceFloorKey = str(f.sourceFloorKey, 512);
     need(!seen.has(nativeFloorKey)); seen.add(nativeFloorKey);
     const nativeGeometryId = uuid(f.nativeGeometryId), nativeGeometryRevision = integer(f.nativeGeometryRevision);
     const nativeOriginalAssetId = uuid(f.nativeOriginalAssetId), nativeOriginalSha256 = sha(f.nativeOriginalSha256);
