@@ -10,16 +10,20 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'vite';
+import { pdfjsBinaryDataPlugin } from '../build/pdfjs-binary-data-plugin.mjs';
+import { verifyPdfFixtureResources } from './pdf-fixture-resources.mjs';
 
 const root = resolve(fileURLToPath(new URL('../../', import.meta.url)));
 const frontend = join(root, 'frontend');
 const readerOnly = process.argv.slice(2).includes('--reader-only');
+const buildOnly = process.argv.slice(2).includes('--build-only');
+assert(!buildOnly || process.argv.slice(2).includes('--host-only'), '--build-only requires --host-only');
 const hostOnly = process.argv.slice(2).includes('--host-only');
-assert(process.argv.slice(2).every(arg => ['--reader-only', '--host-only'].includes(arg)) && !(readerOnly && hostOnly),
+assert(process.argv.slice(2).every(arg => ['--reader-only', '--host-only', '--build-only'].includes(arg)) && !(readerOnly && hostOnly),
   'Select --reader-only, --host-only, or the full browser flow');
 assert.equal(process.version, 'v26.10.0', 'Use the retained pinned Node runtime');
 const chromium = process.env.HOUSEATLAS_CHROMIUM;
-if (!readerOnly) assert(chromium && existsSync(chromium), 'Supply an inspected HOUSEATLAS_CHROMIUM executable, or explicitly select --reader-only');
+if (!readerOnly && !buildOnly) assert(chromium && existsSync(chromium), 'Supply an inspected HOUSEATLAS_CHROMIUM executable, or explicitly select --reader-only');
 const evidenceDirectory = process.env.HOUSEATLAS_FIXTURE_EVIDENCE;
 if (evidenceDirectory) {
   const destination = resolve(evidenceDirectory);
@@ -333,13 +337,16 @@ async function until(read, label) {
 let browser, server, cdp, session, origin, failure;
 const results = [];
 const screenshots = [];
-const report = { sourceBase, sourceHead, productionDigests, runnerSha256: hash(readFileSync(fileURLToPath(import.meta.url))),
-  node: process.version, mode: readerOnly ? 'reader-only' : hostOnly ? 'reader-and-native-host' : 'reader-and-browser', results, screenshots };
+const report = { sourceBase, sourceHead, productionDigests,
+  resourceSupportDigests: Object.fromEntries(['frontend/build/pdfjs-binary-data-plugin.mjs',
+    'frontend/lantern-tests/pdf-fixture-resources.mjs'].map(path => [path, hash(readFileSync(join(root, path)))])),
+  runnerSha256: hash(readFileSync(fileURLToPath(import.meta.url))),
+  node: process.version, mode: buildOnly ? 'reader-build-and-resource-serving-only' : readerOnly ? 'reader-only' : hostOnly ? 'reader-and-native-host' : 'reader-and-browser', results, screenshots };
 const budget = setTimeout(() => { cdp?.reject(new Error('120-second fixture budget exhausted')); browser?.kill('SIGTERM'); server?.close(); }, 120_000);
 try {
   const readerPath = join(generated, 'reader.ts');
   writeFileSync(readerPath, `import { createNativeSceneSourceClient } from ${JSON.stringify(join(frontend, 'integration/native-scene-source-client.ts'))};\nimport { ExactDecimal } from ${JSON.stringify(join(frontend, 'src/numeric/decimal.ts'))};\nimport { resolveNativeSceneRoomPlace, NativeScenePlaceDetails } from ${JSON.stringify(join(frontend, 'src/lantern/scans/native-ui/NativeSceneLayers.tsx'))};\nimport { createElement } from 'react';\nimport { renderToStaticMarkup } from 'react-dom/server';\n${readHealthyFixture.toString()}\nexport const read = () => readHealthyFixture(createNativeSceneSourceClient, ExactDecimal, resolveNativeSceneRoomPlace, NativeScenePlaceDetails, createElement, renderToStaticMarkup);\n`);
-  const bundled = await build({ configFile: false, root: frontend, logLevel: 'error', ssr: { noExternal: ['react', 'react-dom', 'ajv', 'ajv-formats'] },
+  const bundled = await build({ configFile: false, plugins: [pdfjsBinaryDataPlugin(frontend)], root: frontend, logLevel: 'error', ssr: { noExternal: ['react', 'react-dom', 'ajv', 'ajv-formats'] },
     build: { ssr: readerPath, write: false, minify: false, target: 'esnext' } });
   const readerModulePath = join(scratch, 'reader.mjs');
   writeFileSync(readerModulePath, bundled.output.find(c => c.type === 'chunk').code);
@@ -437,7 +444,7 @@ createRoot(document.getElementById('root')).render(<App />);
     // Only harness framing is added; production component styles are bundled unchanged.
     writeFileSync(indexPath, '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Synthetic fixture reader</title><style>body{margin:0;font:14px system-ui;background:#fff}main{padding:8px;box-sizing:border-box}main>label{display:grid;gap:4px;margin-bottom:12px}#host-room{max-width:100%;height:36px;font:inherit}</style><div id="root"></div><script type="module" src="./app.tsx"></script></html>');
     const dist = join(scratch, 'dist');
-    await build({ configFile: false, root: generated, logLevel: 'error', build: { target: 'esnext', outDir: dist, emptyOutDir: true, minify: false, rollupOptions: { input: indexPath } } });
+    await build({ configFile: false, plugins: [pdfjsBinaryDataPlugin(frontend)], root: generated, logLevel: 'error', build: { target: 'esnext', outDir: dist, emptyOutDir: true, minify: false, rollupOptions: { input: indexPath } } });
     const files = new Map();
     function collect(dir, prefix = '') { for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const path = join(dir, entry.name), url = prefix + '/' + entry.name;
@@ -456,6 +463,10 @@ createRoot(document.getElementById('root')).render(<App />);
     });
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     origin = `http://127.0.0.1:${server.address().port}`;
+    report.pdfResources = await verifyPdfFixtureResources(files, origin, frontend);
+    if (buildOnly) {
+      results.push({case:'native-host-fixture-build-and-resource-serving',status:'passed'});
+    } else {
     browser = spawn(chromium, ['--headless=new', '--no-sandbox', '--disable-gpu', '--remote-debugging-pipe', '--no-first-run',
       '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync',
       '--disable-features=MediaRouter,OptimizationHints', `--user-data-dir=${join(scratch, 'browser')}`, 'about:blank'],
@@ -622,6 +633,7 @@ createRoot(document.getElementById('root')).render(<App />);
     assert(cdp.requests.every(url => url.startsWith(origin + '/') || url.startsWith('blob:' + origin + '/')),
       'PDF assets and bytes stay on the owned loopback and local Blob; no third-party viewer');
     report.applicationRequests = cdp.requests.map(url => new URL(url).pathname);
+    }
   }
 } catch (error) {
   failure = error; report.error = { name: error.name, message: error.message };

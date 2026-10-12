@@ -9,17 +9,21 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
+import { pdfjsBinaryDataPlugin } from '../build/pdfjs-binary-data-plugin.mjs';
+import { verifyPdfFixtureResources } from './pdf-fixture-resources.mjs';
 
 const root = resolve(fileURLToPath(new URL('../../', import.meta.url)));
 const frontend = join(root, 'frontend');
 const cases = new Set(['first-match', 'middle-match', 'last-match', 'missing-match', 'page-bound',
   'close-cleanup', 'selection-during-open', 'selection-after-show', 'blob-read-failure']);
 const args = process.argv.slice(2);
+const buildOnly = args.at(-1) === '--build-only';
+if (buildOnly) args.pop();
 assert.equal(args.length, 2); assert.equal(args[0], '--case'); assert(cases.has(args[1]), 'Select one explicitly named case');
 const selectedCase = args[1];
 assert.equal(process.version, 'v26.10.0', 'Use pinned Node 26.10.0');
 const chromium = process.env.HOUSEATLAS_CHROMIUM;
-assert(chromium && existsSync(chromium), 'Set HOUSEATLAS_CHROMIUM to an inspected executable');
+if (!buildOnly) assert(chromium && existsSync(chromium), 'Set HOUSEATLAS_CHROMIUM to an inspected executable');
 const evidenceDirectory = process.env.HOUSEATLAS_FIXTURE_EVIDENCE;
 if (evidenceDirectory) {
   const destination = resolve(evidenceDirectory);
@@ -44,7 +48,9 @@ const generated = mkdtempSync(join(frontend, 'node_modules/.drawing-150-'));
 const budgetMs = 120_000;
 let browser, server, cdp, session, origin, failure;
 const results = [], screenshots = [];
-const report = { case: selectedCase, node: process.version, sourceHead, sourceDirty, sourceDigests, pngSha256: pngSha,
+const report = { mode: buildOnly ? 'build-and-resource-serving-only' : 'browser', case: selectedCase, node: process.version, sourceHead, sourceDirty, sourceDigests, pngSha256: pngSha,
+  resourceSupportDigests: Object.fromEntries(['frontend/build/pdfjs-binary-data-plugin.mjs',
+    'frontend/lantern-tests/pdf-fixture-resources.mjs'].map(path => [path, hash(readFileSync(join(root, path)))])),
   runnerSha256: hash(readFileSync(fileURLToPath(import.meta.url))), results, screenshots };
 
 class CDP {
@@ -127,12 +133,14 @@ async function run() {
   const indexPath = join(generated, 'index.html');
   writeFileSync(indexPath, '<!doctype html><html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Synthetic native drawing</title><div id="root"></div><script type="module" src="/app.ts"></script></html>');
   const dist = join(scratch, 'dist');
-  await build({ configFile: false, root: generated, logLevel: 'error', build: { target: 'esnext', outDir: dist, emptyOutDir: true, minify: false, rollupOptions: { input: indexPath } } });
+  await build({ configFile: false, plugins: [pdfjsBinaryDataPlugin(frontend)], root: generated, logLevel: 'error', build: { target: 'esnext', outDir: dist, emptyOutDir: true, minify: false, rollupOptions: { input: indexPath } } });
   const files = new Map();
   function collect(dir, prefix='') { for (const entry of readdirSync(dir,{withFileTypes:true})) { const path=join(dir,entry.name), url=prefix+'/'+entry.name; if(entry.isDirectory())collect(path,url);else files.set(url,readFileSync(path)); } }
   collect(dist);
-  server=createServer((request,response)=>{assert.equal(request.method,'GET');const path=request.url==='/'?'/index.html':request.url;if(path==='/favicon.ico'){response.writeHead(204);response.end();return}const bytes=files.get(path);if(!bytes){response.writeHead(404);response.end();return}const mime=path.endsWith('.js')||path.endsWith('.ts')?'text/javascript':path.endsWith('.css')?'text/css':'text/html';response.writeHead(200,{'Content-Type':mime,'Cache-Control':'no-store','Content-Length':bytes.length});response.end(bytes)});
+  server=createServer((request,response)=>{assert.equal(request.method,'GET');const path=request.url==='/'?'/index.html':request.url;if(path==='/favicon.ico'){response.writeHead(204);response.end();return}const bytes=files.get(path);if(!bytes){response.writeHead(404);response.end();return}const mime=path.endsWith('.js')||path.endsWith('.mjs')||path.endsWith('.ts')?'text/javascript':path.endsWith('.css')?'text/css':'text/html';response.writeHead(200,{'Content-Type':mime,'Cache-Control':'no-store','Content-Length':bytes.length});response.end(bytes)});
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve)}); origin=`http://127.0.0.1:${server.address().port}`;
+  report.pdfResources = await verifyPdfFixtureResources(files, origin, frontend);
+  if (buildOnly) { results.push({case:'drawing-fixture-build-and-resource-serving',status:'passed'}); return; }
   browser=spawn(chromium,['--headless=new','--no-sandbox','--disable-gpu','--remote-debugging-pipe','--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-component-update','--disable-sync','--disable-features=MediaRouter,OptimizationHints',`--user-data-dir=${join(scratch,'profile')}`,'about:blank'],{stdio:['ignore','ignore','ignore','pipe','pipe']});
   cdp=new CDP(browser); report.browser=(await cdp.send('Browser.getVersion')).product;
   const {targetId}=await cdp.send('Target.createTarget',{url:'about:blank'});({sessionId:session}=await cdp.send('Target.attachToTarget',{targetId,flatten:true}));
