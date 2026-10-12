@@ -180,10 +180,17 @@ export async function preflightNativeScanScene(input:NativeScanScenePreflightInp
       reviewStatement:input.statement+(support?.reviewMarker??''),sourceDocuments,acceptedReceipt:{receiptId:receipt.receiptId,canonicalJson:stored.receiptCanonicalJson,canonicalSha256:receiptSha,anchors:receipt.anchors},
       sourceFloors:selection.sourceFloorBindings.map(f=>({...f,nativeGeometryRevision:max})),roomMappings:input.roomMappings.map(m=>({...m,targets:m.targets.map((t:NativeScanSceneRoomMapping['targets'][number])=>({...t,atlasPlaceId:t.atlasPlaceId??null})),evidenceIds:[id(10),id(12)]}))};
     // Worst-width revisions and the complete prospective guard set (including
-    // a possible prior head) reserve the existing scene request capacity before custody.
-    const guardIds=[{kind:'identity',id:input.buildingId},{kind:'evidence',id:id(10)},{kind:'asset',id:id(11)},
+    // current native-place identity/classification and a possible prior head)
+    // reserve the existing scene request capacity before custody. Classification
+    // record IDs are not known until the current topology read, so reserve their
+    // exact UUID width with generated placeholders here.
+    const nativePlaceIds=[...new Set(input.roomMappings.flatMap(m=>m.targets
+      .map(t=>t.atlasPlaceId).filter((value):value is string=>typeof value==='string')))];
+    const guardIds=[{kind:'identity',id:input.buildingId},{kind:'location-semantics',id:id(8000)},
+      {kind:'evidence',id:id(10)},{kind:'asset',id:id(11)},
       {kind:'evidence',id:id(12)},{kind:'asset',id:id(13)},{kind:'scene-association',id:id(700)},
-      ...floorRows.flatMap(f=>[{kind:'geometry',id:f.geometryId},{kind:'evidence',id:f.evidenceId},{kind:'asset',id:f.originalAssetId},{kind:'asset',id:f.derivativeAssetId}])];
+      ...floorRows.flatMap(f=>[{kind:'geometry',id:f.geometryId},{kind:'evidence',id:f.evidenceId},{kind:'asset',id:f.originalAssetId},{kind:'asset',id:f.derivativeAssetId}]),
+      ...nativePlaceIds.flatMap((nativePlaceId,index)=>[{kind:'identity',id:nativePlaceId},{kind:'location-semantics',id:id(8001+index)}])];
     const request={schemaVersion:3,commandId:'atlas.scene-association.create',requestId:id(20),context:scope,target:{authority:'atlas',recordType:'scene-association',recordId:id(21)},
       payload,idempotencyKey:id(22),reason:input.reason,approvalReceiptId:null,preconditions:{target:null,guards:guardIds.map(g=>({target:{authority:'atlas',recordType:g.kind,recordId:g.id},revision:{kind:'atlas',value:max}}))}};
     const body=stringifyLosslessJson(request as unknown as JsonForSerialization);need(new TextEncoder().encode(body).length<=1024*1024&&createExactStockResultValidator().validateNativeRequest('atlas.scene-association.create',parseLosslessJson(body)));
