@@ -27,15 +27,37 @@ if (evidenceDirectory) {
   mkdirSync(evidenceDirectory, { recursive: true, mode: 0o700 });
 }
 const scratch = mkdtempSync(join(tmpdir(), 'houseatlas-fixture-reader-'));
-// Vite resolves React from the locked local installation, with no added dependency.
+// Vite resolves React and PDF.js from the locked local installation.
 const generated = mkdtempSync(join(frontend, 'node_modules/.fixture-reader-'));
 const sourceHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
 const sourceBase = '12044d16f80a65050392d34b15c93a955adba4b2';
 const hash = value => createHash('sha256').update(value).digest('hex');
+function makeSyntheticPdf(pageCount) {
+  const objects = new Map(), pageIds = Array.from({ length: pageCount }, (_, index) => 3 + index * 2), fontId = 3 + pageCount * 2;
+  objects.set(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  objects.set(2, '<< /Type /Pages /Kids [' + pageIds.map(id => id + ' 0 R').join(' ') + '] /Count ' + pageCount + ' >>');
+  for (let index = 0; index < pageCount; index++) {
+    const pageId = pageIds[index], contentId = pageId + 1;
+    const color = [0.6 + (index % 3) * 0.1, 0.65 + (index % 2) * 0.1, 0.7 + (index % 4) * 0.05].map(v => v.toFixed(2));
+    const content = 'q ' + color.join(' ') + ' rg 20 20 320 260 re f Q\nBT /F1 24 Tf 40 240 Td (FIXTURE PAGE ' + (index + 1) + ') Tj ET\n';
+    objects.set(pageId, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 360 300] /Resources << /Font << /F1 ' + fontId + ' 0 R >> >> /Contents ' + contentId + ' 0 R >>');
+    objects.set(contentId, '<< /Length ' + Buffer.byteLength(content, 'ascii') + ' >>\nstream\n' + content + 'endstream');
+  }
+  objects.set(fontId, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  let document = '%PDF-1.4\n%HouseAtlas generated-only scene fixture\n'; const offsets = [0];
+  for (let id = 1; id <= fontId; id++) { offsets[id] = Buffer.byteLength(document, 'ascii'); document += id + ' 0 obj\n' + objects.get(id) + '\nendobj\n'; }
+  const xref = Buffer.byteLength(document, 'ascii'); document += 'xref\n0 ' + (fontId + 1) + '\n0000000000 65535 f \n';
+  for (let id = 1; id <= fontId; id++) document += String(offsets[id]).padStart(10, '0') + ' 00000 n \n';
+  return Buffer.from(document + 'trailer\n<< /Size ' + (fontId + 1) + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n', 'ascii');
+}
+const syntheticPdfBase64 = makeSyntheticPdf(8).toString('base64');
 const productionPaths = [
   'frontend/integration/native-scene-association-client.ts',
   'frontend/integration/native-scene-source-client.ts',
   'frontend/src/lantern/scans/native-scene-source-types.ts',
+  'frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx',
+  'frontend/src/lantern/scans/native-ui/native-scene.css',
+  'frontend/src/app/assets.d.ts', 'frontend/package.json', 'frontend/package-lock.json',
   'frontend/src/lantern/scans/native-ui/NativeSceneLayers.tsx',
   'frontend/src/lantern/scans/native-ui/NativeScanAtlas.tsx',
   'frontend/src/numeric/decimal.ts', 'frontend/src/numeric/lossless-json.ts',
@@ -341,7 +363,7 @@ window.__readerProof = state.proof;
 window.__sourceOpens = [];
 window.__sourceCurrent = true;
 window.addEventListener('beforeunload', () => state.dispose(), { once: true });
-const pdf = new Blob(['%PDF-1.4\\n1 0 obj<</Type/Catalog>>endobj\\n%%EOF\\n'], {type:'application/pdf'});
+const pdf = new Blob([Uint8Array.from(atob(${JSON.stringify(syntheticPdfBase64)}), byte => byte.charCodeAt(0))], {type:'application/pdf'});
 const pdfSha = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await pdf.arrayBuffer())))
   .map(byte => byte.toString(16).padStart(2, '0')).join('');
 const pdfEvidenceId = '00000000-0000-4000-8000-000000000091';
@@ -429,7 +451,7 @@ createRoot(document.getElementById('root')).render(<App />);
       if (path === '/favicon.ico') { response.writeHead(204); response.end(); return; }
       const bytes = files.get(path);
       if (!bytes) { response.writeHead(404); response.end(); return; }
-      const mime = path.endsWith('.svg') ? 'image/svg+xml' : path.endsWith('.css') ? 'text/css' : path.endsWith('.js') ? 'text/javascript' : 'text/html';
+    const mime = path.endsWith('.svg') ? 'image/svg+xml' : path.endsWith('.css') ? 'text/css' : path.endsWith('.js') || path.endsWith('.mjs') ? 'text/javascript' : 'text/html';
       response.writeHead(200, { 'Content-Type': mime, 'Cache-Control': 'no-store', 'Content-Length': bytes.length }); response.end(bytes);
     });
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -566,7 +588,8 @@ createRoot(document.getElementById('root')).render(<App />);
     const directHit = await evaluate(`(()=>{const e=${selector('Open reference drawing')};e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();const top=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {target:e.outerHTML,top:top?.outerHTML.slice(0,250),same:top===e||e.contains(top)}})()`);
     assert.equal(directHit.same, true, `Direct room action is obscured: ${JSON.stringify(directHit)}`);
     await click(selector('Open reference drawing'));
-    await until(() => evaluate(`Boolean(document.querySelector('.native-scene-drawing a[download]') && document.querySelector('.native-scene-drawing iframe.native-scene-pdf')?.getAttribute('src').includes('#page=2&zoom=100'))`), 'Direct room action opens qualified PDF at its referenced page');
+    await until(() => evaluate(`Boolean(document.querySelector('.native-scene-drawing a[download]') && document.querySelector('.native-scene-pdf-canvas')?.width)`), 'Direct room action renders qualified PDF');
+    assert.equal(await evaluate(`document.querySelector('.native-scene-drawing > div > p').textContent`), 'Reference PDF · page 2 of 8');
     assert.equal(cdp.requests.some(url => /\/NativeSceneDrawing-[^/]+\.js$/.test(url)), true,
       'PDF reader chunk loads on demand');
     await click(selector('Close drawing'));
@@ -584,7 +607,8 @@ createRoot(document.getElementById('root')).render(<App />);
     await click(`document.querySelector('.native-fixture-details .ef-source-button')`);
     await until(() => evaluate(`Boolean(document.querySelector('.native-scene-drawing[role="dialog"]'))`), 'Current native sheet opens dialog');
     assert.equal(await evaluate(`document.querySelector('.native-scene-drawing h3').textContent`), 'Synthetic Alpha electrical drawing');
-    await until(() => evaluate(`Boolean(document.querySelector('.native-scene-drawing a[download]') && document.querySelector('.native-scene-drawing iframe.native-scene-pdf')?.getAttribute('src').includes('#page=2&zoom=100'))`), 'Qualified current PDF viewer opens at its referenced page');
+    await until(() => evaluate(`Boolean(document.querySelector('.native-scene-drawing a[download]') && document.querySelector('.native-scene-pdf-canvas')?.width)`), 'Qualified current PDF renders');
+    assert.equal(await evaluate(`document.querySelector('.native-scene-drawing > div > p').textContent`), 'Reference PDF · page 7 of 8');
     assert.equal(await evaluate(`document.querySelector('.native-scene-drawing a[download]').href.startsWith('blob:')`), true);
     await click(selector('Close drawing'));
     await until(() => evaluate(`!document.querySelector('.native-scene-drawing')`), 'Current dialog closed');
@@ -595,10 +619,8 @@ createRoot(document.getElementById('root')).render(<App />);
     results.push({ case: 'native-source-action-current-and-unavailable', status: 'passed',
       checks: ['default room overlay opens qualified PDF dialog', 'diagram sheet opens qualified PDF dialog', 'stale source shows status and no dialog'] });
     assert.deepEqual(cdp.errors, [], 'No browser runtime exceptions');
-    const chromePdfViewer = 'chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/';
-    assert(cdp.requests.every(url => url.startsWith(origin + '/') || url.startsWith('blob:' + origin + '/') || url.startsWith(chromePdfViewer)
-      || url === '/pdf_embedder.css' || url === '/index.html'),
-      'Requests stay on the owned loopback and Chrome built-in PDF viewer');
+    assert(cdp.requests.every(url => url.startsWith(origin + '/') || url.startsWith('blob:' + origin + '/')),
+      'PDF assets and bytes stay on the owned loopback and local Blob; no third-party viewer');
     report.applicationRequests = cdp.requests.map(url => new URL(url).pathname);
   }
 } catch (error) {

@@ -11,6 +11,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inflateSync } from 'node:zlib';
 import { build } from 'vite';
+import { pdfjsBinaryDataPlugin } from '../build/pdfjs-binary-data-plugin.mjs';
 
 const names = new Set(['pdf-download', 'pdf-navigation', 'png-legacy', 'missing-correlation', 'stale-correlation', 'wrong-correlation', 'lifecycle']);
 assert.equal(process.argv.length, 3); const name = process.argv[2]; assert(names.has(name), 'Select one registered named case');
@@ -62,33 +63,36 @@ function makeSyntheticNavigationPdf(pageCount) {
   const objects = new Map();
   const pageIds = Array.from({ length: pageCount }, (_, index) => 3 + index * 2);
   const fontId = 3 + pageCount * 2;
+  const imageId = fontId + 1;
+  const jpx = Buffer.from('AAAADGpQICANCocKAAAAFGZ0eXBqcDIgAAAAAGpwMiAAAAAtanAyaAAAABZpaGRyAAAAEAAAABAAAwcHAAAAAAAPY29scgEAAAAAABAAAAGWanAyY/9P/1EALwAAAAAAEAAAABAAAAAAAAAAAAAAABAAAAAQAAAAAAAAAAAAAwcBAQcBAQcBAf9SAAwAAAABAQIEBAAB/1wACkBASEhQSEhQ/2QAJQABQ3JlYXRlZCBieSBPcGVuSlBFRyB2ZXJzaW9uIDIuNS40/5AACgAAAAABGAAB/5PH1CARHheZ8uIkX++XNosqxA2334CoCNwiL2cC4GgG8D8gTbIcWAoMh45//xioF7vW4f2AuqRv1uyekdl1esxsPpt/w+oJg+cPAfIEGHM3jeaT3R+/GxB0f54ynxawbI/PwC4+0Jg+oGAZHtJ57/iHhYHgvwxmsATU7kfz1xYCTjBKv9+YXPwC4/AHFqvJoEKLwLAQj18PFsUCFEGdr/NrehaxIGlVv2/D6gmD5xEB8gNKdX3qy5asPaAp3is3WFWosSQsTc/AKj7QuD6gMEshf+52mKcp/38AytEd0WUKFUWsfyTdU8/AMn4BcPtBACIZAqfiSsolph7n1yQhBsUGnhoyjhatJCtyd//Z', 'base64');
   objects.set(1, '<< /Type /Catalog /Pages 2 0 R >>');
   objects.set(2, '<< /Type /Pages /Kids [' + pageIds.map(id => id + ' 0 R').join(' ') + '] /Count ' + pageCount + ' >>');
   for (let index = 0; index < pageCount; index++) {
     const pageId = pageIds[index], contentId = pageId + 1;
     const red=(0.65+((index*37)%30)/100).toFixed(2),green=(0.65+((index*53)%30)/100).toFixed(2),blue=(0.65+((index*29)%30)/100).toFixed(2);
-    const content = 'q '+red+' '+green+' '+blue+' rg 20 20 320 260 re f Q\nBT /F1 28 Tf 40 240 Td (SYNTHETIC PAGE ' + (index + 1) + ') Tj ET\n';
-    objects.set(pageId, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 360 300] /Resources << /Font << /F1 ' + fontId + ' 0 R >> >> /Contents ' + contentId + ' 0 R >>');
-    objects.set(contentId, '<< /Length ' + Buffer.byteLength(content, 'ascii') + ' >>\nstream\n' + content + 'endstream');
+    const content = 'q '+red+' '+green+' '+blue+' rg 0 0 3370 2384 re f Q\nq 1200 0 0 1200 100 500 cm /Im1 Do Q\nBT /F1 72 Tf 100 2200 Td (SYNTHETIC PAGE ' + (index + 1) + ') Tj ET\n';
+    objects.set(pageId, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 3370 2384] /Resources << /Font << /F1 ' + fontId + ' 0 R >> /XObject << /Im1 ' + imageId + ' 0 R >> >> /Contents ' + contentId + ' 0 R >>');
+    objects.set(contentId, '<< /Length ' + Buffer.byteLength(content, 'latin1') + ' >>\nstream\n' + content + 'endstream');
   }
   objects.set(fontId, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  objects.set(imageId, '<< /Type /XObject /Subtype /Image /Width 16 /Height 16 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode /Length ' + jpx.length + ' >>\nstream\n' + jpx.toString('latin1') + '\nendstream');
   let document = '%PDF-1.4\n%HouseAtlas synthetic navigation fixture\n';
   const offsets = [0];
-  for (let id = 1; id <= fontId; id++) {
-    offsets[id] = Buffer.byteLength(document, 'ascii');
+  for (let id = 1; id <= imageId; id++) {
+    offsets[id] = Buffer.byteLength(document, 'latin1');
     document += id + ' 0 obj\n' + objects.get(id) + '\nendobj\n';
   }
-  const xref = Buffer.byteLength(document, 'ascii');
-  document += 'xref\n0 ' + (fontId + 1) + '\n0000000000 65535 f \n';
-  for (let id = 1; id <= fontId; id++) document += String(offsets[id]).padStart(10, '0') + ' 00000 n \n';
-  document += 'trailer\n<< /Size ' + (fontId + 1) + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
-  return Buffer.from(document, 'ascii');
+  const xref = Buffer.byteLength(document, 'latin1');
+  document += 'xref\n0 ' + (imageId + 1) + '\n0000000000 65535 f \n';
+  for (let id = 1; id <= imageId; id++) document += String(offsets[id]).padStart(10, '0') + ' 00000 n \n';
+  document += 'trailer\n<< /Size ' + (imageId + 1) + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
+  return Buffer.from(document, 'latin1');
 }
-const pdf = name === 'pdf-navigation' ? makeSyntheticNavigationPdf(18)
-  : readFileSync(join(frontend, 'capture-evidence-tests/fixtures/synthetic-document.pdf'));
+const pdf = makeSyntheticNavigationPdf(18);
 const input = { name, png: png.toString('base64'), pdf: pdf.toString('base64'), pngSha: hash(png), pdfSha: hash(pdf) };
 const production = ['frontend/integration/native-scene-association-client.ts','frontend/integration/native-scene-documentary-support.ts','frontend/integration/main.tsx','frontend/src/lantern/scans/native-ui/NativeSceneAssociation.tsx','frontend/integration/native-scene-source-client.ts', 'frontend/src/lantern/scans/native-scene-source-types.ts',
-  'frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx', 'frontend/src/lantern/scans/native-ui/NativeSceneLayers.tsx'];
+  'frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx', 'frontend/src/lantern/scans/native-ui/NativeSceneLayers.tsx',
+  'frontend/src/lantern/scans/native-ui/native-scene.css', 'frontend/src/app/assets.d.ts', 'frontend/build/pdfjs-binary-data-plugin.mjs', 'frontend/vite.config.ts', 'frontend/package.json', 'frontend/package-lock.json'];
 const report = { name, sourceHead: execFileSync('git', ['rev-parse', 'HEAD'], {cwd: root, encoding:'utf8'}).trim(),
   sourcePins: Object.fromEntries(production.map(p => [p, hash(readFileSync(join(root,p)))])), node: process.version, results: [] };
 let scratch, generated, browser, server, cdp, failure, childClosed = false, groupGone = false, stopReason;
@@ -112,6 +116,7 @@ class CDP {
         this.buffer = this.buffer.slice(end+1);
         if (row.id) { const p = this.pending.get(row.id); if(!p) continue; clearTimeout(p.timer); this.pending.delete(row.id); row.error ? p.no(Error('CDP command failed: '+p.method)) : p.yes(row.result); }
         else if(row.method === 'Runtime.exceptionThrown') this.errors.push(row.params.exceptionDetails.text);
+        else if(row.method === 'Runtime.consoleAPICalled' && row.params.type === 'error') this.errors.push(row.params.args.map(argument=>argument.value??argument.description??'').join(' '));
         else if(row.method === 'Network.requestWillBeSent') this.requests.push(row.params.request.url);
       }
     });
@@ -300,19 +305,19 @@ try {
   const component=join(frontend,'src/lantern/scans/native-ui/NativeSceneDrawing.tsx');
   const association=join(frontend,'integration/native-scene-association-client.ts');
   const reader=join(frontend,'integration/native-scene-source-client.ts'),decimal=join(frontend,'src/numeric/decimal.ts');
-  writeFileSync(module,'import {createElement,useState,useLayoutEffect} from "react";import {createRoot} from "react-dom/client";\n'+
+  writeFileSync(module,'import {createElement,useState,useLayoutEffect} from "react";import {createRoot} from "react-dom/client";import {HouseAtlasPdfBinaryDataFactory} from "virtual:houseatlas-pdfjs-resources";\n'+
     'import {NativeSceneDrawing} from '+JSON.stringify(component)+';import {createNativeSceneSourceClient} from '+JSON.stringify(reader)+';\n'+
     'import {createNativeSceneAssociationClient} from '+JSON.stringify(association)+';\n'+
     'import {NativeSceneAssociation} from '+JSON.stringify(join(frontend,'src/lantern/scans/native-ui/NativeSceneAssociation.tsx'))+';\n'+
     'import {ExactDecimal} from '+JSON.stringify(decimal)+';import '+JSON.stringify(join(frontend,'src/lantern/scans/native-ui/native-scene.css'))+';\n'+
-    'window.__input='+JSON.stringify(input)+';\n'+fixture.toString()+'\n'+app.toString()+'\n'+
+    'window.__input='+JSON.stringify(input)+';window.__pdfjsFixtureResources=new HouseAtlasPdfBinaryDataFactory();\n'+fixture.toString()+'\n'+app.toString()+'\n'+
     'app(createElement,useState,useLayoutEffect,createRoot,NativeSceneDrawing,createNativeSceneSourceClient,ExactDecimal,createNativeSceneAssociationClient,NativeSceneAssociation).catch(e=>{window.__failed=e.message;});');
   writeFileSync(index,'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0}main{padding:8px}button,a{font-size:16px}.native-scene-drawing{box-sizing:border-box}h3,p{overflow-wrap:anywhere}</style><div id="root"></div><script type="module" src="/app.js"></script>');
   const dist=join(scratch,'dist');
-  await build({configFile:false,root:generated,logLevel:'error',build:{outDir:dist,emptyOutDir:true,minify:false,rollupOptions:{input:index}}});
+  await build({configFile:false,root:generated,plugins:[pdfjsBinaryDataPlugin(frontend)],logLevel:'error',build:{outDir:dist,emptyOutDir:true,minify:false,rollupOptions:{input:index}}});
   const files=new Map();function collect(dir,prefix=''){for(const x of readdirSync(dir,{withFileTypes:true})){const path=join(dir,x.name),url=prefix+'/'+x.name;x.isDirectory()?collect(path,url):files.set(url,readFileSync(path));}}collect(dist);
   server=createServer((req,res)=>{if(req.method!=='GET'){res.writeHead(405);res.end();return;}const path=req.url==='/'?'/index.html':req.url;if(path==='/favicon.ico'){res.writeHead(204);res.end();return;}const bytes=files.get(path);if(!bytes){res.writeHead(404);res.end();return;}
-    res.writeHead(200,{'Content-Type':path.endsWith('.js')?'text/javascript':path.endsWith('.css')?'text/css':'text/html','Content-Length':bytes.length,'Cache-Control':'no-store'});res.end(bytes);});
+    res.writeHead(200,{'Content-Type':path.endsWith('.js')||path.endsWith('.mjs')?'text/javascript':path.endsWith('.css')?'text/css':'text/html','Content-Length':bytes.length,'Cache-Control':'no-store'});res.end(bytes);});
   await new Promise((yes,no)=>{server.once('error',no);server.listen(0,'127.0.0.1',yes);});
   const origin='http://127.0.0.1:'+server.address().port;
   browser=spawn(browserPath,['--headless=new','--remote-debugging-pipe','--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-component-update','--disable-sync','--disable-features=MediaRouter,OptimizationHints','--user-data-dir='+join(scratch,'profile'),'about:blank'],{detached:true,stdio:['ignore','ignore','ignore','pipe','pipe']});
@@ -350,9 +355,9 @@ try {
   }
   const wantProjection=['pdf-download','pdf-navigation','wrong-correlation','lifecycle'].includes(name)?1:0;
   assert.equal(await evaluate('window.__stats.projected'),wantProjection);
-  const widths=[1280,768,312];
+  const widths=[1280,768,390,312];
   for(const width of widths){
-    await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width===312});
+    await send('Emulation.setDeviceMetricsOverride',{width,height:width===390?844:900,deviceScaleFactor:1,mobile:width<=390});
     await click('#room-open');
     if(['missing-correlation','stale-correlation','wrong-correlation'].includes(name)){
       await until(()=>evaluate('Boolean(document.querySelector("[role=status]")?.textContent.includes("available"))'),'explicit unavailable');
@@ -362,16 +367,32 @@ try {
       await until(()=>evaluate('Boolean(document.querySelector(".native-scene-drawing img")?.naturalWidth)'),'legacy PNG paint');
       assert.equal(await evaluate('Boolean(document.querySelector(".native-scene-drawing a[href]"))'),false);
     }else{
-      await until(()=>evaluate('Boolean(document.querySelector(".native-scene-drawing iframe.native-scene-pdf") && document.querySelector(".native-scene-drawing a[download]"))'),'correlated in-app PDF viewer and download action');
-      assert.equal(await evaluate('Boolean(document.querySelector(".native-scene-drawing img, embed, object"))'),false);
-      assert.match(await evaluate('document.querySelector(".native-scene-drawing iframe").getAttribute("src")'),/^blob:.*#page=12&zoom=100$/);
+      await until(()=>evaluate('Boolean(document.querySelector(".native-scene-drawing canvas.native-scene-pdf-canvas")?.width && document.querySelector(".native-scene-drawing a[download]"))'),'authenticated in-app PDF canvas and download action');
+      assert.equal(await evaluate('Boolean(document.querySelector(".native-scene-drawing iframe, embed, object"))'),false);
+      assert.equal(await evaluate('document.querySelector(".native-scene-pdf-canvas").width>0 && document.querySelector(".native-scene-pdf-canvas").height>0'),true,'PDF pages paint actual canvas pixels');
+      const resources=await evaluate('Promise.all([window.__pdfjsFixtureResources.fetch({kind:"cMapUrl",filename:"Adobe-Japan1-4.bcmap"}),window.__pdfjsFixtureResources.fetch({kind:"standardFontDataUrl",filename:"FoxitSerif.pfb"})]).then(([cmap,font])=>({cmap:cmap.length,font:font.length}))');
+      assert(resources.cmap>100&&resources.font>1000,'Bundled local PDF.js CMap and standard-font resources load through the app resource factory');
+      assert.equal(await evaluate('document.querySelector(".native-scene-pdf-canvas").getBoundingClientRect().width<=document.querySelector(".native-scene-pdf").clientWidth'),true,'Large A0 page fits the available drawing viewport without a lower scale clamp');
+      const pixelProofExpression='(()=>{const c=document.querySelector(".native-scene-pdf-canvas"),d=c.getContext("2d").getImageData(0,0,c.width,c.height).data,colors=new Set();let nonwhite=0;for(let gy=0;gy<40;gy++)for(let gx=0;gx<40;gx++){const i=(Math.floor((gy+.5)*c.height/40)*c.width+Math.floor((gx+.5)*c.width/40))*4,p=[d[i],d[i+1],d[i+2]],key=p.join(",");colors.add(key);if(p[0]<245||p[1]<245||p[2]<245)nonwhite++}return{nonwhite,colors:colors.size}})()';
+      const jpxProofExpression='(()=>{const c=document.querySelector(".native-scene-pdf-canvas"),r=c.getBoundingClientRect(),d=c.getContext("2d").getImageData(0,0,c.width,c.height).data,s=c.width/r.width,k=r.width/3370,x=100*k,y=(2384-500-1200)*k,w=1200*k,h=1200*k;return[[.25,.25],[.75,.25],[.25,.75],[.75,.75]].map(([a,b])=>{const i=(Math.floor((y+h*b)*s)*c.width+Math.floor((x+w*a)*s))*4;return[d[i],d[i+1],d[i+2]]})})()';
+      try { await until(async()=>{const p=await evaluate(pixelProofExpression);return p.nonwhite>100&&p.colors>2},'nonblank rendered PDF canvas'); }
+      catch(error) { throw Error(error.message+'; reader status: '+await evaluate('document.querySelector(".native-scene-drawing [role=status]")?.textContent||"none"')+'; browser errors: '+JSON.stringify(cdp.errors)); }
+      const pixelProof=await evaluate(pixelProofExpression);
+      assert(pixelProof.nonwhite>100&&pixelProof.colors>2,'Referenced PDF canvas contains actual rendered page pixels, not a blank frame');
+      await until(()=>evaluate('document.querySelector(".native-scene-pdf-canvas").style.visibility==="visible" && !document.querySelector(".native-scene-drawing [role=status]")'),'completed PDF page render');
+      const completedJpxPixels=await evaluate(jpxProofExpression);
+      assert.equal(new Set(completedJpxPixels.map(color=>color.join(','))).size,4,'Local PDF.js OpenJPEG renders four distinct JPEG2000 quadrants into canvas pixels: '+JSON.stringify(completedJpxPixels));
+      report.results.push({width,jpxPixels:completedJpxPixels,resources,pixelProof,largeSheetFitted:true});
       if(name==='pdf-navigation'){
-        const chromePdfViewer='chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html';
-        await until(()=>cdp.requests.includes(chromePdfViewer),'Chrome built-in PDF reader request');
+        if(width===1280){
+          const fittedWidth=await evaluate('document.querySelector(".native-scene-pdf-canvas").getBoundingClientRect().width');
+          await evaluate('document.querySelectorAll(".native-scene-pdf-zoom button")[0].click()');
+          await until(()=>evaluate('document.querySelector(".native-scene-pdf-canvas").getBoundingClientRect().width < '+(fittedWidth*.6)),'A0 zoom out reduces page size');
+          await evaluate('document.querySelectorAll(".native-scene-pdf-zoom button")[2].click()');
+          await until(()=>evaluate('document.querySelector(".native-scene-pdf-canvas").getBoundingClientRect().width <= document.querySelector(".native-scene-pdf").clientWidth'),'A0 zoom reset restores viewport fit');
+        }
         const screenshot=async()=>{
-          // Exclude the continuously scrolling thumbnail rail and sample the
-          // visible page canvas where the synthetic page label is rendered.
-          const box=await evaluate('(()=>{const r=document.querySelector(".native-scene-pdf").getBoundingClientRect();return{x:r.x+Math.max(20,r.width*.4),y:r.y+70,width:Math.max(1,r.width*.55),height:Math.max(1,r.height*.45)}})()');
+          const box=await evaluate('(()=>{const r=document.querySelector(".native-scene-pdf-canvas").getBoundingClientRect();return{x:r.x+Math.max(0,r.width*.2),y:r.y+Math.max(0,r.height*.2),width:Math.max(1,r.width*.6),height:Math.max(1,r.height*.6)}})()');
           return Buffer.from((await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:true,clip:{...box,scale:1}})).data,'base64');
         };
         const stableScreenshot=async(label)=>{
@@ -385,32 +406,65 @@ try {
             if(count===3)return signature;
             previous=signature;await wait(250);
           }
-          throw Error('Chrome embedded PDF page did not stabilize for '+label);
+          throw Error('In-app PDF canvas did not stabilize for '+label);
         };
-        let before=await stableScreenshot('referenced page 12');
+        const page12Signature=await stableScreenshot('referenced page 12');
+        if(width===1280){
+          await evaluate('document.querySelectorAll(".native-scene-pdf-page button")[1].click()');
+          await until(()=>evaluate('document.querySelector(".native-scene-drawing > div > p")?.textContent.includes("page 13 of 18")'),'rapid resize case page 13');
+          await evaluate('document.querySelectorAll(".native-scene-pdf-zoom button")[1].click()');
+          await until(()=>evaluate('document.querySelector(".native-scene-pdf-zoom span")?.textContent==="200%"'),'rapid resize case zoom update');
+          await evaluate('document.querySelectorAll(".native-scene-pdf-page button")[1].click()');
+          await until(()=>evaluate('document.querySelector(".native-scene-drawing > div > p")?.textContent.includes("page 14 of 18")'),'rapid resize case page 14');
+          await evaluate('document.querySelectorAll(".native-scene-pdf-page button")[1].click()');
+          await until(()=>evaluate('document.querySelector(".native-scene-drawing > div > p")?.textContent.includes("page 15 of 18")'),'rapid resize case page 15');
+          const rapid=await stableScreenshot('rapid page and zoom changes');
+          const rapidPixels=await evaluate(pixelProofExpression);
+          assert(rapidPixels.nonwhite>100&&rapidPixels.colors>2,'Rapidly changed PDF page and zoom finish with actual rendered page pixels');
+          assert.equal(await evaluate('document.querySelector(".native-scene-drawing [role=status]")?.textContent||""'),'','Rapid PDF navigation settles without a reader error');
+          report.results.push({width,rapidChangePage:15,canvasScreenshotSignatureSha256:hash(rapid)});
+          for(let page=14;page>=12;page--){
+            await evaluate('document.querySelectorAll(".native-scene-pdf-page button")[0].click()');
+            await until(()=>evaluate('document.querySelector(".native-scene-drawing > div > p")?.textContent.includes("page '+page+' of 18")'),'restore rapid page '+page);
+          }
+          await evaluate('document.querySelectorAll(".native-scene-pdf-zoom button")[2].click()');
+          await until(()=>evaluate('document.querySelector(".native-scene-pdf-zoom span")?.textContent==="100%"'),'restore rapid test zoom');
+          const restored=await stableScreenshot('page 12 after rapid zoom and navigation');
+          assert(signatureDistance(page12Signature,restored).mean<=0.5,'Serialized rapid renders return to the same page 12 pixels');
+        }
+        let before=page12Signature;
         for(let page=13;page<=18;page++){
-          await evaluate('window.__priorPdfFrame=document.querySelector(".native-scene-pdf");document.querySelectorAll(".native-scene-pdf-page button")[1].click()');
-          await until(()=>evaluate('document.querySelector(".native-scene-pdf")?.getAttribute("src").includes("#page='+page+'&zoom=100")'),'page '+page+' requested');
-          assert.equal(await evaluate('document.querySelector(".native-scene-pdf")===window.__priorPdfFrame'),false,'Each navigation recreates the embedded browser PDF reader');
+          await evaluate('document.querySelectorAll(".native-scene-pdf-page button")[1].click()');
+          await until(()=>evaluate('document.querySelector(".native-scene-drawing > div > p")?.textContent.includes("page '+page+' of 18")'),'page '+page+' selected');
           const after=await stableScreenshot('synthetic page '+page);
           const distance=signatureDistance(before,after);
-          assert(distance.mean>0.5&&distance.changed>=2,'Stable Chrome embedded PDF page content changes for synthetic page '+page);
-          report.results.push({width,renderedSyntheticPage:page,iframeRecreated:true,frameScreenshotSignatureSha256:hash(after)});
+          assert(distance.mean>0.5&&distance.changed>=2,'Stable PDF.js rendered page content changes for synthetic page '+page);
+          report.results.push({width,renderedSyntheticPage:page,canvasScreenshotSignatureSha256:hash(after)});
           before=after;
         }
-        await evaluate('window.__priorPdfFrame=document.querySelector(".native-scene-pdf");document.querySelectorAll(".native-scene-pdf-zoom button")[1].click()');
-        await until(()=>evaluate('document.querySelector(".native-scene-pdf")?.getAttribute("src").includes("#page=18&zoom=200")'),'zoom request applied');
-        assert.equal(await evaluate('document.querySelector(".native-scene-pdf")===window.__priorPdfFrame'),false,'Zoom recreates the embedded browser PDF reader');
+        await evaluate('document.querySelectorAll(".native-scene-pdf-zoom button")[1].click()');
+        await until(()=>evaluate('document.querySelector(".native-scene-pdf-canvas").getBoundingClientRect().width>document.querySelector(".native-scene-pdf").clientWidth'),'zoom changes canvas size');
         const zoomed=await stableScreenshot('synthetic zoom');
         const zoomDistance=signatureDistance(before,zoomed);
-        assert(zoomDistance.mean>0.5&&zoomDistance.changed>=2,'Stable Chrome embedded PDF page content changes for synthetic zoom');
-        report.results.push({width,zoomedSyntheticPage:18,iframeRecreated:true,frameScreenshotSignatureSha256:hash(zoomed)});
+        assert(zoomDistance.mean>0.5&&zoomDistance.changed>=2,'Stable PDF.js rendered page content changes for synthetic zoom');
+        report.results.push({width,zoomedSyntheticPage:18,canvasScreenshotSignatureSha256:hash(zoomed)});
         for(let page=17;page>=12;page--){
           await evaluate('document.querySelectorAll(".native-scene-pdf-page button")[0].click()');
-          await until(()=>evaluate('document.querySelector(".native-scene-pdf")?.getAttribute("src").includes("#page='+page+'&zoom=200")'),'restore page '+page);
+          await until(()=>evaluate('document.querySelector(".native-scene-drawing > div > p")?.textContent.includes("page '+page+' of 18")'),'restore page '+page);
         }
         await evaluate('document.querySelectorAll(".native-scene-pdf-zoom button")[2].click()');
-        await until(()=>evaluate('document.querySelector(".native-scene-pdf")?.getAttribute("src").includes("#page=12&zoom=100")'),'restore referenced page and zoom');
+        await until(()=>evaluate('document.querySelector(".native-scene-pdf-canvas").getBoundingClientRect().width<=document.querySelector(".native-scene-pdf").clientWidth'),'restore referenced page and zoom');
+        if(width===390){
+          const closed=await stableScreenshot('page 12 after full traversal');
+          assert(signatureDistance(page12Signature,closed).mean<=0.5,'Page 12 pixels return after traversing pages and zoom');
+          await click('.native-scene-drawing > header button');
+          await until(()=>evaluate('!document.querySelector(".native-scene-drawing")'),'close before mobile reopen');
+          await click('#room-open');
+          await until(()=>evaluate('Boolean(document.querySelector(".native-scene-pdf-canvas")?.width)'),'reopened mobile page 12');
+          const reopened=await stableScreenshot('reopened mobile page 12');
+          assert(signatureDistance(page12Signature,reopened).mean<=0.5,'Reopened mobile reader renders the referenced page again');
+          report.results.push({width,reopenedPage:12,canvasScreenshotSignatureSha256:hash(reopened)});
+        }
       }
       assert.match(await evaluate('document.querySelector(".native-scene-drawing").textContent'),/Reference PDF · page 12/);
       assert.match(await evaluate('document.querySelector(".native-drawing-provenance").textContent'),/Historical room-mapping receipt.*synthetic-old-room-receipt.*Current native room review.*synthetic-new-native-review/s);
@@ -419,16 +473,17 @@ try {
       assert.match(await evaluate('document.querySelector(".native-drawing-provenance[open]").textContent'),/Historical room-mapping receipt.*synthetic-old-room-receipt.*Current native room review.*synthetic-new-native-review/s);
       await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'),'Previous PDF page');
       await evaluate('document.querySelectorAll(".native-scene-pdf-page button")[1].click()');
-      await until(()=>evaluate('document.querySelector(".native-scene-pdf").getAttribute("src").includes("#page=13&zoom=100")'),'next page navigation');
+      await until(()=>evaluate('document.querySelector(".native-scene-drawing > div > p")?.textContent.includes("page 13 of 18")'),'next page navigation');
       await evaluate('document.querySelectorAll(".native-scene-pdf-page button")[0].click()');
-      await until(()=>evaluate('document.querySelector(".native-scene-pdf").getAttribute("src").includes("#page=12&zoom=100")'),'previous page navigation');
+      await until(()=>evaluate('document.querySelector(".native-scene-drawing > div > p")?.textContent.includes("page 12 of 18")'),'previous page navigation');
       await evaluate('document.querySelectorAll(".native-scene-pdf-zoom button")[1].click()');
-      await until(()=>evaluate('document.querySelector(".native-scene-pdf").getAttribute("src").includes("#page=12&zoom=200")'),'PDF zoom control');
+      await until(()=>evaluate('document.querySelector(".native-scene-pdf-canvas").getBoundingClientRect().width>document.querySelector(".native-scene-pdf").clientWidth'),'PDF zoom control');
       await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.tagName'),'INPUT');
       await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'),'Next PDF page');
       await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'),'Zoom out PDF');
       await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'),'Zoom in PDF');
       await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.textContent'),'Reset zoom');
+      await key('Tab','Tab',9);assert.match(await evaluate('document.activeElement.getAttribute("aria-label")'),/page 12 of 18/,'Focus reaches the rendered PDF page region');
       await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.textContent'),'Download reference PDF');
       await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.textContent'),'Close drawing');
       if(name==='pdf-download'){
@@ -458,13 +513,10 @@ try {
   const stats=await evaluate('window.__stats');assert.equal(stats.created.length,stats.revoked.length,'All URLs retired');
   assert.equal(stats.subscribed,stats.unsubscribed,'All document subscriptions retired');
   assert(stats.hiddenBeforeRelease.every(Boolean),'Action is hidden before native frame release');
-  assert.equal(stats.opens.length,widths.length+(name==='lifecycle'?2:0));
+  assert.equal(stats.opens.length,widths.length+(name==='lifecycle'?2:0)+(name==='pdf-navigation'?1:0));
   assert.deepEqual(cdp.errors,[]);
-  const chromePdfViewer='chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/';
-  assert(cdp.requests.every(url=>url.startsWith(origin+'/')||url.startsWith('blob:'+origin+'/')||url.startsWith(chromePdfViewer)),
-    'Only owned loopback/blob and Chrome built-in PDF viewer requests: '+JSON.stringify(cdp.requests));
-  if(name==='pdf-download')assert(cdp.requests.includes(chromePdfViewer+'index.html'),'Chrome built-in PDF renderer opened');
-  if(name==='pdf-navigation')assert(cdp.requests.includes(chromePdfViewer+'index.html'),'Chrome built-in PDF renderer opened for the page/zoom regression');
+  assert(cdp.requests.every(url=>url.startsWith(origin+'/')||url.startsWith('blob:'+origin+'/')),
+    'Only owned loopback/blob requests; the PDF is rendered inside HouseAtlas without third-party viewers');
   await evaluate('window.__shutdown()');report.results.push({case:name,status:'passed',stats});
 }catch(error){failure=error;report.failure={name:error.name,message:error.message};}
 finally{
