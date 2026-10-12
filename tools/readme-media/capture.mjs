@@ -86,11 +86,17 @@ try {
     return JSON.stringify(labels) === JSON.stringify(['Synthetic lower floor', 'Synthetic upper floor']);
   });
   assert(!/rendering is unavailable|Source floors are unavailable/.test(await house.locator('body').innerText()));
+  // Exercise the actual controls, return to the baseline pose, and require a
+  // fresh draw after both prepared floors have committed to the renderer.
+  await house.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  await house.evaluate(() => { window.syntheticDrawCalls = 0; });
+  await house.getByRole('button', { name: 'Zoom out', exact: true }).click();
+  await house.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(done)))));
+  await house.waitForFunction(() => window.syntheticDrawCalls > 0 && document.querySelector('canvas').width > 1 && document.querySelector('canvas').height > 1);
   const webgl = await house.locator('canvas').evaluate(canvas => {
     const gl = canvas.getContext('webgl');
     return { version: gl.getParameter(gl.VERSION), drawCalls: window.syntheticDrawCalls, pixels: [canvas.width, canvas.height], preparedFloors: [...document.querySelectorAll('.floor-tag-name')].map(node => node.textContent).sort() };
   });
-  await house.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(done)))));
   await house.screenshot({ path: resolve(output, 'synthetic-mesh.png'), animations: 'disabled' });
   const illustrated = await context.newPage();
   illustrated.on('pageerror', error => errors.push(error.message));
@@ -105,6 +111,7 @@ try {
     await document.fonts.ready;
     await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(done))));
   });
+  const illustrationSvgSha256 = createHash('sha256').update(await illustrated.locator('svg.model').evaluate(node => node.outerHTML)).digest('hex');
   await illustrated.screenshot({ path: resolve(output, 'synthetic-house.png'), animations: 'disabled' });
   await illustrated.getByRole('button', { name: 'Plan', exact: true }).click();
   await illustrated.waitForFunction(() => document.querySelector('.stage.is-plan'));
@@ -122,7 +129,7 @@ try {
     const path = file.startsWith('docs/demo/') ? resolve(output, file.split('/').at(-1)) : resolve(root, file);
     hashes[file] = createHash('sha256').update(await readFile(path)).digest('hex');
   }
-  await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browser.version(), webgl, illustration: { renderer: 'production AtlasView/Model', fictional: true, floors: 3, selectedRoom: 'Kitchen', referenceArchiveSHA256: '96a884bf935e6aedfa3e5b4f415cce8be295630fe052dc66c5497f8b87b1da63' }, viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'both source floors prepared before production WebGL capture', 'original fictional three-floor illustrated house with furniture and selected Kitchen', 'illustrated ground-floor plan mode', 'zero external browser requests and renderer errors'], hashes }, null, 2) + '\n');
+  await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browser.version(), webgl, illustration: { renderer: 'production AtlasView/Model', fictional: true, floors: 3, selectedRoom: 'Kitchen', svgSHA256: illustrationSvgSha256, referenceArchiveSHA256: '96a884bf935e6aedfa3e5b4f415cce8be295630fe052dc66c5497f8b87b1da63' }, viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'both source floors prepared before production WebGL capture', 'original fictional three-floor illustrated house with furniture and selected Kitchen', 'illustrated ground-floor plan mode', 'zero external browser requests and renderer errors'], hashes }, null, 2) + '\n');
   console.log('PASS synthetic React media: original illustrated house, plan, two-floor WebGL meshes, building, room, Network, collage; no provider/native acceptance');
 } finally {
   clearTimeout(deadline);

@@ -1,11 +1,11 @@
 {
   "format": "houseatlas-synthetic-readme-media/1",
   "synthetic": true,
-  "sourceHead": "f6cb37c7ff3b237da980e136caf338efa1bea8b3",
+  "sourceHead": "8a0ae6fd0fc41cdadafa89723e7dd7569d4287c2",
   "sourceDirty": true,
   "sourceTree": {
     "algorithm": "SHA256 of sorted tracked path TAB bytes TAB file-SHA256 LF",
-    "fileCount": 1332,
+    "fileCount": 1346,
     "exclusions": [
       "docs/demo/capture.json",
       "docs/publication/source-manifest.json",
@@ -17,13 +17,13 @@
       "docs/demo/synthetic-network.png",
       "docs/demo/synthetic-collage.png"
     ],
-    "sha256": "23acaec32b33da4238d8af08d58576f59b0fff670da9f7e01a40d33fe00f6325"
+    "sha256": "08d4ed84aa7bbc792a370331999bad4da42366531a677c72955815b19f92f277"
   },
   "node": "v26.10.0",
   "browser": "156.0.8078.4",
   "webgl": {
     "version": "WebGL 1.0 (OpenGL ES 2.0 Chromium)",
-    "drawCalls": 90,
+    "drawCalls": 60,
     "pixels": [
       1329,
       788
@@ -38,6 +38,7 @@
     "fictional": true,
     "floors": 3,
     "selectedRoom": "Kitchen",
+    "svgSHA256": "37635e680cc13ed5e5dfe7594d907e7e40c600806675e543e533af39e19e0ac7",
     "referenceArchiveSHA256": "96a884bf935e6aedfa3e5b4f415cce8be295630fe052dc66c5497f8b87b1da63"
   },
   "viewport": [
@@ -63,8 +64,8 @@
   "hashes": {
     "frontend/lantern-tests/core-read-visual/main.tsx": "74080f5eecddffc8932c57bef1184cb4b6556bf349c52adf746b4ba3ddc4c631",
     "frontend/lantern-tests/core-read-visual/fixture.json": "8288f3404fd0e2579797c692b6dd1befb2e19b1989e365ed87d5be1cef93a65d",
-    "tools/readme-media/capture.mjs": "f7ac266b6e881133dd4731188b11cb11404a4076087fc3424490ff6f49b9b9f1",
-    "frontend/lantern-tests/readme-house-visual/main.tsx": "fec4bd1119736b1b226570bdbe87a2a5452276a106dce2bfad32eef39688610a",
+    "tools/readme-media/capture.mjs": "3969e663991a338165267b7b9537eb07a8123dabd4cbefd3ba451bd02a033b14",
+    "frontend/lantern-tests/readme-house-visual/main.tsx": "63de3e67167f5f1a2d1e9a7687a0a61ff759e0d8be18c65903023bd2ce51bcb3",
     "frontend/lantern-tests/readme-house-visual/house.ts": "75bc6183ff683d2f595c0d4bd4a695b9293ddee91fe3c37a6d050f0cfcaa4eef",
     "frontend/lantern-tests/readme-house-visual/demo.css": "faffab3a559f12259991c8455ccefd4b6ecc04e6d8e2bd4f4cb67057d094921a",
     "frontend/src/lantern/atlas/Model.tsx": "9b9764421b07e0653960dd1212b1e22c51ca87065da6ce43ca9df460b18aaf53",
@@ -83,8 +84,8 @@
     "docs/demo/synthetic-room.png": "acaa87f6110e1d31d782b5a541700db0a762f0304768cb9a0a6a220f9b6f409a",
     "docs/demo/synthetic-network.png": "6da625edea7d89d5e967c16e6a968cfd2f8c9f6f10eb5b0d4fc91b94c19d64f5",
     "docs/demo/synthetic-collage.png": "1ef49cd0de8e75bb94924dca11cad9d032fd216192dd36c56e105d55eaf833f4",
-    "docs/demo/synthetic-house.png": "64b1786cd6fb5dc9983ffd2f5ed02cf233bd3ab525d689d11f8b01189b171c3c",
-    "docs/demo/synthetic-mesh.png": "065415ba94874523273a66a4c51415770b0ca942f31f759f67677af0abe21997",
+    "docs/demo/synthetic-house.png": "5cb015d5043668daf9a3eef7fb8693fe54c07dc6c5b51fd5f53b194237852cb8",
+    "docs/demo/synthetic-mesh.png": "d42e11905cbcb033fc0b010bc762afa0095d1925a705148e582b9178883e5aee",
     "docs/demo/synthetic-plan.png": "d292d51a2701ae2b5c68ae9a28c060aa8555231e9a1f5e71ed02d7050504a410"
   }
 }

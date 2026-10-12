@@ -8,7 +8,7 @@ import fixture from './fixture.json';
 import { AtlasView } from '../../src/lantern/atlas/AtlasView';
 import { fictionalHouse } from './house';
 import { projectView } from '../../src/lantern/adapters/read';
-import { StoreProvider, useStore } from '../../src/lantern/state/store';
+import { StoreProvider, useReducedMotion, useStore } from '../../src/lantern/state/store';
 import type { ReadyView } from '../../src/app/types';
 import browsingFixture from '../core-read-visual/fixture.json';
 import './demo.css';
@@ -40,9 +40,10 @@ function MeshDemo() {
 const projection = { ...projectView(browsingFixture.view as ReadyView), house: fictionalHouse };
 function IllustratedHouse() {
   const { state, dispatch, house } = useStore();
+  const reduced = useReducedMotion();
   useEffect(() => { dispatch({ type: 'floor', id: 'fl-g' }); }, [dispatch]);
   const room = state.selection?.kind === 'space' ? house.spaces.find(space => space.id === state.selection?.id) : null;
-  return <div className="demo-grid">
+  return <div className={`demo-grid${reduced ? ' is-reduced' : ''}`}>
     <AtlasView />
     <aside className="demo-details">
       <span className="demo-kicker">Original fictional Lantern house</span>

@@ -68,11 +68,15 @@ manifest. Both prepared floor tags must be present before the geometry capture.
 The checked-in receipt
 records the base HEAD and a modified working candidate, with the fixture,
 harness and relevant production source bytes pinned individually; workflow
-artifacts record their checked-out candidate HEAD. With identical fonts, browser
-and OS rendering, the images are deterministic; other operating systems can
-produce different font rasterization. The local repeated capture was checked
-for identical image hashes. Reproduction does not require byte equality across
-host platforms.
+artifacts record their checked-out candidate HEAD. Fixture data, source, viewport,
+fonts, camera and selected state are fixed; the receipt also pins the illustrated
+model's actual SVG markup. Browser rasterization can vary at a small number of
+antialiased or translucent SVG edges, even on the same host. Repeated capture
+checks compare the rendered state and inspect pixel differences, rather than
+treating every PNG hash difference as a geometry change. The exact checked-in
+PNG bytes retain their own hashes. Other operating systems can also produce
+different font rasterization; reproduction does not require byte equality
+across host platforms.
 
 Playwright's default headless launch uses `--no-sandbox`. This is a separately
 authorized public media harness and is not the existing sandbox-required native
