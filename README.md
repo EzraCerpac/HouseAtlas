@@ -540,14 +540,16 @@ CI and do not qualify native grant revocation, original verification or deployme
 See [the issue-specific scope](docs/geometry/drawing-evidence-lookup-150.md).
 
 The generated-only pdf-navigation case exercises the in-app PDF.js canvas with
-an in-memory 18-page PDF whose pages have distinct synthetic labels and page
-colors. It verifies nonblank canvas pixels and three stable page captures for
+an in-memory 18-page A0 PDF whose pages have distinct synthetic labels, page
+colors and a four-color JPEG2000 image. It checks local decoder, CMap and font
+resources, viewport fit, nonblank canvas pixels and three stable page captures for
 page 12 through 18, then verifies a pixel-changing zoom, page/zoom reversal,
 and close/reopen at 390×844. It uses an owned loopback browser fixture and is
 outside ordinary CI. Inspect the complete runner, generated PDF builder, and
 NativeSceneDrawing before running. The PDF exists only in memory and the
 fixture's private output contains the bounded browser report, not PDF bytes.
-PDF.js and its worker are bundled locally in the lazy drawing reader; no PDF
+PDF.js, its worker, OpenJPEG/JBIG2 WASM and JavaScript decoders, CMaps and standard
+fonts are bundled locally in the lazy drawing reader; no PDF
 bytes or URLs are sent to a viewer service. The PDF.js worker is emitted as a
 `.js` asset for the current backend MIME allowlist; the backend compatibility
 check also verifies every output file is an allowed type and at most 4,000,000

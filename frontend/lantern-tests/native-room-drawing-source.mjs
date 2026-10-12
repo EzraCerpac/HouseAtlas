@@ -11,6 +11,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inflateSync } from 'node:zlib';
 import { build } from 'vite';
+import { pdfjsBinaryDataPlugin } from '../build/pdfjs-binary-data-plugin.mjs';
 
 const names = new Set(['pdf-download', 'pdf-navigation', 'png-legacy', 'missing-correlation', 'stale-correlation', 'wrong-correlation', 'lifecycle']);
 assert.equal(process.argv.length, 3); const name = process.argv[2]; assert(names.has(name), 'Select one registered named case');
@@ -62,33 +63,36 @@ function makeSyntheticNavigationPdf(pageCount) {
   const objects = new Map();
   const pageIds = Array.from({ length: pageCount }, (_, index) => 3 + index * 2);
   const fontId = 3 + pageCount * 2;
+  const imageId = fontId + 1;
+  const jpx = Buffer.from('AAAADGpQICANCocKAAAAFGZ0eXBqcDIgAAAAAGpwMiAAAAAtanAyaAAAABZpaGRyAAAAEAAAABAAAwcHAAAAAAAPY29scgEAAAAAABAAAAGWanAyY/9P/1EALwAAAAAAEAAAABAAAAAAAAAAAAAAABAAAAAQAAAAAAAAAAAAAwcBAQcBAQcBAf9SAAwAAAABAQIEBAAB/1wACkBASEhQSEhQ/2QAJQABQ3JlYXRlZCBieSBPcGVuSlBFRyB2ZXJzaW9uIDIuNS40/5AACgAAAAABGAAB/5PH1CARHheZ8uIkX++XNosqxA2334CoCNwiL2cC4GgG8D8gTbIcWAoMh45//xioF7vW4f2AuqRv1uyekdl1esxsPpt/w+oJg+cPAfIEGHM3jeaT3R+/GxB0f54ynxawbI/PwC4+0Jg+oGAZHtJ57/iHhYHgvwxmsATU7kfz1xYCTjBKv9+YXPwC4/AHFqvJoEKLwLAQj18PFsUCFEGdr/NrehaxIGlVv2/D6gmD5xEB8gNKdX3qy5asPaAp3is3WFWosSQsTc/AKj7QuD6gMEshf+52mKcp/38AytEd0WUKFUWsfyTdU8/AMn4BcPtBACIZAqfiSsolph7n1yQhBsUGnhoyjhatJCtyd//Z', 'base64');
   objects.set(1, '<< /Type /Catalog /Pages 2 0 R >>');
   objects.set(2, '<< /Type /Pages /Kids [' + pageIds.map(id => id + ' 0 R').join(' ') + '] /Count ' + pageCount + ' >>');
   for (let index = 0; index < pageCount; index++) {
     const pageId = pageIds[index], contentId = pageId + 1;
     const red=(0.65+((index*37)%30)/100).toFixed(2),green=(0.65+((index*53)%30)/100).toFixed(2),blue=(0.65+((index*29)%30)/100).toFixed(2);
-    const content = 'q '+red+' '+green+' '+blue+' rg 20 20 320 260 re f Q\nBT /F1 28 Tf 40 240 Td (SYNTHETIC PAGE ' + (index + 1) + ') Tj ET\n';
-    objects.set(pageId, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 360 300] /Resources << /Font << /F1 ' + fontId + ' 0 R >> >> /Contents ' + contentId + ' 0 R >>');
-    objects.set(contentId, '<< /Length ' + Buffer.byteLength(content, 'ascii') + ' >>\nstream\n' + content + 'endstream');
+    const content = 'q '+red+' '+green+' '+blue+' rg 0 0 3370 2384 re f Q\nq 1200 0 0 1200 100 500 cm /Im1 Do Q\nBT /F1 72 Tf 100 2200 Td (SYNTHETIC PAGE ' + (index + 1) + ') Tj ET\n';
+    objects.set(pageId, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 3370 2384] /Resources << /Font << /F1 ' + fontId + ' 0 R >> /XObject << /Im1 ' + imageId + ' 0 R >> >> /Contents ' + contentId + ' 0 R >>');
+    objects.set(contentId, '<< /Length ' + Buffer.byteLength(content, 'latin1') + ' >>\nstream\n' + content + 'endstream');
   }
   objects.set(fontId, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  objects.set(imageId, '<< /Type /XObject /Subtype /Image /Width 16 /Height 16 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /JPXDecode /Length ' + jpx.length + ' >>\nstream\n' + jpx.toString('latin1') + '\nendstream');
   let document = '%PDF-1.4\n%HouseAtlas synthetic navigation fixture\n';
   const offsets = [0];
-  for (let id = 1; id <= fontId; id++) {
-    offsets[id] = Buffer.byteLength(document, 'ascii');
+  for (let id = 1; id <= imageId; id++) {
+    offsets[id] = Buffer.byteLength(document, 'latin1');
     document += id + ' 0 obj\n' + objects.get(id) + '\nendobj\n';
   }
-  const xref = Buffer.byteLength(document, 'ascii');
-  document += 'xref\n0 ' + (fontId + 1) + '\n0000000000 65535 f \n';
-  for (let id = 1; id <= fontId; id++) document += String(offsets[id]).padStart(10, '0') + ' 00000 n \n';
-  document += 'trailer\n<< /Size ' + (fontId + 1) + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
-  return Buffer.from(document, 'ascii');
+  const xref = Buffer.byteLength(document, 'latin1');
+  document += 'xref\n0 ' + (imageId + 1) + '\n0000000000 65535 f \n';
+  for (let id = 1; id <= imageId; id++) document += String(offsets[id]).padStart(10, '0') + ' 00000 n \n';
+  document += 'trailer\n<< /Size ' + (imageId + 1) + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
+  return Buffer.from(document, 'latin1');
 }
 const pdf = makeSyntheticNavigationPdf(18);
 const input = { name, png: png.toString('base64'), pdf: pdf.toString('base64'), pngSha: hash(png), pdfSha: hash(pdf) };
 const production = ['frontend/integration/native-scene-association-client.ts','frontend/integration/native-scene-documentary-support.ts','frontend/integration/main.tsx','frontend/src/lantern/scans/native-ui/NativeSceneAssociation.tsx','frontend/integration/native-scene-source-client.ts', 'frontend/src/lantern/scans/native-scene-source-types.ts',
   'frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx', 'frontend/src/lantern/scans/native-ui/NativeSceneLayers.tsx',
-  'frontend/src/lantern/scans/native-ui/native-scene.css', 'frontend/src/app/assets.d.ts', 'frontend/package.json', 'frontend/package-lock.json'];
+  'frontend/src/lantern/scans/native-ui/native-scene.css', 'frontend/src/app/assets.d.ts', 'frontend/build/pdfjs-binary-data-plugin.mjs', 'frontend/vite.config.ts', 'frontend/package.json', 'frontend/package-lock.json'];
 const report = { name, sourceHead: execFileSync('git', ['rev-parse', 'HEAD'], {cwd: root, encoding:'utf8'}).trim(),
   sourcePins: Object.fromEntries(production.map(p => [p, hash(readFileSync(join(root,p)))])), node: process.version, results: [] };
 let scratch, generated, browser, server, cdp, failure, childClosed = false, groupGone = false, stopReason;
@@ -112,6 +116,7 @@ class CDP {
         this.buffer = this.buffer.slice(end+1);
         if (row.id) { const p = this.pending.get(row.id); if(!p) continue; clearTimeout(p.timer); this.pending.delete(row.id); row.error ? p.no(Error('CDP command failed: '+p.method)) : p.yes(row.result); }
         else if(row.method === 'Runtime.exceptionThrown') this.errors.push(row.params.exceptionDetails.text);
+        else if(row.method === 'Runtime.consoleAPICalled' && row.params.type === 'error') this.errors.push(row.params.args.map(argument=>argument.value??argument.description??'').join(' '));
         else if(row.method === 'Network.requestWillBeSent') this.requests.push(row.params.request.url);
       }
     });
@@ -300,16 +305,16 @@ try {
   const component=join(frontend,'src/lantern/scans/native-ui/NativeSceneDrawing.tsx');
   const association=join(frontend,'integration/native-scene-association-client.ts');
   const reader=join(frontend,'integration/native-scene-source-client.ts'),decimal=join(frontend,'src/numeric/decimal.ts');
-  writeFileSync(module,'import {createElement,useState,useLayoutEffect} from "react";import {createRoot} from "react-dom/client";\n'+
+  writeFileSync(module,'import {createElement,useState,useLayoutEffect} from "react";import {createRoot} from "react-dom/client";import {HouseAtlasPdfBinaryDataFactory} from "virtual:houseatlas-pdfjs-resources";\n'+
     'import {NativeSceneDrawing} from '+JSON.stringify(component)+';import {createNativeSceneSourceClient} from '+JSON.stringify(reader)+';\n'+
     'import {createNativeSceneAssociationClient} from '+JSON.stringify(association)+';\n'+
     'import {NativeSceneAssociation} from '+JSON.stringify(join(frontend,'src/lantern/scans/native-ui/NativeSceneAssociation.tsx'))+';\n'+
     'import {ExactDecimal} from '+JSON.stringify(decimal)+';import '+JSON.stringify(join(frontend,'src/lantern/scans/native-ui/native-scene.css'))+';\n'+
-    'window.__input='+JSON.stringify(input)+';\n'+fixture.toString()+'\n'+app.toString()+'\n'+
+    'window.__input='+JSON.stringify(input)+';window.__pdfjsFixtureResources=new HouseAtlasPdfBinaryDataFactory();\n'+fixture.toString()+'\n'+app.toString()+'\n'+
     'app(createElement,useState,useLayoutEffect,createRoot,NativeSceneDrawing,createNativeSceneSourceClient,ExactDecimal,createNativeSceneAssociationClient,NativeSceneAssociation).catch(e=>{window.__failed=e.message;});');
   writeFileSync(index,'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0}main{padding:8px}button,a{font-size:16px}.native-scene-drawing{box-sizing:border-box}h3,p{overflow-wrap:anywhere}</style><div id="root"></div><script type="module" src="/app.js"></script>');
   const dist=join(scratch,'dist');
-  await build({configFile:false,root:generated,logLevel:'error',build:{outDir:dist,emptyOutDir:true,minify:false,rollupOptions:{input:index}}});
+  await build({configFile:false,root:generated,plugins:[pdfjsBinaryDataPlugin(frontend)],logLevel:'error',build:{outDir:dist,emptyOutDir:true,minify:false,rollupOptions:{input:index}}});
   const files=new Map();function collect(dir,prefix=''){for(const x of readdirSync(dir,{withFileTypes:true})){const path=join(dir,x.name),url=prefix+'/'+x.name;x.isDirectory()?collect(path,url):files.set(url,readFileSync(path));}}collect(dist);
   server=createServer((req,res)=>{if(req.method!=='GET'){res.writeHead(405);res.end();return;}const path=req.url==='/'?'/index.html':req.url;if(path==='/favicon.ico'){res.writeHead(204);res.end();return;}const bytes=files.get(path);if(!bytes){res.writeHead(404);res.end();return;}
     res.writeHead(200,{'Content-Type':path.endsWith('.js')||path.endsWith('.mjs')?'text/javascript':path.endsWith('.css')?'text/css':'text/html','Content-Length':bytes.length,'Cache-Control':'no-store'});res.end(bytes);});
@@ -365,11 +370,27 @@ try {
       await until(()=>evaluate('Boolean(document.querySelector(".native-scene-drawing canvas.native-scene-pdf-canvas")?.width && document.querySelector(".native-scene-drawing a[download]"))'),'authenticated in-app PDF canvas and download action');
       assert.equal(await evaluate('Boolean(document.querySelector(".native-scene-drawing iframe, embed, object"))'),false);
       assert.equal(await evaluate('document.querySelector(".native-scene-pdf-canvas").width>0 && document.querySelector(".native-scene-pdf-canvas").height>0'),true,'PDF pages paint actual canvas pixels');
+      const resources=await evaluate('Promise.all([window.__pdfjsFixtureResources.fetch({kind:"cMapUrl",filename:"Adobe-Japan1-4.bcmap"}),window.__pdfjsFixtureResources.fetch({kind:"standardFontDataUrl",filename:"FoxitSerif.pfb"})]).then(([cmap,font])=>({cmap:cmap.length,font:font.length}))');
+      assert(resources.cmap>100&&resources.font>1000,'Bundled local PDF.js CMap and standard-font resources load through the app resource factory');
+      assert.equal(await evaluate('document.querySelector(".native-scene-pdf-canvas").getBoundingClientRect().width<=document.querySelector(".native-scene-pdf").clientWidth'),true,'Large A0 page fits the available drawing viewport without a lower scale clamp');
       const pixelProofExpression='(()=>{const c=document.querySelector(".native-scene-pdf-canvas"),d=c.getContext("2d").getImageData(0,0,c.width,c.height).data,colors=new Set();let nonwhite=0;for(let gy=0;gy<40;gy++)for(let gx=0;gx<40;gx++){const i=(Math.floor((gy+.5)*c.height/40)*c.width+Math.floor((gx+.5)*c.width/40))*4,p=[d[i],d[i+1],d[i+2]],key=p.join(",");colors.add(key);if(p[0]<245||p[1]<245||p[2]<245)nonwhite++}return{nonwhite,colors:colors.size}})()';
-      await until(async()=>{const p=await evaluate(pixelProofExpression);return p.nonwhite>100&&p.colors>2},'nonblank rendered PDF canvas');
+      const jpxProofExpression='(()=>{const c=document.querySelector(".native-scene-pdf-canvas"),r=c.getBoundingClientRect(),d=c.getContext("2d").getImageData(0,0,c.width,c.height).data,s=c.width/r.width,k=r.width/3370,x=100*k,y=(2384-500-1200)*k,w=1200*k,h=1200*k;return[[.25,.25],[.75,.25],[.25,.75],[.75,.75]].map(([a,b])=>{const i=(Math.floor((y+h*b)*s)*c.width+Math.floor((x+w*a)*s))*4;return[d[i],d[i+1],d[i+2]]})})()';
+      try { await until(async()=>{const p=await evaluate(pixelProofExpression);return p.nonwhite>100&&p.colors>2},'nonblank rendered PDF canvas'); }
+      catch(error) { throw Error(error.message+'; reader status: '+await evaluate('document.querySelector(".native-scene-drawing [role=status]")?.textContent||"none"')+'; browser errors: '+JSON.stringify(cdp.errors)); }
       const pixelProof=await evaluate(pixelProofExpression);
       assert(pixelProof.nonwhite>100&&pixelProof.colors>2,'Referenced PDF canvas contains actual rendered page pixels, not a blank frame');
+      await until(()=>evaluate('document.querySelector(".native-scene-pdf-canvas").style.visibility==="visible" && !document.querySelector(".native-scene-drawing [role=status]")'),'completed PDF page render');
+      const completedJpxPixels=await evaluate(jpxProofExpression);
+      assert.equal(new Set(completedJpxPixels.map(color=>color.join(','))).size,4,'Local PDF.js OpenJPEG renders four distinct JPEG2000 quadrants into canvas pixels: '+JSON.stringify(completedJpxPixels));
+      report.results.push({width,jpxPixels:completedJpxPixels,resources,pixelProof,largeSheetFitted:true});
       if(name==='pdf-navigation'){
+        if(width===1280){
+          const fittedWidth=await evaluate('document.querySelector(".native-scene-pdf-canvas").getBoundingClientRect().width');
+          await evaluate('document.querySelectorAll(".native-scene-pdf-zoom button")[0].click()');
+          await until(()=>evaluate('document.querySelector(".native-scene-pdf-canvas").getBoundingClientRect().width < '+(fittedWidth*.6)),'A0 zoom out reduces page size');
+          await evaluate('document.querySelectorAll(".native-scene-pdf-zoom button")[2].click()');
+          await until(()=>evaluate('document.querySelector(".native-scene-pdf-canvas").getBoundingClientRect().width <= document.querySelector(".native-scene-pdf").clientWidth'),'A0 zoom reset restores viewport fit');
+        }
         const screenshot=async()=>{
           const box=await evaluate('(()=>{const r=document.querySelector(".native-scene-pdf-canvas").getBoundingClientRect();return{x:r.x+Math.max(0,r.width*.2),y:r.y+Math.max(0,r.height*.2),width:Math.max(1,r.width*.6),height:Math.max(1,r.height*.6)}})()');
           return Buffer.from((await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:true,clip:{...box,scale:1}})).data,'base64');

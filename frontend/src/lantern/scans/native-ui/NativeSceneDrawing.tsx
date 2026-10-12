@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from
 import * as pdfjs from 'pdfjs-dist';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { HouseAtlasPdfBinaryDataFactory, pdfjsDecoderUrl } from 'virtual:houseatlas-pdfjs-resources';
 import type { ElectricalFixtureSheet } from '../../overlays/electricity/fixture-types';
 import type { NativeEvidenceDocumentClient, NativeEvidenceDocumentFrame } from '../native-evidence-document-types';
 import type { NativeSceneDrawingPdfReference, NativeSceneDrawingProvenance } from '../native-scene-source-types';
@@ -154,7 +155,9 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
     void (async () => {
       const data = new Uint8Array(await blob.arrayBuffer());
       if (disposed || !currentRef.current() || !client.isCurrent(shown.frame)) return;
-      task = pdfjs.getDocument({ data, enableXfa: false });
+      task = pdfjs.getDocument({ data, enableXfa: false, useWasm: true, useWorkerFetch: false,
+        wasmUrl: pdfjsDecoderUrl, cMapUrl: 'houseatlas:/', standardFontDataUrl: 'houseatlas:/',
+        BinaryDataFactory: HouseAtlasPdfBinaryDataFactory });
       return task.promise;
     })().then(document => {
       if (!document || disposed || !currentRef.current() || !client.isCurrent(shown.frame)) return;
@@ -187,7 +190,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
       activePdfRender.current?.cancel();
       const base = pageHandle.getViewport({ scale: 1 });
       const available = Math.max(120, pdfCanvasHost.current.clientWidth - 24);
-      const scale = Math.max(0.25, Math.min(4, (available / base.width) * zoom));
+      const scale = Math.min(4, (available / base.width) * zoom);
       const viewport = pageHandle.getViewport({ scale });
       const queued = pdfRenderQueue.current.catch(() => {}).then(async () => {
         if (cancelled || paintRequest !== request || !pdfCanvasHost.current || !pdfCanvas.current) return;

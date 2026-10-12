@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "4e69f9078573d372e6e9ac16fcc91a7c5a2f9408b845bed9c4acee8ec92d61e9",
+  "sourceDigestSha256": "41a3d31bee73610bdc2293b97378a8897f902d7a534995418dcdb1c52e69d7e0",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -90,10 +90,10 @@
     },
     {
       "path": "README.md",
-      "owner": "core-integration",
       "mode": "100644",
-      "bytes": 57582,
-      "sha256": "051f517fcf12db0998097a9b81f34e67ad1b30d51a72c8a564b120ba1f6b4a46"
+      "bytes": 57734,
+      "sha256": "e2a5c7b92e2811972fdd6926187ffa690554f82fb260ae19e97cb36ebdc96196",
+      "owner": "core-integration"
     },
     {
       "path": "adapters/homebox/README.md",
@@ -5389,17 +5389,17 @@
     },
     {
       "path": "docs/geometry/assistant-native-scan-import.md",
-      "owner": "media",
       "mode": "100644",
       "bytes": 11341,
-      "sha256": "9b79b64de716177fcb8225af6c8cdaba4bda94b42d9c3ca76abc4dab72381e5d"
+      "sha256": "9b79b64de716177fcb8225af6c8cdaba4bda94b42d9c3ca76abc4dab72381e5d",
+      "owner": "media"
     },
     {
       "path": "docs/geometry/assistant-native-scan-scene.md",
-      "owner": "media",
       "mode": "100644",
       "bytes": 16221,
-      "sha256": "f239a7ac3058d6997397acfa9a718e97656801e0f8f8e0f8ea825605c42fded2"
+      "sha256": "f239a7ac3058d6997397acfa9a718e97656801e0f8f8e0f8ea825605c42fded2",
+      "owner": "media"
     },
     {
       "path": "docs/geometry/assistant-scan-replacement.md",
@@ -5487,10 +5487,10 @@
     },
     {
       "path": "docs/geometry/native-scan-room-targets.md",
-      "owner": "media",
       "mode": "100644",
       "bytes": 8368,
-      "sha256": "0029102a13ccf0323e789096cd11c650e7972bbf4efc0d98a71af85ce2813f5f"
+      "sha256": "0029102a13ccf0323e789096cd11c650e7972bbf4efc0d98a71af85ce2813f5f",
+      "owner": "media"
     },
     {
       "path": "docs/geometry/native-scan-succession.md",
@@ -5955,6 +5955,20 @@
       "owner": "core-integration"
     },
     {
+      "path": "frontend/build/pdfjs-binary-data-plugin.d.mts",
+      "mode": "100644",
+      "bytes": 157,
+      "sha256": "3f803ded7cfaa2216a4e22c828f9bd4ed8e1dd987224b2a807780d4d2eab0104",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/build/pdfjs-binary-data-plugin.mjs",
+      "mode": "100644",
+      "bytes": 2198,
+      "sha256": "0c99749821ecb8b032a562b12aa32d8835d8410322815f695b29484f9e0a5721",
+      "owner": "web"
+    },
+    {
       "path": "frontend/capture-drafts-tests/browser-cases.mjs",
       "mode": "100644",
       "bytes": 19098,
@@ -6096,17 +6110,17 @@
     },
     {
       "path": "frontend/integration/native-scan-import-scene.ts",
-      "owner": "media",
       "mode": "100644",
       "bytes": 64036,
-      "sha256": "273d5947989aa1fe8dda1e2af1b3c4db23388d9ac6f19f39558273eab4f398bc"
+      "sha256": "273d5947989aa1fe8dda1e2af1b3c4db23388d9ac6f19f39558273eab4f398bc",
+      "owner": "media"
     },
     {
       "path": "frontend/integration/native-scan-import-text.ts",
-      "owner": "media",
       "mode": "100644",
       "bytes": 26935,
-      "sha256": "75010e5c9a414da52bd1fb7af7be3cba99d26a64002f73ec42b094ddcf2b56db"
+      "sha256": "75010e5c9a414da52bd1fb7af7be3cba99d26a64002f73ec42b094ddcf2b56db",
+      "owner": "media"
     },
     {
       "path": "frontend/integration/native-scene-association-client.ts",
@@ -6118,16 +6132,16 @@
     {
       "path": "frontend/integration/native-scene-documentary-support.ts",
       "mode": "100644",
-      "owner": "core-integration",
       "bytes": 11911,
-      "sha256": "2bf22d8e3d9c6014ff00b21477a643e08a2d9ba50140851a8843cec28b625fe6"
+      "sha256": "2bf22d8e3d9c6014ff00b21477a643e08a2d9ba50140851a8843cec28b625fe6",
+      "owner": "core-integration"
     },
     {
       "path": "frontend/integration/native-scene-reviewed-places.ts",
-      "owner": "media",
       "mode": "100644",
       "bytes": 8201,
-      "sha256": "7f19c546b75c302c222cc1aff9fcc8c4dbfb5ed991af2aac16eb8561042070ec"
+      "sha256": "7f19c546b75c302c222cc1aff9fcc8c4dbfb5ed991af2aac16eb8561042070ec",
+      "owner": "media"
     },
     {
       "path": "frontend/integration/native-scene-source-client.ts",
@@ -6314,16 +6328,16 @@
     {
       "path": "frontend/lantern-tests/native-room-drawing-source.mjs",
       "mode": "100644",
-      "bytes": 50810,
-      "sha256": "af53dc3aa8a987bf2fe6cf18c05bc335cfa17b3e37ba1d52e16f4623bc246f6a",
+      "bytes": 55079,
+      "sha256": "9e524f390ab513e1d9c4137bdac54d8262c76c80dc6a503466ea7ee2fe017682",
       "owner": "web"
     },
     {
       "path": "frontend/lantern-tests/native-scan-import-scene.mjs",
-      "owner": "media",
       "mode": "100644",
       "bytes": 85758,
-      "sha256": "f6af045e7d491cf2f079b96a18f7a4427022bdbb2f8e3bebe025da73c4749fe3"
+      "sha256": "f6af045e7d491cf2f079b96a18f7a4427022bdbb2f8e3bebe025da73c4749fe3",
+      "owner": "media"
     },
     {
       "path": "frontend/lantern-tests/native-scan-succession.mjs",
@@ -6463,6 +6477,69 @@
       "mode": "100644",
       "bytes": 419,
       "sha256": "25b61ecdf84557ced8f7c10115f5cdec6d997efef67b2f0da2f7baca42a70ae1",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/licenses/pdfjs-dist/cmaps-LICENSE.txt",
+      "mode": "100644",
+      "bytes": 2080,
+      "sha256": "aa92ab5a472974865a96fd4a4e9c13bb41bf6fe1b309cb6b8da48bc9e19839a2",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/licenses/pdfjs-dist/standard-fonts-LICENSE-FOXIT.txt",
+      "mode": "100644",
+      "bytes": 1553,
+      "sha256": "b578cdd2345840ada550bd12519533812320d5f1d21cf4c1c7e1b1b0a31c98b7",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/licenses/pdfjs-dist/standard-fonts-LICENSE-LIBERATION.txt",
+      "mode": "100644",
+      "bytes": 22154,
+      "sha256": "d2c4d5b3e115a519cb58eb691aa64538397e2611f9ebe801392cf9667997e7dc",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/licenses/pdfjs-dist/wasm-LICENSE-JBIG2.txt",
+      "mode": "100644",
+      "bytes": 12862,
+      "sha256": "9e66b7f1b934a28b37f3bc4dac97915de1674271e79a0a88182a18ed9731b4d1",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/licenses/pdfjs-dist/wasm-LICENSE-OPENJPEG.txt",
+      "mode": "100644",
+      "bytes": 2112,
+      "sha256": "a6af136f3e15038a666b61f376612a07d9a4e48cb7c01adbf3e33b3f14ab49b6",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/licenses/pdfjs-dist/wasm-LICENSE-PDFJS-JBIG2.txt",
+      "mode": "100644",
+      "bytes": 555,
+      "sha256": "aad3cce09842e00e9e11ad5e8fef8cc02fbc3a3768fe2f007443b9cee37aaee5",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/licenses/pdfjs-dist/wasm-LICENSE-PDFJS-OPENJPEG.txt",
+      "mode": "100644",
+      "bytes": 1285,
+      "sha256": "717fc62da03292dbb4dd0c8280bd4ce7bb8550dcf31d772bc93455fb50313425",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/licenses/pdfjs-dist/wasm-LICENSE-PDFJS-QCMS.txt",
+      "mode": "100644",
+      "bytes": 1036,
+      "sha256": "508a77d2e7b51d98adeed32648ad124b7b30241a8e70b2e72c99f92d8e5874d1",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/licenses/pdfjs-dist/wasm-LICENSE-QCMS.txt",
+      "mode": "100644",
+      "bytes": 1121,
+      "sha256": "36d847ae882f6574ebc72f56a4f354e4f104fde4a584373496482e97d52d31bc",
       "owner": "web"
     },
     {
@@ -6811,8 +6888,8 @@
     {
       "path": "frontend/src/app/assets.d.ts",
       "mode": "100644",
-      "bytes": 128,
-      "sha256": "80ee61b58036f13152197bec074a37734b54cd275cfd83356b439e03e4e9c91d",
+      "bytes": 353,
+      "sha256": "d154ad7a820ed536b868c7541ed6bf80599f019fc24e030333ea0a93c99e508a",
       "owner": "web"
     },
     {
@@ -7581,8 +7658,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx",
       "mode": "100644",
-      "bytes": 21042,
-      "sha256": "c1d2122fa89574d3cf9e33a88b06d4549d519fec550ede89f3c922b915820a20",
+      "bytes": 21321,
+      "sha256": "c144c0894ffa52aa3d8f2b5b926ca2b57def00e401285215e6329ff336ad7a73",
       "owner": "web"
     },
     {
@@ -8078,8 +8155,8 @@
     {
       "path": "frontend/vite.config.ts",
       "mode": "100644",
-      "bytes": 410,
-      "sha256": "2a58300d3db778269e16c24479a0fc76c7fcc19cc796981c83b57ff040145127",
+      "bytes": 591,
+      "sha256": "777bcf1020af8e016afd34bdab997636ccf4eae73463b6e4e5b4c62adfafe4c4",
       "owner": "core-integration"
     },
     {
@@ -8819,31 +8896,31 @@
     },
     {
       "path": "tools/geometry/native-scan-import-runtime.mjs",
-      "owner": "media",
       "mode": "100644",
       "bytes": 4770,
-      "sha256": "6e5e260f82382696c0e8c548d947b76c6d4d0740cad7090de1c8582f02cbdb39"
+      "sha256": "6e5e260f82382696c0e8c548d947b76c6d4d0740cad7090de1c8582f02cbdb39",
+      "owner": "media"
     },
     {
       "path": "tools/geometry/native-scan-import-transport.mjs",
-      "owner": "media",
       "mode": "100644",
       "bytes": 7952,
-      "sha256": "1867c69e9b155b6acf7a2a5bfa674452c6ee7eda97e48b7ce1678564005fa8f5"
+      "sha256": "1867c69e9b155b6acf7a2a5bfa674452c6ee7eda97e48b7ce1678564005fa8f5",
+      "owner": "media"
     },
     {
       "path": "tools/geometry/native-scan-import.mjs",
-      "owner": "media",
       "mode": "100644",
       "bytes": 48686,
-      "sha256": "ad721f1663446cdbbf50552a9ed8639e30669500b832228b5ce17d2d356b2eb8"
+      "sha256": "ad721f1663446cdbbf50552a9ed8639e30669500b832228b5ce17d2d356b2eb8",
+      "owner": "media"
     },
     {
       "path": "tools/geometry/native-scan-import.test.mjs",
-      "owner": "media",
       "mode": "100644",
       "bytes": 54273,
-      "sha256": "f6f3cc53a1d33eaaf5dbec30ba523189e9da323bcbc9faf52cb555f5bd39f8bf"
+      "sha256": "f6f3cc53a1d33eaaf5dbec30ba523189e9da323bcbc9faf52cb555f5bd39f8bf",
+      "owner": "media"
     },
     {
       "path": "tools/geometry/scan-replacement-plan.mjs",
