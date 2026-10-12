@@ -26,9 +26,11 @@ none of these gates. Secrets, real media, inventories, accounts, host settings
 and recovery/evidence packets remain outside Git.
 
 Inspect script bodies before running them. Use only the commands in README.md
+and its linked [complete verification guide](docs/contributing/verification.md)
 for ordinary verification. Healthy mutations are scoped synthetic examples.
 Concurrency, denial and failure-injection tests are allowed only in the separate
-regression lane bounded in README.md: isolated disposable synthetic environments,
+regression lane bounded in README.md and its linked complete verification guide:
+isolated disposable synthetic environments,
 fake/local-only transports, no real credentials, live providers, user data,
 populated production restore or deployment. This permission releases no G1–G5
 and grants no new secrets or network permissions. The approved ordinary CI
@@ -42,6 +44,14 @@ scope and lane safeguards; otherwise it remains held. Broad suites and runtime
 aliases are not released. Do not add wrappers or replacements to execute held
 checks. Report exact source and scope of checks; ordinary success does not
 certify security or deployment.
+
+The separately authorized Synthetic README media workflow captures only
+checked-in generated fixtures through the actual React renderer and fake read
+transports on an owned loopback server. Its scoped PR/main triggers and manual
+dispatch upload ephemeral review artifacts with read-only repository permissions;
+they add no ordinary check scope, persistent access, household intake, native
+qualification or deployment. Generated media requires inspection before any
+coordinated commit; the workflow never commits it automatically.
 
 web/AGENTS.md governs interface text. Preserve accessible names, scope,
 uncertainty, freshness, access and file availability. Use short functional

@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "7d6fc4151ff570a3006be828ebe92df0dea9a53921eab41a3ac7cf71717d304b",
+  "sourceDigestSha256": "c0a0d9f8b63c73a04ba0f92eaaa812f02db18b8e17470fc312b0fa3750dc91ee",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -37,6 +37,13 @@
       "mode": "100644",
       "bytes": 13480,
       "sha256": "6c32ec75be94723a6ea219c66466e2980ec080953c52c393e5b84a98853757f1",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".github/workflows/synthetic-readme-media.yml",
+      "mode": "100644",
+      "bytes": 3173,
+      "sha256": "5997f6c06b7adf98bdcf17af8c98d42ab626d68a07bde29d4fa965068179dc79",
       "owner": "core-integration"
     },
     {
@@ -70,8 +77,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 3503,
-      "sha256": "b09b8a0ca68a4ff4553dd7d3c2609ab7dd026ece95067e204056e5983077f8e7",
+      "bytes": 4157,
+      "sha256": "a65f8ff567c3b3d46bb55b8d058959d81e557bed291a07af82207fa461e395e3",
       "owner": "core-integration"
     },
     {
@@ -91,8 +98,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 58539,
-      "sha256": "54b188db4b6d24aee06ba3f553905a86d8311bbe697782b8a886efdd5e655854",
+      "bytes": 5245,
+      "sha256": "efcdcc17e2c0f339750f05642b69642968fde2f8c8d33e19a17c380fca6d845b",
       "owner": "core-integration"
     },
     {
@@ -5325,6 +5332,13 @@
       "owner": "contracts"
     },
     {
+      "path": "docs/contributing/verification.md",
+      "mode": "100644",
+      "bytes": 58599,
+      "sha256": "c42348609b39c1c608b2c1b098e3bc5ecf17ce0bf9e7ad3d21456551213e0eee",
+      "owner": "core-integration"
+    },
+    {
       "path": "docs/coordination/agent-write-amendment-proposal.md",
       "mode": "100644",
       "bytes": 1424,
@@ -5379,6 +5393,69 @@
       "bytes": 4919,
       "sha256": "f3415ae25d1b55f2aa37fd30f506c2fbb0c24d91b17a591a4ae7ba86b4266046",
       "owner": "core-integration"
+    },
+    {
+      "path": "docs/demo/README.md",
+      "mode": "100644",
+      "bytes": 5969,
+      "sha256": "4c56845679cc811d1a8718803b1d6ae5a143fb45bb04bd25bde6733d3df1c904",
+      "owner": "web"
+    },
+    {
+      "path": "docs/demo/capture.json",
+      "mode": "100644",
+      "bytes": 5008,
+      "sha256": "1b75576ca7debc35744989b5698363b5f8afb952450a3e3fa24b247b25934ed4",
+      "owner": "web"
+    },
+    {
+      "path": "docs/demo/synthetic-building.png",
+      "mode": "100644",
+      "bytes": 164784,
+      "sha256": "3706d12b4f2c1080559d8ad28318a9e3fd338c9c60bc1ba6e74befa06ad197e5",
+      "owner": "web"
+    },
+    {
+      "path": "docs/demo/synthetic-collage.png",
+      "mode": "100644",
+      "bytes": 218921,
+      "sha256": "1ef49cd0de8e75bb94924dca11cad9d032fd216192dd36c56e105d55eaf833f4",
+      "owner": "web"
+    },
+    {
+      "path": "docs/demo/synthetic-house.png",
+      "mode": "100644",
+      "bytes": 592943,
+      "sha256": "5cb015d5043668daf9a3eef7fb8693fe54c07dc6c5b51fd5f53b194237852cb8",
+      "owner": "web"
+    },
+    {
+      "path": "docs/demo/synthetic-mesh.png",
+      "mode": "100644",
+      "bytes": 396362,
+      "sha256": "d42e11905cbcb033fc0b010bc762afa0095d1925a705148e582b9178883e5aee",
+      "owner": "web"
+    },
+    {
+      "path": "docs/demo/synthetic-network.png",
+      "mode": "100644",
+      "bytes": 123274,
+      "sha256": "6da625edea7d89d5e967c16e6a968cfd2f8c9f6f10eb5b0d4fc91b94c19d64f5",
+      "owner": "web"
+    },
+    {
+      "path": "docs/demo/synthetic-plan.png",
+      "mode": "100644",
+      "bytes": 196225,
+      "sha256": "d292d51a2701ae2b5c68ae9a28c060aa8555231e9a1f5e71ed02d7050504a410",
+      "owner": "web"
+    },
+    {
+      "path": "docs/demo/synthetic-room.png",
+      "mode": "100644",
+      "bytes": 150451,
+      "sha256": "acaa87f6110e1d31d782b5a541700db0a762f0304768cb9a0a6a220f9b6f409a",
+      "owner": "web"
     },
     {
       "path": "docs/geometry/assistant-native-place-intake.md",
@@ -6386,6 +6463,41 @@
       "mode": "100644",
       "bytes": 5883,
       "sha256": "adea415bfcef2fb7a2ed4f2af505d882d2d8d75df2bb317e30a4421f46fc34fc",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/readme-house-visual/demo.css",
+      "mode": "100644",
+      "bytes": 2359,
+      "sha256": "faffab3a559f12259991c8455ccefd4b6ecc04e6d8e2bd4f4cb67057d094921a",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/readme-house-visual/fixture.json",
+      "mode": "100644",
+      "bytes": 18610,
+      "sha256": "567c33c8977c7c2effebb5da197107777375db158d2a3adde04c89d6b478b63e",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/readme-house-visual/house.ts",
+      "mode": "100644",
+      "bytes": 67868,
+      "sha256": "75bc6183ff683d2f595c0d4bd4a695b9293ddee91fe3c37a6d050f0cfcaa4eef",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/readme-house-visual/index.html",
+      "mode": "100644",
+      "bytes": 335,
+      "sha256": "351f0e37c83b2669ac388607ade4182832cea3abe007791987cd80d66589b55d",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/readme-house-visual/main.tsx",
+      "mode": "100644",
+      "bytes": 4576,
+      "sha256": "63de3e67167f5f1a2d1e9a7687a0a61ff759e0d8be18c65903023bd2ce51bcb3",
       "owner": "web"
     },
     {
@@ -8977,6 +9089,27 @@
       "bytes": 3600,
       "sha256": "ee20a1773dc1635634c9fca4598f65f69ca6532294d393c37510fdc8c1898207",
       "owner": "core-integration"
+    },
+    {
+      "path": "tools/readme-media/capture.mjs",
+      "mode": "100644",
+      "bytes": 13148,
+      "sha256": "3969e663991a338165267b7b9537eb07a8123dabd4cbefd3ba451bd02a033b14",
+      "owner": "web"
+    },
+    {
+      "path": "tools/readme-media/package-lock.json",
+      "mode": "100644",
+      "bytes": 1202,
+      "sha256": "48c0cab46c2c6eace4e9bf8f92cf4bdad62c220b4a03bca2e70728a112f66df5",
+      "owner": "web"
+    },
+    {
+      "path": "tools/readme-media/package.json",
+      "mode": "100644",
+      "bytes": 179,
+      "sha256": "adbf8ae50840c4689efb7a6763ef0df7d375420b2f416e41966f143bd1e5e00c",
+      "owner": "web"
     },
     {
       "path": "tools/rust-baseline/check-contracts.mjs",
