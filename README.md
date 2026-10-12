@@ -141,6 +141,7 @@ node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-explicit-null
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-other
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-floor-direct
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-many-to-one
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-invalid
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-wrong-classification
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-duplicate-classification
@@ -148,6 +149,7 @@ node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-wron
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-owner-withdrawal
 node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents
 node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents-unknown
+node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents-before-dispatch
 ```
 
 After inspecting the tool, test and source-loader imports, the assistant can

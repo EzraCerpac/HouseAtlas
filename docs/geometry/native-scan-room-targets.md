@@ -22,6 +22,10 @@ an accepted floor whose accepted building membership is the selected building.
 Direct member floors remain valid. Other accepted native classifications,
 including `other` circulation places, retain their Atlas classification; the
 documentary package's use of the word “room” does not rewrite native semantics.
+Multiple independently reviewed package targets may converge on one native
+Atlas place. Each source mapping still has to match its own accepted package
+targets and anchor membership; shared native IDs are deduplicated only for
+current-place validation and revision guards.
 Ambiguous membership parents, unreviewed targets, unavailable pages, scope
 mismatch, or owner withdrawal refuse before text custody.
 
@@ -56,6 +60,9 @@ building identity, or synthesize text receipts/results. A scene attempt remains
 held if dispatch is unknown; `reconcileRetainedScene(signal)` is GET-only and
 never resends it. Current topology, full scope, geometry/floor keys, previous
 head, and the building/target revision guards remain required.
+A local pre-dispatch hook rejection leaves this continuation unclaimed because
+no scene request was submitted; once the hook succeeds, submitted unknown and
+acknowledged-partial outcomes retain their existing reconciliation behavior.
 
 The inspected generated-only fake-transport regression cases are:
 
@@ -66,6 +73,7 @@ node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-explicit-null
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-other
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-floor-direct
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-many-to-one
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-invalid
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-wrong-classification
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-duplicate-classification
@@ -73,6 +81,7 @@ node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-wron
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-owner-withdrawal
 node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents
 node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents-unknown
+node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents-before-dispatch
 ```
 
 These cases use generated identities and a local fake transport only. They do

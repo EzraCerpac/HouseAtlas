@@ -149,7 +149,7 @@ export async function preflightNativeScanScene(input:NativeScanScenePreflightInp
     for(const field of ['network','electricity','electricalFixtures'] as const){const requested=stored[field];
       if(requested!==undefined)need(frame[field].status===row(requested).status);}
     const rooms=frame.rooms.data.rooms;need(rooms.length===input.roomMappings.length);
-    const seen=new Set<string>(),nativeTargetIds=new Set<string>();
+    const seen=new Set<string>();
     for(const m of input.roomMappings as readonly NativeScanSceneRoomMapping[]){closed(m as unknown as Row,['sourceRoomId','sourceFloorKey','sourceOriginalSha256','sourceAnchorIds','targets','unresolvedLabels']);
       need(!seen.has(m.sourceRoomId));seen.add(m.sourceRoomId);const entry=rooms.find(r=>r.id===m.sourceRoomId);need(entry);
       const floor=input.sourceFloors.find(f=>f.sourceFloorKey===m.sourceFloorKey);need(floor&&floor.sourceOriginalSha256===m.sourceOriginalSha256
@@ -161,10 +161,7 @@ export async function preflightNativeScanScene(input:NativeScanScenePreflightInp
         need(Object.keys(target).every(k=>['packagePlaceKey','packagePlaceUuid','atlasPlaceId'].includes(k))
           &&typeof target.packagePlaceKey==='string'&&target.packagePlaceKey.length>0&&[...target.packagePlaceKey].length<=512
           &&typeof target.packagePlaceUuid==='string'&&UUID.test(target.packagePlaceUuid));
-        if(Object.hasOwn(target,'atlasPlaceId')){
-          need(target.atlasPlaceId===null||typeof target.atlasPlaceId==='string'&&UUID.test(target.atlasPlaceId));
-          if(typeof target.atlasPlaceId==='string'){need(!nativeTargetIds.has(target.atlasPlaceId));nativeTargetIds.add(target.atlasPlaceId);}
-        }
+        if(Object.hasOwn(target,'atlasPlaceId'))need(target.atlasPlaceId===null||typeof target.atlasPlaceId==='string'&&UUID.test(target.atlasPlaceId));
         return {packagePlaceKey:target.packagePlaceKey,packagePlaceUuid:target.packagePlaceUuid};
       });
       const targets=packageTargets.map(t=>canonical(parseLosslessJson(stringifyLosslessJson(t)))).sort(),expectedTargets=reviewed.targets.map(t=>canonical(parseLosslessJson(stringifyLosslessJson(t)))).sort();
@@ -362,9 +359,10 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
     }catch(error){associations.releasePrepared(prepared);throw error;}
   };
   const dispatchAssociation=async(prepared:SceneAssociationPrepared,frame:NativeGeometryFrame,input:NativeScanSceneInput,
-    signal:AbortSignal,onAcknowledged:(current:SceneAssociationCurrent)=>void):Promise<
+    signal:AbortSignal,onAcknowledged:(current:SceneAssociationCurrent)=>void,onBeforeSubmit?:()=>void):Promise<
       {outcome:'committed';current:SceneAssociationCurrent}|{outcome:'partial';current:SceneAssociationCurrent}|{outcome:'unknown'}>=>{
     await nativeScanImportWait(options.beforeDispatch('scene-association',{requestId:prepared.requestId,body:prepared.body}),signal);
+    onBeforeSubmit?.();
     let acknowledged:SceneAssociationCurrent|undefined;
     try{
       const current=await associations.submit(prepared,frame,signal,input.confirmDrawingSupport);
@@ -575,8 +573,8 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
         await associations.validatePrevious(previous.token,frame,signal);check();
         await checkCapturedCurrentHead(frame,signal);check();
         prepared=await prepareAssociation(input,frame,references.primary,references.historical,signal,owner);
-        retainedDocuments={prepared,input,references};claimed=true;
-        const dispatched=await dispatchAssociation(prepared,frame,input,signal,current=>{if(retainedDocuments)retainedDocuments.acknowledged=current;});
+        const dispatched=await dispatchAssociation(prepared,frame,input,signal,current=>{if(retainedDocuments)retainedDocuments.acknowledged=current;},
+          ()=>{retainedDocuments={prepared,input,references};claimed=true;});
         if(dispatched.outcome==='committed'){
           completed=true;retainedDocuments=null;return Object.freeze({outcome:'committed',current:dispatched.current,references});}
         if(dispatched.outcome==='partial')return Object.freeze({outcome:'partial',phase:'scene-association',requestId:prepared.requestId,
