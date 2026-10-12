@@ -25,6 +25,13 @@ documentary package's use of the word “room” does not rewrite native semanti
 Ambiguous membership parents, unreviewed targets, unavailable pages, scope
 mismatch, or owner withdrawal refuse before text custody.
 
+The verified current building and selected target identities, plus their
+accepted location-semantics records, are carried into the scene request's
+revision preconditions. Each revision is checked again through its existing
+Stock record GET against the same topology snapshot before preparation. The
+building's accepted classification is guarded even when every optional native
+target is omitted or explicitly null.
+
 The check uses existing GET-only authenticated reads and grants. It does not
 create topology, alter labels, project source-room text into Atlas, or change the
 backend's reviewed-scene association contract. A later association write still
@@ -36,6 +43,7 @@ The inspected generated-only fake-transport regression cases are:
 node frontend/lantern-tests/native-scan-import-scene.mjs committed
 node frontend/lantern-tests/native-scan-import-scene.mjs floor-selection
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-explicit-null
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-other
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-floor-direct
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-invalid

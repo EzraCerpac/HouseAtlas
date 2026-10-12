@@ -14,8 +14,16 @@ function need(value: unknown): asserts value { if (!value) throw new TypeError('
  */
 export interface NativeSceneReviewedPlaceReader {
   validate(buildingId: string, placeIds: readonly string[], signal: AbortSignal,
-    currentOwner: () => boolean): Promise<void>;
+    currentOwner: () => boolean): Promise<NativeSceneReviewedPlaceSnapshot>;
   dispose(): void;
+}
+export type NativeSceneReviewedPlaceGuard =
+  | { readonly target: TopologyRecord<'identity'>['target']; readonly revision: number }
+  | { readonly target: TopologyRecord<'location-semantics'>['target']; readonly revision: number;
+      readonly atlasId: string; readonly semanticKind: DecodedLocationSemanticsPayload['semanticKind'] };
+export interface NativeSceneReviewedPlaceSnapshot {
+  readonly snapshotSha256: string;
+  readonly records: readonly NativeSceneReviewedPlaceGuard[];
 }
 
 export function createNativeSceneReviewedPlaceReader(options: {
@@ -37,12 +45,12 @@ export function createNativeSceneReviewedPlaceReader(options: {
     signal.throwIfAborted(); need(!disposed && currentOwner() && owner && topology.getBinding() === owner);
   };
   const acceptedSemantics = (records: readonly TopologyRecord<'location-semantics'>[]) => {
-    const byIdentity = new Map<string, DecodedLocationSemanticsPayload[]>();
+    const byIdentity = new Map<string, TopologyRecord<'location-semantics'>[]>();
     for (const record of records) {
       const payload = record.payload;
       if (payload.reviewStatus !== 'accepted') continue;
       const rows = byIdentity.get(payload.atlasId) ?? [];
-      rows.push(payload); byIdentity.set(payload.atlasId, rows);
+      rows.push(record); byIdentity.set(payload.atlasId, rows);
     }
     return byIdentity;
   };
@@ -59,7 +67,6 @@ export function createNativeSceneReviewedPlaceReader(options: {
       signal.throwIfAborted(); need(!disposed && UUID.test(buildingId) && Array.isArray(placeIds)
         && placeIds.length <= 256 && placeIds.every(id => typeof id === 'string' && UUID.test(id))
         && new Set(placeIds).size === placeIds.length && currentOwner());
-      if (placeIds.length === 0) return;
       const owner = topology.getBinding(); need(owner && owner.scope.workspaceId && owner.scope.homeId);
       const context = options.getContext(); need(context && context.sessionIdentity && context.view.scope.workspaceId === owner.scope.workspaceId
         && context.view.scope.homeId === owner.scope.homeId);
@@ -80,11 +87,11 @@ export function createNativeSceneReviewedPlaceReader(options: {
       const semantics = acceptedSemantics(semanticRead.records);
       const exactlyOneAccepted = (id: string) => { const rows = semantics.get(id); need(rows?.length === 1); return rows[0]!; };
       const exactlyOne = (id: string, kind: DecodedLocationSemanticsPayload['semanticKind']) => {
-        const row = exactlyOneAccepted(id); need(row.semanticKind === kind); return row;
+        const row = exactlyOneAccepted(id); need(row.payload.semanticKind === kind); return row;
       };
       const building = identities.get(buildingId);
       need(building && (building.payload as IdentityPayload).kind === 'location');
-      exactlyOne(buildingId, 'building');
+      const buildingSemantics = exactlyOne(buildingId, 'building');
 
       // Match backend/src/domain/stock/native_scene_associations.rs: accepted
       // memberships have one parent for each (child, membershipKind) pair.
@@ -103,7 +110,7 @@ export function createNativeSceneReviewedPlaceReader(options: {
         // Documentary "room" is a package concept. Native membership may
         // classify the accepted Atlas location as `other` (e.g. circulation).
         // Preserve that owner classification instead of relabelling it.
-        const semanticKind = exactlyOneAccepted(id).semanticKind;
+        const placeSemantics = exactlyOneAccepted(id), semanticKind = placeSemantics.payload.semanticKind;
         need(semanticKind !== 'building');
         if (parent(id, 'building') === buildingId) continue;
         const direct = parent(id, 'building'); need(direct === undefined || direct === buildingId);
@@ -114,6 +121,19 @@ export function createNativeSceneReviewedPlaceReader(options: {
         need(parent(floorId, 'building') === buildingId);
       }
       guard(signal, owner, currentOwner);
+      const records: NativeSceneReviewedPlaceGuard[] = [
+        { target: building.target, revision: building.revision },
+        { target: buildingSemantics.target, revision: buildingSemantics.revision,
+          atlasId: buildingSemantics.payload.atlasId, semanticKind: buildingSemantics.payload.semanticKind },
+      ];
+      for (const id of placeIds) {
+        const identity = identities.get(id)!, placeSemantics = exactlyOneAccepted(id);
+        records.push({ target: identity.target, revision: identity.revision });
+        records.push({ target: placeSemantics.target, revision: placeSemantics.revision,
+          atlasId: placeSemantics.payload.atlasId, semanticKind: placeSemantics.payload.semanticKind });
+      }
+      return Object.freeze({ snapshotSha256: members.snapshotSha256,
+        records: Object.freeze(records.map(record => Object.freeze(record))) });
     },
     dispose() { disposed = true; },
   };

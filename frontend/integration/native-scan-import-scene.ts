@@ -4,7 +4,7 @@ import { createNativeGeometryReadClient } from './native-geometry-read-client';
 import { createNativeEvidenceDocumentClient } from './native-evidence-document-client';
 import { createNativeSceneAssociationClient, type SceneAssociationPrepared, type SceneAssociationCurrent, type SceneAssociationRead } from './native-scene-association-client';
 import { createNativeSceneSourceClient } from './native-scene-source-client';
-import { createNativeSceneReviewedPlaceReader } from './native-scene-reviewed-places';
+import { createNativeSceneReviewedPlaceReader, type NativeSceneReviewedPlaceSnapshot } from './native-scene-reviewed-places';
 import { readDocumentarySupport, documentaryReferences } from './native-scene-documentary-support';
 import type { NativeDocumentBinding } from '../src/lantern/scans/native-document-types';
 import type { NativeEvidenceDocumentClient, NativeEvidenceDocumentFrame } from '../src/lantern/scans/native-evidence-document-types';
@@ -228,10 +228,19 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
     finally{source.release(observed);selection=null;notify();}
   };
   const guards=async(input:NativeScanSceneInput,frame:NativeGeometryFrame,primary:Pick<Extract<NativeScanTextResult,{outcome:'committed'}>,'assetId'|'evidenceId'>,
-    historical:Pick<Extract<NativeScanTextResult,{outcome:'committed'}>,'assetId'|'evidenceId'>,signal:AbortSignal):Promise<JsonForSerialization[]>=>{
+    historical:Pick<Extract<NativeScanTextResult,{outcome:'committed'}>,'assetId'|'evidenceId'>,signal:AbortSignal,
+    reviewed:NativeSceneReviewedPlaceSnapshot):Promise<JsonForSerialization[]>=>{
     const pin=getBinding();need(pin);const root=`/api/atlas/stock/v3/workspaces/${pin.scope.workspaceId}/homes/${pin.scope.homeId}`;
     const ids=new Map<string,{kind:string;id:string}>();
     const add=(kind:string,id:string)=>{ids.set(`${kind}:${id}`,{kind,id});};
+    const expectedTopology=new Map<string,NativeSceneReviewedPlaceSnapshot['records'][number]>();
+    for(const observed of reviewed.records){
+      need(observed.target.authority==='atlas'&&['identity','location-semantics'].includes(observed.target.recordType)
+        &&UUID.test(observed.target.recordId)&&Number.isSafeInteger(observed.revision)&&observed.revision>0);
+      const key=`${observed.target.recordType}:${observed.target.recordId}`,prior=expectedTopology.get(key);
+      need(!prior||prior.revision===observed.revision);
+      expectedTopology.set(key,observed);add(observed.target.recordType,observed.target.recordId);
+    }
     add('identity',input.buildingId);for(const item of [primary,historical]){add('evidence',item.evidenceId);add('asset',item.assetId);}
     for(const floor of frame.floors){add('geometry',floor.geometryId);add('evidence',floor.evidenceId);add('asset',floor.originalAssetId);add('asset',floor.derivativeAssetId);}
     const result:JsonForSerialization[]=[];
@@ -243,7 +252,12 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
         &&scope.workspaceId===pin.scope.workspaceId&&scope.homeId===pin.scope.homeId&&data.sourceStatus==='current'&&data.nextCursor===null
         &&Array.isArray(data.records)&&data.records.length===1);
       const record=row(data.records[0]),target=row(record.target);need(target.authority==='atlas'&&target.recordType===kind&&target.recordId===id&&record.lifecycle==='active'&&isExactDecimal(record.revision));
-      if(kind==='identity'){const p=row(record.payload);need(p.kind==='location'&&Array.isArray(p.evidenceIds)&&p.evidenceIds.includes(primary.evidenceId)&&p.evidenceIds.includes(historical.evidenceId));}
+      const topology=expectedTopology.get(`${kind}:${id}`);
+      if(topology)need(record.revision.compare(ExactDecimal.parse(String(topology.revision)))===0);
+      if(kind==='identity'){const p=row(record.payload);need(p.kind==='location');
+        if(id===input.buildingId)need(Array.isArray(p.evidenceIds)&&p.evidenceIds.includes(primary.evidenceId)&&p.evidenceIds.includes(historical.evidenceId));}
+      if(kind==='location-semantics'){const p=row(record.payload),expected=topology;
+        need(expected&&'atlasId' in expected&&p.atlasId===expected.atlasId&&p.semanticKind===expected.semanticKind&&p.reviewStatus==='accepted');}
       for(const floor of frame.floors){const revision=kind==='geometry'&&id===floor.geometryId?floor.geometryRevision:
         kind==='evidence'&&id===floor.evidenceId?floor.evidenceRevision:kind==='asset'&&id===floor.originalAssetId?floor.originalRevision:
         kind==='asset'&&id===floor.derivativeAssetId?floor.derivativeRevision:null;
@@ -312,7 +326,7 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
       const timer=setTimeout(()=>controller.abort(new Error('Native scan scene inspection exceeded deadline')),60000),signal=controller.signal;busy=true;
       let pFrame:NativeEvidenceDocumentFrame|null=null,hFrame:NativeEvidenceDocumentFrame|null=null;
       try{
-        const scope=getBinding()?.scope;need(scope);
+        const owner=getBinding();need(owner);const scope=owner.scope;
         await preflightNativeScanScene({...input,sourceFloors:input.sourceFloors.map(f=>({sourceFloorKey:f.sourceFloorKey,sourceOriginalSha256:f.sourceOriginalSha256}))},signal,scope);
         const pText=await nativeScanImportWait(verifyNativeScanText(input.primary,signal),signal),hText=await nativeScanImportWait(verifyNativeScanText(input.historical,signal),signal);
         const stored=row(parseLosslessJson(pText));need(typeof stored.receiptCanonicalJson==='string');
@@ -349,7 +363,9 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
         }
         // Fresh building membership and all guarded native records. These are
         // observed IDs, never fabricated custody/commit results.
-        await guards(input,frame,{assetId:primary.originalAssetId,evidenceId:primary.evidenceId},{assetId:historical.originalAssetId,evidenceId:historical.evidenceId},signal);
+        const nativeTargetIds=[...new Set(input.roomMappings.flatMap(m=>m.targets.map(t=>t.atlasPlaceId).filter((id):id is string=>typeof id==='string')))];
+        const reviewed=await reviewedPlaces.validate(input.buildingId,nativeTargetIds,signal,()=>getBinding()===owner&&geometry.isCurrent(frame));
+        await guards(input,frame,{assetId:primary.originalAssetId,evidenceId:primary.evidenceId},{assetId:historical.originalAssetId,evidenceId:historical.evidenceId},signal,reviewed);
         await verifyReadback(current,frame,signal,input);signal.throwIfAborted();need(geometry.isCurrent(frame)&&primaryReview.isCurrent(pFrame)&&historicalReview.isCurrent(hFrame));
         return current;
       }finally{if(pFrame)primaryReview.release(pFrame);if(hFrame)historicalReview.release(hFrame);
@@ -402,8 +418,9 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
         signal.throwIfAborted();need(getBinding()===owner);
         // Identity append changes descriptor/view keys. Never reuse first keys.
         const fresh=await geometry.loadBuilding(input.buildingId,signal),sourceFloors=checkFloors(input,fresh);
+        const freshNativePlaces=await reviewedPlaces.validate(input.buildingId,nativeTargetIds,signal,()=>getBinding()===owner&&geometry.isCurrent(fresh));
         prepared=await associations.prepare({buildingId:input.buildingId,primaryEvidenceId:primary.evidenceId,historicalEvidenceId:historical.evidenceId,
-          sourceFloors,roomMappings:input.roomMappings.map(mapping=>({...mapping,targets:mapping.targets.map(target=>({...target,atlasPlaceId:target.atlasPlaceId??null})),evidenceIds:[primary.evidenceId,historical.evidenceId]})),guards:await guards(input,fresh,primary,historical,signal)},fresh,input.statement,input.reason,signal,previous.token);
+          sourceFloors,roomMappings:input.roomMappings.map(mapping=>({...mapping,targets:mapping.targets.map(target=>({...target,atlasPlaceId:target.atlasPlaceId??null})),evidenceIds:[primary.evidenceId,historical.evidenceId]})),guards:await guards(input,fresh,primary,historical,signal,freshNativePlaces)},fresh,input.statement,input.reason,signal,previous.token);
         need(new TextEncoder().encode(prepared.body).length<=1024*1024&&(!prepared.drawingReview||input.confirmDrawingSupport===true));
         retained={prepared,input,primary,historical};
         await nativeScanImportWait(options.beforeDispatch('scene-association',{requestId:prepared.requestId,body:prepared.body}),signal);
