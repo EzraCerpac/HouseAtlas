@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "73903b8aeed3a669a1bf0a16df0f01635f6ed4d603fba7fff44f17b10a491e0d",
+  "sourceDigestSha256": "d4318404ff0e7b494faceb7bf00c313c55638b6b43c119127fc0b360ca26dbde",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -7567,8 +7567,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneLayers.tsx",
       "mode": "100644",
-      "bytes": 9521,
-      "sha256": "dde0a8e742de6e5749abe6776ef5b7abc6b6200d494f3a146afece5f60a12caf",
+      "bytes": 9640,
+      "sha256": "79e68e034a230a105b63379dbc391aad666fc69cbc7d68775517b61ba6a86f91",
       "owner": "web"
     },
     {

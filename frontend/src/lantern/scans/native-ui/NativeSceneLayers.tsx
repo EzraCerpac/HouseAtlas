@@ -51,9 +51,9 @@ export function NativeScenePlaceDetails({ room, places, selectedPlaceId, onSelec
       const selected = selectedPlaceId === place.id;
       return <li key={place.id}>
         <h4>{place.label}</h4>
-        <p>Atlas identity: {place.id}</p>
+        <details><summary>Saved record</summary><code>{place.id}</code></details>
         <p>Reviewed as {place.semantics.map(item => item.payload.semanticKind).join(', ')}</p>
-        <button type="button" className="chip-btn" aria-pressed={selected} onClick={() => onSelect(place.id)}>
+        <button type="button" className="chip-btn" aria-label={`${selected ? 'Selected' : 'Select'} Atlas place: ${place.label}`} aria-pressed={selected} onClick={() => onSelect(place.id)}>
           {selected ? 'Selected Atlas place' : 'Select Atlas place'}
         </button>
         {selected && <button type="button" className="chip-btn" onClick={onClear}>Clear selected place</button>}
