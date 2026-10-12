@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "59b21eba1c789768d486f82f1fe4e1b5a2256d97d37dbba46293c14317a61af1",
+  "sourceDigestSha256": "40aae8b9034583cbddb49786ed5e6503301d3c6f9eca3b80db6840c629fe8adf",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -92,8 +92,8 @@
       "path": "README.md",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 57200,
-      "sha256": "022008db284297d16e545af5e5f9aea947531158196eeebe0a7edd34b35922f2"
+      "bytes": 57257,
+      "sha256": "af3e013bd88c34af747780d69baa8745cf2b5f2d8451c23eb3d2c961393b8bf0"
     },
     {
       "path": "adapters/homebox/README.md",
@@ -5474,8 +5474,8 @@
     {
       "path": "docs/geometry/native-room-drawing-source.md",
       "mode": "100644",
-      "bytes": 8621,
-      "sha256": "f9c84c4c6ccf46a73e9ffc785dff2d9bef69fa4da69bdfd7bfd05663993e2ae6",
+      "bytes": 8719,
+      "sha256": "3e23e15e753d7f1b23647241398f06b000f80d1849be23158d0dec066deb0182",
       "owner": "operations-policy"
     },
     {
@@ -5509,8 +5509,8 @@
     {
       "path": "docs/geometry/native-scene-fixture-reader-healthy.md",
       "mode": "100644",
-      "bytes": 8300,
-      "sha256": "d4e6631f38161229f75104de7c76578aa699361d8c84cbc388cbdee3a24b0123",
+      "bytes": 8302,
+      "sha256": "2dcf38ab8d7ae81bc59ada7486a24f85af1002ac76beba2f8711b2fe03d74877",
       "owner": "web"
     },
     {
@@ -6307,8 +6307,8 @@
     {
       "path": "frontend/lantern-tests/native-room-drawing-source.mjs",
       "mode": "100644",
-      "bytes": 47369,
-      "sha256": "2c1ba82f783f39965755a440c27838ecd9ff24b14d65ec5c1e86682b2e0dd35e",
+      "bytes": 50810,
+      "sha256": "af53dc3aa8a987bf2fe6cf18c05bc335cfa17b3e37ba1d52e16f4623bc246f6a",
       "owner": "web"
     },
     {
@@ -6335,8 +6335,8 @@
     {
       "path": "frontend/lantern-tests/native-scene-fixture-reader-healthy.mjs",
       "mode": "100644",
-      "bytes": 56293,
-      "sha256": "2f433feca86026d4243288552c7a516b5edf719d523fa8723d9fa07f272b3e4b",
+      "bytes": 58260,
+      "sha256": "468d5c2350908629663464a7083de215be7829d9fe0838d4d50b88821604d8e2",
       "owner": "web"
     },
     {
@@ -6447,15 +6447,15 @@
     {
       "path": "frontend/package-lock.json",
       "mode": "100644",
-      "bytes": 44363,
-      "sha256": "7f0e4586a417cb5c375abbd9de2fcd0e4574e8e6d46793b97425e2f7bca64ecd",
+      "bytes": 52900,
+      "sha256": "cf35e74d5a080d8e978790de246887e29be6970f1f945b63393d134b81ada544",
       "owner": "core-integration"
     },
     {
       "path": "frontend/package.json",
       "mode": "100644",
-      "bytes": 604,
-      "sha256": "5c9b17d4f7c833b0b7ebfc7ac4d3a193d42ecf1ac3407fade36cdf1b3d82c061",
+      "bytes": 633,
+      "sha256": "7a208285582b0001354d7dc561d3adad0658d148ee93aeb6ab0709e65f39f67c",
       "owner": "core-integration"
     },
     {
@@ -6485,6 +6485,20 @@
       "bytes": 4802,
       "sha256": "33d1f87d1f63eeb299f40980e1fe8dc8007e2e2191261595fe4e72e7690a79b0",
       "owner": "core-integration"
+    },
+    {
+      "path": "frontend/public/licenses/pdfjs-dist-LICENSE.txt",
+      "mode": "100644",
+      "bytes": 10174,
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/public/licenses/pdfjs-dist-NOTICE.txt",
+      "mode": "100644",
+      "bytes": 419,
+      "sha256": "25b61ecdf84557ced8f7c10115f5cdec6d997efef67b2f0da2f7baca42a70ae1",
+      "owner": "web"
     },
     {
       "path": "frontend/public/manifest.webmanifest",
@@ -6790,8 +6804,8 @@
     {
       "path": "frontend/src/app/assets.d.ts",
       "mode": "100644",
-      "bytes": 24,
-      "sha256": "35d26ea66c86da9701e4f4b467913481ffeae910761cea34c775c5dacb7f8eaa",
+      "bytes": 128,
+      "sha256": "80ee61b58036f13152197bec074a37734b54cd275cfd83356b439e03e4e9c91d",
       "owner": "web"
     },
     {
@@ -7560,8 +7574,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx",
       "mode": "100644",
-      "bytes": 15053,
-      "sha256": "5b2c823f677aacba8613d39f100b51c0e1dc29dbb7baa7e005c5d50c63b3837b",
+      "bytes": 21042,
+      "sha256": "c1d2122fa89574d3cf9e33a88b06d4549d519fec550ede89f3c922b915820a20",
       "owner": "web"
     },
     {
@@ -7581,8 +7595,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/native-scene.css",
       "mode": "100644",
-      "bytes": 3046,
-      "sha256": "dabae62bae188910b8406e91e14d017328e6627bc9c8290aecd575bf55a8de43",
+      "bytes": 3158,
+      "sha256": "61bf95bb565bdbf1b47c17141b853f41b949481c65a142cbe0d274409fefcb3d",
       "owner": "web"
     },
     {

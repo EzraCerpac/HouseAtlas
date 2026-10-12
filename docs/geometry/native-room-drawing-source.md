@@ -3,11 +3,13 @@
 A room's electrical sheet can open a verified reference PDF through the current
 native evidence-document owner. The “Open reference drawing” action opens an
 in-app dialog; a rejected stale or missing sheet reports why it could not open.
-The dialog embeds the verified original in the browser's built-in PDF viewer at
-the sheet's referenced page, with page navigation, zoom and **Download reference
-PDF** controls. The `download-only` asset policy remains unchanged: HouseAtlas
-does not create or serve a rendered PDF preview, and sends no PDF to a viewer
-service. The browser displays the exact owner-verified original from its Blob URL.
+The dialog renders the verified original locally with Mozilla PDF.js at the
+sheet's referenced page, with page navigation, zoom and **Download reference
+PDF** controls. The server's `download-only` asset policy remains unchanged:
+HouseAtlas does not create or serve a rendered PDF preview, and sends no PDF to
+a viewer service. The renderer parses only the exact owner-verified Blob bytes.
+The PDF.js library and worker are bundled with the lazy drawing reader; the
+Apache 2.0 license and package notice ship under `/licenses/`.
 
 The normal production association constructor supplies these references from a
 separately retained, reviewed `text/plain` support original. It uses the existing
@@ -86,12 +88,12 @@ can paint. This does not equate a JPEG's hash with a separately derived PNG.
 Close, Escape, selection changes, document/source withdrawal and unmount retire
 the action, unsubscribe and revoke its object URL, and release the exact frame.
 The dialog's focus loop includes the PDF page/zoom controls and download link,
-or the PNG scroll viewport; the browser PDF frame stays outside the dialog's
-tab sequence. Page and zoom controls update the browser viewer's fragment; no
-PDF bytes leave the browser. The source contract does not provide a page count,
-so page navigation does not claim an end-of-document boundary. Closing returns
-focus to the original source-action control. A stale download click is prevented
-even before React's next paint.
+or the PNG scroll viewport; the rendered canvas stays outside the dialog's tab
+sequence. Page and zoom controls repaint the selected page locally. No PDF
+bytes leave the browser. PDF.js reads the original's actual page count and
+disables navigation at its boundaries. Closing returns focus to the original
+source-action control. A stale download click is prevented even before React's
+next paint.
 
 The named synthetic checks below compile the actual production association constructor, source reader and React
 association review/drawing surfaces against generated scene data and fake native-shaped current records and document/geometry ports. The PDF case

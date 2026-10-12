@@ -13,10 +13,11 @@
     "build": "vite build"
   },
   "dependencies": {
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
     "ajv": "8.20.0",
-    "ajv-formats": "3.0.1"
+    "ajv-formats": "3.0.1",
+    "pdfjs-dist": "6.4.299",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@types/node": "26.6.4",
