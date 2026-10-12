@@ -26,7 +26,7 @@ let browser, server;
 const deadline = setTimeout(() => { server?.kill('SIGTERM'); void browser?.close(); }, 90_000);
 try {
   // CI enables Vite's colored URLs even on pipes. Keep the readiness URL plain.
-  server = spawn(process.execPath, ['frontend/node_modules/vite/bin/vite.js', 'frontend', '--host', '127.0.0.1', '--port', '0'], { cwd: root, env: { ...process.env, NO_COLOR: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  server = spawn(process.execPath, [resolve(root, 'frontend/node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', '0'], { cwd: resolve(root, 'frontend'), env: { ...process.env, NO_COLOR: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
   const origin = await new Promise((done, reject) => {
     let log = '';
     server.stdout.on('data', data => { log += data; const match = log.match(/http:\/\/127\.0\.0\.1:\d+/); if (match) done(match[0]); });

@@ -52,11 +52,11 @@ room. Selecting Unmatched afterward displays the explicit no-associated-region
 state, with no fixture, source-opening action, modal or default first drawing.
 The separate `--host-only` mode mounts the production `NativeSceneLayers`
 action with generated scene data, a synthetic correlated PDF and a fake native
-document owner. A current sheet opens the production dialog with the browser's
-built-in PDF viewer at the referenced page and exposes its download link; a
-stale source reports its refusal and opens no dialog. It verifies that the room
-inspector does not cover the source button with a pointer hit test before
-activating it. This mode reads no household media.
+document owner. A current sheet opens the production dialog, renders the
+referenced PDF page with the bundled PDF.js canvas and exposes its download
+link; a stale source reports its refusal and opens no dialog. It verifies that
+the room inspector does not cover the source button with a pointer hit test
+before activating it. This mode reads no household media.
 Horizontal document/dialog overflow and listed controls' bounds within the
 viewport and dialog are checked. Vertical image/content clipping is unqualified.
 

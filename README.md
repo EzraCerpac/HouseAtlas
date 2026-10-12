@@ -16,7 +16,7 @@ Use Node **26.10.0** and npm **11.19.1**, then run from the repository root:
 
 ```sh
 npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
-node frontend/node_modules/vite/bin/vite.js frontend --host 127.0.0.1 --port 4179 --strictPort
+(cd frontend && node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4179 --strictPort)
 ```
 
 Open <http://127.0.0.1:4179/lantern-tests/readme-house-visual/> for the fictional Lantern house. Select a room, switch between **3D** and **Plan**, or use **Source meshes** to inspect the separate generated two-floor scan renderer. Open <http://127.0.0.1:4179/lantern-tests/core-read-visual/> and select **Alpha** for building membership and source facts; in **Network**, choose **Load Network relations** for the fixture's saved relation. Stop the server with Ctrl-C.
