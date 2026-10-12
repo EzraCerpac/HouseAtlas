@@ -1,9 +1,14 @@
-import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import * as pdfjs from 'pdfjs-dist';
+import type { PDFDocumentProxy } from 'pdfjs-dist';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { HouseAtlasPdfBinaryDataFactory, pdfjsDecoderUrl } from 'virtual:houseatlas-pdfjs-resources';
 import type { ElectricalFixtureSheet } from '../../overlays/electricity/fixture-types';
 import type { NativeEvidenceDocumentClient, NativeEvidenceDocumentFrame } from '../native-evidence-document-types';
 import type { NativeSceneDrawingPdfReference, NativeSceneDrawingProvenance } from '../native-scene-source-types';
 
 const referencePageSize = 64;
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 /** A hash selects among current building evidence; it grants no read access.
  * Each candidate is resolved by the native document owner before any bytes paint. */
@@ -17,6 +22,12 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
   const [status, setStatus] = useState('Checking saved drawing…'), [zoom, setZoom] = useState(1);
   const [pdfPage, setPdfPage] = useState(sheet.pdfPage);
   const [pdfPageInput, setPdfPageInput] = useState(String(sheet.pdfPage));
+  const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
+  const [pdfPageCount, setPdfPageCount] = useState<number | null>(null);
+  const [pdfStatus, setPdfStatus] = useState('');
+  const pdfCanvasHost = useRef<HTMLDivElement>(null), pdfCanvas = useRef<HTMLCanvasElement>(null);
+  const pdfRenderQueue = useRef<Promise<void>>(Promise.resolve());
+  const activePdfRender = useRef<{ cancel(): void; promise: Promise<void> } | null>(null);
   const [cursor, setCursor] = useState<{ client: NativeEvidenceDocumentClient; sheet: ElectricalFixtureSheet;
     evidenceIds: readonly string[]; reference: NativeSceneDrawingPdfReference | undefined; start: number; unreadable: boolean } | null>(null);
   const [continuation, setContinuation] = useState<{ generation: number; next: number; unreadable: boolean } | null>(null);
@@ -131,6 +142,91 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
   useLayoutEffect(() => {
     if (payload.current) payload.current.hidden = !shown || !currentRef.current() || !client.isCurrent(shown.frame);
   }, [client, shown]);
+  useEffect(() => {
+    if (!shown || shown.frame.mode !== 'original-download') return;
+    let disposed = false;
+    const blob = client.getBlob(shown.frame);
+    if (!blob || blob.type !== 'application/pdf' || !client.isCurrent(shown.frame)) {
+      setPdfDocument(null); setPdfPageCount(null); setPdfStatus('This reference PDF is no longer current. Close it and reload scans.');
+      return;
+    }
+    setPdfDocument(null); setPdfPageCount(null); setPdfStatus('Loading reference PDF…');
+    let task: ReturnType<typeof pdfjs.getDocument> | null = null;
+    void (async () => {
+      const data = new Uint8Array(await blob.arrayBuffer());
+      if (disposed || !currentRef.current() || !client.isCurrent(shown.frame)) return;
+      task = pdfjs.getDocument({ data, enableXfa: false, useWasm: true, useWorkerFetch: false,
+        wasmUrl: pdfjsDecoderUrl, cMapUrl: 'houseatlas:/', standardFontDataUrl: 'houseatlas:/',
+        BinaryDataFactory: HouseAtlasPdfBinaryDataFactory });
+      return task.promise;
+    })().then(document => {
+      if (!document || disposed || !currentRef.current() || !client.isCurrent(shown.frame)) return;
+      setPdfDocument(document); setPdfPageCount(document.numPages);
+      const page = Math.max(1, Math.min(document.numPages, sheet.pdfPage));
+      setPdfPage(page); setPdfPageInput(String(page)); setPdfStatus('');
+    }).catch(() => {
+      if (!disposed && currentRef.current() && client.isCurrent(shown.frame)) {
+        setPdfDocument(null); setPdfPageCount(null); setPdfStatus('The saved reference PDF could not be rendered. You can still download the original.');
+      }
+    });
+    return () => { disposed = true; if (task) void task.destroy(); };
+  }, [client, shown, sheet.pdfPage]);
+  useLayoutEffect(() => {
+    const canvas = pdfCanvas.current;
+    if (!canvas || !pdfDocument) return;
+    canvas.style.visibility = 'hidden';
+    activePdfRender.current?.cancel();
+    setPdfStatus('Rendering reference PDF page…');
+  }, [pdfDocument, pdfPage, zoom]);
+  useEffect(() => {
+    if (!pdfDocument || !pdfCanvasHost.current || !pdfCanvas.current) return;
+    let cancelled = false, request = 0;
+    let baseWidth = 0, pageHandle: Awaited<ReturnType<PDFDocumentProxy['getPage']>> | null = null;
+    const paint = () => {
+      if (cancelled || !pageHandle || !pdfCanvasHost.current || !pdfCanvas.current) return;
+      const paintRequest = ++request;
+      const canvas = pdfCanvas.current;
+      canvas.style.visibility = 'hidden';
+      activePdfRender.current?.cancel();
+      const base = pageHandle.getViewport({ scale: 1 });
+      const available = Math.max(120, pdfCanvasHost.current.clientWidth - 24);
+      const scale = Math.min(4, (available / base.width) * zoom);
+      const viewport = pageHandle.getViewport({ scale });
+      const queued = pdfRenderQueue.current.catch(() => {}).then(async () => {
+        if (cancelled || paintRequest !== request || !pdfCanvasHost.current || !pdfCanvas.current) return;
+        const activeCanvas = pdfCanvas.current, context = activeCanvas.getContext('2d');
+        if (!context) { setPdfStatus('The saved reference PDF could not be rendered. You can still download the original.'); return; }
+        const ratio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+        activeCanvas.width = Math.ceil(viewport.width * ratio); activeCanvas.height = Math.ceil(viewport.height * ratio);
+        activeCanvas.style.width = `${Math.ceil(viewport.width)}px`; activeCanvas.style.height = `${Math.ceil(viewport.height)}px`;
+        context.setTransform(ratio, 0, 0, ratio, 0, 0);
+        const rendering = pageHandle!.render({ canvas: activeCanvas, canvasContext: context, viewport });
+        activePdfRender.current = rendering;
+        try {
+          await rendering.promise;
+          if (!cancelled && paintRequest === request && activePdfRender.current === rendering) {
+            activeCanvas.style.visibility = 'visible';
+            setPdfStatus('');
+          }
+        } catch (error) {
+          const wasCancelled = typeof error === 'object' && error !== null
+            && 'name' in error && error.name === 'RenderingCancelledException';
+          if (!cancelled && paintRequest === request && !wasCancelled)
+            setPdfStatus('The saved reference PDF page could not be rendered. You can still download the original.');
+        } finally {
+          if (activePdfRender.current === rendering) activePdfRender.current = null;
+        }
+      });
+      pdfRenderQueue.current = queued;
+    };
+    void pdfDocument.getPage(Math.max(1, Math.min(pdfDocument.numPages, pdfPage))).then(page => {
+      if (cancelled) return;
+      pageHandle = page; baseWidth = page.getViewport({ scale: 1 }).width; paint();
+    }).catch(() => { if (!cancelled) setPdfStatus('The saved reference PDF page could not be rendered. You can still download the original.'); });
+    const observer = new ResizeObserver(() => { if (baseWidth) paint(); });
+    observer.observe(pdfCanvasHost.current);
+    return () => { cancelled = true; observer.disconnect(); activePdfRender.current?.cancel(); };
+  }, [pdfDocument, pdfPage, zoom]);
   const renderFailed = (expected: NonNullable<typeof shown>) => {
     const active = activeDrawing.current;
     if (!active || active.generation !== expected.generation || generationRef.current !== expected.generation
@@ -169,20 +265,20 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
       }}>Check next references</button>}
     {shown && currentRef.current() && client.isCurrent(shown.frame) && <div ref={payload}>
       {shown.frame.mode === 'original-download' ? <>
-        <p>Reference PDF · page {sheet.pdfPage}</p>
+        <p>Reference PDF · page {pdfPageCount ? `${pdfPage} of ${pdfPageCount}` : sheet.pdfPage}</p>
         <div className="native-scene-pdf-controls">
           <div className="native-scene-pdf-page">
-            <button type="button" className="chip-btn" aria-label="Previous PDF page" disabled={pdfPage <= 1}
+            <button type="button" className="chip-btn" aria-label="Previous PDF page" disabled={!pdfPageCount || pdfPage <= 1}
               onClick={() => goToPdfPage(pdfPage - 1)}>Previous page</button>
-            <label>Page <input type="number" min="1" step="1" value={pdfPageInput} onChange={event => {
+            <label>Page <input type="number" min="1" max={pdfPageCount ?? undefined} step="1" value={pdfPageInput} disabled={!pdfPageCount} onChange={event => {
               const value = event.currentTarget.value, page = Number(value);
               setPdfPageInput(value);
-              if (value && Number.isSafeInteger(page) && page >= 1) setPdfPage(page);
+              if (value && Number.isSafeInteger(page) && page >= 1 && page <= (pdfPageCount ?? 0)) setPdfPage(page);
             }} onBlur={() => {
               const page = Number(pdfPageInput);
-              if (!pdfPageInput || !Number.isSafeInteger(page) || page < 1) setPdfPageInput(String(pdfPage));
+              if (!pdfPageInput || !Number.isSafeInteger(page) || page < 1 || page > (pdfPageCount ?? 0)) setPdfPageInput(String(pdfPage));
             }} /></label>
-            <button type="button" className="chip-btn" aria-label="Next PDF page"
+            <button type="button" className="chip-btn" aria-label="Next PDF page" disabled={!pdfPageCount || pdfPage >= pdfPageCount}
               onClick={() => goToPdfPage(pdfPage + 1)}>Next page</button>
           </div>
           <div role="group" aria-label="PDF zoom" className="native-scene-pdf-zoom">
@@ -194,8 +290,10 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
             <button type="button" className="chip-btn" onClick={() => setZoom(1)}>Reset zoom</button>
           </div>
         </div>
-        <iframe key={`${shown.generation}:${pdfPage}:${zoom}`} className="native-scene-pdf" title={`${sheet.title}, reference PDF`} tabIndex={-1} referrerPolicy="no-referrer"
-          src={`${shown.url}#page=${pdfPage}&zoom=${Math.round(zoom * 100)}`} />
+        {pdfStatus && <p role="status">{pdfStatus}</p>}
+        <div ref={pdfCanvasHost} className="native-scene-pdf" role="region" tabIndex={0} aria-label={`${sheet.title}, page ${pdfPage} of ${pdfPageCount ?? 'loading'}`}>
+          <canvas ref={pdfCanvas} className="native-scene-pdf-canvas" role="img" aria-label={`${sheet.title}, PDF page ${pdfPage}`} />
+        </div>
         <a href={shown.url} download={`atlas-original-${shown.frame.asset.assetId}.pdf`} onClick={event => {
           if (!currentRef.current() || !client.isCurrent(shown.frame)
             || activeDrawing.current?.generation !== shown.generation) {

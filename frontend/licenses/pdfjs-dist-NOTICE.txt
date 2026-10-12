@@ -1,0 +1,9 @@
+HouseAtlas distributes the PDF.js browser runtime from the `pdfjs-dist` npm
+package, version 6.4.299, by Mozilla and contributors.
+
+Project: https://github.com/mozilla/pdf.js
+License: Apache License 2.0 (full text in pdfjs-dist-LICENSE.txt)
+
+The PDF.js runtime and worker are bundled locally with HouseAtlas. PDF bytes
+are parsed and rendered in the browser; this viewer does not send documents to
+an external service.

@@ -486,6 +486,7 @@ synthetic records only; they make no provider calls or real data mutations:
 npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
 npm run typecheck --prefix frontend
 npm run build --prefix frontend
+npm run check:backend-frontend-compat --prefix frontend
 node frontend/lantern-tests/healthy-read.mjs
 ```
 
@@ -538,16 +539,22 @@ these cases are outside ordinary
 CI and do not qualify native grant revocation, original verification or deployment.
 See [the issue-specific scope](docs/geometry/drawing-evidence-lookup-150.md).
 
-The generated-only pdf-navigation case exercises the actual embedded Chrome
-PDF reader with an in-memory 18-page PDF whose pages have distinct synthetic
-labels and page colors. It requires a request to Chrome's built-in PDF viewer,
-then checks that page 12 through 18 and zoom changes recreate the embedded
-reader and yield three consecutive stable captures of the rendered page canvas.
-Each page capture must differ from the previous one. It uses the same owned
-loopback browser fixture and is outside ordinary CI. Inspect the complete
-runner, generated PDF builder, and NativeSceneDrawing before running. The PDF
-exists only in memory and the fixture's private output contains the bounded
-browser report, not PDF bytes.
+The generated-only pdf-navigation case exercises the in-app PDF.js canvas with
+an in-memory 18-page A0 PDF whose pages have distinct synthetic labels, page
+colors and a four-color JPEG2000 image. It checks local decoder, CMap and font
+resources, viewport fit, nonblank canvas pixels and three stable page captures for
+page 12 through 18, then verifies a pixel-changing zoom, page/zoom reversal,
+and close/reopen at 390×844. It uses an owned loopback browser fixture and is
+outside ordinary CI. Inspect the complete runner, generated PDF builder, and
+NativeSceneDrawing before running. The PDF exists only in memory and the
+fixture's private output contains the bounded browser report, not PDF bytes.
+PDF.js, its worker, OpenJPEG/JBIG2 WASM and JavaScript decoders, CMaps and standard
+fonts are bundled locally in the lazy drawing reader; no PDF
+bytes or URLs are sent to a viewer service. The PDF.js worker is emitted as a
+`.js` asset for the current backend MIME allowlist; the backend compatibility
+check also verifies every output file is an allowed type and at most 4,000,000
+bytes. PDF.js's Apache 2.0 license and notice remain in the public source at
+`frontend/licenses/` and are not copied into the compiled server asset tree.
 
 HOUSEATLAS_CHROMIUM=/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome HOUSEATLAS_FIXTURE_EVIDENCE=/absolute/private/pdf-navigation-result node frontend/lantern-tests/native-room-drawing-source.mjs pdf-navigation
 
@@ -568,10 +575,10 @@ released by this reader-only command.
 
 The named `--host-only` synthetic browser case mounts the production native
 scene source action with a generated, current PDF reference and fake document
-owner. It checks that the current sheet opens the browser's built-in PDF viewer
-at the referenced page with a download action, and that a stale source reports
-its refusal without opening a document. It uses an owned loopback listener and
-disposable browser profile, and reads no household data:
+owner. It checks that the current sheet renders the referenced page with a
+download action, and that a stale source reports its refusal without opening a
+document. It uses an owned loopback listener and disposable browser profile,
+and reads no household data:
 
 ```sh
 HOUSEATLAS_CHROMIUM=/absolute/inspected/chromium node frontend/lantern-tests/native-scene-fixture-reader-healthy.mjs --host-only
