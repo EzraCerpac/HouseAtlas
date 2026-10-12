@@ -383,6 +383,19 @@ export async function applyNativeScene(selected, geometry, runtime, context, tra
     if (!current) {
       const result = await owner.importScene(input, signal);
       if (result.outcome !== 'committed') {
+        if (result.outcome === 'not-dispatched') {
+          const continuation = { schemaVersion: 1, method: 'associateRetainedScene', phase: result.phase,
+            manifestSha256: selected.manifestSha256, scope: selected.manifest.scope,
+            buildingId: input.buildingId, sourceFloors: geometry.mappings, references: result.references,
+            receipts: {
+              primary: { asset: runtime.numeric.stringifyLosslessJson(result.primary.assetReceipt),
+                evidence: runtime.numeric.stringifyLosslessJson(result.primary.evidenceReceipt) },
+              historical: { asset: runtime.numeric.stringifyLosslessJson(result.historical.assetReceipt),
+                evidence: runtime.numeric.stringifyLosslessJson(result.historical.evidenceReceipt) },
+            } };
+          await journal.append('scene-retained-documents', continuation);
+          return { outcome: 'not-dispatched', phase: result.phase, continuation };
+        }
         await journal.append('scene-held', { outcome: result.outcome, phase: result.phase, requestId: result.requestId ?? null });
         throw new Error('Documentary scene phase is held; preserve journal without resending');
       }
@@ -486,14 +499,46 @@ export async function inspectImportJournal(journal, runtime, context, transport,
         && licensesMatch(floor, manifest.sourceLicense);
     });
     if (verified) for (const floor of frame.floors) await runtime.mesh.readScanMesh(frame.readPort, frame.viewKey, floor, signal);
-    let sceneStatus = manifest.scene ? 'held' : 'not-requested', sceneRecordId = null;
+    let sceneStatus = manifest.scene ? 'held' : 'not-requested', sceneRecordId = null, sceneContinuation = null;
     if (verified && selected?.scene) {
       assert.equal(selected.manifestSha256, selections[0].data.manifestSha256);
+      const retainedIndex = journal.events.findLastIndex(event => event.kind === 'scene-retained-documents');
+      const sceneClaimIndex = journal.events.findLastIndex(event => event.kind === 'adapter-claim'
+        && event.data.kind === 'scene-association');
+      const sceneDispatchIndex = journal.events.findLastIndex(event => {
+        if (event.kind !== 'dispatch' || typeof event.data.body !== 'string') return false;
+        try { return runtime.numeric.parseLosslessJson(event.data.body).commandId === 'atlas.scene-association.create'; }
+        catch { return false; }
+      });
+      const terminalIndex = journal.events.findLastIndex(event => ['scene-complete', 'scene-reused'].includes(event.kind));
+      const retained = retainedIndex > sceneClaimIndex && retainedIndex > sceneDispatchIndex && retainedIndex > terminalIndex
+        ? journal.events[retainedIndex] : null;
+      if (retained) {
+        const packet = retained.data;
+        assert.equal(packet.manifestSha256, selected.manifestSha256, 'Retained documents belong to the exact selected manifest');
+        assert.deepEqual(packet.scope, manifest.scope, 'Retained documents belong to the selected full scope');
+        assert.equal(packet.buildingId, manifest.buildingId, 'Retained documents belong to the selected building');
+        assert.deepEqual(packet.sourceFloors, complete.data.mappings, 'Retained documents belong to the exact completed geometry mapping');
+        assert.equal(packet.references.primary.sha256, selected.scene.primary.sha256);
+        assert.equal(packet.references.historical.sha256, selected.scene.historical.sha256);
+        for (const reference of [packet.references.primary, packet.references.historical]) {
+          assert(UUID.test(reference.evidenceId) && UUID.test(reference.originalAssetId)
+            && SHA.test(reference.sha256) && Number.isSafeInteger(reference.evidenceRevision) && reference.evidenceRevision > 0
+            && Number.isSafeInteger(reference.originalAssetRevision) && reference.originalAssetRevision > 0);
+        }
+        assert(packet.receipts && ['primary', 'historical'].every(role => typeof packet.receipts[role]?.asset === 'string'
+          && typeof packet.receipts[role]?.evidence === 'string'));
+        sceneStatus = 'documents-retained-awaiting-explicit-association';
+        sceneContinuation = { method: retained.data.method, manifestSha256: retained.data.manifestSha256,
+          scope: retained.data.scope, buildingId: retained.data.buildingId, sourceFloors: retained.data.sourceFloors,
+          phase: retained.data.phase, references: retained.data.references };
+      }
       const terminal = journal.events.filter(event => ['scene-complete', 'scene-reused'].includes(event.kind)).at(-1);
-      const claim = journal.events.filter(event => event.kind === 'adapter-claim' && event.data.kind === 'scene-association').at(-1);
+      const claim = retained ? null : journal.events.filter(event => event.kind === 'adapter-claim' && event.data.kind === 'scene-association').at(-1);
       let expected;
-      if (terminal) expected = { recordId: terminal.data.recordId, payload: runtime.numeric.parseLosslessJson(terminal.data.payloadBody) };
-      else if (claim) {
+      if (terminal && terminalIndex > sceneClaimIndex && terminalIndex > sceneDispatchIndex && terminalIndex > retainedIndex)
+        expected = { recordId: terminal.data.recordId, payload: runtime.numeric.parseLosslessJson(terminal.data.payloadBody) };
+      else if (claim && !retained) {
         const request = runtime.numeric.parseLosslessJson(claim.data.body);
         assert.equal(request.commandId, 'atlas.scene-association.create');
         expected = { recordId: request.target.recordId, payload: request.payload };
@@ -506,10 +551,10 @@ export async function inspectImportJournal(journal, runtime, context, transport,
           const current = await owner.inspectCurrentScene(sceneInputForGeometry(selected, complete.data.mappings), signal, expected);
           if (current) { sceneStatus = 'exact-current-scene-verified'; sceneRecordId = current.recordId; }
         } finally { owner.dispose(); }
-      } else sceneStatus = 'no-correlated-scene-claim';
+      } else if (!retained) sceneStatus = 'no-correlated-scene-claim';
     }
     return { status: verified ? 'current-geometry-verified' : 'held', retrySafety: 'not-established', unresolvedCustody,
-      sceneStatus, sceneRecordId,
+      sceneStatus, sceneRecordId, sceneContinuation,
       viewKey: frame.viewKey, inspections: inspections.map(row => ({ requestId: row.requestId,
         status: row.result.status, receipt: row.result.status === 'ready' ? runtime.numeric.stringifyLosslessJson(row.result.receipt) : null })) };
   } finally { reader.dispose(); }
@@ -549,6 +594,15 @@ async function main(args) {
     if (selected.scene) sceneOwner = createSceneOwner(selected, runtime, context, transport, journal);
     geometry = await applyNativeImport(selected, runtime, context, transport, journal, signal, sceneOwner);
     const scene = await applyNativeScene(selected, geometry, runtime, context, transport, journal, signal, sceneOwner);
+    if (scene?.outcome === 'not-dispatched') {
+      console.log(JSON.stringify({ status: 'geometry-saved-documents-retained-scene-not-dispatched',
+        manifestSha256: selected.manifestSha256, journal: options.get('--journal'), floors: geometry.mappings.length,
+        sceneContinuation: { method: scene.continuation.method, buildingId: scene.continuation.buildingId,
+          manifestSha256: scene.continuation.manifestSha256, scope: scene.continuation.scope,
+          sourceFloors: scene.continuation.sourceFloors, phase: scene.continuation.phase,
+          references: scene.continuation.references } }));
+      return;
+    }
     const status = scene ? 'geometry-and-scene-saved-and-read-back' : 'geometry-saved-and-read-back';
     await journal.append('complete', { status, sceneRecordId: scene?.recordId ?? null });
     console.log(JSON.stringify({ status, manifestSha256: selected.manifestSha256,

@@ -352,6 +352,67 @@ test('host captures the same scene owner before the first geometry custody POST'
       { buildingId, status: 'unavailable', recordId: null });
   } finally { reader?.dispose(); await files.cleanup(); }
 });
+test('known scene non-dispatch durably exposes exact retained-document continuation without claiming completion', async () => {
+  const files = await fixture(), native = fakeNative(), context = localContext(); let geometry;
+  try {
+    const selected = await files.selected();
+    const journal = await openImportJournal(join(files.directory, 'scene-not-dispatched'), { create: true });
+    geometry = await applyNativeImport(selected, runtime, context, native.transport, journal, new AbortController().signal);
+    selected.scene = { buildingId, sourceFloors: files.manifest.floors.map(f => ({ sourceFloorKey: f.sourceFloorKey,
+      sourceOriginalSha256: f.sourceOriginalSha256 })), primary: { sha256: 'a'.repeat(64) }, historical: { sha256: 'b'.repeat(64) } };
+    await journal.append('scene-complete', { recordId: U(899), payloadBody: '{}', primarySha256: 'a'.repeat(64), historicalSha256: 'b'.repeat(64) });
+    const beforeScene = native.postCount;
+    const references = { primary: { evidenceId: U(901), originalAssetId: U(902), sha256: 'a'.repeat(64),
+      evidenceRevision: 7, originalAssetRevision: 8 }, historical: { evidenceId: U(903), originalAssetId: U(904),
+      sha256: 'b'.repeat(64), evidenceRevision: 9, originalAssetRevision: 10 } };
+    const receipts = role => ({ assetReceipt: { kind: `${role}-validated-asset-receipt` },
+      evidenceReceipt: { kind: `${role}-validated-evidence-receipt` } });
+    const owner = { async inspectCurrentScene() { return null; }, async importScene() {
+      return { outcome: 'not-dispatched', phase: 'scene-association', references,
+        primary: { ...receipts('primary'), outcome: 'committed' }, historical: { ...receipts('historical'), outcome: 'committed' } };
+    } };
+    const result = await applyNativeScene(selected, geometry, runtime, context, native.transport, journal,
+      new AbortController().signal, owner);
+    assert.equal(result.outcome, 'not-dispatched');
+    assert.equal(result.continuation.method, 'associateRetainedScene');
+    assert.equal(result.continuation.manifestSha256, selected.manifestSha256);
+    assert.equal(result.continuation.buildingId, buildingId);
+    assert.deepEqual(result.continuation.sourceFloors, geometry.mappings);
+    assert.deepEqual(result.continuation.references, references);
+    assert.equal(native.postCount, beforeScene, 'Known pre-dispatch refusal must not produce a scene POST');
+    assert.equal(journal.events.filter(e => e.kind === 'complete').length, 0);
+    assert.equal(journal.events.filter(e => e.kind === 'scene-complete').length, 1, 'The earlier terminal record remains historical only');
+    const retained = journal.events.filter(e => e.kind === 'scene-retained-documents').at(-1);
+    assert(retained); assert.deepEqual(retained.data.references, references);
+    assert.equal(retained.data.receipts.primary.asset, '{"kind":"primary-validated-asset-receipt"}');
+    assert.equal(retained.data.receipts.primary.evidence, '{"kind":"primary-validated-evidence-receipt"}');
+    const reopened = await openImportJournal(join(files.directory, 'scene-not-dispatched'));
+    const inspection = await inspectImportJournal(reopened, runtime, context, native.transport, new AbortController().signal, selected);
+    assert.equal(inspection.sceneStatus, 'documents-retained-awaiting-explicit-association');
+    assert.equal(inspection.sceneContinuation.manifestSha256, selected.manifestSha256);
+    assert.deepEqual(inspection.sceneContinuation.references, references);
+    assert.equal(inspection.retrySafety, 'not-established');
+    assert.equal(native.postCount, beforeScene, 'Passive inspection must not submit the continuation');
+    const request = { commandId: 'atlas.scene-association.create', requestId: U(910), target: target('scene-association', U(911)), payload: {} };
+    const requestBody = runtime.numeric.stringifyLosslessJson(request);
+    await reopened.append('adapter-claim', { kind: 'scene-association', requestId: request.requestId, body: requestBody });
+    let expectedRequest = null;
+    const inspectRuntime = { ...runtime, scene: { createNativeScanSceneImporter: () => ({
+      async inspectCurrentScene(_input, _signal, expected) { expectedRequest = expected; return null; }, dispose() {},
+    }) } };
+    const claimed = await inspectImportJournal(reopened, inspectRuntime, context, native.transport, new AbortController().signal, selected);
+    assert.deepEqual(expectedRequest, { recordId: U(911), payload: {} }, 'A newer before-dispatch claim supersedes an older completion and continuation');
+    assert.notEqual(claimed.sceneStatus, 'exact-current-scene-verified'); assert.equal(claimed.sceneContinuation, null);
+    await reopened.append('dispatch', { method: 'POST', path: '/api/atlas/scene-associations', body: requestBody });
+    await reopened.append('scene-held', { outcome: 'unknown', requestId: request.requestId });
+    expectedRequest = null;
+    const pending = await inspectImportJournal(reopened, inspectRuntime, context, native.transport, new AbortController().signal, selected);
+    assert.deepEqual(expectedRequest, { recordId: U(911), payload: {} }, 'A later submitted request supersedes the same old completion and continuation');
+    assert.notEqual(pending.sceneStatus, 'exact-current-scene-verified'); assert.equal(pending.sceneRecordId, null);
+    assert.equal(pending.sceneContinuation, null); assert.equal(pending.retrySafety, 'not-established');
+    assert.equal(native.postCount, beforeScene, 'Inspecting the later unknown request stays GET-only');
+  } finally { geometry?.reader.dispose(); await files.cleanup(); }
+});
 test('host composes scene reuse and restart inspection without a scene mutation or manufactured receipt', async () => {
   const files = await fixture(), native = fakeNative(), context = localContext(); let geometry;
   try {

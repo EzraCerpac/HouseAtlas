@@ -15,6 +15,8 @@ export interface NativeSceneSourceSelection {
   readonly buildingId: string;
   readonly viewKey: string;
   readonly sceneEvidenceId: string;
+  /** The second current source document, paired with sceneEvidenceId on room mappings. */
+  readonly historicalSceneEvidenceId?: string;
   readonly sceneAssetId: string;
   readonly sceneOriginalSha256: string;
   readonly sceneEvidenceRevision: number;
@@ -23,6 +25,9 @@ export interface NativeSceneSourceSelection {
   readonly acceptedRoomReceiptSha256: string | null;
   /** Complete anchor/target membership from the independently reviewed receipt. */
   readonly acceptedRoomAnchors: readonly NativeSceneAcceptedAnchor[];
+  /** Separately stored current native room mapping projection. These IDs are
+   * consumed only after joining the exact documentary room and current Atlas owner. */
+  readonly acceptedRoomMappings?: readonly NativeSceneAcceptedRoomMapping[];
   readonly sourceFloorBindings: readonly NativeSceneFloorBinding[];
   /** Separately reviewed sheet/page -> current native PDF join. Never supplied by stored scene text. */
   readonly drawingReferences?: readonly NativeSceneDrawingPdfReference[];
@@ -72,6 +77,15 @@ export interface NativeSceneAcceptedAnchor {
   readonly unresolvedLabels: readonly string[];
 }
 
+export interface NativeSceneAcceptedRoomMapping {
+  readonly sourceRoomId: string;
+  readonly sourceFloorKey: string;
+  readonly sourceOriginalSha256: string;
+  readonly sourceAnchorIds: readonly string[];
+  readonly evidenceIds: readonly string[];
+  readonly targets: readonly Readonly<{ packagePlaceKey: string; packagePlaceUuid: string; atlasPlaceId: string | null }>[];
+}
+
 /** Explicit, independently reviewed source-floor to current native-floor relation. */
 export interface NativeSceneFloorBinding {
   readonly sourceFloorKey: string;
@@ -91,14 +105,17 @@ export type NativeSceneSubset<T> =
 export interface NativeSceneSourceFrame {
   readonly lease: object;
   readonly viewKey: string;
+  readonly buildingId: string;
   readonly sourceEvidenceId: string;
   readonly sourceAssetId: string;
   readonly sourceOriginalSha256: string;
   readonly receiptId: string | null;
   readonly receiptSha256: string | null;
   readonly rooms: NativeSceneSubset<Readonly<{ rooms: readonly SchematicRoom[]; regions: readonly DisplayRoomRegion[] }>>;
-  /** Exact full receipt membership for each displayable room; no native place ID. */
-  readonly roomSelections: readonly Readonly<{ roomId: string; selection: NetworkPackagePlaceSelection }>[];
+  /** Exact full receipt membership for each displayable room plus its separately
+   * reviewed nullable native Atlas mapping. */
+  readonly roomSelections: readonly Readonly<{ roomId: string; selection: NetworkPackagePlaceSelection;
+    nativePlaceIds: readonly Readonly<{ packagePlaceKey: string; packagePlaceUuid: string; atlasPlaceId: string | null }>[] }>[];
   readonly network: NativeSceneSubset<NetworkOverlayData>;
   readonly electricity: NativeSceneSubset<ElectricityOverlayData>;
   /** Historical source symbols only; no accepted diagram registration or media grant. */

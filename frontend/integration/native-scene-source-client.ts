@@ -34,7 +34,7 @@ function list(value: LosslessJson | undefined, maximum: number): LosslessJson[] 
   need(Array.isArray(value) && value.length <= maximum); return value;
 }
 function str(value: LosslessJson | undefined, maximum = 256): string {
-  need(typeof value === 'string' && value.length > 0 && value.length <= maximum && value.trim() === value);
+  need(typeof value === 'string' && value.length > 0 && [...value].length <= maximum && value.trim() === value);
   return value;
 }
 function plain(value: LosslessJson | undefined, maximum = 2048): string {
@@ -76,11 +76,13 @@ function sourceBox(value: LosslessJson | undefined): FixtureBox {
 function identical(a: ExactDecimal, b: ExactDecimal): boolean { return a.compare(b) === 0; }
 function selectionStamp(value: NativeSceneSourceSelection): string {
   return JSON.stringify([value.sessionIdentity === null, value.workspaceId, value.homeId, value.expiresAt,
-    value.buildingId, value.viewKey, value.sceneEvidenceId, value.sceneAssetId,
+    value.buildingId, value.viewKey, value.sceneEvidenceId, value.historicalSceneEvidenceId ?? null, value.sceneAssetId,
     value.sceneOriginalSha256, value.sceneEvidenceRevision, value.sceneAssetRevision.token,
     value.acceptedRoomReceiptId, value.acceptedRoomReceiptSha256,
     value.acceptedRoomAnchors.map(a => [a.id, a.sourceFloorKey, a.sourceOriginalSha256,
       a.targets.map(t => [t.packagePlaceKey, t.packagePlaceUuid]), [...a.unresolvedLabels]]),
+    value.acceptedRoomMappings?.map(m => [m.sourceRoomId, m.sourceFloorKey, m.sourceOriginalSha256,
+      [...m.sourceAnchorIds], [...m.evidenceIds], m.targets.map(t => [t.packagePlaceKey, t.packagePlaceUuid, t.atlasPlaceId])]),
     value.sourceFloorBindings.map(f => [f.sourceFloorKey, f.sourceOriginalSha256,
       f.nativeFloorKey, f.nativeOriginalAssetId, f.nativeOriginalSha256,
       f.nativeGeometryId, f.nativeGeometryRevision.token]),
@@ -203,11 +205,11 @@ function receipt(selection: NativeSceneSourceSelection): ReadonlyMap<string, Anc
     && SHA.test(selection.acceptedRoomReceiptSha256));
   need(selection.acceptedRoomAnchors.length <= 128);
   for (const a of selection.acceptedRoomAnchors) {
-    const id = str(a.id), floor = str(a.sourceFloorKey), sourceSha = digest(a.sourceOriginalSha256);
+    const id = str(a.id, 512), floor = str(a.sourceFloorKey, 512), sourceSha = digest(a.sourceOriginalSha256);
     need(!anchors.has(id));
     need(a.targets.length <= 16);
     const targets = a.targets.map(t => {
-      const key = str(t.packagePlaceKey), uuid = str(t.packagePlaceUuid);
+      const key = str(t.packagePlaceKey, 512), uuid = str(t.packagePlaceUuid);
       need(UUID.test(uuid)); return freeze({ key, uuid });
     });
     need(new Set(targets.map(t => `${t.key}\0${t.uuid}`)).size === targets.length);
@@ -225,15 +227,17 @@ function bindings(selection: NativeSceneSourceSelection, geometry: NativeGeometr
   const result = new Map<string, NativeSceneFloorBinding>(), used = new Set<string>();
   need(selection.sourceFloorBindings.length <= 3);
   for (const binding of selection.sourceFloorBindings) {
-    need(!result.has(binding.sourceFloorKey) && !used.has(binding.nativeFloorKey)
+    const sourceFloorKey = str(binding.sourceFloorKey, 512);
+    const nativeFloorKey = str(binding.nativeFloorKey, 512);
+    need(!result.has(sourceFloorKey) && !used.has(nativeFloorKey)
       && SHA.test(binding.sourceOriginalSha256) && SHA.test(binding.nativeOriginalSha256)
       && UUID.test(binding.nativeOriginalAssetId) && UUID.test(binding.nativeGeometryId));
-    const offered = geometry.descriptor.floors.find(o => o.floor.key === binding.nativeFloorKey)?.floor;
+    const offered = geometry.descriptor.floors.find(o => o.floor.key === nativeFloorKey)?.floor;
     need(offered && offered.originalAssetId === binding.nativeOriginalAssetId
       && offered.originalSha256 === binding.nativeOriginalSha256
       && offered.geometryId === binding.nativeGeometryId
       && identical(offered.geometryRevision, binding.nativeGeometryRevision));
-    result.set(binding.sourceFloorKey, binding); used.add(binding.nativeFloorKey);
+    result.set(sourceFloorKey, binding); used.add(nativeFloorKey);
   }
   return result;
 }
@@ -252,8 +256,8 @@ function rooms(source: Row, anchors: ReadonlyMap<string, Anchor>, bound: Readonl
   for (const item of list(source.entries, 32)) {
     const r = row(item, ['id','label','sourceFloorKey','sourceOriginalSha256','sourceAnchorIds',
       'packagePlaceKey','packagePlaceUuid','xFraction','yFraction']);
-    const id = str(r.id), floor = str(r.sourceFloorKey), sha = digest(r.sourceOriginalSha256);
-    const key = str(r.packagePlaceKey), uuid = str(r.packagePlaceUuid), sourceAnchorIds = strings(r.sourceAnchorIds, 32);
+    const id = str(r.id, 512), floor = str(r.sourceFloorKey, 512), sha = digest(r.sourceOriginalSha256);
+    const key = str(r.packagePlaceKey, 512), uuid = str(r.packagePlaceUuid), sourceAnchorIds = strings(r.sourceAnchorIds, 32, 512);
     need(!ids.has(id) && UUID.test(uuid) && sourceAnchorIds.length > 0);
     const nativeFloor = floorFor(floor, sha, bound);
     for (const anchorId of sourceAnchorIds) {
@@ -271,9 +275,9 @@ function rooms(source: Row, anchors: ReadonlyMap<string, Anchor>, bound: Readonl
   for (const item of list(source.regions, 32)) {
     const r = row(item, ['roomId','sourceFloorKey','sourceOriginalSha256','sourceAnchorIds',
       'packagePlaceKey','packagePlaceUuid','polygons','geometryQualification','sourceGeometryHandles','displayKind']);
-    const roomId = str(r.roomId), floor = floorFor(str(r.sourceFloorKey), digest(r.sourceOriginalSha256), bound);
+    const roomId = str(r.roomId, 512), floor = floorFor(str(r.sourceFloorKey, 512), digest(r.sourceOriginalSha256), bound);
     const room = entries.find(entry => entry.id === roomId);
-    const sourceAnchorIds = strings(r.sourceAnchorIds, 32);
+    const sourceAnchorIds = strings(r.sourceAnchorIds, 32, 512);
     need(room && room.floorKey === floor && room.packagePlaceKey === r.packagePlaceKey
       && room.packagePlaceUuid === r.packagePlaceUuid && sourceAnchorIds.length > 0
       && sourceAnchorIds.every(id => room.sourceAnchorIds.includes(id))
@@ -322,13 +326,13 @@ function network(source: Row, viewKey: string, receiptId: string | null, receipt
       const refs = list(p.planAssociations, 32).map(item => {
         need(receiptSha !== null);
         const a = row(item, ['sourceAnchorId','sourceFloorKey','sourceFloorLabel','sourceReference','sourceHandle','sourceSHA256']);
-        const id = str(a.sourceAnchorId), anchor = anchors.get(id);
-        need(anchor && anchor.floor === a.sourceFloorKey && anchor.sourceSha === a.sourceSHA256);
+        const id = str(a.sourceAnchorId, 512), anchor = anchors.get(id);
+        need(anchor && anchor.floor === str(a.sourceFloorKey, 512) && anchor.sourceSha === a.sourceSHA256);
         return freeze({ sourceAnchorId: id, sourceFloorKey: anchor.floor, sourceFloorLabel: str(a.sourceFloorLabel),
           sourceReference: str(a.sourceReference, 512), sourceHandle: str(a.sourceHandle),
           sourceSHA256: anchor.sourceSha, mappingReceiptSHA256: receiptSha });
       });
-      const sourceFloorKey = optional(p.sourceFloorKey);
+      const sourceFloorKey = optional(p.sourceFloorKey, 512);
       const sourcePlaceId = optional(p.sourcePlaceId), sourcePlaceUUID = optional(p.sourcePlaceUUID);
       const mappingStatus = choice(p.mappingStatus, ['unmatched','proposed','accepted']);
       if (mappingStatus === 'accepted') {
@@ -341,7 +345,7 @@ function network(source: Row, viewKey: string, receiptId: string | null, receipt
       }
       need(sourceFloorKey === null || refs.length > 0 && refs.every(ref => ref.sourceFloorKey === sourceFloorKey));
       const floorKey = sourceFloorKey === null ? null : floorFor(sourceFloorKey, refs[0]!.sourceSHA256, bound);
-      place = freeze({ placeId: null, sourceRoomId: optional(p.sourceRoomId), sourcePlaceId,
+      place = freeze({ placeId: null, sourceRoomId: optional(p.sourceRoomId, 512), sourcePlaceId,
         sourcePlaceUUID, planAssociations: freeze(refs), roomLabel: str(p.roomLabel, 512),
         detail: plain(p.detail, 1024), confidence: choice(p.confidence, ['accepted','recorded','tentative','unknown','conflicting']),
         basis: str(p.basis, 1024), floorKey, mappingStatus, coordinate: null });
@@ -687,7 +691,19 @@ export function createNativeSceneSourceClient(options: NativeSceneSourceOptions)
         const targets = members.flatMap(anchor => anchor.targets.map(target => ({
           packagePlaceKey: target.key, packagePlaceUuid: target.uuid })));
         const unique = [...new Map(targets.map(target => [`${target.packagePlaceKey}\0${target.packagePlaceUuid}`, target])).values()];
-        return freeze({ roomId: room.id, selection: {
+        const mapping = selection.acceptedRoomMappings?.find(candidate => candidate.sourceRoomId === room.id);
+        const nativePlaceIds = mapping && mapping.sourceAnchorIds.length === room.sourceAnchorIds.length
+          && mapping.sourceAnchorIds.every((id, index) => id === room.sourceAnchorIds[index])
+          && selection.historicalSceneEvidenceId !== undefined && mapping.evidenceIds.length === 2
+          && new Set(mapping.evidenceIds).size === 2
+          && mapping.evidenceIds.includes(selection.sceneEvidenceId)
+          && mapping.evidenceIds.includes(selection.historicalSceneEvidenceId)
+          && members.every(anchor => anchor.floor === mapping.sourceFloorKey && anchor.sourceSha === mapping.sourceOriginalSha256)
+          ? mapping.targets.filter(target => unique.some(pair => pair.packagePlaceKey === target.packagePlaceKey
+            && pair.packagePlaceUuid === target.packagePlaceUuid)).map(target => ({
+              packagePlaceKey: target.packagePlaceKey, packagePlaceUuid: target.packagePlaceUuid, atlasPlaceId: target.atlasPlaceId,
+            })) : [];
+        return freeze({ roomId: room.id, nativePlaceIds, selection: {
           viewKey: selection.viewKey, status: 'accepted' as const,
           receiptId: selection.acceptedRoomReceiptId!, receiptSha256: selection.acceptedRoomReceiptSha256!,
           sourceAnchorIds: room.sourceAnchorIds, targets: unique,
@@ -734,7 +750,7 @@ export function createNativeSceneSourceClient(options: NativeSceneSourceOptions)
       const currentFixtures = fixtureSubset.status === 'available' && verifiedSupport
         ? freeze({ status: 'available' as const, data: { ...fixtureSubset.data,
           roomMappingReceipt: { id: selection.acceptedRoomReceiptId!, sha256: selection.acceptedRoomReceiptSha256! } } }) : fixtureSubset;
-      const result: NativeSceneSourceFrame = Object.freeze({ lease: Object.freeze({}), viewKey: selection.viewKey,
+      const result: NativeSceneSourceFrame = Object.freeze({ lease: Object.freeze({}), viewKey: selection.viewKey, buildingId: selection.buildingId,
         sourceEvidenceId: frame.evidenceId, sourceAssetId: frame.asset.assetId,
         sourceOriginalSha256: frame.asset.sha256, receiptId: selection.acceptedRoomReceiptId,
         receiptSha256: selection.acceptedRoomReceiptSha256, rooms: roomSubset, roomSelections: freeze(roomSelections),

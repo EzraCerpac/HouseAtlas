@@ -106,6 +106,11 @@ Inspect the complete tool/runtime/transport/test bodies before this exact check:
 node --test --test-concurrency=1 tools/geometry/native-scan-import.test.mjs
 ```
 
+That named fake-transport suite includes the adapter regression
+`known scene non-dispatch durably exposes exact retained-document continuation
+without claiming completion`: it reopens the retained continuation from the
+journal and verifies passive inspection does not submit it.
+
 The native admission metadata check provisions only two disposable synthetic
 role/session fixtures before observing two in-process GETs. It checks separate
 Editor/Viewer native lists, unchanged generic Stock/MCP lists and unchanged
@@ -120,7 +125,8 @@ The separate scene adapter checks use generated text, fake HTTPS responses and
 the actual Stock/document/scene readers. Each invocation runs one named case;
 none creates a socket, browser, database, credential or household record. Inspect
 the complete adapter and runner bodies first. Scope and input contract are in
-[the assistant scene adapter](docs/geometry/assistant-native-scan-scene.md).
+[the assistant scene adapter](docs/geometry/assistant-native-scan-scene.md) and
+[native room target checks](docs/geometry/native-scan-room-targets.md).
 
 ```sh
 node frontend/lantern-tests/native-scan-import-scene.mjs committed
@@ -136,6 +142,22 @@ node frontend/lantern-tests/native-scan-import-scene.mjs changed-frame-current-s
 node frontend/lantern-tests/native-scan-import-scene.mjs supplementary-unicode
 node frontend/lantern-tests/native-scan-import-scene.mjs compact-scene-head
 node frontend/lantern-tests/native-scan-import-scene.mjs viewer-inspect
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-explicit-null
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-other
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-floor-direct
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-many-to-one
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-invalid
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-wrong-classification
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-duplicate-classification
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-wrong-scope
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-owner-withdrawal
+node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents
+node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents-unknown
+node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents-before-dispatch
+node frontend/lantern-tests/native-scan-import-scene.mjs scene-import-before-dispatch
+node frontend/lantern-tests/native-scan-import-scene.mjs scene-import-prepare-refresh
+node frontend/lantern-tests/native-scan-import-scene.mjs scene-import-hook-refusal
 ```
 
 After inspecting the tool, test and source-loader imports, the assistant can
@@ -368,6 +390,24 @@ cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitra
 These examples preserve original evidence, exact elevations and revision guards.
 They establish no provider admission or actual-household acceptance.
 
+The assistant-managed place-intake seam also supports accepted floor, room and
+other classifications, with optional reviewed membership under an existing
+building or floor. The client allocates every native record ID in its existing
+batch and keeps floor elevation absent unless a separate reviewed workflow
+provides it. See [assistant-managed native place intake](docs/geometry/assistant-native-place-intake.md).
+Its focused synthetic check uses only an in-memory fake transport:
+
+```sh
+node frontend/lantern-tests/native-place-levels-intake.mjs
+```
+
+This checks native batch composition, parent revision guards, client-issued
+preparation use and a non-replayed commit with the genuine JCS request digest.
+It also pauses digest computation and verifies that a second independently
+prepared form submission is rejected before fake transport dispatch, then can
+be deliberately committed after the first finishes. It opens no listener,
+reads no household/provider data and performs no native write.
+
 A separately reviewed native naming rehearsal uses a fresh empty synthetic
 local Editor state and an exact private artifact-selection packet. It creates
 and names Atlas places through the real frontend, checks explicit membership,
@@ -497,12 +537,12 @@ these cases are outside ordinary
 CI and do not qualify native grant revocation, original verification or deployment.
 See [the issue-specific scope](docs/geometry/drawing-evidence-lookup-150.md).
 
-The retained fixture reader has one named positive using generated rooms,
-drawings and fake current document/geometry ports. Inspect its full body and
-listed production imports before this narrower local command. It opens no
-browser or listener; it establishes no native retention or household source
-availability. Use the pinned Node 26.10.0 runtime and an owned evidence directory
-outside this checkout:
+The retained fixture reader has named positive cases for the generated source
+and native room projection using fake current document/geometry/topology ports.
+Inspect its full body and listed production imports before this narrower local
+command. It opens no browser or listener; it establishes no native retention or
+household source availability. Use the pinned Node 26.10.0 runtime and an owned
+evidence directory outside this checkout:
 
 ```sh
 HOUSEATLAS_FIXTURE_EVIDENCE=/absolute/private/fixture-reader-only node frontend/lantern-tests/native-scene-fixture-reader-healthy.mjs --reader-only
@@ -511,6 +551,13 @@ HOUSEATLAS_FIXTURE_EVIDENCE=/absolute/private/fixture-reader-only node frontend/
 The broader browser flow in `docs/geometry/native-scene-fixture-reader-healthy.md`
 requires its own inspected browser artifact and execution selection; it is not
 released by this reader-only command.
+
+The native room projection keeps stored `native-scene-source.v2` targets
+package-only. It accepts a nullable native ID only from the current room
+mapping, pinned to the exact current and historical scene documents and joined
+by source room, full ordered anchors, package key and UUID. A visible room
+action appears only while current topology membership confirms that ID in the
+selected building.
 
 A separately named topology read example uses generic Alpha/Beta records and
 injected transports only. It checks the existing native invoke envelope,

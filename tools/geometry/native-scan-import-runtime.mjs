@@ -17,6 +17,10 @@ const entries = Object.freeze({
   session: 'frontend/src/app/session.ts',
   retained: 'frontend/src/api/retained-intent-client.ts',
   numeric: 'frontend/src/numeric/lossless-json.ts',
+  places: 'frontend/src/api/native-place-client.ts',
+  topology: 'frontend/src/api/topology-client.ts',
+  schemas: 'frontend/integration/stock-schemas.ts',
+  reviewed: 'frontend/integration/native-scene-reviewed-places.ts',
 });
 export async function loadNativeImportRuntime(extraEntries = {}) {
   if (process.version !== 'v26.10.0') throw new Error('Use the reviewed Node 26.10.0 runtime');
