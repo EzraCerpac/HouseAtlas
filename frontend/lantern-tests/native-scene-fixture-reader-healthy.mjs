@@ -202,7 +202,16 @@ async function readHealthyFixture(createNativeSceneSourceClient, ExactDecimal,
       const unqualifiedOwner = { ...owner, index: { ...owner.index, locations: new Map([[unqualified.id, unqualified]]) },
         model: { building: { id: U(3) }, levels: [], direct: [unqualified] } };
       check(resolveNativeSceneRoomPlace(frame, rooms[0].id, unqualifiedOwner) === null,
-        'Ambiguous or non-room accepted classification offers no native room action');
+        'Ambiguous or building accepted classification offers no native room action');
+    }
+    for (const acceptedPlace of [
+      { ...nativePlace, semantics: [{ payload: { semanticKind: 'other' } }] },
+      { ...nativePlace, semantics: [{ payload: { semanticKind: 'floor' } }] },
+    ]) {
+      const acceptedOwner = { ...owner, index: { ...owner.index, locations: new Map([[acceptedPlace.id, acceptedPlace]]) },
+        model: { building: { id: U(3) }, levels: [], direct: [acceptedPlace] } };
+      check(resolveNativeSceneRoomPlace(frame, rooms[0].id, acceptedOwner) === acceptedPlace,
+        'One accepted non-building classification, including other or direct floor membership, resolves');
     }
     check(resolveNativeSceneRoomPlace(frame, rooms[2].id, owner) === null, 'Unqualified association target offers no native place');
     let chosenNativePlaceId = null;
@@ -234,7 +243,8 @@ async function readHealthyFixture(createNativeSceneSourceClient, ExactDecimal,
         wrongPackageTargetOmitted: true, reorderedAnchorMembershipOmitted: true, wrongEvidencePairOmitted: true,
         legacyPackageOnlyPreserved: true, currentTopologyDetailsRendered: true, selectionActionConsumesProjectedId: true,
         staleOrOutOfBuildingOmitted: true, staleCurrentSourceStatusOmitted: true,
-        ambiguousOrNonRoomClassificationOmitted: true, unselectedDetailsLabelHonest: true } };
+        ambiguousOrBuildingClassificationOmitted: true, nonBuildingOtherAndDirectFloorAccepted: true,
+        unselectedDetailsLabelHonest: true } };
     return { frame, media, proof, dispose() { client.dispose(); legacyClient?.dispose();
       check(releases === 3 && subscriptions === 0, 'Release current, mismatched-evidence and legacy document leases and all subscriptions'); } };
   } catch (error) { client.dispose(); legacyClient?.dispose(); mismatchClient?.dispose(); throw error; }

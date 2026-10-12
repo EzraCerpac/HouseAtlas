@@ -34,7 +34,7 @@ export function resolveNativeSceneRoomPlace(source: NativeSceneSourceFrame, room
   for (const item of projected) {
     if (item.atlasPlaceId === null || !memberIds.has(item.atlasPlaceId)) continue;
     const location = owner.index.locations.get(item.atlasPlaceId);
-    if (location?.semantics.length === 1 && location.semantics[0]!.payload.semanticKind === 'room') return location;
+    if (location?.semantics.length === 1 && location.semantics[0]!.payload.semanticKind !== 'building') return location;
   }
   return null;
 }
