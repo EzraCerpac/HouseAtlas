@@ -20,9 +20,11 @@ package-only selection shape. The fixtures include two accepted anchors for one
 room. A production topology resolver is exercised against synthetic current
 membership: current reviewed membership resolves the ID, while stale reads,
 another building, missing membership and unmatched rooms expose no native
-action. The actual details component is server-rendered to check its visible
-current Atlas label, ID, classification and selection control. Normal disposal
-releases all three original leases and removes all subscriptions.
+action. The source reader preserves the Atlas schema's full 512-character
+source-anchor identifier bound. The actual details component is server-rendered
+to check its visible current Atlas label, ID, classification and selection
+control. Normal disposal releases all three original leases and removes all
+subscriptions.
 
 The browser fixture provides a small room selector and an explicit test-host
 resolver from `(sheetId, page)` to generated Alpha/Beta SVG images. These are

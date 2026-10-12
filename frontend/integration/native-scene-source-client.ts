@@ -205,11 +205,11 @@ function receipt(selection: NativeSceneSourceSelection): ReadonlyMap<string, Anc
     && SHA.test(selection.acceptedRoomReceiptSha256));
   need(selection.acceptedRoomAnchors.length <= 128);
   for (const a of selection.acceptedRoomAnchors) {
-    const id = str(a.id), floor = str(a.sourceFloorKey), sourceSha = digest(a.sourceOriginalSha256);
+    const id = str(a.id, 512), floor = str(a.sourceFloorKey, 512), sourceSha = digest(a.sourceOriginalSha256);
     need(!anchors.has(id));
     need(a.targets.length <= 16);
     const targets = a.targets.map(t => {
-      const key = str(t.packagePlaceKey), uuid = str(t.packagePlaceUuid);
+      const key = str(t.packagePlaceKey, 512), uuid = str(t.packagePlaceUuid);
       need(UUID.test(uuid)); return freeze({ key, uuid });
     });
     need(new Set(targets.map(t => `${t.key}\0${t.uuid}`)).size === targets.length);
@@ -227,15 +227,17 @@ function bindings(selection: NativeSceneSourceSelection, geometry: NativeGeometr
   const result = new Map<string, NativeSceneFloorBinding>(), used = new Set<string>();
   need(selection.sourceFloorBindings.length <= 3);
   for (const binding of selection.sourceFloorBindings) {
-    need(!result.has(binding.sourceFloorKey) && !used.has(binding.nativeFloorKey)
+    const sourceFloorKey = str(binding.sourceFloorKey, 512);
+    const nativeFloorKey = str(binding.nativeFloorKey, 512);
+    need(!result.has(sourceFloorKey) && !used.has(nativeFloorKey)
       && SHA.test(binding.sourceOriginalSha256) && SHA.test(binding.nativeOriginalSha256)
       && UUID.test(binding.nativeOriginalAssetId) && UUID.test(binding.nativeGeometryId));
-    const offered = geometry.descriptor.floors.find(o => o.floor.key === binding.nativeFloorKey)?.floor;
+    const offered = geometry.descriptor.floors.find(o => o.floor.key === nativeFloorKey)?.floor;
     need(offered && offered.originalAssetId === binding.nativeOriginalAssetId
       && offered.originalSha256 === binding.nativeOriginalSha256
       && offered.geometryId === binding.nativeGeometryId
       && identical(offered.geometryRevision, binding.nativeGeometryRevision));
-    result.set(binding.sourceFloorKey, binding); used.add(binding.nativeFloorKey);
+    result.set(sourceFloorKey, binding); used.add(nativeFloorKey);
   }
   return result;
 }
@@ -254,8 +256,8 @@ function rooms(source: Row, anchors: ReadonlyMap<string, Anchor>, bound: Readonl
   for (const item of list(source.entries, 32)) {
     const r = row(item, ['id','label','sourceFloorKey','sourceOriginalSha256','sourceAnchorIds',
       'packagePlaceKey','packagePlaceUuid','xFraction','yFraction']);
-    const id = str(r.id), floor = str(r.sourceFloorKey), sha = digest(r.sourceOriginalSha256);
-    const key = str(r.packagePlaceKey), uuid = str(r.packagePlaceUuid), sourceAnchorIds = strings(r.sourceAnchorIds, 32);
+    const id = str(r.id, 512), floor = str(r.sourceFloorKey, 512), sha = digest(r.sourceOriginalSha256);
+    const key = str(r.packagePlaceKey, 512), uuid = str(r.packagePlaceUuid), sourceAnchorIds = strings(r.sourceAnchorIds, 32, 512);
     need(!ids.has(id) && UUID.test(uuid) && sourceAnchorIds.length > 0);
     const nativeFloor = floorFor(floor, sha, bound);
     for (const anchorId of sourceAnchorIds) {
@@ -273,9 +275,9 @@ function rooms(source: Row, anchors: ReadonlyMap<string, Anchor>, bound: Readonl
   for (const item of list(source.regions, 32)) {
     const r = row(item, ['roomId','sourceFloorKey','sourceOriginalSha256','sourceAnchorIds',
       'packagePlaceKey','packagePlaceUuid','polygons','geometryQualification','sourceGeometryHandles','displayKind']);
-    const roomId = str(r.roomId), floor = floorFor(str(r.sourceFloorKey), digest(r.sourceOriginalSha256), bound);
+    const roomId = str(r.roomId, 512), floor = floorFor(str(r.sourceFloorKey, 512), digest(r.sourceOriginalSha256), bound);
     const room = entries.find(entry => entry.id === roomId);
-    const sourceAnchorIds = strings(r.sourceAnchorIds, 32);
+    const sourceAnchorIds = strings(r.sourceAnchorIds, 32, 512);
     need(room && room.floorKey === floor && room.packagePlaceKey === r.packagePlaceKey
       && room.packagePlaceUuid === r.packagePlaceUuid && sourceAnchorIds.length > 0
       && sourceAnchorIds.every(id => room.sourceAnchorIds.includes(id))
@@ -324,13 +326,13 @@ function network(source: Row, viewKey: string, receiptId: string | null, receipt
       const refs = list(p.planAssociations, 32).map(item => {
         need(receiptSha !== null);
         const a = row(item, ['sourceAnchorId','sourceFloorKey','sourceFloorLabel','sourceReference','sourceHandle','sourceSHA256']);
-        const id = str(a.sourceAnchorId), anchor = anchors.get(id);
-        need(anchor && anchor.floor === a.sourceFloorKey && anchor.sourceSha === a.sourceSHA256);
+        const id = str(a.sourceAnchorId, 512), anchor = anchors.get(id);
+        need(anchor && anchor.floor === str(a.sourceFloorKey, 512) && anchor.sourceSha === a.sourceSHA256);
         return freeze({ sourceAnchorId: id, sourceFloorKey: anchor.floor, sourceFloorLabel: str(a.sourceFloorLabel),
           sourceReference: str(a.sourceReference, 512), sourceHandle: str(a.sourceHandle),
           sourceSHA256: anchor.sourceSha, mappingReceiptSHA256: receiptSha });
       });
-      const sourceFloorKey = optional(p.sourceFloorKey);
+      const sourceFloorKey = optional(p.sourceFloorKey, 512);
       const sourcePlaceId = optional(p.sourcePlaceId), sourcePlaceUUID = optional(p.sourcePlaceUUID);
       const mappingStatus = choice(p.mappingStatus, ['unmatched','proposed','accepted']);
       if (mappingStatus === 'accepted') {
@@ -343,7 +345,7 @@ function network(source: Row, viewKey: string, receiptId: string | null, receipt
       }
       need(sourceFloorKey === null || refs.length > 0 && refs.every(ref => ref.sourceFloorKey === sourceFloorKey));
       const floorKey = sourceFloorKey === null ? null : floorFor(sourceFloorKey, refs[0]!.sourceSHA256, bound);
-      place = freeze({ placeId: null, sourceRoomId: optional(p.sourceRoomId), sourcePlaceId,
+      place = freeze({ placeId: null, sourceRoomId: optional(p.sourceRoomId, 512), sourcePlaceId,
         sourcePlaceUUID, planAssociations: freeze(refs), roomLabel: str(p.roomLabel, 512),
         detail: plain(p.detail, 1024), confidence: choice(p.confidence, ['accepted','recorded','tentative','unknown','conflicting']),
         basis: str(p.basis, 1024), floorKey, mappingStatus, coordinate: null });
