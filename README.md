@@ -552,6 +552,16 @@ The broader browser flow in `docs/geometry/native-scene-fixture-reader-healthy.m
 requires its own inspected browser artifact and execution selection; it is not
 released by this reader-only command.
 
+The named `--host-only` synthetic browser case mounts the production native
+scene source action with a generated, current PDF reference and fake document
+owner. It checks that the current sheet opens a download-only dialog and that
+a stale source reports its refusal without opening a document. It uses an owned
+loopback listener and disposable browser profile, and reads no household data:
+
+```sh
+HOUSEATLAS_CHROMIUM=/absolute/inspected/chromium node frontend/lantern-tests/native-scene-fixture-reader-healthy.mjs --host-only
+```
+
 The native room projection keeps stored `native-scene-source.v2` targets
 package-only. It accepts a nullable native ID only from the current room
 mapping, pinned to the exact current and historical scene documents and joined

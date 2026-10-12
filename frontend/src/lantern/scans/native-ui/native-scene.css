@@ -1,5 +1,6 @@
 .native-fixture-summary { position: absolute; left: 20px; bottom: 24px; }
 .native-fixture-details { position: absolute; right: 16px; top: 84px; width: min(780px, calc(100% - 32px)); max-height: calc(100% - 110px); overflow: auto; background: var(--card, #fff); border: 1px solid var(--line, #ddd); border-radius: 16px; box-shadow: 0 12px 36px #17203826; }
+.lantern-host .stage-ui.native-fixture-details { z-index: 6; }
 .native-fixture-details > header { position: sticky; top: 0; z-index: 4; padding: 12px; background: var(--card, #fff); }
 .native-fixture-details > p { padding: 0 16px 16px; }
 .native-scene-place-details { box-sizing: border-box; min-width: 0; width: 100%; padding: 12px; color: var(--ink, #1e2638); background: var(--card, #fcfbf8); border: 1px solid var(--hair-2, #c9bfae); border-radius: 12px; }

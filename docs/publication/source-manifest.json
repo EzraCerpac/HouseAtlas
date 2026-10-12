@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "42365faa42775930be6e9f17b222b3e2628f4a6ec1d9c42c6222331440b4cdc6",
+  "sourceDigestSha256": "a6adebe1e62562345217498b4cf4a6d179c023a0445de8d6bed899c5001c56dd",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -92,8 +92,8 @@
       "path": "README.md",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 55490,
-      "sha256": "faca409a08567b386a9bd8c5b6dfd2ce26219b3f83457510c3b68ddde64a4eb6"
+      "bytes": 56022,
+      "sha256": "f0e2b328d06a3edaf1c679b56b4ef5f4a4c0e7d5eefe40da1db55c1a7b7d13ac"
     },
     {
       "path": "adapters/homebox/README.md",
@@ -5418,8 +5418,8 @@
     {
       "path": "docs/geometry/electricity-overlay.md",
       "mode": "100644",
-      "bytes": 14067,
-      "sha256": "9a8814f2cdd3917e10cac1d1acd4b574b9116b834657eed3a8af058e1136a920",
+      "bytes": 14313,
+      "sha256": "8dddf0641259e2d65ec4fbefeaa36fea0a03b8391152c78e492c91ef56706ba1",
       "owner": "web"
     },
     {
@@ -5474,8 +5474,8 @@
     {
       "path": "docs/geometry/native-room-drawing-source.md",
       "mode": "100644",
-      "bytes": 7814,
-      "sha256": "fa99b048434de8fb811e8a99e60f2c3e2733ccb8544fa9d75887ab8eb3d3efda",
+      "bytes": 7943,
+      "sha256": "abe36028dab78261abb72c7ff3152df14159d6e0a79130c6e3025a7684d5032e",
       "owner": "operations-policy"
     },
     {
@@ -5509,8 +5509,8 @@
     {
       "path": "docs/geometry/native-scene-fixture-reader-healthy.md",
       "mode": "100644",
-      "bytes": 7680,
-      "sha256": "8bf8c510d125b474ca1efcdf0ca4218e23419e2e10be9e8b86add6eb9a9071be",
+      "bytes": 8248,
+      "sha256": "414286db2453a9f48c13c0e778f3bbb34bb3553cd79ee67fb692873268371074",
       "owner": "web"
     },
     {
@@ -6216,8 +6216,8 @@
     {
       "path": "frontend/lantern-tests/electricity-fixture-read.mjs",
       "mode": "100644",
-      "bytes": 7638,
-      "sha256": "117eab889843852392638fcd31e1cbba29e38cb96751ab7543b252a874f592e0",
+      "bytes": 7679,
+      "sha256": "ac68d5aadd9ea77a4eb04c1eca4311ed2377b28a0d2d831e0c027ebe365f461b",
       "owner": "web"
     },
     {
@@ -6335,8 +6335,8 @@
     {
       "path": "frontend/lantern-tests/native-scene-fixture-reader-healthy.mjs",
       "mode": "100644",
-      "bytes": 46597,
-      "sha256": "a98ce4f6365dda317a68b97a174a3b56a506acd6253f283e64ae8d1d8cb329b5",
+      "bytes": 54727,
+      "sha256": "077bf1493cc45aef30ad95588aa9c0e5ce6c8309738acaf4c2944bff7a2557a2",
       "owner": "web"
     },
     {
@@ -7280,8 +7280,8 @@
     {
       "path": "frontend/src/lantern/overlays/electricity/ElectricityFixtureDiagram.tsx",
       "mode": "100644",
-      "bytes": 26257,
-      "sha256": "2e6995d70d92af4e30577b656f6d1795b5fe9cacc02711dfe5334fe31602347a",
+      "bytes": 27331,
+      "sha256": "b82ad22f6fef4d6b646478466b99b0364f95eb2ff110ff89bab9d35f8f8242d3",
       "owner": "web"
     },
     {
@@ -7350,8 +7350,8 @@
     {
       "path": "frontend/src/lantern/overlays/electricity/fixture.css",
       "mode": "100644",
-      "bytes": 10972,
-      "sha256": "4ccbcaa69f8d6bd34290056b85bb2d4bd58c196ea62f59ce464557bc04d32a36",
+      "bytes": 11072,
+      "sha256": "391b4b58bc133844fcae70823da91df81a078572bdddef80740f885996695bde",
       "owner": "web"
     },
     {
@@ -7567,8 +7567,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneLayers.tsx",
       "mode": "100644",
-      "bytes": 9640,
-      "sha256": "79e68e034a230a105b63379dbc391aad666fc69cbc7d68775517b61ba6a86f91",
+      "bytes": 12474,
+      "sha256": "6ab9ac5222de74e573581501d01f5479e27bb94e673d017e5ff4b3e3b88d6e74",
       "owner": "web"
     },
     {
@@ -7581,8 +7581,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/native-scene.css",
       "mode": "100644",
-      "bytes": 2025,
-      "sha256": "abb8c356af4c484fafa9873b04f8e4807526d4ec01d36fe8cb904cb0c60e871c",
+      "bytes": 2088,
+      "sha256": "e34614d603327bce296c2912589cc391bfb2dd4a0fe4e5f6fa3a205dc2dc50b6",
       "owner": "web"
     },
     {

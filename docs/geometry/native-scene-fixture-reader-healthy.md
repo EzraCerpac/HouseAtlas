@@ -50,6 +50,12 @@ opener. Tab and Shift+Tab wrap within the viewer. The production region selector
 also permits deliberate Alpha documentary browsing while Beta remains the host
 room. Selecting Unmatched afterward displays the explicit no-associated-region
 state, with no fixture, source-opening action, modal or default first drawing.
+The separate `--host-only` mode mounts the production `NativeSceneLayers`
+action with generated scene data, a synthetic correlated PDF and a fake native
+document owner. A current sheet opens the production dialog and exposes its
+download-only Blob link; a stale source reports its refusal and opens no
+dialog. It verifies that the room inspector does not cover the source button
+with a pointer hit test before activating it. This mode reads no household media.
 Horizontal document/dialog overflow and listed controls' bounds within the
 viewport and dialog are checked. Vertical image/content clipping is unqualified.
 
@@ -57,7 +63,7 @@ viewport and dialog are checked. Vertical image/content clipping is unqualified.
 
 Inspect the complete runner and its listed production imports before executing.
 Use Node 26.10.0, npm 11.19.1 and the locked frontend installation. No new
-dependency, alias, workflow or production file change is required:
+dependency, alias or workflow is required:
 
 ```sh
 npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
@@ -65,6 +71,8 @@ node --check frontend/lantern-tests/native-scene-fixture-reader-healthy.mjs
 HOUSEATLAS_CHROMIUM=/absolute/inspected/chromium \
 HOUSEATLAS_FIXTURE_EVIDENCE=/absolute/private/fixture-reader-result \
 node frontend/lantern-tests/native-scene-fixture-reader-healthy.mjs
+HOUSEATLAS_CHROMIUM=/absolute/inspected/chromium \
+node frontend/lantern-tests/native-scene-fixture-reader-healthy.mjs --host-only
 ```
 
 `HOUSEATLAS_CHROMIUM` selects the explicitly inspected browser executable.

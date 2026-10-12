@@ -105,6 +105,7 @@ export function ElectricityFixtureDiagram(props: ElectricityFixtureDiagramProps)
   const [overview, setOverview] = useState<{ data: typeof data; regionId: string; shown: boolean } | null>(null);
   const [zoom, setZoom] = useState<{ data: typeof data; regionId: string; fixtureId: string } | null>(null);
   const [imageFailure, setImageFailure] = useState<{ data: typeof data; url: string } | null>(null);
+  const [sourceActionFailure, setSourceActionFailure] = useState<{ data: typeof data; regionId: string; message: string } | null>(null);
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -127,6 +128,12 @@ export function ElectricityFixtureDiagram(props: ElectricityFixtureDiagramProps)
     && current.current.selectedFixtureId === selectedFixtureId
     && current.current.selectedGroup === selectedGroup
     && (current.current.selectedPackagePlaces ?? null) === selectedPackagePlaces;
+  // The source action depends on the current sheet and room region, not on a
+  // fixture hover/selection or group filter changing during the same click.
+  const sourceLive = () => current.current.active && current.current.viewKey === viewKey
+    && current.current.data === data && data?.viewKey === viewKey
+    && current.current.selectedRegionId === selectedRegionId
+    && (selectedRegionId !== null || (current.current.selectedPackagePlaces ?? null) === selectedPackagePlaces);
 
   if (!active) return null;
   if (!available || !data) return <section className="ef-diagram" aria-labelledby={`${id}-heading`}>
@@ -236,7 +243,7 @@ export function ElectricityFixtureDiagram(props: ElectricityFixtureDiagramProps)
         if (!live()) return;
         setZoom(null);
         setOverview({ data, regionId: region.id, shown: !fullSheet });
-      }}>{fullSheet ? 'Fit region' : 'Show source sheet'}</button>}
+      }}>{fullSheet ? 'Fit region' : 'Show full schematic'}</button>}
       {region && selectedFixture?.regionId === region.id && <button type="button" className="ef-button" aria-pressed={selectionZoom} onClick={() => {
         if (!live()) return;
         setOverview(null);
@@ -338,9 +345,16 @@ export function ElectricityFixtureDiagram(props: ElectricityFixtureDiagramProps)
           <footer className="ef-source-bar">
             <span>{sheet?.title ?? 'Source sheet unknown'}{sheet ? ` · p. ${sheet.pdfPage}` : ''}</span>
             {sheet && props.onOpenSource ? <button type="button" className="ef-source-button" onClick={() => {
-              if (live()) current.current.onOpenSource?.(sheet.id, sheet.pdfPage);
-            }}>Open source page</button> : <span>Source opening unavailable</span>}
+              if (!sourceLive()) {
+                setSourceActionFailure({ data, regionId: region.id, message: 'This drawing is no longer current. Refresh scans to check again.' });
+                return;
+              }
+              setSourceActionFailure(null);
+              current.current.onOpenSource?.(sheet.id, sheet.pdfPage);
+            }}>Open reference drawing</button> : <span>Source opening unavailable</span>}
           </footer>
+          {sourceActionFailure?.data === data && sourceActionFailure.regionId === region.id
+            && <p className="ef-source-feedback" role="status">{sourceActionFailure.message}</p>}
           <div className="ef-fixture-list">
             <h4>Region markers <span>{fixtures.length}</span></h4>
             <ul>{fixtures.map(fixture => <li key={fixture.id}>

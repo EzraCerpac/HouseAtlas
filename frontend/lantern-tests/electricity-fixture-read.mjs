@@ -63,19 +63,19 @@ const diagramProps = { active: true, viewKey: data.viewKey, data,
   onRegionChange() {}, onFixtureChange() {}, onGroupChange() {}, onOpenSource() {} };
 const diagram = renderToStaticMarkup(createElement(ElectricityFixtureDiagram, diagramProps));
 assert.equal((diagram.match(/data-fixture-id=/g) ?? []).length, 3);
-for (const text of ['X · socket', 'Lighting mark', 'Light quantity unknown.', 'Not traced', 'Unregistered', 'Open source page'])
+for (const text of ['X · socket', 'Lighting mark', 'Light quantity unknown.', 'Not traced', 'Unregistered', 'Show full schematic', 'Open reference drawing'])
   assert(diagram.includes(text), text);
 const unselected = renderToStaticMarkup(createElement(ElectricityFixtureDiagram,
   { ...diagramProps, selectedRegionId: null, selectedFixtureId: null, selectedPackagePlaces: null }));
 assert.equal((unselected.match(/data-fixture-id=/g) ?? []).length, 0);
 assert(unselected.includes('Choose a drawing region.') && unselected.includes('value="region-alpha"'));
-assert(!unselected.includes('Open source page'));
+assert(!unselected.includes('Open reference drawing'));
 const acceptedRoom = renderToStaticMarkup(createElement(ElectricityFixtureDiagram, { ...diagramProps,
   selectedRegionId: null, selectedPackagePlaces: { viewKey: data.viewKey, status: 'accepted',
     receiptId: roomReceipt.id, receiptSha256: roomReceipt.sha256, sourceAnchorIds: ['source:alpha'],
     targets: [{ packagePlaceKey: 'package:alpha', packagePlaceUuid: 'synthetic-alpha-uuid' }], unresolvedLabels: [] } }));
 assert.equal((acceptedRoom.match(/data-fixture-id=/g) ?? []).length, 3);
-assert(acceptedRoom.includes('Open source page'));
+assert(acceptedRoom.includes('Open reference drawing'));
 const previewProps = { ...layerProps, data: { ...data, registrationReceipts: [{ ...registration, status: 'proposed' }] },
   registrationPreviewId: registration.id,
   placements: placements.map(placement => ({ ...placement, basis: 'proposed-diagram-alignment' })) };
