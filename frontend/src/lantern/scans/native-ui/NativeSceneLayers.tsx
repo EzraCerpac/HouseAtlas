@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { HouseScanScene } from '../presentation';
 import type { PresentationFloor, SceneLayerContext, SceneOverlay } from '../presentation/types';
 import type { NativeSceneSourceFrame } from '../native-scene-source-types';
@@ -7,9 +7,10 @@ import type { NetworkOverlaySelection } from '../../overlays/network';
 import { ElectricityFixtureDiagram } from '../../overlays/electricity';
 import type { ElectricalFixtureSheet } from '../../overlays/electricity/fixture-types';
 import type { NativeEvidenceDocumentClient } from '../native-evidence-document-types';
-import { NativeSceneDrawing } from './NativeSceneDrawing';
 import type { BuildingModel, Location, TopologyIndex } from '../../topology/model';
 import './native-scene.css';
+
+const NativeSceneDrawing = lazy(() => import('./NativeSceneDrawing').then(module => ({ default: module.NativeSceneDrawing })));
 
 export interface NativeSceneTopologyOwner {
   readonly status: 'loading' | 'ready' | string;
@@ -173,10 +174,12 @@ export function NativeSceneLayers({ source, floors, overlay, onOverlayChange, dr
           {sourceActionFailure?.source === source && <p role="status">{sourceActionFailure.message}</p>}
           <p>Source diagrams remain historical and unregistered.</p>
         </section>}
-        {drawing && <NativeSceneDrawing key={drawing.id} client={drawings}
-          sheet={drawing} evidenceIds={evidenceIds}
-          reference={source.drawingReferences?.find(reference => reference.sheetId === drawing.id)} provenance={source.drawingProvenance}
-          current={currentSource} onClose={() => setDrawing(null)} />}
+        {drawing && <Suspense fallback={<p role="status">Opening drawing viewer…</p>}>
+          <NativeSceneDrawing key={drawing.id} client={drawings}
+            sheet={drawing} evidenceIds={evidenceIds}
+            reference={source.drawingReferences?.find(reference => reference.sheetId === drawing.id)} provenance={source.drawingProvenance}
+            current={currentSource} onClose={() => setDrawing(null)} />
+        </Suspense>}
       </>;
     }} />;
 }

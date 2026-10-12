@@ -3,9 +3,11 @@
 A room's electrical sheet can open a verified reference PDF through the current
 native evidence-document owner. The “Open reference drawing” action opens an
 in-app dialog; a rejected stale or missing sheet reports why it could not open.
-PDF policy remains download-only. The dialog
-labels the sheet's reference page and offers **Download reference PDF**; it
-does not embed the PDF or imply that a browser has rendered that page.
+The dialog embeds the verified original in the browser's built-in PDF viewer at
+the sheet's referenced page, with page navigation, zoom and **Download reference
+PDF** controls. The `download-only` asset policy remains unchanged: HouseAtlas
+does not create or serve a rendered PDF preview, and sends no PDF to a viewer
+service. The browser displays the exact owner-verified original from its Blob URL.
 
 The normal production association constructor supplies these references from a
 separately retained, reviewed `text/plain` support original. It uses the existing
@@ -83,9 +85,13 @@ can paint. This does not equate a JPEG's hash with a separately derived PNG.
 
 Close, Escape, selection changes, document/source withdrawal and unmount retire
 the action, unsubscribe and revoke its object URL, and release the exact frame.
-The dialog's focus loop includes the PDF download link or PNG scroll viewport;
-closing returns focus to the original source-action control. A stale download
-click is prevented even before React's next paint.
+The dialog's focus loop includes the PDF page/zoom controls and download link,
+or the PNG scroll viewport; the browser PDF frame stays outside the dialog's
+tab sequence. Page and zoom controls update the browser viewer's fragment; no
+PDF bytes leave the browser. The source contract does not provide a page count,
+so page navigation does not claim an end-of-document boundary. Closing returns
+focus to the original source-action control. A stale download click is prevented
+even before React's next paint.
 
 The named synthetic checks below compile the actual production association constructor, source reader and React
 association review/drawing surfaces against generated scene data and fake native-shaped current records and document/geometry ports. The PDF case
@@ -93,12 +99,14 @@ verifies the new native review receipt with an unchanged old ledger, missing
 review-marker withholding, explicit preparation confirmation, and one local fake
 POST retaining UNKNOWN after a deliberate synthetic transport stop.
 They use the repository's synthetic PDF/PNG and a fresh sandboxed browser with
-an owned loopback listener/profile/download directory. The 1280/312 CSS-width
-checks cover the dialog/action seam, not the full native room/mesh presentation,
-physical registration, real native custody, browser PDF readability or device
-acceptance. The PDF check confirms downloaded bytes, rather than claiming an
-inline preview. The current native media owner and deployed host still need
-their ordinary integration/readback qualification.
+an owned loopback listener/profile/download directory. The 1280/768/312 CSS-width
+checks cover desktop, tablet and phone dialog sizing, not the full native room/mesh presentation,
+physical registration, real native custody, readability of an accepted PDF on
+each supported browser, or device acceptance. They check that Chrome's built-in
+PDF renderer opens the generated file, that page 12 navigation and zoom controls
+update its viewer fragment, and that downloaded bytes match the synthetic source.
+The current native media owner and deployed host still need their ordinary
+integration/readback qualification.
 
 Inspect the runner, production dependencies and selected browser executable.
 Select exactly one registered case using Node 26.10.0 and cached locked

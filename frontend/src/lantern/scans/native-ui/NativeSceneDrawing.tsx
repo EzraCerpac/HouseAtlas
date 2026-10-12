@@ -15,6 +15,8 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
 }) {
   const [shown, setShown] = useState<{ frame: NativeEvidenceDocumentFrame; url: string; generation: number } | null>(null);
   const [status, setStatus] = useState('Checking saved drawing…'), [zoom, setZoom] = useState(1);
+  const [pdfPage, setPdfPage] = useState(sheet.pdfPage);
+  const [pdfPageInput, setPdfPageInput] = useState(String(sheet.pdfPage));
   const [cursor, setCursor] = useState<{ client: NativeEvidenceDocumentClient; sheet: ElectricalFixtureSheet;
     evidenceIds: readonly string[]; reference: NativeSceneDrawingPdfReference | undefined; start: number; unreadable: boolean } | null>(null);
   const [continuation, setContinuation] = useState<{ generation: number; next: number; unreadable: boolean } | null>(null);
@@ -25,6 +27,10 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
   const currentRef = useRef(current); currentRef.current = current;
   const generationRef = useRef(0);
   const activeDrawing = useRef<{ frame: NativeEvidenceDocumentFrame; url: string; generation: number; withdraw: () => boolean } | null>(null);
+  const goToPdfPage = (page: number) => {
+    const selected = Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, Math.trunc(page)));
+    setPdfPage(selected); setPdfPageInput(String(selected));
+  };
   useLayoutEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     return () => { if (opener?.isConnected) opener.focus(); };
@@ -51,7 +57,8 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
       if (hadResources) setShown(null);
       return hadResources;
     };
-    closer.current?.focus(); setShown(null); setContinuation(null); setZoom(1); setStatus('Checking saved drawing…');
+    closer.current?.focus(); setShown(null); setContinuation(null); setZoom(1);
+    setPdfPage(sheet.pdfPage); setPdfPageInput(String(sheet.pdfPage)); setStatus('Checking saved drawing…');
     void (async () => {
       // Each explicit continuation owns at most one bounded page and the same
       // ten-second read budget. Never allocate or reject the whole evidence list.
@@ -134,7 +141,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
   const keys = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key === 'Escape') { event.preventDefault(); onClose(); return; }
     if (event.key !== 'Tab') return;
-    const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], summary, [tabindex="0"]')];
+    const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), summary, [tabindex="0"]')];
     const first = controls[0], last = controls.at(-1);
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
@@ -162,7 +169,33 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
       }}>Check next references</button>}
     {shown && currentRef.current() && client.isCurrent(shown.frame) && <div ref={payload}>
       {shown.frame.mode === 'original-download' ? <>
-        <p>Reference PDF page {sheet.pdfPage}. Download the original and open that page in your PDF reader. An inline preview is unavailable.</p>
+        <p>Reference PDF · page {sheet.pdfPage}</p>
+        <div className="native-scene-pdf-controls">
+          <div className="native-scene-pdf-page">
+            <button type="button" className="chip-btn" aria-label="Previous PDF page" disabled={pdfPage <= 1}
+              onClick={() => goToPdfPage(pdfPage - 1)}>Previous page</button>
+            <label>Page <input type="number" min="1" step="1" value={pdfPageInput} onChange={event => {
+              const value = event.currentTarget.value, page = Number(value);
+              setPdfPageInput(value);
+              if (value && Number.isSafeInteger(page) && page >= 1) setPdfPage(page);
+            }} onBlur={() => {
+              const page = Number(pdfPageInput);
+              if (!pdfPageInput || !Number.isSafeInteger(page) || page < 1) setPdfPageInput(String(pdfPage));
+            }} /></label>
+            <button type="button" className="chip-btn" aria-label="Next PDF page"
+              onClick={() => goToPdfPage(pdfPage + 1)}>Next page</button>
+          </div>
+          <div role="group" aria-label="PDF zoom" className="native-scene-pdf-zoom">
+            <button type="button" className="chip-btn" aria-label="Zoom out PDF" disabled={zoom <= 0.5}
+              onClick={() => setZoom(value => Math.max(0.5, value / 2))}>−</button>
+            <span>{Math.round(zoom * 100)}%</span>
+            <button type="button" className="chip-btn" aria-label="Zoom in PDF" disabled={zoom >= 4}
+              onClick={() => setZoom(value => Math.min(4, value * 2))}>+</button>
+            <button type="button" className="chip-btn" onClick={() => setZoom(1)}>Reset zoom</button>
+          </div>
+        </div>
+        <iframe className="native-scene-pdf" title={`${sheet.title}, reference PDF`} tabIndex={-1} referrerPolicy="no-referrer"
+          src={`${shown.url}#page=${pdfPage}&zoom=${Math.round(zoom * 100)}`} />
         <a href={shown.url} download={`atlas-original-${shown.frame.asset.assetId}.pdf`} onClick={event => {
           if (!currentRef.current() || !client.isCurrent(shown.frame)
             || activeDrawing.current?.generation !== shown.generation) {

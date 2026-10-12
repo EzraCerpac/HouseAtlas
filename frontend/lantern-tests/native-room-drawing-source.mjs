@@ -1,4 +1,4 @@
-/** Exact named, generated-only room drawing download/preview checks.
+/** Exact named, generated-only room drawing preview/download checks.
  * Actual source reader and React drawing surface; fake document/geometry ports.
  * Fresh bounded sandboxed browser + owned loopback. No native API or credentials. */
 import assert from 'node:assert/strict';
@@ -70,7 +70,7 @@ async function fixture(ExactDecimal,createNativeSceneAssociationClient) {
   const canonical = v => v===null||typeof v!=='object'?JSON.stringify(v):Array.isArray(v)?'['+v.map(canonical).join(',')+']':'{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canonical(v[k])).join(',')+'}';
   const bytes = value => Uint8Array.from(atob(value),c=>c.charCodeAt(0));
   const pdf = new Blob([bytes(window.__input.pdf)],{type:'application/pdf'}), png = new Blob([bytes(window.__input.png)],{type:'image/png'}),one=ExactDecimal.parse('1');
-  const sheet = { id:'synthetic-sheet',title:'Synthetic room drawing',pdfPage:1,originalPhoto:'originals/synthetic.jpg',
+  const sheet = { id:'synthetic-sheet',title:'Synthetic room drawing',pdfPage:12,originalPhoto:'originals/synthetic.jpg',
     originalPhotoSha256:'c'.repeat(64),renderedPhotoSha256:window.__input.name==='png-legacy'?window.__input.pngSha:'d'.repeat(64),sourceDate:null,regionIds:[] };
   const roomMappingJson='{"receiptId":"synthetic-old-room-receipt"}',oldSha=await hashText(roomMappingJson);
   const ledger={schema:'houseatlas.documentary-electrical-fixtures.v1',viewKey:'documentary-only',interpretationDate:'2026-10-11',
@@ -78,7 +78,7 @@ async function fixture(ExactDecimal,createNativeSceneAssociationClient) {
   const ledgerJson=JSON.stringify(ledger),ledgerSha=await hashText(ledgerJson);
   const crosswalk=canonical({profile:'houseatlas.documentary-sheet-pdf-correlation.v1',correlationId:'synthetic-reviewed-correlation',fixtureLedgerSha256:ledgerSha,
     pdf:{workspaceId:U(1),homeId:U(2),buildingId:U(3),evidenceId:U(7),evidenceRevision:1,assetId:U(8),assetRevision:1,sha256:window.__input.pdfSha,byteSize:pdf.size},
-    references:[{sheetId:sheet.id,pdfPage:1,originalPhotoSha256:sheet.originalPhotoSha256,renderedPhotoSha256:sheet.renderedPhotoSha256,pdfEmbeddedImageSha256:'f'.repeat(64)}]});
+    references:[{sheetId:sheet.id,pdfPage:sheet.pdfPage,originalPhotoSha256:sheet.originalPhotoSha256,renderedPhotoSha256:sheet.renderedPhotoSha256,pdfEmbeddedImageSha256:'f'.repeat(64)}]});
   const crosswalkSha=await hashText(crosswalk),sourceReview='{"observation":"generated-only photo/page review"}';
   const review=canonical({profile:'houseatlas.documentary-sheet-pdf-review.v1',reviewId:'synthetic-independent-review',crosswalkSha256:crosswalkSha,roomMappingSha256:oldSha,
     sourceReviewJson:sourceReview,sourceReviewSha256:await hashText(sourceReview)}),reviewSha=await hashText(review);
@@ -260,7 +260,7 @@ try {
   await cdp.send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:join(scratch,'downloads')});
   const {targetId}=await cdp.send('Target.createTarget',{url:'about:blank'}),{sessionId}=await cdp.send('Target.attachToTarget',{targetId,flatten:true});
   const send=(method,params)=>cdp.send(method,params,sessionId);await send('Runtime.enable');await send('Network.enable');await send('Page.enable');
-  const evaluate=async expression=>{const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});assert(!r.exceptionDetails,'Fixture JavaScript exception');return r.result.value;};
+  const evaluate=async expression=>{const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});assert(!r.exceptionDetails,r.exceptionDetails?.exception?.description??'Fixture JavaScript exception');return r.result.value;};
   const click=async selector=>{const r=await evaluate('(()=>{const e=document.querySelector('+JSON.stringify(selector)+');if(!e)throw Error("Fixture element missing");const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2,w:r.width,h:r.height};})()');assert(r.w>0&&r.h>0);
     await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,x:r.x,y:r.y});await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,x:r.x,y:r.y});};
   const key=async(key,code,number)=>{await send('Input.dispatchKeyEvent',{type:'keyDown',key,code,windowsVirtualKeyCode:number});if(key==='Enter')await send('Input.dispatchKeyEvent',{type:'char',key,code,text:'\r',unmodifiedText:'\r',windowsVirtualKeyCode:number});await send('Input.dispatchKeyEvent',{type:'keyUp',key,code,windowsVirtualKeyCode:number});};
@@ -288,7 +288,8 @@ try {
   }
   const wantProjection=['pdf-download','wrong-correlation','lifecycle'].includes(name)?1:0;
   assert.equal(await evaluate('window.__stats.projected'),wantProjection);
-  for(const width of [1280,312]){
+  const widths=[1280,768,312];
+  for(const width of widths){
     await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width===312});
     await click('#room-open');
     if(['missing-correlation','stale-correlation','wrong-correlation'].includes(name)){
@@ -299,13 +300,26 @@ try {
       await until(()=>evaluate('Boolean(document.querySelector(".native-scene-drawing img")?.naturalWidth)'),'legacy PNG paint');
       assert.equal(await evaluate('Boolean(document.querySelector(".native-scene-drawing a[href]"))'),false);
     }else{
-      await until(()=>evaluate('Boolean(document.querySelector(".native-scene-drawing a[download]"))'),'correlated PDF action');
-      assert.equal(await evaluate('Boolean(document.querySelector(".native-scene-drawing img, embed, iframe"))'),false);
-      assert.match(await evaluate('document.querySelector(".native-scene-drawing").textContent'),/Reference PDF page 1/);
+      await until(()=>evaluate('Boolean(document.querySelector(".native-scene-drawing iframe.native-scene-pdf") && document.querySelector(".native-scene-drawing a[download]"))'),'correlated in-app PDF viewer and download action');
+      assert.equal(await evaluate('Boolean(document.querySelector(".native-scene-drawing img, embed, object"))'),false);
+      assert.match(await evaluate('document.querySelector(".native-scene-drawing iframe").getAttribute("src")'),/^blob:.*#page=12&zoom=100$/);
+      assert.match(await evaluate('document.querySelector(".native-scene-drawing").textContent'),/Reference PDF · page 12/);
       assert.match(await evaluate('document.querySelector(".native-drawing-provenance").textContent'),/Historical room-mapping receipt.*synthetic-old-room-receipt.*Current native room review.*synthetic-new-native-review/s);
       await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.textContent'),'Drawing source review');
       await key('Enter','Enter',13);await until(()=>evaluate('document.querySelector(".native-drawing-provenance").open'),'native Enter opens provenance disclosure');
       assert.match(await evaluate('document.querySelector(".native-drawing-provenance[open]").textContent'),/Historical room-mapping receipt.*synthetic-old-room-receipt.*Current native room review.*synthetic-new-native-review/s);
+      await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'),'Previous PDF page');
+      await evaluate('document.querySelectorAll(".native-scene-pdf-page button")[1].click()');
+      await until(()=>evaluate('document.querySelector(".native-scene-pdf").getAttribute("src").includes("#page=13&zoom=100")'),'next page navigation');
+      await evaluate('document.querySelectorAll(".native-scene-pdf-page button")[0].click()');
+      await until(()=>evaluate('document.querySelector(".native-scene-pdf").getAttribute("src").includes("#page=12&zoom=100")'),'previous page navigation');
+      await evaluate('document.querySelectorAll(".native-scene-pdf-zoom button")[1].click()');
+      await until(()=>evaluate('document.querySelector(".native-scene-pdf").getAttribute("src").includes("#page=12&zoom=200")'),'PDF zoom control');
+      await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.tagName'),'INPUT');
+      await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'),'Next PDF page');
+      await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'),'Zoom out PDF');
+      await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'),'Zoom in PDF');
+      await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.textContent'),'Reset zoom');
       await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.textContent'),'Download reference PDF');
       await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.textContent'),'Close drawing');
       if(name==='pdf-download'){
@@ -313,11 +327,11 @@ try {
         const expected=join(scratch,'downloads','atlas-original-00000000-0000-4000-8000-000000000008.pdf');
         await until(()=>existsSync(expected),'ordinary blob PDF download');
         assert.deepEqual(readFileSync(expected),pdf,'Downloaded source bytes remain exact');
-        report.results.push({width,downloadedBytes:pdf.length,sha256:hash(pdf),referencePage:1});
+        report.results.push({width,downloadedBytes:pdf.length,sha256:hash(pdf),referencePage:12});
         rmSync(expected);
       }
     }
-    if(width===312)assert.equal(await evaluate('document.documentElement.scrollWidth'),312,'Mobile dialog does not overflow horizontally');
+    assert.equal(await evaluate('document.documentElement.scrollWidth'),width,`${width}px dialog does not overflow horizontally`);
     await key('Escape','Escape',27);
     await until(()=>evaluate('!document.querySelector(".native-scene-drawing")'),'Escape closes');
     assert.equal(await evaluate('document.activeElement.id'),'room-open','Original room action focus restored');
@@ -335,9 +349,12 @@ try {
   const stats=await evaluate('window.__stats');assert.equal(stats.created.length,stats.revoked.length,'All URLs retired');
   assert.equal(stats.subscribed,stats.unsubscribed,'All document subscriptions retired');
   assert(stats.hiddenBeforeRelease.every(Boolean),'Action is hidden before native frame release');
-  assert.equal(stats.opens.length,['pdf-download','png-legacy','missing-correlation','stale-correlation','wrong-correlation'].includes(name)?2:4);
+  assert.equal(stats.opens.length,widths.length+(name==='lifecycle'?2:0));
   assert.deepEqual(cdp.errors,[]);
-  assert(cdp.requests.every(url=>url.startsWith(origin+'/')||url.startsWith('blob:'+origin+'/')),'Only owned loopback/blob requests');
+  const chromePdfViewer='chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/';
+  assert(cdp.requests.every(url=>url.startsWith(origin+'/')||url.startsWith('blob:'+origin+'/')||url.startsWith(chromePdfViewer)),
+    'Only owned loopback/blob and Chrome built-in PDF viewer requests: '+JSON.stringify(cdp.requests));
+  if(name==='pdf-download')assert(cdp.requests.includes(chromePdfViewer+'index.html'),'Chrome built-in PDF renderer opened');
   await evaluate('window.__shutdown()');report.results.push({case:name,status:'passed',stats});
 }catch(error){failure=error;report.failure={name:error.name,message:error.message};}
 finally{
