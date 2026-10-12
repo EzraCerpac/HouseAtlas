@@ -114,6 +114,7 @@ export function createNativePlaceClient(options: {
   const validator = createExactStockResultValidator();
   const transport = options.transport ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
   const dispatched = new WeakSet<NativePlacePrepared>();
+  const committing = new WeakSet<NativePlacePrepared>();
   const issued = new WeakSet<NativePlacePrepared>();
   const retained = createRetainedIntentClient(transport);
   // Memory-only submitted inputs survive form/view remount; the private session is never returned.
@@ -298,6 +299,7 @@ export function createNativePlaceClient(options: {
       if (!issued.has(prepared)) throw new Error('Native prepared request was not issued by this client');
       current(prepared.binding, signal);
       if (dispatched.has(prepared)) throw new Error('Native prepared request was already dispatched; inspect retained completion');
+      if (committing.has(prepared)) throw new Error('Native prepared request is already being committed');
       // Repeat the complete-body transport bound before any public-input dispatch or ledger write.
       if (typeof prepared.body !== 'string' || new TextEncoder().encode(prepared.body).byteLength > 16384)
         throw new TypeError('Native place request exceeds native transport bound');
@@ -310,35 +312,44 @@ export function createNativePlaceClient(options: {
         || parsed.payload.commands.some(child => child.context.workspaceId !== prepared.binding.scope.workspaceId || child.context.homeId !== prepared.binding.scope.homeId
           || !validator.validateNativeRequest(child.commandId, child as unknown as LosslessJson))) throw new TypeError('Native prepared scope or child differs');
       current(prepared.binding, signal);
-      const requestDigest = await quantityRequestDigest(JSON.parse(prepared.body) as StockRequestEnvelope);
-      current(prepared.binding, signal);
-      const result = await bounded(signal, async active => {
-        current(prepared.binding, active);
-        writable(prepared.binding);
-        dispatched.add(prepared);
-        ledger.set(prepared, { session: cached!.session, outcome: 'unknown' });
+      // Reserve synchronously before digest computation's first await so two
+      // callers cannot both pass the same issued handle into a POST.
+      committing.add(prepared);
+      try {
+        const requestDigest = await quantityRequestDigest(JSON.parse(prepared.body) as StockRequestEnvelope);
+        current(prepared.binding, signal);
+        const result = await bounded(signal, async active => {
+          current(prepared.binding, active);
+          writable(prepared.binding);
+          dispatched.add(prepared);
+          ledger.set(prepared, { session: cached!.session, outcome: 'unknown' });
+          notify();
+          const csrf = cached!.session.csrfToken;
+          const response = await transport(`${path(prepared.binding)}/commands`, { method: 'POST', credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: active,
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'x-atlas-csrf': csrf }, body: prepared.body });
+          try { current(prepared.binding, active); } catch (error) { cancel(response); throw error; }
+          if (!response.ok) { cancel(response); throw new Error('Native place completion unknown'); }
+          const value = await receive(response, active); current(prepared.binding, active); return value;
+        });
+        if (!validator.validateMutation(prepared.commandId, '#/$defs/result_atlas_batch_execute', result)) throw new TypeError('Native place completion incompatible');
+        const row = result as unknown as { requestId: string; commandId: string; status: string; replayed: boolean; resolvedScope: Scope; data: { records: Array<{ target: LosslessJson; payload: LosslessJson; revision: LosslessJson; lifecycle: string }>; auditIds: string[]; requestDigest: string } };
+        if (row.requestId !== prepared.requestId || row.commandId !== prepared.commandId || row.resolvedScope.workspaceId !== prepared.binding.scope.workspaceId || row.resolvedScope.homeId !== prepared.binding.scope.homeId
+          || row.status !== 'committed' || row.replayed !== false || row.data.requestDigest !== requestDigest) throw new TypeError('Native place completion correlation differs');
+        if (row.data.records.length !== parsed.payload.commands.length || row.data.auditIds.length !== parsed.payload.commands.length
+          || parsed.payload.commands.some(child => {
+            const record = row.data.records.find(record => sameJson(record.target, child.target));
+            const expected = child.preconditions.target === null ? 1 : exactStockSafeInteger(child.preconditions.target.value) + 1;
+            return !record || record.lifecycle !== 'active' || exactStockSafeInteger(record.revision) !== expected || !sameJson(record.payload, child.payload);
+          })) throw new TypeError('Native place receipt targets differ');
+        ledger.get(prepared)!.receipt = result;
+        ledger.get(prepared)!.outcome = 'committed';
         notify();
-        const csrf = cached!.session.csrfToken;
-        const response = await transport(`${path(prepared.binding)}/commands`, { method: 'POST', credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: active,
-          headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'x-atlas-csrf': csrf }, body: prepared.body });
-        try { current(prepared.binding, active); } catch (error) { cancel(response); throw error; }
-        if (!response.ok) { cancel(response); throw new Error('Native place completion unknown'); }
-        const value = await receive(response, active); current(prepared.binding, active); return value;
-      });
-      if (!validator.validateMutation(prepared.commandId, '#/$defs/result_atlas_batch_execute', result)) throw new TypeError('Native place completion incompatible');
-      const row = result as unknown as { requestId: string; commandId: string; status: string; replayed: boolean; resolvedScope: Scope; data: { records: Array<{ target: LosslessJson; payload: LosslessJson; revision: LosslessJson; lifecycle: string }>; auditIds: string[]; requestDigest: string } };
-      if (row.requestId !== prepared.requestId || row.commandId !== prepared.commandId || row.resolvedScope.workspaceId !== prepared.binding.scope.workspaceId || row.resolvedScope.homeId !== prepared.binding.scope.homeId
-        || row.status !== 'committed' || row.replayed !== false || row.data.requestDigest !== requestDigest) throw new TypeError('Native place completion correlation differs');
-      if (row.data.records.length !== parsed.payload.commands.length || row.data.auditIds.length !== parsed.payload.commands.length
-        || parsed.payload.commands.some(child => {
-          const record = row.data.records.find(record => sameJson(record.target, child.target));
-          const expected = child.preconditions.target === null ? 1 : exactStockSafeInteger(child.preconditions.target.value) + 1;
-          return !record || record.lifecycle !== 'active' || exactStockSafeInteger(record.revision) !== expected || !sameJson(record.payload, child.payload);
-        })) throw new TypeError('Native place receipt targets differ');
-      ledger.get(prepared)!.receipt = result;
-      ledger.get(prepared)!.outcome = 'committed';
-      notify();
-      return { status: 'committed', receipt: result };
+        return { status: 'committed', receipt: result };
+      } finally {
+        // A pre-dispatch digest/context failure is safe to retry; a POST keeps
+        // its separate dispatched/unknown ledger hold after this reservation.
+        committing.delete(prepared);
+      }
     },
   };
 }

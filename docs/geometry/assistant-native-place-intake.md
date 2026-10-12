@@ -27,8 +27,12 @@ inspection. The first successful completion must be a non-replayed commit whose
 request digest matches the submitted Stock intent under the published JCS
 `requestId` and `approvalReceiptId` exclusions. Only frozen preparations issued
 by that client instance can be committed; a clone is not the retained request.
+The client reserves an issued preparation synchronously before awaiting digest
+computation. A concurrent commit of that same object is rejected before
+transport dispatch. The reservation is released if validation fails before the
+POST; after dispatch, the existing unknown-outcome hold remains in force.
 
 The focused fixture is `frontend/lantern-tests/native-place-levels-intake.mjs`.
 It composes synthetic records through the actual frontend client and an
-in-memory fake transport; it does not establish live persistence or household
-acceptance.
+in-memory fake transport, including a delayed-digest duplicate-submit check; it
+does not establish live persistence or household acceptance.

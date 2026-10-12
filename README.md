@@ -395,7 +395,9 @@ node frontend/lantern-tests/native-place-levels-intake.mjs
 
 This checks native batch composition, parent revision guards, client-issued
 preparation use and a non-replayed commit with the genuine JCS request digest.
-It opens no listener, reads no household/provider data and performs no native
+It also pauses digest computation and verifies that a concurrent submit of the
+same prepared object is rejected before a second fake transport dispatch. It
+opens no listener, reads no household/provider data and performs no native
 write.
 
 A separately reviewed native naming rehearsal uses a fresh empty synthetic
