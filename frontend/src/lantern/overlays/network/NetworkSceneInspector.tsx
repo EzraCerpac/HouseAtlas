@@ -93,13 +93,15 @@ export function NetworkSceneInspector({ active, viewKey, data, selection, record
 /** Small original-style legend trigger; the house remains the primary surface. */
 export function NetworkSceneSummary({ active, viewKey, data, placedDeviceIds = [], onOpen }: Pick<NetworkOverlayPanelProps, 'active' | 'viewKey' | 'data'>
   & { readonly placedDeviceIds?: readonly string[]; readonly onOpen: () => void }) {
+  const summaryId = useId();
   const current = active && data?.viewKey === viewKey ? data : null;
   if (!active) return null;
   const placed = current ? current.devices.filter(device => placedDeviceIds.includes(device.id)).length : 0;
   return <button type="button" className="network-scene-summary legend stage-ui" style={{ '--layer': LAYER.network.color } as CSSProperties}
-    aria-label="Open network records" onClick={onOpen}>
+    aria-label="Open network records" aria-describedby={current ? `${summaryId}-route-note` : undefined} onClick={onOpen}>
     <span className="legend-head"><span className="network-scene-swatch" /> Network <Icon name="chevron" size={16} /></span>
     <span className="network-scene-summary-counts">{current ? `${current.devices.length} devices · ${current.links.length} connections` : 'Unavailable for this view'}</span>
     {current && <span className="network-scene-summary-note">{placed} room markers · {current.devices.length - placed} unplaced</span>}
+    {current && <span id={`${summaryId}-route-note`} className="network-scene-summary-note">Logical connections; cable routes unknown.</span>}
   </button>;
 }
