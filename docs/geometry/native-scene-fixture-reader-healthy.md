@@ -10,12 +10,19 @@ from ordinary CI. Its exact entrypoint is
 The generated v2 text source contains three synthetic rooms, two distinct
 drawings and two socket symbols. A fake current document port supplies its Blob,
 evidence/asset identity and exact revision `9007199254740993`. An independent
-synthetic selection supplies accepted room anchors, receipt pins and a matching
-fake geometry frame. The production reader validates the source and returns
-the room selections consumed by the diagram. The test checks exact membership,
-source facts, immutable output and the host's replacement of the documentary
-view key. Normal disposal releases exactly one original lease and removes all
-subscriptions.
+synthetic selection supplies accepted room anchors, room mappings, both current
+scene-document evidence pins, receipt pins and a matching fake geometry frame.
+The production reader checks the exact room, full ordered anchor membership,
+source-document pair and package key/UUID before projecting a nullable native
+Atlas ID. It keeps a null target package-only, rejects a wrong package target,
+reordered anchors and mismatched evidence IDs, and preserves the legacy
+package-only selection shape. The fixtures include two accepted anchors for one
+room. A production topology resolver is exercised against synthetic current
+membership: current reviewed membership resolves the ID, while stale reads,
+another building, missing membership and unmatched rooms expose no native
+action. The actual details component is server-rendered to check its visible
+current Atlas label, ID, classification and selection control. Normal disposal
+releases all three original leases and removes all subscriptions.
 
 The browser fixture provides a small room selector and an explicit test-host
 resolver from `(sheetId, page)` to generated Alpha/Beta SVG images. These are
@@ -78,9 +85,11 @@ HOUSEATLAS_FIXTURE_EVIDENCE=/absolute/private/fixture-reader-only \
 node frontend/lantern-tests/native-scene-fixture-reader-healthy.mjs --reader-only
 ```
 
-That mode reports `reader-only`, runs the actual reader through its fake ports
-and performs no browser, DOM, screenshot, keyboard or responsive qualification.
-Never describe it as browser coverage.
+That mode reports `reader-only`, runs the actual reader through its fake ports,
+resolves synthetic current topology membership and server-renders the actual
+native room details component. It performs no browser, interactive DOM,
+screenshot, keyboard or responsive qualification. Never describe it as browser
+coverage.
 
 ## Qualification and integration handoff
 
@@ -100,10 +109,8 @@ resolves generated SVG images, so its success cannot establish that the reported
 household drawings now open. It supplies focused regression coverage for the
 reader/component seams the integrator must compose with those owner APIs.
 
-This donor contains only the new standalone test and this document. The sole
-integrator owns any composition, README command registration, source-manifest
-allowlist refresh and exact-candidate review. The publication verifier will
-report these two new paths as an allowlist mismatch until that coordinated
-refresh; this donor deliberately does not write the shared manifest. No dev/main
-ref movement, merge, deployment, credential/access change, household intake or
-recovery execution is included.
+The isolated projection donor updates the association/source read projection,
+native scene details UI, this named synthetic reader, README command
+registration and only its own publication-manifest rows plus aggregate digest.
+It does not move dev/main refs, merge, deploy, change credentials/access, ingest
+household data or execute recovery.

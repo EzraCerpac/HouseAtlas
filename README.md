@@ -497,12 +497,12 @@ these cases are outside ordinary
 CI and do not qualify native grant revocation, original verification or deployment.
 See [the issue-specific scope](docs/geometry/drawing-evidence-lookup-150.md).
 
-The retained fixture reader has one named positive using generated rooms,
-drawings and fake current document/geometry ports. Inspect its full body and
-listed production imports before this narrower local command. It opens no
-browser or listener; it establishes no native retention or household source
-availability. Use the pinned Node 26.10.0 runtime and an owned evidence directory
-outside this checkout:
+The retained fixture reader has named positive cases for the generated source
+and native room projection using fake current document/geometry/topology ports.
+Inspect its full body and listed production imports before this narrower local
+command. It opens no browser or listener; it establishes no native retention or
+household source availability. Use the pinned Node 26.10.0 runtime and an owned
+evidence directory outside this checkout:
 
 ```sh
 HOUSEATLAS_FIXTURE_EVIDENCE=/absolute/private/fixture-reader-only node frontend/lantern-tests/native-scene-fixture-reader-healthy.mjs --reader-only
@@ -511,6 +511,13 @@ HOUSEATLAS_FIXTURE_EVIDENCE=/absolute/private/fixture-reader-only node frontend/
 The broader browser flow in `docs/geometry/native-scene-fixture-reader-healthy.md`
 requires its own inspected browser artifact and execution selection; it is not
 released by this reader-only command.
+
+The native room projection keeps stored `native-scene-source.v2` targets
+package-only. It accepts a nullable native ID only from the current room
+mapping, pinned to the exact current and historical scene documents and joined
+by source room, full ordered anchors, package key and UUID. A visible room
+action appears only while current topology membership confirms that ID in the
+selected building.
 
 A separately named topology read example uses generic Alpha/Beta records and
 injected transports only. It checks the existing native invoke envelope,
