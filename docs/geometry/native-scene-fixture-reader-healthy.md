@@ -24,7 +24,10 @@ action. A ready topology snapshot with any stale source or membership status,
 or an ambiguous or building accepted classification, also exposes no native
 action. One accepted non-building classification—including `other` and a floor
 directly under the building—remains eligible when current membership confirms
-it. The unselected details card uses a neutral accessible label. The source reader preserves the Atlas schema's full 512-character
+it. Multiple valid native targets appear together in one compact card inside the
+room inspector; shared Atlas IDs are deduplicated, and the card yields while
+another details panel is open. The unselected card uses a neutral accessible
+label. The source reader preserves the Atlas schema's full 512-character
 source-anchor identifier bound. The actual details component is server-rendered
 to check its visible current Atlas label, ID, classification and selection
 control. Normal disposal releases all three original leases and removes all

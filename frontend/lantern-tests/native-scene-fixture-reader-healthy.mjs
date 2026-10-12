@@ -190,18 +190,20 @@ async function readHealthyFixture(createNativeSceneSourceClient, ExactDecimal,
     const owner = { status: 'ready', memberStatus: 'ready', memberSourceStatus: 'current', buildingId: U(3),
       index: { data: { sourceStatuses: ['current', 'current', 'current', 'current'] }, locations: new Map([[nativePlace.id, nativePlace]]) },
       model: { building: { id: U(3) }, levels: [], direct: [nativePlace] } };
-    check(resolveNativeSceneRoomPlace(frame, rooms[0].id, owner) === nativePlace, 'Current selected-building membership resolves projected native place');
+    check(resolveNativeSceneRoomPlace(frame, rooms[0].id, owner).length === 1
+      && resolveNativeSceneRoomPlace(frame, rooms[0].id, owner)[0] === nativePlace,
+      'Current selected-building membership resolves the projected native place');
     for (const stale of [ { ...owner, status: 'changed' }, { ...owner, memberStatus: 'changed' }, { ...owner, buildingId: U(90) },
       { ...owner, memberSourceStatus: 'stale' },
       { ...owner, index: { ...owner.index, data: { sourceStatuses: ['current', 'stale', 'current', 'current'] } } },
       { ...owner, model: { building: { id: U(3) }, levels: [], direct: [] } } ])
-      check(resolveNativeSceneRoomPlace(frame, rooms[0].id, stale) === null, 'Stale source or out-of-building topology offers no native place');
+      check(resolveNativeSceneRoomPlace(frame, rooms[0].id, stale).length === 0, 'Stale source or out-of-building topology offers no native place');
     const ambiguousPlace = { ...nativePlace, semantics: [...nativePlace.semantics, { payload: { semanticKind: 'container' } }] };
     const buildingPlace = { ...nativePlace, semantics: [{ payload: { semanticKind: 'building' } }] };
     for (const unqualified of [ambiguousPlace, buildingPlace]) {
       const unqualifiedOwner = { ...owner, index: { ...owner.index, locations: new Map([[unqualified.id, unqualified]]) },
         model: { building: { id: U(3) }, levels: [], direct: [unqualified] } };
-      check(resolveNativeSceneRoomPlace(frame, rooms[0].id, unqualifiedOwner) === null,
+      check(resolveNativeSceneRoomPlace(frame, rooms[0].id, unqualifiedOwner).length === 0,
         'Ambiguous or building accepted classification offers no native room action');
     }
     for (const acceptedPlace of [
@@ -210,24 +212,41 @@ async function readHealthyFixture(createNativeSceneSourceClient, ExactDecimal,
     ]) {
       const acceptedOwner = { ...owner, index: { ...owner.index, locations: new Map([[acceptedPlace.id, acceptedPlace]]) },
         model: { building: { id: U(3) }, levels: [], direct: [acceptedPlace] } };
-      check(resolveNativeSceneRoomPlace(frame, rooms[0].id, acceptedOwner) === acceptedPlace,
+      check(resolveNativeSceneRoomPlace(frame, rooms[0].id, acceptedOwner)[0] === acceptedPlace,
         'One accepted non-building classification, including other or direct floor membership, resolves');
     }
-    check(resolveNativeSceneRoomPlace(frame, rooms[2].id, owner) === null, 'Unqualified association target offers no native place');
+    check(resolveNativeSceneRoomPlace(frame, rooms[2].id, owner).length === 0, 'Unqualified association target offers no native place');
+    const secondNativePlace = { id: U(44), label: 'Reviewed second Atlas place', semantics: [{ payload: { semanticKind: 'room' } }] };
+    const multiTargetFrame = { ...frame, roomSelections: frame.roomSelections.map(row => row.roomId !== rooms[0].id ? row : ({
+      ...row, nativePlaceIds: [...row.nativePlaceIds,
+        { packagePlaceKey: 'package:shared', packagePlaceUuid: U(24), atlasPlaceId: nativePlace.id },
+        { packagePlaceKey: 'package:second', packagePlaceUuid: U(25), atlasPlaceId: secondNativePlace.id }],
+    })) };
+    const multiTargetOwner = { ...owner,
+      index: { ...owner.index, locations: new Map([[nativePlace.id, nativePlace], [secondNativePlace.id, secondNativePlace]]) },
+      model: { building: { id: U(3) }, levels: [], direct: [nativePlace, secondNativePlace] } };
+    const multiResolved = resolveNativeSceneRoomPlace(multiTargetFrame, rooms[0].id, multiTargetOwner);
+    check(multiResolved.length === 2 && multiResolved[0] === nativePlace && multiResolved[1] === secondNativePlace,
+      'Multiple accepted targets render in source order and duplicate shared Atlas IDs are deduplicated');
     let chosenNativePlaceId = null;
-    const details = NativeScenePlaceDetails({ room: 'Alpha', place: nativePlace, selected: false,
-      onSelect() { chosenNativePlaceId = nativePlace.id; }, onClear() { chosenNativePlaceId = null; } });
-    check(details.props['aria-label'] === 'Atlas place details'
-      && details.props.children.find(child => child?.type === 'button' && child.props.children === 'Select Atlas place')?.props['aria-pressed'] === false,
-      'Unselected Atlas-place details are not labeled as already selected');
-    const selectButton = details.props.children.find(child => child?.type === 'button' && child.props.children === 'Select Atlas place');
+    const details = NativeScenePlaceDetails({ room: 'Alpha', places: multiResolved, selectedPlaceId: null,
+      onSelect(id) { chosenNativePlaceId = id; }, onClear() { chosenNativePlaceId = null; } });
+    check(details.props['aria-label'] === 'Atlas place details' && details.props.className === 'native-scene-place-details'
+      && details.props.children[1].props.children.length === 2
+      && details.props.children[1].props.children.every(row => row.props.children.find(child => child?.type === 'button')?.props['aria-pressed'] === false),
+      'All native targets share one compact neutral details panel with unselected controls');
+    const selectButton = details.props.children[1].props.children[0].props.children.find(child => child?.type === 'button');
     selectButton?.props.onClick();
-    check(chosenNativePlaceId === nativePlace.id, 'Visible native room action consumes the currently resolved Atlas identity');
+    check(chosenNativePlaceId === nativePlace.id, 'Visible native room action consumes the selected Atlas identity');
     const markup = renderToStaticMarkup(createElement(NativeScenePlaceDetails,
-      { room: 'Alpha', place: nativePlace, selected: true, onSelect() {}, onClear() {} }));
-    check(markup.includes('Atlas place details') && !markup.includes('Selected Atlas place') && markup.includes('Reviewed Alpha Atlas room')
-      && markup.includes(nativePlace.id) && markup.includes('Reviewed as room') && markup.includes('Select Atlas place'),
-      'Visible room selection reflects the current native label, ID and reviewed classification');
+      { room: 'Alpha', places: multiResolved, selectedPlaceId: null, onSelect() {}, onClear() {} }));
+    const selectedMarkup = renderToStaticMarkup(createElement(NativeScenePlaceDetails,
+      { room: 'Alpha', places: multiResolved, selectedPlaceId: secondNativePlace.id, onSelect() {}, onClear() {} }));
+    check(markup.includes('Atlas place details') && !markup.includes('Selected Atlas place')
+      && markup.includes('Reviewed Alpha Atlas room') && markup.includes('Reviewed second Atlas place')
+      && markup.includes(nativePlace.id) && markup.includes(secondNativePlace.id) && markup.includes('Reviewed as room')
+      && selectedMarkup.includes('Selected Atlas place') && selectedMarkup.includes('aria-pressed="true"'),
+      'Visible multi-target room details show each current label/ID and reflect independent selection state');
     const legacySelection = { ...selection }; delete legacySelection.acceptedRoomMappings;
     legacyClient = makeClient(legacySelection);
     const legacyFrame = await legacyClient.open(legacySelection, geometry, new AbortController().signal);
@@ -244,6 +263,7 @@ async function readHealthyFixture(createNativeSceneSourceClient, ExactDecimal,
         legacyPackageOnlyPreserved: true, currentTopologyDetailsRendered: true, selectionActionConsumesProjectedId: true,
         staleOrOutOfBuildingOmitted: true, staleCurrentSourceStatusOmitted: true,
         ambiguousOrBuildingClassificationOmitted: true, nonBuildingOtherAndDirectFloorAccepted: true,
+        multipleTargetsAndSharedIdDeduplicated: true,
         unselectedDetailsLabelHonest: true } };
     return { frame, media, proof, dispose() { client.dispose(); legacyClient?.dispose();
       check(releases === 3 && subscriptions === 0, 'Release current, mismatched-evidence and legacy document leases and all subscriptions'); } };
