@@ -573,8 +573,9 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
         await associations.validatePrevious(previous.token,frame,signal);check();
         await checkCapturedCurrentHead(frame,signal);check();
         prepared=await prepareAssociation(input,frame,references.primary,references.historical,signal,owner);
-        const dispatched=await dispatchAssociation(prepared,frame,input,signal,current=>{if(retainedDocuments)retainedDocuments.acknowledged=current;},
-          ()=>{retainedDocuments={prepared,input,references};claimed=true;});
+        const retainedPrepared=prepared;
+        const dispatched=await dispatchAssociation(retainedPrepared,frame,input,signal,current=>{if(retainedDocuments)retainedDocuments.acknowledged=current;},
+          ()=>{retainedDocuments={prepared:retainedPrepared,input,references};claimed=true;});
         if(dispatched.outcome==='committed'){
           completed=true;retainedDocuments=null;return Object.freeze({outcome:'committed',current:dispatched.current,references});}
         if(dispatched.outcome==='partial')return Object.freeze({outcome:'partial',phase:'scene-association',requestId:prepared.requestId,

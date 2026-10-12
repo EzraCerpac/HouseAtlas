@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "424710a6130d2ff959540dbf624ebc9a35b67979c7916ba9318d709f0d97f201",
+  "sourceDigestSha256": "6067fc63e18f98471b99a5fd76c3d753248896228b5e7e20391f21fa92c05942",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -6098,8 +6098,8 @@
       "path": "frontend/integration/native-scan-import-scene.ts",
       "owner": "media",
       "mode": "100644",
-      "bytes": 60973,
-      "sha256": "241a2aec4f1967ce91469a5fe0fa5ad31e883d1fa2ffff8514358aa5bd7dea1e"
+      "bytes": 61039,
+      "sha256": "a276be4ccee4be286fc7cd2c043d78bc76ac2707cae4348429b918d189f31338"
     },
     {
       "path": "frontend/integration/native-scan-import-text.ts",
