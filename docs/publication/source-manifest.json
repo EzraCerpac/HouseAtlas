@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "9c5f4dba15e29ae8840ae9ac63b6638affccfc442994c0311c52a11798a299bc",
+  "sourceDigestSha256": "a53dfbb6639f5d868d64ec4936941b1dcc4d95135563b0c473f6a119e857354e",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -98,8 +98,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 5140,
-      "sha256": "1bdfc3a11afe0e728129407fd2f5b237112be417694ea15be87725bc8776673d",
+      "bytes": 5246,
+      "sha256": "5d0a717b40dc61438ba094f3beade3b1801166344ee25024cd47bca6c267b018",
       "owner": "core-integration"
     },
     {
@@ -5397,15 +5397,15 @@
     {
       "path": "docs/demo/README.md",
       "mode": "100644",
-      "bytes": 4702,
-      "sha256": "dcfbded923fd69759c35a1eb7dec57909d242e39e18ca05491ae37ad10e9d0cd",
+      "bytes": 5648,
+      "sha256": "708857403537cf7e6194709cac2bc200bfc81fa58f95bb142f21ec6062f0106f",
       "owner": "web"
     },
     {
       "path": "docs/demo/capture.json",
       "mode": "100644",
-      "bytes": 3826,
-      "sha256": "2107558f88af05c57cf5ba670aed4fcdced2f7274e6aab14b6c1fea5b281fa81",
+      "bytes": 4923,
+      "sha256": "907ffb934ba9262261b594193de53d405c4e2d6a0ad8eac5e87f0bbc9b9f229c",
       "owner": "web"
     },
     {
@@ -5425,8 +5425,15 @@
     {
       "path": "docs/demo/synthetic-house.png",
       "mode": "100644",
-      "bytes": 395198,
-      "sha256": "2f8606e3987ca3593b55cfff854685c214d9ae393ef471ff3b61403a6cae68ea",
+      "bytes": 592946,
+      "sha256": "64b1786cd6fb5dc9983ffd2f5ed02cf233bd3ab525d689d11f8b01189b171c3c",
+      "owner": "web"
+    },
+    {
+      "path": "docs/demo/synthetic-mesh.png",
+      "mode": "100644",
+      "bytes": 396360,
+      "sha256": "065415ba94874523273a66a4c51415770b0ca942f31f759f67677af0abe21997",
       "owner": "web"
     },
     {
@@ -5439,8 +5446,8 @@
     {
       "path": "docs/demo/synthetic-plan.png",
       "mode": "100644",
-      "bytes": 354183,
-      "sha256": "141bb3be1f68afe8bbd2299865fc74b910f694a800b67ba964917ddb0ba925a2",
+      "bytes": 196225,
+      "sha256": "d292d51a2701ae2b5c68ae9a28c060aa8555231e9a1f5e71ed02d7050504a410",
       "owner": "web"
     },
     {
@@ -6431,10 +6438,24 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/readme-house-visual/demo.css",
+      "mode": "100644",
+      "bytes": 2359,
+      "sha256": "faffab3a559f12259991c8455ccefd4b6ecc04e6d8e2bd4f4cb67057d094921a",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/readme-house-visual/fixture.json",
       "mode": "100644",
       "bytes": 18610,
       "sha256": "567c33c8977c7c2effebb5da197107777375db158d2a3adde04c89d6b478b63e",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/readme-house-visual/house.ts",
+      "mode": "100644",
+      "bytes": 67868,
+      "sha256": "75bc6183ff683d2f595c0d4bd4a695b9293ddee91fe3c37a6d050f0cfcaa4eef",
       "owner": "web"
     },
     {
@@ -6447,8 +6468,8 @@
     {
       "path": "frontend/lantern-tests/readme-house-visual/main.tsx",
       "mode": "100644",
-      "bytes": 1718,
-      "sha256": "c4a256ac744e9e4f0eaf28d62c03d354f037f2441eb3a3028a707b3244a43976",
+      "bytes": 4487,
+      "sha256": "fec4bd1119736b1b226570bdbe87a2a5452276a106dce2bfad32eef39688610a",
       "owner": "web"
     },
     {
@@ -8967,8 +8988,8 @@
     {
       "path": "tools/readme-media/capture.mjs",
       "mode": "100644",
-      "bytes": 10586,
-      "sha256": "db573b24a4368cf8d2f1a900e8c48f02a7d477557f1b26ee0a7f8af1981eda2f",
+      "bytes": 12407,
+      "sha256": "f7ac266b6e881133dd4731188b11cb11404a4076087fc3424490ff6f49b9b9f1",
       "owner": "web"
     },
     {

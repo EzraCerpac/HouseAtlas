@@ -10,7 +10,7 @@ assert.equal(process.version, 'v26.10.0');
 const root = resolve(import.meta.dirname, '../..');
 const output = resolve(process.argv[2] ?? resolve(root, 'docs/demo'));
 await mkdir(output, { recursive: true });
-const sourceTreeExclusions = ['docs/demo/capture.json', 'docs/publication/source-manifest.json', ...['house', 'plan', 'building', 'room', 'network', 'collage'].map(name => `docs/demo/synthetic-${name}.png`)];
+const sourceTreeExclusions = ['docs/demo/capture.json', 'docs/publication/source-manifest.json', ...['house', 'mesh', 'plan', 'building', 'room', 'network', 'collage'].map(name => `docs/demo/synthetic-${name}.png`)];
 async function sourceTreeSnapshot() {
   const paths = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(path => path && !sourceTreeExclusions.includes(path)).sort();
   const rows = [];
@@ -77,7 +77,7 @@ try {
       WebGLRenderingContext.prototype[name] = function (...args) { window.syntheticDrawCalls++; return original.apply(this, args); };
     }
   });
-  await house.goto(`${origin}/lantern-tests/readme-house-visual/`, { waitUntil: 'networkidle' });
+  await house.goto(`${origin}/lantern-tests/readme-house-visual/?renderer=mesh`, { waitUntil: 'networkidle' });
   await house.evaluate(() => document.fonts.ready);
   await house.waitForFunction(() => window.syntheticDrawCalls > 0);
   // Floor tags are emitted from prepared floors, unlike the always-present controls.
@@ -91,23 +91,39 @@ try {
     return { version: gl.getParameter(gl.VERSION), drawCalls: window.syntheticDrawCalls, pixels: [canvas.width, canvas.height], preparedFloors: [...document.querySelectorAll('.floor-tag-name')].map(node => node.textContent).sort() };
   });
   await house.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(done)))));
-  await house.screenshot({ path: resolve(output, 'synthetic-house.png'), animations: 'disabled' });
-  await house.getByRole('button', { name: 'Plan', exact: true }).click();
-  await house.waitForFunction(() => document.querySelector('.stage.is-plan'));
-  await house.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(done)))));
-  await house.screenshot({ path: resolve(output, 'synthetic-plan.png'), animations: 'disabled' });
+  await house.screenshot({ path: resolve(output, 'synthetic-mesh.png'), animations: 'disabled' });
+  const illustrated = await context.newPage();
+  illustrated.on('pageerror', error => errors.push(error.message));
+  await illustrated.goto(`${origin}/lantern-tests/readme-house-visual/`, { waitUntil: 'networkidle' });
+  await illustrated.evaluate(() => document.fonts.ready);
+  await illustrated.waitForFunction(() => document.querySelectorAll('svg.model > g.floor').length === 3 && document.querySelectorAll('svg.model .furniture').length > 0);
+  await illustrated.getByRole('button', { name: 'Kitchen', exact: true }).click();
+  await illustrated.getByRole('heading', { name: 'Kitchen', exact: true }).waitFor();
+  assert.match(await illustrated.locator('body').innerText(), /Fictional belongings/);
+  await illustrated.mouse.move(1430, 10);
+  await illustrated.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(done))));
+  });
+  await illustrated.screenshot({ path: resolve(output, 'synthetic-house.png'), animations: 'disabled' });
+  await illustrated.getByRole('button', { name: 'Plan', exact: true }).click();
+  await illustrated.waitForFunction(() => document.querySelector('.stage.is-plan'));
+  await illustrated.locator('.legend > button').click();
+  await illustrated.mouse.move(1430, 10);
+  await illustrated.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(done)))));
+  await illustrated.screenshot({ path: resolve(output, 'synthetic-plan.png'), animations: 'disabled' });
   assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
   const sourceHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
   const sourceDirty = execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).trim().length > 0;
   assert.deepEqual(await sourceTreeSnapshot(), sourceTree, 'Tracked capture source must remain unchanged throughout capture');
-  const sourcePaths = ['frontend/lantern-tests/core-read-visual/main.tsx', 'frontend/lantern-tests/core-read-visual/fixture.json', 'tools/readme-media/capture.mjs', 'frontend/lantern-tests/readme-house-visual/main.tsx', 'frontend/lantern-tests/readme-house-visual/fixture.json', 'frontend/lantern-tests/readme-house-visual/index.html', 'frontend/src/lantern/Host.tsx', 'frontend/src/api/topology-client.ts', 'frontend/src/api/network-relations-client.ts', 'frontend/src/lantern/scans/mesh-profile.ts', 'frontend/src/lantern/scans/presentation/HouseScanScene.tsx', 'frontend/src/lantern/scans/presentation/SceneMeshCanvas.tsx', 'frontend/src/lantern/scans/presentation/scan-projection.ts'];
+  const sourcePaths = ['frontend/lantern-tests/core-read-visual/main.tsx', 'frontend/lantern-tests/core-read-visual/fixture.json', 'tools/readme-media/capture.mjs', 'frontend/lantern-tests/readme-house-visual/main.tsx', 'frontend/lantern-tests/readme-house-visual/house.ts', 'frontend/lantern-tests/readme-house-visual/demo.css', 'frontend/src/lantern/atlas/Model.tsx', 'frontend/src/lantern/atlas/AtlasView.tsx', 'frontend/lantern-reference/HouseAtlas-Lantern-B-Source.zip', 'frontend/lantern-tests/readme-house-visual/fixture.json', 'frontend/lantern-tests/readme-house-visual/index.html', 'frontend/src/lantern/Host.tsx', 'frontend/src/api/topology-client.ts', 'frontend/src/api/network-relations-client.ts', 'frontend/src/lantern/scans/mesh-profile.ts', 'frontend/src/lantern/scans/presentation/HouseScanScene.tsx', 'frontend/src/lantern/scans/presentation/SceneMeshCanvas.tsx', 'frontend/src/lantern/scans/presentation/scan-projection.ts'];
   const hashes = {};
-  for (const file of [...sourcePaths, ...names.map(name => `docs/demo/synthetic-${name}.png`), 'docs/demo/synthetic-collage.png', 'docs/demo/synthetic-house.png', 'docs/demo/synthetic-plan.png']) {
+  for (const file of [...sourcePaths, ...names.map(name => `docs/demo/synthetic-${name}.png`), 'docs/demo/synthetic-collage.png', 'docs/demo/synthetic-house.png', 'docs/demo/synthetic-mesh.png', 'docs/demo/synthetic-plan.png']) {
     const path = file.startsWith('docs/demo/') ? resolve(output, file.split('/').at(-1)) : resolve(root, file);
     hashes[file] = createHash('sha256').update(await readFile(path)).digest('hex');
   }
-  await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browser.version(), webgl, viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'both source floors prepared before production WebGL capture', 'generated floor plan mode', 'zero external browser requests and renderer errors'], hashes }, null, 2) + '\n');
-  console.log('PASS synthetic React media: house WebGL, plan, building, room, Network, collage; no provider/native acceptance');
+  await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browser.version(), webgl, illustration: { renderer: 'production AtlasView/Model', fictional: true, floors: 3, selectedRoom: 'Kitchen', referenceArchiveSHA256: '96a884bf935e6aedfa3e5b4f415cce8be295630fe052dc66c5497f8b87b1da63' }, viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'both source floors prepared before production WebGL capture', 'original fictional three-floor illustrated house with furniture and selected Kitchen', 'illustrated ground-floor plan mode', 'zero external browser requests and renderer errors'], hashes }, null, 2) + '\n');
+  console.log('PASS synthetic React media: original illustrated house, plan, two-floor WebGL meshes, building, room, Network, collage; no provider/native acceptance');
 } finally {
   clearTimeout(deadline);
   await browser?.close();

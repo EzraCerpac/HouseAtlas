@@ -1,9 +1,19 @@
 # Synthetic interface demo
 
-These images show the actual Lantern React UI and existing checked-in
-`frontend/lantern-tests/core-read-visual` fixture. The separate `readme-house-visual` fixture uses seven generated cuboid
-meshes per floor
-and mounts the actual lossless mesh reader and `HouseScanScene` WebGL renderer.
+The house and plan images restore the authentic original fictional Lantern
+house through the application's `AtlasView` and `Model` components. The retained
+reference ZIP is SHA256 `96a884bf935e6aedfa3e5b4f415cce8be295630fe052dc66c5497f8b87b1da63`;
+all 44 authored reference file hashes were verified before rendering its pixels.
+The strictly typed standalone `house.ts` preserves its invented Alder house data. It includes
+three illustrated floors, room colors, openings, stairs, furniture and the birch
+model base. Its dimensions, reviewed flags and claims are fictional illustration
+data; they establish no native source authority or measured household geometry.
+The prototype App, scripted assistant and simulated writes are not mounted.
+
+The building, room and Network images show the actual Lantern React UI and
+existing checked-in `frontend/lantern-tests/core-read-visual` fixture. The
+**Source meshes** view uses seven generated cuboid meshes per floor and mounts
+the actual lossless mesh reader and `HouseScanScene` WebGL renderer.
 Its fixed hash fields are synthetic metadata, with no original USDZ, actual
 Magicplan conversion, native admission or semantic room association.
 All records, scope IDs and session metadata are synthetic. Topology and Network clients consume fake
@@ -13,14 +23,16 @@ provider, household file, account, credential or upstream write is involved.
 
 | View | What it demonstrates |
 | --- | --- |
-| [House geometry](synthetic-house.png) | Two generated floors through the production WebGL renderer, with display-only spacing and unknown physical scale/alignment. |
-| [Plan](synthetic-plan.png) | The same generated floor in the renderer's plan mode; no measured room placement. |
+| [House model](synthetic-house.png) | The original fictional three-floor Lantern house through production components, including a selected kitchen. |
+| [Plan](synthetic-plan.png) | The illustrated ground-floor plan, with invented dimensions and furniture; no measured household placement. |
+| [Source meshes](synthetic-mesh.png) | Two generated floors through the production WebGL renderer, with display-only spacing and unknown physical scale/alignment. |
 | [Building](synthetic-building.png) | Alpha's reviewed membership, recorded level ordering, distinct elevation datums and explicit unknowns. |
 | [Room](synthetic-room.png) | Lower room selection with source facts and unavailable shape/document information. |
 | [Network](synthetic-network.png) | One explicitly loaded saved relation with original dates and exact revision token. |
 | [Collage](synthetic-collage.png) | The three unmodified screen captures, labeled SYNTHETIC. |
 
-The stale HomeBox cache and absence of reviewed geometry are part of the fixture.
+The stale HomeBox cache and absence of reviewed geometry are part of the
+separate browsing fixture.
 These screenshots establish presentation of the named synthetic views only;
 they establish no live integration, native authority, floorplan, physical device,
 security, pilot or deployment acceptance. The optional video is omitted: the
@@ -51,7 +63,7 @@ WebGL draw evidence, viewport, checks and source/image
 SHA256 digests without local paths or timestamps. Its `sourceTree` digest binds
 every tracked source file, including stylesheets and transitive components,
 and is checked unchanged across capture. The explicitly listed exclusions are
-the six generated images, their receipt and the self-referential publication
+the seven generated images, their receipt and the self-referential publication
 manifest. Both prepared floor tags must be present before the geometry capture.
 The checked-in receipt
 records the base HEAD and a modified working candidate, with the fixture,

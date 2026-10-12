@@ -4,11 +4,11 @@ HouseAtlas connects rooms, belongings, documents and physical infrastructure in 
 
 HomeBox owns inventory, attachments and maintenance; HouseAtlas owns physical identities, reviewed bindings and optional geometry, circuits and valves. Network observations are a separate passive, read-only source. Browsing does not collect data or write upstream.
 
-![Synthetic HouseAtlas two-floor exploded geometry, with unverified physical scale and floor alignment](docs/demo/synthetic-house.png)
+![Synthetic HouseAtlas Lantern house: three illustrated floors, selected kitchen, room colors, windows and furniture](docs/demo/synthetic-house.png)
 
 ![Synthetic HouseAtlas demo: reviewed building levels, room details and saved Network relations](docs/demo/synthetic-collage.png)
 
-**SYNTHETIC demo.** These are actual React screenshots using checked-in generated fixtures and fake read transports. The separate generated geometry example has no native admission or room associations; the browsing fixture has no reviewed floorplan; its stale HomeBox cache, unknown elevations and unavailable geometry are intentional. No household files, real accounts or live providers are used. [Full screenshots and reproduction](docs/demo/README.md).
+**SYNTHETIC demo.** The illustrated house restores the original fictional Lantern design through the application's actual renderer. Its rooms, furniture and dimensions are invented. The separate generated mesh example has no native admission or room associations; the browsing fixture has no reviewed floorplan. No household files, real accounts or live providers are used. [Full screenshots and reproduction](docs/demo/README.md).
 
 ## Try the synthetic interface
 
@@ -19,9 +19,9 @@ npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
 node frontend/node_modules/vite/bin/vite.js frontend --host 127.0.0.1 --port 4179 --strictPort
 ```
 
-Open <http://127.0.0.1:4179/lantern-tests/core-read-visual/>. Select **Alpha** to see reviewed building membership and recorded levels. Open a room to inspect its source facts. In **Network**, choose **Load Network relations** for the fixture's saved relation. For the generated two-floor scene, open <http://127.0.0.1:4179/lantern-tests/readme-house-visual/> and switch between **3D** and **Plan**. Its floor spacing is display-only. Stop the server with Ctrl-C.
+Open <http://127.0.0.1:4179/lantern-tests/readme-house-visual/> for the fictional Lantern house. Select a room, switch between **3D** and **Plan**, or use **Source meshes** to inspect the separate generated two-floor scan renderer. Open <http://127.0.0.1:4179/lantern-tests/core-read-visual/> and select **Alpha** for building membership and source facts; in **Network**, choose **Load Network relations** for the fixture's saved relation. Stop the server with Ctrl-C.
 
-The browsing demo uses production Lantern components and read clients with synthetic Responses; the geometry demo uses generated meshes and the production scene renderer. They supply no authentication, native server, evidence upload or provider integration. Keep it on loopback; do not use it as a deployment.
+The house demo uses production Lantern components and an explicitly fictional illustration fixture. The browsing demo uses read clients with synthetic Responses; the source-mesh demo uses generated meshes and the production WebGL renderer with display-only floor spacing. They supply no authentication, native server, evidence upload or provider integration. Keep it on loopback; do not use it as a deployment.
 
 ## What you can explore
 
@@ -30,7 +30,7 @@ The browsing demo uses production Lantern components and read clients with synth
 - **Geometry and infrastructure:** optional reviewed geometry and separately owned circuit, valve and evidence records. Geometry is not required for browsing.
 - **Source history:** distinct fact and retrieval dates, uncertainty, stale caches and corrections. Passive Network reads never send collector demand.
 
-Some capabilities require a configured native host and reviewed source bindings; the synthetic demo above demonstrates building/room browsing, a saved Network relation and separately generated provisional mesh presentation.
+Some capabilities require a configured native host and reviewed source bindings; these demos show fictional illustrated geometry, building/room browsing, a saved Network relation and separately generated provisional mesh presentation.
 
 ## Run the offline core checks
 
