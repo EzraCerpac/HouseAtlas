@@ -328,6 +328,13 @@ try{
       await assert.rejects(preflightNativeScanScene({...joinedInput,roomMappings:[mapping]},budget,scope),'Omitting a second reviewed anchor member refuses before HTTP');
     assert.equal(calls.length,0);
     assert.equal(await preflightNativeScanScene({...pure,statement:'☃'.repeat(4096),reason:'☃'.repeat(1024)},budget,scope),undefined,'Scene uses its existing 1MiB command limit, not the text retained-lookup cap');assert.equal(calls.length,0);
+    const wideScene=JSON.parse(primary),wideEntries=Array.from({length:11},(_,n)=>({...wideScene.rooms.entries[0],id:'synthetic-capacity-room-'+n}));
+    wideScene.rooms.entries=wideEntries;
+    const wideInput={...pure,primary:textInput(JSON.stringify(wideScene),'wide-guard-capacity.txt'),roomMappings:wideEntries.map((entry,n)=>({...input.roomMappings[0],
+      sourceRoomId:entry.id,targets:input.roomMappings[0].targets.map(target=>({...target,atlasPlaceId:U(8100+n)}))}))};
+    assert.equal(await preflightNativeScanScene(wideInput,budget,scope),undefined,
+      'Eleven explicit Atlas targets reserve identity and classification guard width while retaining the scene request ceiling');
+    assert.equal(calls.length,0,'Worst-width guard reservation remains pure preflight');
     await assert.rejects(client.importScene({...input,sourceFloors:[]},budget));assert.equal(calls.filter(c=>c.method==='POST').length,0);
     for(const count of [98,60]){const ids=[geomEvidenceId,...Array.from({length:count-1},(_,i)=>U(1000+i))];
       for(const id of ids.slice(1))set('evidence',id,{statement:'Generated prior evidence',provenance,supersedesEvidenceIds:[],references:[]});
@@ -357,6 +364,12 @@ try{
       assert.equal(outcome.outcome,'committed');
       assert.equal(outcome.current.payload.roomMappings[0].targets[0].atlasPlaceId,explicitAtlasPlaceId,
         'Explicit Atlas identity survives preflight, prepare and submit');
+      assert(lastSceneRequest.preconditions.guards.some(g=>g.target.recordType==='location-semantics'&&g.target.recordId===buildingSemanticsId),
+        'Current building classification guard is present in the bounded scene request');
+      if(typeof explicitAtlasPlaceId==='string')assert(lastSceneRequest.preconditions.guards.some(g=>g.target.recordType==='identity'&&g.target.recordId===nativePlaceId)
+        &&lastSceneRequest.preconditions.guards.some(g=>g.target.recordType==='location-semantics'&&g.target.recordId===nativePlaceSemanticsId),
+        'Explicit Atlas target reserves and carries identity plus accepted-classification guards');
+      assert(Buffer.byteLength(JSON.stringify(lastSceneRequest))<=1024*1024,'Positive guarded request remains within the existing 1 MiB ceiling');
       const posts=calls.filter(c=>c.method==='POST').length,fresh=createNativeScanSceneImporter(options);
       try{
         const exact=await fresh.inspectCurrentScene(input,budget,{recordId:outcome.current.recordId,payload:outcome.current.payload});

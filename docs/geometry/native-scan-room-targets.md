@@ -32,6 +32,14 @@ Stock record GET against the same topology snapshot before preparation. The
 building's accepted classification is guarded even when every optional native
 target is omitted or explicitly null.
 
+Pure capacity preflight reserves the worst-width request guards before any
+documentary custody: building identity and classification, each explicit target
+identity and classification, document and geometry references, and a possible
+prior scene head. Reviewed classification record IDs are known only after the
+current topology read, so preflight reserves their UUID width with placeholders
+when checking the existing 1 MiB command ceiling. This keeps a near-limit request
+from passing preflight and failing only after text custody.
+
 The check uses existing GET-only authenticated reads and grants. It does not
 create topology, alter labels, project source-room text into Atlas, or change the
 backend's reviewed-scene association contract. A later association write still
