@@ -14,6 +14,7 @@ import './native-scene.css';
 export interface NativeSceneTopologyOwner {
   readonly status: 'loading' | 'ready' | string;
   readonly memberStatus: 'loading' | 'ready' | string;
+  readonly memberSourceStatus: string | null;
   readonly buildingId: string | null;
   readonly index: TopologyIndex | null;
   readonly model: BuildingModel | null;
@@ -23,7 +24,9 @@ export interface NativeSceneTopologyOwner {
  * membership read and current active topology index. */
 export function resolveNativeSceneRoomPlace(source: NativeSceneSourceFrame, roomId: string,
   owner: NativeSceneTopologyOwner): Location | null {
-  if (owner.status !== 'ready' || owner.memberStatus !== 'ready' || owner.buildingId !== source.buildingId
+  if (owner.status !== 'ready' || owner.memberStatus !== 'ready' || owner.memberSourceStatus !== 'current'
+    || owner.index?.data.sourceStatuses.length !== 4 || owner.index.data.sourceStatuses.some(status => status !== 'current')
+    || owner.buildingId !== source.buildingId
     || !owner.index || !owner.model) return null;
   const projected = source.roomSelections.find(row => row.roomId === roomId)?.nativePlaceIds ?? [];
   const memberIds = new Set([owner.model.building.id, ...owner.model.levels.flatMap(level =>
@@ -31,7 +34,7 @@ export function resolveNativeSceneRoomPlace(source: NativeSceneSourceFrame, room
   for (const item of projected) {
     if (item.atlasPlaceId === null || !memberIds.has(item.atlasPlaceId)) continue;
     const location = owner.index.locations.get(item.atlasPlaceId);
-    if (location) return location;
+    if (location?.semantics.length === 1 && location.semantics[0]!.payload.semanticKind === 'room') return location;
   }
   return null;
 }
@@ -40,7 +43,7 @@ export function NativeScenePlaceDetails({ room, place, selected, onSelect, onCle
   readonly room: string; readonly place: Location; readonly selected: boolean;
   readonly onSelect: () => void; readonly onClear: () => void;
 }) {
-  return <section className="stage-ui native-scene-place-details" aria-label="Selected Atlas place">
+  return <section className="stage-ui native-scene-place-details" aria-label="Atlas place details">
     <p>{room}</p><h3>{place.label}</h3>
     <p>Atlas identity: {place.id}</p>
     <p>{place.semantics.length ? `Reviewed as ${place.semantics.map(item => item.payload.semanticKind).join(', ')}` : 'Classification not reviewed'}</p>
