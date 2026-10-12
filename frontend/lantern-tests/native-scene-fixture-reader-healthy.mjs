@@ -8,7 +8,7 @@ import { createServer } from 'node:http';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'vite';
 
 const root = resolve(fileURLToPath(new URL('../../', import.meta.url)));
@@ -31,7 +31,11 @@ const sourceHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encod
 const sourceBase = '12044d16f80a65050392d34b15c93a955adba4b2';
 const hash = value => createHash('sha256').update(value).digest('hex');
 const productionPaths = [
+  'frontend/integration/native-scene-association-client.ts',
   'frontend/integration/native-scene-source-client.ts',
+  'frontend/src/lantern/scans/native-scene-source-types.ts',
+  'frontend/src/lantern/scans/native-ui/NativeSceneLayers.tsx',
+  'frontend/src/lantern/scans/native-ui/NativeScanAtlas.tsx',
   'frontend/src/numeric/decimal.ts', 'frontend/src/numeric/lossless-json.ts',
   'frontend/src/lantern/scans/presentation/room-region-model.ts',
   'frontend/src/lantern/overlays/electricity/documentary-adapter.ts',
@@ -44,7 +48,8 @@ const productionDigests = Object.fromEntries(productionPaths.map(path => [path, 
 
 // This function is compiled together with the actual reader in Node and Chromium.
 // It creates fresh positive inputs; neither documentary paths nor hashes are URLs.
-async function readHealthyFixture(createNativeSceneSourceClient, ExactDecimal) {
+async function readHealthyFixture(createNativeSceneSourceClient, ExactDecimal,
+  resolveNativeSceneRoomPlace, NativeScenePlaceDetails, createElement, renderToStaticMarkup) {
   const sha = async value => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))))
     .map(byte => byte.toString(16).padStart(2, '0')).join('');
   const U = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -52,7 +57,9 @@ async function readHealthyFixture(createNativeSceneSourceClient, ExactDecimal) {
   const receiptCanonicalJson = '{"id":"synthetic-room-receipt","profile":"synthetic-only"}';
   const roomReceipt = { id: 'synthetic-room-receipt', sha256: await sha(receiptCanonicalJson) };
   const rooms = ['Alpha', 'Beta', 'Unmatched'].map((label, index) => ({ id: `room-${label.toLowerCase()}`, label,
-    sourceFloorKey, sourceOriginalSha256: sourceFloorHash, sourceAnchorIds: [`anchor:${label}`],
+    sourceFloorKey, sourceOriginalSha256: sourceFloorHash, sourceAnchorIds: label === 'Alpha'
+      ? [`anchor:${label}`, `anchor:${label}:second`] : label === 'Unmatched' ? [`anchor:${label}`, `anchor:${label}:second`]
+        : [`anchor:${label}`],
     packagePlaceKey: `package:${label}`, packagePlaceUuid: U(20 + index), xFraction: .2 + index * .2, yFraction: .5 }));
   const media = [];
   for (const [index, label] of ['Alpha', 'Beta'].entries()) {
@@ -90,11 +97,24 @@ async function readHealthyFixture(createNativeSceneSourceClient, ExactDecimal) {
   const revision = ExactDecimal.parse('9007199254740993');
   const originalHash = await sha(original);
   const selection = { sessionIdentity: Object.freeze({}), workspaceId: U(1), homeId: U(2), buildingId: U(3), viewKey,
-    expiresAt: new Date(Date.now() + 300_000).toISOString(), sceneEvidenceId: U(4), sceneAssetId: U(5),
+    expiresAt: new Date(Date.now() + 300_000).toISOString(), sceneEvidenceId: U(4), historicalSceneEvidenceId: U(9), sceneAssetId: U(5),
     sceneOriginalSha256: originalHash, sceneEvidenceRevision: 7, sceneAssetRevision: revision,
     acceptedRoomReceiptId: roomReceipt.id, acceptedRoomReceiptSha256: roomReceipt.sha256,
-    acceptedRoomAnchors: rooms.map(room => ({ id: room.sourceAnchorIds[0], sourceFloorKey, sourceOriginalSha256: sourceFloorHash,
-      targets: [{ packagePlaceKey: room.packagePlaceKey, packagePlaceUuid: room.packagePlaceUuid }], unresolvedLabels: [] })),
+    acceptedRoomAnchors: rooms.flatMap(room => room.sourceAnchorIds.map(id => ({ id, sourceFloorKey, sourceOriginalSha256: sourceFloorHash,
+      targets: [{ packagePlaceKey: room.packagePlaceKey, packagePlaceUuid: room.packagePlaceUuid }], unresolvedLabels: [] }))),
+    acceptedRoomMappings: [
+      { sourceRoomId: rooms[0].id, sourceFloorKey, sourceOriginalSha256: sourceFloorHash, sourceAnchorIds: [...rooms[0].sourceAnchorIds],
+        evidenceIds: [U(4), U(9)],
+        targets: [{ packagePlaceKey: rooms[0].packagePlaceKey, packagePlaceUuid: rooms[0].packagePlaceUuid, atlasPlaceId: U(40) }] },
+      { sourceRoomId: rooms[1].id, sourceFloorKey, sourceOriginalSha256: sourceFloorHash, sourceAnchorIds: [...rooms[1].sourceAnchorIds],
+        evidenceIds: [U(4), U(9)],
+        targets: [{ packagePlaceKey: rooms[1].packagePlaceKey, packagePlaceUuid: rooms[1].packagePlaceUuid, atlasPlaceId: null },
+          { packagePlaceKey: rooms[0].packagePlaceKey, packagePlaceUuid: rooms[0].packagePlaceUuid, atlasPlaceId: U(41) }] },
+      // Same room label with a different full anchor membership cannot inherit Alpha's native ID.
+      { sourceRoomId: rooms[2].id, sourceFloorKey, sourceOriginalSha256: sourceFloorHash, sourceAnchorIds: [...rooms[2].sourceAnchorIds].reverse(),
+        evidenceIds: [U(4), U(9)],
+        targets: [{ packagePlaceKey: rooms[2].packagePlaceKey, packagePlaceUuid: rooms[2].packagePlaceUuid, atlasPlaceId: U(42) }] },
+    ],
     sourceFloorBindings: [{ sourceFloorKey, sourceOriginalSha256: sourceFloorHash, nativeFloorKey: 'native:floor',
       nativeOriginalAssetId: U(6), nativeOriginalSha256: sourceFloorHash, nativeGeometryId: U(7), nativeGeometryRevision: revision }],
   };
@@ -106,20 +126,28 @@ async function readHealthyFixture(createNativeSceneSourceClient, ExactDecimal) {
   let opens = 0, releases = 0, subscriptions = 0;
   const check = (condition, label) => { if (!condition) throw new Error(label); };
   const subscribe = () => { subscriptions++; return () => { subscriptions--; }; };
-  const client = createNativeSceneSourceClient({
-    getSelection: () => selection, subscribeSelection: subscribe,
-    documents: {
-      async open(id, signal) { check(id === selection.sceneEvidenceId && !signal.aborted, 'Exact healthy evidence open'); opens++; return document; },
-      isCurrent: frame => frame === document && releases === 0, getBlob: frame => frame === document ? blob : null,
-      subscribeInvalidation: subscribe, release(frame) { check(frame === document, 'Release exact document'); releases++; },
-    },
-    geometry: { isCurrent: frame => frame === geometry, subscribeInvalidation: subscribe },
-  });
+  const makeClient = selected => {
+    let currentDocument = null;
+    return createNativeSceneSourceClient({
+      getSelection: () => selected, subscribeSelection: subscribe,
+      documents: {
+        async open(id, signal) { check(id === selected.sceneEvidenceId && !signal.aborted, 'Exact healthy evidence open'); opens++;
+          currentDocument = { ...document, lease: Object.freeze({}) }; return currentDocument; },
+        isCurrent: frame => frame === currentDocument, getBlob: frame => frame === currentDocument ? blob : null,
+        subscribeInvalidation: subscribe, release(frame) { check(frame === currentDocument, 'Release exact document'); releases++; currentDocument = null; },
+      },
+      geometry: { isCurrent: frame => frame === geometry, subscribeInvalidation: subscribe },
+    });
+  };
+  const client = makeClient(selection);
+  let legacyClient = null;
+  let mismatchClient = null;
   try {
     const frame = await client.open(selection, geometry, new AbortController().signal);
     check(client.isCurrent(frame), 'Current reader frame');
     check(frame.electricalFixtures.status === 'available' && frame.rooms.status === 'available', 'Available source subsets');
-    check(frame.sourceOriginalSha256 === originalHash && frame.sourceAssetId === U(5) && frame.sourceEvidenceId === U(4), 'Exact source identity');
+    check(frame.sourceOriginalSha256 === originalHash && frame.sourceAssetId === U(5) && frame.sourceEvidenceId === U(4)
+      && frame.buildingId === U(3), 'Exact source and selected building identity');
     const data = frame.electricalFixtures.data;
     check(data.viewKey === viewKey && data.viewKey !== fixtureData.viewKey, 'Host supplies current view key');
     check(data.sheets.length === 2 && data.regions.length === 2 && data.fixtures.length === 2 && frame.roomSelections.length === 3, 'Complete synthetic memberships');
@@ -132,7 +160,8 @@ async function readHealthyFixture(createNativeSceneSourceClient, ExactDecimal) {
     for (const [index, room] of rooms.entries()) {
       const selected = frame.roomSelections.find(row => row.roomId === room.id)?.selection;
       check(selected?.status === 'accepted' && selected.viewKey === viewKey && selected.receiptId === roomReceipt.id
-        && selected.sourceAnchorIds.length === 1 && selected.sourceAnchorIds[0] === room.sourceAnchorIds[0]
+        && selected.sourceAnchorIds.length === room.sourceAnchorIds.length
+        && selected.sourceAnchorIds.every((id, index) => id === room.sourceAnchorIds[index])
         && selected.unresolvedLabels.length === 0 && selected.targets.length === 1
         && selected.targets[0].packagePlaceKey === room.packagePlaceKey
         && selected.targets[0].packagePlaceUuid === room.packagePlaceUuid && selected.receiptSha256 === roomReceipt.sha256, 'Exact returned room selection');
@@ -142,11 +171,56 @@ async function readHealthyFixture(createNativeSceneSourceClient, ExactDecimal) {
         && data.fixtures[index].id === `socket-${index}` && data.groups[index].fixtureIds[0] === data.fixtures[index].id
         && data.regions[index].places[0].packagePlaceUuid === room.packagePlaceUuid, 'Exact associated source facts');
     }
+    const projected = roomId => frame.roomSelections.find(row => row.roomId === roomId)?.nativePlaceIds ?? [];
+    check(projected(rooms[0].id).length === 1 && projected(rooms[0].id)[0].atlasPlaceId === U(40),
+      'Exact room, evidence pair, ordered full anchors, and package identity project Alpha native ID');
+    check(projected(rooms[1].id).length === 1 && projected(rooms[1].id)[0].atlasPlaceId === null,
+      'A null target remains package-only and a mismatched package target cannot promote another room ID');
+    check(projected(rooms[2].id).length === 0, 'Reordered full anchor membership cannot promote Unmatched native ID');
+    const mismatchedEvidenceSelection = { ...selection, acceptedRoomMappings: selection.acceptedRoomMappings.map(mapping =>
+      mapping.sourceRoomId === rooms[0].id ? { ...mapping, evidenceIds: [U(4), U(99)] } : mapping) };
+    mismatchClient = makeClient(mismatchedEvidenceSelection);
+    const mismatchFrame = await mismatchClient.open(mismatchedEvidenceSelection, geometry, new AbortController().signal);
+    check(mismatchFrame.roomSelections.find(row => row.roomId === rooms[0].id)?.nativePlaceIds.length === 0,
+      'Wrong current source-document evidence pair cannot project Alpha native ID');
+    mismatchClient.dispose(); mismatchClient = null;
+    const nativePlace = { id: U(40), label: 'Reviewed Alpha Atlas room', semantics: [{ payload: { semanticKind: 'room' } }] };
+    const owner = { status: 'ready', memberStatus: 'ready', buildingId: U(3), index: { locations: new Map([[nativePlace.id, nativePlace]]) },
+      model: { building: { id: U(3) }, levels: [], direct: [nativePlace] } };
+    check(resolveNativeSceneRoomPlace(frame, rooms[0].id, owner) === nativePlace, 'Current selected-building membership resolves projected native place');
+    for (const stale of [ { ...owner, status: 'changed' }, { ...owner, memberStatus: 'changed' }, { ...owner, buildingId: U(90) },
+      { ...owner, model: { building: { id: U(3) }, levels: [], direct: [] } } ])
+      check(resolveNativeSceneRoomPlace(frame, rooms[0].id, stale) === null, 'Stale or out-of-building topology offers no native place');
+    check(resolveNativeSceneRoomPlace(frame, rooms[2].id, owner) === null, 'Unqualified association target offers no native place');
+    let chosenNativePlaceId = null;
+    const details = NativeScenePlaceDetails({ room: 'Alpha', place: nativePlace, selected: false,
+      onSelect() { chosenNativePlaceId = nativePlace.id; }, onClear() { chosenNativePlaceId = null; } });
+    const selectButton = details.props.children.find(child => child?.type === 'button' && child.props.children === 'Select Atlas place');
+    selectButton?.props.onClick();
+    check(chosenNativePlaceId === nativePlace.id, 'Visible native room action consumes the currently resolved Atlas identity');
+    const markup = renderToStaticMarkup(createElement(NativeScenePlaceDetails,
+      { room: 'Alpha', place: nativePlace, selected: true, onSelect() {}, onClear() {} }));
+    check(markup.includes('Selected Atlas place') && markup.includes('Reviewed Alpha Atlas room')
+      && markup.includes(nativePlace.id) && markup.includes('Reviewed as room') && markup.includes('Select Atlas place'),
+      'Visible room selection reflects the current native label, ID and reviewed classification');
+    const legacySelection = { ...selection }; delete legacySelection.acceptedRoomMappings;
+    legacyClient = makeClient(legacySelection);
+    const legacyFrame = await legacyClient.open(legacySelection, geometry, new AbortController().signal);
+    check(legacyFrame.roomSelections.every(row => row.nativePlaceIds.length === 0)
+      && legacyFrame.roomSelections.every(row => row.selection.targets.length > 0),
+      'Legacy package-only source selection retains room filters without native targets');
+    legacyClient.dispose(); legacyClient = null;
     const proof = { sourceOriginalSha256: originalHash, assetRevision: document.asset.revision.token,
       receiptSha256: roomReceipt.sha256, opens, sheets: data.sheets.map(s => ({ id: s.id, page: s.pdfPage })),
-      rooms: frame.roomSelections.map(r => ({ roomId: r.roomId, targets: r.selection.targets })), historicalOnly };
-    return { frame, media, proof, dispose() { client.dispose(); check(releases === 1 && subscriptions === 0, 'Release one original lease and all subscriptions'); } };
-  } catch (error) { client.dispose(); throw error; }
+      rooms: frame.roomSelections.map(r => ({ roomId: r.roomId, targets: r.selection.targets,
+        nativePlaceIds: r.nativePlaceIds })), historicalOnly,
+      projection: { exactRoomAndEvidencePair: true, mergedAnchors: true, nullTargetPreserved: true,
+        wrongPackageTargetOmitted: true, reorderedAnchorMembershipOmitted: true, wrongEvidencePairOmitted: true,
+        legacyPackageOnlyPreserved: true, currentTopologyDetailsRendered: true, selectionActionConsumesProjectedId: true,
+        staleOrOutOfBuildingOmitted: true } };
+    return { frame, media, proof, dispose() { client.dispose(); legacyClient?.dispose();
+      check(releases === 3 && subscriptions === 0, 'Release current, mismatched-evidence and legacy document leases and all subscriptions'); } };
+  } catch (error) { client.dispose(); legacyClient?.dispose(); mismatchClient?.dispose(); throw error; }
 }
 
 class CDP {
@@ -193,12 +267,16 @@ const report = { sourceBase, sourceHead, productionDigests, runnerSha256: hash(r
 const budget = setTimeout(() => { cdp?.reject(new Error('120-second fixture budget exhausted')); browser?.kill('SIGTERM'); server?.close(); }, 120_000);
 try {
   const readerPath = join(generated, 'reader.ts');
-  writeFileSync(readerPath, `import { createNativeSceneSourceClient } from ${JSON.stringify(join(frontend, 'integration/native-scene-source-client.ts'))};\nimport { ExactDecimal } from ${JSON.stringify(join(frontend, 'src/numeric/decimal.ts'))};\n${readHealthyFixture.toString()}\nexport const read = () => readHealthyFixture(createNativeSceneSourceClient, ExactDecimal);\n`);
-  const bundled = await build({ configFile: false, root: frontend, logLevel: 'error', build: { ssr: readerPath, write: false, minify: false, target: 'esnext' } });
-  const readerModule = await import(`data:text/javascript;base64,${Buffer.from(bundled.output.find(c => c.type === 'chunk').code).toString('base64')}`);
+  writeFileSync(readerPath, `import { createNativeSceneSourceClient } from ${JSON.stringify(join(frontend, 'integration/native-scene-source-client.ts'))};\nimport { ExactDecimal } from ${JSON.stringify(join(frontend, 'src/numeric/decimal.ts'))};\nimport { resolveNativeSceneRoomPlace, NativeScenePlaceDetails } from ${JSON.stringify(join(frontend, 'src/lantern/scans/native-ui/NativeSceneLayers.tsx'))};\nimport { createElement } from 'react';\nimport { renderToStaticMarkup } from 'react-dom/server';\n${readHealthyFixture.toString()}\nexport const read = () => readHealthyFixture(createNativeSceneSourceClient, ExactDecimal, resolveNativeSceneRoomPlace, NativeScenePlaceDetails, createElement, renderToStaticMarkup);\n`);
+  const bundled = await build({ configFile: false, root: frontend, logLevel: 'error', ssr: { noExternal: ['react', 'react-dom', 'ajv', 'ajv-formats'] },
+    build: { ssr: readerPath, write: false, minify: false, target: 'esnext' } });
+  const readerModulePath = join(scratch, 'reader.mjs');
+  writeFileSync(readerModulePath, bundled.output.find(c => c.type === 'chunk').code);
+  const readerModule = await import(pathToFileURL(readerModulePath).href);
   const state = await readerModule.read();
   try { report.reader = state.proof; } finally { state.dispose(); }
-  results.push({ case: 'retained-v2-reader-positive', status: 'passed', cleanup: 'one original released; subscriptions removed' });
+  results.push({ case: 'retained-v2-reader-positive', status: 'passed', cleanup: 'three originals released; subscriptions removed' });
+  results.push({ case: 'native-room-scene-projection-current-source-owner', status: 'passed', checks: report.reader.projection });
   if (!readerOnly) {
     const appPath = join(generated, 'app.tsx');
     writeFileSync(appPath, `import { useState } from 'react';

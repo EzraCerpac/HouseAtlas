@@ -7,7 +7,7 @@ import { useStore } from '../../state/store';
 import { useTopology } from '../../topology/TopologyProvider';
 import type { NativeSceneHost } from './native-scene-host';
 import type { NativeSceneSourceFrame, NativeSceneSourceSelection } from '../native-scene-source-types';
-import { NativeSceneLayers } from './NativeSceneLayers';
+import { NativeSceneLayers, resolveNativeSceneRoomPlace } from './NativeSceneLayers';
 import { NativeSceneCandidate } from './NativeSceneCandidate';
 import { RoomIndex } from '../../views/RoomsView';
 import type { NativeGeometryWriteClient } from '../native-write-types';
@@ -146,6 +146,7 @@ export function NativeScanAtlas({ client }: { readonly client: NativeGeometryRea
           floors={observation.floors} overlay={overlay} onOverlayChange={setOverlay}
           drawings={intake.scene!.drawings}
           evidenceIds={buildingEvidenceIds}
+          nativePlaceForRoom={roomId => resolveNativeSceneRoomPlace(observation.source!, roomId, topology)}
           currentSource={() => current.current === owner && client.isCurrent(observation.frame)
             && !!observation.source && !!intake.scene?.sources.isCurrent(observation.source)} /> : <HouseScanScene active viewKey={observation.frame.viewKey} floors={observation.floors} rooms={[]}
           overlay={overlay} onOverlayChange={setOverlay} renderDetails={() => overlay !== 'spaces'
