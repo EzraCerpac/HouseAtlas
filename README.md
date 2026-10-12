@@ -146,6 +146,8 @@ node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-wron
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-duplicate-classification
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-wrong-scope
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-owner-withdrawal
+node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents
+node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents-unknown
 ```
 
 After inspecting the tool, test and source-loader imports, the assistant can

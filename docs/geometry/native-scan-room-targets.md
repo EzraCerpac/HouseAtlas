@@ -37,6 +37,18 @@ create topology, alter labels, project source-room text into Atlas, or change th
 backend's reviewed-scene association contract. A later association write still
 uses its existing independent reviewed-place validation.
 
+For a source intake whose two documentary originals are already retained,
+`associateRetainedScene(input, references, signal)` accepts their exact current
+evidence IDs, original asset IDs and SHA-256 values; optional evidence and asset
+revisions pin a prior source-ledger observation. It opens the current
+read-owned evidence originals, verifies their text bytes, sizes, licenses and
+requested revisions against the supplied files, then prepares the scene from
+those same retained IDs. It does not reserve or create assets/evidence, replace
+building identity, or synthesize text receipts/results. A scene attempt remains
+held if dispatch is unknown; `reconcileRetainedScene(signal)` is GET-only and
+never resends it. Current topology, full scope, geometry/floor keys, previous
+head, and the building/target revision guards remain required.
+
 The inspected generated-only fake-transport regression cases are:
 
 ```sh
@@ -51,6 +63,8 @@ node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-wron
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-duplicate-classification
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-wrong-scope
 node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-owner-withdrawal
+node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents
+node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents-unknown
 ```
 
 These cases use generated identities and a local fake transport only. They do

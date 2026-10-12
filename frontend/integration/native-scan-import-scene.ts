@@ -48,6 +48,24 @@ export interface NativeScanSceneExpected {
   /** Exact original claim/current payload; ordinary safe numbers are parsed losslessly. */
   readonly payload:JsonForSerialization;
 }
+/** Exact previously retained documentary identities supplied by the host.
+ * Optional revisions pin the source ledger's observation when it has one. */
+export interface NativeScanRetainedDocumentReference {
+  readonly evidenceId: string;
+  readonly originalAssetId: string;
+  readonly sha256: string;
+  readonly evidenceRevision?: number;
+  readonly originalAssetRevision?: number;
+}
+export interface NativeScanRetainedSceneReferences {
+  readonly primary: NativeScanRetainedDocumentReference;
+  readonly historical: NativeScanRetainedDocumentReference;
+}
+export type NativeScanRetainedSceneResult =
+  | { readonly outcome:'committed'; readonly current:SceneAssociationCurrent; readonly references:NativeScanRetainedSceneReferences }
+  | { readonly outcome:'unknown'; readonly phase:'scene-association'; readonly requestId:string }
+  | { readonly outcome:'partial'; readonly phase:'scene-association'; readonly requestId:string;
+      readonly current:SceneAssociationCurrent; readonly references:NativeScanRetainedSceneReferences };
 export type NativeScanSceneResult = {readonly outcome:'committed'; readonly current:SceneAssociationCurrent;
   readonly primary:Extract<NativeScanTextResult,{outcome:'committed'}>; readonly historical:Extract<NativeScanTextResult,{outcome:'committed'}>}
   | Exclude<NativeScanTextResult,{outcome:'committed'}>
@@ -201,6 +219,8 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
   const reviewedPlaces=createNativeSceneReviewedPlaceReader({getContext:options.getContext,subscribe:options.subscribe,transport:options.transport});
   let retained:{prepared:SceneAssociationPrepared;input:NativeScanSceneInput;primary:Extract<NativeScanTextResult,{outcome:'committed'}>;
     historical:Extract<NativeScanTextResult,{outcome:'committed'}>;acknowledged?:SceneAssociationCurrent}|null=null;
+  let retainedDocuments:{prepared:SceneAssociationPrepared;input:NativeScanSceneInput;references:NativeScanRetainedSceneReferences;
+    acknowledged?:SceneAssociationCurrent}|null=null;
   const checkFloors=(input:NativeScanSceneInput,frame:NativeGeometryFrame)=>{
     need(geometry.isCurrent(frame)&&frame.descriptor.buildingId===input.buildingId&&frame.floors.length>0
       &&frame.floors.length<=3&&input.sourceFloors.length===frame.floors.length);
@@ -296,6 +316,60 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
       :await associations.validatePrevious(previous.token,frame,signal);
     signal.throwIfAborted();need(previous.owner===getBinding()&&geometry.isCurrent(frame));
     requireCapturedHead(observed);
+  };
+  const prepareAssociation=async(input:NativeScanSceneInput,frame:NativeGeometryFrame,
+    primary:NativeScanRetainedDocumentReference,historical:NativeScanRetainedDocumentReference,
+    signal:AbortSignal,owner:NativeDocumentBinding):Promise<SceneAssociationPrepared>=>{
+    need(previous&&previous.buildingId===input.buildingId&&previous.owner===owner&&geometry.isCurrent(frame));
+    const sourceFloors=checkFloors(input,frame);
+    const nativeTargetIds=[...new Set(input.roomMappings.flatMap(m=>m.targets
+      .map(t=>t.atlasPlaceId).filter((id):id is string=>typeof id==='string')))];
+    const reviewed=await reviewedPlaces.validate(input.buildingId,nativeTargetIds,signal,()=>getBinding()===owner&&geometry.isCurrent(frame));
+    const prepared=await associations.prepare({buildingId:input.buildingId,primaryEvidenceId:primary.evidenceId,historicalEvidenceId:historical.evidenceId,
+      sourceFloors,roomMappings:input.roomMappings.map(mapping=>({...mapping,targets:mapping.targets.map(target=>({...target,atlasPlaceId:target.atlasPlaceId??null})),
+        evidenceIds:[primary.evidenceId,historical.evidenceId]})),guards:await guards(input,frame,
+          {assetId:primary.originalAssetId,evidenceId:primary.evidenceId},{assetId:historical.originalAssetId,evidenceId:historical.evidenceId},signal,reviewed)},
+      frame,input.statement,input.reason,signal,previous.token);
+    try{
+      const sourceDocuments=row(prepared.payload).sourceDocuments;
+      need(Array.isArray(sourceDocuments)&&sourceDocuments.length===2);
+      const docs=sourceDocuments.map(value=>row(value));
+      const expected=[{role:'primary-scene',...primary},{role:'documentary-sheet',...historical}];
+      const request=row(parseLosslessJson(prepared.body)),preconditions=row(request.preconditions);
+      need(Array.isArray(preconditions.guards));const requestGuards=preconditions.guards.map(value=>row(value));
+      const exactGuard=(kind:string,id:string,revision:LosslessJson|undefined)=>{
+        const selected=requestGuards.find(value=>{const target=row(value.target);return target.authority==='atlas'&&target.recordType===kind&&target.recordId===id;});
+        const observed=selected?row(selected.revision).value:undefined;
+        need(isExactDecimal(observed)&&isExactDecimal(revision)&&observed.compare(revision)===0);
+      };
+      for(const item of expected){const doc=docs.find(value=>value.role===item.role);need(doc&&doc.evidenceId===item.evidenceId
+        &&doc.originalAssetId===item.originalAssetId&&doc.originalSha256===input[item.role==='primary-scene'?'primary':'historical'].sha256
+        &&doc.contentType==='text/plain');
+        exactGuard('evidence',item.evidenceId,doc.evidenceRevision);exactGuard('asset',item.originalAssetId,doc.originalAssetRevision);
+        if('evidenceRevision' in item&&item.evidenceRevision!==undefined)need(isExactDecimal(doc.evidenceRevision)
+          &&doc.evidenceRevision.toSafeInteger()===item.evidenceRevision);
+        if('originalAssetRevision' in item&&item.originalAssetRevision!==undefined)need(isExactDecimal(doc.originalAssetRevision)
+          &&doc.originalAssetRevision.toSafeInteger()===item.originalAssetRevision);}
+      need(new TextEncoder().encode(prepared.body).length<=1024*1024&&(!prepared.drawingReview||input.confirmDrawingSupport===true)
+        &&getBinding()===owner&&geometry.isCurrent(frame));return prepared;
+    }catch(error){associations.releasePrepared(prepared);throw error;}
+  };
+  const dispatchAssociation=async(prepared:SceneAssociationPrepared,frame:NativeGeometryFrame,input:NativeScanSceneInput,
+    signal:AbortSignal,onAcknowledged:(current:SceneAssociationCurrent)=>void):Promise<
+      {outcome:'committed';current:SceneAssociationCurrent}|{outcome:'partial';current:SceneAssociationCurrent}|{outcome:'unknown'}>=>{
+    await nativeScanImportWait(options.beforeDispatch('scene-association',{requestId:prepared.requestId,body:prepared.body}),signal);
+    let acknowledged:SceneAssociationCurrent|undefined;
+    try{
+      const current=await associations.submit(prepared,frame,signal,input.confirmDrawingSupport);
+      need(current.status==='available'&&current.recordId===prepared.targetId&&canonical(current.payload)===canonical(prepared.payload));
+      acknowledged=current;onAcknowledged(current);
+      await nativeScanImportWait(options.afterResult('scene-association',{requestId:prepared.requestId,outcome:'committed'}),signal);
+      await verifyReadback(current,frame,signal,input);return {outcome:'committed',current};
+    }catch{
+      if(acknowledged)return {outcome:'partial',current:acknowledged};
+      try{await nativeScanImportWait(options.afterResult('scene-association',{requestId:prepared.requestId,outcome:'unknown'}),signal);}catch{/* Keep the request held. */}
+      return {outcome:'unknown'};
+    }
   };
   return {
     /** Capture genuine qualified predecessor before geometry/text changes keys. */
@@ -417,26 +491,108 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
         const historical=await texts.importText(input.historical,signal);if(historical.outcome!=='committed')return historical;
         signal.throwIfAborted();need(getBinding()===owner);
         // Identity append changes descriptor/view keys. Never reuse first keys.
-        const fresh=await geometry.loadBuilding(input.buildingId,signal),sourceFloors=checkFloors(input,fresh);
-        const freshNativePlaces=await reviewedPlaces.validate(input.buildingId,nativeTargetIds,signal,()=>getBinding()===owner&&geometry.isCurrent(fresh));
-        prepared=await associations.prepare({buildingId:input.buildingId,primaryEvidenceId:primary.evidenceId,historicalEvidenceId:historical.evidenceId,
-          sourceFloors,roomMappings:input.roomMappings.map(mapping=>({...mapping,targets:mapping.targets.map(target=>({...target,atlasPlaceId:target.atlasPlaceId??null})),evidenceIds:[primary.evidenceId,historical.evidenceId]})),guards:await guards(input,fresh,primary,historical,signal,freshNativePlaces)},fresh,input.statement,input.reason,signal,previous.token);
-        need(new TextEncoder().encode(prepared.body).length<=1024*1024&&(!prepared.drawingReview||input.confirmDrawingSupport===true));
+        const fresh=await geometry.loadBuilding(input.buildingId,signal);
+        prepared=await prepareAssociation(input,fresh,{evidenceId:primary.evidenceId,originalAssetId:primary.assetId,sha256:input.primary.sha256},
+          {evidenceId:historical.evidenceId,originalAssetId:historical.assetId,sha256:input.historical.sha256},signal,owner);
         retained={prepared,input,primary,historical};
-        await nativeScanImportWait(options.beforeDispatch('scene-association',{requestId:prepared.requestId,body:prepared.body}),signal);
-        try{
-          const current=await associations.submit(prepared,fresh,signal,input.confirmDrawingSupport);
-          need(current.status==='available'&&current.recordId===prepared.targetId&&canonical(current.payload)===canonical(prepared.payload));
-          retained.acknowledged=current;
-          await nativeScanImportWait(options.afterResult('scene-association',{requestId:prepared.requestId,outcome:'committed'}),signal);
-          await verifyReadback(current,fresh,signal,input);
-          completed=true;retained=null;return Object.freeze({outcome:'committed',current,primary,historical});
-        }catch{
-          if(retained?.acknowledged)return Object.freeze({outcome:'partial',phase:'scene-association',requestId:prepared.requestId,current:retained.acknowledged,primary,historical});
-          try{await nativeScanImportWait(options.afterResult('scene-association',{requestId:prepared.requestId,outcome:'unknown'}),signal);}catch{/* Retain journal hold. */}
-          return Object.freeze({outcome:'unknown',phase:'scene-association',requestId:prepared.requestId});
-        }
+        const dispatched=await dispatchAssociation(prepared,fresh,input,signal,current=>{if(retained)retained.acknowledged=current;});
+        if(dispatched.outcome==='committed'){completed=true;retained=null;return Object.freeze({outcome:'committed',current:dispatched.current,primary,historical});}
+        if(dispatched.outcome==='partial')return Object.freeze({outcome:'partial',phase:'scene-association',requestId:prepared.requestId,
+          current:dispatched.current,primary,historical});
+        return Object.freeze({outcome:'unknown',phase:'scene-association',requestId:prepared.requestId});
       }finally{unsubscribeOwner?.();if(prepared)associations.releasePrepared(prepared);clearTimeout(timer);outer.removeEventListener('abort',forward);controller.abort();busy=false;}
+    },
+    /** Continue with two already-retained, current documentary originals. This
+     * path validates their real evidence leases and never calls a text writer. */
+    async associateRetainedScene(supplied:NativeScanSceneInput,suppliedReferences:NativeScanRetainedSceneReferences,
+      outer:AbortSignal):Promise<NativeScanRetainedSceneResult>{
+      need(!disposed&&!busy&&!claimed&&Array.isArray(supplied.sourceFloors)&&supplied.sourceFloors.length>0
+        &&supplied.sourceFloors.length<=3&&Array.isArray(supplied.roomMappings)&&supplied.roomMappings.length<=256);
+      const mappingText=stringifyLosslessJson(supplied.roomMappings as unknown as JsonForSerialization);
+      need(new TextEncoder().encode(mappingText).length<=1024*1024);
+      const input:NativeScanSceneInput=Object.freeze({...supplied,primary:Object.freeze({...supplied.primary,sourceLicense:Object.freeze({...supplied.primary.sourceLicense})}),
+        historical:Object.freeze({...supplied.historical,sourceLicense:Object.freeze({...supplied.historical.sourceLicense})}),
+        sourceFloors:Object.freeze(supplied.sourceFloors.map(f=>Object.freeze({...f}))),
+        roomMappings:(parseLosslessJson(mappingText) as unknown as NativeScanSceneRoomMapping[]).map(m=>({...m,
+          targets:m.targets.map(t=>({...t,atlasPlaceId:t.atlasPlaceId??null}))}))});
+      const copyReference=(value:NativeScanRetainedDocumentReference,file:NativeScanTextInput)=>{
+        need(value!==null&&typeof value==='object'&&!Array.isArray(value)
+          &&Object.keys(value).every(key=>['evidenceId','originalAssetId','sha256','evidenceRevision','originalAssetRevision'].includes(key))
+          &&UUID.test(value.evidenceId)&&UUID.test(value.originalAssetId)&&value.evidenceId!==value.originalAssetId
+          &&SHA.test(value.sha256)&&value.sha256===file.sha256);
+        if(value.evidenceRevision!==undefined)need(Number.isSafeInteger(value.evidenceRevision)&&value.evidenceRevision>0);
+        if(value.originalAssetRevision!==undefined)need(Number.isSafeInteger(value.originalAssetRevision)&&value.originalAssetRevision>0);
+        return Object.freeze({...value});
+      };
+      const references=Object.freeze({primary:copyReference(suppliedReferences.primary,input.primary),
+        historical:copyReference(suppliedReferences.historical,input.historical)});
+      need(references.primary.evidenceId!==references.historical.evidenceId
+        &&references.primary.originalAssetId!==references.historical.originalAssetId);
+      const controller=new AbortController(),forward=()=>controller.abort(outer.reason);outer.addEventListener('abort',forward,{once:true});if(outer.aborted)forward();
+      const timer=setTimeout(()=>controller.abort(new Error('Native retained scene association exceeded deadline')),240000),signal=controller.signal;busy=true;
+      let prepared:SceneAssociationPrepared|null=null,unsubscribeOwner:(()=>void)|null=null;
+      try{
+        const owner=getBinding();need(owner);
+        const write=options.getContext();need(write&&write.view.canEdit===true&&write.admission
+          &&write.view.scope.workspaceId===owner.scope.workspaceId&&write.view.scope.homeId===owner.scope.homeId
+          &&write.admission.commandIds.includes('atlas.scene-association.create')&&getBinding()===owner);
+        unsubscribeOwner=options.subscribe(()=>{if(getBinding()!==owner)controller.abort(new Error('Native retained scene owner changed'));});
+        const check=()=>{signal.throwIfAborted();need(getBinding()===owner);};check();
+        await preflightNativeScanScene({...input,sourceFloors:input.sourceFloors.map(f=>({sourceFloorKey:f.sourceFloorKey,sourceOriginalSha256:f.sourceOriginalSha256}))},signal,owner.scope);
+        const primaryText=await nativeScanImportWait(verifyNativeScanText(input.primary,signal),signal);
+        const historicalText=await nativeScanImportWait(verifyNativeScanText(input.historical,signal),signal);check();
+        const verifyRetained=async(client:NativeEvidenceDocumentClient,file:NativeScanTextInput,reference:NativeScanRetainedDocumentReference,text:string)=>{
+          let opened:NativeEvidenceDocumentFrame|null=null;
+          try{
+            opened=await client.open(reference.evidenceId,signal);check();need(client.isCurrent(opened)&&opened.evidenceId===reference.evidenceId
+              &&opened.asset.assetId===reference.originalAssetId&&opened.asset.contentType==='text/plain'
+              &&opened.asset.sha256===reference.sha256&&opened.asset.sha256===file.sha256
+              &&opened.asset.byteSize.toSafeInteger()===file.byteSize
+              &&opened.asset.sourceLicense.status===file.sourceLicense.status
+              &&opened.asset.sourceLicense.reference===file.sourceLicense.reference
+              &&(reference.evidenceRevision===undefined||opened.evidenceRevision===reference.evidenceRevision)
+              &&(reference.originalAssetRevision===undefined||opened.asset.revision.toSafeInteger()===reference.originalAssetRevision));
+            const blob=client.getBlob(opened);need(blob&&blob.type==='text/plain'&&blob.size===file.byteSize);
+            const actual=new Uint8Array(await nativeScanImportWait(blob.arrayBuffer(),signal));check();
+            const suppliedBytes=new Uint8Array(await nativeScanImportWait(file.file.arrayBuffer(),signal));check();
+            need(actual.length===suppliedBytes.length&&actual.every((byte,index)=>byte===suppliedBytes[index])
+              &&await nativeScanImportDigest(actual)===reference.sha256
+              &&new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(actual)===text&&client.isCurrent(opened));
+          }finally{if(opened)client.release(opened);}
+        };
+        await verifyRetained(primaryReview,input.primary,references.primary,primaryText);
+        await verifyRetained(historicalReview,input.historical,references.historical,historicalText);check();
+        const frame=await geometry.loadBuilding(input.buildingId,signal);checkFloors(input,frame);check();
+        if(!previous)await capturePrevious(input.buildingId,frame,signal);
+        need(previous&&previous.buildingId===input.buildingId&&previous.owner===owner&&getBinding()===owner);
+        await associations.validatePrevious(previous.token,frame,signal);check();
+        await checkCapturedCurrentHead(frame,signal);check();
+        prepared=await prepareAssociation(input,frame,references.primary,references.historical,signal,owner);
+        retainedDocuments={prepared,input,references};claimed=true;
+        const dispatched=await dispatchAssociation(prepared,frame,input,signal,current=>{if(retainedDocuments)retainedDocuments.acknowledged=current;});
+        if(dispatched.outcome==='committed'){
+          completed=true;retainedDocuments=null;return Object.freeze({outcome:'committed',current:dispatched.current,references});}
+        if(dispatched.outcome==='partial')return Object.freeze({outcome:'partial',phase:'scene-association',requestId:prepared.requestId,
+          current:dispatched.current,references});
+        return Object.freeze({outcome:'unknown',phase:'scene-association',requestId:prepared.requestId});
+      }finally{unsubscribeOwner?.();if(prepared)associations.releasePrepared(prepared);clearTimeout(timer);outer.removeEventListener('abort',forward);
+        controller.abort();busy=false;}
+    },
+    /** GET-only reconciliation for the retained-document scene request. */
+    async reconcileRetainedScene(outer:AbortSignal):Promise<NativeScanRetainedSceneResult>{
+      need(!disposed&&!busy&&retainedDocuments);const item=retainedDocuments;
+      const controller=new AbortController(),forward=()=>controller.abort(outer.reason);outer.addEventListener('abort',forward,{once:true});if(outer.aborted)forward();
+      const timer=setTimeout(()=>controller.abort(new Error('Native retained scene reconciliation exceeded deadline')),60000),signal=controller.signal;busy=true;
+      try{
+        const frame=await geometry.loadBuilding(item.input.buildingId,signal);checkFloors(item.input,frame);
+        const current=item.acknowledged?await associations.readCurrent(item.input.buildingId,frame,signal):await associations.resolve(item.prepared,frame,signal);
+        if(current.status!=='available'||current.recordId!==item.prepared.targetId||canonical(current.payload)!==canonical(item.prepared.payload))
+          return item.acknowledged?Object.freeze({outcome:'partial',phase:'scene-association',requestId:item.prepared.requestId,
+            current:item.acknowledged,references:item.references}):Object.freeze({outcome:'unknown',phase:'scene-association',requestId:item.prepared.requestId});
+        item.acknowledged=current;await nativeScanImportWait(options.afterResult('scene-association',{requestId:item.prepared.requestId,outcome:'committed'}),signal);
+        await verifyReadback(current,frame,signal,item.input);completed=true;retainedDocuments=null;
+        return Object.freeze({outcome:'committed',current,references:item.references});
+      }finally{clearTimeout(timer);outer.removeEventListener('abort',forward);controller.abort();busy=false;}
     },
     /** Same-instance, GET-only reconciliation of unknown or acknowledged partial.
      * A different current head never
@@ -459,6 +615,7 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
     isHeld:()=>claimed&&!completed,
     isConsumed:()=>claimed,
     dispose(){if(disposed)return;disposed=true;selection=null;notify();reviewedPlaces.dispose();if(retained)associations.releasePrepared(retained.prepared);
+      if(retainedDocuments)associations.releasePrepared(retainedDocuments.prepared);
       previous=null;source.dispose();associations.dispose();primaryReview.dispose();historicalReview.dispose();sourceDocuments.dispose();geometry.dispose();texts.dispose();binding=null;},
   };
 }
