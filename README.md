@@ -120,7 +120,8 @@ The separate scene adapter checks use generated text, fake HTTPS responses and
 the actual Stock/document/scene readers. Each invocation runs one named case;
 none creates a socket, browser, database, credential or household record. Inspect
 the complete adapter and runner bodies first. Scope and input contract are in
-[the assistant scene adapter](docs/geometry/assistant-native-scan-scene.md).
+[the assistant scene adapter](docs/geometry/assistant-native-scan-scene.md) and
+[native room target checks](docs/geometry/native-scan-room-targets.md).
 
 ```sh
 node frontend/lantern-tests/native-scan-import-scene.mjs committed
@@ -136,6 +137,15 @@ node frontend/lantern-tests/native-scan-import-scene.mjs changed-frame-current-s
 node frontend/lantern-tests/native-scan-import-scene.mjs supplementary-unicode
 node frontend/lantern-tests/native-scan-import-scene.mjs compact-scene-head
 node frontend/lantern-tests/native-scan-import-scene.mjs viewer-inspect
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-explicit-null
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-other
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-floor-direct
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-invalid
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-wrong-classification
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-duplicate-classification
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-wrong-scope
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-owner-withdrawal
 ```
 
 After inspecting the tool, test and source-loader imports, the assistant can
