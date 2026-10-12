@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "bc2901c0372a42df3344b4f492cfee0e9fa126a19302d78428b222a58c7e4bdf",
+  "sourceDigestSha256": "b8a4a767146e8ed1956738ef9e8666c3caa79928316d57acf23a74c29d5b2462",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -92,8 +92,8 @@
       "path": "README.md",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 55210,
-      "sha256": "682692ff735c77c0e622e54d9613cf08c34f1b93a08fec21f0dbc6dafa827f3d"
+      "bytes": 55490,
+      "sha256": "faca409a08567b386a9bd8c5b6dfd2ce26219b3f83457510c3b68ddde64a4eb6"
     },
     {
       "path": "adapters/homebox/README.md",
@@ -5489,8 +5489,8 @@
       "path": "docs/geometry/native-scan-room-targets.md",
       "owner": "media",
       "mode": "100644",
-      "bytes": 7248,
-      "sha256": "a74707686b598bbfcb4a2b2ba8b224a9339de250bc30613bfeb719a62e01a7e1"
+      "bytes": 8368,
+      "sha256": "0029102a13ccf0323e789096cd11c650e7972bbf4efc0d98a71af85ce2813f5f"
     },
     {
       "path": "docs/geometry/native-scan-succession.md",
@@ -6098,8 +6098,8 @@
       "path": "frontend/integration/native-scan-import-scene.ts",
       "owner": "media",
       "mode": "100644",
-      "bytes": 62944,
-      "sha256": "8bb05d5f5e6b91e04637aa6729ca1616bc52ae06890532976fa820ab31197d68"
+      "bytes": 64036,
+      "sha256": "273d5947989aa1fe8dda1e2af1b3c4db23388d9ac6f19f39558273eab4f398bc"
     },
     {
       "path": "frontend/integration/native-scan-import-text.ts",
@@ -6315,8 +6315,8 @@
       "path": "frontend/lantern-tests/native-scan-import-scene.mjs",
       "owner": "media",
       "mode": "100644",
-      "bytes": 85161,
-      "sha256": "18114135da6fa555065d562ff4ee057d19cf8d6ee205d6ea2a253c19a907daf7"
+      "bytes": 85758,
+      "sha256": "f6af045e7d491cf2f079b96a18f7a4427022bdbb2f8e3bebe025da73c4749fe3"
     },
     {
       "path": "frontend/lantern-tests/native-scan-succession.mjs",
@@ -8814,15 +8814,15 @@
       "path": "tools/geometry/native-scan-import.mjs",
       "owner": "media",
       "mode": "100644",
-      "bytes": 44250,
-      "sha256": "13cd378fe8c2394158024835d9e24bc2f4e816b06b4df9e99c79b7a074a62b5a"
+      "bytes": 48686,
+      "sha256": "ad721f1663446cdbbf50552a9ed8639e30669500b832228b5ce17d2d356b2eb8"
     },
     {
       "path": "tools/geometry/native-scan-import.test.mjs",
       "owner": "media",
       "mode": "100644",
-      "bytes": 48673,
-      "sha256": "f5073efad59afef2387094364c2e72841e5d966c1335873dd8501bd2776c9f4f"
+      "bytes": 54273,
+      "sha256": "f6f3cc53a1d33eaaf5dbec30ba523189e9da323bcbc9faf52cb555f5bd39f8bf"
     },
     {
       "path": "tools/geometry/scan-replacement-plan.mjs",

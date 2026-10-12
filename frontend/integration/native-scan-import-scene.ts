@@ -54,8 +54,8 @@ export interface NativeScanRetainedDocumentReference {
   readonly evidenceId: string;
   readonly originalAssetId: string;
   readonly sha256: string;
-  readonly evidenceRevision?: number;
-  readonly originalAssetRevision?: number;
+  readonly evidenceRevision: number;
+  readonly originalAssetRevision: number;
 }
 export interface NativeScanRetainedSceneReferences {
   readonly primary: NativeScanRetainedDocumentReference;
@@ -87,6 +87,15 @@ function canonical(value:LosslessJson):string {
   if(value===null||typeof value==='boolean'||typeof value==='string')return JSON.stringify(value);
   if(Array.isArray(value))return `[${value.map(canonical).join(',')}]`;
   return `{${Object.keys(value).sort().map(key=>`${JSON.stringify(key)}:${canonical(value[key]!)}`).join(',')}}`;
+}
+function receiptRevision(receipt:LosslessJson,commandId:string,recordType:string,recordId:string):number {
+  const envelope=row(receipt),data=row(envelope.data),records=data.records;
+  need(envelope.commandId===commandId&&Array.isArray(records));
+  const matches=records.filter(value=>{const record=row(value),target=row(record.target);
+    return target.authority==='atlas'&&target.recordType===recordType&&target.recordId===recordId&&record.lifecycle==='active';});
+  need(matches.length===1);
+  const revision=row(matches[0]).revision;
+  need(isExactDecimal(revision));const value=revision.toSafeInteger();need(value!==undefined&&Number.isSafeInteger(value)&&value>0);return value;
 }
 function closed(value:Row,keys:readonly string[]):void {need(Object.keys(value).length===keys.length&&Object.keys(value).every(k=>keys.includes(k)));}
 /** Local grammar validation only. These ephemeral ports expose supplied Blobs
@@ -511,8 +520,12 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
         // association owner registers pending returns those closed references
         // so the host can continue through a fresh retained-document importer.
         const references:NativeScanRetainedSceneReferences=Object.freeze({
-          primary:Object.freeze({evidenceId:primary.evidenceId,originalAssetId:primary.assetId,sha256:input.primary.sha256}),
-          historical:Object.freeze({evidenceId:historical.evidenceId,originalAssetId:historical.assetId,sha256:input.historical.sha256})});
+          primary:Object.freeze({evidenceId:primary.evidenceId,originalAssetId:primary.assetId,sha256:input.primary.sha256,
+            evidenceRevision:receiptRevision(primary.evidenceReceipt,'atlas.batch.execute','evidence',primary.evidenceId),
+            originalAssetRevision:receiptRevision(primary.assetReceipt,'atlas.asset.create','asset',primary.assetId)}),
+          historical:Object.freeze({evidenceId:historical.evidenceId,originalAssetId:historical.assetId,sha256:input.historical.sha256,
+            evidenceRevision:receiptRevision(historical.evidenceReceipt,'atlas.batch.execute','evidence',historical.evidenceId),
+            originalAssetRevision:receiptRevision(historical.assetReceipt,'atlas.asset.create','asset',historical.assetId)})});
         let fresh:NativeGeometryFrame;
         try{
           signal.throwIfAborted();need(getBinding()===owner);
@@ -545,9 +558,9 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
         need(value!==null&&typeof value==='object'&&!Array.isArray(value)
           &&Object.keys(value).every(key=>['evidenceId','originalAssetId','sha256','evidenceRevision','originalAssetRevision'].includes(key))
           &&UUID.test(value.evidenceId)&&UUID.test(value.originalAssetId)&&value.evidenceId!==value.originalAssetId
-          &&SHA.test(value.sha256)&&value.sha256===file.sha256);
-        if(value.evidenceRevision!==undefined)need(Number.isSafeInteger(value.evidenceRevision)&&value.evidenceRevision>0);
-        if(value.originalAssetRevision!==undefined)need(Number.isSafeInteger(value.originalAssetRevision)&&value.originalAssetRevision>0);
+          &&SHA.test(value.sha256)&&value.sha256===file.sha256
+          &&Number.isSafeInteger(value.evidenceRevision)&&value.evidenceRevision>0
+          &&Number.isSafeInteger(value.originalAssetRevision)&&value.originalAssetRevision>0);
         return Object.freeze({...value});
       };
       const references=Object.freeze({primary:copyReference(suppliedReferences.primary,input.primary),

@@ -51,8 +51,10 @@ uses its existing independent reviewed-place validation.
 
 For a source intake whose two documentary originals are already retained,
 `associateRetainedScene(input, references, signal)` accepts their exact current
-evidence IDs, original asset IDs and SHA-256 values; optional evidence and asset
-revisions pin a prior source-ledger observation. It opens the current
+evidence IDs, original asset IDs and SHA-256 values; required evidence and asset
+revisions pin the source-ledger observations. References returned after a
+new text import include the exact positive revisions selected from the validated
+asset and evidence receipts. It opens the current
 read-owned evidence originals, verifies their text bytes, sizes, licenses and
 requested revisions against the supplied files, then prepares the scene from
 those same retained IDs. It does not reserve or create assets/evidence, replace
@@ -76,6 +78,21 @@ to complete the scene without repeating text custody.
 There is no scene request to resolve on either known pre-dispatch path. Once
 pending registration succeeds, unknown and acknowledged-partial outcomes keep
 their existing GET-only reconciliation behavior.
+
+The filesystem adapter records this known outcome as a typed
+`scene-retained-documents` journal event. It pins the selected manifest digest,
+scope, building, geometry/source-floor mapping, both retained references, and
+the exact validated text asset/evidence receipt bodies. The `apply` command
+prints `geometry-saved-documents-retained-scene-not-dispatched` and exits
+without a scene completion record. Passive `inspect` reports
+`documents-retained-awaiting-explicit-association` and returns the continuation
+packet; it does not call a mutation. To continue deliberately, load the same
+manifest and source files, create a fresh scene importer under the current
+owner, and call `associateRetainedScene(selectedSceneInput, packet.references,
+signal)`. That existing owner rechecks current scope, geometry, document leases,
+and the previous scene head before its one scene request. Do not pass this
+packet to `reconcileRetainedScene` or infer retry safety from a missing scene
+receipt.
 
 The inspected generated-only fake-transport regression cases are:
 

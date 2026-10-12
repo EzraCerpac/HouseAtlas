@@ -106,6 +106,11 @@ Inspect the complete tool/runtime/transport/test bodies before this exact check:
 node --test --test-concurrency=1 tools/geometry/native-scan-import.test.mjs
 ```
 
+That named fake-transport suite includes the adapter regression
+`known scene non-dispatch durably exposes exact retained-document continuation
+without claiming completion`: it reopens the retained continuation from the
+journal and verifies passive inspection does not submit it.
+
 The native admission metadata check provisions only two disposable synthetic
 role/session fixtures before observing two in-process GETs. It checks separate
 Editor/Viewer native lists, unchanged generic Stock/MCP lists and unchanged

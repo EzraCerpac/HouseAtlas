@@ -276,6 +276,10 @@ try{
     await assert.rejects(client.associateRetainedScene(input,{...retainedReferences,primary:{...retainedReferences.primary,evidenceRevision:2}},budget),
       'A stale retained evidence revision refuses after its genuine read lease and before writes');
     assert.equal(calls.filter(c=>c.method==='POST').length,0);assert.equal(journal.length,0);assert.equal(client.isConsumed(),false);
+    const unversionedPrimary={...retainedReferences.primary};delete unversionedPrimary.originalAssetRevision;
+    await assert.rejects(client.associateRetainedScene(input,{...retainedReferences,primary:unversionedPrimary},budget),
+      'A retained reference without its validated asset revision is rejected at the runtime boundary');
+    assert.equal(calls.filter(c=>c.method==='POST').length,0);assert.equal(journal.length,0);assert.equal(client.isConsumed(),false);
     if(name==='retained-documents-before-dispatch'){
       const hookRefusal=await client.associateRetainedScene(input,retainedReferences,budget);
       assert.equal(hookRefusal.outcome,'not-dispatched','A rejected local hook reports no scene request');
@@ -432,9 +436,11 @@ try{
       assert.equal(outcome.outcome,'not-dispatched','Post-custody owner refresh is reported as a known non-dispatch');
       assert.equal(outcome.phase,'scene-association');assert.equal(client.isConsumed(),true,'Committed documentary custody remains claimed');
       assert.equal(client.isHeld(),true,'The original importer remains consumed while its docs need the returned continuation');
-      assert.deepEqual(outcome.references,{primary:{evidenceId:outcome.primary.evidenceId,originalAssetId:outcome.primary.assetId,sha256:input.primary.sha256},
-        historical:{evidenceId:outcome.historical.evidenceId,originalAssetId:outcome.historical.assetId,sha256:input.historical.sha256}},
-        'The typed result closes the existing source identities and original hashes');
+      assert.deepEqual(outcome.references,{primary:{evidenceId:outcome.primary.evidenceId,originalAssetId:outcome.primary.assetId,sha256:input.primary.sha256,
+          evidenceRevision:1,originalAssetRevision:1},
+        historical:{evidenceId:outcome.historical.evidenceId,originalAssetId:outcome.historical.assetId,sha256:input.historical.sha256,
+          evidenceRevision:1,originalAssetRevision:1}},
+        'The typed result closes source identities, original hashes and the validated receipt revisions');
       assert.equal(calls.filter(c=>c.method==='POST'&&c.path.endsWith('/assets')).length,2,'Both original text assets were committed once');
       assert.equal(calls.filter(c=>c.method==='POST'&&c.path.endsWith('/commands')).length,2,'Both text evidence custody batches were committed once');
       assert.equal(calls.filter(c=>c.method==='POST'&&c.path.endsWith('/commands')).length+calls.filter(c=>c.method==='POST'&&c.path.endsWith('/assets')).length,4);
