@@ -381,6 +381,7 @@ const drawings = { async open(id, signal) {
   subscribeInvalidation() { return () => {}; }, release(frame) { opened.delete(frame); }, dispose() {} };
 function App() {
   const [nativeProbe, setNativeProbe] = useState(false);
+  const [nativeOverlay, setNativeOverlay] = useState('spaces');
   const [roomId, setRoomId] = useState('room-alpha');
   const [region, setRegion] = useState(null);
   const [fixture, setFixture] = useState(null);
@@ -388,7 +389,7 @@ function App() {
   const [source, setSource] = useState(null);
   window.__mountNativeProbe = () => setNativeProbe(true);
   if (nativeProbe) return <main className="lantern-host" style={{height:600}}>
-    <NativeSceneLayers source={nativeSource} floors={[nativeFloor]} overlay="electrical" onOverlayChange={() => {}}
+    <NativeSceneLayers source={nativeSource} floors={[nativeFloor]} overlay={nativeOverlay} onOverlayChange={setNativeOverlay}
       drawings={drawings} evidenceIds={[pdfEvidenceId]} nativePlaceForRoom={() => []}
       currentSource={() => window.__sourceCurrent} />
   </main>;
@@ -557,6 +558,7 @@ createRoot(document.getElementById('root')).render(<App />);
     await until(() => evaluate(`Boolean(window.__mountNativeProbe)`), 'Synthetic native host probe ready');
     await evaluate('window.__mountNativeProbe()');
     await until(() => evaluate(`Boolean(document.querySelector('.source-room[role="button"]'))`), 'Synthetic native room selectable');
+    assert.equal(await evaluate(`document.querySelector('[aria-label="Rooms only"]')?.getAttribute('aria-pressed')`), 'true', 'Direct source action starts in the default room overlay');
     await click(`document.querySelector('.source-room[role="button"]')`);
     await until(() => evaluate(`Boolean(document.querySelector('.source-room-inspector') && ${selector('Open reference drawing')})`), 'Direct room PDF action ready');
     const directHit = await evaluate(`(()=>{const e=${selector('Open reference drawing')};e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();const top=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {target:e.outerHTML,top:top?.outerHTML.slice(0,250),same:top===e||e.contains(top)}})()`);
@@ -568,6 +570,10 @@ createRoot(document.getElementById('root')).render(<App />);
     await until(() => evaluate(`Boolean(${selector('Drawings & fixtures')})`), 'Room diagrams action ready');
     await click(selector('Drawings & fixtures'));
     await until(() => evaluate(`Boolean(document.querySelector('.native-fixture-details .ef-region-control select'))`), 'Native electrical details opened');
+    await evaluate(`(()=>{const select=document.querySelector('.native-fixture-details .ef-region-control select');
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'region-0');
+      select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await until(() => evaluate(`document.querySelector('.native-fixture-details .ef-region-control select').value==='region-0'`), 'Explicit native drawing region selected');
     await until(() => evaluate(`Boolean(${selector('Open reference drawing')})`), 'Native source action ready');
     const diagramHit = await evaluate(`(()=>{const e=document.querySelector('.native-fixture-details .ef-source-button');e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();const top=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {target:e.outerHTML,top:top?.outerHTML.slice(0,250),same:top===e||e.contains(top)}})()`);
     assert.equal(diagramHit.same, true, `Native diagram source action is obscured: ${JSON.stringify(diagramHit)}`);
@@ -583,7 +589,7 @@ createRoot(document.getElementById('root')).render(<App />);
     await until(() => evaluate(`Boolean(document.querySelector('.native-fixture-details [role="status"]')?.textContent.includes('no longer current'))`), 'Unavailable native source is explained');
     assert.equal(await evaluate(`Boolean(document.querySelector('.native-scene-drawing'))`), false, 'Stale source opens no dialog');
     results.push({ case: 'native-source-action-current-and-unavailable', status: 'passed',
-      checks: ['room node opens qualified PDF dialog', 'diagram sheet opens qualified PDF dialog', 'stale source shows status and no dialog'] });
+      checks: ['default room overlay opens qualified PDF dialog', 'diagram sheet opens qualified PDF dialog', 'stale source shows status and no dialog'] });
     assert.deepEqual(cdp.errors, [], 'No browser runtime exceptions');
     assert(cdp.requests.every(url => url.startsWith(origin + '/')), 'Every observed application request stays on owned loopback');
     report.applicationRequests = cdp.requests.map(url => new URL(url).pathname);

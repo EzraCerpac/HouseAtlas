@@ -173,7 +173,7 @@ export function NativeSceneLayers({ source, floors, overlay, onOverlayChange, dr
           {sourceActionFailure?.source === source && <p role="status">{sourceActionFailure.message}</p>}
           <p>Source diagrams remain historical and unregistered.</p>
         </section>}
-        {overlay === 'electrical' && drawing && <NativeSceneDrawing key={drawing.id} client={drawings}
+        {drawing && <NativeSceneDrawing key={drawing.id} client={drawings}
           sheet={drawing} evidenceIds={evidenceIds}
           reference={source.drawingReferences?.find(reference => reference.sheetId === drawing.id)} provenance={source.drawingProvenance}
           current={currentSource} onClose={() => setDrawing(null)} />}
