@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import { transformWithOxc } from 'vite';
 assert.equal(process.version,'v26.10.0');
 process.on('uncaughtException',error=>{const frames=[...(error.stack??'').matchAll(/data:text\/javascript;base64,([A-Za-z0-9+/=]+):(\d+):(\d+)/g)].slice(0,8).map(m=>({line:Number(m[2]),sourceLine:Buffer.from(m[1],'base64').toString().split('\n')[Number(m[2])-1]?.slice(0,300)}));console.error(JSON.stringify({case:process.argv[2],status:'FAILED',error:error.name,message:error.message.slice(0,500),frames}));process.exitCode=1;});
-const names=new Set(['committed','asset-unknown','evidence-unknown','association-unknown','floor-selection','literal-labels','scene-reuse','scene-replacement','stale-current-scene','changed-frame-current-scene','supplementary-unicode','compact-scene-head','viewer-inspect']);
+const names=new Set(['committed','asset-unknown','evidence-unknown','association-unknown','floor-selection','literal-labels','scene-reuse','scene-replacement','stale-current-scene','changed-frame-current-scene','supplementary-unicode','compact-scene-head','viewer-inspect','native-room-target','native-room-target-other','native-room-target-floor-direct','native-room-target-invalid','native-room-target-wrong-classification','native-room-target-duplicate-classification','native-room-target-wrong-scope','native-room-target-owner-withdrawal']);
 assert.equal(process.argv.length,3);const name=process.argv[2];assert(names.has(name),'Choose one registered case');
 const frontend=resolve(dirname(fileURLToPath(import.meta.url)),'..'),root=dirname(frontend);
 const require=createRequire(pathToFileURL(resolve(frontend,'package.json'))),loaded=new Map(),sourcePins={};
@@ -25,6 +25,7 @@ async function source(file){
     if(specifier.startsWith('.')){
       const raw=specifier.endsWith('?raw'),base=resolve(dirname(file),raw?specifier.slice(0,-4):specifier);
       if(raw){assert(base.startsWith(root+'/'));const bytes=readFileSync(base);sourcePins[base.slice(root.length+1)]=hash(bytes);replacement=data('export default '+JSON.stringify(bytes.toString())+';');}
+      else if(base.endsWith('.json')){assert(base.startsWith(root+'/'));const bytes=readFileSync(base);sourcePins[base.slice(root.length+1)]=hash(bytes);replacement=data('export default '+bytes.toString()+';');}
       else{const target=[base,base+'.ts',base+'.tsx',base+'.js'].find(existsSync);assert(target,'Resolve actual source '+specifier);replacement=await source(target);}
     }else replacement=pathToFileURL(require.resolve(specifier)).href;
     code=code.replaceAll(JSON.stringify(specifier),JSON.stringify(replacement));
@@ -106,8 +107,10 @@ const primary=supported?.primary??JSON.stringify({schema:'houseatlas.native-scen
   network:{status:'unavailable',reason:'not-retained',source:null,devices:null,endpoints:null,links:null},
   electricity:{status:'unavailable',reason:'not-retained',documentarySource:null,roomRegistry:null,buildingPackageKey:null,retrievedAt:null}});
 const textInput=(text,filename)=>({buildingId,file:new Blob([text],{type:'text/plain'}),filename,sha256:hash(text),byteSize:Buffer.byteLength(text),statement:'Reviewed generated documentary source',reason:'Generated-only agent intake check',sourceLicense:{status:'unknown',reference:null}});
+const nativeRoomTarget=mode.startsWith('native-room-target'),nativePlaceId=U(80);
+const selectedTargets=nativeRoomTarget?anchors[0].targets.map(t=>({...t,atlasPlaceId:nativePlaceId})):anchors[0].targets;
 const input={buildingId,primary:textInput(primary,'scene.txt'),historical:textInput(history,'review.txt'),sourceFloors:[{sourceFloorKey:'source-floor',sourceOriginalSha256:sourceSha,nativeGeometryId:geometryId}],
-  roomMappings:[{sourceRoomId:'synthetic-room',sourceFloorKey:'source-floor',sourceOriginalSha256:sourceSha,sourceAnchorIds:[anchors[0].id],targets:anchors[0].targets,unresolvedLabels:[]}],statement:supported?.statement??'Deliberately reviewed synthetic room association',reason:supported?.reason??'Generated scene save',confirmDrawingSupport:!!supported};
+  roomMappings:[{sourceRoomId:'synthetic-room',sourceFloorKey:'source-floor',sourceOriginalSha256:sourceSha,sourceAnchorIds:[anchors[0].id],targets:selectedTargets,unresolvedLabels:[]}],statement:supported?.statement??'Deliberately reviewed synthetic room association',reason:supported?.reason??'Generated scene save',confirmDrawingSupport:!!supported};
 const context={sessionIdentity:{},session:{schemaVersion:1,actorId:U(9),csrfToken:'synthetic-not-a-credential',expiresAt:new Date(Date.now()+120000).toISOString()},
   view:{scope,canEdit:true},admission:{scope,revision:'synthetic-admission',commandIds:['atlas.asset.create','atlas.evidence.create','atlas.identity.replace','atlas.batch.execute','atlas.scene-association.create']}};
 const listeners=new Set(),records=new Map(),blobs=new Map(),media=new Map(),calls=[],journal=[];let counter=100,current=null,savedScene=null,lastSceneRequest=null,currentUnavailableReason=null,geometryEpoch=0,headOverride=null,headHttpStatus=200,qualified409Responses=0;const headResponseBytes=[];
@@ -121,6 +124,9 @@ const assetPayload=(sha,bytes,type,purpose)=>({owner:'atlas',purpose,sha256:sha,
 set('asset',originalId,assetPayload('b'.repeat(64),1,'model/vnd.usdz+zip','geometry-original'));
 set('asset',derivativeId,assetPayload('c'.repeat(64),1,'application/vnd.houseatlas.magicplan-authored-mesh+json','derived-preview'));
 set('geometry',geometryId,{producer:'magicplan',producerVersion:null,exportFormat:'usdz',originalAssetId:originalId,importedAt:'2026-10-11T00:00:00Z',coordinateUnits:'unknown',scale:null,transform:null,geometryVersion:1,previousGeometryId:null,mappings:[],evidenceIds:[geomEvidenceId]});
+const topoIdentity=(id)=>({target:target('identity',id),revision:1,lifecycle:'active',payload:{kind:'location',evidenceIds:[geomEvidenceId]}});
+const topoSemantics=(id,semanticKind)=>({target:target('location-semantics',U(83+Number(id.slice(-2)))),revision:1,lifecycle:'active',payload:{atlasId:id,semanticKind,reviewStatus:'accepted',evidenceIds:[geomEvidenceId]}});
+const topoRelation={target:target('relation',U(85)),revision:1,lifecycle:'active',payload:{kind:'location-membership',membershipKind:'building',from:{kind:'atlas-record',ref:{recordType:'identity',recordId:buildingId}},to:{kind:'atlas-record',ref:{recordType:'identity',recordId:nativePlaceId}},reviewStatus:'accepted',uncertainty:{status:'unknown',explanation:null},evidenceIds:[geomEvidenceId]}};
 if(supported){set('identity',buildingId,{kind:'location',evidenceIds:[geomEvidenceId,U(20)]});
   set('evidence',U(20),{statement:'Generated reviewed PDF',provenance,supersedesEvidenceIds:[],references:[{kind:'atlas-asset',assetId:U(21)}]});
   set('asset',U(21),{...assetPayload(hash(supported.pdfBytes),supported.pdfBytes.length,'application/pdf','evidence-original'),evidenceIds:[U(20)]});
@@ -161,6 +167,24 @@ async function transport(url,init){
     current=savedScene;set('scene-association',current.recordId,current.payload);return json(result(request.commandId,request.requestId,[{target:request.target,revision:1,lifecycle:'active',payload:request.payload}],digest));
   }
   assert.equal(init.method,'GET');
+  if(path.endsWith('/invoke')){
+    const request=JSON.parse(new URL(url,'https://synthetic.invalid').searchParams.get('request'));
+    assert.equal(request.context.workspaceId,scope.workspaceId);assert.equal(request.context.homeId,scope.homeId);
+    assert.equal(request.payload.includeArchived,false);assert.equal(request.payload.pageSize,100);
+    const topIdentities=[topoIdentity(buildingId),topoIdentity(nativePlaceId)];
+    const topSemantics=[topoSemantics(buildingId,'building'),topoSemantics(nativePlaceId,mode==='native-room-target-wrong-classification'?'building':mode==='native-room-target-other'?'other':mode==='native-room-target-floor-direct'?'floor':'room')];
+    if(mode==='native-room-target-duplicate-classification')topSemantics.push({...topoSemantics(nativePlaceId,'room'),target:target('location-semantics',U(164))});
+    const records=request.commandId==='atlas.identity.list'
+      ?request.payload.buildingId===buildingId?mode==='native-room-target-invalid'||mode==='native-room-target-wrong-scope'?topIdentities.filter(r=>r.target.recordId===buildingId):topIdentities:topIdentities
+      :request.commandId==='atlas.location-semantics.list'?topSemantics
+      :request.commandId==='atlas.relation.list'&&!['native-room-target-invalid','native-room-target-wrong-scope'].includes(mode)?[topoRelation]:[];
+    if(mode==='native-room-target-floor-direct'&&request.commandId==='atlas.relation.list')topoRelation.payload.membershipKind='building';
+    assert(['atlas.identity.list','atlas.location-semantics.list','atlas.relation.list'].includes(request.commandId));
+    if(mode==='native-room-target-owner-withdrawal'&&!globalThis.__withdrawn){globalThis.__withdrawn=true;context.admission={...context.admission,revision:'synthetic-withdrawn'};setTimeout(()=>{for(const changed of [...listeners])changed();},25);}
+    const resolvedScope=mode==='native-room-target-wrong-scope'?{...scope,homeId:U(9998)}:scope;
+    return new Response(JSON.stringify({schemaVersion:3,commandId:request.commandId,requestId:request.requestId,resolvedScope,status:'read',replayed:false,
+      data:{records,nextCursor:null,sourceStatus:'current'}}),{headers:{'content-type':'application/json','x-atlas-snapshot-sha256':'d'.repeat(64)}});
+  }
   if(path.endsWith('/buildings/'+buildingId)){
     const nativeFloor={key:floorKey(),exportLabel:'Generated floor',originalSha256:'b'.repeat(64),derivativeSha256:'c'.repeat(64),geometryId,geometryRevision:records.get('geometry:'+geometryId).revision,evidenceId:geomEvidenceId,evidenceRevision:1,originalAssetId:originalId,originalRevision:1,derivativeAssetId:derivativeId,derivativeRevision:1,originalLicense:{status:'unknown',reference:null},derivativeLicense:{status:'unknown',reference:null}};
     const buildingPath=`/api/atlas/geometry/v1/workspaces/${scope.workspaceId}/homes/${scope.homeId}/buildings/${buildingId}`;
@@ -200,6 +224,8 @@ try{
   if(name==='floor-selection'){
     const pure={...input,sourceFloors:input.sourceFloors.map(({sourceFloorKey,sourceOriginalSha256})=>({sourceFloorKey,sourceOriginalSha256}))};
     assert.equal(await preflightNativeScanScene(pure,budget,scope),undefined,'Pure validation returns no synthetic native frame');
+    assert.equal(await preflightNativeScanScene({...pure,roomMappings:pure.roomMappings.map(m=>({...m,targets:m.targets.map(t=>({...t,atlasPlaceId:null}))}))},budget,scope),undefined,
+      'Explicit null remains compatible with the omitted native identity');
     assert.equal(calls.length,0,'Pure preflight has no HTTP or authentication');
     for(const field of ['rooms','network','electricity','electricalFixtures']){
       const malformed=JSON.parse(primary);if(field==='electricalFixtures'){malformed.schema='houseatlas.native-scene-source.v2';malformed.electricalFixtures={status:'available',reason:null,documentaryFixtures:{unexpected:true}};}
@@ -212,6 +238,11 @@ try{
     for(const mapping of [{...input.roomMappings[0],targets:[...input.roomMappings[0].targets,{packagePlaceKey:'foreign-room',packagePlaceUuid:U(99)}]},
       {...input.roomMappings[0],targets:[]},{...input.roomMappings[0],unresolvedLabels:['invented unresolved label']}]){
       await assert.rejects(preflightNativeScanScene({...pure,roomMappings:[mapping]},budget,scope));assert.equal(calls.length,0,'Exact target/unresolved unions refuse before HTTP');}
+    await assert.rejects(preflightNativeScanScene({...pure,roomMappings:[{...pure.roomMappings[0],targets:pure.roomMappings[0].targets.map(t=>({...t,atlasPlaceId:'not-a-uuid'}))}]},budget,scope),'Malformed Atlas identity is refused before reads');
+    await assert.rejects(preflightNativeScanScene({...pure,roomMappings:[{...pure.roomMappings[0],targets:[
+      {...pure.roomMappings[0].targets[0],atlasPlaceId:U(81)},
+      {...pure.roomMappings[0].targets[0],packagePlaceKey:'duplicate-package-key',atlasPlaceId:U(81)}]}]},budget,scope),'Duplicate Atlas identity is refused before reads');
+    assert.equal(calls.length,0,'Malformed and duplicate target examples make no transport calls');
     const joinedAnchors=[{...anchors[0],unresolvedLabels:['Reviewed first span']},{...anchors[0],id:'synthetic-second-anchor',unresolvedLabels:['Reviewed second span']}];
     const joinedPrimary=JSON.parse(primary);joinedPrimary.receiptCanonicalJson=canonical({profile:'houseatlas.native-scene-room-review.v1',receiptId:'synthetic-room-review',sourceReceiptSha256:historySha,anchors:joinedAnchors});
     joinedPrimary.rooms.receiptSha256=hash(joinedPrimary.receiptCanonicalJson);joinedPrimary.rooms.entries[0].sourceAnchorIds=joinedAnchors.map(a=>a.id);
@@ -239,8 +270,27 @@ try{
       assert.equal(journal.length,journalBeforeRace,'Changed owner never claims custody');assert.equal(raced.isConsumed(),false);
     }finally{raced.dispose();}
     outcome={outcome:'refused-before-writes'};
+  }else if(['native-room-target-invalid','native-room-target-wrong-classification','native-room-target-duplicate-classification',
+    'native-room-target-wrong-scope','native-room-target-owner-withdrawal'].includes(name)){
+    await assert.rejects(client.importScene(input,budget),'An invalid, ambiguous, stale-scope, or withdrawn native target refuses before documentary custody');
+    assert.equal(calls.filter(c=>c.method==='POST').length,0);assert.equal(journal.length,0);assert.equal(client.isConsumed(),false);
+    assert(calls.some(c=>c.path.endsWith('/invoke')),'The real bounded topology list owner was exercised');
+    outcome={outcome:'refused-before-custody'};
   }else{
     outcome=await client.importScene(input,budget);
+    if(name==='native-room-target'||name==='native-room-target-other'||name==='native-room-target-floor-direct'){
+      assert.equal(outcome.outcome,'committed');
+      assert.equal(outcome.current.payload.roomMappings[0].targets[0].atlasPlaceId,nativePlaceId,
+        'Explicit Atlas identity survives preflight, prepare and submit');
+      const posts=calls.filter(c=>c.method==='POST').length,fresh=createNativeScanSceneImporter(options);
+      try{
+        const exact=await fresh.inspectCurrentScene(input,budget,{recordId:outcome.current.recordId,payload:outcome.current.payload});
+        assert.equal(exact.recordId,outcome.current.recordId,'Exact current selection reuses the same native target');
+        const changed={...input,roomMappings:input.roomMappings.map(m=>({...m,targets:m.targets.map(t=>({...t,atlasPlaceId:U(81)}))}))};
+        assert.equal(await fresh.inspectCurrentScene(changed,budget),null,'A different native identity cannot reuse the prepared selection');
+      }finally{fresh.dispose();}
+      assert.equal(calls.filter(c=>c.method==='POST').length,posts,'Native target comparison stays GET-only');
+    }
     if(['asset-journal-incomplete','evidence-not-dispatched','evidence-journal-incomplete'].includes(mode)){
       const posts=mode==='evidence-journal-incomplete'?2:1;
       assert.equal(outcome.outcome,'partial');assert.equal(calls.filter(c=>c.method==='POST').length,posts);assert(client.isHeld());
@@ -257,8 +307,10 @@ try{
       await assert.rejects(client.importScene(input,budget));assert.equal(calls.filter(c=>c.method==='POST').length,5);
       outcome=await client.reconcileScene(budget);assert.equal(outcome.outcome,'committed');assert.equal(client.isHeld(),false);
       assert.equal(calls.filter(c=>c.method==='POST').length,5,'Acknowledged partial reconciles through fresh GET, never resolve/resend');
-    }else if(name==='committed'||name==='scene-reuse'||name==='scene-replacement'||name==='stale-current-scene'||name==='changed-frame-current-scene'||name==='supplementary-unicode'||name==='compact-scene-head'||name==='viewer-inspect'){
+  }else if(name==='committed'||name==='scene-reuse'||name==='scene-replacement'||name==='stale-current-scene'||name==='changed-frame-current-scene'||name==='supplementary-unicode'||name==='compact-scene-head'||name==='viewer-inspect'||name==='native-room-target'||name==='native-room-target-other'||name==='native-room-target-floor-direct'){
       assert.equal(outcome.outcome,'committed');assert.equal(calls.filter(c=>c.method==='POST').length,5);
+      if(name==='committed')assert.equal(outcome.current.payload.roomMappings[0].targets[0].atlasPlaceId,null,
+        'Omitting the optional target preserves the existing native null value');
       assert.equal(outcome.current.selection.sceneEvidenceId,outcome.primary.evidenceId);assert.equal(identity().revision,3);
       assert.deepEqual(identity().payload.evidenceIds,[geomEvidenceId,...(supported?[U(20)]:[]),outcome.primary.evidenceId,outcome.historical.evidenceId]);
       assert.equal(outcome.current.selection.sourceFloorBindings[0].nativeFloorKey,floorKey());assert.equal(client.isHeld(),false);

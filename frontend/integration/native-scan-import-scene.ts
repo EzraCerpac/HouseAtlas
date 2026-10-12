@@ -4,6 +4,7 @@ import { createNativeGeometryReadClient } from './native-geometry-read-client';
 import { createNativeEvidenceDocumentClient } from './native-evidence-document-client';
 import { createNativeSceneAssociationClient, type SceneAssociationPrepared, type SceneAssociationCurrent, type SceneAssociationRead } from './native-scene-association-client';
 import { createNativeSceneSourceClient } from './native-scene-source-client';
+import { createNativeSceneReviewedPlaceReader } from './native-scene-reviewed-places';
 import { readDocumentarySupport, documentaryReferences } from './native-scene-documentary-support';
 import type { NativeDocumentBinding } from '../src/lantern/scans/native-document-types';
 import type { NativeEvidenceDocumentClient, NativeEvidenceDocumentFrame } from '../src/lantern/scans/native-evidence-document-types';
@@ -22,7 +23,7 @@ export interface NativeScanSceneFloorSelection {
 export interface NativeScanSceneRoomMapping {
   readonly sourceRoomId:string; readonly sourceFloorKey:string; readonly sourceOriginalSha256:string;
   readonly sourceAnchorIds:readonly string[];
-  readonly targets:readonly {readonly packagePlaceKey:string;readonly packagePlaceUuid:string}[];
+  readonly targets:readonly {readonly packagePlaceKey:string;readonly packagePlaceUuid:string;readonly atlasPlaceId?:string|null}[];
   readonly unresolvedLabels:readonly string[];
 }
 export interface NativeScanSceneInput {
@@ -130,14 +131,25 @@ export async function preflightNativeScanScene(input:NativeScanScenePreflightInp
     for(const field of ['network','electricity','electricalFixtures'] as const){const requested=stored[field];
       if(requested!==undefined)need(frame[field].status===row(requested).status);}
     const rooms=frame.rooms.data.rooms;need(rooms.length===input.roomMappings.length);
-    const seen=new Set<string>();
+    const seen=new Set<string>(),nativeTargetIds=new Set<string>();
     for(const m of input.roomMappings as readonly NativeScanSceneRoomMapping[]){closed(m as unknown as Row,['sourceRoomId','sourceFloorKey','sourceOriginalSha256','sourceAnchorIds','targets','unresolvedLabels']);
       need(!seen.has(m.sourceRoomId));seen.add(m.sourceRoomId);const entry=rooms.find(r=>r.id===m.sourceRoomId);need(entry);
       const floor=input.sourceFloors.find(f=>f.sourceFloorKey===m.sourceFloorKey);need(floor&&floor.sourceOriginalSha256===m.sourceOriginalSha256
         &&entry.floorKey===selection.sourceFloorBindings.find(f=>f.sourceFloorKey===m.sourceFloorKey)?.nativeFloorKey
         &&canonical(parseLosslessJson(stringifyLosslessJson(m.sourceAnchorIds)))===canonical(parseLosslessJson(stringifyLosslessJson(entry.sourceAnchorIds))));
-      const reviewed=frame.roomSelections.find(r=>r.roomId===m.sourceRoomId)?.selection;need(reviewed&&Array.isArray(m.targets)&&Array.isArray(m.unresolvedLabels));
-      const targets=m.targets.map(t=>canonical(parseLosslessJson(stringifyLosslessJson(t)))).sort(),expectedTargets=reviewed.targets.map(t=>canonical(parseLosslessJson(stringifyLosslessJson(t)))).sort();
+      const reviewed=frame.roomSelections.find(r=>r.roomId===m.sourceRoomId)?.selection;need(reviewed&&Array.isArray(m.targets)&&m.targets.length>0&&m.targets.length<=16&&Array.isArray(m.unresolvedLabels));
+      const packageTargets=m.targets.map(t=>{
+        const target=row(parseLosslessJson(stringifyLosslessJson(t)));
+        need(Object.keys(target).every(k=>['packagePlaceKey','packagePlaceUuid','atlasPlaceId'].includes(k))
+          &&typeof target.packagePlaceKey==='string'&&target.packagePlaceKey.length>0&&target.packagePlaceKey.length<=256
+          &&typeof target.packagePlaceUuid==='string'&&UUID.test(target.packagePlaceUuid));
+        if(Object.hasOwn(target,'atlasPlaceId')){
+          need(target.atlasPlaceId===null||typeof target.atlasPlaceId==='string'&&UUID.test(target.atlasPlaceId));
+          if(typeof target.atlasPlaceId==='string'){need(!nativeTargetIds.has(target.atlasPlaceId));nativeTargetIds.add(target.atlasPlaceId);}
+        }
+        return {packagePlaceKey:target.packagePlaceKey,packagePlaceUuid:target.packagePlaceUuid};
+      });
+      const targets=packageTargets.map(t=>canonical(parseLosslessJson(stringifyLosslessJson(t)))).sort(),expectedTargets=reviewed.targets.map(t=>canonical(parseLosslessJson(stringifyLosslessJson(t)))).sort();
       need(targets.length===new Set(targets).size&&canonical(targets)===canonical(expectedTargets)
         &&m.unresolvedLabels.every(label=>typeof label==='string')&&m.unresolvedLabels.length===new Set(m.unresolvedLabels).size
         &&canonical([...m.unresolvedLabels].sort())===canonical([...reviewed.unresolvedLabels].sort()));}
@@ -148,7 +160,7 @@ export async function preflightNativeScanScene(input:NativeScanScenePreflightInp
       {role:'documentary-sheet',evidenceId:id(12),evidenceRevision:max,originalAssetId:id(13),originalAssetRevision:max,originalSha256:input.historical.sha256,contentType:'text/plain'}];
     const payload={profile:'houseatlas.native-scene-association.v1',buildingId:input.buildingId,associationVersion:max,previousAssociationId:id(700),reviewStatus:'accepted',
       reviewStatement:input.statement+(support?.reviewMarker??''),sourceDocuments,acceptedReceipt:{receiptId:receipt.receiptId,canonicalJson:stored.receiptCanonicalJson,canonicalSha256:receiptSha,anchors:receipt.anchors},
-      sourceFloors:selection.sourceFloorBindings.map(f=>({...f,nativeGeometryRevision:max})),roomMappings:input.roomMappings.map(m=>({...m,targets:m.targets.map((t:NativeScanSceneRoomMapping['targets'][number])=>({...t,atlasPlaceId:null})),evidenceIds:[id(10),id(12)]}))};
+      sourceFloors:selection.sourceFloorBindings.map(f=>({...f,nativeGeometryRevision:max})),roomMappings:input.roomMappings.map(m=>({...m,targets:m.targets.map((t:NativeScanSceneRoomMapping['targets'][number])=>({...t,atlasPlaceId:t.atlasPlaceId??null})),evidenceIds:[id(10),id(12)]}))};
     // Worst-width revisions and the complete prospective guard set (including
     // a possible prior head) reserve the existing scene request capacity before custody.
     const guardIds=[{kind:'identity',id:input.buildingId},{kind:'evidence',id:id(10)},{kind:'asset',id:id(11)},
@@ -186,6 +198,7 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
     createDrawingReview:document,geometryCurrent:geometry.isCurrent,transport:options.transport});
   const source=createNativeSceneSourceClient({documents:sourceDocuments,createDrawingReview:document,geometry,
     getSelection:()=>selection,subscribeSelection:fn=>{selectionListeners.add(fn);return()=>{selectionListeners.delete(fn);};}});
+  const reviewedPlaces=createNativeSceneReviewedPlaceReader({getContext:options.getContext,subscribe:options.subscribe,transport:options.transport});
   let retained:{prepared:SceneAssociationPrepared;input:NativeScanSceneInput;primary:Extract<NativeScanTextResult,{outcome:'committed'}>;
     historical:Extract<NativeScanTextResult,{outcome:'committed'}>;acknowledged?:SceneAssociationCurrent}|null=null;
   const checkFloors=(input:NativeScanSceneInput,frame:NativeGeometryFrame)=>{
@@ -290,7 +303,8 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
       const input:NativeScanSceneInput=Object.freeze({...supplied,primary:Object.freeze({...supplied.primary,sourceLicense:Object.freeze({...supplied.primary.sourceLicense})}),
         historical:Object.freeze({...supplied.historical,sourceLicense:Object.freeze({...supplied.historical.sourceLicense})}),
         sourceFloors:Object.freeze(supplied.sourceFloors.map(f=>Object.freeze({...f}))),
-        roomMappings:parseLosslessJson(mappingText) as unknown as NativeScanSceneRoomMapping[]});
+        roomMappings:(parseLosslessJson(mappingText) as unknown as NativeScanSceneRoomMapping[]).map(m=>({...m,
+          targets:m.targets.map(t=>({...t,atlasPlaceId:t.atlasPlaceId??null}))}))});
       const expectedId=expected?.recordId,expectedText=expected?stringifyLosslessJson(expected.payload):null;
       if(expected)need(UUID.test(expectedId!)&&new TextEncoder().encode(expectedText!).length<=1024*1024);
       const expectedPayload=expectedText===null?null:parseLosslessJson(expectedText);
@@ -320,7 +334,7 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
         if(primary.originalSha256!==input.primary.sha256||historical.originalSha256!==input.historical.sha256
           ||canonical(p.sourceFloors!)!==canonical(parseLosslessJson(stringifyLosslessJson(selectedFloors)))
           ||row(p.acceptedReceipt).canonicalJson!==stored.receiptCanonicalJson)return null;
-        const mappings=(input.roomMappings as readonly NativeScanSceneRoomMapping[]).map(m=>({...m,targets:m.targets.map(t=>({...t,atlasPlaceId:null})),evidenceIds:[primary.evidenceId!,historical.evidenceId!]}));
+        const mappings=(input.roomMappings as readonly NativeScanSceneRoomMapping[]).map(m=>({...m,targets:m.targets.map(t=>({...t,atlasPlaceId:t.atlasPlaceId??null})),evidenceIds:[primary.evidenceId!,historical.evidenceId!]}));
         if(canonical(p.roomMappings!)!==canonical(parseLosslessJson(stringifyLosslessJson(mappings))))return null;
         const support=await readDocumentarySupport(new TextEncoder().encode(hText),()=>signal.throwIfAborted());
         if(p.reviewStatement!==input.statement+(support?.reviewMarker??''))return null;
@@ -371,6 +385,10 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
         need(previous&&previous.buildingId===input.buildingId&&previous.owner===owner&&getBinding()===owner);
         await associations.validatePrevious(previous.token,first,signal);
         signal.throwIfAborted();need(getBinding()===owner);
+        const nativeTargetIds=[...new Set(input.roomMappings.flatMap(m=>m.targets
+          .map(t=>t.atlasPlaceId).filter((id):id is string=>typeof id==='string')))];
+        await reviewedPlaces.validate(input.buildingId,nativeTargetIds,signal,()=>getBinding()===owner&&geometry.isCurrent(first));
+        signal.throwIfAborted();need(getBinding()===owner&&geometry.isCurrent(first));
         await texts.reserveTexts([input.primary,input.historical],signal);
         signal.throwIfAborted();need(getBinding()===owner&&geometry.isCurrent(first));
         await checkCapturedCurrentHead(first,signal);
@@ -385,7 +403,7 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
         // Identity append changes descriptor/view keys. Never reuse first keys.
         const fresh=await geometry.loadBuilding(input.buildingId,signal),sourceFloors=checkFloors(input,fresh);
         prepared=await associations.prepare({buildingId:input.buildingId,primaryEvidenceId:primary.evidenceId,historicalEvidenceId:historical.evidenceId,
-          sourceFloors,roomMappings:input.roomMappings.map(mapping=>({...mapping,targets:mapping.targets.map(target=>({...target,atlasPlaceId:null})),evidenceIds:[primary.evidenceId,historical.evidenceId]})),guards:await guards(input,fresh,primary,historical,signal)},fresh,input.statement,input.reason,signal,previous.token);
+          sourceFloors,roomMappings:input.roomMappings.map(mapping=>({...mapping,targets:mapping.targets.map(target=>({...target,atlasPlaceId:target.atlasPlaceId??null})),evidenceIds:[primary.evidenceId,historical.evidenceId]})),guards:await guards(input,fresh,primary,historical,signal)},fresh,input.statement,input.reason,signal,previous.token);
         need(new TextEncoder().encode(prepared.body).length<=1024*1024&&(!prepared.drawingReview||input.confirmDrawingSupport===true));
         retained={prepared,input,primary,historical};
         await nativeScanImportWait(options.beforeDispatch('scene-association',{requestId:prepared.requestId,body:prepared.body}),signal);
@@ -423,7 +441,7 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
     },
     isHeld:()=>claimed&&!completed,
     isConsumed:()=>claimed,
-    dispose(){if(disposed)return;disposed=true;selection=null;notify();if(retained)associations.releasePrepared(retained.prepared);
+    dispose(){if(disposed)return;disposed=true;selection=null;notify();reviewedPlaces.dispose();if(retained)associations.releasePrepared(retained.prepared);
       previous=null;source.dispose();associations.dispose();primaryReview.dispose();historicalReview.dispose();sourceDocuments.dispose();geometry.dispose();texts.dispose();binding=null;},
   };
 }

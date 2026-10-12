@@ -1,0 +1,50 @@
+# Native targets for reviewed scan rooms
+
+`roomMappings[].targets[]` retains the package room key and UUID and may also
+carry `atlasPlaceId`, a native Atlas identity UUID. The Atlas identity is an
+explicit owner selection; it is never inferred from or substituted with the
+package UUID. Omitting the field remains equivalent to `null`, so existing
+frozen selections and saved associations keep their prior meaning. When
+provided, the exact Atlas identity is preserved through preparation, submit,
+readback and exact-current reuse comparison.
+
+Before the documentary text owner reserves either source, the importer resolves
+all distinct non-null Atlas targets with the existing bounded Stock
+`TopologyClient` read owner. It reads the selected building's active identity
+members, active location semantics and active relations. All pages must be
+current, scope-resolved to the selected workspace and home, and tied to the
+same snapshot digest. The selected building must be an active location with one
+accepted `building` classification. Each target must be an active location
+with exactly one accepted classification, may not itself be classified as a
+building, and must satisfy the existing reviewed scene place membership rule:
+an accepted direct building membership, or an accepted level membership to
+an accepted floor whose accepted building membership is the selected building.
+Direct member floors remain valid. Other accepted native classifications,
+including `other` circulation places, retain their Atlas classification; the
+documentary package's use of the word “room” does not rewrite native semantics.
+Ambiguous membership parents, unreviewed targets, unavailable pages, scope
+mismatch, or owner withdrawal refuse before text custody.
+
+The check uses existing GET-only authenticated reads and grants. It does not
+create topology, alter labels, project source-room text into Atlas, or change the
+backend's reviewed-scene association contract. A later association write still
+uses its existing independent reviewed-place validation.
+
+The inspected generated-only fake-transport regression cases are:
+
+```sh
+node frontend/lantern-tests/native-scan-import-scene.mjs committed
+node frontend/lantern-tests/native-scan-import-scene.mjs floor-selection
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-other
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-floor-direct
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-invalid
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-wrong-classification
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-duplicate-classification
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-wrong-scope
+node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-owner-withdrawal
+```
+
+These cases use generated identities and a local fake transport only. They do
+not exercise live providers, credentials, databases, imports, real concurrency,
+crash recovery or household data.
