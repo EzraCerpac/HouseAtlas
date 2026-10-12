@@ -194,7 +194,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
             <button type="button" className="chip-btn" onClick={() => setZoom(1)}>Reset zoom</button>
           </div>
         </div>
-        <iframe className="native-scene-pdf" title={`${sheet.title}, reference PDF`} tabIndex={-1} referrerPolicy="no-referrer"
+        <iframe key={`${shown.generation}:${pdfPage}:${zoom}`} className="native-scene-pdf" title={`${sheet.title}, reference PDF`} tabIndex={-1} referrerPolicy="no-referrer"
           src={`${shown.url}#page=${pdfPage}&zoom=${Math.round(zoom * 100)}`} />
         <a href={shown.url} download={`atlas-original-${shown.frame.asset.assetId}.pdf`} onClick={event => {
           if (!currentRef.current() || !client.isCurrent(shown.frame)

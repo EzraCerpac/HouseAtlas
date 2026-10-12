@@ -9,9 +9,10 @@ import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, readdirSync, rmSyn
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { inflateSync } from 'node:zlib';
 import { build } from 'vite';
 
-const names = new Set(['pdf-download', 'png-legacy', 'missing-correlation', 'stale-correlation', 'wrong-correlation', 'lifecycle']);
+const names = new Set(['pdf-download', 'pdf-navigation', 'png-legacy', 'missing-correlation', 'stale-correlation', 'wrong-correlation', 'lifecycle']);
 assert.equal(process.argv.length, 3); const name = process.argv[2]; assert(names.has(name), 'Select one registered named case');
 assert.equal(process.version, 'v26.10.0');
 const browserPath = process.env.HOUSEATLAS_CHROMIUM;
@@ -22,8 +23,69 @@ const root = resolve(fileURLToPath(new URL('../../', import.meta.url))), fronten
 assert(evidence !== root && !evidence.startsWith(root + '/'));
 mkdirSync(evidence, { recursive: true, mode: 0o700 });
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+function screenshotSignature(image) {
+  let width=0,height=0,bitDepth=0,colorType=0;const chunks=[];
+  for(let offset=8;offset<image.length;){
+    const length=image.readUInt32BE(offset),type=image.toString('ascii',offset+4,offset+8),data=image.subarray(offset+8,offset+8+length);
+    if(type==='IHDR'){width=data.readUInt32BE(0);height=data.readUInt32BE(4);bitDepth=data[8];colorType=data[9];}
+    if(type==='IDAT')chunks.push(data);offset+=12+length;if(type==='IEND')break;
+  }
+  assert.equal(bitDepth,8,'Expected 8-bit Chrome screenshot PNG');
+  assert([2,6].includes(colorType),'Expected RGB or RGBA Chrome screenshot PNG');
+  const bytesPerPixel=colorType===6?4:3,raw=inflateSync(Buffer.concat(chunks)),rowBytes=width*bytesPerPixel,grid=32;
+  const previous=Buffer.alloc(rowBytes),samples=new Float64Array(grid*grid*3),counts=new Uint32Array(grid*grid);let cursor=0;
+  const paeth=(a,b,c)=>{const p=a+b-c,pa=Math.abs(p-a),pb=Math.abs(p-b),pc=Math.abs(p-c);return pa<=pb&&pa<=pc?a:pb<=pc?b:c;};
+  for(let y=0;y<height;y++){
+    const filter=raw[cursor++],row=Buffer.from(raw.subarray(cursor,cursor+rowBytes));cursor+=rowBytes;
+    for(let i=0;i<rowBytes;i++){
+      const left=i>=bytesPerPixel?row[i-bytesPerPixel]:0,above=previous[i],upperLeft=i>=bytesPerPixel?previous[i-bytesPerPixel]:0;
+      const predictor=filter===0?0:filter===1?left:filter===2?above:filter===3?Math.floor((left+above)/2):filter===4?paeth(left,above,upperLeft):NaN;
+      assert(Number.isFinite(predictor),'Unsupported PNG row filter');row[i]=(row[i]+predictor)&255;
+    }
+    for(let x=0;x<width;x++){
+      const pixel=x*bytesPerPixel,alpha=colorType===6?row[pixel+3]:255;
+      const cell=Math.min(grid-1,Math.floor(y*grid/height))*grid+Math.min(grid-1,Math.floor(x*grid/width));
+      for(let channel=0;channel<3;channel++)samples[cell*3+channel]+=row[pixel+channel]*alpha/255;
+      counts[cell]++;
+    }
+    row.copy(previous);
+  }
+  return Buffer.from(samples.map((value,index)=>Math.round(value/counts[Math.floor(index/3)])));
+}
+const signatureDistance=(a,b)=>{
+  let sum=0,changed=0;
+  for(let i=0;i<a.length;i++){const delta=Math.abs(a[i]-b[i]);sum+=delta;if(delta>=2)changed++;}
+  return {mean:sum/a.length,changed};
+};
 const png = readFileSync(join(frontend, 'capture-evidence-tests/fixtures/synthetic-image.png'));
-const pdf = readFileSync(join(frontend, 'capture-evidence-tests/fixtures/synthetic-document.pdf'));
+function makeSyntheticNavigationPdf(pageCount) {
+  const objects = new Map();
+  const pageIds = Array.from({ length: pageCount }, (_, index) => 3 + index * 2);
+  const fontId = 3 + pageCount * 2;
+  objects.set(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  objects.set(2, '<< /Type /Pages /Kids [' + pageIds.map(id => id + ' 0 R').join(' ') + '] /Count ' + pageCount + ' >>');
+  for (let index = 0; index < pageCount; index++) {
+    const pageId = pageIds[index], contentId = pageId + 1;
+    const red=(0.65+((index*37)%30)/100).toFixed(2),green=(0.65+((index*53)%30)/100).toFixed(2),blue=(0.65+((index*29)%30)/100).toFixed(2);
+    const content = 'q '+red+' '+green+' '+blue+' rg 20 20 320 260 re f Q\nBT /F1 28 Tf 40 240 Td (SYNTHETIC PAGE ' + (index + 1) + ') Tj ET\n';
+    objects.set(pageId, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 360 300] /Resources << /Font << /F1 ' + fontId + ' 0 R >> >> /Contents ' + contentId + ' 0 R >>');
+    objects.set(contentId, '<< /Length ' + Buffer.byteLength(content, 'ascii') + ' >>\nstream\n' + content + 'endstream');
+  }
+  objects.set(fontId, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  let document = '%PDF-1.4\n%HouseAtlas synthetic navigation fixture\n';
+  const offsets = [0];
+  for (let id = 1; id <= fontId; id++) {
+    offsets[id] = Buffer.byteLength(document, 'ascii');
+    document += id + ' 0 obj\n' + objects.get(id) + '\nendobj\n';
+  }
+  const xref = Buffer.byteLength(document, 'ascii');
+  document += 'xref\n0 ' + (fontId + 1) + '\n0000000000 65535 f \n';
+  for (let id = 1; id <= fontId; id++) document += String(offsets[id]).padStart(10, '0') + ' 00000 n \n';
+  document += 'trailer\n<< /Size ' + (fontId + 1) + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
+  return Buffer.from(document, 'ascii');
+}
+const pdf = name === 'pdf-navigation' ? makeSyntheticNavigationPdf(18)
+  : readFileSync(join(frontend, 'capture-evidence-tests/fixtures/synthetic-document.pdf'));
 const input = { name, png: png.toString('base64'), pdf: pdf.toString('base64'), pngSha: hash(png), pdfSha: hash(pdf) };
 const production = ['frontend/integration/native-scene-association-client.ts','frontend/integration/native-scene-documentary-support.ts','frontend/integration/main.tsx','frontend/src/lantern/scans/native-ui/NativeSceneAssociation.tsx','frontend/integration/native-scene-source-client.ts', 'frontend/src/lantern/scans/native-scene-source-types.ts',
   'frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx', 'frontend/src/lantern/scans/native-ui/NativeSceneLayers.tsx'];
@@ -286,7 +348,7 @@ try {
     await evaluate('window.__stats.constructor.unknownPreserved=true');
     report.preparation={actualConstructor:true,unreviewedMarkerWithheld:true,unconfirmedNoPost:true,exactSummaryVisible:true,explicitCheckbox:true,confirmedFakePosts:1,unknownPreserved:true};
   }
-  const wantProjection=['pdf-download','wrong-correlation','lifecycle'].includes(name)?1:0;
+  const wantProjection=['pdf-download','pdf-navigation','wrong-correlation','lifecycle'].includes(name)?1:0;
   assert.equal(await evaluate('window.__stats.projected'),wantProjection);
   const widths=[1280,768,312];
   for(const width of widths){
@@ -303,6 +365,53 @@ try {
       await until(()=>evaluate('Boolean(document.querySelector(".native-scene-drawing iframe.native-scene-pdf") && document.querySelector(".native-scene-drawing a[download]"))'),'correlated in-app PDF viewer and download action');
       assert.equal(await evaluate('Boolean(document.querySelector(".native-scene-drawing img, embed, object"))'),false);
       assert.match(await evaluate('document.querySelector(".native-scene-drawing iframe").getAttribute("src")'),/^blob:.*#page=12&zoom=100$/);
+      if(name==='pdf-navigation'){
+        const chromePdfViewer='chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/index.html';
+        await until(()=>cdp.requests.includes(chromePdfViewer),'Chrome built-in PDF reader request');
+        const screenshot=async()=>{
+          // Exclude the continuously scrolling thumbnail rail and sample the
+          // visible page canvas where the synthetic page label is rendered.
+          const box=await evaluate('(()=>{const r=document.querySelector(".native-scene-pdf").getBoundingClientRect();return{x:r.x+Math.max(20,r.width*.4),y:r.y+70,width:Math.max(1,r.width*.55),height:Math.max(1,r.height*.45)}})()');
+          return Buffer.from((await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:true,clip:{...box,scale:1}})).data,'base64');
+        };
+        const stableScreenshot=async(label)=>{
+          const deadline=performance.now()+15000;let previous=null,count=0;
+          while(performance.now()<deadline){
+            const signature=screenshotSignature(await screenshot());
+            const distance=previous?signatureDistance(previous,signature):null;
+            // PDF rasterization and anti-aliasing can vary slightly between
+            // captures. Compare downsampled RGB samples with a bounded tolerance.
+            count=distance&&distance.mean<=0.5?count+1:1;
+            if(count===3)return signature;
+            previous=signature;await wait(250);
+          }
+          throw Error('Chrome embedded PDF page did not stabilize for '+label);
+        };
+        let before=await stableScreenshot('referenced page 12');
+        for(let page=13;page<=18;page++){
+          await evaluate('window.__priorPdfFrame=document.querySelector(".native-scene-pdf");document.querySelectorAll(".native-scene-pdf-page button")[1].click()');
+          await until(()=>evaluate('document.querySelector(".native-scene-pdf")?.getAttribute("src").includes("#page='+page+'&zoom=100")'),'page '+page+' requested');
+          assert.equal(await evaluate('document.querySelector(".native-scene-pdf")===window.__priorPdfFrame'),false,'Each navigation recreates the embedded browser PDF reader');
+          const after=await stableScreenshot('synthetic page '+page);
+          const distance=signatureDistance(before,after);
+          assert(distance.mean>0.5&&distance.changed>=2,'Stable Chrome embedded PDF page content changes for synthetic page '+page);
+          report.results.push({width,renderedSyntheticPage:page,iframeRecreated:true,frameScreenshotSignatureSha256:hash(after)});
+          before=after;
+        }
+        await evaluate('window.__priorPdfFrame=document.querySelector(".native-scene-pdf");document.querySelectorAll(".native-scene-pdf-zoom button")[1].click()');
+        await until(()=>evaluate('document.querySelector(".native-scene-pdf")?.getAttribute("src").includes("#page=18&zoom=200")'),'zoom request applied');
+        assert.equal(await evaluate('document.querySelector(".native-scene-pdf")===window.__priorPdfFrame'),false,'Zoom recreates the embedded browser PDF reader');
+        const zoomed=await stableScreenshot('synthetic zoom');
+        const zoomDistance=signatureDistance(before,zoomed);
+        assert(zoomDistance.mean>0.5&&zoomDistance.changed>=2,'Stable Chrome embedded PDF page content changes for synthetic zoom');
+        report.results.push({width,zoomedSyntheticPage:18,iframeRecreated:true,frameScreenshotSignatureSha256:hash(zoomed)});
+        for(let page=17;page>=12;page--){
+          await evaluate('document.querySelectorAll(".native-scene-pdf-page button")[0].click()');
+          await until(()=>evaluate('document.querySelector(".native-scene-pdf")?.getAttribute("src").includes("#page='+page+'&zoom=200")'),'restore page '+page);
+        }
+        await evaluate('document.querySelectorAll(".native-scene-pdf-zoom button")[2].click()');
+        await until(()=>evaluate('document.querySelector(".native-scene-pdf")?.getAttribute("src").includes("#page=12&zoom=100")'),'restore referenced page and zoom');
+      }
       assert.match(await evaluate('document.querySelector(".native-scene-drawing").textContent'),/Reference PDF · page 12/);
       assert.match(await evaluate('document.querySelector(".native-drawing-provenance").textContent'),/Historical room-mapping receipt.*synthetic-old-room-receipt.*Current native room review.*synthetic-new-native-review/s);
       await key('Tab','Tab',9);assert.equal(await evaluate('document.activeElement.textContent'),'Drawing source review');
@@ -355,6 +464,7 @@ try {
   assert(cdp.requests.every(url=>url.startsWith(origin+'/')||url.startsWith('blob:'+origin+'/')||url.startsWith(chromePdfViewer)),
     'Only owned loopback/blob and Chrome built-in PDF viewer requests: '+JSON.stringify(cdp.requests));
   if(name==='pdf-download')assert(cdp.requests.includes(chromePdfViewer+'index.html'),'Chrome built-in PDF renderer opened');
+  if(name==='pdf-navigation')assert(cdp.requests.includes(chromePdfViewer+'index.html'),'Chrome built-in PDF renderer opened for the page/zoom regression');
   await evaluate('window.__shutdown()');report.results.push({case:name,status:'passed',stats});
 }catch(error){failure=error;report.failure={name:error.name,message:error.message};}
 finally{

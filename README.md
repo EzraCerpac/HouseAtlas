@@ -538,6 +538,19 @@ these cases are outside ordinary
 CI and do not qualify native grant revocation, original verification or deployment.
 See [the issue-specific scope](docs/geometry/drawing-evidence-lookup-150.md).
 
+The generated-only pdf-navigation case exercises the actual embedded Chrome
+PDF reader with an in-memory 18-page PDF whose pages have distinct synthetic
+labels and page colors. It requires a request to Chrome's built-in PDF viewer,
+then checks that page 12 through 18 and zoom changes recreate the embedded
+reader and yield three consecutive stable captures of the rendered page canvas.
+Each page capture must differ from the previous one. It uses the same owned
+loopback browser fixture and is outside ordinary CI. Inspect the complete
+runner, generated PDF builder, and NativeSceneDrawing before running. The PDF
+exists only in memory and the fixture's private output contains the bounded
+browser report, not PDF bytes.
+
+HOUSEATLAS_CHROMIUM=/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome HOUSEATLAS_FIXTURE_EVIDENCE=/absolute/private/pdf-navigation-result node frontend/lantern-tests/native-room-drawing-source.mjs pdf-navigation
+
 The retained fixture reader has named positive cases for the generated source
 and native room projection using fake current document/geometry/topology ports.
 Inspect its full body and listed production imports before this narrower local
