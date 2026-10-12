@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b8a4a767146e8ed1956738ef9e8666c3caa79928316d57acf23a74c29d5b2462",
+  "sourceDigestSha256": "ff76effb512254a6905a71ea1b5013c4bab8bd765b35ac2448475bcd0c51036c",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5530,8 +5530,8 @@
     {
       "path": "docs/geometry/network-overlay.md",
       "mode": "100644",
-      "bytes": 9690,
-      "sha256": "0172b089a5a6ea4ab49dbc7c61944e1b6293485cba607b5469e83b8a39177d6c",
+      "bytes": 9878,
+      "sha256": "2f64878c311472d4f65d57ca6a65b745b2c75de3734a4a4baf767d43709601cc",
       "owner": "web"
     },
     {
@@ -6349,8 +6349,8 @@
     {
       "path": "frontend/lantern-tests/network-overlay-read.mjs",
       "mode": "100644",
-      "bytes": 33724,
-      "sha256": "612919b82b1bb311e8dddd932390ce38dfd0d4bea60facd48469d6f0bc5732c1",
+      "bytes": 35831,
+      "sha256": "6055a2c3d5e8cb8aabe5e45044fff330ade97168c7dce347ddcd2c14bf21b58b",
       "owner": "web"
     },
     {
@@ -7448,15 +7448,15 @@
     {
       "path": "frontend/src/lantern/overlays/network/scene.ts",
       "mode": "100644",
-      "bytes": 3943,
-      "sha256": "87c8c11b70a3bffd9f8a40f345857f73327fc0b94a2ff63c93a9194dc7026d04",
+      "bytes": 4016,
+      "sha256": "6ec32e09c8e67ee63ad01eea0bfeb26308d778481d7184f162727d49df33a98f",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/overlays/network/types.ts",
       "mode": "100644",
-      "bytes": 6703,
-      "sha256": "cb42f4213c36c4c3eea193ee21dd8c2940686d4ea6176949727f781f9c2714bb",
+      "bytes": 6887,
+      "sha256": "9af4cfac32c2ac54662829b39c3e687fc577071966f604a46b9a9a64deb3172b",
       "owner": "web"
     },
     {

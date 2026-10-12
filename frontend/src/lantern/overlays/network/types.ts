@@ -29,6 +29,7 @@ export interface NetworkPlaceAssociation {
   readonly detail: string;
   readonly confidence: NetworkConfidence;
   readonly basis: string;
+  /** Admitted native floor key in a bound scene; null in an unbound documentary view. */
   readonly floorKey: string | null;
   readonly mappingStatus: 'unmatched' | 'proposed' | 'accepted';
   /** No geometric placement supported by this documentary overlay. */
@@ -117,6 +118,7 @@ export interface NetworkSceneAnchor {
   readonly sourceAnchorIds: readonly string[];
   readonly receiptId: string;
   readonly receiptSha256: string;
+  /** Displayed native floor key in a bound scene; source floor key in a documentary view. */
   readonly floorKey: string;
   readonly base: NetworkScenePoint;
   readonly top: NetworkScenePoint;

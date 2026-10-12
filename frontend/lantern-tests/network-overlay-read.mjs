@@ -366,6 +366,24 @@ assert.equal(nativeOnlyJoin.edges.length, 0);
 assert.equal(model.networkGraph(nativeOnlyScene).edges.length, 21, 'native-only records retain all source topology');
 assert.equal(JSON.stringify(sceneData), sceneSnapshot, 'scene edge visibility never mutates full topology or source geometry');
 
+// The admitted native scene uses native floor keys, while documentary plan
+// references retain source floor keys. Neither key is a device coordinate.
+const nativeFloorScene = { ...sceneData, devices: sceneData.devices.map(device => device.place
+  ? { ...device, place: { ...device.place, floorKey: device.place.sourcePlaceId === 'canonical-room-B'
+    ? 'native-floor-B' : 'native-floor-A' } } : device) };
+const nativeFloorA = { ...sceneAnchor, floorKey: 'native-floor-A' };
+const nativeFloorB = { ...secondAnchor, floorKey: 'native-floor-B' };
+const nativeFloorSnapshot = JSON.stringify(nativeFloorScene);
+const nativeFloorProjection = sceneModel.networkSceneProjection(nativeFloorScene, [nativeFloorA, nativeFloorB], [450, 80]);
+assert.deepEqual(nativeFloorProjection.placed.map(entry => entry.device.id), canonical.slice(0, 3).map(device => device.id));
+assert.deepEqual(nativeFloorProjection.edges.map(edge => edge.link.id), data.links.slice(0, 2).map(link => link.id));
+assert.equal(sceneModel.networkSceneProjection(nativeFloorScene, [nativeFloorA], [450, 80]).edges.length, 1,
+  'an off-map native-floor endpoint never creates a scene edge');
+assert.equal(sceneModel.networkSceneProjection(nativeFloorScene, [nativeFloorB], [450, 80]).edges.length, 0);
+assert.equal(sceneModel.networkSceneProjection(nativeFloorScene, [{ ...nativeFloorA, floorKey: 'wrong-native-floor' }, nativeFloorB], [450, 80]).placed.length, 1,
+  'source floor keys cannot substitute for a different admitted native floor');
+assert.equal(JSON.stringify(nativeFloorScene), nativeFloorSnapshot, 'native floor projection never writes source associations');
+
 // Shared-medium memberships are documentary associations, not direct cables.
 // Two reviewed members on separate floors can be connected without placing the
 // abstract segment or drawing a fanout to the third, unplaced member.
@@ -391,6 +409,12 @@ assert.equal(model.networkSceneSelection(sharedData, sharedSelection, [sharedPai
 
 const sharedScene = sceneModel.networkSceneProjection(sharedData, [sceneAnchor, secondAnchor], [450, 80]);
 assert.equal(sharedScene.edges.filter(edge => edge.association).length, 1);
+const nativeSharedData = { ...sharedData, devices: nativeFloorScene.devices };
+assert.equal(sceneModel.networkSceneProjection(nativeSharedData, [nativeFloorA, nativeFloorB], [450, 80])
+  .edges.filter(edge => edge.association).length, 1,
+  'native floor keys retain a reviewed shared-medium pair with both markers visible');
+assert.equal(sceneModel.networkSceneProjection(nativeSharedData, [nativeFloorA], [450, 80])
+  .edges.filter(edge => edge.association).length, 0);
 assert.deepEqual(sharedScene.edges.find(edge => edge.association).selection, sharedSelection);
 assert(sharedScene.edges.every(edge => sharedScene.placed.some(pin => pin.device.id === edge.from)
   && sharedScene.placed.some(pin => pin.device.id === edge.to)));
