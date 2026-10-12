@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "41a3d31bee73610bdc2293b97378a8897f902d7a534995418dcdb1c52e69d7e0",
+  "sourceDigestSha256": "0026d6c0abe43595bf0327b91c236a9ca7504e9987d07f31454420dbf0d9fb02",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -7497,8 +7497,8 @@
     {
       "path": "frontend/src/lantern/overlays/network/NetworkSceneInspector.tsx",
       "mode": "100644",
-      "bytes": 8871,
-      "sha256": "d9de677f4bc109775866b324550293f372c265f7b1cdc2945abf26c1c2b800c6",
+      "bytes": 9110,
+      "sha256": "b195c15843745bbfe65b656a6886f92e8209bd177cd3cb466b9b83af4923d484",
       "owner": "web"
     },
     {
