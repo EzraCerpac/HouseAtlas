@@ -438,6 +438,7 @@ Access and receipt bytes unchanged. The direct PDF commit is not an HTTP upload
 claim. Inspect the complete body and recovery owners before this exact command:
 
 ```sh
+cargo test --offline --locked -p houseatlas-backend --lib media::budget::tests::offline_backup_has_finite_budget_without_widening_general_work -- --exact --test-threads=1
 cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision --example healthy-native-offline-backup
 ```
 
