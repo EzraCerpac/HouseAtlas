@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "82187914c5140dd082a4740e0fd8e93e008dfb1be6f099573b768aff51af671b",
+  "sourceDigestSha256": "084f6fe7df31b74c58b5a8eb84ac0c96bcf73e056f050f5abbb6309029e5bcfb",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -8800,8 +8800,8 @@
       "path": "tools/geometry/native-scan-import-runtime.mjs",
       "owner": "media",
       "mode": "100644",
-      "bytes": 4702,
-      "sha256": "82e067985a4ca6b5f055fae3aaaa581704d46aa42d61ae4b27bad8efc071b9fd"
+      "bytes": 4770,
+      "sha256": "6e5e260f82382696c0e8c548d947b76c6d4d0740cad7090de1c8582f02cbdb39"
     },
     {
       "path": "tools/geometry/native-scan-import-transport.mjs",

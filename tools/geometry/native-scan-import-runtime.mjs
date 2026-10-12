@@ -20,6 +20,7 @@ const entries = Object.freeze({
   places: 'frontend/src/api/native-place-client.ts',
   topology: 'frontend/src/api/topology-client.ts',
   schemas: 'frontend/integration/stock-schemas.ts',
+  reviewed: 'frontend/integration/native-scene-reviewed-places.ts',
 });
 export async function loadNativeImportRuntime(extraEntries = {}) {
   if (process.version !== 'v26.10.0') throw new Error('Use the reviewed Node 26.10.0 runtime');
