@@ -23,32 +23,42 @@ export interface NativeSceneTopologyOwner {
 /** Resolve an association projection only through the current selected-building
  * membership read and current active topology index. */
 export function resolveNativeSceneRoomPlace(source: NativeSceneSourceFrame, roomId: string,
-  owner: NativeSceneTopologyOwner): Location | null {
+  owner: NativeSceneTopologyOwner): readonly Location[] {
   if (owner.status !== 'ready' || owner.memberStatus !== 'ready' || owner.memberSourceStatus !== 'current'
     || owner.index?.data.sourceStatuses.length !== 4 || owner.index.data.sourceStatuses.some(status => status !== 'current')
     || owner.buildingId !== source.buildingId
-    || !owner.index || !owner.model) return null;
+    || !owner.index || !owner.model) return [];
   const projected = source.roomSelections.find(row => row.roomId === roomId)?.nativePlaceIds ?? [];
   const memberIds = new Set([owner.model.building.id, ...owner.model.levels.flatMap(level =>
     [level.location.id, ...level.members.map(member => member.id)]), ...owner.model.direct.map(location => location.id)]);
+  const resolved = new Map<string, Location>();
   for (const item of projected) {
     if (item.atlasPlaceId === null || !memberIds.has(item.atlasPlaceId)) continue;
     const location = owner.index.locations.get(item.atlasPlaceId);
-    if (location?.semantics.length === 1 && location.semantics[0]!.payload.semanticKind !== 'building') return location;
+    if (location?.semantics.length === 1 && location.semantics[0]!.payload.semanticKind !== 'building')
+      resolved.set(location.id, location);
   }
-  return null;
+  return Object.freeze([...resolved.values()]);
 }
 
-export function NativeScenePlaceDetails({ room, place, selected, onSelect, onClear }: {
-  readonly room: string; readonly place: Location; readonly selected: boolean;
-  readonly onSelect: () => void; readonly onClear: () => void;
+export function NativeScenePlaceDetails({ room, places, selectedPlaceId, onSelect, onClear }: {
+  readonly room: string; readonly places: readonly Location[]; readonly selectedPlaceId: string | null;
+  readonly onSelect: (placeId: string) => void; readonly onClear: () => void;
 }) {
-  return <section className="stage-ui native-scene-place-details" aria-label="Atlas place details">
-    <p>{room}</p><h3>{place.label}</h3>
-    <p>Atlas identity: {place.id}</p>
-    <p>{place.semantics.length ? `Reviewed as ${place.semantics.map(item => item.payload.semanticKind).join(', ')}` : 'Classification not reviewed'}</p>
-    <button type="button" className="chip-btn" aria-pressed={selected} onClick={onSelect}>Select Atlas place</button>
-    {selected && <button type="button" className="chip-btn" onClick={onClear}>Clear selected place</button>}
+  return <section className="native-scene-place-details" aria-label="Atlas place details">
+    <h3>{room} · Atlas places</h3>
+    <ul>{places.map(place => {
+      const selected = selectedPlaceId === place.id;
+      return <li key={place.id}>
+        <h4>{place.label}</h4>
+        <p>Atlas identity: {place.id}</p>
+        <p>Reviewed as {place.semantics.map(item => item.payload.semanticKind).join(', ')}</p>
+        <button type="button" className="chip-btn" aria-pressed={selected} onClick={() => onSelect(place.id)}>
+          {selected ? 'Selected Atlas place' : 'Select Atlas place'}
+        </button>
+        {selected && <button type="button" className="chip-btn" onClick={onClear}>Clear selected place</button>}
+      </li>;
+    })}</ul>
   </section>;
 }
 
@@ -59,7 +69,7 @@ export function NativeSceneLayers({ source, floors, overlay, onOverlayChange, dr
   readonly overlay: SceneOverlay; readonly onOverlayChange: (overlay: SceneOverlay) => void;
   readonly drawings: NativeEvidenceDocumentClient; readonly evidenceIds: readonly string[];
   readonly currentSource: () => boolean;
-  readonly nativePlaceForRoom: (roomId: string) => Location | null;
+  readonly nativePlaceForRoom: (roomId: string) => readonly Location[];
 }) {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [networkSelection, setNetworkSelection] = useState<NetworkOverlaySelection | null>(null);
@@ -81,8 +91,18 @@ export function NativeSceneLayers({ source, floors, overlay, onOverlayChange, dr
       setNetworkSelection(null); setRecords(null); setSelectedNativePlaceId(null);
     }} overlay={overlay} onOverlayChange={value => {
       onOverlayChange(value); setFixturesOpen(false); setNetworkSelection(null); setRecords(null); setDrawing(null);
-    }} renderRoomActions={() => fixtures ? <button type="button" className="chip-btn"
-      onClick={() => { setFixturesOpen(true); onOverlayChange('electrical'); }}>Drawings &amp; fixtures</button> : null}
+    }} renderRoomActions={room => {
+      const nativePlaces = nativePlaceForRoom(room.id);
+      const showNativePlaces = nativePlaces.length > 0 && !networkSelection && records === null && !fixturesOpen && !drawing;
+      return <>
+        {showNativePlaces && <NativeScenePlaceDetails room={room.label} places={nativePlaces}
+          selectedPlaceId={selectedNativePlaceId}
+          onSelect={id => { if (currentSource()) setSelectedNativePlaceId(id); }}
+          onClear={() => setSelectedNativePlaceId(null)} />}
+        {fixtures && <button type="button" className="chip-btn"
+          onClick={() => { setFixturesOpen(true); onOverlayChange('electrical'); }}>Drawings &amp; fixtures</button>}
+      </>;
+    }}
     renderLayer={context => overlay === 'network' && network ? <NetworkSceneLayer active viewKey={source.viewKey}
       data={network} anchors={context.anchors} unplacedDock={context.unplacedDock} ui={context.ui}
       selectedPackagePlaces={packageSelection(context)} selection={networkSelection} onSelectionChange={setNetworkSelection}
@@ -91,13 +111,7 @@ export function NativeSceneLayers({ source, floors, overlay, onOverlayChange, dr
       const selection = packageSelection(context);
       const placed = network ? networkSceneProjection(network, context.anchors, context.unplacedDock, context.ui, selection)
         .placed.map(item => item.device.id) : [];
-      const room = context.selectedRoom;
-      const nativePlace = room ? nativePlaceForRoom(room.id) : null;
       return <>
-        {nativePlace && room && <NativeScenePlaceDetails room={room.label} place={nativePlace}
-          selected={selectedNativePlaceId === nativePlace.id}
-          onSelect={() => { if (currentSource()) setSelectedNativePlaceId(nativePlace.id); }}
-          onClear={() => setSelectedNativePlaceId(null)} />}
         {overlay === 'network' && <>
           <NetworkSceneSummary active viewKey={source.viewKey} data={network} placedDeviceIds={placed}
             onOpen={() => setRecords('devices')} />
