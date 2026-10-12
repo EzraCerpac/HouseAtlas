@@ -573,6 +573,21 @@ The broader browser flow in `docs/geometry/native-scene-fixture-reader-healthy.m
 requires its own inspected browser artifact and execution selection; it is not
 released by this reader-only command.
 
+Two separately named build/resource checks compile the actual drawing and native
+host fixtures with the PDF resource plugin and GET the worker and decoder files
+from their owned loopback servers. Inspect both runners and
+`frontend/lantern-tests/pdf-fixture-resources.mjs` first. Use the pinned runtime
+and locked frontend dependencies. These checks launch no browser, use generated
+inputs only, remove disposable state and remain outside ordinary CI:
+
+```sh
+node frontend/lantern-tests/native-scene-drawing-150.mjs --case first-match --build-only
+node frontend/lantern-tests/native-scene-fixture-reader-healthy.mjs --host-only --build-only
+```
+
+They verify exact upstream worker/decoder bytes and JavaScript MIME responses;
+they establish no rendered PDF pixels, interactive behavior or device coverage.
+
 The named `--host-only` synthetic browser case mounts the production native
 scene source action with a generated, current PDF reference and fake document
 owner. It checks that the current sheet renders the referenced page with a
