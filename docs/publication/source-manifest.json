@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "eab55f6812eb645ca6f49ee1853accd1559cc5fa77fcb9a3ecc57fad48225807",
+  "sourceDigestSha256": "5f2e3aeb33db3b68c07a8e0b23c61b5481069a567fdb22af3e55e6fee803c1e6",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -92,8 +92,8 @@
       "path": "README.md",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 53186,
-      "sha256": "9fff67e678884cd8a73205d39a5774dc864ea8589a055f0c0195508de26bca05"
+      "bytes": 53346,
+      "sha256": "85e523316e3f28cced55a1af7698cfb890352b537b7f3c736dec662e046043d6"
     },
     {
       "path": "adapters/homebox/README.md",
@@ -5482,8 +5482,8 @@
       "path": "docs/geometry/native-scan-room-targets.md",
       "owner": "media",
       "mode": "100644",
-      "bytes": 3674,
-      "sha256": "8b5e9579b26d3b1992afcdcf76ae1de3988a524e59d9abd12b39ef76927a1061"
+      "bytes": 4674,
+      "sha256": "caa6af50c28086c3848f35beb8054ecaf32793ee5adf2bc3232d2d0254a45cad"
     },
     {
       "path": "docs/geometry/native-scan-succession.md",
@@ -6091,8 +6091,8 @@
       "path": "frontend/integration/native-scan-import-scene.ts",
       "owner": "media",
       "mode": "100644",
-      "bytes": 46471,
-      "sha256": "4a1175d298b54f8c65d4213a3acf880b8fbef0058bef63178d356d966f26ae02"
+      "bytes": 60490,
+      "sha256": "4ca97803f0b706699cc7a70f5f548655d63bb83deabff9e2bee55f0ef4ed8840"
     },
     {
       "path": "frontend/integration/native-scan-import-text.ts",
@@ -6301,8 +6301,8 @@
       "path": "frontend/lantern-tests/native-scan-import-scene.mjs",
       "owner": "media",
       "mode": "100644",
-      "bytes": 68843,
-      "sha256": "ab3392650c44c58340750be5af6cb065bb3966585663bff11653395479665ea5"
+      "bytes": 73446,
+      "sha256": "2d2a9992852dafcbccd78cdc6f36e22c4f4b8499e4f36f6076c64c3fd9b4de87"
     },
     {
       "path": "frontend/lantern-tests/native-scan-succession.mjs",
