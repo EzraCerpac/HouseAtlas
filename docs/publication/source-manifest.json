@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "16a2061a73d6b08df2630f4134bb082c9222748f10d30d88d63319b3b5ac4892",
+  "sourceDigestSha256": "09bd8ae0a3bf3c82c8547a45c60406305dcea7878156e0e8fb4fa9512ff54102",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5489,8 +5489,8 @@
       "path": "docs/geometry/native-scan-room-targets.md",
       "owner": "media",
       "mode": "100644",
-      "bytes": 4674,
-      "sha256": "caa6af50c28086c3848f35beb8054ecaf32793ee5adf2bc3232d2d0254a45cad"
+      "bytes": 5208,
+      "sha256": "4fabed8ae9585f53b808fb863552f10c96f09c58bc9925311715a18ad9114d71"
     },
     {
       "path": "docs/geometry/native-scan-succession.md",
