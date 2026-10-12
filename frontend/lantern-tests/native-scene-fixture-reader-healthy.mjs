@@ -561,10 +561,14 @@ createRoot(document.getElementById('root')).render(<App />);
     assert.equal(await evaluate(`document.querySelector('[aria-label="Rooms only"]')?.getAttribute('aria-pressed')`), 'true', 'Direct source action starts in the default room overlay');
     await click(`document.querySelector('.source-room[role="button"]')`);
     await until(() => evaluate(`Boolean(document.querySelector('.source-room-inspector') && ${selector('Open reference drawing')})`), 'Direct room PDF action ready');
+    assert.equal(cdp.requests.some(url => /\/NativeSceneDrawing-[^/]+\.js$/.test(url)), false,
+      'PDF reader chunk stays unloaded before a drawing is opened');
     const directHit = await evaluate(`(()=>{const e=${selector('Open reference drawing')};e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();const top=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {target:e.outerHTML,top:top?.outerHTML.slice(0,250),same:top===e||e.contains(top)}})()`);
     assert.equal(directHit.same, true, `Direct room action is obscured: ${JSON.stringify(directHit)}`);
     await click(selector('Open reference drawing'));
-    await until(() => evaluate(`Boolean(document.querySelector('.native-scene-drawing a[download]'))`), 'Direct room action exposes qualified PDF');
+    await until(() => evaluate(`Boolean(document.querySelector('.native-scene-drawing a[download]') && document.querySelector('.native-scene-drawing iframe.native-scene-pdf')?.getAttribute('src').includes('#page=2&zoom=100'))`), 'Direct room action opens qualified PDF at its referenced page');
+    assert.equal(cdp.requests.some(url => /\/NativeSceneDrawing-[^/]+\.js$/.test(url)), true,
+      'PDF reader chunk loads on demand');
     await click(selector('Close drawing'));
     await until(() => evaluate(`!document.querySelector('.native-scene-drawing')`), 'Direct room dialog closed');
     await until(() => evaluate(`Boolean(${selector('Drawings & fixtures')})`), 'Room diagrams action ready');
@@ -580,7 +584,7 @@ createRoot(document.getElementById('root')).render(<App />);
     await click(`document.querySelector('.native-fixture-details .ef-source-button')`);
     await until(() => evaluate(`Boolean(document.querySelector('.native-scene-drawing[role="dialog"]'))`), 'Current native sheet opens dialog');
     assert.equal(await evaluate(`document.querySelector('.native-scene-drawing h3').textContent`), 'Synthetic Alpha electrical drawing');
-    await until(() => evaluate(`Boolean(document.querySelector('.native-scene-drawing a[download]'))`), 'Qualified current PDF download action');
+    await until(() => evaluate(`Boolean(document.querySelector('.native-scene-drawing a[download]') && document.querySelector('.native-scene-drawing iframe.native-scene-pdf')?.getAttribute('src').includes('#page=2&zoom=100'))`), 'Qualified current PDF viewer opens at its referenced page');
     assert.equal(await evaluate(`document.querySelector('.native-scene-drawing a[download]').href.startsWith('blob:')`), true);
     await click(selector('Close drawing'));
     await until(() => evaluate(`!document.querySelector('.native-scene-drawing')`), 'Current dialog closed');
@@ -591,7 +595,10 @@ createRoot(document.getElementById('root')).render(<App />);
     results.push({ case: 'native-source-action-current-and-unavailable', status: 'passed',
       checks: ['default room overlay opens qualified PDF dialog', 'diagram sheet opens qualified PDF dialog', 'stale source shows status and no dialog'] });
     assert.deepEqual(cdp.errors, [], 'No browser runtime exceptions');
-    assert(cdp.requests.every(url => url.startsWith(origin + '/')), 'Every observed application request stays on owned loopback');
+    const chromePdfViewer = 'chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/';
+    assert(cdp.requests.every(url => url.startsWith(origin + '/') || url.startsWith('blob:' + origin + '/') || url.startsWith(chromePdfViewer)
+      || url === '/pdf_embedder.css' || url === '/index.html'),
+      'Requests stay on the owned loopback and Chrome built-in PDF viewer');
     report.applicationRequests = cdp.requests.map(url => new URL(url).pathname);
   }
 } catch (error) {
