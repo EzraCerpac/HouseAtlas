@@ -8,6 +8,9 @@ import { isExactDecimal } from '../numeric/decimal';
 import { parseLosslessJson, stringifyLosslessJson, type JsonForSerialization, type LosslessJson } from '../numeric/lossless-json';
 import { createExactStockResultValidator, exactStockSafeInteger } from '../numeric/schema-validator';
 import { createNativeEvidenceClient, type NativeEvidenceClient } from './native-evidence-client';
+// Reuse the published Stock RFC 8785 intent digest and its root exclusions for Atlas batches.
+import { quantityRequestDigest } from './quantity-client';
+import type { StockRequestEnvelope } from '../webmcp/stock';
 
 export interface NativePlaceBinding { readonly scope: Readonly<Scope> }
 type Guard = { target: { authority: 'atlas'; recordType: string; recordId: string }; revision: { kind: 'atlas'; value: number } };
@@ -15,6 +18,10 @@ export interface NativePlaceAdmission {
   readonly binding: NativePlaceBinding;
   readonly record: TopologyRecord<'location-semantics'>;
   readonly guards: readonly Guard[];
+}
+export interface NativePlaceParent {
+  readonly identity: TopologyRecord<'identity'>;
+  readonly classification: TopologyRecord<'location-semantics'>;
 }
 export interface NativePlacePrepared {
   readonly binding: NativePlaceBinding;
@@ -39,8 +46,11 @@ export interface NativePlaceClient {
   canCreate(binding: NativePlaceBinding, withMembership: boolean): boolean;
   canRename(binding: NativePlaceBinding): boolean;
   load(binding: NativePlaceBinding, recordId: string, signal: AbortSignal): Promise<NativePlaceAdmission>;
-  prepareCreate(binding: NativePlaceBinding, input: { label: string; kind: 'building' | 'room'; statement: string; reason: string;
-    building?: { identity: TopologyRecord<'identity'>; classification: TopologyRecord<'location-semantics'> } }): NativePlacePrepared;
+  prepareCreate(binding: NativePlaceBinding, input: { label: string; kind: 'building' | 'floor' | 'room' | 'other'; statement: string; reason: string;
+    /** Compatibility for the existing building/room editor. */
+    building?: NativePlaceParent;
+    /** Reviewed native parent for assistant-managed floor, room, or other intake. */
+    parent?: NativePlaceParent }): NativePlacePrepared;
   prepareRename(admission: NativePlaceAdmission, input: { label: string | null; statement: string; reason: string }): NativePlacePrepared;
   commit(prepared: NativePlacePrepared, signal: AbortSignal): Promise<NativePlaceCompletion>;
 }
@@ -104,6 +114,7 @@ export function createNativePlaceClient(options: {
   const validator = createExactStockResultValidator();
   const transport = options.transport ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
   const dispatched = new WeakSet<NativePlacePrepared>();
+  const issued = new WeakSet<NativePlacePrepared>();
   const retained = createRetainedIntentClient(transport);
   // Memory-only submitted inputs survive form/view remount; the private session is never returned.
   const ledger = new Map<NativePlacePrepared, { session: AtlasSessionInfo; outcome: 'unknown' | 'committed'; receipt?: LosslessJson; inspection?: RetainedIntentRead }>();
@@ -178,7 +189,9 @@ export function createNativePlaceClient(options: {
     const requestId = id();
     const body = serialize({ schemaVersion: 3, commandId: 'atlas.batch.execute', requestId, context: { workspaceId: binding.scope.workspaceId, homeId: binding.scope.homeId }, target: { authority: 'atlas', kind: 'batch', batchId: id() }, payload: { commands },
       idempotencyKey: id(), reason, approvalReceiptId: null, preconditions: { target: null, guards } });
-    return Object.freeze({ binding, requestId, commandId: 'atlas.batch.execute', body });
+    const prepared = Object.freeze({ binding, requestId, commandId: 'atlas.batch.execute' as const, body });
+    issued.add(prepared);
+    return prepared;
   };
   const evidenceOwners = new WeakMap<AtlasSessionInfo, object>();
   const evidenceClient = createNativeEvidenceClient({
@@ -241,21 +254,33 @@ export function createNativePlaceClient(options: {
     },
     prepareCreate(binding, input) {
       current(binding); writable(binding); text(input.label, 256); text(input.statement, 4096); text(input.reason, reasonLimit);
-      if (!canCreate(binding, input.building !== undefined)) throw new Error('Native creation is not admitted');
+      if (input.building !== undefined && input.parent !== undefined) throw new TypeError('Choose one reviewed parent');
+      const parent = input.parent ?? input.building;
+      if (input.building !== undefined && input.kind !== 'room') throw new TypeError('Building membership is only available to the existing room editor');
+      if (parent && input.kind === 'building') throw new TypeError('A building cannot be nested under a location');
+      if (!canCreate(binding, parent !== undefined)) throw new Error('Native creation is not admitted');
       const eid = id(), iid = id(), sid = id();
       const commands: JsonForSerialization[] = [command(binding, 'evidence', 'create', eid, evidence(input.statement), input.reason, []),
         command(binding, 'identity', 'create', iid, { kind: 'location', evidenceIds: [eid] }, input.reason, []),
         command(binding, 'location-semantics', 'create', sid, { atlasId: iid, semanticKind: input.kind, reviewStatus: 'accepted', evidenceIds: [eid], label: input.label }, input.reason,
           [])];
       const rootGuards: Guard[] = [];
-      if (input.building) {
-        const { identity, classification } = input.building;
-        if (input.kind !== 'room' || identity.lifecycle !== 'active' || identity.payload.kind !== 'location' || classification.lifecycle !== 'active' || classification.payload.reviewStatus !== 'accepted'
-          || classification.payload.semanticKind !== 'building' || classification.payload.atlasId !== identity.target.recordId) throw new TypeError('Membership building differs');
+      if (parent) {
+        const { identity, classification } = parent;
+        const identityId = identity.target.recordId;
+        const parentKind = classification.payload.semanticKind;
+        if (identity.target.authority !== 'atlas' || identity.target.recordType !== 'identity' || !identityId
+          || !Number.isSafeInteger(identity.revision) || identity.revision < 0 || identity.lifecycle !== 'active' || identity.payload.kind !== 'location'
+          || classification.target.authority !== 'atlas' || classification.target.recordType !== 'location-semantics'
+          || !classification.target.recordId || !Number.isSafeInteger(classification.revision) || classification.revision < 0
+          || classification.lifecycle !== 'active' || classification.payload.reviewStatus !== 'accepted'
+          || !['building', 'floor'].includes(parentKind) || classification.payload.atlasId !== identityId) throw new TypeError('Reviewed native parent differs');
+        if (input.building !== undefined && parentKind !== 'building') throw new TypeError('Membership building differs');
+        if (parentKind === 'floor' && input.kind === 'floor') throw new TypeError('A floor cannot be a member of another floor');
         rootGuards.push(guard('identity', identity.target.recordId, identity.revision), guard('location-semantics', classification.target.recordId, classification.revision));
-        commands.push(command(binding, 'relation', 'create', id(), { kind: 'location-membership', membershipKind: 'building', from: { kind: 'atlas-record', ref: { recordType: 'identity', recordId: identity.target.recordId } },
+        commands.push(command(binding, 'relation', 'create', id(), { kind: 'location-membership', membershipKind: parentKind === 'floor' ? 'level' : 'building', from: { kind: 'atlas-record', ref: { recordType: 'identity', recordId: identityId } },
           to: { kind: 'atlas-record', ref: { recordType: 'identity', recordId: iid } }, reviewStatus: 'accepted', uncertainty: { status: 'supported', explanation: null }, evidenceIds: [eid] }, input.reason,
-          [guard('identity', identity.target.recordId, identity.revision)]));
+          [guard('identity', identityId, identity.revision), guard('location-semantics', classification.target.recordId, classification.revision)]));
       }
       return batch(binding, commands, input.reason, rootGuards);
     },
@@ -270,6 +295,7 @@ export function createNativePlaceClient(options: {
       return batch(admission.binding, commands, input.reason, [...admission.guards, guard('location-semantics', admission.record.target.recordId, admission.record.revision)]);
     },
     async commit(prepared, signal) {
+      if (!issued.has(prepared)) throw new Error('Native prepared request was not issued by this client');
       current(prepared.binding, signal);
       if (dispatched.has(prepared)) throw new Error('Native prepared request was already dispatched; inspect retained completion');
       // Repeat the complete-body transport bound before any public-input dispatch or ledger write.
@@ -283,6 +309,9 @@ export function createNativePlaceClient(options: {
       if (parsed.context.workspaceId !== prepared.binding.scope.workspaceId || parsed.context.homeId !== prepared.binding.scope.homeId
         || parsed.payload.commands.some(child => child.context.workspaceId !== prepared.binding.scope.workspaceId || child.context.homeId !== prepared.binding.scope.homeId
           || !validator.validateNativeRequest(child.commandId, child as unknown as LosslessJson))) throw new TypeError('Native prepared scope or child differs');
+      current(prepared.binding, signal);
+      const requestDigest = await quantityRequestDigest(JSON.parse(prepared.body) as StockRequestEnvelope);
+      current(prepared.binding, signal);
       const result = await bounded(signal, async active => {
         current(prepared.binding, active);
         writable(prepared.binding);
@@ -297,8 +326,9 @@ export function createNativePlaceClient(options: {
         const value = await receive(response, active); current(prepared.binding, active); return value;
       });
       if (!validator.validateMutation(prepared.commandId, '#/$defs/result_atlas_batch_execute', result)) throw new TypeError('Native place completion incompatible');
-      const row = result as unknown as { requestId: string; commandId: string; status: string; resolvedScope: Scope; data: { records: Array<{ target: LosslessJson; payload: LosslessJson; revision: LosslessJson; lifecycle: string }>; auditIds: string[] } };
-      if (row.requestId !== prepared.requestId || row.commandId !== prepared.commandId || row.resolvedScope.workspaceId !== prepared.binding.scope.workspaceId || row.resolvedScope.homeId !== prepared.binding.scope.homeId) throw new TypeError('Native place completion correlation differs');
+      const row = result as unknown as { requestId: string; commandId: string; status: string; replayed: boolean; resolvedScope: Scope; data: { records: Array<{ target: LosslessJson; payload: LosslessJson; revision: LosslessJson; lifecycle: string }>; auditIds: string[]; requestDigest: string } };
+      if (row.requestId !== prepared.requestId || row.commandId !== prepared.commandId || row.resolvedScope.workspaceId !== prepared.binding.scope.workspaceId || row.resolvedScope.homeId !== prepared.binding.scope.homeId
+        || row.status !== 'committed' || row.replayed !== false || row.data.requestDigest !== requestDigest) throw new TypeError('Native place completion correlation differs');
       if (row.data.records.length !== parsed.payload.commands.length || row.data.auditIds.length !== parsed.payload.commands.length
         || parsed.payload.commands.some(child => {
           const record = row.data.records.find(record => sameJson(record.target, child.target));
@@ -308,7 +338,7 @@ export function createNativePlaceClient(options: {
       ledger.get(prepared)!.receipt = result;
       ledger.get(prepared)!.outcome = 'committed';
       notify();
-      return { status: row.status === 'committed' ? 'committed' : 'notCommitted', receipt: result };
+      return { status: 'committed', receipt: result };
     },
   };
 }

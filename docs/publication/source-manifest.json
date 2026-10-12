@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "1709792bed24ee72e33fc7cdb3ee34f473feb9e5de16f96859eade07ca503d7f",
+  "sourceDigestSha256": "7c3c88d9824b12673815e7c4bc5a393ec96ad603585dacb4ade5b0089f10bf86",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -92,8 +92,8 @@
       "path": "README.md",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 53617,
-      "sha256": "dff2e5d777f07d12163b661ce194916cd840570141f87223aac869fa88b35644"
+      "bytes": 54410,
+      "sha256": "2b18006715ff6f48379e51fa0b865e9bc1ef04ef4eec6ccf8834d5693f5ae1cc"
     },
     {
       "path": "adapters/homebox/README.md",
@@ -5381,6 +5381,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/geometry/assistant-native-place-intake.md",
+      "mode": "100644",
+      "bytes": 2247,
+      "sha256": "64bef1318e005f2da9a3c6bd7ec3f687711b8375e082a22a0ba821070947db6b",
+      "owner": "web"
+    },
+    {
       "path": "docs/geometry/assistant-native-scan-import.md",
       "owner": "media",
       "mode": "100644",
@@ -6284,6 +6291,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "frontend/lantern-tests/native-place-levels-intake.mjs",
+      "mode": "100644",
+      "bytes": 8538,
+      "sha256": "7576eddd0871db55cd797d60644d58134296649da6c6302286df85a8527d1963",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/native-place-write.mjs",
       "mode": "100644",
       "bytes": 11406,
@@ -6692,8 +6706,8 @@
     {
       "path": "frontend/src/api/native-place-client.ts",
       "mode": "100644",
-      "bytes": 26122,
-      "sha256": "8f3c6d6c4e58cdec7201082039a95ef5b4212cadad3d2ba0e42ed44819fdf234",
+      "bytes": 28410,
+      "sha256": "06331e92ecd97b9737f1c6554dec24e846b662458c13b0e9375a2c82abc0d924",
       "owner": "web"
     },
     {
