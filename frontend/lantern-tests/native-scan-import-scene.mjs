@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import { transformWithOxc } from 'vite';
 assert.equal(process.version,'v26.10.0');
 process.on('uncaughtException',error=>{const frames=[...(error.stack??'').matchAll(/data:text\/javascript;base64,([A-Za-z0-9+/=]+):(\d+):(\d+)/g)].slice(0,8).map(m=>({line:Number(m[2]),sourceLine:Buffer.from(m[1],'base64').toString().split('\n')[Number(m[2])-1]?.slice(0,300)}));console.error(JSON.stringify({case:process.argv[2],status:'FAILED',error:error.name,message:error.message.slice(0,500),frames}));process.exitCode=1;});
-const names=new Set(['committed','asset-unknown','evidence-unknown','association-unknown','floor-selection','literal-labels','scene-reuse','scene-replacement','stale-current-scene','changed-frame-current-scene','supplementary-unicode','compact-scene-head','viewer-inspect','native-room-target','native-room-target-explicit-null','native-room-target-other','native-room-target-floor-direct','native-room-target-many-to-one','native-room-target-invalid','native-room-target-wrong-classification','native-room-target-duplicate-classification','native-room-target-wrong-scope','native-room-target-owner-withdrawal','retained-documents','retained-documents-unknown','retained-documents-before-dispatch']);
+const names=new Set(['committed','asset-unknown','evidence-unknown','association-unknown','floor-selection','literal-labels','scene-reuse','scene-replacement','stale-current-scene','changed-frame-current-scene','supplementary-unicode','compact-scene-head','viewer-inspect','native-room-target','native-room-target-explicit-null','native-room-target-other','native-room-target-floor-direct','native-room-target-many-to-one','native-room-target-invalid','native-room-target-wrong-classification','native-room-target-duplicate-classification','native-room-target-wrong-scope','native-room-target-owner-withdrawal','scene-import-before-dispatch','scene-import-prepare-refresh','scene-import-hook-refusal','retained-documents','retained-documents-unknown','retained-documents-before-dispatch']);
 assert.equal(process.argv.length,3);const name=process.argv[2];assert(names.has(name),'Choose one registered case');
 const frontend=resolve(dirname(fileURLToPath(import.meta.url)),'..'),root=dirname(frontend);
 const require=createRequire(pathToFileURL(resolve(frontend,'package.json'))),loaded=new Map(),sourcePins={};
@@ -113,7 +113,7 @@ const primary=supported?.primary??JSON.stringify({schema:'houseatlas.native-scen
   network:{status:'unavailable',reason:'not-retained',source:null,devices:null,endpoints:null,links:null},
   electricity:{status:'unavailable',reason:'not-retained',documentarySource:null,roomRegistry:null,buildingPackageKey:null,retrievedAt:null}});
 const textInput=(text,filename)=>({buildingId,file:new Blob([text],{type:'text/plain'}),filename,sha256:hash(text),byteSize:Buffer.byteLength(text),statement:'Reviewed generated documentary source',reason:'Generated-only agent intake check',sourceLicense:{status:'unknown',reference:null}});
-const nativeRoomTarget=mode.startsWith('native-room-target')||mode.startsWith('retained-documents'),nativePlaceId=U(80);
+const nativeRoomTarget=mode.startsWith('native-room-target')||mode.startsWith('scene-import-')||mode.startsWith('retained-documents'),nativePlaceId=U(80);
 const explicitAtlasPlaceId=mode==='native-room-target-explicit-null'?null:nativePlaceId;
 const selectedTargets=nativeRoomTarget?anchors[0].targets.map(t=>({...t,atlasPlaceId:explicitAtlasPlaceId})):anchors[0].targets;
 const input={buildingId,primary:textInput(primary,'scene.txt'),historical:textInput(history,'review.txt'),sourceFloors:[{sourceFloorKey:'source-floor',sourceOriginalSha256:sourceSha,nativeGeometryId:geometryId}],
@@ -124,8 +124,9 @@ const input={buildingId,primary:textInput(primary,'scene.txt'),historical:textIn
 const context={sessionIdentity:{},session:{schemaVersion:1,actorId:U(9),csrfToken:'synthetic-not-a-credential',expiresAt:new Date(Date.now()+120000).toISOString()},
   view:{scope,canEdit:true},admission:{scope,revision:'synthetic-admission',commandIds:['atlas.asset.create','atlas.evidence.create','atlas.identity.replace','atlas.batch.execute','atlas.scene-association.create']}};
 const listeners=new Set(),records=new Map(),blobs=new Map(),media=new Map(),calls=[],journal=[];let counter=100,current=null,savedScene=null,lastSceneRequest=null,currentUnavailableReason=null,geometryEpoch=0,headOverride=null,headHttpStatus=200,qualified409Responses=0;const headResponseBytes=[];
-let observeReservationReads=false,activeEvidenceReads=0,maxEvidenceReads=0,rejectSceneBeforeDispatchOnce=mode==='retained-documents-before-dispatch',
-  refreshSceneAdmissionDuringDispatchOnce=mode==='retained-documents-before-dispatch';
+let observeReservationReads=false,activeEvidenceReads=0,maxEvidenceReads=0,rejectSceneBeforeDispatchOnce=mode==='retained-documents-before-dispatch'||mode==='scene-import-hook-refusal',
+  refreshSceneAdmissionDuringDispatchOnce=mode==='retained-documents-before-dispatch'||mode==='scene-import-before-dispatch';
+let refreshAdmissionDuringFreshGeometryOnce=mode==='scene-import-prepare-refresh';
 const initialAdmissionRevision=context.admission.revision,initialSessionIdentity=context.sessionIdentity;
 const target=(kind,id)=>({authority:'atlas',recordType:kind,recordId:id});
 const set=(kind,id,payload,revision=1)=>{const r={target:target(kind,id),revision,lifecycle:'active',payload};records.set(kind+':'+id,r);return r;};
@@ -225,6 +226,9 @@ async function transport(url,init){
       data:{records,nextCursor:null,sourceStatus:'current'}}),{headers:{'content-type':'application/json','x-atlas-snapshot-sha256':'d'.repeat(64)}});
   }
   if(path.endsWith('/buildings/'+buildingId)){
+    if(refreshAdmissionDuringFreshGeometryOnce&&identity().revision===3){
+      refreshAdmissionDuringFreshGeometryOnce=false;await Promise.resolve();context.admission={...context.admission,revision:'synthetic-refreshed'};
+    }
     const nativeFloor={key:floorKey(),exportLabel:'Generated floor',originalSha256:'b'.repeat(64),derivativeSha256:'c'.repeat(64),geometryId,geometryRevision:records.get('geometry:'+geometryId).revision,evidenceId:geomEvidenceId,evidenceRevision:1,originalAssetId:originalId,originalRevision:1,derivativeAssetId:derivativeId,derivativeRevision:1,originalLicense:{status:'unknown',reference:null},derivativeLicense:{status:'unknown',reference:null}};
     const buildingPath=`/api/atlas/geometry/v1/workspaces/${scope.workspaceId}/homes/${scope.homeId}/buildings/${buildingId}`;
     const descriptor={schemaVersion:1,profile:'houseatlas.magicplan-authored-mesh.v1',scope,buildingId,viewKey:viewKey(),floors:[{floor:nativeFloor,readPath:`${buildingPath}/frames/${viewKey()}/meshes/${floorKey()}`}],physicalScale:'unknown',floorAlignment:'unknown',stageToHouseTransform:null};
@@ -263,7 +267,7 @@ const options={getContext:()=>context,subscribe:fn=>{listeners.add(fn);return()=
     journal.push({kind,requestId:request.requestId,state:'before'});assert(!JSON.stringify(request).includes(context.session.csrfToken));},
   async afterResult(kind,result){journal.push({kind,requestId:result.requestId,state:result.outcome});if((mode==='asset-journal-incomplete'&&kind==='text-asset'||mode==='evidence-journal-incomplete'&&kind==='text-evidence'||mode==='scene-journal-incomplete'&&kind==='scene-association'&&journal.filter(row=>row.kind===kind&&row.state==='committed').length===1)&&result.outcome==='committed')throw Error('Synthetic journal completion unavailable');}};
 const client=createNativeScanSceneImporter(options);
-let outcome;const budget=AbortSignal.timeout(15000);
+let outcome,continuationOutcome=null;const budget=AbortSignal.timeout(15000);
 try{
   if(name.startsWith('retained-documents')){
     await assert.rejects(client.associateRetainedScene(input,{...retainedReferences,primary:{...retainedReferences.primary,sha256:'e'.repeat(64)}},budget),
@@ -273,13 +277,14 @@ try{
       'A stale retained evidence revision refuses after its genuine read lease and before writes');
     assert.equal(calls.filter(c=>c.method==='POST').length,0);assert.equal(journal.length,0);assert.equal(client.isConsumed(),false);
     if(name==='retained-documents-before-dispatch'){
-      await assert.rejects(client.associateRetainedScene(input,retainedReferences,budget),'A rejected pre-dispatch hook leaves retained continuation unclaimed');
+      const hookRefusal=await client.associateRetainedScene(input,retainedReferences,budget);
+      assert.equal(hookRefusal.outcome,'not-dispatched','A rejected local hook reports no scene request');
       assert.equal(calls.filter(c=>c.method==='POST').length,0,'Rejected pre-dispatch hook sends no scene request');
       assert.equal(journal.length,0,'Rejected local hook creates no before/unknown journal rows');
       assert.equal(client.isConsumed(),false,'Rejected local hook does not consume the retained continuation');
       assert.equal(client.isHeld(),false,'Rejected local hook creates no reconciliation hold');
-      await assert.rejects(client.associateRetainedScene(input,retainedReferences,budget),
-        'A successful awaited hook followed by current admission refresh is a known pre-dispatch refusal');
+      const refreshed=await client.associateRetainedScene(input,retainedReferences,budget);
+      assert.equal(refreshed.outcome,'not-dispatched','A successful awaited hook followed by current admission refresh is a known pre-dispatch refusal');
       assert.equal(calls.filter(c=>c.method==='POST').length,0,'Admission refresh before pending registration sends no scene request');
       assert.deepEqual(journal.map(entry=>entry.state),['before'],'No unknown result is journaled without a pending request');
       assert.equal(client.isConsumed(),false,'Pre-pending source invalidation leaves retained continuation reusable');
@@ -423,6 +428,32 @@ try{
       }finally{fresh.dispose();}
       assert.equal(calls.filter(c=>c.method==='POST').length,posts,'Native target comparison stays GET-only');
     }
+    if(name==='scene-import-before-dispatch'||name==='scene-import-prepare-refresh'||name==='scene-import-hook-refusal'){
+      assert.equal(outcome.outcome,'not-dispatched','Post-custody owner refresh is reported as a known non-dispatch');
+      assert.equal(outcome.phase,'scene-association');assert.equal(client.isConsumed(),true,'Committed documentary custody remains claimed');
+      assert.equal(client.isHeld(),true,'The original importer remains consumed while its docs need the returned continuation');
+      assert.deepEqual(outcome.references,{primary:{evidenceId:outcome.primary.evidenceId,originalAssetId:outcome.primary.assetId,sha256:input.primary.sha256},
+        historical:{evidenceId:outcome.historical.evidenceId,originalAssetId:outcome.historical.assetId,sha256:input.historical.sha256}},
+        'The typed result closes the existing source identities and original hashes');
+      assert.equal(calls.filter(c=>c.method==='POST'&&c.path.endsWith('/assets')).length,2,'Both original text assets were committed once');
+      assert.equal(calls.filter(c=>c.method==='POST'&&c.path.endsWith('/commands')).length,2,'Both text evidence custody batches were committed once');
+      assert.equal(calls.filter(c=>c.method==='POST'&&c.path.endsWith('/commands')).length+calls.filter(c=>c.method==='POST'&&c.path.endsWith('/assets')).length,4);
+      assert.equal(lastSceneRequest,null,'No scene request was prepared for transmission after the admission refresh');
+      assert.deepEqual(journal.filter(entry=>entry.kind==='scene-association').map(entry=>entry.state),
+        name==='scene-import-before-dispatch'?['before']:[],
+        'The scene has no unknown journal result because no pending request was registered');
+      const continuation=createNativeScanSceneImporter(options),beforeContinuationPosts=calls.filter(c=>c.method==='POST').length;
+      try{
+        continuationOutcome=await continuation.associateRetainedScene(input,outcome.references,budget);
+        assert.equal(continuationOutcome.outcome,'committed','The documented retained-document path deliberately completes the scene');
+        assert.equal(continuationOutcome.current.payload.sourceDocuments[0].evidenceId,outcome.primary.evidenceId);
+        assert.equal(continuationOutcome.current.payload.sourceDocuments[1].evidenceId,outcome.historical.evidenceId);
+        assert.equal(calls.filter(c=>c.method==='POST').length,beforeContinuationPosts+1,'Continuation submits only one scene command');
+        assert.equal(calls.filter(c=>c.method==='POST'&&c.path.endsWith('/assets')).length,2,'Continuation does not recreate either text asset');
+        assert.equal(calls.filter(c=>c.method==='POST'&&c.path.endsWith('/commands')).length,3,'Continuation adds no text evidence batch');
+        assert.equal(continuation.isHeld(),false);
+      }finally{continuation.dispose();}
+    }
     if(['asset-journal-incomplete','evidence-not-dispatched','evidence-journal-incomplete'].includes(mode)){
       const posts=mode==='evidence-journal-incomplete'?2:1;
       assert.equal(outcome.outcome,'partial');assert.equal(calls.filter(c=>c.method==='POST').length,posts);assert(client.isHeld());
@@ -432,6 +463,10 @@ try{
       if(mode==='evidence-not-dispatched')assert.equal(outcome.requestId,null,'No evidence request was dispatched');
       if(mode==='evidence-journal-incomplete'){assert(outcome.evidenceId&&outcome.evidenceReceipt);assert.equal(journal.filter(row=>row.kind==='text-evidence'&&row.state==='unknown').length,0,'Terminal evidence is never downgraded');}
       await assert.rejects(client.importScene(input,budget));assert.equal(calls.filter(c=>c.method==='POST').length,posts);
+    }else if(mode==='scene-import-before-dispatch'||mode==='scene-import-prepare-refresh'||mode==='scene-import-hook-refusal'){
+      assert.equal(outcome.outcome,'not-dispatched');assert.equal(client.isConsumed(),true);assert.equal(client.isHeld(),true);
+      assert.equal(continuationOutcome?.outcome,'committed');assert.equal(calls.filter(c=>c.method==='POST').length,5);
+      assert.equal(client.isHeld(),true,'The original custody owner remains claimed after continuation runs elsewhere');
     }else if(mode==='scene-journal-incomplete'){
       assert.equal(outcome.outcome,'partial');assert.equal(outcome.phase,'scene-association');assert(client.isHeld());
       assert.equal(journal.filter(row=>row.kind==='scene-association'&&row.state==='committed').length,1);

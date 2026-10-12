@@ -150,6 +150,9 @@ node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-owne
 node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents
 node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents-unknown
 node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents-before-dispatch
+node frontend/lantern-tests/native-scan-import-scene.mjs scene-import-before-dispatch
+node frontend/lantern-tests/native-scan-import-scene.mjs scene-import-prepare-refresh
+node frontend/lantern-tests/native-scan-import-scene.mjs scene-import-hook-refusal
 ```
 
 After inspecting the tool, test and source-loader imports, the assistant can

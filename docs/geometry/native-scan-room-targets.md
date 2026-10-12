@@ -63,10 +63,19 @@ head, and the building/target revision guards remain required.
 A local pre-dispatch hook rejection leaves this continuation unclaimed because
 no scene request was submitted. The claim is established only when the
 association owner registers its pending request. If a successful awaited hook
-refreshes the current admission snapshot before that point, the known pre-dispatch refusal
-leaves the continuation reusable; the generated regression recaptures a fresh
-selection before retrying. Once pending registration succeeds, unknown and
-acknowledged-partial outcomes retain their existing reconciliation behavior.
+refreshes the current admission snapshot before that point, the known
+pre-dispatch refusal leaves the continuation reusable; the generated regression
+recaptures a fresh selection before retrying. For ordinary import, failures in
+fresh-geometry loading, association preparation, or dispatch before pending
+registration return the typed `not-dispatched` result. It carries the
+committed primary and historical receipts plus their closed evidence/asset/SHA
+references. The original importer remains custody-consumed; `isHeld()` reflects
+that unfinished custody, not a submitted unknown scene. A fresh importer can
+pass those references and the same selected input to `associateRetainedScene`
+to complete the scene without repeating text custody.
+There is no scene request to resolve on either known pre-dispatch path. Once
+pending registration succeeds, unknown and acknowledged-partial outcomes keep
+their existing GET-only reconciliation behavior.
 
 The inspected generated-only fake-transport regression cases are:
 
@@ -86,8 +95,13 @@ node frontend/lantern-tests/native-scan-import-scene.mjs native-room-target-owne
 node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents
 node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents-unknown
 node frontend/lantern-tests/native-scan-import-scene.mjs retained-documents-before-dispatch
+node frontend/lantern-tests/native-scan-import-scene.mjs scene-import-before-dispatch
+node frontend/lantern-tests/native-scan-import-scene.mjs scene-import-prepare-refresh
+node frontend/lantern-tests/native-scan-import-scene.mjs scene-import-hook-refusal
 ```
 
-These cases use generated identities and a local fake transport only. They do
+These cases use generated identities and a local fake transport only. The
+ordinary import continuation cases cover a failed dispatch hook, dispatch-hook
+invalidation, and a fresh-geometry owner refresh after both text commits. They do
 not exercise live providers, credentials, databases, imports, real concurrency,
 crash recovery or household data.

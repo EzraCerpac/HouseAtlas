@@ -63,11 +63,16 @@ export interface NativeScanRetainedSceneReferences {
 }
 export type NativeScanRetainedSceneResult =
   | { readonly outcome:'committed'; readonly current:SceneAssociationCurrent; readonly references:NativeScanRetainedSceneReferences }
+  | { readonly outcome:'not-dispatched'; readonly phase:'scene-association'; readonly references:NativeScanRetainedSceneReferences }
   | { readonly outcome:'unknown'; readonly phase:'scene-association'; readonly requestId:string }
   | { readonly outcome:'partial'; readonly phase:'scene-association'; readonly requestId:string;
       readonly current:SceneAssociationCurrent; readonly references:NativeScanRetainedSceneReferences };
+/** A known pre-dispatch refusal after text custody. Use `references` with a
+ * fresh importer's `associateRetainedScene`; do not call scene reconciliation. */
 export type NativeScanSceneResult = {readonly outcome:'committed'; readonly current:SceneAssociationCurrent;
   readonly primary:Extract<NativeScanTextResult,{outcome:'committed'}>; readonly historical:Extract<NativeScanTextResult,{outcome:'committed'}>}
+  | {readonly outcome:'not-dispatched';readonly phase:'scene-association';readonly primary:Extract<NativeScanTextResult,{outcome:'committed'}>;
+    readonly historical:Extract<NativeScanTextResult,{outcome:'committed'}>;readonly references:NativeScanRetainedSceneReferences}
   | Exclude<NativeScanTextResult,{outcome:'committed'}>
   | {readonly outcome:'unknown';readonly phase:'scene-association';readonly requestId:string}
   | {readonly outcome:'partial';readonly phase:'scene-association';readonly requestId:string;readonly current:SceneAssociationCurrent;
@@ -359,14 +364,16 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
     }catch(error){associations.releasePrepared(prepared);throw error;}
   };
   const dispatchAssociation=async(prepared:SceneAssociationPrepared,frame:NativeGeometryFrame,input:NativeScanSceneInput,
-    signal:AbortSignal,onAcknowledged:(current:SceneAssociationCurrent)=>void,onPending?:()=>void):Promise<
-      {outcome:'committed';current:SceneAssociationCurrent}|{outcome:'partial';current:SceneAssociationCurrent}|{outcome:'unknown'}>=>{
-    await nativeScanImportWait(options.beforeDispatch('scene-association',{requestId:prepared.requestId,body:prepared.body}),signal);
+    signal:AbortSignal,onAcknowledged:(current:SceneAssociationCurrent)=>void,onPending:()=>void):Promise<
+      {outcome:'committed';current:SceneAssociationCurrent}|{outcome:'partial';current:SceneAssociationCurrent}
+      |{outcome:'unknown'}|{outcome:'not-dispatched'}>=>{
+    try{await nativeScanImportWait(options.beforeDispatch('scene-association',{requestId:prepared.requestId,body:prepared.body}),signal);}
+    catch{return {outcome:'not-dispatched'};}
     let pendingRegistered=false,acknowledged:SceneAssociationCurrent|undefined;
     try{
-      const current=await associations.submit(prepared,frame,signal,input.confirmDrawingSupport, onPending?()=>{
+      const current=await associations.submit(prepared,frame,signal,input.confirmDrawingSupport,()=>{
         pendingRegistered=true;onPending();
-      }:undefined);
+      });
       need(current.status==='available'&&current.recordId===prepared.targetId&&canonical(current.payload)===canonical(prepared.payload));
       acknowledged=current;onAcknowledged(current);
       await nativeScanImportWait(options.afterResult('scene-association',{requestId:prepared.requestId,outcome:'committed'}),signal);
@@ -376,7 +383,7 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
       // Retained documents are claimed only once the association owner records
       // the pending request. A synchronous owner/source refusal before that
       // point is safe to retry and must not become an unresolvable unknown.
-      if(onPending&&!pendingRegistered)throw error;
+      if(!pendingRegistered)return {outcome:'not-dispatched'};
       try{await nativeScanImportWait(options.afterResult('scene-association',{requestId:prepared.requestId,outcome:'unknown'}),signal);}catch{/* Keep the request held. */}
       return {outcome:'unknown'};
     }
@@ -499,13 +506,22 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
         const primary=await texts.importText(input.primary,signal);if(primary.outcome!=='committed')return primary;
         signal.throwIfAborted();need(getBinding()===owner);
         const historical=await texts.importText(input.historical,signal);if(historical.outcome!=='committed')return historical;
-        signal.throwIfAborted();need(getBinding()===owner);
         // Identity append changes descriptor/view keys. Never reuse first keys.
-        const fresh=await geometry.loadBuilding(input.buildingId,signal);
-        prepared=await prepareAssociation(input,fresh,{evidenceId:primary.evidenceId,originalAssetId:primary.assetId,sha256:input.primary.sha256},
-          {evidenceId:historical.evidenceId,originalAssetId:historical.assetId,sha256:input.historical.sha256},signal,owner);
-        retained={prepared,input,primary,historical};
-        const dispatched=await dispatchAssociation(prepared,fresh,input,signal,current=>{if(retained)retained.acknowledged=current;});
+        // Once documentary custody is committed, every failure before the
+        // association owner registers pending returns those closed references
+        // so the host can continue through a fresh retained-document importer.
+        const references:NativeScanRetainedSceneReferences=Object.freeze({
+          primary:Object.freeze({evidenceId:primary.evidenceId,originalAssetId:primary.assetId,sha256:input.primary.sha256}),
+          historical:Object.freeze({evidenceId:historical.evidenceId,originalAssetId:historical.assetId,sha256:input.historical.sha256})});
+        let fresh:NativeGeometryFrame;
+        try{
+          signal.throwIfAborted();need(getBinding()===owner);
+          fresh=await geometry.loadBuilding(input.buildingId,signal);
+          prepared=await prepareAssociation(input,fresh,references.primary,references.historical,signal,owner);
+        }catch{return Object.freeze({outcome:'not-dispatched',phase:'scene-association',primary,historical,references});}
+        const dispatched=await dispatchAssociation(prepared,fresh,input,signal,current=>{if(retained)retained.acknowledged=current;},
+          ()=>{retained={prepared:prepared!,input,primary,historical};});
+        if(dispatched.outcome==='not-dispatched')return Object.freeze({outcome:'not-dispatched',phase:'scene-association',primary,historical,references});
         if(dispatched.outcome==='committed'){completed=true;retained=null;return Object.freeze({outcome:'committed',current:dispatched.current,primary,historical});}
         if(dispatched.outcome==='partial')return Object.freeze({outcome:'partial',phase:'scene-association',requestId:prepared.requestId,
           current:dispatched.current,primary,historical});
@@ -581,6 +597,7 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
         const retainedPrepared=prepared;
         const dispatched=await dispatchAssociation(retainedPrepared,frame,input,signal,current=>{if(retainedDocuments)retainedDocuments.acknowledged=current;},
           ()=>{retainedDocuments={prepared:retainedPrepared,input,references};claimed=true;});
+        if(dispatched.outcome==='not-dispatched')return Object.freeze({outcome:'not-dispatched',phase:'scene-association',references});
         if(dispatched.outcome==='committed'){
           completed=true;retainedDocuments=null;return Object.freeze({outcome:'committed',current:dispatched.current,references});}
         if(dispatched.outcome==='partial')return Object.freeze({outcome:'partial',phase:'scene-association',requestId:prepared.requestId,
