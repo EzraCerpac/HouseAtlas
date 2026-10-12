@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "acb49bdd62be9f17f2d9276a67b8f7a460d859d968e967cf729e32a92422ea32",
+  "sourceDigestSha256": "50d07fdceb149c653ac704cddf62799d662fc03ccef216597185299451466992",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -6098,8 +6098,8 @@
       "path": "frontend/integration/native-scan-import-scene.ts",
       "owner": "media",
       "mode": "100644",
-      "bytes": 60490,
-      "sha256": "4ca97803f0b706699cc7a70f5f548655d63bb83deabff9e2bee55f0ef4ed8840"
+      "bytes": 60505,
+      "sha256": "a6777b7f0f6f29896ff6f5e6f4b982132e17d760e516471607610e123fd09bc5"
     },
     {
       "path": "frontend/integration/native-scan-import-text.ts",
@@ -6132,8 +6132,8 @@
     {
       "path": "frontend/integration/native-scene-source-client.ts",
       "mode": "100644",
-      "bytes": 56185,
-      "sha256": "573c8e4cd9d0e5c77e18c59ab51660d8e57dc7bcd542d38a493776aef940c93f",
+      "bytes": 56190,
+      "sha256": "7bd27339efbc27258d71500daa5c26e7a93ec090ad03ca83ed8b00c4529c30c7",
       "owner": "web"
     },
     {
@@ -6315,8 +6315,8 @@
       "path": "frontend/lantern-tests/native-scan-import-scene.mjs",
       "owner": "media",
       "mode": "100644",
-      "bytes": 73537,
-      "sha256": "352695db86a213458a4922a8db860881d06bac5e9aade613f6c457a7afa2ca3d"
+      "bytes": 74835,
+      "sha256": "783200c1ebac88b2c254996fbdd57a7dae23c2ea35df4076cc2c74511959b1c3"
     },
     {
       "path": "frontend/lantern-tests/native-scan-succession.mjs",

@@ -34,7 +34,7 @@ function list(value: LosslessJson | undefined, maximum: number): LosslessJson[] 
   need(Array.isArray(value) && value.length <= maximum); return value;
 }
 function str(value: LosslessJson | undefined, maximum = 256): string {
-  need(typeof value === 'string' && value.length > 0 && value.length <= maximum && value.trim() === value);
+  need(typeof value === 'string' && value.length > 0 && [...value].length <= maximum && value.trim() === value);
   return value;
 }
 function plain(value: LosslessJson | undefined, maximum = 2048): string {

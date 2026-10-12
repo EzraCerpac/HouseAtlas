@@ -289,6 +289,18 @@ try{
     assert.equal(await preflightNativeScanScene(pure,budget,scope),undefined,'Pure validation returns no synthetic native frame');
     assert.equal(await preflightNativeScanScene({...pure,roomMappings:pure.roomMappings.map(m=>({...m,targets:m.targets.map(t=>({...t,atlasPlaceId:null}))}))},budget,scope),undefined,
       'Explicit null remains compatible with the omitted native identity');
+    for(const glyph of ['x','😀']){
+      const boundary=glyph.repeat(512),boundaryTarget={...anchors[0].targets[0],packagePlaceKey:boundary};
+      const boundaryAnchors=anchors.map(a=>({...a,id:boundary,sourceFloorKey:boundary,targets:[boundaryTarget]}));
+      const boundaryPrimary=JSON.parse(primary);boundaryPrimary.receiptCanonicalJson=canonical({profile:'houseatlas.native-scene-room-review.v1',
+        receiptId:'synthetic-room-review',sourceReceiptSha256:historySha,anchors:boundaryAnchors});
+      boundaryPrimary.rooms.receiptSha256=hash(boundaryPrimary.receiptCanonicalJson);
+      boundaryPrimary.rooms.entries=boundaryPrimary.rooms.entries.map(e=>({...e,id:boundary,sourceFloorKey:boundary,sourceAnchorIds:[boundary],packagePlaceKey:boundary}));
+      const boundaryInput={...pure,primary:textInput(JSON.stringify(boundaryPrimary),'schema-boundary.txt'),
+        sourceFloors:pure.sourceFloors.map(f=>({...f,sourceFloorKey:boundary})),roomMappings:pure.roomMappings.map(m=>({...m,
+          sourceRoomId:boundary,sourceFloorKey:boundary,sourceAnchorIds:[boundary],targets:[boundaryTarget]}))};
+      assert.equal(await preflightNativeScanScene(boundaryInput,budget,scope),undefined,'Published 512-code-point source identifiers preserve ASCII and supplementary characters');
+    }
     assert.equal(calls.length,0,'Pure preflight has no HTTP or authentication');
     for(const field of ['rooms','network','electricity','electricalFixtures']){
       const malformed=JSON.parse(primary);if(field==='electricalFixtures'){malformed.schema='houseatlas.native-scene-source.v2';malformed.electricalFixtures={status:'available',reason:null,documentaryFixtures:{unexpected:true}};}

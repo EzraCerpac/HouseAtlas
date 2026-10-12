@@ -97,7 +97,7 @@ export async function preflightNativeScanScene(input:NativeScanScenePreflightInp
   need(Array.isArray(input.sourceFloors)&&input.sourceFloors.length>0&&input.sourceFloors.length<=3&&Array.isArray(input.roomMappings)&&input.roomMappings.length<=256);
   const selected=new Set<string>();
   for(const f of input.sourceFloors){closed(f as unknown as Row,['sourceFloorKey','sourceOriginalSha256']);need(typeof f.sourceFloorKey==='string'&&f.sourceFloorKey.trim()===f.sourceFloorKey
-    &&f.sourceFloorKey.length>0&&f.sourceFloorKey.length<=256&&SHA.test(f.sourceOriginalSha256)&&!selected.has(f.sourceFloorKey));selected.add(f.sourceFloorKey);}
+    &&f.sourceFloorKey.length>0&&[...f.sourceFloorKey].length<=512&&SHA.test(f.sourceOriginalSha256)&&!selected.has(f.sourceFloorKey));selected.add(f.sourceFloorKey);}
   const pText=await nativeScanImportWait(verifyNativeScanText(input.primary,signal),signal);
   const hText=await nativeScanImportWait(verifyNativeScanText(input.historical,signal),signal);
   const stored=row(parseLosslessJson(pText));need(typeof stored.receiptCanonicalJson==='string'&&stored.receiptCanonicalJson.length<=131072);
@@ -159,7 +159,7 @@ export async function preflightNativeScanScene(input:NativeScanScenePreflightInp
       const packageTargets=m.targets.map(t=>{
         const target=row(parseLosslessJson(stringifyLosslessJson(t)));
         need(Object.keys(target).every(k=>['packagePlaceKey','packagePlaceUuid','atlasPlaceId'].includes(k))
-          &&typeof target.packagePlaceKey==='string'&&target.packagePlaceKey.length>0&&target.packagePlaceKey.length<=256
+          &&typeof target.packagePlaceKey==='string'&&target.packagePlaceKey.length>0&&[...target.packagePlaceKey].length<=512
           &&typeof target.packagePlaceUuid==='string'&&UUID.test(target.packagePlaceUuid));
         if(Object.hasOwn(target,'atlasPlaceId')){
           need(target.atlasPlaceId===null||typeof target.atlasPlaceId==='string'&&UUID.test(target.atlasPlaceId));
@@ -227,7 +227,7 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
     const seen=new Set<string>(),sourceKeys=new Set<string>();
     return input.sourceFloors.map(item=>{
       need(UUID.test(item.nativeGeometryId)&&SHA.test(item.sourceOriginalSha256)&&item.sourceFloorKey.trim()
-        &&item.sourceFloorKey.length<=256&&!seen.has(item.nativeGeometryId)&&!sourceKeys.has(item.sourceFloorKey));
+        &&[...item.sourceFloorKey].length<=512&&!seen.has(item.nativeGeometryId)&&!sourceKeys.has(item.sourceFloorKey));
       seen.add(item.nativeGeometryId);sourceKeys.add(item.sourceFloorKey);
       const floor=frame.floors.find(f=>f.geometryId===item.nativeGeometryId);need(floor);
       return {sourceFloorKey:item.sourceFloorKey,sourceOriginalSha256:item.sourceOriginalSha256,nativeFloorKey:floor.key,
