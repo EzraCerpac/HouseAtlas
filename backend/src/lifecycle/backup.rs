@@ -18,7 +18,7 @@ use crate::{
     http::contracts::NativeContracts,
     jobs::{CanonicalScope, EnqueueRequest, QueueConfig, QueueRegistration},
     media::{
-        self, AssetVault, Cancellation, WorkBudget, native::NativeMediaRuntime,
+        self, AssetVault, WorkBudget, native::NativeMediaRuntime,
         native_recovery::NativeMediaRecovery, recovery::MAX_DATABASE,
     },
     storage::{self, QueueDiscovery, QueueRecoveryAttempt, QueueRecoveryEvidence},
@@ -31,7 +31,6 @@ use std::{
     io::{Read, Seek, SeekFrom},
     os::unix::fs::MetadataExt,
     path::{Component, Path, PathBuf},
-    time::Duration,
 };
 
 pub const PROFILE: &str = "native-stock-queue-free";
@@ -182,7 +181,7 @@ pub fn capture(selection: &Selection) -> Result<BackupReport, Failure> {
     let config = &selection.config;
     config.validate()?;
     let lease = ServerLease::acquire(config, false)?;
-    let budget = WorkBudget::new(Duration::from_secs(10), Cancellation::default())?;
+    let budget = WorkBudget::new_offline_backup()?;
     let config_bytes = read_selected_file(&selection.config_path, 64 * 1024, true)?;
     let selected: ServerConfig = serde_json::from_slice(&config_bytes)?;
     if serde_json::to_vec(&selected)? != serde_json::to_vec(config)? {

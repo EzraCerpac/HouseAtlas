@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "a38b75d9513c2863a7d5eb05f85192ce3026457ed9d7639f5282bb6b8255f7bd",
+  "sourceDigestSha256": "5f739cdee8aa38cace2fffab6455ea8815f871ccce62c8b765f2d7136965328d",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -92,8 +92,8 @@
       "path": "README.md",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 56022,
-      "sha256": "f0e2b328d06a3edaf1c679b56b4ef5f4a4c0e7d5eefe40da1db55c1a7b7d13ac"
+      "bytes": 56193,
+      "sha256": "e23dcec136c7c6e534b1022575f9cb8565c19cc048b280ebb4bd809b7ca94a12"
     },
     {
       "path": "adapters/homebox/README.md",
@@ -2422,8 +2422,8 @@
     {
       "path": "backend/src/lifecycle/backup.rs",
       "mode": "100644",
-      "bytes": 14473,
-      "sha256": "e7bb0ad5737f3809f0b8d6ea6e4be6f4612e74d06b48ce67a36551bdfc2c26f0",
+      "bytes": 14406,
+      "sha256": "8c62d20dcff50f7444cc4dcaff09bb2faa59c8b7f9a0e0d350b28e0237dc385e",
       "owner": "core-integration"
     },
     {
@@ -2618,8 +2618,8 @@
     {
       "path": "backend/src/media/budget.rs",
       "mode": "100644",
-      "bytes": 1036,
-      "sha256": "993882b2bdf94d6729795952357177f1bc9f876acf063e841a4de94c531d94fb",
+      "bytes": 2642,
+      "sha256": "0fcb12d369127f405fc7bb39e4a5649f1ce795d2c23431a1a226096b6221ad3c",
       "owner": "media"
     },
     {
