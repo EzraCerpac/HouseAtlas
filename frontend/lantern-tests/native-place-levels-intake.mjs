@@ -5,6 +5,23 @@ import { loadNumericSource } from './load-numeric-source.mjs';
 import { transformWithOxc } from 'vite';
 
 const { parseLosslessJson, stringifyLosslessJson } = await import(await loadNumericSource('numeric/lossless-json.ts'));
+const dataModule = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
+const schemaModule = path => dataModule(`export default ${JSON.stringify(JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8')))};`);
+const quantitySource = new URL('../src/api/quantity-client.ts', import.meta.url);
+let { code: quantityCode } = await transformWithOxc(readFileSync(quantitySource, 'utf8'), quantitySource.pathname,
+  { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
+for (const [specifier, replacement] of Object.entries({
+  'ajv/dist/2020.js': import.meta.resolve('ajv/dist/2020.js'),
+  'ajv-formats': import.meta.resolve('ajv-formats'),
+  '../../../contracts/stock-wire3/agent/agent.schema.json': schemaModule('../../contracts/stock-wire3/agent/agent.schema.json'),
+  '../../../packages/contracts/schemas/atlas.schema.json': schemaModule('../../packages/contracts/schemas/atlas.schema.json'),
+})) {
+  const literal = JSON.stringify(specifier);
+  assert(quantityCode.includes(literal), `Missing quantity source import ${specifier}`);
+  quantityCode = quantityCode.replaceAll(literal, JSON.stringify(replacement));
+}
+const quantityModule = dataModule(quantityCode);
+const { quantityRequestDigest } = await import(quantityModule);
 const placeClientSource = new URL('../src/api/native-place-client.ts', import.meta.url);
 let { code: placeClientCode } = await transformWithOxc(readFileSync(placeClientSource, 'utf8'), placeClientSource.pathname,
   { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
@@ -14,6 +31,7 @@ const placeImports = {
   '../numeric/decimal': 'numeric/decimal.ts',
   '../numeric/lossless-json': 'numeric/lossless-json.ts',
   '../numeric/schema-validator': 'numeric/schema-validator.ts',
+  './quantity-client': quantityModule,
   './native-evidence-client': evidenceFactoryStub,
 };
 for (const [specifier, target] of Object.entries(placeImports)) {
@@ -49,8 +67,9 @@ const client = createNativePlaceClient({ getContext: () => ({ session, scope, ad
   assert.equal(init.redirect, 'error');
   assert.equal(init.cache, 'no-store');
   const request = parseLosslessJson(init.body);
+  const requestDigest = await quantityRequestDigest(JSON.parse(init.body));
   assert.equal(request.commandId, 'atlas.batch.execute');
-  posted.push(request);
+  posted.push({ ...request, requestDigest });
   const produced = request.payload.commands.map(child => {
     const record = { target: child.target, revision: 1, lifecycle: 'active', payload: child.payload };
     records.set(`${child.target.recordType}/${child.target.recordId}`, record);
@@ -58,7 +77,7 @@ const client = createNativePlaceClient({ getContext: () => ({ session, scope, ad
   });
   return new Response(stringifyLosslessJson({ schemaVersion: 3, commandId: request.commandId, requestId: request.requestId,
     resolvedScope: scope, status: 'committed', replayed: false, operationId: U(800 + posted.length),
-    data: { records: produced, auditIds: produced.map((_, index) => U(900 + posted.length * 10 + index)), requestDigest: 'a'.repeat(64) } }), { status: 200 });
+    data: { records: produced, auditIds: produced.map((_, index) => U(900 + posted.length * 10 + index)), requestDigest } }), { status: 200 });
 } });
 const binding = client.getBinding();
 assert(binding);

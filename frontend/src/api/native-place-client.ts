@@ -8,6 +8,9 @@ import { isExactDecimal } from '../numeric/decimal';
 import { parseLosslessJson, stringifyLosslessJson, type JsonForSerialization, type LosslessJson } from '../numeric/lossless-json';
 import { createExactStockResultValidator, exactStockSafeInteger } from '../numeric/schema-validator';
 import { createNativeEvidenceClient, type NativeEvidenceClient } from './native-evidence-client';
+// Reuse the published Stock RFC 8785 intent digest and its root exclusions for Atlas batches.
+import { quantityRequestDigest } from './quantity-client';
+import type { StockRequestEnvelope } from '../webmcp/stock';
 
 export interface NativePlaceBinding { readonly scope: Readonly<Scope> }
 type Guard = { target: { authority: 'atlas'; recordType: string; recordId: string }; revision: { kind: 'atlas'; value: number } };
@@ -111,6 +114,7 @@ export function createNativePlaceClient(options: {
   const validator = createExactStockResultValidator();
   const transport = options.transport ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
   const dispatched = new WeakSet<NativePlacePrepared>();
+  const issued = new WeakSet<NativePlacePrepared>();
   const retained = createRetainedIntentClient(transport);
   // Memory-only submitted inputs survive form/view remount; the private session is never returned.
   const ledger = new Map<NativePlacePrepared, { session: AtlasSessionInfo; outcome: 'unknown' | 'committed'; receipt?: LosslessJson; inspection?: RetainedIntentRead }>();
@@ -185,7 +189,9 @@ export function createNativePlaceClient(options: {
     const requestId = id();
     const body = serialize({ schemaVersion: 3, commandId: 'atlas.batch.execute', requestId, context: { workspaceId: binding.scope.workspaceId, homeId: binding.scope.homeId }, target: { authority: 'atlas', kind: 'batch', batchId: id() }, payload: { commands },
       idempotencyKey: id(), reason, approvalReceiptId: null, preconditions: { target: null, guards } });
-    return Object.freeze({ binding, requestId, commandId: 'atlas.batch.execute', body });
+    const prepared = Object.freeze({ binding, requestId, commandId: 'atlas.batch.execute' as const, body });
+    issued.add(prepared);
+    return prepared;
   };
   const evidenceOwners = new WeakMap<AtlasSessionInfo, object>();
   const evidenceClient = createNativeEvidenceClient({
@@ -289,6 +295,7 @@ export function createNativePlaceClient(options: {
       return batch(admission.binding, commands, input.reason, [...admission.guards, guard('location-semantics', admission.record.target.recordId, admission.record.revision)]);
     },
     async commit(prepared, signal) {
+      if (!issued.has(prepared)) throw new Error('Native prepared request was not issued by this client');
       current(prepared.binding, signal);
       if (dispatched.has(prepared)) throw new Error('Native prepared request was already dispatched; inspect retained completion');
       // Repeat the complete-body transport bound before any public-input dispatch or ledger write.
@@ -302,6 +309,9 @@ export function createNativePlaceClient(options: {
       if (parsed.context.workspaceId !== prepared.binding.scope.workspaceId || parsed.context.homeId !== prepared.binding.scope.homeId
         || parsed.payload.commands.some(child => child.context.workspaceId !== prepared.binding.scope.workspaceId || child.context.homeId !== prepared.binding.scope.homeId
           || !validator.validateNativeRequest(child.commandId, child as unknown as LosslessJson))) throw new TypeError('Native prepared scope or child differs');
+      current(prepared.binding, signal);
+      const requestDigest = await quantityRequestDigest(JSON.parse(prepared.body) as StockRequestEnvelope);
+      current(prepared.binding, signal);
       const result = await bounded(signal, async active => {
         current(prepared.binding, active);
         writable(prepared.binding);
@@ -316,8 +326,9 @@ export function createNativePlaceClient(options: {
         const value = await receive(response, active); current(prepared.binding, active); return value;
       });
       if (!validator.validateMutation(prepared.commandId, '#/$defs/result_atlas_batch_execute', result)) throw new TypeError('Native place completion incompatible');
-      const row = result as unknown as { requestId: string; commandId: string; status: string; resolvedScope: Scope; data: { records: Array<{ target: LosslessJson; payload: LosslessJson; revision: LosslessJson; lifecycle: string }>; auditIds: string[] } };
-      if (row.requestId !== prepared.requestId || row.commandId !== prepared.commandId || row.resolvedScope.workspaceId !== prepared.binding.scope.workspaceId || row.resolvedScope.homeId !== prepared.binding.scope.homeId) throw new TypeError('Native place completion correlation differs');
+      const row = result as unknown as { requestId: string; commandId: string; status: string; replayed: boolean; resolvedScope: Scope; data: { records: Array<{ target: LosslessJson; payload: LosslessJson; revision: LosslessJson; lifecycle: string }>; auditIds: string[]; requestDigest: string } };
+      if (row.requestId !== prepared.requestId || row.commandId !== prepared.commandId || row.resolvedScope.workspaceId !== prepared.binding.scope.workspaceId || row.resolvedScope.homeId !== prepared.binding.scope.homeId
+        || row.status !== 'committed' || row.replayed !== false || row.data.requestDigest !== requestDigest) throw new TypeError('Native place completion correlation differs');
       if (row.data.records.length !== parsed.payload.commands.length || row.data.auditIds.length !== parsed.payload.commands.length
         || parsed.payload.commands.some(child => {
           const record = row.data.records.find(record => sameJson(record.target, child.target));
@@ -327,7 +338,7 @@ export function createNativePlaceClient(options: {
       ledger.get(prepared)!.receipt = result;
       ledger.get(prepared)!.outcome = 'committed';
       notify();
-      return { status: row.status === 'committed' ? 'committed' : 'notCommitted', receipt: result };
+      return { status: 'committed', receipt: result };
     },
   };
 }

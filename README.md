@@ -379,8 +379,10 @@ Its focused synthetic check uses only an in-memory fake transport:
 node frontend/lantern-tests/native-place-levels-intake.mjs
 ```
 
-This checks native batch composition and parent revision guards only. It opens
-no listener, reads no household/provider data and performs no native write.
+This checks native batch composition, parent revision guards, client-issued
+preparation use and a non-replayed commit with the genuine JCS request digest.
+It opens no listener, reads no household/provider data and performs no native
+write.
 
 A separately reviewed native naming rehearsal uses a fresh empty synthetic
 local Editor state and an exact private artifact-selection packet. It creates

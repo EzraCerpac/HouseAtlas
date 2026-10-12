@@ -23,7 +23,10 @@ physical alignment, floor height, scale or geometry. It adds no backend routes,
 schema variants, permission grants or native admission commands. The existing
 client admission check and one-shot `commit` flow remain responsible for the
 current session, batch validation, exact request retention and unknown-outcome
-inspection.
+inspection. The first successful completion must be a non-replayed commit whose
+request digest matches the submitted Stock intent under the published JCS
+`requestId` and `approvalReceiptId` exclusions. Only frozen preparations issued
+by that client instance can be committed; a clone is not the retained request.
 
 The focused fixture is `frontend/lantern-tests/native-place-levels-intake.mjs`.
 It composes synthetic records through the actual frontend client and an
