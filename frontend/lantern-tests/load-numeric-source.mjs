@@ -44,9 +44,28 @@ const links = Object.freeze({
   },
   'api/native-place-client.ts': {
     './retained-intent-client': 'api/retained-intent-client.ts',
+    './native-evidence-client': 'api/native-evidence-client.ts',
+    './quantity-client': 'api/quantity-client.ts',
     '../numeric/decimal': 'numeric/decimal.ts',
     '../numeric/lossless-json': 'numeric/lossless-json.ts',
     '../numeric/schema-validator': 'numeric/schema-validator.ts',
+  },
+  'api/native-evidence-client.ts': {
+    '../capture-evidence/selection': 'capture-evidence/selection.ts',
+    '../capture-evidence/types': 'capture-evidence/types.ts',
+    '../numeric/decimal': 'numeric/decimal.ts',
+    '../numeric/lossless-json': 'numeric/lossless-json.ts',
+    '../numeric/schema-validator': 'numeric/schema-validator.ts',
+  },
+  'capture-evidence/selection.ts': {
+    './types': 'capture-evidence/types.ts',
+  },
+  'capture-evidence/types.ts': {},
+  'api/quantity-client.ts': {
+    'ajv/dist/2020.js': ajv,
+    'ajv-formats': addFormats,
+    '../../../contracts/stock-wire3/agent/agent.schema.json': agentJson,
+    '../../../packages/contracts/schemas/atlas.schema.json': atlasJson,
   },
   'api/retained-intent-client.ts': {
     'ajv/dist/2020.js': ajv, 'ajv-formats': addFormats,

@@ -4,6 +4,7 @@ import { loadNumericSource } from './load-numeric-source.mjs';
 const { createNativePlaceClient } = await import(await loadNumericSource('api/native-place-client.ts'));
 const { parseLosslessJson, stringifyLosslessJson } = await import(await loadNumericSource('numeric/lossless-json.ts'));
 const { buildTopologyIndex } = await import(await loadNumericSource('lantern/topology/model.ts'));
+const { quantityRequestDigest } = await import(await loadNumericSource('api/quantity-client.ts'));
 const U = number => `00000000-0000-4000-8000-${String(number).padStart(12, '0')}`;
 const scope = { workspaceId: U(1), homeId: U(2) };
 const session = { schemaVersion: 1, actorId: U(3), csrfToken: 'synthetic-local-only', expiresAt: '2099-01-01T00:00:00Z' };
@@ -48,6 +49,7 @@ const client = createNativePlaceClient({ getContext: () => ({ session, scope: cu
   assert.equal(init.headers['x-atlas-csrf'], session.csrfToken);
   const request = parseLosslessJson(init.body); posts.push(request);
   assert.equal(request.commandId, 'atlas.batch.execute'); assert.deepEqual(request.context, scope);
+  const requestDigest = await quantityRequestDigest(JSON.parse(init.body));
   const produced = request.payload.commands.map(child => {
     const key = `${child.target.recordType}/${child.target.recordId}`;
     const prior = records.get(key);
@@ -55,7 +57,7 @@ const client = createNativePlaceClient({ getContext: () => ({ session, scope: cu
     const record = { target: child.target, revision, lifecycle: 'active', payload: child.payload }; records.set(key, record); return record;
   });
   const wire = { schemaVersion: 3, commandId: request.commandId, requestId: request.requestId, resolvedScope: scope, status: 'committed', replayed: false,
-    operationId: U(900 + posts.length), data: { records: produced, auditIds: produced.map((_, index) => U(1000 + posts.length * 10 + index)), requestDigest: 'a'.repeat(64) } };
+    operationId: U(900 + posts.length), data: { records: produced, auditIds: produced.map((_, index) => U(1000 + posts.length * 10 + index)), requestDigest } };
   const children = request.payload.commands.map((child, index) => ({ schemaVersion: 3, commandId: child.commandId, requestId: child.requestId,
     resolvedScope: scope, status: 'committed', replayed: false, operationId: U(2000 + posts.length * 10 + index),
     data: { records: [produced[index]], auditIds: [wire.data.auditIds[index]], requestDigest: 'b'.repeat(64) } }));
