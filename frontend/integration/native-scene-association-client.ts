@@ -244,7 +244,7 @@ export interface SceneAssociationClient {
   prepare(candidate: SceneAssociationCandidate, geometry: NativeGeometryFrame,
     statement: string, reason: string, signal: AbortSignal, previous?: object): Promise<SceneAssociationPrepared>;
   releasePrepared(prepared: SceneAssociationPrepared): void;
-  submit(prepared: SceneAssociationPrepared, geometry: NativeGeometryFrame, signal: AbortSignal, confirmDrawingSupport?: boolean): Promise<SceneAssociationRead>;
+  submit(prepared: SceneAssociationPrepared, geometry: NativeGeometryFrame, signal: AbortSignal, confirmDrawingSupport?: boolean, onPending?: () => void): Promise<SceneAssociationRead>;
   resolve(prepared: SceneAssociationPrepared, geometry: NativeGeometryFrame, signal: AbortSignal): Promise<SceneAssociationRead>;
   dispose(): void;
 }
@@ -651,7 +651,7 @@ export function createNativeSceneAssociationClient(options: {
         }
       });
     },
-    async submit(prepared, geometry, outer, confirmDrawingSupport) {
+    async submit(prepared, geometry, outer, confirmDrawingSupport, onPending) {
       const owner = preparedOwner.get(prepared), source = held.get(prepared);
       need(owner && source && !source.withdrawn.signal.aborted && !dispatched.has(prepared) && current(owner, geometry)
         && options.primaryReview.isCurrent(source.primary) && options.historicalReview.isCurrent(source.historical)
@@ -659,7 +659,7 @@ export function createNativeSceneAssociationClient(options: {
       need(!prepared.drawingReview || confirmDrawingSupport === true);
       const next = context(); need(availableWrite(next) && !unknown(prepared.buildingId, pendingBinding!, next));
       dispatched.add(prepared); pending.set(prepared, { owner: pendingBinding!, workspaceId: next.view.scope.workspaceId,
-        homeId: next.view.scope.homeId, buildingId: prepared.buildingId, outcome: 'unknown' }); notify();
+        homeId: next.view.scope.homeId, buildingId: prepared.buildingId, outcome: 'unknown' }); onPending?.(); notify();
       try { return await bounded(outer, async signal => {
         const raw = await obtain(`${path(next)}/commands`, { method: 'POST',
           headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Atlas-CSRF': next.session.csrfToken },

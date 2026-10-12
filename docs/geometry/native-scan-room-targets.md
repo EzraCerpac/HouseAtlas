@@ -61,7 +61,11 @@ held if dispatch is unknown; `reconcileRetainedScene(signal)` is GET-only and
 never resends it. Current topology, full scope, geometry/floor keys, previous
 head, and the building/target revision guards remain required.
 A local pre-dispatch hook rejection leaves this continuation unclaimed because
-no scene request was submitted; once the hook succeeds, submitted unknown and
+no scene request was submitted. The claim is established only when the
+association owner registers its pending request. If a successful awaited hook
+refreshes the current admission snapshot before that point, the known pre-dispatch refusal
+leaves the continuation reusable; the generated regression recaptures a fresh
+selection before retrying. Once pending registration succeeds, unknown and
 acknowledged-partial outcomes retain their existing reconciliation behavior.
 
 The inspected generated-only fake-transport regression cases are:

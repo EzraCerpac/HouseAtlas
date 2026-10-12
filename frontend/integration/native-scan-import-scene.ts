@@ -359,19 +359,24 @@ export function createNativeScanSceneImporter(options:NativeScanImportOptions) {
     }catch(error){associations.releasePrepared(prepared);throw error;}
   };
   const dispatchAssociation=async(prepared:SceneAssociationPrepared,frame:NativeGeometryFrame,input:NativeScanSceneInput,
-    signal:AbortSignal,onAcknowledged:(current:SceneAssociationCurrent)=>void,onBeforeSubmit?:()=>void):Promise<
+    signal:AbortSignal,onAcknowledged:(current:SceneAssociationCurrent)=>void,onPending?:()=>void):Promise<
       {outcome:'committed';current:SceneAssociationCurrent}|{outcome:'partial';current:SceneAssociationCurrent}|{outcome:'unknown'}>=>{
     await nativeScanImportWait(options.beforeDispatch('scene-association',{requestId:prepared.requestId,body:prepared.body}),signal);
-    onBeforeSubmit?.();
-    let acknowledged:SceneAssociationCurrent|undefined;
+    let pendingRegistered=false,acknowledged:SceneAssociationCurrent|undefined;
     try{
-      const current=await associations.submit(prepared,frame,signal,input.confirmDrawingSupport);
+      const current=await associations.submit(prepared,frame,signal,input.confirmDrawingSupport, onPending?()=>{
+        pendingRegistered=true;onPending();
+      }:undefined);
       need(current.status==='available'&&current.recordId===prepared.targetId&&canonical(current.payload)===canonical(prepared.payload));
       acknowledged=current;onAcknowledged(current);
       await nativeScanImportWait(options.afterResult('scene-association',{requestId:prepared.requestId,outcome:'committed'}),signal);
       await verifyReadback(current,frame,signal,input);return {outcome:'committed',current};
-    }catch{
+    }catch(error){
       if(acknowledged)return {outcome:'partial',current:acknowledged};
+      // Retained documents are claimed only once the association owner records
+      // the pending request. A synchronous owner/source refusal before that
+      // point is safe to retry and must not become an unresolvable unknown.
+      if(onPending&&!pendingRegistered)throw error;
       try{await nativeScanImportWait(options.afterResult('scene-association',{requestId:prepared.requestId,outcome:'unknown'}),signal);}catch{/* Keep the request held. */}
       return {outcome:'unknown'};
     }

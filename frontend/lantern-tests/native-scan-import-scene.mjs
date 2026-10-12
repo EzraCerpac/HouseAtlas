@@ -124,7 +124,9 @@ const input={buildingId,primary:textInput(primary,'scene.txt'),historical:textIn
 const context={sessionIdentity:{},session:{schemaVersion:1,actorId:U(9),csrfToken:'synthetic-not-a-credential',expiresAt:new Date(Date.now()+120000).toISOString()},
   view:{scope,canEdit:true},admission:{scope,revision:'synthetic-admission',commandIds:['atlas.asset.create','atlas.evidence.create','atlas.identity.replace','atlas.batch.execute','atlas.scene-association.create']}};
 const listeners=new Set(),records=new Map(),blobs=new Map(),media=new Map(),calls=[],journal=[];let counter=100,current=null,savedScene=null,lastSceneRequest=null,currentUnavailableReason=null,geometryEpoch=0,headOverride=null,headHttpStatus=200,qualified409Responses=0;const headResponseBytes=[];
-let observeReservationReads=false,activeEvidenceReads=0,maxEvidenceReads=0,rejectSceneBeforeDispatchOnce=mode==='retained-documents-before-dispatch';
+let observeReservationReads=false,activeEvidenceReads=0,maxEvidenceReads=0,rejectSceneBeforeDispatchOnce=mode==='retained-documents-before-dispatch',
+  refreshSceneAdmissionDuringDispatchOnce=mode==='retained-documents-before-dispatch';
+const initialAdmissionRevision=context.admission.revision,initialSessionIdentity=context.sessionIdentity;
 const target=(kind,id)=>({authority:'atlas',recordType:kind,recordId:id});
 const set=(kind,id,payload,revision=1)=>{const r={target:target(kind,id),revision,lifecycle:'active',payload};records.set(kind+':'+id,r);return r;};
 const provenance={source:null,sourceRevision:null,sourceConfidence:null,evidenceBasis:'unknown',factAt:null,retrievedAt:'2026-10-11T00:00:00Z',vantage:null,uncertainty:{status:'unknown',explanation:null}};
@@ -254,6 +256,10 @@ async function transport(url,init){
 }
 const options={getContext:()=>context,subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn);},origin:'https://synthetic.invalid',transport,
   async beforeDispatch(kind,request){if(rejectSceneBeforeDispatchOnce&&kind==='scene-association'){rejectSceneBeforeDispatchOnce=false;throw Error('Synthetic local before-dispatch hook refusal');}
+    if(refreshSceneAdmissionDuringDispatchOnce&&kind==='scene-association'){
+      refreshSceneAdmissionDuringDispatchOnce=false;await Promise.resolve();
+      context.admission={...context.admission,revision:'synthetic-refreshed'};
+    }
     journal.push({kind,requestId:request.requestId,state:'before'});assert(!JSON.stringify(request).includes(context.session.csrfToken));},
   async afterResult(kind,result){journal.push({kind,requestId:result.requestId,state:result.outcome});if((mode==='asset-journal-incomplete'&&kind==='text-asset'||mode==='evidence-journal-incomplete'&&kind==='text-evidence'||mode==='scene-journal-incomplete'&&kind==='scene-association'&&journal.filter(row=>row.kind===kind&&row.state==='committed').length===1)&&result.outcome==='committed')throw Error('Synthetic journal completion unavailable');}};
 const client=createNativeScanSceneImporter(options);
@@ -272,6 +278,21 @@ try{
       assert.equal(journal.length,0,'Rejected local hook creates no before/unknown journal rows');
       assert.equal(client.isConsumed(),false,'Rejected local hook does not consume the retained continuation');
       assert.equal(client.isHeld(),false,'Rejected local hook creates no reconciliation hold');
+      await assert.rejects(client.associateRetainedScene(input,retainedReferences,budget),
+        'A successful awaited hook followed by current admission refresh is a known pre-dispatch refusal');
+      assert.equal(calls.filter(c=>c.method==='POST').length,0,'Admission refresh before pending registration sends no scene request');
+      assert.deepEqual(journal.map(entry=>entry.state),['before'],'No unknown result is journaled without a pending request');
+      assert.equal(client.isConsumed(),false,'Pre-pending source invalidation leaves retained continuation reusable');
+      assert.equal(client.isHeld(),false,'Pre-pending source invalidation creates no unusable reconciliation hold');
+      assert.equal(context.admission.revision,'synthetic-refreshed','The refreshed synthetic admission tuple stays current');
+      assert.equal(initialAdmissionRevision,'synthetic-admission','The source captured the original admission revision before the hook');
+      assert.equal(context.admission.scope,scope,'The synthetic refresh preserves workspace/home scope');
+      assert.deepEqual(context.admission.commandIds,['atlas.asset.create','atlas.evidence.create','atlas.identity.replace','atlas.batch.execute','atlas.scene-association.create'],
+        'The synthetic refresh preserves every command grant');
+      assert.equal(context.view.canEdit,true,'The synthetic refresh preserves editability');
+      assert.equal(context.sessionIdentity,initialSessionIdentity,'The same synthetic session remains active');
+      const freshHead=await client.capturePriorScene(buildingId,budget);
+      assert.equal(freshHead.status,'unavailable','A deliberately fresh selection captures the current absent scene head');
     }
     outcome=await client.associateRetainedScene(input,retainedReferences,budget);
     assert.equal(calls.filter(c=>c.method==='POST').length,1,'Retained association uses exactly one scene POST');
@@ -297,8 +318,9 @@ try{
       assert.equal(outcome.current.payload.sourceDocuments[0].originalAssetId,retainedReferences.primary.originalAssetId);
       assert.equal(outcome.current.payload.sourceDocuments[1].evidenceId,retainedReferences.historical.evidenceId);
       assert.equal(outcome.current.payload.sourceDocuments[1].originalAssetId,retainedReferences.historical.originalAssetId);
-      assert.deepEqual(journal.map(entry=>entry.kind),['scene-association','scene-association']);
-      assert.equal(journal[0].state,'before');assert.equal(journal[1].state,'committed');assert.equal(client.isHeld(),false);
+      const expectedJournal=name==='retained-documents-before-dispatch'?['before','before','committed']:['before','committed'];
+      assert(journal.every(entry=>entry.kind==='scene-association'));
+      assert.deepEqual(journal.map(entry=>entry.state),expectedJournal);assert.equal(client.isHeld(),false);
     }
     assert.equal(client.isConsumed(),true);
   }else if(name==='floor-selection'){
