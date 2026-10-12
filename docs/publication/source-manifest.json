@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "54f7532e7b8b75f5e96a3ae1c1f875e751a86ee0707132685bf213f394bdf799",
+  "sourceDigestSha256": "fd96f84033f7f6bb76daa3eae854711720d3b9e89b816bb7afe51c0c346903d0",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5530,8 +5530,8 @@
     {
       "path": "docs/geometry/network-overlay.md",
       "mode": "100644",
-      "bytes": 9690,
-      "sha256": "0172b089a5a6ea4ab49dbc7c61944e1b6293485cba607b5469e83b8a39177d6c",
+      "bytes": 9878,
+      "sha256": "2f64878c311472d4f65d57ca6a65b745b2c75de3734a4a4baf767d43709601cc",
       "owner": "web"
     },
     {
