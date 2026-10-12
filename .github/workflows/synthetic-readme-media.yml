@@ -1,0 +1,72 @@
+name: Synthetic README media
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - README.md
+      - docs/demo/**
+      - tools/readme-media/**
+      - frontend/**
+      - packages/contracts/**
+      - contracts/**
+      - .github/workflows/synthetic-readme-media.yml
+  push:
+    branches: [main]
+    paths:
+      - README.md
+      - docs/demo/**
+      - tools/readme-media/**
+      - frontend/**
+      - packages/contracts/**
+      - contracts/**
+      - .github/workflows/synthetic-readme-media.yml
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/houseatlas-media-browsers
+      npm_config_cache: ${{ runner.temp }}/houseatlas-media-npm
+    steps:
+      - name: Checkout exact candidate without persistent credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Set exact Node runtime
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '26.10.0'
+          check-latest: false
+          package-manager-cache: false
+      - name: Verify revision and runtime
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(node --version)" = v26.10.0
+          test "$(npm --version)" = 11.19.1
+      - name: Install locked frontend and capture dependencies
+        run: |
+          npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+          npm ci --prefix tools/readme-media --ignore-scripts --no-audit --no-fund
+          node tools/readme-media/node_modules/playwright/cli.js install chromium
+      - name: Capture synthetic React presentation
+        run: node tools/readme-media/capture.mjs "$RUNNER_TEMP/houseatlas-readme-media"
+      - name: Upload screenshots and capture evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: synthetic-readme-media-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/houseatlas-readme-media/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Record presentation scope
+        run: |
+          printf '%s\n' 'SYNTHETIC React presentation only: generated fixtures, fake read transports, owned loopback assets. Default Playwright headless launch; no native sandbox, auth, provider, household, geometry, device or deployment acceptance. This workflow uploads artifacts and never commits or publishes a site.' >> "$GITHUB_STEP_SUMMARY"

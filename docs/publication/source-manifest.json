@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "59b21eba1c789768d486f82f1fe4e1b5a2256d97d37dbba46293c14317a61af1",
+  "sourceDigestSha256": "cbded80dd9b60b9e15509a502f6a9e8e4c6ee5553d0cbe848b1f3950ba1fc138",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -37,6 +37,13 @@
       "mode": "100644",
       "bytes": 13480,
       "sha256": "6c32ec75be94723a6ea219c66466e2980ec080953c52c393e5b84a98853757f1",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".github/workflows/synthetic-readme-media.yml",
+      "mode": "100644",
+      "bytes": 3041,
+      "sha256": "c9295f0b139a0251a0f962f2b71319b9863e5b4e4015d451a248bf90298d66c2",
       "owner": "core-integration"
     },
     {
@@ -90,10 +97,10 @@
     },
     {
       "path": "README.md",
-      "owner": "core-integration",
       "mode": "100644",
-      "bytes": 57200,
-      "sha256": "022008db284297d16e545af5e5f9aea947531158196eeebe0a7edd34b35922f2"
+      "bytes": 5140,
+      "sha256": "1bdfc3a11afe0e728129407fd2f5b237112be417694ea15be87725bc8776673d",
+      "owner": "core-integration"
     },
     {
       "path": "adapters/homebox/README.md",
@@ -5325,6 +5332,13 @@
       "owner": "contracts"
     },
     {
+      "path": "docs/contributing/verification.md",
+      "mode": "100644",
+      "bytes": 57260,
+      "sha256": "cb543b0dad6cdb76b2285ba0c34c4beab026c0970ee1139ec819e3f1a1947ffc",
+      "owner": "core-integration"
+    },
+    {
       "path": "docs/coordination/agent-write-amendment-proposal.md",
       "mode": "100644",
       "bytes": 1424,
@@ -5381,6 +5395,62 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/demo/README.md",
+      "mode": "100644",
+      "bytes": 4361,
+      "sha256": "c835a9e966a9caff8ee7092d3c4c1ab4315c3052c3408ee6d03ad3fecb102f8f",
+      "owner": "web"
+    },
+    {
+      "path": "docs/demo/capture.json",
+      "mode": "100644",
+      "bytes": 3187,
+      "sha256": "344b747fcc2574dd575ed011f6a09370090d807ec8fc3d0c9ad4ce8554ac3e53",
+      "owner": "web"
+    },
+    {
+      "path": "docs/demo/synthetic-building.png",
+      "mode": "100644",
+      "bytes": 164784,
+      "sha256": "3706d12b4f2c1080559d8ad28318a9e3fd338c9c60bc1ba6e74befa06ad197e5",
+      "owner": "web"
+    },
+    {
+      "path": "docs/demo/synthetic-collage.png",
+      "mode": "100644",
+      "bytes": 218921,
+      "sha256": "1ef49cd0de8e75bb94924dca11cad9d032fd216192dd36c56e105d55eaf833f4",
+      "owner": "web"
+    },
+    {
+      "path": "docs/demo/synthetic-house.png",
+      "mode": "100644",
+      "bytes": 395198,
+      "sha256": "2f8606e3987ca3593b55cfff854685c214d9ae393ef471ff3b61403a6cae68ea",
+      "owner": "web"
+    },
+    {
+      "path": "docs/demo/synthetic-network.png",
+      "mode": "100644",
+      "bytes": 123274,
+      "sha256": "6da625edea7d89d5e967c16e6a968cfd2f8c9f6f10eb5b0d4fc91b94c19d64f5",
+      "owner": "web"
+    },
+    {
+      "path": "docs/demo/synthetic-plan.png",
+      "mode": "100644",
+      "bytes": 354183,
+      "sha256": "141bb3be1f68afe8bbd2299865fc74b910f694a800b67ba964917ddb0ba925a2",
+      "owner": "web"
+    },
+    {
+      "path": "docs/demo/synthetic-room.png",
+      "mode": "100644",
+      "bytes": 150451,
+      "sha256": "acaa87f6110e1d31d782b5a541700db0a762f0304768cb9a0a6a220f9b6f409a",
+      "owner": "web"
+    },
+    {
       "path": "docs/geometry/assistant-native-place-intake.md",
       "mode": "100644",
       "bytes": 2747,
@@ -5389,17 +5459,17 @@
     },
     {
       "path": "docs/geometry/assistant-native-scan-import.md",
-      "owner": "media",
       "mode": "100644",
       "bytes": 11341,
-      "sha256": "9b79b64de716177fcb8225af6c8cdaba4bda94b42d9c3ca76abc4dab72381e5d"
+      "sha256": "9b79b64de716177fcb8225af6c8cdaba4bda94b42d9c3ca76abc4dab72381e5d",
+      "owner": "media"
     },
     {
       "path": "docs/geometry/assistant-native-scan-scene.md",
-      "owner": "media",
       "mode": "100644",
       "bytes": 16221,
-      "sha256": "f239a7ac3058d6997397acfa9a718e97656801e0f8f8e0f8ea825605c42fded2"
+      "sha256": "f239a7ac3058d6997397acfa9a718e97656801e0f8f8e0f8ea825605c42fded2",
+      "owner": "media"
     },
     {
       "path": "docs/geometry/assistant-scan-replacement.md",
@@ -5487,10 +5557,10 @@
     },
     {
       "path": "docs/geometry/native-scan-room-targets.md",
-      "owner": "media",
       "mode": "100644",
       "bytes": 8368,
-      "sha256": "0029102a13ccf0323e789096cd11c650e7972bbf4efc0d98a71af85ce2813f5f"
+      "sha256": "0029102a13ccf0323e789096cd11c650e7972bbf4efc0d98a71af85ce2813f5f",
+      "owner": "media"
     },
     {
       "path": "docs/geometry/native-scan-succession.md",
@@ -6096,17 +6166,17 @@
     },
     {
       "path": "frontend/integration/native-scan-import-scene.ts",
-      "owner": "media",
       "mode": "100644",
       "bytes": 64036,
-      "sha256": "273d5947989aa1fe8dda1e2af1b3c4db23388d9ac6f19f39558273eab4f398bc"
+      "sha256": "273d5947989aa1fe8dda1e2af1b3c4db23388d9ac6f19f39558273eab4f398bc",
+      "owner": "media"
     },
     {
       "path": "frontend/integration/native-scan-import-text.ts",
-      "owner": "media",
       "mode": "100644",
       "bytes": 26935,
-      "sha256": "75010e5c9a414da52bd1fb7af7be3cba99d26a64002f73ec42b094ddcf2b56db"
+      "sha256": "75010e5c9a414da52bd1fb7af7be3cba99d26a64002f73ec42b094ddcf2b56db",
+      "owner": "media"
     },
     {
       "path": "frontend/integration/native-scene-association-client.ts",
@@ -6118,16 +6188,16 @@
     {
       "path": "frontend/integration/native-scene-documentary-support.ts",
       "mode": "100644",
-      "owner": "core-integration",
       "bytes": 11911,
-      "sha256": "2bf22d8e3d9c6014ff00b21477a643e08a2d9ba50140851a8843cec28b625fe6"
+      "sha256": "2bf22d8e3d9c6014ff00b21477a643e08a2d9ba50140851a8843cec28b625fe6",
+      "owner": "core-integration"
     },
     {
       "path": "frontend/integration/native-scene-reviewed-places.ts",
-      "owner": "media",
       "mode": "100644",
       "bytes": 8201,
-      "sha256": "7f19c546b75c302c222cc1aff9fcc8c4dbfb5ed991af2aac16eb8561042070ec"
+      "sha256": "7f19c546b75c302c222cc1aff9fcc8c4dbfb5ed991af2aac16eb8561042070ec",
+      "owner": "media"
     },
     {
       "path": "frontend/integration/native-scene-source-client.ts",
@@ -6313,10 +6383,10 @@
     },
     {
       "path": "frontend/lantern-tests/native-scan-import-scene.mjs",
-      "owner": "media",
       "mode": "100644",
       "bytes": 85758,
-      "sha256": "f6af045e7d491cf2f079b96a18f7a4427022bdbb2f8e3bebe025da73c4749fe3"
+      "sha256": "f6af045e7d491cf2f079b96a18f7a4427022bdbb2f8e3bebe025da73c4749fe3",
+      "owner": "media"
     },
     {
       "path": "frontend/lantern-tests/native-scan-succession.mjs",
@@ -6358,6 +6428,27 @@
       "mode": "100644",
       "bytes": 5883,
       "sha256": "adea415bfcef2fb7a2ed4f2af505d882d2d8d75df2bb317e30a4421f46fc34fc",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/readme-house-visual/fixture.json",
+      "mode": "100644",
+      "bytes": 18610,
+      "sha256": "567c33c8977c7c2effebb5da197107777375db158d2a3adde04c89d6b478b63e",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/readme-house-visual/index.html",
+      "mode": "100644",
+      "bytes": 335,
+      "sha256": "351f0e37c83b2669ac388607ade4182832cea3abe007791987cd80d66589b55d",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/readme-house-visual/main.tsx",
+      "mode": "100644",
+      "bytes": 1718,
+      "sha256": "c4a256ac744e9e4f0eaf28d62c03d354f037f2441eb3a3028a707b3244a43976",
       "owner": "web"
     },
     {
@@ -8798,31 +8889,31 @@
     },
     {
       "path": "tools/geometry/native-scan-import-runtime.mjs",
-      "owner": "media",
       "mode": "100644",
       "bytes": 4770,
-      "sha256": "6e5e260f82382696c0e8c548d947b76c6d4d0740cad7090de1c8582f02cbdb39"
+      "sha256": "6e5e260f82382696c0e8c548d947b76c6d4d0740cad7090de1c8582f02cbdb39",
+      "owner": "media"
     },
     {
       "path": "tools/geometry/native-scan-import-transport.mjs",
-      "owner": "media",
       "mode": "100644",
       "bytes": 7952,
-      "sha256": "1867c69e9b155b6acf7a2a5bfa674452c6ee7eda97e48b7ce1678564005fa8f5"
+      "sha256": "1867c69e9b155b6acf7a2a5bfa674452c6ee7eda97e48b7ce1678564005fa8f5",
+      "owner": "media"
     },
     {
       "path": "tools/geometry/native-scan-import.mjs",
-      "owner": "media",
       "mode": "100644",
       "bytes": 48686,
-      "sha256": "ad721f1663446cdbbf50552a9ed8639e30669500b832228b5ce17d2d356b2eb8"
+      "sha256": "ad721f1663446cdbbf50552a9ed8639e30669500b832228b5ce17d2d356b2eb8",
+      "owner": "media"
     },
     {
       "path": "tools/geometry/native-scan-import.test.mjs",
-      "owner": "media",
       "mode": "100644",
       "bytes": 54273,
-      "sha256": "f6f3cc53a1d33eaaf5dbec30ba523189e9da323bcbc9faf52cb555f5bd39f8bf"
+      "sha256": "f6f3cc53a1d33eaaf5dbec30ba523189e9da323bcbc9faf52cb555f5bd39f8bf",
+      "owner": "media"
     },
     {
       "path": "tools/geometry/scan-replacement-plan.mjs",
@@ -8872,6 +8963,27 @@
       "bytes": 3600,
       "sha256": "ee20a1773dc1635634c9fca4598f65f69ca6532294d393c37510fdc8c1898207",
       "owner": "core-integration"
+    },
+    {
+      "path": "tools/readme-media/capture.mjs",
+      "mode": "100644",
+      "bytes": 9066,
+      "sha256": "118f26a4d4f4300565d5952e074b0717af0352a473c1990b3ff7b3bddcb7e37f",
+      "owner": "web"
+    },
+    {
+      "path": "tools/readme-media/package-lock.json",
+      "mode": "100644",
+      "bytes": 1202,
+      "sha256": "48c0cab46c2c6eace4e9bf8f92cf4bdad62c220b4a03bca2e70728a112f66df5",
+      "owner": "web"
+    },
+    {
+      "path": "tools/readme-media/package.json",
+      "mode": "100644",
+      "bytes": 179,
+      "sha256": "adbf8ae50840c4689efb7a6763ef0df7d375420b2f416e41966f143bd1e5e00c",
+      "owner": "web"
     },
     {
       "path": "tools/rust-baseline/check-contracts.mjs",

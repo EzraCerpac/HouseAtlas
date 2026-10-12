@@ -1,0 +1,56 @@
+{
+  "format": "houseatlas-synthetic-readme-media/1",
+  "synthetic": true,
+  "sourceHead": "4f337b2be54527d9563d6e1f422dda3240efcbac",
+  "sourceDirty": true,
+  "node": "v26.10.0",
+  "browser": "156.0.8078.4",
+  "webgl": {
+    "version": "WebGL 1.0 (OpenGL ES 2.0 Chromium)",
+    "drawCalls": 90,
+    "pixels": [
+      1318,
+      795
+    ]
+  },
+  "viewport": [
+    1440,
+    1000
+  ],
+  "collage": [
+    1800,
+    520
+  ],
+  "transport": "Checked-in synthetic Responses; browser assets from owned loopback only",
+  "sandbox": "Playwright default headless (--no-sandbox); no native sandbox qualification",
+  "checks": [
+    "reviewed Alpha membership",
+    "explicit unknown elevation",
+    "Lower room heading",
+    "saved synthetic-link with exact revision token",
+    "generated two-floor production mesh parser and WebGL draw calls",
+    "generated floor plan mode",
+    "zero external browser requests and renderer errors"
+  ],
+  "hashes": {
+    "frontend/lantern-tests/core-read-visual/main.tsx": "74080f5eecddffc8932c57bef1184cb4b6556bf349c52adf746b4ba3ddc4c631",
+    "frontend/lantern-tests/core-read-visual/fixture.json": "8288f3404fd0e2579797c692b6dd1befb2e19b1989e365ed87d5be1cef93a65d",
+    "tools/readme-media/capture.mjs": "118f26a4d4f4300565d5952e074b0717af0352a473c1990b3ff7b3bddcb7e37f",
+    "frontend/lantern-tests/readme-house-visual/main.tsx": "c4a256ac744e9e4f0eaf28d62c03d354f037f2441eb3a3028a707b3244a43976",
+    "frontend/lantern-tests/readme-house-visual/fixture.json": "567c33c8977c7c2effebb5da197107777375db158d2a3adde04c89d6b478b63e",
+    "frontend/lantern-tests/readme-house-visual/index.html": "351f0e37c83b2669ac388607ade4182832cea3abe007791987cd80d66589b55d",
+    "frontend/src/lantern/Host.tsx": "584fc1251746b313b6f67d4a51b17ec18ad306cc2836cb203bbc65cfb7bb4c46",
+    "frontend/src/api/topology-client.ts": "de73e4dc2cc4ab75827c57f2b2e85eb6866ae1400954a4353e63708b683c0104",
+    "frontend/src/api/network-relations-client.ts": "d962557f2911ef15f43a64af123201b759bbfa01bac3274308249d1f66c618f2",
+    "frontend/src/lantern/scans/mesh-profile.ts": "14ae79b600fb1e9c98b42c4e1077b0154d0effd06d6030f5fc35e80001184e18",
+    "frontend/src/lantern/scans/presentation/HouseScanScene.tsx": "1dca4d175f642f110736711a9d1f9acf43866f0d97e3745b29f58436de88e482",
+    "frontend/src/lantern/scans/presentation/SceneMeshCanvas.tsx": "56c30b6321a268011335811dc3a289424e72dc5114201717cc734f0c0f9ff643",
+    "frontend/src/lantern/scans/presentation/scan-projection.ts": "a0aa2a7a5c16924fdd99f87ad9ccf3eead588b449c8cf8b17c2cbbad93f14aab",
+    "docs/demo/synthetic-building.png": "3706d12b4f2c1080559d8ad28318a9e3fd338c9c60bc1ba6e74befa06ad197e5",
+    "docs/demo/synthetic-room.png": "acaa87f6110e1d31d782b5a541700db0a762f0304768cb9a0a6a220f9b6f409a",
+    "docs/demo/synthetic-network.png": "6da625edea7d89d5e967c16e6a968cfd2f8c9f6f10eb5b0d4fc91b94c19d64f5",
+    "docs/demo/synthetic-collage.png": "1ef49cd0de8e75bb94924dca11cad9d032fd216192dd36c56e105d55eaf833f4",
+    "docs/demo/synthetic-house.png": "2f8606e3987ca3593b55cfff854685c214d9ae393ef471ff3b61403a6cae68ea",
+    "docs/demo/synthetic-plan.png": "141bb3be1f68afe8bbd2299865fc74b910f694a800b67ba964917ddb0ba925a2"
+  }
+}
