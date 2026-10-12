@@ -368,6 +368,20 @@ cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitra
 These examples preserve original evidence, exact elevations and revision guards.
 They establish no provider admission or actual-household acceptance.
 
+The assistant-managed place-intake seam also supports accepted floor, room and
+other classifications, with optional reviewed membership under an existing
+building or floor. The client allocates every native record ID in its existing
+batch and keeps floor elevation absent unless a separate reviewed workflow
+provides it. See [assistant-managed native place intake](docs/geometry/assistant-native-place-intake.md).
+Its focused synthetic check uses only an in-memory fake transport:
+
+```sh
+node frontend/lantern-tests/native-place-levels-intake.mjs
+```
+
+This checks native batch composition and parent revision guards only. It opens
+no listener, reads no household/provider data and performs no native write.
+
 A separately reviewed native naming rehearsal uses a fresh empty synthetic
 local Editor state and an exact private artifact-selection packet. It creates
 and names Atlas places through the real frontend, checks explicit membership,
