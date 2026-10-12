@@ -26,9 +26,11 @@ none of these gates. Secrets, real media, inventories, accounts, host settings
 and recovery/evidence packets remain outside Git.
 
 Inspect script bodies before running them. Use only the commands in README.md
+and its linked [complete verification guide](docs/contributing/verification.md)
 for ordinary verification. Healthy mutations are scoped synthetic examples.
 Concurrency, denial and failure-injection tests are allowed only in the separate
-regression lane bounded in README.md: isolated disposable synthetic environments,
+regression lane bounded in README.md and its linked complete verification guide:
+isolated disposable synthetic environments,
 fake/local-only transports, no real credentials, live providers, user data,
 populated production restore or deployment. This permission releases no G1–G5
 and grants no new secrets or network permissions. The approved ordinary CI
