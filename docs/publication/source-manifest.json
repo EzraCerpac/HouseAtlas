@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b998c5d0fba0eea10111111df8df128cccfde5f8584f400fbab798a373ffe171",
+  "sourceDigestSha256": "c0a0d9f8b63c73a04ba0f92eaaa812f02db18b8e17470fc312b0fa3750dc91ee",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5334,8 +5334,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 57794,
-      "sha256": "791525622e374bf9ee58e37675ef7643476d73ec86423bbe8cf8885a27c7e7ef",
+      "bytes": 58599,
+      "sha256": "c42348609b39c1c608b2c1b098e3bc5ecf17ce0bf9e7ad3d21456551213e0eee",
       "owner": "core-integration"
     },
     {
@@ -5405,7 +5405,7 @@
       "path": "docs/demo/capture.json",
       "mode": "100644",
       "bytes": 5008,
-      "sha256": "84cb56cd1a50fd76b81945417529171f631c94a3450a077a4064a4863111a92e",
+      "sha256": "1b75576ca7debc35744989b5698363b5f8afb952450a3e3fa24b247b25934ed4",
       "owner": "web"
     },
     {
@@ -6426,15 +6426,15 @@
     {
       "path": "frontend/lantern-tests/native-scene-drawing-150.mjs",
       "mode": "100644",
-      "bytes": 25260,
-      "sha256": "b639bd51d623b22323df8853810451602458ae242bfceb75597a7112567aac27",
+      "bytes": 26040,
+      "sha256": "5cac889418bb02bc917533ddf68c69bf6bb1b7d11a3b6580a1667b7b7c4471c3",
       "owner": "web"
     },
     {
       "path": "frontend/lantern-tests/native-scene-fixture-reader-healthy.mjs",
       "mode": "100644",
-      "bytes": 58260,
-      "sha256": "468d5c2350908629663464a7083de215be7829d9fe0838d4d50b88821604d8e2",
+      "bytes": 59185,
+      "sha256": "d25318a5bc581531127084aa7ed296a72f603e0f8a41ea5fda8bd5513c9509a0",
       "owner": "web"
     },
     {
@@ -6449,6 +6449,13 @@
       "mode": "100644",
       "bytes": 35831,
       "sha256": "6055a2c3d5e8cb8aabe5e45044fff330ade97168c7dce347ddcd2c14bf21b58b",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/pdf-fixture-resources.mjs",
+      "mode": "100644",
+      "bytes": 1513,
+      "sha256": "48495d215f1b1717571960bef3a4bdb7b928fc0787e057e8de4525d05c25dff6",
       "owner": "web"
     },
     {

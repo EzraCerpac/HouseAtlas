@@ -1,11 +1,11 @@
 {
   "format": "houseatlas-synthetic-readme-media/1",
   "synthetic": true,
-  "sourceHead": "8a0ae6fd0fc41cdadafa89723e7dd7569d4287c2",
+  "sourceHead": "649d49c292d4421c1b279589152ef6596a68116e",
   "sourceDirty": true,
   "sourceTree": {
     "algorithm": "SHA256 of sorted tracked path TAB bytes TAB file-SHA256 LF",
-    "fileCount": 1346,
+    "fileCount": 1347,
     "exclusions": [
       "docs/demo/capture.json",
       "docs/publication/source-manifest.json",
@@ -17,7 +17,7 @@
       "docs/demo/synthetic-network.png",
       "docs/demo/synthetic-collage.png"
     ],
-    "sha256": "08d4ed84aa7bbc792a370331999bad4da42366531a677c72955815b19f92f277"
+    "sha256": "3be74f0d9e1608a05c743b71db0a9080c20f7ca94135e3839d6cb31b3eae80ff"
   },
   "node": "v26.10.0",
   "browser": "156.0.8078.4",
