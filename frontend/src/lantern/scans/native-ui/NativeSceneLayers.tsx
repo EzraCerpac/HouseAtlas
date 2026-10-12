@@ -62,6 +62,31 @@ export function NativeScenePlaceDetails({ room, places, selectedPlaceId, onSelec
   </section>;
 }
 
+/** A direct room action requires one owner-reported sheet and its independently
+ * reviewed current PDF reference. A room label or source path grants nothing. */
+export function correlatedRoomDrawing(source: NativeSceneSourceFrame, roomId: string,
+  evidenceIds: readonly string[]): ElectricalFixtureSheet | null {
+  if (source.rooms.status !== 'available' || source.electricalFixtures.status !== 'available') return null;
+  const room = source.rooms.data.rooms.find(item => item.id === roomId);
+  const selection = source.roomSelections.find(item => item.roomId === roomId)?.selection;
+  const fixtures = source.electricalFixtures.data;
+  if (!room || selection?.status !== 'accepted' || selection.viewKey !== source.viewKey
+    || !fixtures.roomMappingReceipt || selection.receiptId !== fixtures.roomMappingReceipt.id
+    || selection.receiptSha256 !== fixtures.roomMappingReceipt.sha256
+    || !selection.targets.some(target => target.packagePlaceKey === room.packagePlaceKey
+      && target.packagePlaceUuid === room.packagePlaceUuid)) return null;
+  const sheetIds = new Set(fixtures.regions.filter(region => region.places.some(place =>
+    place.basis === 'owner-reported' && place.packagePlaceKey === room.packagePlaceKey
+    && place.packagePlaceUuid === room.packagePlaceUuid)).map(region => region.sheetId));
+  if (sheetIds.size !== 1) return null;
+  const sheet = fixtures.sheets.find(item => sheetIds.has(item.id));
+  if (!sheet || !source.drawingReferences?.some(reference => reference.sheetId === sheet.id
+    && reference.pdfPage === sheet.pdfPage && reference.originalPhotoSha256 === sheet.originalPhotoSha256
+    && reference.renderedPhotoSha256 === sheet.renderedPhotoSha256
+    && evidenceIds.includes(reference.evidenceId))) return null;
+  return sheet;
+}
+
 /** Only owner-fenced retained source data enters this presentation. Registration
  * remains separate: source-diagram glyphs are never promoted to physical pins. */
 export function NativeSceneLayers({ source, floors, overlay, onOverlayChange, drawings, evidenceIds, currentSource, nativePlaceForRoom }: {
@@ -78,22 +103,32 @@ export function NativeSceneLayers({ source, floors, overlay, onOverlayChange, dr
   const [regionId, setRegionId] = useState<string | null>(null), [fixtureId, setFixtureId] = useState<string | null>(null);
   const [group, setGroup] = useState<string | null>(null);
   const [drawing, setDrawing] = useState<ElectricalFixtureSheet | null>(null);
+  const [sourceActionFailure, setSourceActionFailure] = useState<{ source: NativeSceneSourceFrame; message: string } | null>(null);
   const [selectedNativePlaceId, setSelectedNativePlaceId] = useState<string | null>(null);
   const rooms = source.rooms.status === 'available' ? source.rooms.data.rooms : [];
   const regions = source.rooms.status === 'available' ? source.rooms.data.regions : [];
   const network = source.network.status === 'available' ? source.network.data : null;
   const fixtures = source.electricalFixtures.status === 'available' ? source.electricalFixtures.data : null;
+  const openDrawing = (sheet: ElectricalFixtureSheet) => {
+    if (!currentSource()) {
+      setSourceActionFailure({ source, message: 'This drawing is no longer current. Refresh scans to check again.' });
+      return;
+    }
+    setSourceActionFailure(null);
+    setDrawing(sheet);
+  };
   const packageSelection = (context: SceneLayerContext) => source.roomSelections
     .find(row => row.roomId === context.selectedRoom?.id)?.selection ?? null;
   return <HouseScanScene active viewKey={source.viewKey} floors={floors} rooms={rooms} roomRegions={regions}
     selectedRoomId={roomId} onRoomSelectionChange={room => {
-      setRoomId(room?.id ?? null); setRegionId(null); setFixtureId(null); setGroup(null); setDrawing(null);
+      setRoomId(room?.id ?? null); setRegionId(null); setFixtureId(null); setGroup(null); setDrawing(null); setSourceActionFailure(null);
       setNetworkSelection(null); setRecords(null); setSelectedNativePlaceId(null);
     }} overlay={overlay} onOverlayChange={value => {
-      onOverlayChange(value); setFixturesOpen(false); setNetworkSelection(null); setRecords(null); setDrawing(null);
+      onOverlayChange(value); setFixturesOpen(false); setNetworkSelection(null); setRecords(null); setDrawing(null); setSourceActionFailure(null);
     }} renderRoomActions={room => {
       const nativePlaces = nativePlaceForRoom(room.id);
       const showNativePlaces = nativePlaces.length > 0 && !networkSelection && records === null && !fixturesOpen && !drawing;
+      const roomDrawing = correlatedRoomDrawing(source, room.id, evidenceIds);
       return <>
         {showNativePlaces && <NativeScenePlaceDetails room={room.label} places={nativePlaces}
           selectedPlaceId={selectedNativePlaceId}
@@ -101,6 +136,9 @@ export function NativeSceneLayers({ source, floors, overlay, onOverlayChange, dr
           onClear={() => setSelectedNativePlaceId(null)} />}
         {fixtures && <button type="button" className="chip-btn"
           onClick={() => { setFixturesOpen(true); onOverlayChange('electrical'); }}>Drawings &amp; fixtures</button>}
+        {roomDrawing && <button type="button" className="chip-btn" onClick={() => openDrawing(roomDrawing)}>
+          Open reference drawing</button>}
+        {!fixturesOpen && sourceActionFailure?.source === source && <p role="status">{sourceActionFailure.message}</p>}
       </>;
     }}
     renderLayer={context => overlay === 'network' && network ? <NetworkSceneLayer active viewKey={source.viewKey}
@@ -128,11 +166,14 @@ export function NativeSceneLayers({ source, floors, overlay, onOverlayChange, dr
             onRegionChange={setRegionId} onFixtureChange={setFixtureId} onGroupChange={setGroup}
             onOpenSource={(sheetId, page) => {
               const sheet = fixtures?.sheets.find(item => item.id === sheetId && item.pdfPage === page);
-              if (sheet && currentSource()) setDrawing(sheet);
+              if (!sheet) {
+                setSourceActionFailure({ source, message: 'The selected drawing is unavailable in this view.' });
+              } else openDrawing(sheet);
             }} />
+          {sourceActionFailure?.source === source && <p role="status">{sourceActionFailure.message}</p>}
           <p>Source diagrams remain historical and unregistered.</p>
         </section>}
-        {overlay === 'electrical' && drawing && <NativeSceneDrawing key={drawing.id} client={drawings}
+        {drawing && <NativeSceneDrawing key={drawing.id} client={drawings}
           sheet={drawing} evidenceIds={evidenceIds}
           reference={source.drawingReferences?.find(reference => reference.sheetId === drawing.id)} provenance={source.drawingProvenance}
           current={currentSource} onClose={() => setDrawing(null)} />}

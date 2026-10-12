@@ -14,7 +14,9 @@ import { build } from 'vite';
 const root = resolve(fileURLToPath(new URL('../../', import.meta.url)));
 const frontend = join(root, 'frontend');
 const readerOnly = process.argv.slice(2).includes('--reader-only');
-assert(process.argv.slice(2).every(arg => arg === '--reader-only'), 'Only --reader-only is supported');
+const hostOnly = process.argv.slice(2).includes('--host-only');
+assert(process.argv.slice(2).every(arg => ['--reader-only', '--host-only'].includes(arg)) && !(readerOnly && hostOnly),
+  'Select --reader-only, --host-only, or the full browser flow');
 assert.equal(process.version, 'v26.10.0', 'Use the retained pinned Node runtime');
 const chromium = process.env.HOUSEATLAS_CHROMIUM;
 if (!readerOnly) assert(chromium && existsSync(chromium), 'Supply an inspected HOUSEATLAS_CHROMIUM executable, or explicitly select --reader-only');
@@ -310,7 +312,7 @@ let browser, server, cdp, session, origin, failure;
 const results = [];
 const screenshots = [];
 const report = { sourceBase, sourceHead, productionDigests, runnerSha256: hash(readFileSync(fileURLToPath(import.meta.url))),
-  node: process.version, mode: readerOnly ? 'reader-only' : 'reader-and-browser', results, screenshots };
+  node: process.version, mode: readerOnly ? 'reader-only' : hostOnly ? 'reader-and-native-host' : 'reader-and-browser', results, screenshots };
 const budget = setTimeout(() => { cdp?.reject(new Error('120-second fixture budget exhausted')); browser?.kill('SIGTERM'); server?.close(); }, 120_000);
 try {
   const readerPath = join(generated, 'reader.ts');
@@ -331,16 +333,66 @@ import { createRoot } from 'react-dom/client';
 import { read } from './reader';
 import { ElectricityFixtureDiagram } from ${JSON.stringify(join(frontend, 'src/lantern/overlays/electricity/ElectricityFixtureDiagram.tsx'))};
 import { ElectricityDrawingViewer } from ${JSON.stringify(join(frontend, 'src/lantern/overlays/electricity/ElectricityDrawingViewer.tsx'))};
+import { NativeSceneLayers, correlatedRoomDrawing } from ${JSON.stringify(join(frontend, 'src/lantern/scans/native-ui/NativeSceneLayers.tsx'))};
+import { ExactDecimal } from ${JSON.stringify(join(frontend, 'src/numeric/decimal.ts'))};
+import ${JSON.stringify(join(frontend, 'src/lantern/styles/atlas.css'))};
 const state = await read();
 window.__readerProof = state.proof;
 window.__sourceOpens = [];
+window.__sourceCurrent = true;
 window.addEventListener('beforeunload', () => state.dispose(), { once: true });
+const pdf = new Blob(['%PDF-1.4\\n1 0 obj<</Type/Catalog>>endobj\\n%%EOF\\n'], {type:'application/pdf'});
+const pdfSha = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await pdf.arrayBuffer())))
+  .map(byte => byte.toString(16).padStart(2, '0')).join('');
+const pdfEvidenceId = '00000000-0000-4000-8000-000000000091';
+const pdfAssetId = '00000000-0000-4000-8000-000000000092';
+const sourceSheet = state.frame.electricalFixtures.data.sheets[0];
+const pdfReference = {sheetId:sourceSheet.id, pdfPage:sourceSheet.pdfPage,
+  originalPhotoSha256:sourceSheet.originalPhotoSha256, renderedPhotoSha256:sourceSheet.renderedPhotoSha256,
+  evidenceId:pdfEvidenceId, evidenceRevision:1, assetId:pdfAssetId,
+  assetRevision:ExactDecimal.parse('1'), assetSha256:pdfSha, byteSize:ExactDecimal.parse(String(pdf.size))};
+const alphaRoom = state.frame.rooms.data.rooms[0];
+const nativeRegion = {roomId:alphaRoom.id, floorKey:alphaRoom.floorKey,
+  packagePlaceKey:alphaRoom.packagePlaceKey, packagePlaceUuid:alphaRoom.packagePlaceUuid,
+  receiptId:alphaRoom.receiptId, receiptSha256:alphaRoom.receiptSha256,
+  sourceAnchorIds:alphaRoom.sourceAnchorIds, polygons:[[[.1,.4],[.3,.4],[.3,.6],[.1,.6]]],
+  geometryQualification:'Synthetic provisional region', sourceGeometryHandles:['synthetic:alpha']};
+const nativeSource = {...state.frame, drawingReferences:[pdfReference],
+  rooms:{status:'available', data:{...state.frame.rooms.data, regions:[nativeRegion]}}};
+const roomPdf = correlatedRoomDrawing(nativeSource, alphaRoom.id, [pdfEvidenceId]);
+if (roomPdf?.id !== sourceSheet.id || correlatedRoomDrawing(nativeSource, alphaRoom.id, []) !== null)
+  throw new Error('Direct room drawing requires one exact current PDF reference');
+const identity = ['1','0','0','0','0','1','0','0','0','0','1','0','0','0','0','1'];
+const nativeFloor = {key:alphaRoom.floorKey, label:'Synthetic floor', short:'1',
+  profile:{source:{floorLabel:'Synthetic floor',originalSHA256:'a'.repeat(64)},
+    authoredCoordinates:{upAxis:'Y',metersPerUnitToken:'1'},
+    meshes:[{sourceObjectId:'synthetic:triangle',sourceName:'SyntheticFloor',
+      positionsLocalTokens:['0','0','0','1','0','0','0','0','1'],triangleIndicesTokens:['0','1','2'],
+      composedLocalToStageMatrixTokens:identity}],counts:{meshes:ExactDecimal.parse('1')}}};
+const opened = new Set();
+const drawings = { async open(id, signal) {
+    if (signal.aborted || id !== pdfEvidenceId) throw new Error('No matching synthetic PDF');
+    const frame = {lease:{}, evidenceId:id, evidenceRevision:1, mode:'original-download',
+      asset:{assetId:pdfAssetId, revision:ExactDecimal.parse('1'), sha256:pdfSha,
+        byteSize:ExactDecimal.parse(String(pdf.size)), contentType:'application/pdf',
+        purpose:'evidence-original', previewPolicy:'download-only'}};
+    opened.add(frame); return frame;
+  }, isCurrent(frame) { return opened.has(frame); }, getBlob(frame) { return opened.has(frame) ? pdf : null; },
+  subscribeInvalidation() { return () => {}; }, release(frame) { opened.delete(frame); }, dispose() {} };
 function App() {
+  const [nativeProbe, setNativeProbe] = useState(false);
+  const [nativeOverlay, setNativeOverlay] = useState('spaces');
   const [roomId, setRoomId] = useState('room-alpha');
   const [region, setRegion] = useState(null);
   const [fixture, setFixture] = useState(null);
   const [group, setGroup] = useState(null);
   const [source, setSource] = useState(null);
+  window.__mountNativeProbe = () => setNativeProbe(true);
+  if (nativeProbe) return <main className="lantern-host" style={{height:600}}>
+    <NativeSceneLayers source={nativeSource} floors={[nativeFloor]} overlay={nativeOverlay} onOverlayChange={setNativeOverlay}
+      drawings={drawings} evidenceIds={[pdfEvidenceId]} nativePlaceForRoom={() => []}
+      currentSource={() => window.__sourceCurrent} />
+  </main>;
   return <main><label>Fixture host room<select id="host-room" value={roomId} onChange={event => {
     setRoomId(event.target.value); setRegion(null); setFixture(null); setGroup(null);
   }}>{state.frame.rooms.data.rooms.map(room => <option key={room.id} value={room.id}>{room.label}</option>)}</select></label>
@@ -433,7 +485,7 @@ createRoot(document.getElementById('root')).render(<App />);
       }
       return actual;
     };
-    for (const width of [1280, 390, 312]) {
+    if (!hostOnly) for (const width of [1280, 390, 312]) {
       await send('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false });
       await send('Page.navigate', { url: origin + '/' });
       await until(() => evaluate(`Boolean(window.__readerProof && document.querySelector('.ef-source-button'))`), 'Parsed reader and rendered Alpha');
@@ -454,9 +506,9 @@ createRoot(document.getElementById('root')).render(<App />);
       await until(() => evaluate(`document.querySelector('.ef-canvas svg').getAttribute('viewBox')!==${JSON.stringify(initialViewBox)}`), 'Diagram zoom changes viewBox');
       await click(selector('Fit region'));
       assert.equal(await evaluate(`document.querySelector('.ef-canvas svg').getAttribute('viewBox')`), initialViewBox);
-      const diagramLayout = await layout([`document.querySelector('#host-room')`, `document.querySelector('.ef-region-control select')`, selector('Open source page')]);
+      const diagramLayout = await layout([`document.querySelector('#host-room')`, `document.querySelector('.ef-region-control select')`, selector('Open reference drawing')]);
       await screenshot(`fixture-${width}-beta`);
-      await focus(selector('Open source page')); await key('Enter');
+      await focus(selector('Open reference drawing')); await key('Enter');
       await until(() => evaluate(`Boolean(document.querySelector('[role="dialog"] img')?.complete && document.querySelector('[role="dialog"] img')?.naturalWidth)`), 'Actual generated Beta image loaded');
       assert.equal(await evaluate(`document.querySelector('[role="dialog"] h2').textContent`), 'Synthetic Beta electrical drawing');
       assert.equal(await evaluate(`new URL(document.querySelector('[role="dialog"] img').src).pathname`), '/drawing-beta.svg');
@@ -474,7 +526,7 @@ createRoot(document.getElementById('root')).render(<App />);
       assert.equal(await evaluate(`document.querySelector('.edv-image-stage').style.width`), '100%');
       await screenshot(`fixture-${width}-viewer-beta`);
       await key('Escape');
-      await until(() => evaluate(`!document.querySelector('[role="dialog"]') && document.activeElement.textContent==='Open source page'`), 'Escape close and exact opener focus return');
+      await until(() => evaluate(`!document.querySelector('[role="dialog"]') && document.activeElement.textContent==='Open reference drawing'`), 'Escape close and exact opener focus return');
       assert.equal(await evaluate('document.body.style.overflow'), '', 'Body scroll restored');
       // Deliberate documentary browsing uses the production region selector.
       await click(`document.querySelector('.ef-region-control select')`);
@@ -482,12 +534,12 @@ createRoot(document.getElementById('root')).render(<App />);
       await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Home', code: 'Home', windowsVirtualKeyCode: 36 });
       await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Home', code: 'Home', windowsVirtualKeyCode: 36 }); await key('Enter');
       await until(() => evaluate(`document.querySelector('.ef-region-control select').value==='region-0'`), 'Explicit Alpha region selection');
-      await click(selector('Open source page'));
+      await click(selector('Open reference drawing'));
       await until(() => evaluate(`Boolean(document.querySelector('[role="dialog"] img')?.naturalWidth)`), 'Actual Alpha image loaded');
       assert.equal(await evaluate(`new URL(document.querySelector('[role="dialog"] img').src).pathname`), '/drawing-alpha.svg');
       assert.deepEqual(await evaluate('window.__sourceOpens.at(-1)'), { sheetId: 'drawing-alpha', page: 2, roomId: 'room-beta' });
       await click(selector('Close drawing'));
-      await until(() => evaluate(`!document.querySelector('[role="dialog"]') && document.activeElement.textContent==='Open source page'`), 'Pointer close and focus return');
+      await until(() => evaluate(`!document.querySelector('[role="dialog"]') && document.activeElement.textContent==='Open reference drawing'`), 'Pointer close and focus return');
       // Normal unmatched source selection after both drawings; no negative transport/control injection.
       await focus(`document.querySelector('#host-room')`); await key('ArrowDown'); await key('Enter');
       await until(() => evaluate(`document.querySelector('#host-room').value==='room-unmatched'`), 'Select unmatched room');
@@ -499,6 +551,45 @@ createRoot(document.getElementById('root')).render(<App />);
       results.push({ case: `reader-room-fixture-viewer-${width}px`, status: 'passed', diagramLayout, viewerLayout,
         sourceOpens: await evaluate('window.__sourceOpens'), keyboard: 'room and region select, SVG fixture, open, zoom, Tab/Shift+Tab trap, Escape', focusReturn: 'keyboard and pointer close', unmatched: 'no default drawing' });
     }
+    // The actual native scene host must open a dialog for a current sheet and
+    // explain a rejected action without issuing a document read.
+    await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 844, deviceScaleFactor: 1, mobile: false });
+    await send('Page.navigate', { url: origin + '/' });
+    await until(() => evaluate(`Boolean(window.__mountNativeProbe)`), 'Synthetic native host probe ready');
+    await evaluate('window.__mountNativeProbe()');
+    await until(() => evaluate(`Boolean(document.querySelector('.source-room[role="button"]'))`), 'Synthetic native room selectable');
+    assert.equal(await evaluate(`document.querySelector('[aria-label="Rooms only"]')?.getAttribute('aria-pressed')`), 'true', 'Direct source action starts in the default room overlay');
+    await click(`document.querySelector('.source-room[role="button"]')`);
+    await until(() => evaluate(`Boolean(document.querySelector('.source-room-inspector') && ${selector('Open reference drawing')})`), 'Direct room PDF action ready');
+    const directHit = await evaluate(`(()=>{const e=${selector('Open reference drawing')};e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();const top=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {target:e.outerHTML,top:top?.outerHTML.slice(0,250),same:top===e||e.contains(top)}})()`);
+    assert.equal(directHit.same, true, `Direct room action is obscured: ${JSON.stringify(directHit)}`);
+    await click(selector('Open reference drawing'));
+    await until(() => evaluate(`Boolean(document.querySelector('.native-scene-drawing a[download]'))`), 'Direct room action exposes qualified PDF');
+    await click(selector('Close drawing'));
+    await until(() => evaluate(`!document.querySelector('.native-scene-drawing')`), 'Direct room dialog closed');
+    await until(() => evaluate(`Boolean(${selector('Drawings & fixtures')})`), 'Room diagrams action ready');
+    await click(selector('Drawings & fixtures'));
+    await until(() => evaluate(`Boolean(document.querySelector('.native-fixture-details .ef-region-control select'))`), 'Native electrical details opened');
+    await evaluate(`(()=>{const select=document.querySelector('.native-fixture-details .ef-region-control select');
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'region-0');
+      select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await until(() => evaluate(`document.querySelector('.native-fixture-details .ef-region-control select').value==='region-0'`), 'Explicit native drawing region selected');
+    await until(() => evaluate(`Boolean(${selector('Open reference drawing')})`), 'Native source action ready');
+    const diagramHit = await evaluate(`(()=>{const e=document.querySelector('.native-fixture-details .ef-source-button');e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();const top=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {target:e.outerHTML,top:top?.outerHTML.slice(0,250),same:top===e||e.contains(top)}})()`);
+    assert.equal(diagramHit.same, true, `Native diagram source action is obscured: ${JSON.stringify(diagramHit)}`);
+    await click(`document.querySelector('.native-fixture-details .ef-source-button')`);
+    await until(() => evaluate(`Boolean(document.querySelector('.native-scene-drawing[role="dialog"]'))`), 'Current native sheet opens dialog');
+    assert.equal(await evaluate(`document.querySelector('.native-scene-drawing h3').textContent`), 'Synthetic Alpha electrical drawing');
+    await until(() => evaluate(`Boolean(document.querySelector('.native-scene-drawing a[download]'))`), 'Qualified current PDF download action');
+    assert.equal(await evaluate(`document.querySelector('.native-scene-drawing a[download]').href.startsWith('blob:')`), true);
+    await click(selector('Close drawing'));
+    await until(() => evaluate(`!document.querySelector('.native-scene-drawing')`), 'Current dialog closed');
+    await evaluate('window.__sourceCurrent=false');
+    await click(`document.querySelector('.native-fixture-details .ef-source-button')`);
+    await until(() => evaluate(`Boolean(document.querySelector('.native-fixture-details [role="status"]')?.textContent.includes('no longer current'))`), 'Unavailable native source is explained');
+    assert.equal(await evaluate(`Boolean(document.querySelector('.native-scene-drawing'))`), false, 'Stale source opens no dialog');
+    results.push({ case: 'native-source-action-current-and-unavailable', status: 'passed',
+      checks: ['default room overlay opens qualified PDF dialog', 'diagram sheet opens qualified PDF dialog', 'stale source shows status and no dialog'] });
     assert.deepEqual(cdp.errors, [], 'No browser runtime exceptions');
     assert(cdp.requests.every(url => url.startsWith(origin + '/')), 'Every observed application request stays on owned loopback');
     report.applicationRequests = cdp.requests.map(url => new URL(url).pathname);

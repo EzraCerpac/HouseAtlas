@@ -1,7 +1,9 @@
 # Room drawing source action
 
 A room's electrical sheet can open a verified reference PDF through the current
-native evidence-document owner. PDF policy remains download-only. The dialog
+native evidence-document owner. The “Open reference drawing” action opens an
+in-app dialog; a rejected stale or missing sheet reports why it could not open.
+PDF policy remains download-only. The dialog
 labels the sheet's reference page and offers **Download reference PDF**; it
 does not embed the PDF or imply that a browser has rendered that page.
 

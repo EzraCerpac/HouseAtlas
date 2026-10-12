@@ -161,10 +161,13 @@ A source lighting label does not establish the number of installed lamps.
 
 The diagram accepts `active`, `viewKey`, nullable `data`, `selectedRegionId`,
 `selectedFixtureId`, `selectedGroup`, optional `selectedPackagePlaces`, and
-`onRegionChange` / `onFixtureChange` / `onGroupChange`. The host supplies the
-current region's exact `sourceImageUrl`, enables `showSourceImage`, and supplies
-`onOpenSource(sheetId,pdfPage)` through its authorized source resolver. The
-diagram makes no media or native requests of its own. A selected fixture has a
+`onRegionChange` / `onFixtureChange` / `onGroupChange`. An authorized host may
+supply an exact `sourceImageUrl` and enable `showSourceImage`; the native scene
+host leaves both unset because it has no qualified image preview. Its source
+action passes `(sheetId,pdfPage)` to the current native document owner. “Show
+full schematic” expands the schematic extent; “Open reference drawing” opens
+the native document dialog, where a qualified PDF is available as a download.
+The diagram makes no media or native requests of its own. A selected fixture has a
 distinct pointer target, keyboard activation and an individual list entry.
 Dense clusters can be zoomed without moving their source points. Group controls
 emphasize historic associations while preserving the complete drawing.
