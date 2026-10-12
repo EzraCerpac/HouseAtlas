@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b22d7830d1577af7abe6d2cabac92b21d8f4377acf0318d38a08c42a59594d9d",
+  "sourceDigestSha256": "59b21eba1c789768d486f82f1fe4e1b5a2256d97d37dbba46293c14317a61af1",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -92,8 +92,8 @@
       "path": "README.md",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 56251,
-      "sha256": "0f1f9e9175e650e367131bb29d2c69a84935529f84bb66d54b08398d5e404a77"
+      "bytes": 57200,
+      "sha256": "022008db284297d16e545af5e5f9aea947531158196eeebe0a7edd34b35922f2"
     },
     {
       "path": "adapters/homebox/README.md",
@@ -6307,8 +6307,8 @@
     {
       "path": "frontend/lantern-tests/native-room-drawing-source.mjs",
       "mode": "100644",
-      "bytes": 39035,
-      "sha256": "c7123a44140401c0846a27c43de78415f35fcc300e4cc725c1c799e332473c52",
+      "bytes": 47369,
+      "sha256": "2c1ba82f783f39965755a440c27838ecd9ff24b14d65ec5c1e86682b2e0dd35e",
       "owner": "web"
     },
     {
@@ -7560,8 +7560,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx",
       "mode": "100644",
-      "bytes": 15006,
-      "sha256": "290c34ef811def0ee7913aa7a2a758696e9c592b9dd05c05f354a29cb253e311",
+      "bytes": 15053,
+      "sha256": "5b2c823f677aacba8613d39f100b51c0e1dc29dbb7baa7e005c5d50c63b3837b",
       "owner": "web"
     },
     {
