@@ -1,16 +1,35 @@
 {
   "format": "houseatlas-synthetic-readme-media/1",
   "synthetic": true,
-  "sourceHead": "4f337b2be54527d9563d6e1f422dda3240efcbac",
+  "sourceHead": "d47268f768ce9d09351f5850bd868918961054ce",
   "sourceDirty": true,
+  "sourceTree": {
+    "algorithm": "SHA256 of sorted tracked path TAB bytes TAB file-SHA256 LF",
+    "fileCount": 1330,
+    "exclusions": [
+      "docs/demo/capture.json",
+      "docs/publication/source-manifest.json",
+      "docs/demo/synthetic-house.png",
+      "docs/demo/synthetic-plan.png",
+      "docs/demo/synthetic-building.png",
+      "docs/demo/synthetic-room.png",
+      "docs/demo/synthetic-network.png",
+      "docs/demo/synthetic-collage.png"
+    ],
+    "sha256": "4f45d4aaecc3942518276d4d12b0b42e66d88ceb7b44196b4a4fa047fee937c5"
+  },
   "node": "v26.10.0",
   "browser": "156.0.8078.4",
   "webgl": {
     "version": "WebGL 1.0 (OpenGL ES 2.0 Chromium)",
-    "drawCalls": 90,
+    "drawCalls": 120,
     "pixels": [
       1318,
       795
+    ],
+    "preparedFloors": [
+      "Synthetic lower floor",
+      "Synthetic upper floor"
     ]
   },
   "viewport": [
@@ -28,14 +47,14 @@
     "explicit unknown elevation",
     "Lower room heading",
     "saved synthetic-link with exact revision token",
-    "generated two-floor production mesh parser and WebGL draw calls",
+    "both source floors prepared before production WebGL capture",
     "generated floor plan mode",
     "zero external browser requests and renderer errors"
   ],
   "hashes": {
     "frontend/lantern-tests/core-read-visual/main.tsx": "74080f5eecddffc8932c57bef1184cb4b6556bf349c52adf746b4ba3ddc4c631",
     "frontend/lantern-tests/core-read-visual/fixture.json": "8288f3404fd0e2579797c692b6dd1befb2e19b1989e365ed87d5be1cef93a65d",
-    "tools/readme-media/capture.mjs": "118f26a4d4f4300565d5952e074b0717af0352a473c1990b3ff7b3bddcb7e37f",
+    "tools/readme-media/capture.mjs": "db573b24a4368cf8d2f1a900e8c48f02a7d477557f1b26ee0a7f8af1981eda2f",
     "frontend/lantern-tests/readme-house-visual/main.tsx": "c4a256ac744e9e4f0eaf28d62c03d354f037f2441eb3a3028a707b3244a43976",
     "frontend/lantern-tests/readme-house-visual/fixture.json": "567c33c8977c7c2effebb5da197107777375db158d2a3adde04c89d6b478b63e",
     "frontend/lantern-tests/readme-house-visual/index.html": "351f0e37c83b2669ac388607ade4182832cea3abe007791987cd80d66589b55d",

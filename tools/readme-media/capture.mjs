@@ -10,6 +10,17 @@ assert.equal(process.version, 'v26.10.0');
 const root = resolve(import.meta.dirname, '../..');
 const output = resolve(process.argv[2] ?? resolve(root, 'docs/demo'));
 await mkdir(output, { recursive: true });
+const sourceTreeExclusions = ['docs/demo/capture.json', 'docs/publication/source-manifest.json', ...['house', 'plan', 'building', 'room', 'network', 'collage'].map(name => `docs/demo/synthetic-${name}.png`)];
+async function sourceTreeSnapshot() {
+  const paths = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(path => path && !sourceTreeExclusions.includes(path)).sort();
+  const rows = [];
+  for (const path of paths) {
+    const bytes = await readFile(resolve(root, path));
+    rows.push(`${path}\t${bytes.length}\t${createHash('sha256').update(bytes).digest('hex')}\n`);
+  }
+  return { algorithm: 'SHA256 of sorted tracked path TAB bytes TAB file-SHA256 LF', fileCount: paths.length, exclusions: sourceTreeExclusions, sha256: createHash('sha256').update(rows.join('')).digest('hex') };
+}
+const sourceTree = await sourceTreeSnapshot();
 const errors = [], requests = [];
 let browser, server;
 const deadline = setTimeout(() => { server?.kill('SIGTERM'); void browser?.close(); }, 90_000);
@@ -69,11 +80,15 @@ try {
   await house.goto(`${origin}/lantern-tests/readme-house-visual/`, { waitUntil: 'networkidle' });
   await house.evaluate(() => document.fonts.ready);
   await house.waitForFunction(() => window.syntheticDrawCalls > 0);
-  await house.getByText('L1', { exact: true }).first().waitFor();
+  // Floor tags are emitted from prepared floors, unlike the always-present controls.
+  await house.waitForFunction(() => {
+    const labels = [...document.querySelectorAll('.floor-tag-name')].map(node => node.textContent).sort();
+    return JSON.stringify(labels) === JSON.stringify(['Synthetic lower floor', 'Synthetic upper floor']);
+  });
   assert(!/rendering is unavailable|Source floors are unavailable/.test(await house.locator('body').innerText()));
   const webgl = await house.locator('canvas').evaluate(canvas => {
     const gl = canvas.getContext('webgl');
-    return { version: gl.getParameter(gl.VERSION), drawCalls: window.syntheticDrawCalls, pixels: [canvas.width, canvas.height] };
+    return { version: gl.getParameter(gl.VERSION), drawCalls: window.syntheticDrawCalls, pixels: [canvas.width, canvas.height], preparedFloors: [...document.querySelectorAll('.floor-tag-name')].map(node => node.textContent).sort() };
   });
   await house.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(done)))));
   await house.screenshot({ path: resolve(output, 'synthetic-house.png'), animations: 'disabled' });
@@ -84,13 +99,14 @@ try {
   assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
   const sourceHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
   const sourceDirty = execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).trim().length > 0;
+  assert.deepEqual(await sourceTreeSnapshot(), sourceTree, 'Tracked capture source must remain unchanged throughout capture');
   const sourcePaths = ['frontend/lantern-tests/core-read-visual/main.tsx', 'frontend/lantern-tests/core-read-visual/fixture.json', 'tools/readme-media/capture.mjs', 'frontend/lantern-tests/readme-house-visual/main.tsx', 'frontend/lantern-tests/readme-house-visual/fixture.json', 'frontend/lantern-tests/readme-house-visual/index.html', 'frontend/src/lantern/Host.tsx', 'frontend/src/api/topology-client.ts', 'frontend/src/api/network-relations-client.ts', 'frontend/src/lantern/scans/mesh-profile.ts', 'frontend/src/lantern/scans/presentation/HouseScanScene.tsx', 'frontend/src/lantern/scans/presentation/SceneMeshCanvas.tsx', 'frontend/src/lantern/scans/presentation/scan-projection.ts'];
   const hashes = {};
   for (const file of [...sourcePaths, ...names.map(name => `docs/demo/synthetic-${name}.png`), 'docs/demo/synthetic-collage.png', 'docs/demo/synthetic-house.png', 'docs/demo/synthetic-plan.png']) {
     const path = file.startsWith('docs/demo/') ? resolve(output, file.split('/').at(-1)) : resolve(root, file);
     hashes[file] = createHash('sha256').update(await readFile(path)).digest('hex');
   }
-  await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, node: process.version, browser: browser.version(), webgl, viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'generated two-floor production mesh parser and WebGL draw calls', 'generated floor plan mode', 'zero external browser requests and renderer errors'], hashes }, null, 2) + '\n');
+  await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browser.version(), webgl, viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'both source floors prepared before production WebGL capture', 'generated floor plan mode', 'zero external browser requests and renderer errors'], hashes }, null, 2) + '\n');
   console.log('PASS synthetic React media: house WebGL, plan, building, room, Network, collage; no provider/native acceptance');
 } finally {
   clearTimeout(deadline);

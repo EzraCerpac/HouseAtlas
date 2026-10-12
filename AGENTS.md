@@ -45,6 +45,14 @@ aliases are not released. Do not add wrappers or replacements to execute held
 checks. Report exact source and scope of checks; ordinary success does not
 certify security or deployment.
 
+The separately authorized Synthetic README media workflow captures only
+checked-in generated fixtures through the actual React renderer and fake read
+transports on an owned loopback server. Its scoped PR/main triggers and manual
+dispatch upload ephemeral review artifacts with read-only repository permissions;
+they add no ordinary check scope, persistent access, household intake, native
+qualification or deployment. Generated media requires inspection before any
+coordinated commit; the workflow never commits it automatically.
+
 web/AGENTS.md governs interface text. Preserve accessible names, scope,
 uncertainty, freshness, access and file availability. Use short functional
 headings and guidance only when needed for the current action or state.

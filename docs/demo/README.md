@@ -48,7 +48,12 @@ normal verified TLS. Review pixels before copying regenerated files into Git.
 
 `capture.json` records source HEAD, tracked-change status, runtime, browser,
 WebGL draw evidence, viewport, checks and source/image
-SHA256 digests without local paths or timestamps. The checked-in receipt
+SHA256 digests without local paths or timestamps. Its `sourceTree` digest binds
+every tracked source file, including stylesheets and transitive components,
+and is checked unchanged across capture. The explicitly listed exclusions are
+the six generated images, their receipt and the self-referential publication
+manifest. Both prepared floor tags must be present before the geometry capture.
+The checked-in receipt
 records the base HEAD and a modified working candidate, with the fixture,
 harness and relevant production source bytes pinned individually; workflow
 artifacts record their checked-out candidate HEAD. With identical fonts, browser
