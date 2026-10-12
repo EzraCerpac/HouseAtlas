@@ -8,8 +8,10 @@ sheet's referenced page, with page navigation, zoom and **Download reference
 PDF** controls. The server's `download-only` asset policy remains unchanged:
 HouseAtlas does not create or serve a rendered PDF preview, and sends no PDF to
 a viewer service. The renderer parses only the exact owner-verified Blob bytes.
-The PDF.js library and worker are bundled with the lazy drawing reader; the
-Apache 2.0 license and package notice ship under `/licenses/`.
+The PDF.js library and worker are bundled with the lazy drawing reader. The
+worker is emitted as a `.js` file for the backend's supported JavaScript MIME
+type. The Apache 2.0 license and package notice remain at `frontend/licenses/`
+in the public source tree and are not part of compiled server assets.
 
 The normal production association constructor supplies these references from a
 separately retained, reviewed `text/plain` support original. It uses the existing

@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "40aae8b9034583cbddb49786ed5e6503301d3c6f9eca3b80db6840c629fe8adf",
+  "sourceDigestSha256": "4e69f9078573d372e6e9ac16fcc91a7c5a2f9408b845bed9c4acee8ec92d61e9",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -92,8 +92,8 @@
       "path": "README.md",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 57257,
-      "sha256": "af3e013bd88c34af747780d69baa8745cf2b5f2d8451c23eb3d2c961393b8bf0"
+      "bytes": 57582,
+      "sha256": "051f517fcf12db0998097a9b81f34e67ad1b30d51a72c8a564b120ba1f6b4a46"
     },
     {
       "path": "adapters/homebox/README.md",
@@ -5474,8 +5474,8 @@
     {
       "path": "docs/geometry/native-room-drawing-source.md",
       "mode": "100644",
-      "bytes": 8719,
-      "sha256": "3e23e15e753d7f1b23647241398f06b000f80d1849be23158d0dec066deb0182",
+      "bytes": 8883,
+      "sha256": "b2136f35ff5f85c2e2735b36c333c5a4ddc60aa1eb4ccb0af45c5480182c1e2e",
       "owner": "operations-policy"
     },
     {
@@ -6193,6 +6193,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/check-backend-frontend-compat.mjs",
+      "mode": "100644",
+      "bytes": 3260,
+      "sha256": "ff0ce289d8c30349d970d740d1849e53abfeb402d05e64b54f5918b5f861a09d",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/core-read-visual/fixture.json",
       "mode": "100644",
       "bytes": 60733,
@@ -6445,6 +6452,20 @@
       "owner": "web"
     },
     {
+      "path": "frontend/licenses/pdfjs-dist-LICENSE.txt",
+      "mode": "100644",
+      "bytes": 10174,
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/licenses/pdfjs-dist-NOTICE.txt",
+      "mode": "100644",
+      "bytes": 419,
+      "sha256": "25b61ecdf84557ced8f7c10115f5cdec6d997efef67b2f0da2f7baca42a70ae1",
+      "owner": "web"
+    },
+    {
       "path": "frontend/package-lock.json",
       "mode": "100644",
       "bytes": 52900,
@@ -6454,8 +6475,8 @@
     {
       "path": "frontend/package.json",
       "mode": "100644",
-      "bytes": 633,
-      "sha256": "7a208285582b0001354d7dc561d3adad0658d148ee93aeb6ab0709e65f39f67c",
+      "bytes": 726,
+      "sha256": "477022a1a82078c4b4bb618dd5a93d48a6647b8a93d7258144f9babdcb468ec6",
       "owner": "core-integration"
     },
     {
@@ -6485,20 +6506,6 @@
       "bytes": 4802,
       "sha256": "33d1f87d1f63eeb299f40980e1fe8dc8007e2e2191261595fe4e72e7690a79b0",
       "owner": "core-integration"
-    },
-    {
-      "path": "frontend/public/licenses/pdfjs-dist-LICENSE.txt",
-      "mode": "100644",
-      "bytes": 10174,
-      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
-      "owner": "web"
-    },
-    {
-      "path": "frontend/public/licenses/pdfjs-dist-NOTICE.txt",
-      "mode": "100644",
-      "bytes": 419,
-      "sha256": "25b61ecdf84557ced8f7c10115f5cdec6d997efef67b2f0da2f7baca42a70ae1",
-      "owner": "web"
     },
     {
       "path": "frontend/public/manifest.webmanifest",
@@ -8071,8 +8078,8 @@
     {
       "path": "frontend/vite.config.ts",
       "mode": "100644",
-      "bytes": 167,
-      "sha256": "1e40a82b3332abbd71136beb4ba1acf0f2437bf6d114ab163db711ff752abc95",
+      "bytes": 410,
+      "sha256": "2a58300d3db778269e16c24479a0fc76c7fcc19cc796981c83b57ff040145127",
       "owner": "core-integration"
     },
     {
