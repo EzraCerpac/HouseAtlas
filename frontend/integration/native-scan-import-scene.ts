@@ -184,7 +184,7 @@ export async function preflightNativeScanScene(input:NativeScanScenePreflightInp
     // reserve the existing scene request capacity before custody. Classification
     // record IDs are not known until the current topology read, so reserve their
     // exact UUID width with generated placeholders here.
-    const nativePlaceIds=[...new Set(input.roomMappings.flatMap(m=>m.targets
+    const nativePlaceIds=[...new Set((input.roomMappings as readonly NativeScanSceneRoomMapping[]).flatMap(m=>m.targets
       .map(t=>t.atlasPlaceId).filter((value):value is string=>typeof value==='string')))];
     const guardIds=[{kind:'identity',id:input.buildingId},{kind:'location-semantics',id:id(8000)},
       {kind:'evidence',id:id(10)},{kind:'asset',id:id(11)},
