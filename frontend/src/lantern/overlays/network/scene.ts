@@ -23,7 +23,8 @@ export function networkSceneProjection(data: NetworkOverlayData, anchors: readon
       const place = networkDevicePlace(device);
       if (device.mobility !== 'fixed' || !place || placed.has(device.id) || (eligibleIds !== null && !eligibleIds.has(device.id))
         || place.sourcePlaceId !== anchor.packagePlaceKey || place.sourcePlaceUUID !== anchor.packagePlaceUuid) return false;
-      return networkPlanReferences(data, device, context).some(reference => reference.sourceFloorKey === anchor.floorKey
+      return networkPlanReferences(data, device, context).some(reference => (place.floorKey === null
+        ? reference.sourceFloorKey === anchor.floorKey : place.floorKey === anchor.floorKey)
         && reference.mappingReceiptSHA256 === anchor.receiptSha256 && anchor.sourceAnchorIds.includes(reference.sourceAnchorId));
     });
     devices.forEach((device, index) => {
