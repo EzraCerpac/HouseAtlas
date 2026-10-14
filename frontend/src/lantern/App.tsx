@@ -11,6 +11,8 @@ import { RealPreview } from './components/RealPreview';
 import { SourceDetails } from './components/SourceDetails';
 import { SearchPalette } from './components/SearchPalette';
 import { SettingsDialog } from './components/SettingsDialog';
+import { Modal } from './components/Modal';
+import { attentionCount } from './components/DetailPanel';
 import { AiActivityStatus } from '../ai/host/index.js';
 import { isArchivedEntry } from '../app/model';
 
@@ -40,10 +42,12 @@ function Mark() {
   );
 }
 
-function SourceStatus() {
-  const { dispatch, projection } = useStore();
+/** The shell's one entry to the home overview: source freshness and attention. */
+function OverviewToggle({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
+  const { projection, house } = useStore();
   const caches = projection.view.caches.filter(c => c.owner === 'homebox');
   const warning = !caches.length || caches.some(c => c.displayStatus !== 'fresh');
+  const attention = attentionCount(house);
   const text = caches.length ? caches.map(c => {
     const source = c.status === 'access-revoked' || c.displayStatus === 'access-revoked'
       ? 'HomeBox'
@@ -56,8 +60,10 @@ function SourceStatus() {
       type="button"
       className={`source-status${warning ? ' is-warn' : ''}`}
       title={text}
-      onClick={() => dispatch({ type: 'view', view: 'changes' })}
-      aria-label={`${text}. Open Changes.`}
+      onClick={onToggle}
+      aria-expanded={expanded}
+      aria-controls="details"
+      aria-label={`Overview: ${text}. ${attention} need attention.`}
     >
       <span className="sync-dot" aria-hidden="true" />
       <span className="source-status-main" aria-hidden="true">
@@ -69,7 +75,33 @@ function SourceStatus() {
           {`Last successful update ${c.lastSuccessfulFetchAt ? fmtDateTime(c.lastSuccessfulFetchAt) : 'unknown'}`}
         </span>)}
       </span>}
+      {attention > 0 && <span className="source-status-count" aria-hidden="true">{attention}</span>}
     </button>
+  );
+}
+
+function HomePicker({ onClose }: { onClose: () => void }) {
+  const { dispatch, projection } = useStore();
+  return (
+    <Modal title="Home" onClose={onClose}>
+      <fieldset className="field radio-cards home-picker">
+        <legend className="sr-only">Home</legend>
+        {projection.view.homes.map((home) => {
+          const id = JSON.stringify([home.workspaceId, home.homeId]);
+          const selected = projection.view.scope.workspaceId === home.workspaceId && projection.view.scope.homeId === home.homeId;
+          return (
+            <label key={id} className={`radio-card${selected ? ' is-on' : ''}`}>
+              <input type="radio" name="home" checked={selected} onChange={() => {
+                if (selected) return;
+                dispatch({ type: 'house', id });
+                onClose();
+              }} />
+              <span className="radio-title">{home.label}</span>
+            </label>
+          );
+        })}
+      </fieldset>
+    </Modal>
   );
 }
 
@@ -82,7 +114,7 @@ function ArchiveFilter() {
     const entry = projection.entries.get(record.id);
     return entry && isArchivedEntry(entry) ? [{ record, entry }] : [];
   });
-  return <section className="archive-filter" aria-label="Filter retained HomeBox records">
+  return <section className={`archive-filter${visibility.included ? ' is-on' : ''}`} aria-label="Filter retained HomeBox records">
     <label className="archive-toggle"><input type="checkbox" checked={visibility.included}
       onChange={event => visibility.setIncluded(event.currentTarget.checked)} /> Include archived HomeBox records</label>
     {visibility.included && <details>
@@ -119,12 +151,13 @@ function Toasts() {
 export function App() {
   const { state, dispatch, house } = useStore();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [homesOpen, setHomesOpen] = useState(false);
   const reduced = useReducedMotion();
   const reviewCount = house.writes.filter((w) => w.status === 'conflict' || w.status === 'uncertain').length;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || state.dialog || state.settingsOpen || state.nativeOpen || state.askOpen || state.searchOpen) return;
+      if (e.defaultPrevented || state.dialog || state.settingsOpen || state.nativeOpen || state.askOpen || state.searchOpen || homesOpen) return;
       const t = e.target as HTMLElement;
       const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -137,7 +170,7 @@ export function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [dispatch, state.dialog, state.settingsOpen, state.nativeOpen, state.askOpen, state.searchOpen]);
+  }, [dispatch, state.dialog, state.settingsOpen, state.nativeOpen, state.askOpen, state.searchOpen, homesOpen]);
 
   // A selection opens the sheet; dismissing it returns to the collapsed handle.
   const hadSelection = useRef(false);
@@ -172,9 +205,15 @@ export function App() {
     if (state.selection) document.getElementById('detail-title')?.focus();
   }, [state.selection]);
   const sheetExpanded = !!state.selection || sheetOpen;
+  const toggleOverview = () => {
+    if (state.selection) {
+      dispatch({ type: 'select', sel: null });
+      setSheetOpen(true);
+    } else setSheetOpen(!sheetOpen);
+  };
 
   return (
-    <div className={`lantern-host app view-${state.view}${state.askOpen ? ' ask-open' : ''}${reduced ? ' is-reduced' : ''}${state.settings.motion === 'full' ? ' motion-full' : ''}`}>
+    <div className={`lantern-host app view-${state.view}${sheetExpanded ? ' has-detail' : ''}${state.askOpen ? ' ask-open' : ''}${reduced ? ' is-reduced' : ''}${state.settings.motion === 'full' ? ' motion-full' : ''}`}>
       <a className="skip" href="#main">
         Skip to content
       </a>
@@ -183,7 +222,7 @@ export function App() {
           <Mark />
           <span className="brand-name">HouseAtlas</span>
         </div>
-        <button type="button" className="house-btn" onClick={() => dispatch({ type: 'settingsOpen', open: true })} aria-label={`House: ${house.name}. Change house in settings.`}>
+        <button type="button" className="house-btn" onClick={() => setHomesOpen(true)} aria-haspopup="dialog" aria-label={`Home: ${house.name}. Choose home.`}>
           <span className="house-name">{house.name}</span>
           <Icon name="chevronDown" size={15} />
         </button>
@@ -209,7 +248,7 @@ export function App() {
       </nav>
 
       <div className="shell-tools">
-        <SourceStatus />
+        <OverviewToggle expanded={sheetExpanded && !state.selection} onToggle={toggleOverview} />
         <button type="button" aria-label="Ask" className={`ask-btn${state.askOpen ? ' is-on' : ''}`} aria-pressed={state.askOpen} onClick={() => dispatch({ type: 'ask', open: !state.askOpen })}>
           <Icon name="ask" size={18} />
           <span>Ask</span>
@@ -229,20 +268,21 @@ export function App() {
         {view}
       </main>
 
-      <aside className={`detail-col${sheetExpanded ? ' is-expanded' : ''}`} aria-label="Details">
+      <aside id="details" className={`detail-col${sheetExpanded ? ' is-expanded' : ''}`} aria-label="Details">
         <button id="detail-sheet-handle" type="button" className="sheet-handle" aria-expanded={sheetExpanded} onClick={() => (state.selection ? dispatch({ type: 'select', sel: null }) : setSheetOpen(!sheetOpen))}>
           <span className="sheet-grip" aria-hidden="true" />
           <span>{state.selection ? 'Close details' : sheetOpen ? 'Hide overview' : `${house.name} overview`}</span>
         </button>
-        <div className="detail-scroll">
-          <DetailPanel />
+        {sheetExpanded && <div className="detail-scroll">
+          <DetailPanel onCloseOverview={() => { setSheetOpen(false); document.querySelector<HTMLElement>('.source-status')?.focus(); }} />
           <SourceDetails key={state.selection?.id ?? "overview"} />
-        </div>
+        </div>}
       </aside>
 
       {state.askOpen && <AskPanel />}
       {state.searchOpen && <SearchPalette />}
       {state.settingsOpen && <SettingsDialog />}
+      {homesOpen && <HomePicker onClose={() => setHomesOpen(false)} />}
       <RealPreview key={state.dialog?.type === "preview" ? state.dialog.docId : "none"} />
       <Toasts />
     </div>

@@ -13,10 +13,9 @@ export function RoomsView() {
     <div className="view">
       <header className="view-head">
         <h1>Rooms &amp; places</h1>
-
       </header>
-      <GeometryMetadata />
       <RoomIndex />
+      <GeometryMetadata />
     </div>
   );
 }

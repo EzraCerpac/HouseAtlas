@@ -61,17 +61,15 @@ function parentQualifier(entry: Entry | undefined): string | null {
 }
 
 /** The link archive flag is attachment-owned; record state and dates belong to the parent. */
-function DocQualifiers({ d, entry }: { d: Doc; entry: Entry | undefined }) {
+function docQualifiers(d: Doc, entry: Entry | undefined): string[] {
   const parent = parentQualifier(entry);
-  return (
-    <>
-      {d.linkArchived && <span>Link archived in HomeBox</span>}
-      {parent && <span>{parent}</span>}
-      <span>{d.addedAt ? `Added ${fmtDate(d.addedAt)} by ${d.addedBy}` : 'Attachment add date and actor not supplied'}</span>
-      <span>Source record updated in HomeBox: {entry?.sourceUpdatedAt ? fmtDate(entry.sourceUpdatedAt) : 'Unknown'}</span>
-      <span>Source record retrieved: {entry ? fmtDate(entry.retrievedAt) : 'Unknown'}</span>
-    </>
-  );
+  return [
+    ...(d.linkArchived ? ['Link archived in HomeBox'] : []),
+    ...(parent ? [parent] : []),
+    d.addedAt ? `Added ${fmtDate(d.addedAt)} by ${d.addedBy}` : 'Attachment add date and actor not supplied',
+    `Source record updated in HomeBox: ${entry?.sourceUpdatedAt ? fmtDate(entry.sourceUpdatedAt) : 'Unknown'}`,
+    `Source record retrieved: ${entry ? fmtDate(entry.retrievedAt) : 'Unknown'}`,
+  ];
 }
 
 export function LibraryView() {
@@ -100,28 +98,35 @@ export function LibraryView() {
       </div>
       {docs.length === 0 ? (
         <Empty>No documents of this kind in the supplied view.</Empty>
-      ) : (
-        <ul className="library">
-          {docs.map((d) => (
-            <li key={d.id} className="lib-row">
-              <Thumb d={d} />
-              <div className="lib-main">
-                <button type="button" className="row-title" onClick={() => select(d.id)}>
-                  {d.title}
+      ) : (() => {
+        const rows = docs.map(d => ({ d, qualifiers: docQualifiers(d, projection.entries.get(d.id)) }));
+        const [first, ...rest] = rows.map(row => new Set(row.qualifiers));
+        const shared = rows.length > 1 ? [...first!].filter(q => rest.every(set => set.has(q))) : [];
+        return <>
+          {shared.length > 0 && <p className="ledger-shared"><span className="ledger-shared-label">All {rows.length}</span>
+            <span className="ledger-facts">{shared.map(q => <span key={q}>{q}</span>)}</span></p>}
+          <ul className="library">
+            {rows.map(({ d, qualifiers }) => (
+              <li key={d.id} className="lib-row">
+                <Thumb d={d} />
+                <div className="lib-main">
+                  <button type="button" className="row-title" onClick={() => select(d.id)}>
+                    {d.title}
+                  </button>
+                  <span className="row-meta">
+                    <StorageTag doc={d} />
+                    {qualifiers.filter(q => !shared.includes(q)).map(q => <span key={q}>{q}</span>)}
+                  </span>
+                  {d.linkedTo.length > 0 && <span className="lib-linked"><span className="lib-linked-label">For</span> {d.linkedTo.map((l) => nameOf(house, l)).join(', ')}</span>}
+                </div>
+                <button type="button" className="btn btn-small" onClick={() => dispatch({ type: 'dialog', dialog: { type: 'preview', docId: d.id } })} aria-label={`${d.storage === 'link' ? 'Link details for' : 'File details for'} ${d.title}`}>
+                  {d.storage === 'link' ? 'Link details' : 'File details'}
                 </button>
-                <span className="row-meta">
-                  <StorageTag doc={d} />
-                  <DocQualifiers d={d} entry={projection.entries.get(d.id)} />
-                </span>
-                {d.linkedTo.length > 0 && <span className="lib-linked">For {d.linkedTo.map((l) => nameOf(house, l)).join(', ')}</span>}
-              </div>
-              <button type="button" className="btn btn-small" onClick={() => dispatch({ type: 'dialog', dialog: { type: 'preview', docId: d.id } })} aria-label={`${d.storage === 'link' ? 'Link details for' : 'File details for'} ${d.title}`}>
-                {d.storage === 'link' ? 'Link details' : 'File details'}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+              </li>
+            ))}
+          </ul>
+        </>;
+      })()}
     </div>
   );
 }

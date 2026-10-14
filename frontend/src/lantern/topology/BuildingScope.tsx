@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { NativePlaceEditor, NativePlaceReceipts } from './NativePlaceEditor';
 import { NativePlaceEvidence } from './NativePlaceEvidence';
 import { useTopology } from './TopologyProvider';
-import { metres, type Access, type Location, type Membership, type TopologyIndex, type LevelGroup } from './model';
+import { metres, type Access, type BuildingModel, type Location, type Membership, type TopologyIndex, type LevelGroup } from './model';
 import { useSelect, useStore } from '../state/store';
 import { LinkedEvidence } from '../components/LinkedEvidence';
 import { Icon } from '../components/Icon';
@@ -48,14 +48,33 @@ function Facts({ location, index, selected }: { location: Location; index: Topol
     {access.some(a => !selected.has(a.payload.from.ref.recordId) || !selected.has(a.payload.to.ref.recordId)) && <p>Access may reference locations outside this building.</p>}
   </details>;
 }
-function Row({ location, index, selected, note }: { location: Location; index: TopologyIndex; selected: ReadonlySet<string>; note?: string }) {
+/** Per-row qualifiers; a list states qualifiers shared by every row once. */
+function rowFacts(location: Location, note?: string): string[] {
+  const classifications = location.semantics.map(s => s.payload.semanticKind);
+  return [location.labelOwner === 'atlas' ? 'Atlas name' : location.labelOwner === 'homebox' ? 'HomeBox name' : location.labelOwner === 'conflict' ? 'Naming withheld: multiple reviewed classifications' : 'Name not supplied',
+    classifications.length ? `Reviewed: ${classifications.join(', ')}` : 'Classification not reviewed',
+    location.entry ? `HomeBox source: ${location.entry.sourceState}; cache: ${location.entry.cacheStatus}` : 'No bound HomeBox record in this view',
+    ...(location.entry && !location.selectId ? ['Not in the current place list'] : []), ...(note ? [note] : [])];
+}
+function sharedFacts(rows: readonly { location: Location; note?: string | undefined }[]): ReadonlySet<string> {
+  if (rows.length < 2) return new Set();
+  const [first, ...rest] = rows.map(row => new Set(rowFacts(row.location, row.note)));
+  return new Set([...first!].filter(fact => rest.every(set => set.has(fact))));
+}
+export function Rows({ rows, index, selected }: { rows: readonly { location: Location; note?: string | undefined }[]; index: TopologyIndex; selected: ReadonlySet<string> }) {
+  const shared = sharedFacts(rows);
+  return <>
+    {shared.size > 0 && <p className="ledger-shared"><span className="ledger-shared-label">All {rows.length}</span>
+      <span className="ledger-facts">{[...shared].map(fact => <span key={fact}>{fact}</span>)}</span></p>}
+    <ul className="ledger-rows">{rows.map(({ location, note }) => <Row key={location.id} location={location} index={index} selected={selected} note={note} shared={shared} />)}</ul>
+  </>;
+}
+function Row({ location, index, selected, note, shared }: { location: Location; index: TopologyIndex; selected: ReadonlySet<string>; note?: string | undefined; shared: ReadonlySet<string> }) {
   const select = useSelect(), { state } = useStore();
   const topology = useTopology();
-  const classifications = location.semantics.map(s => s.payload.semanticKind);
+  const facts = rowFacts(location, note).filter(fact => !shared.has(fact));
   const content = <><span className="ledger-name" title={location.id}>{location.label}</span>
-    <span className="ledger-facts"><span>{location.labelOwner === 'atlas' ? 'Atlas name' : location.labelOwner === 'homebox' ? 'HomeBox name' : location.labelOwner === 'conflict' ? 'Naming withheld: multiple reviewed classifications' : 'Name not supplied'}</span><span>{classifications.length ? `Reviewed: ${classifications.join(', ')}` : 'Classification not reviewed'}</span>
-      {location.entry ? <span>HomeBox source: {location.entry.sourceState}; cache: {location.entry.cacheStatus}</span> : <span>No bound HomeBox record in this view</span>}
-      {location.entry && !location.selectId && <span>Not in the current place list</span>}{note && <span>{note}</span>}</span></>;
+    {facts.length > 0 && <span className="ledger-facts">{facts.map(fact => <span key={fact}>{fact}</span>)}</span>}</>;
   return <li className={`ledger-row${state.selection?.id === location.selectId && location.selectId ? ' is-selected' : ''}`}>
     {location.selectId ? <button type="button" className="ledger-main topology-row" aria-label={`${location.label}, Atlas identity ${location.id}`} onClick={() => select(location.selectId!)}>{content}</button>
       : <div className="ledger-main topology-row">{content}</div>}
@@ -67,13 +86,13 @@ function Row({ location, index, selected, note }: { location: Location; index: T
 function Level({ group, index, selected }: { group: LevelGroup; index: TopologyIndex; selected: ReadonlySet<string> }) {
   const elevation = group.elevation;
   const text = elevation.status === 'known' ? metres(elevation.elevation.metres) : '?';
-  const note = elevation.status === 'known' ? `Measured from ${index.locations.get(elevation.elevation.datumAtlasId)?.label ?? elevation.elevation.datumAtlasId}`
+  // Known elevations sit under their "Measured from" band heading.
+  const note = elevation.status === 'known' ? null
     : elevation.status === 'multiple' ? 'Multiple recorded elevations' : elevation.status === 'unknown' ? 'Elevation recorded as unknown' : 'Elevation not recorded';
   return <section className="ledger topology-level" aria-label={group.location.label}>
     <div className={`ledger-floor topology-glyph${elevation.status === 'known' ? '' : ' topology-unknown'}`} aria-hidden="true">{text}</div>
-    <div className="ledger-body"><h3 className="ledger-title">{group.location.label}</h3><p className="body-text muted">{note}</p>
-      <ul className="ledger-rows"><Row location={group.location} index={index} selected={selected} />
-        {group.members.map(location => <Row key={location.id} location={location} index={index} selected={selected} />)}</ul>
+    <div className="ledger-body"><h3 className="ledger-title">{group.location.label}</h3>{note && <p className="body-text muted">{note}</p>}
+      <Rows rows={[group.location, ...group.members].map(location => ({ location }))} index={index} selected={selected} />
       {!group.members.length && <p className="body-text muted">No locations recorded on this level.</p>}
     </div>
   </section>;
@@ -96,16 +115,17 @@ export function BuildingScope() {
     <p className="body-text" role="status">{status !== 'ready' ? messages[status] : buildingId && memberStatus !== 'ready' ? messages[memberStatus] : topology.notice || (model ? `${model.building.label}: ${model.memberCount} locations in reviewed membership` : index?.buildings.length ? '' : 'No reviewed buildings in this home.')}</p>
     {topology.nativePlaces && topology.nativeBinding && <NativePlaceReceipts client={topology.nativePlaces} binding={topology.nativeBinding} refresh={topology.reload} />}
     {status === 'ready' && index && topology.nativePlaces && topology.nativeBinding && <NativePlaceEditor client={topology.nativePlaces} binding={topology.nativeBinding} index={index} refresh={topology.reload} />}
-    {buildingId === null && index && <ul className="ledger-rows">{[...index.locations.values()].map(location => <Row key={location.id} location={location} index={index} selected={new Set()} />)}</ul>}
+    {buildingId === null && index && <Rows rows={[...index.locations.values()].map(location => ({ location }))} index={index} selected={new Set()} />}
     {buildingId && model && index && <>
       <p className="body-text muted">Selected membership read: {topology.memberSourceStatus}</p>
       <section className="ledger topology-building"><div className="ledger-floor topology-glyph" aria-hidden="true"><Icon name="building" size={30} /></div><div className="ledger-body">
         <h2 className="ledger-title">{model.building.label}</h2><p className="body-text muted">Building · reviewed · {model.levels.length} levels · {model.direct.length} without level</p>
-        <ul className="ledger-rows"><Row location={model.building} index={index} selected={selection} /></ul>
+        <Rows rows={[{ location: model.building }]} index={index} selected={selection} />
       </div></section>
       <div className="filter-row topology-chips" role="group" aria-label="Level">
         <button type="button" className="chip-btn" aria-pressed={levelId === 'all'} onClick={() => topology.chooseLevel('all')}>All levels</button>
-        {model.levels.map(l => <button key={l.location.id} type="button" className="chip-btn" title={l.location.id} aria-pressed={levelId === l.location.id} onClick={() => topology.chooseLevel(l.location.id)}>{l.location.label}</button>)}
+        {model.levels.map(l => <button key={l.location.id} type="button" className="chip-btn level-chip" title={l.location.id} aria-pressed={levelId === l.location.id} onClick={() => topology.chooseLevel(l.location.id)}>
+          {l.location.label}<span className={`level-datum${l.elevation.status === 'known' ? '' : ' is-unknown'}`}>{l.elevation.status === 'known' ? metres(l.elevation.elevation.metres) : l.elevation.status === 'unknown' ? 'elevation unknown' : l.elevation.status === 'multiple' ? 'multiple elevations' : 'elevation not recorded'}</span></button>)}
         <button type="button" className="chip-btn" aria-pressed={levelId === 'direct'} onClick={() => topology.chooseLevel('direct')}>Level not recorded</button>
       </div>
       {model.levels.some(l => l.elevation.status === 'known') && <p className="body-text muted">Order uses recorded elevation within one datum; labels set no order.</p>}
@@ -116,13 +136,105 @@ export function BuildingScope() {
       })}
       {(levelId === 'all' || levelId === 'direct') && <section className="ledger"><div className="ledger-floor topology-glyph topology-unknown" aria-hidden="true">?</div><div className="ledger-body">
         <h2 className="ledger-title">In {model.building.label}, level not recorded</h2>
-        {model.direct.length ? <ul className="ledger-rows">{model.direct.map(l => <Row key={l.id} location={l} index={index} selected={selection} note="Building member, level not recorded" />)}</ul> : <p className="body-text muted">No members without a recorded level.</p>}
+        {model.direct.length ? <Rows rows={model.direct.map(location => ({ location, note: 'Building member, level not recorded' }))} index={index} selected={selection} /> : <p className="body-text muted">No members without a recorded level.</p>}
       </div></section>}
       <details className="topology-outside"><summary>Not in {model.building.label} ({model.outsideUnassigned.length + model.outsideElsewhere.length})</summary>
-        <h3>No reviewed building or level membership</h3><ul className="ledger-rows">{model.outsideUnassigned.map(l => <Row key={l.id} location={l} index={index} selected={selection} />)}</ul>
-        <h3>Reviewed membership elsewhere</h3><ul className="ledger-rows">{model.outsideElsewhere.map(l => <Row key={l.id} location={l} index={index} selected={selection}
-          note={index.membership.filter(e => e.payload.to.ref.recordId === l.id).map(e => `Direct container: ${index.locations.get(e.payload.from.ref.recordId)?.label ?? e.payload.from.ref.recordId}`).join('; ')} />)}</ul>
+        <h3>No reviewed building or level membership</h3><Rows rows={model.outsideUnassigned.map(location => ({ location }))} index={index} selected={selection} />
+        <h3>Reviewed membership elsewhere</h3><Rows rows={model.outsideElsewhere.map(l => ({ location: l,
+          note: index.membership.filter(e => e.payload.to.ref.recordId === l.id).map(e => `Direct container: ${index.locations.get(e.payload.from.ref.recordId)?.label ?? e.payload.from.ref.recordId}`).join('; ') }))} index={index} selected={selection} />
       </details>
     </>}
+  </div>;
+}
+
+/** A member place on a level slab. Only current place-list records are selectable. */
+function Place({ location }: { location: Location }) {
+  const select = useSelect(), { state } = useStore();
+  if (!location.selectId) return <span className="section-place is-static" title={location.id}>{location.label}</span>;
+  return <button type="button" className={`section-place${state.selection?.id === location.selectId ? ' is-selected' : ''}`}
+    aria-label={`${location.label}, Atlas identity ${location.id}`} onClick={() => select(location.selectId!)}>{location.label}</button>;
+}
+
+function Slab({ group }: { group: LevelGroup }) {
+  const known = group.elevation.status === 'known';
+  const note = group.elevation.status === 'known' ? null : group.elevation.status === 'multiple' ? 'Multiple recorded elevations'
+    : group.elevation.status === 'unknown' ? 'Elevation recorded as unknown' : 'Elevation not recorded';
+  return <li className={`section-slab${known ? '' : ' is-unknown'}`}>
+    <span className="section-datum" aria-hidden={known ? undefined : true}>
+      {group.elevation.status === 'known' ? metres(group.elevation.elevation.metres) : '?'}
+    </span>
+    <div className="section-floor">
+      <h3 className="section-level"><Place location={group.location} /></h3>
+      {note && <p className="section-note">{note}</p>}
+      {group.members.length ? <ul className="section-places" aria-label={`Places on ${group.location.label}`}>
+        {group.members.map(location => <li key={location.id}><Place location={location} /></li>)}
+      </ul> : <p className="section-note">No locations recorded on this level.</p>}
+    </div>
+  </li>;
+}
+
+/** Recorded elevations order levels only within one datum; unknown levels stay unordered. */
+function Drawing({ model, index }: { model: BuildingModel; index: TopologyIndex }) {
+  const bands: { datum: string | null; levels: LevelGroup[] }[] = [];
+  for (const group of model.levels) {
+    const datum = group.elevation.status === 'known' ? group.elevation.elevation.datumAtlasId : null;
+    const last = bands[bands.length - 1];
+    if (last && last.datum === datum) last.levels.push(group); else bands.push({ datum, levels: [group] });
+  }
+  return <section className="section-drawing" aria-labelledby="section-building">
+    <header className="section-roof">
+      <Icon name="building" size={22} />
+      <h2 id="section-building"><Place location={model.building} /></h2>
+      <p>{model.levels.length} levels, {model.direct.length} without level</p>
+    </header>
+    {bands.map(band => <div key={band.datum ?? 'unknown'} className={`section-band${band.datum ? '' : ' is-unknown'}`}>
+      <h3 className="section-band-title">{band.datum ? `Measured from ${index.locations.get(band.datum)?.label ?? band.datum}` : 'Elevation unknown, not ordered'}</h3>
+      <ol className="section-stack">{band.levels.map(group => <Slab key={group.location.id} group={group} />)}</ol>
+    </div>)}
+    {model.direct.length > 0 && <div className="section-band is-unknown">
+      <h3 className="section-band-title">In {model.building.label}, level not recorded</h3>
+      <ul className="section-places">{model.direct.map(location => <li key={location.id}><Place location={location} /></li>)}</ul>
+    </div>}
+    {model.levels.length === 0 && model.direct.length === 0 && <p className="section-note">No levels or places recorded in this building.</p>}
+  </section>;
+}
+
+function Counts() {
+  const { house, dispatch } = useStore();
+  const open = house.tasks.filter(task => task.status !== 'done').length;
+  const tiles = [
+    { view: 'rooms', icon: 'rooms', value: house.spaces.length, label: 'Rooms & places' },
+    { view: 'library', icon: 'library', value: house.docs.length, label: 'Documents & links' },
+    { view: 'upkeep', icon: 'upkeep', value: open, label: 'Open upkeep' },
+  ] as const;
+  return <ul className="section-counts" aria-label="Saved view">
+    {tiles.map(tile => <li key={tile.view}><button type="button" onClick={() => dispatch({ type: 'view', view: tile.view })}>
+      <Icon name={tile.icon} size={20} /><strong>{tile.value}</strong><span>{tile.label}</span>
+    </button></li>)}
+  </ul>;
+}
+
+/** Atlas without a shape projection: reviewed buildings drawn as level sections. */
+export function BuildingSection() {
+  const { house } = useStore();
+  const topology = useTopology();
+  useEffect(() => topology.activate(), [topology.activate]);
+  const { index, status, buildingId, model, memberStatus } = topology;
+  return <div className="atlas-section">
+    <header className="atlas-section-head">
+      <h1>{house.name}</h1>
+      <p>No reviewed shape projection. Building sections use reviewed membership and recorded elevations only.</p>
+    </header>
+    <div className="topology-scope section-scope">
+      <div className="section-buildings topology-chips" role="group" aria-label="Building">
+        <button type="button" className="section-building" aria-pressed={buildingId === null} onClick={() => topology.chooseBuilding(null)}>
+          <Icon name="atlas" size={18} /><span>Whole home</span>
+        </button>
+        {index?.buildings.map(b => <button key={b.id} type="button" className="section-building" title={b.id} aria-label={`${b.label}, Atlas identity ${b.id}`}
+          aria-pressed={buildingId === b.id} onClick={() => topology.chooseBuilding(b.id)}><Icon name="building" size={18} /><span>{b.label}</span></button>)}
+      </div>
+      <p className="section-status" role="status">{status !== 'ready' ? messages[status] : buildingId && memberStatus !== 'ready' ? messages[memberStatus] : topology.notice || (model ? `${model.building.label}: ${model.memberCount} locations in reviewed membership` : index?.buildings.length ? '' : 'No reviewed buildings in this home.')}</p>
+      {buildingId && model && index ? <Drawing model={model} index={index} /> : buildingId === null && <Counts />}
+    </div>
   </div>;
 }

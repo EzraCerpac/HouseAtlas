@@ -912,14 +912,12 @@
 /* ---------------- Views ---------------- */
 
 .lantern-host .view {
-  padding: 26px clamp(16px, 4vw, 44px) 120px;
+  padding: 30px clamp(16px, 4vw, 48px) 120px;
   max-width: 1120px;
 }
 
 .lantern-host .view-head {
-  margin-bottom: 22px;
-  padding-bottom: 14px;
-  border-bottom: 2px solid var(--ink);
+  margin-bottom: 26px;
   max-width: none;
 }
 
@@ -939,8 +937,8 @@
 }
 
 .lantern-host .view-head p {
-  margin-top: 8px;
-  max-width: 70ch;
+  margin-top: 10px;
+  max-width: 68ch;
   color: var(--muted);
 }
 
@@ -1407,37 +1405,61 @@
 
 .lantern-host .library {
   list-style: none;
-  margin: 0;
+  margin: 8px 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
-  gap: 0 32px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+  gap: 0 36px;
 }
 
 .lantern-host .lib-row {
   display: grid;
-  grid-template-columns: 62px minmax(0, 1fr) auto;
-  gap: 14px;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  gap: 4px 14px;
   align-items: start;
-  padding: 12px 0;
+  padding: 14px 0;
   border-top: 1px solid var(--hair);
 }
 
 .lantern-host .lib-main {
   display: grid;
-  gap: 3px;
+  gap: 4px;
+  min-width: 0;
+}
+
+.lantern-host .lib-main .row-title {
+  font-size: var(--fs-m);
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.lantern-host .lib-main .row-meta {
+  font-size: var(--fs-xs);
+}
+
+.lantern-host .lib-main .row-meta .storage {
+  color: var(--ink);
 }
 
 .lantern-host .lib-linked {
-  font-size: var(--fs-xs);
+  font-size: var(--fs-s);
   color: var(--ink-2);
+  line-height: 1.4;
+}
+
+.lantern-host .lib-linked-label {
+  color: var(--muted);
+}
+
+.lantern-host .lib-row > .btn {
+  margin-top: -3px;
 }
 
 .lantern-host .lib-thumb {
   display: grid;
   place-items: center;
-  width: 62px;
-  height: 62px;
+  width: 52px;
+  height: 60px;
   border-radius: 6px;
   overflow: hidden;
   border: 1px solid var(--hair);
@@ -1456,8 +1478,8 @@
 }
 
 .lantern-host .lib-page {
-  width: 38px;
-  height: 48px;
+  width: 34px;
+  height: 44px;
   padding: 8px 6px;
   display: grid;
   align-content: start;
@@ -2313,4 +2335,54 @@
     margin-bottom: 16px;
     padding-bottom: 10px;
   }
+}
+
+/* Phones: one horizontally scrolling strip of filters keeps lists in view. */
+@media (max-width: 759px) {
+  .lantern-host .view .filter-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-right: calc(-1 * clamp(16px, 4vw, 48px));
+    padding-right: clamp(16px, 4vw, 48px);
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+
+  .lantern-host .view .filter-row > * {
+    flex-shrink: 0;
+  }
+}
+
+/* Narrow layouts close the overview from its sheet handle. */
+@media (max-width: 1179px) {
+  .lantern-host .overview .detail-close {
+    display: none;
+  }
+}
+
+/* A zero-count section keeps its statement on one compact line. */
+.lantern-host .section.is-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 12px;
+  padding: 12px 0 10px;
+}
+
+.lantern-host .section.is-empty > .section-head {
+  margin-bottom: 0;
+}
+
+.lantern-host .section.is-empty > .section-head h3 {
+  font-size: var(--fs-s);
+  color: var(--ink-2);
+}
+
+.lantern-host .section.is-empty > .empty {
+  padding: 0;
+  flex: 1 1 200px;
+}
+
+.lantern-host .section.is-empty > :not(.section-head):not(.empty) {
+  flex-basis: 100%;
 }

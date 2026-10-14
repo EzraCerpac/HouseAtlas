@@ -94,21 +94,30 @@
 }
 
 /* ---------------- Shell ----------------
-   Wide: blueprint sidebar | work surface | inspector.
-   Narrower: blueprint top bar + rail (or bottom bar on phones). */
+   An indigo-ink frame holds paper sheets: the work surface and, only while
+   something is selected or the overview is open, the inspector.
+   Wide: sidebar | sheet | inspector. Narrower: top bar + rail (or bottom bar
+   on phones) around one sheet; the inspector floats as a drawer or sheet. */
 
 .lantern-host.app {
   height: 100dvh;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   display: grid;
-  grid-template-columns: var(--side) minmax(0, 1fr) var(--detail);
+  grid-template-columns: var(--side) minmax(0, 1fr) auto;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'top main main'
+    'nav main main'
+    'tools main main';
+  overflow: hidden;
+  background: var(--chrome);
+}
+
+.lantern-host.app.has-detail {
   grid-template-areas:
     'top main detail'
     'nav main detail'
     'tools main detail';
-  overflow: hidden;
-  background: var(--chrome);
 }
 
 .lantern-host .topbar,
@@ -127,7 +136,7 @@
   flex-direction: column;
   align-items: stretch;
   gap: 10px;
-  padding: 18px 14px 14px;
+  padding: 18px 12px 14px 14px;
 }
 
 .lantern-host .navrail {
@@ -135,7 +144,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 6px 10px;
+  padding: 8px 12px 8px 14px;
   min-height: 0;
   overflow-y: auto;
 }
@@ -146,21 +155,32 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 12px 14px 16px;
-  border-top: 1px solid var(--chrome-line);
+  padding: 12px 12px 16px 14px;
 }
 
 .lantern-host .main {
   grid-area: main;
   min-width: 0;
   min-height: 0;
+  margin: var(--gap) var(--gap) var(--gap) 0;
+  border-radius: var(--r-sheet);
   overflow: auto;
   position: relative;
   background: var(--ground);
+  box-shadow: var(--shadow-sheet);
+}
+
+.lantern-host.has-detail .main {
+  margin-right: 0;
 }
 
 .lantern-host .main:focus {
   outline: none;
+}
+
+.lantern-host .main:focus-visible {
+  outline: 2.5px solid var(--lantern);
+  outline-offset: -2.5px;
 }
 
 .lantern-host.view-atlas .main {
@@ -170,23 +190,33 @@
 }
 
 .lantern-host.view-atlas .main > .stage-shell,
-.lantern-host.view-atlas .main > .atlas-noplan {
+.lantern-host.view-atlas .main > .atlas-noplan,
+.lantern-host.view-atlas .main > .native-scan-atlas {
   flex: 1;
   min-height: 0;
 }
 
-.lantern-host.view-atlas .main > .atlas-noplan {
+.lantern-host.view-atlas .main > .atlas-noplan,
+.lantern-host.view-atlas .main > .native-scan-atlas {
   overflow: auto;
 }
 
 .lantern-host .detail-col {
   grid-area: detail;
+  width: var(--detail);
   min-height: 0;
+  margin: var(--gap);
+  border-radius: var(--r-sheet);
+  overflow: hidden;
   background: var(--card);
-  border-left: 1px solid var(--hair);
-  display: flex;
+  display: none;
   flex-direction: column;
   z-index: 15;
+  box-shadow: var(--shadow-sheet);
+}
+
+.lantern-host .detail-col.is-expanded {
+  display: flex;
 }
 
 .lantern-host .detail-scroll {
@@ -207,7 +237,7 @@
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
-  padding: 0 4px 6px;
+  padding: 0 4px 8px;
 }
 
 .lantern-host .mark {
@@ -237,7 +267,10 @@
   border-radius: var(--r-control);
   background: var(--chrome-2);
   color: #fff;
+  font-family: var(--display);
+  font-size: 16px;
   font-weight: 650;
+  letter-spacing: -0.01em;
   text-align: left;
 }
 
@@ -320,29 +353,30 @@
 
 .lantern-host .nav-btn:hover {
   color: #fff;
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .lantern-host .nav-btn.is-current {
   color: #fff;
   font-weight: 650;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.09);
 }
 
 .lantern-host .nav-btn.is-current .icon {
   color: var(--lantern);
 }
 
+/* The lit edge: the one place the frame itself glows. */
 .lantern-host .nav-btn.is-current::before {
   content: '';
   position: absolute;
-  left: -10px;
+  left: -14px;
   top: 9px;
   bottom: 9px;
   width: 4px;
   border-radius: 0 4px 4px 0;
   background: var(--lantern);
-  box-shadow: 0 0 12px rgba(255, 209, 92, 0.7);
+  box-shadow: 0 0 14px rgba(255, 209, 92, 0.75);
 }
 
 .lantern-host .nav-badge {
@@ -359,17 +393,18 @@
   text-align: center;
 }
 
-/* ---------------- Source status and tools ---------------- */
+/* ---------------- Overview toggle and tools ---------------- */
 
 .lantern-host .source-status {
+  position: relative;
   flex: 1 1 100%;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 9px;
   row-gap: 2px;
   min-width: 0;
-  padding: 9px 11px;
+  padding: 10px 11px;
   border: 1px solid var(--chrome-line);
   border-radius: var(--r-control);
   background: transparent;
@@ -382,16 +417,17 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
+.lantern-host .source-status[aria-expanded='true'] {
+  border-color: var(--lantern);
+  background: rgba(255, 209, 92, 0.1);
+}
+
 .lantern-host .sync-dot {
   width: 9px;
   height: 9px;
   border-radius: 50%;
   background: #6fd197;
   box-shadow: 0 0 0 3px rgba(111, 209, 151, 0.18);
-}
-
-.lantern-host .source-status.is-warn {
-  border-color: rgba(255, 194, 92, 0.55);
 }
 
 .lantern-host .source-status.is-warn .sync-dot {
@@ -417,10 +453,25 @@
 }
 
 .lantern-host .source-status-detail {
-  grid-column: 2;
+  grid-column: 2 / 4;
   display: grid;
   font-size: var(--fs-xs);
   color: var(--chrome-muted);
+}
+
+.lantern-host .source-status-count {
+  grid-column: 3;
+  grid-row: 1;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--lantern);
+  color: var(--lantern-ink);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 22px;
+  text-align: center;
 }
 
 .lantern-host .ask-btn {
@@ -461,7 +512,7 @@
 }
 
 .lantern-host .icon-btn:hover {
-  background: rgba(27, 35, 48, 0.07);
+  background: rgba(24, 35, 58, 0.07);
 }
 
 .lantern-host .shell-tools .icon-btn {
@@ -1436,20 +1487,28 @@
 
 /* ---------------- Responsive shell ---------------- */
 
-@media (min-width: 1440px) {
-  .lantern-host {
-    --topbar: 0px;
-  }
-}
-
-/* Laptop: blueprint top bar and rail, inspector stays docked. */
+/* Laptop: ink top bar and rail; inspector stays a docked sheet. */
 @media (max-width: 1439px) {
   .lantern-host.app {
-    grid-template-columns: var(--nav) minmax(0, 1fr) var(--detail);
+    grid-template-columns: var(--nav) minmax(0, 1fr) auto;
     grid-template-rows: var(--topbar) minmax(0, 1fr);
     grid-template-areas:
       'top top tools'
+      'nav main main';
+  }
+
+  .lantern-host.app.has-detail {
+    grid-template-areas:
+      'top top tools'
       'nav main detail';
+  }
+
+  .lantern-host .main {
+    margin-top: 0;
+  }
+
+  .lantern-host .detail-col {
+    margin-top: 0;
   }
 
   .lantern-host .topbar {
@@ -1457,7 +1516,6 @@
     align-items: center;
     gap: 12px;
     padding: 0 12px 0 18px;
-    border-bottom: 1px solid var(--chrome-line);
   }
 
   .lantern-host .brand {
@@ -1480,18 +1538,24 @@
     justify-content: flex-end;
     gap: 6px;
     padding: 0 12px 0 8px;
-    border-top: 0;
-    border-bottom: 1px solid var(--chrome-line);
   }
 
   .lantern-host .source-status {
     flex: 0 1 auto;
-    padding: 0 11px;
+    grid-template-columns: auto auto auto;
+    padding: 0 8px 0 11px;
     height: 36px;
   }
 
   .lantern-host .source-status-detail {
     display: none;
+  }
+
+  .lantern-host .source-status-count {
+    min-width: 20px;
+    height: 20px;
+    line-height: 20px;
+    padding: 0 6px;
   }
 
   .lantern-host .ask-btn {
@@ -1506,7 +1570,7 @@
 
   .lantern-host .navrail {
     align-items: stretch;
-    padding: 10px 6px;
+    padding: 4px 6px 10px;
     gap: 4px;
   }
 
@@ -1538,13 +1602,18 @@
   }
 }
 
-/* Tablet: inspector becomes a drawer. */
+/* Tablet: inspector becomes a drawer over the sheet. */
 @media (max-width: 1179px) {
-  .lantern-host.app {
+  .lantern-host.app,
+  .lantern-host.app.has-detail {
     grid-template-columns: var(--nav) minmax(0, 1fr) auto;
     grid-template-areas:
       'top top tools'
       'nav main main';
+  }
+
+  .lantern-host.has-detail .main {
+    margin-right: var(--gap);
   }
 
   .lantern-host .search-label,
@@ -1559,88 +1628,62 @@
     justify-content: center;
   }
 
-  .lantern-host .detail-col {
+  .lantern-host .detail-col.is-expanded {
     position: fixed;
-    right: max(16px, env(safe-area-inset-right));
-    bottom: max(16px, env(safe-area-inset-bottom));
+    top: calc(var(--topbar) + env(safe-area-inset-top));
+    right: max(var(--gap), env(safe-area-inset-right));
+    bottom: max(var(--gap), env(safe-area-inset-bottom));
     z-index: 40;
-    border: 1px solid var(--chrome);
-    border-radius: 999px;
-    background: var(--chrome);
-    color: #fff;
-    box-shadow: var(--shadow-float);
+    width: min(var(--detail), calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    margin: 0;
+    border: 1px solid var(--hair-2);
+    box-shadow: var(--shadow-modal);
+    animation: drawer-in 0.24s ease-out;
   }
 
-  .lantern-host .detail-col .detail-scroll {
-    display: none;
-  }
-
-  .lantern-host .sheet-handle {
-    display: inline-flex;
+  .lantern-host .detail-col.is-expanded .sheet-handle {
+    display: flex;
     align-items: center;
     gap: 10px;
+    width: 100%;
     min-height: 44px;
     padding: 0 18px;
     border: 0;
-    border-radius: inherit;
-    background: transparent;
-    color: inherit;
+    border-bottom: 1px solid var(--hair);
+    background: var(--card-2);
+    color: var(--ink);
     font-weight: 650;
     font-size: var(--fs-s);
   }
 
-  .lantern-host .sheet-handle:focus-visible {
-    outline-color: var(--lantern);
-  }
-
   .lantern-host .sheet-grip {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    background: var(--lantern);
-    box-shadow: 0 0 8px rgba(255, 209, 92, 0.8);
-  }
-
-  .lantern-host .detail-col.is-expanded {
-    top: calc(var(--topbar) + 10px + env(safe-area-inset-top));
-    right: max(10px, env(safe-area-inset-right));
-    bottom: max(10px, env(safe-area-inset-bottom));
-    width: min(var(--detail), calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));
-    border-color: var(--hair-2);
-    border-radius: var(--r-panel);
-    background: var(--card);
-    color: var(--ink);
-    animation: drawer-in 0.24s ease-out;
-  }
-
-  .lantern-host .detail-col.is-expanded .detail-scroll {
-    display: block;
-  }
-
-  .lantern-host .detail-col.is-expanded .sheet-handle {
-    width: 100%;
-    border-bottom: 1px solid var(--hair);
-    border-radius: var(--r-panel) var(--r-panel) 0 0;
-    justify-content: flex-start;
-    color: var(--ink);
-  }
-
-  .lantern-host .detail-col.is-expanded .sheet-handle:focus-visible {
-    outline-color: var(--focus);
+    background: var(--lantern-edge);
   }
 }
 
-/* Phone: blueprint top and bottom bars; inspector is a bottom sheet. */
+/* Phone: ink top and bottom bars; one full-width sheet; the inspector is a
+   bottom sheet opened by a selection or the overview button. */
 @media (max-width: 759px) {
-  .lantern-host.app {
+  .lantern-host.app,
+  .lantern-host.app.has-detail {
     /* The navigation row owns the bottom inset in this layout. */
     padding-bottom: 0;
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: var(--topbar) minmax(0, 1fr) calc(62px + env(safe-area-inset-bottom));
+    grid-template-rows: var(--topbar) minmax(0, 1fr) calc(60px + env(safe-area-inset-bottom));
     grid-template-areas:
       'top tools'
       'main main'
       'nav nav';
+  }
+
+  .lantern-host .main,
+  .lantern-host.has-detail .main {
+    margin: 0;
+    border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+    box-shadow: none;
   }
 
   .lantern-host .topbar {
@@ -1665,20 +1708,36 @@
     flex: 1 1 auto;
     max-width: none;
     padding: 0 8px 0 10px;
+    border-color: transparent;
+    background: transparent;
+    font-size: 17px;
+  }
+
+  .lantern-host .search-trigger {
+    width: 38px;
+    background: transparent;
   }
 
   .lantern-host .shell-tools {
-    gap: 4px;
-    padding: 0 8px 0 4px;
+    gap: 2px;
+    padding: 0 6px 0 2px;
   }
 
   .lantern-host .source-status {
-    padding: 0 10px;
+    padding: 0 9px;
+    border-color: transparent;
   }
 
-  .lantern-host .ask-btn {
-    width: 36px;
+  .lantern-host .ask-btn,
+  .lantern-host .shell-tools .icon-btn {
+    width: 38px;
     padding: 0;
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .lantern-host .ask-btn.is-on {
+    background: var(--lantern);
   }
 
   .lantern-host .ask-btn span {
@@ -1689,22 +1748,25 @@
     flex-direction: row;
     justify-content: space-around;
     gap: 0;
-    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
-    border-top: 1px solid var(--chrome-line);
+    padding: 4px 4px calc(2px + env(safe-area-inset-bottom));
     overflow: visible;
   }
 
   .lantern-host .nav-btn {
     flex: 1 1 0;
     min-width: 0;
-    min-height: 54px;
-    padding: 5px 1px 4px;
+    min-height: 52px;
+    padding: 5px 1px 3px;
     font-size: 10.5px;
   }
 
+  .lantern-host .nav-btn.is-current {
+    background: transparent;
+  }
+
   .lantern-host .nav-btn.is-current::before {
-    left: 22%;
-    right: 22%;
+    left: 26%;
+    right: 26%;
     top: -4px;
     bottom: auto;
     width: auto;
@@ -1717,26 +1779,26 @@
     top: 2px;
   }
 
-  .lantern-host .main {
-    padding-bottom: 46px;
-  }
-
-  .lantern-host .detail-col {
+  .lantern-host .detail-col.is-expanded {
+    top: auto;
     left: env(safe-area-inset-left);
     right: env(safe-area-inset-right);
-    bottom: calc(62px + env(safe-area-inset-bottom));
-    border-radius: 14px 14px 0 0;
-    border-color: var(--hair-2);
-    border-bottom: 0;
-    background: var(--card);
-    color: var(--ink);
-    box-shadow: 0 -10px 24px -16px rgba(22, 50, 79, 0.45);
+    bottom: calc(60px + env(safe-area-inset-bottom));
+    width: auto;
+    height: min(80dvh, calc(100dvh - var(--topbar) - 70px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+    border: 0;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -18px 40px -18px rgba(4, 12, 28, 0.55);
+    animation: sheet-in 0.24s ease-out;
   }
 
-  .lantern-host .sheet-handle {
-    width: 100%;
+  .lantern-host .detail-col.is-expanded .sheet-handle {
+    flex-direction: column;
     justify-content: center;
-    min-height: 46px;
+    gap: 4px;
+    min-height: 44px;
+    background: var(--card);
+    border-radius: 18px 18px 0 0;
   }
 
   .lantern-host .sheet-handle:focus-visible {
@@ -1744,31 +1806,11 @@
     outline-offset: -3px;
   }
 
-  .lantern-host .detail-col.is-expanded {
-    top: auto;
-    left: env(safe-area-inset-left);
-    right: env(safe-area-inset-right);
-    bottom: calc(62px + env(safe-area-inset-bottom));
-    width: auto;
-    height: min(78dvh, calc(100dvh - var(--topbar) - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
-    border-radius: 16px 16px 0 0;
-    animation: sheet-in 0.24s ease-out;
-  }
-
-  .lantern-host .detail-col.is-expanded .sheet-handle {
-    flex-direction: column;
-    gap: 4px;
-    min-height: 44px;
-    justify-content: center;
-    border-radius: 16px 16px 0 0;
-  }
-
   .lantern-host .detail-col.is-expanded .sheet-grip {
     width: 40px;
     height: 4px;
     border-radius: 4px;
     background: var(--hair-2);
-    box-shadow: none;
   }
 
   .lantern-host .modal-backdrop {
@@ -1780,7 +1822,7 @@
   .lantern-host .modal-wide {
     width: 100%;
     max-height: 92dvh;
-    border-radius: 16px 16px 0 0;
+    border-radius: 18px 18px 0 0;
   }
 
   .lantern-host .modal-foot {
@@ -1797,7 +1839,7 @@
   }
 
   .lantern-host .toasts {
-    bottom: calc(118px + env(safe-area-inset-bottom));
+    bottom: calc(76px + env(safe-area-inset-bottom));
   }
 }
 
@@ -1807,10 +1849,9 @@
   }
 
   .lantern-host .source-status {
-    width: 36px;
-    padding: 0;
-    justify-items: center;
-    grid-template-columns: auto;
+    grid-template-columns: auto auto;
+    padding: 0 7px;
+    column-gap: 5px;
   }
 }
 
