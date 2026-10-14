@@ -706,20 +706,22 @@
   pointer-events: none;
 }
 
+/* A floor without a reviewed plan: docked beside the floor rail, never over
+   the drawn floors. */
 .lantern-host .noplan-card {
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: min(400px, calc(100% - 40px));
-  max-height: 60%;
+  top: 16px;
+  left: 212px;
+  width: min(360px, calc(100% - 228px));
+  max-height: calc(100% - 200px);
   overflow: auto;
-  padding: 18px 20px;
+  padding: 16px 18px;
   border-radius: var(--r-panel);
-  background: rgba(251, 251, 248, 0.97);
+  background: rgba(252, 252, 250, 0.97);
   border: 1px solid var(--hair-2);
+  border-left: 3px dashed var(--c-unknown);
   box-shadow: var(--shadow-float);
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .lantern-host .noplan-card h2 {
@@ -739,7 +741,8 @@
   gap: 4px;
 }
 
-/* Native scans: building choice, then the scene filling the work area; the
+/* Native scans: without a chosen building, the home title and building tiles;
+   with one, a compact building strip above the scene that fills the sheet. The
    association and place disclosures follow below and scroll into view. */
 
 .lantern-host.view-atlas .main:has(> .native-scan-atlas) {
@@ -748,29 +751,73 @@
 }
 
 .lantern-host .native-scan-atlas {
-  --scene-chrome: 64px;
+  --scene-chrome: 56px;
   display: flex;
   flex-direction: column;
   min-height: 100%;
 }
 
+.lantern-host .native-scan-atlas > .atlas-section-head {
+  padding: 30px clamp(16px, 4vw, 48px) 0;
+}
+
 .lantern-host .native-scan-atlas > .filter-row {
   align-items: center;
+  gap: 6px;
   margin: 0;
-  padding: 10px clamp(16px, 3vw, 28px);
+  padding: 9px clamp(14px, 2.4vw, 24px);
   border-bottom: 1px solid var(--hair);
-  background: var(--card-2);
+  background: var(--card);
+}
+
+.lantern-host .native-scan-atlas > .filter-row .chip-btn {
+  min-height: 34px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.lantern-host .native-scan-atlas > .filter-row .chip-btn[aria-pressed='true'] {
+  background: var(--chrome);
+  border-color: var(--chrome);
+  color: #fff;
+  box-shadow: inset 0 -3px 0 var(--lantern);
+}
+
+.lantern-host .native-scan-atlas > .filter-row .text-btn {
+  margin-left: auto;
+  padding: 6px 4px;
+}
+
+/* Entry: building tiles at reading size under the home title. */
+.lantern-host .native-scan-atlas:not(.has-building) > .filter-row {
+  gap: 8px;
+  padding: 22px clamp(16px, 4vw, 48px) 4px;
+  border: 0;
+  background: transparent;
+}
+
+.lantern-host .native-scan-atlas:not(.has-building) > .filter-row .filter-row-label {
+  display: none;
+}
+
+.lantern-host .native-scan-atlas:not(.has-building) > .filter-row .chip-btn {
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-family: var(--display);
+  font-size: var(--fs-l);
+  font-weight: 650;
 }
 
 .lantern-host .filter-row-label {
   margin-right: 6px;
   font-family: var(--display);
-  font-size: var(--fs-l);
+  font-size: var(--fs-m);
   font-weight: 700;
 }
 
 .lantern-host .native-scan-atlas > p[role='status'] {
-  padding: 28px clamp(16px, 4vw, 44px);
+  padding: 14px clamp(16px, 4vw, 48px) 28px;
   color: var(--muted);
   font-weight: 550;
 }
@@ -784,98 +831,81 @@
 .lantern-host .native-scan-atlas .stage-shell.scan-presentation {
   flex: 1 0 auto;
   height: auto;
-  min-height: max(480px, calc(100dvh - var(--topbar) - var(--scene-chrome) - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+  min-height: max(480px, calc(100dvh - var(--topbar) - var(--scene-chrome) - 2 * var(--gap) - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
 }
 
 .lantern-host .native-scan-atlas > div > p,
 .lantern-host .native-scan-atlas > div > details,
 .lantern-host .native-scan-atlas > details {
-  padding: 4px clamp(16px, 4vw, 44px);
+  padding: 4px clamp(16px, 4vw, 48px);
   border-top: 1px solid var(--hair);
+  background: var(--card);
 }
 
 .lantern-host .native-scan-atlas > div > details > summary,
 .lantern-host .native-scan-atlas > details > summary {
-  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
   padding: 12px 0;
   font-family: var(--display);
   font-weight: 650;
   font-size: var(--fs-l);
+  list-style: none;
+}
+
+.lantern-host .native-scan-atlas > div > details > summary::-webkit-details-marker,
+.lantern-host .native-scan-atlas > details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.lantern-host .native-scan-atlas > div > details > summary::before,
+.lantern-host .native-scan-atlas > details > summary::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+}
+
+.lantern-host .native-scan-atlas > div > details[open] > summary::before,
+.lantern-host .native-scan-atlas > details[open] > summary::before {
+  transform: rotate(45deg);
 }
 
 .lantern-host .native-scan-atlas > details[open] {
   padding-bottom: 40px;
+  background: var(--ground);
 }
 
 @media (max-width: 759px) {
   .lantern-host .native-scan-atlas {
-    --scene-chrome: 170px;
+    --scene-chrome: 120px;
+  }
+
+  .lantern-host .native-scan-atlas > .atlas-section-head {
+    padding-top: 22px;
   }
 
   .lantern-host .native-scan-atlas > .filter-row {
     flex-wrap: nowrap;
     overflow-x: auto;
+    scrollbar-width: none;
   }
 
   .lantern-host .native-scan-atlas > .filter-row > * {
     flex-shrink: 0;
   }
-}
 
-/* No geometry at all: the reason stays above the place index. */
-
-.lantern-host .atlas-noplan {
-  padding: 26px clamp(16px, 4vw, 44px) 120px;
-  max-width: 1120px;
-}
-
-.lantern-host .noplan-banner {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 14px;
-  align-items: start;
-  padding: 0 0 18px;
-  margin-bottom: 22px;
-  border-bottom: 2px solid var(--ink);
-}
-
-.lantern-host .noplan-banner h1 {
-  font-size: var(--fs-2xl);
-  font-weight: 720;
-  letter-spacing: -0.025em;
-  margin-bottom: 6px;
-}
-
-.lantern-host .noplan-banner p {
-  color: var(--muted);
-  max-width: 64ch;
-}
-
-.lantern-host .noplan-mark {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  color: var(--chrome);
-  background:
-    linear-gradient(rgba(22, 50, 79, 0.12) 1px, transparent 1px) 0 0 / 8px 8px,
-    linear-gradient(90deg, rgba(22, 50, 79, 0.12) 1px, transparent 1px) 0 0 / 8px 8px,
-    var(--card);
-  border: 1px dashed var(--chrome-line);
+  .lantern-host .native-scan-atlas.has-building > .filter-row .filter-row-label {
+    display: none;
+  }
 }
 
 /* ---------------- Responsive stage ---------------- */
-
-@media (max-width: 1179px) {
-  .lantern-host .stage-bottom {
-    bottom: 80px;
-  }
-
-  .lantern-host .demo-note {
-    bottom: 60px;
-  }
-}
 
 @container stage (max-width: 1000px) {
   .lantern-host .stage-bottom {
@@ -897,6 +927,16 @@
 
   .lantern-host .legend {
     max-height: 30vh;
+  }
+}
+
+/* Too narrow to sit beside the toolbar: the no-plan card drops below it, on
+   the right, clear of the floor rail and the model's floor tags. */
+@container stage (max-width: 1080px) {
+  .lantern-host .noplan-card {
+    top: 124px;
+    left: auto;
+    right: 18px;
   }
 }
 
@@ -922,10 +962,11 @@
     width: 100%;
   }
 
-  /* Clear the compact floor rail on the left. */
+  /* Clear the compact floor rail on the left and the view controls above. */
   .lantern-host .noplan-card {
-    left: calc(50% + 32px);
-    width: min(400px, calc(100% - 92px));
+    top: 112px;
+    left: 76px;
+    width: min(360px, calc(100% - 88px));
   }
 }
 
@@ -979,6 +1020,9 @@
   }
 
   .lantern-host .noplan-card {
-    top: 40%;
+    top: 104px;
+    left: 70px;
+    width: calc(100% - 80px);
+    padding: 12px 14px;
   }
 }

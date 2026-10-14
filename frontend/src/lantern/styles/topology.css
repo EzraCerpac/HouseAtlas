@@ -41,3 +41,102 @@
   .lantern-host .topology-glyph { font-size: 14px; letter-spacing: -0.01em; }
   .lantern-host .topology-facts { margin-left: 0; }
 }
+
+/* Shared qualifiers are stated once above the rows they describe. */
+.lantern-host .ledger-shared { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 10px 0 0; padding: 8px 12px; border-radius: 8px; background: var(--card-2); font-size: var(--fs-s); color: var(--muted); }
+.lantern-host .ledger-shared + .ledger-rows { border-top: 0; margin-top: 2px; }
+.lantern-host .ledger-shared-label { font-weight: 700; color: var(--ink-2); }
+.lantern-host .ledger-shared .ledger-facts { color: var(--muted); }
+.lantern-host .level-chip { gap: 8px; }
+.lantern-host .level-datum { font-family: var(--display); font-size: var(--fs-s); font-weight: 650; font-variant-numeric: tabular-nums; color: var(--muted); }
+.lantern-host .level-datum.is-unknown { font-family: var(--text); font-size: var(--fs-xs); font-weight: 500; font-style: italic; }
+.lantern-host .chip-btn[aria-pressed='true'] .level-datum { color: var(--lantern-ink); }
+
+/* ---------------- Atlas without a shape projection ----------------
+   A building section: recorded elevations set level order within one datum
+   (datum marks, solid slabs); unknown elevations stay dashed and unordered. */
+.lantern-host .atlas-section { padding: 30px clamp(16px, 4vw, 48px) 120px; max-width: 1080px; }
+.lantern-host .atlas-section-head h1 { font-size: var(--fs-4xl); font-weight: 760; letter-spacing: -0.035em; line-height: 1; overflow-wrap: anywhere; }
+.lantern-host .atlas-section-head p { margin-top: 10px; max-width: 64ch; color: var(--muted); }
+.lantern-host .section-scope { margin-top: 26px; }
+.lantern-host .section-buildings { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 6px; }
+.lantern-host .section-building { display: inline-flex; align-items: center; gap: 9px; min-height: 48px; padding: 0 18px 0 14px; border: 1px solid var(--hair-2); border-radius: 10px; background: var(--card); color: var(--ink-2); font-family: var(--display); font-size: var(--fs-l); font-weight: 650; letter-spacing: -0.01em; }
+.lantern-host .section-building .icon { color: var(--muted); }
+.lantern-host .section-building:hover { border-color: var(--ink-2); color: var(--ink); }
+.lantern-host .section-building[aria-pressed='true'] { background: var(--chrome); border-color: var(--chrome); color: #fff; box-shadow: inset 0 -3px 0 var(--lantern); }
+.lantern-host .section-building[aria-pressed='true'] .icon { color: var(--lantern); }
+.lantern-host .section-status { min-height: 1.5em; margin: 6px 0 18px; font-weight: 600; color: var(--ink-2); }
+.lantern-host .section-status:empty { margin: 0; min-height: 0; }
+
+.lantern-host .section-counts { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.lantern-host .section-counts button { display: grid; grid-template-columns: auto 1fr; grid-template-areas: 'icon value' 'icon label'; align-items: center; column-gap: 14px; width: 100%; padding: 16px 18px; border: 1px solid var(--hair); border-radius: var(--r-panel); background: var(--card); text-align: left; }
+.lantern-host .section-counts button:hover { border-color: var(--ink-2); }
+.lantern-host .section-counts .icon { grid-area: icon; align-self: start; margin-top: 4px; color: var(--muted); }
+.lantern-host .section-counts strong { grid-area: value; font-family: var(--display); font-size: var(--fs-3xl); font-weight: 720; line-height: 1; letter-spacing: -0.03em; }
+.lantern-host .section-counts span { grid-area: label; color: var(--muted); font-size: var(--fs-s); }
+
+.lantern-host .section-drawing { padding: 0 0 8px; border: 1px solid var(--hair); border-radius: var(--r-panel); background: var(--card); overflow: hidden; }
+.lantern-host .section-roof { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 16px 22px 14px; background: var(--card-2); border-bottom: 1px solid var(--hair); }
+.lantern-host .section-roof .icon { color: var(--chrome); }
+.lantern-host .section-roof h2 { font-size: var(--fs-2xl); font-weight: 720; letter-spacing: -0.02em; }
+.lantern-host .section-roof p { color: var(--muted); font-size: var(--fs-s); margin-left: auto; }
+.lantern-host .section-band { padding: 16px 22px 4px; }
+.lantern-host .section-band + .section-band { border-top: 1px solid var(--hair); }
+.lantern-host .section-band-title { font-family: var(--text); font-size: var(--fs-s); font-weight: 650; color: var(--muted); margin-bottom: 4px; }
+.lantern-host .section-stack { list-style: none; margin: 0; padding: 0; }
+.lantern-host .section-slab { display: grid; grid-template-columns: 104px minmax(0, 1fr); align-items: start; }
+/* Datum mark: the recorded elevation sits on its slab line with a level triangle. */
+.lantern-host .section-datum { position: relative; padding: 10px 24px 0 0; font-family: var(--display); font-size: var(--fs-l); font-weight: 720; letter-spacing: -0.02em; text-align: right; color: var(--chrome); white-space: nowrap; }
+.lantern-host .section-datum::after { content: ''; position: absolute; right: 6px; top: 15px; border: 6px solid transparent; border-top: 9px solid var(--chrome); border-bottom: 0; }
+.lantern-host .section-floor { padding: 12px 0 16px 18px; border-top: 3px solid var(--chrome); border-left: 2px solid var(--hair-2); min-width: 0; }
+.lantern-host .section-stack > .section-slab:last-child .section-floor { border-bottom: 3px solid var(--chrome); }
+.lantern-host .section-slab.is-unknown .section-datum { color: var(--c-unknown); }
+.lantern-host .section-slab.is-unknown .section-datum::after { border-top-color: transparent; border: 1.5px dashed var(--c-unknown); width: 10px; height: 10px; top: 13px; border-radius: 50%; }
+.lantern-host .section-slab.is-unknown .section-floor { border-top: 2px dashed var(--c-unknown); border-left: 0; }
+.lantern-host .section-stack > .section-slab.is-unknown:last-child .section-floor { border-bottom: 0; }
+.lantern-host .section-slab.is-unknown + .section-slab.is-unknown { margin-top: 10px; }
+.lantern-host .section-level { font-size: var(--fs-l); margin-bottom: 2px; }
+.lantern-host .section-note { font-size: var(--fs-s); color: var(--muted); margin: 2px 0 6px; }
+.lantern-host .section-places { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.lantern-host .section-band > .section-places { margin: 8px 0 14px; }
+.lantern-host .section-place { display: inline-flex; align-items: center; min-height: 34px; padding: 4px 12px; border: 1px solid var(--hair-2); border-radius: 7px; background: #fff; color: var(--ink); font-size: var(--fs-s); font-weight: 600; text-align: left; overflow-wrap: anywhere; }
+.lantern-host button.section-place:hover { border-color: var(--ink-2); }
+.lantern-host .section-place.is-selected { background: var(--lantern); border-color: var(--lantern-edge); }
+.lantern-host .section-place.is-static { border-style: dashed; color: var(--ink-2); background: transparent; }
+.lantern-host .section-level .section-place, .lantern-host .section-roof .section-place { min-height: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; }
+.lantern-host .section-level button.section-place:hover, .lantern-host .section-roof button.section-place:hover { text-decoration: underline; text-underline-offset: 4px; }
+.lantern-host .section-level .section-place.is-selected, .lantern-host .section-roof .section-place.is-selected { background: var(--lantern); box-shadow: 0 0 0 4px var(--lantern); border-radius: 2px; }
+@media (max-width: 759px) {
+  .lantern-host .atlas-section { padding-top: 22px; }
+  .lantern-host .section-buildings { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; margin-right: -16px; padding-right: 16px; scrollbar-width: none; }
+  .lantern-host .section-building { flex-shrink: 0; min-height: 44px; font-size: var(--fs-m); }
+  .lantern-host .section-slab { grid-template-columns: 70px minmax(0, 1fr); }
+  .lantern-host .section-datum { font-size: var(--fs-m); padding-right: 20px; }
+  .lantern-host .section-datum::after { right: 3px; }
+  .lantern-host .section-band, .lantern-host .section-roof { padding-left: 14px; padding-right: 14px; }
+  .lantern-host .section-roof p { margin-left: 0; width: 100%; }
+}
+
+/* A level's or building's own record reads as a caption under its heading. */
+.lantern-host .topology-level .ledger-rows > .ledger-row:first-child .ledger-name,
+.lantern-host .topology-building .ledger-name { font-family: var(--text); font-size: var(--fs-s); font-weight: 650; color: var(--ink-2); }
+.lantern-host .topology-building { border-top-width: 1px; box-shadow: inset 0 3px 0 var(--chrome); }
+.lantern-host .topology-building .ledger-title { font-size: var(--fs-2xl); }
+.lantern-host .topology-level .topology-glyph:not(.topology-unknown) { position: relative; padding-right: 22px; }
+.lantern-host .topology-level .topology-glyph:not(.topology-unknown)::after { content: ''; position: absolute; right: 4px; top: 6px; border: 6px solid transparent; border-top: 9px solid var(--chrome); border-bottom: 0; }
+.lantern-host .topology-level { border-top: 3px solid var(--chrome); }
+.lantern-host .topology-level:has(.topology-unknown) { border-top: 2px dashed var(--c-unknown); }
+.lantern-host .topology-band-title { margin: 30px 0 6px; }
+@media (pointer: fine) {
+  .lantern-host .topology-facts summary { min-height: 32px; padding: 4px 0; }
+}
+.lantern-host .topology-row { padding-top: 10px; padding-bottom: 4px; }
+
+/* Building scope reads as the sheet in view: ink tab with a lit edge, the same
+   in Atlas, Rooms & places and the scan strip. Filters stay lantern-filled. */
+.lantern-host .topology-scope > .topology-chips[aria-label='Building'] .chip-btn { border-radius: 10px; font-weight: 600; }
+.lantern-host .topology-scope > .topology-chips[aria-label='Building'] .chip-btn[aria-pressed='true'] { background: var(--chrome); border-color: var(--chrome); color: #fff; box-shadow: inset 0 -3px 0 var(--lantern); }
+@media (max-width: 759px) {
+  .lantern-host .topology-building { grid-template-columns: minmax(0, 1fr); }
+  .lantern-host .topology-building > .ledger-floor { display: none; }
+}

@@ -19,7 +19,7 @@ import { useEased } from './useCamera';
 import { LAYER, ROOM_KIND_LABEL, ROOM_TINT } from './palette';
 import { Icon } from '../components/Icon';
 import { EntityLink } from '../components/ui';
-import { RoomIndex } from '../views/RoomsView';
+import { BuildingSection } from '../topology/BuildingScope';
 import { NativeScanAtlas, useNativeGeometryClient } from '../scans/native-ui/NativeScanAtlas';
 
 const DEFAULT_YAW = -32;
@@ -39,21 +39,7 @@ export function AtlasView() {
 }
 
 function NoGeometryAtlas() {
-  const { house } = useStore();
-  return (
-    <div className="atlas-noplan">
-      <div className="noplan-banner">
-        <div className="noplan-mark" aria-hidden="true">
-          <Icon name="rooms" size={26} />
-        </div>
-        <div>
-          <h1>{house.name}: no reviewed shape projection</h1>
-          <p>Rooms and places remain available. Plan, 3D and measured positions require reviewed geometry.</p>
-        </div>
-      </div>
-      <RoomIndex />
-    </div>
-  );
+  return <BuildingSection />;
 }
 
 function Stage() {

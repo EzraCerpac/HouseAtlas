@@ -1,32 +1,33 @@
-/* Blueprint chrome around a vellum work surface. Lantern yellow marks only the
-   current or selected thing: floor, room, section, filter. */
+/* Drafting table: an indigo-ink frame holds paper sheets (work surface and
+   inspector). Lantern yellow marks only the current or selected thing: floor,
+   room, section, filter. Datum marks appear only where elevation is recorded. */
 .lantern-host {
-  /* Work surface */
-  --ground: #ecede8;
-  --ground-2: #e2e4dd;
-  --card: #fbfbf8;
-  --card-2: #f3f4ef;
+  /* Paper */
+  --ground: #f2f3ef;
+  --ground-2: #e6e8e2;
+  --card: #fcfcfa;
+  --card-2: #f0f1ec;
   --birch: #d8be8e;
   --birch-dark: #a9864f;
   --lantern: #ffd15c;
-  --lantern-soft: #fff1c2;
-  --lantern-edge: #e0a100;
+  --lantern-soft: #fff2c6;
+  --lantern-edge: #dc9f0b;
   --lantern-ink: #4d3700;
 
-  /* Blueprint chrome */
-  --chrome: #16324f;
-  --chrome-2: #1f4166;
-  --chrome-line: #2d5278;
-  --chrome-ink: #eef3f8;
-  --chrome-muted: #a9bdd2;
+  /* Ink frame */
+  --chrome: #142744;
+  --chrome-2: #1d3456;
+  --chrome-line: #2b4569;
+  --chrome-ink: #edf2f8;
+  --chrome-muted: #a6b8cf;
 
   /* Ink */
-  --ink: #1b2330;
-  --ink-2: #364152;
-  --muted: #586273;
-  --faint: #8b929c;
-  --hair: #d9dbd3;
-  --hair-2: #c3c7bd;
+  --ink: #18233a;
+  --ink-2: #344055;
+  --muted: #5a6375;
+  --faint: #8a919d;
+  --hair: #dcdfd7;
+  --hair-2: #c5c9c0;
 
   /* Layers */
   --l-belongings: #9c3f8f;
@@ -50,30 +51,33 @@
   --alert: #c2321f;
   --alert-soft: #fbe5e0;
 
-  /* Type */
+  /* Type: Bricolage for names, titles and datum numerals; Public Sans for
+     everything read or operated. Scale after the classic 12–48 series. */
   --display: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
   --text: 'Public Sans Variable', 'Public Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --code: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --fs-xs: 12px;
   --fs-s: 13.5px;
   --fs-m: 15px;
-  --fs-l: 17px;
-  --fs-xl: 20px;
+  --fs-l: 18px;
+  --fs-xl: 21px;
   --fs-2xl: 24px;
-  --fs-3xl: 30px;
-  --fs-4xl: 36px;
+  --fs-3xl: 36px;
+  --fs-4xl: 48px;
 
-  /* Shape */
+  /* Shape: sheets are the largest radius, controls the smallest. */
   --r-control: 8px;
   --r-panel: 12px;
-  --r-sheet: 3px;
-  --shadow-float: 0 1px 2px rgba(22, 50, 79, 0.08), 0 12px 28px -14px rgba(22, 50, 79, 0.35);
-  --shadow-modal: 0 40px 90px -30px rgba(22, 50, 79, 0.5);
+  --r-sheet: 16px;
+  --shadow-float: 0 1px 2px rgba(20, 39, 68, 0.08), 0 12px 28px -14px rgba(20, 39, 68, 0.35);
+  --shadow-sheet: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 24px 48px -32px rgba(4, 12, 28, 0.7);
+  --shadow-modal: 0 40px 90px -30px rgba(20, 39, 68, 0.55);
 
   --topbar: 56px;
-  --nav: 80px;
-  --side: 244px;
-  --detail: 392px;
+  --nav: 84px;
+  --side: 236px;
+  --detail: 400px;
+  --gap: 8px;
 
   color-scheme: light;
 }
@@ -81,7 +85,9 @@
 @media (max-width: 759px) {
   .lantern-host {
     --topbar: 52px;
-    --fs-4xl: 30px;
-    --fs-3xl: 26px;
+    --fs-m: 16px;
+    --fs-4xl: 36px;
+    --fs-3xl: 30px;
+    --gap: 0px;
   }
 }

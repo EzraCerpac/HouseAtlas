@@ -132,7 +132,8 @@ export function NativeScanAtlas({ client }: { readonly client: NativeGeometryRea
     displayed.current = observation?.frame ?? null;
     if (surface.current) surface.current.hidden = !observation || !client.isCurrent(observation.frame) || current.current !== owner;
   }, [client, observation, owner]);
-  return <div className="native-scan-atlas">
+  return <div className={`native-scan-atlas${building ? ' has-building' : ''}`}>
+    {!building && <header className="atlas-section-head"><h1>{projection.house.name}</h1></header>}
     <div className="filter-row" role="group" aria-label="Scan building">
       {buildings.length > 0 && <span className="filter-row-label" aria-hidden="true">Building</span>}
       {buildings.map(row => <button key={row.id} type="button" className="chip-btn" aria-pressed={building?.id === row.id}

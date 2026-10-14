@@ -141,7 +141,7 @@ export function fmtDocSize(doc: Doc): string {
 
 export function Section({ title, count, children, action }: { title: string; count?: number; children: ReactNode; action?: ReactNode }) {
   return (
-    <section className="section">
+    <section className={`section${count === 0 ? ' is-empty' : ''}`}>
       <header className="section-head">
         <h3>
           {title}

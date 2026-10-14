@@ -32,12 +32,12 @@ import { ItemArt, MediaScene } from './Art';
 import { ClaimBadge, EntityLink, Empty, KindTag, Note, Section, StorageTag, WritePill } from './ui';
 import { DocList, HistoryList, IdentityBlock, ObservationList, PendingWrites, TaskList } from './rows';
 
-export function DetailPanel() {
+export function DetailPanel({ onCloseOverview }: { onCloseOverview?: () => void }) {
   const { state, house } = useStore();
   const sel = state.selection;
-  if (!sel) return <Overview />;
+  if (!sel) return <Overview onClose={onCloseOverview} />;
   const rec = getRecord(house, sel.id);
-  if (!rec) return <Overview />;
+  if (!rec) return <Overview onClose={onCloseOverview} />;
   switch (sel.kind) {
     case 'space':
       return <SpaceDetail space={rec as Space} />;
@@ -63,7 +63,7 @@ export function DetailPanel() {
     case 'task':
       return <TaskDetail t={rec as Task} />;
     default:
-      return <Overview />;
+      return <Overview onClose={onCloseOverview} />;
   }
 }
 
@@ -78,11 +78,7 @@ function Shell({ id, kind, title, claim, actions, children, lead }: { id: string
         <div className="detail-kicker">
           {kind === 'space' && source ? <span className="kind-tag">{source.semanticKind === 'room' ? 'Room' : 'Place'}</span> : <KindTag kind={kind} />}
           {claim}
-          <button type="button" className="icon-btn detail-close" aria-label="Close details" onClick={() => {
-            const handle = document.getElementById('detail-sheet-handle');
-            (handle?.getClientRects().length ? handle : document.getElementById('main'))?.focus();
-            select(null);
-          }}>
+          <button type="button" className="icon-btn detail-close" aria-label="Close details" onClick={() => select(null)}>
             <Icon name="close" size={18} />
           </button>
         </div>
@@ -136,29 +132,55 @@ function Facts({ rows }: { rows: [string, ReactNode][] }) {
 
 // ---------------- Overview (nothing selected) ----------------
 
-function Overview() {
-  const { state, house, dispatch } = useStore();
+function attention(house: HouseData) {
   const overdue = house.tasks.filter((t) => dueState(t, house.displayNow) === 'overdue');
-  const soon = house.tasks.filter((t) => dueState(t, house.displayNow) === 'soon');
   const review = house.writes.filter((w) => w.status === 'conflict' || w.status === 'uncertain');
-  const inFlight = house.writes.filter((w) => w.status === 'queued' || w.status === 'running');
   const disputed = [
     ...house.items.filter((i) => i.locationClaim === 'disputed'),
     ...house.circuits.filter((c) => c.claim === 'disputed'),
     ...house.outlets.filter((o) => o.claim === 'disputed'),
   ];
+  return { overdue, review, disputed, count: overdue.length + review.length + disputed.length };
+}
+
+export function attentionCount(house: HouseData): number {
+  return attention(house).count;
+}
+
+function Overview({ onClose }: { onClose?: (() => void) | undefined }) {
+  const { state, house, dispatch } = useStore();
+  const { overdue, review, disputed, count } = attention(house);
+  const soon = house.tasks.filter((t) => dueState(t, house.displayNow) === 'soon');
+  const inFlight = house.writes.filter((w) => w.status === 'queued' || w.status === 'running');
   const un = unplaced(house);
   return (
     <article className="detail overview" aria-labelledby="overview-title">
       <header className="detail-head">
-        <p className="overview-kicker">Overview</p>
+        <div className="detail-kicker">
+          <span className="overview-kicker">Overview</span>
+          {onClose && (
+            <button type="button" className="icon-btn detail-close" aria-label="Close overview" onClick={onClose}>
+              <Icon name="close" size={18} />
+            </button>
+          )}
+        </div>
         <h2 id="overview-title" className="detail-title overview-title">
           {house.name}
         </h2>
-
+        <ul className="tally overview-tally" aria-label="In the supplied view">
+          <li className={count ? 'is-alert' : undefined}>
+            <strong>{count}</strong> need attention
+          </li>
+          <li>
+            <strong>{soon.length}</strong> due in two weeks
+          </li>
+          <li>
+            <strong>{un.noRoomItems.length}</strong> without reviewed placement
+          </li>
+        </ul>
       </header>
       <div className="detail-body">
-        <Section title="Needs attention" count={overdue.length + review.length + disputed.length}>
+        {count > 0 && <Section title="Needs attention" count={count}>
           <ul className="attention">
             {review.map((w) => (
               <li key={w.id}>
@@ -186,9 +208,8 @@ function Overview() {
                 <EntityLink id={r.id} />
               </li>
             ))}
-            {overdue.length + review.length + disputed.length === 0 && <li className="empty">No attention flags in the supplied view.</li>}
           </ul>
-        </Section>
+        </Section>}
         {inFlight.length > 0 && (
           <Section title="Being saved" count={inFlight.length}>
             <ul className="attention">
@@ -201,17 +222,17 @@ function Overview() {
             </ul>
           </Section>
         )}
-        <Section title="Coming up" count={soon.length}>
-          <TaskList tasks={soon} showTarget empty="Nothing due in the next two weeks." />
-        </Section>
-        <Section title="Not on the plan">
+        {soon.length > 0 && <Section title="Coming up" count={soon.length}>
+          <TaskList tasks={soon} showTarget />
+        </Section>}
+        {un.noRoomItems.length > 0 && <Section title="Not on the plan" count={un.noRoomItems.length}>
           <p className="body-text">
             {un.noRoomItems.length} records have no reviewed placement in this view.
           </p>
           <button type="button" className="text-btn" onClick={() => dispatch({ type: 'view', view: 'rooms' })}>
             Review them in Rooms
           </button>
-        </Section>
+        </Section>}
         <Sources house={house} outage={state.settings.outage} />
       </div>
     </article>
@@ -229,7 +250,7 @@ export function Sources({ house: _house, outage: _outage }: { house: HouseData; 
       </dd>
     </div>)}
     {!projection.view.caches.length && <div><dt>Saved sources</dt><dd>No cache information supplied.</dd></div>}
-    <div><dt>Geometry</dt><dd>No reviewed shape projection supplied.</dd></div>
+    <div><dt>Shape projection</dt><dd>No reviewed shape projection supplied.</dd></div>
   </dl></Section>;
 }
 

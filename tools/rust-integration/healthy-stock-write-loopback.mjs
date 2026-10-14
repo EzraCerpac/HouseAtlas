@@ -80,6 +80,14 @@ try {
   browser = spawn(chromium, ['--headless=new', '--enable-experimental-web-platform-features', '--enable-features=WebMCP', '--no-sandbox', '--disable-gpu', '--remote-debugging-pipe', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-features=MediaRouter,OptimizationHints', '--ignore-certificate-errors', '--user-data-dir=' + join(scratch, 'browser'), 'about:blank'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
   cdp = new Pipe(browser);
   const version = await cdp.send('Browser.getVersion');
+  // Exact source-inspected native executeTool input forms: the 151/154 IDLs take
+  // DOMString JSON text; 155.0.8059.39 takes a structured object. Any other
+  // version requires source inspection before this ordinary flow runs.
+  const nativeInputForm = new Map([['Chrome/151.0.7922.173', 'json-text'], ['Chrome/154.0.8037.57', 'json-text'], ['Chrome/154.0.8037.97', 'json-text'],
+    ['Chrome/154.0.8037.98', 'json-text'], ['Chrome/155.0.8059.39', 'object']]).get(version.product);
+  assert(nativeInputForm, 'Inspected native WebMCP browser version');
+  // Each native call passes the request in the form selected above.
+  const nativeObjectInput = () => { assert(nativeInputForm, 'Inspected native WebMCP browser version'); return nativeInputForm === 'object'; };
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params) => cdp.send(method, params, sessionId);
@@ -311,14 +319,14 @@ try {
   // text issuance uses the exact HTTP stock envelope. No shim or provider.
   await until(async()=>await evaluate("document.modelContext.getTools().then(tools=>tools.some(tool=>tool.name==='atlas_media_geometry'))"),'Actual admitted managed-media registration');
   const stockDownloads=await evaluate(`(async()=>{
-    const scope=${JSON.stringify(view.scope)}, originals=${JSON.stringify(preparedMedia)}, rows=[];
+    const scope=${JSON.stringify(view.scope)}, originals=${JSON.stringify(preparedMedia)}, rows=[], nativeObjectInput=${JSON.stringify(nativeObjectInput())};
     const U=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
     for(const [index,original] of originals.entries()){
       const request={schemaVersion:3,commandId:'atlas.asset.download',requestId:U(1500+index),context:scope,target:{authority:'atlas',recordType:'asset',recordId:original.assetId},payload:{}};
       let wire,visible=null,visibleLink=null;
       if(index===0){
         const tools=await document.modelContext.getTools(),tool=tools.find(tool=>tool.name==='atlas_media_geometry');
-        const result=await document.modelContext.executeTool(tool,JSON.stringify(request));
+        const result=await document.modelContext.executeTool(tool,nativeObjectInput?request:JSON.stringify(request));
         wire=typeof result==='string'?JSON.parse(result):result;
         visible=document.querySelector('.stock-completion pre')?.textContent;
         const link=document.querySelector('.stock-completion a');visibleLink=link?{href:link.getAttribute('href'),label:link.textContent}:null;
@@ -388,7 +396,7 @@ try {
   await send('Page.reload');
   await until(async()=>await evaluate("document.modelContext?.getTools().then(tools=>tools.some(tool=>tool.name==='atlas_records'))"),'Fresh UI-owned Atlas registration');
   const stockWrites = await evaluate(`(async () => {
-    const prefix=${JSON.stringify(prefix)}, scope=${JSON.stringify(view.scope)}, results=[];
+    const prefix=${JSON.stringify(prefix)}, scope=${JSON.stringify(view.scope)}, results=[], nativeObjectInput=${JSON.stringify(nativeObjectInput())};
     const endpoint='/api/atlas/stock/v3/workspaces/'+scope.workspaceId+'/homes/'+scope.homeId+'/commands';
     const U=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
     const guard={target:{authority:'atlas',recordType:'evidence',recordId:U(100)},revision:{kind:'atlas',value:1}};
@@ -399,7 +407,7 @@ try {
     const batch={schemaVersion:3,commandId:'atlas.batch.execute',requestId:U(1203),context:scope,target:{authority:'atlas',kind:'batch',batchId:U(1400)},payload:{commands:children},idempotencyKey:U(1303),reason:'Healthy disposable ordered native stock identity batch',preconditions:{target:null,guards:[guard]},approvalReceiptId:null};
     const tool=(await document.modelContext.getTools()).find(tool=>tool.name==='atlas_records');
     if(!tool)throw new Error('Actual admitted native Atlas record tool unavailable');
-    const nativeResult=await document.modelContext.executeTool(tool,JSON.stringify(single));
+    const nativeResult=await document.modelContext.executeTool(tool,nativeObjectInput?single:JSON.stringify(single));
     const first=typeof nativeResult==='string'?JSON.parse(nativeResult):nativeResult;
     const firstVisible=document.querySelector('.stock-completion pre')?.textContent;
     const firstSession=await call('/api/atlas/auth/session');

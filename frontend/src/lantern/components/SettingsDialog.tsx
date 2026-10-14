@@ -5,7 +5,7 @@ import { useStore } from '../state/store';
 import { Modal } from './Modal';
 
 export function SettingsDialog() {
-  const { state, dispatch, projection, actions } = useStore();
+  const { state, dispatch, actions } = useStore();
   const [checking, setChecking] = useState(false);
   const [checkResult, setCheckResult] = useState<'success' | 'failed' | null>(null);
   const close = () => dispatch({ type: 'settingsOpen', open: false });
@@ -29,24 +29,6 @@ export function SettingsDialog() {
       footer={<button type="button" className="btn btn-primary" onClick={close}>Done</button>}
     >
       <div className="settings">
-        <fieldset className="field radio-cards">
-          <legend>Home</legend>
-          {projection.view.homes.map((home) => {
-            const id = JSON.stringify([home.workspaceId, home.homeId]);
-            const selected = projection.view.scope.workspaceId === home.workspaceId && projection.view.scope.homeId === home.homeId;
-            return (
-              <label key={id} className={`radio-card${selected ? ' is-on' : ''}`}>
-                <input type="radio" name="home" checked={selected} onChange={() => {
-                  if (selected) return;
-                  dispatch({ type: 'house', id });
-                  close();
-                }} />
-                <span className="radio-title">{home.label}</span>
-              </label>
-            );
-          })}
-        </fieldset>
-
         <div className="field">
           <span className="field-label">Language</span>
           <p className="setting-static">English</p>
