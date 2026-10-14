@@ -318,7 +318,7 @@ try {
       let wire,visible=null,visibleLink=null;
       if(index===0){
         const tools=await document.modelContext.getTools(),tool=tools.find(tool=>tool.name==='atlas_media_geometry');
-        const result=await document.modelContext.executeTool(tool,JSON.stringify(request));
+        const result=await document.modelContext.executeTool(tool,request);
         wire=typeof result==='string'?JSON.parse(result):result;
         visible=document.querySelector('.stock-completion pre')?.textContent;
         const link=document.querySelector('.stock-completion a');visibleLink=link?{href:link.getAttribute('href'),label:link.textContent}:null;
@@ -399,7 +399,7 @@ try {
     const batch={schemaVersion:3,commandId:'atlas.batch.execute',requestId:U(1203),context:scope,target:{authority:'atlas',kind:'batch',batchId:U(1400)},payload:{commands:children},idempotencyKey:U(1303),reason:'Healthy disposable ordered native stock identity batch',preconditions:{target:null,guards:[guard]},approvalReceiptId:null};
     const tool=(await document.modelContext.getTools()).find(tool=>tool.name==='atlas_records');
     if(!tool)throw new Error('Actual admitted native Atlas record tool unavailable');
-    const nativeResult=await document.modelContext.executeTool(tool,JSON.stringify(single));
+    const nativeResult=await document.modelContext.executeTool(tool,single);
     const first=typeof nativeResult==='string'?JSON.parse(nativeResult):nativeResult;
     const firstVisible=document.querySelector('.stock-completion pre')?.textContent;
     const firstSession=await call('/api/atlas/auth/session');

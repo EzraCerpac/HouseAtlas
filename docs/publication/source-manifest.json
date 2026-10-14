@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "358f49e6d055a04952c258915a125b4593886d53d3f21af9304cc2724529d7e7",
+  "sourceDigestSha256": "9ee85f5b8941a21b3543700aee9b1d213025649a95a95191e2abba59062f66a5",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -9233,15 +9233,15 @@
     {
       "path": "tools/rust-integration/healthy-agent-host-loopback.mjs",
       "mode": "100644",
-      "bytes": 31989,
-      "sha256": "2636d64890e2817b2adeab87c4424a2618c7a42d289245ea44f87cbeb02197ae",
+      "bytes": 31957,
+      "sha256": "560ca3fe1c06406de5ab1643fec61f3c32af090fa6f1bbcee71e8ee66ec723eb",
       "owner": "core-integration"
     },
     {
       "path": "tools/rust-integration/healthy-agent-loopback.mjs",
       "mode": "100644",
-      "bytes": 18270,
-      "sha256": "ec35c1421e970d9db5ca70961648923c3e1a438d5dfb41c3dc957c1e5f234323",
+      "bytes": 18238,
+      "sha256": "767aa5dd6c7d65a3b932c33102f8fd36dc7927d2026e0525b91d4161e761ce68",
       "owner": "core-integration"
     },
     {
@@ -9282,8 +9282,8 @@
     {
       "path": "tools/rust-integration/healthy-human-host-loopback.mjs",
       "mode": "100644",
-      "bytes": 36854,
-      "sha256": "916682009f686c8a073adb14113cd1717ce800ddbf2dd055b1991df4798617ed",
+      "bytes": 36822,
+      "sha256": "32f74f3ea06e42126cce85ac09e561117c6c3a014debd2b41d180d386a00c44a",
       "owner": "core-integration"
     },
     {
@@ -9366,15 +9366,15 @@
     {
       "path": "tools/rust-integration/healthy-stock-write-loopback.mjs",
       "mode": "100644",
-      "bytes": 61980,
-      "sha256": "ae591803c6812a8d332dc9bff144cce9c05912d2d726ede97cefe885af98db21",
+      "bytes": 61948,
+      "sha256": "fc78921393685cac1508cf453f36b6d4cd06bd842c6a09627f52610ae7c640b0",
       "owner": "core-integration"
     },
     {
       "path": "tools/rust-integration/healthy-upload-loopback.mjs",
       "mode": "100644",
-      "bytes": 57778,
-      "sha256": "ce5f7bafaa69291954e73eee7776223911320e06d9d5f0bea3ffe274a5689df2",
+      "bytes": 57746,
+      "sha256": "776cf2824e65413f4431152c5aa4aa1df50c051c2b34bb0bc0ebdbfa149730ae",
       "owner": "core-integration"
     },
     {

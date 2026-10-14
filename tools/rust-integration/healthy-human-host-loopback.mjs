@@ -131,9 +131,9 @@ try {
   assert.equal(native.registerTool,'function','Actual document WebMCP registration exists');
   assert.equal(native.getTools,'function','Actual document WebMCP discovery exists');
   const U=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
-  // The inspected Chromium 151/154 IDLs take DOMString input arguments. Supply the
-  // complete JSON request through that native API without a modelContext shim.
-  const invoke=async(request)=>evaluate(`(async()=>{const tools=await document.modelContext.getTools();const tool=tools.find(t=>t.name==='atlas_records');if(!tool)throw new Error('Actual atlas_records registration missing');const value=await document.modelContext.executeTool(tool,${JSON.stringify(JSON.stringify(request))});const wire=typeof value==='string'?JSON.parse(value):value;return {wire,visible:document.querySelector('.stock-completion pre')?.textContent,tools:tools.map(t=>t.name)};})()`);
+  // Native executeTool takes a structured input object. Pass the complete
+  // request object through that native API without a modelContext shim.
+  const invoke=async(request)=>evaluate(`(async()=>{const tools=await document.modelContext.getTools();const tool=tools.find(t=>t.name==='atlas_records');if(!tool)throw new Error('Actual atlas_records registration missing');const value=await document.modelContext.executeTool(tool,${JSON.stringify(request)});const wire=typeof value==='string'?JSON.parse(value):value;return {wire,visible:document.querySelector('.stock-completion pre')?.textContent,tools:tools.map(t=>t.name)};})()`);
   await until(async()=> (await evaluate("document.modelContext.getTools().then(t=>t.some(x=>x.name==='atlas_records'))")), 'Real admitted stock registration');
   const read={schemaVersion:3,commandId:'atlas.identity.get',requestId:U(1600),context:view.scope,target:{authority:'atlas',recordType:'identity',recordId:U(200)},payload:{}};
   const first=await invoke(read);
