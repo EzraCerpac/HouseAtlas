@@ -66,15 +66,13 @@ export function BrandMark() {
   return (
     <svg
       className="brand-mark"
-      viewBox="0 0 48 48"
+      viewBox="0 0 40 40"
       aria-hidden="true"
       focusable="false"
     >
-      <rect className="bm-plate" x="2" y="6" width="44" height="36" rx="7" />
-      <rect className="bm-line" x="6" y="10" width="36" height="28" rx="4" />
-      <path className="bm-door" d="M19 34V22a5 5 0 0 1 10 0v12z" />
-      <circle className="bm-hole" cx="11" cy="24" r="1.8" />
-      <circle className="bm-hole" cx="37" cy="24" r="1.8" />
+      <path className="bm-base" d="M20 23 34 30 20 37 6 30Z" />
+      <path className="bm-mid" d="M20 13 34 20 20 27 6 20Z" />
+      <path className="bm-top" d="M20 3 34 10 20 17 6 10Z" />
     </svg>
   );
 }

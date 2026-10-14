@@ -134,6 +134,7 @@ export function NativeScanAtlas({ client }: { readonly client: NativeGeometryRea
   }, [client, observation, owner]);
   return <div className="native-scan-atlas">
     <div className="filter-row" role="group" aria-label="Scan building">
+      {buildings.length > 0 && <span className="filter-row-label" aria-hidden="true">Building</span>}
       {buildings.map(row => <button key={row.id} type="button" className="chip-btn" aria-pressed={building?.id === row.id}
         onClick={() => topology.chooseBuilding(row.id)}>{row.label}</button>)}
       {building && <button type="button" className="text-btn" onClick={() => setAttempt(value => value + 1)}>Refresh scans</button>}

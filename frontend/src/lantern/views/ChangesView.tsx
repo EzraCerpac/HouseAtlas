@@ -6,9 +6,9 @@ export function ChangesView() {
   const { house, dispatch, projection } = useStore();
   const history = projection.operationHistory;
   const events = history.status === 'ready' ? [...(history.earlierPages ?? []), history.page].flatMap(page => page.entries) : [];
-  return <div className="view"><header className="view-head"><h1>Changes</h1></header>
+  return <div className="view"><header className="view-head view-head-row"><h1>Changes</h1>
+      <button type="button" className="btn btn-primary" onClick={() => dispatch({ type: 'nativeOpen', open: true })}>Atlas tools</button></header>
     <div className="changes-grid"><section className="section"><header className="section-head"><h3>Operation history</h3></header>
-      <button type="button" className="btn btn-primary" onClick={() => dispatch({ type: 'nativeOpen', open: true })}>Atlas tools</button>
       {history.status === 'loading' && <p className="body-text" role="status">Loading operation history…</p>}
       {history.status === 'unavailable' && <p className="body-text" role="status">Operation history could not be loaded. Reload the saved view to retry.</p>}
       {history.status === 'denied' && <p className="body-text" role="status">Access to operation history is denied.</p>}

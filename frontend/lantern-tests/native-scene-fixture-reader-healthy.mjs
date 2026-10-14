@@ -600,6 +600,7 @@ createRoot(document.getElementById('root')).render(<App />);
     assert.equal(directHit.same, true, `Direct room action is obscured: ${JSON.stringify(directHit)}`);
     await click(selector('Open reference drawing'));
     await until(() => evaluate(`Boolean(document.querySelector('.native-scene-drawing a[download]') && document.querySelector('.native-scene-pdf-canvas')?.width)`), 'Direct room action renders qualified PDF');
+    await until(() => evaluate(`document.querySelector('.native-scene-drawing > div > p')?.textContent==='Reference PDF · page 2 of 8'`), 'Direct PDF page count ready');
     assert.equal(await evaluate(`document.querySelector('.native-scene-drawing > div > p').textContent`), 'Reference PDF · page 2 of 8');
     assert.equal(cdp.requests.some(url => /\/NativeSceneDrawing-[^/]+\.js$/.test(url)), true,
       'PDF reader chunk loads on demand');
@@ -619,7 +620,9 @@ createRoot(document.getElementById('root')).render(<App />);
     await until(() => evaluate(`Boolean(document.querySelector('.native-scene-drawing[role="dialog"]'))`), 'Current native sheet opens dialog');
     assert.equal(await evaluate(`document.querySelector('.native-scene-drawing h3').textContent`), 'Synthetic Alpha electrical drawing');
     await until(() => evaluate(`Boolean(document.querySelector('.native-scene-drawing a[download]') && document.querySelector('.native-scene-pdf-canvas')?.width)`), 'Qualified current PDF renders');
-    assert.equal(await evaluate(`document.querySelector('.native-scene-drawing > div > p').textContent`), 'Reference PDF · page 7 of 8');
+    // region-0 is the Alpha sheet, which references PDF page 2.
+    await until(() => evaluate(`document.querySelector('.native-scene-drawing > div > p')?.textContent==='Reference PDF · page 2 of 8'`), 'Region PDF page count ready');
+    assert.equal(await evaluate(`document.querySelector('.native-scene-drawing > div > p').textContent`), 'Reference PDF · page 2 of 8');
     assert.equal(await evaluate(`document.querySelector('.native-scene-drawing a[download]').href.startsWith('blob:')`), true);
     await click(selector('Close drawing'));
     await until(() => evaluate(`!document.querySelector('.native-scene-drawing')`), 'Current dialog closed');

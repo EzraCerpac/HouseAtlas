@@ -151,7 +151,7 @@ function Overview() {
   return (
     <article className="detail overview" aria-labelledby="overview-title">
       <header className="detail-head">
-        <p className="overview-kicker">Household atlas</p>
+        <p className="overview-kicker">Overview</p>
         <h2 id="overview-title" className="detail-title overview-title">
           {house.name}
         </h2>

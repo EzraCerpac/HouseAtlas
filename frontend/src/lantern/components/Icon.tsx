@@ -38,6 +38,7 @@ const PATHS: Record<string, string> = {
   sun: 'M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z M12 2.5v2 M12 19.5v2 M2.5 12h2 M19.5 12h2',
   person: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z M4.5 20.5a7.5 7.5 0 0 1 15 0',
   layers: 'M12 4 20 8.5 12 13 4 8.5Z M4 13l8 4.5 8-4.5',
+  building: 'M5 20.5V9.5L12 4l7 5.5v11 M9.5 20.5v-5.5h5v5.5 M3 20.5h18',
 };
 
 export type IconName = keyof typeof PATHS;

@@ -1,4 +1,4 @@
-import { lazy, useEffect, useLayoutEffect, useState } from 'react';
+import { lazy, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useReducedMotion, useSelect, useStore, type ViewId } from './state/store';
 import { fmtDateTime } from './data/time';
 import { Icon } from './components/Icon';
@@ -40,7 +40,7 @@ function Mark() {
   );
 }
 
-function SyncChip() {
+function SourceStatus() {
   const { dispatch, projection } = useStore();
   const caches = projection.view.caches.filter(c => c.owner === 'homebox');
   const warning = !caches.length || caches.some(c => c.displayStatus !== 'fresh');
@@ -50,16 +50,25 @@ function SyncChip() {
       : `HomeBox source instance ${c.sourceInstanceId ?? 'unknown'}, collection ${c.collectionId ?? 'unknown'}`;
     return `${source} ${c.displayStatus}, last successful update ${c.lastSuccessfulFetchAt ? fmtDateTime(c.lastSuccessfulFetchAt) : 'unknown'}`;
   }).join('; ') : 'HomeBox cache unavailable';
+  const states = [...new Set(caches.map(c => c.displayStatus))].join(' / ');
   return (
     <button
       type="button"
-      className={`sync-chip${warning ? ' is-warn' : ''}`}
+      className={`source-status${warning ? ' is-warn' : ''}`}
       title={text}
       onClick={() => dispatch({ type: 'view', view: 'changes' })}
       aria-label={`${text}. Open Changes.`}
     >
       <span className="sync-dot" aria-hidden="true" />
-      <span className="sync-text">{text}</span>
+      <span className="source-status-main" aria-hidden="true">
+        <span className="source-status-name">HomeBox</span>
+        <span className="source-status-state">{caches.length ? states : 'cache unavailable'}</span>
+      </span>
+      {caches.length > 0 && <span className="source-status-detail" aria-hidden="true">
+        {caches.map((c, index) => <span key={index}>
+          {`Last successful update ${c.lastSuccessfulFetchAt ? fmtDateTime(c.lastSuccessfulFetchAt) : 'unknown'}`}
+        </span>)}
+      </span>}
     </button>
   );
 }
@@ -73,8 +82,8 @@ function ArchiveFilter() {
     const entry = projection.entries.get(record.id);
     return entry && isArchivedEntry(entry) ? [{ record, entry }] : [];
   });
-  return <section aria-label="Filter retained HomeBox records">
-    <label><input type="checkbox" checked={visibility.included}
+  return <section className="archive-filter" aria-label="Filter retained HomeBox records">
+    <label className="archive-toggle"><input type="checkbox" checked={visibility.included}
       onChange={event => visibility.setIncluded(event.currentTarget.checked)} /> Include archived HomeBox records</label>
     {visibility.included && <details>
       <summary>Archived HomeBox records in this saved view ({archived.length})</summary>
@@ -130,8 +139,16 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [dispatch, state.dialog, state.settingsOpen, state.nativeOpen, state.askOpen, state.searchOpen]);
 
+  // A selection opens the sheet; dismissing it returns to the collapsed handle.
+  const hadSelection = useRef(false);
   useEffect(() => {
-    if (state.selection) setSheetOpen(true);
+    if (state.selection) {
+      hadSelection.current = true;
+      setSheetOpen(true);
+    } else if (hadSelection.current) {
+      hadSelection.current = false;
+      setSheetOpen(false);
+    }
   }, [state.selection]);
 
   const view = (() => {
@@ -164,35 +181,24 @@ export function App() {
       <header className="topbar">
         <div className="brand">
           <Mark />
-          <span className="brand-name">
-            HouseAtlas <span className="brand-concept">Lantern</span>
-          </span>
+          <span className="brand-name">HouseAtlas</span>
         </div>
         <button type="button" className="house-btn" onClick={() => dispatch({ type: 'settingsOpen', open: true })} aria-label={`House: ${house.name}. Change house in settings.`}>
           <span className="house-name">{house.name}</span>
-
           <Icon name="chevronDown" size={15} />
         </button>
         <button type="button" className="search-trigger" aria-label="Search rooms, belongings, manuals" onClick={() => dispatch({ type: 'search', open: true })}>
           <Icon name="search" size={18} />
-          <span className="search-label">Search rooms, belongings, manuals</span>
+          <span className="search-label">Search</span>
           <kbd aria-hidden="true">/</kbd>
-        </button>
-        <SyncChip />
-        <button type="button" aria-label="Ask" className={`ask-btn${state.askOpen ? ' is-on' : ''}`} aria-pressed={state.askOpen} onClick={() => dispatch({ type: 'ask', open: !state.askOpen })}>
-          <Icon name="ask" size={18} />
-          <span>Ask</span>
-        </button>
-        <button type="button" className="icon-btn" aria-label="Settings" onClick={() => dispatch({ type: 'settingsOpen', open: true })}>
-          <Icon name="settings" size={20} />
         </button>
       </header>
 
       <nav className="navrail" aria-label="Sections">
         {VIEWS.map((v) => (
           <button key={v.id} type="button" className={`nav-btn${state.view === v.id ? ' is-current' : ''}`} aria-current={state.view === v.id ? 'page' : undefined} onClick={() => dispatch({ type: 'view', view: v.id })}>
-            <Icon name={v.icon} size={21} />
-            <span>{v.label}</span>
+            <Icon name={v.icon} size={20} />
+            <span className="nav-label">{v.label}</span>
             {v.id === 'changes' && reviewCount > 0 && (
               <span className="nav-badge" aria-label={`${reviewCount} to review`}>
                 {reviewCount}
@@ -201,6 +207,17 @@ export function App() {
           </button>
         ))}
       </nav>
+
+      <div className="shell-tools">
+        <SourceStatus />
+        <button type="button" aria-label="Ask" className={`ask-btn${state.askOpen ? ' is-on' : ''}`} aria-pressed={state.askOpen} onClick={() => dispatch({ type: 'ask', open: !state.askOpen })}>
+          <Icon name="ask" size={18} />
+          <span>Ask</span>
+        </button>
+        <button type="button" className="icon-btn tool-settings" aria-label="Settings" onClick={() => dispatch({ type: 'settingsOpen', open: true })}>
+          <Icon name="settings" size={20} />
+        </button>
+      </div>
 
       <main id="main" className="main" tabIndex={-1}>
         {!state.askOpen && !state.nativeOpen && (

@@ -299,6 +299,18 @@ function Stamp({ value, absent = 'Unknown' }: { value: string | null; absent?: s
   return value === null ? <span className="muted">{absent}</span> : <time dateTime={value}>{value}</time>;
 }
 
+/** One relation's kind and direction; facts follow in a labelled list. */
+function RelationHead({ kind, from, to }: { kind: string; from: NetworkEndpoint; to: NetworkEndpoint }) {
+  return <p className="relation-head">
+    <span className="relation-kind">{kind}</span>
+    <span className="relation-ends">
+      <span>{endpointText(from)}</span>
+      <span className="relation-arrow" aria-hidden="true">→</span><span className="sr-only"> to </span>
+      <span>{endpointText(to)}</span>
+    </span>
+  </p>;
+}
+
 /** Explicit paged read of saved Network relations; never on mount, tab or view change. */
 function NetworkRelationsPanel({ client }: { readonly client: NetworkRelationsClient }) {
   const { projection } = useStore();
@@ -400,11 +412,24 @@ function NetworkRelationsPanel({ client }: { readonly client: NetworkRelationsCl
       {!empty && <p>Showing {plural(visible.length, 'relation', 'relations')} from {plural(sequence.pages.length, 'page', 'pages')}.{sequence.nextCursor !== null && ' More relations exist.'}</p>}
       {limit && <Note tone="warn">{stopText[limit]}</Note>}
       {withheld > 0 && <Note tone="warn">{plural(withheld, 'relation', 'relations')} withheld because source access is revoked.</Note>}
-      {visible.length > 0 && <div className="table-wrap"><table className="data-table"><thead><tr><th scope="col">Relation</th><th scope="col">From</th><th scope="col">To</th><th scope="col">Medium</th><th scope="col">Status</th><th scope="col">Observed</th><th scope="col">Retrieved</th><th scope="col">Source snapshot</th><th scope="col">Source revision</th><th scope="col">Source record</th><th scope="col">Vantage</th><th scope="col">Confidence</th><th scope="col">Basis</th><th scope="col">Notes</th></tr></thead><tbody>
-        {visible.map(({ key, item }) => <tr key={key}>
-          <th scope="row">{item.kind}</th><td>{endpointText(item.from)}</td><td>{endpointText(item.to)}</td><td>{item.medium === 'unknown' ? 'Unknown' : item.medium}</td><td>{item.temporalStatus}</td><td><Stamp value={item.factAt} /></td><td><Stamp value={item.retrievedAt} /></td><td><Stamp value={item.sourceSnapshotAt} /></td><td>{item.sourceRevision ?? 'Unknown'}</td><td>{item.externalId}</td><td>{item.vantage ?? 'Unknown'}</td><td>{item.sourceConfidence}</td><td>{item.evidenceBasis}</td><td>{item.notes}</td>
-        </tr>)}
-      </tbody></table></div>}
+      {visible.length > 0 && <ul className="relation-list">
+        {visible.map(({ key, item }) => <li key={key} className="relation">
+          <RelationHead kind={item.kind} from={item.from} to={item.to} />
+          <dl className="relation-facts">
+            <div><dt>Medium</dt><dd>{item.medium === 'unknown' ? 'Unknown' : item.medium}</dd></div>
+            <div><dt>Status</dt><dd>{item.temporalStatus}</dd></div>
+            <div><dt>Observed</dt><dd><Stamp value={item.factAt} /></dd></div>
+            <div><dt>Retrieved</dt><dd><Stamp value={item.retrievedAt} /></dd></div>
+            <div><dt>Source snapshot</dt><dd><Stamp value={item.sourceSnapshotAt} /></dd></div>
+            <div><dt>Source revision</dt><dd>{item.sourceRevision ?? 'Unknown'}</dd></div>
+            <div><dt>Source record</dt><dd>{item.externalId}</dd></div>
+            <div><dt>Vantage</dt><dd>{item.vantage ?? 'Unknown'}</dd></div>
+            <div><dt>Confidence</dt><dd>{item.sourceConfidence}</dd></div>
+            <div><dt>Basis</dt><dd>{item.evidenceBasis}</dd></div>
+            {item.notes && <div className="relation-notes"><dt>Notes</dt><dd>{item.notes}</dd></div>}
+          </dl>
+        </li>)}
+      </ul>}
       <h3>Source statuses returned with this read</h3>
       {statuses.length ? <div className="table-wrap"><table className="data-table"><thead><tr><th scope="col">Source instance</th><th scope="col">Collection</th><th scope="col">Status</th><th scope="col">Last successful fetch</th><th scope="col">Last attempt</th><th scope="col">Error</th></tr></thead><tbody>
         {statuses.map((status, index) => status.status === 'access-revoked'
@@ -423,11 +448,22 @@ function SavedRelations({ entries }: { entries: Entry[] }) {
     return <section key={entry.key} className="section">
       <header className="section-head"><h3>{entry.entity.name}</h3></header>
       {notice && <Note tone="warn">{notice}</Note>}
-      {entry.networkRelations.length ? <div className="table-wrap"><table className="data-table"><thead><tr><th scope="col">Relation</th><th scope="col">From</th><th scope="col">To</th><th scope="col">Medium</th><th scope="col">Status</th><th scope="col">Observed</th><th scope="col">Retrieved</th><th scope="col">Source snapshot</th><th scope="col">Source revision</th><th scope="col">Vantage</th><th scope="col">Confidence / basis</th></tr></thead><tbody>
-        {entry.networkRelations.map((relation, index) => <tr key={`${entry.key}:${index}`}>
-          <th scope="row">{relation.kind}</th><td>{endpointText(relation.from)}</td><td>{endpointText(relation.to)}</td><td>{relation.medium === 'unknown' ? 'Unknown' : relation.medium}</td><td>{relation.temporalStatus}</td><td>{relation.factAt ? fmtDateTime(relation.factAt) : 'Unknown'}</td><td>{fmtDateTime(relation.retrievedAt)}</td><td>{relation.sourceSnapshotAt ? fmtDateTime(relation.sourceSnapshotAt) : 'Unknown'}</td><td>{relation.sourceRevision ?? 'Unknown'}</td><td>{relation.vantage ?? 'Unknown'}</td><td>{relation.sourceConfidence ?? 'Unknown'} / {relation.evidenceBasis ?? 'Unknown'}{relation.notes && <p>{relation.notes}</p>}</td>
-        </tr>)}
-      </tbody></table></div> : <Empty>No saved relations for this record.</Empty>}
+      {entry.networkRelations.length ? <ul className="relation-list">
+        {entry.networkRelations.map((relation, index) => <li key={`${entry.key}:${index}`} className="relation">
+          <RelationHead kind={relation.kind} from={relation.from} to={relation.to} />
+          <dl className="relation-facts">
+            <div><dt>Medium</dt><dd>{relation.medium === 'unknown' ? 'Unknown' : relation.medium}</dd></div>
+            <div><dt>Status</dt><dd>{relation.temporalStatus}</dd></div>
+            <div><dt>Observed</dt><dd>{relation.factAt ? fmtDateTime(relation.factAt) : 'Unknown'}</dd></div>
+            <div><dt>Retrieved</dt><dd>{fmtDateTime(relation.retrievedAt)}</dd></div>
+            <div><dt>Source snapshot</dt><dd>{relation.sourceSnapshotAt ? fmtDateTime(relation.sourceSnapshotAt) : 'Unknown'}</dd></div>
+            <div><dt>Source revision</dt><dd>{relation.sourceRevision ?? 'Unknown'}</dd></div>
+            <div><dt>Vantage</dt><dd>{relation.vantage ?? 'Unknown'}</dd></div>
+            <div><dt>Confidence / basis</dt><dd>{relation.sourceConfidence ?? 'Unknown'} / {relation.evidenceBasis ?? 'Unknown'}</dd></div>
+            {relation.notes && <div className="relation-notes"><dt>Notes</dt><dd>{relation.notes}</dd></div>}
+          </dl>
+        </li>)}
+      </ul> : <Empty>No saved relations for this record.</Empty>}
     </section>;
   })}
   </section>;

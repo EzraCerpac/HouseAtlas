@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c0a0d9f8b63c73a04ba0f92eaaa812f02db18b8e17470fc312b0fa3750dc91ee",
+  "sourceDigestSha256": "00499c0992f1afeaf1a136cc23fbb96d6dc44d60f581aa6d7cf39048fad6f536",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -6126,7 +6126,7 @@
       "path": "frontend/index.html",
       "mode": "100644",
       "bytes": 802,
-      "sha256": "9e711f94e0cf3a3d7581d21159272b3d52818045b1f917974bac2bccd61256ab",
+      "sha256": "ddc737e213a01d6ea4ff134d7580b662011dd85e89cf6efa6874c2bd165930d3",
       "owner": "core-integration"
     },
     {
@@ -6433,8 +6433,8 @@
     {
       "path": "frontend/lantern-tests/native-scene-fixture-reader-healthy.mjs",
       "mode": "100644",
-      "bytes": 59185,
-      "sha256": "d25318a5bc581531127084aa7ed296a72f603e0f8a41ea5fda8bd5513c9509a0",
+      "bytes": 59592,
+      "sha256": "58c232fd4c7d9ca1bae4732835e4baa67da0eaa1e6398bed572df95719b95cdb",
       "owner": "web"
     },
     {
@@ -6707,7 +6707,7 @@
       "path": "frontend/public/manifest.webmanifest",
       "mode": "100644",
       "bytes": 556,
-      "sha256": "8c3c4c96bd141e2dd805049ec3fde4098f26b0827a35dce175d691019737b96f",
+      "sha256": "ca04510b6e5a13de01be7a955bb6aaa2b04119dc9398df225c301e8af2cb5e94",
       "owner": "core-integration"
     },
     {
@@ -7014,8 +7014,8 @@
     {
       "path": "frontend/src/app/components.tsx",
       "mode": "100644",
-      "bytes": 17824,
-      "sha256": "eef03ae58eefb2a1e2f3f12f73939d6f76879c7284821837723c050355eceb46",
+      "bytes": 17667,
+      "sha256": "b8e971933005a0f3fb731d51071302ec3d1c78018bfb9b928a2fbd9b017b16ca",
       "owner": "web"
     },
     {
@@ -7175,8 +7175,8 @@
     {
       "path": "frontend/src/lantern/App.tsx",
       "mode": "100644",
-      "bytes": 11000,
-      "sha256": "582f2aadba5ef0ee90ecd3286b04e31daa5ae3c393c60cb3f31c930c17a28c41",
+      "bytes": 11885,
+      "sha256": "c4adb6012a4a6ba0db1e4dc5131e9f3b0a48f141e05531c7c1bf2464bc29ca56",
       "owner": "web"
     },
     {
@@ -7210,8 +7210,8 @@
     {
       "path": "frontend/src/lantern/atlas/AtlasView.tsx",
       "mode": "100644",
-      "bytes": 19999,
-      "sha256": "0b108e4c872d0a7ec203876c577496d86e98a8801923e3ae00e473bf60ee9afe",
+      "bytes": 20159,
+      "sha256": "57afe9914020abc9ecd157f094764f497e1f979e8247b3bf2fe73c6f18ec1fd4",
       "owner": "web"
     },
     {
@@ -7280,8 +7280,8 @@
     {
       "path": "frontend/src/lantern/components/DetailPanel.tsx",
       "mode": "100644",
-      "bytes": 35977,
-      "sha256": "abf33a0c75bc070c95ea517738ef038a10b606fabd6a5a72b6aeca468d357202",
+      "bytes": 35970,
+      "sha256": "e9c3f5376d0cbcbb1f3c6ea751d2a0d31f112f88a7db00bb93869f53e64a3a75",
       "owner": "web"
     },
     {
@@ -7294,8 +7294,8 @@
     {
       "path": "frontend/src/lantern/components/Icon.tsx",
       "mode": "100644",
-      "bytes": 3153,
-      "sha256": "330d07e0ea82e2b14c8873e564ce88e5dc4c9ab4bc8fc2184e26a8351bab685f",
+      "bytes": 3226,
+      "sha256": "b7dfb8c5fd6caa0d371e13c5e8e004276c9ced8cd501e2996f0166f04ce1dbc3",
       "owner": "web"
     },
     {
@@ -7756,8 +7756,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeScanAtlas.tsx",
       "mode": "100644",
-      "bytes": 11990,
-      "sha256": "6ff0d87feb47779f608105fd6601ad9c5a87fb57507a411917e8c53704af1315",
+      "bytes": 12092,
+      "sha256": "20e2acfe9ca038a0d6c38511f00b0a4cea9d380f46a119f2f4f81b3285a33870",
       "owner": "web"
     },
     {
@@ -7910,15 +7910,15 @@
     {
       "path": "frontend/src/lantern/styles/app.css",
       "mode": "100644",
-      "bytes": 24507,
-      "sha256": "558695b98cfe92b183c10522242952d561296d2f81c4e63b9d2c98f5656f945c",
+      "bytes": 36856,
+      "sha256": "1d7141de9b424d1a509b8933476e468fce584747170fcbd5e04d96edd9532486",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/styles/atlas.css",
       "mode": "100644",
-      "bytes": 15907,
-      "sha256": "8b1cf973e09a7ec7455ec54a3d2e00af2edc9c69616f971257677c59a57ae846",
+      "bytes": 18733,
+      "sha256": "8de7d435019953aa49e33eb96073bb4142e352d174afed724a129bba1ca5535b",
       "owner": "web"
     },
     {
@@ -7931,36 +7931,36 @@
     {
       "path": "frontend/src/lantern/styles/integration.css",
       "mode": "100644",
-      "bytes": 3802,
-      "sha256": "b87e4bb55f6e4e47295f44c068b70a4c18fcbba39c5942fd81bacbfefa5baaf5",
+      "bytes": 3439,
+      "sha256": "30f987f7a66ee58860480254ac837127ff891b71fc10da89968f9e907c11361c",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/styles/panels.css",
       "mode": "100644",
-      "bytes": 36742,
-      "sha256": "302b38e3b2f3142ee23e9367e7369d848b0c743c21520f0b1ee9523ba3d73c29",
+      "bytes": 40311,
+      "sha256": "8aa45ebd5d731f3daa46f40833d04f2b9444edbea767eba70b6667860393e29b",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/styles/tokens.css",
       "mode": "100644",
-      "bytes": 1471,
-      "sha256": "7d088881b9584dca91ca1928fbb17b9e8e455bbf822b81bf39bd249ad9a99bdd",
+      "bytes": 1979,
+      "sha256": "e92089d778d66b05e3fa924186061b55384a4fe407a708332a7b3e5fd257341f",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/styles/topology.css",
       "mode": "100644",
-      "bytes": 2539,
-      "sha256": "7f8b526422bcfcd2748a13d7af1decf81e9281b46e488135e71911adb1d772c0",
+      "bytes": 4001,
+      "sha256": "78943343d5ec9fbe46dbd2bc65d86a147983db564b17a51a0f2c6cf8485cadc6",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/topology/BuildingScope.tsx",
       "mode": "100644",
-      "bytes": 13355,
-      "sha256": "9cd88f9a2916718ba3f6a82473db7d725c917e67ba8d90ac064e4fbf96ff0a85",
+      "bytes": 13444,
+      "sha256": "45285131bb7999a6c76d0dc4566df93198e2bfb21f377ca6a69c6ec574ac63a5",
       "owner": "web"
     },
     {
@@ -7994,8 +7994,8 @@
     {
       "path": "frontend/src/lantern/views/ChangesView.tsx",
       "mode": "100644",
-      "bytes": 3292,
-      "sha256": "268378b8a19bede423771615cb329874bb56bb68ad483609a127cb66e977a3d6",
+      "bytes": 3306,
+      "sha256": "3d679d364645b8c4d9c981cfd20f01a6e2b59f72b67ff4b00ecbb98b7dc2d27b",
       "owner": "web"
     },
     {
@@ -8008,15 +8008,15 @@
     {
       "path": "frontend/src/lantern/views/NetworkView.tsx",
       "mode": "100644",
-      "bytes": 23680,
-      "sha256": "8737898521ce6ac8e2b2969ff8a17865878605dafaf8e4faaa32de189d5817e7",
+      "bytes": 24314,
+      "sha256": "55082f5c0e141b7b3db908d0099e9adf5f8015e711ad307c3b637f53084cf497",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/views/RoomsView.tsx",
       "mode": "100644",
-      "bytes": 13087,
-      "sha256": "d15284bf16445e66e2ec151d696a9d29f8b24320ecaafdfdb26985e5795a6256",
+      "bytes": 13171,
+      "sha256": "ec204f309d4622f7c25d0d2146fad0d603119f68a7b8f594694409e5d1c547ac",
       "owner": "web"
     },
     {
@@ -8064,8 +8064,8 @@
     {
       "path": "frontend/src/styles/atlas.css",
       "mode": "100644",
-      "bytes": 28402,
-      "sha256": "935fd09632698175d93a22002e987860412cb740ca898894bf6c779154b47b95",
+      "bytes": 29065,
+      "sha256": "490b9d267aee93fb6750834eea13bad6566d26535ec5e8e7a5e895cf5ea4cc5c",
       "owner": "web"
     },
     {

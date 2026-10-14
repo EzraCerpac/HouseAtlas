@@ -3,6 +3,7 @@ import { roomContents, unplaced, dueState, CLAIM_LABEL } from '../data/query';
 import { useSelect, useStore } from '../state/store';
 import { ROOM_TINT } from '../atlas/palette';
 import { EntityLink, Empty } from '../components/ui';
+import { Icon } from '../components/Icon';
 import { LinkedEvidence } from '../components/LinkedEvidence';
 import { BuildingScope } from '../topology/BuildingScope';
 import { useTopology } from '../topology/TopologyProvider';
@@ -193,7 +194,7 @@ function GeometryMetadata() {
   const { projection } = useStore();
   const read = projection.geometryMetadata;
   return <section className="ledger" aria-labelledby="geometry-metadata-heading" style={{ overflowWrap: 'anywhere' }}>
-    <div className="ledger-floor" aria-hidden="true">—</div>
+    <div className="ledger-floor ledger-icon" aria-hidden="true"><Icon name="layers" size={28} /></div>
     <div className="ledger-body">
       <h2 id="geometry-metadata-heading" className="ledger-title">Geometry metadata</h2>
       <p className="body-text muted">Plan unavailable: this read does not supply room shapes or positions.</p>
