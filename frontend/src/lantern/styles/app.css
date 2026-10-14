@@ -190,14 +190,20 @@
 }
 
 .lantern-host.view-atlas .main > .stage-shell,
-.lantern-host.view-atlas .main > .atlas-noplan,
+.lantern-host.view-atlas .main > .atlas-section,
 .lantern-host.view-atlas .main > .native-scan-atlas {
   flex: 1;
   min-height: 0;
 }
 
-.lantern-host.view-atlas .main > .atlas-noplan,
+.lantern-host.view-atlas .main > .atlas-section,
 .lantern-host.view-atlas .main > .native-scan-atlas {
+  overflow: auto;
+}
+
+/* A building section is a document like the list views: the sheet scrolls. */
+.lantern-host.view-atlas .main:has(> .atlas-section) {
+  display: block;
   overflow: auto;
 }
 

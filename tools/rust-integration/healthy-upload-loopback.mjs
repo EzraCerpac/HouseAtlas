@@ -96,9 +96,12 @@ try {
   browser = spawn(chromium, ['--headless=new', '--enable-experimental-web-platform-features', '--enable-features=WebMCP', '--no-sandbox', '--disable-gpu', '--remote-debugging-pipe', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-features=MediaRouter,OptimizationHints', '--ignore-certificate-errors', '--user-data-dir=' + join(scratch, 'browser'), 'about:blank'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
   cdp = new Pipe(browser);
   const version = await cdp.send('Browser.getVersion');
-  // Both inspected release IDLs take DOMString input_arguments. A browser
-  // version change requires source inspection before this ordinary flow runs.
-  assert(['Chrome/151.0.7922.173', 'Chrome/154.0.8037.57', 'Chrome/154.0.8037.97', 'Chrome/154.0.8037.98'].includes(version.product), 'Inspected native WebMCP browser version');
+  // Exact source-inspected native executeTool input forms: the 151/154 IDLs take
+  // DOMString JSON text; 155.0.8059.39 takes a structured object. Any other
+  // version requires source inspection before this ordinary flow runs.
+  const nativeInputForm = new Map([['Chrome/151.0.7922.173', 'json-text'], ['Chrome/154.0.8037.57', 'json-text'], ['Chrome/154.0.8037.97', 'json-text'],
+    ['Chrome/154.0.8037.98', 'json-text'], ['Chrome/155.0.8059.39', 'object']]).get(version.product);
+  assert(nativeInputForm, 'Inspected native WebMCP browser version');
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params) => cdp.send(method, params, sessionId);
@@ -149,9 +152,9 @@ try {
   assert.equal(native.registerTool,'function','Actual document WebMCP registration exists');
   assert.equal(native.getTools,'function','Actual document WebMCP discovery exists');
   const U=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
-  // Native executeTool takes a structured input object. Pass the complete
-  // request object through that native API without a modelContext shim.
-  const invoke=async(request)=>evaluate(`(async()=>{const tools=await document.modelContext.getTools();const tool=tools.find(t=>t.name==='atlas_records');if(!tool)throw new Error('Actual atlas_records registration missing');const value=await document.modelContext.executeTool(tool,${JSON.stringify(request)});const wire=typeof value==='string'?JSON.parse(value):value;return {wire,visible:document.querySelector('.stock-completion pre')?.textContent,tools:tools.map(t=>t.name)};})()`);
+  // Pass the complete request through native executeTool in the inspected form
+  // for this exact browser version, without a modelContext shim.
+  const invoke=async(request)=>evaluate(`(async()=>{const tools=await document.modelContext.getTools();const tool=tools.find(t=>t.name==='atlas_records');if(!tool)throw new Error('Actual atlas_records registration missing');const value=await document.modelContext.executeTool(tool,${nativeInputForm === 'object' ? JSON.stringify(request) : JSON.stringify(JSON.stringify(request))});const wire=typeof value==='string'?JSON.parse(value):value;return {wire,visible:document.querySelector('.stock-completion pre')?.textContent,tools:tools.map(t=>t.name)};})()`);
   await until(async()=> (await evaluate("document.modelContext.getTools().then(t=>t.some(x=>x.name==='atlas_records'))")), 'Real admitted stock registration');
   const read={schemaVersion:3,commandId:'atlas.identity.get',requestId:U(1600),context:view.scope,target:{authority:'atlas',recordType:'identity',recordId:U(200)},payload:{}};
   const first=await invoke(read);

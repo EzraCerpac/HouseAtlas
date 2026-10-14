@@ -172,16 +172,11 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [dispatch, state.dialog, state.settingsOpen, state.nativeOpen, state.askOpen, state.searchOpen, homesOpen]);
 
-  // A selection opens the sheet; dismissing it returns to the collapsed handle.
-  const hadSelection = useRef(false);
+  // sheetOpen is the requested overview. A selection shows its record instead and
+  // drops that request, so closing the record collapses the sheet; asking for the
+  // overview while a record is open clears the record and keeps the overview.
   useEffect(() => {
-    if (state.selection) {
-      hadSelection.current = true;
-      setSheetOpen(true);
-    } else if (hadSelection.current) {
-      hadSelection.current = false;
-      setSheetOpen(false);
-    }
+    if (state.selection) setSheetOpen(false);
   }, [state.selection]);
 
   const view = (() => {
@@ -201,10 +196,35 @@ export function App() {
     }
   })();
 
-  useLayoutEffect(() => {
-    if (state.selection) document.getElementById('detail-title')?.focus();
-  }, [state.selection]);
   const sheetExpanded = !!state.selection || sheetOpen;
+  // Focus returns to what opened the sheet when it collapses, because the
+  // collapsed sheet (and its handle) is not displayed at narrow widths.
+  const opener = useRef<HTMLElement | null>(null);
+  const showingRecord = useRef(false);
+  const wasExpanded = useRef(false);
+  useLayoutEffect(() => {
+    if (!state.selection) {
+      if (sheetExpanded) { showingRecord.current = false; opener.current = null; }
+      return;
+    }
+    if (!showingRecord.current) {
+      const active = document.activeElement;
+      opener.current = active instanceof HTMLElement && !document.getElementById('details')?.contains(active) ? active : null;
+    }
+    showingRecord.current = true;
+    document.getElementById('detail-title')?.focus();
+  }, [state.selection]);
+  useLayoutEffect(() => {
+    const collapsed = wasExpanded.current && !sheetExpanded;
+    wasExpanded.current = sheetExpanded;
+    if (!collapsed) return;
+    const fromRecord = showingRecord.current, target = fromRecord ? opener.current : document.querySelector<HTMLElement>('.source-status');
+    showingRecord.current = false; opener.current = null;
+    const details = document.getElementById('details'), active = document.activeElement;
+    // Leave focus that already moved elsewhere, such as a click on the model.
+    if (active && active !== document.body && !details?.contains(active)) return;
+    (target?.isConnected && target.getClientRects().length && !details?.contains(target) ? target : document.getElementById('main'))?.focus();
+  }, [sheetExpanded]);
   const toggleOverview = () => {
     if (state.selection) {
       dispatch({ type: 'select', sel: null });
