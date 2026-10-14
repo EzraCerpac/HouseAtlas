@@ -5,9 +5,13 @@
   height: 100%;
   min-height: 420px;
   overflow: hidden;
+  /* Overlay controls follow the space the shell leaves, not the viewport. */
+  container: stage / inline-size;
   background:
-    radial-gradient(ellipse 70% 60% at 52% 44%, #fffdf6 0%, rgba(255, 252, 243, 0.85) 38%, rgba(246, 240, 228, 0) 72%),
-    linear-gradient(180deg, #f3eee4 0%, #e8e1d4 100%);
+    radial-gradient(ellipse 62% 56% at 52% 46%, rgba(255, 255, 252, 0.95) 0%, rgba(255, 255, 252, 0.6) 42%, rgba(255, 255, 252, 0) 74%),
+    linear-gradient(rgba(22, 50, 79, 0.055) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, rgba(22, 50, 79, 0.055) 1px, transparent 1px) 0 0 / 32px 32px,
+    #eceee9;
 }
 
 .lantern-host .stage {
@@ -243,7 +247,7 @@
   font-family: var(--display);
   font-weight: 800;
   font-size: 28px;
-  fill: #a2a6b0;
+  fill: #a3a9b2;
   letter-spacing: -0.03em;
 }
 
@@ -270,39 +274,40 @@
 }
 
 .lantern-host .floor-rail {
-  top: 18px;
-  left: 18px;
+  top: 16px;
+  left: 16px;
   display: grid;
-  gap: 4px;
-  padding: 6px;
+  gap: 2px;
+  padding: 5px;
   border-radius: var(--r-panel);
-  background: rgba(252, 251, 248, 0.82);
+  background: rgba(251, 251, 248, 0.92);
   backdrop-filter: blur(8px);
   box-shadow: var(--shadow-float);
-  border: 1px solid rgba(201, 191, 174, 0.7);
+  border: 1px solid var(--hair);
 }
 
 .lantern-host .floor-btn {
   display: grid;
-  grid-template-columns: 46px 1fr;
+  grid-template-columns: 42px 1fr;
   align-items: center;
-  gap: 4px;
-  padding: 6px 12px 6px 4px;
+  gap: 6px;
+  min-height: 46px;
+  padding: 5px 14px 5px 4px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 8px;
   background: transparent;
   text-align: left;
   position: relative;
 }
 
 .lantern-host .floor-btn:hover {
-  background: rgba(30, 38, 56, 0.05);
+  background: rgba(27, 35, 48, 0.05);
 }
 
 .lantern-host .floor-short {
   font-family: var(--display);
   font-weight: 800;
-  font-size: 26px;
+  font-size: 24px;
   line-height: 1;
   text-align: center;
   letter-spacing: -0.04em;
@@ -330,8 +335,7 @@
 }
 
 .lantern-host .floor-btn.is-current {
-  background: #fff;
-  box-shadow: 0 0 0 1px var(--hair-2);
+  background: var(--lantern);
 }
 
 .lantern-host .floor-btn.is-current .floor-short {
@@ -342,16 +346,8 @@
   -webkit-text-stroke-color: var(--ink);
 }
 
-.lantern-host .floor-btn.is-current::before {
-  content: '';
-  position: absolute;
-  left: -6px;
-  top: 10px;
-  bottom: 10px;
-  width: 4px;
-  border-radius: 4px;
-  background: var(--lantern-edge);
-  box-shadow: 0 0 10px var(--lantern);
+.lantern-host .floor-btn.is-current .floor-sub {
+  color: var(--lantern-ink);
 }
 
 .lantern-host .view-ctrl {
@@ -367,26 +363,28 @@
 
 .lantern-host .ctrl-group {
   display: inline-flex;
-  gap: 4px;
+  align-items: center;
+  gap: 2px;
   padding: 3px;
-  border-radius: 12px;
-  background: rgba(252, 251, 248, 0.86);
+  border-radius: 10px;
+  background: rgba(251, 251, 248, 0.94);
   border: 1px solid var(--hair-2);
+  box-shadow: var(--shadow-float);
 }
 
 .lantern-host .ctrl-btn {
   display: inline-grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
+  width: 36px;
+  height: 36px;
+  border-radius: 7px;
   border: 0;
   background: transparent;
   color: var(--ink-2);
 }
 
 .lantern-host .ctrl-btn:hover:not(:disabled) {
-  background: rgba(30, 38, 56, 0.07);
+  background: rgba(27, 35, 48, 0.07);
 }
 
 .lantern-host .ctrl-wide {
@@ -395,16 +393,21 @@
   width: auto;
   height: 40px;
   padding: 0 14px;
-  border-radius: 11px;
+  border-radius: 10px;
   border: 1px solid var(--hair-2);
   background: var(--card);
+  box-shadow: var(--shadow-float);
   font-weight: 600;
   font-size: var(--fs-s);
 }
 
 .lantern-host .ctrl-wide[aria-pressed='true'] {
   background: var(--lantern);
-  border-color: #e7c66a;
+  border-color: var(--lantern-edge);
+}
+
+.lantern-host .view-ctrl > .seg {
+  box-shadow: var(--shadow-float);
 }
 
 .lantern-host .compass {
@@ -448,16 +451,17 @@
   gap: 8px;
   height: 40px;
   padding: 0 12px;
-  border-radius: 11px;
-  background: rgba(252, 251, 248, 0.86);
+  border-radius: 10px;
+  background: rgba(251, 251, 248, 0.94);
   border: 1px solid var(--hair-2);
+  box-shadow: var(--shadow-float);
   font-size: var(--fs-s);
   font-weight: 600;
 }
 
 .lantern-host .tilt input {
   width: 96px;
-  accent-color: var(--ink);
+  accent-color: var(--chrome);
 }
 
 .lantern-host .stage-bottom {
@@ -479,10 +483,10 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 4px;
-  padding: 5px;
-  border-radius: 999px;
-  background: rgba(252, 251, 248, 0.9);
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(251, 251, 248, 0.94);
   backdrop-filter: blur(8px);
   border: 1px solid var(--hair-2);
   box-shadow: var(--shadow-float);
@@ -492,9 +496,9 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 34px;
-  padding: 0 14px 0 11px;
-  border-radius: 999px;
+  height: 36px;
+  padding: 0 13px 0 11px;
+  border-radius: 9px;
   border: 1px solid transparent;
   background: transparent;
   font-weight: 600;
@@ -503,7 +507,7 @@
 }
 
 .lantern-host .layer-chip:hover {
-  background: rgba(30, 38, 56, 0.05);
+  background: rgba(27, 35, 48, 0.05);
 }
 
 .lantern-host .layer-swatch {
@@ -516,15 +520,16 @@
 }
 
 .lantern-host .layer-chip[aria-checked='true'] {
-  background: color-mix(in srgb, var(--layer) 13%, #fff);
-  border-color: color-mix(in srgb, var(--layer) 55%, #fff);
+  background: color-mix(in srgb, var(--layer) 14%, #fff);
+  border-color: color-mix(in srgb, var(--layer) 60%, #fff);
+  box-shadow: inset 0 -3px 0 var(--layer);
   color: var(--ink);
 }
 
 .lantern-host .legend {
   width: min(330px, 100%);
   border-radius: var(--r-panel);
-  background: rgba(252, 251, 248, 0.93);
+  background: rgba(251, 251, 248, 0.96);
   backdrop-filter: blur(8px);
   border: 1px solid var(--hair-2);
   border-top: 3px solid var(--layer);
@@ -639,7 +644,7 @@
 }
 
 .lantern-host .circuit-row:hover {
-  background: rgba(30, 38, 56, 0.05);
+  background: rgba(27, 35, 48, 0.05);
 }
 
 .lantern-host .circuit-row[aria-pressed='true'] {
@@ -710,7 +715,7 @@
   overflow: auto;
   padding: 18px 20px;
   border-radius: var(--r-panel);
-  background: rgba(252, 251, 248, 0.96);
+  background: rgba(251, 251, 248, 0.97);
   border: 1px solid var(--hair-2);
   box-shadow: var(--shadow-float);
   display: grid;
@@ -734,29 +739,110 @@
   gap: 4px;
 }
 
-/* No geometry at all */
+/* Native scans: building choice, then the scene filling the work area; the
+   association and place disclosures follow below and scroll into view. */
+
+.lantern-host.view-atlas .main:has(> .native-scan-atlas) {
+  display: block;
+  overflow: auto;
+}
+
+.lantern-host .native-scan-atlas {
+  --scene-chrome: 64px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.lantern-host .native-scan-atlas > .filter-row {
+  align-items: center;
+  margin: 0;
+  padding: 10px clamp(16px, 3vw, 28px);
+  border-bottom: 1px solid var(--hair);
+  background: var(--card-2);
+}
+
+.lantern-host .filter-row-label {
+  margin-right: 6px;
+  font-family: var(--display);
+  font-size: var(--fs-l);
+  font-weight: 700;
+}
+
+.lantern-host .native-scan-atlas > p[role='status'] {
+  padding: 28px clamp(16px, 4vw, 44px);
+  color: var(--muted);
+  font-weight: 550;
+}
+
+.lantern-host .native-scan-atlas > div:not([hidden]):has(> .scan-presentation) {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.lantern-host .native-scan-atlas .stage-shell.scan-presentation {
+  flex: 1 0 auto;
+  height: auto;
+  min-height: max(480px, calc(100dvh - var(--topbar) - var(--scene-chrome) - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+}
+
+.lantern-host .native-scan-atlas > div > p,
+.lantern-host .native-scan-atlas > div > details,
+.lantern-host .native-scan-atlas > details {
+  padding: 4px clamp(16px, 4vw, 44px);
+  border-top: 1px solid var(--hair);
+}
+
+.lantern-host .native-scan-atlas > div > details > summary,
+.lantern-host .native-scan-atlas > details > summary {
+  min-height: 48px;
+  padding: 12px 0;
+  font-family: var(--display);
+  font-weight: 650;
+  font-size: var(--fs-l);
+}
+
+.lantern-host .native-scan-atlas > details[open] {
+  padding-bottom: 40px;
+}
+
+@media (max-width: 759px) {
+  .lantern-host .native-scan-atlas {
+    --scene-chrome: 170px;
+  }
+
+  .lantern-host .native-scan-atlas > .filter-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .lantern-host .native-scan-atlas > .filter-row > * {
+    flex-shrink: 0;
+  }
+}
+
+/* No geometry at all: the reason stays above the place index. */
 
 .lantern-host .atlas-noplan {
-  padding: 28px clamp(16px, 4vw, 44px) 120px;
-  max-width: 1100px;
+  padding: 26px clamp(16px, 4vw, 44px) 120px;
+  max-width: 1120px;
 }
 
 .lantern-host .noplan-banner {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 16px;
+  gap: 14px;
   align-items: start;
-  padding: 20px 22px;
-  margin-bottom: 24px;
-  border-radius: var(--r-panel);
-  background:
-    repeating-linear-gradient(135deg, rgba(216, 190, 142, 0.18) 0 10px, transparent 10px 20px),
-    var(--card);
-  border: 1px dashed var(--birch-dark);
+  padding: 0 0 18px;
+  margin-bottom: 22px;
+  border-bottom: 2px solid var(--ink);
 }
 
-.lantern-host .noplan-banner h2 {
+.lantern-host .noplan-banner h1 {
   font-size: var(--fs-2xl);
+  font-weight: 720;
+  letter-spacing: -0.025em;
   margin-bottom: 6px;
 }
 
@@ -766,27 +852,55 @@
 }
 
 .lantern-host .noplan-mark {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
   display: grid;
   place-items: center;
-  background: var(--lantern);
+  color: var(--chrome);
+  background:
+    linear-gradient(rgba(22, 50, 79, 0.12) 1px, transparent 1px) 0 0 / 8px 8px,
+    linear-gradient(90deg, rgba(22, 50, 79, 0.12) 1px, transparent 1px) 0 0 / 8px 8px,
+    var(--card);
+  border: 1px dashed var(--chrome-line);
 }
 
 /* ---------------- Responsive stage ---------------- */
 
 @media (max-width: 1179px) {
   .lantern-host .stage-bottom {
-    bottom: 76px;
+    bottom: 80px;
   }
 
   .lantern-host .demo-note {
-    bottom: 58px;
+    bottom: 60px;
   }
 }
 
-@media (max-width: 900px) {
+@container stage (max-width: 1000px) {
+  .lantern-host .stage-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .lantern-host .layer-bar {
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
+    justify-content: flex-start;
+    scrollbar-width: none;
+  }
+
+  .lantern-host .layer-chip {
+    flex-shrink: 0;
+  }
+
+  .lantern-host .legend {
+    max-height: 30vh;
+  }
+}
+
+@container stage (max-width: 720px) {
   .lantern-host .floor-btn {
     grid-template-columns: 40px;
     padding: 6px 4px;
@@ -801,25 +915,17 @@
   }
 
   .lantern-host .stage-bottom {
-    flex-direction: column-reverse;
     align-items: stretch;
-  }
-
-  .lantern-host .layer-bar {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    justify-content: flex-start;
-    border-radius: 14px;
-    scrollbar-width: none;
-  }
-
-  .lantern-host .layer-chip {
-    flex-shrink: 0;
   }
 
   .lantern-host .legend {
     width: 100%;
-    max-height: 30vh;
+  }
+
+  /* Clear the compact floor rail on the left. */
+  .lantern-host .noplan-card {
+    left: calc(50% + 32px);
+    width: min(400px, calc(100% - 92px));
   }
 }
 
@@ -857,7 +963,7 @@
   .lantern-host .stage-bottom {
     left: 10px;
     right: 10px;
-    bottom: 72px;
+    bottom: 30px;
     gap: 8px;
   }
 
@@ -866,7 +972,7 @@
   }
 
   .lantern-host .demo-note {
-    bottom: 50px;
+    bottom: 8px;
     white-space: normal;
     width: calc(100% - 20px);
     text-align: center;

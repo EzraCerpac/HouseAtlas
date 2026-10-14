@@ -1,21 +1,32 @@
+/* Blueprint chrome around a vellum work surface. Lantern yellow marks only the
+   current or selected thing: floor, room, section, filter. */
 .lantern-host {
-  /* Materials */
-  --ground: #e9e4da;
-  --ground-2: #e2dccf;
-  --card: #fcfbf8;
-  --card-2: #f6f2ea;
+  /* Work surface */
+  --ground: #ecede8;
+  --ground-2: #e2e4dd;
+  --card: #fbfbf8;
+  --card-2: #f3f4ef;
   --birch: #d8be8e;
   --birch-dark: #a9864f;
-  --lantern: #ffe39a;
-  --lantern-edge: #e9a400;
+  --lantern: #ffd15c;
+  --lantern-soft: #fff1c2;
+  --lantern-edge: #e0a100;
+  --lantern-ink: #4d3700;
+
+  /* Blueprint chrome */
+  --chrome: #16324f;
+  --chrome-2: #1f4166;
+  --chrome-line: #2d5278;
+  --chrome-ink: #eef3f8;
+  --chrome-muted: #a9bdd2;
 
   /* Ink */
-  --ink: #1e2638;
-  --ink-2: #3a4256;
-  --muted: #596173;
-  --faint: #8a8f99;
-  --hair: #d8d0c2;
-  --hair-2: #c9bfae;
+  --ink: #1b2330;
+  --ink-2: #364152;
+  --muted: #586273;
+  --faint: #8b929c;
+  --hair: #d9dbd3;
+  --hair-2: #c3c7bd;
 
   /* Layers */
   --l-belongings: #9c3f8f;
@@ -29,42 +40,48 @@
   --c-owner: #3d4a66;
   --c-source: #56508f;
   --c-disputed: #a35a00;
-  --c-unknown: #6c707a;
+  --c-unknown: #646a75;
 
   --focus: #2f56e0;
+  --link: #1f4fbf;
   --ok: #217a45;
-  --warn: #a35a00;
+  --warn: #9a5400;
+  --warn-soft: #fbefd9;
   --alert: #c2321f;
+  --alert-soft: #fbe5e0;
 
   /* Type */
   --display: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
   --text: 'Public Sans Variable', 'Public Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --code: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --fs-xs: 12px;
   --fs-s: 13.5px;
   --fs-m: 15px;
   --fs-l: 17px;
   --fs-xl: 20px;
-  --fs-2xl: 25px;
-  --fs-3xl: 32px;
-  --fs-4xl: 42px;
+  --fs-2xl: 24px;
+  --fs-3xl: 30px;
+  --fs-4xl: 36px;
 
   /* Shape */
-  --r-control: 9px;
-  --r-panel: 14px;
+  --r-control: 8px;
+  --r-panel: 12px;
   --r-sheet: 3px;
-  --shadow-float: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 10px 30px -12px rgba(60, 46, 22, 0.35);
-  --shadow-modal: 0 40px 90px -30px rgba(30, 38, 56, 0.45);
+  --shadow-float: 0 1px 2px rgba(22, 50, 79, 0.08), 0 12px 28px -14px rgba(22, 50, 79, 0.35);
+  --shadow-modal: 0 40px 90px -30px rgba(22, 50, 79, 0.5);
 
-  --topbar: 60px;
-  --nav: 84px;
-  --detail: 408px;
+  --topbar: 56px;
+  --nav: 80px;
+  --side: 244px;
+  --detail: 392px;
 
   color-scheme: light;
 }
 
 @media (max-width: 759px) {
   .lantern-host {
-    --topbar: 56px;
-    --fs-4xl: 34px;
+    --topbar: 52px;
+    --fs-4xl: 30px;
+    --fs-3xl: 26px;
   }
 }

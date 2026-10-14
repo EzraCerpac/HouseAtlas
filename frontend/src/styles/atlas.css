@@ -1,35 +1,32 @@
 /* ==========================================================================
-   HouseAtlas
-   Direction: enamel house plates. Places hang as cobalt plates with a white
-   keyline and two mounting holes; places inside another place use the
-   inverse plate; items are plain rows marked with a tag. Documents are file
-   folders, item details sit on a steel rating plate. Everything around the
-   plates stays quiet: limewash ground, navy ink, ochre only for attention.
+   HouseAtlas application shell: sign-in, access states and Atlas tools.
+   Shares Lantern's blueprint chrome, vellum ground and type. Everything after
+   the tokens is scoped to stop at .lantern-host, which owns its own styles.
    ========================================================================== */
 
 /* ---------- Tokens ---------- */
 :root {
   color-scheme: light;
-  --limewash: #edf0f2;
-  --enamel: #fbfcfd;
-  --cobalt: #21408e;
-  --cobalt-deep: #152b63;
-  --cobalt-wash: #dfe6f4;
-  --hole: #aebbdc;
-  --ink: #18223a;
-  --ink-soft: #2e3951;
-  --muted: #4b566d;
-  --line: #c9d0da;
-  --line-soft: #dde2e8;
-  --field: #8d97a9;
-  --steel: #e2e6eb;
-  --steel-line: #aeb7c3;
-  --ochre: #d9a02a;
-  --ochre-wash: #fbefd0;
-  --ochre-ink: #573b00;
-  --focus: #b2450b;
-  --sign: "Avenir Next Condensed", "DIN Condensed", "Bahnschrift SemiCondensed", "Bahnschrift", "Roboto Condensed", sans-serif-condensed, "Arial Narrow", sans-serif;
-  --text: Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+  --limewash: #ecede8;
+  --enamel: #fbfbf8;
+  --cobalt: #16324f;
+  --cobalt-deep: #0f2539;
+  --cobalt-wash: #e3ebf3;
+  --hole: #a9bdd2;
+  --ink: #1b2330;
+  --ink-soft: #364152;
+  --muted: #586273;
+  --line: #c3c7bd;
+  --line-soft: #d9dbd3;
+  --field: #8b929c;
+  --steel: #e2e4dd;
+  --steel-line: #c3c7bd;
+  --ochre: #e0a100;
+  --ochre-wash: #fff1c2;
+  --ochre-ink: #4d3700;
+  --focus: #2f56e0;
+  --sign: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  --text: 'Public Sans Variable', 'Public Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --plate-radius: 12px;
   font-family: var(--text);
   line-height: 1.6;
@@ -37,9 +34,11 @@
   background: var(--limewash);
 }
 
+body { margin: 0; background: var(--limewash); -webkit-text-size-adjust: 100%; }
+
+@scope (body) to (.lantern-host) {
 /* ---------- Base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
-body { margin: 0; background: var(--limewash); -webkit-text-size-adjust: 100%; }
 a {
   color: var(--cobalt);
   text-decoration-thickness: 1px;
@@ -56,9 +55,9 @@ button {
   border-radius: 9px;
   background: var(--cobalt);
   color: var(--enamel);
-  font-family: var(--sign);
-  font-size: 1.0625rem;
-  font-weight: 600;
+  font-family: var(--text);
+  font-size: 1rem;
+  font-weight: 650;
   cursor: pointer;
   transition: background-color .15s ease;
 }
@@ -85,7 +84,7 @@ input[type=checkbox] { width: 20px; height: 20px; margin: 0; accent-color: var(-
 .skip:focus { top: 12px; }
 
 /* ---------- Type ---------- */
-h1, h2, h3, h4 { font-family: var(--sign); font-weight: 600; color: var(--ink); }
+h1, h2, h3, h4 { font-family: var(--sign); font-weight: 680; letter-spacing: -.015em; color: var(--ink); }
 h1 { font-size: clamp(2rem, 4vw, 2.75rem); line-height: 1.08; letter-spacing: -.005em; margin: 8px 0 14px; }
 h2 { font-size: 1.5rem; line-height: 1.2; margin: 0 0 14px; }
 h3 { font-size: 1.25rem; line-height: 1.25; margin: 0 0 6px; }
@@ -119,10 +118,10 @@ dd { margin: 2px 0 12px; overflow-wrap: anywhere; }
   text-decoration: none;
 }
 .brand-mark { width: 40px; height: 40px; flex: none; }
-.brand-mark .bm-plate { fill: var(--cobalt); }
-.brand-mark .bm-line { fill: none; stroke: var(--enamel); stroke-width: 1.5; }
-.brand-mark .bm-door { fill: var(--enamel); }
-.brand-mark .bm-hole { fill: var(--hole); }
+.brand-mark path { stroke: var(--cobalt); stroke-width: 1.4; stroke-linejoin: round; }
+.brand-mark .bm-base { fill: #d8be8e; stroke: none; }
+.brand-mark .bm-mid { fill: #ffd15c; }
+.brand-mark .bm-top { fill: var(--enamel); }
 .brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
 .brand-name { font-family: var(--sign); font-size: 1.375rem; font-weight: 600; }
 .brand-home {
@@ -674,13 +673,33 @@ summary {
 .setting-sources .source-state + .source-state { margin-top: 8px; }
 
 /* ---------- Access state (no private shell) ---------- */
-.access-state { display: grid; place-items: center; min-height: 100vh; padding: 32px 20px; }
-.access-panel { width: min(100%, 560px); }
+.access-state {
+  display: grid; place-items: center; min-height: 100vh; padding: 32px 20px;
+  background:
+    linear-gradient(rgba(22, 50, 79, .06) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, rgba(22, 50, 79, .06) 1px, transparent 1px) 0 0 / 32px 32px,
+    var(--limewash);
+}
+.access-panel {
+  width: min(100%, 460px);
+  padding: 0 32px 30px;
+  background: var(--enamel);
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(22, 50, 79, .08), 0 24px 60px -30px rgba(22, 50, 79, .45);
+  overflow: hidden;
+}
 .access-brand {
   display: flex; align-items: center; gap: 12px;
-  margin: 0 0 18px;
-  font-family: var(--sign); font-size: 1.375rem; font-weight: 600;
+  margin: 0 -32px 22px; padding: 16px 32px;
+  max-width: none;
+  background: var(--cobalt); color: #fff;
+  font-family: var(--sign); font-size: 1.25rem; font-weight: 700; letter-spacing: -.02em;
 }
+.access-brand .brand-mark { width: 32px; height: 32px; }
+.access-brand .brand-mark path { stroke: var(--cobalt-deep); }
+.access-panel h1 { font-size: 2rem; letter-spacing: -.03em; margin: 0 0 4px; }
+.access-panel .session-form { max-width: none; }
 .access-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
 
 /* ---------- Desktop refinement ---------- */
@@ -761,3 +780,4 @@ summary {
 .address li.step-5 { --step: 5; }
 .place-rail li.depth-6 { --depth: 6; }
 .address li.step-6 { --step: 6; }
+}

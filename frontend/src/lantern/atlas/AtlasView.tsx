@@ -47,7 +47,7 @@ function NoGeometryAtlas() {
           <Icon name="rooms" size={26} />
         </div>
         <div>
-          <h1 style={{ fontSize: 'var(--fs-2xl)', marginBottom: 6 }}>{house.name}: no reviewed shape projection</h1>
+          <h1>{house.name}: no reviewed shape projection</h1>
           <p>Rooms and places remain available. Plan, 3D and measured positions require reviewed geometry.</p>
         </div>
       </div>
@@ -360,10 +360,13 @@ function NoPlanFloor({ floorId }: { floorId: string }) {
   );
 }
 
+// On phones the key starts collapsed so the model keeps most of the screen.
+const compactStage = () => typeof window !== 'undefined' && window.matchMedia?.('(max-width: 759px)').matches === true;
+
 function Legend() {
   const { state, dispatch, house } = useStore();
   const select = useSelect();
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(() => !compactStage());
   const un = unplaced(house);
   const o = state.overlay;
   let body: ReactNode = null;

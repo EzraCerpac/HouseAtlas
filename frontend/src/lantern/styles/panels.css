@@ -1,11 +1,11 @@
 /* ---------------- Detail panel ---------------- */
 
 .lantern-host .detail-head {
-  padding: 22px 24px 18px;
+  padding: 20px 24px 18px;
   border-bottom: 1px solid var(--hair);
   display: grid;
   gap: 10px;
-  background: linear-gradient(180deg, #fffdf8 0%, var(--card) 100%);
+  background: var(--card);
 }
 
 .lantern-host .detail-kicker {
@@ -24,12 +24,20 @@
 }
 
 .lantern-host .detail-title {
-  font-size: var(--fs-4xl);
-  font-weight: 760;
-  line-height: 1;
-  letter-spacing: -0.035em;
-  font-variation-settings: 'wdth' 92;
+  font-size: var(--fs-3xl);
+  font-weight: 720;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
   overflow-wrap: anywhere;
+}
+
+.lantern-host .detail-title:focus {
+  outline: none;
+}
+
+.lantern-host .detail-title:focus-visible {
+  outline: 2.5px solid var(--focus);
+  outline-offset: 3px;
 }
 
 .lantern-host .overview-kicker {
@@ -38,7 +46,7 @@
 }
 
 .lantern-host .overview-title {
-  font-size: calc(var(--fs-4xl) + 6px);
+  font-size: var(--fs-3xl);
 }
 
 .lantern-host .overview-tag {
@@ -55,9 +63,9 @@
 }
 
 .lantern-host .crumbs span + span::before {
-  content: '›';
-  margin: 0 6px;
-  color: var(--hair-2);
+  content: '/';
+  margin: 0 7px;
+  color: var(--faint);
 }
 
 .lantern-host .lead {
@@ -72,11 +80,11 @@
 }
 
 .lantern-host .detail-body {
-  padding: 4px 24px 40px;
+  padding: 2px 24px 36px;
 }
 
 .lantern-host .section {
-  padding: 18px 0 4px;
+  padding: 16px 0 8px;
   border-bottom: 1px solid var(--hair);
 }
 
@@ -92,23 +100,35 @@
   margin-bottom: 10px;
 }
 
+.lantern-host .section-head h2,
 .lantern-host .section-head h3 {
-  font-size: var(--fs-l);
-  font-weight: 650;
+  font-size: var(--fs-m);
+  font-weight: 680;
+  letter-spacing: -0.005em;
   display: flex;
   align-items: baseline;
   gap: 8px;
 }
 
+.lantern-host .view .section-head h2 {
+  font-size: var(--fs-xl);
+}
+
 .lantern-host .section-count {
   font-family: var(--text);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-s);
   font-weight: 600;
   color: var(--muted);
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: var(--card-2);
-  border: 1px solid var(--hair);
+}
+
+.lantern-host .section-count::before {
+  content: '';
+  display: inline-block;
+  width: 1px;
+  height: 0.9em;
+  margin-right: 8px;
+  vertical-align: -0.1em;
+  background: var(--hair-2);
 }
 
 .lantern-host .tally {
@@ -125,6 +145,7 @@
 .lantern-host .tally strong {
   font-family: var(--display);
   font-size: var(--fs-xl);
+  font-weight: 700;
   color: var(--ink);
   margin-right: 4px;
 }
@@ -148,7 +169,7 @@
 .lantern-host .empty {
   color: var(--muted);
   font-size: var(--fs-s);
-  padding: 4px 0 10px;
+  padding: 2px 0 8px;
 }
 
 .lantern-host .note {
@@ -156,11 +177,12 @@
   gap: 9px;
   align-items: flex-start;
   margin: 12px 0 4px;
-  padding: 10px 12px;
-  border-radius: 10px;
+  padding: 9px 12px;
+  border-left: 3px solid var(--hair-2);
+  border-radius: 0 8px 8px 0;
   font-size: var(--fs-s);
   line-height: 1.45;
-  background: #f0ede6;
+  background: var(--card-2);
   color: var(--ink-2);
 }
 
@@ -171,8 +193,9 @@
 }
 
 .lantern-host .note-warn {
-  background: #fbefdc;
-  color: #6b3c00;
+  border-left-color: var(--lantern-edge);
+  background: var(--warn-soft);
+  color: #5a3500;
 }
 
 .lantern-host .note-warn .icon {
@@ -190,12 +213,11 @@
   align-items: center;
   gap: 5px;
   font-size: var(--fs-xs);
-  font-weight: 600;
-  color: var(--ink-2);
-  padding: 2px 8px 2px 6px;
-  border-radius: 6px;
-  background: var(--card-2);
-  border: 1px solid var(--hair);
+  font-weight: 650;
+  color: var(--chrome);
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: #e3ebf3;
 }
 
 .lantern-host .kind-item .icon,
@@ -424,7 +446,7 @@
 }
 
 .lantern-host .rows > li {
-  border-top: 1px solid #ece6db;
+  border-top: 1px solid var(--hair);
 }
 
 .lantern-host .rows > li:first-child {
@@ -589,13 +611,15 @@
 }
 
 .lantern-host .atlas-id {
-  font-family: var(--text);
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  padding: 1px 6px;
-  border-radius: 5px;
-  background: var(--lantern);
-  color: #4a3600;
+  display: block;
+  font-family: var(--code);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--card-2);
+  border: 1px solid var(--hair);
+  color: var(--ink-2);
 }
 
 .lantern-host .url {
@@ -804,10 +828,18 @@
 }
 
 .lantern-host .attention li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  align-items: baseline;
   gap: 8px;
+}
+
+.lantern-host .attention li > :first-child {
+  justify-self: start;
+}
+
+.lantern-host .attention li.empty {
+  display: block;
 }
 
 .lantern-host .sources dd strong {
@@ -880,25 +912,47 @@
 /* ---------------- Views ---------------- */
 
 .lantern-host .view {
-  padding: 28px clamp(16px, 4vw, 44px) 120px;
-  max-width: 1180px;
+  padding: 26px clamp(16px, 4vw, 44px) 120px;
+  max-width: 1120px;
 }
 
 .lantern-host .view-head {
-  margin-bottom: 18px;
-  max-width: 70ch;
+  margin-bottom: 22px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--ink);
+  max-width: none;
 }
 
 .lantern-host .view-head h1 {
-  font-size: calc(var(--fs-4xl) + 8px);
-  font-weight: 780;
-  letter-spacing: -0.04em;
+  font-size: var(--fs-4xl);
+  font-weight: 760;
+  letter-spacing: -0.035em;
   line-height: 1;
-  margin-bottom: 10px;
+}
+
+.lantern-host .view-head-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 20px;
 }
 
 .lantern-host .view-head p {
+  margin-top: 8px;
+  max-width: 70ch;
   color: var(--muted);
+}
+
+.lantern-host .view .section > p + p,
+.lantern-host .view .section > p + .relation-list,
+.lantern-host .view .section > .note + p {
+  margin-top: 8px;
+}
+
+.lantern-host .view .section > h3 {
+  margin: 18px 0 6px;
+  font-size: var(--fs-m);
 }
 
 .lantern-host .filter-row {
@@ -908,54 +962,66 @@
   margin-bottom: 20px;
 }
 
+/* A ledger is one level, building or band: a narrow marker column holding
+   its short name or recorded elevation, then its records. */
 .lantern-host .ledger {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
-  gap: 18px;
-  padding: 18px 0 22px;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 20px;
+  padding: 18px 0 20px;
   border-top: 1px solid var(--hair-2);
 }
 
 .lantern-host .ledger-floor {
+  padding-top: 2px;
   font-family: var(--display);
-  font-weight: 800;
-  font-size: 54px;
-  line-height: 0.9;
-  letter-spacing: -0.05em;
+  font-weight: 750;
+  font-size: 30px;
+  line-height: 1;
+  letter-spacing: -0.04em;
   color: var(--ink);
   text-align: right;
 }
 
+.lantern-host .ledger-floor:has(> .icon) {
+  display: flex;
+  justify-content: flex-end;
+  color: var(--chrome);
+}
+
 .lantern-host .ledger-unplaced .ledger-floor {
   color: transparent;
-  -webkit-text-stroke: 1.5px var(--ink-2);
+  -webkit-text-stroke: 1.3px var(--ink-2);
 }
 
 .lantern-host .ledger-title {
   font-size: var(--fs-xl);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 6px 10px;
+  margin-bottom: 4px;
+}
+
+.lantern-host .ledger-body > .body-text {
+  margin-bottom: 4px;
+  font-size: var(--fs-s);
 }
 
 .lantern-host .ledger-rows {
   list-style: none;
-  margin: 0;
+  margin: 8px 0 0;
   padding: 0;
+  border-top: 1px solid var(--hair);
 }
 
 .lantern-host .ledger-row {
-  border-top: 1px solid #e3dccf;
-}
-
-.lantern-host .ledger-row:first-child {
-  border-top: 0;
+  border-bottom: 1px solid var(--hair);
 }
 
 .lantern-host .ledger-main {
   display: grid;
-  grid-template-columns: 8px minmax(130px, 1.2fr) minmax(90px, 0.8fr) minmax(0, 2fr) auto;
+  grid-template-columns: 6px minmax(130px, 1.2fr) minmax(80px, 0.6fr) minmax(0, 2fr) auto;
   align-items: center;
   gap: 14px;
   width: 100%;
@@ -963,28 +1029,31 @@
   border: 0;
   background: transparent;
   text-align: left;
-  border-radius: 8px;
+  border-radius: 0;
 }
 
-.lantern-host .ledger-main:hover {
-  background: rgba(255, 255, 255, 0.55);
+.lantern-host button.ledger-main:hover {
+  background: rgba(255, 255, 255, 0.6);
 }
 
-.lantern-host .ledger-row.is-selected .ledger-main {
-  background: #fff6d8;
+.lantern-host .ledger-row.is-selected > .ledger-main {
+  background: var(--lantern-soft);
+  box-shadow: inset 4px 0 0 var(--lantern-edge);
 }
 
 .lantern-host .ledger-swatch {
-  width: 8px;
-  height: 34px;
-  border-radius: 4px;
-  box-shadow: inset 0 0 0 1px rgba(30, 38, 56, 0.12);
+  width: 6px;
+  height: 30px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(27, 35, 48, 0.12);
 }
 
 .lantern-host .ledger-name {
   font-family: var(--display);
   font-weight: 650;
   font-size: var(--fs-l);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .lantern-host .ledger-kind {
@@ -1000,9 +1069,21 @@
   color: var(--ink-2);
 }
 
+/* Every fact carries its own marker, so wrapped lines read the same. */
+.lantern-host .ledger-facts > span::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  margin-right: 7px;
+  border-radius: 1px;
+  vertical-align: 0.2em;
+  background: var(--hair-2);
+}
+
 .lantern-host .ledger-shape {
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: 650;
   color: var(--c-confirmed);
 }
 
@@ -1012,7 +1093,7 @@
 
 .lantern-host .ledger-storage {
   list-style: none;
-  margin: -4px 0 8px 22px;
+  margin: -2px 0 8px 22px;
   padding: 0 0 0 12px;
   border-left: 2px solid #eadfee;
 }
@@ -1021,7 +1102,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 18px 28px;
-  margin-top: 14px;
+  margin-top: 16px;
 }
 
 .lantern-host .unplaced-grid h3 {
@@ -1064,7 +1145,7 @@
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr);
   gap: 12px;
-  border-top: 1px solid #e3dccf;
+  border-top: 1px solid var(--hair);
 }
 
 .lantern-host .tl-date {
@@ -1237,8 +1318,9 @@
 .lantern-host .data-table td {
   text-align: left;
   padding: 8px 10px;
-  border-bottom: 1px solid #e3dccf;
+  border-bottom: 1px solid var(--hair);
   vertical-align: top;
+  overflow-wrap: anywhere;
 }
 
 .lantern-host .data-table thead th {
@@ -1251,6 +1333,76 @@
   font-weight: 500;
 }
 
+/* Saved relations: kind and direction, then labelled facts. */
+
+.lantern-host .relation-list {
+  list-style: none;
+  margin: 14px 0 22px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.lantern-host .relation {
+  padding: 14px 16px 12px;
+  border: 1px solid var(--hair);
+  border-left: 3px solid var(--l-network);
+  border-radius: 0 var(--r-panel) var(--r-panel) 0;
+  background: var(--card);
+}
+
+.lantern-host .relation-head {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.lantern-host .relation-kind {
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  color: var(--muted);
+}
+
+.lantern-host .relation-ends {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  font-family: var(--display);
+  font-size: var(--fs-l);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.lantern-host .relation-arrow {
+  color: var(--l-network);
+}
+
+.lantern-host .relation-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px 18px;
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--hair);
+}
+
+.lantern-host .relation-facts dt {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.lantern-host .relation-facts dd {
+  margin: 1px 0 0;
+  font-size: var(--fs-s);
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.lantern-host .relation-notes {
+  grid-column: 1 / -1;
+}
+
 /* Library */
 
 .lantern-host .library {
@@ -1258,7 +1410,7 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
   gap: 0 32px;
 }
 
@@ -1266,9 +1418,9 @@
   display: grid;
   grid-template-columns: 62px minmax(0, 1fr) auto;
   gap: 14px;
-  align-items: center;
+  align-items: start;
   padding: 12px 0;
-  border-top: 1px solid #e3dccf;
+  border-top: 1px solid var(--hair);
 }
 
 .lantern-host .lib-main {
@@ -1373,6 +1525,7 @@
 
 .lantern-host .write-row.is-focused {
   box-shadow: 0 0 0 3px var(--lantern);
+  border-color: var(--lantern-edge);
 }
 
 .lantern-host .write-top {
@@ -1421,7 +1574,7 @@
   flex-direction: column;
   background: var(--card);
   border-left: 1px solid var(--hair-2);
-  box-shadow: -30px 0 60px -40px rgba(30, 38, 56, 0.5);
+  box-shadow: -30px 0 60px -40px rgba(22, 50, 79, 0.55);
   animation: drawer-in 0.24s ease-out;
 }
 
@@ -1431,9 +1584,8 @@
   gap: 12px;
   padding: 18px 18px 14px 22px;
   border-bottom: 1px solid var(--hair);
-  background:
-    radial-gradient(ellipse at 0% 0%, rgba(255, 227, 154, 0.55), transparent 60%),
-    var(--card);
+  border-top: 4px solid var(--lantern);
+  background: var(--card);
 }
 
 .lantern-host .ask-head h2 {
@@ -1522,7 +1674,7 @@
   margin: 0 2px;
   border-radius: 5px;
   border: 0;
-  background: var(--ink);
+  background: var(--chrome);
   color: #fff;
   font-size: 11px;
   font-weight: 700;
@@ -1726,8 +1878,8 @@
   padding: 18px;
   border-radius: 12px;
   background:
-    radial-gradient(circle at 1px 1px, rgba(30, 38, 56, 0.1) 1px, transparent 1.5px) 0 0 / 16px 16px,
-    #e9e4da;
+    radial-gradient(circle at 1px 1px, rgba(22, 50, 79, 0.1) 1px, transparent 1.5px) 0 0 / 16px 16px,
+    var(--ground);
 }
 
 .lantern-host .preview-aside {
@@ -2025,7 +2177,7 @@
 
 @media (max-width: 900px) {
   .lantern-host .ledger-main {
-    grid-template-columns: 8px minmax(0, 1fr) auto;
+    grid-template-columns: 6px minmax(0, 1fr) auto;
     grid-template-areas:
       'sw name shape'
       'sw facts facts';
@@ -2070,12 +2222,29 @@
   }
 
   .lantern-host .ledger {
-    grid-template-columns: 44px minmax(0, 1fr);
+    grid-template-columns: 52px minmax(0, 1fr);
     gap: 10px;
   }
 
+  .lantern-host .ledger-facts {
+    flex-direction: column;
+  }
+
   .lantern-host .ledger-floor {
-    font-size: 34px;
+    font-size: 22px;
+  }
+
+  .lantern-host .ledger-icon .icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .lantern-host .relation {
+    padding: 12px 12px 10px;
+  }
+
+  .lantern-host .relation-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .lantern-host .ask {
@@ -2136,7 +2305,12 @@
     transform: none;
   }
 
-  .lantern-host .view-head h1 {
-    font-size: var(--fs-4xl);
+  .lantern-host .view {
+    padding-top: 18px;
+  }
+
+  .lantern-host .view-head {
+    margin-bottom: 16px;
+    padding-bottom: 10px;
   }
 }

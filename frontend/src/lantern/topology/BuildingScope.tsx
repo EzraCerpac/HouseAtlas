@@ -5,6 +5,7 @@ import { useTopology } from './TopologyProvider';
 import { metres, type Access, type Location, type Membership, type TopologyIndex, type LevelGroup } from './model';
 import { useSelect, useStore } from '../state/store';
 import { LinkedEvidence } from '../components/LinkedEvidence';
+import { Icon } from '../components/Icon';
 
 const messages = {
   loading: 'Loading building records…', unavailable: 'Building records could not be loaded. Reload the saved view to retry.',
@@ -98,7 +99,7 @@ export function BuildingScope() {
     {buildingId === null && index && <ul className="ledger-rows">{[...index.locations.values()].map(location => <Row key={location.id} location={location} index={index} selected={new Set()} />)}</ul>}
     {buildingId && model && index && <>
       <p className="body-text muted">Selected membership read: {topology.memberSourceStatus}</p>
-      <section className="ledger topology-building"><div className="ledger-floor topology-glyph" aria-hidden="true">BLD</div><div className="ledger-body">
+      <section className="ledger topology-building"><div className="ledger-floor topology-glyph" aria-hidden="true"><Icon name="building" size={30} /></div><div className="ledger-body">
         <h2 className="ledger-title">{model.building.label}</h2><p className="body-text muted">Building · reviewed · {model.levels.length} levels · {model.direct.length} without level</p>
         <ul className="ledger-rows"><Row location={model.building} index={index} selected={selection} /></ul>
       </div></section>
@@ -113,7 +114,7 @@ export function BuildingScope() {
         const heading = datum !== priorDatum; priorDatum = datum;
         return <div key={group.location.id}>{heading && <h2 className="topology-band-title">{datum === 'unknown' ? 'Levels, elevation unknown' : `Measured from ${index.locations.get(datum)?.label ?? datum}`}</h2>}<Level group={group} index={index} selected={selection} /></div>;
       })}
-      {(levelId === 'all' || levelId === 'direct') && <section className="ledger"><div className="ledger-floor topology-glyph" aria-hidden="true">—</div><div className="ledger-body">
+      {(levelId === 'all' || levelId === 'direct') && <section className="ledger"><div className="ledger-floor topology-glyph topology-unknown" aria-hidden="true">?</div><div className="ledger-body">
         <h2 className="ledger-title">In {model.building.label}, level not recorded</h2>
         {model.direct.length ? <ul className="ledger-rows">{model.direct.map(l => <Row key={l.id} location={l} index={index} selected={selection} note="Building member, level not recorded" />)}</ul> : <p className="body-text muted">No members without a recorded level.</p>}
       </div></section>}
