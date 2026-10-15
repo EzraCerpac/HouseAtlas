@@ -274,6 +274,23 @@ class PublicationTests(unittest.TestCase):
         self.save()
         with self.assertRaises(PublicationError): self.run_publish()
 
+    def test_rename_keeps_identity_across_semantic_map_revision(self):
+        previous = self.root / 'previous-map.json'
+        previous.write_bytes(self.paths['map.json'].read_bytes())
+        old_map_id = self.map_id
+        self.map_id = uid()
+        self.semantic_map['semanticMapRevisionId'] = self.map_id
+        self.semantic_map['previousSemanticMapRevisionId'] = old_map_id
+        self.semantic_map['rooms'][0]['displayName'] = 'Renamed room'
+        self.source['semanticMapRevisionId'] = self.map_id
+        self.save()
+        row = publish(self.paths['source.json'], self.paths['source.ifc'],
+                      self.paths['map.json'], self.paths['converter'],
+                      self.paths['config.json'], uid(), self.root/'renamed-publication',
+                      previous)
+        self.assertEqual(row['semanticMapRevisionId'], self.map_id)
+        self.assertEqual(row['previousSemanticMapSha256'], sha(previous.read_bytes()))
+
 
 if __name__ == '__main__':
     unittest.main()
