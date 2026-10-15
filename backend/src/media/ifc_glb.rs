@@ -81,7 +81,7 @@ impl<'a> QualifiedGlb<'a> {
 /// neither IFC project units/axes nor converter execution are proven here.
 pub fn validate(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Lineage> {
     budget.check()?;
-    need(bytes.len() <= MAX_BYTES && bytes.len() >= 28 && bytes.len() % 4 == 0)?;
+    need(bytes.len() <= MAX_BYTES && bytes.len() >= 28 && bytes.len().is_multiple_of(4))?;
     need(
         bytes.get(..4) == Some(b"glTF") && word(bytes, 4)? == 2 && word(bytes, 8)? == bytes.len(),
     )?;
@@ -279,9 +279,9 @@ pub fn validate(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Lineage> {
                 .ok_or_else(bad)?;
             need(total_vertices <= 150_000 && total_triangles <= 50_000)?;
             let positions = accessor_bytes(position, views, bin)?;
-            for item in positions.chunks_exact(4) {
+            for item in positions.as_chunks::<4>().0 {
                 budget.check()?;
-                let coordinate = f32::from_le_bytes(item.try_into().map_err(|_| bad())?);
+                let coordinate = f32::from_le_bytes(*item);
                 need(coordinate.is_finite() && coordinate.abs() <= 1_000_000.0)?;
             }
             let triangle_indices = accessor_bytes(indices, views, bin)?;
@@ -315,7 +315,7 @@ pub fn validate(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Lineage> {
                         .map_err(|_| bad())?,
                 ) as f64)
             };
-            for triangle in decoded_indices.chunks_exact(3) {
+            for triangle in decoded_indices.as_chunks::<3>().0 {
                 budget.check()?;
                 let a = [
                     point(triangle[0], 0)?,

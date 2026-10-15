@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "518ae242bde104ddc0a61595f1b4e90ab73ec928250fdaed35d4e11aa94b66ca",
+  "sourceDigestSha256": "7776765e772c25485b51147fe9e17a7d18b91d7fa5861cf801e888a340c29122",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2779,8 +2779,8 @@
     {
       "path": "backend/src/media/ifc_glb.rs",
       "mode": "100644",
-      "bytes": 18189,
-      "sha256": "3cac917d84b4ae103ebcc0109a220413685c0f32878dd79f0d0137beb99e27fa",
+      "bytes": 18174,
+      "sha256": "5d093c620d21471a90d5fa8ef46807de88e964fa9436f6664e69e50e9747eb98",
       "owner": "media"
     },
     {
@@ -5302,6 +5302,118 @@
       "bytes": 873,
       "sha256": "9dc3df00759725ba14f64be18ebb40bf4138841fffed10972881a5cc9adf38ac",
       "owner": "contracts"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/inputs/config.json",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 499,
+      "sha256": "05a1000e2f481ecd88d965540778a0b4d5d39c087645dbdef6c181744a691128"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/inputs/converter",
+      "owner": "media",
+      "mode": "100755",
+      "bytes": 2397,
+      "sha256": "9978c066d66ee9669d0b8ba9f1172e930ada2f4f7556e28b1fbc0b80d5c421c9"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/inputs/map.json",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 1295,
+      "sha256": "1db823ed85997e2830544f30699a764cd0503a3cfaa38a622d86cd104a1146f1"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/inputs/source.ifc",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 1720,
+      "sha256": "9a4ca161d677bc48598073db90e38ecb58402e709b71f540e4d4b842c9694ef9"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/inputs/source.json",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 764,
+      "sha256": "e2e3e769723651df270002fadb32c1c0fceb4d29b42b6781b63e455c4f060c84"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/publication/floors/abc7dd96-cbf9-50b2-a0bb-3daf49cbb2d9/floorplan.json",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 758,
+      "sha256": "74200ac40b87a6851f5f9b4b3ca051b848e843c9dacc4695e0d607d55fd7d517"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/publication/floors/abc7dd96-cbf9-50b2-a0bb-3daf49cbb2d9/floorplan.svg",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 228,
+      "sha256": "22257958dd8e537afd5f69b4c41ab81c77a9db2c0c8d4ac2bf07786f747b32b9"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/publication/floors/abc7dd96-cbf9-50b2-a0bb-3daf49cbb2d9/model.glb",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 1084,
+      "sha256": "71180ccf4a37e7a05ff5867413933b116b566c1fc90c7df12027e65461d37faf"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/publication/floors/ec7583c6-86ba-5b32-ad03-282b17c4ed02/floorplan.json",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 761,
+      "sha256": "cd87292d35ba786db242eb9dde6b8bc7d6f624bc1d55b61c5018f89a4d2175ad"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/publication/floors/ec7583c6-86ba-5b32-ad03-282b17c4ed02/floorplan.svg",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 228,
+      "sha256": "d300f6dceae070ab5b897665946c2fa10fb8ceadcfaac3fa38334f383a9a681a"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/publication/floors/ec7583c6-86ba-5b32-ad03-282b17c4ed02/model.glb",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 1088,
+      "sha256": "a4cfb29f98dc746d93df77d56fe204500b3a4b7f4e7655031f8d3c6663c7f5ed"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/publication/publication.json",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 3243,
+      "sha256": "5d72642f188df05f5260bad2c0f9fdf63e8d6b9154d22ff17ea3fced76597ae7"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/publication/semantics.json",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 3656,
+      "sha256": "9add1c88f3b6fa29ecce6daf4c2a2e6dc31a52f3b4bc7ef1586b6a3e801a00c8"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/receipt.sha256",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 65,
+      "sha256": "ee2414c5671b0eb957f85ee792088083bd8553ca309b96550d142c3e85f47b29"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/scene-read.json",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 5714,
+      "sha256": "c7c59d9214b9bbc597d0a18dd409cccf98166f68650d49d18641c7dec6998df1"
+    },
+    {
+      "path": "docs/canonical-ifc/scene-read-contract-v1.md",
+      "mode": "100644",
+      "bytes": 11235,
+      "sha256": "dbef14313a76b7f90110c09a92995f212a490a5318a3ce7ad878443c28fa2fee",
+      "owner": "media"
     },
     {
       "path": "docs/contracts/adoption-and-open-decisions.md",
