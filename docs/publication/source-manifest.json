@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "7776765e772c25485b51147fe9e17a7d18b91d7fa5861cf801e888a340c29122",
+  "sourceDigestSha256": "d5949d82b42cbfa1fa89c57c5c9aab53f18cffe6f630b8b25892e5134ef4bd9c",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -98,8 +98,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 6059,
-      "sha256": "6e0517436ee0a757a3a3bc449a856a7b420ffb75fe3534e810fa2fa8d3ee428c",
+      "bytes": 6549,
+      "sha256": "3f35b67878a4717ef1d1f61cc426454b90609619eb72cca0a43952d1f106624b",
       "owner": "core-integration"
     },
     {
@@ -9201,6 +9201,62 @@
       "bytes": 53938,
       "sha256": "789e3f49b841d160928ed076ee831ff91ae295f175789ab03971ce3a516b7e72",
       "owner": "media"
+    },
+    {
+      "path": "tools/ifc_publication/.gitignore",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 13,
+      "sha256": "32dae3052f331ee34d628ef535709b301259a45df7c7522c4d35dcf49873f00b"
+    },
+    {
+      "path": "tools/ifc_publication/README.md",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 3728,
+      "sha256": "b5bea572f4fcb3aadf7629e6411069254862f8e979c4ef8b796837bd3d90227a"
+    },
+    {
+      "path": "tools/ifc_publication/extract_identity.py",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 10295,
+      "sha256": "1fc882fb18cddbce6f53494bd8c30c77a5c01220b347702e94f0a20692a7ddfa"
+    },
+    {
+      "path": "tools/ifc_publication/make_synthetic_fixture.py",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 1855,
+      "sha256": "5400e9b845ef0caf1f1ba90b55dd32d840063f4dad99e67b6522079faae0a9fd"
+    },
+    {
+      "path": "tools/ifc_publication/publish.py",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 29085,
+      "sha256": "bc99d9bf3ffc9596e18f1bb9a4c56ed8bdee03350b712b34ac8b1be1308aee3f"
+    },
+    {
+      "path": "tools/ifc_publication/semantic-map.mjs",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 17678,
+      "sha256": "8ee0bb8d6a29a3e1f1d6b1749a70b5ef09ef13641d27167ccf70ebd2f5cd57f0"
+    },
+    {
+      "path": "tools/ifc_publication/test_publish.py",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 17001,
+      "sha256": "7e811c12c0c43bd51349e8d5311c595c5b50306279cdbc0069369e524d6e9fb9"
+    },
+    {
+      "path": "tools/ifc_publication/validate-cli.mjs",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 1806,
+      "sha256": "74e4d461c794269805078e792750809170fca3165cee5a8c55ee33816868ce56"
     },
     {
       "path": "tools/integration/baseline.test.mjs",
