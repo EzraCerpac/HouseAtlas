@@ -1,5 +1,7 @@
 import type { ExactDecimal } from '../../numeric/decimal';
 import type { ScanFloor, ScanMeshReadPort } from './mesh-profile';
+import type { IFC_GLB_PROFILE } from './ifc-glb-profile';
+import type { MESH_PROFILE } from './mesh-profile';
 
 /** Private host observation. This object carries no cookie, token or grant. */
 export interface NativeGeometryBinding {
@@ -29,10 +31,17 @@ export interface NativeGeometryFloor {
   readonly derivativeRevision: ExactDecimal;
   readonly originalLicense: NativeGeometryLicense;
   readonly derivativeLicense: NativeGeometryLicense;
+  readonly profile: typeof MESH_PROFILE | typeof IFC_GLB_PROFILE;
+  readonly originalContentType: 'model/vnd.usdz+zip' | 'application/x-step';
+  readonly derivativeContentType: 'application/vnd.houseatlas.magicplan-authored-mesh+json' | 'model/gltf-binary';
+  readonly sourceUnits?: 'unknown'; readonly declaredSourceUnits?: 'mm'; readonly sourceUpAxis?: 'unknown'; readonly declaredSourceUpAxis?: 'Z';
+  readonly glbUnits?: 'm'; readonly glbUpAxis?: 'Y';
+  readonly sourceToGlb?: { readonly axisMap: readonly ['x', 'z', '-y']; readonly scale: 0.001 };
+  readonly converter?: { readonly name: string; readonly version: string; readonly configSha256: string };
 }
 
 /** Explicit native-to-viewer hash-name adaptation, with identical facts. */
-export interface NativeScanFloor extends ScanFloor, Omit<NativeGeometryFloor, 'originalSha256' | 'derivativeSha256'> {}
+export type NativeScanFloor = ScanFloor & Omit<NativeGeometryFloor, 'originalSha256' | 'derivativeSha256'>;
 
 export interface NativeGeometryOffer {
   readonly floor: NativeGeometryFloor;
@@ -41,7 +50,7 @@ export interface NativeGeometryOffer {
 
 export interface NativeGeometryDescriptor {
   readonly schemaVersion: ExactDecimal;
-  readonly profile: 'houseatlas.magicplan-authored-mesh.v1';
+  readonly profile: 'houseatlas.magicplan-authored-mesh.v1' | 'houseatlas.native-geometry.v2';
   readonly scope: Readonly<{ workspaceId: string; homeId: string }>;
   readonly buildingId: string;
   readonly viewKey: string;

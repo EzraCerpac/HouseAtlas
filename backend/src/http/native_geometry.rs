@@ -272,7 +272,7 @@ async fn custody(
     .await
     .map_err(|_| unavailable())??;
     let limit = if original_id.is_some() {
-        m::mesh_derivative::MAX_MESH_BYTES
+        m::mesh_derivative::MAX_MESH_BYTES.max(m::ifc_glb::MAX_BYTES)
     } else {
         m::MAX_BYTES
     };
@@ -290,7 +290,7 @@ async fn custody(
         let metadata=input.metadata; let content=ContentType::parse_owned(&metadata.content_type).map_err(media_error)?;
         let purpose=if original_id.is_some() {AssetPurpose::DerivedPreview} else {AssetPurpose::GeometryOriginal};
         if !content.supports_purpose(purpose) || original_id.is_none() && !matches!(content,ContentType::Usdz | ContentType::Ifc)
-            || original_id.is_some() && content != ContentType::AuthoredMesh {return Err(invalid());}
+            || original_id.is_some() && !matches!(content,ContentType::AuthoredMesh | ContentType::IfcGlb) {return Err(invalid());}
         let source=if let Some(id)=&original_id {
             let owned=NativeMediaStorage::new(&core.store).read_owned_asset(&p,&MediaScope{workspace_id:scope.workspace_id.clone(),home_id:scope.home_id.clone()},id).map_err(media_error)?;
             if owned.record.payload != owned.manifest {return Err(unavailable());}
@@ -303,7 +303,13 @@ async fn custody(
         {
             let mut access=core.access.lock().map_err(|_|unavailable())?; p.release(&access).map_err(access_error)?;
             access.with_mutation_authorization::<super::HttpFailure>(p.principal.principal(),|guard| {
-                let receipt=if let Some(source)=&source {stages.stage_mesh_derivative(guard,p.principal.retained(),admission,source,&input.bytes,&work)}
+                let receipt=if let Some(source)=&source {
+                    if content==ContentType::IfcGlb {
+                        stages.stage_ifc_glb(guard,p.principal.retained(),admission,source,&input.bytes,&work)
+                    } else {
+                        stages.stage_mesh_derivative(guard,p.principal.retained(),admission,source,&input.bytes,&work)
+                    }
+                }
                     else {stages.stage_original(guard,p.principal.retained(),admission,&mut input.bytes.as_slice(),&work)}.map_err(media_error)?;
                 let source_guards=source.as_ref().map(|r|vec![json!({"target":{"authority":"atlas","recordType":"asset","recordId":r.record_id},"revision":{"kind":"atlas","value":r.revision}})]).unwrap_or_default();
                 let raw=json!({"schemaVersion":3,"commandId":"atlas.asset.create","requestId":metadata.request_id,"context":metadata.context,
@@ -528,14 +534,24 @@ async fn read(
                 .vault
                 .read_retained(&floor.derivative, &work)
                 .map_err(media_error)?;
-            m::mesh_derivative::qualify(&bytes, &original, &work).map_err(media_error)?;
-            if bytes.len() > m::mesh_derivative::MAX_MESH_BYTES {
+            let content = ContentType::parse_owned(&floor.derivative.payload.content_type)
+                .map_err(media_error)?;
+            match content {
+                ContentType::AuthoredMesh => {
+                    m::mesh_derivative::qualify(&bytes, &original, &work).map_err(media_error)?;
+                }
+                ContentType::IfcGlb => {
+                    m::ifc_glb::qualify(&bytes, &original, &work).map_err(media_error)?;
+                }
+                _ => return Err(invalid()),
+            }
+            if bytes.len() > m::mesh_derivative::MAX_MESH_BYTES.max(m::ifc_glb::MAX_BYTES) {
                 return Err(failure(StatusCode::PAYLOAD_TOO_LARGE));
             }
             let mut response = bytes.into_response();
             response.headers_mut().insert(
                 header::CONTENT_TYPE,
-                HeaderValue::from_static(m::mesh_derivative::MIME),
+                HeaderValue::from_static(content.as_str()),
             );
             response
         } else {
@@ -545,7 +561,7 @@ async fn read(
             );
             let offered=floors.iter().map(|f|json!({"floor":f.descriptor,"readPath":format!("{path}/frames/{view_key}/meshes/{}",f.descriptor.key)})).collect::<Vec<_>>();
             json_response(
-                json!({"schemaVersion":1,"profile":m::mesh_derivative::PROFILE,"scope":selected,"buildingId":building_id,"viewKey":view_key,"floors":offered,
+                json!({"schemaVersion":1,"profile":"houseatlas.native-geometry.v2","scope":selected,"buildingId":building_id,"viewKey":view_key,"floors":offered,
                 "physicalScale":"unknown","floorAlignment":"unknown","stageToHouseTransform":null}),
             )
         };

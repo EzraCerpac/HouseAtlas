@@ -6,16 +6,17 @@ import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { transformWithOxc } from 'vite';
 import { loadNumericSource } from './load-numeric-source.mjs';
-import { loadScanProfileSource, syntheticMeshFixture } from './scan-mesh-read.mjs';
+import { loadIfcGlbProfileSource, loadScanProfileSource, syntheticMeshFixture } from './scan-mesh-read.mjs';
 
 const dataUrl = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
-async function loadClientSource() {
+export async function loadClientSource() {
   const file = new URL('../integration/native-geometry-read-client.ts', import.meta.url);
   let { code } = await transformWithOxc(readFileSync(file, 'utf8'), file.pathname,
     { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
   for (const [specifier, target] of [
     ['../src/numeric/decimal', await loadNumericSource('numeric/decimal.ts')],
     ['../src/lantern/scans/mesh-profile', await loadScanProfileSource()],
+    ['../src/lantern/scans/ifc-glb-profile', await loadIfcGlbProfileSource()],
   ]) {
     const literal = JSON.stringify(specifier); assert(code.includes(literal));
     code = code.replaceAll(literal, JSON.stringify(target));

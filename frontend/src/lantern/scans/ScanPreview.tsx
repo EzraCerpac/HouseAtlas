@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { MeshCanvas } from './MeshCanvas';
 import { readScanMesh } from './mesh-profile';
-import type { MeshProfile, ScanFloor, ScanMeshReadPort } from './mesh-profile';
+import type { SupportedMeshProfile, ScanFloor, ScanMeshReadPort } from './mesh-profile';
 import type { MeshCanvasFailure } from './MeshCanvas';
 
 interface Props {
@@ -13,7 +13,7 @@ interface Props {
   readonly active: boolean;
 }
 type ReadState = { readonly port: ScanMeshReadPort; readonly viewKey: string; readonly floor: ScanFloor; readonly attempt: number } & (
-  { readonly status: 'loading' } | { readonly status: 'ready'; readonly profile: MeshProfile }
+  { readonly status: 'loading' } | { readonly status: 'ready'; readonly profile: SupportedMeshProfile }
   | { readonly status: 'unavailable' } | { readonly status: 'render-unavailable'; readonly reason: MeshCanvasFailure }
 );
 
@@ -25,7 +25,7 @@ export function ScanPreview({ viewKey, buildingLabel, floors, port, active }: Pr
   const [chosen, setChosen] = useState<{ viewKey: string; key: string } | null>(null);
   const [invalidated, setInvalidated] = useState<{ viewKey: string; port: ScanMeshReadPort } | null>(null);
   const [attempt, setAttempt] = useState(0), [read, setRead] = useState<ReadState | null>(null);
-  const [selection, setSelection] = useState<{ profile: MeshProfile; sourceObjectId: string | null } | null>(null);
+  const [selection, setSelection] = useState<{ profile: SupportedMeshProfile; sourceObjectId: string | null } | null>(null);
   const floor = floors.find(entry => chosen?.viewKey === viewKey && entry.key === chosen.key) ?? floors[0];
   const open = active && opened?.viewKey === viewKey && opened.port === port;
   const denied = invalidated?.viewKey === viewKey && invalidated.port === port;

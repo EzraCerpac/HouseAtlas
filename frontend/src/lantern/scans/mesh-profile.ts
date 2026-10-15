@@ -1,8 +1,10 @@
 import { yieldTask } from './presentation/yield-task';
 import { ExactDecimal, isExactDecimal } from '../../numeric/decimal';
+import { IFC_GLB_PROFILE, parseIfcGlbProfile, type IfcGlbProfile } from './ifc-glb-profile';
 
 /** Local presentation proposal. This is not a native schema or admission grant. */
 export const MESH_PROFILE = 'houseatlas.magicplan-authored-mesh.v1';
+export type SupportedMeshProfile = MeshProfile | IfcGlbProfile;
 export const MESH_LIMITS = Object.freeze({
   bytes: 8 * 1024 * 1024, depth: 32, nodes: 750_000, stringLength: 4096,
   numberLength: 64, meshes: 512, vertices: 150_000, triangles: 50_000,
@@ -53,6 +55,12 @@ export interface ScanFloor {
   /** Opaque owner-provided selector; never interpreted as an asset key or URL. */
   readonly key: string; readonly exportLabel: string;
   readonly derivativeSHA256: string; readonly originalSHA256: string;
+  readonly profile?: typeof MESH_PROFILE | typeof IFC_GLB_PROFILE;
+  readonly originalContentType?: 'model/vnd.usdz+zip' | 'application/x-step';
+  readonly derivativeContentType?: 'application/vnd.houseatlas.magicplan-authored-mesh+json' | 'model/gltf-binary';
+  readonly sourceUnits?: 'unknown'; readonly declaredSourceUnits?: 'mm'; readonly sourceUpAxis?: 'unknown'; readonly declaredSourceUpAxis?: 'Z'; readonly glbUnits?: 'm'; readonly glbUpAxis?: 'Y';
+  readonly sourceToGlb?: { readonly axisMap: readonly ['x', 'z', '-y']; readonly scale: 0.001 };
+  readonly converter?: { readonly name: string; readonly version: string; readonly configSha256: string };
 }
 export interface ScanMeshDelivery {
   readonly viewKey: string; readonly floorKey: string;
@@ -228,6 +236,12 @@ async function decode(bytes: Uint8Array, signal: AbortSignal, started: number): 
   const result = await value(0); space(); requireValue(offset === source.length, 'Trailing mesh data'); return result;
 }
 
+/** Also decodes the bounded JSON chunk of an IFC-derived GLB, retaining the
+ * duplicate-key and exact-number protections of the existing mesh reader. */
+export async function decodeMeshJson(bytes: Uint8Array, signal: AbortSignal): Promise<Json> {
+  return decode(bytes, signal, performance.now());
+}
+
 function freeze(value: Json): void {
   if (value === null || typeof value !== 'object' || isExactDecimal(value)) return;
   if (Array.isArray(value)) { for (const child of value) freeze(child); }
@@ -352,7 +366,7 @@ export async function parseMeshProfile(bytes: Uint8Array, signal: AbortSignal): 
   await checkpoint(); freeze(decoded); return decoded as unknown as MeshProfile;
 }
 
-export async function readScanMesh(port: ScanMeshReadPort, viewKey: string, floor: ScanFloor, signal: AbortSignal): Promise<MeshProfile> {
+export async function readScanMesh(port: ScanMeshReadPort, viewKey: string, floor: ScanFloor, signal: AbortSignal): Promise<SupportedMeshProfile> {
   const controller = new AbortController();
   const abort = (): void => controller.abort();
   signal.throwIfAborted(); signal.addEventListener('abort', abort, { once: true });
@@ -369,8 +383,21 @@ export async function readScanMesh(port: ScanMeshReadPort, viewKey: string, floo
     const sha = await crypto.subtle.digest('SHA-256', bytes); current();
     const hash = Array.from(new Uint8Array(sha), byte => byte.toString(16).padStart(2, '0')).join('');
     requireValue(hash === floor.derivativeSHA256, 'Mesh derivative digest mismatch');
-    const profile = await parseMeshProfile(bytes, controller.signal); current();
+    const profile = floor.profile === IFC_GLB_PROFILE
+      ? await parseIfcGlbProfile(bytes, controller.signal, decodeMeshJson)
+      : await parseMeshProfile(bytes, controller.signal); current();
     requireValue(profile.source.originalSHA256 === floor.originalSHA256 && profile.source.floorLabel === floor.exportLabel, 'Mesh source lineage mismatch');
+    if (profile.profile === IFC_GLB_PROFILE) {
+      const source = profile.source;
+      requireValue(floor.originalContentType === 'application/x-step' && floor.derivativeContentType === 'model/gltf-binary'
+        && floor.sourceUnits === 'unknown' && floor.declaredSourceUnits === source.sourceUnits
+        && floor.sourceUpAxis === 'unknown' && floor.declaredSourceUpAxis === source.sourceUpAxis
+        && floor.glbUnits === source.glbUnits && floor.glbUpAxis === source.glbUpAxis
+        && floor.sourceToGlb?.scale === source.sourceToGlb.scale
+        && floor.sourceToGlb.axisMap.every((axis, index) => axis === source.sourceToGlb.axisMap[index])
+        && floor.converter?.name === source.converter.name && floor.converter.version === source.converter.version
+        && floor.converter.configSha256 === source.converter.configSha256, 'IFC conversion descriptor mismatch');
+    }
     return profile;
   } finally { clearTimeout(deadline); signal.removeEventListener('abort', abort); unsubscribe?.(); controller.abort(); }
 }
@@ -384,7 +411,7 @@ export interface RenderScene { readonly meshes: readonly RenderMesh[]; readonly 
 /** Only render buffers are rounded, centered and fitted. No authored tokens or
  * physical transforms are rewritten. GPU accounting excludes driver overhead.
  */
-export async function prepareMeshRender(profile: MeshProfile, signal: AbortSignal): Promise<RenderScene> {
+export async function prepareMeshRender(profile: SupportedMeshProfile, signal: AbortSignal): Promise<RenderScene> {
   const started = performance.now();
   const triangles = profile.meshes.reduce((sum, mesh) => sum + mesh.triangleIndicesTokens.length / 3, 0);
   const bytes = triangles * 36 * Float32Array.BYTES_PER_ELEMENT;

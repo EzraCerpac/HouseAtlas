@@ -7,6 +7,7 @@ import type { NativeGeometryBinding, NativeGeometryCustodyReceipt, NativeGeometr
 import { isExactDecimal } from '../src/numeric/decimal';
 import { parseLosslessJson, stringifyLosslessJson, type LosslessJson } from '../src/numeric/lossless-json';
 import { createExactStockResultValidator, exactStockSafeInteger } from '../src/numeric/schema-validator';
+import { IFC_GLB_MIME } from '../src/lantern/scans/ifc-glb-profile';
 
 const derivativeType = 'application/vnd.houseatlas.magicplan-authored-mesh+json';
 const originalLimit = 10 * 1024 * 1024;
@@ -183,9 +184,11 @@ export function createNativeGeometryWriteClient(options: {
     const epoch = cached!.epoch;
     if (kind === 'original') require(contentType === 'model/vnd.usdz+zip' || contentType === 'application/x-step');
     else {
-      require(contentType === derivativeType && original !== undefined && original.kind === 'original' && receipts.get(original) === epoch);
+      require(original !== undefined && original.kind === 'original' && receipts.get(original) === epoch);
       const originalPayload = object(field(object(original.originalRequest), 'payload'));
-      require(object(field(originalPayload, 'staged')).contentType === 'model/vnd.usdz+zip');
+      const originalType = object(field(originalPayload, 'staged')).contentType;
+      require((originalType === 'model/vnd.usdz+zip' && contentType === derivativeType)
+        || (originalType === 'application/x-step' && contentType === IFC_GLB_MIME));
     }
     scalarText(input.filename); scalarText(input.reason);
     require(!!input.filename && [...input.filename].length <= 255 && !/[\/\\\u0000-\u001f]/.test(input.filename));
@@ -275,7 +278,13 @@ export function createNativeGeometryWriteClient(options: {
         Object.freeze({ prepared, outcome: row.outcome, ...(row.receipt ? { receipt: row.receipt } : {}) })));
     },
     prepareOriginal: (binding, input, signal) => prepare(binding, 'original', input, input.contentType, signal),
-    prepareDerivative: (binding, original, input, signal) => prepare(binding, 'derivative', input, derivativeType, signal, original),
+    prepareDerivative: (binding, original, input, signal) => {
+      const payload = object(field(object(original.originalRequest), 'payload'));
+      const originalType = object(field(payload, 'staged')).contentType;
+      require(originalType === 'model/vnd.usdz+zip' || originalType === 'application/x-step');
+      return prepare(binding, 'derivative', input,
+        originalType === 'application/x-step' ? IFC_GLB_MIME : derivativeType, signal, original);
+    },
     async commit(prepared, signal) {
       signal.throwIfAborted(); const pin = intents.get(prepared);
       require(pin !== undefined && !dispatched.has(prepared)); assertCurrent(prepared.binding, pin.epoch); require(!unknown() && ledger.size < 16);

@@ -15,6 +15,7 @@ pub mod geometry_bundle;
 pub mod geometry_original;
 pub mod homebox_artifacts;
 pub mod homebox_pinned_artifacts;
+pub mod ifc_glb;
 pub mod mesh_derivative;
 pub mod native;
 pub mod native_policy_archive;

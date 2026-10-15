@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { transformWithOxc } from 'vite';
 import { loadNumericSource } from './load-numeric-source.mjs';
+import { loadIfcGlbProfileSource } from './scan-mesh-read.mjs';
 
 const file = new URL('../integration/native-geometry-write-client.ts', import.meta.url);
 let { code } = await transformWithOxc(readFileSync(file, 'utf8'), file.pathname,
@@ -19,6 +20,8 @@ for (const [specifier, module] of Object.entries({
   assert(code.includes(literal), `Missing actual source import ${specifier}`);
   code = code.replaceAll(literal, JSON.stringify(await loadNumericSource(module)));
 }
+const glbSpecifier = '"../src/lantern/scans/ifc-glb-profile"'; assert(code.includes(glbSpecifier));
+code = code.replaceAll(glbSpecifier, JSON.stringify(await loadIfcGlbProfileSource()));
 for (const match of code.matchAll(/^\s*import\s+(?:[\w$\s{},*]+?\s+from\s+)?["']([^"']+)["']/gm))
   assert(match[1].startsWith('data:'), `Unexpected actual source import ${match[1]}`);
 const { createNativeGeometryWriteClient } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);

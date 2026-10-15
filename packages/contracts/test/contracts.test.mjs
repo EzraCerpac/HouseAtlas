@@ -14,6 +14,11 @@ const expectCode = (fn, code) => assert.throws(fn, e => e.code === code);
 const changed = (name, change, code = 'invalid-contract') => test(name, () => { const s = base(); change(s); expectCode(() => validateSnapshot(s), code); });
 
 for (const file of ['plan-free', 'outage', 'import-remap', 'optional-geometry']) test(`positive synthetic fixture: ${file}`, () => validateSnapshot(load(`${file}.snapshot.json`)));
+test('geometry schema keeps Magicplan and admits explicit IFC provenance', () => {
+  const geometry = load('optional-geometry.snapshot.json').records.find(record => record.recordType === 'geometry').payload;
+  validateShape('geometryPayload', geometry);
+  validateShape('geometryPayload', { ...geometry, producer: 'ifc', exportFormat: 'ifc', mappings: [] });
+});
 test('positive tagged HomeBox minimum page including null type', () => validateShape('homeboxPageWire', load('homebox-page.wire.json')));
 test('minimum raw wire accepts additive upstream fields without promoting them into Atlas mutations', () => { const p = load('homebox-page.wire.json'); p.items[0].futureSourceField = 42; validateShape('homeboxPageWire', p); });
 test('native mutation shapes reject HomeBox metadata and client actor', () => {
@@ -75,7 +80,7 @@ test('binding source key is immutable even with a matching revision', () => { co
 test('evidence provenance is append-only', () => { const s = base(), e = s.records[0]; const c = { ...replace(), value: { recordType: 'evidence', payload: structuredClone(e.payload) } }; c.value.payload.provenance.factAt = context.now; expectCode(() => new SyntheticHarness(s).mutate(target('evidence', 100), c), 'invalid-transition'); });
 test('mutations cannot turn geometry original assets into new bytes', () => { const s = load('optional-geometry.snapshot.json'), a = s.records.find(r => r.recordType === 'asset'); const c = { ...replace(), value: { recordType: 'asset', payload: structuredClone(a.payload) } }; c.value.payload.sha256 = 'b'.repeat(64); expectCode(() => new SyntheticHarness(s).mutate(target('asset', 600), c), 'invalid-transition'); });
 test('audit/record revision mismatch is rejected', () => { const r = load('create-circuit.result.json'); r.audit.resultRevision = 2; expectCode(() => validateResult(r), 'invalid-contract'); });
-test('read adapters have no writable upstream capability', () => { assert.deepEqual(boundaries.homebox.methods, ['GET']); assert.deepEqual(boundaries.network.methods, ['GET']); assert.equal(boundaries.mutations.upstreamCASClaim, false); assert.equal(boundaries.homebox.writeMode, 'homebox-native-links-only'); assert.equal(boundaries.media.maxRedirects, 0); assert.equal(boundaries.geometry.producer, 'magicplan'); });
+test('read adapters have no writable upstream capability', () => { assert.deepEqual(boundaries.homebox.methods, ['GET']); assert.deepEqual(boundaries.network.methods, ['GET']); assert.equal(boundaries.mutations.upstreamCASClaim, false); assert.equal(boundaries.homebox.writeMode, 'homebox-native-links-only'); assert.equal(boundaries.media.maxRedirects, 0); assert.equal(boundaries.geometry.producer, 'magicplan'); assert.deepEqual(boundaries.geometry.supportedProducers, ['magicplan', 'ifc']); });
 changed('circuit panel cannot refer to another home', s => { s.records.find(r => r.recordType === 'circuit').payload.panel = { kind: 'atlas-record', ref: { recordType: 'identity', recordId: U(202) } }; }, 'not-found');
 changed('circuit panel must be a physical item', s => { s.records.find(r => r.recordType === 'circuit').payload.panel = { kind: 'atlas-record', ref: { recordType: 'identity', recordId: U(200) } }; });
 changed('accepted semantic classifications cannot compete', s => { const r = structuredClone(s.records.find(r => r.recordType === 'location-semantics')); r.recordId = U(450); r.payload.semanticKind = 'floor'; s.records.push(r); }, 'identity-conflict');

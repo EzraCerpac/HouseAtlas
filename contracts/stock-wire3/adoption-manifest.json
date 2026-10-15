@@ -7,7 +7,7 @@
   "frozenAtlasSchema": {
     "uri": "https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json",
     "path": "packages/contracts/schemas/atlas.schema.json",
-    "sha256": "d14f326a544747c900ece6c4c0b5d47d36c99579ddb37f3ad788f406d2e87a58"
+    "sha256": "c7c380b317e3cc640c8c437bf360e5f04d443f91ec03a54cc0f23a98b5a13b0c"
   },
   "transformations": [
     "Remove catalog task-allocation fields and replace descriptive task labels with component/qualification names; retain command identities and historical/current restrictions.",
@@ -38,8 +38,8 @@
     },
     {
       "path": "contracts/stock-wire3/agent/agent.schema.json",
-      "bytes": 955491,
-      "sha256": "a5c106fad5cdd1c52ab57d29a2469ea2a53eabd37c9be9ac46e279c45b92beac",
+      "bytes": 955535,
+      "sha256": "44afff94ad51135282e0a34c1efd1ad77e240dd55bd8dff13cfb8120cdf4b5ca",
       "sourceContentSha256": "314ee5f5effca941b3be92cb5cc37150aa17a3ab5dd8646255cebc74767b602d"
     },
     {
@@ -111,7 +111,7 @@
     {
       "path": "contracts/stock-wire3/resource-map.json",
       "bytes": 1707,
-      "sha256": "01b7765c28aa888e698f2ac8491db697e37f807629701fbd544985083ebd790f"
+      "sha256": "31a27009407b82ecfb521feec00f4faa526c07ce8654d8e016ceed9eb15fb5e4"
     }
   ],
   "atlasPublicSchemaVersion": "1.1.0"

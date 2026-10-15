@@ -129,7 +129,9 @@ export async function preflightNativeScanScene(input:NativeScanScenePreflightInp
   const floorRows:NativeGeometryFloor[]=input.sourceFloors.map((f,n)=>({key:(n+1).toString(16).padStart(64,'0'),exportLabel:f.sourceFloorKey,
     originalSha256:f.sourceOriginalSha256,derivativeSha256:f.sourceOriginalSha256,geometryId:id(100+n),geometryRevision:one,
     evidenceId:id(200+n),evidenceRevision:one,originalAssetId:id(300+n),originalRevision:one,derivativeAssetId:id(400+n),derivativeRevision:one,
-    originalLicense:{status:'unknown',reference:null},derivativeLicense:{status:'unknown',reference:null}}));
+    originalLicense:{status:'unknown',reference:null},derivativeLicense:{status:'unknown',reference:null},
+    profile:'houseatlas.magicplan-authored-mesh.v1',originalContentType:'model/vnd.usdz+zip',
+    derivativeContentType:'application/vnd.houseatlas.magicplan-authored-mesh+json'}));
   let active=true;
   const unavailable=()=>{throw new TypeError('Local scene preflight has no geometry read transport');};
   const geometryFrame:NativeGeometryFrame={lease:{},viewKey,descriptor:{schemaVersion:one,profile:'houseatlas.magicplan-authored-mesh.v1',scope,buildingId:input.buildingId,viewKey,

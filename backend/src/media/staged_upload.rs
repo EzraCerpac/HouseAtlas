@@ -39,6 +39,10 @@ pub struct UploadAdmission {
     pub source_license: SourceLicense,
     pub evidence_ids: Vec<String>,
 }
+enum DerivativeQualification<'a> {
+    Magicplan(&'a super::mesh_derivative::QualifiedMesh<'a>),
+    Ifc(&'a super::ifc_glb::QualifiedGlb<'a>),
+}
 
 /// Exact projection of the published stock `$defs/stage` input.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -293,7 +297,38 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
             admission,
             &mut qualified.bytes(),
             budget,
-            Some(&qualified),
+            Some(DerivativeQualification::Magicplan(&qualified)),
+        )
+    }
+
+    pub fn stage_ifc_glb(
+        &self,
+        guard: &a::TransactionAuthorization<'_>,
+        original: &RetainedPrincipal,
+        admission: UploadAdmission,
+        source: &super::types::AssetRecord,
+        bytes: &[u8],
+        budget: &WorkBudget,
+    ) -> MediaResult<UploadReceipt> {
+        let scope = authorize(guard, original, budget)?;
+        if source.scope() != scope
+            || source.lifecycle != super::types::Lifecycle::Active
+            || source.payload.availability != super::types::Availability::Available
+            || source.payload.purpose != AssetPurpose::GeometryOriginal
+            || source.payload.content_type != ContentType::Ifc.as_str()
+            || source.payload.preview_policy != super::types::PreviewPolicy::DownloadOnly
+        {
+            return Err(MediaError::InvalidInput);
+        }
+        let original_bytes = self.vault.read_retained(source, budget)?;
+        let qualified = super::ifc_glb::qualify(bytes, &original_bytes, budget)?;
+        self.stage_asset(
+            guard,
+            original,
+            admission,
+            &mut qualified.bytes(),
+            budget,
+            Some(DerivativeQualification::Ifc(&qualified)),
         )
     }
 
@@ -304,7 +339,7 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
         admission: UploadAdmission,
         body: &mut impl Read,
         budget: &WorkBudget,
-        mesh: Option<&super::mesh_derivative::QualifiedMesh<'_>>,
+        mesh: Option<DerivativeQualification<'_>>,
     ) -> MediaResult<UploadReceipt> {
         let scope = authorize(guard, original, budget)?;
         self.validate_admission(&admission)?;
@@ -331,13 +366,25 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
         let pending = self.directory.temporary(".upload-")?;
         self.write_reservation_lifetime(&pending.directory)?;
         let (payload, qualification) = match mesh {
-            Some(mesh)
+            Some(DerivativeQualification::Magicplan(mesh))
                 if admission.purpose == AssetPurpose::DerivedPreview
                     && admission.content_type == ContentType::AuthoredMesh =>
             {
                 let prepared =
                     self.vault
                         .prepare_upload_mesh(&scope, mesh, budget, &self.limits)?;
+                (
+                    prepared.with_provenance(admission.source_license, admission.evidence_ids)?,
+                    None,
+                )
+            }
+            Some(DerivativeQualification::Ifc(glb))
+                if admission.purpose == AssetPurpose::DerivedPreview
+                    && admission.content_type == ContentType::IfcGlb =>
+            {
+                let prepared =
+                    self.vault
+                        .prepare_upload_ifc_glb(&scope, glb, budget, &self.limits)?;
                 (
                     prepared.with_provenance(admission.source_license, admission.evidence_ids)?,
                     None,

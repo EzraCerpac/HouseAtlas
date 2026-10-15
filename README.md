@@ -48,6 +48,19 @@ npm run test:ordinary
 
 These checks cover publication integrity, module syntax/builds, valid HTTP history examples and one healthy synthetic Request group. They call no provider and certify no security, live integration or deployment readiness. New explicit source-presence admissions remain blocked pending their separately reviewed extension.
 
+The separate IFC/GLB checks use a tiny generated triangle and fake local
+transports. Inspect `backend/src/media/ifc_glb.rs` and
+`frontend/lantern-tests/ifc-glb-read.mjs` before running them:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib media::ifc_glb::tests::healthy_ifc_glb_lineage_and_axes -- --exact --test-threads=1
+node frontend/lantern-tests/ifc-glb-read.mjs
+```
+
+They verify source-byte binding and bounded display parsing, without proving
+converter execution, IFC project units, physical alignment or native acceptance
+of a household model.
+
 ## Development and verification
 
 The current development snapshot includes a Rust backend, SQLite persistence and a React interface with strict TypeScript.

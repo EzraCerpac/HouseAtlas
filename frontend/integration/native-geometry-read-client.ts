@@ -1,5 +1,6 @@
 import { ExactDecimal, isExactDecimal } from '../src/numeric/decimal';
 import { MESH_LIMITS, MESH_PROFILE } from '../src/lantern/scans/mesh-profile';
+import { IFC_GLB_MIME, IFC_GLB_PROFILE } from '../src/lantern/scans/ifc-glb-profile';
 import type { ScanFloor, ScanMeshDelivery, ScanMeshReadPort } from '../src/lantern/scans/mesh-profile';
 import type {
   NativeGeometryBinding, NativeGeometryDescriptor, NativeGeometryFloor, NativeGeometryFrame,
@@ -121,7 +122,8 @@ async function decodeJson(bytes: Uint8Array, signal: AbortSignal, deadline: numb
 
 function decodeDescriptor(raw: Json, scope: NativeGeometryBinding['scope'], buildingId: string, headerView: string, origin: string): NativeGeometryDescriptor {
   const root = object(raw, ['schemaVersion', 'profile', 'scope', 'buildingId', 'viewKey', 'floors', 'physicalScale', 'floorAlignment', 'stageToHouseTransform']);
-  need(isExactDecimal(root.schemaVersion) && root.schemaVersion.token === '1' && root.profile === MESH_PROFILE);
+  need(isExactDecimal(root.schemaVersion) && root.schemaVersion.token === '1'
+    && (root.profile === MESH_PROFILE || root.profile === 'houseatlas.native-geometry.v2'));
   const selected = object(root.scope, ['workspaceId', 'homeId']);
   need(uuid(selected.workspaceId) === scope.workspaceId && uuid(selected.homeId) === scope.homeId && uuid(root.buildingId) === buildingId);
   const viewKey = sha(root.viewKey); need(viewKey === headerView);
@@ -130,8 +132,34 @@ function decodeDescriptor(raw: Json, scope: NativeGeometryBinding['scope'], buil
   const keys = new Set<string>(), geometryIds = new Set<string>(), pairs = new Set<string>();
   const floors: NativeGeometryOffer[] = root.floors.map(rawOffer => {
     const offer = object(rawOffer, ['floor', 'readPath']);
-    const row = object(offer.floor, ['key', 'exportLabel', 'originalSha256', 'derivativeSha256', 'geometryId', 'geometryRevision',
-      'evidenceId', 'evidenceRevision', 'originalAssetId', 'originalRevision', 'derivativeAssetId', 'derivativeRevision', 'originalLicense', 'derivativeLicense']);
+    const baseFields = ['key', 'exportLabel', 'originalSha256', 'derivativeSha256', 'geometryId', 'geometryRevision',
+      'evidenceId', 'evidenceRevision', 'originalAssetId', 'originalRevision', 'derivativeAssetId', 'derivativeRevision', 'originalLicense', 'derivativeLicense'];
+    const value = offer.floor;
+    need(value !== null && typeof value === 'object' && !Array.isArray(value) && !isExactDecimal(value));
+    const nextProfile = root.profile === MESH_PROFILE ? MESH_PROFILE : (value as Row).profile;
+    need(nextProfile === MESH_PROFILE || nextProfile === IFC_GLB_PROFILE);
+    const ifc = nextProfile === IFC_GLB_PROFILE;
+    const row = object(value, root.profile === MESH_PROFILE ? baseFields : [...baseFields, 'profile', 'originalContentType', 'derivativeContentType',
+      ...(ifc ? ['sourceUnits', 'declaredSourceUnits', 'sourceUpAxis', 'declaredSourceUpAxis', 'glbUnits', 'glbUpAxis', 'sourceToGlb', 'converter'] : [])]);
+    if (root.profile !== MESH_PROFILE) {
+      need(row.profile === nextProfile && row.originalContentType === (ifc ? 'application/x-step' : 'model/vnd.usdz+zip')
+        && row.derivativeContentType === (ifc ? IFC_GLB_MIME : MESH_MIME));
+    }
+    let ifcFields: Pick<NativeGeometryFloor, 'sourceUnits' | 'declaredSourceUnits' | 'sourceUpAxis' | 'declaredSourceUpAxis' |
+      'glbUnits' | 'glbUpAxis' | 'sourceToGlb' | 'converter'> = {};
+    if (ifc) {
+      const transform = object(row.sourceToGlb, ['axisMap', 'scale']);
+      need(Array.isArray(transform.axisMap) && transform.axisMap.length === 3 && transform.axisMap[0] === 'x'
+        && transform.axisMap[1] === 'z' && transform.axisMap[2] === '-y'
+        && isExactDecimal(transform.scale) && transform.scale.compare(ExactDecimal.parse('0.001')) === 0);
+      const converter = object(row.converter, ['name', 'version', 'configSha256']);
+      need(row.sourceUnits === 'unknown' && row.declaredSourceUnits === 'mm'
+        && row.sourceUpAxis === 'unknown' && row.declaredSourceUpAxis === 'Z'
+        && row.glbUnits === 'm' && row.glbUpAxis === 'Y');
+      ifcFields = { sourceUnits: 'unknown', declaredSourceUnits: 'mm', sourceUpAxis: 'unknown', declaredSourceUpAxis: 'Z', glbUnits: 'm', glbUpAxis: 'Y',
+        sourceToGlb: { axisMap: ['x', 'z', '-y'], scale: 0.001 }, converter: {
+          name: text(converter.name), version: text(converter.version), configSha256: sha(converter.configSha256) } };
+    }
     const floor: NativeGeometryFloor = Object.freeze({
       key: sha(row.key), exportLabel: text(row.exportLabel), originalSha256: sha(row.originalSha256), derivativeSha256: sha(row.derivativeSha256),
       geometryId: uuid(row.geometryId), geometryRevision: revision(row.geometryRevision),
@@ -139,6 +167,9 @@ function decodeDescriptor(raw: Json, scope: NativeGeometryBinding['scope'], buil
       originalAssetId: uuid(row.originalAssetId), originalRevision: revision(row.originalRevision),
       derivativeAssetId: uuid(row.derivativeAssetId), derivativeRevision: revision(row.derivativeRevision),
       originalLicense: license(row.originalLicense), derivativeLicense: license(row.derivativeLicense),
+      profile: nextProfile,
+      originalContentType: ifc ? 'application/x-step' : 'model/vnd.usdz+zip',
+      derivativeContentType: ifc ? IFC_GLB_MIME : MESH_MIME, ...ifcFields,
     });
     const pair = `${floor.originalAssetId}:${floor.derivativeAssetId}`;
     need(floor.originalAssetId !== floor.derivativeAssetId && !keys.has(floor.key) && !geometryIds.has(floor.geometryId) && !pairs.has(pair));
@@ -151,7 +182,7 @@ function decodeDescriptor(raw: Json, scope: NativeGeometryBinding['scope'], buil
     need(readPath === expected && url.origin === origin && url.pathname === expected && !url.search && !url.hash);
     return Object.freeze({ floor, readPath });
   });
-  return Object.freeze({ schemaVersion: root.schemaVersion, profile: MESH_PROFILE,
+  return Object.freeze({ schemaVersion: root.schemaVersion, profile: root.profile,
     scope: Object.freeze({ workspaceId: scope.workspaceId, homeId: scope.homeId }), buildingId, viewKey,
     floors: Object.freeze(floors), physicalScale: 'unknown', floorAlignment: 'unknown', stageToHouseTransform: null });
 }
@@ -319,7 +350,7 @@ export function createNativeGeometryReadClient(options: NativeGeometryReadOption
         try {
           need(current(live) && viewKey === descriptor.viewKey); readSignal.throwIfAborted();
           const offer = live.offers.get(floor); need(offer);
-          const bytes = await exchange(found, expectedGeneration, offer.readPath, MESH_MIME, MESH_LIMITS.bytes, readSignal,
+          const bytes = await exchange(found, expectedGeneration, offer.readPath, offer.floor.derivativeContentType, MESH_LIMITS.bytes, readSignal,
             async (body, headerView) => { need(headerView === descriptor.viewKey); return body; });
           need(current(live)); readSignal.throwIfAborted();
           return Object.freeze({ viewKey: descriptor.viewKey, floorKey: floor.key, bytes });

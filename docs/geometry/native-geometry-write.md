@@ -31,9 +31,15 @@ It accepts a nonempty USDZ (`model/vnd.usdz+zip`) or IFC (`application/x-step`)
 Blob of at most 10 MiB. A derivative uses fixed POST
 `/api/atlas/geometry/v1/workspaces/{workspaceId}/homes/{homeId}/originals/{originalAssetId}/derivative`.
 It accepts at most 8 MiB of the immutable authored mesh profile under
-`application/vnd.houseatlas.magicplan-authored-mesh+json`. The derivative requires
-the USDZ original's correlated receipt from this client and current session/scope;
-the current native derivative owner does not support an IFC original.
+`application/vnd.houseatlas.magicplan-authored-mesh+json` when the committed
+original is USDZ. The IFC branch accepts a bounded `model/gltf-binary` GLB under
+`houseatlas.ifc-derived-glb.v1`, paired with that same committed IFC original's
+correlated receipt. These are distinct native derivative profiles; a GLB cannot
+be presented as a Magicplan authored mesh or as a USDZ descendant. The GLB
+receipt binds its declared converter and axis facts to the exact retained IFC
+hash and byte count. Byte qualification does not establish that the converter
+ran, that the IFC project's units were verified, or that the model is aligned
+with the house.
 Both multipart exchanges send metadata first, then the exact immutable file
 bytes, explicit filename, MIME and supplied source licence. Hashing measures the
 bytes locally; the server independently qualifies content, lineage and custody.
