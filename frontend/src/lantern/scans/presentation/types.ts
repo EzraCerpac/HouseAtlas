@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import type { MeshProfile } from '../mesh-profile';
+import type { SupportedMeshProfile } from '../mesh-profile';
 export type SceneOverlay = 'spaces' | 'electrical' | 'network';
 export interface PresentationFloor {
   readonly key: string; readonly label: string; readonly short: string;
-  readonly profile: MeshProfile | null; readonly unavailable?: string;
+  readonly profile: SupportedMeshProfile | null; readonly unavailable?: string;
 }
 /** Owner-reviewed documentary identity; fractions are explicitly schematic display layout. */
 export interface SchematicRoom {

@@ -97,6 +97,7 @@
   "geometry": {
     "optional": true,
     "producer": "magicplan",
+    "supportedProducers": ["magicplan", "ifc"],
     "importerRequiredForFirstRelease": false
   },
   "mutations": {

@@ -160,7 +160,8 @@ export function NativeGeometryIntake({ write, association, buildingId, onAssocia
   const prepareCustody = (kind: 'original' | 'derivative') => {
     if (!writeBinding || !write.canPrepare(writeBinding)) return;
     const file = kind === 'original' ? draft.original : draft.derivative;
-    if (!file || (kind === 'derivative' && (!original?.receipt || original.prepared.contentType !== 'model/vnd.usdz+zip'))) return;
+    if (!file || (kind === 'derivative' && (!original?.receipt ||
+      (original.prepared.contentType !== 'model/vnd.usdz+zip' && original.prepared.contentType !== 'application/x-step')))) return;
     void run(kind === 'original' ? 'Preparing original' : 'Preparing derivative', async (signal, live) => {
       const input = { file, filename: file.name, reason: kind === 'original' ? draft.originalReason : draft.derivativeReason,
         sourceLicense: { status: kind === 'original' ? draft.originalLicense : draft.derivativeLicense,
@@ -248,11 +249,11 @@ export function NativeGeometryIntake({ write, association, buildingId, onAssocia
       <div className="field"><label htmlFor={`${id}-original-choice`}>Committed original</label><select id={`${id}-original-choice`} disabled={busy || held || !available}
         value={original?.receipt?.assetId ?? ''} onChange={event => edit({ originalId: event.currentTarget.value, derivativeId: '' })}>
         <option value="">Select an original custody receipt</option>{originals.map(row => <option key={row.receipt!.assetId} value={row.receipt!.assetId}>{row.prepared.filename} · {row.receipt!.assetId}</option>)}</select></div>
-      <fieldset disabled={blocked || !original?.receipt || original.prepared.contentType !== 'model/vnd.usdz+zip'}><legend>Derivative custody</legend>
-        <p className="body-text muted">Select the authored mesh JSON paired with this USDZ original. IFC derivative custody is not supported by the native owner.</p>
-        <div className="field"><label htmlFor={`${id}-derivative`}>Paired authored mesh JSON (up to 8 MiB)</label><input id={`${id}-derivative`} ref={derivativeInput}
-          type="file" accept=".json,application/vnd.houseatlas.magicplan-authored-mesh+json" onChange={event => edit({ derivative: event.currentTarget.files?.[0] ?? null })} /></div>
-        {draft.derivative && <p>{draft.derivative.name} · {draft.derivative.size} bytes · application/vnd.houseatlas.magicplan-authored-mesh+json</p>}
+      <fieldset disabled={blocked || !original?.receipt}><legend>Derivative custody</legend>
+        <p className="body-text muted">Select a derivative paired with the committed original: authored mesh JSON for USDZ, or a Y-up GLB for IFC. The GLB must declare its exact IFC lineage and converter. IFC source units and axes remain unverified.</p>
+        <div className="field"><label htmlFor={`${id}-derivative`}>Paired derivative (up to 8 MiB)</label><input id={`${id}-derivative`} ref={derivativeInput}
+          type="file" accept={original?.prepared.contentType === 'application/x-step' ? '.glb,model/gltf-binary' : '.json,application/vnd.houseatlas.magicplan-authored-mesh+json'} onChange={event => edit({ derivative: event.currentTarget.files?.[0] ?? null })} /></div>
+        {draft.derivative && <p>{draft.derivative.name} · {draft.derivative.size} bytes · {original?.prepared.contentType === 'application/x-step' ? 'model/gltf-binary' : 'application/vnd.houseatlas.magicplan-authored-mesh+json'}</p>}
         {draft.derivative && (draft.derivative.size === 0 || draft.derivative.size > 8 * 1024 * 1024) && <p role="status">Select a nonempty paired derivative of at most 8 MiB.</p>}
         {licenseFields('derivative')}
         <div className="field"><label htmlFor={`${id}-derivative-reason`}>Derivative custody reason</label><textarea id={`${id}-derivative-reason`} maxLength={1024}
@@ -282,7 +283,7 @@ export function NativeGeometryIntake({ write, association, buildingId, onAssocia
           <div className="field"><label htmlFor={`${id}-association-reason`}>Association reason</label><textarea id={`${id}-association-reason`} maxLength={1024}
             value={currentReview.reason} onChange={event => editReview({ reason: event.currentTarget.value })} /></div>
           <button className="btn" type="button" disabled={!currentReview.statement.trim() || !currentReview.reason.trim()} onClick={prepareAssociation}>Prepare building association</button></>}
-        {associationPrepared && <><p>The prepared association preserves unknown coordinate units, scale and transform, with no room mappings.</p>
+        {associationPrepared && <><p>The prepared association keeps source units, physical scale and house transform unknown, with no room mappings. IFC converter units remain an unverified declaration.</p>
           <ExactDetails label="Prepared three-command association request" text={() => associationPrepared.body} />
           <button className="btn btn-primary" type="button" onClick={commitAssociation}>Confirm building association once</button></>}
       </fieldset>

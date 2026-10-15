@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { MESH_LIMITS, prepareMeshRender } from './mesh-profile';
-import type { MeshProfile, RenderScene } from './mesh-profile';
+import type { SupportedMeshProfile, RenderScene } from './mesh-profile';
 
 export type MeshCanvasFailure = 'webgl-unavailable' | 'context-lost' | 'render-unavailable';
 interface Props {
-  readonly profile: MeshProfile; readonly viewKey: string;
+  readonly profile: SupportedMeshProfile; readonly viewKey: string;
   readonly selectedSourceId: string | null;
   readonly onPick: (sourceObjectId: string | null) => void;
   readonly onUnavailable: (reason: MeshCanvasFailure) => void;
@@ -40,7 +40,7 @@ export function MeshCanvas({ profile, viewKey, selectedSourceId, onPick, onUnava
   const redraw = useRef<(() => void) | null>(null);
   const [wireframe, setWireframe] = useState(false), [showExternal, setShowExternal] = useState(true);
   const options = useRef({ wireframe, showExternal }); options.current = { wireframe, showExternal };
-  const [ready, setReady] = useState<{ profile: MeshProfile; viewKey: string } | null>(null);
+  const [ready, setReady] = useState<{ profile: SupportedMeshProfile; viewKey: string } | null>(null);
   const isReady = ready?.profile === profile && ready.viewKey === viewKey;
   useEffect(() => { redraw.current?.(); }, [selectedSourceId, wireframe, showExternal]);
   useEffect(() => {

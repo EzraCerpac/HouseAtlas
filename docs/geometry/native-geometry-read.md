@@ -17,6 +17,14 @@ retaining the same four native record IDs/revisions and both source licences. Re
 remain immutable `ExactDecimal` values with their complete native JSON number
 spellings, including u64 values above the JavaScript safe integer boundary.
 
+The versioned native descriptor identifies the admitted profile on each floor.
+The existing USDZ/Magicplan mesh reader remains strict. An IFC floor offers the
+separate bounded GLB profile and actual `model/gltf-binary` bytes. Its converter,
+source-axis and source-unit fields are retained as declarations; they are not
+proof of converter execution, verified IFC project units, or physical placement.
+The GLB coordinates are already presented in declared Y-up metres, so the
+viewer does not apply the declared source-to-GLB rotation a second time.
+
 Use the frame's floor objects with the existing
 `readScanMesh(frame.readPort, frame.viewKey, floor, signal)` reader. The port
 follows only the exact offered `/frames/{viewKey}/meshes/{floorKey}` path and

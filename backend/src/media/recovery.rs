@@ -454,6 +454,33 @@ fn verify_directory<P: RecoveryDatabasePort>(
         let source_bytes = originals.read(source_member, MAX_BYTES, budget)?;
         super::mesh_derivative::qualify(&bytes, &source_bytes, budget)?;
     }
+    for (record, entry) in assets.iter().zip(&manifest.assets) {
+        if record.payload.content_type != super::ifc_glb::MIME {
+            continue;
+        }
+        let Some(member) = &entry.blob else {
+            continue;
+        };
+        let bytes = originals.read(member, MAX_BYTES, budget)?;
+        let lineage = super::ifc_glb::validate(&bytes, budget)?;
+        let matching = assets
+            .iter()
+            .zip(&manifest.assets)
+            .filter(|(source, _)| {
+                source.scope() == record.scope()
+                    && source.payload.purpose == AssetPurpose::GeometryOriginal
+                    && source.payload.content_type == super::types::ContentType::Ifc.as_str()
+                    && source.payload.sha256 == lineage.original_sha256
+                    && source.payload.byte_size == lineage.original_bytes
+            })
+            .collect::<Vec<_>>();
+        if matching.len() != 1 {
+            return Err(MediaError::Unavailable);
+        }
+        let source_member = matching[0].1.blob.as_ref().ok_or(MediaError::Unavailable)?;
+        let source_bytes = originals.read(source_member, MAX_BYTES, budget)?;
+        super::ifc_glb::qualify(&bytes, &source_bytes, budget)?;
+    }
     expected.sort();
     if originals.members()? != expected
         || bundle.members()? != ["atlas.sqlite", "manifest.json", "originals"]

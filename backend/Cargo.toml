@@ -193,6 +193,10 @@ name = "healthy-native-geometry-custody-first"
 path = "examples/healthy-native-geometry-custody-first.rs"
 
 [[example]]
+name = "healthy-native-ifc-glb"
+path = "examples/healthy-native-ifc-glb.rs"
+
+[[example]]
 name = "healthy-native-scene-association"
 path = "examples/healthy-native-scene-association.rs"
 

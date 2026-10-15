@@ -7,12 +7,25 @@ import { transformWithOxc } from 'vite';
 import { loadNumericSource } from './load-numeric-source.mjs';
 
 const dataUrl = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
+export async function loadIfcGlbProfileSource() {
+  const glbFile = new URL('../src/lantern/scans/ifc-glb-profile.ts', import.meta.url);
+  let { code: glbCode } = await transformWithOxc(readFileSync(glbFile, 'utf8'), glbFile.pathname,
+    { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
+  const specifier = '"../../numeric/decimal"';
+  assert(glbCode.includes(specifier));
+  glbCode = glbCode.replaceAll(specifier, JSON.stringify(await loadNumericSource('numeric/decimal.ts')));
+  for (const match of glbCode.matchAll(/^\s*import\s+(?:[\w$\s{},*]+?\s+from\s+)?["']([^"']+)["']/gm))
+    assert(match[1].startsWith('data:'), `Unexpected GLB runtime import ${match[1]}`);
+  return dataUrl(glbCode);
+}
 export async function loadScanProfileSource() {
   const file = new URL('../src/lantern/scans/mesh-profile.ts', import.meta.url);
   let { code } = await transformWithOxc(readFileSync(file, 'utf8'), file.pathname,
     { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
   const specifier = '"../../numeric/decimal"'; assert(code.includes(specifier));
   code = code.replaceAll(specifier, JSON.stringify(await loadNumericSource('numeric/decimal.ts')));
+  const glbSpecifier = '"./ifc-glb-profile"'; assert(code.includes(glbSpecifier));
+  code = code.replaceAll(glbSpecifier, JSON.stringify(await loadIfcGlbProfileSource()));
   const yieldFile = new URL('../src/lantern/scans/presentation/yield-task.ts', import.meta.url);
   const { code: yieldCode } = await transformWithOxc(readFileSync(yieldFile, 'utf8'), yieldFile.pathname,
     { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });

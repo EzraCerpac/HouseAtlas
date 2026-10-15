@@ -100,8 +100,8 @@ const nativeEvidenceShapes = Object.freeze({
 const agentId = 'urn:houseatlas:agent:stock:3';
 const atlasId = 'https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json';
 const dialect = 'https://json-schema.org/draft/2020-12/schema';
-const agentHash = 'a5c106fad5cdd1c52ab57d29a2469ea2a53eabd37c9be9ac46e279c45b92beac';
-const atlasHash = 'd14f326a544747c900ece6c4c0b5d47d36c99579ddb37f3ad788f406d2e87a58';
+const agentHash = '44afff94ad51135282e0a34c1efd1ad77e240dd55bd8dff13cfb8120cdf4b5ca';
+const atlasHash = 'c7c380b317e3cc640c8c437bf360e5f04d443f91ec03a54cc0f23a98b5a13b0c';
 
 type Schema = boolean | Record<string, unknown>;
 type Document = Record<string, unknown>;

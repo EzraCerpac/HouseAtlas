@@ -76,6 +76,7 @@ impl QualifiedOriginal {
 pub struct QualifiedDerivative {
     storage_key: String,
     identity: BlobIdentity,
+    content_type: ContentType,
 }
 impl QualifiedDerivative {
     pub fn with_provenance(
@@ -89,7 +90,7 @@ impl QualifiedDerivative {
             storage_key: self.storage_key,
             sha256: self.identity.sha256,
             byte_size: self.identity.byte_size,
-            content_type: ContentType::AuthoredMesh.as_str().to_owned(),
+            content_type: self.content_type.as_str().to_owned(),
             source_license,
             availability: Availability::Available,
             preview_policy: PreviewPolicy::DownloadOnly,
@@ -467,6 +468,25 @@ impl AssetVault {
         Ok(QualifiedDerivative {
             storage_key: prepared.storage_key,
             identity: prepared.identity,
+            content_type: ContentType::AuthoredMesh,
+        })
+    }
+
+    pub(super) fn prepare_upload_ifc_glb(
+        &self,
+        scope: &Scope,
+        qualified: &super::ifc_glb::QualifiedGlb<'_>,
+        budget: &WorkBudget,
+        limits: &super::staged_upload::UploadLimits,
+    ) -> MediaResult<QualifiedDerivative> {
+        scope.validate()?;
+        self.enforce_upload_capacity(scope, qualified.bytes(), limits, budget)?;
+        let prepared = self.install(scope, qualified.bytes(), budget)?;
+        budget.check()?;
+        Ok(QualifiedDerivative {
+            storage_key: prepared.storage_key,
+            identity: prepared.identity,
+            content_type: ContentType::IfcGlb,
         })
     }
 
@@ -630,7 +650,7 @@ impl AvailableAssetVerifier for AssetVault {
         validate_original_content(&bytes, content_type, budget)?;
         if matches!(
             content_type,
-            ContentType::Usdz | ContentType::Ifc | ContentType::AuthoredMesh
+            ContentType::Usdz | ContentType::Ifc | ContentType::AuthoredMesh | ContentType::IfcGlb
         ) && record.payload.preview_policy != PreviewPolicy::DownloadOnly
         {
             return Err(MediaError::Unsupported);

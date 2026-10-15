@@ -1,0 +1,129 @@
+{
+  "schema": "houseatlas.ifc-scene-read.v1",
+  "availability": "ready",
+  "scope": {
+    "workspaceId": "896b0f96-8f55-5890-9e51-954d0680a1bf",
+    "homeId": "cc968fad-c0f5-5711-ae08-1c120bc4f2cc",
+    "buildingId": "9086a723-d091-5a7c-8903-eb4901bde79c"
+  },
+  "selection": {
+    "revision": "7de5334b-fbf7-584d-be4d-5f60742101c9",
+    "mode": "published",
+    "publicationId": "dbad687a-c985-5d40-903c-4197e9c9885a"
+  },
+  "publication": {
+    "publicationId": "dbad687a-c985-5d40-903c-4197e9c9885a",
+    "sourceRevisionId": "e41d204f-2b26-5c70-9e7f-a16511afacbe",
+    "sourceRevisionSha256": "88b691aaef6d6a964749d8e357c0ea13add2e88fdfeee47eba0b74cc9629b0fa",
+    "sourceIfcSha256": "9a4ca161d677bc48598073db90e38ecb58402e709b71f540e4d4b842c9694ef9",
+    "semanticMapRevisionId": "9ab52f61-0b33-5ebe-90d1-e62f5bedb44a",
+    "semanticMapSha256": "1db823ed85997e2830544f30699a764cd0503a3cfaa38a622d86cd104a1146f1",
+    "validation": "syntactic-and-repeatable"
+  },
+  "axes": {
+    "source": {
+      "units": "mm",
+      "upAxis": "Z"
+    },
+    "glb": {
+      "units": "m",
+      "upAxis": "Y"
+    },
+    "sourceToGlb": {
+      "axisMap": [
+        "x",
+        "z",
+        "-y"
+      ],
+      "scale": 0.001
+    },
+    "physicalRegistration": {
+      "status": "unverified",
+      "transform": null
+    }
+  },
+  "floors": [
+    {
+      "floorId": "abc7dd96-cbf9-50b2-a0bb-3daf49cbb2d9",
+      "ifcBuildingStoreyGlobalId": "3123456789ABCDEFGHIJKN",
+      "label": "Second floor",
+      "elevationMm": null,
+      "floorToSource": null,
+      "artifacts": {
+        "floorplan2d": {
+          "sha256": "22257958dd8e537afd5f69b4c41ab81c77a9db2c0c8d4ac2bf07786f747b32b9",
+          "bytes": 228,
+          "href": "/api/atlas/ifc/v1/workspaces/896b0f96-8f55-5890-9e51-954d0680a1bf/homes/cc968fad-c0f5-5711-ae08-1c120bc4f2cc/buildings/9086a723-d091-5a7c-8903-eb4901bde79c/publications/dbad687a-c985-5d40-903c-4197e9c9885a/floors/abc7dd96-cbf9-50b2-a0bb-3daf49cbb2d9/artifacts/floorplan2d"
+        },
+        "floorplanFeatures": {
+          "sha256": "74200ac40b87a6851f5f9b4b3ca051b848e843c9dacc4695e0d607d55fd7d517",
+          "bytes": 758,
+          "href": "/api/atlas/ifc/v1/workspaces/896b0f96-8f55-5890-9e51-954d0680a1bf/homes/cc968fad-c0f5-5711-ae08-1c120bc4f2cc/buildings/9086a723-d091-5a7c-8903-eb4901bde79c/publications/dbad687a-c985-5d40-903c-4197e9c9885a/floors/abc7dd96-cbf9-50b2-a0bb-3daf49cbb2d9/artifacts/floorplanFeatures"
+        },
+        "glb": {
+          "sha256": "71180ccf4a37e7a05ff5867413933b116b566c1fc90c7df12027e65461d37faf",
+          "bytes": 1084,
+          "href": "/api/atlas/ifc/v1/workspaces/896b0f96-8f55-5890-9e51-954d0680a1bf/homes/cc968fad-c0f5-5711-ae08-1c120bc4f2cc/buildings/9086a723-d091-5a7c-8903-eb4901bde79c/publications/dbad687a-c985-5d40-903c-4197e9c9885a/floors/abc7dd96-cbf9-50b2-a0bb-3daf49cbb2d9/artifacts/glb"
+        }
+      },
+      "roomIds": [
+        "827240b0-c0dd-5572-bc2a-b3a9177e83f4"
+      ]
+    },
+    {
+      "floorId": "ec7583c6-86ba-5b32-ad03-282b17c4ed02",
+      "ifcBuildingStoreyGlobalId": "3123456789ABCDEFGHIJKL",
+      "label": "Synthetic floor",
+      "elevationMm": null,
+      "floorToSource": null,
+      "artifacts": {
+        "floorplan2d": {
+          "sha256": "d300f6dceae070ab5b897665946c2fa10fb8ceadcfaac3fa38334f383a9a681a",
+          "bytes": 228,
+          "href": "/api/atlas/ifc/v1/workspaces/896b0f96-8f55-5890-9e51-954d0680a1bf/homes/cc968fad-c0f5-5711-ae08-1c120bc4f2cc/buildings/9086a723-d091-5a7c-8903-eb4901bde79c/publications/dbad687a-c985-5d40-903c-4197e9c9885a/floors/ec7583c6-86ba-5b32-ad03-282b17c4ed02/artifacts/floorplan2d"
+        },
+        "floorplanFeatures": {
+          "sha256": "cd87292d35ba786db242eb9dde6b8bc7d6f624bc1d55b61c5018f89a4d2175ad",
+          "bytes": 761,
+          "href": "/api/atlas/ifc/v1/workspaces/896b0f96-8f55-5890-9e51-954d0680a1bf/homes/cc968fad-c0f5-5711-ae08-1c120bc4f2cc/buildings/9086a723-d091-5a7c-8903-eb4901bde79c/publications/dbad687a-c985-5d40-903c-4197e9c9885a/floors/ec7583c6-86ba-5b32-ad03-282b17c4ed02/artifacts/floorplanFeatures"
+        },
+        "glb": {
+          "sha256": "a4cfb29f98dc746d93df77d56fe204500b3a4b7f4e7655031f8d3c6663c7f5ed",
+          "bytes": 1088,
+          "href": "/api/atlas/ifc/v1/workspaces/896b0f96-8f55-5890-9e51-954d0680a1bf/homes/cc968fad-c0f5-5711-ae08-1c120bc4f2cc/buildings/9086a723-d091-5a7c-8903-eb4901bde79c/publications/dbad687a-c985-5d40-903c-4197e9c9885a/floors/ec7583c6-86ba-5b32-ad03-282b17c4ed02/artifacts/glb"
+        }
+      },
+      "roomIds": [
+        "ccda44b8-8228-50cc-a520-b59706ae0437"
+      ]
+    }
+  ],
+  "rooms": [
+    {
+      "roomId": "ccda44b8-8228-50cc-a520-b59706ae0437",
+      "floorId": "ec7583c6-86ba-5b32-ad03-282b17c4ed02",
+      "ifcSpaceGlobalId": "0123456789ABCDEFGHIJKL",
+      "atlasPlaceId": null,
+      "displayName": "Synthetic room"
+    },
+    {
+      "roomId": "827240b0-c0dd-5572-bc2a-b3a9177e83f4",
+      "floorId": "abc7dd96-cbf9-50b2-a0bb-3daf49cbb2d9",
+      "ifcSpaceGlobalId": "0123456789ABCDEFGHIJKM",
+      "atlasPlaceId": null,
+      "displayName": "Other room"
+    }
+  ],
+  "electricalGroups": [],
+  "semantics": {
+    "sha256": "9add1c88f3b6fa29ecce6daf4c2a2e6dc31a52f3b4bc7ef1586b6a3e801a00c8",
+    "bytes": 3656,
+    "href": "/api/atlas/ifc/v1/workspaces/896b0f96-8f55-5890-9e51-954d0680a1bf/homes/cc968fad-c0f5-5711-ae08-1c120bc4f2cc/buildings/9086a723-d091-5a7c-8903-eb4901bde79c/publications/dbad687a-c985-5d40-903c-4197e9c9885a/artifacts/semantics"
+  },
+  "overlays": {
+    "publicationId": "dbad687a-c985-5d40-903c-4197e9c9885a",
+    "semanticMapRevisionId": "9ab52f61-0b33-5ebe-90d1-e62f5bedb44a",
+    "roomKey": "roomId",
+    "electricalGroupKey": "groupId"
+  }
+}

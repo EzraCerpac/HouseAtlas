@@ -7,7 +7,7 @@ import { join, isAbsolute } from 'node:path';
 import { createHash } from 'node:crypto';
 import { transformWithOxc } from 'vite';
 import { loadNumericSource } from './load-numeric-source.mjs';
-import { loadScanProfileSource } from './scan-mesh-read.mjs';
+import { loadIfcGlbProfileSource, loadScanProfileSource } from './scan-mesh-read.mjs';
 
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const dataUrl = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
@@ -22,6 +22,7 @@ async function loadClientSource() {
   for (const [specifier, target] of [
     ['../src/numeric/decimal', await loadNumericSource('numeric/decimal.ts')],
     ['../src/lantern/scans/mesh-profile', await loadScanProfileSource()],
+    ['../src/lantern/scans/ifc-glb-profile', await loadIfcGlbProfileSource()],
   ]) {
     const literal = JSON.stringify(specifier); assert(code.includes(literal));
     code = code.replaceAll(literal, JSON.stringify(target));

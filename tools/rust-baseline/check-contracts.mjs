@@ -24,6 +24,7 @@ validators.set('httpHistory', ajv.getSchema(historyUrl.href));
 const healthyFixtures = [
   ['snapshot', 'packages/contracts/fixtures/plan-free.snapshot.json'],
   ['snapshot', 'packages/contracts/fixtures/optional-geometry.snapshot.json'],
+  ['geometryPayload', 'packages/contracts/fixtures/ifc-geometry.payload.json'],
   ['snapshot', 'packages/contracts/fixtures/import-remap.snapshot.json'],
   ['mutation', 'packages/contracts/fixtures/create-circuit.mutation.json'],
   ['mutationResult', 'packages/contracts/fixtures/create-circuit.result.json'],

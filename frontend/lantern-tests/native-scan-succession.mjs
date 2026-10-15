@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { transformWithOxc } from 'vite';
 import { loadNumericSource } from './load-numeric-source.mjs';
-import { loadScanProfileSource } from './scan-mesh-read.mjs';
+import { loadIfcGlbProfileSource, loadScanProfileSource } from './scan-mesh-read.mjs';
 const dataUrl = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
 async function compile(path, replacements) {
   const file = new URL(path, import.meta.url);
@@ -24,6 +24,7 @@ const numeric = Object.fromEntries(await Promise.all(['decimal', 'lossless-json'
 const readerUrl = await compile('../integration/native-geometry-read-client.ts', {
   '../src/numeric/decimal': numeric['../src/numeric/decimal'],
   '../src/lantern/scans/mesh-profile': await loadScanProfileSource(),
+  '../src/lantern/scans/ifc-glb-profile': await loadIfcGlbProfileSource(),
 });
 const associationUrl = await compile('../integration/native-geometry-association-client.ts', {
   ...numeric, './native-geometry-read-client': readerUrl,
@@ -49,10 +50,11 @@ save(row('location-semantics', 201, { atlasId: buildingId, semanticKind: 'buildi
   reviewStatus: 'accepted', evidenceIds: [uid(100)] }));
 const license = { status: 'unknown', reference: null };
 for (const [original, derived] of [[701, 702], [711, 712], [721, 722]]) {
+  const ifc = original === 721;
   save(row('asset', original, { owner: 'atlas', purpose: 'geometry-original', sha256: sha(original), byteSize: 1,
-    contentType: 'model/vnd.usdz+zip', sourceLicense: license, availability: 'available', previewPolicy: 'download-only', evidenceIds: [] }));
+    contentType: ifc ? 'application/x-step' : 'model/vnd.usdz+zip', sourceLicense: license, availability: 'available', previewPolicy: 'download-only', evidenceIds: [] }));
   save(row('asset', derived, { owner: 'atlas', purpose: 'derived-preview', sha256: sha(derived), byteSize: 1,
-    contentType: 'application/vnd.houseatlas.magicplan-authored-mesh+json', sourceLicense: license,
+    contentType: ifc ? 'model/gltf-binary' : 'application/vnd.houseatlas.magicplan-authored-mesh+json', sourceLicense: license,
     availability: 'available', previewPolicy: 'download-only', evidenceIds: [] }));
 }
 const sessionIdentity = Object.freeze({});
@@ -84,16 +86,23 @@ function descriptor() {
     const original = rows.get(`asset:${record.payload.originalAssetId}`);
     const derivative = rows.get(`asset:${evidence.payload.references[1].assetId}`);
     const key = sha([identity, semantics, record, evidence, original, derivative]);
+    const ifc = record.payload.producer === 'ifc';
     const floor = { key, exportLabel: 'Synthetic repeated label; never identity',
       originalSha256: original.payload.sha256, derivativeSha256: derivative.payload.sha256,
       geometryId: record.target.recordId, geometryRevision: record.revision,
       evidenceId: evidence.target.recordId, evidenceRevision: evidence.revision,
       originalAssetId: original.target.recordId, originalRevision: original.revision,
       derivativeAssetId: derivative.target.recordId, derivativeRevision: derivative.revision,
-      originalLicense: license, derivativeLicense: license };
+      originalLicense: license, derivativeLicense: license,
+      profile: ifc ? 'houseatlas.ifc-derived-glb.v1' : 'houseatlas.magicplan-authored-mesh.v1',
+      originalContentType: ifc ? 'application/x-step' : 'model/vnd.usdz+zip',
+      derivativeContentType: ifc ? 'model/gltf-binary' : 'application/vnd.houseatlas.magicplan-authored-mesh+json',
+      ...(ifc ? { sourceUnits: 'unknown', declaredSourceUnits: 'mm', sourceUpAxis: 'unknown', declaredSourceUpAxis: 'Z',
+        glbUnits: 'm', glbUpAxis: 'Y', sourceToGlb: { axisMap: ['x', 'z', '-y'], scale: 0.001 },
+        converter: { name: 'synthetic-test-converter', version: '1', configSha256: 'b'.repeat(64) } } : {}) };
     return { floor, readPath: `/api/atlas/geometry/v1/workspaces/${scope.workspaceId}/homes/${scope.homeId}/buildings/${buildingId}/frames/${viewKey}/meshes/${key}` };
   });
-  return { schemaVersion: 1, profile: 'houseatlas.magicplan-authored-mesh.v1', scope, buildingId, viewKey, floors,
+  return { schemaVersion: 1, profile: 'houseatlas.native-geometry.v2', scope, buildingId, viewKey, floors,
     physicalScale: 'unknown', floorAlignment: 'unknown', stageToHouseTransform: null };
 }
 let client, binding;
@@ -152,6 +161,8 @@ try {
   const prepared = client.prepare(current, { statement: 'Synthetic partial update', reason: 'Replace only explicitly selected predecessor' });
   const body = JSON.parse(prepared.body), successor = body.payload.commands[1];
   assert.equal(successor.payload.geometryVersion, 2); assert.equal(successor.payload.previousGeometryId, selected[0]);
+  assert.equal(successor.payload.producer, 'ifc'); assert.equal(successor.payload.exportFormat, 'ifc');
+  assert.equal(successor.payload.coordinateUnits, 'unknown');
   const oldEvidence = rows.get(`evidence:${prior.payload.evidenceIds[0]}`);
   const required = [target('geometry', selected[0]), target('evidence', oldEvidence.target.recordId),
     ...oldEvidence.payload.references.map(ref => target('asset', ref.assetId))];
@@ -161,11 +172,12 @@ try {
   const after = await reader.loadBuilding(buildingId, signal); assert.equal(after.floors.length, 2);
   assert(after.floors.some(floor => floor.geometryId === successor.target.recordId));
   assert(after.floors.some(floor => floor.geometryId === selected[1]));
+  assert.equal(after.floors.find(floor => floor.geometryId === successor.target.recordId).profile, 'houseatlas.ifc-derived-glb.v1');
   assert(after.floors.every(floor => !before.floors.some(old => old.key === floor.key)));
   assert.deepEqual(rows.get(`geometry:${selected[0]}`), priorCopy);
   assert.equal(rows.size, 15); // Three immutable geometry + evidence rows; existing roots retained.
   assert.equal(client.pending(binding).at(-1).outcome, 'committed');
   assert.equal(batches.length, 3);
   assert(calls.some(([path]) => path.includes('atlas.geometry.get')));
-  console.log('PASS native scan succession production TS clients/schema: v1 two roots -> explicit partial v2, exact predecessor reads/guards, retained history, all current floor keys refreshed; local fake transports only');
+  console.log('PASS native scan succession production TS clients/schema: two Magicplan roots -> explicit IFC successor with unknown source units, mixed descriptor, exact guards and retained history; local fake transports only');
 } finally { reader.dispose(); }

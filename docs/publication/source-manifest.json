@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "07f70c124ae5547b2520278f51dbbfb209842aa63fc074e682cfdaf2c03f53b0",
+  "sourceDigestSha256": "7acbdf37d405e6d338545cdc65fdb9b131d9df9a0611b524ebac2986a6942c33",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -98,8 +98,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 5245,
-      "sha256": "efcdcc17e2c0f339750f05642b69642968fde2f8c8d33e19a17c380fca6d845b",
+      "bytes": 6059,
+      "sha256": "6e0517436ee0a757a3a3bc449a856a7b420ffb75fe3534e810fa2fa8d3ee428c",
       "owner": "core-integration"
     },
     {
@@ -252,8 +252,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 5091,
-      "sha256": "15c380ba821dfefba4b43d4d7ab010684879cbf1cf67ada17c8f590077f23846",
+      "bytes": 5180,
+      "sha256": "4146dac0ac95d3b2c42e0aa9cca36f779d5672fa464b41ab77462a2d5bc3df42",
       "owner": "core-integration"
     },
     {
@@ -283,6 +283,13 @@
       "bytes": 33374,
       "sha256": "410d54be66737a2cf4e8ee90850626dad6d70b4d15dc93b04e322f9affae46db",
       "owner": "core-integration"
+    },
+    {
+      "path": "backend/examples/healthy-native-ifc-glb.rs",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 25567,
+      "sha256": "c3ec0ebc511d11700e13728ac0f12f0f080e5965d9da87ba58347e2f117c28b1"
     },
     {
       "path": "backend/examples/healthy-native-offline-backup.rs",
@@ -1204,8 +1211,8 @@
     {
       "path": "backend/src/contracts/generated.rs",
       "mode": "100644",
-      "bytes": 86674,
-      "sha256": "7b51579baeb6c558768b7b03a708ad038ed4c667c0c8557a48cc7c9c6ff0d158",
+      "bytes": 86712,
+      "sha256": "71e5aa90a295c6317ea92781073fc7dc250427858d841891d4533d8da58a3711",
       "owner": "contracts"
     },
     {
@@ -2107,8 +2114,8 @@
     {
       "path": "backend/src/http/native_geometry.rs",
       "mode": "100644",
-      "bytes": 23152,
-      "sha256": "d3e2bb71fda5482e9ae5e9dc1e76fc30a8aadbfb029272644646bcde72dd848d",
+      "bytes": 23928,
+      "sha256": "dfb38fa659f2d5901b1c207f0db0c14ef24a2d881e6805b0b006f42b7154ef22",
       "owner": "core-integration"
     },
     {
@@ -2646,8 +2653,8 @@
     {
       "path": "backend/src/media/content.rs",
       "mode": "100644",
-      "bytes": 11941,
-      "sha256": "f1a524a833ea68f5fbf675297eb4bac6ceac2a6629d058c9739ddf979278426c",
+      "bytes": 12027,
+      "sha256": "d1e7f291c7a1de291b77e3f7458289bfbd00b7cdad716f7046bd50b36e7ece00",
       "owner": "media"
     },
     {
@@ -2660,8 +2667,8 @@
     {
       "path": "backend/src/media/geometry_bundle.rs",
       "mode": "100644",
-      "bytes": 27432,
-      "sha256": "6b323428043e590ff8dc6bd23b4ec9b06ce5e18de12cedba954da78412e93300",
+      "bytes": 30769,
+      "sha256": "29c95727f2cb5e4ce9024b7f7cb102e992328a5b7c53d82d05202cda6f7e834b",
       "owner": "media"
     },
     {
@@ -2770,6 +2777,13 @@
       "owner": "media"
     },
     {
+      "path": "backend/src/media/ifc_glb.rs",
+      "mode": "100644",
+      "bytes": 18174,
+      "sha256": "5d093c620d21471a90d5fa8ef46807de88e964fa9436f6664e69e50e9747eb98",
+      "owner": "media"
+    },
+    {
       "path": "backend/src/media/jpeg_original.rs",
       "mode": "100644",
       "bytes": 2179,
@@ -2779,15 +2793,15 @@
     {
       "path": "backend/src/media/mesh_derivative.rs",
       "mode": "100644",
-      "bytes": 33546,
-      "sha256": "fa649bd222a64c36efdda061698a6c67e82b1bf74300f00cf0570d17e9d1568f",
+      "bytes": 33671,
+      "sha256": "b83e6239d08019b94024f8cec8d19c048714199fd320852393c0331de432e138",
       "owner": "media"
     },
     {
       "path": "backend/src/media/mod.rs",
       "mode": "100644",
-      "bytes": 1640,
-      "sha256": "3e44d406aeb45d0d25ade4d4e66a5698a238ad61f138f1933aee63f923b89e00",
+      "bytes": 1657,
+      "sha256": "a5ad50b33f2ebe3daba4a144fcdb738c9ae36909fbf10b98f40b68ac93fd729e",
       "owner": "media"
     },
     {
@@ -2891,8 +2905,8 @@
     {
       "path": "backend/src/media/recovery.rs",
       "mode": "100644",
-      "bytes": 18752,
-      "sha256": "60b149e8c7bbed64eb590a06d706d0b59ec36b3e43b1ac6e58f04bc1bfef5ba5",
+      "bytes": 19991,
+      "sha256": "16b662364c3c7b5e96bce74f3112f38a2722fe9790f686ee04307e21b67f426c",
       "owner": "media"
     },
     {
@@ -2940,15 +2954,15 @@
     {
       "path": "backend/src/media/staged_upload.rs",
       "mode": "100644",
-      "bytes": 19864,
-      "sha256": "0d52107c292b6e8ff4e64829435c623d7c4f14d874f922fcb7e961cca8146629",
+      "bytes": 21815,
+      "sha256": "186a9318721bef4dec7b05788d1030021439e2c217dff807136bf2069e3c02df",
       "owner": "media"
     },
     {
       "path": "backend/src/media/types.rs",
       "mode": "100644",
-      "bytes": 9603,
-      "sha256": "05fed8b74aee4448a61e12b2d5d883645eb9df785116d89914994df6cd0078c5",
+      "bytes": 9769,
+      "sha256": "298063881ae884dc191ebcbc97bd96c90f2362b442a29ea0b14b1bcd47bda318",
       "owner": "media"
     },
     {
@@ -2961,8 +2975,8 @@
     {
       "path": "backend/src/media/vault.rs",
       "mode": "100644",
-      "bytes": 23007,
-      "sha256": "e868b9f9fc33229d8fb08cfe6abc95f86aa509ae2c2de0ef4cd1ed44c84188d2",
+      "bytes": 23756,
+      "sha256": "39b93aa70602e6d8c715315e350a19a7a2cfe130c02b6645b73a753db9f656c1",
       "owner": "media"
     },
     {
@@ -5104,7 +5118,7 @@
       "path": "backend/src/transports/mcp/native_schemas.rs",
       "mode": "100644",
       "bytes": 8341,
-      "sha256": "93ebd27dc71608a586273aa8faccf389cb43983d91dc787d76ef0725922fac6f",
+      "sha256": "560376eec0fa3e9a90a9086ff6a542d24de8244e4d871ea456ff6641d02637fe",
       "owner": "mcp"
     },
     {
@@ -5167,14 +5181,14 @@
       "path": "contracts/stock-wire3/adoption-manifest.json",
       "mode": "100644",
       "bytes": 6036,
-      "sha256": "8f736d2da77407d8313cc7bf64db924efe5fb7d2b1b0e3a522da83a78e9796d5",
+      "sha256": "06da07ee6ab48545b4282162a4576bfe50c569412bf913f7e839b830f771109f",
       "owner": "contracts"
     },
     {
       "path": "contracts/stock-wire3/agent/agent.schema.json",
       "mode": "100644",
-      "bytes": 955491,
-      "sha256": "a5c106fad5cdd1c52ab57d29a2469ea2a53eabd37c9be9ac46e279c45b92beac",
+      "bytes": 955535,
+      "sha256": "44afff94ad51135282e0a34c1efd1ad77e240dd55bd8dff13cfb8120cdf4b5ca",
       "owner": "contracts"
     },
     {
@@ -5265,14 +5279,14 @@
       "path": "contracts/stock-wire3/resource-map.json",
       "mode": "100644",
       "bytes": 1707,
-      "sha256": "01b7765c28aa888e698f2ac8491db697e37f807629701fbd544985083ebd790f",
+      "sha256": "31a27009407b82ecfb521feec00f4faa526c07ce8654d8e016ceed9eb15fb5e4",
       "owner": "contracts"
     },
     {
       "path": "contracts/stock-wire4/adoption-manifest.json",
       "mode": "100644",
       "bytes": 950,
-      "sha256": "37fc4d2b4672a056cc5b4c66f4daa020521f4a1d173f855bdff2762320ab2f67",
+      "sha256": "af7df2e91c9311c3bc633b90d898f616f0fae6e2e6e14c05481c545ce13c4d30",
       "owner": "contracts"
     },
     {
@@ -5286,8 +5300,120 @@
       "path": "contracts/stock-wire4/resource-map.json",
       "mode": "100644",
       "bytes": 873,
-      "sha256": "def33db4c49c8920d98bc71040c3658ed21198833b9e7a243d276c8ae5490af8",
+      "sha256": "9dc3df00759725ba14f64be18ebb40bf4138841fffed10972881a5cc9adf38ac",
       "owner": "contracts"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/inputs/config.json",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 499,
+      "sha256": "05a1000e2f481ecd88d965540778a0b4d5d39c087645dbdef6c181744a691128"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/inputs/converter",
+      "owner": "media",
+      "mode": "100755",
+      "bytes": 2397,
+      "sha256": "9978c066d66ee9669d0b8ba9f1172e930ada2f4f7556e28b1fbc0b80d5c421c9"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/inputs/map.json",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 1295,
+      "sha256": "1db823ed85997e2830544f30699a764cd0503a3cfaa38a622d86cd104a1146f1"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/inputs/source.ifc",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 1720,
+      "sha256": "9a4ca161d677bc48598073db90e38ecb58402e709b71f540e4d4b842c9694ef9"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/inputs/source.json",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 764,
+      "sha256": "e2e3e769723651df270002fadb32c1c0fceb4d29b42b6781b63e455c4f060c84"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/publication/floors/abc7dd96-cbf9-50b2-a0bb-3daf49cbb2d9/floorplan.json",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 758,
+      "sha256": "74200ac40b87a6851f5f9b4b3ca051b848e843c9dacc4695e0d607d55fd7d517"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/publication/floors/abc7dd96-cbf9-50b2-a0bb-3daf49cbb2d9/floorplan.svg",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 228,
+      "sha256": "22257958dd8e537afd5f69b4c41ab81c77a9db2c0c8d4ac2bf07786f747b32b9"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/publication/floors/abc7dd96-cbf9-50b2-a0bb-3daf49cbb2d9/model.glb",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 1084,
+      "sha256": "71180ccf4a37e7a05ff5867413933b116b566c1fc90c7df12027e65461d37faf"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/publication/floors/ec7583c6-86ba-5b32-ad03-282b17c4ed02/floorplan.json",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 761,
+      "sha256": "cd87292d35ba786db242eb9dde6b8bc7d6f624bc1d55b61c5018f89a4d2175ad"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/publication/floors/ec7583c6-86ba-5b32-ad03-282b17c4ed02/floorplan.svg",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 228,
+      "sha256": "d300f6dceae070ab5b897665946c2fa10fb8ceadcfaac3fa38334f383a9a681a"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/publication/floors/ec7583c6-86ba-5b32-ad03-282b17c4ed02/model.glb",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 1088,
+      "sha256": "a4cfb29f98dc746d93df77d56fe204500b3a4b7f4e7655031f8d3c6663c7f5ed"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/publication/publication.json",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 3243,
+      "sha256": "5d72642f188df05f5260bad2c0f9fdf63e8d6b9154d22ff17ea3fced76597ae7"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/publication/semantics.json",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 3656,
+      "sha256": "9add1c88f3b6fa29ecce6daf4c2a2e6dc31a52f3b4bc7ef1586b6a3e801a00c8"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/receipt.sha256",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 65,
+      "sha256": "ee2414c5671b0eb957f85ee792088083bd8553ca309b96550d142c3e85f47b29"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/scene-read.json",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 5714,
+      "sha256": "c7c59d9214b9bbc597d0a18dd409cccf98166f68650d49d18641c7dec6998df1"
+    },
+    {
+      "path": "docs/canonical-ifc/scene-read-contract-v1.md",
+      "mode": "100644",
+      "bytes": 11611,
+      "sha256": "422df44239b2f020321678883f05306b22361b05692f4be91daa1ea935d9f8e6",
+      "owner": "media"
     },
     {
       "path": "docs/contracts/adoption-and-open-decisions.md",
@@ -5523,8 +5649,8 @@
     {
       "path": "docs/geometry/native-geometry-association.md",
       "mode": "100644",
-      "bytes": 4484,
-      "sha256": "192b99b10a7840f5df86678e63ef95ef28a4ea671d182e3cb4a872cc04c02b33",
+      "bytes": 4537,
+      "sha256": "b63ddab9bf5139f76b9d33e21e841de698148ecffff0458511d33d42884cb8a6",
       "owner": "web"
     },
     {
@@ -5537,15 +5663,15 @@
     {
       "path": "docs/geometry/native-geometry-read.md",
       "mode": "100644",
-      "bytes": 5203,
-      "sha256": "e2a79f5c2c2804662b2c031f88da38940ae95376201cbd81423208abccd3de0b",
+      "bytes": 5751,
+      "sha256": "1e31a00649433215ee36f1c8637e567e6799fb5f0b5ef6d9a763885422218a17",
       "owner": "web"
     },
     {
       "path": "docs/geometry/native-geometry-write.md",
       "mode": "100644",
-      "bytes": 6813,
-      "sha256": "6cc5e9aa0fe72618922ecd37d2ece32aa2d4365687ddd91e4b438597478e0ad8",
+      "bytes": 7220,
+      "sha256": "c801cec4f6cd3af017ba6847821e8423f97f05838522f5f44996fd2fbfa61684",
       "owner": "core-integration"
     },
     {
@@ -6167,29 +6293,29 @@
     {
       "path": "frontend/integration/native-geometry-association-client.ts",
       "mode": "100644",
-      "bytes": 36673,
-      "sha256": "267df895e99945cc3eabbbed377dd0fbe5fb3e1cfe2ab9b6a88788cabaf7a043",
+      "bytes": 37673,
+      "sha256": "a5a139f3de145eb5814e325d28a1639e847287dead792850366763a9e38818a8",
       "owner": "web"
     },
     {
       "path": "frontend/integration/native-geometry-read-client.ts",
       "mode": "100644",
-      "bytes": 21735,
-      "sha256": "766f9607a77c703a24c6fd0cb31d118051eecc69d01a64ef303c3461456dd576",
+      "bytes": 24205,
+      "sha256": "c31d199326890928a8d36b8de8cd970a22feafa465a584adabaee7bb36b1a6ce",
       "owner": "web"
     },
     {
       "path": "frontend/integration/native-geometry-write-client.ts",
       "mode": "100644",
-      "bytes": 22314,
-      "sha256": "893c4ab9d5a0ef14b01635c0d0f686e53b1118038ccef2be814a9a4e73955ed2",
+      "bytes": 22844,
+      "sha256": "926cc61681c033fca83aedead278ee56a04e6f31c30d055af6de9544526c27be",
       "owner": "core-integration"
     },
     {
       "path": "frontend/integration/native-scan-import-scene.ts",
       "mode": "100644",
-      "bytes": 64036,
-      "sha256": "273d5947989aa1fe8dda1e2af1b3c4db23388d9ac6f19f39558273eab4f398bc",
+      "bytes": 64215,
+      "sha256": "c47088058c420ed92763f73be016dd1fdf0f5990578307fbe28241da1aab9c73",
       "owner": "media"
     },
     {
@@ -6340,6 +6466,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/ifc-glb-read.mjs",
+      "mode": "100644",
+      "bytes": 7172,
+      "sha256": "7463f01783569aafc5fb92c2b7d22796c530587cd56cb79511e73a579eae94a7",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/issue-149-room-anchor-acceptance.mjs",
       "mode": "100644",
       "bytes": 24189,
@@ -6370,22 +6503,22 @@
     {
       "path": "frontend/lantern-tests/native-geometry-produced-read.mjs",
       "mode": "100644",
-      "bytes": 10193,
-      "sha256": "6d8fd525a07daf70c4f95c46d6e49b2a3d8bcdf819d3f10f118354a8ed9e15ac",
+      "bytes": 10297,
+      "sha256": "02cd834e0180e81c65b4bb8114cd88c8ae4752aee1002def8fcc9f1f1fe2e12e",
       "owner": "web"
     },
     {
       "path": "frontend/lantern-tests/native-geometry-read.mjs",
       "mode": "100644",
-      "bytes": 7928,
-      "sha256": "e9ead8755763d0decb3c81d955bbb2471e1b2af53e5cd80fc2987b9ea2eca1ad",
+      "bytes": 8039,
+      "sha256": "1a0d6aa1fa3896aab2f48c82913b667885fc267c158b725f1da1fc41d20aca50",
       "owner": "web"
     },
     {
       "path": "frontend/lantern-tests/native-geometry-write.mjs",
       "mode": "100644",
-      "bytes": 10593,
-      "sha256": "da2a78f88864142743a758cd383f774b5c65104f103438b81101e563543e2ec6",
+      "bytes": 10844,
+      "sha256": "73dc0840b402b4db04b4686c0079871c17ab3c95b0ee05744512338935dde547",
       "owner": "core-integration"
     },
     {
@@ -6419,8 +6552,8 @@
     {
       "path": "frontend/lantern-tests/native-scan-succession.mjs",
       "mode": "100644",
-      "bytes": 13257,
-      "sha256": "ecab38e3ae81fa0bece19fb2cbfbe343c041197f333dd8467a0a15ee70890034",
+      "bytes": 14410,
+      "sha256": "34cb515d0cffbf25448b9a9cc3825483981e65d0996f52bd191b46ea25174526",
       "owner": "web"
     },
     {
@@ -6503,8 +6636,8 @@
     {
       "path": "frontend/lantern-tests/scan-mesh-read.mjs",
       "mode": "100644",
-      "bytes": 7138,
-      "sha256": "4d497ba1dc1e81657420802681650ff74a87935b88ff0888ef226da227890bd9",
+      "bytes": 8030,
+      "sha256": "5d1d66dabfbc071edd5150e453f5a48e0dd2e863159568dc44d3ff2beed88ceb",
       "owner": "web"
     },
     {
@@ -6895,8 +7028,8 @@
     {
       "path": "frontend/src/api/generated/contracts.ts",
       "mode": "100644",
-      "bytes": 26949,
-      "sha256": "b1f2cfe8ed490ca2641a1a6683b6fc81c54840815fa1889cfe329c8fcbcf5d98",
+      "bytes": 26969,
+      "sha256": "632a350c540b0bb1f92d6a8c67c2936b8288932f0a2a32d1bfa16a5615f0984a",
       "owner": "contracts"
     },
     {
@@ -7693,22 +7826,29 @@
     {
       "path": "frontend/src/lantern/scans/MeshCanvas.tsx",
       "mode": "100644",
-      "bytes": 18471,
-      "sha256": "f4e11777407b8f5484decf3e541973400f58f06f2bffcf0387469c1e62d43414",
+      "bytes": 18498,
+      "sha256": "8c47302b6fbea2395b3e9645f05a57cedfbb67f5202ce49f78c1fee468bd920d",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/scans/ScanPreview.tsx",
       "mode": "100644",
-      "bytes": 8305,
-      "sha256": "92a47356c7e22d6575d6598560bcc1314b0d815b5d5ffc19e2018f434dd9c50f",
+      "bytes": 8332,
+      "sha256": "f1cd864090596c84e832d45effa293c4b4c6447b077bd11a038a928153177a7a",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/ifc-glb-profile.ts",
+      "mode": "100644",
+      "bytes": 11757,
+      "sha256": "f01a9a4d3493b8d3e42853734ffc5e639caa4b206c332b7eefbcb868f04dbf65",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/scans/mesh-profile.ts",
       "mode": "100644",
-      "bytes": 31701,
-      "sha256": "14ae79b600fb1e9c98b42c4e1077b0154d0effd06d6030f5fc35e80001184e18",
+      "bytes": 33849,
+      "sha256": "cedfbadce771c4dca391493568d4b32027d49cb379e654d99380d74a92eaf462",
       "owner": "web"
     },
     {
@@ -7735,8 +7875,8 @@
     {
       "path": "frontend/src/lantern/scans/native-read-types.ts",
       "mode": "100644",
-      "bytes": 2617,
-      "sha256": "5568395388c71f3f1a6fe332b5306b10f65fe5be504845f74cf11bb14c87a18a",
+      "bytes": 3409,
+      "sha256": "61eb2d0158a12bbe77d40217808888ca9c0c294e8e401836a26031d970b08360",
       "owner": "web"
     },
     {
@@ -7749,8 +7889,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeGeometryIntake.tsx",
       "mode": "100644",
-      "bytes": 27062,
-      "sha256": "4a32fe1a21a47d833cdfc04d95b2c1f4188d8211f6972ba665028ea37db024dd",
+      "bytes": 27382,
+      "sha256": "8fb47a91f79fd55263990545126e06393a9225705b01e79f4660627acc27c8ae",
       "owner": "web"
     },
     {
@@ -7889,8 +8029,8 @@
     {
       "path": "frontend/src/lantern/scans/presentation/types.ts",
       "mode": "100644",
-      "bytes": 3117,
-      "sha256": "dcddd523eda59daeabe87d9f4a035b7b78292a94bce84a60d009d33291f56a91",
+      "bytes": 3135,
+      "sha256": "6b900e42e4e6598e137d2a87db5956102f5fb81b5b4b00cdcac728ce79d4cd66",
       "owner": "web"
     },
     {
@@ -8051,7 +8191,7 @@
       "path": "frontend/src/numeric/schema-validator.ts",
       "mode": "100644",
       "bytes": 24870,
-      "sha256": "18e33600d28c7768cb413f69da5218835f5a8d51a8ff29927be2ccad16c33d8b",
+      "sha256": "feb199dd78dbdae78cd71cadb6fab1762ca8cabac463414e02d75a99749c3fbc",
       "owner": "web"
     },
     {
@@ -8391,6 +8531,13 @@
       "owner": "contracts"
     },
     {
+      "path": "packages/contracts/fixtures/ifc-geometry.payload.json",
+      "mode": "100644",
+      "bytes": 381,
+      "sha256": "705773586a1354280a614ac105b9ac49d026d8a463ee85d9c13012ed1582df6a",
+      "owner": "contracts"
+    },
+    {
       "path": "packages/contracts/fixtures/import-remap.batch.json",
       "mode": "100644",
       "bytes": 4453,
@@ -8436,7 +8583,7 @@
       "path": "packages/contracts/history/check-history.mjs",
       "mode": "100644",
       "bytes": 6733,
-      "sha256": "496c6f230bcbdf6861efb3bad74b4179ea0d14dbb3f4dc4cfd6a20c4ac306023",
+      "sha256": "5d0da28898668782a6bc1c319d53eecdab0eaf7010049e2c699605f23f7c459f",
       "owner": "contracts"
     },
     {
@@ -8491,15 +8638,15 @@
     {
       "path": "packages/contracts/policy/boundaries.json",
       "mode": "100644",
-      "bytes": 3304,
-      "sha256": "8cfdf5345f5a112f275af9fa2577d11b3bd725ddb7e5654d90268c41a87e69b0",
+      "bytes": 3352,
+      "sha256": "8ef31a636ae11e78eb2e9842f4f69f7b2c88fa670fba897bf4ff6aa077fad528",
       "owner": "contracts"
     },
     {
       "path": "packages/contracts/schemas/atlas.schema.json",
       "mode": "100644",
-      "bytes": 97657,
-      "sha256": "d14f326a544747c900ece6c4c0b5d47d36c99579ddb37f3ad788f406d2e87a58",
+      "bytes": 97701,
+      "sha256": "c7c380b317e3cc640c8c437bf360e5f04d443f91ec03a54cc0f23a98b5a13b0c",
       "owner": "contracts"
     },
     {
@@ -8519,8 +8666,8 @@
     {
       "path": "packages/contracts/test/contracts.test.mjs",
       "mode": "100644",
-      "bytes": 17180,
-      "sha256": "776c5a7c15eeffaa5166acf48bbd7a1efcd4a7e9268c8b2caa1229a8d5743dc0",
+      "bytes": 17623,
+      "sha256": "6ef632171e26abc57ce36ceb3d95cc1fd399e796e39e9e0e54357ac700feaccc",
       "owner": "contracts"
     },
     {
@@ -9114,8 +9261,8 @@
     {
       "path": "tools/rust-baseline/check-contracts.mjs",
       "mode": "100644",
-      "bytes": 3005,
-      "sha256": "2fdcf06ba8a18b0779887afcb02a123e7ba1764f1a55a8a419ba9ba17c79030c",
+      "bytes": 3085,
+      "sha256": "42322f12bb4d5237cceacd1f3dcb99401565a8ed79a094941dccd9b6a35e4281",
       "owner": "contracts"
     },
     {

@@ -15,6 +15,7 @@ const SHA = /^[0-9a-f]{64}$/;
 const COMMANDS = ['atlas.identity.get', 'atlas.location-semantics.get', 'atlas.evidence.get', 'atlas.asset.get',
   'atlas.batch.execute', 'atlas.evidence.create', 'atlas.geometry.create', 'atlas.identity.replace'] as const;
 const MESH = 'application/vnd.houseatlas.magicplan-authored-mesh+json';
+const GLB = 'model/gltf-binary';
 const MAX_BODY = 16_384, MAX_RESULT = 1024 * 1024, DEADLINE_MS = 30_000;
 const bytes = new TextEncoder();
 const MAX_REVISION = ExactDecimal.parse('9007199254740991');
@@ -217,8 +218,10 @@ export function createNativeGeometryAssociationClient(options: {
     get: (kind: Kind, recordId: string) => Promise<Row>, heads: readonly NativeGeometryFloor[]) => {
     const previous = await get('geometry', previousGeometryId), payload = row(field(previous, 'payload'));
     const version = integer(field(payload, 'geometryVersion'));
-    need(version.compare(MAX_REVISION) < 0 && payload.producer === 'magicplan' && payload.exportFormat === 'usdz' &&
-      payload.coordinateUnits === 'unknown' && payload.scale === null && payload.transform === null && list(field(payload, 'mappings')).length === 0);
+    need(version.compare(MAX_REVISION) < 0 && ((payload.producer === 'magicplan' && payload.exportFormat === 'usdz')
+      || (payload.producer === 'ifc' && payload.exportFormat === 'ifc')) &&
+      payload.coordinateUnits === 'unknown' && payload.scale === null && payload.transform === null
+      && list(field(payload, 'mappings')).length === 0);
     const ids = list(field(payload, 'evidenceIds')).map(id); need(ids.length === 1);
     const evidence = await get('evidence', ids[0]!), evidencePayload = row(field(evidence, 'payload'));
     const previousOriginalId = id(field(payload, 'originalAssetId'));
@@ -226,6 +229,9 @@ export function createNativeGeometryAssociationClient(options: {
     need(references[0]!.kind === 'atlas-asset' && references[0]!.assetId === previousOriginalId && references[1]!.kind === 'atlas-asset');
     const previousDerivativeId = id(field(references[1]!, 'assetId'));
     const previousOriginal = await get('asset', previousOriginalId), previousDerivative = await get('asset', previousDerivativeId);
+    const priorIfc = payload.producer === 'ifc';
+    need(field(row(field(previousOriginal, 'payload')), 'contentType') === (priorIfc ? 'application/x-step' : 'model/vnd.usdz+zip')
+      && field(row(field(previousDerivative, 'payload')), 'contentType') === (priorIfc ? GLB : MESH));
     const head = heads.find(item => item.geometryId === previousGeometryId);
     need(head && equal(head.geometryRevision, field(previous, 'revision')) && head.evidenceId === ids[0] &&
       equal(head.evidenceRevision, field(evidence, 'revision')) && head.originalAssetId === previousOriginalId &&
@@ -278,8 +284,12 @@ export function createNativeGeometryAssociationClient(options: {
       sourceConfidence: null, evidenceBasis: 'owner-report', factAt: null, retrievedAt: new Date().toISOString(),
       vantage: null, uncertainty: { status: 'unknown', explanation: null } }, supersedesEvidenceIds: [],
       references: [{ kind: 'atlas-asset', assetId: originalAssetId }, { kind: 'atlas-asset', assetId: derivativeAssetId }] };
-    const geometryPayload = { producer: 'magicplan', producerVersion: null, exportFormat: 'usdz', originalAssetId,
-      coordinateUnits: 'unknown', scale: null, transform: null, geometryVersion, previousGeometryId, mappings: [], evidenceIds: [evidenceId] };
+    const originalType = projection ? 'model/vnd.usdz+zip' : field(row(field(find('asset', originalAssetId), 'payload')), 'contentType');
+    need(originalType === 'model/vnd.usdz+zip' || originalType === 'application/x-step');
+    const geometryPayload = { producer: originalType === 'application/x-step' ? 'ifc' : 'magicplan', producerVersion: null,
+      exportFormat: originalType === 'application/x-step' ? 'ifc' : 'usdz', originalAssetId,
+      coordinateUnits: 'unknown', scale: null, transform: null,
+      geometryVersion, previousGeometryId, mappings: [], evidenceIds: [evidenceId] };
     const identityReplacement = { ...identityPayload, evidenceIds: [...evidenceIds, evidenceId] };
     const children = [added('evidence', evidenceId, evidencePayload, input.reason,
       guards.filter(item => item.target.recordType === 'asset'), null, nextId),
@@ -371,8 +381,11 @@ export function createNativeGeometryAssociationClient(options: {
         const semantics = await get('location-semantics', selection.semanticsId);
         const { identityPayload, semanticsPayload } = buildingPayloads(identity, semantics, selection.buildingId);
         const original = await get('asset', selection.originalAssetId), derivative = await get('asset', selection.derivativeAssetId);
-        for (const [record, purpose, mime] of [[original, 'geometry-original', 'model/vnd.usdz+zip'],
-          [derivative, 'derived-preview', MESH]] as const) {
+        const originalPayload = row(field(original, 'payload'));
+        const originalType = field(originalPayload, 'contentType');
+        need(originalType === 'model/vnd.usdz+zip' || originalType === 'application/x-step');
+        for (const [record, purpose, mime] of [[original, 'geometry-original', originalType],
+          [derivative, 'derived-preview', originalType === 'application/x-step' ? GLB : MESH]] as const) {
           const payload = row(field(record, 'payload'));
           need(payload.owner === 'atlas' && payload.purpose === purpose && payload.contentType === mime &&
             payload.availability === 'available' && payload.previewPolicy === 'download-only' && SHA.test(text(field(payload, 'sha256'))));

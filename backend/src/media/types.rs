@@ -279,6 +279,7 @@ pub enum ContentType {
     Usdz,
     Ifc,
     AuthoredMesh,
+    IfcGlb,
 }
 
 impl ContentType {
@@ -299,6 +300,7 @@ impl ContentType {
             "model/vnd.usdz+zip" => Ok(Self::Usdz),
             "application/x-step" => Ok(Self::Ifc),
             super::mesh_derivative::MIME => Ok(Self::AuthoredMesh),
+            super::ifc_glb::MIME => Ok(Self::IfcGlb),
             _ => Self::parse(value),
         }
     }
@@ -312,6 +314,7 @@ impl ContentType {
             Self::Usdz => "model/vnd.usdz+zip",
             Self::Ifc => "application/x-step",
             Self::AuthoredMesh => super::mesh_derivative::MIME,
+            Self::IfcGlb => super::ifc_glb::MIME,
         }
     }
 
@@ -319,7 +322,7 @@ impl ContentType {
     /// original or PNG renderer qualification. Old four original kinds remain.
     pub fn supports_purpose(self, purpose: AssetPurpose) -> bool {
         match self {
-            Self::AuthoredMesh => purpose == AssetPurpose::DerivedPreview,
+            Self::AuthoredMesh | Self::IfcGlb => purpose == AssetPurpose::DerivedPreview,
             Self::Usdz | Self::Ifc => purpose == AssetPurpose::GeometryOriginal,
             Self::Png | Self::Jpeg | Self::Pdf | Self::Text => purpose.is_original(),
         }
@@ -334,6 +337,7 @@ impl ContentType {
             Self::Usdz => "usdz",
             Self::Ifc => "ifc",
             Self::AuthoredMesh => "json",
+            Self::IfcGlb => "glb",
         }
     }
 }

@@ -1,9 +1,9 @@
 //! Native building association profile over existing frozen record bodies.
 //! Pure selection is data, not authority. HTTP/Stock/Media own actual admission,
 //! graph validation, transaction fences, custody and final revalidation.
-use super::mesh_derivative::{self, MeshLineage};
 use super::types::{AssetPurpose, AssetRecord, ContentType, sha256};
 use super::{AssetVault, MediaError, MediaResult, WorkBudget};
+use super::{ifc_glb, mesh_derivative};
 use crate::{domain::stock as st, storage as s};
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -92,11 +92,45 @@ fn refs_match(evidence: &Value, original: &str, derived: &str) -> bool {
     evidence["references"]
         == json!([{"kind":"atlas-asset","assetId":original},{"kind":"atlas-asset","assetId":derived}])
 }
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum GeometryKind {
+    Magicplan,
+    Ifc,
+}
+impl GeometryKind {
+    fn original(self) -> ContentType {
+        match self {
+            Self::Magicplan => ContentType::Usdz,
+            Self::Ifc => ContentType::Ifc,
+        }
+    }
+    fn derivative(self) -> ContentType {
+        match self {
+            Self::Magicplan => ContentType::AuthoredMesh,
+            Self::Ifc => ContentType::IfcGlb,
+        }
+    }
+    fn profile(self) -> &'static str {
+        match self {
+            Self::Magicplan => mesh_derivative::PROFILE,
+            Self::Ifc => ifc_glb::PROFILE,
+        }
+    }
+}
+fn geometry_kind(payload: &Value) -> Option<GeometryKind> {
+    match (
+        payload["producer"].as_str(),
+        payload["exportFormat"].as_str(),
+    ) {
+        (Some("magicplan"), Some("usdz")) => Some(GeometryKind::Magicplan),
+        (Some("ifc"), Some("ifc")) => Some(GeometryKind::Ifc),
+        _ => None,
+    }
+}
 fn geometry_profile(payload: &Value, original: &str, evidence: &str) -> bool {
-    payload["producer"] == "magicplan"
-        && payload["exportFormat"] == "usdz"
-        && payload["originalAssetId"] == original
+    geometry_kind(payload).is_some()
         && payload["coordinateUnits"] == "unknown"
+        && payload["originalAssetId"] == original
         && payload["scale"].is_null()
         && payload["transform"].is_null()
         && payload["mappings"] == json!([])
@@ -161,15 +195,16 @@ fn history_metadata<'a>(
                 && original_id != derived_id
                 && pairs.insert((original_id.to_owned(), derived_id.to_owned())),
         )?;
+        let kind = geometry_kind(&g.payload).ok_or(MediaError::Conflict)?;
         let original = asset(
             one(snapshot, scope, s::RecordType::Asset, original_id)?,
             AssetPurpose::GeometryOriginal,
-            ContentType::Usdz,
+            kind.original(),
         )?;
         let derivative = asset(
             one(snapshot, scope, s::RecordType::Asset, derived_id)?,
             AssetPurpose::DerivedPreview,
-            ContentType::AuthoredMesh,
+            kind.derivative(),
         )?;
         let mut uses = 0;
         for record in &snapshot.records {
@@ -310,19 +345,27 @@ pub fn qualify_association(
         original_id,
         derivative_id,
     )?;
+    let kind = geometry_kind(g.payload()).ok_or(MediaError::Conflict)?;
     let original = asset(
         one(snapshot, scope, s::RecordType::Asset, original_id)?,
         AssetPurpose::GeometryOriginal,
-        ContentType::Usdz,
+        kind.original(),
     )?;
     let derived = asset(
         one(snapshot, scope, s::RecordType::Asset, derivative_id)?,
         AssetPurpose::DerivedPreview,
-        ContentType::AuthoredMesh,
+        kind.derivative(),
     )?;
     let source = vault.read_retained(&original, budget)?;
     let bytes = vault.read_retained(&derived, budget)?;
-    mesh_derivative::qualify(&bytes, &source, budget)?;
+    match kind {
+        GeometryKind::Magicplan => {
+            mesh_derivative::qualify(&bytes, &source, budget)?;
+        }
+        GeometryKind::Ifc => {
+            ifc_glb::qualify(&bytes, &source, budget)?;
+        }
+    }
     // A successor must name a currently qualified head in this exact building.
     // Explicit links, never labels or enumeration order, determine succession.
     let current = floors(snapshot, scope, building_id, vault, budget)?;
@@ -435,12 +478,30 @@ pub struct FloorDescriptor {
     pub derivative_revision: u64,
     pub original_license: super::types::SourceLicense,
     pub derivative_license: super::types::SourceLicense,
+    pub profile: String,
+    pub original_content_type: String,
+    pub derivative_content_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_units: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub declared_source_units: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_up_axis: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub declared_source_up_axis: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub glb_units: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub glb_up_axis: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_to_glb: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub converter: Option<Value>,
 }
 pub struct ResolvedFloor {
     pub descriptor: FloorDescriptor,
     pub original: AssetRecord,
     pub derivative: AssetRecord,
-    pub lineage: MeshLineage,
 }
 pub fn floors(
     snapshot: &s::Snapshot,
@@ -462,8 +523,22 @@ pub fn floors(
         } = floor;
         let original_bytes = vault.read_retained(&original, budget)?;
         let mesh_bytes = vault.read_retained(&derivative, budget)?;
-        let mesh = mesh_derivative::qualify(&mesh_bytes, &original_bytes, budget)?;
-        let lineage = mesh.lineage().clone();
+        let kind = geometry_kind(&g.payload).ok_or(MediaError::Conflict)?;
+        let (label, converter) = match kind {
+            GeometryKind::Magicplan => (
+                mesh_derivative::qualify(&mesh_bytes, &original_bytes, budget)?
+                    .lineage()
+                    .floor_label
+                    .clone(),
+                None,
+            ),
+            GeometryKind::Ifc => {
+                let lineage = ifc_glb::qualify(&mesh_bytes, &original_bytes, budget)?
+                    .lineage()
+                    .clone();
+                (lineage.floor_label, Some(lineage.converter))
+            }
+        };
         let key = sha256(
             &serde_json::to_vec(&(
                 selected.identity,
@@ -477,7 +552,7 @@ pub fn floors(
         );
         let descriptor = FloorDescriptor {
             key,
-            export_label: lineage.floor_label.clone(),
+            export_label: label,
             original_sha256: original.payload.sha256.clone(),
             derivative_sha256: derivative.payload.sha256.clone(),
             geometry_id: g.record_id.clone(),
@@ -490,6 +565,18 @@ pub fn floors(
             derivative_revision: derivative.revision,
             original_license: original.payload.source_license.clone(),
             derivative_license: derivative.payload.source_license.clone(),
+            profile: kind.profile().to_owned(),
+            original_content_type: kind.original().as_str().to_owned(),
+            derivative_content_type: kind.derivative().as_str().to_owned(),
+            source_units: (kind == GeometryKind::Ifc).then(|| "unknown".to_owned()),
+            declared_source_units: (kind == GeometryKind::Ifc).then(|| "mm".to_owned()),
+            source_up_axis: (kind == GeometryKind::Ifc).then(|| "unknown".to_owned()),
+            declared_source_up_axis: (kind == GeometryKind::Ifc).then(|| "Z".to_owned()),
+            glb_units: (kind == GeometryKind::Ifc).then(|| "m".to_owned()),
+            glb_up_axis: (kind == GeometryKind::Ifc).then(|| "Y".to_owned()),
+            source_to_glb: (kind == GeometryKind::Ifc)
+                .then(|| json!({"axisMap":["x","z","-y"],"scale":0.001})),
+            converter,
         };
         need(
             qualified
@@ -501,7 +588,6 @@ pub fn floors(
                             descriptor,
                             original,
                             derivative,
-                            lineage,
                         },
                     ),
                 )

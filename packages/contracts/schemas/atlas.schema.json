@@ -936,7 +936,10 @@
       "type": "object",
       "properties": {
         "producer": {
-          "const": "magicplan"
+          "enum": [
+            "magicplan",
+            "ifc"
+          ]
         },
         "producerVersion": {
           "anyOf": [

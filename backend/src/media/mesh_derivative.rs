@@ -408,9 +408,7 @@ struct Node {
     kind: String,
     matrix: Vec<Decimal>,
 }
-pub fn validate(bytes: &[u8], budget: &WorkBudget) -> MediaResult<MeshLineage> {
-    budget.check()?;
-    need(!bytes.is_empty() && bytes.len() <= MAX_MESH_BYTES)?;
+pub(crate) fn parse_bounded_json(bytes: &[u8], budget: &WorkBudget) -> MediaResult<Value> {
     let mut scan = Scan {
         bytes,
         at: 0,
@@ -420,7 +418,12 @@ pub fn validate(bytes: &[u8], budget: &WorkBudget) -> MediaResult<MeshLineage> {
     scan.value(0)?;
     scan.space();
     need(scan.at == bytes.len())?;
-    let value: Value = serde_json::from_slice(bytes).map_err(|_| invalid())?;
+    serde_json::from_slice(bytes).map_err(|_| invalid())
+}
+pub fn validate(bytes: &[u8], budget: &WorkBudget) -> MediaResult<MeshLineage> {
+    budget.check()?;
+    need(!bytes.is_empty() && bytes.len() <= MAX_MESH_BYTES)?;
+    let value = parse_bounded_json(bytes, budget)?;
     static VALIDATOR: OnceLock<Result<jsonschema::Validator, ()>> = OnceLock::new();
     let validator = VALIDATOR
         .get_or_init(|| {
