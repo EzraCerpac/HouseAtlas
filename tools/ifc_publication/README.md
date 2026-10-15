@@ -7,8 +7,10 @@ floorplan results. It validates exact source/map lineage, occurrence identity
 Psets, direct storey-to-room IFC aggregation, complete room coverage and
 explicit mm/Z to m/Y axes. Each floor gets a GLB, feature JSON and SVG; one
 publication-wide semantic artifact binds them. `publication.json` records
-all hashes and tool/config pins. It never promotes a publication or writes to
-a service.
+all hashes and tool/config pins. Source revision SHA uses the source ledger's
+canonical JCS form; the exact input file SHA is recorded separately. The
+complete publication directory is installed atomically with private modes.
+It never promotes a publication or writes to a service.
 
 The converter executable receives `--ifc`, `--semantic-map`, `--config`, `--glb`,
 and `--floorplan` paths. `--config` is an effective JSON receipt containing the
@@ -30,6 +32,12 @@ predecessor so transitions, renames and split/merge identities are checked.
 It rejects ambiguous or shared IFC identity property sets. Numeric elevation
 and floor-to-source transforms remain null until project units and IFC placement
 chains are separately verified.
+
+Complete room coverage here means every `IfcSpace` in the pinned IFC is present
+once in the semantic map and exactly one floor plan. It does not assert that all
+physical parts of the house have been surveyed or modeled. Every IFC storey and
+electrical circuit occurrence is likewise mapped. Native source-ledger lookup,
+retained-asset proof and preview selection remain separate service checks.
 
 This lane does not include a qualified real IFC tessellator. Converter execution
 and semantic coverage need independent evidence before a real model can be

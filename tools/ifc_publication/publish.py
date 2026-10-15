@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import unicodedata
 import uuid
 from pathlib import Path
 from typing import Any
@@ -124,7 +125,13 @@ def check_source(source: dict, ifc: bytes, ifc_hash: str) -> None:
     require(b"\0" not in ifc and ifc.decode("utf-8").strip().startswith("ISO-10303-21;")
             and ifc.decode("utf-8").strip().endswith("END-ISO-10303-21;")
             and b"FILE_SCHEMA(('IFC" in ifc, "IFC source syntax")
-    object_keys(source["authoringTool"], {"name", "version"})
+    tool = object_keys(source["authoringTool"], {"name", "version"})
+    def valid_tool_text(value: Any) -> bool:
+        return (isinstance(value, str) and 0 < len(value.encode("utf-8")) <= 128
+                and not any(unicodedata.category(c) == "Cc" for c in value))
+    require(valid_tool_text(tool["name"])
+            and (tool["version"] is None or valid_tool_text(tool["version"])),
+            "authoring tool shape/limits")
     require(source["declaredUnits"] == "mm" and source["declaredUpAxis"] == "Z",
             "current GLB profile requires declared mm/Z IFC")
 
@@ -287,6 +294,17 @@ def check_semantics(semantic_map: dict, source: dict, ifc_hash: str,
                             for a in projection["groupAssignments"]),
                     "reviewed membership lacks IFC assignment")
     require(len(known_ids) == len(rooms), "semantic duplicate room identity")
+    require({row["globalId"] for row in projection["entities"]
+             if row["type"] == "IfcSpace"} == {gid for gid, _ in known_ids.values()},
+            "unmapped IFC space")
+    require({row["globalId"] for row in projection["entities"]
+             if row["type"] == "IfcBuildingStorey"} == set(floor_ids.values()),
+            "unmapped IFC storey")
+    require({row["globalId"] for row in projection["entities"]
+             if row["type"] == "IfcDistributionCircuit"}
+            == {group["ifcCircuitGlobalId"] for group in groups
+                if group["ifcCircuitGlobalId"] is not None},
+            "unmapped IFC electrical circuit")
     relation = {}
     for aggregate in projection["spatialAggregates"]:
         storey_gid = aggregate["relatingStoreyGlobalId"]
@@ -334,7 +352,9 @@ def converter_run(executable: Path, ifc_path: Path, map_path: Path, config_path:
 def publish(source_path: Path, ifc_path: Path, map_path: Path, converter: Path,
             config_path: Path, publication_id: str, destination: Path,
             previous_map_path: Path | None = None) -> dict:
-    require(not destination.exists(), "publication destination exists")
+    require(not destination.exists() and not destination.is_symlink(),
+            "publication destination exists")
+    require(destination.parent.is_dir(), "publication parent absent")
     ifc, ifc_hash = file_hash(ifc_path, MAX_IFC)
     source_raw, source_hash = file_hash(source_path, 256_000)
     map_raw, map_hash = file_hash(map_path, 2_000_000)
@@ -486,7 +506,15 @@ def publish(source_path: Path, ifc_path: Path, map_path: Path, converter: Path,
                                       "semanticValidatorSha256": validator_hash,
                                       "semanticValidatorModuleSha256": validator_module_hash}}
         (stage / "publication.json").write_bytes(canonical(publication))
-        shutil.copytree(stage, destination)
+        with tempfile.TemporaryDirectory(prefix=".houseatlas-ifc-publication-",
+                                         dir=destination.parent) as delivery_tmp:
+            ready = Path(delivery_tmp) / "ready"
+            shutil.copytree(stage, ready)
+            for path in [ready, *ready.rglob("*")]:
+                path.chmod(0o700 if path.is_dir() else 0o600)
+            require(not destination.exists() and not destination.is_symlink(),
+                    "publication destination appeared")
+            os.rename(ready, destination)
     return publication
 
 

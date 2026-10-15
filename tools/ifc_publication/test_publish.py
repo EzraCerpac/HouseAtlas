@@ -145,6 +145,16 @@ class PublicationTests(unittest.TestCase):
         self.save()
         with self.assertRaises(PublicationError): self.run_publish()
 
+    def test_source_authoring_tool_matches_source_ledger_limits(self):
+        for bad in (123, '', 'x'*129, 'bad\nname'):
+            self.source['authoringTool']['name'] = bad
+            self.save()
+            with self.assertRaises(PublicationError): self.run_publish()
+        self.source['authoringTool']['name'] = 'synthetic'
+        self.source['authoringTool']['version'] = 'bad\x00version'
+        self.save()
+        with self.assertRaises(PublicationError): self.run_publish()
+
     def test_floor_global_id_not_in_ifc_rejected(self):
         self.config['floors'][0]['ifcBuildingStoreyGlobalId'] = '3123456789ABCDEFGHIJKM'
         self.save()
@@ -165,6 +175,24 @@ class PublicationTests(unittest.TestCase):
             'ENDSEC;\nEND-ISO-10303-21;',
             "#12=IFCSPACE('0123456789ABCDEFGHIJKM',$,'Other room',$,$);\n"
             "#13=IFCRELDEFINESBYPROPERTIES('2123456789ABCDEFGHIJKM',$,$,$,(#12),#2);\n"
+            'ENDSEC;\nEND-ISO-10303-21;')
+        self.paths['source.ifc'].write_text(ifc)
+        self.source['ifcAsset']['sha256'] = sha(ifc.encode())
+        self.source['ifcAsset']['bytes'] = len(ifc.encode())
+        self.semantic_map['ifcOriginalSha256'] = sha(ifc.encode())
+        self.save()
+        with self.assertRaises(PublicationError): self.run_publish()
+
+    def test_unmapped_identity_bearing_space_rejected(self):
+        other_id = uid()
+        ifc = self.paths['source.ifc'].read_text().replace(
+            'ENDSEC;\nEND-ISO-10303-21;',
+            "#12=IFCSPACE('0123456789ABCDEFGHIJKM',$,'Other room',$,$);\n"
+            "#13=IFCPROPERTYSET('1123456789ABCDEFGHIJKN',$,'HouseAtlas_Identity',$,(#14,#15));\n"
+            f"#14=IFCPROPERTYSINGLEVALUE('EntityId',$,IFCIDENTIFIER('{other_id}'),$);\n"
+            "#15=IFCPROPERTYSINGLEVALUE('SchemaVersion',$,IFCINTEGER(1),$);\n"
+            "#16=IFCRELDEFINESBYPROPERTIES('2123456789ABCDEFGHIJKN',$,$,$,(#12),#13);\n"
+            "#17=IFCRELAGGREGATES('3123456789ABCDEFGHIJKN',$,$,$,#6,(#12));\n"
             'ENDSEC;\nEND-ISO-10303-21;')
         self.paths['source.ifc'].write_text(ifc)
         self.source['ifcAsset']['sha256'] = sha(ifc.encode())
