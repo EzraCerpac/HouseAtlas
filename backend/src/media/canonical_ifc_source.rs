@@ -120,7 +120,10 @@ impl SourceRevision {
 }
 
 /// This proof can only be minted by reading the actual retained asset from a
-/// vault. A client-supplied digest cannot satisfy append on its own.
+/// vault. A client-supplied digest cannot satisfy append on its own. The asset
+/// record is scoped only to workspace/home: it does not attest the receipt's
+/// buildingId. A future publication/selection adapter must verify that
+/// association separately; entries in this ledger are never selected here.
 pub struct VerifiedIfcAsset {
     record: AssetRecord,
 }
@@ -255,6 +258,9 @@ impl<'a> SourceLedger<'a> {
         tx.commit().map_err(|_| MediaError::Unavailable)?;
         Ok(digest)
     }
+    /// Trusted internal ledger lookup only. This method has no principal or
+    /// scope authorization fence; a future native route must authorize its
+    /// caller and scope before invoking it or disclosing the returned record.
     pub fn read(&self, revision_id: &str) -> MediaResult<SourceRevision> {
         if !is_uuid(revision_id) {
             return Err(MediaError::InvalidInput);

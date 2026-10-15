@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "7776765e772c25485b51147fe9e17a7d18b91d7fa5861cf801e888a340c29122",
+  "sourceDigestSha256": "62484a95ae4cf8f7cfee6ec328cea5bed6d17e96c3a48f7583c530461195ed80",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -98,8 +98,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 6059,
-      "sha256": "6e0517436ee0a757a3a3bc449a856a7b420ffb75fe3534e810fa2fa8d3ee428c",
+      "bytes": 7051,
+      "sha256": "b329ddcfddff38c2b3660c3865da86e44a9431f207a0c656d5c6f0b543447974",
       "owner": "core-integration"
     },
     {
@@ -2637,6 +2637,13 @@
       "owner": "media"
     },
     {
+      "path": "backend/src/media/canonical_ifc_source.rs",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 20356,
+      "sha256": "8ca0509db22290e78aee4678b0d91c4a207bd0cb046f1bced269b9bcad9a6820"
+    },
+    {
       "path": "backend/src/media/checks/public-fixture.mjs",
       "mode": "100644",
       "bytes": 5999,
@@ -2800,8 +2807,8 @@
     {
       "path": "backend/src/media/mod.rs",
       "mode": "100644",
-      "bytes": 1657,
-      "sha256": "a5ad50b33f2ebe3daba4a144fcdb738c9ae36909fbf10b98f40b68ac93fd729e",
+      "bytes": 1687,
+      "sha256": "ea35cfbf614d67c31beda4ad7b412f001e110f09a4766a83a851d93332d5d06e",
       "owner": "media"
     },
     {
@@ -8648,6 +8655,13 @@
       "bytes": 97701,
       "sha256": "c7c380b317e3cc640c8c437bf360e5f04d443f91ec03a54cc0f23a98b5a13b0c",
       "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/schemas/canonical-ifc-source-revision.schema.json",
+      "owner": "contracts",
+      "mode": "100644",
+      "bytes": 2409,
+      "sha256": "8198e365a409dc38d33136410c58f175459da9bf250f67061ef2f6334d2ebb76"
     },
     {
       "path": "packages/contracts/src/check-package.mjs",
