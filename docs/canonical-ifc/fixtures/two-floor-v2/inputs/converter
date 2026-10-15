@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+import argparse, hashlib, json, struct
+from pathlib import Path
+p=argparse.ArgumentParser()
+for name in ('ifc','semantic-map','config','glb','floorplan'): p.add_argument('--'+name,required=True)
+a=p.parse_args(); src=Path(a.ifc).read_bytes(); cfg=json.loads(Path(a.config).read_text())
+semantic=json.loads(Path(a.semantic_map).read_text())
+room,occ=next((r,o) for r in semantic['rooms'] for o in r['occurrences'] if o['floorId']==cfg['floor']['floorId'])
+room_id=room['roomId']; occurrence_id=occ['spaceOccurrenceId']
+mesh_name='ha-space/'+room_id+'/'+hashlib.sha256(occurrence_id.encode()).hexdigest()
+binpart=struct.pack('<9f',0,0,0,1,0,0,0,1,0)+struct.pack('<3H',0,1,2)+b'\0\0'
+doc={'asset':{'version':'2.0','extras':{'houseatlasIfcDerivative':{
+ 'profile':'houseatlas.ifc-derived-glb.v1','originalSha256':hashlib.sha256(src).hexdigest(),
+ 'originalBytes':len(src),'floorLabel':cfg['floor']['label'],'sourceUnits':'mm','sourceUpAxis':'Z',
+ 'glbUnits':'m','glbUpAxis':'Y','sourceToGlb':{'axisMap':['x','z','-y'],'scale':0.001},
+ 'converter':{'name':cfg['converter']['name'],'version':cfg['converter']['version'],
+              'configSha256':cfg['converterConfigSha256']}}}},
+ 'buffers':[{'byteLength':42}],
+ 'bufferViews':[{'buffer':0,'byteOffset':0,'byteLength':36},{'buffer':0,'byteOffset':36,'byteLength':6}],
+ 'accessors':[{'bufferView':0,'componentType':5126,'count':3,'type':'VEC3'},
+              {'bufferView':1,'componentType':5123,'count':3,'type':'SCALAR'}],
+ 'meshes':[{'name':mesh_name,'primitives':[{'attributes':{'POSITION':0},'indices':1,'mode':4}]}],
+ 'nodes':[{'name':mesh_name,'mesh':0}],'scenes':[{'nodes':[0]}],'scene':0}
+j=json.dumps(doc,separators=(',',':'),sort_keys=True).encode(); j+=b' ' * (-len(j)%4)
+glb=(b'glTF'+struct.pack('<II',2,28+len(j)+len(binpart))+struct.pack('<I',len(j))+
+     b'JSON'+j+struct.pack('<I',len(binpart))+b'BIN\0'+binpart)
+Path(a.glb).write_bytes(glb)
+plan={'profile':'houseatlas.ifc-floorplan.v2','sourceRevisionId':cfg['sourceRevisionId'],
+      'sourceIfcSha256':cfg['sourceIfcSha256'],'semanticMapRevisionId':cfg['semanticMapRevisionId'],
+      'units':'mm','upAxis':'Z','floor':cfg['floor'],
+      'meshBindings':[{'meshIndex':0,'nodeIndex':0,'entityType':'spaceOccurrence',
+                       'roomId':room_id,'spaceOccurrenceId':occurrence_id,'ifcGlobalId':occ['ifcSpaceGlobalId']}],
+      'spaces':[{'roomId':room_id,'spaceOccurrenceId':occurrence_id,'ifcGlobalId':occ['ifcSpaceGlobalId'],
+                 'polygons':[[[0,0],[1000,0],[1000,1000],[0,1000]]]}]}
+Path(a.floorplan).write_text(json.dumps(plan))

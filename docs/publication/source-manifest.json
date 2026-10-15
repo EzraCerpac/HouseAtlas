@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b0b933b755abad5ec28f97bce45ab0a9a2dd21c9c507a833024d3879bbe46a54",
+  "sourceDigestSha256": "8ddc4187c039ef44d8b525545fb888b8cfecaeeef752075eaca21fb6b1516369",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -98,8 +98,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 7051,
-      "sha256": "b329ddcfddff38c2b3660c3865da86e44a9431f207a0c656d5c6f0b543447974",
+      "bytes": 8030,
+      "sha256": "8216a11ac308afa3f99d52592eacaf45bd548ca79653b581258fefd09820ed9f",
       "owner": "core-integration"
     },
     {
@@ -286,10 +286,10 @@
     },
     {
       "path": "backend/examples/healthy-native-ifc-glb.rs",
-      "owner": "media",
       "mode": "100644",
       "bytes": 25567,
-      "sha256": "c3ec0ebc511d11700e13728ac0f12f0f080e5965d9da87ba58347e2f117c28b1"
+      "sha256": "c3ec0ebc511d11700e13728ac0f12f0f080e5965d9da87ba58347e2f117c28b1",
+      "owner": "media"
     },
     {
       "path": "backend/examples/healthy-native-offline-backup.rs",
@@ -5311,115 +5311,227 @@
       "owner": "contracts"
     },
     {
-      "path": "docs/canonical-ifc/fixtures/two-floor/inputs/config.json",
-      "owner": "media",
+      "path": "docs/canonical-ifc/fixtures/two-floor-v2/inputs/config.json",
       "mode": "100644",
       "bytes": 499,
-      "sha256": "05a1000e2f481ecd88d965540778a0b4d5d39c087645dbdef6c181744a691128"
+      "sha256": "e975c89c15492b4057d89dab1f12e5440a6d5f64c461b5de73c33166c47cf388",
+      "owner": "media"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor-v2/inputs/converter",
+      "mode": "100755",
+      "bytes": 2599,
+      "sha256": "ca92ab5a5771a8ae8ec222b860cc9bc07efd516258e4564d2c900ab279d5a4b7",
+      "owner": "media"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor-v2/inputs/map.json",
+      "mode": "100644",
+      "bytes": 1288,
+      "sha256": "40e6393d43ac433a6c1e81d50f5db6ca90aaa95ac9a58c81132819d53fdf622d",
+      "owner": "media"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor-v2/inputs/source.ifc",
+      "mode": "100644",
+      "bytes": 1882,
+      "sha256": "fdb561137f395460d78ff43b0b9f0e034932f42656396caf88095a514690c768",
+      "owner": "media"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor-v2/inputs/source.json",
+      "mode": "100644",
+      "bytes": 764,
+      "sha256": "392a8c83178a8da5cd08002f53611abe9e2b5fc1891cc4c0c93c0406c10499db",
+      "owner": "media"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor-v2/publication/floors/2ff038c0-2e81-5cbe-95d4-59d3df81245a/floorplan.json",
+      "mode": "100644",
+      "bytes": 852,
+      "sha256": "3b7641d52eb75c775f5422b7192afad5580e4e608bf543a99da7d813759390c5",
+      "owner": "media"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor-v2/publication/floors/2ff038c0-2e81-5cbe-95d4-59d3df81245a/floorplan.svg",
+      "mode": "100644",
+      "bytes": 273,
+      "sha256": "924a069f60a1c991ae5c52a3db9710f8c2661a252d7a7e81c025e574984dacf6",
+      "owner": "media"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor-v2/publication/floors/2ff038c0-2e81-5cbe-95d4-59d3df81245a/model.glb",
+      "mode": "100644",
+      "bytes": 1220,
+      "sha256": "a658e6683c3b4b5b6de744d49d18f0207f5ce6653127ff491d7135775851b6df",
+      "owner": "media"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor-v2/publication/floors/ed6121fa-55c6-5ee1-9990-1285dccbc6af/floorplan.json",
+      "mode": "100644",
+      "bytes": 849,
+      "sha256": "1caf34dadc427f3b7e3bfec2c409bb8add799acc3f7380cc885307ad98bc56f1",
+      "owner": "media"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor-v2/publication/floors/ed6121fa-55c6-5ee1-9990-1285dccbc6af/floorplan.svg",
+      "mode": "100644",
+      "bytes": 273,
+      "sha256": "a7329c60ec49ddd9f626f6a85d0501322ae22eb357b79c139d0aef960688d038",
+      "owner": "media"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor-v2/publication/floors/ed6121fa-55c6-5ee1-9990-1285dccbc6af/model.glb",
+      "mode": "100644",
+      "bytes": 1216,
+      "sha256": "4695a20ecb3401177dd0775842cb7bacef3687d2e295c9358f0daa0e2a32ff60",
+      "owner": "media"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor-v2/publication/publication.json",
+      "mode": "100644",
+      "bytes": 3268,
+      "sha256": "c194db2163880b04bb179a22d235d6cb5e2e169467047e7b01d24f2e9ad24b75",
+      "owner": "media"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor-v2/publication/semantics.json",
+      "mode": "100644",
+      "bytes": 3838,
+      "sha256": "93b03a55fba4b67658d9a58c713f3915fc6a3b088b130174712cb6ec380c5f1b",
+      "owner": "media"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor-v2/receipt.sha256",
+      "mode": "100644",
+      "bytes": 65,
+      "sha256": "310b7511fd7198ceff5ff4a48cc792cfa7f6107d75041ca7a197aed4d83e5de1",
+      "owner": "media"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor-v2/scene-read.json",
+      "mode": "100644",
+      "bytes": 4830,
+      "sha256": "c55bc102b7795d3f65c62f8e54604ef5470fcf386579cd798783f2f2ac98ab4c",
+      "owner": "media"
+    },
+    {
+      "path": "docs/canonical-ifc/fixtures/two-floor/inputs/config.json",
+      "mode": "100644",
+      "bytes": 499,
+      "sha256": "05a1000e2f481ecd88d965540778a0b4d5d39c087645dbdef6c181744a691128",
+      "owner": "media"
     },
     {
       "path": "docs/canonical-ifc/fixtures/two-floor/inputs/converter",
-      "owner": "media",
       "mode": "100755",
       "bytes": 2397,
-      "sha256": "9978c066d66ee9669d0b8ba9f1172e930ada2f4f7556e28b1fbc0b80d5c421c9"
+      "sha256": "9978c066d66ee9669d0b8ba9f1172e930ada2f4f7556e28b1fbc0b80d5c421c9",
+      "owner": "media"
     },
     {
       "path": "docs/canonical-ifc/fixtures/two-floor/inputs/map.json",
-      "owner": "media",
       "mode": "100644",
       "bytes": 1295,
-      "sha256": "1db823ed85997e2830544f30699a764cd0503a3cfaa38a622d86cd104a1146f1"
+      "sha256": "1db823ed85997e2830544f30699a764cd0503a3cfaa38a622d86cd104a1146f1",
+      "owner": "media"
     },
     {
       "path": "docs/canonical-ifc/fixtures/two-floor/inputs/source.ifc",
-      "owner": "media",
       "mode": "100644",
       "bytes": 1720,
-      "sha256": "9a4ca161d677bc48598073db90e38ecb58402e709b71f540e4d4b842c9694ef9"
+      "sha256": "9a4ca161d677bc48598073db90e38ecb58402e709b71f540e4d4b842c9694ef9",
+      "owner": "media"
     },
     {
       "path": "docs/canonical-ifc/fixtures/two-floor/inputs/source.json",
-      "owner": "media",
       "mode": "100644",
       "bytes": 764,
-      "sha256": "e2e3e769723651df270002fadb32c1c0fceb4d29b42b6781b63e455c4f060c84"
+      "sha256": "e2e3e769723651df270002fadb32c1c0fceb4d29b42b6781b63e455c4f060c84",
+      "owner": "media"
     },
     {
       "path": "docs/canonical-ifc/fixtures/two-floor/publication/floors/abc7dd96-cbf9-50b2-a0bb-3daf49cbb2d9/floorplan.json",
-      "owner": "media",
       "mode": "100644",
       "bytes": 758,
-      "sha256": "74200ac40b87a6851f5f9b4b3ca051b848e843c9dacc4695e0d607d55fd7d517"
+      "sha256": "74200ac40b87a6851f5f9b4b3ca051b848e843c9dacc4695e0d607d55fd7d517",
+      "owner": "media"
     },
     {
       "path": "docs/canonical-ifc/fixtures/two-floor/publication/floors/abc7dd96-cbf9-50b2-a0bb-3daf49cbb2d9/floorplan.svg",
-      "owner": "media",
       "mode": "100644",
       "bytes": 228,
-      "sha256": "22257958dd8e537afd5f69b4c41ab81c77a9db2c0c8d4ac2bf07786f747b32b9"
+      "sha256": "22257958dd8e537afd5f69b4c41ab81c77a9db2c0c8d4ac2bf07786f747b32b9",
+      "owner": "media"
     },
     {
       "path": "docs/canonical-ifc/fixtures/two-floor/publication/floors/abc7dd96-cbf9-50b2-a0bb-3daf49cbb2d9/model.glb",
-      "owner": "media",
       "mode": "100644",
       "bytes": 1084,
-      "sha256": "71180ccf4a37e7a05ff5867413933b116b566c1fc90c7df12027e65461d37faf"
+      "sha256": "71180ccf4a37e7a05ff5867413933b116b566c1fc90c7df12027e65461d37faf",
+      "owner": "media"
     },
     {
       "path": "docs/canonical-ifc/fixtures/two-floor/publication/floors/ec7583c6-86ba-5b32-ad03-282b17c4ed02/floorplan.json",
-      "owner": "media",
       "mode": "100644",
       "bytes": 761,
-      "sha256": "cd87292d35ba786db242eb9dde6b8bc7d6f624bc1d55b61c5018f89a4d2175ad"
+      "sha256": "cd87292d35ba786db242eb9dde6b8bc7d6f624bc1d55b61c5018f89a4d2175ad",
+      "owner": "media"
     },
     {
       "path": "docs/canonical-ifc/fixtures/two-floor/publication/floors/ec7583c6-86ba-5b32-ad03-282b17c4ed02/floorplan.svg",
-      "owner": "media",
       "mode": "100644",
       "bytes": 228,
-      "sha256": "d300f6dceae070ab5b897665946c2fa10fb8ceadcfaac3fa38334f383a9a681a"
+      "sha256": "d300f6dceae070ab5b897665946c2fa10fb8ceadcfaac3fa38334f383a9a681a",
+      "owner": "media"
     },
     {
       "path": "docs/canonical-ifc/fixtures/two-floor/publication/floors/ec7583c6-86ba-5b32-ad03-282b17c4ed02/model.glb",
-      "owner": "media",
       "mode": "100644",
       "bytes": 1088,
-      "sha256": "a4cfb29f98dc746d93df77d56fe204500b3a4b7f4e7655031f8d3c6663c7f5ed"
+      "sha256": "a4cfb29f98dc746d93df77d56fe204500b3a4b7f4e7655031f8d3c6663c7f5ed",
+      "owner": "media"
     },
     {
       "path": "docs/canonical-ifc/fixtures/two-floor/publication/publication.json",
-      "owner": "media",
       "mode": "100644",
       "bytes": 3243,
-      "sha256": "5d72642f188df05f5260bad2c0f9fdf63e8d6b9154d22ff17ea3fced76597ae7"
+      "sha256": "5d72642f188df05f5260bad2c0f9fdf63e8d6b9154d22ff17ea3fced76597ae7",
+      "owner": "media"
     },
     {
       "path": "docs/canonical-ifc/fixtures/two-floor/publication/semantics.json",
-      "owner": "media",
       "mode": "100644",
       "bytes": 3656,
-      "sha256": "9add1c88f3b6fa29ecce6daf4c2a2e6dc31a52f3b4bc7ef1586b6a3e801a00c8"
+      "sha256": "9add1c88f3b6fa29ecce6daf4c2a2e6dc31a52f3b4bc7ef1586b6a3e801a00c8",
+      "owner": "media"
     },
     {
       "path": "docs/canonical-ifc/fixtures/two-floor/receipt.sha256",
-      "owner": "media",
       "mode": "100644",
       "bytes": 65,
-      "sha256": "ee2414c5671b0eb957f85ee792088083bd8553ca309b96550d142c3e85f47b29"
+      "sha256": "ee2414c5671b0eb957f85ee792088083bd8553ca309b96550d142c3e85f47b29",
+      "owner": "media"
     },
     {
       "path": "docs/canonical-ifc/fixtures/two-floor/scene-read.json",
-      "owner": "media",
       "mode": "100644",
       "bytes": 5714,
-      "sha256": "c7c59d9214b9bbc597d0a18dd409cccf98166f68650d49d18641c7dec6998df1"
+      "sha256": "c7c59d9214b9bbc597d0a18dd409cccf98166f68650d49d18641c7dec6998df1",
+      "owner": "media"
     },
     {
       "path": "docs/canonical-ifc/scene-read-contract-v1.md",
       "mode": "100644",
       "bytes": 11611,
       "sha256": "422df44239b2f020321678883f05306b22361b05692f4be91daa1ea935d9f8e6",
+      "owner": "media"
+    },
+    {
+      "path": "docs/canonical-ifc/scene-read-contract-v2.md",
+      "mode": "100644",
+      "bytes": 5922,
+      "sha256": "f223d46fbcda03c6df94ac68d544cd401ea7eba3a1a3cdf43612bcfdbb324aa3",
       "owner": "media"
     },
     {
@@ -9214,6 +9326,97 @@
       "mode": "100644",
       "bytes": 53938,
       "sha256": "789e3f49b841d160928ed076ee831ff91ae295f175789ab03971ce3a516b7e72",
+      "owner": "media"
+    },
+    {
+      "path": "tools/ifc_publication/.gitignore",
+      "mode": "100644",
+      "bytes": 13,
+      "sha256": "32dae3052f331ee34d628ef535709b301259a45df7c7522c4d35dcf49873f00b",
+      "owner": "media"
+    },
+    {
+      "path": "tools/ifc_publication/README.md",
+      "mode": "100644",
+      "bytes": 5011,
+      "sha256": "7572cfcd22ddb4d0ab7b06813c9c1e4797db9bbeb8a90aaa3fe728f75d6becd5",
+      "owner": "media"
+    },
+    {
+      "path": "tools/ifc_publication/extract_identity.py",
+      "mode": "100644",
+      "bytes": 11826,
+      "sha256": "5801e6a9ed39f053941c9ae10ea5dbab6b2863e7677066843a458d9193201e62",
+      "owner": "media"
+    },
+    {
+      "path": "tools/ifc_publication/make_synthetic_fixture.py",
+      "mode": "100644",
+      "bytes": 1855,
+      "sha256": "5400e9b845ef0caf1f1ba90b55dd32d840063f4dad99e67b6522079faae0a9fd",
+      "owner": "media"
+    },
+    {
+      "path": "tools/ifc_publication/make_synthetic_fixture_v2.py",
+      "mode": "100644",
+      "bytes": 4534,
+      "sha256": "a34387a22581fcac42cb88ad2d811129bf05ae871f2b28666aa2200c13a902b7",
+      "owner": "media"
+    },
+    {
+      "path": "tools/ifc_publication/publish.py",
+      "mode": "100644",
+      "bytes": 37664,
+      "sha256": "083ff36e25d22249f9207b8e7477ff6960f1e45abe41d35c9120508c7b804212",
+      "owner": "media"
+    },
+    {
+      "path": "tools/ifc_publication/semantic-map-v2.mjs",
+      "mode": "100644",
+      "bytes": 21751,
+      "sha256": "824c4bde51ef922266646862a85f10f19246630c8f360b34633c2800104107c0",
+      "owner": "media"
+    },
+    {
+      "path": "tools/ifc_publication/semantic-map.mjs",
+      "mode": "100644",
+      "bytes": 17678,
+      "sha256": "8ee0bb8d6a29a3e1f1d6b1749a70b5ef09ef13641d27167ccf70ebd2f5cd57f0",
+      "owner": "media"
+    },
+    {
+      "path": "tools/ifc_publication/semantic-map.v2.schema.json",
+      "mode": "100644",
+      "bytes": 9196,
+      "sha256": "c9b47c81fb4d1ea9170ef17f06965eaaf703e1c0324def53c63e007d686f67d0",
+      "owner": "media"
+    },
+    {
+      "path": "tools/ifc_publication/test_publish.py",
+      "mode": "100644",
+      "bytes": 20246,
+      "sha256": "dad0c80c4422ef607e2394e6cb21a0ac857ca64475a92b031f46e912ce595717",
+      "owner": "media"
+    },
+    {
+      "path": "tools/ifc_publication/test_publish_v2.py",
+      "mode": "100644",
+      "bytes": 9098,
+      "sha256": "b37727fdc07d18d9157f0a8380b121427fdcf408c7ed58d18f93c939a1f9552b",
+      "owner": "media"
+    },
+    {
+      "path": "tools/ifc_publication/validate-cli-v2.mjs",
+      "mode": "100644",
+      "bytes": 1898,
+      "sha256": "049dc0327585de5f628571cf5a6c77178418ff81c5895936d0f918faa6bdc84f",
+      "owner": "media"
+    },
+    {
+      "path": "tools/ifc_publication/validate-cli.mjs",
+      "mode": "100644",
+      "bytes": 1806,
+      "sha256": "74e4d461c794269805078e792750809170fca3165cee5a8c55ee33816868ce56",
       "owner": "media"
     },
     {

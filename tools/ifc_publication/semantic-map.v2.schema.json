@@ -1,0 +1,430 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://houseatlas.invalid/canonical-ifc/semantic-map.v2.schema.json",
+  "title": "HouseAtlas canonical IFC semantic map v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "semanticMapRevisionId",
+    "previousSemanticMapRevisionId",
+    "sourceRevisionId",
+    "ifcOriginalSha256",
+    "workspaceId",
+    "homeId",
+    "buildingId",
+    "floors",
+    "rooms",
+    "electricalGroups",
+    "transitions"
+  ],
+  "properties": {
+    "schema": {
+      "const": "houseatlas.ifc-semantic-map.v2"
+    },
+    "semanticMapRevisionId": {
+      "$ref": "#/$defs/uuid"
+    },
+    "previousSemanticMapRevisionId": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceRevisionId": {
+      "$ref": "#/$defs/uuid"
+    },
+    "ifcOriginalSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "workspaceId": {
+      "$ref": "#/$defs/uuid"
+    },
+    "homeId": {
+      "$ref": "#/$defs/uuid"
+    },
+    "buildingId": {
+      "$ref": "#/$defs/uuid"
+    },
+    "floors": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/floor"
+      }
+    },
+    "rooms": {
+      "type": "array",
+      "maxItems": 4096,
+      "items": {
+        "$ref": "#/$defs/room"
+      }
+    },
+    "electricalGroups": {
+      "type": "array",
+      "maxItems": 4096,
+      "items": {
+        "$ref": "#/$defs/electricalGroup"
+      }
+    },
+    "transitions": {
+      "type": "array",
+      "maxItems": 8192,
+      "items": {
+        "$ref": "#/$defs/transition"
+      }
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "ifcGlobalId": {
+      "type": "string",
+      "pattern": "^[0-3][0-9A-Za-z_$]{21}$"
+    },
+    "name": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "packagePlace": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "packagePlaceKey",
+        "packagePlaceUuid"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "packagePlaceKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "packagePlaceUuid": {
+          "$ref": "#/$defs/uuid"
+        }
+      }
+    },
+    "floor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "floorId",
+        "ifcBuildingStoreyGlobalId",
+        "atlasPlaceId",
+        "displayName"
+      ],
+      "properties": {
+        "floorId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "ifcBuildingStoreyGlobalId": {
+          "$ref": "#/$defs/ifcGlobalId"
+        },
+        "atlasPlaceId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "displayName": {
+          "$ref": "#/$defs/name"
+        }
+      }
+    },
+    "room": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "roomId",
+        "atlasPlaceId",
+        "packagePlace",
+        "displayName",
+        "occurrences"
+      ],
+      "properties": {
+        "roomId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "atlasPlaceId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "packagePlace": {
+          "$ref": "#/$defs/packagePlace"
+        },
+        "displayName": {
+          "$ref": "#/$defs/name"
+        },
+        "occurrences": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/spaceOccurrence"
+          }
+        }
+      }
+    },
+    "historicalLabel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "evidenceId",
+        "status"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "evidenceId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "status": {
+          "const": "unverified"
+        }
+      }
+    },
+    "electricalGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "groupId",
+        "ifcCircuitGlobalId",
+        "atlasCircuitId",
+        "displayName",
+        "historicalLabels",
+        "membershipStatus"
+      ],
+      "properties": {
+        "groupId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "ifcCircuitGlobalId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ifcGlobalId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "atlasCircuitId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "displayName": {
+          "$ref": "#/$defs/name"
+        },
+        "historicalLabels": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/historicalLabel"
+          }
+        },
+        "membershipStatus": {
+          "enum": [
+            "unknown",
+            "reviewed"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "membershipStatus": {
+                "const": "reviewed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "ifcCircuitGlobalId": {
+                "$ref": "#/$defs/ifcGlobalId"
+              },
+              "atlasCircuitId": {
+                "$ref": "#/$defs/uuid"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "entity",
+        "beforeIds",
+        "afterIds",
+        "evidenceIds"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "create",
+            "retire",
+            "split",
+            "merge",
+            "rebind"
+          ]
+        },
+        "entity": {
+          "enum": [
+            "floor",
+            "room",
+            "spaceOccurrence",
+            "electricalGroup"
+          ]
+        },
+        "beforeIds": {
+          "type": "array",
+          "maxItems": 4096,
+          "uniqueItems": true,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/uuid"
+              },
+              {
+                "$ref": "#/$defs/spaceOccurrenceId"
+              }
+            ]
+          }
+        },
+        "afterIds": {
+          "type": "array",
+          "maxItems": 4096,
+          "uniqueItems": true,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/uuid"
+              },
+              {
+                "$ref": "#/$defs/spaceOccurrenceId"
+              }
+            ]
+          }
+        },
+        "evidenceIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/uuid"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "entity": {
+                "const": "spaceOccurrence"
+              }
+            },
+            "required": [
+              "entity"
+            ]
+          },
+          "then": {
+            "properties": {
+              "beforeIds": {
+                "items": {
+                  "$ref": "#/$defs/spaceOccurrenceId"
+                }
+              },
+              "afterIds": {
+                "items": {
+                  "$ref": "#/$defs/spaceOccurrenceId"
+                }
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "beforeIds": {
+                "items": {
+                  "$ref": "#/$defs/uuid"
+                }
+              },
+              "afterIds": {
+                "items": {
+                  "$ref": "#/$defs/uuid"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "spaceOccurrenceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "spaceOccurrence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "spaceOccurrenceId",
+        "ifcSpaceGlobalId",
+        "floorId"
+      ],
+      "properties": {
+        "spaceOccurrenceId": {
+          "$ref": "#/$defs/spaceOccurrenceId"
+        },
+        "ifcSpaceGlobalId": {
+          "$ref": "#/$defs/ifcGlobalId"
+        },
+        "floorId": {
+          "$ref": "#/$defs/uuid"
+        }
+      }
+    }
+  }
+}
