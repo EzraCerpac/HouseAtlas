@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://houseatlas.invalid/contracts/2.0.0/http-history.schema.json",
+  "title": "HouseAtlas v2 HTTP history",
+  "type": "array",
+  "items": {
+    "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/audit"
+  }
+}

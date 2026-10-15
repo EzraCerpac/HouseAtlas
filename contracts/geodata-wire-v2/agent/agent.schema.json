@@ -1,0 +1,627 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:houseatlas:agent:geodata-wire-v2",
+  "title": "Explicit source-neutral geodata Document successor operations",
+  "$defs": {
+    "request_list": {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "const": "atlas.geodataDocument.list"
+        },
+        "input": {
+          "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/geodataDocumentListRequest"
+        }
+      },
+      "required": [
+        "commandId",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "result_list": {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "const": "atlas.geodataDocument.list"
+        },
+        "output": {
+          "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/geodataDocumentList"
+        }
+      },
+      "required": [
+        "commandId",
+        "output"
+      ],
+      "additionalProperties": false
+    },
+    "request_get": {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "const": "atlas.geodataDocument.get"
+        },
+        "input": {
+          "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/geodataDocumentGetRequest"
+        }
+      },
+      "required": [
+        "commandId",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "result_get": {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "const": "atlas.geodataDocument.get"
+        },
+        "output": {
+          "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/geodataDocumentRead"
+        }
+      },
+      "required": [
+        "commandId",
+        "output"
+      ],
+      "additionalProperties": false
+    },
+    "request_readOriginal": {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "const": "atlas.geodataDocument.readOriginal"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/scope"
+            },
+            "documentId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "expectedRevision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "mode": {
+              "const": "original"
+            }
+          },
+          "required": [
+            "scope",
+            "documentId",
+            "expectedRevision",
+            "mode"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "commandId",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "result_readOriginal": {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "const": "atlas.geodataDocument.readOriginal"
+        },
+        "output": {
+          "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/geodataDocumentOriginalByteFrame"
+        }
+      },
+      "required": [
+        "commandId",
+        "output"
+      ],
+      "additionalProperties": false
+    },
+    "request_readPreview": {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "const": "atlas.geodataDocument.readPreview"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/scope"
+            },
+            "documentId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "expectedRevision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "mode": {
+              "const": "preview"
+            }
+          },
+          "required": [
+            "scope",
+            "documentId",
+            "expectedRevision",
+            "mode"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "commandId",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "result_readPreview": {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "const": "atlas.geodataDocument.readPreview"
+        },
+        "output": {
+          "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/geodataDocumentPreviewByteFrame"
+        }
+      },
+      "required": [
+        "commandId",
+        "output"
+      ],
+      "additionalProperties": false
+    },
+    "request_create": {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "const": "atlas.geodataDocument.create"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/scope"
+            },
+            "documentId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "command": {
+              "type": "object",
+              "properties": {
+                "schemaVersion": {
+                  "const": 1
+                },
+                "mutationId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "guards": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/guard"
+                  },
+                  "uniqueItems": true
+                },
+                "operation": {
+                  "const": "create"
+                },
+                "expectedRevision": {
+                  "type": "null"
+                },
+                "value": {
+                  "type": "object",
+                  "properties": {
+                    "recordType": {
+                      "const": "geodata-document"
+                    },
+                    "payload": {
+                      "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/geodataDocumentPayload"
+                    }
+                  },
+                  "required": [
+                    "recordType",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "mutationId",
+                "reason",
+                "guards",
+                "operation",
+                "expectedRevision",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "scope",
+            "documentId",
+            "command"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "commandId",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "result_create": {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "const": "atlas.geodataDocument.create"
+        },
+        "output": {
+          "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/geodataDocumentMutationResult"
+        }
+      },
+      "required": [
+        "commandId",
+        "output"
+      ],
+      "additionalProperties": false
+    },
+    "request_replace": {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "const": "atlas.geodataDocument.replace"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/scope"
+            },
+            "documentId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "command": {
+              "type": "object",
+              "properties": {
+                "schemaVersion": {
+                  "const": 1
+                },
+                "mutationId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "guards": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/guard"
+                  },
+                  "uniqueItems": true
+                },
+                "operation": {
+                  "const": "replace"
+                },
+                "expectedRevision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "value": {
+                  "type": "object",
+                  "properties": {
+                    "recordType": {
+                      "const": "geodata-document"
+                    },
+                    "payload": {
+                      "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/geodataDocumentPayload"
+                    }
+                  },
+                  "required": [
+                    "recordType",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "mutationId",
+                "reason",
+                "guards",
+                "operation",
+                "expectedRevision",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "scope",
+            "documentId",
+            "command"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "commandId",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "result_replace": {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "const": "atlas.geodataDocument.replace"
+        },
+        "output": {
+          "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/geodataDocumentMutationResult"
+        }
+      },
+      "required": [
+        "commandId",
+        "output"
+      ],
+      "additionalProperties": false
+    },
+    "request_tombstone": {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "const": "atlas.geodataDocument.tombstone"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/scope"
+            },
+            "documentId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "command": {
+              "type": "object",
+              "properties": {
+                "schemaVersion": {
+                  "const": 1
+                },
+                "mutationId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "guards": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/guard"
+                  },
+                  "uniqueItems": true
+                },
+                "operation": {
+                  "const": "tombstone"
+                },
+                "expectedRevision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "mutationId",
+                "reason",
+                "guards",
+                "operation",
+                "expectedRevision"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "scope",
+            "documentId",
+            "command"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "commandId",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "result_tombstone": {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "const": "atlas.geodataDocument.tombstone"
+        },
+        "output": {
+          "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/geodataDocumentMutationResult"
+        }
+      },
+      "required": [
+        "commandId",
+        "output"
+      ],
+      "additionalProperties": false
+    },
+    "request_restore": {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "const": "atlas.geodataDocument.restore"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/scope"
+            },
+            "documentId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "command": {
+              "type": "object",
+              "properties": {
+                "schemaVersion": {
+                  "const": 1
+                },
+                "mutationId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "guards": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/guard"
+                  },
+                  "uniqueItems": true
+                },
+                "operation": {
+                  "const": "restore"
+                },
+                "expectedRevision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "mutationId",
+                "reason",
+                "guards",
+                "operation",
+                "expectedRevision"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "scope",
+            "documentId",
+            "command"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "commandId",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "result_restore": {
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "const": "atlas.geodataDocument.restore"
+        },
+        "output": {
+          "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/geodataDocumentMutationResult"
+        }
+      },
+      "required": [
+        "commandId",
+        "output"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/request_list"
+    },
+    {
+      "$ref": "#/$defs/result_list"
+    },
+    {
+      "$ref": "#/$defs/request_get"
+    },
+    {
+      "$ref": "#/$defs/result_get"
+    },
+    {
+      "$ref": "#/$defs/request_readOriginal"
+    },
+    {
+      "$ref": "#/$defs/result_readOriginal"
+    },
+    {
+      "$ref": "#/$defs/request_readPreview"
+    },
+    {
+      "$ref": "#/$defs/result_readPreview"
+    },
+    {
+      "$ref": "#/$defs/request_create"
+    },
+    {
+      "$ref": "#/$defs/result_create"
+    },
+    {
+      "$ref": "#/$defs/request_replace"
+    },
+    {
+      "$ref": "#/$defs/result_replace"
+    },
+    {
+      "$ref": "#/$defs/request_tombstone"
+    },
+    {
+      "$ref": "#/$defs/result_tombstone"
+    },
+    {
+      "$ref": "#/$defs/request_restore"
+    },
+    {
+      "$ref": "#/$defs/result_restore"
+    }
+  ]
+}

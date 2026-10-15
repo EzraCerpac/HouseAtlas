@@ -1,0 +1,91 @@
+{
+  "contractVersion": "2.0.0",
+  "catalogIdentity": "geodata-wire-v2",
+  "baseRecordSchemaVersions": [
+    1,
+    2
+  ],
+  "candidateOnly": true,
+  "commands": [
+    {
+      "commandId": "atlas.geodataDocument.list",
+      "authority": "atlas",
+      "effect": "read",
+      "resourceKind": "geodata-document",
+      "inputSchema": "#/$defs/request_list",
+      "outputSchema": "#/$defs/result_list",
+      "permission": "domain:read",
+      "runtimeRegistration": false
+    },
+    {
+      "commandId": "atlas.geodataDocument.get",
+      "authority": "atlas",
+      "effect": "read",
+      "resourceKind": "geodata-document",
+      "inputSchema": "#/$defs/request_get",
+      "outputSchema": "#/$defs/result_get",
+      "permission": "domain:read",
+      "runtimeRegistration": false
+    },
+    {
+      "commandId": "atlas.geodataDocument.readOriginal",
+      "authority": "atlas",
+      "effect": "read",
+      "resourceKind": "geodata-document",
+      "inputSchema": "#/$defs/request_readOriginal",
+      "outputSchema": "#/$defs/result_readOriginal",
+      "permission": "native-exact-byte-read",
+      "runtimeRegistration": false
+    },
+    {
+      "commandId": "atlas.geodataDocument.readPreview",
+      "authority": "atlas",
+      "effect": "read",
+      "resourceKind": "geodata-document",
+      "inputSchema": "#/$defs/request_readPreview",
+      "outputSchema": "#/$defs/result_readPreview",
+      "permission": "native-exact-byte-read",
+      "runtimeRegistration": false
+    },
+    {
+      "commandId": "atlas.geodataDocument.create",
+      "authority": "atlas",
+      "effect": "native-mutation",
+      "resourceKind": "geodata-document",
+      "inputSchema": "#/$defs/request_create",
+      "outputSchema": "#/$defs/result_create",
+      "permission": "domain:mutate",
+      "runtimeRegistration": false
+    },
+    {
+      "commandId": "atlas.geodataDocument.replace",
+      "authority": "atlas",
+      "effect": "native-mutation",
+      "resourceKind": "geodata-document",
+      "inputSchema": "#/$defs/request_replace",
+      "outputSchema": "#/$defs/result_replace",
+      "permission": "domain:mutate",
+      "runtimeRegistration": false
+    },
+    {
+      "commandId": "atlas.geodataDocument.tombstone",
+      "authority": "atlas",
+      "effect": "native-mutation",
+      "resourceKind": "geodata-document",
+      "inputSchema": "#/$defs/request_tombstone",
+      "outputSchema": "#/$defs/result_tombstone",
+      "permission": "domain:mutate",
+      "runtimeRegistration": false
+    },
+    {
+      "commandId": "atlas.geodataDocument.restore",
+      "authority": "atlas",
+      "effect": "native-mutation",
+      "resourceKind": "geodata-document",
+      "inputSchema": "#/$defs/request_restore",
+      "outputSchema": "#/$defs/result_restore",
+      "permission": "domain:mutate",
+      "runtimeRegistration": false
+    }
+  ]
+}

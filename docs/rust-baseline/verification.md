@@ -60,3 +60,28 @@ controls, actual-user acceptance or deployment. All previously stopped controls
 remain unrun. No credentials, grants, private data, live provider calls, listeners,
 remote pushes, PRs or merges were used. The original publication source allowlist
 needs its owner's expanded-tree reconciliation before a new publication check.
+
+## Explicit geodata v2 contract closure
+
+The source-neutral Document successor is selected by name as `geodata-wire-v2`.
+After inspecting the generator and the complete check body, run only this scoped
+healthy synthetic shape/closure check with the pinned toolchain and existing
+contract dependencies:
+
+```sh
+node tools/rust-baseline/generate-contracts.mjs --v2 --check
+node tools/rust-baseline/generate-contracts.mjs --check
+node tools/rust-baseline/check-geodata-v2-contracts.mjs
+```
+
+This checks exact pinned schema/history/resource/catalog/policy inputs and the
+separate deterministic v2 Rust/TypeScript output, confirms the unchanged v1
+outputs and eleven preserved record definitions, and compiles every successor
+definition. Its explicit generated examples cover original-only and preview
+shapes, the synthetic snapshot restriction, closed read/list/framing requests,
+mutation/audit/result/batch closure, eight catalog operation pairs and six
+original-family MIME/license shapes (GeoJSON, CityJSON, JSON, TIFF, PDF, PNG).
+Family examples are shape-only; they measure no media and assert no GIS validity. It calls
+no provider, storage, renderer or service, and asserts no trusted custody,
+qualification, persistence, recovery or actual-media behavior. It adds no ordinary
+CI command and executes no controls or failure-injection cases.

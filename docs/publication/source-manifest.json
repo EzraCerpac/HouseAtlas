@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "4cc83988d97baad16fbc1d979f358bd89d1c3980e95d12d685ea0b0061dae0aa",
+  "sourceDigestSha256": "4c11bb8ba8a02426a2275b10ada4ea52c63a99b6f9680ac023c0b80aee0e2595",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -1213,6 +1213,13 @@
       "mode": "100644",
       "bytes": 86712,
       "sha256": "71e5aa90a295c6317ea92781073fc7dc250427858d841891d4533d8da58a3711",
+      "owner": "contracts"
+    },
+    {
+      "path": "backend/src/contracts/generated_v2.rs",
+      "mode": "100644",
+      "bytes": 116619,
+      "sha256": "e0e91e1cc691b0309ee00b8a4f4a30b89d134a6ffeabfd7db4cc6aa1ea596486",
       "owner": "contracts"
     },
     {
@@ -5206,6 +5213,48 @@
       "owner": "core-integration"
     },
     {
+      "path": "contracts/geodata-wire-v2/README.md",
+      "mode": "100644",
+      "bytes": 3627,
+      "sha256": "eff7f193b84d6c2b1bb4a166316f9001cc30bc91cdcf75e6b7359c80cf57a964",
+      "owner": "contracts"
+    },
+    {
+      "path": "contracts/geodata-wire-v2/adoption-manifest.json",
+      "mode": "100644",
+      "bytes": 2668,
+      "sha256": "6b126f38f0a6f3791aae7dff4b1aa4f827bd820fe05e47bd997b4b543e961571",
+      "owner": "contracts"
+    },
+    {
+      "path": "contracts/geodata-wire-v2/agent/agent.schema.json",
+      "mode": "100644",
+      "bytes": 17503,
+      "sha256": "9fc97a2aeeadd7693be85b014da608166136a7c8440541a6b97884fc963a57ee",
+      "owner": "contracts"
+    },
+    {
+      "path": "contracts/geodata-wire-v2/agent/operation-catalog.json",
+      "mode": "100644",
+      "bytes": 2851,
+      "sha256": "eb9a02ff5427768768882e217421487b186b2fdbe0cbe41ee1b9cfd08a9a31d0",
+      "owner": "contracts"
+    },
+    {
+      "path": "contracts/geodata-wire-v2/policy.json",
+      "mode": "100644",
+      "bytes": 3588,
+      "sha256": "5297d5eb3247b82bdad216bd40da080ebc1d1732fb7b4e67fdd7c430b83a6014",
+      "owner": "contracts"
+    },
+    {
+      "path": "contracts/geodata-wire-v2/resource-map.json",
+      "mode": "100644",
+      "bytes": 1251,
+      "sha256": "9c16e482c45a5fbb99c4587435f91915d335409cd4eae09f7f2a713b12b7626a",
+      "owner": "contracts"
+    },
+    {
       "path": "contracts/stock-wire3/PROVIDER-AND-AI-POLICY.md",
       "mode": "100644",
       "bytes": 18126,
@@ -6069,8 +6118,8 @@
     {
       "path": "docs/rust-baseline/verification.md",
       "mode": "100644",
-      "bytes": 3495,
-      "sha256": "5a9c5288af8f687ab7bd1b9478a1689518ad8e21497a4d53ea75522e1e385fec",
+      "bytes": 4838,
+      "sha256": "c18e6ceb70c7b07a16664588c074835ce43544996072dda825583ed852346950",
       "owner": "contracts"
     },
     {
@@ -8694,8 +8743,8 @@
     {
       "path": "packages/contracts/README.md",
       "mode": "100644",
-      "bytes": 1807,
-      "sha256": "148f295a9f8be991e2317e8d8ce8cea5e2cb6808cdef50ca7ea164105efe82fa",
+      "bytes": 2233,
+      "sha256": "75d91dcbfe33e20657a43be452b99f4c1a41cdc6f8bd3bcf8f632b69bc323269",
       "owner": "contracts"
     },
     {
@@ -8769,6 +8818,13 @@
       "owner": "contracts"
     },
     {
+      "path": "packages/contracts/generated/contracts-v2.ts",
+      "mode": "100644",
+      "bytes": 37559,
+      "sha256": "eb1fdf6508a24230b68aaadc9c229ab90d5466ef9611f75d4da7d9acc0b5a036",
+      "owner": "contracts"
+    },
+    {
       "path": "packages/contracts/history/check-history.mjs",
       "mode": "100644",
       "bytes": 6733,
@@ -8811,6 +8867,13 @@
       "owner": "contracts"
     },
     {
+      "path": "packages/contracts/history/http-history.v2.schema.json",
+      "mode": "100644",
+      "bytes": 310,
+      "sha256": "3d4378eba184e2542f76f904ac016bb26ea7dc073250d3927baab2284aae1ae2",
+      "owner": "contracts"
+    },
+    {
       "path": "packages/contracts/package-lock.json",
       "mode": "100644",
       "bytes": 2941,
@@ -8836,6 +8899,13 @@
       "mode": "100644",
       "bytes": 97701,
       "sha256": "c7c380b317e3cc640c8c437bf360e5f04d443f91ec03a54cc0f23a98b5a13b0c",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/schemas/atlas.v2.schema.json",
+      "mode": "100644",
+      "bytes": 129648,
+      "sha256": "5681d21c6b22de8da4477a18a3e44d70072ae91e387221705f27670ad9c2755f",
       "owner": "contracts"
     },
     {
@@ -9553,6 +9623,13 @@
       "owner": "contracts"
     },
     {
+      "path": "tools/rust-baseline/check-geodata-v2-contracts.mjs",
+      "mode": "100644",
+      "bytes": 11964,
+      "sha256": "437d53a00e67b6d511227eedd2ac381b1cb83eb1de58369cef7a10bde5f3afc3",
+      "owner": "contracts"
+    },
+    {
       "path": "tools/rust-baseline/check.mjs",
       "mode": "100644",
       "bytes": 2670,
@@ -9576,8 +9653,8 @@
     {
       "path": "tools/rust-baseline/generate-contracts.mjs",
       "mode": "100644",
-      "bytes": 14827,
-      "sha256": "19fe7cc77f61a6644c411ec7771c0ea56b680faab77ca0886b22ce3da1cbdeb7",
+      "bytes": 16273,
+      "sha256": "d71d295a8bc4d6d3b507c21873d87b69f526f31d6dbdeeff347b6fa960ac6893",
       "owner": "contracts"
     },
     {
