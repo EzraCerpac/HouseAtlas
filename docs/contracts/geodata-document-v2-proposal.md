@@ -9,9 +9,9 @@ stock-command, storage and recovery contract closure described below.
 This proposal is source-neutral. One individually retained source file becomes
 one independently addressable Document. Its original bytes are never rewritten
 or replaced with a screenshot, archive wrapper or concatenated download. Each
-original and derivative must contain 1 through 10,485,759 bytes (strictly less
-than 10 MiB); the HTTP boundary must enforce this exact exclusive limit even
-though the existing unselected media pin accepts 10,485,760. A multi-file delivery
+original and derivative must contain 1 through 10,485,760 bytes (at most
+10 MiB), preserving the existing inclusive media and HTTP service limit.
+A multi-file delivery
 creates independent assets and Documents. A bounded official API batch envelope
 is one original file with its declared format, not automatically many Documents;
 extraction requires separate retained files and exact parent/extraction receipts.

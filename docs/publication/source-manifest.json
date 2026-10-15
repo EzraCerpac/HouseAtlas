@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "3c699f3fe9299e52d89d0a6622ef88e528cf117e8993a64e934e622e29b21a7d",
+  "sourceDigestSha256": "919fbf2549bc770bb5775674151e40cff3ecc9bef11791d84a9178e319478990",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5586,14 +5586,14 @@
     {
       "path": "docs/contracts/geodata-document-v2-manifest.json",
       "bytes": 4259,
-      "sha256": "52805fff119ac56c84188d486a24073e1f42fd8d66439c658710a671ce1991ac",
+      "sha256": "f7606bcde9425dfdb26f5c7a96e175913547dc44dcde9795239a2695a502a2b3",
       "mode": "100644",
       "owner": "contracts"
     },
     {
       "path": "docs/contracts/geodata-document-v2-proposal.md",
-      "bytes": 17484,
-      "sha256": "cffdb53db8fd6857fd7d67b02b81b562372a1e0ed7245ebed5155c9e2d3d551d",
+      "bytes": 17413,
+      "sha256": "2997120ef5f29662a1acb5c5435a8db2a30cb2436600124e82ddf8e0117c16b7",
       "mode": "100644",
       "owner": "contracts"
     },
