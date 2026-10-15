@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "3f877e86584309e3bf24a5e6253a7f0cee6169aaf7965581303a042356d4a620",
+  "sourceDigestSha256": "1211fbcfbcef5f211b972f3708591c829f7883c8efcf75efbd0e921b439153b7",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -35,8 +35,8 @@
     {
       "path": ".github/workflows/pr185-darwin-artifact.yml",
       "mode": "100644",
-      "bytes": 1864,
-      "sha256": "85a6f62d12bc15e6dad32691493ddab7c19c3c6042217fb1a597de29bce07683",
+      "bytes": 1965,
+      "sha256": "b76e6668f0e95a8974de540ca2f0635c0f255f2841b37406c6b5b5fc9b3db984",
       "owner": "core-integration"
     },
     {

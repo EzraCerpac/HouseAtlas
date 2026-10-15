@@ -17,10 +17,12 @@ jobs:
     env:
       MACOSX_DEPLOYMENT_TARGET: '15.0'
       RUSTUP_TOOLCHAIN: '1.99.0'
-      CARGO_HOME: ${{ runner.temp }}/pr185-cargo
-      CARGO_TARGET_DIR: ${{ runner.temp }}/pr185-target
       CARGO_BUILD_JOBS: '2'
     steps:
+      - name: Prepare isolated Cargo paths
+        shell: bash
+        run: |
+          printf 'CARGO_HOME=%s/pr185-cargo\nCARGO_TARGET_DIR=%s/pr185-target\n' "$RUNNER_TEMP" "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - name: Check out reviewed build recipe
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
