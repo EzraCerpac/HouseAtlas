@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "87013d4b25989dd995c09603765b70ba1f992be1ca35668ff2f5b820f5b52cfa",
+  "sourceDigestSha256": "12825df9cf0ea336bf81e555f8b5cea29f17fe2d414876aa273776a3a20a4a58",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5747,8 +5747,8 @@
     {
       "path": "docs/geodata/native-documents.md",
       "mode": "100644",
-      "bytes": 9691,
-      "sha256": "22f40a54c80e9a9c0b99b988eb0891702a4369a0718d5f43cd3e64e5882b6b41",
+      "bytes": 9690,
+      "sha256": "1a76d814945703a845eca9b294484dc388b551f1bfebba7f8338d21fded6b867",
       "owner": "core-integration"
     },
     {
