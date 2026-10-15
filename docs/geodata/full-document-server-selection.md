@@ -82,13 +82,16 @@ houseatlas-backend full-geodata-restore \
 
 Capture requires the existing full-profile state receipt, exact native identities
 and exclusive server lease. Both Atlas and Access must already be closed,
-standalone DELETE-mode databases without WAL, SHM or journal sidecars. A normal
-server shutdown alone may leave a WAL-mode header, which this command refuses.
-It never checkpoints, changes journal mode, repairs a receipt or converts a
-source. Any preparation of such a source requires a separately reviewed offline
-operation. Capture validates the actual full store through a read-only opener,
-retains its lease through store destruction, and checks source database bytes,
-server configuration and full state receipt again after capture.
+standalone databases without WAL, SHM or journal sidecars. A clean WAL-mode
+header is accepted. The persistent owner pins the original files, copies them
+into a retained private temporary directory under the lease, and normalizes only
+those temporary copies to DELETE mode. It never checkpoints or changes the
+journal mode of the original databases, repairs their receipts or converts a
+source. Capture validates the copied full store through a read-only opener,
+retains its lease and private copies through store destruction, and checks the
+unchanged source database bytes, server configuration and full state receipt
+again after capture. The report separates the original `sourceDatabaseSha256`
+and `sourceDatabaseBytes` from the captured bundle database digest and length.
 
 Verification and restoration need a closed full-format bundle and trusted policy,
 without a server configuration, active service, native user or grant. Their
@@ -107,3 +110,45 @@ and full manifest with conversion ancestry. It creates no Access database,
 credentials, sessions, grants, server configuration or serving receipt, and
 starts no listener. A failed operation may leave its new destination for review;
 failure does not authorize automatic retry, cleanup or service adoption.
+
+# Explicit offline copy and binding
+
+The same command adapter also exposes two preparation commands. Neither starts
+a listener, provisions an account, changes an origin or activates a deployment.
+
+```text
+houseatlas-backend full-geodata-copy \
+  --source-atlas /absolute/private/closed-v5-snapshot/atlas.sqlite \
+  --source-atlas-sha256 <expected-lowercase-sha256-of-source-atlas> \
+  --source-vault /absolute/private/closed-v5-snapshot/media \
+  --destination /absolute/private/new-full-target \
+  --full-geodata-source-policy /absolute/private/reviewed-sources.json \
+  --full-geodata-source-policy-sha256 <lowercase-sha256-of-exact-policy-file>
+
+houseatlas-backend full-geodata-bind \
+  --server-config /absolute/private/prepared-target-server.json \
+  --full-geodata-source-policy /absolute/private/reviewed-sources.json \
+  --full-geodata-source-policy-sha256 <lowercase-sha256-of-exact-policy-file>
+```
+
+Copy requires a separately selected closed v5 source snapshot under its owner's
+exclusion, with no SQLite sidecars and an existing DELETE-mode header. Supply
+the expected database digest independently and the exact existing source vault.
+The source database and vault stay unchanged. Copy uses the native Stock
+contract, an explicitly complete empty queue registry and an empty in-memory
+Access owner. It preserves the 29 native tables, adds the full Document schema
+and conversion ancestry, and copies qualified retained media to the newly
+created private target. It copies no authentication database, credentials,
+sessions, grants, server configuration or serving receipts. The result is a
+converted dataset rather than an activated deployment.
+
+Bind requires a separately prepared target configuration and existing native
+state. The persistent owner checks the exact original configuration and Access
+identity receipt, validates the qualified full database and creates a separate
+full-profile state receipt. The original state receipt and account data remain
+unchanged. The adapter checks the captured configuration bytes before and after
+binding. Binding changes only this explicitly selected target; do not direct it
+at the unchanged source deployment. Preparing target account/state files and
+configuration is a separate reviewed operation, never an automatic consequence
+of copy, restore or startup. A failure after receipt creation can leave that
+receipt for review and does not authorize automatic retry or adoption.

@@ -36,6 +36,17 @@ enum Operation {
         bundle: PathBuf,
         destination: PathBuf,
     },
+    Copy {
+        source: PathBuf,
+        source_sha256: String,
+        source_vault: PathBuf,
+        destination: PathBuf,
+    },
+    Bind {
+        config: Box<ServerConfig>,
+        config_path: PathBuf,
+        config_bytes: Vec<u8>,
+    },
 }
 
 pub struct Selection {
@@ -53,7 +64,11 @@ impl Selection {
         };
         if !matches!(
             mode,
-            "full-geodata-backup" | "full-geodata-verify" | "full-geodata-restore"
+            "full-geodata-backup"
+                | "full-geodata-verify"
+                | "full-geodata-restore"
+                | "full-geodata-copy"
+                | "full-geodata-bind"
         ) {
             return Ok(None);
         }
@@ -63,9 +78,19 @@ impl Selection {
             let allowed = matches!(
                 name.as_str(),
                 "--full-geodata-source-policy" | "--full-geodata-source-policy-sha256"
-            ) || (mode == "full-geodata-backup" && name == "--server-config")
-                || (mode != "full-geodata-backup" && name == "--bundle")
-                || (mode != "full-geodata-verify" && name == "--destination");
+            ) || (matches!(mode, "full-geodata-backup" | "full-geodata-bind")
+                && name == "--server-config")
+                || (matches!(mode, "full-geodata-verify" | "full-geodata-restore")
+                    && name == "--bundle")
+                || (matches!(
+                    mode,
+                    "full-geodata-backup" | "full-geodata-restore" | "full-geodata-copy"
+                ) && name == "--destination")
+                || (mode == "full-geodata-copy"
+                    && matches!(
+                        name.as_str(),
+                        "--source-atlas" | "--source-atlas-sha256" | "--source-vault"
+                    ));
             if !allowed
                 || options
                     .insert(
@@ -98,26 +123,53 @@ impl Selection {
                 .ok_or("Required full geodata source policy custody digest")?,
         )?;
         let operation = match mode {
-            "full-geodata-backup" => {
+            "full-geodata-backup" | "full-geodata-bind" => {
                 let config_path = path("--server-config")?;
                 let config_bytes = read_selected_file(&config_path, 64 * 1024, true)?;
                 let config: ServerConfig = serde_json::from_slice(&config_bytes)
                     .map_err(|_| "Invalid full geodata backup server configuration")?;
                 config.validate()?;
-                Operation::Capture {
-                    config: Box::new(config),
-                    config_path,
-                    config_bytes,
-                    destination: path("--destination")?,
+                if mode == "full-geodata-bind" {
+                    Operation::Bind {
+                        config: Box::new(config),
+                        config_path,
+                        config_bytes,
+                    }
+                } else {
+                    Operation::Capture {
+                        config: Box::new(config),
+                        config_path,
+                        config_bytes,
+                        destination: path("--destination")?,
+                    }
                 }
             }
             "full-geodata-verify" => Operation::Verify {
                 bundle: path("--bundle")?,
             },
-            _ => Operation::Restore {
+            "full-geodata-restore" => Operation::Restore {
                 bundle: path("--bundle")?,
                 destination: path("--destination")?,
             },
+            _ => {
+                let source_sha256 = options
+                    .get("--source-atlas-sha256")
+                    .ok_or("Required expected source Atlas SHA-256")?
+                    .to_string();
+                if source_sha256.len() != 64
+                    || !source_sha256
+                        .bytes()
+                        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+                {
+                    return Err("Expected source Atlas digest must be lowercase SHA-256".into());
+                }
+                Operation::Copy {
+                    source: path("--source-atlas")?,
+                    source_sha256,
+                    source_vault: path("--source-vault")?,
+                    destination: path("--destination")?,
+                }
+            }
         };
         Ok(Some(Self {
             operation,
@@ -133,11 +185,42 @@ pub struct Report {
     format: &'static str,
     profile: &'static str,
     operation: &'static str,
-    database_sha256: String,
-    database_bytes: u64,
-    asset_record_count: usize,
-    retained_asset_count: usize,
-    conversion_receipt_sha256: String,
+    #[serde(flatten)]
+    details: ReportDetails,
+}
+
+#[derive(Serialize)]
+#[serde(untagged, rename_all = "camelCase")]
+enum ReportDetails {
+    Recovery {
+        #[serde(rename = "databaseSha256")]
+        database_sha256: String,
+        #[serde(rename = "databaseBytes")]
+        database_bytes: u64,
+        #[serde(rename = "assetRecordCount")]
+        asset_record_count: usize,
+        #[serde(rename = "retainedAssetCount")]
+        retained_asset_count: usize,
+        #[serde(rename = "conversionReceiptSha256")]
+        conversion_receipt_sha256: String,
+        #[serde(
+            rename = "sourceDatabaseSha256",
+            skip_serializing_if = "Option::is_none"
+        )]
+        source_database_sha256: Option<String>,
+        #[serde(
+            rename = "sourceDatabaseBytes",
+            skip_serializing_if = "Option::is_none"
+        )]
+        source_database_bytes: Option<u64>,
+    },
+    Copy {
+        #[serde(rename = "copyReport")]
+        copy_report: storage::geodata_full::FullProfileCopyReport,
+    },
+    Bound {
+        binding: &'static str,
+    },
 }
 
 fn progress(budget: &WorkBudget) -> storage::Result<()> {
@@ -161,7 +244,62 @@ pub fn execute(selection: Selection) -> Result<Report, Failure> {
         discovery: &queues,
         evidence: &queues,
     };
-    let (operation, bundle) = match selection.operation {
+    let (operation, bundle, source_pin) = match selection.operation {
+        Operation::Copy {
+            source,
+            source_sha256,
+            source_vault,
+            destination,
+        } => {
+            let policy = selection.policy.into_offline_policy()?;
+            persistent::private_directory(&source_vault)?;
+            require_destination(
+                &destination,
+                &[&source, &source_vault, &selection.policy_path],
+            )?;
+            let owners = offline_owners(&source_vault, policy)?;
+            let copy_report = storage::geodata_full::copy_v5_to_full(
+                &source,
+                &destination,
+                &source_sha256,
+                &NativeContracts,
+                &peers,
+                &owners,
+                &mut || progress(&budget),
+            )?;
+            progress(&budget)?;
+            return Ok(Report {
+                format: "houseatlas-full-geodata-offline-report/1",
+                profile: PROFILE,
+                operation: "copy",
+                details: ReportDetails::Copy { copy_report },
+            });
+        }
+        Operation::Bind {
+            config,
+            config_path,
+            config_bytes,
+        } => {
+            let policy = selection.policy.into_policy(&config)?;
+            if read_selected_file(&config_path, 64 * 1024, true)? != config_bytes {
+                return Err("Full geodata bind configuration changed".into());
+            }
+            persistent::bind_full_geodata(&config, policy)?;
+            if read_selected_file(&config_path, 64 * 1024, true)? != config_bytes {
+                return Err(
+                    "Full geodata bind configuration changed after receipt creation".into(),
+                );
+            }
+            progress(&budget)?;
+            return Ok(Report {
+                format: "houseatlas-full-geodata-offline-report/1",
+                profile: PROFILE,
+                operation: "bind",
+                details: ReportDetails::Bound {
+                    binding: "full-geodata-state-receipt-created",
+                },
+            });
+        }
         Operation::Capture {
             config,
             config_path,
@@ -179,8 +317,6 @@ pub fn execute(selection: Selection) -> Result<Report, Failure> {
                 ClosedSource::open(&config.data_directory.join("access.sqlite"), &mut || {
                     progress(&budget)
                 })?;
-            atlas.require_delete()?;
-            access.require_delete()?;
             let receipt_path = config.data_directory.join("server-full-geodata-state.json");
             let receipt = read_selected_file(&receipt_path, 16 * 1024, true)?;
             // Declare the retained lease first so Core destruction also remains
@@ -229,7 +365,7 @@ pub fn execute(selection: Selection) -> Result<Report, Failure> {
             {
                 return Err("Full geodata backup source binding changed".into());
             }
-            ("capture", manifest)
+            ("capture", manifest, Some((atlas.sha256(), atlas.bytes())))
         }
         operation => {
             let policy = selection.policy.into_offline_policy()?;
@@ -239,14 +375,12 @@ pub fn execute(selection: Selection) -> Result<Report, Failure> {
                     bundle,
                     destination,
                 } => (bundle, Some(destination)),
-                Operation::Capture { .. } => unreachable!(),
+                Operation::Capture { .. } | Operation::Copy { .. } | Operation::Bind { .. } => {
+                    unreachable!()
+                }
             };
             persistent::private_directory(&bundle)?;
-            let access = Arc::new(Mutex::new(access::AccessBoundary::in_memory(
-                access::AccessConfig::new(vec!["https://offline.invalid".into()])?,
-            )?));
-            let vault = Arc::new(AssetVault::open_existing(&bundle.join("media"))?);
-            let owners = GeodataOwners::new(access, vault, policy);
+            let owners = offline_owners(&bundle.join("media"), policy)?;
             if let Some(destination) = destination {
                 require_destination(&destination, &[&bundle, &selection.policy_path])?;
                 let manifest = Store::restore_full_geodata_recovery(
@@ -257,7 +391,7 @@ pub fn execute(selection: Selection) -> Result<Report, Failure> {
                     &owners,
                     &mut || progress(&budget),
                 )?;
-                ("restore", manifest)
+                ("restore", manifest, None)
             } else {
                 let manifest = Store::verify_full_geodata_recovery(
                     &bundle,
@@ -266,21 +400,40 @@ pub fn execute(selection: Selection) -> Result<Report, Failure> {
                     &owners,
                     &mut || progress(&budget),
                 )?;
-                ("verify", manifest)
+                ("verify", manifest, None)
             }
         }
     };
     progress(&budget)?;
+    let (source_database_sha256, source_database_bytes) = match source_pin {
+        Some((sha256, bytes)) => (Some(sha256), Some(bytes)),
+        None => (None, None),
+    };
     Ok(Report {
         format: "houseatlas-full-geodata-offline-report/1",
         profile: PROFILE,
         operation,
-        database_sha256: bundle.database_sha256,
-        database_bytes: bundle.database_bytes,
-        asset_record_count: bundle.assets.len(),
-        retained_asset_count: bundle.retained_assets.len(),
-        conversion_receipt_sha256: bundle.conversion_receipt_sha256,
+        details: ReportDetails::Recovery {
+            database_sha256: bundle.database_sha256,
+            database_bytes: bundle.database_bytes,
+            asset_record_count: bundle.assets.len(),
+            retained_asset_count: bundle.retained_assets.len(),
+            conversion_receipt_sha256: bundle.conversion_receipt_sha256,
+            source_database_sha256,
+            source_database_bytes,
+        },
     })
+}
+
+fn offline_owners(
+    vault_path: &Path,
+    policy: Arc<dyn storage::geodata::GeodataSourcePolicy>,
+) -> Result<GeodataOwners, Failure> {
+    let access = Arc::new(Mutex::new(access::AccessBoundary::in_memory(
+        access::AccessConfig::new(vec!["https://offline.invalid".into()])?,
+    )?));
+    let vault = Arc::new(AssetVault::open_existing(vault_path)?);
+    Ok(GeodataOwners::new(access, vault, policy))
 }
 
 fn require_destination(destination: &Path, sources: &[&Path]) -> Result<(), Failure> {
