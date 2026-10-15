@@ -29,6 +29,7 @@ enum DocumentAction {
     List { cursor: Option<String>, limit: u64 },
     Get(String),
     Original(String, u64),
+    Preview(String, u64),
     Create(Value, Vec<u8>),
     Mutate(String, Value),
 }
@@ -55,6 +56,12 @@ fn perform<D: s::geodata::GeodataConnection, U: s::geodata::GeodataAuthority>(
         DocumentAction::Original(id, revision) => {
             let (frame, bytes) = store
                 .read_original(p, scope, &id, revision, &budget)
+                .map_err(error)?;
+            DocumentOutput::Bytes(frame, bytes)
+        }
+        DocumentAction::Preview(id, revision) => {
+            let (frame, bytes) = store
+                .read_preview(p, scope, &id, revision, &budget)
                 .map_err(error)?;
             DocumentOutput::Bytes(frame, bytes)
         }
@@ -158,6 +165,9 @@ fn principal(
         )
         .map_err(access_error)?;
     Ok(principal)
+}
+pub(super) fn full_routes() -> Router<Host> {
+    routes().route("/api/atlas/documents/v2/workspaces/{workspace_id}/homes/{home_id}/documents/{document_id}/preview",get(preview).fallback(auth::session_head))
 }
 pub(super) fn routes() -> Router<Host> {
     Router::new()
@@ -268,6 +278,30 @@ async fn original(
     Extension(checked): Extension<CheckedHeaders>,
     uri: Uri,
 ) -> HttpResult {
+    bytes_response(
+        host,
+        (workspace_id, home_id, document_id),
+        checked,
+        uri,
+        false,
+    )
+    .await
+}
+async fn preview(
+    State(host): State<Host>,
+    Path(ids): Path<(String, String, String)>,
+    Extension(checked): Extension<CheckedHeaders>,
+    uri: Uri,
+) -> HttpResult {
+    bytes_response(host, ids, checked, uri, true).await
+}
+async fn bytes_response(
+    host: Host,
+    (workspace_id, home_id, document_id): (String, String, String),
+    checked: CheckedHeaders,
+    uri: Uri,
+    preview: bool,
+) -> HttpResult {
     let revision = super::query::one_utf8(&uri, "expectedRevision", 64, 16)?
         .parse::<u64>()
         .map_err(|_| failure(StatusCode::UNPROCESSABLE_ENTITY))?;
@@ -282,7 +316,11 @@ async fn original(
             &host,
             &p,
             &scope,
-            DocumentAction::Original(document_id, revision),
+            if preview {
+                DocumentAction::Preview(document_id, revision)
+            } else {
+                DocumentAction::Original(document_id, revision)
+            },
         )?
         else {
             return Err(unavailable());
@@ -301,7 +339,11 @@ async fn original(
         );
         h.insert(
             header::CONTENT_DISPOSITION,
-            HeaderValue::from_static("attachment; filename=\"geodata-original\""),
+            HeaderValue::from_static(if preview {
+                "inline; filename=\"geodata-preview.png\""
+            } else {
+                "attachment; filename=\"geodata-original\""
+            }),
         );
         h.insert(
             header::CONTENT_LENGTH,

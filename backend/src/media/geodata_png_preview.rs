@@ -173,6 +173,7 @@ pub(crate) fn qualify(
 /// A valid receipt hash or caller-selected PNG alone cannot qualify a preview.
 /// The owner separately checks output asset scope/lifecycle/license/availability
 /// and revalidates its native/source access guards before returning any bytes.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn verify_retained(
     scope: &Scope,
     original: &AssetPin,

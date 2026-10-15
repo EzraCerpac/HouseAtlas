@@ -64,3 +64,42 @@ explicit persistent binding/reopen at the unchanged configured path. It uses no 
 production database, provider, deployment or actual populated household restore.
 Metadata-only compatibility with an accepted predecessor is separate evidence;
 this generated check does not qualify actual household bytes or a release.
+
+Full profile also selects `png-display-v1`. Original PNG intake attempts actual
+bounded single-input PNG decoding and RGBA8 re-encoding with metadata stripped.
+A successful proof atomically retains a separate preview Asset, derivation
+receipt, reference and audit with the original Asset and Document. The original
+byte pin and independently reviewed source policy remain authoritative. Supported
+optional renderer size/format refusals leave `preview:null`; cancellation or an
+expired work budget aborts the operation. JSON, GIS, TIFF and PDF originals do not
+gain PNG qualification. PDF-original local display is a consumer choice documented
+in [native-document-reader.md](native-document-reader.md).
+
+`GET /api/atlas/documents/v2/workspaces/{workspaceId}/homes/{homeId}/documents/{documentId}/preview?expectedRevision=N`
+returns only a retained, rerender-verified qualified PNG under current native and
+source authorization. It returns `Content-Type: image/png`, private/no-store and
+nosniff framing. `x-atlas-document-frame` is URL-safe unpadded Base64 of canonical
+JSON with `mode:"preview"`, the exact Document revision, scope and preview Asset
+pin; originals retain `mode:"original"` and their measured source MIME. GET never
+creates a preview. List/get use the existing read projection and report preview
+availability. Title/lifecycle edits to qualified PNG Documents require both exact
+original and preview Asset guards. The create response keeps `{document,asset}`;
+the additional immutable output is pinned in `document.payload.preview.asset`.
+
+Historical and tombstoned preview references retain their bytes and derivation
+receipts. Recovery reruns the actual renderer against the exact original and
+compares every output byte, pin, lineage and canonical receipt. The v1 PNG
+verifier pins the checked-in renderer/decoder source and Cargo.lock; changing
+that source closure requires a separately selected versioned verifier/profile
+or explicit reviewed requalification, never rewriting old history. This profile
+makes no claim about GIS conversion, physical placement, source accuracy or
+multi-input compositing.
+
+The explicit `full-geodata-backup` command accepts a cleanly quiesced WAL-header
+source only when every source sidecar is absent. Under the service lease it pins
+both original database files, copies their exact bytes into a retained private
+snapshot, and normalizes journal mode only on the copies. Complete profile,
+access and media validation then precede capture. Original files are never opened
+by SQLite for this capture path and their bytes/identity/sidecar absence are
+rechecked afterward. The report separately pins original source custody and the
+normalized captured bundle; a live or ambiguous WAL dependency is refused.

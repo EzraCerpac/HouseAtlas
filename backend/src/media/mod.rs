@@ -60,3 +60,5 @@ pub use vault::AssetVault;
 
 pub const MEDIA_VERSION: &str = "0.1.2";
 pub const MAX_BYTES: usize = 10 * 1024 * 1024;
+
+pub(crate) mod geodata_png_preview;

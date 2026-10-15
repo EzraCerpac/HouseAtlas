@@ -4,7 +4,7 @@ CREATE TABLE atlas_full_metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL) STRIC
 INSERT INTO atlas_full_metadata VALUES('lineage','houseatlas-rust-storage/geodata-full/1');
 INSERT INTO atlas_full_metadata VALUES('contractVersion','2.0.0');
 INSERT INTO atlas_full_metadata VALUES('schemaVersion','1');
-INSERT INTO atlas_full_metadata VALUES('capabilities','native-v1,stock-v3,queue-v5,geodata-original-v2');
+INSERT INTO atlas_full_metadata VALUES('capabilities','native-v1,stock-v3,queue-v5,geodata-original-v2,png-display-v1');
 CREATE TABLE atlas_full_migrations(version INTEGER PRIMARY KEY,sha256 TEXT NOT NULL) STRICT;
 CREATE TABLE atlas_full_conversion(id INTEGER PRIMARY KEY CHECK(id=1),sha256 TEXT NOT NULL CHECK(length(sha256)=64),body TEXT NOT NULL CHECK(json_valid(body))) STRICT;
 CREATE TRIGGER atlas_full_conversion_no_update BEFORE UPDATE ON atlas_full_conversion BEGIN SELECT RAISE(ABORT,'immutable conversion ancestry'); END;

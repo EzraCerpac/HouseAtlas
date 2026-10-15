@@ -376,6 +376,10 @@ fn generated_sources() -> Result<Vec<(&'static str, Vec<u8>)>, Failure> {
         let mut encoder = png::Encoder::new(&mut png_bytes, 1, 1);
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
+        encoder.add_text_chunk(
+            "GeneratedMetadata".into(),
+            "private-marker-original-only".into(),
+        )?;
         let mut writer = encoder.write_header()?;
         writer.write_image_data(&[20, 40, 60, 255])?;
     }
@@ -428,6 +432,7 @@ async fn main() -> Result<(), Failure> {
     persistent::initialize_without_password(&config)?;
     let config_path = root.join("source-config.json");
     fs::write(&config_path, serde_json::to_vec(&config)?)?;
+    fs::set_permissions(&config_path, fs::Permissions::from_mode(0o600))?;
     let (mut client, lease) = Client::open(&config).await?;
     let empty = client
         .read(
@@ -672,6 +677,10 @@ async fn main() -> Result<(), Failure> {
     let policy = Arc::new(PinnedGeodataSourcePolicy::decode_reviewed(
         &serde_json::to_vec(&policy_value)?,
     )?);
+    let policy_path = root.join("reviewed-synthetic-source-policy.json");
+    fs::write(&policy_path, serde_json::to_vec(&policy_value)?)?;
+    fs::set_permissions(&policy_path, fs::Permissions::from_mode(0o600))?;
+    let policy_digest = format!("{:x}", Sha256::digest(fs::read(&policy_path)?));
     let source_owners = GeodataOwners::new(access.clone(), source_vault, policy.clone());
     let queue_owners = backup::QueueFreeNativeOwners::for_queue_free_profile()?;
     let stock = NativeStockContract::new()?;
@@ -693,6 +702,37 @@ async fn main() -> Result<(), Failure> {
         &mut || Ok(()),
     )?;
     assert_eq!(report.preserved_tables.len(), 29);
+    use houseatlas_backend::lifecycle::geodata_full_backup as full_backup;
+    let flags = vec![
+        "--full-geodata-source-policy".to_string(),
+        policy_path.to_str().ok_or("Policy path")?.into(),
+        "--full-geodata-source-policy-sha256".into(),
+        policy_digest.clone(),
+    ];
+    let mut copy_args = vec![
+        "full-geodata-copy".into(),
+        "--source-atlas".into(),
+        predecessor.to_str().ok_or("Source path")?.into(),
+        "--source-atlas-sha256".into(),
+        source_sha.clone(),
+        "--source-vault".into(),
+        root.join("data/media").to_str().ok_or("Vault path")?.into(),
+        "--destination".into(),
+        root.join("cli-converted")
+            .to_str()
+            .ok_or("Destination path")?
+            .into(),
+    ];
+    copy_args.extend(flags.clone());
+    let copied = full_backup::execute(
+        full_backup::Selection::from_arguments(&copy_args)?.ok_or("Missing copy selection")?,
+    )?;
+    let copied = serde_json::to_value(copied)?;
+    assert_eq!(
+        copied["copyReport"]["conversionReceiptSha256"],
+        report.conversion_receipt_sha256
+    );
+
     assert_eq!(fs::read(&predecessor)?, source_bytes);
     let vault = Arc::new(media::AssetVault::open_existing(&converted.join("media"))?);
     let owners = GeodataOwners::new(access.clone(), vault.clone(), policy.clone());
@@ -805,6 +845,7 @@ async fn main() -> Result<(), Failure> {
         .await?;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(&to_bytes(response.into_body(), 1024).await?[..], original);
+    let mut png_document = None;
     for (n, (mime, bytes)) in sources.iter().enumerate().skip(1) {
         let mut p = provenance.clone();
         p["license"] = fixture_license(n);
@@ -832,6 +873,82 @@ async fn main() -> Result<(), Failure> {
                 .is_some()
         );
         assert_eq!(retained, p);
+        if *mime == "image/png" {
+            assert!(!result["document"]["payload"]["preview"].is_null());
+            png_document = Some(result["document"].clone());
+        }
+    }
+    let png_document = png_document.ok_or("PNG qualification missing")?;
+    let png_id = png_document["recordId"].as_str().ok_or("PNG ID missing")?;
+    let original_pin = &png_document["payload"]["original"];
+    let output_pin = &png_document["payload"]["preview"]["asset"];
+    let mut payload = png_document["payload"].clone();
+    payload["title"] = json!("Corrected supplied PNG display title");
+    let correction = json!({"schemaVersion":1,"mutationId":id(8800),"operation":"replace","expectedRevision":1,"reason":"Correct supplied PNG label","guards":[{"record":{"recordType":"asset","recordId":original_pin["assetId"]},"expectedRevision":original_pin["revision"]},{"record":{"recordType":"asset","recordId":output_pin["assetId"]},"expectedRevision":output_pin["revision"]}],"value":{"recordType":"geodata-document","payload":payload}});
+    let response = app
+        .clone()
+        .oneshot(request(
+            "POST",
+            &format!("{base}/{png_id}"),
+            serde_json::to_vec(&correction)?,
+            Some(&cookie),
+            Some(&csrf),
+        )?)
+        .await?;
+    let status = response.status();
+    let body = to_bytes(response.into_body(), 128 * 1024).await?;
+    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&body));
+    let response = app
+        .clone()
+        .oneshot(request(
+            "GET",
+            &format!("{base}/{png_id}/preview?expectedRevision=2"),
+            vec![],
+            Some(&cookie),
+            None,
+        )?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()["content-type"], "image/png");
+    let frame: Value = serde_json::from_slice(
+        &base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(response.headers()["x-atlas-document-frame"].as_bytes())?,
+    )?;
+    assert_eq!(frame["mode"], "preview");
+    assert_eq!(frame["asset"], *output_pin);
+    let preview_bytes = to_bytes(response.into_body(), 1024 * 1024).await?;
+    assert!(
+        !preview_bytes
+            .windows(b"private-marker-original-only".len())
+            .any(|w| w == b"private-marker-original-only")
+    );
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&preview_bytes)),
+        output_pin["sha256"]
+    );
+    // Healthy removal and reuse of the retained server-qualified output exercise
+    // complete before/after guards and historical proof retention.
+    for (expected, preview) in [
+        (2, Value::Null),
+        (3, png_document["payload"]["preview"].clone()),
+    ] {
+        let mut next = png_document["payload"].clone();
+        next["title"] = json!("Corrected supplied PNG display title");
+        next["preview"] = preview;
+        let correction = json!({"schemaVersion":1,"mutationId":id(8800+expected),"operation":"replace","expectedRevision":expected,"reason":"Update retained generated PNG display association","guards":[{"record":{"recordType":"asset","recordId":original_pin["assetId"]},"expectedRevision":original_pin["revision"]},{"record":{"recordType":"asset","recordId":output_pin["assetId"]},"expectedRevision":output_pin["revision"]}],"value":{"recordType":"geodata-document","payload":next}});
+        let response = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                &format!("{base}/{png_id}"),
+                serde_json::to_vec(&correction)?,
+                Some(&cookie),
+                Some(&csrf),
+            )?)
+            .await?;
+        let status = response.status();
+        let body = to_bytes(response.into_body(), 128 * 1024).await?;
+        assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&body));
     }
     let mut cursor = None;
     let mut listed = Vec::new();
@@ -948,11 +1065,14 @@ async fn main() -> Result<(), Failure> {
     )?;
     fs::rename(converted.join("media"), root.join("data/media"))?;
     eprintln!("CHECK bind persistent full selection");
-    persistent::bind_full_geodata(
-        &config,
-        Arc::new(PinnedGeodataSourcePolicy::decode_reviewed(
-            &serde_json::to_vec(&policy_value)?,
-        )?),
+    let mut bind_args = vec![
+        "full-geodata-bind".into(),
+        "--server-config".into(),
+        config_path.to_str().ok_or("Config path")?.into(),
+    ];
+    bind_args.extend(flags);
+    full_backup::execute(
+        full_backup::Selection::from_arguments(&bind_args)?.ok_or("Missing bind selection")?,
     )?;
     let policy_path = root.join("reviewed-synthetic-source-policy.json");
     fs::write(&policy_path, serde_json::to_vec(&policy_value)?)?;
@@ -966,7 +1086,7 @@ async fn main() -> Result<(), Failure> {
             .ok_or("Policy path unavailable")?
             .into(),
         "--full-geodata-source-policy-sha256".into(),
-        digest,
+        digest.clone(),
     ];
     let (remaining, selection) =
         houseatlas_backend::config::geodata_profile::ServerGeodataSelection::from_arguments(&args)?;
@@ -989,6 +1109,56 @@ async fn main() -> Result<(), Failure> {
         .await?;
     assert_eq!(response.status(), StatusCode::OK);
     drop(selected_lease);
+    // Real explicit offline command adapters, selected closed source only.
+    let source_cut = fs::read(root.join("data/atlas.sqlite"))?;
+    assert_eq!(
+        source_cut[18], 2,
+        "Healthy runtime must close with a WAL header"
+    );
+    let access_cut = fs::read(root.join("data/access.sqlite"))?;
+    let cli_bundle = root.join("cli-full-bundle");
+    let cli_restore = root.join("cli-full-restored");
+    let policy_flags = vec![
+        "--full-geodata-source-policy".to_string(),
+        policy_path.to_str().ok_or("Policy path")?.into(),
+        "--full-geodata-source-policy-sha256".into(),
+        digest,
+    ];
+    for mut argv in [
+        vec![
+            "full-geodata-backup".into(),
+            "--server-config".into(),
+            config_path.to_str().ok_or("Config path")?.into(),
+            "--destination".into(),
+            cli_bundle.to_str().ok_or("Bundle path")?.into(),
+        ],
+        vec![
+            "full-geodata-verify".into(),
+            "--bundle".into(),
+            cli_bundle.to_str().ok_or("Bundle path")?.into(),
+        ],
+        vec![
+            "full-geodata-restore".into(),
+            "--bundle".into(),
+            cli_bundle.to_str().ok_or("Bundle path")?.into(),
+            "--destination".into(),
+            cli_restore.to_str().ok_or("Restore path")?.into(),
+        ],
+    ] {
+        argv.extend(policy_flags.clone());
+        let selected = full_backup::Selection::from_arguments(&argv)?
+            .ok_or("Missing explicit backup selection")?;
+        full_backup::execute(selected)?;
+    }
+    assert_eq!(fs::read(root.join("data/atlas.sqlite"))?, source_cut);
+    assert_eq!(fs::read(root.join("data/access.sqlite"))?, access_cut);
+    for name in ["atlas.sqlite", "access.sqlite"] {
+        for suffix in ["-wal", "-shm", "-journal"] {
+            assert!(
+                matches!(fs::symlink_metadata(root.join("data").join(format!("{name}{suffix}"))),Err(e) if e.kind()==std::io::ErrorKind::NotFound)
+            );
+        }
+    }
     println!(
         "PASS synthetic nonempty Stock/batch/upload predecessor; exact all29-table/rowid/inner metadata copy without replay; current native authority; SAME Core.store connection legacy Stock read/write + v2 Document/pinned source/exact original; full native/Stock/queue/media recovery capture/verify/restore/reopen. No actual R3 data, deployment or dispatch."
     );

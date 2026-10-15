@@ -25,6 +25,7 @@ pub struct ServerLease {
     pub(super) directory: File,
     _lock: File,
     log: Mutex<File>,
+    _offline_snapshot: Option<tempfile::TempDir>,
 }
 
 impl ServerLease {
@@ -64,6 +65,7 @@ impl ServerLease {
             directory,
             _lock: lock,
             log: Mutex::new(log),
+            _offline_snapshot: None,
         })
     }
 
@@ -339,7 +341,7 @@ fn reopen_selected(
 ) -> Result<(Core, ServerLease), Failure> {
     config.validate()?;
     let full = policy.is_some();
-    let lease = ServerLease::acquire(config, false)?;
+    let mut lease = ServerLease::acquire(config, false)?;
     super::receipt_compatibility::require_no_pending(config)?;
     match fs::symlink_metadata(config.data_directory.join("server-state.rebind.pending")) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -366,7 +368,6 @@ fn reopen_selected(
     if backup {
         for path in [&access_path, &atlas_path] {
             let pin = storage::ClosedSource::open(path, &mut || Ok(()))?;
-            pin.require_delete()?;
             source_pins.push(pin);
         }
     }
@@ -422,10 +423,65 @@ fn reopen_selected(
     for directory in ["media", "media/blobs", "media/staging"] {
         private_directory(&config.data_directory.join(directory))?;
     }
-    let vault = Arc::new(crate::media::AssetVault::open(
-        &config.data_directory.join("media"),
-    )?);
-    let mut access = a::AccessBoundary::open_existing(&access_path, config.access_config()?)?;
+    let (selected_access, selected_atlas) = if backup {
+        use std::io::Read;
+        use std::os::unix::fs::PermissionsExt;
+        let snapshot = tempfile::Builder::new()
+            .prefix("houseatlas-full-capture-")
+            .permissions(fs::Permissions::from_mode(0o700))
+            .tempdir()?;
+        for name in ["atlas.sqlite", "access.sqlite"] {
+            let mut original = OpenOptions::new()
+                .read(true)
+                .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
+                .open(config.data_directory.join(name))?;
+            let selected = snapshot.path().join(name);
+            let mut copy = open_private(&selected, true, false)?;
+            let mut total = 0u64;
+            let mut block = [0u8; 65536];
+            loop {
+                lease.check()?;
+                let n = original.read(&mut block)?;
+                if n == 0 {
+                    break;
+                }
+                total = total
+                    .checked_add(n as u64)
+                    .ok_or("Capture copy exceeds bound")?;
+                if total > 64 * 1024 * 1024 {
+                    return Err("Capture copy exceeds bound".into());
+                }
+                copy.write_all(&block[..n])?;
+            }
+            sync(&copy)?;
+            drop(copy);
+            let normalized = rusqlite::Connection::open_with_flags(
+                &selected,
+                rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE
+                    | rusqlite::OpenFlags::SQLITE_OPEN_NOFOLLOW,
+            )?;
+            normalized.pragma_update(None, "journal_mode", "DELETE")?;
+            normalized.close().map_err(|(_, e)| e)?;
+            sync(&open_private(&selected, false, false)?)?;
+        }
+        for pin in &source_pins {
+            pin.check(&mut || Ok(()))?;
+        }
+        let paths = (
+            snapshot.path().join("access.sqlite"),
+            snapshot.path().join("atlas.sqlite"),
+        );
+        lease._offline_snapshot = Some(snapshot);
+        paths
+    } else {
+        (access_path.clone(), atlas_path.clone())
+    };
+    let vault = Arc::new(if backup {
+        crate::media::AssetVault::open_existing(&config.data_directory.join("media"))?
+    } else {
+        crate::media::AssetVault::open(&config.data_directory.join("media"))?
+    });
+    let mut access = a::AccessBoundary::open_existing(&selected_access, config.access_config()?)?;
     if !config.authentication.is_password() {
         access.validate_loopback_local_user()?;
     }
@@ -445,7 +501,7 @@ fn reopen_selected(
             evidence: &queues,
         };
         Store::open_existing_geodata_full_selected(
-            &atlas_path,
+            &selected_atlas,
             NativeContracts,
             ReadAuthority(access.clone()),
             runtime,
@@ -457,7 +513,7 @@ fn reopen_selected(
         )?
     } else {
         Store::open_existing(
-            &atlas_path,
+            &selected_atlas,
             NativeContracts,
             ReadAuthority(access.clone()),
             runtime,

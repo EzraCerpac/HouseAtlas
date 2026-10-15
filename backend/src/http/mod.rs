@@ -1072,7 +1072,7 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         None => base,
     };
     let base = if host.full_geodata_identity.is_some() {
-        base.merge(geodata_documents::routes())
+        base.merge(geodata_documents::full_routes())
     } else {
         base
     };

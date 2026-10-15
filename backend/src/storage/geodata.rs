@@ -419,11 +419,19 @@ impl<D: GeodataConnection, U: GeodataAuthority> GeodataRepository<D, U> {
             let manifest=prepared.into_measured().with_provenance(license.clone(),vec![]).map_err(media_error)?;
             let asset_audit=app::new_id()?;let doc_audit=app::new_id()?;
             let asset=json!({"schemaVersion":2,"recordType":"asset","recordId":asset_id,"workspaceId":scope.workspace_id,"homeId":scope.home_id,"revision":1,"lifecycle":"active","createdAt":now,"updatedAt":now,"lastAuditId":asset_audit,"payload":{"owner":"atlas","purpose":"original","sha256":pin["sha256"],"bytes":pin["bytes"],"contentType":kind.as_str(),"sourceLicense":license,"availability":"available"}});
-            let document=json!({"schemaVersion":2,"recordType":"geodata-document","recordId":document_id,"workspaceId":scope.workspace_id,"homeId":scope.home_id,"revision":1,"lifecycle":"active","createdAt":now,"updatedAt":now,"lastAuditId":doc_audit,"payload":{"profile":"houseatlas.geodata-document.v2","title":request["title"],"original":pin,"provenance":provenance,"preview":null}});
-            shape("record",&asset)?;validate_document(&document)?;shape("geodataCustodyReceipt",&custody)?;self.policy.authorize(guard,&document,true)?;
+            let mut document=json!({"schemaVersion":2,"recordType":"geodata-document","recordId":document_id,"workspaceId":scope.workspace_id,"homeId":scope.home_id,"revision":1,"lifecycle":"active","createdAt":now,"updatedAt":now,"lastAuditId":doc_audit,"payload":{"profile":"houseatlas.geodata-document.v2","title":request["title"],"original":pin,"provenance":provenance,"preview":null}});
+            shape("record",&asset)?;validate_document(&document,self.selection==GeodataSelection::Full)?;shape("geodataCustodyReceipt",&custody)?;self.policy.authorize(guard,&document,true)?;
+            let preview=self.qualify_png(&mut document,&asset,&manifest,bytes,budget)?;
+            validate_document(&document,self.selection==GeodataSelection::Full)?;
             let result_body=json!({"document":document,"asset":asset});
             let tx=rusqlite::Transaction::new_unchecked(self.db.connection(),TransactionBehavior::Immediate)?;
             insert_record(&tx,&asset)?;insert_record(&tx,&document)?;
+            if let Some((preview_asset,preview_manifest,receipt_sha,receipt_body))=&preview {
+                insert_record(&tx,preview_asset)?;tx.execute("INSERT INTO geodata_asset_manifests VALUES(?1,?2,?3,?4)",params![scope.workspace_id,scope.home_id,field(preview_asset,"recordId")?,canonical(&serde_json::to_value(preview_manifest)?)?])?;
+                tx.execute("INSERT OR IGNORE INTO geodata_receipts VALUES(?1,'derivation',?2,?3,?4)",params![receipt_sha,scope.workspace_id,scope.home_id,receipt_body])?;
+                journal(&tx,preview_asset,None,principal,mutation,field(request,"reason")?)?;
+            }
+
             tx.execute("INSERT INTO geodata_receipts VALUES(?1,'custody',?2,?3,?4)",params![custody_hash,scope.workspace_id,scope.home_id,custody_body])?;
             tx.execute("INSERT INTO geodata_asset_manifests VALUES(?1,?2,?3,?4)",params![scope.workspace_id,scope.home_id,asset_id,canonical(&serde_json::to_value(manifest)?)?])?;
             insert_ref(&tx,&document)?;
@@ -463,6 +471,22 @@ fn insert_ref(db: &Connection, d: &Value) -> Result<()> {
             field(&d["payload"]["provenance"], "custodyReceiptSha256")?
         ],
     )?;
+    if !d["payload"]["preview"].is_null() {
+        let p = &d["payload"]["preview"]["asset"];
+        db.execute(
+            "INSERT INTO geodata_document_refs VALUES(?1,?2,?3,?4,?5,?6,?7,'preview',?8)",
+            params![
+                field(d, "workspaceId")?,
+                field(d, "homeId")?,
+                field(d, "recordId")?,
+                field(p, "assetId")?,
+                p["revision"].as_i64().ok_or_else(invalid)?,
+                field(p, "sha256")?,
+                p["bytes"].as_i64().ok_or_else(invalid)?,
+                field(&d["payload"]["preview"], "qualificationReceiptSha256")?
+            ],
+        )?;
+    }
     Ok(())
 }
 fn journal(
@@ -487,7 +511,16 @@ impl<D: GeodataConnection, U: GeodataAuthority> GeodataRepository<D, U> {
         let body=self.db.connection().query_row("SELECT body FROM geodata_asset_manifests WHERE workspace_id=?1 AND home_id=?2 AND record_id=?3",params![field(asset,"workspaceId")?,field(asset,"homeId")?,field(asset,"recordId")?],|r|r.get::<_,String>(0))?;
         let payload: mt::AssetPayload = serde_json::from_value(parse(&body)?)?;
         need(
-            payload.sha256 == asset["payload"]["sha256"]
+            payload.owner == mt::AssetOwner::Atlas
+                && payload.preview_policy == mt::PreviewPolicy::DownloadOnly
+                && canonical(&serde_json::to_value(&payload)?)? == body
+                && ((payload.purpose == mt::AssetPurpose::EvidenceOriginal
+                    && asset["payload"]["purpose"] == "original")
+                    || (payload.purpose == mt::AssetPurpose::DerivedPreview
+                        && asset["payload"]["purpose"] == "preview"))
+                && serde_json::to_value(payload.availability)? == asset["payload"]["availability"]
+                && payload.evidence_ids.is_empty()
+                && payload.sha256 == asset["payload"]["sha256"]
                 && json!(payload.byte_size) == asset["payload"]["bytes"]
                 && payload.content_type == asset["payload"]["contentType"]
                 && serde_json::to_value(&payload.source_license)?
@@ -545,7 +578,14 @@ impl<D: GeodataConnection, U: GeodataAuthority> GeodataRepository<D, U> {
         } else {
             "unavailable"
         };
-        let value = json!({"profile":"houseatlas.geodata-document-read.v2","scope":{"workspaceId":d["workspaceId"],"homeId":d["homeId"]},"document":d,"availability":{"original":available,"preview":"not-qualified"}});
+        let preview = if d["payload"]["preview"].is_null() {
+            "not-qualified"
+        } else if available == "available" && self.verified_preview(&d, budget).is_ok() {
+            "available"
+        } else {
+            "unavailable"
+        };
+        let value = json!({"profile":"houseatlas.geodata-document-read.v2","scope":{"workspaceId":d["workspaceId"],"homeId":d["homeId"]},"document":d,"availability":{"original":available,"preview":preview}});
         shape("geodataDocumentRead", &value)?;
         Ok(value)
     }
@@ -665,10 +705,10 @@ fn admission_profile(kind: mt::ContentType) -> &'static str {
         _ => "unsupported",
     }
 }
-fn validate_document(d: &Value) -> Result<()> {
+fn validate_document(d: &Value, preview_allowed: bool) -> Result<()> {
     shape("geodataDocumentRecord", d)?;
     // This installer selects original-only admission. It cannot fabricate preview qualification.
-    need(d["payload"]["preview"].is_null())?;
+    need(preview_allowed || d["payload"]["preview"].is_null())?;
     let provenance = &d["payload"]["provenance"];
     for name in ["published", "observed"] {
         let date = &provenance[name];
@@ -789,12 +829,17 @@ impl<D: GeodataConnection, U: GeodataAuthority> GeodataRepository<D, U> {
                 field(&r, "recordId")?.to_owned(),
             );
             if r["recordType"] == "geodata-document" {
-                validate_document(&r)?;
+                validate_document(&r, self.selection == GeodataSelection::Full)?;
                 self.validate_custody(&r)?;
+                self.verified_preview(&r, budget)?;
                 documents.insert(key.clone(), r.clone());
             } else {
                 shape("geodataAssetRecord", &r)?;
-                need(r["payload"]["purpose"] == "original")?;
+                need(
+                    r["payload"]["purpose"] == "original"
+                        || (self.selection == GeodataSelection::Full
+                            && r["payload"]["purpose"] == "preview"),
+                )?;
                 let media = self.asset_media(&r)?;
                 let bytes = self
                     .vault
@@ -819,6 +864,7 @@ impl<D: GeodataConnection, U: GeodataAuthority> GeodataRepository<D, U> {
         let mut audit_bodies = BTreeMap::new();
         let mut history = BTreeMap::new();
         let mut used_custody = BTreeSet::new();
+        let mut document_history = BTreeMap::new();
         let mut rows=self.db.connection().prepare("SELECT workspace_id,home_id,record_id,audit_id,body,record_body FROM geodata_audits ORDER BY seq")?;
         let mut rows = rows.query([])?;
         while let Some(row) = rows.next()? {
@@ -891,8 +937,13 @@ impl<D: GeodataConnection, U: GeodataAuthority> GeodataRepository<D, U> {
                 )?;
             }
             if r["recordType"] == "geodata-document" {
-                validate_document(&r)?;
+                validate_document(&r, self.selection == GeodataSelection::Full)?;
                 self.validate_custody(&r)?;
+                self.verified_preview(&r, budget)?;
+                if let Some(digest) = r["payload"]["preview"]["qualificationReceiptSha256"].as_str()
+                {
+                    used_custody.insert(digest.to_owned());
+                }
                 used_custody
                     .insert(field(&r["payload"]["provenance"], "custodyReceiptSha256")?.to_owned());
             }
@@ -907,6 +958,12 @@ impl<D: GeodataConnection, U: GeodataAuthority> GeodataRepository<D, U> {
                 ))
                 .or_insert_with(Vec::new)
                 .push(r.clone());
+            if r["recordType"] == "geodata-document" {
+                document_history.insert(
+                    (key.clone(), r["revision"].as_u64().ok_or_else(invalid)?),
+                    r.clone(),
+                );
+            }
             prior.insert(key, r);
         }
         need(prior == records)?;
@@ -934,9 +991,17 @@ impl<D: GeodataConnection, U: GeodataAuthority> GeodataRepository<D, U> {
         for (digest, kind, w, h, body) in receipts {
             check()?;
             let receipt = parse(&body)?;
-            shape("geodataCustodyReceipt", &receipt)?;
+            shape(
+                if kind == "custody" {
+                    "geodataCustodyReceipt"
+                } else {
+                    "geodataDerivationReceipt"
+                },
+                &receipt,
+            )?;
             need(
-                kind == "custody"
+                (kind == "custody"
+                    || (self.selection == GeodataSelection::Full && kind == "derivation"))
                     && hash(&body) == digest
                     && canonical(&receipt)? == body
                     && receipt["scope"]["workspaceId"] == w
@@ -959,6 +1024,22 @@ impl<D: GeodataConnection, U: GeodataAuthority> GeodataRepository<D, U> {
                 "original".to_owned(),
                 field(&d["payload"]["provenance"], "custodyReceiptSha256")?.to_owned(),
             ));
+        }
+        for d in documents.values() {
+            if !d["payload"]["preview"].is_null() {
+                let p = &d["payload"]["preview"]["asset"];
+                expected_refs.insert((
+                    field(d, "workspaceId")?.to_owned(),
+                    field(d, "homeId")?.to_owned(),
+                    field(d, "recordId")?.to_owned(),
+                    field(p, "assetId")?.to_owned(),
+                    p["revision"].as_i64().ok_or_else(invalid)?,
+                    field(p, "sha256")?.to_owned(),
+                    p["bytes"].as_i64().ok_or_else(invalid)?,
+                    "preview".into(),
+                    field(&d["payload"]["preview"], "qualificationReceiptSha256")?.into(),
+                ));
+            }
         }
         let refs=self.db.connection().prepare("SELECT workspace_id,home_id,document_id,asset_id,asset_revision,sha256,bytes,role,receipt_sha256 FROM geodata_document_refs")?.query_map([],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?,r.get::<_,i64>(4)?,r.get::<_,String>(5)?,r.get::<_,i64>(6)?,r.get::<_,String>(7)?,r.get::<_,String>(8)?)))?.collect::<rusqlite::Result<BTreeSet<_>>>()?;
         need(refs == expected_refs)?;
@@ -1053,17 +1134,40 @@ impl<D: GeodataConnection, U: GeodataAuthority> GeodataRepository<D, U> {
                 if matches!(field(command, "operation")?, "create" | "replace") {
                     need(command["value"]["payload"] == document["payload"])?;
                 }
-                let pin = &document["payload"]["original"];
-                need(
-                    command["guards"]
-                        == json!([{"record":{"recordType":"asset","recordId":pin["assetId"]},"expectedRevision":pin["revision"]}]),
-                )?;
+                let before = match command["expectedRevision"].as_u64() {
+                    Some(revision) => Some(
+                        document_history
+                            .get(&(
+                                (
+                                    field(document, "workspaceId")?.to_owned(),
+                                    field(document, "recordId")?.to_owned(),
+                                ),
+                                revision,
+                            ))
+                            .ok_or_else(invalid)?,
+                    ),
+                    None => None,
+                };
+                need(command["guards"] == preview::required_guards(before, document))?;
             }
             need(retained.contains(result.get("document").unwrap_or(&result["record"])))?;
             if let Some(asset) = result.get("asset") {
                 need(retained.contains(asset))?;
             }
-            need(retained.len() == if result.get("asset").is_some() { 2 } else { 1 })?;
+            let expected = if result.get("asset").is_some() {
+                if document["payload"]["preview"].is_null() {
+                    2
+                } else {
+                    let (preview_asset, _) = self
+                        .verified_preview(document, budget)?
+                        .ok_or_else(invalid)?;
+                    need(retained.contains(&preview_asset))?;
+                    3
+                }
+            } else {
+                1
+            };
+            need(retained.len() == expected)?;
             seen.insert(key);
         }
         need(seen == history.keys().cloned().collect())?;
@@ -1128,10 +1232,10 @@ impl<D: GeodataConnection, U: GeodataAuthority> GeodataRepository<D, U> {
             let now=app::now().map_err(|_|invalid())?;
             let payload=if matches!(operation,"create"|"replace"){command["value"]["payload"].clone()}else{old.as_ref().ok_or_else(invalid)?["payload"].clone()};
             let d=json!({"schemaVersion":2,"recordType":"geodata-document","recordId":id,"workspaceId":scope.workspace_id,"homeId":scope.home_id,"revision":revision,"lifecycle":if operation=="tombstone"{"tombstoned"}else{"active"},"createdAt":old.as_ref().map(|r|r["createdAt"].clone()).unwrap_or(json!(now)),"updatedAt":now,"lastAuditId":app::new_id()?,"payload":payload});
-            validate_document(&d)?;if let Some(old)=&old{need(old["payload"]["original"]==d["payload"]["original"])?;}
+            validate_document(&d,self.selection==GeodataSelection::Full)?;if let Some(old)=&old{need(old["payload"]["original"]==d["payload"]["original"])?;}
             self.validate_custody(&d)?;let asset=self.original(&d)?;need(asset["lifecycle"]=="active"&&asset["payload"]["availability"]=="available")?;
             // Original-only profile requires the complete original guard.
-            let guard_value=json!({"record":{"recordType":"asset","recordId":asset["recordId"]},"expectedRevision":asset["revision"]});need(command["guards"].as_array().is_some_and(|g|g.len()==1&&g[0]==guard_value))?;
+            need(command["guards"]==preview::required_guards(old.as_ref(),&d))?;if let Some(old)=&old {if old["payload"]["preview"]!=d["payload"]["preview"]{self.verified_preview(old,budget)?;}}self.verified_preview(&d,budget)?;
             self.vault.read_retained(&self.asset_media(&asset)?,budget).map_err(media_error)?;self.policy.authorize(guard,&d,true)?;
             let tx=rusqlite::Transaction::new_unchecked(self.db.connection(),TransactionBehavior::Immediate)?;
             if let Some(old)=&old{let updated=tx.execute("UPDATE geodata_records SET revision=?1,body=?2 WHERE workspace_id=?3 AND home_id=?4 AND record_id=?5 AND revision=?6",params![revision as i64,canonical(&d)?,scope.workspace_id,scope.home_id,id,old["revision"].as_i64().ok_or_else(invalid)?])?;need(updated==1)?;tx.execute("DELETE FROM geodata_document_refs WHERE workspace_id=?1 AND document_id=?2",params![scope.workspace_id,id])?;}else{insert_record(&tx,&d)?;}
@@ -1421,3 +1525,6 @@ impl GeodataStore {
         Self::open_existing(&path, access, vault, policy, budget)
     }
 }
+
+#[path = "geodata_preview.rs"]
+mod preview;
