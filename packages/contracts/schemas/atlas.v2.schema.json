@@ -5187,6 +5187,93 @@
         "replayed"
       ],
       "additionalProperties": false
+    },
+    "geodataDocumentOriginalByteFrame": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "const": "houseatlas.geodata-document-bytes.v2"
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "documentId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "documentRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "mode": {
+          "const": "original"
+        },
+        "asset": {
+          "$ref": "#/$defs/geodataAssetPin"
+        },
+        "measuredContentType": {
+          "type": "string",
+          "enum": [
+            "application/geo+json",
+            "application/json",
+            "image/tiff",
+            "image/png",
+            "application/pdf"
+          ]
+        }
+      },
+      "required": [
+        "profile",
+        "scope",
+        "documentId",
+        "documentRevision",
+        "mode",
+        "asset",
+        "measuredContentType"
+      ],
+      "additionalProperties": false
+    },
+    "geodataDocumentPreviewByteFrame": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "const": "houseatlas.geodata-document-bytes.v2"
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "documentId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "documentRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "mode": {
+          "const": "preview"
+        },
+        "asset": {
+          "$ref": "#/$defs/geodataAssetPin"
+        },
+        "measuredContentType": {
+          "const": "image/png"
+        }
+      },
+      "required": [
+        "profile",
+        "scope",
+        "documentId",
+        "documentRevision",
+        "mode",
+        "asset",
+        "measuredContentType"
+      ],
+      "additionalProperties": false
     }
   }
 }

@@ -75,6 +75,19 @@ for (const operation of ['create', 'replace', 'tombstone', 'restore']) {
 }
 const page = { profile:'houseatlas.geodata-document-list.v2', scope: originalRead.scope, documents: [originalRead], nextCursor:null };
 const frame = { profile:'houseatlas.geodata-document-bytes.v2', scope:originalRead.scope, documentId:document.recordId, documentRevision:1, mode:'original', asset:pin, measuredContentType:'application/geo+json' };
+// Inspect the exact operation-selected frame constraints without rejection controls.
+for (const [operation, mode] of [['readOriginal', 'original'], ['readPreview', 'preview']]) {
+  const frameRef = agent.$defs[`result_${operation}`].properties.output.$ref;
+  const expectedName = `geodataDocument${mode[0].toUpperCase() + mode.slice(1)}ByteFrame`;
+  assert.equal(frameRef, `${schema.$id}#/$defs/${expectedName}`);
+  const selectedFrame = schema.$defs[expectedName];
+  assert.deepEqual(selectedFrame.properties.mode, {const:mode});
+  assert(selectedFrame.required.includes('mode'));
+  assert(selectedFrame.required.includes('measuredContentType'));
+  assert.equal(selectedFrame.additionalProperties, false);
+  assert.deepEqual(selectedFrame.properties.measuredContentType, mode === 'preview' ? {const:'image/png'}
+    : {type:'string',enum:schema.$defs.geodataAssetPayload.allOf[1].then.properties.contentType.enum});
+}
 const byteRequest = {scope:originalRead.scope,documentId:document.recordId,expectedRevision:1,mode:'original'};
 const originalAsset = { ...document, recordType:'asset', recordId:pin.assetId, payload:{owner:'atlas',purpose:'original',sha256:pin.sha256,bytes:pin.bytes,contentType:'application/geo+json',sourceLicense:document.payload.provenance.license,availability:'available'} };
 const previewAsset = { ...originalAsset, recordId:output.assetId, payload:{...originalAsset.payload,purpose:'preview',sha256:output.sha256,bytes:output.bytes,contentType:'application/vnd.houseatlas.geodata-preview+png'} };
@@ -90,7 +103,7 @@ for (const command of catalog.commands) {
     : operation.startsWith('read') ? {...byteRequest,mode:operation === 'readOriginal' ? 'original' : 'preview'}
     : {scope:originalRead.scope,documentId:document.recordId,command:commands[operation]};
   const output = operation === 'list' ? page : operation === 'get' ? originalRead
-    : operation.startsWith('read') ? {...frame,mode:input.mode} : result;
+    : operation.startsWith('read') ? {...frame,mode:input.mode,asset:operation === 'readPreview' ? preview.document.payload.preview.asset : pin,measuredContentType:operation === 'readPreview' ? 'image/png' : frame.measuredContentType} : result;
   for (const [fragment, value] of [[command.inputSchema,{commandId:command.commandId,input}], [command.outputSchema,{commandId:command.commandId,output}]]) {
     const check = ajv.compile({$ref:agent.$id+fragment});
     assert.equal(check(value),true,`${command.commandId}: ${JSON.stringify(check.errors)}`);

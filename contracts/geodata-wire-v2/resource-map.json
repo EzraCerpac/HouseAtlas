@@ -7,7 +7,7 @@
     {
       "uri": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json",
       "path": "packages/contracts/schemas/atlas.v2.schema.json",
-      "sha256": "7bfe2625d8afd630e8361960b1edf68a9a51fe233d7017b4268d4006e2bfb9cf"
+      "sha256": "356326ff38b38d1db3f7ef7bc8db0aefa576135c4f23a096956383a77496b5db"
     },
     {
       "uri": "https://houseatlas.invalid/contracts/2.0.0/http-history.schema.json",
@@ -17,7 +17,7 @@
     {
       "uri": "urn:houseatlas:agent:geodata-wire-v2",
       "path": "contracts/geodata-wire-v2/agent/agent.schema.json",
-      "sha256": "7a4ab8f364fa8f6b92602031c813f27a47dad8138a78713788a5d3750884fa47"
+      "sha256": "9fc97a2aeeadd7693be85b014da608166136a7c8440541a6b97884fc963a57ee"
     }
   ],
   "metadataSchemaResources": [

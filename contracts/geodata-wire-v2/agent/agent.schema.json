@@ -115,7 +115,7 @@
           "const": "atlas.geodataDocument.readOriginal"
         },
         "output": {
-          "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/geodataDocumentByteFrame"
+          "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/geodataDocumentOriginalByteFrame"
         }
       },
       "required": [
@@ -172,7 +172,7 @@
           "const": "atlas.geodataDocument.readPreview"
         },
         "output": {
-          "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/geodataDocumentByteFrame"
+          "$ref": "https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/geodataDocumentPreviewByteFrame"
         }
       },
       "required": [

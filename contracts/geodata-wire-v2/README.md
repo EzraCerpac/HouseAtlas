@@ -16,6 +16,10 @@ Runtime adapters must explicitly select the successor and enforce
 [policy.json](policy.json), including trusted retained custody, exact asset pins,
 preview derivation, lifecycle, atomicity and source authorization.
 Schema validation alone cannot establish those semantic or trust properties.
+Byte-read operation outputs select separate frames with an exact `original` or
+`preview` mode. Preview framing reports measured `image/png`; its asset purpose
+content type remains `application/vnd.houseatlas.geodata-preview+png`. Original
+framing reports a MIME from the reviewed original admission family.
 
 [resource-map.json](resource-map.json) resolves the complete schema closure
 without network access. Catalog input/output fragments resolve against the
