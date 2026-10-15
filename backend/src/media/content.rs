@@ -32,7 +32,7 @@ pub fn validate_content(
         return Err(MediaError::TooLarge);
     }
     match content_type {
-        ContentType::Png => render_png(bytes, budget).map(Some),
+        ContentType::Png | ContentType::GeodataPreviewPng => render_png(bytes, budget).map(Some),
         ContentType::Jpeg => jpeg_original::validate(bytes, budget).map(|()| None),
         ContentType::Pdf => {
             let version = bytes.get(..8).ok_or(MediaError::Unsupported)?;
@@ -61,6 +61,9 @@ pub fn validate_content(
         }
         ContentType::AuthoredMesh => super::mesh_derivative::validate(bytes, budget).map(|_| None),
         ContentType::IfcGlb => super::ifc_glb::validate(bytes, budget).map(|_| None),
+        ContentType::GeoTiff | ContentType::GeoJson | ContentType::CityJson => {
+            super::geodata_original::validate(bytes, content_type, budget).map(|()| None)
+        }
         ContentType::Text => {
             std::str::from_utf8(bytes).map_err(|_| MediaError::Unsupported)?;
             if bytes.contains(&0) {
@@ -82,7 +85,9 @@ pub fn validate_original_content(
 ) -> MediaResult<()> {
     budget.check()?;
     match content_type {
-        ContentType::Png => png_original::validate(bytes, &inspect_png(bytes, budget)?, budget),
+        ContentType::Png | ContentType::GeodataPreviewPng => {
+            png_original::validate(bytes, &inspect_png(bytes, budget)?, budget)
+        }
         _ => validate_content(bytes, content_type, budget).map(|_| ()),
     }
 }

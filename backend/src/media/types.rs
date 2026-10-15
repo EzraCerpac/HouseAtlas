@@ -280,6 +280,10 @@ pub enum ContentType {
     Ifc,
     AuthoredMesh,
     IfcGlb,
+    GeoTiff,
+    GeoJson,
+    CityJson,
+    GeodataPreviewPng,
 }
 
 impl ContentType {
@@ -301,6 +305,10 @@ impl ContentType {
             "application/x-step" => Ok(Self::Ifc),
             super::mesh_derivative::MIME => Ok(Self::AuthoredMesh),
             super::ifc_glb::MIME => Ok(Self::IfcGlb),
+            "image/tiff" => Ok(Self::GeoTiff),
+            "application/geo+json" => Ok(Self::GeoJson),
+            "application/city+json" => Ok(Self::CityJson),
+            super::geodata_document::PREVIEW_MIME => Ok(Self::GeodataPreviewPng),
             _ => Self::parse(value),
         }
     }
@@ -315,6 +323,10 @@ impl ContentType {
             Self::Ifc => "application/x-step",
             Self::AuthoredMesh => super::mesh_derivative::MIME,
             Self::IfcGlb => super::ifc_glb::MIME,
+            Self::GeoTiff => "image/tiff",
+            Self::GeoJson => "application/geo+json",
+            Self::CityJson => "application/city+json",
+            Self::GeodataPreviewPng => super::geodata_document::PREVIEW_MIME,
         }
     }
 
@@ -322,8 +334,13 @@ impl ContentType {
     /// original or PNG renderer qualification. Old four original kinds remain.
     pub fn supports_purpose(self, purpose: AssetPurpose) -> bool {
         match self {
-            Self::AuthoredMesh | Self::IfcGlb => purpose == AssetPurpose::DerivedPreview,
+            Self::AuthoredMesh | Self::IfcGlb | Self::GeodataPreviewPng => {
+                purpose == AssetPurpose::DerivedPreview
+            }
             Self::Usdz | Self::Ifc => purpose == AssetPurpose::GeometryOriginal,
+            Self::GeoTiff | Self::GeoJson | Self::CityJson => {
+                purpose == AssetPurpose::EvidenceOriginal
+            }
             Self::Png | Self::Jpeg | Self::Pdf | Self::Text => purpose.is_original(),
         }
     }
@@ -338,6 +355,10 @@ impl ContentType {
             Self::Ifc => "ifc",
             Self::AuthoredMesh => "json",
             Self::IfcGlb => "glb",
+            Self::GeoTiff => "tif",
+            Self::GeoJson => "geojson",
+            Self::CityJson => "city.json",
+            Self::GeodataPreviewPng => "png",
         }
     }
 }

@@ -983,3 +983,24 @@ receipt miss stays unknown. Generic failures after intake also remain unknown;
 only an authenticated correlated intake rejection proves that invocation did
 not commit. These checks do not resolve historical upload requests, prove crash
 recovery, release a resend, change ordinary CI or accept deployment.
+
+## Native geodata document first slice
+
+Inspect `backend/src/media/geodata_original.rs`,
+`backend/src/media/geodata_document.rs`,
+`backend/src/media/geodata_document_healthy.rs` and the narrow dispatch changes
+in `types.rs`, `content.rs` and `service.rs` before these named synthetic checks:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib media::geodata_document::tests::healthy_geodata_original_framing_and_provider_families -- --exact --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib media::geodata_document::tests::healthy_document_original_and_qualified_png_read -- --exact --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib media::geodata_document::tests::healthy_original_download_independent_of_optional_preview -- --exact --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib media::geodata_document::tests::healthy_official_cityjson_batch_envelope -- --exact --test-threads=1
+```
+
+Only generated memory fixtures and explicit fake scoped storage/access/renderer
+qualification ports run. The first case's provider-family assertion is a local
+type-contract check, with no provider transport or live authorization. No native
+write, HTTP route, migration, converter, household intake or release follows.
+See [the contract and remaining integration](../geodata/native-documents.md).
+Cargo target/cache output must stay outside the source checkout.
