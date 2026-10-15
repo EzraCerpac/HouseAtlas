@@ -1,5 +1,17 @@
 # HouseAtlas
 
+The isolated canonical IFC source revision seam uses only generated receipts and
+an in-memory SQLite ledger in these named checks. Inspect
+`backend/src/media/canonical_ifc_source.rs` before running them:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib media::canonical_ifc_source::tests::synthetic_source_revision_validation -- --exact --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib media::canonical_ifc_source::tests::synthetic_source_ledger_parent_and_immutability -- --exact --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib media::canonical_ifc_source::tests::synthetic_source_ledger_rejects_atlas_schema -- --exact --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib media::canonical_ifc_source::tests::synthetic_source_requires_retained_ifc_bytes -- --exact --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib media::canonical_ifc_source::tests -- --test-threads=1
+```
+
 HouseAtlas connects rooms, belongings, documents and physical infrastructure in a home atlas. Browse a home without a floorplan, select a building and its reviewed rooms, and keep source dates, unknowns and evidence visible.
 
 HomeBox owns inventory, attachments and maintenance; HouseAtlas owns physical identities, reviewed bindings and optional geometry, circuits and valves. Network observations are a separate passive, read-only source. Browsing does not collect data or write upstream.

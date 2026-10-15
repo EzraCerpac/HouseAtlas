@@ -9,6 +9,7 @@
 compile_error!("The private media filesystem currently supports Linux and macOS");
 
 mod budget;
+pub mod canonical_ifc_source;
 pub mod content;
 pub mod download_lifetime;
 pub mod geometry_bundle;
