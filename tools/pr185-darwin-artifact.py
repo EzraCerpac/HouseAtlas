@@ -109,14 +109,27 @@ def main():
     output.mkdir(mode=0o700)
     evidence = output / 'evidence'
     evidence.mkdir(mode=0o700)
+    # macOS /var can alias /private/var. Native SQLite NOFOLLOW guards
+    # require canonical paths even for generated default-temp fixture data.
+    # Use a fresh private runner-owned child, outside source/cache/artifacts.
+    canonical_tmp = temp / 'pr185-product-canonical-tmp'
+    for other in (source, recipe, output, cargo_home, target):
+        need(not canonical_tmp.is_relative_to(other) and not other.is_relative_to(canonical_tmp),
+             'Fixture TMPDIR overlaps checkout/cache/artifacts')
+    need(not canonical_tmp.exists(), 'Canonical fixture TMPDIR already exists')
+    canonical_tmp.mkdir(mode=0o700)
+    need(canonical_tmp.resolve() == canonical_tmp
+         and canonical_tmp.stat().st_mode & 0o777 == 0o700,
+         'Fixture TMPDIR must be canonical and private')
     commands = []
     # Preserve only the runner's actual tool/home/locale locations. Never pass
     # ambient compiler flags, Cargo overrides, GitHub tokens or service credentials
     # to dependency build scripts. HOME is preserved, not reassigned.
     child_env = {key: os.environ[key] for key in
-                 ('PATH', 'HOME', 'RUSTUP_HOME', 'TMPDIR', 'LANG', 'LC_ALL', 'LC_CTYPE')
+                 ('PATH', 'HOME', 'RUSTUP_HOME', 'LANG', 'LC_ALL', 'LC_CTYPE')
                  if key in os.environ}
     child_env.update({
+        'TMPDIR': str(canonical_tmp),
         'RUSTUP_TOOLCHAIN': '1.99.0',
         'CARGO_HOME': str(cargo_home), 'CARGO_TARGET_DIR': str(target),
         'CARGO_BUILD_JOBS': '2', 'MACOSX_DEPLOYMENT_TARGET': '15.0',
@@ -182,7 +195,8 @@ def main():
         'recipeCommit': command(['git', 'rev-parse', 'HEAD'], recipe), 'recipeFileSha256': recipe_hashes,
         'commands': commands, 'sourceCleanBeforeAndAfter': True,
         'binary': {'name': 'houseatlas', 'bytes': binary.stat().st_size, 'sha256': initial_hash, 'abi': abi},
-        'limitations': ['Synthetic platform qualification only; no household files, provider or NAS access.',
+        'limitations': ['Generated checks require the recorded canonical private TMPDIR; default /var aliases and target-host compatibility are not qualified.',
+                         'Synthetic platform qualification only; no household files, provider or NAS access.',
                          'No deployment, installed-service, real-data, rollback or operator acceptance.',
                          'No credential signing or notarization; codesign records are inspection only.',
                          'Minimum-OS and system-library checks do not prove compatibility with a particular NAS.']}

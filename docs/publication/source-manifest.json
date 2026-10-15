@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "9a91bc672705f1e18665ddac5d9b5d2f2e82d0c03887c1e43b206603e62aa2df",
+  "sourceDigestSha256": "c1999d0cdc0c93205dc84b5e88b7b6dd105847856cfb36dd814d2f794bdf452d",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -9744,8 +9744,8 @@
     {
       "path": "tools/pr185-darwin-artifact.py",
       "mode": "100644",
-      "bytes": 12923,
-      "sha256": "c7873cffd86e2182b7243737c6126a3adbee508bd0b834fc63e5130b18bfd2de",
+      "bytes": 13904,
+      "sha256": "b212e3c0652e2cc45b649650517066d4c7643804eb3540b3a77efbeed6b3d8ff",
       "owner": "core-integration"
     },
     {
@@ -9758,8 +9758,8 @@
     {
       "path": "tools/pr185-qualifier-artifact.py",
       "mode": "100644",
-      "bytes": 13839,
-      "sha256": "e2c3be3d67377e06f1ebc413f471c5c3b1db3b0c37974422d17187fa1f9d05f3",
+      "bytes": 14801,
+      "sha256": "7e475bfc097e8c0b35e643ccfc9150164bed942cf1ebdb94a85273426e57118c",
       "owner": "core-integration"
     },
     {

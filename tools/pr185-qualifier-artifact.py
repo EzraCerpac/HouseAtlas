@@ -21,7 +21,7 @@ WORKFLOW = '.github/workflows/pr185-qualifier-artifact.yml'
 SUPPORT = 'tools/pr185-qualifier-artifact.py'
 HELPER = 'tools/pr185-full-qualifier.rs'
 ABI_SUPPORT = 'tools/pr185-darwin-artifact.py'
-ABI_SUPPORT_SHA256 = 'c7873cffd86e2182b7243737c6126a3adbee508bd0b834fc63e5130b18bfd2de'
+ABI_SUPPORT_SHA256 = 'b212e3c0652e2cc45b649650517066d4c7643804eb3540b3a77efbeed6b3d8ff'
 CRATES = ('houseatlas_backend', 'rusqlite', 'serde_json', 'sha2', 'rustix')
 
 
@@ -102,10 +102,22 @@ def main():
     output.mkdir(mode=0o700)
     evidence = output / 'evidence'
     evidence.mkdir(mode=0o700)
+    # macOS /var can alias /private/var. Native SQLite NOFOLLOW guards
+    # require canonical paths even for generated default-temp fixture data.
+    # Use a fresh private runner-owned child, outside source/cache/artifacts.
+    canonical_tmp = temp / 'pr185-qualifier-canonical-tmp'
+    for other in (source, recipe, output, cargo_home, target):
+        need(not canonical_tmp.is_relative_to(other) and not other.is_relative_to(canonical_tmp),
+             'Fixture TMPDIR overlaps checkout/cache/artifacts')
+    need(not canonical_tmp.exists(), 'Canonical fixture TMPDIR already exists')
+    canonical_tmp.mkdir(mode=0o700)
+    need(canonical_tmp.resolve() == canonical_tmp
+         and canonical_tmp.stat().st_mode & 0o777 == 0o700,
+         'Fixture TMPDIR must be canonical and private')
     commands = []
     child_env = {key: os.environ[key] for key in
-                 ('PATH', 'HOME', 'RUSTUP_HOME', 'TMPDIR', 'LANG', 'LC_ALL', 'LC_CTYPE') if key in os.environ}
-    child_env.update({'RUSTUP_TOOLCHAIN': '1.99.0', 'CARGO_HOME': str(cargo_home),
+                 ('PATH', 'HOME', 'RUSTUP_HOME', 'LANG', 'LC_ALL', 'LC_CTYPE') if key in os.environ}
+    child_env.update({'TMPDIR': str(canonical_tmp), 'RUSTUP_TOOLCHAIN': '1.99.0', 'CARGO_HOME': str(cargo_home),
         'CARGO_TARGET_DIR': str(target), 'CARGO_BUILD_JOBS': '2', 'MACOSX_DEPLOYMENT_TARGET': '15.0',
         'RUSTFLAGS': '-C target-cpu=x86-64',
         'CFLAGS_x86_64_apple_darwin': '-arch x86_64 -mmacosx-version-min=15.0 -march=x86-64 -mtune=generic',
@@ -185,7 +197,8 @@ def main():
         'effectiveBuildEnvironment': dict(sorted(child_env.items())), 'commands': commands,
         'sourceAndRecipeCleanBeforeAndAfter': True,
         'binary': {'name': BINARY, 'bytes': binary.stat().st_size, 'sha256': initial_hash, 'abi': abi},
-        'limitations': ['Named nonempty product healthy example and empty generated helper self-check only.',
+        'limitations': ['Generated checks require the recorded canonical private TMPDIR; default /var aliases and target-host compatibility are not qualified.',
+            'Named nonempty product healthy example and empty generated helper self-check only.',
             'No supplied household input, private policy/database/media, live provider, account or NAS access.',
             'External qualifier has no account/session setup, grant issuance, listener or HTTP path; its executed self-check uses generated empty data and performs no intake.',
             'The separately named generated product healthy fixture exercises genuine synthetic native sessions/authority and in-process HTTP.',
