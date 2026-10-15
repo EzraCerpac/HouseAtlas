@@ -5,7 +5,11 @@ This unselected backend seam retains TIFF, GeoJSON and CityJSON originals as
 PNG/JPEG/PDF/text allowlist. Raw sources are bounded to the existing10MiB limit
 and validated as download envelopes; no TIFF decompression, GIS interpretation,
 source URL request, ZIP extraction or coordinate registration runs here. Classic
-TIFF is supported; BigTIFF and ZIP remain unsupported.
+TIFF is supported; BigTIFF and ZIP remain unsupported. The CityJSON download
+profile also retains official 3DBAG API single-feature and bounded batch
+envelopes with separate CityJSON metadata. A batch contains CityJSONFeature
+objects rather than GeoJSON features; its original bytes, quantization metadata
+and counters remain unchanged. This establishes framing, not spatial validity.
 
 `houseatlas.geodata-document.v1` pins workspace/home, immutable document revision,
 original asset ID/revision/SHA256/bytes, provenance and optional preview lineage.
@@ -58,26 +62,9 @@ qualification stubs. They prove bounded framing and original/preview read
 composition, not real renderer execution, persistent admission, production access
 control or georeferenced household acceptance. No listener/provider is invoked.
 
-## Separate larger archive path proposal
+## Archive custody
 
-An original ZIP above10MiB cannot pass the current `AssetVault` staged admission,
-read or replay bounds. Do not relabel it, split it, recompress it and call it the
-original, or increase the global `MAX_BYTES` to fit one household archive.
-
-A separate archive-original profile should cap an immutable source ZIP at32MiB,
-with at most four retained archives and128MiB total per home, one active archive
-transfer per process, and128KiB upload/download chunks. These are proposed hard
-bounds requiring separate route/storage review. The existing original geodata
-and PNG paths retain their10MiB bounds. ZIP is download-only, with no extraction,
-member execution, source URL resolution or generic file-server path selection.
-
-That extension requires native storage/audit admission ownership and an
-authenticated bounded transfer/lifetime adapter: exact SHA256/byte proof before
-publication, immutable server-selected handles, same-home authorization and
-revision fencing, durable source/preview association and deduplication within
-scope. A streaming response must retain ownership of the verified open source
-through completion/cancellation, prevent path substitution, and fail closed on
-read errors without claiming successful complete delivery. Validate a bounded
-ZIP envelope without decompressing its content. A PNG/PDF catalogue remains a
-separate qualified derivative with exact source lineage; it cannot stand in for
-the ZIP bytes. No archive route or raised size quota is installed in this slice.
+The retained ZIP can remain in private archive custody while individual source
+originals under the existing10MiB bound are admitted through a future reviewed
+native route. This slice adds no ZIP format, larger quota, archive streaming,
+extraction, native import or change to the global media limit.

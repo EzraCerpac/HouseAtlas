@@ -292,3 +292,44 @@ fn healthy_original_download_independent_of_optional_preview() {
     assert_eq!(r.bytes, source);
     assert_eq!(q.calls.get(), 0);
 }
+
+#[test]
+fn healthy_official_cityjson_batch_envelope() {
+    // Official envelope shape, with fictional IDs/coordinates and no private
+    // address, source model or downloaded provider bytes.
+    let bytes = br#"{"type":"FeatureCollection","features":[{"type":"CityJSONFeature","id":"synthetic-a","CityObjects":{"synthetic-a":{"type":"Building"}},"vertices":[[1,2,3]]},{"type":"CityJSONFeature","id":"synthetic-b","CityObjects":{"synthetic-b":{"type":"Building"}},"vertices":[[4,5,6]]}],"metadata":{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[],"transform":{"scale":[0.001,0.001,0.001],"translate":[1000,2000,0]}},"numberMatched":2,"numberReturned":2,"links":[]}"#;
+    let original = asset(40, bytes, ContentType::CityJson, false);
+    let (mut document, _, _) = fixture();
+    document.title = "Generated CityJSON API batch".into();
+    document.original = pin(&original);
+    document.preview = None;
+    let q = SyntheticQualification {
+        expected: document.clone(),
+        calls: Cell::new(0),
+    };
+    let store = Store {
+        document: document.clone(),
+        assets: vec![(original, bytes.to_vec())],
+    };
+    let access = Access {
+        authorized: Cell::new(0),
+        revalidated: Cell::new(0),
+    };
+    let response = read(
+        &store,
+        &access,
+        &q,
+        DocumentReadRequest {
+            principal: &(),
+            scope: &document.scope,
+            document_id: &document.document_id,
+            mode: DocumentReadMode::Original,
+        },
+        &budget(),
+    )
+    .unwrap();
+    assert!(response.download);
+    assert_eq!(response.content_type, "application/city+json");
+    assert_eq!(response.bytes, bytes);
+    assert_eq!(q.calls.get(), 0);
+}

@@ -995,6 +995,7 @@ in `types.rs`, `content.rs` and `service.rs` before these named synthetic checks
 cargo test --offline --locked -p houseatlas-backend --lib media::geodata_document::tests::healthy_geodata_original_framing_and_provider_families -- --exact --test-threads=1
 cargo test --offline --locked -p houseatlas-backend --lib media::geodata_document::tests::healthy_document_original_and_qualified_png_read -- --exact --test-threads=1
 cargo test --offline --locked -p houseatlas-backend --lib media::geodata_document::tests::healthy_original_download_independent_of_optional_preview -- --exact --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib media::geodata_document::tests::healthy_official_cityjson_batch_envelope -- --exact --test-threads=1
 ```
 
 Only generated memory fixtures and explicit fake scoped storage/access/renderer

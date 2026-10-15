@@ -64,6 +64,16 @@ fn json_value(
         _ => serde_json::from_str(text).map_err(|_| bad()),
     }
 }
+fn city_body(city: &Value) -> MediaResult<()> {
+    need(city["type"] == "CityJSON" || city["type"] == "CityJSONFeature")?;
+    need(city["CityObjects"].is_object())?;
+    let vertices = city["vertices"].as_array().ok_or_else(bad)?;
+    need(vertices.iter().all(|p| {
+        p.as_array().is_some_and(|a| {
+            a.len() == 3 && a.iter().all(|x| x.as_f64().is_some_and(f64::is_finite))
+        })
+    }))
+}
 fn geodata_json(bytes: &[u8], kind: ContentType, budget: &WorkBudget) -> MediaResult<()> {
     let raw: &RawValue = serde_json::from_slice(bytes).map_err(|_| bad())?;
     let mut count = 0;
@@ -104,21 +114,25 @@ fn geodata_json(bytes: &[u8], kind: ContentType, budget: &WorkBudget) -> MediaRe
             }
         }
         ContentType::CityJson => {
-            // The official API also returns one CityJSONFeature plus separate metadata.
-            let city = if v["type"].is_string() {
-                &v
+            // Official 3DBAG API pages carry CityJSONFeature objects and one
+            // separate CityJSON metadata/quantization record. Their collection
+            // envelope is not a GeoJSON FeatureCollection. Retain it unchanged;
+            // no vertices, transforms or source counters are reinterpreted.
+            if v["type"] == "FeatureCollection" {
+                need(v["metadata"]["type"] == "CityJSON")?;
+                let features = v["features"].as_array().ok_or_else(bad)?;
+                need(features.len() <= 10_000)?;
+                for feature in features {
+                    budget.check()?;
+                    need(feature["type"] == "CityJSONFeature")?;
+                    city_body(feature)?;
+                }
+            } else if v["type"].is_string() {
+                city_body(&v)?;
             } else {
                 need(v["metadata"]["type"] == "CityJSON")?;
-                &v["feature"]
-            };
-            need(city["type"] == "CityJSON" || city["type"] == "CityJSONFeature")?;
-            need(city["CityObjects"].is_object())?;
-            let vertices = city["vertices"].as_array().ok_or_else(bad)?;
-            need(vertices.iter().all(|p| {
-                p.as_array().is_some_and(|a| {
-                    a.len() == 3 && a.iter().all(|x| x.as_f64().is_some_and(f64::is_finite))
-                })
-            }))?;
+                city_body(&v["feature"])?;
+            }
         }
         _ => return Err(bad()),
     }
