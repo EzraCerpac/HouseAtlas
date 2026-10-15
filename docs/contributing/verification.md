@@ -1038,3 +1038,8 @@ compiled fresh SQL before this one named positive check:
 ```sh
 cargo run --offline --locked -p houseatlas-backend --example healthy-native-geodata-documents
 ```
+
+The separately authorized full-profile synthetic compatibility check is
+`cargo run --offline --locked -p houseatlas-backend --example healthy-native-full-geodata-profile`.
+Its exact generated scope and limitations are in
+[the full native profile guide](../geodata/native-full-profile.md).

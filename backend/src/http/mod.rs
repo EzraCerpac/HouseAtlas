@@ -106,6 +106,7 @@ pub struct Host {
     quantity_previews: Arc<Mutex<quantity::Registry>>,
     #[cfg(test)]
     quantity_tls_fixture: Option<Arc<quantity_fixture::PrivateLoopbackQuantityTls>>,
+    full_geodata_identity: Option<crate::storage::FullGeodataIdentity>,
     geodata_dataset: Option<Arc<Mutex<crate::storage::geodata::GeodataStore>>>,
     loopback_local: bool,
     gateway: Option<Arc<crate::app::trusted_gateway::GatewaySocket>>,
@@ -127,6 +128,7 @@ impl Host {
             quantity_previews: Arc::new(Mutex::new(quantity::Registry::default())),
             #[cfg(test)]
             quantity_tls_fixture: None,
+            full_geodata_identity: None,
             geodata_dataset: None,
             loopback_local: false,
             gateway: None,
@@ -156,6 +158,30 @@ impl Host {
     /// Explicit startup choice validated against the actual native local user.
     /// Explicit exclusive dataset selection. The router serves v2 Documents and
     /// native auth only; it never attaches Documents to the legacy core store.
+    /// Compose Documents with native/Stock routes only on the original full
+    /// profile Core.store connection; no second dataset connection is accepted.
+    pub fn with_full_geodata(mut self) -> crate::storage::Result<Self> {
+        let core = self.core.lock().map_err(|_| {
+            crate::storage::Error::new("storage-unavailable", "Native core unavailable")
+        })?;
+        let store = core.store.lock().map_err(|_| {
+            crate::storage::Error::new("storage-unavailable", "Native store unavailable")
+        })?;
+        if self.geodata_dataset.is_some()
+            || !store.full_geodata_belongs_to(&core.access, &core.vault)
+        {
+            return Err(crate::storage::Error::new(
+                "identity-conflict",
+                "Original full profile owners required",
+            ));
+        }
+        self.full_geodata_identity = Some(store.full_geodata_identity().ok_or(
+            crate::storage::Error::new("schema-incompatible", "Full profile not selected"),
+        )?);
+        drop(store);
+        drop(core);
+        Ok(self)
+    }
     pub fn with_geodata_dataset(
         mut self,
         store: crate::storage::geodata::GeodataStore,
@@ -1044,6 +1070,11 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
             ai.with_state::<Host>(()),
         ),
         None => base,
+    };
+    let base = if host.full_geodata_identity.is_some() {
+        base.merge(geodata_documents::routes())
+    } else {
+        base
     };
     base.layer(middleware::from_fn_with_state(
         host.clone(),
