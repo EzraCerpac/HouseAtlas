@@ -146,4 +146,3 @@ HTTP adapter must emit private/no-store, nosniff, sandbox and attachment headers
 Preview reads additionally require an approved persistent renderer-receipt reader;
 client receipt text or the standalone catalogue PNG cannot provide that proof.
 The existing bare media service continues refusing the geodata-preview family.
-
