@@ -1,6 +1,6 @@
 import { useEffect, useRef, type CSSProperties, type KeyboardEvent } from 'react';
 import { fmtDate, fmtDateTime } from '../data/time';
-import { isDuplicateLabel, shortId } from './model';
+import { isDuplicateLabel, selectionLabel, shortId } from './model';
 import type { AdmittedPresentation, SpaceOccurrence } from './model';
 import type { OverlayJoin } from './overlays';
 import type { RestoreNotice, ViewerAction, ViewerState } from './selection';
@@ -172,7 +172,7 @@ export function RoomPanel({ model, state, dispatch, overlay, notice, onDismissNo
           ? source.origin.coverage === 'publisher-shaped' ? 'Synthetic fixture, publisher-shaped' : 'Synthetic fixture, generated presentation coverage; not publisher output'
           : `${source.origin.adapter} via ${source.origin.transport === 'synthetic-fixture' ? 'synthetic fixture transport; ready state is mock' : 'scoped service read'}`}</dd></div>
         <div><dt>Owner</dt><dd>{pin.owner}</dd></div>
-        <div><dt>Selection</dt><dd>{pin.selection.mode === 'published' ? 'Published' : 'Preview'}{pin.selection.revision && <code>{pin.selection.revision}</code>}</dd></div>
+        <div><dt>Selection</dt><dd>{selectionLabel(source)}{pin.selection.revision && <code>{pin.selection.revision}</code>}</dd></div>
         <div><dt>Publication</dt><dd><code>{pin.publicationId}</code></dd></div>
         <div><dt>Source revision</dt><dd><code>{pin.sourceRevisionId}</code>{pin.sourceRevisionSha256 && <code>{pin.sourceRevisionSha256}</code>}</dd></div>
         <div><dt>Source IFC</dt><dd>{pin.sourceIfcSha256 ? <code>{pin.sourceIfcSha256}</code> : 'Unknown'}</dd></div>

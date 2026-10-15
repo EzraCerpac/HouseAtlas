@@ -15,8 +15,14 @@
   grid-template-columns: minmax(0, 1fr);
   border: 1px solid var(--hair-2);
   border-radius: var(--r-sheet);
-  overflow: hidden;
+  overflow: clip;
   background: var(--card);
+}
+
+/* Local file preview: dashed frame, never mistaken for a publication. */
+.lantern-host .cifc-preview .cifc-layout {
+  border-style: dashed;
+  border-color: var(--ink-2);
 }
 
 /* ---------- Stage ---------- */
@@ -76,6 +82,12 @@
   box-shadow: 0 0 0 1.5px var(--ink);
 }
 
+/* Floor holds another occurrence of the selected room, not the selection itself. */
+.lantern-host .cifc-floor-mark.is-context {
+  background: var(--lantern-soft);
+  box-shadow: 0 0 0 1.5px var(--lantern-edge);
+}
+
 .lantern-host .cifc-view-ctrl {
   display: flex;
   flex-wrap: wrap;
@@ -133,17 +145,28 @@
   overflow: visible;
 }
 
-.lantern-host .cifc-plan-room {
+.lantern-host .cifc-plan-space {
   fill: #f7efdd;
   stroke: rgba(24, 35, 58, 0.32);
   stroke-width: 1;
 }
 
-.lantern-host .cifc-plan-room.is-display-only {
+/* No space identity on this floor: drawn for orientation, never selectable. */
+.lantern-host .cifc-plan-space.is-display-only {
   fill: #eeede7;
+  stroke: var(--c-unknown);
+  stroke-dasharray: 4 3;
 }
 
-.lantern-host .cifc-plan-room.is-selected {
+/* Another occurrence of the selected room: same family, quieter than the selection. */
+.lantern-host .cifc-plan-space.is-context {
+  fill: var(--lantern-soft);
+  stroke: var(--lantern-edge);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 3;
+}
+
+.lantern-host .cifc-plan-space.is-selected {
   fill: var(--lantern);
   stroke: var(--lantern-edge);
   stroke-width: 2.5;
@@ -180,6 +203,16 @@
   stroke-linejoin: round;
 }
 
+.lantern-host .cifc-label.is-context text {
+  font-weight: 700;
+  fill: var(--lantern-ink);
+}
+
+.lantern-host .cifc-label.is-context .cifc-label-halo {
+  stroke: var(--lantern-soft);
+  stroke-width: 13px;
+}
+
 .lantern-host .cifc-label.is-selected text {
   font-family: var(--display);
   font-size: 15px;
@@ -193,22 +226,24 @@
   stroke-width: 17px;
 }
 
-.lantern-host .cifc-label line {
+.lantern-host .cifc-label > line {
   stroke: var(--ink);
   stroke-width: 1.5;
 }
 
-.lantern-host .cifc-label circle {
+.lantern-host .cifc-label > circle {
   fill: var(--lantern);
   stroke: var(--ink);
   stroke-width: 1.5;
 }
 
-.lantern-host .cifc-label g circle {
+/* Count badge: fill comes from badgeFill(tone); numerals stay white in every tier. */
+.lantern-host .cifc-label .cifc-label-badge circle {
   stroke: #fff;
+  stroke-width: 1.5;
 }
 
-.lantern-host .cifc-label .cifc-label-count {
+.lantern-host .cifc-label .cifc-label-badge .cifc-label-count {
   fill: #fff;
   font-family: var(--text);
   font-size: 11px;
@@ -292,6 +327,12 @@
 .lantern-host .cifc-chip.is-published {
   border-color: color-mix(in srgb, var(--ok) 45%, #fff);
   color: var(--ok);
+}
+
+.lantern-host .cifc-chip.is-local {
+  border-style: dashed;
+  border-color: var(--ink-2);
+  color: var(--ink);
 }
 
 .lantern-host .cifc .layer-bar {
@@ -548,10 +589,22 @@
   background: rgba(27, 35, 48, 0.05);
 }
 
+.lantern-host .cifc-room-btn.is-context {
+  background: var(--lantern-soft);
+  border-color: var(--lantern-edge);
+  border-style: dashed;
+}
+
 .lantern-host .cifc-room-btn[aria-pressed='true'] {
   background: var(--lantern);
   border-color: var(--lantern-edge);
+  border-style: solid;
   font-weight: 650;
+}
+
+.lantern-host .cifc-room-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
 }
 
 .lantern-host .cifc-room-name {
@@ -589,6 +642,53 @@
   color: #fff;
   font-size: 12px;
   font-weight: 700;
+}
+
+.lantern-host .cifc-room-btn[aria-pressed='true'] .cifc-room-count {
+  box-shadow: 0 0 0 2px var(--card);
+}
+
+.lantern-host .cifc-room-group.is-unplaced h4 {
+  font-style: italic;
+}
+
+.lantern-host .cifc-siblings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.lantern-host .cifc-siblings .chip-btn {
+  min-height: 40px;
+}
+
+/* Narrow layouts stack the panel under the stage; this bar returns to the model. */
+.lantern-host .cifc-return {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 -16px -24px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--hair);
+  background: var(--card);
+  font-size: var(--fs-s);
+  font-weight: 650;
+}
+
+.lantern-host .cifc-return span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lantern-host .cifc-return .chip-btn {
+  flex: none;
+  min-height: 40px;
 }
 
 .lantern-host .cifc-empty {
@@ -696,6 +796,10 @@
     overflow-y: auto;
     border-top: 0;
     border-left: 1px solid var(--hair);
+  }
+
+  .lantern-host .cifc-return {
+    display: none;
   }
 }
 

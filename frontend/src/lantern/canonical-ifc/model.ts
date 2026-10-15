@@ -230,8 +230,13 @@ export function admitPresentation(source: CanonicalPresentation): AdmittedPresen
   for (const raw of source.rooms) {
     need(ID.test(raw.roomId) && !roomsById.has(raw.roomId) && !floorsById.has(raw.roomId), 'Room identity');
     need(raw.atlasPlaceId === null || ID.test(raw.atlasPlaceId), 'Atlas link');
+    // Tokens are reserved as they are read, so a repeat within this room is
+    // refused rather than silently choosing one of its floors.
+    const reserved = new Set<string>();
     const linked = raw.occurrences.map(occurrence => {
-      need(isOpaqueToken(occurrence.spaceOccurrenceId) && !occurrences.has(occurrence.spaceOccurrenceId), 'Occurrence identity');
+      const token = occurrence.spaceOccurrenceId;
+      need(isOpaqueToken(token) && !occurrences.has(token) && !reserved.has(token), 'Occurrence identity');
+      reserved.add(token);
       const known = occurrence.floorId !== null && floorsById.has(occurrence.floorId);
       if (!known) occurrencesWithUnknownFloor++;
       return known ? occurrence : { ...occurrence, floorId: null };
@@ -303,6 +308,16 @@ export function admitPresentation(source: CanonicalPresentation): AdmittedPresen
       overlayLayersWithheld: source.overlays.length - overlays.length,
     },
   };
+}
+
+/** True when no native publisher served this snapshot: its ready/published state is mock. */
+export function isSyntheticSource(source: CanonicalPresentation): boolean {
+  return source.origin.kind === 'synthetic-fixture' || source.origin.transport === 'synthetic-fixture';
+}
+
+/** Selection wording; a synthetic snapshot never claims native publication. */
+export function selectionLabel(source: CanonicalPresentation): 'Preview' | 'Published' | 'Mock selection' {
+  return source.publication.selection.mode === 'preview' ? 'Preview' : isSyntheticSource(source) ? 'Mock selection' : 'Published';
 }
 
 /** Distinct logical rooms sharing a label (occurrences of one room are not duplicates). */

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { admitPresentation, PresentationError } from './model';
+import { admitPresentation, isSyntheticSource, PresentationError, selectionLabel } from './model';
 import type { AdmittedPresentation, CanonicalPresentation } from './model';
 import { LABEL_WORK, labelPoint, prepareMeshes } from './geometry';
 import { joinOverlay } from './overlays';
@@ -83,12 +83,13 @@ function AdmittedViewer({ model, memory, onSelectionChange }: { readonly model: 
   }, [model, overlay]);
 
   const origin = model.source.origin, pin = model.source.publication;
-  const synthetic = origin.kind === 'synthetic-fixture' || origin.transport === 'synthetic-fixture';
+  const synthetic = isSyntheticSource(model.source), selection = selectionLabel(model.source);
   const status = <>
     {synthetic && <span className="cifc-chip is-synthetic">Synthetic fixture</span>}
     {origin.kind === 'synthetic-fixture' && origin.coverage === 'generated-presentation-coverage' && <span className="cifc-chip is-synthetic">Generated coverage</span>}
     {origin.kind === 'adapted-publication' && origin.transport === 'synthetic-fixture' && <span className="cifc-chip is-synthetic">Mock ready</span>}
-    <span className={`cifc-chip ${pin.selection.mode === 'preview' ? 'is-preview' : 'is-published'}`}>{pin.selection.mode === 'preview' ? 'Preview' : 'Published'}</span>
+    {!(origin.kind === 'adapted-publication' && selection === 'Mock selection') && <span className={`cifc-chip ${selection === 'Preview' ? 'is-preview'
+      : selection === 'Published' ? 'is-published' : 'is-synthetic'}`}>{selection}</span>}
   </>;
 
   return <div className="cifc" data-publication-id={pin.publicationId}><div className="cifc-layout">

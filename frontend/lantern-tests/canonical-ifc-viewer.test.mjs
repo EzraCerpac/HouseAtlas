@@ -1,7 +1,9 @@
-// Healthy synthetic identity, persistence, shared-frame and picking checks for
-// the canonical model viewer. Generated fixtures only; no network, storage,
-// browser, GPU or native host is used.
+// Healthy synthetic identity, persistence, frame, picking and v2 scene checks
+// for the canonical model viewer. Generated fixtures and the checked-in public
+// two-floor-v2 snapshot only, served through an owned in-process fake port; no
+// network, storage, browser, GPU or native host is used.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -24,136 +26,352 @@ const frontend = new URL('../', import.meta.url);
 const jsx = new URL('./node_modules/react/jsx-runtime.js', frontend).href;
 const react = new URL('./node_modules/react/index.js', frontend).href;
 const base = '../src/lantern/canonical-ifc/';
+const decimalURL = await sourceURL('../src/numeric/decimal.ts', 'ts');
+const glbProfileURL = await sourceURL('../src/lantern/scans/ifc-glb-profile.ts', 'ts', { '../../numeric/decimal': decimalURL });
+const yieldURL = await sourceURL('../src/lantern/scans/presentation/yield-task.ts', 'ts');
+const meshProfileURL = await sourceURL('../src/lantern/scans/mesh-profile.ts', 'ts',
+  { './presentation/yield-task': yieldURL, '../../numeric/decimal': decimalURL, './ifc-glb-profile': glbProfileURL });
 const modelURL = await sourceURL(`${base}model.ts`, 'ts');
-const selectionURL = await sourceURL(`${base}selection.ts`, 'ts');
+const selectionURL = await sourceURL(`${base}selection.ts`, 'ts', { './model': modelURL });
 const geometryURL = await sourceURL(`${base}geometry.ts`, 'ts');
 const overlaysURL = await sourceURL(`${base}overlays.ts`, 'ts');
 const tonesURL = await sourceURL(`${base}tones.ts`, 'ts');
+const adapterURL = await sourceURL(`${base}adapter.ts`, 'ts', { '../../numeric/decimal': decimalURL,
+  '../scans/ifc-glb-profile': glbProfileURL, '../scans/mesh-profile': meshProfileURL, './model': modelURL });
 const fixturesURL = await sourceURL('./canonical-ifc-visual/synthetic-publication.ts', 'ts', { '../../src/lantern/canonical-ifc/model': modelURL });
+const iconURL = await sourceURL('../src/lantern/components/Icon.tsx', 'tsx', { 'react/jsx-runtime': jsx });
+const cameraURL = await sourceURL('../src/lantern/atlas/useCamera.ts', 'ts', { react });
+const stageCameraURL = await sourceURL(`${base}useStageCamera.ts`, 'ts', { react, '../atlas/useCamera': cameraURL });
+const meshLayerURL = await sourceURL(`${base}MeshLayer.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx, './geometry': geometryURL });
+const stageURL = await sourceURL(`${base}ModelStage.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx, '../components/Icon': iconURL,
+  './geometry': geometryURL, './selection': selectionURL, './MeshLayer': meshLayerURL, './tones': tonesURL, './useStageCamera': stageCameraURL });
+const localURL = await sourceURL(`${base}LocalGlbPreview.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx, '../components/Icon': iconURL,
+  '../scans/ifc-glb-profile': glbProfileURL, '../scans/mesh-profile': meshProfileURL, './geometry': geometryURL,
+  './MeshLayer': meshLayerURL, './useStageCamera': stageCameraURL, './canonical-ifc.css': 'data:text/javascript,' });
 
-const { admitPresentation, PresentationError, isDuplicateLabel } = await import(modelURL);
-const { reconcile, viewerReducer, encodeMemory, decodeMemory, initialState } = await import(selectionURL);
-const { makeProjection, modelBounds, prepareMeshes, pick, planPick, labelPoint, pointInRings, visibleFloorIds, roomTop } = await import(geometryURL);
+const { admitPresentation, PresentationError, isDuplicateLabel, isSyntheticSource, selectionLabel } = await import(modelURL);
+const { reconcile, viewerReducer, encodeMemory, decodeMemory, initialState, contextOccurrences, scopedMemoryKey, memoryKey } = await import(selectionURL);
+const { makeProjection, drawnBounds, floorPlanRings, prepareMeshes, pick, planPick, labelPoint, LABEL_WORK, pointInShape, relativePath,
+  visibleFloorIds, occurrenceTops } = await import(geometryURL);
 const { joinOverlay } = await import(overlaysURL);
+const { badgeFill, contrast, TONE_COLOR } = await import(tonesURL);
+const { readCanonicalSceneV2, ADAPTER_ID } = await import(adapterURL);
+const { readLocalGlb } = await import(localURL);
 const { publicationA, publicationB, generatedCoverage } = await import(fixturesURL);
 
 const A = admitPresentation(publicationA()), B = admitPresentation(publicationB()), C = admitPresentation(generatedCoverage());
 const roomByLabel = (model, label) => model.source.rooms.filter(room => room.label === label);
+const only = room => { assert.equal(room.occurrences.length, 1); return room.occurrences[0].spaceOccurrenceId; };
 const kitchen = roomByLabel(A, 'Kitchen')[0], dining = roomByLabel(A, 'Dining room')[0];
+const kitchenOcc = only(kitchen), diningOcc = only(dining);
+const budget = () => ({ remaining: LABEL_WORK });
+const preparedOf = model => prepareMeshes(model.source.meshes, mesh => model.meshOccurrence.get(mesh.meshKey) ?? null);
+const escape = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // Admission: explicit links survive; unlinked geometry stays display-only.
 assert.equal(A.issues.planFeaturesDemoted, 0);
 assert.equal(A.issues.meshBindingsDemoted, 0);
-assert.equal(A.issues.roomsWithoutPlanShape, 1, 'Cellar has no plan shape');
+assert.equal(A.issues.occurrencesWithoutPlanShape, 1, 'Cellar has no plan shape');
 assert.ok(A.issues.displayOnlyMeshes > 0, 'Slab and walls are display-only');
-assert.equal(A.roomMeshes.get(kitchen.atlasId).length, 1);
-assert.equal(C.issues.roomsWithUnknownFloor, 1, 'Loft keeps an explicit unknown floor');
-const boxRoom = roomByLabel(C, 'Box room')[0];
-assert.ok(C.planShapes.has(boxRoom.atlasId) && !C.roomMeshes.has(boxRoom.atlasId), 'Box room is plan-only');
+assert.equal(A.occurrenceMeshes.get(kitchenOcc).length, 1);
+assert.equal(A.issues.overlayLayersWithheld, 1, 'An overlay pinned to another publication is withheld');
+assert.equal(C.issues.occurrencesWithUnknownFloor, 1, 'Loft keeps an explicit unknown floor');
+const boxOcc = only(roomByLabel(C, 'Box room')[0]);
+assert.ok(C.planShapes.has(boxOcc) && !C.occurrenceMeshes.has(boxOcc), 'Box room is plan-only');
+assert.equal(selectionLabel(A.source), 'Mock selection', 'A synthetic snapshot never claims native publication');
+assert.equal(selectionLabel(B.source), 'Preview');
+assert.ok(isSyntheticSource(A.source));
 
 // Duplicate labels never merge identities.
 const bedrooms = roomByLabel(C, 'Bedroom');
 assert.equal(bedrooms.length, 2);
-assert.notEqual(bedrooms[0].atlasId, bedrooms[1].atlasId);
+assert.notEqual(bedrooms[0].roomId, bedrooms[1].roomId);
 assert.ok(bedrooms.every(room => isDuplicateLabel(C, room)));
-const second = reconcile(C, { v: 1, publicationId: C.source.publication.publicationId, roomId: bedrooms[1].atlasId, floorId: null, view: '3d', overlayId: null });
-assert.equal(second.state.roomId, bedrooms[1].atlasId, 'The second Bedroom restores by ID, not label');
+const second = reconcile(C, { v: 2, publicationId: C.source.publication.publicationId, roomId: bedrooms[1].roomId,
+  occurrenceId: only(bedrooms[1]), floorId: null, view: '3d', overlayId: null });
+assert.equal(second.state.occurrenceId, only(bedrooms[1]), 'The second Bedroom restores by ID, not label');
+
+// One logical room, two floor-qualified occurrences with distinct opaque IDs.
+const [groundC, upperC] = C.source.floors.map(floor => floor.floorId);
+const stair = C.source.rooms.find(room => room.label === 'Stair hall' && room.occurrences.length === 2);
+assert.ok(stair, 'Coverage stair hall spans two floors');
+const stairGround = stair.occurrences.find(row => row.floorId === groundC).spaceOccurrenceId;
+const stairUpper = stair.occurrences.find(row => row.floorId === upperC).spaceOccurrenceId;
+assert.notEqual(stairGround, stairUpper);
+assert.ok(!isDuplicateLabel(C, stair), 'Occurrences of one room are not duplicate labels');
+assert.ok(C.occurrenceMeshes.has(stairUpper) && C.planShapes.has(stairUpper) && C.planShapes.has(stairGround));
+const stairState = viewerReducer(C, initialState(C), { type: 'selectOccurrence', occurrenceId: stairUpper });
+assert.equal(stairState.floorId, upperC);
+assert.deepEqual(contextOccurrences(C, stairState, groundC), [stairGround], 'The other occurrence is context on its own floor');
+assert.deepEqual(contextOccurrences(C, stairState, upperC), []);
+const stairBack = reconcile(C, decodeMemory(encodeMemory(C, stairState)));
+assert.equal(stairBack.state.occurrenceId, stairUpper, 'The upper occurrence restores, not the first of the room');
+assert.equal(stairBack.state.floorId, upperC);
+assert.equal(JSON.parse(encodeMemory(C, stairState)).roomId, stair.roomId);
 
 // Memory holds the publication pin and IDs only.
-const selected = viewerReducer(A, { ...initialState(A), overlayId: A.source.overlays[0].id }, { type: 'selectRoom', roomId: kitchen.atlasId });
-const text = encodeMemory(selected), record = decodeMemory(text);
-assert.deepEqual(Object.keys(JSON.parse(text)).sort(), ['floorId', 'overlayId', 'publicationId', 'roomId', 'v', 'view']);
+const selected = viewerReducer(A, { ...initialState(A), overlayId: A.overlays[0].id }, { type: 'selectOccurrence', occurrenceId: kitchenOcc });
+const text = encodeMemory(A, selected), record = decodeMemory(text);
+assert.deepEqual(Object.keys(JSON.parse(text)).sort(), ['floorId', 'occurrenceId', 'overlayId', 'publicationId', 'roomId', 'v', 'view']);
 assert.ok(!text.includes('Kitchen'), 'No label is persisted');
+assert.equal(decodeMemory(text.replace('"v":2', '"v":1')), null, 'Older records are ignored, not partially trusted');
+assert.equal(decodeMemory(JSON.stringify({ ...JSON.parse(text), label: 'Kitchen' })), null);
 const restored = reconcile(A, record);
-assert.deepEqual(restored.state, selected, 'Same publication restores room, floor, view and overlay');
+assert.deepEqual(restored.state, selected, 'Same publication restores occurrence, floor, view and overlay');
 assert.equal(restored.notice, null);
+const scopeOne = { workspaceId: 'w1', homeId: 'h1' }, scopeTwo = { workspaceId: 'w2', homeId: 'h1' };
+assert.notEqual(scopedMemoryKey(scopeOne, 'b1'), scopedMemoryKey(scopeTwo, 'b1'), 'Memory is scoped by workspace');
+assert.notEqual(scopedMemoryKey(scopeOne, 'b1'), scopedMemoryKey(scopeOne, 'b2'), 'Memory is scoped by building');
+assert.notEqual(scopedMemoryKey(null, 'b1'), scopedMemoryKey(scopeOne, 'b1'));
 
-// New publication: carry only an identical Atlas ID; the renamed label is shown.
+// New publication: carry only the identical (roomId, occurrence) pair; the renamed label is shown.
 const carried = reconcile(B, record);
-assert.equal(carried.state.roomId, kitchen.atlasId);
-assert.equal(carried.state.publicationId, 'synthetic-publication-b');
-assert.equal(B.roomsById.get(kitchen.atlasId).label, 'Kitchen and dining');
-assert.deepEqual(carried.notice, { kind: 'carried', fromPublicationId: 'synthetic-publication-a' });
+assert.equal(carried.state.occurrenceId, kitchenOcc);
+assert.equal(carried.state.publicationId, B.source.publication.publicationId);
+assert.notEqual(B.source.publication.publicationId, A.source.publication.publicationId);
+assert.equal(B.roomsById.get(kitchen.roomId).label, 'Kitchen and dining');
+assert.deepEqual(carried.notice, { kind: 'carried', fromPublicationId: A.source.publication.publicationId });
 assert.equal(carried.state.overlayId, null, 'Overlay layer IDs of another publication are not carried');
-const absent = reconcile(B, decodeMemory(encodeMemory(viewerReducer(A, initialState(A), { type: 'selectRoom', roomId: dining.atlasId }))));
-assert.equal(absent.state.roomId, null, 'A removed room is not revived');
+const absent = reconcile(B, decodeMemory(encodeMemory(A, viewerReducer(A, initialState(A), { type: 'selectOccurrence', occurrenceId: diningOcc }))));
+assert.equal(absent.state.occurrenceId, null, 'A removed room is not revived');
 assert.equal(absent.notice.kind, 'room-absent');
 const gardenRoom = roomByLabel(B, 'Garden room')[0];
-assert.notEqual(gardenRoom.atlasId, dining.atlasId, 'The room occupying the same area has a new identity');
+assert.notEqual(gardenRoom.roomId, dining.roomId, 'The room occupying the same area has a new identity');
+const moved = reconcile(B, { ...record, roomId: gardenRoom.roomId });
+assert.equal(moved.state.occurrenceId, null, 'An occurrence under another room is not carried');
 
-// Room identity stays separate from the visible floor and the view.
-const upper = C.source.floors[1].atlasId, ground = C.source.floors[0].atlasId;
-let state = viewerReducer(C, initialState(C), { type: 'selectRoom', roomId: bedrooms[0].atlasId });
-assert.equal(state.floorId, upper, 'Selecting reveals the explicitly linked floor');
-for (const action of [{ type: 'showFloor', floorId: ground }, { type: 'view', view: '3d' }, { type: 'view', view: 'plan' }, { type: 'showFloor', floorId: upper }])
+// Selection identity stays separate from the visible floor and the view.
+let state = viewerReducer(C, initialState(C), { type: 'selectOccurrence', occurrenceId: only(bedrooms[0]) });
+assert.equal(state.floorId, upperC, 'Selecting reveals the explicitly linked floor');
+for (const action of [{ type: 'showFloor', floorId: groundC }, { type: 'view', view: '3d' }, { type: 'view', view: 'plan' }, { type: 'showFloor', floorId: upperC }])
   state = viewerReducer(C, state, action);
-assert.equal(state.roomId, bedrooms[0].atlasId, 'Floor and view navigation keep the room');
+assert.equal(state.occurrenceId, only(bedrooms[0]), 'Floor and view navigation keep the selection');
 assert.equal(state.publicationId, C.source.publication.publicationId);
 const loft = roomByLabel(C, 'Loft')[0];
-assert.equal(viewerReducer(C, state, { type: 'selectRoom', roomId: loft.atlasId }).floorId, upper, 'Unknown floor keeps the current floor');
+assert.equal(viewerReducer(C, state, { type: 'selectOccurrence', occurrenceId: only(loft) }).floorId, upperC, 'Unknown floor keeps the current floor');
 
-// Overlays join by Atlas room ID only; unknown and null links stay unplaced.
-const electrical = joinOverlay(A, A.source.overlays[0]);
-assert.equal(electrical.byRoom.get(kitchen.atlasId).length, 2);
-assert.deepEqual(electrical.unplaced.map(record => record.roomAtlasId === null ? 'null' : 'absent').sort(), ['absent', 'null']);
+// Overlays join by reviewed Atlas place only; unknown and null links stay unplaced.
+const electrical = joinOverlay(A, A.overlays[0]);
+assert.equal(electrical.byRoom.get(kitchen.roomId).length, 2);
+assert.deepEqual(electrical.unplaced.map(row => row.atlasPlaceId === null ? 'null' : 'absent').sort(), ['absent', 'null']);
+assert.equal(joinOverlay(A, A.source.overlays.find(layer => layer.publicationId !== A.source.publication.publicationId)), null);
+for (const tone of Object.keys(TONE_COLOR)) assert.ok(contrast(badgeFill(tone), '#FFFFFF') >= 4.5, `${tone} badge text contrast`);
 
 // One shared frame: no per-floor centring, scaling or spacing.
-const bounds = modelBounds(C), viewport = { width: 1000, height: 700 };
+const meshesC = preparedOf(C), bounds = drawnBounds(meshesC, floorPlanRings(C, null), null), viewport = { width: 1000, height: 700 };
 const planView = makeProjection({ yaw: 0, pitch: 90, zoom: 1, panX: 0, panY: 0 }, bounds, viewport, 1);
 const g = planView.project(2, 0, 3), u = planView.project(2, 2.9, 3);
 assert.ok(Math.abs(g[0] - u[0]) < 1e-9 && Math.abs(g[1] - u[1]) < 1e-9, 'Equal x/z coincide in plan on every floor');
 const view3d = makeProjection({ yaw: -32, pitch: 36, zoom: 1, panX: 0, panY: 0 }, bounds, viewport, 0);
 assert.ok(view3d.project(2, 2.9, 3)[1] < view3d.project(2, 0, 3)[1], 'Upper geometry sits above lower in 3D');
-assert.deepEqual([...visibleFloorIds(C, ground)], [ground]);
-assert.deepEqual(new Set(visibleFloorIds(C, upper)), new Set([upper, ground]));
+assert.deepEqual([...visibleFloorIds(C, groundC)], [groundC]);
+assert.deepEqual(new Set(visibleFloorIds(C, upperC)), new Set([upperC, groundC]));
+const groundA = A.source.floors[0].floorId;
+assert.equal(A.source.registration.kind, 'isolated-floors');
+assert.deepEqual([...visibleFloorIds(A, groundA)], [groundA], 'Isolated floors are never stacked');
 
-// Plan and 3D picking resolve the same Atlas room through explicit geometry.
-const meshesA = prepareMeshes(A), boundsA = modelBounds(A);
-const point = labelPoint(A.planShapes.get(kitchen.atlasId));
-assert.ok(pointInRings(point.x, point.z, A.planShapes.get(kitchen.atlasId)));
-const groundA = A.source.floors[0].atlasId;
+// Plan and 3D picking resolve the same occurrence through explicit geometry.
+const meshesA = preparedOf(A), boundsA = drawnBounds(meshesA, floorPlanRings(A, groundA), groundA);
+const point = labelPoint(A.planShapes.get(kitchenOcc), budget());
+assert.ok(pointInShape(point.x, point.z, A.planShapes.get(kitchenOcc)));
 const planA = makeProjection({ yaw: 0, pitch: 90, zoom: 1, panX: 0, panY: 0 }, boundsA, viewport, 1);
 const [px, py] = planA.project(point.x, 0, point.z);
-assert.equal(planPick(A, groundA, 0, planA, px, py), kitchen.atlasId);
+assert.equal(planPick(A, groundA, 0, planA, px, py), kitchenOcc);
 const rules = { visibleFloors: visibleFloorIds(A, groundA), clipY: 1.2 };
 const threeA = makeProjection({ yaw: -32, pitch: 36, zoom: 1, panX: 0, panY: 0 }, boundsA, viewport, 0);
-const [qx, qy] = threeA.project(point.x, roomTop(meshesA, kitchen.atlasId), point.z);
-assert.deepEqual(pick(meshesA, threeA, rules, qx, qy).roomId, kitchen.atlasId);
+const [qx, qy] = threeA.project(point.x, occurrenceTops(meshesA).get(kitchenOcc), point.z);
+assert.equal(pick(meshesA, threeA, rules, qx, qy).occurrenceId, kitchenOcc);
 const [wx, wy] = threeA.project(5.6, 1.0, 3.5);
 assert.equal(pick(meshesA, threeA, rules, wx, wy).kind, 'display-only', 'A wall is display-only');
 assert.equal(pick(meshesA, threeA, rules, 2, 2).kind, 'none');
-const meshesC = prepareMeshes(C), boxPoint = labelPoint(C.planShapes.get(boxRoom.atlasId));
+const boxPoint = labelPoint(C.planShapes.get(boxOcc), budget());
 const threeC = makeProjection({ yaw: -32, pitch: 36, zoom: 1, panX: 0, panY: 0 }, bounds, viewport, 0);
 const [bx, by] = threeC.project(boxPoint.x, 2.92, boxPoint.z);
-assert.equal(pick(meshesC, threeC, { visibleFloors: visibleFloorIds(C, upper), clipY: 2.9 + 1.2 }, bx, by).kind, 'display-only', 'An unmapped room mesh selects no room');
+assert.equal(pick(meshesC, threeC, { visibleFloors: visibleFloorIds(C, upperC), clipY: 2.9 + 1.2 }, bx, by).kind, 'display-only', 'An unmapped room mesh selects no room');
 
 // Unverifiable links are demoted to display-only; ambiguous identity is refused.
 const source = publicationA();
-const moved = { ...source, meshes: source.meshes.map(mesh => mesh.roomAtlasId === kitchen.atlasId ? { ...mesh, floorAtlasId: null } : mesh) };
-const demoted = admitPresentation(moved);
-assert.equal(demoted.issues.meshBindingsDemoted, 1);
-assert.ok(!demoted.roomMeshes.has(kitchen.atlasId));
+const unlinked = admitPresentation({ ...source, meshes: source.meshes.map(mesh => mesh.occurrenceId === kitchenOcc ? { ...mesh, floorId: null } : mesh) });
+assert.equal(unlinked.issues.meshBindingsDemoted, 1);
+assert.ok(!unlinked.occurrenceMeshes.has(kitchenOcc));
 assert.throws(() => admitPresentation({ ...source, rooms: [...source.rooms, { ...source.rooms[0], label: 'Copy' }] }), PresentationError);
+const living = source.rooms.find(room => room.label === 'Living room');
+assert.throws(() => admitPresentation({ ...source, rooms: source.rooms.map(room => room === living
+  ? { ...room, occurrences: [{ ...room.occurrences[0], spaceOccurrenceId: kitchenOcc }] } : room) }), PresentationError,
+'One occurrence token in two rooms is refused');
+const coverage = generatedCoverage();
+assert.throws(() => admitPresentation({ ...coverage, rooms: coverage.rooms.map(room => room.roomId === stair.roomId
+  ? { ...room, occurrences: room.occurrences.map(row => ({ ...row, spaceOccurrenceId: stairGround })) } : room) }), PresentationError,
+'A repeated token on two floors cannot silently choose one floor');
+
+// Precision: far-from-origin geometry projects relative to its own centre.
+const shift = 1000;
+const translate = presentation => ({ ...presentation,
+  floors: presentation.floors.map(floor => ({ ...floor, plan: floor.plan && { features: floor.plan.features.map(feature =>
+    ({ ...feature, rings: feature.rings.map(ring => ring.map(([x, z]) => [x + shift, z + shift])) })) } })),
+  meshes: presentation.meshes.map(mesh => ({ ...mesh, positions: mesh.positions.map((value, i) => i % 3 === 1 ? value : value + shift) })) });
+const far = admitPresentation(translate(publicationA()));
+const meshesFar = preparedOf(far), boundsFar = drawnBounds(meshesFar, floorPlanRings(far, groundA), groundA);
+const planFar = makeProjection({ yaw: 0, pitch: 90, zoom: 1, panX: 0, panY: 0 }, boundsFar, viewport, 1);
+const farPoint = labelPoint(far.planShapes.get(kitchenOcc), budget());
+const [fx, fy] = planFar.project(farPoint.x, 0, farPoint.z);
+assert.ok(Math.abs(fx - (point.x + shift - planFar.center[0]) * planFar.k - planFar.ox) < 1e-3);
+assert.ok(Math.abs(fx - px) < 1e-2 && Math.abs(fy - py) < 1e-2, 'Translation does not move the projected room');
+assert.equal(planPick(far, groundA, 0, planFar, fx, fy), kitchenOcc);
+const farPath = relativePath(far.planShapes.get(kitchenOcc)[0], planFar.center);
+assert.ok(farPath.match(/-?\d+(?:\.\d+)?(?:e-?\d+)?/g).every(value => Math.abs(Number(value)) < 20), 'SVG path coordinates stay relative');
+const threeFar = makeProjection({ yaw: -32, pitch: 36, zoom: 1, panX: 0, panY: 0 }, boundsFar, viewport, 0);
+const [tx, ty] = threeFar.project(farPoint.x, occurrenceTops(meshesFar).get(kitchenOcc), farPoint.z);
+assert.equal(pick(meshesFar, threeFar, rules, tx, ty).occurrenceId, kitchenOcc);
+
+// Precision: one occurrence may own several features (union), each with holes.
+const square = (x0, z0, x1, z1) => [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
+const shape = [[square(0, 0, 4, 4), square(1, 1, 3, 3)], [square(6, 0, 8, 2)], [square(1.5, 1.5, 2.5, 2.5)]];
+assert.ok(pointInShape(0.5, 0.5, shape), 'Inside the outer ring');
+assert.ok(!pointInShape(1.2, 1.2, shape), 'A hole is empty');
+assert.ok(pointInShape(2, 2, shape), 'An overlapping feature fills part of the hole');
+assert.ok(pointInShape(7, 1, shape), 'A separate feature belongs to the same occurrence');
+assert.ok(!pointInShape(5, 1, shape));
+const union = labelPoint(shape, budget());
+assert.ok(union && pointInShape(union.x, union.z, shape), 'Label stays inside the union');
+const twoFeatures = publicationA();
+const kitchenFloor = twoFeatures.floors[0];
+const split = admitPresentation({ ...twoFeatures, floors: [{ ...kitchenFloor, plan: { features: [...kitchenFloor.plan.features,
+  { occurrenceId: kitchenOcc, role: 'space', rings: [square(20, 0, 22, 2), square(20.5, 0.5, 21.5, 1.5)] }] } }, ...twoFeatures.floors.slice(1)] });
+assert.equal(split.planShapes.get(kitchenOcc).length, 2);
+assert.ok(pointInShape(20.2, 1, split.planShapes.get(kitchenOcc)) && !pointInShape(21, 1, split.planShapes.get(kitchenOcc)));
+
+// Precision: unused vertices never extend drawn bounds or floor ranges.
+const stray = publicationA();
+const padded = admitPresentation({ ...stray, meshes: stray.meshes.map(mesh => mesh.occurrenceId === kitchenOcc
+  ? { ...mesh, positions: Float32Array.from([...mesh.positions, 500, 50, -500]) } : mesh) });
+assert.deepEqual(padded.floorFacts.get(groundA).yRange, A.floorFacts.get(groundA).yRange);
+const paddedKitchen = preparedOf(padded).find(mesh => mesh.occurrenceId === kitchenOcc);
+assert.ok(paddedKitchen.bounds.max[0] < 100 && paddedKitchen.yRange[1] < 1 && paddedKitchen.bounds.min[2] > -100);
+assert.deepEqual(drawnBounds(preparedOf(padded), floorPlanRings(padded, groundA), groundA), boundsA);
 
 // Static markup: pressed state, identity attributes and synchronized selection.
-const iconURL = await sourceURL('../src/lantern/components/Icon.tsx', 'tsx', { 'react/jsx-runtime': jsx });
-const cameraURL = await sourceURL('../src/lantern/atlas/useCamera.ts', 'ts', { react });
-const meshLayerURL = await sourceURL(`${base}MeshLayer.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx, './geometry': geometryURL });
-const stageURL = await sourceURL(`${base}ModelStage.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx, '../components/Icon': iconURL,
-  '../atlas/useCamera': cameraURL, './geometry': geometryURL, './MeshLayer': meshLayerURL, './tones': tonesURL });
 const { ModelStage } = await import(stageURL);
-const labelPoints = new Map([...A.planShapes].map(([id, rings]) => [id, labelPoint(rings)]));
-const stageMarkup = view => renderToStaticMarkup(createElement(ModelStage, { model: A, meshes: meshesA, bounds: boundsA, labelPoints,
-  state: { ...viewerReducer(A, initialState(A), { type: 'selectRoom', roomId: kitchen.atlasId }), view },
-  dispatch() {}, overlay: null, roomTints: new Map(), reduced: true, status: null }));
-const planMarkup = stageMarkup('plan');
-const entityIds = [...planMarkup.matchAll(/data-entity-id="([^"]+)"/g)].map(match => match[1]);
-assert.deepEqual(new Set(entityIds), new Set([...A.planShapes.keys()]), 'Plan rooms carry their Atlas IDs');
-assert.match(planMarkup, new RegExp(`class="cifc-plan-room is-selected" data-entity-id="${kitchen.atlasId}"|data-entity-id="${kitchen.atlasId}"[^>]*class="cifc-plan-room is-selected"`));
+const shared = budget(), labelPoints = new Map([...A.planShapes].map(([id, rings]) => [id, labelPoint(rings, shared)]));
+const stageMarkup = (model, meshes, points, stageState) => renderToStaticMarkup(createElement(ModelStage, { model, meshes, labelPoints: points,
+  state: stageState, dispatch() {}, overlay: null, tints: new Map(), reduced: true, status: null, viewport: { current: null } }));
+const kitchenState = view => ({ ...viewerReducer(A, initialState(A), { type: 'selectOccurrence', occurrenceId: kitchenOcc }), view });
+const planMarkup = stageMarkup(A, meshesA, labelPoints, kitchenState('plan'));
+const spaceIds = [...planMarkup.matchAll(/data-space-occurrence-id="([^"]+)"/g)].map(match => match[1]);
+assert.deepEqual(new Set(spaceIds), new Set([...A.planShapes.keys()]), 'Plan spaces carry their occurrence IDs');
+const kitchenAttr = escape(`data-space-occurrence-id="${kitchenOcc}"`);
+assert.match(planMarkup, new RegExp(`class="cifc-plan-space is-selected" ${kitchenAttr}|${kitchenAttr}[^>]*class="cifc-plan-space is-selected"`));
 assert.match(planMarkup, /<button type="button" aria-pressed="true">Plan<\/button>/);
 assert.match(planMarkup, /class="cifc-label is-selected"[^]*?>Kitchen</);
-const threeMarkup = stageMarkup('3d');
+const threeMarkup = stageMarkup(A, meshesA, labelPoints, kitchenState('3d'));
 assert.match(threeMarkup, /<button type="button" aria-pressed="true">3D<\/button>/);
 assert.match(threeMarkup, /class="floor-btn is-current" aria-pressed="true"/);
+const stairPoints = new Map([...C.planShapes].map(([id, rings]) => [id, labelPoint(rings, shared)]));
+const stairMarkup = stageMarkup(C, meshesC, stairPoints, { ...stairState, floorId: groundC, view: 'plan' });
+assert.match(stairMarkup, new RegExp(`${escape(`data-space-occurrence-id="${stairGround}"`)}[^>]*class="cifc-plan-space is-context"`),
+  'The other occurrence of the selected room is context on the ground floor');
 
-console.log('PASS canonical viewer keeps one publication, stable room identity and one shared frame across plan and 3D.');
+// Public two-floor-v2 snapshot through an owned fake port: exact hrefs, exact bytes.
+const fixture = new URL('../../docs/canonical-ifc/fixtures/two-floor-v2/', import.meta.url);
+const SCOPE = { workspaceId: 'eda986dc-80fc-584c-9350-ebcc4bd5d599', homeId: '5ac4b592-ed7c-5a17-a503-0eedb2477bb1',
+  buildingId: 'ed098a05-48ae-5253-a1b8-214d4b82c8d6' };
+const PUBLICATION_ID = '1f8e08c7-366b-559d-81f7-cff3fe5e71a2';
+const GROUND = '2ff038c0-2e81-5cbe-95d4-59d3df81245a', UPPER = 'ed6121fa-55c6-5ee1-9990-1285dccbc6af';
+const PREFIX = `/api/atlas/ifc/v2/workspaces/${SCOPE.workspaceId}/homes/${SCOPE.homeId}/buildings/${SCOPE.buildingId}/publications/${PUBLICATION_ID}/`;
+const bytesOf = relative => new Uint8Array(readFileSync(new URL(relative, fixture)));
+const files = new Map([
+  ['artifacts/semantics', 'publication/semantics.json'],
+  ...[GROUND, UPPER].flatMap(floorId => [
+    [`floors/${floorId}/artifacts/glb`, `publication/floors/${floorId}/model.glb`],
+    [`floors/${floorId}/artifacts/floorplanFeatures`, `publication/floors/${floorId}/floorplan.json`],
+    [`floors/${floorId}/artifacts/floorplan2d`, `publication/floors/${floorId}/floorplan.svg`]]),
+]);
+const digest = bytes => createHash('sha256').update(bytes).digest('hex');
+const sceneBytes = bytesOf('scene-read.json'), scene = JSON.parse(Buffer.from(sceneBytes).toString('utf8'));
+const request = { scope: SCOPE, publicationId: null, buildingLabel: 'Synthetic two-floor building' };
+const reads = [];
+const port = {
+  transport: 'synthetic-fixture', owner: 'Synthetic fixture transport',
+  async readScene(asked, signal) {
+    signal.throwIfAborted();
+    assert.deepEqual(asked, request);
+    return sceneBytes;
+  },
+  async readArtifact(href, signal) {
+    signal.throwIfAborted();
+    const relative = href.startsWith(PREFIX) ? files.get(href.slice(PREFIX.length)) : undefined;
+    if (!relative) throw new Error('Unknown fixture artifact');
+    reads.push(href.slice(PREFIX.length));
+    return bytesOf(relative);
+  },
+};
+const reviewed = { id: 'synthetic-v2-electrical', publicationId: PUBLICATION_ID, label: 'Synthetic electrical', tone: 'electrical',
+  owner: 'Synthetic circuit fixture', sourceDate: null, retrievedAt: '2026-10-15T00:00:00Z', freshness: 'current',
+  records: [{ id: 'synthetic-v2-e1', label: 'Circuit 1', atlasPlaceId: null, detail: null }] };
+const elsewhere = { ...reviewed, id: 'synthetic-v2-other', publicationId: '00000000-0000-4000-8000-000000000000' };
+const result = await readCanonicalSceneV2(port, request, new AbortController().signal,
+  { now: () => '2026-10-15T00:00:00Z', overlays: [reviewed, elsewhere] });
+assert.equal(result.status, 'available', result.detail);
+assert.deepEqual(result.fence, { selectionRevision: scene.selection.revision, publicationId: PUBLICATION_ID });
+assert.deepEqual(new Set(reads), new Set(files.keys()), 'Every pinned artifact is read once through the port');
+assert.equal(reads.length, files.size);
+const presentation = result.presentation;
+assert.deepEqual(presentation.origin, { kind: 'adapted-publication', adapter: ADAPTER_ID, transport: 'synthetic-fixture' });
+const pub = presentation.publication;
+assert.deepEqual({ publicationId: pub.publicationId, sourceRevisionId: pub.sourceRevisionId, sourceRevisionSha256: pub.sourceRevisionSha256,
+  sourceIfcSha256: pub.sourceIfcSha256, semanticMapRevisionId: pub.semanticMapRevision, semanticMapSha256: pub.semanticMapSha256,
+  validation: pub.validation }, scene.publication);
+assert.deepEqual(pub.selection, { mode: 'published', revision: scene.selection.revision });
+assert.equal(pub.retrievedAt, '2026-10-15T00:00:00Z');
+assert.equal(pub.publishedAt, null, 'No publish date is invented');
+assert.equal(pub.sourceDate, null);
+assert.equal(pub.owner, 'Synthetic fixture transport');
+const pinOf = (label, floorId, suffix) => { const bytes = bytesOf(files.get(suffix)); return { label, floorId, sha256: digest(bytes), bytes: bytes.byteLength }; };
+assert.deepEqual(pub.artifacts, [pinOf('Semantics', null, 'artifacts/semantics'), ...[GROUND, UPPER].flatMap(floorId => [
+  pinOf('GLB', floorId, `floors/${floorId}/artifacts/glb`), pinOf('plan features', floorId, `floors/${floorId}/artifacts/floorplanFeatures`),
+  pinOf('plan SVG', floorId, `floors/${floorId}/artifacts/floorplan2d`)])]);
+assert.equal(scene.semantics.sha256, digest(bytesOf('publication/semantics.json')), 'Scene pins match the checked-in bytes');
+assert.deepEqual(presentation.building, { buildingId: SCOPE.buildingId, label: 'Synthetic two-floor building',
+  scope: { workspaceId: SCOPE.workspaceId, homeId: SCOPE.homeId } });
+assert.deepEqual(presentation.registration, { kind: 'isolated-floors' });
+assert.equal(presentation.coordinates.physicalAlignment, 'unknown');
+assert.deepEqual(presentation.floors.map(floor => [floor.floorId, floor.label, floor.elevation]),
+  [[GROUND, 'Synthetic floor', null], [UPPER, 'Second floor', null]]);
+const bound = presentation.meshes.filter(mesh => mesh.occurrenceId !== null).map(mesh => [mesh.floorId, mesh.occurrenceId]);
+assert.deepEqual(bound, [[GROUND, 'synthetic-space-one'], [UPPER, 'synthetic-space-two']], 'Hashed GLB names join each floor to its own occurrence');
+assert.ok(presentation.meshes.every(mesh => mesh.meshKey === `${mesh.floorId}#${mesh.glbMeshIndex}`));
+assert.deepEqual(presentation.overlays.map(layer => layer.id), ['synthetic-v2-electrical'], 'Overlays of another publication are not adapted');
+
+const V2 = admitPresentation(presentation);
+assert.equal(selectionLabel(presentation), 'Mock selection', 'A fake-port ready state is a mock, not native publication');
+assert.ok(isSyntheticSource(presentation));
+assert.equal(V2.roomsById.size, 1);
+const combined = V2.roomsById.get('27c1c078-4ea7-56a5-9ca3-00bb5a210f22');
+assert.deepEqual(combined.occurrences.map(row => [row.spaceOccurrenceId, row.floorId]), [['synthetic-space-one', GROUND], ['synthetic-space-two', UPPER]]);
+assert.ok(V2.planShapes.has('synthetic-space-one') && V2.planShapes.has('synthetic-space-two'));
+assert.deepEqual(Object.values(V2.issues), Object.values(V2.issues).map(() => 0), 'Nothing is demoted or withheld');
+assert.deepEqual([...visibleFloorIds(V2, UPPER)], [UPPER]);
+let v2State = viewerReducer(V2, initialState(V2), { type: 'selectOccurrence', occurrenceId: 'synthetic-space-two' });
+assert.equal(v2State.floorId, UPPER);
+for (const view of ['3d', 'plan']) v2State = viewerReducer(V2, v2State, { type: 'view', view });
+assert.equal(v2State.occurrenceId, 'synthetic-space-two', 'Plan/3D switching keeps the occurrence');
+assert.deepEqual(contextOccurrences(V2, v2State, GROUND), ['synthetic-space-one']);
+const v2Back = reconcile(V2, decodeMemory(encodeMemory(V2, v2State)));
+assert.deepEqual(v2Back.state, v2State);
+assert.equal(v2Back.notice, null);
+assert.equal(memoryKey(V2), scopedMemoryKey(presentation.building.scope, SCOPE.buildingId));
+const v2Join = joinOverlay(V2, V2.overlays[0]);
+assert.equal(v2Join.byRoom.size, 0, 'A null Atlas link is never placed');
+assert.deepEqual(v2Join.unplaced.map(row => row.id), ['synthetic-v2-e1']);
+assert.equal(joinOverlay(V2, elsewhere), null);
+
+// Local GLB: browser-only read of a checked-in public GLB; nothing is bound.
+const glbBytes = bytesOf(files.get(`floors/${GROUND}/artifacts/glb`));
+const local = await readLocalGlb(new Blob([glbBytes]), new AbortController().signal);
+assert.equal(local.sha256, digest(glbBytes));
+assert.equal(local.bytes, glbBytes.byteLength);
+assert.equal(local.meshes.length, presentation.meshes.filter(mesh => mesh.floorId === GROUND).length);
+assert.ok(local.meshes.every((mesh, index) => mesh.meshKey === `local#${index}` && mesh.floorId === null && mesh.occurrenceId === null),
+  'Local meshes stay unbound: no floor, room or occurrence is inferred');
+
+console.log('PASS canonical viewer keeps one publication, stable occurrence identity, exact v2 pins and one frame per registration across plan and 3D.');

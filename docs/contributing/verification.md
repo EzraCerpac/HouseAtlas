@@ -1,5 +1,22 @@
 # HouseAtlas
 
+The isolated canonical IFC viewer check uses generated presentations, the
+checked-in two-floor v2 artifacts and a fake read port. Inspect the runner and
+its imports before this focused local command with Node 26.10.0 and the locked
+frontend dependencies:
+
+```sh
+node frontend/lantern-tests/canonical-ifc-viewer.test.mjs
+```
+
+It covers artifact pins, logical rooms with multiple floor-qualified
+occurrences, selection memory, overlay joins and CPU plan/3D picking. It also
+reads one public closed-profile GLB without assigning rooms or floors. The
+visual fixture at `/lantern-tests/canonical-ifc-visual/` supports `?fixture=a`,
+`b`, `coverage`, `scene` and `local`. Actual browser layout and GPU checks are
+separate. This command adds no live scene service, household intake,
+application mount, deployment or held lifecycle/control-test permission.
+
 The retained USDZ padding compatibility check builds two tiny stored archives
 in memory, with identical local/central alignment padding or the earlier
 central-directory profile. It uses the actual native framing validator and

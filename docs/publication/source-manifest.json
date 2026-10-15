@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "da5dd797cede914934b0e310eda645b390bcd98c207ce18bfe5681c192d2f414",
+  "sourceDigestSha256": "a847df1437ae4dd27fbad17ebb2f929867568ebe11683f2f88bed4fc51395e4d",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -98,8 +98,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 8030,
-      "sha256": "8216a11ac308afa3f99d52592eacaf45bd548ca79653b581258fefd09820ed9f",
+      "bytes": 8674,
+      "sha256": "2e103715d322c89fbc65f78caa942b30de37ee86a38fd50df29d1416d7836c42",
       "owner": "core-integration"
     },
     {
@@ -5796,8 +5796,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 62203,
-      "sha256": "8707f4f5500dc46ec8066c230b60f79453f22ccee8ec513e8166934cc3c19097",
+      "bytes": 63052,
+      "sha256": "4672c6838c347c7c7f98de59eb283b695b212a4dae3f447e9c84f4f0724450ac",
       "owner": "core-integration"
     },
     {
@@ -6788,6 +6788,48 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/canonical-ifc-viewer.test.mjs",
+      "mode": "100644",
+      "bytes": 29757,
+      "sha256": "a97d93361ceda4a880f1079958bf7d1eb780ed3a6ef794493f5e53e493589593",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/canonical-ifc-visual/fixture-assets.d.ts",
+      "mode": "100644",
+      "bytes": 222,
+      "sha256": "61445434c495a5491616668630f2949f8ef4dc231030307d0c9e40faa1edee96",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/canonical-ifc-visual/fixture.css",
+      "mode": "100644",
+      "bytes": 1246,
+      "sha256": "08faa533eb1ea8418b40ac9e85467ab2b2ffb373c48a001cf3996cf75e45f0ac",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/canonical-ifc-visual/index.html",
+      "mode": "100644",
+      "bytes": 291,
+      "sha256": "56a685f8b5ce073e27078142a190cbe5fd7e43f47cd1b2b4d503e7094246760b",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/canonical-ifc-visual/main.tsx",
+      "mode": "100644",
+      "bytes": 7668,
+      "sha256": "712ae6b353baa1e57999ec3e1c93e93282b4acbe2d627c6c8f56c5dee246e540",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/canonical-ifc-visual/synthetic-publication.ts",
+      "mode": "100644",
+      "bytes": 15958,
+      "sha256": "d07b35139a89548c7afc3f984db24ad6928e5656bc134d4cc04ec21fff8f28ea",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/check-backend-frontend-compat.mjs",
       "mode": "100644",
       "bytes": 3260,
@@ -7772,6 +7814,111 @@
       "mode": "100644",
       "bytes": 2461,
       "sha256": "07e47d1dd4b7f105500d2eb010e52fb42bb2be38494f633a7c7b1d347d1afeb0",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/CanonicalModelViewer.tsx",
+      "mode": "100644",
+      "bytes": 6632,
+      "sha256": "4715299e7f48f65b1876c2b0ab32a02651479a946cffede9f19b442e4d3173f2",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/CanonicalSceneViewer.tsx",
+      "mode": "100644",
+      "bytes": 4554,
+      "sha256": "764d2e391000777c05b5ce12d4f4f67c32910c77d486eac34caa69c8fc1e2dfd",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/LocalGlbPreview.tsx",
+      "mode": "100644",
+      "bytes": 8651,
+      "sha256": "93c9c5ae4d1baa1eb72ce624b9511e6536ba211770f954d56fab6d391a699c82",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/MeshLayer.tsx",
+      "mode": "100644",
+      "bytes": 9556,
+      "sha256": "91f29cb925163c0a48b5c82df7f0c050d3fb6c582b42f18dda916c3eb6161df5",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/ModelStage.tsx",
+      "mode": "100644",
+      "bytes": 14855,
+      "sha256": "1f36d1cd55207a866029b8f9302b48c3e05535af0467398cf45ef4e252ab7cd4",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/RoomPanel.tsx",
+      "mode": "100644",
+      "bytes": 15805,
+      "sha256": "6c4746d78d010a304c3a6bf209826ef7f0c1e47a3a53c2ec3db4434851a1035d",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/adapter.ts",
+      "mode": "100644",
+      "bytes": 27752,
+      "sha256": "f963532afda8b2bcae99aa26a1a71dac30f4ac4d26beeb0b3e2d4a4f6fe38517",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/canonical-ifc.css",
+      "mode": "100644",
+      "bytes": 17006,
+      "sha256": "c4519a2cadf7a203fed78bd002b1a476000da378a9f2dbf1d80729aaecadd9c9",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/geometry.ts",
+      "mode": "100644",
+      "bytes": 14982,
+      "sha256": "74704d60624d69db1c66ddc9f502b6292116a3f45f3bd62f66e3bf0463622e40",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/lazy.ts",
+      "mode": "100644",
+      "bytes": 965,
+      "sha256": "834b0d4d4b29adc29de030818b1b5cae8161c97714e1f54c360186656a6f03be",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/model.ts",
+      "mode": "100644",
+      "bytes": 16863,
+      "sha256": "3540fb3753da8fd976d6622caa8c755f651ce63a57ffe29e69f33cd6c948088a",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/overlays.ts",
+      "mode": "100644",
+      "bytes": 1392,
+      "sha256": "d5d83f8c61619e32bf9315ccbd4e30edbf9163347c395b8c4a81da4e02958fea",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/selection.ts",
+      "mode": "100644",
+      "bytes": 8310,
+      "sha256": "1713345f584e458b2819341292535757975a4d96f390d3ec83c5152877737183",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/tones.ts",
+      "mode": "100644",
+      "bytes": 1567,
+      "sha256": "2456d13c554586043fae12248020e3568e2cd99149662696b11582be8144f636",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/useStageCamera.ts",
+      "mode": "100644",
+      "bytes": 5837,
+      "sha256": "69d19b8976ef38b4a7dd167911509f6878c98d9de867fe71aa28a1163edb03ab",
       "owner": "web"
     },
     {
