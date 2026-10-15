@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c8ce756ec66946311b07bfdc51393f3d27d8e6792f24b3b939eed1d62a81ca02",
+  "sourceDigestSha256": "518ae242bde104ddc0a61595f1b4e90ab73ec928250fdaed35d4e11aa94b66ca",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -98,8 +98,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 5815,
-      "sha256": "0bc7a396819a0761f603e3f05b59f7ce8a2a66c193234ac8b418ca5fe5a0dddd",
+      "bytes": 6059,
+      "sha256": "6e0517436ee0a757a3a3bc449a856a7b420ffb75fe3534e810fa2fa8d3ee428c",
       "owner": "core-integration"
     },
     {
@@ -252,8 +252,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 5091,
-      "sha256": "15c380ba821dfefba4b43d4d7ab010684879cbf1cf67ada17c8f590077f23846",
+      "bytes": 5180,
+      "sha256": "4146dac0ac95d3b2c42e0aa9cca36f779d5672fa464b41ab77462a2d5bc3df42",
       "owner": "core-integration"
     },
     {
@@ -283,6 +283,13 @@
       "bytes": 33374,
       "sha256": "410d54be66737a2cf4e8ee90850626dad6d70b4d15dc93b04e322f9affae46db",
       "owner": "core-integration"
+    },
+    {
+      "path": "backend/examples/healthy-native-ifc-glb.rs",
+      "owner": "media",
+      "mode": "100644",
+      "bytes": 25567,
+      "sha256": "c3ec0ebc511d11700e13728ac0f12f0f080e5965d9da87ba58347e2f117c28b1"
     },
     {
       "path": "backend/examples/healthy-native-offline-backup.rs",

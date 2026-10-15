@@ -54,12 +54,14 @@ transports. Inspect `backend/src/media/ifc_glb.rs` and
 
 ```sh
 cargo test --offline --locked -p houseatlas-backend --lib media::ifc_glb::tests::healthy_ifc_glb_lineage_and_axes -- --exact --test-threads=1
+cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision --example healthy-native-ifc-glb
 node frontend/lantern-tests/ifc-glb-read.mjs
 ```
 
-They verify source-byte binding and bounded display parsing, without proving
-converter execution, IFC project units, physical alignment or native acceptance
-of a household model.
+They verify source-byte binding, bounded display parsing, synthetic native
+custody/association/readback and persistent reopen, without proving converter
+execution, IFC project units, physical alignment or native acceptance of a
+household model.
 
 ## Development and verification
 
