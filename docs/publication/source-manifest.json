@@ -23,13 +23,20 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "da5dd797cede914934b0e310eda645b390bcd98c207ce18bfe5681c192d2f414",
+  "sourceDigestSha256": "eef8552e93eff364949ec1e1f0c0963ad4226c885465f47d0ba4f74b6c731400",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
       "bytes": 3820,
       "sha256": "f35fccf9b32c0c62950085f4c64849f7122f349239f4651519e560c68a81fc6b",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".github/workflows/pr185-qualifier-artifact.yml",
+      "mode": "100644",
+      "bytes": 2114,
+      "sha256": "612fc44305098d30731bb1cf091330cbcc594db5233c10e0bf0f065e026703cc",
       "owner": "core-integration"
     },
     {
@@ -9725,6 +9732,27 @@
       "mode": "100644",
       "bytes": 4070,
       "sha256": "9f963f128058d05cc32cf9e380ccde984cf1c98e34903b23b3b4d6e8fe583e86",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/pr185-darwin-artifact.py",
+      "mode": "100644",
+      "bytes": 13904,
+      "sha256": "b212e3c0652e2cc45b649650517066d4c7643804eb3540b3a77efbeed6b3d8ff",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/pr185-full-qualifier.rs",
+      "mode": "100644",
+      "bytes": 39560,
+      "sha256": "b500074d19bd0dcd83fe6a463b0b63b36102ad09a5107545ee39cd0eb57fa896",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/pr185-qualifier-artifact.py",
+      "mode": "100644",
+      "bytes": 14810,
+      "sha256": "fac468eb4a7edae8df7d60b12a1e7c8031e76d2185184a65521c9795cc60bf6a",
       "owner": "core-integration"
     },
     {
