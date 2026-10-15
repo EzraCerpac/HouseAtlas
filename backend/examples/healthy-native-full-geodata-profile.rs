@@ -1160,7 +1160,7 @@ async fn main() -> Result<(), Failure> {
         }
     }
     println!(
-        "PASS synthetic nonempty Stock/batch/upload predecessor; exact all29-table/rowid/inner metadata copy without replay; current native authority; SAME Core.store connection legacy Stock read/write + v2 Document/pinned source/exact original; full native/Stock/queue/media recovery capture/verify/restore/reopen. No actual R3 data, deployment or dispatch."
+        "PASS synthetic nonempty Stock/batch/upload predecessor; exact all29-table/rowid/inner metadata copy without replay; current native authority; SAME Core.store connection legacy Stock read/write + v2 Document/pinned source/exact original; full native/Stock/queue/media recovery capture/verify/restore/reopen. No private household data, deployment or dispatch."
     );
     Ok(())
 }

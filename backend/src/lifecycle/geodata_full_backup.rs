@@ -1,4 +1,4 @@
-//! Explicit queue-free full-profile recovery CLI. No R3 fallback or authority restore.
+//! Explicit queue-free full-profile recovery CLI. No legacy fallback or authority restore.
 use super::{Failure, backup::QueueFreeNativeOwners, persistent};
 use crate::{
     access,

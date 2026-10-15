@@ -59,7 +59,7 @@ The separately named commands below select only the
 `native-full-geodata-queue-free` CLI profile. Each requires the same two exact
 trusted private policy options shown above. Other options, including AI-account
 selection and service activation, are rejected. Existing `backup` commands and
-R3 recovery formats keep their existing behavior.
+legacy recovery formats keep their existing behavior.
 
 ```text
 houseatlas-backend full-geodata-backup \
@@ -104,7 +104,7 @@ Destinations must be absent, absolute paths under an existing canonical private
 directory owned by the effective user with mode `0700`. Capture destinations
 must not overlap the source deployment, frontend, configuration, TLS or policy
 paths. Restore destinations must not overlap the bundle or policy. The full
-format is `houseatlas-native-full-geodata-recovery/1`; no R3 or legacy fallback
+format is `houseatlas-native-full-geodata-recovery/1`; no legacy fallback
 is attempted. Restore creates only the verified Atlas database, retained media
 and full manifest with conversion ancestry. It creates no Access database,
 credentials, sessions, grants, server configuration or serving receipt, and
