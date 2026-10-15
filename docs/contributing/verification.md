@@ -1004,3 +1004,24 @@ type-contract check, with no provider transport or live authorization. No native
 write, HTTP route, migration, converter, household intake or release follows.
 See [the contract and remaining integration](../geodata/native-documents.md).
 Cargo target/cache output must stay outside the source checkout.
+
+
+## Native document original custody HTTP slice
+
+Inspect `backend/src/http/geodata_original.rs`, its narrow intake and healthy
+fixture, `backend/src/media/staged_upload.rs`, and the single route registration
+before this exact healthy synthetic check. Cargo output stays outside source:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib http::geodata_original::tests::healthy_native_geodata_original_intake_read_reopen -- --exact --test-threads=1
+```
+
+It initializes one disposable generated native host with password-disabled local
+Editor session, authenticates the real POST/CSRF, retains generated TIFF, GeoJSON,
+CityJSON, catalogue PNG and PDF originals, checks immutable SHA/size/revision/
+license/download-only policy, then downloads the exact originals with private
+attachment headers before and after strict persistent reopen. The in-process
+router opens no listener/provider and uses no household input, real credentials,
+NAS, archive, source URL fetch, GIS renderer, geodata preview or document graph.
+No denial, failure injection, replay, revocation, expiry or crash case runs.
+Asset custody does not install the typed geodata document association/projection.

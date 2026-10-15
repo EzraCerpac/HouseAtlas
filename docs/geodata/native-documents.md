@@ -44,8 +44,10 @@ attachment/inline headers immediately on emission.
 
 ## Integration still required
 
-No HTTP route, native write command, graph schema/migration, frontend projection,
-production converter, persistent receipt reader or household import is installed.
+The native original-custody HTTP slice below installs asset admission and reuses
+existing authenticated asset downloads. No typed document route, graph schema/
+migration, frontend projection, production converter, persistent renderer receipt
+reader or household import is installed.
 The owning backend integration must connect authenticated document read/projection
 and audited atomic document+asset admission, grant/revision checks and a reviewed
 retained renderer-receipt reader. Route ownership must prevent any alternate bare
@@ -65,6 +67,78 @@ control or georeferenced household acceptance. No listener/provider is invoked.
 ## Archive custody
 
 The retained ZIP can remain in private archive custody while individual source
-originals under the existing10MiB bound are admitted through a future reviewed
-native route. This slice adds no ZIP format, larger quota, archive streaming,
+originals under the existing10MiB bound are admitted through the bounded native
+original route below. This slice adds no ZIP format, larger quota, archive streaming,
 extraction, native import or change to the global media limit.
+
+## Native per-file original custody
+
+`POST /api/atlas/documents/v1/workspaces/{workspaceId}/homes/{homeId}/originals`
+is a native session/CSRF/Mutate route. It verifies the actual request and configured
+home before consuming multipart bytes. It shares the existing four concurrent
+upload slots, 10MiB file cap, 64KiB metadata cap, 60-second total and 15-second
+idle deadlines. Multipart order is exactly `metadata`, then one `file`, with no
+trailing parts. Content-Type and filename must match declared metadata.
+
+Metadata is a strict object with `schemaVersion: 1`, UUID `requestId` and
+`idempotencyKey`, route-matching `context: {workspaceId, homeId}`, `reason`,
+`filename`, `contentType`, and existing `sourceLicense: {status, reference}`.
+The five explicit MIME families are `image/tiff`, `application/geo+json`,
+`application/city+json`, `application/pdf`, and `image/png`. ZIP and the special
+geodata-preview PNG family are absent. JSON MIME declarations must match their
+actual framed source envelope; the route does not relabel CityJSON as GeoJSON.
+
+The vault validates and measures original bytes before issuing a fresh immutable
+server asset identity and stage. The new explicit download-only stage uses the
+existing measured-original producer; it does not run optional preview rendering.
+The retained purpose is `evidence-original`, including catalogue PNG/PDF. Existing
+original callers retain their previous preview policy. Actual retained principal
+and mutation grants span staging, stock validation, atomic record/manifest/audit/
+receipt commit, and final output revalidation. Consumed stage retirement uses the
+existing best-effort committed-token path; pending accounting/deduplication and
+recovery remain under their original owners.
+
+The response is the existing correlated `atlas.asset.create` stock result. Its
+asset has revision, SHA256, byte size, license and download-only policy; no client
+asset identity, source agency, URL, dates, physical membership or preview lineage
+is invented. Existing stock asset read/list and private original download routes
+provide custody readback. The frontend Documents projection is still pending.
+The complete source ZIP stays private Library and is never submitted here.
+No supplied source bytes, private URL, household metadata or NAS write belongs in
+this source tree or synthetic verification.
+
+## Proposed persistent document boundary (separate integration)
+
+Do not encode `GeodataDocument` as an evidence statement or use a generic asset
+record as a typed document. The current frozen Atlas `RecordType`, generated DTOs,
+stock operation catalog, complete graph validator, SQL record loader and strict
+backup/recovery validator do not admit `geodata-document` records. A private SQL
+side table or sidecar alone would bypass atomic stock audit/receipt and strict
+recovery coverage. This slice changes none of those contracts.
+
+A coherent follow-up should add one explicit immutable, scoped
+`geodata-document` Atlas record whose payload is the existing
+`houseatlas.geodata-document.v1` value. Its record ID/revision/lifecycle/scope must
+match the envelope. A server-owned create command must atomically persist the
+qualified original asset pin, exact agency/license/source URL/retrieval and source
+dates/frame/custody receipt, document record, audit and idempotency receipt under
+one retained mutation grant. New revisions must pin retained asset revisions and
+preserve historical document values; no source URL is fetched. Graph validation
+must require same-home active retained inputs and license equality. Building
+association remains a separate verified binding. Catalogue PDF/PNG need a
+separately named original-document profile: `GeodataDocument` source pins retain
+their three GIS families, and a catalogue is never substituted for those sources.
+
+That addition requires coordinated updates to the Atlas JSON schema and generated
+DTOs, stock create/read/projection contracts and operation catalog, domain graph/
+transition/command validation, record-type SQL schema/strict read migrations, and
+backup/reopen validation. Migration must preserve existing records/receipts and
+validate the exact candidate graph transactionally; no production migration is
+selected by this proposal. Wire document reads must compose actual scoped Store
+records and retained native access grants through `GeodataDocumentStoragePort`
+and `GeodataDocumentAccessPort`, then call `geodata_document::read`. Their final
+HTTP adapter must emit private/no-store, nosniff, sandbox and attachment headers.
+Preview reads additionally require an approved persistent renderer-receipt reader;
+client receipt text or the standalone catalogue PNG cannot provide that proof.
+The existing bare media service continues refusing the geodata-preview family.
+
