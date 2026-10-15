@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d00e429842c97a571f105b706688b50254d568d12446e1919079eca44b0af3f9",
+  "sourceDigestSha256": "3c699f3fe9299e52d89d0a6622ef88e528cf117e8993a64e934e622e29b21a7d",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5574,6 +5574,27 @@
       "mode": "100644",
       "bytes": 28556,
       "sha256": "fb8c40ded776c6c3c6b6fdc6da120549e7699209423075ceb9ed133ff5381311",
+      "owner": "contracts"
+    },
+    {
+      "path": "docs/contracts/fixtures/geodata-document-v2.synthetic.json",
+      "bytes": 3258,
+      "sha256": "18576a8a640b0e4aa12b6416cfc6e6c846652063ceb4724ad93215c019f29888",
+      "mode": "100644",
+      "owner": "contracts"
+    },
+    {
+      "path": "docs/contracts/geodata-document-v2-manifest.json",
+      "bytes": 4259,
+      "sha256": "52805fff119ac56c84188d486a24073e1f42fd8d66439c658710a671ce1991ac",
+      "mode": "100644",
+      "owner": "contracts"
+    },
+    {
+      "path": "docs/contracts/geodata-document-v2-proposal.md",
+      "bytes": 17484,
+      "sha256": "cffdb53db8fd6857fd7d67b02b81b562372a1e0ed7245ebed5155c9e2d3d551d",
+      "mode": "100644",
       "owner": "contracts"
     },
     {
