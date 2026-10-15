@@ -1,0 +1,154 @@
+# Explicit full Document server selection
+
+Persistent `serve` can explicitly select the full native geodata profile through
+two additional options. The normal server configuration, authentication mode,
+configured homes, command policy and existing AI account options keep their
+existing meanings.
+
+```text
+houseatlas-backend serve --server-config /absolute/private/server.json \
+  --full-geodata-source-policy /absolute/private/reviewed-sources.json \
+  --full-geodata-source-policy-sha256 <lowercase-sha256-of-exact-policy-file>
+```
+
+Select only a target data directory already prepared by the separately reviewed
+offline copy conversion and full-profile qualification. Its native state receipt,
+database identities, access state, media closure and full schema must satisfy the
+full-profile reopen checks. Changing this startup selection does not convert a
+database, issue a receipt, adopt a legacy dataset or qualify a target. Keep the
+source directory and its configuration unchanged. Do not select its database as
+the converted target.
+
+The two options must appear together, once each, on `serve`. They are rejected
+for initialization, legacy backup, receipt compatibility, origin rebind and disposable
+startup. With neither option, the existing normal persistent startup is used.
+A failed full-profile selection is an error; startup never retries through the
+normal profile.
+
+The selected policy file uses the existing
+`houseatlas.reviewed-document-source-policy.v1` format described in
+[reviewed source policy](reviewed-source-policy.md). Supply its exact whole-file
+SHA-256 separately through the command line. This pin is distinct from the
+reviewed source manifest digest inside the policy. It records custody, and does
+not establish the trustworthiness of the policy or issue access or source grants.
+The operator must already trust and approve the selected private file.
+
+The file must be an absolute canonical path to a regular, single-link file owned
+by the effective server user with mode `0600`. Startup opens it without following
+symlinks, captures at most 4 MiB, checks its inode and metadata during capture,
+and verifies its exact byte digest. JSON decoding rejects duplicate keys and
+unknown manifest fields. The manifest must select an exact workspace/home pair
+in the actual selected server configuration; existing bounded source-policy
+validation then checks its document approvals and provenance. Keep real policy
+files, private paths, source manifests and household records outside Git.
+
+Both direct TLS and the trusted Unix gateway use the selected full-profile
+`Core.store`. The Host enables Document routes only after checking that the
+full store retains the same native access and media owners. Native routes,
+Stock and Documents share that store connection. Gateway identity, socket
+authority, account preparation and the lifetime of the exclusive server lease
+continue through their existing startup paths.
+
+This selection performs no source fetch, account provisioning, origin rebind,
+automatic schema migration or conversion. Code integration and synthetic checks
+do not authorize a service change, a release or selection of private data.
+
+# Full-profile offline recovery commands
+
+The separately named commands below select only the
+`native-full-geodata-queue-free` CLI profile. Each requires the same two exact
+trusted private policy options shown above. Other options, including AI-account
+selection and service activation, are rejected. Existing `backup` commands and
+legacy recovery formats keep their existing behavior.
+
+```text
+houseatlas-backend full-geodata-backup \
+  --server-config /absolute/private/full-server.json \
+  --destination /absolute/private/new-full-bundle \
+  --full-geodata-source-policy /absolute/private/reviewed-sources.json \
+  --full-geodata-source-policy-sha256 <lowercase-sha256-of-exact-policy-file>
+
+houseatlas-backend full-geodata-verify \
+  --bundle /absolute/private/full-bundle \
+  --full-geodata-source-policy /absolute/private/reviewed-sources.json \
+  --full-geodata-source-policy-sha256 <lowercase-sha256-of-exact-policy-file>
+
+houseatlas-backend full-geodata-restore \
+  --bundle /absolute/private/full-bundle \
+  --destination /absolute/private/new-restored-bundle \
+  --full-geodata-source-policy /absolute/private/reviewed-sources.json \
+  --full-geodata-source-policy-sha256 <lowercase-sha256-of-exact-policy-file>
+```
+
+Capture requires the existing full-profile state receipt, exact native identities
+and exclusive server lease. Both Atlas and Access must already be closed,
+standalone databases without WAL, SHM or journal sidecars. A clean WAL-mode
+header is accepted. The persistent owner pins the original files, copies them
+into a retained private temporary directory under the lease, and normalizes only
+those temporary copies to DELETE mode. It never checkpoints or changes the
+journal mode of the original databases, repairs their receipts or converts a
+source. Capture validates the copied full store through a read-only opener,
+retains its lease and private copies through store destruction, and checks the
+unchanged source database bytes, server configuration and full state receipt
+again after capture. The report separates the original `sourceDatabaseSha256`
+and `sourceDatabaseBytes` from the captured bundle database digest and length.
+
+Verification and restoration need a closed full-format bundle and trusted policy,
+without a server configuration, active service, native user or grant. Their
+Access owner is empty and in memory. They validate full native/Stock, Documents,
+media closure and conversion ancestry with an explicitly complete empty queue
+registry. This structural validation conveys no authentication, source admission,
+current dispatch or service-selection authority.
+
+Destinations must be absent, absolute paths under an existing canonical private
+directory owned by the effective user with mode `0700`. Capture destinations
+must not overlap the source deployment, frontend, configuration, TLS or policy
+paths. Restore destinations must not overlap the bundle or policy. The full
+format is `houseatlas-native-full-geodata-recovery/1`; no legacy fallback
+is attempted. Restore creates only the verified Atlas database, retained media
+and full manifest with conversion ancestry. It creates no Access database,
+credentials, sessions, grants, server configuration or serving receipt, and
+starts no listener. A failed operation may leave its new destination for review;
+failure does not authorize automatic retry, cleanup or service adoption.
+
+# Explicit offline copy and binding
+
+The same command adapter also exposes two preparation commands. Neither starts
+a listener, provisions an account, changes an origin or activates a deployment.
+
+```text
+houseatlas-backend full-geodata-copy \
+  --source-atlas /absolute/private/closed-v5-snapshot/atlas.sqlite \
+  --source-atlas-sha256 <expected-lowercase-sha256-of-source-atlas> \
+  --source-vault /absolute/private/closed-v5-snapshot/media \
+  --destination /absolute/private/new-full-target \
+  --full-geodata-source-policy /absolute/private/reviewed-sources.json \
+  --full-geodata-source-policy-sha256 <lowercase-sha256-of-exact-policy-file>
+
+houseatlas-backend full-geodata-bind \
+  --server-config /absolute/private/prepared-target-server.json \
+  --full-geodata-source-policy /absolute/private/reviewed-sources.json \
+  --full-geodata-source-policy-sha256 <lowercase-sha256-of-exact-policy-file>
+```
+
+Copy requires a separately selected closed v5 source snapshot under its owner's
+exclusion, with no SQLite sidecars and an existing DELETE-mode header. Supply
+the expected database digest independently and the exact existing source vault.
+The source database and vault stay unchanged. Copy uses the native Stock
+contract, an explicitly complete empty queue registry and an empty in-memory
+Access owner. It preserves the 29 native tables, adds the full Document schema
+and conversion ancestry, and copies qualified retained media to the newly
+created private target. It copies no authentication database, credentials,
+sessions, grants, server configuration or serving receipts. The result is a
+converted dataset rather than an activated deployment.
+
+Bind requires a separately prepared target configuration and existing native
+state. The persistent owner checks the exact original configuration and Access
+identity receipt, validates the qualified full database and creates a separate
+full-profile state receipt. The original state receipt and account data remain
+unchanged. The adapter checks the captured configuration bytes before and after
+binding. Binding changes only this explicitly selected target; do not direct it
+at the unchanged source deployment. Preparing target account/state files and
+configuration is a separate reviewed operation, never an automatic consequence
+of copy, restore or startup. A failure after receipt creation can leave that
+receipt for review and does not authorize automatic retry or adoption.

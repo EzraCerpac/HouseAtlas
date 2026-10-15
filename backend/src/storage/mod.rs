@@ -10,6 +10,8 @@ mod error;
 mod existing_validation;
 pub(crate) use existing_validation::validate_existing_receipt_schema;
 pub mod geodata;
+pub mod geodata_full;
+pub mod geodata_policy;
 mod homebox_stock_history_types;
 mod migrations;
 mod native;
@@ -97,3 +99,5 @@ pub(crate) use stock_activity::retained_native_codec_bridge;
 
 pub use quantity_installation_types::QuantityInstallationTransaction;
 pub(crate) use store::observe_quantity_installation_in_transaction;
+
+pub(crate) use store::ClosedSource;

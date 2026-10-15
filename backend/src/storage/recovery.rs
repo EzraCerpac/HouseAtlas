@@ -433,6 +433,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         Self {
             db,
             instance: std::sync::Arc::new(()),
+            full_geodata: None,
             cache_pins: super::cache_custody::CachePinRegistry::default(),
             contract,
             authorization,
@@ -445,14 +446,14 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
 /// Private source identity, exact bounded bytes and sidecar absence. This is
 /// an integrity fence under owner exclusion, not protection against a hostile
 /// same-user process that ignores the server lock.
-struct ClosedSource {
+pub(crate) struct ClosedSource {
     path: PathBuf,
     file: File,
     metadata: fs::Metadata,
     digest: [u8; 32],
 }
 impl ClosedSource {
-    fn open(path: &Path, check: &mut dyn FnMut() -> Result<()>) -> Result<Self> {
+    pub(crate) fn open(path: &Path, check: &mut dyn FnMut() -> Result<()>) -> Result<Self> {
         if !path.is_absolute() || fs::canonicalize(path).map_err(|_| unavailable())? != path {
             return Err(checks::incompatible());
         }
@@ -487,6 +488,22 @@ impl ClosedSource {
         pin.digest = pin.digest(check)?;
         pin.check_identity()?;
         Ok(pin)
+    }
+    pub(crate) fn sha256(&self) -> String {
+        self.digest.iter().map(|b| format!("{b:02x}")).collect()
+    }
+    pub(crate) fn bytes(&self) -> u64 {
+        self.metadata.len()
+    }
+    pub(crate) fn require_delete(&self) -> Result<()> {
+        let mut file = &self.file;
+        file.seek(SeekFrom::Start(0)).map_err(|_| unavailable())?;
+        let mut header = [0u8; 100];
+        file.read_exact(&mut header).map_err(|_| unavailable())?;
+        if header[18] != 1 || header[19] != 1 {
+            return Err(checks::incompatible());
+        }
+        Ok(())
     }
     fn check_identity(&self) -> Result<()> {
         let matches = |m: &fs::Metadata| {
@@ -544,7 +561,7 @@ impl ClosedSource {
         }
         Ok(hasher.finalize().into())
     }
-    fn check(&self, progress: &mut dyn FnMut() -> Result<()>) -> Result<()> {
+    pub(crate) fn check(&self, progress: &mut dyn FnMut() -> Result<()>) -> Result<()> {
         self.check_identity()?;
         if self.digest(progress)? != self.digest {
             return Err(checks::incompatible());
@@ -789,4 +806,31 @@ fn validate_image<C: Contract>(
     closed?;
     checkpoint(deadline, check)?;
     Ok(result)
+}
+
+pub(crate) fn validate_geodata_full_core<
+    C: Contract,
+    S: StockContractPort,
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+>(
+    db: &Connection,
+    contract: &C,
+    peers: &RecoveryValidationPeers<'_, S, D, E>,
+    check: &mut dyn FnMut() -> Result<()>,
+) -> Result<RecoveryImage> {
+    checks::validate_geodata_full_core(db, contract, peers, check)
+}
+pub(crate) fn validate_v5_full_peers<
+    C: Contract,
+    S: StockContractPort,
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+>(
+    db: &Connection,
+    contract: &C,
+    peers: &RecoveryValidationPeers<'_, S, D, E>,
+    check: &mut dyn FnMut() -> Result<()>,
+) -> Result<RecoveryImage> {
+    checks::validate_connection_with_peers(db, contract, peers, check)
 }

@@ -3,7 +3,7 @@ use super::*;
 use crate::{
     contracts::v2,
     media as m,
-    storage::{self as s, geodata::GeodataStore},
+    storage::{self as s},
 };
 use axum::{body::Body, http::HeaderValue};
 use base64::Engine;
@@ -25,8 +25,107 @@ fn budget() -> Result<m::WorkBudget, HttpFailure> {
     m::WorkBudget::new(Duration::from_secs(10), m::Cancellation::default())
         .map_err(|_| unavailable())
 }
-fn selected(host: &Host) -> Result<Arc<Mutex<GeodataStore>>, HttpFailure> {
-    host.geodata_dataset.clone().ok_or_else(unavailable)
+enum DocumentAction {
+    List { cursor: Option<String>, limit: u64 },
+    Get(String),
+    Original(String, u64),
+    Preview(String, u64),
+    Create(Value, Vec<u8>),
+    Mutate(String, Value),
+}
+enum DocumentOutput {
+    Json(Value),
+    Bytes(Value, Vec<u8>),
+}
+fn perform<D: s::geodata::GeodataConnection, U: s::geodata::GeodataAuthority>(
+    store: &mut s::geodata::GeodataRepository<D, U>,
+    p: &a::Principal,
+    scope: &s::Scope,
+    action: DocumentAction,
+) -> Result<DocumentOutput, HttpFailure> {
+    let budget = budget()?;
+    Ok(match action {
+        DocumentAction::List { cursor, limit } => DocumentOutput::Json(
+            store
+                .list(p, scope, cursor.as_deref(), limit, &budget)
+                .map_err(error)?,
+        ),
+        DocumentAction::Get(id) => {
+            DocumentOutput::Json(store.get(p, scope, &id, &budget).map_err(error)?)
+        }
+        DocumentAction::Original(id, revision) => {
+            let (frame, bytes) = store
+                .read_original(p, scope, &id, revision, &budget)
+                .map_err(error)?;
+            DocumentOutput::Bytes(frame, bytes)
+        }
+        DocumentAction::Preview(id, revision) => {
+            let (frame, bytes) = store
+                .read_preview(p, scope, &id, revision, &budget)
+                .map_err(error)?;
+            DocumentOutput::Bytes(frame, bytes)
+        }
+        DocumentAction::Create(input, bytes) => DocumentOutput::Json(
+            store
+                .create_original(p, scope, &input, &bytes, &budget)
+                .map_err(error)?,
+        ),
+        DocumentAction::Mutate(id, input) => DocumentOutput::Json(
+            store
+                .mutate_document(p, scope, &id, &input, &budget)
+                .map_err(error)?,
+        ),
+    })
+}
+fn execute(
+    host: &Host,
+    p: &a::Principal,
+    scope: &s::Scope,
+    action: DocumentAction,
+) -> Result<DocumentOutput, HttpFailure> {
+    if let Some(identity) = &host.full_geodata_identity {
+        let core = host.core.lock().map_err(|_| unavailable())?;
+        let access = core.access.clone();
+        let store = core.store.clone();
+        let vault = core.vault.clone();
+        drop(core);
+        let writing = matches!(
+            &action,
+            DocumentAction::Create(..) | DocumentAction::Mutate(..)
+        );
+        let store = store.lock().map_err(|_| unavailable())?;
+        let mut access = access.lock().map_err(|_| unavailable())?;
+        let mut output = None;
+        let work = |guard: &a::TransactionAuthorization<'_>| -> Result<(), HttpFailure> {
+            if !store.matches_full_geodata_identity(identity)
+                || !store.full_geodata_belongs_to(&host.mcp_access, &vault)
+            {
+                return Err(unavailable());
+            }
+            let mut facet = store.geodata_facet(guard).map_err(error)?;
+            output = Some(perform(&mut facet, p, scope, action)?);
+            Ok(())
+        };
+        if writing {
+            access.with_mutation_authorization(p, work)?;
+        } else {
+            access.with_read_authorization(p, work)?;
+        }
+        return output.ok_or_else(unavailable);
+    }
+    let store = host.geodata_dataset.as_ref().ok_or_else(unavailable)?;
+    perform(
+        &mut *store.lock().map_err(|_| unavailable())?,
+        p,
+        scope,
+        action,
+    )
+}
+fn json_output(output: DocumentOutput) -> Result<Value, HttpFailure> {
+    match output {
+        DocumentOutput::Json(v) => Ok(v),
+        _ => Err(unavailable()),
+    }
 }
 fn principal(
     host: &Host,
@@ -67,23 +166,38 @@ fn principal(
         .map_err(access_error)?;
     Ok(principal)
 }
-pub(super) fn router(host: Host) -> Router {
-    // Selecting v2 selects this entire dataset route table. Legacy native core,
-    // Stock, uploads, providers and AI endpoints are not composed alongside it.
+pub(super) fn full_routes() -> Router<Host> {
+    routes().route("/api/atlas/documents/v2/workspaces/{workspace_id}/homes/{home_id}/documents/{document_id}/preview",get(preview).fallback(auth::session_head))
+}
+pub(super) fn routes() -> Router<Host> {
     Router::new()
         .route("/api/atlas/documents/v2/workspaces/{workspace_id}/homes/{home_id}/documents",get(list).post(create).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/documents/v2/workspaces/{workspace_id}/homes/{home_id}/documents/{document_id}",get(get_document).post(mutate).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/documents/v2/workspaces/{workspace_id}/homes/{home_id}/documents/{document_id}/original",get(original).fallback(auth::session_head))
-        .route("/api/atlas/homes",get(homes))
-        .route("/api/atlas/auth/mode",get(auth::mode))
-        .route("/api/atlas/auth/local",post(auth::local))
-        .route("/api/atlas/auth/login",post(auth::login))
-        .route("/api/atlas/auth/proxy",post(auth::proxy))
-        .route("/api/atlas/auth/session",get(auth::session).head(auth::session_head).fallback(auth::session_head))
-        .route("/api/atlas/auth/rotate",post(auth::rotate))
-        .route("/api/atlas/auth/logout",post(auth::logout))
+}
+pub(super) fn router(host: Host) -> Router {
+    // Selecting v2 selects this entire dataset route table. Legacy native core,
+    // Stock, uploads, providers and AI endpoints are not composed alongside it.
+    routes()
+        .route("/api/atlas/homes", get(homes))
+        .route("/api/atlas/auth/mode", get(auth::mode))
+        .route("/api/atlas/auth/local", post(auth::local))
+        .route("/api/atlas/auth/login", post(auth::login))
+        .route("/api/atlas/auth/proxy", post(auth::proxy))
+        .route(
+            "/api/atlas/auth/session",
+            get(auth::session)
+                .head(auth::session_head)
+                .fallback(auth::session_head),
+        )
+        .route("/api/atlas/auth/rotate", post(auth::rotate))
+        .route("/api/atlas/auth/logout", post(auth::logout))
         .fallback(get(static_file))
-        .layer(middleware::from_fn_with_state(host.clone(),response_adapter)).with_state(host)
+        .layer(middleware::from_fn_with_state(
+            host.clone(),
+            response_adapter,
+        ))
+        .with_state(host)
 }
 async fn list(
     State(host): State<Host>,
@@ -120,12 +234,12 @@ async fn list(
     tokio::task::spawn_blocking(move || {
         let _admitted = checked.admission_permit()?;
         let p = principal(&host, &checked, &uri, &Method::GET, &scope, false)?;
-        let store = selected(&host)?;
-        let value = store
-            .lock()
-            .map_err(|_| unavailable())?
-            .list(&p, &scope, cursor.as_deref(), limit, &budget()?)
-            .map_err(error)?;
+        let value = json_output(execute(
+            &host,
+            &p,
+            &scope,
+            DocumentAction::List { cursor, limit },
+        )?)?;
         Ok(json_response(value))
     })
     .await
@@ -147,12 +261,12 @@ async fn get_document(
             home_id,
         };
         let p = principal(&host, &checked, &uri, &Method::GET, &scope, false)?;
-        let store = selected(&host)?;
-        let value = store
-            .lock()
-            .map_err(|_| unavailable())?
-            .get(&p, &scope, &document_id, &budget()?)
-            .map_err(error)?;
+        let value = json_output(execute(
+            &host,
+            &p,
+            &scope,
+            DocumentAction::Get(document_id),
+        )?)?;
         Ok(json_response(value))
     })
     .await
@@ -164,6 +278,30 @@ async fn original(
     Extension(checked): Extension<CheckedHeaders>,
     uri: Uri,
 ) -> HttpResult {
+    bytes_response(
+        host,
+        (workspace_id, home_id, document_id),
+        checked,
+        uri,
+        false,
+    )
+    .await
+}
+async fn preview(
+    State(host): State<Host>,
+    Path(ids): Path<(String, String, String)>,
+    Extension(checked): Extension<CheckedHeaders>,
+    uri: Uri,
+) -> HttpResult {
+    bytes_response(host, ids, checked, uri, true).await
+}
+async fn bytes_response(
+    host: Host,
+    (workspace_id, home_id, document_id): (String, String, String),
+    checked: CheckedHeaders,
+    uri: Uri,
+    preview: bool,
+) -> HttpResult {
     let revision = super::query::one_utf8(&uri, "expectedRevision", 64, 16)?
         .parse::<u64>()
         .map_err(|_| failure(StatusCode::UNPROCESSABLE_ENTITY))?;
@@ -174,12 +312,19 @@ async fn original(
             home_id,
         };
         let p = principal(&host, &checked, &uri, &Method::GET, &scope, false)?;
-        let store = selected(&host)?;
-        let (frame, bytes) = store
-            .lock()
-            .map_err(|_| unavailable())?
-            .read_original(&p, &scope, &document_id, revision, &budget()?)
-            .map_err(error)?;
+        let DocumentOutput::Bytes(frame, bytes) = execute(
+            &host,
+            &p,
+            &scope,
+            if preview {
+                DocumentAction::Preview(document_id, revision)
+            } else {
+                DocumentAction::Original(document_id, revision)
+            },
+        )?
+        else {
+            return Err(unavailable());
+        };
         let frame_bytes = serde_jcs::to_vec(&frame).map_err(|_| unavailable())?;
         let mut response = Response::new(Body::from(bytes));
         let h = response.headers_mut();
@@ -194,7 +339,11 @@ async fn original(
         );
         h.insert(
             header::CONTENT_DISPOSITION,
-            HeaderValue::from_static("attachment; filename=\"geodata-original\""),
+            HeaderValue::from_static(if preview {
+                "inline; filename=\"geodata-preview.png\""
+            } else {
+                "attachment; filename=\"geodata-original\""
+            }),
         );
         h.insert(
             header::CONTENT_LENGTH,
@@ -296,12 +445,8 @@ async fn write(
     tokio::task::spawn_blocking(move || {
         let _permit = _permit;
         let _admitted = checked.admission_permit()?;
-        let store = selected(&host)?;
-        let mut store = store.lock().map_err(|_| unavailable())?;
-        let value = if let Some(id) = document_id {
-            store
-                .mutate_document(&p, &scope, &id, &input, &budget()?)
-                .map_err(error)?
+        let action = if let Some(id) = document_id {
+            DocumentAction::Mutate(id, input)
         } else {
             if !input.as_object().is_some_and(|o| {
                 o.len() == 2 && o.contains_key("request") && o.contains_key("originalBase64")
@@ -315,10 +460,9 @@ async fn write(
                         .ok_or_else(|| failure(StatusCode::UNPROCESSABLE_ENTITY))?,
                 )
                 .map_err(|_| failure(StatusCode::UNPROCESSABLE_ENTITY))?;
-            store
-                .create_original(&p, &scope, &input["request"], &bytes, &budget()?)
-                .map_err(error)?
+            DocumentAction::Create(input["request"].clone(), bytes)
         };
+        let value = json_output(execute(&host, &p, &scope, action)?)?;
         Ok(json_response(value))
     })
     .await

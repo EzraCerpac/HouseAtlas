@@ -125,6 +125,7 @@ enum CoreProfile {
     Activity,
     Presence,
     Geodata,
+    GeodataFull,
 }
 fn validate_core_profile<C: Contract>(
     db: &Connection,
@@ -138,6 +139,7 @@ fn validate_core_profile<C: Contract>(
         CoreProfile::Activity => migrations::validate_profile(db, true)?,
         CoreProfile::Presence => migrations::validate_presence(db)?,
         CoreProfile::Geodata => super::super::super::geodata::validate_catalog(db)?,
+        CoreProfile::GeodataFull => super::super::super::geodata_full::validate_catalog(db)?,
     }
     let mut integrity_rows = 0;
     each(db, "PRAGMA integrity_check", check, |row, _| {
@@ -251,7 +253,7 @@ fn validate_core_profile<C: Contract>(
     check()?;
     Ok(RecoveryImage {
         contract_version: match profile {
-            CoreProfile::Geodata => "2.0.0",
+            CoreProfile::Geodata | CoreProfile::GeodataFull => "2.0.0",
             _ => CONTRACT_VERSION,
         }
         .into(),
@@ -259,12 +261,13 @@ fn validate_core_profile<C: Contract>(
             CoreProfile::Presence => presence_profile_definition().lineage.into(),
             CoreProfile::Base | CoreProfile::Activity => DATABASE_LINEAGE.into(),
             CoreProfile::Geodata => "houseatlas-rust-storage/geodata/2".into(),
+            CoreProfile::GeodataFull => super::super::super::geodata_full::LINEAGE.into(),
         },
         database_schema: match profile {
             CoreProfile::Base => DATABASE_VERSION,
             CoreProfile::Activity => STOCK_ACTIVITY_DATABASE_VERSION,
             CoreProfile::Presence => presence_profile_definition().version,
-            CoreProfile::Geodata => 1,
+            CoreProfile::Geodata | CoreProfile::GeodataFull => 1,
         },
         assets,
     })
@@ -771,4 +774,35 @@ fn validate_history<C: Contract>(
     // syntax, canonical outcomes and complete key/audit/child linkage above are
     // verifiable; reconstructing payload_hash from invented intent is not.
     Ok(())
+}
+
+pub(super) fn validate_geodata_full_core<
+    C: Contract,
+    S: crate::domain::stock::StockContractPort,
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+>(
+    db: &Connection,
+    contract: &C,
+    peers: &super::RecoveryValidationPeers<'_, S, D, E>,
+    check: Check<'_>,
+) -> Result<RecoveryImage> {
+    let image = validate_core_profile(db, contract, check, CoreProfile::GeodataFull)?;
+    super::super::super::stock_recovery::validate(
+        db,
+        contract,
+        peers.stock,
+        peers.evidence,
+        check,
+    )?;
+    validate_media_policies(&image, peers.evidence, check)?;
+    super::super::super::queue::validate_recovery_queues(
+        db,
+        peers.queues,
+        peers.discovery,
+        peers.stock,
+        peers.evidence,
+        check,
+    )?;
+    Ok(image)
 }

@@ -729,3 +729,25 @@ impl s::Runtime for ServerRuntime {
         ))
     }
 }
+
+impl Core {
+    /// Trusted explicit replacement after offline COPY qualification. Retains
+    /// original Access identity; selects no listeners, providers or dispatch.
+    pub fn with_full_geodata_store(
+        mut self,
+        store: Store,
+        vault: Arc<crate::media::AssetVault>,
+    ) -> s::Result<Self> {
+        if !store.full_geodata_belongs_to(&self.access, &vault) {
+            return Err(s::Error::new(
+                "identity-conflict",
+                "Original full native store owners required",
+            ));
+        }
+        self.store = Arc::new(Mutex::new(store));
+        self.vault = vault;
+        self.atlas_list_pages = d::stock::AtlasListPages::default();
+        self.media_policy_evidence = Mutex::default();
+        Ok(self)
+    }
+}

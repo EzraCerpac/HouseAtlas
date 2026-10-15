@@ -20,10 +20,15 @@ pub(crate) mod presence_engine;
 #[path = "presence_history.rs"]
 mod presence_history;
 pub use presence_history::PresenceHistoryCatalog;
+#[path = "geodata_full_store.rs"]
+mod geodata_full_store;
+pub use geodata_full_store::{FullGeodataBundle, FullGeodataIdentity};
 #[path = "presence_transaction.rs"]
 pub(crate) mod presence_transaction;
 #[path = "recovery.rs"]
 mod recovery;
+pub(crate) use recovery::ClosedSource;
+pub(crate) use recovery::{validate_geodata_full_core, validate_v5_full_peers};
 #[path = "stock.rs"]
 mod stock;
 #[path = "stock_presence.rs"]
@@ -80,6 +85,7 @@ impl Default for StoreOptions {
 pub struct AtlasStore<C, A, R> {
     pub(super) db: Connection,
     instance: Arc<()>,
+    full_geodata: Option<super::geodata::GeodataOwners>,
     cache_pins: cache_custody::CachePinRegistry,
     contract: C,
     authorization: A,
@@ -118,6 +124,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         Ok(Self {
             db,
             instance: Arc::new(()),
+            full_geodata: None,
             cache_pins: cache_custody::CachePinRegistry::default(),
             contract,
             authorization,
@@ -151,6 +158,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         Ok(Self {
             db,
             instance: Arc::new(()),
+            full_geodata: None,
             cache_pins: cache_custody::CachePinRegistry::default(),
             contract,
             authorization,
@@ -243,6 +251,7 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         Ok(Self {
             db,
             instance: Arc::new(()),
+            full_geodata: None,
             cache_pins: cache_custody::CachePinRegistry::default(),
             contract,
             authorization,
@@ -251,6 +260,9 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         })
     }
     pub fn database_version(&self) -> u32 {
+        if self.full_geodata.is_some() {
+            return super::geodata_full::VERSION;
+        }
         if self.options.presence_profile == PresenceProfileSelection::FreshV7 {
             migrations::PRESENCE_DATABASE_VERSION
         } else if self.options.stock_activity_profile {

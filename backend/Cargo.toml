@@ -211,3 +211,7 @@ path = "examples/healthy-native-scan-succession.rs"
 [[example]]
 name = "healthy-native-geodata-documents"
 path = "examples/healthy-native-geodata-documents.rs"
+
+[[example]]
+name = "healthy-native-full-geodata-profile"
+path = "examples/healthy-native-full-geodata-profile.rs"

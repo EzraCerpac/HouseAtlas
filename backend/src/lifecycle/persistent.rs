@@ -25,6 +25,7 @@ pub struct ServerLease {
     pub(super) directory: File,
     _lock: File,
     log: Mutex<File>,
+    _offline_snapshot: Option<tempfile::TempDir>,
 }
 
 impl ServerLease {
@@ -64,6 +65,7 @@ impl ServerLease {
             directory,
             _lock: lock,
             log: Mutex::new(log),
+            _offline_snapshot: None,
         })
     }
 
@@ -299,8 +301,47 @@ fn initialize_selected(
 /// Normal reopen uses only existing native files and exact compiled schema.
 /// No provisioning, fixtures, source enrollments, jobs or restoration occurs.
 pub fn reopen(config: &ServerConfig) -> Result<(Core, ServerLease), Failure> {
+    reopen_selected(config, None, false, false)
+}
+
+/// Explicit full-profile reopen. Requires an offline full-profile receipt; never migrates.
+/// This startup peer is deliberately queue-free and refuses populated queues.
+pub fn reopen_full_geodata(
+    config: &ServerConfig,
+    policy: Arc<dyn storage::geodata::GeodataSourcePolicy>,
+) -> Result<(Core, ServerLease), Failure> {
+    reopen_selected(config, Some(policy), false, false)
+}
+
+/// Read-only full source selection under the existing service lease for offline capture.
+pub fn reopen_full_geodata_for_backup(
+    config: &ServerConfig,
+    policy: Arc<dyn storage::geodata::GeodataSourcePolicy>,
+) -> Result<(Core, ServerLease), Failure> {
+    reopen_selected(config, Some(policy), false, true)
+}
+
+/// Offline trusted selection after COPY conversion. Validates the complete target
+/// before creating a new receipt; does not alter the old state receipt or access.
+pub fn bind_full_geodata(
+    config: &ServerConfig,
+    policy: Arc<dyn storage::geodata::GeodataSourcePolicy>,
+) -> Result<(), Failure> {
+    let (core, lease) = reopen_selected(config, Some(policy), true, false)?;
+    drop(core);
+    sync(&lease.directory)?;
+    Ok(())
+}
+
+fn reopen_selected(
+    config: &ServerConfig,
+    policy: Option<Arc<dyn storage::geodata::GeodataSourcePolicy>>,
+    bind: bool,
+    backup: bool,
+) -> Result<(Core, ServerLease), Failure> {
     config.validate()?;
-    let lease = ServerLease::acquire(config, false)?;
+    let full = policy.is_some();
+    let mut lease = ServerLease::acquire(config, false)?;
     super::receipt_compatibility::require_no_pending(config)?;
     match fs::symlink_metadata(config.data_directory.join("server-state.rebind.pending")) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -310,28 +351,58 @@ pub fn reopen(config: &ServerConfig) -> Result<(Core, ServerLease), Failure> {
         ),
         Err(error) => return Err(error.into()),
     }
+    let selected_receipt = if full && !bind {
+        "server-full-geodata-state.json"
+    } else {
+        "server-state.json"
+    };
     let state: State = serde_json::from_slice(&read_selected_file(
-        &config.data_directory.join("server-state.json"),
+        &config.data_directory.join(selected_receipt),
         16 * 1024,
         true,
     )?)
     .map_err(|_| "Persistent initialization state unavailable")?;
     let access_path = config.data_directory.join("access.sqlite");
     let atlas_path = config.data_directory.join("atlas.sqlite");
+    let mut source_pins = Vec::new();
+    if backup {
+        for path in [&access_path, &atlas_path] {
+            let pin = storage::ClosedSource::open(path, &mut || Ok(()))?;
+            source_pins.push(pin);
+        }
+    }
     let access_meta = private_metadata(&access_path)?;
     let atlas_meta = private_metadata(&atlas_path)?;
-    if state
-        != (State {
-            format: "houseatlas-persistent-server/1".into(),
-            configuration_digest: config.state_digest()?,
-            atlas_schema: storage::DATABASE_VERSION,
-            access_schema: a::ACCESS_SCHEMA_VERSION,
-            access_device: access_meta.dev(),
-            access_inode: access_meta.ino(),
-            atlas_device: atlas_meta.dev(),
-            atlas_inode: atlas_meta.ino(),
-        })
-    {
+    let expected = State {
+        format: if full {
+            "houseatlas-persistent-full-geodata-server/1"
+        } else {
+            "houseatlas-persistent-server/1"
+        }
+        .into(),
+        configuration_digest: config.state_digest()?,
+        atlas_schema: if full {
+            storage::geodata_full::VERSION
+        } else {
+            storage::DATABASE_VERSION
+        },
+        access_schema: a::ACCESS_SCHEMA_VERSION,
+        access_device: access_meta.dev(),
+        access_inode: access_meta.ino(),
+        atlas_device: atlas_meta.dev(),
+        atlas_inode: atlas_meta.ino(),
+    };
+    if bind {
+        if state.format != "houseatlas-persistent-server/1"
+            || state.configuration_digest != expected.configuration_digest
+            || state.atlas_schema != storage::DATABASE_VERSION
+            || state.access_schema != expected.access_schema
+            || state.access_device != expected.access_device
+            || state.access_inode != expected.access_inode
+        {
+            return Err("Offline full selection requires the unchanged original access/configuration receipt".into());
+        }
+    } else if state != expected {
         return Err("Persistent deployment/state binding changed; no automatic adoption".into());
     }
     for database in [&access_path, &atlas_path] {
@@ -352,24 +423,116 @@ pub fn reopen(config: &ServerConfig) -> Result<(Core, ServerLease), Failure> {
     for directory in ["media", "media/blobs", "media/staging"] {
         private_directory(&config.data_directory.join(directory))?;
     }
-    let vault = Arc::new(crate::media::AssetVault::open(
-        &config.data_directory.join("media"),
-    )?);
-    let mut access = a::AccessBoundary::open_existing(&access_path, config.access_config()?)?;
+    let (selected_access, selected_atlas) = if backup {
+        use std::io::Read;
+        use std::os::unix::fs::PermissionsExt;
+        let snapshot = tempfile::Builder::new()
+            .prefix("houseatlas-full-capture-")
+            .permissions(fs::Permissions::from_mode(0o700))
+            .tempdir()?;
+        for name in ["atlas.sqlite", "access.sqlite"] {
+            let mut original = OpenOptions::new()
+                .read(true)
+                .custom_flags(rustix::fs::OFlags::NOFOLLOW.bits() as i32)
+                .open(config.data_directory.join(name))?;
+            let selected = snapshot.path().join(name);
+            let mut copy = open_private(&selected, true, false)?;
+            let mut total = 0u64;
+            let mut block = [0u8; 65536];
+            loop {
+                lease.check()?;
+                let n = original.read(&mut block)?;
+                if n == 0 {
+                    break;
+                }
+                total = total
+                    .checked_add(n as u64)
+                    .ok_or("Capture copy exceeds bound")?;
+                if total > 64 * 1024 * 1024 {
+                    return Err("Capture copy exceeds bound".into());
+                }
+                copy.write_all(&block[..n])?;
+            }
+            sync(&copy)?;
+            drop(copy);
+            let normalized = rusqlite::Connection::open_with_flags(
+                &selected,
+                rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE
+                    | rusqlite::OpenFlags::SQLITE_OPEN_NOFOLLOW,
+            )?;
+            normalized.pragma_update(None, "journal_mode", "DELETE")?;
+            normalized.close().map_err(|(_, e)| e)?;
+            sync(&open_private(&selected, false, false)?)?;
+        }
+        for pin in &source_pins {
+            pin.check(&mut || Ok(()))?;
+        }
+        let paths = (
+            snapshot.path().join("access.sqlite"),
+            snapshot.path().join("atlas.sqlite"),
+        );
+        lease._offline_snapshot = Some(snapshot);
+        paths
+    } else {
+        (access_path.clone(), atlas_path.clone())
+    };
+    let vault = Arc::new(if backup {
+        crate::media::AssetVault::open_existing(&config.data_directory.join("media"))?
+    } else {
+        crate::media::AssetVault::open(&config.data_directory.join("media"))?
+    });
+    let mut access = a::AccessBoundary::open_existing(&selected_access, config.access_config()?)?;
     if !config.authentication.is_password() {
         access.validate_loopback_local_user()?;
     }
     let access = Arc::new(Mutex::new(access));
-    let store = Store::open_existing(
-        &atlas_path,
-        NativeContracts,
-        ReadAuthority(Arc::clone(&access)),
-        crate::media::native::NativeMediaRuntime {
-            vault: Arc::clone(&vault),
-            server: ServerRuntime,
-        },
-        storage::StoreOptions::default(),
-    )?;
+    let runtime = crate::media::native::NativeMediaRuntime {
+        vault: Arc::clone(&vault),
+        server: ServerRuntime,
+    };
+    let store = if let Some(policy) = policy {
+        let owners = storage::geodata::GeodataOwners::new(access.clone(), vault.clone(), policy);
+        let queues = super::backup::QueueFreeNativeOwners::for_queue_free_profile()?;
+        let stock = crate::domain::stock::NativeStockContract::new()?;
+        let peers = storage::RecoveryValidationPeers {
+            stock: &stock,
+            queues: &[],
+            discovery: &queues,
+            evidence: &queues,
+        };
+        Store::open_existing_geodata_full_selected(
+            &selected_atlas,
+            NativeContracts,
+            ReadAuthority(access.clone()),
+            runtime,
+            storage::StoreOptions::default(),
+            owners,
+            &peers,
+            &mut || Ok(()),
+            backup,
+        )?
+    } else {
+        Store::open_existing(
+            &selected_atlas,
+            NativeContracts,
+            ReadAuthority(access.clone()),
+            runtime,
+            storage::StoreOptions::default(),
+        )?
+    };
+    if bind {
+        let mut receipt = open_private(
+            &config.data_directory.join("server-full-geodata-state.json"),
+            true,
+            false,
+        )?;
+        receipt.write_all(&serde_json::to_vec(&expected)?)?;
+        sync(&receipt)?;
+        sync(&lease.directory)?;
+    }
+    for pin in &source_pins {
+        pin.check(&mut || Ok(()))?;
+    }
     lease.check()?;
     let homes = config.home_summaries();
     let core = Core {
