@@ -63,6 +63,17 @@ custody/association/readback and persistent reopen, without proving converter
 execution, IFC project units, physical alignment or native acceptance of a
 household model.
 
+The [IFC publication preparation](tools/ifc_publication/README.md) has a
+separate local-only synthetic check. Inspect its Python source before running:
+
+```sh
+python3 -m unittest discover -s tools/ifc_publication -p test_publish.py
+python3 tools/ifc_publication/make_synthetic_fixture.py --output /tmp/houseatlas-ifc-synthetic
+```
+
+This tests revision binding, repeatable fake conversion and artifact hashes; it
+does not certify real IFC tessellation or select a publication for live use.
+
 ## Development and verification
 
 The current development snapshot includes a Rust backend, SQLite persistence and a React interface with strict TypeScript.
