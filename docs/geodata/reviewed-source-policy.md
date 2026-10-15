@@ -73,9 +73,13 @@ Do not invent missing dates, transforms, frames or elevations.
 
 ## Deliberate limits
 
-This initial policy approves originals only and requires `preview: null`.
-It cannot qualify a derivative or authorize an inline preview. It permits title
-and lifecycle edits and explicitly approved original associations. Provenance is
+This policy qualifies original source authority. It cannot qualify a derivative
+or issue an inline preview capability. The selected Document profile separately
+checks every preview's shape, exact bytes and retained derivation proof. The
+fresh profile still requires `preview: null`; a full profile can enable a native
+renderer only through its independently verified preview implementation.
+The source policy permits title and lifecycle edits and explicitly approved
+original associations. Provenance is
 frozen to the reviewed value. A later correction workflow must explicitly retain
 approval for both the before and after provenance; replacing this allowlist with
 only a corrected value cannot authorize the old record required by CAS.

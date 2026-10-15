@@ -3,6 +3,8 @@
 //! The host supplies reviewed private approvals, including allocated native IDs.
 //! A manifest digest records custody; it does not authenticate a manifest, prove
 //! a licence, register physical placement, or replace current native authority.
+//! This policy qualifies original source authority only. The selected Document
+//! profile separately validates all preview shapes, bytes and derivation proof.
 use super::{Error, Result, Scope, geodata::GeodataSourcePolicy};
 use crate::{access, contracts::v2, media::types as mt};
 use serde::{Deserialize, Serialize};
@@ -161,8 +163,7 @@ impl GeodataSourcePolicy for PinnedGeodataSourcePolicy {
             document["schemaVersion"] == 2
                 && document["recordType"] == "geodata-document"
                 && document["workspaceId"] == self.scope.workspace_id.as_str()
-                && document["homeId"] == self.scope.home_id.as_str()
-                && document["payload"]["preview"].is_null(),
+                && document["homeId"] == self.scope.home_id.as_str(),
         )?;
         let approved = document["recordId"]
             .as_str()
