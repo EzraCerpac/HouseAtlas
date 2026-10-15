@@ -1,0 +1,8 @@
+html, body { margin: 0; background: #e6e8e2; }
+.lantern-host.cifc-fixture { height: auto; min-height: 100vh; padding: 16px; display: grid; gap: 14px; align-content: start; max-width: 1480px; margin: 0 auto; }
+.cifc-fixture-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; }
+.cifc-fixture-head h1 { font-size: var(--fs-xl); font-weight: 750; }
+.cifc-fixture-head p { font-size: var(--fs-s); color: var(--muted); }
+.cifc-fixture-controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cifc-fixture-controls .chip-btn { min-height: 40px; }
+@media (max-width: 520px) { .lantern-host.cifc-fixture { padding: 10px; } }
