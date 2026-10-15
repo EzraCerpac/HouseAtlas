@@ -83,6 +83,7 @@ pub use queue::{
 pub use stock_activity::*;
 pub use stock_asset_review_types::*;
 pub use stock_types::*;
+pub(crate) use store::validate_geodata_v1_core;
 pub use store::*;
 pub use types::*;
 pub use upload_types::{

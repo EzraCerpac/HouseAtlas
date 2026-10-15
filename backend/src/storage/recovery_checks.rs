@@ -124,6 +124,7 @@ enum CoreProfile {
     Base,
     Activity,
     Presence,
+    Geodata,
 }
 fn validate_core_profile<C: Contract>(
     db: &Connection,
@@ -136,6 +137,7 @@ fn validate_core_profile<C: Contract>(
         CoreProfile::Base => migrations::validate(db)?,
         CoreProfile::Activity => migrations::validate_profile(db, true)?,
         CoreProfile::Presence => migrations::validate_presence(db)?,
+        CoreProfile::Geodata => super::super::super::geodata::validate_catalog(db)?,
     }
     let mut integrity_rows = 0;
     each(db, "PRAGMA integrity_check", check, |row, _| {
@@ -248,15 +250,21 @@ fn validate_core_profile<C: Contract>(
     validate_history(db, contract, &records, check)?;
     check()?;
     Ok(RecoveryImage {
-        contract_version: CONTRACT_VERSION.into(),
+        contract_version: match profile {
+            CoreProfile::Geodata => "2.0.0",
+            _ => CONTRACT_VERSION,
+        }
+        .into(),
         database_lineage: match profile {
             CoreProfile::Presence => presence_profile_definition().lineage.into(),
             CoreProfile::Base | CoreProfile::Activity => DATABASE_LINEAGE.into(),
+            CoreProfile::Geodata => "houseatlas-rust-storage/geodata/2".into(),
         },
         database_schema: match profile {
             CoreProfile::Base => DATABASE_VERSION,
             CoreProfile::Activity => STOCK_ACTIVITY_DATABASE_VERSION,
             CoreProfile::Presence => presence_profile_definition().version,
+            CoreProfile::Geodata => 1,
         },
         assets,
     })
@@ -269,6 +277,28 @@ pub(super) fn validate_connection<C: Contract>(
     check: Check<'_>,
 ) -> Result<RecoveryImage> {
     let image = validate_core(db, contract, check)?;
+    validate_native_only_extensions(db, &image, check)?;
+    Ok(image)
+}
+
+/// The selected geodata catalog owns its additional v2 tables. This adapter
+/// validates every unchanged v1 core body, graph, manifest and history in that
+/// same database; it does not filter rows, repair data or admit legacy storage.
+pub(super) fn validate_geodata_v1_core<C: Contract>(
+    db: &Connection,
+    contract: &C,
+    check: Check<'_>,
+) -> Result<RecoveryImage> {
+    let image = validate_core_profile(db, contract, check, CoreProfile::Geodata)?;
+    validate_native_only_extensions(db, &image, check)?;
+    Ok(image)
+}
+
+fn validate_native_only_extensions(
+    db: &Connection,
+    image: &RecoveryImage,
+    check: Check<'_>,
+) -> Result<()> {
     // This compatibility API has no independent Media evidence owner. Full
     // peers are required for inline policy, including assets without uploads.
     if image.assets.iter().any(safe_rendered) {
@@ -299,7 +329,7 @@ pub(super) fn validate_connection<C: Contract>(
         ));
     }
     check()?;
-    Ok(image)
+    Ok(())
 }
 
 fn safe_rendered(asset: &Record) -> bool {

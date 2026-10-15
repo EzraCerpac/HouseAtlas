@@ -44,6 +44,7 @@ mod stock_retained_read;
 #[path = "upload_queries.rs"]
 mod upload_queries;
 pub use homebox_stock_history::NativeHomeBoxStockHistory;
+pub(crate) use recovery::validate_geodata_v1_core;
 pub use recovery::{PresenceOpenPeers, RecoveryImage, RecoveryValidationPeers};
 
 use rusqlite::{Connection, TransactionBehavior};
