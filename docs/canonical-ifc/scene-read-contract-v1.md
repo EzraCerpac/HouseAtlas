@@ -6,6 +6,12 @@ by this PR**. PR177 only adds source-bound native IFC/GLB custody and reading.
 Synthetic IDs in this document are illustrative; no household model or evidence
 belongs in this repository.
 
+This v1 proposal assumes one `IfcSpace` occurrence per logical room. A logical
+room may instead have multiple floor-qualified space occurrences. Such sources
+require a reviewed v2 semantic and scene contract with a distinct stable
+`spaceOccurrenceId` for each geometry binding; v1 must not be used to publish
+them. The two-floor fixture below is only a v1 presentation test.
+
 ## Ownership and immutable identity
 
 An editable IFC original is retained as an immutable source revision with
