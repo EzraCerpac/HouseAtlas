@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "1211fbcfbcef5f211b972f3708591c829f7883c8efcf75efbd0e921b439153b7",
+  "sourceDigestSha256": "9a91bc672705f1e18665ddac5d9b5d2f2e82d0c03887c1e43b206603e62aa2df",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -37,6 +37,13 @@
       "mode": "100644",
       "bytes": 1965,
       "sha256": "b76e6668f0e95a8974de540ca2f0635c0f255f2841b37406c6b5b5fc9b3db984",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".github/workflows/pr185-qualifier-artifact.yml",
+      "mode": "100644",
+      "bytes": 2114,
+      "sha256": "612fc44305098d30731bb1cf091330cbcc594db5233c10e0bf0f065e026703cc",
       "owner": "core-integration"
     },
     {
@@ -9739,6 +9746,20 @@
       "mode": "100644",
       "bytes": 12923,
       "sha256": "c7873cffd86e2182b7243737c6126a3adbee508bd0b834fc63e5130b18bfd2de",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/pr185-full-qualifier.rs",
+      "mode": "100644",
+      "bytes": 39560,
+      "sha256": "b500074d19bd0dcd83fe6a463b0b63b36102ad09a5107545ee39cd0eb57fa896",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/pr185-qualifier-artifact.py",
+      "mode": "100644",
+      "bytes": 13839,
+      "sha256": "e2c3be3d67377e06f1ebc413f471c5c3b1db3b0c37974422d17187fa1f9d05f3",
       "owner": "core-integration"
     },
     {
