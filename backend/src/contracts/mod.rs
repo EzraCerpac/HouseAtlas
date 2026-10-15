@@ -6,6 +6,8 @@ mod json_value;
 mod numeric;
 pub mod semantics;
 pub mod stock;
+pub mod v2;
+mod v2_json;
 pub use generated::*;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::DeserializeOwned};

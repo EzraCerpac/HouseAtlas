@@ -1026,3 +1026,15 @@ router opens no listener/provider and uses no household input, real credentials,
 NAS, archive, source URL fetch, GIS renderer, geodata preview or document graph.
 No denial, failure injection, replay, revocation, expiry or crash case runs.
 Asset custody does not install the typed geodata document association/projection.
+
+The explicit fresh native Document v2 healthy check uses disposable generated
+originals, the actual native session and in-process router, then strict reopen
+and a separately opened SQL+media recovery bundle. It selects no service and
+runs no provider, household intake, renderer or converter. Inspect
+`backend/examples/healthy-native-geodata-documents.rs`,
+`backend/src/storage/geodata.rs`, `backend/src/http/geodata_documents.rs` and the
+compiled fresh SQL before this one named positive check:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-native-geodata-documents
+```
