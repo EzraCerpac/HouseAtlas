@@ -1235,7 +1235,7 @@ impl<D: GeodataConnection, U: GeodataAuthority> GeodataRepository<D, U> {
             validate_document(&d,self.selection==GeodataSelection::Full)?;if let Some(old)=&old{need(old["payload"]["original"]==d["payload"]["original"])?;}
             self.validate_custody(&d)?;let asset=self.original(&d)?;need(asset["lifecycle"]=="active"&&asset["payload"]["availability"]=="available")?;
             // Original-only profile requires the complete original guard.
-            need(command["guards"]==preview::required_guards(old.as_ref(),&d))?;if let Some(old)=&old {if old["payload"]["preview"]!=d["payload"]["preview"]{self.verified_preview(old,budget)?;}}self.verified_preview(&d,budget)?;
+            need(command["guards"]==preview::required_guards(old.as_ref(),&d))?;if let Some(old)=&old && old["payload"]["preview"]!=d["payload"]["preview"]{self.verified_preview(old,budget)?;}self.verified_preview(&d,budget)?;
             self.vault.read_retained(&self.asset_media(&asset)?,budget).map_err(media_error)?;self.policy.authorize(guard,&d,true)?;
             let tx=rusqlite::Transaction::new_unchecked(self.db.connection(),TransactionBehavior::Immediate)?;
             if let Some(old)=&old{let updated=tx.execute("UPDATE geodata_records SET revision=?1,body=?2 WHERE workspace_id=?3 AND home_id=?4 AND record_id=?5 AND revision=?6",params![revision as i64,canonical(&d)?,scope.workspace_id,scope.home_id,id,old["revision"].as_i64().ok_or_else(invalid)?])?;need(updated==1)?;tx.execute("DELETE FROM geodata_document_refs WHERE workspace_id=?1 AND document_id=?2",params![scope.workspace_id,id])?;}else{insert_record(&tx,&d)?;}
