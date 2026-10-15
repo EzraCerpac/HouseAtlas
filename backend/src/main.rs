@@ -84,6 +84,16 @@ async fn run(
 ) -> Result<(), lifecycle::Failure> {
     use houseatlas_backend::config::server::ServerCommand;
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
+    if let Some(selection) =
+        lifecycle::geodata_full_backup::Selection::from_arguments(&arguments)
+            .map_err(|error| format!("HouseAtlas full geodata recovery settings: {error}"))?
+    {
+        let report =
+            tokio::task::spawn_blocking(move || lifecycle::geodata_full_backup::execute(selection))
+                .await??;
+        println!("{}", serde_json::to_string(&report)?);
+        return Ok(());
+    }
     let (arguments, geodata_selection) = ServerGeodataSelection::from_arguments(&arguments)
         .map_err(|error| format!("HouseAtlas full geodata settings: {error}"))?;
     let (arguments, ai_account) =

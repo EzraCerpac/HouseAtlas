@@ -46,23 +46,7 @@ impl ServerGeodataSelection {
         }
         let selected = match (path, digest) {
             (None, None) => None,
-            (Some(path), Some(digest)) => {
-                if digest.len() != 64
-                    || !digest
-                        .bytes()
-                        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-                {
-                    return Err(
-                        "Full geodata selection requires a lowercase SHA-256 custody digest".into(),
-                    );
-                }
-                let bytes =
-                    super::server::read_selected_file(Path::new(&path), MAX_POLICY_BYTES, true)?;
-                if format!("{:x}", Sha256::digest(&bytes)) != digest {
-                    return Err("Full geodata source policy custody pin changed".into());
-                }
-                Some(Self { bytes })
-            }
+            (Some(path), Some(digest)) => Some(Self::read_pinned(Path::new(&path), &digest)?),
             _ => {
                 return Err(
                     "Full geodata source policy requires its separate custody digest".into(),
@@ -72,6 +56,24 @@ impl ServerGeodataSelection {
         Ok((remaining, selected))
     }
 
+    /// Shared only with the separately named offline full-profile commands.
+    pub(crate) fn read_pinned(path: &Path, digest: &str) -> Result<Self, String> {
+        if digest.len() != 64
+            || !digest
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return Err(
+                "Full geodata selection requires a lowercase SHA-256 custody digest".into(),
+            );
+        }
+        let bytes = super::server::read_selected_file(path, MAX_POLICY_BYTES, true)?;
+        if format!("{:x}", Sha256::digest(&bytes)) != digest {
+            return Err("Full geodata source policy custody pin changed".into());
+        }
+        Ok(Self { bytes })
+    }
+
     /// Bind the captured policy to a home in the actual selected server config.
     /// Policy validation and database qualification remain independent checks.
     pub fn into_policy(
@@ -79,16 +81,29 @@ impl ServerGeodataSelection {
         config: &super::server::ServerConfig,
     ) -> Result<Arc<dyn GeodataSourcePolicy>, String> {
         config.validate()?;
-        let value = crate::contracts::v2::parse_value(&self.bytes)
-            .map_err(|_| "Invalid private full geodata source policy")?;
-        let manifest: ReviewedSourceManifest = serde_json::from_value(value)
-            .map_err(|_| "Invalid private full geodata source policy")?;
+        let manifest = self.into_manifest()?;
         if !config.homes.iter().any(|home| {
             home.workspace_id.as_str() == manifest.scope.workspace_id
                 && home.home_id.as_str() == manifest.scope.home_id
         }) {
             return Err("Full geodata policy must select an exact configured home".into());
         }
+        Self::policy(manifest)
+    }
+
+    /// Structural bundle work has no service configuration or access grants.
+    pub(crate) fn into_offline_policy(self) -> Result<Arc<dyn GeodataSourcePolicy>, String> {
+        Self::policy(self.into_manifest()?)
+    }
+
+    fn into_manifest(self) -> Result<ReviewedSourceManifest, String> {
+        let value = crate::contracts::v2::parse_value(&self.bytes)
+            .map_err(|_| "Invalid private full geodata source policy")?;
+        serde_json::from_value(value)
+            .map_err(|_| "Invalid private full geodata source policy".into())
+    }
+
+    fn policy(manifest: ReviewedSourceManifest) -> Result<Arc<dyn GeodataSourcePolicy>, String> {
         let policy = PinnedGeodataSourcePolicy::from_reviewed(manifest)
             .map_err(|_| "Invalid private full geodata source policy")?;
         Ok(Arc::new(policy))

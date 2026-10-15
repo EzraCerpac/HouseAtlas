@@ -20,7 +20,7 @@ source directory and its configuration unchanged. Do not select its database as
 the converted target.
 
 The two options must appear together, once each, on `serve`. They are rejected
-for initialization, backup, receipt compatibility, origin rebind and disposable
+for initialization, legacy backup, receipt compatibility, origin rebind and disposable
 startup. With neither option, the existing normal persistent startup is used.
 A failed full-profile selection is an error; startup never retries through the
 normal profile.
@@ -52,3 +52,58 @@ continue through their existing startup paths.
 This selection performs no source fetch, account provisioning, origin rebind,
 automatic schema migration or conversion. Code integration and synthetic checks
 do not authorize a service change, a release or selection of private data.
+
+# Full-profile offline recovery commands
+
+The separately named commands below select only the
+`native-full-geodata-queue-free` CLI profile. Each requires the same two exact
+trusted private policy options shown above. Other options, including AI-account
+selection and service activation, are rejected. Existing `backup` commands and
+R3 recovery formats keep their existing behavior.
+
+```text
+houseatlas-backend full-geodata-backup \
+  --server-config /absolute/private/full-server.json \
+  --destination /absolute/private/new-full-bundle \
+  --full-geodata-source-policy /absolute/private/reviewed-sources.json \
+  --full-geodata-source-policy-sha256 <lowercase-sha256-of-exact-policy-file>
+
+houseatlas-backend full-geodata-verify \
+  --bundle /absolute/private/full-bundle \
+  --full-geodata-source-policy /absolute/private/reviewed-sources.json \
+  --full-geodata-source-policy-sha256 <lowercase-sha256-of-exact-policy-file>
+
+houseatlas-backend full-geodata-restore \
+  --bundle /absolute/private/full-bundle \
+  --destination /absolute/private/new-restored-bundle \
+  --full-geodata-source-policy /absolute/private/reviewed-sources.json \
+  --full-geodata-source-policy-sha256 <lowercase-sha256-of-exact-policy-file>
+```
+
+Capture requires the existing full-profile state receipt, exact native identities
+and exclusive server lease. Both Atlas and Access must already be closed,
+standalone DELETE-mode databases without WAL, SHM or journal sidecars. A normal
+server shutdown alone may leave a WAL-mode header, which this command refuses.
+It never checkpoints, changes journal mode, repairs a receipt or converts a
+source. Any preparation of such a source requires a separately reviewed offline
+operation. Capture validates the actual full store through a read-only opener,
+retains its lease through store destruction, and checks source database bytes,
+server configuration and full state receipt again after capture.
+
+Verification and restoration need a closed full-format bundle and trusted policy,
+without a server configuration, active service, native user or grant. Their
+Access owner is empty and in memory. They validate full native/Stock, Documents,
+media closure and conversion ancestry with an explicitly complete empty queue
+registry. This structural validation conveys no authentication, source admission,
+current dispatch or service-selection authority.
+
+Destinations must be absent, absolute paths under an existing canonical private
+directory owned by the effective user with mode `0700`. Capture destinations
+must not overlap the source deployment, frontend, configuration, TLS or policy
+paths. Restore destinations must not overlap the bundle or policy. The full
+format is `houseatlas-native-full-geodata-recovery/1`; no R3 or legacy fallback
+is attempted. Restore creates only the verified Atlas database, retained media
+and full manifest with conversion ancestry. It creates no Access database,
+credentials, sessions, grants, server configuration or serving receipt, and
+starts no listener. A failed operation may leave its new destination for review;
+failure does not authorize automatic retry, cleanup or service adoption.
