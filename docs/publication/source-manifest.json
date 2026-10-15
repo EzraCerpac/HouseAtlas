@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "919fbf2549bc770bb5775674151e40cff3ecc9bef11791d84a9178e319478990",
+  "sourceDigestSha256": "4cc83988d97baad16fbc1d979f358bd89d1c3980e95d12d685ea0b0061dae0aa",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2056,6 +2056,27 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/http/geodata_original.rs",
+      "mode": "100644",
+      "bytes": 8241,
+      "sha256": "edfe205be4a7cd339f5beb4385281aa1e96c3282d044cd8ac586d18256cdc5ac",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/http/geodata_original_healthy.rs",
+      "mode": "100644",
+      "bytes": 12439,
+      "sha256": "a636a0172bae82e816f3acdbcef7ec5ceb7ebe22e0897de6c52b0c26e54f7ef1",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/http/geodata_original_intake.rs",
+      "mode": "100644",
+      "bytes": 6257,
+      "sha256": "3baea48b00ec6e6a0b53a36ff0430257f05517c968bac3250fddf5cd2ab7c103",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/http/headers.rs",
       "mode": "100644",
       "bytes": 3819,
@@ -2100,8 +2121,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 45264,
-      "sha256": "cf72adbea471e7a47989f124ddbc4db20ae5a788968da60d1e89fa88770e8cb0",
+      "bytes": 45413,
+      "sha256": "9a8ae6a1a5924c83189b3e366572460725cc4ff62a31173a2dcf73e4b4b07e63",
       "owner": "core-integration"
     },
     {
@@ -2660,8 +2681,8 @@
     {
       "path": "backend/src/media/content.rs",
       "mode": "100644",
-      "bytes": 12297,
-      "sha256": "b56885d7ece5753725238fe1922977649255d94c06d47b84d340df9871ed6660",
+      "bytes": 12317,
+      "sha256": "112b8ad49b47e2788ca70b682a16ec8295313a51f5ee68be2a9df5345c8893ea",
       "owner": "media"
     },
     {
@@ -2681,15 +2702,15 @@
     {
       "path": "backend/src/media/geodata_document_healthy.rs",
       "mode": "100644",
-      "bytes": 11401,
-      "sha256": "a8a008f74b60d2726a2a54e27cd6b76b2f505f7a2e2297a8cdef40796d308828",
+      "bytes": 11640,
+      "sha256": "b80819668531466dda1386699b707e4068bbd34bf001656b19a9e0b05a023c11",
       "owner": "media"
     },
     {
       "path": "backend/src/media/geodata_original.rs",
       "mode": "100644",
-      "bytes": 8430,
-      "sha256": "6f0da285dc7fb54b16a46f2339407e8e980161c74abfbb2777f9715a964d64b9",
+      "bytes": 8660,
+      "sha256": "97b0f4ca0f8e8a8c3d7d1548f7e28c25dca082b540fc79ebba50eb7fa91924bc",
       "owner": "media"
     },
     {
@@ -2982,15 +3003,15 @@
     {
       "path": "backend/src/media/staged_upload.rs",
       "mode": "100644",
-      "bytes": 21815,
-      "sha256": "186a9318721bef4dec7b05788d1030021439e2c217dff807136bf2069e3c02df",
+      "bytes": 23485,
+      "sha256": "8f3727f430c0e95cbfbf065e1b71839fe68b84336e711be68fb07c1443c15eb4",
       "owner": "media"
     },
     {
       "path": "backend/src/media/types.rs",
       "mode": "100644",
-      "bytes": 10664,
-      "sha256": "c265c67b8d9f411834f0cde350d7acce315fafcf0a3b91ee6bf418a1dd23979b",
+      "bytes": 10817,
+      "sha256": "378be9a2a7e6d83d675b67a805e9fac7cc341fc350c34aff0e534247f728406e",
       "owner": "media"
     },
     {
@@ -5621,8 +5642,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 60040,
-      "sha256": "3a444dbcdaa16eceaf2b4df5a717ed172a5363835291ddc1b218fe2aa3bc4989",
+      "bytes": 61311,
+      "sha256": "be2c5bfdf408e96d7c01d305e4f255e329ec358bb19fa47d0ea21f422c32942e",
       "owner": "core-integration"
     },
     {
@@ -5747,8 +5768,8 @@
     {
       "path": "docs/geodata/native-documents.md",
       "mode": "100644",
-      "bytes": 4353,
-      "sha256": "5ffd459904e02bc3184832e0cd2ae2c55c81c930e09aa00d0112e3ba9a220b63",
+      "bytes": 9690,
+      "sha256": "1a76d814945703a845eca9b294484dc388b551f1bfebba7f8338d21fded6b867",
       "owner": "core-integration"
     },
     {

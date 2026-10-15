@@ -168,6 +168,10 @@ fn healthy_geodata_original_framing_and_provider_families() {
     let geo = original_bytes();
     let city = br#"{"type":"CityJSON","version":"2.0","CityObjects":{},"vertices":[[1,2,3]]}"#;
     for (b, k) in [
+        (
+            &br#"{"agency":"Generated source","metadata":{"edition":1}}"#[..],
+            ContentType::Json,
+        ),
         (&tif[..], ContentType::GeoTiff),
         (&geo[..], ContentType::GeoJson),
         (&city[..], ContentType::CityJson),
@@ -185,6 +189,10 @@ fn healthy_geodata_original_framing_and_provider_families() {
         assert_eq!(ContentType::parse(mime).unwrap().as_str(), mime);
     }
     // Native format admission does not extend provider intake.
+    assert_eq!(
+        ContentType::parse("application/json"),
+        Err(MediaError::Unsupported)
+    );
     assert_eq!(
         ContentType::parse("image/tiff"),
         Err(MediaError::Unsupported)

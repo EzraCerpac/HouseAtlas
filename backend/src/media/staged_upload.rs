@@ -39,7 +39,8 @@ pub struct UploadAdmission {
     pub source_license: SourceLicense,
     pub evidence_ids: Vec<String>,
 }
-enum DerivativeQualification<'a> {
+enum StagePreparation<'a> {
+    DownloadOriginal,
     Magicplan(&'a super::mesh_derivative::QualifiedMesh<'a>),
     Ifc(&'a super::ifc_glb::QualifiedGlb<'a>),
 }
@@ -199,6 +200,40 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
         Self::open_with_limits(vault, runtime, UploadLimits::default())
     }
 
+    /// Explicit standalone native document custody. Existing original callers
+    /// retain optional renderer qualification; this path validates exact source
+    /// bytes and produces download-only custody without any derivative claim.
+    pub fn stage_download_original(
+        &self,
+        guard: &a::TransactionAuthorization<'_>,
+        original: &RetainedPrincipal,
+        admission: UploadAdmission,
+        body: &mut impl Read,
+        budget: &WorkBudget,
+    ) -> MediaResult<UploadReceipt> {
+        if admission.purpose != AssetPurpose::EvidenceOriginal
+            || !matches!(
+                admission.content_type,
+                ContentType::Json
+                    | ContentType::GeoTiff
+                    | ContentType::GeoJson
+                    | ContentType::CityJson
+                    | ContentType::Png
+                    | ContentType::Pdf
+            )
+        {
+            return Err(MediaError::InvalidInput);
+        }
+        self.stage_asset(
+            guard,
+            original,
+            admission,
+            body,
+            budget,
+            Some(StagePreparation::DownloadOriginal),
+        )
+    }
+
     /// Trusted serialized host policy, never caller upload metadata.
     pub fn open_with_limits(
         vault: &'a AssetVault,
@@ -297,7 +332,7 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
             admission,
             &mut qualified.bytes(),
             budget,
-            Some(DerivativeQualification::Magicplan(&qualified)),
+            Some(StagePreparation::Magicplan(&qualified)),
         )
     }
 
@@ -328,7 +363,7 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
             admission,
             &mut qualified.bytes(),
             budget,
-            Some(DerivativeQualification::Ifc(&qualified)),
+            Some(StagePreparation::Ifc(&qualified)),
         )
     }
 
@@ -339,7 +374,7 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
         admission: UploadAdmission,
         body: &mut impl Read,
         budget: &WorkBudget,
-        mesh: Option<DerivativeQualification<'_>>,
+        mesh: Option<StagePreparation<'_>>,
     ) -> MediaResult<UploadReceipt> {
         let scope = authorize(guard, original, budget)?;
         self.validate_admission(&admission)?;
@@ -366,7 +401,7 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
         let pending = self.directory.temporary(".upload-")?;
         self.write_reservation_lifetime(&pending.directory)?;
         let (payload, qualification) = match mesh {
-            Some(DerivativeQualification::Magicplan(mesh))
+            Some(StagePreparation::Magicplan(mesh))
                 if admission.purpose == AssetPurpose::DerivedPreview
                     && admission.content_type == ContentType::AuthoredMesh =>
             {
@@ -378,13 +413,27 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
                     None,
                 )
             }
-            Some(DerivativeQualification::Ifc(glb))
+            Some(StagePreparation::Ifc(glb))
                 if admission.purpose == AssetPurpose::DerivedPreview
                     && admission.content_type == ContentType::IfcGlb =>
             {
                 let prepared =
                     self.vault
                         .prepare_upload_ifc_glb(&scope, glb, budget, &self.limits)?;
+                (
+                    prepared.with_provenance(admission.source_license, admission.evidence_ids)?,
+                    None,
+                )
+            }
+            Some(StagePreparation::DownloadOriginal) => {
+                let prepared = self.vault.prepare_upload_original_measured(
+                    &scope,
+                    admission.purpose,
+                    admission.content_type,
+                    body,
+                    budget,
+                    &self.limits,
+                )?;
                 (
                     prepared.with_provenance(admission.source_license, admission.evidence_ids)?,
                     None,

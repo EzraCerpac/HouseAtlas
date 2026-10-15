@@ -12,6 +12,7 @@ mod homebox_pinned_discovery;
 mod homebox_pinned_files;
 pub use homebox_pinned_files::PinnedHomeBoxFileBinding;
 mod capture_claim;
+mod geodata_original;
 mod intake;
 mod media;
 mod mutations;
@@ -966,6 +967,7 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/homebox-pinned-file-admission", get(homebox_pinned_discovery::admission).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/invoke", get(agents::invoke).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/commands", post(stock_mutations::command))
+        .route("/api/atlas/documents/v1/workspaces/{workspace_id}/homes/{home_id}/originals", post(geodata_original::command))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/assets", post(upload_asset::command))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/assets/{asset_id}/review-proof", post(asset_reviews::issue))
         .route("/api/atlas/stock/v3/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}", get(stock_reads::list).head(auth::session_head).fallback(auth::session_head))

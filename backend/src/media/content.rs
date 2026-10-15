@@ -61,7 +61,7 @@ pub fn validate_content(
         }
         ContentType::AuthoredMesh => super::mesh_derivative::validate(bytes, budget).map(|_| None),
         ContentType::IfcGlb => super::ifc_glb::validate(bytes, budget).map(|_| None),
-        ContentType::GeoTiff | ContentType::GeoJson | ContentType::CityJson => {
+        ContentType::Json | ContentType::GeoTiff | ContentType::GeoJson | ContentType::CityJson => {
             super::geodata_original::validate(bytes, content_type, budget).map(|()| None)
         }
         ContentType::Text => {
