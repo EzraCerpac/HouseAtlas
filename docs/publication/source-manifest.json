@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "8ddc4187c039ef44d8b525545fb888b8cfecaeeef752075eaca21fb6b1516369",
+  "sourceDigestSha256": "508bbad4094783dc8205197bbbc9d1ea2baf363c5ee659c6371e8bbbe2298ad3",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2638,10 +2638,10 @@
     },
     {
       "path": "backend/src/media/canonical_ifc_source.rs",
-      "owner": "media",
       "mode": "100644",
       "bytes": 20356,
-      "sha256": "8ca0509db22290e78aee4678b0d91c4a207bd0cb046f1bced269b9bcad9a6820"
+      "sha256": "8ca0509db22290e78aee4678b0d91c4a207bd0cb046f1bced269b9bcad9a6820",
+      "owner": "media"
     },
     {
       "path": "backend/src/media/checks/public-fixture.mjs",
@@ -2660,8 +2660,8 @@
     {
       "path": "backend/src/media/content.rs",
       "mode": "100644",
-      "bytes": 12027,
-      "sha256": "d1e7f291c7a1de291b77e3f7458289bfbd00b7cdad716f7046bd50b36e7ece00",
+      "bytes": 12297,
+      "sha256": "b56885d7ece5753725238fe1922977649255d94c06d47b84d340df9871ed6660",
       "owner": "media"
     },
     {
@@ -2669,6 +2669,27 @@
       "mode": "100644",
       "bytes": 1954,
       "sha256": "ff5c6df08b50557a4bc00e016323f09a4ff607adc8e0d4dadafd8d62ead2ccc8",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/geodata_document.rs",
+      "mode": "100644",
+      "bytes": 15692,
+      "sha256": "6d6bc43f110bb2a85121dea8b045f51d7b2f03c2bf2cb026a7a6c8e95e08723d",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/geodata_document_healthy.rs",
+      "mode": "100644",
+      "bytes": 9668,
+      "sha256": "65b5df885012ee6682babc43e79c9cc338b58ba5338fecd34019c49ee6851e75",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/geodata_original.rs",
+      "mode": "100644",
+      "bytes": 7762,
+      "sha256": "b642eadea84e1cc6c1781b1c277aae8ba6b1ce77ae572091cd348ecf4d3f03f1",
       "owner": "media"
     },
     {
@@ -2807,8 +2828,8 @@
     {
       "path": "backend/src/media/mod.rs",
       "mode": "100644",
-      "bytes": 1687,
-      "sha256": "ea35cfbf614d67c31beda4ad7b412f001e110f09a4766a83a851d93332d5d06e",
+      "bytes": 1739,
+      "sha256": "166fa7ff35ee254d9c1fb0497257911669b0efd451cc366dfe3fb90239c378b8",
       "owner": "media"
     },
     {
@@ -2954,8 +2975,8 @@
     {
       "path": "backend/src/media/service.rs",
       "mode": "100644",
-      "bytes": 7626,
-      "sha256": "0817f0a8e1916c2ad132622581cb7e80775fba7010c006f129af56b6fd9fb710",
+      "bytes": 7980,
+      "sha256": "c2c227e86f7d5b8dcba1694fa5a7f5b6c9efa725b7f37133be19b762b91e4c9d",
       "owner": "media"
     },
     {
@@ -2968,8 +2989,8 @@
     {
       "path": "backend/src/media/types.rs",
       "mode": "100644",
-      "bytes": 9769,
-      "sha256": "298063881ae884dc191ebcbc97bd96c90f2362b442a29ea0b14b1bcd47bda318",
+      "bytes": 10664,
+      "sha256": "c265c67b8d9f411834f0cde350d7acce315fafcf0a3b91ee6bf418a1dd23979b",
       "owner": "media"
     },
     {
@@ -5579,8 +5600,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 58599,
-      "sha256": "c42348609b39c1c608b2c1b098e3bc5ecf17ce0bf9e7ad3d21456551213e0eee",
+      "bytes": 59881,
+      "sha256": "730aae53fcd723c3fcb055becaa0a713ef1a584f57982ed04ad7e659e0792fd9",
       "owner": "core-integration"
     },
     {
@@ -5701,6 +5722,13 @@
       "bytes": 150451,
       "sha256": "acaa87f6110e1d31d782b5a541700db0a762f0304768cb9a0a6a220f9b6f409a",
       "owner": "web"
+    },
+    {
+      "path": "docs/geodata/native-documents.md",
+      "mode": "100644",
+      "bytes": 5247,
+      "sha256": "b9203fd64abe4dbd7b9a888a73caf907819a4632410885c7512aed0b362f3282",
+      "owner": "core-integration"
     },
     {
       "path": "docs/geometry/assistant-native-place-intake.md",
@@ -8770,10 +8798,10 @@
     },
     {
       "path": "packages/contracts/schemas/canonical-ifc-source-revision.schema.json",
-      "owner": "contracts",
       "mode": "100644",
       "bytes": 2409,
-      "sha256": "8198e365a409dc38d33136410c58f175459da9bf250f67061ef2f6334d2ebb76"
+      "sha256": "8198e365a409dc38d33136410c58f175459da9bf250f67061ef2f6334d2ebb76",
+      "owner": "contracts"
     },
     {
       "path": "packages/contracts/src/check-package.mjs",

@@ -12,6 +12,8 @@ mod budget;
 pub mod canonical_ifc_source;
 pub mod content;
 pub mod download_lifetime;
+pub mod geodata_document;
+pub mod geodata_original;
 pub mod geometry_bundle;
 pub mod geometry_original;
 pub mod homebox_artifacts;

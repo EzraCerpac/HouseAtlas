@@ -149,6 +149,12 @@ impl<'a, S, A> MediaService<'a, S, A> {
             byte_size: record.payload.byte_size,
             preview_policy: record.payload.preview_policy,
         };
+        // Geodata PNGs require the document's source-aware grant and lineage
+        // revalidation, supplied by geodata_document::read. A bare asset read
+        // cannot establish that its original sources remain available.
+        if metadata.content_type == ContentType::GeodataPreviewPng {
+            return Err(MediaError::NotFound);
+        }
         Ok((record, metadata))
     }
 
