@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://houseatlas.invalid/schemas/canonical-ifc-source-revision.v1.json",
+  "title": "HouseAtlas canonical IFC source revision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["profile", "scope", "sourceId", "revisionId", "parentRevisionId", "ifcAsset", "authoringTool", "declaredUnits", "declaredUpAxis", "semanticMapRevisionId", "semanticMapSha256"],
+  "properties": {
+    "profile": {"const": "houseatlas.ifc-source-revision.v1"},
+    "scope": {
+      "type": "object", "additionalProperties": false,
+      "required": ["workspaceId", "homeId", "buildingId"],
+      "properties": {
+        "workspaceId": {"$ref": "#/$defs/uuid"},
+        "homeId": {"$ref": "#/$defs/uuid"},
+        "buildingId": {"$ref": "#/$defs/uuid"}
+      }
+    },
+    "sourceId": {"$ref": "#/$defs/uuid"},
+    "revisionId": {"$ref": "#/$defs/uuid"},
+    "parentRevisionId": {"anyOf": [{"$ref": "#/$defs/uuid"}, {"type": "null"}]},
+    "ifcAsset": {
+      "type": "object", "additionalProperties": false,
+      "required": ["assetId", "sha256", "bytes"],
+      "properties": {
+        "assetId": {"$ref": "#/$defs/uuid"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "bytes": {"type": "integer", "minimum": 1, "maximum": 10485760}
+      }
+    },
+    "authoringTool": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 128},
+        "version": {"type": ["string", "null"], "minLength": 1, "maxLength": 128}
+      }
+    },
+    "declaredUnits": {"enum": ["mm", "cm", "m", "unknown"]},
+    "declaredUpAxis": {"enum": ["X", "Y", "Z", "unknown"]},
+    "semanticMapRevisionId": {"anyOf": [{"$ref": "#/$defs/uuid"}, {"type": "null"}]},
+    "semanticMapSha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]}
+  },
+  "allOf": [
+    {"if": {"properties": {"semanticMapRevisionId": {"type": "null"}}}, "then": {"properties": {"semanticMapSha256": {"type": "null"}}}},
+    {"if": {"properties": {"semanticMapSha256": {"type": "null"}}}, "then": {"properties": {"semanticMapRevisionId": {"type": "null"}}}}
+  ],
+  "$defs": {
+    "uuid": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
