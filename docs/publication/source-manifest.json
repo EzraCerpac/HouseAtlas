@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "e2b8fa96f45a32e9f311859d6a38f3637cd45147099c61162def139e1dcdf4ee",
+  "sourceDigestSha256": "87013d4b25989dd995c09603765b70ba1f992be1ca35668ff2f5b820f5b52cfa",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2065,15 +2065,15 @@
     {
       "path": "backend/src/http/geodata_original_healthy.rs",
       "mode": "100644",
-      "bytes": 11679,
-      "sha256": "5114a46ef512b148ae8627b3b676bd1718798264c515c5ae54891f45a8369850",
+      "bytes": 12439,
+      "sha256": "a636a0172bae82e816f3acdbcef7ec5ceb7ebe22e0897de6c52b0c26e54f7ef1",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/http/geodata_original_intake.rs",
       "mode": "100644",
-      "bytes": 6153,
-      "sha256": "eb32e9801871dee0424e5e20842ca93a41d5e66e80e48654c9b6dcbd1cf0e23f",
+      "bytes": 6257,
+      "sha256": "3baea48b00ec6e6a0b53a36ff0430257f05517c968bac3250fddf5cd2ab7c103",
       "owner": "core-integration"
     },
     {
@@ -2681,8 +2681,8 @@
     {
       "path": "backend/src/media/content.rs",
       "mode": "100644",
-      "bytes": 12297,
-      "sha256": "b56885d7ece5753725238fe1922977649255d94c06d47b84d340df9871ed6660",
+      "bytes": 12317,
+      "sha256": "112b8ad49b47e2788ca70b682a16ec8295313a51f5ee68be2a9df5345c8893ea",
       "owner": "media"
     },
     {
@@ -2702,15 +2702,15 @@
     {
       "path": "backend/src/media/geodata_document_healthy.rs",
       "mode": "100644",
-      "bytes": 11401,
-      "sha256": "a8a008f74b60d2726a2a54e27cd6b76b2f505f7a2e2297a8cdef40796d308828",
+      "bytes": 11640,
+      "sha256": "b80819668531466dda1386699b707e4068bbd34bf001656b19a9e0b05a023c11",
       "owner": "media"
     },
     {
       "path": "backend/src/media/geodata_original.rs",
       "mode": "100644",
-      "bytes": 8430,
-      "sha256": "6f0da285dc7fb54b16a46f2339407e8e980161c74abfbb2777f9715a964d64b9",
+      "bytes": 8660,
+      "sha256": "97b0f4ca0f8e8a8c3d7d1548f7e28c25dca082b540fc79ebba50eb7fa91924bc",
       "owner": "media"
     },
     {
@@ -3003,15 +3003,15 @@
     {
       "path": "backend/src/media/staged_upload.rs",
       "mode": "100644",
-      "bytes": 23445,
-      "sha256": "5c04837f0961996e44502135a7764e07ac4738210763d40e412d29939bb5067a",
+      "bytes": 23485,
+      "sha256": "8f3727f430c0e95cbfbf065e1b71839fe68b84336e711be68fb07c1443c15eb4",
       "owner": "media"
     },
     {
       "path": "backend/src/media/types.rs",
       "mode": "100644",
-      "bytes": 10664,
-      "sha256": "c265c67b8d9f411834f0cde350d7acce315fafcf0a3b91ee6bf418a1dd23979b",
+      "bytes": 10817,
+      "sha256": "378be9a2a7e6d83d675b67a805e9fac7cc341fc350c34aff0e534247f728406e",
       "owner": "media"
     },
     {
@@ -5621,8 +5621,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 61226,
-      "sha256": "3680d62b8b5e1c625d9cb3352cb9cfa0cf129f7d8fcce2fccdb9554babc0c3dc",
+      "bytes": 61311,
+      "sha256": "be2c5bfdf408e96d7c01d305e4f255e329ec358bb19fa47d0ea21f422c32942e",
       "owner": "core-integration"
     },
     {
@@ -5747,8 +5747,8 @@
     {
       "path": "docs/geodata/native-documents.md",
       "mode": "100644",
-      "bytes": 9268,
-      "sha256": "5b168251862bee60a3f6786d17941fda86fac26af268c15f195026509da6e975",
+      "bytes": 9691,
+      "sha256": "22f40a54c80e9a9c0b99b988eb0891702a4369a0718d5f43cd3e64e5882b6b41",
       "owner": "core-integration"
     },
     {

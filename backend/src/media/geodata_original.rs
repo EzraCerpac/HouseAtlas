@@ -79,6 +79,9 @@ fn geodata_json(bytes: &[u8], kind: ContentType, budget: &WorkBudget) -> MediaRe
     let mut count = 0;
     let v = json_value(raw, 0, &mut count, budget)?;
     match kind {
+        // Generic metadata/provenance originals retain truthful JSON MIME.
+        // The shared framing bounds apply without interpreting source fields.
+        ContentType::Json => {}
         ContentType::GeoJson => {
             let typ = v["type"].as_str().ok_or_else(bad)?;
             need(matches!(
@@ -213,7 +216,9 @@ pub fn validate(bytes: &[u8], kind: ContentType, budget: &WorkBudget) -> MediaRe
     need(!bytes.is_empty())?;
     match kind {
         ContentType::GeoTiff => tiff(bytes, budget),
-        ContentType::GeoJson | ContentType::CityJson => geodata_json(bytes, kind, budget),
+        ContentType::Json | ContentType::GeoJson | ContentType::CityJson => {
+            geodata_json(bytes, kind, budget)
+        }
         _ => Err(bad()),
     }
 }

@@ -83,10 +83,15 @@ trailing parts. Content-Type and filename must match declared metadata.
 Metadata is a strict object with `schemaVersion: 1`, UUID `requestId` and
 `idempotencyKey`, route-matching `context: {workspaceId, homeId}`, `reason`,
 `filename`, `contentType`, and existing `sourceLicense: {status, reference}`.
-The five explicit MIME families are `image/tiff`, `application/geo+json`,
-`application/city+json`, `application/pdf`, and `image/png`. ZIP and the special
-geodata-preview PNG family are absent. JSON MIME declarations must match their
+The six explicit MIME families are `application/json`, `image/tiff`,
+`application/geo+json`, `application/city+json`, `application/pdf`, and `image/png`.
+ZIP and the special geodata-preview PNG family are absent. JSON MIME declarations must match their
 actual framed source envelope; the route does not relabel CityJSON as GeoJSON.
+Generic JSON metadata/provenance originals use duplicate-key-free framing bounded
+to depth 64 and 1,000,000 nodes, with no coordinate or source-field interpretation.
+They keep `application/json` and download-only evidence custody; they do not
+expand the typed GIS document profile. Known licence status and reference are
+preserved exactly through intake, staging, committed assets and persistent reopen.
 
 The vault validates and measures original bytes before issuing a fresh immutable
 server asset identity and stage. The new explicit download-only stage uses the

@@ -214,7 +214,8 @@ impl<'a, R: s::Runtime> NativeUploadStages<'a, R> {
         if admission.purpose != AssetPurpose::EvidenceOriginal
             || !matches!(
                 admission.content_type,
-                ContentType::GeoTiff
+                ContentType::Json
+                    | ContentType::GeoTiff
                     | ContentType::GeoJson
                     | ContentType::CityJson
                     | ContentType::Png

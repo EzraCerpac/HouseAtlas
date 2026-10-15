@@ -280,6 +280,7 @@ pub enum ContentType {
     Ifc,
     AuthoredMesh,
     IfcGlb,
+    Json,
     GeoTiff,
     GeoJson,
     CityJson,
@@ -305,6 +306,7 @@ impl ContentType {
             "application/x-step" => Ok(Self::Ifc),
             super::mesh_derivative::MIME => Ok(Self::AuthoredMesh),
             super::ifc_glb::MIME => Ok(Self::IfcGlb),
+            "application/json" => Ok(Self::Json),
             "image/tiff" => Ok(Self::GeoTiff),
             "application/geo+json" => Ok(Self::GeoJson),
             "application/city+json" => Ok(Self::CityJson),
@@ -323,6 +325,7 @@ impl ContentType {
             Self::Ifc => "application/x-step",
             Self::AuthoredMesh => super::mesh_derivative::MIME,
             Self::IfcGlb => super::ifc_glb::MIME,
+            Self::Json => "application/json",
             Self::GeoTiff => "image/tiff",
             Self::GeoJson => "application/geo+json",
             Self::CityJson => "application/city+json",
@@ -338,7 +341,7 @@ impl ContentType {
                 purpose == AssetPurpose::DerivedPreview
             }
             Self::Usdz | Self::Ifc => purpose == AssetPurpose::GeometryOriginal,
-            Self::GeoTiff | Self::GeoJson | Self::CityJson => {
+            Self::Json | Self::GeoTiff | Self::GeoJson | Self::CityJson => {
                 purpose == AssetPurpose::EvidenceOriginal
             }
             Self::Png | Self::Jpeg | Self::Pdf | Self::Text => purpose.is_original(),
@@ -355,6 +358,7 @@ impl ContentType {
             Self::Ifc => "ifc",
             Self::AuthoredMesh => "json",
             Self::IfcGlb => "glb",
+            Self::Json => "json",
             Self::GeoTiff => "tif",
             Self::GeoJson => "geojson",
             Self::CityJson => "city.json",

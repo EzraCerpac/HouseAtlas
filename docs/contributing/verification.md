@@ -1017,9 +1017,10 @@ cargo test --offline --locked -p houseatlas-backend --lib http::geodata_original
 ```
 
 It initializes one disposable generated native host with password-disabled local
-Editor session, authenticates the real POST/CSRF, retains generated TIFF, GeoJSON,
-CityJSON, catalogue PNG and PDF originals, checks immutable SHA/size/revision/
-license/download-only policy, then downloads the exact originals with private
+Editor session, authenticates the real POST/CSRF, retains generated JSON metadata,
+TIFF, GeoJSON, CityJSON, catalogue PNG and PDF originals, checks immutable SHA/size/revision/
+license/download-only policy (including exact permitted CC-BY-4.0, CC0-1.0
+and PDM-1.0 references), then downloads the exact originals with private
 attachment headers before and after strict persistent reopen. The in-process
 router opens no listener/provider and uses no household input, real credentials,
 NAS, archive, source URL fetch, GIS renderer, geodata preview or document graph.

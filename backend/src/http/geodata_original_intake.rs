@@ -33,6 +33,7 @@ impl AssetMetadata {
     pub fn kind(&self) -> media::types::ContentType {
         // Only validated metadata reaches staging.
         match self.content_type.as_str() {
+            "application/json" => media::types::ContentType::Json,
             "image/png" => media::types::ContentType::Png,
             "application/pdf" => media::types::ContentType::Pdf,
             "image/tiff" => media::types::ContentType::GeoTiff,
@@ -94,7 +95,8 @@ fn validate_metadata(bytes: &[u8]) -> Result<AssetMetadata, IntakeError> {
             .any(|c| c == '/' || c == '\\' || c.is_control())
         || !matches!(
             metadata.content_type.as_str(),
-            "image/tiff"
+            "application/json"
+                | "image/tiff"
                 | "application/geo+json"
                 | "application/city+json"
                 | "image/png"

@@ -109,6 +109,11 @@ async fn healthy_native_geodata_original_intake_read_reopen()
         writer.write_image_data(&[20, 40, 60, 255])?;
     }
     let sources = [
+        (
+            "application/json",
+            "synthetic-provenance.json",
+            br#"{"agency":"Generated source","provenance":{"published":"2025-01-01"},"layers":["sample"]}"#.to_vec(),
+        ),
         ("image/png", "synthetic-catalogue.png", png_bytes),
         (
             "application/pdf",
@@ -129,10 +134,16 @@ async fn healthy_native_geodata_original_intake_read_reopen()
     ];
     let mut retained = Vec::new();
     for (n, (mime, filename, bytes)) in sources.into_iter().enumerate() {
+        let license = match n % 4 {
+            0 => json!({"status":"permitted","reference":"CC-BY-4.0"}),
+            1 => json!({"status":"permitted","reference":"CC0-1.0"}),
+            2 => json!({"status":"permitted","reference":"PDM-1.0"}),
+            _ => json!({"status":"unknown","reference":null}),
+        };
         let metadata = json!({"schemaVersion":1,"requestId":id(100+n as u32*2),
             "idempotencyKey":id(101+n as u32*2),"context":{"workspaceId":id(2),"homeId":id(3)},
             "reason":"Retain generated GIS original", "filename":filename,"contentType":mime,
-            "sourceLicense":{"status":"unknown","reference":null}});
+            "sourceLicense":license});
         let mut body = format!("--generated-boundary\r\nContent-Disposition: form-data; name=\"metadata\"\r\n\r\n{metadata}\r\n--generated-boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\nContent-Type: {mime}\r\n\r\n").into_bytes();
         body.extend_from_slice(&bytes);
         body.extend_from_slice(b"\r\n--generated-boundary--\r\n");
@@ -247,7 +258,7 @@ async fn healthy_native_geodata_original_intake_read_reopen()
     drop(host);
     drop(lease);
     let (core, _lease) = persistent::reopen(&config)?;
-    assert_eq!(retained.len(), 5);
+    assert_eq!(retained.len(), 6);
     let host = Host::new(
         core,
         config.origin.clone(),
@@ -268,7 +279,11 @@ async fn healthy_native_geodata_original_intake_read_reopen()
         assert_eq!(response.status(), StatusCode::OK);
         let output: Value =
             serde_json::from_slice(&to_bytes(response.into_body(), 128 * 1024).await?)?;
-        assert!(serde_json::to_string(&output)?.contains(payload["sha256"].as_str().unwrap()));
+        let reopened_payload = &output["data"]["records"][0]["payload"];
+        assert_eq!(reopened_payload["sha256"], payload["sha256"]);
+        assert_eq!(reopened_payload["sourceLicense"], payload["sourceLicense"]);
+        assert_eq!(reopened_payload["contentType"], mime);
+        assert_eq!(reopened_payload["previewPolicy"], "download-only");
         let path = format!("/api/atlas/media/{}/{}/{digest}/download", id(2), id(3));
         let mut req = request("GET", &path, vec![], "application/json");
         req.headers_mut().insert("cookie", cookie.parse()?);
