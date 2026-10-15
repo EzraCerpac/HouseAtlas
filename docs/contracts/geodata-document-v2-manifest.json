@@ -1,0 +1,126 @@
+{
+  "format": "houseatlas-geodata-contract-proposal-evidence/1",
+  "baseCommit": "3737cfa",
+  "status": "proposal-only-persistent-native-document-blocker",
+  "runtimeAdoption": false,
+  "liveDatabaseOpened": false,
+  "checks": {
+    "authorizedCommand": "npm run verify:publication",
+    "scope": "exact source allowlist, modes and digests only; result recorded in PR",
+    "runtimeTests": "not run; documentation and illustrative JSON only"
+  },
+  "deliverables": [
+    {
+      "path": "docs/contracts/geodata-document-v2-proposal.md",
+      "bytes": 17413,
+      "sha256": "2997120ef5f29662a1acb5c5435a8db2a30cb2436600124e82ddf8e0117c16b7"
+    },
+    {
+      "path": "docs/contracts/fixtures/geodata-document-v2.synthetic.json",
+      "bytes": 3258,
+      "sha256": "18576a8a640b0e4aa12b6416cfc6e6c846652063ceb4724ad93215c019f29888"
+    }
+  ],
+  "inspectedBoundaryPins": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 4157,
+      "sha256": "a65f8ff567c3b3d46bb55b8d058959d81e557bed291a07af82207fa461e395e3"
+    },
+    {
+      "path": "README.md",
+      "bytes": 8030,
+      "sha256": "8216a11ac308afa3f99d52592eacaf45bd548ca79653b581258fefd09820ed9f"
+    },
+    {
+      "path": "docs/contributing/verification.md",
+      "bytes": 60040,
+      "sha256": "3a444dbcdaa16eceaf2b4df5a717ed172a5363835291ddc1b218fe2aa3bc4989"
+    },
+    {
+      "path": "packages/contracts/README.md",
+      "bytes": 1807,
+      "sha256": "148f295a9f8be991e2317e8d8ce8cea5e2cb6808cdef50ca7ea164105efe82fa"
+    },
+    {
+      "path": "packages/contracts/schemas/atlas.schema.json",
+      "bytes": 97701,
+      "sha256": "c7c380b317e3cc640c8c437bf360e5f04d443f91ec03a54cc0f23a98b5a13b0c"
+    },
+    {
+      "path": "packages/contracts/history/http-history.v1.1.0.schema.json",
+      "bytes": 506,
+      "sha256": "bf9dd4d7894d668a271234f2db2879f302e26f32c62746d8c37784958952248a"
+    },
+    {
+      "path": "contracts/stock-wire3/README.md",
+      "bytes": 2762,
+      "sha256": "0c769bb54c36176b7a8b5c5260870629376deefd57326d466c40244d27b5b1b8"
+    },
+    {
+      "path": "contracts/stock-wire3/resource-map.json",
+      "bytes": 1707,
+      "sha256": "31a27009407b82ecfb521feec00f4faa526c07ce8654d8e016ceed9eb15fb5e4"
+    },
+    {
+      "path": "contracts/stock-wire3/agent/agent.schema.json",
+      "bytes": 955535,
+      "sha256": "44afff94ad51135282e0a34c1efd1ad77e240dd55bd8dff13cfb8120cdf4b5ca"
+    },
+    {
+      "path": "tools/rust-baseline/generate-contracts.mjs",
+      "bytes": 14827,
+      "sha256": "19fe7cc77f61a6644c411ec7771c0ea56b680faab77ca0886b22ce3da1cbdeb7"
+    },
+    {
+      "path": "backend/src/storage/types.rs",
+      "bytes": 11998,
+      "sha256": "4db2a23f547bd48e9841021926dd67ffa7f567ec572478f2faa8e7764e01c558"
+    },
+    {
+      "path": "backend/src/storage/migrations.rs",
+      "bytes": 8496,
+      "sha256": "001226fbc9a4d91c76acf998b85dcba63bbcc9bec1960e69f38af0ee60fc1c43"
+    },
+    {
+      "path": "backend/src/storage/recovery.rs",
+      "bytes": 28860,
+      "sha256": "9e7c2520eea99aa60f6b583b9fecd030dc17e7e1a80754e57c68e172ee21d797"
+    },
+    {
+      "path": "backend/src/storage/stock_recovery.rs",
+      "bytes": 20112,
+      "sha256": "3837ac5a0859e19667c946b67f74c7fcb8a7920af3252b4f04d32950770d266b"
+    },
+    {
+      "path": "backend/src/media/geodata_document.rs",
+      "bytes": 15692,
+      "sha256": "6d6bc43f110bb2a85121dea8b045f51d7b2f03c2bf2cb026a7a6c8e95e08723d"
+    },
+    {
+      "path": "backend/src/media/canonical_ifc_source.rs",
+      "bytes": 20356,
+      "sha256": "8ca0509db22290e78aee4678b0d91c4a207bd0cb046f1bced269b9bcad9a6820"
+    },
+    {
+      "path": "packages/storage/src/migrations.mjs",
+      "bytes": 9033,
+      "sha256": "73bcf7b708e8706dd15ad0cd0e650938b1688675ff2adebe0ee7273437ad3908"
+    },
+    {
+      "path": "packages/media/src/recovery.mjs",
+      "bytes": 10069,
+      "sha256": "cb68c14a157c00319f4d8445e4dbd33d7a3f97cc8a593cb9900eb15d60e1a7a0"
+    },
+    {
+      "path": "server/src/recovery.mjs",
+      "bytes": 6044,
+      "sha256": "a4c0c82f838532640da13d8a641b9c451fd6b61b4e2ceb9e17dafa85b8533b4e"
+    },
+    {
+      "path": "tools/publication/verify-source.mjs",
+      "bytes": 3600,
+      "sha256": "ee20a1773dc1635634c9fca4598f65f69ca6532294d393c37510fdc8c1898207"
+    }
+  ]
+}

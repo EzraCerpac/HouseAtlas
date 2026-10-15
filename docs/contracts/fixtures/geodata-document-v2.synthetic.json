@@ -1,0 +1,80 @@
+{
+  "status": "illustrative-only-no-native-admission",
+  "synthetic": true,
+  "generatedOriginalUtf8": "{\"type\":\"FeatureCollection\",\"features\":[]}\n",
+  "custodyReceipt": {
+    "profile": "houseatlas.geodata-custody-receipt.v1",
+    "scope": {
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002"
+    },
+    "asset": {
+      "assetId": "00000000-0000-4000-8000-000000000003",
+      "revision": 1,
+      "sha256": "6d18edfe75b3149104038dcbca4d0096bbcb923f0f9fa4b49f4815344e75bb90",
+      "bytes": 43
+    },
+    "retrievedAt": "2026-01-01T00:00:00Z",
+    "sourceUrl": "https://example.invalid/generated.geojson",
+    "admissionProfile": "houseatlas.geodata-original.geojson.v1",
+    "measuredContentType": "application/geo+json"
+  },
+  "custodyReceiptCanonicalUtf8": "{\"admissionProfile\":\"houseatlas.geodata-original.geojson.v1\",\"asset\":{\"assetId\":\"00000000-0000-4000-8000-000000000003\",\"bytes\":43,\"revision\":1,\"sha256\":\"6d18edfe75b3149104038dcbca4d0096bbcb923f0f9fa4b49f4815344e75bb90\"},\"measuredContentType\":\"application/geo+json\",\"profile\":\"houseatlas.geodata-custody-receipt.v1\",\"retrievedAt\":\"2026-01-01T00:00:00Z\",\"scope\":{\"homeId\":\"00000000-0000-4000-8000-000000000002\",\"workspaceId\":\"00000000-0000-4000-8000-000000000001\"},\"sourceUrl\":\"https://example.invalid/generated.geojson\"}",
+  "projection": {
+    "profile": "houseatlas.geodata-document-read.v2",
+    "scope": {
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002"
+    },
+    "document": {
+      "schemaVersion": 2,
+      "recordType": "geodata-document",
+      "recordId": "00000000-0000-4000-8000-000000000004",
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002",
+      "revision": 1,
+      "lifecycle": "active",
+      "createdAt": "2026-01-01T00:00:01Z",
+      "updatedAt": "2026-01-01T00:00:01Z",
+      "lastAuditId": "00000000-0000-4000-8000-000000000005",
+      "payload": {
+        "profile": "houseatlas.geodata-document.v2",
+        "title": "Synthetic empty feature collection",
+        "original": {
+          "assetId": "00000000-0000-4000-8000-000000000003",
+          "revision": 1,
+          "sha256": "6d18edfe75b3149104038dcbca4d0096bbcb923f0f9fa4b49f4815344e75bb90",
+          "bytes": 43
+        },
+        "provenance": {
+          "agency": "Synthetic fixture generator",
+          "url": "https://example.invalid/generated.geojson",
+          "license": {
+            "status": "unknown",
+            "reference": null
+          },
+          "retrievedAt": "2026-01-01T00:00:00Z",
+          "published": null,
+          "observed": null,
+          "frame": {
+            "crs": null,
+            "axes": [],
+            "linearUnit": null,
+            "extent": null
+          },
+          "custodyReceiptSha256": "3ebf31f92cc0223b016e93c572fb993036ddec0b9bdb5f3fee59950c6dfc9cb3"
+        },
+        "preview": null
+      }
+    },
+    "availability": {
+      "original": "available",
+      "preview": "not-qualified"
+    }
+  },
+  "claims": {
+    "persisted": false,
+    "receiptTrusted": false,
+    "previewQualified": false
+  }
+}
