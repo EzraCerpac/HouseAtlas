@@ -12,6 +12,7 @@ mod homebox_pinned_discovery;
 mod homebox_pinned_files;
 pub use homebox_pinned_files::PinnedHomeBoxFileBinding;
 mod capture_claim;
+mod geodata_documents;
 mod geodata_original;
 mod intake;
 mod media;
@@ -105,6 +106,7 @@ pub struct Host {
     quantity_previews: Arc<Mutex<quantity::Registry>>,
     #[cfg(test)]
     quantity_tls_fixture: Option<Arc<quantity_fixture::PrivateLoopbackQuantityTls>>,
+    geodata_dataset: Option<Arc<Mutex<crate::storage::geodata::GeodataStore>>>,
     loopback_local: bool,
     gateway: Option<Arc<crate::app::trusted_gateway::GatewaySocket>>,
 }
@@ -125,6 +127,7 @@ impl Host {
             quantity_previews: Arc::new(Mutex::new(quantity::Registry::default())),
             #[cfg(test)]
             quantity_tls_fixture: None,
+            geodata_dataset: None,
             loopback_local: false,
             gateway: None,
             operation_events: Arc::new(Mutex::new(operation_events::EventRegistry::default())),
@@ -151,6 +154,26 @@ impl Host {
         })
     }
     /// Explicit startup choice validated against the actual native local user.
+    /// Explicit exclusive dataset selection. The router serves v2 Documents and
+    /// native auth only; it never attaches Documents to the legacy core store.
+    pub fn with_geodata_dataset(
+        mut self,
+        store: crate::storage::geodata::GeodataStore,
+    ) -> crate::storage::Result<Self> {
+        let core = self.core.lock().map_err(|_| {
+            crate::storage::Error::new("storage-unavailable", "Native core unavailable")
+        })?;
+        if !Arc::ptr_eq(store.access(), &core.access) || !Arc::ptr_eq(store.vault(), &core.vault) {
+            return Err(crate::storage::Error::new(
+                "identity-conflict",
+                "Original native authority and vault required",
+            ));
+        }
+        drop(core);
+        self.geodata_dataset = Some(Arc::new(Mutex::new(store)));
+        Ok(self)
+    }
+
     pub fn with_loopback_local(mut self) -> crate::storage::Result<Self> {
         if self.origin != "https://127.0.0.1:48743" {
             return Err(crate::storage::Error::new(
@@ -942,6 +965,9 @@ pub fn router(host: Host) -> Router {
 }
 /// The caller supplies an AI router bound to actual session and enrollment peers.
 pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
+    if host.geodata_dataset.is_some() {
+        return geodata_documents::router(host);
+    }
     let base = Router::new()
         .route("/api/atlas/homebox/quantity/availability", get(quantity::availability).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/homebox/quantity/preview", post(quantity::preview).fallback(auth::session_head))

@@ -125,6 +125,16 @@ pub struct Principal {
 }
 
 impl Principal {
+    /// Process-private continuation binding; never serialized as a credential.
+    pub(crate) fn same_authenticated_session(&self, other: &Self) -> bool {
+        self.instance == other.instance
+            && self.token_hash == other.token_hash
+            && self.origin == other.origin
+            && self.user_id == other.user_id
+            && self.actor_id == other.actor_id
+            && self.scope == other.scope
+            && self.membership_version == other.membership_version
+    }
     pub fn actor_id(&self) -> &CanonicalId {
         &self.actor_id
     }

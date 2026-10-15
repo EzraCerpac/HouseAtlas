@@ -30,6 +30,17 @@ pub struct RecoveryImage {
     pub assets: Vec<Record>,
 }
 
+/// Reuses the complete v1 native recovery validator inside the explicitly
+/// selected, independently catalog-checked geodata profile. This never opens
+/// or converts a predecessor database and cannot bypass profile validation.
+pub(crate) fn validate_geodata_v1_core<C: Contract>(
+    db: &Connection,
+    contract: &C,
+    check: &mut dyn FnMut() -> Result<()>,
+) -> Result<RecoveryImage> {
+    checks::validate_geodata_v1_core(db, contract, check)
+}
+
 fn unavailable() -> Error {
     Error::new(
         "storage-unavailable",
